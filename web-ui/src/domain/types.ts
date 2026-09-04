@@ -1,0 +1,26 @@
+
+/**
+ * Backward-compatible public type barrel.
+ *
+ * A projekt régebbi részei továbbra is innen importálnak:
+ *   "@domain/types"
+ *
+ * A konkrét típusok már tematikus fájlokban élnek:
+ * - domainTypes.ts
+ * - scriptTypes.ts
+ * - wsTypes.ts
+ */
+
+export * from "./domainTypes.js";
+export * from "./scriptTypes.js";
+export * from "./wsTypes.js";
+export * from "./commandCenterTelemetry.js";
+export * from "./routeReservation.js";
+export * from "./railwayRuntimeEvents.js";
+export * from "./clientWsCommands.js";
+export * from "./appSettings.js";
+export * from "./serverRuntimeStats.js";
+export * from "./signalLogic.js";
+export * from "./runtimeVariables.js";
+export * from "./blockAutomation.js";
+export * from "./levelCrossingLogic.js";

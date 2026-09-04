@@ -1,0 +1,139 @@
+import { ELEMENT_TYPES } from "@domain/layout/elementTypes";
+import { BaseElementView } from "../../models/editor/core/BaseElementView";
+import { AudioButtonElementView } from "../../models/editor/elements/AudioButtonElementView";
+import { AudioListButtonElementView } from "../../models/editor/elements/AudioListButtonElementView";
+import { BlockElementView } from "../../models/editor/elements/BlockElementView";
+import { ButtonElementView } from "../../models/editor/elements/ButtonElementView";
+import { ButtonScriptElementView } from "../../models/editor/elements/ButtonScriptElementView";
+import { ClockElementView } from "../../models/editor/elements/ClockElementView";
+import { ExtendedRouteButtonElementView } from "../../models/editor/elements/ExtendedRouteButtonElementView";
+import { LabelElementView } from "../../models/editor/elements/LabelElementView";
+import { RouteButtonElementView } from "../../models/editor/elements/RouteButtonElementView";
+import { TrackCornerElementView } from "../../models/editor/elements/TrackCornerElementView";
+import { TrackCrossingElementView } from "../../models/editor/elements/TrackCrossingElementView";
+import { TrackCurveElementView } from "../../models/editor/elements/TrackCurveElementView";
+import { TrackDirectionElementView } from "../../models/editor/elements/TrackDirectionElementView";
+import { TrackEndElementView } from "../../models/editor/elements/TrackEndElementView";
+import { TrackLevelCrossingElementView } from "../../models/editor/elements/TrackLevelCrossingElementView";
+import { TrackSensorElementView } from "../../models/editor/elements/TrackSensorElementView";
+import { TrackSignalElementView } from "../../models/editor/elements/TrackSignalElementView";
+import { TrackStraightElementView } from "../../models/editor/elements/TrackStraightElementView";
+import TrackTurnoutDoubleElementView from "../../models/editor/elements/TrackTurnoutDoubleElementView";
+import { TrackTurnoutLeftElementView } from "../../models/editor/elements/TrackTurnoutLeftElementView";
+import { TrackTurnoutRightElementView } from "../../models/editor/elements/TrackTurnoutRightElementView";
+import { TrackTurnoutTwoWayElementView } from "../../models/editor/elements/TrackTurnoutTwoWayElementView";
+import { TreeElementView } from "../../models/editor/elements/TreeElementView";
+import type { EditorTool } from "../../models/editor/types/EditorTypes";
+
+const cursorTrackElement = new TrackStraightElementView(0, 0);
+const cursorTrackLevelCrossingElement = new TrackLevelCrossingElementView(0, 0);
+const cursorTrackDirectionElement = new TrackDirectionElementView(0, 0);
+const cursorTrackEndElement = new TrackEndElementView(0, 0);
+const cursorTrackCornerElement = new TrackCornerElementView(0, 0);
+const cursorTrackCurveElement = new TrackCurveElementView(0, 0);
+const cursorTrackTurnoutLeftElement = new TrackTurnoutLeftElementView(0, 0);
+const cursorTrackTurnoutRightElement = new TrackTurnoutRightElementView(0, 0);
+const cursorTrackTurnoutTwoWayElement = new TrackTurnoutTwoWayElementView(0, 0);
+const cursorTrackTurnoutDoubleElement = new TrackTurnoutDoubleElementView(0, 0);
+const cursorTrackSensorElement = new TrackSensorElementView(0, 0);
+
+/**
+ * One generic Signal cursor.
+ */
+const cursorTrackSignalElement = new TrackSignalElementView(0, 0);
+
+const cursorTrackCrossingElement = new TrackCrossingElementView(0, 0);
+const cursorButtonElement = new ButtonElementView(0, 0);
+const cursorButtonScriptElement = new ButtonScriptElementView(0, 0);
+const cursorRouteButtonElement = new RouteButtonElementView(0, 0);
+const cursorExtendedRouteButtonElement = new ExtendedRouteButtonElementView(0, 0);
+const cursorAudioButtonElement = new AudioButtonElementView(0, 0);
+const cursorAudioListButtonElement = new AudioListButtonElementView(0, 0);
+const cursorClockElement = new ClockElementView(0, 0);
+const cursorTreeElement = new TreeElementView(0, 0);
+const cursorBlockElement = new BlockElementView(0, 0);
+const cursorLabelElement = new LabelElementView(0, 0);
+
+export function createCursorElement(
+  tool: EditorTool
+): BaseElementView | null {
+  switch (tool.elementType) {
+    case ELEMENT_TYPES.TRACK_STRAIGHT:
+      return cursorTrackElement;
+
+    case ELEMENT_TYPES.TRACK_LEVEL_CROSSING:
+      return cursorTrackLevelCrossingElement;
+
+    case ELEMENT_TYPES.TRACK_DIRECTION:
+      return cursorTrackDirectionElement;
+
+    case ELEMENT_TYPES.TRACK_END:
+      return cursorTrackEndElement;
+
+    case ELEMENT_TYPES.TRACK_CORNER:
+      return cursorTrackCornerElement;
+
+    case ELEMENT_TYPES.TRACK_CURVE:
+      return cursorTrackCurveElement;
+
+    case ELEMENT_TYPES.TRACK_CROSSING:
+      return cursorTrackCrossingElement;
+
+    case ELEMENT_TYPES.TRACK_TURNOUT_LEFT:
+      return cursorTrackTurnoutLeftElement;
+
+    case ELEMENT_TYPES.TRACK_TURNOUT_RIGHT:
+      return cursorTrackTurnoutRightElement;
+
+    case ELEMENT_TYPES.TRACK_TURNOUT_TWO_WAY:
+      return cursorTrackTurnoutTwoWayElement;
+
+    case ELEMENT_TYPES.TRACK_TURNOUT_DOUBLE:
+      return cursorTrackTurnoutDoubleElement;
+
+    case ELEMENT_TYPES.TRACK_SENSOR:
+      return cursorTrackSensorElement;
+
+    case ELEMENT_TYPES.BUTTON:
+      return cursorButtonElement;
+
+    case ELEMENT_TYPES.BUTTON_SCRIPT:
+      return cursorButtonScriptElement;
+
+    case ELEMENT_TYPES.BUTTON_AUDIO:
+      return cursorAudioButtonElement;
+
+    case ELEMENT_TYPES.BUTTON_AUDIO_LIST:
+      return cursorAudioListButtonElement;
+
+    case ELEMENT_TYPES.BUTTON_ROUTE:
+      return cursorRouteButtonElement;
+
+    case ELEMENT_TYPES.BUTTON_ROUTE_EXTENDED:
+      return cursorExtendedRouteButtonElement;
+
+    case ELEMENT_TYPES.CLOCK:
+      return cursorClockElement;
+
+    case ELEMENT_TYPES.TREE:
+      return cursorTreeElement;
+
+    case ELEMENT_TYPES.TRACK_BLOCK:
+      return cursorBlockElement;
+
+    /**
+     * New layouts use TRACK_SIGNAL2 as the one generic Signal.
+     * Legacy aliases still resolve to the same cursor.
+     */
+    case ELEMENT_TYPES.TRACK_SIGNAL2:
+    case ELEMENT_TYPES.TRACK_SIGNAL3:
+    case ELEMENT_TYPES.TRACK_SIGNAL4:
+      return cursorTrackSignalElement;
+
+    case ELEMENT_TYPES.LABEL:
+      return cursorLabelElement;
+
+    default:
+      return null;
+  }
+}
