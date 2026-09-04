@@ -1,10 +1,24 @@
 $ErrorActionPreference = 'Stop'
+
 $projectRoot = $PSScriptRoot
 $webUi = Join-Path $projectRoot 'web-ui'
 
+Write-Host '' 
 Write-Host 'DCCExpressHub local development' -ForegroundColor Cyan
-Write-Host '1) Open terminal #1 and run: cd web-ui; npm run mock'
-Write-Host '2) Open terminal #2 and run: cd web-ui; npm run dev'
-Write-Host '3) Open: http://localhost:5173'
 Write-Host ''
-Write-Host 'Vite now proxies /api to http://127.0.0.1:3001 by default.' -ForegroundColor Green
+Write-Host 'Terminal #1:' -ForegroundColor Yellow
+Write-Host '  cd web-ui'
+Write-Host '  npm run mock'
+Write-Host ''
+Write-Host 'Terminal #2:' -ForegroundColor Yellow
+Write-Host '  cd web-ui'
+Write-Host '  npm run dev'
+Write-Host ''
+Write-Host 'Open EXACTLY:' -ForegroundColor Green
+Write-Host '  http://localhost:5174'
+Write-Host ''
+Write-Host 'Local DEV WebSocket:' -ForegroundColor Green
+Write-Host '  ws://127.0.0.1:3001/ws'
+Write-Host ''
+Write-Host 'The UI bypasses the Vite WS proxy in DEV mode.'
+Write-Host ''

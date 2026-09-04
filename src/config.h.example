@@ -1,0 +1,19 @@
+#pragma once
+
+// Copy this file to:
+//   src/config.h
+//
+// Do NOT commit src/config.h.
+// The repository .gitignore excludes it.
+
+// Wi-Fi
+#define WIFI_SSID "YOUR_WIFI_SSID"
+#define WIFI_PASSWORD "YOUR_WIFI_PASSWORD"
+
+// Hub hostname on the local network.
+#define DEVICE_HOSTNAME "dccex-hub"
+
+// Default DCC-EX / EX-CSB1 TCP endpoint.
+// The Hub stores runtime changes in Preferences after configuration.
+#define DEFAULT_CSB1_HOST "192.168.1.200"
+#define DEFAULT_CSB1_PORT 2560

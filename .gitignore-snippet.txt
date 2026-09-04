@@ -1,3 +1,0 @@
-# DCCExpressHub local LittleFS simulator.
-# Keep the directory itself local; it contains test/runtime data.
-web-ui/mock-fs/

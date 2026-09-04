@@ -9,6 +9,10 @@ import {
   parseMultipartSingleFile
 } from "./mock-littlefs.mjs";
 
+import {
+  LayoutRuntime
+} from "./mock-layout-runtime.mjs";
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.MOCK_HTTP_PORT || 3001);
 const MOCK_FS_ROOT =
@@ -19,6 +23,8 @@ const littlefs = new MockLittleFS(
   MOCK_FS_ROOT,
   Number(process.env.MOCK_LITTLEFS_BYTES || 4 * 1024 * 1024)
 );
+
+const layoutRuntime = new LayoutRuntime(littlefs);
 
 const startedAt = Date.now();
 
@@ -33,6 +39,20 @@ const state = {
   vpins: new Map(),
   signals: new Map(),
   blocks: {},
+  routeReservations: [],
+  locoReservations: new Map(),
+  runtimeVariables: {},
+  taskState: {
+    running: [],
+    paused: [],
+    finished: [],
+    aborted: []
+  },
+  scriptState: {
+    running: false,
+    source: null,
+    elementId: null
+  },
   cv: new Map([[1, 3], [29, 6]])
 };
 
@@ -41,7 +61,11 @@ function savedLocos() {
 }
 
 function savedLayout() {
-  return littlefs.readJson("/config/layout.json", null);
+  return littlefs.readJson("/config/layout.json", {});
+}
+
+function rebuildLayoutRuntime() {
+  layoutRuntime.rebuildFromLayout(savedLayout());
 }
 
 function json(res, code, body) {
@@ -96,6 +120,18 @@ function powerInfo() {
   };
 }
 
+function commandCenterInfo() {
+  return {
+    alive: true,
+    power: state.power,
+    type: "simulator",
+    name: "DCCExpressHub Local Simulator",
+    ip: "127.0.0.1",
+    port: PORT,
+    connectionString: `ws://127.0.0.1:${PORT}/ws`
+  };
+}
+
 function dccStatus() {
   return {
     version: "5.6.1",
@@ -104,7 +140,7 @@ function dccStatus() {
     voltageMeasured: true,
     trackVoltageV: state.power ? 14.8 : 0,
     mainCurrentMa: state.power ? 120 : 0,
-    progCurrentMa: 0,
+    progCurrentMa: state.programmingPower ? 40 : 0,
     uptimeMs: Date.now() - startedAt,
     freeHeapBytes: 220000,
     cpuCores: 2,
@@ -124,13 +160,36 @@ function dccStatus() {
 
 function send(ws, type, data = {}, uuid = null) {
   if (ws.readyState !== WebSocket.OPEN) return;
-  ws.send(JSON.stringify({ type, data, ...(uuid ? { uuid } : {}) }));
+
+  const message = {
+    type,
+    data,
+    ...(uuid ? { uuid } : {})
+  };
+
+  ws.send(JSON.stringify(message));
+
+  if (type !== "heartbeatAck" && type !== "dccExStatus") {
+    console.log("WS TX:", JSON.stringify(message));
+  }
 }
 
 function broadcast(type, data = {}) {
   for (const client of wss.clients) {
     send(client, type, data);
   }
+}
+
+function sendRuntimeSnapshot(ws) {
+  send(ws, "commandCenterInfo", commandCenterInfo());
+  send(ws, "commandCenterLockChanged", {
+    locked: false,
+    lockOwner: null,
+    reason: null
+  });
+  send(ws, "powerInfo", powerInfo());
+  send(ws, "dccExStatus", dccStatus());
+  send(ws, "sensorSnapshot", { groups: [] });
 }
 
 function locoState(address) {
@@ -149,6 +208,15 @@ function locoState(address) {
   return loco;
 }
 
+function okMeta(data, extra = {}) {
+  return {
+    requestId: data?.requestId ?? "",
+    action: data?.action ?? "",
+    ok: true,
+    ...extra
+  };
+}
+
 function rawDccEx(command) {
   const c = String(command || "").trim();
 
@@ -162,6 +230,7 @@ function rawDccEx(command) {
 
   if (c === "<0>") {
     state.power = false;
+    layoutRuntime.saveState();
     broadcast("powerInfo", powerInfo());
     broadcast("dccExStatus", dccStatus());
     return "<p0>";
@@ -174,25 +243,23 @@ function rawDccEx(command) {
   return `<r ${c}>`;
 }
 
-function okMeta(data, extra = {}) {
-  return {
-    requestId: data?.requestId ?? "",
-    action: data?.action ?? "",
-    ok: true,
-    ...extra
-  };
-}
-
 function handleWsMessage(ws, message) {
   const { type, data = {}, uuid } = message ?? {};
 
   switch (type) {
     case "heartbeat":
-      return send(ws, "heartbeatAck", {}, uuid);
+      send(ws, "heartbeatAck", {}, uuid);
+      sendRuntimeSnapshot(ws);
+      return;
 
     case "setTrackPower":
       state.power = !!data.on;
       state.emergencyStop = false;
+
+      if (!state.power) {
+        layoutRuntime.saveState();
+      }
+
       broadcast("powerInfo", powerInfo());
       broadcast("dccExStatus", dccStatus());
       return;
@@ -227,11 +294,10 @@ function handleWsMessage(ws, message) {
     }
 
     case "getLoco":
-      return send(
-        ws,
-        "locoState",
-        { loco: locoState(Number(data.locoAddress)) }
-      );
+      send(ws, "locoState", {
+        loco: locoState(Number(data.locoAddress))
+      });
+      return;
 
     case "setLocoFunction": {
       const loco = locoState(Number(data.locoAddress));
@@ -240,40 +306,92 @@ function handleWsMessage(ws, message) {
       return;
     }
 
-    case "setTurnout":
-      state.turnouts.set(Number(data.address), !!data.closed);
-      return broadcast("turnoutChanged", {
-        address: Number(data.address),
-        closed: !!data.closed
+    case "setTurnout": {
+      const address = Number(data.address);
+      const closed = !!data.closed;
+
+      state.turnouts.set(address, closed);
+      layoutRuntime.setTurnout(address, closed);
+
+      broadcast("turnoutChanged", {
+        address,
+        closed
       });
+
+      send(ws, "rawInfo", {
+        raw: `<A ${address} ${closed ? 0 : 1}>`
+      });
+
+      return;
+    }
 
     case "setSensor":
       state.sensors.set(Number(data.address), !!data.on);
-      return broadcast("sensorChanged", {
+      broadcast("sensorChanged", {
         address: Number(data.address),
         on: !!data.on
       });
+      return;
 
-    case "setBasicAccessory":
-      state.accessories.set(Number(data.address), !!data.active);
-      return broadcast("accessoryChanged", {
-        address: Number(data.address),
-        active: !!data.active
+    case "setBasicAccessory": {
+      const address = Number(data.address);
+      const active = !!data.active;
+
+      state.accessories.set(address, active);
+      layoutRuntime.setAccessory(address, active);
+
+      broadcast("accessoryChanged", {
+        address,
+        active
       });
+
+      send(ws, "rawInfo", {
+        raw: `<A ${address} ${active ? 1 : 0}>`
+      });
+
+      return;
+    }
 
     case "setVpin":
       state.vpins.set(Number(data.vpin), !!data.active);
-      return broadcast("vpinChanged", {
+      broadcast("vpinChanged", {
         vpin: Number(data.vpin),
         active: !!data.active
       });
+      return;
 
-    case "setSignalAspect":
-      state.signals.set(Number(data.address), Number(data.aspect));
-      return broadcast("signalAspectChanged", {
-        address: Number(data.address),
-        aspect: Number(data.aspect)
+    case "setSignalAspect": {
+      const address = Number(data.address);
+      const aspect = Number(data.aspect);
+
+      state.signals.set(address, {
+        aspect,
+        ...(data.turnoutPhysicalValue === undefined
+          ? {}
+          : { turnoutPhysicalValue: !!data.turnoutPhysicalValue })
       });
+
+      layoutRuntime.setSignal(address, aspect);
+
+      broadcast("signalAspectChanged", {
+        address,
+        aspect,
+        ...(data.turnoutPhysicalValue === undefined
+          ? {}
+          : { turnoutPhysicalValue: !!data.turnoutPhysicalValue })
+      });
+
+      send(ws, "rawInfo", {
+        raw: `<A ${address} ${aspect}>`
+      });
+
+      return;
+    }
+
+    case "getBlocks":
+    case "getLayoutRuntimeSnapshot":
+      send(ws, "blockStateChanged", state.blocks);
+      return;
 
     case "setBlock":
       state.blocks[data.blockId] = {
@@ -283,25 +401,190 @@ function handleWsMessage(ws, message) {
           ? {}
           : { locoAddress: Number(data.locoAddress) })
       };
-      return broadcast("blockStateChanged", state.blocks);
+      broadcast("blockStateChanged", state.blocks);
+      return;
 
     case "setBlockRemove":
       delete state.blocks[data.blockId];
-      return broadcast("blockStateChanged", state.blocks);
+      broadcast("blockStateChanged", state.blocks);
+      return;
 
     case "setBlocksReset":
       state.blocks = {};
-      return broadcast("blockStateChanged", state.blocks);
+      broadcast("blockStateChanged", state.blocks);
+      return;
 
-    case "getBlocks":
-    case "getLayoutRuntimeSnapshot":
-      return send(ws, "blockStateChanged", state.blocks);
+    case "reserveLoco": {
+      const reservation = {
+        locoAddress: Number(data.locoAddress),
+        ownerId: String(data.ownerId),
+        ownerType: data.ownerType,
+        ...(data.ownerName ? { ownerName: data.ownerName } : {}),
+        ...(data.reason ? { reason: data.reason } : {})
+      };
+      state.locoReservations.set(reservation.locoAddress, reservation);
+      broadcast("locoReservationChanged", reservation);
+      return;
+    }
+
+    case "releaseLocoReservation": {
+      const locoAddress = Number(data.locoAddress);
+      const reservation = state.locoReservations.get(locoAddress);
+      if (
+        reservation &&
+        reservation.ownerId === String(data.ownerId)
+      ) {
+        state.locoReservations.delete(locoAddress);
+      }
+      broadcast("locoReservationChanged", {
+        locoAddress,
+        reservation: null
+      });
+      return;
+    }
+
+    case "reserveRoute": {
+      const reservation = {
+        fromBlockName: String(data.fromBlockName),
+        toBlockName: String(data.toBlockName),
+        reservedAt: new Date().toISOString()
+      };
+
+      const exists = state.routeReservations.some(item =>
+        item.fromBlockName === reservation.fromBlockName &&
+        item.toBlockName === reservation.toBlockName
+      );
+
+      if (!exists) {
+        state.routeReservations.push(reservation);
+      }
+
+      broadcast("routeReservationChanged", {
+        reservations: state.routeReservations
+      });
+      return;
+    }
+
+    case "releaseRouteReservation":
+      state.routeReservations = state.routeReservations.filter(item =>
+        !(
+          item.fromBlockName === String(data.fromBlockName) &&
+          item.toBlockName === String(data.toBlockName)
+        )
+      );
+      broadcast("routeReservationReleased", {
+        fromBlockName: String(data.fromBlockName),
+        toBlockName: String(data.toBlockName),
+        reservations: state.routeReservations
+      });
+      return;
+
+    case "clearAllRouteReservations":
+      state.routeReservations = [];
+      broadcast("allRouteReservationsCleared", {
+        reservations: []
+      });
+      return;
+
+    case "getRouteReservations":
+      send(ws, "routeReservationChanged", {
+        reservations: state.routeReservations
+      });
+      return;
+
+    case "setRuntimeVariable":
+      state.runtimeVariables[String(data.key)] = data.value;
+      broadcast("runtimeVariablesChanged", {
+        variables: state.runtimeVariables
+      });
+      return;
+
+    case "getRuntimeVariables":
+      send(ws, "runtimeVariablesChanged", {
+        variables: state.runtimeVariables
+      });
+      return;
+
+    case "runScript":
+      state.scriptState = {
+        running: true,
+        source: data.source ?? null,
+        elementId: data.elementId ?? null
+      };
+      broadcast("scriptRuntimeState", state.scriptState);
+      return;
+
+    case "stopScript":
+      state.scriptState = {
+        ...state.scriptState,
+        running: false
+      };
+      broadcast("scriptRuntimeState", state.scriptState);
+      return;
+
+    case "getScriptRuntimeState":
+      send(ws, "scriptRuntimeState", state.scriptState);
+      return;
+
+    case "startTask":
+      state.taskState.running.push(String(data.taskIdOrName));
+      broadcast("taskRuntimeState", state.taskState);
+      return;
+
+    case "startAllTasks":
+      broadcast("taskRuntimeState", state.taskState);
+      return;
+
+    case "pauseTask":
+      state.taskState.paused.push(String(data.taskIdOrName));
+      broadcast("taskRuntimeState", state.taskState);
+      return;
+
+    case "pauseAllTasks":
+      broadcast("taskRuntimeState", state.taskState);
+      return;
+
+    case "resumeTask":
+      state.taskState.paused = state.taskState.paused.filter(
+        value => value !== String(data.taskIdOrName)
+      );
+      broadcast("taskRuntimeState", state.taskState);
+      return;
+
+    case "finishTask":
+      state.taskState.finished.push(String(data.taskIdOrName));
+      broadcast("taskRuntimeState", state.taskState);
+      return;
+
+    case "abortTask":
+      state.taskState.aborted.push(String(data.taskIdOrName));
+      broadcast("taskRuntimeState", state.taskState);
+      return;
+
+    case "finishAllTasks":
+      broadcast("taskRuntimeState", state.taskState);
+      return;
+
+    case "abortAllTasks":
+      broadcast("taskRuntimeState", state.taskState);
+      return;
+
+    case "getTaskRuntimeState":
+      send(ws, "taskRuntimeState", state.taskState);
+      return;
+
+    case "setEditorEditMode":
+      send(ws, "ack", {
+        ok: true,
+        editMode: !!data.editMode
+      });
+      return;
 
     case "locosCommand":
       if (data.action === "save" && Array.isArray(data.locos)) {
         littlefs.writeJson("/config/locos.json", data.locos);
       }
-      return send(
+      send(
         ws,
         "locosResponse",
         okMeta(data, {
@@ -310,59 +593,57 @@ function handleWsMessage(ws, message) {
         }),
         uuid
       );
+      return;
 
-    case "layoutCommand": {
-      console.log("LAYOUT COMMAND:", data.action, data.requestId);
-
+    case "layoutCommand":
       if (data.action === "save" && data.layout !== undefined) {
-        console.log("Saving layout to LittleFS...");
         littlefs.writeJson("/config/layout.json", data.layout);
-        console.log("Layout saved:", littlefs.stat("/config/layout.json"));
+        rebuildLayoutRuntime();
       }
+      send(
+        ws,
+        "layoutResponse",
+        okMeta(data, {
+          layout: savedLayout()
+        }),
+        uuid
+      );
+      return;
 
-      const layout = savedLayout();
-      const response = {
-        requestId: data.requestId ?? "",
-        action: data.action ?? "",
-        ok: true,
-        ...(layout ? { layout } : {})
-      };
-
-      console.log("Sending layoutResponse:", {
-        requestId: response.requestId,
-        action: response.action,
-        ok: response.ok,
-        hasLayout: !!response.layout
-      });
-
-      return send(ws, "layoutResponse", response, uuid);
-    }
+    case "fastClockCommand":
+      send(
+        ws,
+        "fastClockResponse",
+        okMeta(data, {
+          state: {
+            running: false,
+            time: "12:00",
+            multiplier: 1
+          }
+        }),
+        uuid
+      );
+      return;
 
     case "programmingCommand": {
       let value;
 
       if (data.action === "readCv") {
         value = state.cv.get(Number(data.cv)) ?? 0;
-      }
-
-      if (
+      } else if (
         data.action === "writeCv" ||
         data.action === "pomWriteCv"
       ) {
         state.cv.set(Number(data.cv), Number(data.value));
         value = Number(data.value);
-      }
-
-      if (data.action === "readAddress") {
+      } else if (data.action === "readAddress") {
         value = state.cv.get(1) ?? 3;
-      }
-
-      if (data.action === "writeAddress") {
+      } else if (data.action === "writeAddress") {
         state.cv.set(1, Number(data.address));
         value = Number(data.address);
       }
 
-      return send(
+      send(
         ws,
         "programmingResponse",
         okMeta(data, {
@@ -371,17 +652,14 @@ function handleWsMessage(ws, message) {
         }),
         uuid
       );
+      return;
     }
 
-    case "commandCenterConfigCommand": {
+    case "commandCenterConfigCommand":
       if (data.action === "save" && data.config) {
-        littlefs.writeJson(
-          "/config/command-center.json",
-          data.config
-        );
+        littlefs.writeJson("/config/command-center.json", data.config);
       }
-
-      return send(
+      send(
         ws,
         "commandCenterConfigResponse",
         okMeta(data, {
@@ -392,17 +670,13 @@ function handleWsMessage(ws, message) {
         }),
         uuid
       );
-    }
+      return;
 
-    case "appSettingsCommand": {
+    case "appSettingsCommand":
       if (data.action === "save" && data.settings) {
-        littlefs.writeJson(
-          "/config/app-settings.json",
-          data.settings
-        );
+        littlefs.writeJson("/config/app-settings.json", data.settings);
       }
-
-      return send(
+      send(
         ws,
         "appSettingsResponse",
         okMeta(data, {
@@ -413,91 +687,44 @@ function handleWsMessage(ws, message) {
         }),
         uuid
       );
-    }
+      return;
 
     case "signalLogicCommand":
-      return send(
+      send(
         ws,
         "signalLogicResponse",
         okMeta(data, {
-          document: { version: 1, rules: [] },
+          document: { version: 1, groups: [], rules: [] },
           issues: []
         }),
         uuid
       );
-
-    case "fileCommand": {
-      try {
-        let extra = { fileName: data.fileName };
-
-        if (data.action === "readText") {
-          extra.content = littlefs.readText(data.fileName);
-        } else if (data.action === "writeText") {
-          littlefs.writeText(
-            data.fileName,
-            data.content ?? ""
-          );
-        } else if (data.action === "readJson") {
-          extra.data = littlefs.readJson(data.fileName, null);
-        } else if (data.action === "writeJson") {
-          littlefs.writeJson(data.fileName, data.data);
-        }
-
-        return send(
-          ws,
-          "fileResponse",
-          okMeta(data, extra),
-          uuid
-        );
-      } catch (error) {
-        return send(
-          ws,
-          "fileResponse",
-          {
-            requestId: data.requestId ?? "",
-            action: data.action ?? "",
-            ok: false,
-            message: error.message,
-            fileName: data.fileName
-          },
-          uuid
-        );
-      }
-    }
-
-    case "automationCommand":
-      return send(
-        ws,
-        "automationResponse",
-        okMeta(data, {
-          state: {
-            running: data.action === "start",
-            tickMs: 100,
-            modules: []
-          }
-        }),
-        uuid
-      );
+      return;
 
     case "routeLock":
-      return broadcast("commandCenterLockChanged", {
+      broadcast("commandCenterLockChanged", {
         locked: true,
         lockOwner: "mock",
         reason: "route"
       });
+      return;
 
     case "routeUnlock":
-      return broadcast("commandCenterLockChanged", {
+      broadcast("commandCenterLockChanged", {
         locked: false,
         lockOwner: null,
         reason: null
       });
+      return;
 
     default:
-      return send(
+      send(
         ws,
         "ack",
-        `Mock accepted: ${String(type)}`,
+        {
+          ok: true,
+          message: `Mock accepted: ${String(type)}`
+        },
         uuid
       );
   }
@@ -508,6 +735,8 @@ async function handleHttp(req, res) {
     req.url,
     `http://${req.headers.host || "127.0.0.1"}`
   );
+
+  console.log("HTTP RX:", req.method, url.pathname + url.search);
 
   try {
     if (req.method === "OPTIONS") {
@@ -526,6 +755,81 @@ async function handleHttp(req, res) {
       });
     }
 
+    if (url.pathname === "/api/layout") {
+      if (req.method === "GET") {
+        console.log("HTTP GET /api/layout");
+        return json(res, 200, savedLayout());
+      }
+
+      if (req.method === "POST") {
+        const body = await readRequestBody(req);
+        const layout = JSON.parse(body.toString("utf8"));
+
+        littlefs.writeJson("/config/layout.json", layout);
+        rebuildLayoutRuntime();
+
+        console.log(
+          "HTTP POST /api/layout ->",
+          littlefs.stat("/config/layout.json")
+        );
+
+        return json(res, 200, { ok: true });
+      }
+
+      return json(res, 405, {
+        ok: false,
+        message: "Method not allowed"
+      });
+    }
+
+    if (url.pathname === "/api/locos") {
+      if (req.method === "GET") {
+        console.log("HTTP GET /api/locos");
+        return json(res, 200, savedLocos());
+      }
+
+      if (req.method === "POST") {
+        const body = await readRequestBody(req);
+        const locos = JSON.parse(body.toString("utf8"));
+
+        if (!Array.isArray(locos)) {
+          return json(res, 400, {
+            ok: false,
+            message: "Locomotives payload must be an array"
+          });
+        }
+
+        littlefs.writeJson("/config/locos.json", locos);
+
+        console.log(
+          "HTTP POST /api/locos ->",
+          `${locos.length} locomotive(s)`,
+          littlefs.stat("/config/locos.json")
+        );
+
+        return json(res, 200, {
+          ok: true,
+          count: locos.length
+        });
+      }
+
+      return json(res, 405, {
+        ok: false,
+        message: "Method not allowed"
+      });
+    }
+
+    if (url.pathname === "/api/mock/runtime") {
+      return json(res, 200, {
+        ok: true,
+        ...layoutRuntime.snapshot(),
+        persisted: littlefs.readJson(
+          "/state/runtime-state.json",
+          null
+        )
+      });
+    }
+
     if (url.pathname === "/api/mock/state") {
       return json(res, 200, {
         power: state.power,
@@ -538,6 +842,11 @@ async function handleHttp(req, res) {
         vpins: Object.fromEntries(state.vpins),
         signals: Object.fromEntries(state.signals),
         blocks: state.blocks,
+        routeReservations: state.routeReservations,
+        locoReservations: Object.fromEntries(state.locoReservations),
+        runtimeVariables: state.runtimeVariables,
+        taskState: state.taskState,
+        scriptState: state.scriptState,
         littlefs: littlefs.info(),
         littlefsRoot: MOCK_FS_ROOT
       });
@@ -593,10 +902,6 @@ async function handleHttp(req, res) {
         req.headers["content-type"]
       );
 
-      /*
-       * Lite loco image upload calls POST /upload without ?path.
-       * The real Lite UI expects those files under /images.
-       */
       const requestedDirectory =
         url.searchParams.get("path") || "/images";
 
@@ -605,10 +910,7 @@ async function handleHttp(req, res) {
         uploaded.fileName
       );
 
-      littlefs.writeBuffer(
-        targetVirtual,
-        uploaded.data
-      );
+      littlefs.writeBuffer(targetVirtual, uploaded.data);
 
       return json(res, 200, {
         ok: true,
@@ -638,10 +940,6 @@ async function handleHttp(req, res) {
       });
     }
 
-    /*
-     * Any existing file inside mock-fs can be fetched by its
-     * LittleFS virtual path, e.g. /images/loco.jpg.
-     */
     if (req.method === "GET" && littlefs.exists(url.pathname)) {
       const stat = littlefs.stat(url.pathname);
 
@@ -656,12 +954,17 @@ async function handleHttp(req, res) {
     }
 
     return json(res, 404, {
+      ok: false,
       error: "Mock route not found",
       path: url.pathname
     });
   } catch (error) {
-    const code = error?.code === "ENOENT" ? 404 :
-      error?.code === "ENOSPC" ? 507 : 500;
+    console.error("HTTP ERROR:", req.method, url.pathname, error);
+
+    const code =
+      error?.code === "ENOENT" ? 404 :
+      error?.code === "ENOSPC" ? 507 :
+      500;
 
     return json(res, code, {
       ok: false,
@@ -709,35 +1012,51 @@ wss.on("connection", (ws, request) => {
       reason.toString()
     );
   });
+
   send(ws, "ws:welcome", {
     message: "DCCExpressHub Local DCC-EX simulator"
   });
 
-  send(ws, "commandCenterInfo", {
-    alive: true,
-    power: state.power,
-    type: "simulator",
-    name: "Local DCC-EX simulator",
-    ip: "127.0.0.1",
-    port: 3001,
-    connectionString: "ws://127.0.0.1:3001/ws"
-  });
+  sendRuntimeSnapshot(ws);
 
-  send(ws, "commandCenterLockChanged", {
-    locked: false,
-    lockOwner: null,
-    reason: null
-  });
+  const runtimeSnapshot = layoutRuntime.snapshot();
 
-  send(ws, "powerInfo", powerInfo());
-  send(ws, "dccExStatus", dccStatus());
-  send(ws, "sensorSnapshot", { groups: [] });
+  for (const item of Object.values(runtimeSnapshot.accessories)) {
+    if (item.kind === "turnout") {
+      send(ws, "turnoutChanged", {
+        address: item.address,
+        closed: !!item.closed
+      });
+    } else if (item.kind === "signal" && item.aspect !== null) {
+      send(ws, "signalAspectChanged", {
+        address: item.address,
+        aspect: item.aspect
+      });
+    } else if (item.kind === "accessory") {
+      send(ws, "accessoryChanged", {
+        address: item.address,
+        active: !!item.active
+      });
+    } else if (item.kind === "vpin") {
+      send(ws, "vpinChanged", {
+        vpin: item.address,
+        active: !!item.active
+      });
+    }
+  }
+
+  for (const sensor of Object.values(runtimeSnapshot.sensors)) {
+    send(ws, "sensorChanged", {
+      address: sensor.address,
+      on: !!sensor.on
+    });
+  }
 
   ws.on("message", raw => {
     try {
-      const text = raw.toString();
-      console.log("WS RX:", text);
-      handleWsMessage(ws, JSON.parse(text));
+      const line = raw.toString();
+      console.log("WS RX:", line);
+      handleWsMessage(ws, JSON.parse(line));
     } catch (error) {
       console.error("WS ERROR:", error);
       send(ws, "error", {
@@ -746,6 +1065,8 @@ wss.on("connection", (ws, request) => {
     }
   });
 });
+
+rebuildLayoutRuntime();
 
 server.listen(PORT, "127.0.0.1", () => {
   console.log("");

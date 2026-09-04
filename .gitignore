@@ -1,7 +1,31 @@
+# PlatformIO
 .pio/
+.pioenvs/
+.piolibdeps/
 .vscode/
+.vscode
+
+# Local secrets / machine config
+src/config.h
+.env
+.env.*
+!.env.example
+
+# Node / web UI
 web-ui/node_modules/
 web-ui/dist/
-include/config.h
-.DS_Store
+
+# Mock runtime filesystem
 web-ui/mock-fs/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Logs / temp
+*.log
+*.tmp
+
+data/
