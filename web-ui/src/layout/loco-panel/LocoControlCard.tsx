@@ -63,7 +63,7 @@ export default function LocoControlCard({
       : theme.colors.blue[8];
 
   return (
-    <Card withBorder radius="sm" p="0">
+    <Card withBorder radius="sm" p="8">
       <Stack align="center" gap={0}>
         <LocoImage
           locoId={loco.id}
