@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "mock": "node mock-server.mjs",
+    "mock:reset": "node -e \"import('./mock-littlefs.mjs').then(({MockLittleFS})=>{const path=require('node:path');new MockLittleFS(path.resolve('mock-fs')).reset();console.log('mock-fs reset')})\"",
     "demo:seed": "node tools/prepare-demo-seed.mjs",
     "dev:demo": "npm run demo:seed && vite --mode demo",
     "typecheck": "tsc --noEmit",
@@ -27,6 +29,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
     "typescript": "^6.0.3",
-    "vite": "^8.0.8"
+    "vite": "^8.0.8",
+    "ws": "^8.18.3"
   }
 }
