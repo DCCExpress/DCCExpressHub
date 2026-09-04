@@ -29,25 +29,51 @@ Tried:
 - pio from PATH
 - $env:USERPROFILE\.platformio\penv\Scripts\pio.exe
 - $env:USERPROFILE\.platformio\penv\Scripts\platformio.exe
-
-If the VS Code PlatformIO extension is installed, open PlatformIO once so its Python environment can be created.
 "@
 }
 
 $pio = Get-PlatformIO
-Write-Host "PlatformIO: $pio" -ForegroundColor DarkGray
+$envName = "m5stack-basic"
 
+Write-Host "PlatformIO: $pio" -ForegroundColor DarkGray
+Write-Host "Environment: $envName" -ForegroundColor DarkGray
+
+Write-Host "== Building fresh web UI ==" -ForegroundColor Cyan
 & ".\build-web.ps1"
+
+if ($LASTEXITCODE -ne 0) {
+    throw "Web UI build failed."
+}
 
 $portArgs = @()
 if ($Port.Trim()) {
     $portArgs = @("--upload-port", $Port)
 }
 
-Write-Host "== Uploading firmware ==" -ForegroundColor Cyan
-& $pio run -t upload @portArgs
+Write-Host "== Building M5 firmware ==" -ForegroundColor Cyan
+& $pio run -e $envName
+if ($LASTEXITCODE -ne 0) {
+    throw "M5 firmware build failed."
+}
 
-Write-Host "== Uploading LittleFS ==" -ForegroundColor Cyan
-& $pio run -t uploadfs @portArgs
+Write-Host "== Uploading M5 firmware ==" -ForegroundColor Cyan
+& $pio run -e $envName -t upload @portArgs
+if ($LASTEXITCODE -ne 0) {
+    throw "M5 firmware upload failed."
+}
 
-Write-Host "Firmware + LittleFS uploaded." -ForegroundColor Green
+Write-Host "== Building M5 LittleFS ==" -ForegroundColor Cyan
+& $pio run -e $envName -t buildfs
+if ($LASTEXITCODE -ne 0) {
+    throw "M5 LittleFS build failed."
+}
+
+Write-Host "== Uploading M5 LittleFS ==" -ForegroundColor Cyan
+& $pio run -e $envName -t uploadfs @portArgs
+if ($LASTEXITCODE -ne 0) {
+    throw "M5 LittleFS upload failed."
+}
+
+Write-Host ""
+Write-Host "M5 firmware + fresh LittleFS uploaded." -ForegroundColor Green
+Write-Host "IMPORTANT: hard refresh the browser (Ctrl+F5) or clear site data once." -ForegroundColor Yellow

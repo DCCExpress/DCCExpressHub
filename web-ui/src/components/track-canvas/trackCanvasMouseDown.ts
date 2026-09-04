@@ -1,4 +1,3 @@
-
 import type {
   Dispatch,
   SetStateAction,
@@ -13,7 +12,6 @@ import {
 } from "@domain/layout/elementTypes";
 
 import {
-  generateId,
   showErrorMessage,
 } from "../../helpers";
 
@@ -366,28 +364,17 @@ export function handleTrackCanvasMouseDown(
     const newElement =
       cursor.clone();
 
-    newElement.id = generateId();
     newElement.x = cursorAnchor.x;
     newElement.y = cursorAnchor.y;
     newElement.selected = false;
 
-    switch (newElement.layerName) {
-      case "blocks":
-        currentLayout.blocks.elements.push(newElement);
-        break;
-      case "signals":
-        currentLayout.signals.elements.push(newElement);
-        break;
-      case "sensors":
-        currentLayout.sensors.elements.push(newElement);
-        break;
-      case "track":
-        currentLayout.track.elements.push(newElement);
-        break;
-      case "buildings":
-        currentLayout.buildings.elements.push(newElement);
-        break;
-    }
+    // IMPORTANT:
+    // Layout.addElement() is the single owner of stable uint16 element IDs.
+    // Do not use generateId() and do not push directly into a layer.
+    currentLayout.addElement(
+      newElement,
+      newElement.layerName
+    );
 
     onLayoutChange(previous => previous);
     invalidate();

@@ -40,6 +40,11 @@ private:
   size_t _locosUploadWritten = 0;
   bool _locosUploadFailed = false;
 
+  File _signalLogicUpload;
+  size_t _signalLogicUploadExpected = 0;
+  size_t _signalLogicUploadWritten = 0;
+  bool _signalLogicUploadFailed = false;
+
   void setupApi();
   void setupStaticFiles();
 
@@ -51,6 +56,13 @@ private:
       size_t total);
 
   void handleLocosBody(
+      AsyncWebServerRequest* request,
+      uint8_t* data,
+      size_t len,
+      size_t index,
+      size_t total);
+
+  void handleSignalLogicBody(
       AsyncWebServerRequest* request,
       uint8_t* data,
       size_t len,
