@@ -1,7 +1,7 @@
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { WebSocketServer } from "ws";
+import WebSocket, { WebSocketServer } from "ws";
 
 import {
   MockLittleFS,
@@ -123,7 +123,7 @@ function dccStatus() {
 }
 
 function send(ws, type, data = {}, uuid = null) {
-  if (ws.readyState !== ws.OPEN) return;
+  if (ws.readyState !== WebSocket.OPEN) return;
   ws.send(JSON.stringify({ type, data, ...(uuid ? { uuid } : {}) }));
 }
 
@@ -695,7 +695,20 @@ server.on("upgrade", (request, socket, head) => {
   );
 });
 
-wss.on("connection", ws => {
+wss.on("connection", (ws, request) => {
+  console.log(
+    "WS CONNECT:",
+    request.socket.remoteAddress,
+    request.url
+  );
+
+  ws.on("close", (code, reason) => {
+    console.log(
+      "WS CLOSE:",
+      code,
+      reason.toString()
+    );
+  });
   send(ws, "ws:welcome", {
     message: "DCCExpressHub Local DCC-EX simulator"
   });
