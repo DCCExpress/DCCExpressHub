@@ -3,6 +3,39 @@
 #include <WiFi.h>
 #include "Logger.h"
 
+namespace {
+const char* cacheControlFor(const String& path) {
+  if (path.endsWith(".json") ||
+      path.endsWith(".ndjson")) {
+    return "no-store";
+  }
+
+  if (path.endsWith(".js") ||
+      path.endsWith(".css") ||
+      path.endsWith(".html") ||
+      path.endsWith(".map")) {
+    return "no-cache";
+  }
+
+  if (path.endsWith(".png") ||
+      path.endsWith(".jpg") ||
+      path.endsWith(".jpeg") ||
+      path.endsWith(".webp") ||
+      path.endsWith(".gif") ||
+      path.endsWith(".svg") ||
+      path.endsWith(".ico")) {
+    return "public, max-age=86400";
+  }
+
+  if (path.endsWith(".woff") ||
+      path.endsWith(".woff2")) {
+    return "public, max-age=31536000, immutable";
+  }
+
+  return "no-cache";
+}
+}
+
 ApiServer::ApiServer(
     AsyncWebSocket& ws,
     DccExBridge& dcc,
@@ -21,14 +54,17 @@ void ApiServer::sendJson(
     JsonDocument& doc) {
   String body;
   serializeJson(doc, body);
+
   auto* response =
       request->beginResponse(
           code,
           "application/json",
           body);
+
   response->addHeader(
       "Cache-Control",
       "no-store");
+
   request->send(response);
 }
 
@@ -42,6 +78,8 @@ const char* ApiServer::mimeFor(
     return "text/css; charset=utf-8";
   if (path.endsWith(".json"))
     return "application/json; charset=utf-8";
+  if (path.endsWith(".ndjson"))
+    return "application/x-ndjson; charset=utf-8";
   if (path.endsWith(".svg"))
     return "image/svg+xml";
   if (path.endsWith(".png"))
@@ -51,8 +89,12 @@ const char* ApiServer::mimeFor(
     return "image/jpeg";
   if (path.endsWith(".webp"))
     return "image/webp";
+  if (path.endsWith(".gif"))
+    return "image/gif";
   if (path.endsWith(".ico"))
     return "image/x-icon";
+  if (path.endsWith(".woff"))
+    return "font/woff";
   if (path.endsWith(".woff2"))
     return "font/woff2";
 
@@ -98,9 +140,7 @@ void ApiServer::sendFsFile(
 
     response->addHeader(
         "Cache-Control",
-        path.startsWith("/assets/")
-            ? "public, max-age=31536000, immutable"
-            : "no-cache");
+        cacheControlFor(path));
 
     request->send(response);
     return;
@@ -116,9 +156,7 @@ void ApiServer::sendFsFile(
 
     response->addHeader(
         "Cache-Control",
-        path.startsWith("/assets/")
-            ? "public, max-age=31536000, immutable"
-            : "no-cache");
+        cacheControlFor(path));
 
     request->send(response);
     return;
@@ -142,7 +180,6 @@ void ApiServer::handleLayoutBody(
     _layoutUploadFailed = false;
 
     LittleFS.mkdir("/config");
-
     LittleFS.remove(
         "/config/layout.json.tmp");
 
@@ -258,11 +295,9 @@ void ApiServer::handleLayoutBody(
       "Layout saved: " +
       String(total) +
       " bytes; runtime " +
-      String(
-          _runtime.accessoryCount()) +
+      String(_runtime.accessoryCount()) +
       " accessories / " +
-      String(
-          _runtime.sensorCount()) +
+      String(_runtime.sensorCount()) +
       " sensors");
 
   response["ok"] = true;
@@ -292,7 +327,6 @@ void ApiServer::handleLocosBody(
     _locosUploadFailed = false;
 
     LittleFS.mkdir("/config");
-
     LittleFS.remove(
         "/config/locos.json.tmp");
 
@@ -437,6 +471,207 @@ void ApiServer::handleLocosBody(
       response);
 }
 
+void ApiServer::handleSignalLogicBody(
+    AsyncWebServerRequest* request,
+    uint8_t* data,
+    size_t len,
+    size_t index,
+    size_t total) {
+  static constexpr const char* FINAL_PATH =
+      "/config/signal-logic.ndjson";
+  static constexpr const char* TEMP_PATH =
+      "/config/signal-logic.ndjson.tmp";
+  static constexpr const char* BACKUP_PATH =
+      "/config/signal-logic.ndjson.bak";
+
+  if (index == 0) {
+    _signalLogicUploadExpected = total;
+    _signalLogicUploadWritten = 0;
+    _signalLogicUploadFailed = false;
+
+    LittleFS.mkdir("/config");
+    LittleFS.remove(TEMP_PATH);
+
+    _signalLogicUpload =
+        LittleFS.open(
+            TEMP_PATH,
+            "w");
+
+    if (!_signalLogicUpload) {
+      _signalLogicUploadFailed = true;
+      Logger::error(
+          "Cannot open signal logic temp file");
+    }
+  }
+
+  if (!_signalLogicUploadFailed &&
+      _signalLogicUpload) {
+    const size_t written =
+        _signalLogicUpload.write(
+            data,
+            len);
+
+    _signalLogicUploadWritten += written;
+
+    if (written != len)
+      _signalLogicUploadFailed = true;
+  }
+
+  if (index + len != total)
+    return;
+
+  if (_signalLogicUpload) {
+    _signalLogicUpload.flush();
+    _signalLogicUpload.close();
+  }
+
+  JsonDocument response;
+
+  if (_signalLogicUploadFailed ||
+      _signalLogicUploadWritten !=
+          _signalLogicUploadExpected) {
+    LittleFS.remove(TEMP_PATH);
+
+    response["ok"] = false;
+    response["message"] =
+        "Signal automation upload failed";
+
+    sendJson(
+        request,
+        507,
+        response);
+    return;
+  }
+
+  File verify =
+      LittleFS.open(
+          TEMP_PATH,
+          "r");
+
+  if (!verify) {
+    LittleFS.remove(TEMP_PATH);
+
+    response["ok"] = false;
+    response["message"] =
+        "Cannot verify signal automation file";
+
+    sendJson(
+        request,
+        500,
+        response);
+    return;
+  }
+
+  bool valid = true;
+  bool hasMeta = false;
+  size_t rowCount = 0;
+
+  while (verify.available()) {
+    String line =
+        verify.readStringUntil('\n');
+    line.trim();
+
+    if (line.length() == 0)
+      continue;
+
+    JsonDocument row;
+    const DeserializationError error =
+        deserializeJson(
+            row,
+            line);
+
+    if (error ||
+        !row.is<JsonObject>()) {
+      valid = false;
+      break;
+    }
+
+    ++rowCount;
+
+    const char* kind =
+        row["kind"] | "";
+
+    if (rowCount == 1) {
+      if (String(kind) != "meta") {
+        valid = false;
+        break;
+      }
+
+      const int version =
+          row["version"] | 0;
+
+      if (version != 1 &&
+          version != 2) {
+        valid = false;
+        break;
+      }
+
+      hasMeta = true;
+    }
+  }
+
+  verify.close();
+
+  if (!valid ||
+      !hasMeta ||
+      rowCount == 0) {
+    LittleFS.remove(TEMP_PATH);
+
+    response["ok"] = false;
+    response["message"] =
+        "Invalid signal automation NDJSON";
+
+    sendJson(
+        request,
+        400,
+        response);
+    return;
+  }
+
+  LittleFS.remove(BACKUP_PATH);
+
+  if (LittleFS.exists(FINAL_PATH)) {
+    LittleFS.rename(
+        FINAL_PATH,
+        BACKUP_PATH);
+  }
+
+  if (!LittleFS.rename(
+          TEMP_PATH,
+          FINAL_PATH)) {
+    if (LittleFS.exists(BACKUP_PATH)) {
+      LittleFS.rename(
+          BACKUP_PATH,
+          FINAL_PATH);
+    }
+
+    response["ok"] = false;
+    response["message"] =
+        "Signal automation atomic rename failed";
+
+    sendJson(
+        request,
+        500,
+        response);
+    return;
+  }
+
+  LittleFS.remove(BACKUP_PATH);
+
+  Logger::info(
+      "Signal automation saved: " +
+      String(total) +
+      " bytes");
+
+  response["ok"] = true;
+  response["bytes"] = total;
+
+  sendJson(
+      request,
+      200,
+      response);
+}
+
 void ApiServer::setupApi() {
   DefaultHeaders::Instance().addHeader(
       "Access-Control-Allow-Origin",
@@ -491,10 +726,15 @@ void ApiServer::setupApi() {
           AsyncWebServerRequest* request) {
         if (!LittleFS.exists(
                 "/config/layout.json")) {
-          request->send(
-              200,
-              "application/json",
-              "{}");
+          auto* response =
+              request->beginResponse(
+                  200,
+                  "application/json",
+                  "{}");
+          response->addHeader(
+              "Cache-Control",
+              "no-store");
+          request->send(response);
           return;
         }
 
@@ -538,10 +778,15 @@ void ApiServer::setupApi() {
           AsyncWebServerRequest* request) {
         if (!LittleFS.exists(
                 "/config/locos.json")) {
-          request->send(
-              200,
-              "application/json",
-              "[]");
+          auto* response =
+              request->beginResponse(
+                  200,
+                  "application/json",
+                  "[]");
+          response->addHeader(
+              "Cache-Control",
+              "no-store");
+          request->send(response);
           return;
         }
 
@@ -579,6 +824,60 @@ void ApiServer::setupApi() {
       });
 
   _server.on(
+      "/api/signal-logic",
+      HTTP_GET,
+      [](
+          AsyncWebServerRequest* request) {
+        static constexpr const char* PATH =
+            "/config/signal-logic.ndjson";
+
+        if (!LittleFS.exists(PATH)) {
+          auto* response =
+              request->beginResponse(
+                  404,
+                  "text/plain; charset=utf-8",
+                  "Not found");
+          response->addHeader(
+              "Cache-Control",
+              "no-store");
+          request->send(response);
+          return;
+        }
+
+        auto* response =
+            request->beginResponse(
+                LittleFS,
+                PATH,
+                "application/x-ndjson; charset=utf-8",
+                false);
+
+        response->addHeader(
+            "Cache-Control",
+            "no-store");
+
+        request->send(response);
+      });
+
+  _server.on(
+      "/api/signal-logic",
+      HTTP_POST,
+      [](AsyncWebServerRequest*) {},
+      nullptr,
+      [this](
+          AsyncWebServerRequest* request,
+          uint8_t* data,
+          size_t len,
+          size_t index,
+          size_t total) {
+        handleSignalLogicBody(
+            request,
+            data,
+            len,
+            index,
+            total);
+      });
+
+  _server.on(
       "/api/files/text",
       HTTP_GET,
       [](
@@ -606,18 +905,30 @@ void ApiServer::setupApi() {
         }
 
         if (!LittleFS.exists(path)) {
-          request->send(
-              200,
-              "text/plain; charset=utf-8",
-              "");
+          auto* response =
+              request->beginResponse(
+                  200,
+                  "text/plain; charset=utf-8",
+                  "");
+          response->addHeader(
+              "Cache-Control",
+              "no-store");
+          request->send(response);
           return;
         }
 
-        request->send(
-            LittleFS,
-            path,
-            "text/plain; charset=utf-8",
-            false);
+        auto* response =
+            request->beginResponse(
+                LittleFS,
+                path,
+                "text/plain; charset=utf-8",
+                false);
+
+        response->addHeader(
+            "Cache-Control",
+            "no-store");
+
+        request->send(response);
       });
 
   _server.on(
@@ -641,18 +952,6 @@ void ApiServer::setupApi() {
             doc);
       });
 
-  // Frontend contract:
-  // {
-  //   "path": "/",
-  //   "entries": [
-  //     {
-  //       "name": "config",
-  //       "path": "/config",
-  //       "type": "directory",
-  //       "size": 0
-  //     }
-  //   ]
-  // }
   _server.on(
       "/list",
       HTTP_GET,
