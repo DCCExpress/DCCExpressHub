@@ -60,6 +60,7 @@ void WsProtocol::sendCommandCenterInfo(AsyncWebSocketClient* client) {
   data["ip"] = _dcc.host();
   data["port"] = _dcc.port();
   data["connectionString"] = _dcc.host() + ":" + String(_dcc.port());
+
   send(client, "commandCenterInfo", data.as<JsonVariantConst>());
 }
 
@@ -70,6 +71,7 @@ void WsProtocol::sendPowerInfo(AsyncWebSocketClient* client) {
   data["trackVoltageOff"] = !_trackPower;
   data["shortCircuit"] = false;
   data["programmingModeActive"] = _programmingPower;
+
   send(client, "powerInfo", data.as<JsonVariantConst>());
 }
 
@@ -80,6 +82,7 @@ void WsProtocol::broadcastPowerInfo() {
   data["trackVoltageOff"] = !_trackPower;
   data["shortCircuit"] = false;
   data["programmingModeActive"] = _programmingPower;
+
   broadcast("powerInfo", data);
 }
 
@@ -96,6 +99,7 @@ void WsProtocol::sendRuntimeSnapshot(AsyncWebSocketClient* client) {
         data["closed"] = item.closed;
         send(client, "turnoutChanged", data.as<JsonVariantConst>());
         break;
+
       case RuntimeAccessoryKind::Signal:
         if (item.aspect >= 0) {
           data["address"] = item.address;
@@ -103,11 +107,13 @@ void WsProtocol::sendRuntimeSnapshot(AsyncWebSocketClient* client) {
           send(client, "signalAspectChanged", data.as<JsonVariantConst>());
         }
         break;
+
       case RuntimeAccessoryKind::Accessory:
         data["address"] = item.address;
         data["active"] = item.active;
         send(client, "accessoryChanged", data.as<JsonVariantConst>());
         break;
+
       case RuntimeAccessoryKind::VPin:
         data["vpin"] = item.address;
         data["active"] = item.active;
@@ -132,17 +138,20 @@ void WsProtocol::broadcastRuntimeSnapshot() {
   cc["name"] = "DCC-EX CommandStation";
   cc["ip"] = _dcc.host();
   cc["port"] = _dcc.port();
+
   broadcast("commandCenterInfo", cc);
   broadcastPowerInfo();
 
   for (const auto& item : _runtime.accessories()) {
     JsonDocument data;
+
     switch (item.kind) {
       case RuntimeAccessoryKind::Turnout:
         data["address"] = item.address;
         data["closed"] = item.closed;
         broadcast("turnoutChanged", data);
         break;
+
       case RuntimeAccessoryKind::Signal:
         if (item.aspect >= 0) {
           data["address"] = item.address;
@@ -150,11 +159,13 @@ void WsProtocol::broadcastRuntimeSnapshot() {
           broadcast("signalAspectChanged", data);
         }
         break;
+
       case RuntimeAccessoryKind::Accessory:
         data["address"] = item.address;
         data["active"] = item.active;
         broadcast("accessoryChanged", data);
         break;
+
       case RuntimeAccessoryKind::VPin:
         data["vpin"] = item.address;
         data["active"] = item.active;
@@ -179,31 +190,50 @@ void WsProtocol::broadcastRawInfo(const String& raw) {
 
 WsProtocol::LocoState* WsProtocol::getLoco(uint16_t address, bool create) {
   for (size_t i = 0; i < _locoCount; ++i) {
-    if (_locos[i].address == address) return &_locos[i];
+    if (_locos[i].address == address) {
+      return &_locos[i];
+    }
   }
-  if (!create || _locoCount >= MAX_LOCOS) return nullptr;
-  _locos[_locoCount].address = address;
-  return &_locos[_locoCount++];
+
+  if (!create || _locoCount >= MAX_LOCOS) {
+    return nullptr;
+  }
+
+  auto& loco = _locos[_locoCount++];
+  loco.address = address;
+  loco.speed = 0;
+  loco.forward = true;
+  loco.functionsMask = 0;
+
+  return &loco;
 }
 
 void WsProtocol::broadcastLoco(const LocoState& loco) {
   JsonDocument data;
   JsonObject out = data["loco"].to<JsonObject>();
+
   out["address"] = loco.address;
   out["speed"] = loco.speed;
   out["direction"] = loco.forward ? "forward" : "reverse";
+
+  // One compact 32-bit value. F0 is bit 0, F28 is bit 28.
+  out["functionsMask"] = loco.functionsMask;
+
   broadcast("locoState", data);
 }
 
 void WsProtocol::handleDccFrame(const String& frame) {
   broadcastRawInfo(frame);
 
-  // <p0>, <p1>, and track-specific variants such as <p1 MAIN>
   if (frame.startsWith("<p0")) {
     const bool wasOn = _trackPower;
     _trackPower = false;
     _emergencyStop = false;
-    if (wasOn) _stateStore.save();  // POWER OFF persistence policy
+
+    if (wasOn) {
+      _stateStore.save();
+    }
+
     broadcastPowerInfo();
     return;
   }
@@ -214,6 +244,10 @@ void WsProtocol::handleDccFrame(const String& frame) {
     broadcastPowerInfo();
     return;
   }
+
+  // TODO: Parse DCC-EX 5.6.3 <l ...> feedback here.
+  // That feedback will later overwrite functionsMask with the
+  // command station's authoritative locomotive state.
 }
 
 void WsProtocol::handleEvent(
@@ -225,6 +259,7 @@ void WsProtocol::handleEvent(
     size_t len) {
   if (type == WS_EVT_CONNECT) {
     Logger::info("WS client connected #" + String(client->id()));
+
     JsonDocument welcome;
     welcome["message"] = "DCCExpressHub";
     send(client, "ws:welcome", welcome.as<JsonVariantConst>());
@@ -237,17 +272,27 @@ void WsProtocol::handleEvent(
     return;
   }
 
-  if (type != WS_EVT_DATA) return;
+  if (type != WS_EVT_DATA) {
+    return;
+  }
 
   AwsFrameInfo* info = static_cast<AwsFrameInfo*>(arg);
-  if (!info->final || info->index != 0 || info->len != len || info->opcode != WS_TEXT) {
+
+  if (!info->final ||
+      info->index != 0 ||
+      info->len != len ||
+      info->opcode != WS_TEXT) {
     Logger::warn("Ignoring fragmented/non-text WS message");
     return;
   }
 
   String payload;
   payload.reserve(len + 1);
-  for (size_t i = 0; i < len; ++i) payload += static_cast<char>(data[i]);
+
+  for (size_t i = 0; i < len; ++i) {
+    payload += static_cast<char>(data[i]);
+  }
+
   handleMessage(client, payload);
 }
 
@@ -278,16 +323,17 @@ void WsProtocol::handleMessage(
   if (strcmp(type, "setTrackPower") == 0) {
     const bool on = data["on"] | false;
 
-    // Save BEFORE issuing OFF, so even if DCC-EX disappears during shutdown,
-    // the last runtime state is persisted.
-    if (!on) _stateStore.save();
+    // Existing persistence policy kept unchanged here.
+    if (!on) {
+      _stateStore.save();
+    }
 
     if (_dcc.sendCommand(on ? "<1>" : "<0>")) {
-      // Optimistic state; DCC-EX <p0>/<p1> will converge it.
       _trackPower = on;
       _emergencyStop = false;
       broadcastPowerInfo();
     }
+
     return;
   }
 
@@ -307,6 +353,7 @@ void WsProtocol::handleMessage(
   if (strcmp(type, "writeDccExDirectCommand") == 0) {
     const String command = data["command"] | "";
     const bool ok = _dcc.sendCommand(command);
+
     JsonDocument out;
     out["response"] = ok ? "sent" : "send failed";
     send(client, "dccExDirectCommandResponse", out.as<JsonVariantConst>());
@@ -315,18 +362,28 @@ void WsProtocol::handleMessage(
 
   if (strcmp(type, "setLoco") == 0) {
     const uint16_t address = data["locoAddress"] | 0;
-    const uint8_t speed = min(126, max(0, data["speed"].as<int>()));
-    const bool forward = strcmp(data["direction"] | "forward", "reverse") != 0;
+    const uint8_t speed =
+        min(126, max(0, data["speed"].as<int>()));
+
+    const bool forward =
+        strcmp(data["direction"] | "forward", "reverse") != 0;
+
     auto* loco = getLoco(address, true);
-    if (!loco) return;
+    if (!loco) {
+      return;
+    }
 
     loco->speed = speed;
     loco->forward = forward;
 
-    // DCC-EX throttle: <t cab speed direction>, direction 1=forward, 0=reverse.
     _dcc.sendCommand(
-        "<t " + String(address) + " " + String(speed) + " " +
-        String(forward ? 1 : 0) + ">");
+        "<t " +
+        String(address) +
+        " " +
+        String(speed) +
+        " " +
+        String(forward ? 1 : 0) +
+        ">");
 
     broadcastLoco(*loco);
     return;
@@ -334,8 +391,12 @@ void WsProtocol::handleMessage(
 
   if (strcmp(type, "getLoco") == 0) {
     const uint16_t address = data["locoAddress"] | 0;
+
     auto* loco = getLoco(address, true);
-    if (loco) broadcastLoco(*loco);
+    if (loco) {
+      broadcastLoco(*loco);
+    }
+
     return;
   }
 
@@ -344,10 +405,38 @@ void WsProtocol::handleMessage(
     const uint8_t fn = data["functionNumber"] | 0;
     const bool active = data["active"] | false;
 
-    // DCC-EX function command.
-    _dcc.sendCommand(
-        "<F " + String(address) + " " + String(fn) + " " +
-        String(active ? 1 : 0) + ">");
+    if (fn > MAX_LOCO_FUNCTION) {
+      Logger::warn("Ignoring unsupported loco function F" + String(fn));
+      return;
+    }
+
+    auto* loco = getLoco(address, true);
+    if (!loco) {
+      return;
+    }
+
+    const bool sent = _dcc.sendCommand(
+        "<F " +
+        String(address) +
+        " " +
+        String(fn) +
+        " " +
+        String(active ? 1 : 0) +
+        ">");
+
+    if (!sent) {
+      return;
+    }
+
+    const uint32_t bit = (1UL << fn);
+
+    if (active) {
+      loco->functionsMask |= bit;
+    } else {
+      loco->functionsMask &= ~bit;
+    }
+
+    broadcastLoco(*loco);
     return;
   }
 
@@ -357,10 +446,12 @@ void WsProtocol::handleMessage(
 
     _runtime.setTurnout(address, physicalValue);
 
-    // Basic DCC accessory: lowercase <a address 0|1>.
     _dcc.sendCommand(
-        "<a " + String(address) + " " +
-        String(physicalValue ? 1 : 0) + ">");
+        "<a " +
+        String(address) +
+        " " +
+        String(physicalValue ? 1 : 0) +
+        ">");
 
     JsonDocument out;
     out["address"] = address;
@@ -375,19 +466,22 @@ void WsProtocol::handleMessage(
 
     _runtime.setSignal(address, aspect);
 
-    // Extended accessory / signal aspect: uppercase A.
     _dcc.sendCommand(
-        "<A " + String(address) + " " + String(aspect) + ">");
+        "<A " +
+        String(address) +
+        " " +
+        String(aspect) +
+        ">");
 
     JsonDocument out;
     out["address"] = address;
     out["aspect"] = aspect;
     broadcast("signalAspectChanged", out);
 
-    // Extended turnout uses the same command, but frontend includes its physical
-    // turnout value so every client can update the turnout drawing.
     if (!data["turnoutPhysicalValue"].isNull()) {
-      const bool physicalValue = data["turnoutPhysicalValue"].as<bool>();
+      const bool physicalValue =
+          data["turnoutPhysicalValue"].as<bool>();
+
       _runtime.setTurnout(address, physicalValue);
 
       JsonDocument turnout;
@@ -395,6 +489,7 @@ void WsProtocol::handleMessage(
       turnout["closed"] = physicalValue;
       broadcast("turnoutChanged", turnout);
     }
+
     return;
   }
 
@@ -405,7 +500,11 @@ void WsProtocol::handleMessage(
     _runtime.setAccessory(address, active);
 
     _dcc.sendCommand(
-        "<a " + String(address) + " " + String(active ? 1 : 0) + ">");
+        "<a " +
+        String(address) +
+        " " +
+        String(active ? 1 : 0) +
+        ">");
 
     JsonDocument out;
     out["address"] = address;
@@ -419,7 +518,14 @@ void WsProtocol::handleMessage(
     const bool active = data["active"] | false;
 
     _runtime.setVPin(vpin, active);
-    _dcc.sendCommand("<z " + String(active ? vpin : -static_cast<int>(vpin)) + ">");
+
+    _dcc.sendCommand(
+        "<z " +
+        String(
+            active
+                ? vpin
+                : -static_cast<int>(vpin)) +
+        ">");
 
     JsonDocument out;
     out["vpin"] = vpin;
@@ -431,6 +537,7 @@ void WsProtocol::handleMessage(
   if (strcmp(type, "setSensor") == 0) {
     const uint16_t address = data["address"] | 0;
     const bool on = data["on"] | false;
+
     _runtime.setSensor(address, on);
 
     JsonDocument out;

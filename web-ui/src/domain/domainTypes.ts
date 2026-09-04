@@ -1,4 +1,3 @@
-
 export type Direction =
   | "forward"
   | "reverse";
@@ -69,7 +68,8 @@ export type LocoAction =
       ms: number;
     };
 
-export type LocoActionHooks = Partial<Record<LocoActionHook, LocoAction[]>>;
+export type LocoActionHooks =
+  Partial<Record<LocoActionHook, LocoAction[]>>;
 
 export type BlockActionHook =
   | "onTrainEnter"
@@ -87,7 +87,8 @@ export type BlockAction =
       ms: number;
     };
 
-export type BlockActionHooks = Partial<Record<BlockActionHook, BlockAction[]>>;
+export type BlockActionHooks =
+  Partial<Record<BlockActionHook, BlockAction[]>>;
 
 export type Loco = {
   id: string;
@@ -104,8 +105,10 @@ export type Loco = {
   actions?: LocoActionHooks;
 };
 
-
-export type ReservationOwnerType = "task" | "client" | "system";
+export type ReservationOwnerType =
+  | "task"
+  | "client"
+  | "system";
 
 export type LocoReservation = {
   locoAddress: number;
@@ -121,7 +124,14 @@ export type LocoState = {
   speed: number;
   direction: Direction;
   lastRunAt?: string;
-  functions: Record<number, boolean>;
+
+  /**
+   * F0..F28 bitmask.
+   * F0 = bit 0, F28 = bit 28.
+   * Use unsigned JS bit operations (>>>).
+   */
+  functionsMask: number;
+
   reservation?: LocoReservation;
 };
 

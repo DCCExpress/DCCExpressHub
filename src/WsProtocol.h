@@ -36,8 +36,12 @@ private:
     uint16_t address = 0;
     uint8_t speed = 0;
     bool forward = true;
+    uint32_t functionsMask = 0;
   };
+
   static constexpr size_t MAX_LOCOS = 32;
+  static constexpr uint8_t MAX_LOCO_FUNCTION = 28;
+
   LocoState _locos[MAX_LOCOS];
   size_t _locoCount = 0;
 
@@ -49,17 +53,36 @@ private:
       uint8_t* data,
       size_t len);
 
-  void handleMessage(AsyncWebSocketClient* client, const String& payload);
+  void handleMessage(
+      AsyncWebSocketClient* client,
+      const String& payload);
+
   void handleDccFrame(const String& frame);
 
-  void send(AsyncWebSocketClient* client, const char* type, JsonVariantConst data);
-  void broadcast(const char* type, JsonDocument& data);
+  void send(
+      AsyncWebSocketClient* client,
+      const char* type,
+      JsonVariantConst data);
 
-  void sendCommandCenterInfo(AsyncWebSocketClient* client);
-  void sendPowerInfo(AsyncWebSocketClient* client);
-  void sendRuntimeSnapshot(AsyncWebSocketClient* client);
+  void broadcast(
+      const char* type,
+      JsonDocument& data);
+
+  void sendCommandCenterInfo(
+      AsyncWebSocketClient* client);
+
+  void sendPowerInfo(
+      AsyncWebSocketClient* client);
+
+  void sendRuntimeSnapshot(
+      AsyncWebSocketClient* client);
+
   void broadcastPowerInfo();
 
-  LocoState* getLoco(uint16_t address, bool create);
-  void broadcastLoco(const LocoState& loco);
+  LocoState* getLoco(
+      uint16_t address,
+      bool create);
+
+  void broadcastLoco(
+      const LocoState& loco);
 };

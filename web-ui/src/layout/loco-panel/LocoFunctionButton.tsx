@@ -25,22 +25,25 @@ export default function LocoFunctionButton({
   fnNumber,
   fn,
   active,
-  activeFunctions,
   disabled = false,
   onActiveFunctionsChange,
 }: LocoFunctionButtonProps) {
   const hasName =
     !!fn?.name?.trim();
 
+  const setLocalState = (nextActive: boolean) => {
+    onActiveFunctionsChange(previous => ({
+      ...previous,
+      [fnNumber]: nextActive,
+    }));
+  };
+
   const releaseMomentaryFunction = () => {
     if (disabled || !fn?.momentary) {
       return;
     }
 
-    onActiveFunctionsChange(previous => ({
-      ...previous,
-      [fnNumber]: false,
-    }));
+    setLocalState(false);
 
     wsApi.setLocoFunction(
       address,
@@ -85,6 +88,8 @@ export default function LocoFunctionButton({
         }
 
         if (fn?.momentary) {
+          setLocalState(true);
+
           wsApi.setLocoFunction(
             address,
             fnNumber,
@@ -93,10 +98,19 @@ export default function LocoFunctionButton({
           return;
         }
 
+        // IMPORTANT:
+        // Use the rendered authoritative state (`active`) instead
+        // of a potentially stale object captured elsewhere.
+        const nextActive = !active;
+
+        // Immediate UI feedback. The following locoState message
+        // from the Hub will confirm/correct this value.
+        setLocalState(nextActive);
+
         wsApi.setLocoFunction(
           address,
           fnNumber,
-          !activeFunctions[fnNumber]
+          nextActive
         );
       }}
       onPointerUp={event => {

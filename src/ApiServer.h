@@ -35,6 +35,11 @@ private:
   size_t _layoutUploadWritten = 0;
   bool _layoutUploadFailed = false;
 
+  File _locosUpload;
+  size_t _locosUploadExpected = 0;
+  size_t _locosUploadWritten = 0;
+  bool _locosUploadFailed = false;
+
   void setupApi();
   void setupStaticFiles();
 
@@ -45,8 +50,21 @@ private:
       size_t index,
       size_t total);
 
-  static void sendJson(AsyncWebServerRequest* request, int code, JsonDocument& doc);
+  void handleLocosBody(
+      AsyncWebServerRequest* request,
+      uint8_t* data,
+      size_t len,
+      size_t index,
+      size_t total);
+
+  static void sendJson(
+      AsyncWebServerRequest* request,
+      int code,
+      JsonDocument& doc);
+
   static const char* mimeFor(const String& path);
   static bool safePath(const String& path);
-  static void sendFsFile(AsyncWebServerRequest* request, const String& path);
+  static void sendFsFile(
+      AsyncWebServerRequest* request,
+      const String& path);
 };

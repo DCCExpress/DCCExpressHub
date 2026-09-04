@@ -26,6 +26,17 @@ type LocoPanelProps = {
 const SELECTED_LOCO_STORAGE_KEY =
   "dcc-express.loco-panel.selected-loco-id";
 
+function functionsMaskToRecord(mask: number): Record<number, boolean> {
+  const result: Record<number, boolean> = {};
+  const normalized = mask >>> 0;
+
+  for (let fn = 0; fn <= 28; fn += 1) {
+    result[fn] = ((normalized >>> fn) & 1) !== 0;
+  }
+
+  return result;
+}
+
 export default function LocoPanel({
   locos = [],
   selectedLocoStorageKey = SELECTED_LOCO_STORAGE_KEY,
@@ -191,8 +202,11 @@ export default function LocoPanel({
 
         setSpeed(loco.speed);
         setDirection(loco.direction);
+
         setActiveFunctions(
-          loco.functions ?? {}
+          functionsMaskToRecord(
+            loco.functionsMask ?? 0
+          )
         );
 
         setReservation(
