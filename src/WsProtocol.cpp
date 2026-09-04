@@ -245,9 +245,99 @@ void WsProtocol::handleDccFrame(const String& frame) {
     return;
   }
 
-  // TODO: Parse DCC-EX 5.6.3 <l ...> feedback here.
-  // That feedback will later overwrite functionsMask with the
-  // command station's authoritative locomotive state.
+  // DCC-EX authoritative loco feedback:
+  //   <l loco reg speedByte functMap>
+  //
+  // speedByte:
+  //   reverse: 0=stop, 1=ESTOP, 2..127=speed 1..126
+  //   forward: 128=stop, 129=ESTOP, 130..255=speed 1..126
+  //
+  // DCC-EX broadcasts these frames after throttle/function changes,
+  // including one for each loco in the reminder list after <!>.
+  if (frame.startsWith("<l ")) {
+    unsigned int addressValue = 0;
+    int registerValue = 0;
+    unsigned int speedByteValue = 0;
+    unsigned long functionMapValue = 0;
+
+    const int parsed = sscanf(
+        frame.c_str(),
+        "<l %u %d %u %lu>",
+        &addressValue,
+        &registerValue,
+        &speedByteValue,
+        &functionMapValue);
+
+    (void)registerValue;
+
+    if (parsed != 4 ||
+        addressValue == 0 ||
+        addressValue > 10239 ||
+        speedByteValue > 255) {
+      Logger::warn(
+          "Ignoring malformed DCC-EX loco feedback: " +
+          frame);
+      return;
+    }
+
+    auto* loco = getLoco(
+        static_cast<uint16_t>(addressValue),
+        true);
+
+    if (!loco) {
+      Logger::warn(
+          "Cannot allocate loco state for DCC address " +
+          String(addressValue));
+      return;
+    }
+
+    const uint8_t speedByte =
+        static_cast<uint8_t>(speedByteValue);
+
+    const uint8_t encodedSpeed =
+        speedByte & 0x7f;
+
+    loco->forward =
+        (speedByte & 0x80) != 0;
+
+    // Both normal STOP and ESTOP are displayed as speed 0 in the UI.
+    // DCC-EX uses encodedSpeed=0 for STOP and =1 for ESTOP.
+    loco->speed =
+        encodedSpeed <= 1
+            ? 0
+            : static_cast<uint8_t>(
+                  encodedSpeed - 1);
+
+    loco->functionsMask =
+        static_cast<uint32_t>(
+            functionMapValue);
+
+    // A non-zero authoritative loco speed means DCC-EX is no longer
+    // in the global emergency-stop state. Do not clear ESTOP merely
+    // because a command was requested; clear it only from feedback.
+    if (_emergencyStop &&
+        loco->speed > 0) {
+      _emergencyStop = false;
+      broadcastPowerInfo();
+
+      Logger::info(
+          "DCC-EX ESTOP cleared by loco feedback");
+    }
+
+    broadcastLoco(*loco);
+
+    Logger::info(
+        "Loco feedback: " +
+        String(loco->address) +
+        " speed=" +
+        String(loco->speed) +
+        " direction=" +
+        String(loco->forward ? "forward" : "reverse") +
+        " functionsMask=" +
+        String(loco->functionsMask));
+
+    return;
+  }
 }
 
 void WsProtocol::handleEvent(
@@ -344,9 +434,13 @@ void WsProtocol::handleMessage(
   }
 
   if (strcmp(type, "emergencyStop") == 0) {
-    _dcc.sendCommand("<!>");
-    _emergencyStop = true;
-    broadcastPowerInfo();
+    // Command = request. Loco state is updated from the resulting
+    // authoritative <l ...> broadcasts sent by DCC-EX.
+    if (_dcc.sendCommand("<!>")) {
+      _emergencyStop = true;
+      broadcastPowerInfo();
+    }
+
     return;
   }
 

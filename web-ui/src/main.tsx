@@ -37,6 +37,9 @@ import {
   installSignalLogicStatusIndicator,
 } from "@/services/signalLogicStatusIndicator";
 import {
+  installDccExHeartbeatStatusIndicator,
+} from "@/services/dccExHeartbeatStatusIndicator";
+import {
   installFileViewerEnhancer,
 } from "@/services/fileViewerEnhancer";
 
@@ -49,6 +52,7 @@ resetDemoStorageOnStartup();
 installDemoRuntime();
 installFileViewerEnhancer();
 installSignalLogicStatusIndicator();
+installDccExHeartbeatStatusIndicator();
 
 ReactDOM.createRoot(
   document.getElementById("root")!
