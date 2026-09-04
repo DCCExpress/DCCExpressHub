@@ -138,7 +138,7 @@ export function TrackCanvasDoubleTurnoutPopover({
       }}
       withArrow
       shadow="xl"
-      closeOnClickOutside={false}
+      closeOnClickOutside
       closeOnEscape
       withinPortal
       offset={18}

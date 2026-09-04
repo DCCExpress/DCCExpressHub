@@ -32,7 +32,7 @@ export function TrackCanvasSignalAspectPopover({
       }}
       withArrow
       shadow="xl"
-      closeOnClickOutside={false}
+      closeOnClickOutside
       closeOnEscape
       withinPortal
       offset={18}
