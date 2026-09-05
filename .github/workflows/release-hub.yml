@@ -1,0 +1,257 @@
+name: DCCExpressHub release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version (for example 0.1.0-alpha.1)
+        required: true
+      environment:
+        description: PlatformIO environment
+        required: true
+        default: m5stack-basic
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  firmware:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web-ui/package-lock.json
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Install web UI dependencies
+        run: npm ci --prefix web-ui
+
+      - name: Build web UI
+        run: npm run build --prefix web-ui
+
+      - name: Prepare LittleFS data
+        run: node prepare-littlefs.mjs
+
+      - name: Build firmware
+        env:
+          PIO_ENV: ${{ inputs.environment }}
+        run: pio run -e "$PIO_ENV"
+
+      - name: Build LittleFS image
+        env:
+          PIO_ENV: ${{ inputs.environment }}
+        run: pio run -e "$PIO_ENV" -t buildfs
+
+      - name: Build merged factory firmware
+        env:
+          PIO_ENV: ${{ inputs.environment }}
+        run: node tools/firmware/merge-firmware.mjs --env "$PIO_ENV"
+
+      - name: Prepare release and GitHub Pages files
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          PIO_ENV: ${{ inputs.environment }}
+        run: |
+          $version = $env:RELEASE_VERSION.TrimStart('v')
+          $tagName = "v$version"
+
+          $releaseRoot = 'artifacts/release'
+          $webRoot = 'artifacts/webinstaller'
+          $pagesBase = 'https://dccexpress.github.io/DCCExpressHub'
+
+          New-Item -ItemType Directory -Path $releaseRoot -Force | Out-Null
+          New-Item -ItemType Directory -Path $webRoot -Force | Out-Null
+
+          Copy-Item 'webinstaller/*' $webRoot -Recurse -Force
+
+          $sourceMerged = "dist/firmware/DCCExpressHub-$($env:PIO_ENV)-merged.bin"
+          if (-not (Test-Path $sourceMerged)) {
+            throw "Merged firmware not found: $sourceMerged"
+          }
+
+          $releaseAssetName = "DCCExpressHub-$version-merged.bin"
+          $releaseAssetPath = Join-Path $releaseRoot $releaseAssetName
+          Copy-Item $sourceMerged $releaseAssetPath -Force
+
+          $currentDirectory = Join-Path $webRoot "firmware/$tagName"
+          New-Item -ItemType Directory -Path $currentDirectory -Force | Out-Null
+          Copy-Item $sourceMerged (Join-Path $currentDirectory 'merged-firmware.bin') -Force
+
+          $currentManifest = [ordered]@{
+            name = 'DCCExpressHub'
+            version = $version
+            new_install_prompt_erase = $true
+            builds = @(
+              @{
+                chipFamily = 'ESP32'
+                improv = $false
+                parts = @(
+                  @{
+                    path = 'merged-firmware.bin'
+                    offset = 0
+                  }
+                )
+              }
+            )
+          }
+
+          ConvertTo-Json -InputObject $currentManifest -Depth 6 |
+            Set-Content (Join-Path $currentDirectory 'manifest.json') -Encoding utf8NoBOM
+
+          # Root fallback manifest points to the release being built.
+          $rootManifest = [ordered]@{
+            name = 'DCCExpressHub'
+            version = $version
+            new_install_prompt_erase = $true
+            builds = @(
+              @{
+                chipFamily = 'ESP32'
+                improv = $false
+                parts = @(
+                  @{
+                    path = "firmware/$tagName/merged-firmware.bin"
+                    offset = 0
+                  }
+                )
+              }
+            )
+          }
+
+          ConvertTo-Json -InputObject $rootManifest -Depth 6 |
+            Set-Content (Join-Path $webRoot 'manifest.json') -Encoding utf8NoBOM
+
+          $entries = [System.Collections.Generic.List[object]]::new()
+
+          $entries.Add([ordered]@{
+            tagName = $tagName
+            prerelease = $version.Contains('-')
+            manifestUrl = "$pagesBase/firmware/$tagName/manifest.json"
+          })
+
+          $published = gh api 'repos/${{ github.repository }}/releases?per_page=100' |
+            ConvertFrom-Json
+
+          foreach ($release in $published) {
+            if ($release.draft -or $release.tag_name -eq $tagName) {
+              continue
+            }
+
+            $asset = $release.assets |
+              Where-Object {
+                $_.name -match '^DCCExpressHub-.+-merged\.bin$'
+              } |
+              Select-Object -First 1
+
+            if (-not $asset) {
+              continue
+            }
+
+            $releaseDirectory = Join-Path $webRoot "firmware/$($release.tag_name)"
+            New-Item -ItemType Directory -Path $releaseDirectory -Force | Out-Null
+
+            Invoke-WebRequest `
+              -Uri $asset.browser_download_url `
+              -OutFile (Join-Path $releaseDirectory 'merged-firmware.bin')
+
+            $releaseVersion = $release.tag_name.TrimStart('v')
+
+            $releaseManifest = [ordered]@{
+              name = 'DCCExpressHub'
+              version = $releaseVersion
+              new_install_prompt_erase = $true
+              builds = @(
+                @{
+                  chipFamily = 'ESP32'
+                  improv = $false
+                  parts = @(
+                    @{
+                      path = 'merged-firmware.bin'
+                      offset = 0
+                    }
+                  )
+                }
+              )
+            }
+
+            ConvertTo-Json -InputObject $releaseManifest -Depth 6 |
+              Set-Content (Join-Path $releaseDirectory 'manifest.json') -Encoding utf8NoBOM
+
+            $entries.Add([ordered]@{
+              tagName = $release.tag_name
+              prerelease = [bool]$release.prerelease
+              manifestUrl = "$pagesBase/firmware/$($release.tag_name)/manifest.json"
+            })
+          }
+
+          ConvertTo-Json -InputObject $entries -Depth 4 |
+            Set-Content (Join-Path $webRoot 'releases.json') -Encoding utf8NoBOM
+
+      - name: Upload merged firmware artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: merged-firmware-release
+          path: artifacts/release/DCCExpressHub-*-merged.bin
+          if-no-files-found: error
+
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: artifacts/webinstaller
+
+  github-release:
+    needs: firmware
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: merged-firmware-release
+          path: release
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          version="${RELEASE_VERSION#v}"
+          prerelease_flag=""
+
+          if [[ "$version" == *-* ]]; then
+            prerelease_flag="--prerelease"
+          fi
+
+          gh release create \
+            "v$version" \
+            release/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "DCCExpressHub v$version" \
+            --generate-notes \
+            $prerelease_flag
+
+  deploy-web-installer:
+    needs: firmware
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy Web Installer & Serial Configurator
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+  />
+  <meta name="theme-color" content="#0d1117" />
+  <title>DCCExpressHub Web Installer & Serial Configurator</title>
+
+  <!-- Same installer technology already used by DCCExpressLite. -->
+  <script
+    type="module"
+    src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module">
+  </script>
+
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">DCCExpressHub service tool</p>
+        <h1>Web Installer & Serial Configurator</h1>
+        <p class="muted">
+          Install, recover, configure and diagnose DCCExpressHub directly from Chrome or Edge.
+        </p>
+      </div>
+
+      <div class="badges">
+        <span id="serialBadge" class="badge badge-offline">SERIAL OFFLINE</span>
+        <span id="protocolBadge" class="badge badge-neutral">NO PROTOCOL</span>
+      </div>
+    </header>
+
+    <section id="browserWarning" class="notice warning" hidden>
+      This tool requires desktop Chrome or Microsoft Edge with Web Serial support.
+      GitHub Pages HTTPS is supported directly.
+    </section>
+
+    <section class="card">
+      <div class="card-title-row">
+        <div>
+          <h2>Firmware installer</h2>
+          <p class="muted small-copy">
+            Uses the same <code>esp-web-tools</code> installer model as DCCExpressLite.
+            No local helper server, Node.js, PlatformIO or esptool installation is required on this PC.
+          </p>
+        </div>
+        <span class="badge badge-online">WEB INSTALLER</span>
+      </div>
+
+      <div class="install-source-tabs">
+        <button id="publishedTab" class="tab-button active" type="button">Published release</button>
+        <button id="localTab" class="tab-button" type="button">Local BIN file</button>
+      </div>
+
+      <div id="publishedPanel">
+        <label>
+          Firmware release
+          <select id="releaseSelect" disabled>
+            <option value="">Loading releases…</option>
+          </select>
+        </label>
+
+        <p id="releaseStatus" class="status-line muted">Loading release list…</p>
+      </div>
+
+      <div id="localPanel" hidden>
+        <div class="form-grid">
+          <label>
+            Local BIN file
+            <input
+              id="localFirmwareFile"
+              type="file"
+              accept=".bin,application/octet-stream"
+            />
+          </label>
+
+          <label>
+            Image type
+            <select id="localImageType">
+              <option value="merged">Factory / merged image — offset 0x000000</option>
+              <option value="app">Application only — offset 0x010000</option>
+            </select>
+          </label>
+        </div>
+
+        <div id="localFirmwareWarning" class="notice warning compact">
+          Factory / merged images contain the complete Hub firmware and LittleFS.
+          A factory install may erase existing configuration and stored layout data.
+        </div>
+
+        <p id="localFirmwareStatus" class="status-line muted">
+          Select a local firmware file to prepare the installer.
+        </p>
+      </div>
+
+      <esp-web-install-button
+        id="installButton"
+        manifest="manifest.json"
+      >
+        <button
+          class="install-action"
+          slot="activate"
+          type="button"
+        >
+          Install firmware
+        </button>
+
+        <span slot="unsupported">
+          Web Serial is not supported by this browser. Use desktop Chrome or Edge.
+        </span>
+      </esp-web-install-button>
+
+      <p class="muted small-copy">
+        The installer itself asks you to choose the Hub USB serial device.
+        There is no separate COM-port selector.
+      </p>
+    </section>
+
+    <section class="card">
+      <div class="card-title-row">
+        <div>
+          <h2>Serial configuration</h2>
+          <p class="muted small-copy">
+            Connect to the firmware at 115200 baud. If the Hub is rebooting or running an older
+            firmware without the configuration protocol, the serial connection remains open in
+            recovery mode instead of disconnecting.
+          </p>
+        </div>
+
+        <div class="button-row inline">
+          <button id="connectButton" class="primary" type="button">Connect Hub</button>
+          <button id="disconnectButton" type="button" disabled>Disconnect</button>
+        </div>
+      </div>
+
+      <section class="status-grid">
+        <article class="subcard">
+          <div class="card-title-row">
+            <h3>Hub</h3>
+            <button id="refreshStatusButton" class="small" type="button" disabled>Refresh</button>
+          </div>
+
+          <dl class="kv">
+            <div><dt>Wi-Fi</dt><dd id="statusWifi">—</dd></div>
+            <div><dt>IP</dt><dd id="statusIp">—</dd></div>
+            <div><dt>Hostname</dt><dd id="statusHostname">—</dd></div>
+            <div><dt>HTTP / WS</dt><dd id="statusHttp">—</dd></div>
+            <div><dt>RSSI</dt><dd id="statusRssi">—</dd></div>
+            <div><dt>Free heap</dt><dd id="statusHeap">—</dd></div>
+          </dl>
+        </article>
+
+        <article class="subcard">
+          <div class="card-title-row">
+            <h3>EX-CSB1</h3>
+            <span id="csbBadge" class="badge badge-neutral">UNKNOWN</span>
+          </div>
+
+          <dl class="kv">
+            <div><dt>Host</dt><dd id="statusCsbHost">—</dd></div>
+            <div><dt>Resolved IP</dt><dd id="statusCsbResolved">—</dd></div>
+            <div><dt>Port</dt><dd id="statusCsbPort">—</dd></div>
+            <div><dt>State</dt><dd id="statusCsbState">—</dd></div>
+          </dl>
+        </article>
+      </section>
+    </section>
+
+    <section class="columns">
+      <article class="card">
+        <h2>Hub network</h2>
+        <p class="muted small-copy">
+          Network settings are stored in NVS and take effect after Hub restart.
+        </p>
+
+        <div class="form-grid">
+          <label>
+            Wi-Fi SSID
+            <input id="wifiSsid" autocomplete="off" />
+          </label>
+
+          <label>
+            Wi-Fi password
+            <input
+              id="wifiPassword"
+              type="password"
+              autocomplete="new-password"
+              placeholder="Leave blank to keep the stored password"
+            />
+          </label>
+
+          <label>
+            Hub hostname
+            <input id="hubHostname" autocomplete="off" />
+          </label>
+
+          <label>
+            HTTP / WebSocket port
+            <input id="hubHttpPort" type="number" min="1" max="65535" />
+          </label>
+        </div>
+
+        <label class="switch-line">
+          <input id="useDhcp" type="checkbox" checked />
+          <span>Use DHCP</span>
+        </label>
+
+        <div id="staticNetworkFields" class="form-grid">
+          <label>
+            Static IP
+            <input id="hubIp" placeholder="192.168.1.132" />
+          </label>
+
+          <label>
+            Gateway
+            <input id="hubGateway" placeholder="192.168.1.1" />
+          </label>
+
+          <label>
+            Subnet
+            <input id="hubSubnet" placeholder="255.255.255.0" />
+          </label>
+
+          <label>
+            DNS 1
+            <input id="hubDns1" placeholder="192.168.1.1" />
+          </label>
+
+          <label>
+            DNS 2
+            <input id="hubDns2" placeholder="Optional" />
+          </label>
+        </div>
+
+        <div class="button-row">
+          <button id="saveNetworkButton" class="primary" type="button" disabled>
+            Save network
+          </button>
+          <button id="saveNetworkRestartButton" type="button" disabled>
+            Save + restart Hub
+          </button>
+        </div>
+      </article>
+
+      <article class="card">
+        <h2>EX-CSB1 connection</h2>
+        <p class="muted small-copy">
+          These values are stored in NVS and applied immediately.
+        </p>
+
+        <div class="form-grid">
+          <label>
+            Host / IP
+            <input id="csbHost" placeholder="dccex.local" />
+          </label>
+
+          <label>
+            TCP port
+            <input id="csbPort" type="number" min="1" max="65535" value="2560" />
+          </label>
+        </div>
+
+        <label class="switch-line">
+          <input id="powerProg" type="checkbox" checked />
+          <span>POWER controls MAIN + PROG</span>
+        </label>
+
+        <div id="testPanel" class="test-panel test-idle">
+          <div class="test-title-row">
+            <strong id="testTitle">Connection test</strong>
+            <span id="testTime">—</span>
+          </div>
+          <div id="testMessage">
+            Tests hostname resolution, TCP connection and a real DCC-EX &lt;#&gt; reply.
+          </div>
+          <code id="testReply">Reply: —</code>
+        </div>
+
+        <div class="button-row">
+          <button id="testCsbButton" type="button" disabled>Test</button>
+          <button id="saveCsbButton" class="primary" type="button" disabled>Save CSB1</button>
+        </div>
+      </article>
+    </section>
+
+    <section class="card">
+      <div class="card-title-row">
+        <div>
+          <h2>Serial console</h2>
+          <p class="muted small-copy">
+            Firmware logs and configuration responses appear here. Lines beginning with
+            <code>&lt;</code> are sent as DCC-EX commands.
+          </p>
+        </div>
+        <button id="clearConsoleButton" class="small" type="button">Clear</button>
+      </div>
+
+      <pre id="consoleOutput" class="console-output"></pre>
+
+      <form id="consoleForm" class="console-input-row">
+        <input
+          id="consoleInput"
+          autocomplete="off"
+          placeholder="status  |  config  |  <s>  |  <t 18>"
+          disabled
+        />
+        <button id="consoleSendButton" type="submit" disabled>Send</button>
+      </form>
+    </section>
+
+    <footer>
+      DCCExpressHub Web Installer & Serial Configurator
+    </footer>
+  </main>
+
+  <script src="./app.js"></script>
+</body>
+</html>
