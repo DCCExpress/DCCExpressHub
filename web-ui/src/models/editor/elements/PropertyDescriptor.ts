@@ -1,6 +1,3 @@
-// export type PropertyEditorType = 
-// "string" | "number" | "boolean" | "checkbox" | "colorpicker" | "bittoggle" | "signal2" | "turnoutSelection" | "audiofile";
-
 export type PropertyEditorType =
   | "string"
   | "number"
@@ -14,6 +11,7 @@ export type PropertyEditorType =
   | "audioList"
   | "routeBlockSelect"
   | "blockTypeSelect"
+  | "scriptEditor"
   | "select";
 
 export interface IEditableProperty {

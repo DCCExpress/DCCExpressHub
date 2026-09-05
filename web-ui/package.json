@@ -1,36 +1,39 @@
 {
-    "name":  "dccexpress-hub-web-ui",
-    "version":  "0.1.0-alpha.6",
-    "private":  true,
-    "type":  "module",
-    "scripts":  {
-                    "dev":  "vite",
-                    "mock":  "node mock-server.mjs",
-                    "mock:reset":  "node -e \"import(\u0027./mock-littlefs.mjs\u0027).then(({MockLittleFS})=\u003e{const path=require(\u0027node:path\u0027);new MockLittleFS(path.resolve(\u0027mock-fs\u0027)).reset();console.log(\u0027mock-fs reset\u0027)})\"",
-                    "demo:seed":  "node tools/prepare-demo-seed.mjs",
-                    "dev:demo":  "npm run demo:seed \u0026\u0026 vite --mode demo",
-                    "typecheck":  "tsc --noEmit",
-                    "build":  "npm run typecheck \u0026\u0026 vite build",
-                    "build:demo":  "npm run demo:seed \u0026\u0026 npm run typecheck \u0026\u0026 vite build --mode demo",
-                    "embed":  "npm run build \u0026\u0026 node tools/embed.mjs",
-                    "dev:mock":  "vite --mode mock"
-                },
-    "dependencies":  {
-                         "@mantine/core":  "^9.1.1",
-                         "@mantine/notifications":  "^9.1.1",
-                         "@tabler/icons-react":  "^3.42.0",
-                         "i18next":  "^26.0.5",
-                         "react":  "^19.2.6",
-                         "react-dom":  "^19.2.6",
-                         "react-i18next":  "^17.0.3"
-                     },
-    "devDependencies":  {
-                            "@types/node":  "^26.3.0",
-                            "@types/react":  "^19.2.6",
-                            "@types/react-dom":  "^19.2.3",
-                            "@vitejs/plugin-react":  "^6.0.1",
-                            "typescript":  "^6.0.3",
-                            "vite":  "^8.0.8",
-                            "ws":  "^8.18.3"
-                        }
+    "name": "dccexpress-hub-web-ui",
+    "version": "0.1.0-alpha.6",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "vite",
+        "mock": "node mock-server.mjs",
+        "mock:reset": "node -e \"import('./mock-littlefs.mjs').then(({MockLittleFS})=>{const path=require('node:path');new MockLittleFS(path.resolve('mock-fs')).reset();console.log('mock-fs reset')})\"",
+        "demo:seed": "node tools/prepare-demo-seed.mjs",
+        "dev:demo": "npm run demo:seed && vite --mode demo",
+        "typecheck": "tsc --noEmit",
+        "build": "npm run typecheck && vite build",
+        "build:demo": "npm run demo:seed && npm run typecheck && vite build --mode demo",
+        "embed": "npm run build && node tools/embed.mjs",
+        "dev:mock": "vite --mode mock"
+    },
+    "dependencies": {
+        "@codemirror/lang-javascript": "^6.2.5",
+        "@mantine/core": "^9.1.1",
+        "@mantine/notifications": "^9.1.1",
+        "@tabler/icons-react": "^3.42.0",
+        "@uiw/react-codemirror": "^4.25.9",
+        "i18next": "^26.0.5",
+        "prettier": "^3.8.3",
+        "react": "^19.2.6",
+        "react-dom": "^19.2.6",
+        "react-i18next": "^17.0.3"
+    },
+    "devDependencies": {
+        "@types/node": "^26.3.0",
+        "@types/react": "^19.2.6",
+        "@types/react-dom": "^19.2.3",
+        "@vitejs/plugin-react": "^6.0.1",
+        "typescript": "^6.0.3",
+        "vite": "^8.0.8",
+        "ws": "^8.18.3"
+    }
 }

@@ -3,6 +3,10 @@ import type {
   TFunction,
 } from "i18next";
 
+import {
+  showNotification,
+} from "@mantine/notifications";
+
 import type {
   BaseElementView,
 } from "../../models/editor/core/BaseElementView";
@@ -15,6 +19,10 @@ import {
   isTurnoutElement,
   type LayoutView,
 } from "../../models/editor/core/LayoutView";
+
+import {
+  ButtonScriptElementView,
+} from "../../models/editor/elements/ButtonScriptElementView";
 
 import {
   ExtendedRouteButtonElementView,
@@ -31,6 +39,10 @@ import {
 import {
   TrackSensorElementView,
 } from "../../models/editor/elements/TrackSensorElementView";
+
+import {
+  runClientScript,
+} from "../../services/clientScriptRunner";
 
 import {
   wsApi,
@@ -90,6 +102,53 @@ function executeSensorToggle(
   );
 }
 
+async function executeScriptButton(
+  element: ButtonScriptElementView,
+  commandCenterLocked: boolean
+): Promise<void> {
+  if (commandCenterLocked) {
+    showNotification({
+      color: "orange",
+      title: "Command center is locked",
+      message:
+        "Unlock the command center before running a Script Button.",
+    });
+    return;
+  }
+
+  if (!element.script.trim()) {
+    showNotification({
+      color: "yellow",
+      title: "Empty Script Button",
+      message:
+        element.name ||
+        `Script Button #${element.id}`,
+    });
+    return;
+  }
+
+  try {
+    await runClientScript(
+      element.script,
+      {
+        id: element.id,
+        name: element.name,
+        type: element.type,
+      }
+    );
+  } catch (error) {
+    showNotification({
+      color: "red",
+      title:
+        "Script Button failed",
+      message:
+        error instanceof Error
+          ? error.message
+          : String(error),
+    });
+  }
+}
+
 export function handleTrackCanvasClickableDown(
   hitElement: BaseElementView | null,
   event: MouseEvent | PointerEvent,
@@ -97,6 +156,18 @@ export function handleTrackCanvasClickableDown(
 ): boolean {
   if (!hitElement) {
     return false;
+  }
+
+  if (
+    hitElement instanceof
+    ButtonScriptElementView
+  ) {
+    void executeScriptButton(
+      hitElement,
+      context.commandCenterLocked
+    );
+
+    return true;
   }
 
   if (hitElement instanceof TrackSensorElementView) {
@@ -156,6 +227,7 @@ export function handleTrackCanvasClickableUp(
   }
 
   if (
+    hitElement instanceof ButtonScriptElementView ||
     hitElement instanceof TrackSensorElementView ||
     hitElement instanceof TrackLevelCrossingElementView
   ) {

@@ -53,6 +53,7 @@ import BlockTypeSelectPropertyEditor from "@/layout/property-panel/BlockTypeSele
 import SignalAspectPropertyEditor from "@/layout/property-panel/SignalAspectPropertyEditor";
 import TurnoutBitPropertyEditor from "@/layout/property-panel/TurnoutBitPropertyEditor";
 import RouteTurnoutSelectionPropertyEditor from "@/layout/property-panel/RouteTurnoutSelectionPropertyEditor";
+import ScriptPropertyEditor from "@/layout/property-panel/ScriptPropertyEditor";
 import LocoPanel from "@/layout/LocoPanel";
 import type { BaseElementView } from "@/models/editor/core/BaseElementView";
 import { isTurnoutElement, LayoutView } from "@/models/editor/core/LayoutView";
@@ -63,6 +64,7 @@ import { TrackEndElementView } from "@/models/editor/elements/TrackEndElementVie
 import { TrackLevelCrossingElementView } from "@/models/editor/elements/TrackLevelCrossingElementView";
 import { BlockElementView } from "@/models/editor/elements/BlockElementView";
 import { ButtonElementView } from "@/models/editor/elements/ButtonElementView";
+import { ButtonScriptElementView } from "@/models/editor/elements/ButtonScriptElementView";
 import { TrackSensorElementView } from "@/models/editor/elements/TrackSensorElementView";
 import { TrackSignalElementView } from "@/models/editor/elements/TrackSignalElementView";
 import type { IEditableProperty } from "@/models/editor/elements/PropertyDescriptor";
@@ -147,6 +149,7 @@ const PICKER_ITEMS: PickerItem[] = [
   { type: ELEMENT_TYPES.TRACK_BLOCK, label: "Block", preview: new BlockElementView(0, 0) },
   { type: ELEMENT_TYPES.TRACK_SIGNAL2, label: "Signal", preview: createSignalPreview() },
   { type: ELEMENT_TYPES.BUTTON, label: "Output button", preview: new ButtonElementView(0, 0) },
+  { type: ELEMENT_TYPES.BUTTON_SCRIPT, label: "Script button", preview: new ButtonScriptElementView(0, 0) },
   { type: ELEMENT_TYPES.BUTTON_ROUTE, label: "Route", preview: new RouteButtonElementView(0, 0) },
   { type: ELEMENT_TYPES.LABEL, label: "Label", preview: new LabelElementView(0, 0) },
 ];
@@ -252,6 +255,12 @@ function LitePropertyPanel({
               />
             ) : property.type === "blockTypeSelect" ? (
               <BlockTypeSelectPropertyEditor
+                prop={property}
+                selectedElement={selectedElement}
+                onChange={onChange}
+              />
+            ) : property.type === "scriptEditor" ? (
+              <ScriptPropertyEditor
                 prop={property}
                 selectedElement={selectedElement}
                 onChange={onChange}
