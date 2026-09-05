@@ -200,16 +200,11 @@ export type OutputCommandModeDto =
   | "vpin";
 
 /**
- * Button output mode.
- *
- * "vpin" is retained only as a legacy serialized value so older code paths
- * and old layout files remain type-compatible. The Button editor never offers
- * VPIN and ButtonElementView migrates legacy VPIN buttons to Basic accessory.
+ * Output mode used by generic layout buttons.
  */
 export type ButtonOutputModeDto =
   | "accessory"
-  | "extended"
-  | "vpin";
+  | "extended";
 
 export type ButtonBehaviorDto =
   | "toggle"

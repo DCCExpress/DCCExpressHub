@@ -8,6 +8,7 @@ import { ClickableBaseElementView } from "../core/ClickableBaseElementView";
 import { DrawOptions, IButtonElement } from "../types/EditorTypes";
 import { IEditableProperty } from "./PropertyDescriptor";
 import { wsApi } from "../../../services/wsApi";
+import { wsClient } from "../../../services/wsClient";
 
 const BUTTON_OUTPUT_MODE_OPTIONS = [
     { value: "accessory", label: "Basic accessory · <a address 0|1>" },
@@ -20,6 +21,8 @@ function normalizeAspect(value: unknown, fallback: number): number {
 
     return Math.max(0, Math.min(255, Math.trunc(numeric)));
 }
+
+const buttonInstances = new Set<ButtonElementView>();
 
 export class ButtonElementView extends ClickableBaseElementView implements IButtonElement {
     override type = ELEMENT_TYPES.BUTTON;
@@ -46,6 +49,11 @@ export class ButtonElementView extends ClickableBaseElementView implements IButt
     private momentaryPressed: boolean = false;
     private pulseTimer: number | null = null;
 
+    constructor(x: number, y: number) {
+        super(x, y);
+        buttonInstances.add(this);
+    }
+
     /**
      * Sends one of the two configured Button states.
      *
@@ -66,19 +74,9 @@ export class ButtonElementView extends ClickableBaseElementView implements IButt
                 ? normalizeAspect(this.onAspect, 1)
                 : normalizeAspect(this.offAspect, 0);
 
-            const sent = wsApi.setSignalAspect(this.address, aspect);
-
-            if (sent) {
-                this.on = logicalOn;
-            }
-
-            return sent;
+            return wsApi.setSignalAspect(this.address, aspect);
         }
 
-        /*
-         * Legacy "vpin" is never intentionally produced by the editor.
-         * If it somehow survives in-memory, treat it as Basic accessory.
-         */
         const physicalValue = logicalOn
             ? this.activeValue
             : this.offValue;
@@ -177,7 +175,10 @@ export class ButtonElementView extends ClickableBaseElementView implements IButt
             pulseDurationMs: this.pulseDurationMs,
             address: this.address,
             activeValue: this.activeValue,
-            offValue: this.offValue,
+            offValue:
+                this.offValue === this.activeValue
+                    ? !this.activeValue
+                    : this.offValue,
             onAspect: normalizeAspect(this.onAspect, 1),
             offAspect: normalizeAspect(this.offAspect, 0),
             colorOn: this.colorOn,
@@ -197,10 +198,6 @@ export class ButtonElementView extends ClickableBaseElementView implements IButt
         e.fg = data.fg;
         e.address = data.address;
 
-        /*
-         * VPIN is intentionally retired for ButtonElement.
-         * Old VPIN data is migrated to Basic accessory.
-         */
         e.outputMode =
             data.outputMode === "extended"
                 ? "extended"
@@ -226,6 +223,10 @@ export class ButtonElementView extends ClickableBaseElementView implements IButt
         e.offValue =
             data.offValue ??
             !e.activeValue;
+
+        if (e.offValue === e.activeValue) {
+            e.offValue = !e.activeValue;
+        }
 
         e.onAspect = normalizeAspect(data.onAspect, 1);
         e.offAspect = normalizeAspect(data.offAspect, 0);
@@ -323,3 +324,29 @@ export class ButtonElementView extends ClickableBaseElementView implements IButt
         ];
     }
 }
+
+/**
+ * Keep every ButtonElementView instance synchronized with DCC-EX extended
+ * accessory feedback.
+ *
+ * Both LiteLayoutPage and RuntimeLayoutOverlay already listen for
+ * signalAspectChanged and invalidate their canvases, so updating the Button
+ * instances here makes the new state visible in every connected client
+ * without duplicating Button-specific feedback code in each view.
+ */
+wsClient.on("signalAspectChanged", data => {
+    for (const button of buttonInstances) {
+        if (
+            button.outputMode !== "extended" ||
+            button.address !== data.address
+        ) {
+            continue;
+        }
+
+        if (data.aspect === button.onAspect) {
+            button.on = true;
+        } else if (data.aspect === button.offAspect) {
+            button.on = false;
+        }
+    }
+});

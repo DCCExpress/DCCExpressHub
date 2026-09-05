@@ -166,9 +166,13 @@ function renderButtonBasicEditor(
         <Group gap="xs" wrap="nowrap">
           <BitToggleElement
             value={selectedElement.activeValue}
-            onChange={value =>
-              onChange(onValueProperty, value)
-            }
+            onChange={value => {
+              onChange(onValueProperty, value);
+
+              if (selectedElement.offValue === value) {
+                onChange(offValueProperty, !value);
+              }
+            }}
           />
 
           <TestButton
@@ -190,9 +194,13 @@ function renderButtonBasicEditor(
         <Group gap="xs" wrap="nowrap">
           <BitToggleElement
             value={selectedElement.offValue}
-            onChange={value =>
-              onChange(offValueProperty, value)
-            }
+            onChange={value => {
+              onChange(offValueProperty, value);
+
+              if (selectedElement.activeValue === value) {
+                onChange(onValueProperty, !value);
+              }
+            }}
           />
 
           <TestButton
