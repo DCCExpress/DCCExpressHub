@@ -1,10 +1,12 @@
 import {
   lazy,
   Suspense,
+  useEffect,
   useState,
 } from "react";
 
 import {
+  Badge,
   Button,
   Group,
   Loader,
@@ -19,7 +21,9 @@ import {
 import {
   IconBraces,
   IconCode,
+  IconPlayerPause,
   IconPlayerPlay,
+  IconTrashX,
 } from "@tabler/icons-react";
 
 import type {
@@ -35,7 +39,14 @@ import type {
 } from "../../models/editor/elements/PropertyDescriptor";
 
 import {
+  abortClientScript,
+  getClientScriptState,
+  pauseClientScript,
+  resumeClientScript,
   runClientScript,
+  ScriptAbortError,
+  subscribeClientScriptState,
+  type ClientScriptState,
 } from "../../services/clientScriptRunner";
 
 import type {
@@ -58,6 +69,26 @@ type ScriptPropertyEditorProps = {
     PropertyChangeHandler;
 };
 
+function stateColor(
+  state: ClientScriptState
+): string {
+  if (
+    state.status ===
+    "running"
+  ) {
+    return "green";
+  }
+
+  if (
+    state.status ===
+    "paused"
+  ) {
+    return "yellow";
+  }
+
+  return "gray";
+}
+
 export default function ScriptPropertyEditor({
   prop,
   selectedElement,
@@ -69,18 +100,35 @@ export default function ScriptPropertyEditor({
   ] =
     useState(false);
 
-  const [
-    running,
-    setRunning,
-  ] =
-    useState(false);
-
-  if (
-    !(
-      selectedElement instanceof
+  const element =
+    selectedElement instanceof
       ButtonScriptElementView
-    )
-  ) {
+      ? selectedElement
+      : null;
+
+  const [
+    scriptState,
+    setScriptState,
+  ] =
+    useState<ClientScriptState>(
+      () =>
+        getClientScriptState(
+          element?.id ?? -1
+        )
+    );
+
+  useEffect(() => {
+    if (!element) return;
+
+    return subscribeClientScriptState(
+      element.id,
+      setScriptState
+    );
+  }, [
+    element?.id,
+  ]);
+
+  if (!element) {
     return (
       <Text
         size="sm"
@@ -93,11 +141,11 @@ export default function ScriptPropertyEditor({
 
   const context = {
     id:
-      selectedElement.id,
+      element.id,
     name:
-      selectedElement.name,
+      element.name,
     type:
-      selectedElement.type,
+      element.type,
   };
 
   const run =
@@ -105,8 +153,6 @@ export default function ScriptPropertyEditor({
       source: string
     ): Promise<void> => {
       try {
-        setRunning(true);
-
         await runClientScript(
           source,
           context
@@ -117,12 +163,28 @@ export default function ScriptPropertyEditor({
           title:
             "Script completed",
           message:
-            selectedElement.name ||
-            `Script Button #${selectedElement.id}`,
+            element.name ||
+            `Script Button #${element.id}`,
         });
       } catch (
         error
       ) {
+        if (
+          error instanceof
+          ScriptAbortError
+        ) {
+          showNotification({
+            color: "orange",
+            title:
+              "Script aborted",
+            message:
+              element.name ||
+              `Script Button #${element.id}`,
+          });
+
+          throw error;
+        }
+
         showNotification({
           color: "red",
           title:
@@ -134,10 +196,55 @@ export default function ScriptPropertyEditor({
         });
 
         throw error;
-      } finally {
-        setRunning(false);
       }
     };
+
+  const pause = () => {
+    if (
+      pauseClientScript(
+        element.id
+      )
+    ) {
+      showNotification({
+        color: "yellow",
+        title: "Script stopped",
+        message:
+          "Execution will remain paused at the current/next await delay() checkpoint.",
+      });
+    }
+  };
+
+  const resume = () => {
+    if (
+      resumeClientScript(
+        element.id
+      )
+    ) {
+      showNotification({
+        color: "green",
+        title: "Script resumed",
+        message:
+          element.name ||
+          `Script Button #${element.id}`,
+      });
+    }
+  };
+
+  const abort = () => {
+    if (
+      abortClientScript(
+        element.id
+      )
+    ) {
+      showNotification({
+        color: "red",
+        title: "Script abort requested",
+        message:
+          element.name ||
+          `Script Button #${element.id}`,
+      });
+    }
+  };
 
   return (
     <>
@@ -156,19 +263,33 @@ export default function ScriptPropertyEditor({
             />
 
             <div>
-              <Text
-                size="sm"
-                fw={600}
-              >
-                JavaScript
-              </Text>
+              <Group gap={5}>
+                <Text
+                  size="sm"
+                  fw={600}
+                >
+                  JavaScript
+                </Text>
+
+                <Badge
+                  size="xs"
+                  variant="light"
+                  color={
+                    stateColor(
+                      scriptState
+                    )
+                  }
+                >
+                  {scriptState.status.toUpperCase()}
+                </Badge>
+              </Group>
 
               <Text
                 size="xs"
                 c="dimmed"
               >
-                {selectedElement.script.trim()
-                  ? `${selectedElement.script.split("\n").length} lines`
+                {element.script.trim()
+                  ? `${element.script.split("\n").length} lines`
                   : "Empty script"}
               </Text>
             </div>
@@ -191,29 +312,97 @@ export default function ScriptPropertyEditor({
           </Button>
         </Group>
 
-        <Button
-          size="xs"
-          variant="subtle"
-          color="green"
-          leftSection={
-            <IconPlayerPlay
-              size={14}
-            />
-          }
-          loading={running}
-          disabled={
-            !selectedElement.script.trim()
-          }
-          onClick={() => {
-            void run(
-              selectedElement.script
-            ).catch(
-              () => undefined
-            );
-          }}
+        <Group
+          gap={5}
+          grow
         >
-          Run test
-        </Button>
+          {scriptState.status ===
+            "idle" && (
+            <Button
+              size="xs"
+              variant="light"
+              color="green"
+              leftSection={
+                <IconPlayerPlay
+                  size={14}
+                />
+              }
+              disabled={
+                !element.script.trim()
+              }
+              onClick={() => {
+                void run(
+                  element.script
+                ).catch(
+                  () => undefined
+                );
+              }}
+            >
+              Run
+            </Button>
+          )}
+
+          {scriptState.status ===
+            "running" && (
+            <Button
+              size="xs"
+              variant="light"
+              color="yellow"
+              leftSection={
+                <IconPlayerPause
+                  size={14}
+                />
+              }
+              onClick={pause}
+            >
+              Stop
+            </Button>
+          )}
+
+          {scriptState.status ===
+            "paused" && (
+            <Button
+              size="xs"
+              variant="light"
+              color="green"
+              leftSection={
+                <IconPlayerPlay
+                  size={14}
+                />
+              }
+              onClick={resume}
+            >
+              Resume
+            </Button>
+          )}
+
+          {scriptState.status !==
+            "idle" && (
+            <Button
+              size="xs"
+              variant="light"
+              color="red"
+              leftSection={
+                <IconTrashX
+                  size={14}
+                />
+              }
+              onClick={abort}
+            >
+              Abort
+            </Button>
+          )}
+        </Group>
+
+        {scriptState.status ===
+          "paused" && (
+          <Text
+            size="xs"
+            c="yellow"
+          >
+            Paused. Resume continues the same async run from its delay checkpoint.
+          </Text>
+        )}
       </Stack>
 
       {opened && (
@@ -230,11 +419,14 @@ export default function ScriptPropertyEditor({
           <ScriptEditorDialog
             opened={opened}
             title={`Script · ${
-              selectedElement.name ||
-              `#${selectedElement.id}`
+              element.name ||
+              `#${element.id}`
             }`}
             value={
-              selectedElement.script
+              element.script
+            }
+            scriptStatus={
+              scriptState.status
             }
             onClose={() => {
               setOpened(false);
@@ -245,19 +437,18 @@ export default function ScriptPropertyEditor({
                 value
               );
 
-              setOpened(false);
-
               showNotification({
                 color: "teal",
                 title:
                   "Script saved",
                 message:
-                  "Save the layout to persist the change on the Hub.",
+                  "Editor remains open. Save the layout to persist the change on the Hub.",
               });
             }}
-            onRun={async value => {
-              await run(value);
-            }}
+            onRun={run}
+            onPause={pause}
+            onResume={resume}
+            onAbort={abort}
           />
         </Suspense>
       )}

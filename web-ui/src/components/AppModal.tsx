@@ -65,31 +65,50 @@ export default function AppModal({
     return () => {
       window.removeEventListener("pointermove", handleMove);
       window.removeEventListener("pointerup", handleUp);
+      document.body.style.userSelect = "";
     };
   }, [draggable]);
+
+  const beginDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!draggable) return;
+
+    const target = event.target as HTMLElement | null;
+    if (target?.closest("button, a, input, textarea, select")) return;
+
+    event.preventDefault();
+
+    dragRef.current = {
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: offset.x,
+      originY: offset.y,
+    };
+
+    document.body.style.userSelect = "none";
+  };
 
   const titleNode = draggable ? (
     <div
       style={{
         cursor: "move",
         width: "100%",
+        touchAction: "none",
       }}
-      onPointerDown={event => {
-        event.preventDefault();
-
-        dragRef.current = {
-          startX: event.clientX,
-          startY: event.clientY,
-          originX: offset.x,
-          originY: offset.y,
-        };
-
-        document.body.style.userSelect = "none";
-      }}
+      onPointerDown={beginDrag}
     >
       {title}
     </div>
   ) : title;
+
+  const objectStyles =
+    styles && typeof styles === "object"
+      ? styles
+      : undefined;
+
+  const existingContentStyle =
+    objectStyles && "content" in objectStyles
+      ? (objectStyles as Record<string, unknown>).content
+      : undefined;
 
   return (
     <Modal
@@ -98,10 +117,10 @@ export default function AppModal({
       onClose={onClose}
       title={titleNode}
       styles={{
-        ...styles,
-        inner: {
-          ...(styles && typeof styles === "object" && "inner" in styles
-            ? (styles as any).inner
+        ...objectStyles,
+        content: {
+          ...(typeof existingContentStyle === "object" && existingContentStyle !== null
+            ? existingContentStyle
             : {}),
           transform: `translate(${offset.x}px, ${offset.y}px)`,
         },

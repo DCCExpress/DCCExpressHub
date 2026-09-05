@@ -6,6 +6,7 @@ import {
 import {
   ActionIcon,
   Alert,
+  Badge,
   Button,
   Group,
   Stack,
@@ -17,7 +18,10 @@ import {
 import {
   IconBraces,
   IconDeviceFloppy,
+  IconPlayerPause,
   IconPlayerPlay,
+  IconPlayerStop,
+  IconTrashX,
   IconWand,
   IconX,
 } from "@tabler/icons-react";
@@ -27,15 +31,23 @@ import {
   javascript,
 } from "@codemirror/lang-javascript";
 
+import type {
+  ClientScriptStatus,
+} from "../services/clientScriptRunner";
+
 import AppModal from "./AppModal";
 
 type ScriptEditorDialogProps = {
   opened: boolean;
   title: string;
   value: string;
+  scriptStatus: ClientScriptStatus;
   onClose: () => void;
   onSave: (value: string) => void;
   onRun: (value: string) => Promise<void>;
+  onPause: () => void;
+  onResume: () => void;
+  onAbort: () => void;
 };
 
 async function formatScriptBody(
@@ -98,13 +110,25 @@ async function formatScriptBody(
     .join("\n");
 }
 
+function statusColor(
+  status: ClientScriptStatus
+): string {
+  if (status === "running") return "green";
+  if (status === "paused") return "yellow";
+  return "gray";
+}
+
 export default function ScriptEditorDialog({
   opened,
   title,
   value,
+  scriptStatus,
   onClose,
   onSave,
   onRun,
+  onPause,
+  onResume,
+  onAbort,
 }: ScriptEditorDialogProps) {
   const {
     colorScheme,
@@ -124,8 +148,8 @@ export default function ScriptEditorDialog({
     useState(false);
 
   const [
-    running,
-    setRunning,
+    starting,
+    setStarting,
   ] =
     useState(false);
 
@@ -176,7 +200,7 @@ export default function ScriptEditorDialog({
   const handleRun =
     async (): Promise<void> => {
       try {
-        setRunning(true);
+        setStarting(true);
         setError(null);
 
         await onRun(
@@ -185,6 +209,14 @@ export default function ScriptEditorDialog({
       } catch (
         runError
       ) {
+        if (
+          runError instanceof Error &&
+          runError.name ===
+            "ScriptAbortError"
+        ) {
+          return;
+        }
+
         setError(
           runError instanceof Error
             ? runError.message
@@ -193,7 +225,7 @@ export default function ScriptEditorDialog({
               )
         );
       } finally {
-        setRunning(false);
+        setStarting(false);
       }
     };
 
@@ -208,6 +240,15 @@ export default function ScriptEditorDialog({
           event.key.toLowerCase();
 
         if (
+          key === "escape"
+        ) {
+          event.preventDefault();
+          event.stopPropagation();
+          event.stopImmediatePropagation();
+          return;
+        }
+
+        if (
           (
             event.ctrlKey ||
             event.metaKey
@@ -216,6 +257,7 @@ export default function ScriptEditorDialog({
         ) {
           event.preventDefault();
           event.stopPropagation();
+          event.stopImmediatePropagation();
 
           onSave(draft);
           return;
@@ -228,6 +270,7 @@ export default function ScriptEditorDialog({
         ) {
           event.preventDefault();
           event.stopPropagation();
+          event.stopImmediatePropagation();
 
           void handleFormat();
         }
@@ -258,6 +301,7 @@ export default function ScriptEditorDialog({
       onClose={onClose}
       closeOnClickOutside={false}
       closeOnEscape={false}
+      trapFocus
       title={
         <Group
           gap="xs"
@@ -269,18 +313,29 @@ export default function ScriptEditorDialog({
           <Text fw={700}>
             {title}
           </Text>
+          <Badge
+            size="sm"
+            variant="light"
+            color={
+              statusColor(
+                scriptStatus
+              )
+            }
+          >
+            {scriptStatus.toUpperCase()}
+          </Badge>
         </Group>
       }
-      size="72vw"
+      size="68vw"
       centered
       draggable
       resetPositionOnOpen
       styles={{
         content: {
           height:
-            "78dvh",
+            "76dvh",
           maxHeight:
-            "78dvh",
+            "76dvh",
           display:
             "flex",
           flexDirection:
@@ -326,30 +381,87 @@ export default function ScriptEditorDialog({
               </ActionIcon>
             </Tooltip>
 
-            <Tooltip
-              label="Run current draft"
-            >
-              <ActionIcon
-                variant="light"
-                color="green"
-                loading={running}
-                onClick={() => {
-                  void handleRun();
-                }}
-                aria-label="Run script"
+            {scriptStatus ===
+              "idle" && (
+              <Tooltip
+                label="Run current draft"
               >
-                <IconPlayerPlay
-                  size={17}
-                />
-              </ActionIcon>
-            </Tooltip>
+                <ActionIcon
+                  variant="light"
+                  color="green"
+                  loading={starting}
+                  onClick={() => {
+                    void handleRun();
+                  }}
+                  aria-label="Run script"
+                >
+                  <IconPlayerPlay
+                    size={17}
+                  />
+                </ActionIcon>
+              </Tooltip>
+            )}
+
+            {scriptStatus ===
+              "running" && (
+              <Tooltip
+                label="Stop / pause at the next await delay() checkpoint"
+              >
+                <ActionIcon
+                  variant="light"
+                  color="yellow"
+                  onClick={onPause}
+                  aria-label="Pause script"
+                >
+                  <IconPlayerPause
+                    size={17}
+                  />
+                </ActionIcon>
+              </Tooltip>
+            )}
+
+            {scriptStatus ===
+              "paused" && (
+              <Tooltip
+                label="Resume paused script"
+              >
+                <ActionIcon
+                  variant="light"
+                  color="green"
+                  onClick={onResume}
+                  aria-label="Resume script"
+                >
+                  <IconPlayerPlay
+                    size={17}
+                  />
+                </ActionIcon>
+              </Tooltip>
+            )}
+
+            {scriptStatus !==
+              "idle" && (
+              <Tooltip
+                label="Abort this run permanently"
+              >
+                <ActionIcon
+                  variant="light"
+                  color="red"
+                  onClick={onAbort}
+                  aria-label="Abort script"
+                >
+                  <IconTrashX
+                    size={17}
+                  />
+                </ActionIcon>
+              </Tooltip>
+            )}
           </Group>
 
           <Text
             size="xs"
             c="dimmed"
           >
-            Ctrl+S save · Shift+Alt+F format
+            Ctrl+S save · Shift+Alt+F format · ESC disabled
           </Text>
         </Group>
 
@@ -435,7 +547,7 @@ export default function ScriptEditorDialog({
             size="xs"
             c="dimmed"
           >
-            Scripts run in the browser and send commands to the Hub through WebSocket.
+            Stop pauses cooperatively at await delay(). Abort terminates the active run.
           </Text>
 
           <Group gap="xs">
@@ -448,24 +560,75 @@ export default function ScriptEditorDialog({
               }
               onClick={onClose}
             >
-              Cancel
+              Close
             </Button>
 
-            <Button
-              color="green"
-              variant="light"
-              leftSection={
-                <IconPlayerPlay
-                  size={15}
-                />
-              }
-              loading={running}
-              onClick={() => {
-                void handleRun();
-              }}
-            >
-              Run test
-            </Button>
+            {scriptStatus ===
+              "idle" && (
+              <Button
+                color="green"
+                variant="light"
+                leftSection={
+                  <IconPlayerPlay
+                    size={15}
+                  />
+                }
+                loading={starting}
+                onClick={() => {
+                  void handleRun();
+                }}
+              >
+                Run
+              </Button>
+            )}
+
+            {scriptStatus ===
+              "running" && (
+              <Button
+                color="yellow"
+                variant="light"
+                leftSection={
+                  <IconPlayerStop
+                    size={15}
+                  />
+                }
+                onClick={onPause}
+              >
+                Stop
+              </Button>
+            )}
+
+            {scriptStatus ===
+              "paused" && (
+              <Button
+                color="green"
+                variant="light"
+                leftSection={
+                  <IconPlayerPlay
+                    size={15}
+                  />
+                }
+                onClick={onResume}
+              >
+                Resume
+              </Button>
+            )}
+
+            {scriptStatus !==
+              "idle" && (
+              <Button
+                color="red"
+                variant="light"
+                leftSection={
+                  <IconTrashX
+                    size={15}
+                  />
+                }
+                onClick={onAbort}
+              >
+                Abort
+              </Button>
+            )}
 
             <Button
               leftSection={
