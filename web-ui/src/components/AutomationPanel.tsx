@@ -46,7 +46,7 @@ import {
 
 import type {
   AutomationScriptDefinition,
-} from "../LiteLayoutPage";
+} from "../services/automationApi";
 
 const ScriptEditorDialog =
   lazy(
@@ -436,7 +436,7 @@ function ScriptCard({
                 color: "teal",
                 title: "Automation script saved",
                 message:
-                  "Editor remains open. Save the layout to persist it on the Hub.",
+                  "Editor remains open. Save the project to persist it in the Hub automation store.",
               });
             }}
             onRun={run}
@@ -481,7 +481,7 @@ export default function AutomationPanel({
       color: "red",
       title: "Automation deleted",
       message:
-        "Save the layout to persist the deletion on the Hub.",
+        "Save the project to persist the deletion in the Hub automation store.",
     });
   };
 
@@ -612,7 +612,7 @@ export default function AutomationPanel({
           size="xs"
           c="dimmed"
         >
-          Scripts are currently stored inside the layout JSON. Their IDs and data model are already separated so they can later move to a dedicated automation store/API.
+          Scripts are stored separately from the layout in /config/automations.json through /api/automations.
         </Text>
       </Stack>
     </ScrollArea>

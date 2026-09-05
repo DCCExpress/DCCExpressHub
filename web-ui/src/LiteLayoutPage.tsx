@@ -33,6 +33,7 @@ import {
   IconTrafficLights,
   IconTrain,
   IconTrash,
+  IconUpload,
 } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { showNotification } from "@mantine/notifications";
@@ -77,6 +78,14 @@ import ElementPreview from "@/models/editor/rendering/ElementPreviewRenderer";
 import type { EditorTool } from "@/models/editor/types/EditorTypes";
 import { wsApi } from "@/services/wsApi";
 import { wsClient, type WsConnectionStatus } from "@/services/wsClient";
+import {
+  createAutomationId,
+  createAutomationPayload,
+  loadAutomationScripts,
+  normalizeAutomationScripts,
+  saveAutomationScripts,
+  type AutomationScriptDefinition,
+} from "@/services/automationApi";
 import "@/styles/propertypanel.css";
 
 type LiteLayoutPageProps = {
@@ -131,13 +140,7 @@ type PickerItem = {
   preview: BaseElementView;
 };
 
-export type AutomationScriptDefinition = {
-  id: string;
-  name: string;
-  script: string;
-};
-
-type LayoutWithAutomation = {
+type LayoutWithLegacyAutomation = {
   automationScript?: string;
   automationScripts?: AutomationScriptDefinition[];
   layers?: Array<{
@@ -147,84 +150,37 @@ type LayoutWithAutomation = {
   [key: string]: unknown;
 };
 
-function createAutomationId(): string {
-  if (
-    typeof crypto !== "undefined" &&
-    typeof crypto.randomUUID === "function"
-  ) {
-    return crypto.randomUUID();
-  }
-
-  return `automation-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
-function normalizeAutomationScripts(
-  raw: unknown
-): AutomationScriptDefinition[] {
-  if (!Array.isArray(raw)) {
-    return [];
-  }
-
-  const result: AutomationScriptDefinition[] = [];
-  const usedIds = new Set<string>();
-
-  for (const item of raw) {
-    if (!item || typeof item !== "object") continue;
-
-    const candidate =
-      item as Record<string, unknown>;
-
-    const script =
-      typeof candidate.script === "string"
-        ? candidate.script
-        : "";
-
-    const name =
-      typeof candidate.name === "string" && candidate.name.trim()
-        ? candidate.name.trim()
-        : "Automation";
-
-    let id =
-      typeof candidate.id === "string" && candidate.id.trim()
-        ? candidate.id.trim()
-        : createAutomationId();
-
-    while (usedIds.has(id)) {
-      id = createAutomationId();
-    }
-
-    usedIds.add(id);
-
-    result.push({
-      id,
-      name,
-      script,
-    });
-  }
-
-  return result;
-}
+type DccExpressProjectExport = {
+  format: "dccexpress-project";
+  version: 1;
+  exportedAt: string;
+  layout: unknown;
+  automations: {
+    version: 1;
+    scripts: AutomationScriptDefinition[];
+  };
+};
 
 function prepareLayoutForLoad(raw: unknown): {
   layoutData: unknown;
-  automationScripts: AutomationScriptDefinition[];
+  legacyAutomationScripts: AutomationScriptDefinition[];
 } {
   const source =
     raw && typeof raw === "object"
-      ? structuredClone(raw) as LayoutWithAutomation
-      : {} as LayoutWithAutomation;
+      ? structuredClone(raw) as LayoutWithLegacyAutomation
+      : {} as LayoutWithLegacyAutomation;
 
-  let automationScripts =
+  let legacyAutomationScripts =
     normalizeAutomationScripts(
       source.automationScripts
     );
 
   if (
-    automationScripts.length === 0 &&
+    legacyAutomationScripts.length === 0 &&
     typeof source.automationScript === "string" &&
     source.automationScript.trim()
   ) {
-    automationScripts = [
+    legacyAutomationScripts = [
       {
         id: createAutomationId(),
         name: "Layout automation",
@@ -233,7 +189,7 @@ function prepareLayoutForLoad(raw: unknown): {
     ];
   }
 
-  const legacyScripts: AutomationScriptDefinition[] = [];
+  const legacyButtonScripts: AutomationScriptDefinition[] = [];
 
   if (Array.isArray(source.layers)) {
     for (const layer of source.layers) {
@@ -255,7 +211,7 @@ function prepareLayoutForLoad(raw: unknown): {
               ? element.name.trim()
               : `Script Button ${index + 1}`;
 
-          legacyScripts.push({
+          legacyButtonScripts.push({
             id: createAutomationId(),
             name,
             script,
@@ -267,22 +223,25 @@ function prepareLayoutForLoad(raw: unknown): {
     }
   }
 
-  if (automationScripts.length === 0 && legacyScripts.length > 0) {
-    automationScripts = legacyScripts;
+  if (
+    legacyAutomationScripts.length === 0 &&
+    legacyButtonScripts.length > 0
+  ) {
+    legacyAutomationScripts =
+      legacyButtonScripts;
   }
 
   delete source.automationScript;
-  source.automationScripts = automationScripts;
+  delete source.automationScripts;
 
   return {
     layoutData: source,
-    automationScripts,
+    legacyAutomationScripts,
   };
 }
 
-function serializeLayoutWithAutomations(
-  layout: LayoutView,
-  automationScripts: AutomationScriptDefinition[]
+function serializeLayoutOnly(
+  layout: LayoutView
 ): string {
   const plainLayout =
     JSON.parse(
@@ -290,13 +249,90 @@ function serializeLayoutWithAutomations(
     ) as Record<string, unknown>;
 
   delete plainLayout.automationScript;
-
-  plainLayout.automationScripts =
-    automationScripts;
+  delete plainLayout.automationScripts;
 
   return JSON.stringify(
     plainLayout
   );
+}
+
+function createProjectExport(
+  layout: LayoutView,
+  automationScripts: AutomationScriptDefinition[]
+): DccExpressProjectExport {
+  return {
+    format: "dccexpress-project",
+    version: 1,
+    exportedAt:
+      new Date().toISOString(),
+    layout:
+      JSON.parse(
+        serializeLayoutOnly(
+          layout
+        )
+      ),
+    automations:
+      createAutomationPayload(
+        automationScripts
+      ),
+  };
+}
+
+function parseImportedProject(raw: unknown): {
+  layoutData: unknown;
+  automationScripts: AutomationScriptDefinition[];
+} {
+  if (
+    raw &&
+    typeof raw === "object"
+  ) {
+    const candidate =
+      raw as Record<string, unknown>;
+
+    if (
+      candidate.format === "dccexpress-project" &&
+      Number(candidate.version) === 1 &&
+      "layout" in candidate
+    ) {
+      const prepared =
+        prepareLayoutForLoad(
+          candidate.layout
+        );
+
+      const automations =
+        candidate.automations &&
+        typeof candidate.automations === "object"
+          ? candidate.automations as Record<string, unknown>
+          : {};
+
+      const importedScripts =
+        normalizeAutomationScripts(
+          automations.scripts
+        );
+
+      return {
+        layoutData:
+          prepared.layoutData,
+        automationScripts:
+          importedScripts.length > 0
+            ? importedScripts
+            : prepared.legacyAutomationScripts,
+      };
+    }
+  }
+
+  // Backward compatibility:
+  // old exports were plain layout JSON with automationScript,
+  // automationScripts or buttonscript elements embedded in it.
+  const prepared =
+    prepareLayoutForLoad(raw);
+
+  return {
+    layoutData:
+      prepared.layoutData,
+    automationScripts:
+      prepared.legacyAutomationScripts,
+  };
 }
 
 function createSignalPreview(): TrackSignalElementView {
@@ -639,6 +675,7 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
   const commandCenter = useCommandCenter();
   const [layout, setLayout] = useState(() => new LayoutView());
   const [automationScripts, setAutomationScripts] = useState<AutomationScriptDefinition[]>([]);
+  const importFileRef = useRef<HTMLInputElement | null>(null);
   const [selectedElement, setSelectedElement] = useState<BaseElementView | null>(null);
   const [tool, setTool] = useState<EditorTool>({ mode: "cursor", elementType: "general" });
   const [editMode, setEditMode] = useState(false);
@@ -678,13 +715,31 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
   const loadLayout = useCallback(async () => {
     setLoading(true);
     setError(null);
+
     try {
-      const response = await fetch("/api/layout", { cache: "no-store" });
-      if (!response.ok) throw new Error("The layout could not be loaded from the EX-CSB1.");
+      const [
+        layoutResponse,
+        storedAutomations,
+      ] =
+        await Promise.all([
+          fetch(
+            "/api/layout",
+            {
+              cache: "no-store",
+            }
+          ),
+          loadAutomationScripts(),
+        ]);
+
+      if (!layoutResponse.ok) {
+        throw new Error(
+          "The layout could not be loaded from the EX-CSB1."
+        );
+      }
 
       const prepared =
         prepareLayoutForLoad(
-          await response.json()
+          await layoutResponse.json()
         );
 
       const nextLayout =
@@ -695,12 +750,22 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
       nextLayout.checkRoutes();
 
       setLayout(nextLayout);
+
+      // Migration path: if the new dedicated store is still empty,
+      // accept automation data embedded by older layout versions.
       setAutomationScripts(
-        prepared.automationScripts
+        storedAutomations.length > 0
+          ? storedAutomations
+          : prepared.legacyAutomationScripts
       );
+
       setSelectedElement(null);
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : String(loadError));
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : String(loadError)
+      );
     } finally {
       setLoading(false);
     }
@@ -952,64 +1017,212 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
   const saveLayout = useCallback(async () => {
     setSaving(true);
     setError(null);
+
     try {
-      const response = await fetch("/api/layout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: serializeLayoutWithAutomations(
-          layout,
-          automationScripts
-        ),
+      const layoutResponse =
+        await fetch(
+          "/api/layout",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+            body:
+              serializeLayoutOnly(
+                layout
+              ),
+          }
+        );
+
+      if (!layoutResponse.ok) {
+        throw new Error(
+          "The layout could not be saved to the EX-CSB1."
+        );
+      }
+
+      await saveAutomationScripts(
+        automationScripts
+      );
+
+      showNotification({
+        color: "teal",
+        title: "Project saved",
+        message:
+          "Layout and automation scripts were saved to their separate Hub stores.",
       });
-      if (!response.ok) throw new Error("The layout could not be saved to the EX-CSB1.");
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : String(saveError));
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : String(saveError)
+      );
     } finally {
       setSaving(false);
     }
-  }, [layout, automationScripts]);
+  }, [
+    layout,
+    automationScripts,
+  ]);
 
   const exportLayout = useCallback(() => {
-    const serialized =
-      JSON.parse(
-        serializeLayoutWithAutomations(
-          layout,
-          automationScripts
-        )
+    const project =
+      createProjectExport(
+        layout,
+        automationScripts
       );
 
     const json =
       JSON.stringify(
-        serialized,
+        project,
         null,
         2
       );
-    const blob = new Blob(
-      [json],
-      { type: "application/json;charset=utf-8" },
-    );
-    const url = URL.createObjectURL(blob);
 
-    const now = new Date();
-    const pad = (value: number) =>
-      String(value).padStart(2, "0");
+    const blob =
+      new Blob(
+        [json],
+        {
+          type:
+            "application/json;charset=utf-8",
+        }
+      );
+
+    const url =
+      URL.createObjectURL(
+        blob
+      );
+
+    const now =
+      new Date();
+
+    const pad = (
+      value: number
+    ) =>
+      String(value)
+        .padStart(2, "0");
 
     const stamp =
       `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-` +
       `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
 
-    const link = document.createElement("a");
+    const link =
+      document.createElement(
+        "a"
+      );
+
     link.href = url;
-    link.download = `dcc-express-layout-${stamp}.json`;
-    document.body.appendChild(link);
+    link.download =
+      `dccexpress-project-${stamp}.json`;
+
+    document.body.appendChild(
+      link
+    );
+
     link.click();
     link.remove();
 
     window.setTimeout(
-      () => URL.revokeObjectURL(url),
-      0,
+      () =>
+        URL.revokeObjectURL(
+          url
+        ),
+      0
     );
-  }, [layout, automationScripts]);
+  }, [
+    layout,
+    automationScripts,
+  ]);
+
+  const importProject = useCallback(
+    async (
+      file: File
+    ): Promise<void> => {
+      setSaving(true);
+      setError(null);
+
+      try {
+        const parsed =
+          JSON.parse(
+            await file.text()
+          ) as unknown;
+
+        const imported =
+          parseImportedProject(
+            parsed
+          );
+
+        const nextLayout =
+          LayoutView.fromJSON(
+            imported.layoutData
+          );
+
+        nextLayout.checkRoutes();
+
+        const layoutResponse =
+          await fetch(
+            "/api/layout",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+              body:
+                serializeLayoutOnly(
+                  nextLayout
+                ),
+            }
+          );
+
+        if (!layoutResponse.ok) {
+          throw new Error(
+            "Imported layout could not be saved to the Hub."
+          );
+        }
+
+        await saveAutomationScripts(
+          imported.automationScripts
+        );
+
+        setLayout(nextLayout);
+        setAutomationScripts(
+          imported.automationScripts
+        );
+        setSelectedElement(null);
+
+        showNotification({
+          color: "teal",
+          title: "Project imported",
+          message:
+            `Layout and ${imported.automationScripts.length} automation script(s) were restored.`,
+        });
+      } catch (importError) {
+        const message =
+          importError instanceof Error
+            ? importError.message
+            : String(importError);
+
+        setError(message);
+
+        showNotification({
+          color: "red",
+          title: "Import failed",
+          message,
+        });
+      } finally {
+        setSaving(false);
+
+        if (
+          importFileRef.current
+        ) {
+          importFileRef.current.value =
+            "";
+        }
+      }
+    },
+    []
+  );
   useLayoutPageShortcuts({
     saveLayoutToServer: saveLayout,
     setTool,
@@ -1040,6 +1253,20 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
 
   return (
     <Stack gap={6} className="lite-layout-page">
+      <input
+        ref={importFileRef}
+        type="file"
+        accept=".json,application/json"
+        hidden
+        onChange={event => {
+          const file =
+            event.currentTarget.files?.[0];
+
+          if (file) {
+            void importProject(file);
+          }
+        }}
+      />
       <Card withBorder px={6} py={3} radius="sm" className="lite-layout-toolbar">
       <Group justify="space-between" align="center" wrap="nowrap">
         <Group gap="xs">
@@ -1093,6 +1320,17 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
             title="Export layout JSON"
           >
             <IconDownload size={19} />
+          </ActionIcon>
+          <ActionIcon
+            color="cyan"
+            variant="light"
+            onClick={() => {
+              importFileRef.current?.click();
+            }}
+            aria-label="Import project"
+            title="Import project JSON"
+          >
+            <IconUpload size={19} />
           </ActionIcon>
           <Divider orientation="vertical" className="lite-toolbar-divider" />
           <Button

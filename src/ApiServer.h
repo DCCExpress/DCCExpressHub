@@ -5,6 +5,7 @@
 #include <ESPAsyncWebServer.h>
 #include <LittleFS.h>
 
+#include "AutomationsEndpoint.h"
 #include "DccExBridge.h"
 #include "HubConfigStore.h"
 #include "LayoutRuntime.h"
@@ -25,7 +26,13 @@ public:
   void begin();
 
 private:
+  // Construction order matters:
+  // _server must exist before AutomationsEndpoint registers its routes.
   AsyncWebServer _server;
+
+  AutomationsEndpoint _automationsEndpoint{
+      _server};
+
   AsyncWebSocket& _ws;
 
   DccExBridge& _dcc;
