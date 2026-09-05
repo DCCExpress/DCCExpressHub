@@ -20,6 +20,15 @@ public:
   void loop();
   void cleanupClients();
 
+  void setPowerIncludesProgramming(
+      bool value) {
+    _powerIncludesProgramming = value;
+  }
+
+  bool powerIncludesProgramming() const {
+    return _powerIncludesProgramming;
+  }
+
   void broadcastRuntimeSnapshot();
   void broadcastRawInfo(const String& raw);
 
@@ -32,6 +41,7 @@ private:
   bool _trackPower = false;
   bool _programmingPower = false;
   bool _emergencyStop = false;
+  bool _powerIncludesProgramming = true;
 
   struct LocoState {
     uint16_t address = 0;
@@ -43,6 +53,8 @@ private:
   struct DccTrackState {
     bool configured = false;
     String mode;
+    bool powerKnown = false;
+    bool powerOn = false;
     int32_t currentMa = -1;
     int32_t tripMa = -1;
     bool overload = false;
@@ -58,8 +70,16 @@ private:
   static constexpr unsigned long
       HUB_STATUS_INTERVAL_MS = 1000;
 
+  static constexpr unsigned long
+      LOCO_STATE_SYNC_INTERVAL_MS = 25;
+
   LocoState _locos[MAX_LOCOS];
   size_t _locoCount = 0;
+
+  uint16_t _locoSyncAddresses[MAX_LOCOS] = {};
+  size_t _locoSyncCount = 0;
+  size_t _locoSyncIndex = 0;
+  unsigned long _nextLocoSyncAt = 0;
 
   DccTrackState _dccTracks[MAX_DCC_TRACKS];
   String _dccVersion;
@@ -124,6 +144,18 @@ private:
 
   void handleDccConnectionState(
       unsigned long now);
+
+  void beginConfiguredLocoStateSync(
+      unsigned long now);
+
+  void pollLocoStateSync(
+      unsigned long now);
+
+  bool requestLocoState(
+      uint16_t address,
+      bool logCommand = false);
+
+  void recomputePowerStateFromTrackTelemetry();
 
   LocoState* getLoco(
       uint16_t address,

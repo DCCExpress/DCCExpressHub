@@ -42,6 +42,9 @@ import {
 import {
   installFileViewerEnhancer,
 } from "@/services/fileViewerEnhancer";
+import {
+  installLayoutExportOverride,
+} from "@/services/layoutExportOverride";
 
 import App from "./App";
 import "./styles.css";
@@ -53,6 +56,7 @@ installDemoRuntime();
 installFileViewerEnhancer();
 installSignalLogicStatusIndicator();
 installDccExHeartbeatStatusIndicator();
+installLayoutExportOverride();
 
 ReactDOM.createRoot(
   document.getElementById("root")!

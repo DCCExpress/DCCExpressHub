@@ -2,6 +2,7 @@
 
 #include <LittleFS.h>
 #include <WiFi.h>
+#include <ESPmDNS.h>
 
 #include "config.h"
 #include "Logger.h"
@@ -25,13 +26,21 @@ void App::loadConfiguration() {
           "csbPort",
           DEFAULT_CSB1_PORT);
 
+  const bool powerIncludesProgramming =
+      _prefs.getBool(
+          "powerProg",
+          true);
+
+  _wsProtocol.setPowerIncludesProgramming(
+      powerIncludesProgramming);
+
   _dcc.begin(
       _commandCenterHost,
       _commandCenterPort);
 
   _display.showCommandCenter(
-      _commandCenterHost,
-      _commandCenterPort,
+      _dcc.host(),
+      _dcc.port(),
       false);
 }
 
@@ -68,6 +77,16 @@ void App::connectWifi() {
     Logger::info(
         "Wi-Fi connected: " + ip);
 
+    if (MDNS.begin(DEVICE_HOSTNAME)) {
+      Logger::info(
+          "mDNS ready: " +
+          String(DEVICE_HOSTNAME) +
+          ".local");
+    } else {
+      Logger::warn(
+          "mDNS initialization failed");
+    }
+
     _display.showWifiConnected(
         ip,
         HUB_HTTP_PORT);
@@ -83,14 +102,24 @@ void App::updateDisplay() {
   const bool connected =
       _dcc.connected();
 
+  const bool endpointChanged =
+      _commandCenterHost != _dcc.host() ||
+      _commandCenterPort != _dcc.port();
+
   if (connected !=
-      _lastCommandCenterConnected) {
+          _lastCommandCenterConnected ||
+      endpointChanged) {
     _lastCommandCenterConnected =
         connected;
 
+    _commandCenterHost =
+        _dcc.host();
+    _commandCenterPort =
+        _dcc.port();
+
     _display.showCommandCenter(
-        _commandCenterHost,
-        _commandCenterPort,
+        _dcc.host(),
+        _dcc.port(),
         connected);
   }
 
@@ -135,8 +164,8 @@ void App::begin() {
       _dcc.connected();
 
   _display.showCommandCenter(
-      _commandCenterHost,
-      _commandCenterPort,
+      _dcc.host(),
+      _dcc.port(),
       _lastCommandCenterConnected);
 
   // Register runtime-change callbacks only AFTER persisted state has been

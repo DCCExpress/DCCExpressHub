@@ -1,7 +1,9 @@
 #include "ApiServer.h"
 
 #include <WiFi.h>
+#include <stdlib.h>
 #include "Logger.h"
+#include "CommandCenterEndpoint.h"
 
 namespace {
 const char* cacheControlFor(const String& path) {
@@ -34,6 +36,221 @@ const char* cacheControlFor(const String& path) {
 
   return "no-cache";
 }
+
+struct CommandCenterProbeResult {
+  bool tcpConnected = false;
+  bool dccExAlive = false;
+  String reply;
+  unsigned long elapsedMs = 0;
+};
+
+bool isValidCommandCenterHost(
+    const String& host) {
+  if (host.length() == 0 ||
+      host.length() > 253) {
+    return false;
+  }
+
+  for (size_t index = 0;
+       index < host.length();
+       ++index) {
+    const char c = host.charAt(index);
+
+    if (static_cast<uint8_t>(c) <= 32 ||
+        c == '/' ||
+        c == '\\' ||
+        c == ':' ||
+        c == '<' ||
+        c == '>') {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+bool readPostValue(
+    AsyncWebServerRequest* request,
+    const char* name,
+    String& value) {
+  if (!request->hasParam(
+          name,
+          true)) {
+    return false;
+  }
+
+  value =
+      request
+          ->getParam(name, true)
+          ->value();
+
+  value.trim();
+  return true;
+}
+
+bool parseEndpointFromRequest(
+    AsyncWebServerRequest* request,
+    String& host,
+    uint16_t& port,
+    String& error) {
+  String portText;
+
+  if (!readPostValue(
+          request,
+          "host",
+          host) ||
+      !readPostValue(
+          request,
+          "port",
+          portText)) {
+    error =
+        "Missing host or port";
+    return false;
+  }
+
+  if (!isValidCommandCenterHost(
+          host)) {
+    error =
+        "Invalid host";
+    return false;
+  }
+
+  char* end = nullptr;
+  const long parsedPort =
+      strtol(
+          portText.c_str(),
+          &end,
+          10);
+
+  if (end == portText.c_str() ||
+      *end != '\0' ||
+      parsedPort < 1 ||
+      parsedPort > 65535) {
+    error =
+        "Port must be between 1 and 65535";
+    return false;
+  }
+
+  port =
+      static_cast<uint16_t>(
+          parsedPort);
+
+  return true;
+}
+
+bool parseBooleanValue(
+    String value,
+    bool& result) {
+  value.trim();
+  value.toLowerCase();
+
+  if (value == "true" ||
+      value == "1" ||
+      value == "yes" ||
+      value == "on") {
+    result = true;
+    return true;
+  }
+
+  if (value == "false" ||
+      value == "0" ||
+      value == "no" ||
+      value == "off") {
+    result = false;
+    return true;
+  }
+
+  return false;
+}
+
+CommandCenterProbeResult probeDccExEndpoint(
+    const String& host,
+    uint16_t port) {
+  CommandCenterProbeResult result;
+  WiFiClient probe;
+
+  const unsigned long started =
+      millis();
+
+  IPAddress resolved;
+
+  if (!connectCommandCenterClient(
+          probe,
+          host,
+          port,
+          1200,
+          &resolved)) {
+    result.elapsedMs =
+        millis() - started;
+    return result;
+  }
+
+  result.tcpConnected = true;
+  probe.setNoDelay(true);
+  probe.print("<#>");
+
+  bool insideFrame = false;
+  String frame;
+  frame.reserve(64);
+
+  while (millis() - started < 2200) {
+    while (probe.available()) {
+      const char c =
+          static_cast<char>(
+              probe.read());
+
+      if (!insideFrame) {
+        if (c == '<') {
+          insideFrame = true;
+          frame = "<";
+        }
+
+        continue;
+      }
+
+      if (c == '<') {
+        frame = "<";
+        continue;
+      }
+
+      frame += c;
+
+      if (c == '>') {
+        insideFrame = false;
+        result.reply = frame;
+
+        if (frame.startsWith("<#")) {
+          result.dccExAlive = true;
+          result.elapsedMs =
+              millis() - started;
+          probe.stop();
+          return result;
+        }
+
+        frame.clear();
+      }
+
+      if (frame.length() > 128) {
+        insideFrame = false;
+        frame.clear();
+      }
+    }
+
+    if (!probe.connected() &&
+        !probe.available()) {
+      break;
+    }
+
+    delay(1);
+  }
+
+  result.elapsedMs =
+      millis() - started;
+
+  probe.stop();
+  return result;
+}
+
 }
 
 ApiServer::ApiServer(
@@ -41,11 +258,13 @@ ApiServer::ApiServer(
     DccExBridge& dcc,
     LayoutRuntime& runtime,
     RuntimeStateStore& stateStore,
+    Preferences& prefs,
     WsProtocol& wsProtocol)
     : _ws(ws),
       _dcc(dcc),
       _runtime(runtime),
       _stateStore(stateStore),
+      _prefs(prefs),
       _wsProtocol(wsProtocol) {}
 
 void ApiServer::sendJson(
@@ -680,6 +899,179 @@ void ApiServer::setupApi() {
   DefaultHeaders::Instance().addHeader(
       "Access-Control-Allow-Headers",
       "Content-Type");
+
+  _server.on(
+      "/api/command-center-config",
+      HTTP_GET,
+      [this](
+          AsyncWebServerRequest* request) {
+        JsonDocument doc;
+        doc["ok"] = true;
+        doc["host"] = _dcc.host();
+        doc["port"] = _dcc.port();
+        doc["powerIncludesProgramming"] =
+            _wsProtocol.powerIncludesProgramming();
+        doc["connected"] =
+            _dcc.connected();
+
+        sendJson(
+            request,
+            200,
+            doc);
+      });
+
+  _server.on(
+      "/api/command-center-config",
+      HTTP_POST,
+      [this](
+          AsyncWebServerRequest* request) {
+        String host;
+        uint16_t port = 0;
+        String error;
+
+        JsonDocument doc;
+
+        if (!parseEndpointFromRequest(
+                request,
+                host,
+                port,
+                error)) {
+          doc["ok"] = false;
+          doc["message"] = error;
+
+          sendJson(
+              request,
+              400,
+              doc);
+          return;
+        }
+
+        String powerText;
+        bool powerIncludesProgramming =
+            _wsProtocol.powerIncludesProgramming();
+
+        if (!readPostValue(
+                request,
+                "powerIncludesProgramming",
+                powerText) ||
+            !parseBooleanValue(
+                powerText,
+                powerIncludesProgramming)) {
+          doc["ok"] = false;
+          doc["message"] =
+              "Invalid powerIncludesProgramming value";
+
+          sendJson(
+              request,
+              400,
+              doc);
+          return;
+        }
+
+        _prefs.putString(
+            "csbHost",
+            host);
+
+        _prefs.putUShort(
+            "csbPort",
+            port);
+
+        _prefs.putBool(
+            "powerProg",
+            powerIncludesProgramming);
+
+        _wsProtocol.setPowerIncludesProgramming(
+            powerIncludesProgramming);
+
+        const bool endpointChanged =
+            host != _dcc.host() ||
+            port != _dcc.port();
+
+        if (endpointChanged) {
+          Logger::info(
+              "EX-CSB1 endpoint changed to " +
+              host +
+              ":" +
+              String(port));
+
+          _dcc.setEndpoint(
+              host,
+              port);
+        }
+
+        _wsProtocol.broadcastRuntimeSnapshot();
+
+        doc["ok"] = true;
+        doc["host"] = _dcc.host();
+        doc["port"] = _dcc.port();
+        doc["powerIncludesProgramming"] =
+            _wsProtocol.powerIncludesProgramming();
+        doc["connected"] =
+            _dcc.connected();
+
+        sendJson(
+            request,
+            200,
+            doc);
+      });
+
+  _server.on(
+      "/api/command-center-test",
+      HTTP_POST,
+      [](
+          AsyncWebServerRequest* request) {
+        String host;
+        uint16_t port = 0;
+        String error;
+
+        JsonDocument doc;
+
+        if (!parseEndpointFromRequest(
+                request,
+                host,
+                port,
+                error)) {
+          doc["ok"] = false;
+          doc["message"] = error;
+
+          sendJson(
+              request,
+              400,
+              doc);
+          return;
+        }
+
+        const CommandCenterProbeResult probe =
+            probeDccExEndpoint(
+                host,
+                port);
+
+        doc["ok"] =
+            probe.dccExAlive;
+        doc["tcpConnected"] =
+            probe.tcpConnected;
+        doc["dccExAlive"] =
+            probe.dccExAlive;
+        doc["reply"] =
+            probe.reply;
+        doc["elapsedMs"] =
+            probe.elapsedMs;
+
+        if (!probe.tcpConnected) {
+          doc["message"] =
+              "TCP connection failed";
+        } else if (!probe.dccExAlive) {
+          doc["message"] =
+              "TCP connected, but DCC-EX did not answer <#>";
+        }
+
+        sendJson(
+            request,
+            probe.dccExAlive
+                ? 200
+                : 502,
+            doc);
+      });
 
   _server.on(
       "/api/status",

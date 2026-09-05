@@ -4,6 +4,7 @@
 #include <ArduinoJson.h>
 #include <ESPAsyncWebServer.h>
 #include <LittleFS.h>
+#include <Preferences.h>
 
 #include "DccExBridge.h"
 #include "LayoutRuntime.h"
@@ -17,6 +18,7 @@ public:
       DccExBridge& dcc,
       LayoutRuntime& runtime,
       RuntimeStateStore& stateStore,
+      Preferences& prefs,
       WsProtocol& wsProtocol);
 
   void begin();
@@ -28,6 +30,7 @@ private:
   DccExBridge& _dcc;
   LayoutRuntime& _runtime;
   RuntimeStateStore& _stateStore;
+  Preferences& _prefs;
   WsProtocol& _wsProtocol;
 
   File _layoutUpload;

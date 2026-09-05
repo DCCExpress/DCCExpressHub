@@ -1,6 +1,7 @@
 #include "DccExBridge.h"
 
 #include "Logger.h"
+#include "CommandCenterEndpoint.h"
 
 void DccExBridge::begin(
     const String& host,
@@ -56,12 +57,19 @@ bool DccExBridge::ensureConnected() {
       ":" +
       String(_port));
 
-  if (!_client.connect(
-          _host.c_str(),
+  IPAddress resolvedAddress;
+
+  if (!connectCommandCenterClient(
+          _client,
+          _host,
           _port,
-          1200)) {
+          1200,
+          &resolvedAddress)) {
     Logger::warn(
-        "DCC-EX connection failed");
+        "DCC-EX connection failed: " +
+        _host +
+        ":" +
+        String(_port));
 
     _nextReconnectAt =
         millis() +
@@ -69,6 +77,12 @@ bool DccExBridge::ensureConnected() {
 
     return false;
   }
+
+  Logger::info(
+      "DCC-EX endpoint resolved " +
+      _host +
+      " -> " +
+      resolvedAddress.toString());
 
   _client.setNoDelay(true);
 

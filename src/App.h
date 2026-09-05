@@ -41,6 +41,7 @@ private:
       _dcc,
       _runtime,
       _stateStore,
+      _prefs,
       _wsProtocol};
 
   SignalAutomationEngine _signalAutomation{

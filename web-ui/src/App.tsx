@@ -53,6 +53,7 @@ import { getLocos } from "@/api/domainApi";
 import { exportLocoImages, importLocoImages, type LocoImageBackup } from "@/api/imageApi";
 import { loadSignalLogicRulesWs, saveSignalLogicRulesWs } from "@/api/signalLogicWsApi";
 import LocoDialog from "@/components/LocoDialog";
+import CommandCenterSettingsDialog from "@/components/CommandCenterSettingsDialog";
 import LocoPanel from "@/layout/LocoPanel";
 import LiteLayoutPage from "./LiteLayoutPage";
 import RuntimeLayoutOverlay from "./RuntimeLayoutOverlay";
@@ -122,6 +123,8 @@ function pageFromHash(): Page {
 function AppHeader({ status, version }: { status: WsConnectionStatus; version: string }) {
 
   const commandCenter = useCommandCenter();
+  const [commandCenterSettingsOpened, setCommandCenterSettingsOpened] =
+    useState(false);
   return (
     <Group
       className="app-header"
@@ -195,6 +198,22 @@ function AppHeader({ status, version }: { status: WsConnectionStatus; version: s
       >
         POWER {commandCenter.powerInfo?.trackVoltageOn ? "ON" : "OFF"}
       </Button>
+
+      <Button
+        size="xs"
+        variant="light"
+        color="blue"
+        leftSection={<IconSettings size={16} />}
+        onClick={() => setCommandCenterSettingsOpened(true)}
+        title="Configure EX-CSB1 connection"
+      >
+        CSB1
+      </Button>
+
+      <CommandCenterSettingsDialog
+        opened={commandCenterSettingsOpened}
+        onClose={() => setCommandCenterSettingsOpened(false)}
+      />
 
     </Group>
 

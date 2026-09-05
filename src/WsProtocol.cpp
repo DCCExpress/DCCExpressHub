@@ -3,6 +3,7 @@
 #include "config.h"
 
 #include <WiFi.h>
+#include <LittleFS.h>
 #include <esp_freertos_hooks.h>
 #include <esp_system.h>
 #include <stdlib.h>
@@ -213,6 +214,7 @@ void WsProtocol::loop() {
 
   updateCpuUsage();
   handleDccConnectionState(now);
+  pollLocoStateSync(now);
   pollDccExTelemetry(now);
 
   if (_nextHubStatusAt == 0 ||
@@ -286,6 +288,55 @@ void WsProtocol::broadcastPowerInfo() {
   data["programmingModeActive"] = _programmingPower;
 
   broadcast("powerInfo", data);
+}
+
+void WsProtocol::recomputePowerStateFromTrackTelemetry() {
+  bool mainSeen = false;
+  bool mainKnown = true;
+  bool mainOn = true;
+
+  bool progSeen = false;
+  bool progKnown = true;
+  bool progOn = true;
+
+  for (uint8_t index = 0;
+       index < MAX_DCC_TRACKS;
+       ++index) {
+    const DccTrackState& track =
+        _dccTracks[index];
+
+    if (!track.configured) {
+      continue;
+    }
+
+    if (track.mode.startsWith("MAIN")) {
+      mainSeen = true;
+
+      if (!track.powerKnown) {
+        mainKnown = false;
+      } else if (!track.powerOn) {
+        mainOn = false;
+      }
+    }
+
+    if (track.mode.startsWith("PROG")) {
+      progSeen = true;
+
+      if (!track.powerKnown) {
+        progKnown = false;
+      } else if (!track.powerOn) {
+        progOn = false;
+      }
+    }
+  }
+
+  if (mainSeen && mainKnown) {
+    _trackPower = mainOn;
+  }
+
+  if (progSeen && progKnown) {
+    _programmingPower = progOn;
+  }
 }
 
 void WsProtocol::appendHubStatus(JsonObject hub) {
@@ -442,6 +493,166 @@ void WsProtocol::broadcastDccExStatus() {
   broadcast("dccExStatus", data);
 }
 
+bool WsProtocol::requestLocoState(
+    uint16_t address,
+    bool logCommand) {
+  if (address == 0 ||
+      address > 10239 ||
+      !_dcc.connected()) {
+    return false;
+  }
+
+  return _dcc.sendCommand(
+      "<t " +
+          String(address) +
+          ">",
+      logCommand);
+}
+
+void WsProtocol::beginConfiguredLocoStateSync(
+    unsigned long now) {
+  _locoSyncCount = 0;
+  _locoSyncIndex = 0;
+  _nextLocoSyncAt = 0;
+
+  static constexpr const char* LOCOS_PATH =
+      "/config/locos.json";
+
+  if (!LittleFS.exists(LOCOS_PATH)) {
+    Logger::info(
+        "Loco state sync: no saved locomotive list");
+    return;
+  }
+
+  File file =
+      LittleFS.open(
+          LOCOS_PATH,
+          "r");
+
+  if (!file) {
+    Logger::warn(
+        "Loco state sync: cannot open locos.json");
+    return;
+  }
+
+  // The sync only needs DCC addresses. ArduinoJson's filter keeps the
+  // image/function/action metadata out of RAM even when locos.json grows.
+  JsonDocument filter;
+  filter[0]["address"] = true;
+
+  JsonDocument document;
+  const DeserializationError error =
+      deserializeJson(
+          document,
+          file,
+          DeserializationOption::Filter(filter));
+
+  file.close();
+
+  if (error ||
+      !document.is<JsonArray>()) {
+    Logger::warn(
+        "Loco state sync: invalid locos.json");
+    return;
+  }
+
+  for (JsonObjectConst item :
+       document.as<JsonArrayConst>()) {
+    const int addressValue =
+        item["address"] | 0;
+
+    if (addressValue <= 0 ||
+        addressValue > 10239) {
+      continue;
+    }
+
+    const uint16_t address =
+        static_cast<uint16_t>(
+            addressValue);
+
+    bool duplicate = false;
+
+    for (size_t index = 0;
+         index < _locoSyncCount;
+         ++index) {
+      if (_locoSyncAddresses[index] ==
+          address) {
+        duplicate = true;
+        break;
+      }
+    }
+
+    if (duplicate) {
+      continue;
+    }
+
+    if (_locoSyncCount >= MAX_LOCOS) {
+      Logger::warn(
+          "Loco state sync: locomotive limit reached");
+      break;
+    }
+
+    _locoSyncAddresses[
+        _locoSyncCount++] =
+        address;
+  }
+
+  if (_locoSyncCount == 0) {
+    Logger::info(
+        "Loco state sync: no valid DCC addresses");
+    return;
+  }
+
+  _nextLocoSyncAt = now;
+
+  Logger::info(
+      "Loco state sync queued: " +
+      String(_locoSyncCount) +
+      " locomotive(s)");
+}
+
+void WsProtocol::pollLocoStateSync(
+    unsigned long now) {
+  if (!_dcc.connected() ||
+      _locoSyncIndex >= _locoSyncCount) {
+    return;
+  }
+
+  if (_nextLocoSyncAt != 0 &&
+      static_cast<long>(
+          now - _nextLocoSyncAt) < 0) {
+    return;
+  }
+
+  const uint16_t address =
+      _locoSyncAddresses[
+          _locoSyncIndex];
+
+  if (!requestLocoState(
+          address,
+          false)) {
+    _nextLocoSyncAt =
+        now +
+        LOCO_STATE_SYNC_INTERVAL_MS;
+    return;
+  }
+
+  ++_locoSyncIndex;
+
+  if (_locoSyncIndex >=
+      _locoSyncCount) {
+    _nextLocoSyncAt = 0;
+
+    Logger::info(
+        "Loco state sync requests completed");
+    return;
+  }
+
+  _nextLocoSyncAt =
+      now +
+      LOCO_STATE_SYNC_INTERVAL_MS;
+}
+
 void WsProtocol::handleDccConnectionState(
     unsigned long now) {
   const bool connected = _dcc.connected();
@@ -456,9 +667,15 @@ void WsProtocol::handleDccConnectionState(
     _dccConnectedSinceAt = 0;
     _nextDccCurrentPollAt = 0;
 
+    _locoSyncCount = 0;
+    _locoSyncIndex = 0;
+    _nextLocoSyncAt = 0;
+
     for (uint8_t index = 0; index < MAX_DCC_TRACKS; ++index) {
       _dccTracks[index].configured = false;
       _dccTracks[index].mode = "";
+      _dccTracks[index].powerKnown = false;
+      _dccTracks[index].powerOn = false;
       _dccTracks[index].currentMa = -1;
       _dccTracks[index].tripMa = -1;
       _dccTracks[index].overload = false;
@@ -477,6 +694,10 @@ void WsProtocol::handleDccConnectionState(
   // that the remote command station is alive.
   _dcc.sendCommand("<=>", false);
   _dcc.sendCommand("<JG>", false);
+
+  // DCC-EX <t cab> requests the current speed/direction/function map without
+  // modifying the locomotive. <l ...> remains the one authoritative state path.
+  beginConfiguredLocoStateSync(now);
 }
 
 void WsProtocol::pollDccExTelemetry(
@@ -788,24 +1009,87 @@ void WsProtocol::handleDccFrame(const String& frame) {
     }
   }
 
-  if (frame.startsWith("<p0")) {
-    const bool wasOn = _trackPower;
-    _trackPower = false;
-    _emergencyStop = false;
+  if (frame.startsWith("<p0") ||
+      frame.startsWith("<p1")) {
+    const bool on =
+        frame.charAt(2) == '1';
 
-    if (wasOn) {
-      _stateStore.save();
+    String target =
+        frame.substring(
+            3,
+            frame.length() - 1);
+
+    target.trim();
+
+    const bool wasMainOn =
+        _trackPower;
+
+    const bool wasProgOn =
+        _programmingPower;
+
+    bool handled = false;
+
+    if (target.length() == 0) {
+      _trackPower = on;
+      _programmingPower = on;
+
+      for (uint8_t index = 0;
+           index < MAX_DCC_TRACKS;
+           ++index) {
+        if (!_dccTracks[index].configured) {
+          continue;
+        }
+
+        _dccTracks[index].powerKnown = true;
+        _dccTracks[index].powerOn = on;
+      }
+
+      handled = true;
+    } else if (target == "MAIN") {
+      _trackPower = on;
+      handled = true;
+    } else if (target == "PROG") {
+      _programmingPower = on;
+      handled = true;
+    } else if (target == "JOIN") {
+      _trackPower = on;
+      _programmingPower = on;
+      handled = true;
+    } else if (target.length() == 1) {
+      const char letter =
+          target.charAt(0);
+
+      if (letter >= 'A' &&
+          letter <= 'H') {
+        const uint8_t index =
+            static_cast<uint8_t>(
+                letter - 'A');
+
+        _dccTracks[index].powerKnown = true;
+        _dccTracks[index].powerOn = on;
+
+        recomputePowerStateFromTrackTelemetry();
+        handled = true;
+      }
     }
 
-    broadcastPowerInfo();
-    return;
-  }
+    if (handled) {
+      _emergencyStop = false;
 
-  if (frame.startsWith("<p1")) {
-    _trackPower = true;
-    _emergencyStop = false;
-    broadcastPowerInfo();
-    return;
+      // Runtime persistence is tied to an authoritative MAIN
+      // ON -> OFF transition, never merely to a requested command.
+      if (wasMainOn &&
+          !_trackPower) {
+        _stateStore.save();
+      }
+
+      if (wasMainOn != _trackPower ||
+          wasProgOn != _programmingPower) {
+        broadcastPowerInfo();
+      }
+
+      return;
+    }
   }
 
   // DCC-EX authoritative loco feedback:
@@ -985,25 +1269,29 @@ void WsProtocol::handleMessage(
   }
 
   if (strcmp(type, "setTrackPower") == 0) {
-    const bool on = data["on"] | false;
+    const bool on =
+        data["on"] | false;
 
-    // Existing persistence policy kept unchanged here.
-    if (!on) {
-      _stateStore.save();
-    }
+    const String command =
+        _powerIncludesProgramming
+            ? (on ? "<1>" : "<0>")
+            : (on ? "<1 MAIN>" : "<0 MAIN>");
 
-    if (_dcc.sendCommand(on ? "<1>" : "<0>")) {
-      _trackPower = on;
-      _emergencyStop = false;
-      broadcastPowerInfo();
-    }
-
+    // Command = request. MAIN / PROG state and runtime persistence
+    // are updated only from the resulting authoritative <p...> feedback.
+    _dcc.sendCommand(command);
     return;
   }
 
   if (strcmp(type, "setProgrammingPower") == 0) {
-    _programmingPower = data["on"] | false;
-    broadcastPowerInfo();
+    const bool on =
+        data["on"] | false;
+
+    _dcc.sendCommand(
+        on
+            ? "<1 PROG>"
+            : "<0 PROG>");
+
     return;
   }
 
@@ -1058,12 +1346,14 @@ void WsProtocol::handleMessage(
   }
 
   if (strcmp(type, "getLoco") == 0) {
-    const uint16_t address = data["locoAddress"] | 0;
+    const uint16_t address =
+        data["locoAddress"] | 0;
 
-    auto* loco = getLoco(address, true);
-    if (loco) {
-      broadcastLoco(*loco);
-    }
+    // Do not answer from the Hub cache. Query the command station and let
+    // its authoritative <l ...> response update every connected client.
+    requestLocoState(
+        address,
+        false);
 
     return;
   }

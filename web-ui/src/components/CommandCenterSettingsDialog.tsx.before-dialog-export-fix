@@ -1,0 +1,378 @@
+import {
+  Alert,
+  Badge,
+  Button,
+  Group,
+  Modal,
+  Stack,
+  Switch,
+  Text,
+  TextInput,
+} from "@mantine/core";
+import {
+  IconDeviceFloppy,
+  IconPlugConnected,
+} from "@tabler/icons-react";
+import { useCallback, useEffect, useState } from "react";
+import { showNotification } from "@mantine/notifications";
+
+type CommandCenterConfigDto = {
+  ok: boolean;
+  host: string;
+  port: number;
+  powerIncludesProgramming: boolean;
+  connected: boolean;
+};
+
+type CommandCenterTestDto = {
+  ok: boolean;
+  tcpConnected: boolean;
+  dccExAlive: boolean;
+  reply?: string;
+  elapsedMs?: number;
+  message?: string;
+};
+
+type Props = {
+  opened: boolean;
+  onClose: () => void;
+};
+
+function makeFormBody(values: Record<string, string>): URLSearchParams {
+  const body = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(values)) {
+    body.set(key, value);
+  }
+
+  return body;
+}
+
+export default function CommandCenterSettingsDialog({
+  opened,
+  onClose,
+}: Props) {
+  const [host, setHost] = useState("");
+  const [port, setPort] = useState("2560");
+  const [powerIncludesProgramming, setPowerIncludesProgramming] =
+    useState(true);
+  const [connected, setConnected] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [testResult, setTestResult] =
+    useState<CommandCenterTestDto | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadConfig = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    setTestResult(null);
+
+    try {
+      const response = await fetch(
+        "/api/command-center-config",
+        { cache: "no-store" },
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          `Could not load EX-CSB1 settings (HTTP ${response.status}).`,
+        );
+      }
+
+      const config =
+        await response.json() as CommandCenterConfigDto;
+
+      setHost(config.host);
+      setPort(String(config.port));
+      setPowerIncludesProgramming(
+        config.powerIncludesProgramming,
+      );
+      setConnected(config.connected);
+    } catch (loadError) {
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : String(loadError),
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (opened) {
+      void loadConfig();
+    }
+  }, [opened, loadConfig]);
+
+  const validate = (): { host: string; port: number } | null => {
+    const cleanHost = host.trim();
+    const portNumber = Number(port);
+
+    if (!cleanHost) {
+      setError("IP address / hostname is required.");
+      return null;
+    }
+
+    if (
+      !Number.isInteger(portNumber) ||
+      portNumber < 1 ||
+      portNumber > 65535
+    ) {
+      setError("Port must be between 1 and 65535.");
+      return null;
+    }
+
+    return {
+      host: cleanHost,
+      port: portNumber,
+    };
+  };
+
+  const testConnection = async () => {
+    const endpoint = validate();
+    if (!endpoint) {
+      return;
+    }
+
+    setTesting(true);
+    setError(null);
+    setTestResult(null);
+
+    try {
+      const response = await fetch(
+        "/api/command-center-test",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/x-www-form-urlencoded;charset=UTF-8",
+          },
+          body: makeFormBody({
+            host: endpoint.host,
+            port: String(endpoint.port),
+          }),
+        },
+      );
+
+      const result =
+        await response.json() as CommandCenterTestDto;
+
+      setTestResult(result);
+
+      if (!response.ok || !result.ok) {
+        throw new Error(
+          result.message ??
+            "EX-CSB1 connection test failed.",
+        );
+      }
+    } catch (testError) {
+      setError(
+        testError instanceof Error
+          ? testError.message
+          : String(testError),
+      );
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const saveConfig = async () => {
+    const endpoint = validate();
+    if (!endpoint) {
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+
+    try {
+      const response = await fetch(
+        "/api/command-center-config",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/x-www-form-urlencoded;charset=UTF-8",
+          },
+          body: makeFormBody({
+            host: endpoint.host,
+            port: String(endpoint.port),
+            powerIncludesProgramming:
+              powerIncludesProgramming
+                ? "true"
+                : "false",
+          }),
+        },
+      );
+
+      const result =
+        await response.json() as CommandCenterConfigDto & {
+          message?: string;
+        };
+
+      if (!response.ok || !result.ok) {
+        throw new Error(
+          result.message ??
+            "Could not save EX-CSB1 settings.",
+        );
+      }
+
+      setConnected(result.connected);
+
+      showNotification({
+        color: "green",
+        title: "EX-CSB1 settings saved",
+        message:
+          `${endpoint.host}:${endpoint.port} · ` +
+          (
+            powerIncludesProgramming
+              ? "POWER controls MAIN + PROG"
+              : "POWER controls MAIN only"
+          ),
+      });
+
+      onClose();
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : String(saveError),
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const testColor =
+    testResult?.dccExAlive
+      ? "green"
+      : testResult
+        ? "red"
+        : "gray";
+
+  return (
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title="EX-CSB1 connection"
+      size="sm"
+      centered
+    >
+      <Stack gap="sm">
+        <Group justify="space-between" wrap="nowrap">
+          <Text size="sm" c="dimmed">
+            Current connection
+          </Text>
+          <Badge
+            color={connected ? "green" : "red"}
+            variant="light"
+          >
+            {connected ? "ONLINE" : "OFFLINE"}
+          </Badge>
+        </Group>
+
+        <TextInput
+          label="IP address / hostname"
+          placeholder="192.168.1.143"
+          value={host}
+          onChange={event => setHost(event.currentTarget.value)}
+          disabled={loading || saving || testing}
+        />
+
+        <TextInput
+          label="DCC-EX TCP port"
+          placeholder="2560"
+          value={port}
+          inputMode="numeric"
+          onChange={event => setPort(event.currentTarget.value)}
+          disabled={loading || saving || testing}
+        />
+
+        <Switch
+          checked={powerIncludesProgramming}
+          onChange={event =>
+            setPowerIncludesProgramming(
+              event.currentTarget.checked,
+            )
+          }
+          disabled={loading || saving || testing}
+          label="POWER button also controls the PROG track"
+          description={
+            powerIncludesProgramming
+              ? "POWER ON/OFF sends the command to all DCC-EX tracks."
+              : "POWER ON/OFF controls MAIN only; PROG remains independent."
+          }
+        />
+
+        {testResult && (
+          <Alert color={testColor}>
+            <Stack gap={3}>
+              <Text size="sm" fw={700}>
+                {testResult.dccExAlive
+                  ? "DCC-EX connection OK"
+                  : testResult.tcpConnected
+                    ? "TCP connected, but no DCC-EX heartbeat reply"
+                    : "TCP connection failed"}
+              </Text>
+
+              {testResult.reply && (
+                <Text size="xs">
+                  Reply: {testResult.reply}
+                </Text>
+              )}
+
+              {testResult.elapsedMs !== undefined && (
+                <Text size="xs" c="dimmed">
+                  {testResult.elapsedMs} ms
+                </Text>
+              )}
+            </Stack>
+          </Alert>
+        )}
+
+        {error && (
+          <Alert color="red">
+            {error}
+          </Alert>
+        )}
+
+        <Group justify="space-between" mt="xs">
+          <Button
+            variant="light"
+            color="cyan"
+            leftSection={<IconPlugConnected size={16} />}
+            loading={testing}
+            disabled={loading || saving}
+            onClick={() => void testConnection()}
+          >
+            TEST
+          </Button>
+
+          <Group gap="xs">
+            <Button
+              variant="subtle"
+              color="gray"
+              onClick={onClose}
+              disabled={saving || testing}
+            >
+              Cancel
+            </Button>
+
+            <Button
+              color="teal"
+              leftSection={<IconDeviceFloppy size={16} />}
+              loading={saving}
+              disabled={loading || testing}
+              onClick={() => void saveConfig()}
+            >
+              SAVE
+            </Button>
+          </Group>
+        </Group>
+      </Stack>
+    </Modal>
+  );
+}
