@@ -5,6 +5,9 @@ import type {
 let installed = false;
 let lastRunning = false;
 
+const SIGNAL_LOGIC_API =
+  "/api/signal-logic";
+
 function findSignalsButton():
   HTMLButtonElement | null {
   return (
@@ -37,25 +40,59 @@ function paintSignalsButton(
   if (running) {
     button.style.backgroundColor =
       "var(--mantine-color-green-filled)";
+
     button.style.color =
       "var(--mantine-color-white)";
+
     button.style.borderColor =
       "var(--mantine-color-green-filled)";
+
     button.title =
       "Automatic signal aspects · RUNNING";
-  } else {
-    button.style.removeProperty(
-      "background-color"
-    );
-    button.style.removeProperty(
-      "color"
-    );
-    button.style.removeProperty(
-      "border-color"
-    );
-    button.title =
-      "Automatic signal aspects";
+
+    return;
   }
+
+  button.style.removeProperty(
+    "background-color"
+  );
+
+  button.style.removeProperty(
+    "color"
+  );
+
+  button.style.removeProperty(
+    "border-color"
+  );
+
+  button.title =
+    "Automatic signal aspects";
+}
+
+function readEnabledFromNdjson(
+  content: string
+): boolean {
+  const firstLine =
+    content
+      .split(/\r?\n/u)
+      .map(line => line.trim())
+      .find(line => line.length > 0);
+
+  if (!firstLine) {
+    return false;
+  }
+
+  const meta =
+    JSON.parse(firstLine) as {
+      kind?: unknown;
+      version?: unknown;
+      enabled?: unknown;
+    };
+
+  return (
+    meta.kind === "meta" &&
+    meta.enabled === true
+  );
 }
 
 async function readConfiguredState():
@@ -63,45 +100,39 @@ async function readConfiguredState():
   try {
     const response =
       await fetch(
-        "/api/files/text?path=%2Fsignal-rules.jsonl",
+        SIGNAL_LOGIC_API,
         {
+          method: "GET",
           cache: "no-store",
         }
       );
 
+    if (response.status === 404) {
+      lastRunning = false;
+      paintSignalsButton(false);
+      return;
+    }
+
     if (!response.ok) {
-      paintSignalsButton(false);
-      return;
+      throw new Error(
+        `Signal logic status HTTP ${response.status}`
+      );
     }
 
-    const firstLine =
-      (
-        await response.text()
-      )
-        .split(/\r?\n/u)
-        .find(line =>
-          line.trim().length > 0
-        );
-
-    if (!firstLine) {
-      paintSignalsButton(false);
-      return;
-    }
-
-    const meta =
-      JSON.parse(firstLine) as {
-        kind?: unknown;
-        enabled?: unknown;
-      };
+    const content =
+      await response.text();
 
     lastRunning =
-      meta.kind === "meta" &&
-      meta.enabled === true;
+      readEnabledFromNdjson(
+        content
+      );
 
     paintSignalsButton(
       lastRunning
     );
   } catch {
+    // Do not force the button OFF just because a temporary HTTP read
+    // failed. Preserve the last runtime state we actually know.
     paintSignalsButton(
       lastRunning
     );
@@ -143,6 +174,10 @@ installSignalLogicStatusIndicator():
     onRuntimeState
   );
 
+  // The SIGNALS button only exists on the Layout page.
+  // This observer only watches node creation/removal; paintSignalsButton()
+  // changes styles/attributes, not child nodes, so it does not recursively
+  // trigger itself.
   const observer =
     new MutationObserver(() => {
       paintSignalsButton(
@@ -158,5 +193,7 @@ installSignalLogicStatusIndicator():
     }
   );
 
+  // On F5/reload there may be no runtime-state browser event yet.
+  // Recover the persisted firmware configuration from the real API.
   void readConfiguredState();
 }
