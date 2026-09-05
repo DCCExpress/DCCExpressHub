@@ -53,8 +53,8 @@ import BlockTypeSelectPropertyEditor from "@/layout/property-panel/BlockTypeSele
 import SignalAspectPropertyEditor from "@/layout/property-panel/SignalAspectPropertyEditor";
 import TurnoutBitPropertyEditor from "@/layout/property-panel/TurnoutBitPropertyEditor";
 import RouteTurnoutSelectionPropertyEditor from "@/layout/property-panel/RouteTurnoutSelectionPropertyEditor";
-import ScriptPropertyEditor from "@/layout/property-panel/ScriptPropertyEditor";
 import LocoPanel from "@/layout/LocoPanel";
+import AutomationPanel from "@/components/AutomationPanel";
 import type { BaseElementView } from "@/models/editor/core/BaseElementView";
 import { isTurnoutElement, LayoutView } from "@/models/editor/core/LayoutView";
 import { TrackCornerElementView } from "@/models/editor/elements/TrackCornerElementView";
@@ -64,7 +64,6 @@ import { TrackEndElementView } from "@/models/editor/elements/TrackEndElementVie
 import { TrackLevelCrossingElementView } from "@/models/editor/elements/TrackLevelCrossingElementView";
 import { BlockElementView } from "@/models/editor/elements/BlockElementView";
 import { ButtonElementView } from "@/models/editor/elements/ButtonElementView";
-import { ButtonScriptElementView } from "@/models/editor/elements/ButtonScriptElementView";
 import { TrackSensorElementView } from "@/models/editor/elements/TrackSensorElementView";
 import { TrackSignalElementView } from "@/models/editor/elements/TrackSignalElementView";
 import type { IEditableProperty } from "@/models/editor/elements/PropertyDescriptor";
@@ -132,6 +131,174 @@ type PickerItem = {
   preview: BaseElementView;
 };
 
+export type AutomationScriptDefinition = {
+  id: string;
+  name: string;
+  script: string;
+};
+
+type LayoutWithAutomation = {
+  automationScript?: string;
+  automationScripts?: AutomationScriptDefinition[];
+  layers?: Array<{
+    elements?: Array<Record<string, unknown>>;
+    [key: string]: unknown;
+  }>;
+  [key: string]: unknown;
+};
+
+function createAutomationId(): string {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
+    return crypto.randomUUID();
+  }
+
+  return `automation-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function normalizeAutomationScripts(
+  raw: unknown
+): AutomationScriptDefinition[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+
+  const result: AutomationScriptDefinition[] = [];
+  const usedIds = new Set<string>();
+
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+
+    const candidate =
+      item as Record<string, unknown>;
+
+    const script =
+      typeof candidate.script === "string"
+        ? candidate.script
+        : "";
+
+    const name =
+      typeof candidate.name === "string" && candidate.name.trim()
+        ? candidate.name.trim()
+        : "Automation";
+
+    let id =
+      typeof candidate.id === "string" && candidate.id.trim()
+        ? candidate.id.trim()
+        : createAutomationId();
+
+    while (usedIds.has(id)) {
+      id = createAutomationId();
+    }
+
+    usedIds.add(id);
+
+    result.push({
+      id,
+      name,
+      script,
+    });
+  }
+
+  return result;
+}
+
+function prepareLayoutForLoad(raw: unknown): {
+  layoutData: unknown;
+  automationScripts: AutomationScriptDefinition[];
+} {
+  const source =
+    raw && typeof raw === "object"
+      ? structuredClone(raw) as LayoutWithAutomation
+      : {} as LayoutWithAutomation;
+
+  let automationScripts =
+    normalizeAutomationScripts(
+      source.automationScripts
+    );
+
+  if (
+    automationScripts.length === 0 &&
+    typeof source.automationScript === "string" &&
+    source.automationScript.trim()
+  ) {
+    automationScripts = [
+      {
+        id: createAutomationId(),
+        name: "Layout automation",
+        script: source.automationScript,
+      },
+    ];
+  }
+
+  const legacyScripts: AutomationScriptDefinition[] = [];
+
+  if (Array.isArray(source.layers)) {
+    for (const layer of source.layers) {
+      if (!Array.isArray(layer.elements)) continue;
+
+      layer.elements = layer.elements.filter((element, index) => {
+        if (element.type !== ELEMENT_TYPES.BUTTON_SCRIPT) {
+          return true;
+        }
+
+        const script =
+          typeof element.script === "string"
+            ? element.script.trim()
+            : "";
+
+        if (script) {
+          const name =
+            typeof element.name === "string" && element.name.trim()
+              ? element.name.trim()
+              : `Script Button ${index + 1}`;
+
+          legacyScripts.push({
+            id: createAutomationId(),
+            name,
+            script,
+          });
+        }
+
+        return false;
+      });
+    }
+  }
+
+  if (automationScripts.length === 0 && legacyScripts.length > 0) {
+    automationScripts = legacyScripts;
+  }
+
+  delete source.automationScript;
+  source.automationScripts = automationScripts;
+
+  return {
+    layoutData: source,
+    automationScripts,
+  };
+}
+
+function serializeLayoutWithAutomations(
+  layout: LayoutView,
+  automationScripts: AutomationScriptDefinition[]
+): string {
+  const plainLayout =
+    JSON.parse(
+      JSON.stringify(layout)
+    ) as Record<string, unknown>;
+
+  delete plainLayout.automationScript;
+
+  plainLayout.automationScripts =
+    automationScripts;
+
+  return JSON.stringify(
+    plainLayout
+  );
+}
+
 function createSignalPreview(): TrackSignalElementView {
   return new TrackSignalElementView(0, 0);
 }
@@ -149,7 +316,6 @@ const PICKER_ITEMS: PickerItem[] = [
   { type: ELEMENT_TYPES.TRACK_BLOCK, label: "Block", preview: new BlockElementView(0, 0) },
   { type: ELEMENT_TYPES.TRACK_SIGNAL2, label: "Signal", preview: createSignalPreview() },
   { type: ELEMENT_TYPES.BUTTON, label: "Output button", preview: new ButtonElementView(0, 0) },
-  { type: ELEMENT_TYPES.BUTTON_SCRIPT, label: "Script button", preview: new ButtonScriptElementView(0, 0) },
   { type: ELEMENT_TYPES.BUTTON_ROUTE, label: "Route", preview: new RouteButtonElementView(0, 0) },
   { type: ELEMENT_TYPES.LABEL, label: "Label", preview: new LabelElementView(0, 0) },
 ];
@@ -255,12 +421,6 @@ function LitePropertyPanel({
               />
             ) : property.type === "blockTypeSelect" ? (
               <BlockTypeSelectPropertyEditor
-                prop={property}
-                selectedElement={selectedElement}
-                onChange={onChange}
-              />
-            ) : property.type === "scriptEditor" ? (
-              <ScriptPropertyEditor
                 prop={property}
                 selectedElement={selectedElement}
                 onChange={onChange}
@@ -478,6 +638,7 @@ function DevicesPanel({
 export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEditor }: LiteLayoutPageProps) {
   const commandCenter = useCommandCenter();
   const [layout, setLayout] = useState(() => new LayoutView());
+  const [automationScripts, setAutomationScripts] = useState<AutomationScriptDefinition[]>([]);
   const [selectedElement, setSelectedElement] = useState<BaseElementView | null>(null);
   const [tool, setTool] = useState<EditorTool>({ mode: "cursor", elementType: "general" });
   const [editMode, setEditMode] = useState(false);
@@ -520,9 +681,23 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
     try {
       const response = await fetch("/api/layout", { cache: "no-store" });
       if (!response.ok) throw new Error("The layout could not be loaded from the EX-CSB1.");
-      const nextLayout = LayoutView.fromJSON(await response.json());
+
+      const prepared =
+        prepareLayoutForLoad(
+          await response.json()
+        );
+
+      const nextLayout =
+        LayoutView.fromJSON(
+          prepared.layoutData
+        );
+
       nextLayout.checkRoutes();
+
       setLayout(nextLayout);
+      setAutomationScripts(
+        prepared.automationScripts
+      );
       setSelectedElement(null);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : String(loadError));
@@ -781,7 +956,10 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
       const response = await fetch("/api/layout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(layout),
+        body: serializeLayoutWithAutomations(
+          layout,
+          automationScripts
+        ),
       });
       if (!response.ok) throw new Error("The layout could not be saved to the EX-CSB1.");
     } catch (saveError) {
@@ -789,10 +967,23 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
     } finally {
       setSaving(false);
     }
-  }, [layout]);
+  }, [layout, automationScripts]);
 
   const exportLayout = useCallback(() => {
-    const json = JSON.stringify(layout, null, 2);
+    const serialized =
+      JSON.parse(
+        serializeLayoutWithAutomations(
+          layout,
+          automationScripts
+        )
+      );
+
+    const json =
+      JSON.stringify(
+        serialized,
+        null,
+        2
+      );
     const blob = new Blob(
       [json],
       { type: "application/json;charset=utf-8" },
@@ -818,7 +1009,7 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
       () => URL.revokeObjectURL(url),
       0,
     );
-  }, [layout]);
+  }, [layout, automationScripts]);
   useLayoutPageShortcuts({
     saveLayoutToServer: saveLayout,
     setTool,
@@ -1006,13 +1197,22 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
                 </>
               ) : (
                 <Tabs
-                  defaultValue="info"
+                  defaultValue="automation"
                   className="lite-runtime-tabs"
                 >
                   <Tabs.List grow mb="sm">
+                    <Tabs.Tab value="automation">Automation</Tabs.Tab>
                     <Tabs.Tab value="info">Info</Tabs.Tab>
                     <Tabs.Tab value="log">Log</Tabs.Tab>
                   </Tabs.List>
+
+                  <Tabs.Panel value="automation" className="lite-info-tab-panel">
+                    <AutomationPanel
+                      scripts={automationScripts}
+                      onScriptsChange={setAutomationScripts}
+                    />
+                  </Tabs.Panel>
+
                   <Tabs.Panel value="info" className="lite-info-tab-panel">
                     <SystemInfoPanel
                       status={dccExStatus}
@@ -1021,6 +1221,7 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
                       version={version}
                     />
                   </Tabs.Panel>
+
                   <Tabs.Panel value="log" className="lite-info-tab-panel">
                     <LayoutRuntimeLogPanel />
                   </Tabs.Panel>

@@ -2,8 +2,12 @@ import {
   wsApi,
 } from "./wsApi";
 
+export type ClientScriptExecutionId =
+  | number
+  | string;
+
 export type ClientScriptElementContext = {
-  id: number;
+  id: ClientScriptExecutionId;
   name: string;
   type: string;
 };
@@ -49,13 +53,13 @@ const AsyncFunction =
   ).constructor as AsyncFunctionFactory;
 
 const executions =
-  new Map<number, ExecutionControl>();
+  new Map<ClientScriptExecutionId, ExecutionControl>();
 
 const listeners =
-  new Map<number, Set<StateListener>>();
+  new Map<ClientScriptExecutionId, Set<StateListener>>();
 
 const lastErrors =
-  new Map<number, string | null>();
+  new Map<ClientScriptExecutionId, string | null>();
 
 export class ScriptAbortError extends Error {
   constructor(
@@ -67,7 +71,7 @@ export class ScriptAbortError extends Error {
 }
 
 function stateFor(
-  elementId: number
+  elementId: ClientScriptExecutionId
 ): ClientScriptState {
   const execution =
     executions.get(elementId);
@@ -92,7 +96,7 @@ function stateFor(
 }
 
 function emitState(
-  elementId: number
+  elementId: ClientScriptExecutionId
 ): void {
   const state =
     stateFor(elementId);
@@ -106,13 +110,13 @@ function emitState(
 }
 
 export function getClientScriptState(
-  elementId: number
+  elementId: ClientScriptExecutionId
 ): ClientScriptState {
   return stateFor(elementId);
 }
 
 export function subscribeClientScriptState(
-  elementId: number,
+  elementId: ClientScriptExecutionId,
   listener: StateListener
 ): () => void {
   let set =
@@ -623,7 +627,7 @@ function createDccApi(
 }
 
 export function pauseClientScript(
-  elementId: number
+  elementId: ClientScriptExecutionId
 ): boolean {
   const execution =
     executions.get(elementId);
@@ -647,7 +651,7 @@ export function pauseClientScript(
 }
 
 export function resumeClientScript(
-  elementId: number
+  elementId: ClientScriptExecutionId
 ): boolean {
   const execution =
     executions.get(elementId);
@@ -685,7 +689,7 @@ export function resumeClientScript(
 }
 
 export function abortClientScript(
-  elementId: number,
+  elementId: ClientScriptExecutionId,
   reason =
     "Script aborted by user."
 ): boolean {
@@ -830,7 +834,7 @@ export async function runClientScript(
         "element",
         `"use strict";
 ${script}
-//# sourceURL=dcc-express-script-button-${element.id}.js`
+//# sourceURL=dcc-express-script-${String(element.id).replace(/[^a-zA-Z0-9_-]/g, "_")}.js`
       );
 
     const result =
