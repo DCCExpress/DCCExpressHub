@@ -63,7 +63,7 @@ Current functionality includes:
 - track power control,
 - raw DCC-EX console,
 - gamepad support,
-- device / HAL configuration,
+- device configuration,
 - LittleFS file browser,
 - diagnostics and runtime status,
 - complete Export / Import backup,
@@ -152,6 +152,38 @@ Use a desktop Chromium-based browser with Web Serial support, for example:
 - Microsoft Edge
 
 Connect the Hub to the computer using USB.
+
+---
+
+## USB serial driver
+
+Before using the Web Installer, make sure the operating system detects the Hub as a serial / COM device.
+
+Depending on the ESP32 or M5Stack board, a USB-to-serial driver may be required. Common USB-UART chips include:
+
+- **CH340 / CH341**
+- **Silicon Labs CP210x**
+
+On Windows, first connect the board and check **Device Manager → Ports (COM & LPT)**.
+
+If a COM port appears and the board is identified correctly, no manual driver installation is normally needed.
+
+If no serial port appears, install the driver for the USB-UART chip used by your board.
+
+For CP210x devices, use the official Silicon Labs VCP driver page:
+
+```text
+https://www.silabs.com/software-and-tools/usb-to-uart-bridge-vcp-drivers
+```
+
+For CH340 / CH341 devices, use the official WCH driver package or a driver supplied by the board manufacturer.
+
+> **Important**
+>
+> The browser installer can only connect to serial devices that are already detected by the operating system.
+> If there is no COM / serial port, Web Serial cannot open the Hub.
+
+After installing a driver, reconnect the USB cable and verify that a COM port appears before continuing.
 
 ---
 
@@ -368,7 +400,7 @@ A complete backup can contain:
 - locomotives,
 - locomotive images,
 - signal logic,
-- device / HAL configuration.
+- device configuration.
 
 ---
 
@@ -652,7 +684,7 @@ DCCExpressHubWeb
 
 DCCExpressHub is under active development.
 
-The project is currently aimed at users who are comfortable testing developing model railway software and DCC-EX based systems.
+The project is currently aimed at users who are comfortable testing actively developed model railway software and DCC-EX based systems.
 
 Expect interfaces, configuration formats and hardware support to evolve while the project is still in alpha development.
 
