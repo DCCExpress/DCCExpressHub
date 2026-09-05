@@ -10,6 +10,8 @@ It provides a browser-based interface for locomotive control, layout operation, 
 
 ---
 
+![DCCExpressHub screenshot](doc/images/Screenshot%202026-09-05%20110304.png)
+
 ## Architecture
 
 ```text
