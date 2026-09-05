@@ -38,6 +38,64 @@ const environment =
   argumentValue("--env") ??
   "m5stack-basic";
 
+const targetDefinitions = {
+  "m5stack-basic": {
+    id:
+      "m5stack-basic",
+    displayName:
+      "M5Stack Basic",
+    fileTag:
+      "M5Stack-Basic",
+  },
+
+  "esp32dev": {
+    id:
+      "esp32-devkit",
+    displayName:
+      "ESP32 DevKit",
+    fileTag:
+      "ESP32-DevKit",
+  },
+};
+
+const target =
+  targetDefinitions[
+    environment
+  ];
+
+if (!target) {
+  throw new Error(
+    `Unsupported DCCExpressHub firmware target: ${environment}`,
+  );
+}
+
+const packageJsonFile =
+  path.join(
+    repoRoot,
+    "web-ui",
+    "package.json",
+  );
+
+const packageJson =
+  JSON.parse(
+    fs.readFileSync(
+      packageJsonFile,
+      "utf8",
+    ),
+  );
+
+const firmwareVersion =
+  String(
+    packageJson.version ??
+      "",
+  ).trim();
+
+if (!firmwareVersion) {
+  throw new Error(
+    "web-ui/package.json does not contain a firmware version.",
+  );
+}
+
 const buildDir =
   path.join(
     repoRoot,
@@ -85,7 +143,6 @@ function parsePartitionTable(
       break;
     }
 
-    // ESP-IDF partition table entry magic.
     if (magic !== 0x50aa) {
       continue;
     }
@@ -426,7 +483,7 @@ fs.mkdirSync(
 );
 
 const baseName =
-  `DCCExpressHub-${environment}`;
+  `DCCExpressHub-${target.fileTag}-v${firmwareVersion}`;
 
 const outputBin =
   path.join(
@@ -448,15 +505,31 @@ fs.writeFileSync(
 const metadata = {
   format:
     "dcc-express-hub-merged",
-  version: 1,
-  environment,
+  version: 2,
+
+  firmwareVersion,
+  platformioEnvironment:
+    environment,
+
+  hardwareTarget:
+    target.id,
+  hardwareName:
+    target.displayName,
+
+  fileName:
+    path.basename(
+      outputBin,
+    ),
+
   flashAddress:
     "0x000000",
   factoryImage: true,
   resetsNvsWhenFlashedFromZero:
     true,
+
   size:
     merged.length,
+
   applicationPartition: {
     label:
       appPartition.label,
@@ -465,6 +538,7 @@ const metadata = {
     size:
       appPartition.size,
   },
+
   filesystemPartition: {
     label:
       filesystemPartition.label,
@@ -473,6 +547,7 @@ const metadata = {
     size:
       filesystemPartition.size,
   },
+
   components:
     components.map(
       component => ({
@@ -506,10 +581,16 @@ console.log(
   "Merged firmware created:",
 );
 console.log(
-  `  ${outputBin}`,
+  `  Hardware: ${target.displayName}`,
 );
 console.log(
-  `  ${metadataFile}`,
+  `  Version:  ${firmwareVersion}`,
+);
+console.log(
+  `  BIN:      ${outputBin}`,
+);
+console.log(
+  `  Metadata: ${metadataFile}`,
 );
 console.log("");
 console.log(

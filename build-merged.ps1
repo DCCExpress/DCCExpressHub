@@ -1,5 +1,11 @@
 param(
-    [string]$Environment = "m5stack-basic"
+    [ValidateSet(
+        "m5stack-basic",
+        "esp32dev"
+    )]
+    [string]$Environment = "m5stack-basic",
+
+    [switch]$SkipWeb
 )
 
 $ErrorActionPreference = "Stop"
@@ -32,14 +38,55 @@ Tried:
 "@
 }
 
+function Get-FirmwareTarget {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Environment
+    )
+
+    switch ($Environment) {
+        "m5stack-basic" {
+            return @{
+                DisplayName = "M5Stack Basic"
+                FileTag = "M5Stack-Basic"
+            }
+        }
+
+        "esp32dev" {
+            return @{
+                DisplayName = "ESP32 DevKit"
+                FileTag = "ESP32-DevKit"
+            }
+        }
+
+        default {
+            throw "Unsupported PlatformIO environment: $Environment"
+        }
+    }
+}
+
 $pio = Get-PlatformIO
+$target = Get-FirmwareTarget -Environment $Environment
+$packageJson = Get-Content ".\web-ui\package.json" -Raw | ConvertFrom-Json
+$version = [string]$packageJson.version
+
+if ([string]::IsNullOrWhiteSpace($version)) {
+    throw "web-ui\package.json does not contain a firmware version."
+}
+
+$outputName = "DCCExpressHub-{0}-v{1}-merged.bin" -f $target.FileTag, $version
+$outputPath = Join-Path ".\dist\firmware" $outputName
 
 Write-Host "== DCCExpressHub merged firmware ==" -ForegroundColor Cyan
+Write-Host "Target:      $($target.DisplayName)" -ForegroundColor DarkGray
 Write-Host "Environment: $Environment" -ForegroundColor DarkGray
-Write-Host "PlatformIO: $pio" -ForegroundColor DarkGray
+Write-Host "Version:     $version" -ForegroundColor DarkGray
+Write-Host "PlatformIO:  $pio" -ForegroundColor DarkGray
 Write-Host ""
 
-& ".\build-web.ps1"
+if (-not $SkipWeb) {
+    & ".\build-web.ps1"
+}
 
 Write-Host "== Building firmware [$Environment] ==" -ForegroundColor Cyan
 & $pio run -e $Environment
@@ -59,6 +106,10 @@ if ($LASTEXITCODE -ne 0) {
     throw "Merged firmware generation failed."
 }
 
+if (-not (Test-Path $outputPath)) {
+    throw "Expected merged firmware was not created: $outputPath"
+}
+
 Write-Host ""
 Write-Host "Done." -ForegroundColor Green
-Write-Host "Output: dist\firmware\DCCExpressHub-$Environment-merged.bin"
+Write-Host "Firmware: $outputPath" -ForegroundColor Green
