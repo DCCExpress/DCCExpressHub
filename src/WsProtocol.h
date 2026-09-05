@@ -127,6 +127,11 @@ private:
   void sendRuntimeSnapshot(
       AsyncWebSocketClient* client);
 
+  void sendBlockStateSnapshot(
+      AsyncWebSocketClient* client);
+
+  void broadcastBlockStateSnapshot();
+
   void sendDccExStatus(
       AsyncWebSocketClient* client);
 

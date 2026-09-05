@@ -154,6 +154,22 @@ String cleanDccVersion(String value) {
   value.trim();
   return value;
 }
+
+uint16_t parseBlockId(JsonVariantConst value) {
+  if (value.is<const char*>()) {
+    const char* text = value.as<const char*>();
+    if (!text || !*text) return 0;
+    const long parsed = strtol(text, nullptr, 10);
+    return parsed > 0 && parsed <= 0xffff
+        ? static_cast<uint16_t>(parsed)
+        : 0;
+  }
+
+  const long parsed = value | 0L;
+  return parsed > 0 && parsed <= 0xffff
+      ? static_cast<uint16_t>(parsed)
+      : 0;
+}
 }
 
 WsProtocol::WsProtocol(
@@ -176,6 +192,18 @@ void WsProtocol::begin() {
 
   _dcc.onFrame([this](const String& frame) {
     handleDccFrame(frame);
+  });
+
+  // LayoutRuntime is the single authoritative block store. Any current or
+  // future firmware subsystem that changes a block through LayoutRuntime
+  // automatically publishes the new complete snapshot to all clients.
+  _runtime.onChange([this](
+      RuntimeChangeKind kind,
+      uint16_t,
+      uint8_t) {
+    if (kind == RuntimeChangeKind::Block) {
+      broadcastBlockStateSnapshot();
+    }
   });
 
   bootResetReason = esp_reset_reason();
@@ -290,6 +318,56 @@ void WsProtocol::broadcastPowerInfo() {
   broadcast("powerInfo", data);
 }
 
+void WsProtocol::sendBlockStateSnapshot(
+    AsyncWebSocketClient* client) {
+  JsonDocument data;
+
+  for (const auto& block : _runtime.blocks()) {
+    JsonObject state =
+        data[String(block.id)].to<JsonObject>();
+
+    state["blockId"] = String(block.id);
+
+    if (block.locoId.isEmpty()) {
+      state["locoId"] = nullptr;
+    } else {
+      state["locoId"] = block.locoId;
+    }
+
+    if (block.locoAddress > 0) {
+      state["locoAddress"] = block.locoAddress;
+    }
+  }
+
+  send(
+      client,
+      "blockStateChanged",
+      data.as<JsonVariantConst>());
+}
+
+void WsProtocol::broadcastBlockStateSnapshot() {
+  JsonDocument data;
+
+  for (const auto& block : _runtime.blocks()) {
+    JsonObject state =
+        data[String(block.id)].to<JsonObject>();
+
+    state["blockId"] = String(block.id);
+
+    if (block.locoId.isEmpty()) {
+      state["locoId"] = nullptr;
+    } else {
+      state["locoId"] = block.locoId;
+    }
+
+    if (block.locoAddress > 0) {
+      state["locoAddress"] = block.locoAddress;
+    }
+  }
+
+  broadcast("blockStateChanged", data);
+}
+
 void WsProtocol::recomputePowerStateFromTrackTelemetry() {
   bool mainSeen = false;
   bool mainKnown = true;
@@ -367,6 +445,7 @@ void WsProtocol::appendHubStatus(JsonObject hub) {
   hub["wsClients"] = _wsClientCount;
   hub["runtimeAccessories"] = _runtime.accessoryCount();
   hub["runtimeSensors"] = _runtime.sensorCount();
+  hub["runtimeBlocks"] = _runtime.blockCount();
 
   hub["flashChipBytes"] = ESP.getFlashChipSize();
   hub["sketchBytes"] = ESP.getSketchSize();
@@ -461,8 +540,6 @@ void WsProtocol::appendDccExStatus(JsonDocument& data) {
 
   appendHubStatus(hub);
 
-  // Backward compatibility for the old Lite-derived Info panel and any
-  // other clients that still consume these top-level ESP32 fields.
   data["uptimeMs"] = millis();
   data["freeHeapBytes"] = ESP.getFreeHeap();
   data["cpuCores"] = 2;
@@ -535,8 +612,6 @@ void WsProtocol::beginConfiguredLocoStateSync(
     return;
   }
 
-  // The sync only needs DCC addresses. ArduinoJson's filter keeps the
-  // image/function/action metadata out of RAM even when locos.json grows.
   JsonDocument filter;
   filter[0]["address"] = true;
 
@@ -687,16 +762,9 @@ void WsProtocol::handleDccConnectionState(
   _dccConnectedSinceAt = now;
   _nextDccCurrentPollAt = 0;
 
-  // Static/slow station information. TX logging is intentionally disabled
-  // for background telemetry commands.
-  // DccExBridge already sends <s> immediately after each TCP connect.
-  // Query the slower TrackManager metadata once the heartbeat proves
-  // that the remote command station is alive.
   _dcc.sendCommand("<=>", false);
   _dcc.sendCommand("<JG>", false);
 
-  // DCC-EX <t cab> requests the current speed/direction/function map without
-  // modifying the locomotive. <l ...> remains the one authoritative state path.
   beginConfiguredLocoStateSync(now);
 }
 
@@ -714,7 +782,6 @@ void WsProtocol::pollDccExTelemetry(
     _nextDccCurrentPollAt =
         now + DCC_CURRENT_POLL_MS;
   }
-
 }
 
 void WsProtocol::sendRuntimeSnapshot(AsyncWebSocketClient* client) {
@@ -760,6 +827,8 @@ void WsProtocol::sendRuntimeSnapshot(AsyncWebSocketClient* client) {
     data["on"] = sensor.on;
     send(client, "sensorChanged", data.as<JsonVariantConst>());
   }
+
+  sendBlockStateSnapshot(client);
 }
 
 void WsProtocol::broadcastRuntimeSnapshot() {
@@ -813,6 +882,8 @@ void WsProtocol::broadcastRuntimeSnapshot() {
     data["on"] = sensor.on;
     broadcast("sensorChanged", data);
   }
+
+  broadcastBlockStateSnapshot();
 }
 
 void WsProtocol::broadcastRawInfo(const String& raw) {
@@ -848,16 +919,12 @@ void WsProtocol::broadcastLoco(const LocoState& loco) {
   out["address"] = loco.address;
   out["speed"] = loco.speed;
   out["direction"] = loco.forward ? "forward" : "reverse";
-
-  // One compact 32-bit value. F0 is bit 0, F28 is bit 28.
   out["functionsMask"] = loco.functionsMask;
 
   broadcast("locoState", data);
 }
 
 void WsProtocol::handleDccFrame(const String& frame) {
-  // Keep high-rate telemetry out of the operator log/console. Heartbeat
-  // remains visible because the existing DCC-EX status indicator uses it.
   if (!frame.startsWith("<jI") &&
       !frame.startsWith("<jG")) {
     broadcastRawInfo(frame);
@@ -912,8 +979,6 @@ void WsProtocol::handleDccFrame(const String& frame) {
     if (fieldCount > 2) {
       _dccHardware = fields[2];
 
-      // Current DCC-EX builds commonly format the last section as
-      // "MOTOR_DRIVER G-gitsha" instead of using a fourth slash field.
       const int buildAt =
           _dccHardware.lastIndexOf(" G-");
 
@@ -972,8 +1037,6 @@ void WsProtocol::handleDccFrame(const String& frame) {
       _dccTracks[index].currentMa =
           values[index] < 0 ? 0 : values[index];
 
-      // If an older station does not answer <=> but does answer <JI>,
-      // still expose the current channel instead of hiding it.
       if (!_dccTracks[index].configured) {
         _dccTracks[index].configured = true;
         _dccTracks[index].mode = "TRACK";
@@ -1076,8 +1139,6 @@ void WsProtocol::handleDccFrame(const String& frame) {
     if (handled) {
       _emergencyStop = false;
 
-      // Runtime persistence is tied to an authoritative MAIN
-      // ON -> OFF transition, never merely to a requested command.
       if (wasMainOn &&
           !_trackPower) {
         _stateStore.save();
@@ -1092,15 +1153,6 @@ void WsProtocol::handleDccFrame(const String& frame) {
     }
   }
 
-  // DCC-EX authoritative loco feedback:
-  //   <l loco reg speedByte functMap>
-  //
-  // speedByte:
-  //   reverse: 0=stop, 1=ESTOP, 2..127=speed 1..126
-  //   forward: 128=stop, 129=ESTOP, 130..255=speed 1..126
-  //
-  // DCC-EX broadcasts these frames after throttle/function changes,
-  // including one for each loco in the reminder list after <!>.
   if (frame.startsWith("<l ")) {
     unsigned int addressValue = 0;
     int registerValue = 0;
@@ -1147,8 +1199,6 @@ void WsProtocol::handleDccFrame(const String& frame) {
     loco->forward =
         (speedByte & 0x80) != 0;
 
-    // Both normal STOP and ESTOP are displayed as speed 0 in the UI.
-    // DCC-EX uses encodedSpeed=0 for STOP and =1 for ESTOP.
     loco->speed =
         encodedSpeed <= 1
             ? 0
@@ -1159,9 +1209,6 @@ void WsProtocol::handleDccFrame(const String& frame) {
         static_cast<uint32_t>(
             functionMapValue);
 
-    // A non-zero authoritative loco speed means DCC-EX is no longer
-    // in the global emergency-stop state. Do not clear ESTOP merely
-    // because a command was requested; clear it only from feedback.
     if (_emergencyStop &&
         loco->speed > 0) {
       _emergencyStop = false;
@@ -1199,7 +1246,6 @@ void WsProtocol::handleEvent(
       ++_wsClientCount;
     }
 
-    // First browser should get a fresh current sample immediately.
     _nextDccCurrentPollAt = 0;
 
     Logger::info("WS client connected #" + String(client->id()));
@@ -1269,23 +1315,19 @@ void WsProtocol::handleMessage(
   }
 
   if (strcmp(type, "setTrackPower") == 0) {
-    const bool on =
-        data["on"] | false;
+    const bool on = data["on"] | false;
 
     const String command =
         _powerIncludesProgramming
             ? (on ? "<1>" : "<0>")
             : (on ? "<1 MAIN>" : "<0 MAIN>");
 
-    // Command = request. MAIN / PROG state and runtime persistence
-    // are updated only from the resulting authoritative <p...> feedback.
     _dcc.sendCommand(command);
     return;
   }
 
   if (strcmp(type, "setProgrammingPower") == 0) {
-    const bool on =
-        data["on"] | false;
+    const bool on = data["on"] | false;
 
     _dcc.sendCommand(
         on
@@ -1296,8 +1338,6 @@ void WsProtocol::handleMessage(
   }
 
   if (strcmp(type, "emergencyStop") == 0) {
-    // Command = request. Loco state is updated from the resulting
-    // authoritative <l ...> broadcasts sent by DCC-EX.
     if (_dcc.sendCommand("<!>")) {
       _emergencyStop = true;
       broadcastPowerInfo();
@@ -1349,8 +1389,6 @@ void WsProtocol::handleMessage(
     const uint16_t address =
         data["locoAddress"] | 0;
 
-    // Do not answer from the Hub cache. Query the command station and let
-    // its authoritative <l ...> response update every connected client.
     requestLocoState(
         address,
         false);
@@ -1502,6 +1540,55 @@ void WsProtocol::handleMessage(
     out["address"] = address;
     out["on"] = on;
     broadcast("sensorChanged", out);
+    return;
+  }
+
+  if (strcmp(type, "setBlock") == 0) {
+    const uint16_t blockId = parseBlockId(data["blockId"]);
+    const String locoId = data["locoId"].isNull()
+        ? String()
+        : String(data["locoId"].as<const char*>());
+
+    const long addressValue = data["locoAddress"] | 0L;
+    const uint16_t locoAddress =
+        addressValue > 0 && addressValue <= 10239
+            ? static_cast<uint16_t>(addressValue)
+            : 0;
+
+    if (!blockId ||
+        (locoId.isEmpty() && locoAddress == 0) ||
+        !_runtime.setBlock(blockId, locoId, locoAddress)) {
+      JsonDocument out;
+      out["message"] = "invalid_block_assignment";
+      send(client, "error", out.as<JsonVariantConst>());
+    }
+
+    return;
+  }
+
+  if (strcmp(type, "setBlockRemove") == 0) {
+    const uint16_t blockId = parseBlockId(data["blockId"]);
+    const String locoId = data["locoId"].isNull()
+        ? String()
+        : String(data["locoId"].as<const char*>());
+
+    if (!blockId ||
+        !_runtime.removeBlock(blockId, locoId)) {
+      JsonDocument out;
+      out["message"] = "invalid_block_remove";
+      send(client, "error", out.as<JsonVariantConst>());
+    }
+
+    return;
+  }
+
+  if (strcmp(type, "setBlocksReset") == 0) {
+    _runtime.clearBlocks();
+    return;
+  }
+
+  if (strcmp(type, "getBlocks") == 0) {
+    sendBlockStateSnapshot(client);
     return;
   }
 

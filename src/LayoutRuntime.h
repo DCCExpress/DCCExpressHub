@@ -18,7 +18,8 @@ enum class RuntimeChangeKind : uint8_t {
   Signal,
   Accessory,
   VPin,
-  Sensor
+  Sensor,
+  Block
 };
 
 struct RuntimeAccessory {
@@ -46,6 +47,16 @@ struct RuntimeSensor {
   bool on = false;
 };
 
+struct RuntimeBlock {
+  uint16_t id = 0;
+  String locoId;
+  uint16_t locoAddress = 0;
+
+  bool occupied() const {
+    return locoAddress > 0 || !locoId.isEmpty();
+  }
+};
+
 class LayoutRuntime {
 public:
   using ChangeCallback =
@@ -59,6 +70,18 @@ public:
   bool setAccessory(uint16_t address, bool active);
   bool setVPin(uint16_t vpin, bool active);
   bool setSensor(uint16_t address, bool on);
+
+  // Hub-authoritative block occupancy. A locomotive may occupy only one block.
+  bool setBlock(
+      uint16_t blockId,
+      const String& locoId,
+      uint16_t locoAddress = 0);
+
+  bool removeBlock(
+      uint16_t blockId,
+      const String& locoId = String());
+
+  bool clearBlocks();
 
   void onChange(ChangeCallback callback) {
     _changeCallback = std::move(callback);
@@ -75,6 +98,7 @@ public:
 
   RuntimeSensor* findSensor(uint16_t address);
   RuntimeSensor* findSensorById(uint16_t id);
+  RuntimeBlock* findBlockById(uint16_t id);
 
   const std::vector<RuntimeAccessory>& accessories() const {
     return _accessories;
@@ -82,6 +106,10 @@ public:
 
   const std::vector<RuntimeSensor>& sensors() const {
     return _sensors;
+  }
+
+  const std::vector<RuntimeBlock>& blocks() const {
+    return _blocks;
   }
 
   size_t accessoryCount() const {
@@ -92,10 +120,15 @@ public:
     return _sensors.size();
   }
 
+  size_t blockCount() const {
+    return _blocks.size();
+  }
+
 private:
   fs::FS* _fs = nullptr;
   std::vector<RuntimeAccessory> _accessories;
   std::vector<RuntimeSensor> _sensors;
+  std::vector<RuntimeBlock> _blocks;
   ChangeCallback _changeCallback;
 
   void notify(
@@ -105,7 +138,8 @@ private:
 
   void rememberAndRestoreLiveState(
       const std::vector<RuntimeAccessory>& oldAccessories,
-      const std::vector<RuntimeSensor>& oldSensors);
+      const std::vector<RuntimeSensor>& oldSensors,
+      const std::vector<RuntimeBlock>& oldBlocks);
 
   void addElement(JsonObjectConst element);
   static bool isTurnoutType(const char* type);

@@ -53,6 +53,15 @@ void LayoutRuntime::addElement(JsonObjectConst element) {
   const char* type = element["type"] | "";
   const uint16_t id = readElementId(element);
 
+  if (strcmp(type, "trackblock") == 0) {
+    if (!id) return;
+
+    RuntimeBlock block;
+    block.id = id;
+    _blocks.push_back(std::move(block));
+    return;
+  }
+
   if (isTurnoutType(type)) {
     const bool isDouble =
         strcmp(type, "trackturnoutdouble") == 0;
@@ -152,14 +161,21 @@ void LayoutRuntime::addElement(JsonObjectConst element) {
     const char* outputMode =
         element["outputMode"] | "accessory";
 
+    // Button VPIN support is retired. Extended buttons are represented as
+    // signal-like runtime items so their aspect can be retained in RAM/state.
     RuntimeAccessory item;
     item.id = id;
-    item.kind =
-        strcmp(outputMode, "vpin") == 0
-            ? RuntimeAccessoryKind::VPin
-            : RuntimeAccessoryKind::Accessory;
     item.address = address;
-    item.active = false;
+
+    if (strcmp(outputMode, "extended") == 0) {
+      item.kind = RuntimeAccessoryKind::Signal;
+      item.aspect = -1;
+      item.signalExtended = true;
+      item.signalOutputCount = 1;
+    } else {
+      item.kind = RuntimeAccessoryKind::Accessory;
+      item.active = false;
+    }
 
     _accessories.push_back(std::move(item));
     return;
@@ -194,6 +210,7 @@ bool LayoutRuntime::rebuildFromLayout(
 
     _accessories.clear();
     _sensors.clear();
+    _blocks.clear();
     return true;
   }
 
@@ -202,6 +219,9 @@ bool LayoutRuntime::rebuildFromLayout(
 
   const auto oldSensors =
       _sensors;
+
+  const auto oldBlocks =
+      _blocks;
 
   JsonDocument filter;
   JsonObject element =
@@ -242,6 +262,7 @@ bool LayoutRuntime::rebuildFromLayout(
 
   _accessories.clear();
   _sensors.clear();
+  _blocks.clear();
 
   const JsonArrayConst layers =
       doc["layers"].as<JsonArrayConst>();
@@ -257,21 +278,25 @@ bool LayoutRuntime::rebuildFromLayout(
 
   rememberAndRestoreLiveState(
       oldAccessories,
-      oldSensors);
+      oldSensors,
+      oldBlocks);
 
   Logger::info(
       "LayoutRuntime rebuilt: " +
       String(_accessories.size()) +
       " accessories, " +
       String(_sensors.size()) +
-      " sensors");
+      " sensors, " +
+      String(_blocks.size()) +
+      " blocks");
 
   return true;
 }
 
 void LayoutRuntime::rememberAndRestoreLiveState(
     const std::vector<RuntimeAccessory>& oldAccessories,
-    const std::vector<RuntimeSensor>& oldSensors) {
+    const std::vector<RuntimeSensor>& oldSensors,
+    const std::vector<RuntimeBlock>& oldBlocks) {
   for (auto& item : _accessories) {
     for (const auto& old : oldAccessories) {
       if (old.kind != item.kind ||
@@ -293,6 +318,18 @@ void LayoutRuntime::rememberAndRestoreLiveState(
       }
 
       sensor.on = old.on;
+      break;
+    }
+  }
+
+  for (auto& block : _blocks) {
+    for (const auto& old : oldBlocks) {
+      if (old.id != block.id) {
+        continue;
+      }
+
+      block.locoId = old.locoId;
+      block.locoAddress = old.locoAddress;
       break;
     }
   }
@@ -342,6 +379,17 @@ RuntimeSensor* LayoutRuntime::findSensorById(
   for (auto& item : _sensors) {
     if (item.id == id) {
       return &item;
+    }
+  }
+
+  return nullptr;
+}
+
+RuntimeBlock* LayoutRuntime::findBlockById(
+    uint16_t id) {
+  for (auto& block : _blocks) {
+    if (block.id == id) {
+      return &block;
     }
   }
 
@@ -462,6 +510,108 @@ bool LayoutRuntime::setSensor(
       RuntimeChangeKind::Sensor,
       item->id,
       0);
+
+  return true;
+}
+
+bool LayoutRuntime::setBlock(
+    uint16_t blockId,
+    const String& locoId,
+    uint16_t locoAddress) {
+  RuntimeBlock* target = findBlockById(blockId);
+  if (!target) return false;
+
+  const String normalizedLocoId = locoId;
+  const bool clearing =
+      normalizedLocoId.isEmpty() &&
+      locoAddress == 0;
+
+  bool changed = false;
+
+  if (!clearing) {
+    // The same locomotive can never be present in two blocks. Match by DCC
+    // address whenever available, and by logical loco id as a fallback.
+    for (auto& block : _blocks) {
+      if (block.id == blockId || !block.occupied()) {
+        continue;
+      }
+
+      const bool sameAddress =
+          locoAddress > 0 &&
+          block.locoAddress == locoAddress;
+
+      const bool sameId =
+          !normalizedLocoId.isEmpty() &&
+          block.locoId == normalizedLocoId;
+
+      if (!sameAddress && !sameId) {
+        continue;
+      }
+
+      block.locoId = "";
+      block.locoAddress = 0;
+      changed = true;
+    }
+  }
+
+  if (clearing) {
+    if (target->occupied()) {
+      target->locoId = "";
+      target->locoAddress = 0;
+      changed = true;
+    }
+  } else if (
+      target->locoId != normalizedLocoId ||
+      target->locoAddress != locoAddress) {
+    target->locoId = normalizedLocoId;
+    target->locoAddress = locoAddress;
+    changed = true;
+  }
+
+  if (changed) {
+    notify(RuntimeChangeKind::Block, blockId, 0);
+  }
+
+  return true;
+}
+
+bool LayoutRuntime::removeBlock(
+    uint16_t blockId,
+    const String& locoId) {
+  RuntimeBlock* block = findBlockById(blockId);
+  if (!block) return false;
+
+  if (!block->occupied()) {
+    return true;
+  }
+
+  // If the caller supplied a loco id, do not accidentally remove another
+  // locomotive that has meanwhile been assigned to the block by another client.
+  if (!locoId.isEmpty() &&
+      block->locoId != locoId) {
+    return false;
+  }
+
+  block->locoId = "";
+  block->locoAddress = 0;
+  notify(RuntimeChangeKind::Block, blockId, 0);
+  return true;
+}
+
+bool LayoutRuntime::clearBlocks() {
+  bool changed = false;
+
+  for (auto& block : _blocks) {
+    if (!block.occupied()) continue;
+
+    block.locoId = "";
+    block.locoAddress = 0;
+    changed = true;
+  }
+
+  if (changed) {
+    notify(RuntimeChangeKind::Block, 0, 0);
+  }
 
   return true;
 }

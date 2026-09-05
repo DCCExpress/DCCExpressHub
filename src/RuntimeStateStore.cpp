@@ -59,6 +59,30 @@ bool RuntimeStateStore::load(const char* path) {
         pair.value()["on"] | false);
   }
 
+  JsonObjectConst blocks = doc["blocks"];
+  for (JsonPairConst pair : blocks) {
+    const long blockIdValue = atol(pair.key().c_str());
+    if (blockIdValue <= 0 || blockIdValue > 0xffff) {
+      continue;
+    }
+
+    JsonObjectConst value = pair.value().as<JsonObjectConst>();
+    const String locoId = value["locoId"].isNull()
+        ? String()
+        : String(value["locoId"].as<const char*>());
+
+    const long locoAddressValue = value["locoAddress"] | 0L;
+    const uint16_t locoAddress =
+        locoAddressValue > 0 && locoAddressValue <= 10239
+            ? static_cast<uint16_t>(locoAddressValue)
+            : 0;
+
+    _runtime->setBlock(
+        static_cast<uint16_t>(blockIdValue),
+        locoId,
+        locoAddress);
+  }
+
   Logger::info("Runtime state restored");
   return true;
 }
@@ -76,7 +100,7 @@ bool RuntimeStateStore::save(const char* path) {
   }
 
   JsonDocument doc;
-  doc["version"] = 1;
+  doc["version"] = 2;
   doc["savedAtMs"] = millis();
 
   JsonObject accessories = doc["accessories"].to<JsonObject>();
@@ -109,6 +133,26 @@ bool RuntimeStateStore::save(const char* path) {
   JsonObject sensors = doc["sensors"].to<JsonObject>();
   for (const auto& sensor : _runtime->sensors()) {
     sensors[String(sensor.address)]["on"] = sensor.on;
+  }
+
+  // Only occupied blocks need to be persisted. Empty blocks are reconstructed
+  // from layout.json and start empty by default.
+  JsonObject blocks = doc["blocks"].to<JsonObject>();
+  for (const auto& block : _runtime->blocks()) {
+    if (!block.occupied()) continue;
+
+    JsonObject state =
+        blocks[String(block.id)].to<JsonObject>();
+
+    if (block.locoId.isEmpty()) {
+      state["locoId"] = nullptr;
+    } else {
+      state["locoId"] = block.locoId;
+    }
+
+    if (block.locoAddress > 0) {
+      state["locoAddress"] = block.locoAddress;
+    }
   }
 
   if (serializeJson(doc, file) == 0) {
