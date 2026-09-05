@@ -37,12 +37,6 @@ const char* cacheControlFor(const String& path) {
   return "no-cache";
 }
 
-struct CommandCenterProbeResult {
-  bool tcpConnected = false;
-  bool dccExAlive = false;
-  String reply;
-  unsigned long elapsedMs = 0;
-};
 
 bool isValidCommandCenterHost(
     const String& host) {
@@ -163,108 +157,22 @@ bool parseBooleanValue(
   return false;
 }
 
-CommandCenterProbeResult probeDccExEndpoint(
-    const String& host,
-    uint16_t port) {
-  CommandCenterProbeResult result;
-  WiFiClient probe;
-
-  const unsigned long started =
-      millis();
-
-  IPAddress resolved;
-
-  if (!connectCommandCenterClient(
-          probe,
-          host,
-          port,
-          1200,
-          &resolved)) {
-    result.elapsedMs =
-        millis() - started;
-    return result;
-  }
-
-  result.tcpConnected = true;
-  probe.setNoDelay(true);
-  probe.print("<#>");
-
-  bool insideFrame = false;
-  String frame;
-  frame.reserve(64);
-
-  while (millis() - started < 2200) {
-    while (probe.available()) {
-      const char c =
-          static_cast<char>(
-              probe.read());
-
-      if (!insideFrame) {
-        if (c == '<') {
-          insideFrame = true;
-          frame = "<";
-        }
-
-        continue;
-      }
-
-      if (c == '<') {
-        frame = "<";
-        continue;
-      }
-
-      frame += c;
-
-      if (c == '>') {
-        insideFrame = false;
-        result.reply = frame;
-
-        if (frame.startsWith("<#")) {
-          result.dccExAlive = true;
-          result.elapsedMs =
-              millis() - started;
-          probe.stop();
-          return result;
-        }
-
-        frame.clear();
-      }
-
-      if (frame.length() > 128) {
-        insideFrame = false;
-        frame.clear();
-      }
-    }
-
-    if (!probe.connected() &&
-        !probe.available()) {
-      break;
-    }
-
-    delay(1);
-  }
-
-  result.elapsedMs =
-      millis() - started;
-
-  probe.stop();
-  return result;
-}
-
 }
 
 ApiServer::ApiServer(
+    uint16_t httpPort,
     AsyncWebSocket& ws,
     DccExBridge& dcc,
     LayoutRuntime& runtime,
     RuntimeStateStore& stateStore,
-    Preferences& prefs,
+    HubConfigStore& config,
     WsProtocol& wsProtocol)
-    : _ws(ws),
+    : _server(httpPort),
+      _ws(ws),
       _dcc(dcc),
       _runtime(runtime),
       _stateStore(stateStore),
-      _prefs(prefs),
+      _config(config),
       _wsProtocol(wsProtocol) {}
 
 void ApiServer::sendJson(
@@ -968,17 +876,17 @@ void ApiServer::setupApi() {
           return;
         }
 
-        _prefs.putString(
-            "csbHost",
-            host);
+        CommandCenterSettings settings =
+            _config.commandCenter();
 
-        _prefs.putUShort(
-            "csbPort",
-            port);
+        settings.host = host;
+        settings.port = port;
+        settings.powerIncludesProgramming =
+            powerIncludesProgramming;
 
-        _prefs.putBool(
-            "powerProg",
-            powerIncludesProgramming);
+        const bool persisted =
+            _config.saveCommandCenter(
+                settings);
 
         _wsProtocol.setPowerIncludesProgramming(
             powerIncludesProgramming);
@@ -1001,7 +909,7 @@ void ApiServer::setupApi() {
 
         _wsProtocol.broadcastRuntimeSnapshot();
 
-        doc["ok"] = true;
+        doc["ok"] = persisted;
         doc["host"] = _dcc.host();
         doc["port"] = _dcc.port();
         doc["powerIncludesProgramming"] =
@@ -1009,9 +917,14 @@ void ApiServer::setupApi() {
         doc["connected"] =
             _dcc.connected();
 
+        if (!persisted) {
+          doc["message"] =
+              "EX-CSB1 settings were applied but persistence reported an error";
+        }
+
         sendJson(
             request,
-            200,
+            persisted ? 200 : 500,
             doc);
       });
 
@@ -1096,6 +1009,12 @@ void ApiServer::setupApi() {
             _dcc.host();
         doc["csbPort"] =
             _dcc.port();
+        doc["hubHostname"] =
+            _config.network().hostname;
+        doc["hubHttpPort"] =
+            _config.network().httpPort;
+        doc["hubDhcp"] =
+            _config.network().dhcp;
         doc["uptimeMs"] =
             millis();
         doc["freeHeapBytes"] =

@@ -2,15 +2,17 @@
 
 #include <Arduino.h>
 #include <ESPAsyncWebServer.h>
-#include <Preferences.h>
+#include <memory>
 
+#include "ApiServer.h"
 #include "DccExBridge.h"
+#include "HubConfigStore.h"
+#include "HubDisplay.h"
 #include "LayoutRuntime.h"
 #include "RuntimeStateStore.h"
-#include "ApiServer.h"
-#include "WsProtocol.h"
-#include "HubDisplay.h"
+#include "SerialConfigurator.h"
 #include "SignalAutomationEngine.h"
+#include "WsProtocol.h"
 
 class App {
 public:
@@ -18,14 +20,13 @@ public:
   void loop();
 
 private:
-  Preferences _prefs;
+  HubConfigStore _config;
+
   DccExBridge _dcc;
   LayoutRuntime _runtime;
   RuntimeStateStore _stateStore;
   HubDisplay _display;
 
-  String _commandCenterHost;
-  uint16_t _commandCenterPort = 0;
   bool _lastCommandCenterConnected = false;
 
   AsyncWebSocket _ws{"/ws"};
@@ -36,13 +37,13 @@ private:
       _runtime,
       _stateStore};
 
-  ApiServer _apiServer{
-      _ws,
+  SerialConfigurator _serialConfigurator{
+      _config,
       _dcc,
-      _runtime,
-      _stateStore,
-      _prefs,
       _wsProtocol};
+
+  std::unique_ptr<ApiServer>
+      _apiServer;
 
   SignalAutomationEngine _signalAutomation{
       _dcc,

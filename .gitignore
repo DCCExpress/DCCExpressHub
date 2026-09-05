@@ -28,5 +28,6 @@ Thumbs.db
 *.log
 *.tmp
 
+dist
 data/
 src/config.h

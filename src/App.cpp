@@ -1,42 +1,37 @@
 #include "App.h"
 
+#include <ESPmDNS.h>
 #include <LittleFS.h>
 #include <WiFi.h>
-#include <ESPmDNS.h>
 
-#include "config.h"
 #include "Logger.h"
 
 namespace {
-constexpr uint16_t HUB_HTTP_PORT = 80;
+bool parseIp(
+    const String& text,
+    IPAddress& out,
+    bool allowEmpty = false) {
+  if (text.isEmpty()) {
+    return allowEmpty;
+  }
+
+  return out.fromString(
+      text);
+}
 }
 
 void App::loadConfiguration() {
-  _prefs.begin(
-      "dcchub",
-      false);
+  _config.begin();
 
-  _commandCenterHost =
-      _prefs.getString(
-          "csbHost",
-          DEFAULT_CSB1_HOST);
-
-  _commandCenterPort =
-      _prefs.getUShort(
-          "csbPort",
-          DEFAULT_CSB1_PORT);
-
-  const bool powerIncludesProgramming =
-      _prefs.getBool(
-          "powerProg",
-          true);
+  const auto& commandCenter =
+      _config.commandCenter();
 
   _wsProtocol.setPowerIncludesProgramming(
-      powerIncludesProgramming);
+      commandCenter.powerIncludesProgramming);
 
   _dcc.begin(
-      _commandCenterHost,
-      _commandCenterPort);
+      commandCenter.host,
+      commandCenter.port);
 
   _display.showCommandCenter(
       _dcc.host(),
@@ -45,42 +40,98 @@ void App::loadConfiguration() {
 }
 
 void App::connectWifi() {
-  WiFi.mode(WIFI_STA);
+  const auto& network =
+      _config.network();
+
+  WiFi.mode(
+      WIFI_STA);
+
   WiFi.setHostname(
-      DEVICE_HOSTNAME);
+      network.hostname.c_str());
+
+  if (!network.dhcp) {
+    IPAddress ip;
+    IPAddress gateway;
+    IPAddress subnet;
+    IPAddress dns1;
+    IPAddress dns2;
+
+    const bool valid =
+        parseIp(
+            network.ip,
+            ip) &&
+        parseIp(
+            network.gateway,
+            gateway) &&
+        parseIp(
+            network.subnet,
+            subnet) &&
+        parseIp(
+            network.dns1,
+            dns1,
+            true) &&
+        parseIp(
+            network.dns2,
+            dns2,
+            true);
+
+    if (valid) {
+      if (!WiFi.config(
+              ip,
+              gateway,
+              subnet,
+              dns1,
+              dns2)) {
+        Logger::warn(
+            "Static Wi-Fi configuration failed");
+      }
+    } else {
+      Logger::warn(
+          "Invalid persisted static Wi-Fi configuration; falling back to DHCP");
+    }
+  }
 
   _display.showWifiConnecting(
-      WIFI_SSID);
+      network.wifiSsid);
 
   WiFi.begin(
-      WIFI_SSID,
-      WIFI_PASSWORD);
+      network.wifiSsid.c_str(),
+      network.wifiPassword.c_str());
 
   Logger::info(
       "Connecting Wi-Fi: " +
-      String(WIFI_SSID));
+      network.wifiSsid);
 
   const unsigned long started =
       millis();
 
   while (
-      WiFi.status() != WL_CONNECTED &&
-      millis() - started < 15000) {
+      WiFi.status() !=
+          WL_CONNECTED &&
+      millis() - started <
+          15000) {
+    // Keep the serial recovery path alive even while normal networking
+    // is unavailable or badly configured.
+    _serialConfigurator.loop();
+
     _display.loop();
-    delay(250);
+    delay(25);
   }
 
-  if (WiFi.status() == WL_CONNECTED) {
+  if (WiFi.status() ==
+      WL_CONNECTED) {
     const String ip =
         WiFi.localIP().toString();
 
     Logger::info(
-        "Wi-Fi connected: " + ip);
+        "Wi-Fi connected: " +
+        ip);
 
-    if (MDNS.begin(DEVICE_HOSTNAME)) {
+    if (MDNS.begin(
+            network.hostname.c_str())) {
       Logger::info(
           "mDNS ready: " +
-          String(DEVICE_HOSTNAME) +
+          network.hostname +
           ".local");
     } else {
       Logger::warn(
@@ -89,7 +140,7 @@ void App::connectWifi() {
 
     _display.showWifiConnected(
         ip,
-        HUB_HTTP_PORT);
+        network.httpPort);
   } else {
     Logger::warn(
         "Wi-Fi connection timeout");
@@ -102,20 +153,10 @@ void App::updateDisplay() {
   const bool connected =
       _dcc.connected();
 
-  const bool endpointChanged =
-      _commandCenterHost != _dcc.host() ||
-      _commandCenterPort != _dcc.port();
-
   if (connected !=
-          _lastCommandCenterConnected ||
-      endpointChanged) {
+      _lastCommandCenterConnected) {
     _lastCommandCenterConnected =
         connected;
-
-    _commandCenterHost =
-        _dcc.host();
-    _commandCenterPort =
-        _dcc.port();
 
     _display.showCommandCenter(
         _dcc.host(),
@@ -128,6 +169,7 @@ void App::updateDisplay() {
 
 void App::begin() {
   Logger::begin();
+
   Logger::info(
       "DCCExpressHub booting");
 
@@ -136,16 +178,23 @@ void App::begin() {
 
   loadConfiguration();
 
+  // Start the recovery/configuration protocol before Wi-Fi is touched.
+  _serialConfigurator.begin();
+
   if (!LittleFS.begin(true)) {
     Logger::error(
         "LittleFS mount failed");
     return;
   }
 
-  LittleFS.mkdir("/config");
-  LittleFS.mkdir("/state");
+  LittleFS.mkdir(
+      "/config");
 
-  _runtime.begin(LittleFS);
+  LittleFS.mkdir(
+      "/state");
+
+  _runtime.begin(
+      LittleFS);
 
   _stateStore.begin(
       LittleFS,
@@ -168,17 +217,26 @@ void App::begin() {
       _dcc.port(),
       _lastCommandCenterConnected);
 
-  // Register runtime-change callbacks only AFTER persisted state has been
-  // restored, so boot restoration does not fire automation mid-load.
   _signalAutomation.begin(
       LittleFS);
 
-  _apiServer.begin();
+  _apiServer.reset(
+      new ApiServer(
+          _config.network().httpPort,
+          _ws,
+          _dcc,
+          _runtime,
+          _stateStore,
+          _config,
+          _wsProtocol));
+
+  _apiServer->begin();
 
   updateDisplay();
 }
 
 void App::loop() {
+  _serialConfigurator.loop();
   _dcc.loop();
   _wsProtocol.loop();
   _wsProtocol.cleanupClients();

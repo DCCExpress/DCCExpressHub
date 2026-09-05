@@ -4,9 +4,9 @@
 #include <ArduinoJson.h>
 #include <ESPAsyncWebServer.h>
 #include <LittleFS.h>
-#include <Preferences.h>
 
 #include "DccExBridge.h"
+#include "HubConfigStore.h"
 #include "LayoutRuntime.h"
 #include "RuntimeStateStore.h"
 #include "WsProtocol.h"
@@ -14,23 +14,24 @@
 class ApiServer {
 public:
   ApiServer(
+      uint16_t httpPort,
       AsyncWebSocket& ws,
       DccExBridge& dcc,
       LayoutRuntime& runtime,
       RuntimeStateStore& stateStore,
-      Preferences& prefs,
+      HubConfigStore& config,
       WsProtocol& wsProtocol);
 
   void begin();
 
 private:
-  AsyncWebServer _server{80};
+  AsyncWebServer _server;
   AsyncWebSocket& _ws;
 
   DccExBridge& _dcc;
   LayoutRuntime& _runtime;
   RuntimeStateStore& _stateStore;
-  Preferences& _prefs;
+  HubConfigStore& _config;
   WsProtocol& _wsProtocol;
 
   File _layoutUpload;
@@ -77,8 +78,12 @@ private:
       int code,
       JsonDocument& doc);
 
-  static const char* mimeFor(const String& path);
-  static bool safePath(const String& path);
+  static const char* mimeFor(
+      const String& path);
+
+  static bool safePath(
+      const String& path);
+
   static void sendFsFile(
       AsyncWebServerRequest* request,
       const String& path);

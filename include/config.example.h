@@ -11,3 +11,4 @@
 #define DEFAULT_CSB1_PORT 2560
 
 #define DEVICE_HOSTNAME "dcc-express-hub"
+#define DEFAULT_HUB_HTTP_PORT 80
