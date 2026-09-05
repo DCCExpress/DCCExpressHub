@@ -1,4 +1,5 @@
 import {
+  ActionIcon,
   Box,
   Group,
   NumberInput,
@@ -6,9 +7,13 @@ import {
   Stack,
   Text,
 } from "@mantine/core";
+import {
+  IconPlayerPlayFilled,
+} from "@tabler/icons-react";
 
 import BitToggleElement from "../../components/editor/BitToggleElement";
 import type { BaseElementView } from "../../models/editor/core/BaseElementView";
+import { ButtonElementView } from "../../models/editor/elements/ButtonElementView";
 import type { IEditableProperty } from "../../models/editor/elements/PropertyDescriptor";
 import TrackTurnoutDoubleElementView from "../../models/editor/elements/TrackTurnoutDoubleElementView";
 import { TrackTurnoutLeftElementView } from "../../models/editor/elements/TrackTurnoutLeftElementView";
@@ -102,6 +107,190 @@ function numberProperty(
       value >= 0 &&
       value <= 255,
   };
+}
+
+function TestButton({
+  title,
+  onClick,
+}: {
+  title: string;
+  onClick: () => void;
+}) {
+  return (
+    <ActionIcon
+      size="lg"
+      variant="light"
+      color="teal"
+      title={title}
+      aria-label={title}
+      onClick={event => {
+        event.preventDefault();
+        event.stopPropagation();
+        onClick();
+      }}
+    >
+      <IconPlayerPlayFilled size={17} />
+    </ActionIcon>
+  );
+}
+
+function renderButtonBasicEditor(
+  selectedElement: ButtonElementView,
+  onChange: PropertyChangeHandler
+) {
+  const onValueProperty: IEditableProperty = {
+    label: "ON value",
+    key: "activeValue",
+    type: "bittoggle",
+    readonly: false,
+  };
+
+  const offValueProperty: IEditableProperty = {
+    label: "OFF value",
+    key: "offValue",
+    type: "bittoggle",
+    readonly: false,
+  };
+
+  return (
+    <Stack gap="xs">
+      <Text size="sm" fw={500}>Basic accessory values</Text>
+
+      <Group
+        justify="space-between"
+        align="center"
+        wrap="nowrap"
+      >
+        <Text size="sm" fw={600} w={44}>ON</Text>
+
+        <Group gap="xs" wrap="nowrap">
+          <BitToggleElement
+            value={selectedElement.activeValue}
+            onChange={value =>
+              onChange(onValueProperty, value)
+            }
+          />
+
+          <TestButton
+            title="Test ON"
+            onClick={() =>
+              selectedElement.sendConfiguredState(true)
+            }
+          />
+        </Group>
+      </Group>
+
+      <Group
+        justify="space-between"
+        align="center"
+        wrap="nowrap"
+      >
+        <Text size="sm" fw={600} w={44}>OFF</Text>
+
+        <Group gap="xs" wrap="nowrap">
+          <BitToggleElement
+            value={selectedElement.offValue}
+            onChange={value =>
+              onChange(offValueProperty, value)
+            }
+          />
+
+          <TestButton
+            title="Test OFF"
+            onClick={() =>
+              selectedElement.sendConfiguredState(false)
+            }
+          />
+        </Group>
+      </Group>
+    </Stack>
+  );
+}
+
+function renderButtonExtendedEditor(
+  selectedElement: ButtonElementView,
+  onChange: PropertyChangeHandler
+) {
+  const onAspectProperty =
+    numberProperty("ON aspect", "onAspect");
+
+  const offAspectProperty =
+    numberProperty("OFF aspect", "offAspect");
+
+  return (
+    <Stack gap="xs">
+      <Text size="sm" fw={500}>Extended accessory aspects</Text>
+
+      <Group
+        justify="space-between"
+        align="flex-end"
+        wrap="nowrap"
+      >
+        <Text size="sm" fw={600} w={44} pb={9}>ON</Text>
+
+        <Group gap="xs" align="flex-end" wrap="nowrap">
+          <NumberInput
+            aria-label="ON aspect"
+            min={0}
+            max={255}
+            allowDecimal={false}
+            allowNegative={false}
+            value={selectedElement.onAspect}
+            onChange={value =>
+              onChange(onAspectProperty, value)
+            }
+            w={110}
+          />
+
+          <TestButton
+            title="Test ON aspect"
+            onClick={() =>
+              selectedElement.sendConfiguredState(true)
+            }
+          />
+        </Group>
+      </Group>
+
+      <Group
+        justify="space-between"
+        align="flex-end"
+        wrap="nowrap"
+      >
+        <Text size="sm" fw={600} w={44} pb={9}>OFF</Text>
+
+        <Group gap="xs" align="flex-end" wrap="nowrap">
+          <NumberInput
+            aria-label="OFF aspect"
+            min={0}
+            max={255}
+            allowDecimal={false}
+            allowNegative={false}
+            value={selectedElement.offAspect}
+            onChange={value =>
+              onChange(offAspectProperty, value)
+            }
+            w={110}
+          />
+
+          <TestButton
+            title="Test OFF aspect"
+            onClick={() =>
+              selectedElement.sendConfiguredState(false)
+            }
+          />
+        </Group>
+      </Group>
+    </Stack>
+  );
+}
+
+function renderButtonOutputEditor(
+  selectedElement: ButtonElementView,
+  onChange: PropertyChangeHandler
+) {
+  return selectedElement.outputMode === "extended"
+    ? renderButtonExtendedEditor(selectedElement, onChange)
+    : renderButtonBasicEditor(selectedElement, onChange);
 }
 
 function sendSingleTurnoutState(
@@ -422,6 +611,13 @@ export default function TurnoutBitPropertyEditor({
   selectedElement,
   onChange,
 }: TurnoutBitPropertyEditorProps) {
+  if (selectedElement instanceof ButtonElementView) {
+    return renderButtonOutputEditor(
+      selectedElement,
+      onChange
+    );
+  }
+
   const values =
     selectedElement as unknown as Record<string, unknown>;
   const propValue = Boolean(values[prop.key]);

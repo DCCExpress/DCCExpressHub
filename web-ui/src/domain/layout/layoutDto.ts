@@ -199,6 +199,18 @@ export type OutputCommandModeDto =
   | "accessory"
   | "vpin";
 
+/**
+ * Button output mode.
+ *
+ * "vpin" is retained only as a legacy serialized value so older code paths
+ * and old layout files remain type-compatible. The Button editor never offers
+ * VPIN and ButtonElementView migrates legacy VPIN buttons to Basic accessory.
+ */
+export type ButtonOutputModeDto =
+  | "accessory"
+  | "extended"
+  | "vpin";
+
 export type ButtonBehaviorDto =
   | "toggle"
   | "push"
@@ -248,7 +260,7 @@ export interface TrackSensorElementDto extends TrackElementDto {
 
 export interface ButtonElementDto extends BaseElementDto {
   type: "button";
-  outputMode?: OutputCommandModeDto;
+  outputMode?: ButtonOutputModeDto;
   behavior?: ButtonBehaviorDto;
   pulseDurationMs?: number;
   colorOn: string;
@@ -257,6 +269,9 @@ export interface ButtonElementDto extends BaseElementDto {
   textOff: string;
   address: number;
   activeValue?: boolean;
+  offValue?: boolean;
+  onAspect?: number;
+  offAspect?: number;
 }
 
 export interface ButtonScriptElementDto extends BaseElementDto {

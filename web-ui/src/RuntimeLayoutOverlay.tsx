@@ -118,22 +118,22 @@ export default function RuntimeLayoutOverlay({ locos, open }: RuntimeLayoutOverl
     invalidate();
   }), [layout, invalidate]);
 
-  useEffect(() => wsClient.on("vpinChanged", data => {
-    for (const element of layout.getAllElements()) {
-      if (isTurnoutElement(element) && element.outputMode === "vpin" && element.turnoutAddress === data.vpin) {
-        element.turnoutClosed = data.active;
-      } else if (element instanceof TrackTurnoutDoubleElementView && element.outputMode === "vpin") {
-        if (element.turnout1Address === data.vpin) element.turnout1Closed = data.active;
-        if (element.turnout2Address === data.vpin) element.turnout2Closed = data.active;
-      } else if (element instanceof TrackSignalElementView && element.outputMode === "vpin" && element.address <= data.vpin && element.lastAddress >= data.vpin) {
-        element.setValue(data.vpin, data.active);
-      } else if (element instanceof ButtonElementView && element.outputMode === "vpin" && element.address === data.vpin) {
-        element.on = data.active === element.activeValue;
-      }
-    }
-    layout.checkRoutes();
-    invalidate();
-  }), [layout, invalidate]);
+  // useEffect(() => wsClient.on("vpinChanged", data => {
+  //   for (const element of layout.getAllElements()) {
+  //     if (isTurnoutElement(element) && element.outputMode === "vpin" && element.turnoutAddress === data.vpin) {
+  //       element.turnoutClosed = data.active;
+  //     } else if (element instanceof TrackTurnoutDoubleElementView && element.outputMode === "vpin") {
+  //       if (element.turnout1Address === data.vpin) element.turnout1Closed = data.active;
+  //       if (element.turnout2Address === data.vpin) element.turnout2Closed = data.active;
+  //     } else if (element instanceof TrackSignalElementView && element.outputMode === "vpin" && element.address <= data.vpin && element.lastAddress >= data.vpin) {
+  //       element.setValue(data.vpin, data.active);
+  //     } else if (element instanceof ButtonElementView && element.outputMode === "vpin" && element.address === data.vpin) {
+  //       element.on = data.active === element.activeValue;
+  //     }
+  //   }
+  //   layout.checkRoutes();
+  //   invalidate();
+  // }), [layout, invalidate]);
 
   useEffect(() => wsClient.on("signalAspectChanged", data => {
     for (const element of layout.getAllElements()) {
