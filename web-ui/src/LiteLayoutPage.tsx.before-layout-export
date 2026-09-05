@@ -20,7 +20,6 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconDeviceFloppy,
-  IconDownload,
   IconEdit,
   IconFocusCentered,
   IconHelpCircle,
@@ -782,34 +781,6 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
     }
   }, [layout]);
 
-  const exportLayout = useCallback(() => {
-    const json = JSON.stringify(layout, null, 2);
-    const blob = new Blob(
-      [json],
-      { type: "application/json;charset=utf-8" },
-    );
-    const url = URL.createObjectURL(blob);
-
-    const now = new Date();
-    const pad = (value: number) =>
-      String(value).padStart(2, "0");
-
-    const stamp =
-      `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-` +
-      `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `dcc-express-layout-${stamp}.json`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-
-    window.setTimeout(
-      () => URL.revokeObjectURL(url),
-      0,
-    );
-  }, [layout]);
   useLayoutPageShortcuts({
     saveLayoutToServer: saveLayout,
     setTool,
@@ -884,15 +855,6 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
           </ActionIcon>
           <ActionIcon color="teal" variant="light" loading={saving} onClick={() => void saveLayout()} aria-label="Save layout" title="Save">
             <IconDeviceFloppy size={19} />
-          </ActionIcon>
-          <ActionIcon
-            color="blue"
-            variant="light"
-            onClick={exportLayout}
-            aria-label="Export layout"
-            title="Export layout JSON"
-          >
-            <IconDownload size={19} />
           </ActionIcon>
           <Divider orientation="vertical" className="lite-toolbar-divider" />
           <Button

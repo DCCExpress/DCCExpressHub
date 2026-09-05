@@ -151,6 +151,7 @@ void App::begin() {
 
 void App::loop() {
   _dcc.loop();
+  _wsProtocol.loop();
   _wsProtocol.cleanupClients();
   updateDisplay();
   delay(1);

@@ -20,7 +20,9 @@ public:
   bool connected();
 
   bool ensureConnected();
-  bool sendCommand(String command);
+  bool sendCommand(
+      String command,
+      bool logCommand = true);
 
   void setEndpoint(
       const String& host,

@@ -17,6 +17,7 @@ public:
       RuntimeStateStore& stateStore);
 
   void begin();
+  void loop();
   void cleanupClients();
 
   void broadcastRuntimeSnapshot();
@@ -39,11 +40,40 @@ private:
     uint32_t functionsMask = 0;
   };
 
+  struct DccTrackState {
+    bool configured = false;
+    String mode;
+    int32_t currentMa = -1;
+    int32_t tripMa = -1;
+    bool overload = false;
+  };
+
   static constexpr size_t MAX_LOCOS = 32;
   static constexpr uint8_t MAX_LOCO_FUNCTION = 28;
+  static constexpr uint8_t MAX_DCC_TRACKS = 8;
+
+  static constexpr unsigned long
+      DCC_CURRENT_POLL_MS = 1000;
+
+  static constexpr unsigned long
+      HUB_STATUS_INTERVAL_MS = 1000;
 
   LocoState _locos[MAX_LOCOS];
   size_t _locoCount = 0;
+
+  DccTrackState _dccTracks[MAX_DCC_TRACKS];
+  String _dccVersion;
+  String _dccProcessor;
+  String _dccHardware;
+  String _dccBuild;
+  uint16_t _dccMaxLocos = 0;
+  bool _lastDccConnected = false;
+  unsigned long _dccConnectedSinceAt = 0;
+  unsigned long _dccCurrentUpdatedAt = 0;
+  unsigned long _nextDccCurrentPollAt = 0;
+  unsigned long _nextHubStatusAt = 0;
+
+  uint8_t _wsClientCount = 0;
 
   void handleEvent(
       AsyncWebSocket* server,
@@ -77,7 +107,23 @@ private:
   void sendRuntimeSnapshot(
       AsyncWebSocketClient* client);
 
+  void sendDccExStatus(
+      AsyncWebSocketClient* client);
+
+  void broadcastDccExStatus();
   void broadcastPowerInfo();
+
+  void appendDccExStatus(
+      JsonDocument& data);
+
+  void appendHubStatus(
+      JsonObject hub);
+
+  void pollDccExTelemetry(
+      unsigned long now);
+
+  void handleDccConnectionState(
+      unsigned long now);
 
   LocoState* getLoco(
       uint16_t address,

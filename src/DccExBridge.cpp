@@ -109,7 +109,8 @@ void DccExBridge::sendHeartbeat() {
 }
 
 bool DccExBridge::sendCommand(
-    String command) {
+    String command,
+    bool logCommand) {
   command.trim();
 
   if (command.isEmpty()) {
@@ -142,9 +143,11 @@ bool DccExBridge::sendCommand(
     return false;
   }
 
-  Logger::info(
-      "DCC-EX TX " +
-      command);
+  if (logCommand) {
+    Logger::info(
+        "DCC-EX TX " +
+        command);
+  }
 
   return true;
 }
@@ -170,9 +173,16 @@ void DccExBridge::processByte(
   if (c == '>') {
     _insideFrame = false;
 
-    Logger::info(
-        "DCC-EX RX " +
-        _frame);
+    const bool quietRx =
+        _frame.startsWith("<#") ||
+        _frame.startsWith("<jI") ||
+        _frame.startsWith("<jG");
+
+    if (!quietRx) {
+      Logger::info(
+          "DCC-EX RX " +
+          _frame);
+    }
 
     // <# noCabs> is the documented response to <#>.
     // Any valid reply proves that the application behind the TCP socket

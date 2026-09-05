@@ -20,7 +20,6 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconDeviceFloppy,
-  IconDownload,
   IconEdit,
   IconFocusCentered,
   IconHelpCircle,
@@ -44,7 +43,6 @@ import FullscreenLoader from "@/components/FullscreenLoader";
 import SignalLogicDialog from "@/components/SignalLogicDialog";
 import IntegrityCheckDialog from "@/components/IntegrityCheckDialog";
 import LayoutRuntimeLogPanel from "@/components/LayoutRuntimeLogPanel";
-import SystemInfoPanel from "@/components/SystemInfoPanel";
 import VisibilitySettings from "@/components/VisibilitySettings";
 import { useCommandCenter } from "@/context/CommandCenterContext";
 import { useLayoutPageShortcuts } from "@/hooks/layout/useLayoutPageShortcuts";
@@ -782,34 +780,6 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
     }
   }, [layout]);
 
-  const exportLayout = useCallback(() => {
-    const json = JSON.stringify(layout, null, 2);
-    const blob = new Blob(
-      [json],
-      { type: "application/json;charset=utf-8" },
-    );
-    const url = URL.createObjectURL(blob);
-
-    const now = new Date();
-    const pad = (value: number) =>
-      String(value).padStart(2, "0");
-
-    const stamp =
-      `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-` +
-      `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `dcc-express-layout-${stamp}.json`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-
-    window.setTimeout(
-      () => URL.revokeObjectURL(url),
-      0,
-    );
-  }, [layout]);
   useLayoutPageShortcuts({
     saveLayoutToServer: saveLayout,
     setTool,
@@ -884,15 +854,6 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
           </ActionIcon>
           <ActionIcon color="teal" variant="light" loading={saving} onClick={() => void saveLayout()} aria-label="Save layout" title="Save">
             <IconDeviceFloppy size={19} />
-          </ActionIcon>
-          <ActionIcon
-            color="blue"
-            variant="light"
-            onClick={exportLayout}
-            aria-label="Export layout"
-            title="Export layout JSON"
-          >
-            <IconDownload size={19} />
           </ActionIcon>
           <Divider orientation="vertical" className="lite-toolbar-divider" />
           <Button
@@ -999,17 +960,26 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
                 <Tabs
                   defaultValue="info"
                   className="lite-runtime-tabs"
+                  onChange={value => { if (value === "devices") void loadHardwareDevices(); }}
                 >
                   <Tabs.List grow mb="sm">
                     <Tabs.Tab value="info">Info</Tabs.Tab>
+                    <Tabs.Tab value="devices">Devices</Tabs.Tab>
                     <Tabs.Tab value="log">Log</Tabs.Tab>
                   </Tabs.List>
                   <Tabs.Panel value="info" className="lite-info-tab-panel">
-                    <SystemInfoPanel
+                    <DccExInfoPanel
                       status={dccExStatus}
                       wsStatus={wsStatus}
                       flashInfo={flashInfo}
-                      version={version}
+                    />
+                  </Tabs.Panel>
+                  <Tabs.Panel value="devices" className="lite-info-tab-panel">
+                    <DevicesPanel
+                      snapshot={hardwareDevices}
+                      loading={devicesLoading}
+                      error={devicesError}
+                      onRefresh={() => void loadHardwareDevices()}
                     />
                   </Tabs.Panel>
                   <Tabs.Panel value="log" className="lite-info-tab-panel">
@@ -1095,12 +1065,12 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
       <Modal
         opened={temperatureAlertOpened}
         onClose={() => setTemperatureAlertOpened(false)}
-        title="Critical Hub ESP32 temperature"
+        title="Critical ESP32 temperature"
         size="sm"
         centered
       >
         <Stack>
-          <Alert color="red" icon={<IconAlertTriangle size={20} />} title="DCCExpressHub temperature is critical">
+          <Alert color="red" icon={<IconAlertTriangle size={20} />} title="EX-CSB1 temperature is critical">
             The ESP32 reports {dccExStatus?.chipTemperatureC?.toFixed(1) ?? "—"} °C. Check enclosure ventilation,
             nearby heat sources and sustained processor/network load.
           </Alert>
