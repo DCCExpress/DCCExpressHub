@@ -47,6 +47,7 @@ import {
 } from "@/services/layoutExportOverride";
 
 import App from "./App";
+import FirstRunWelcome from "@/components/FirstRunWelcome";
 import "./styles.css";
 
 installTurnoutAccessoryModes();
@@ -78,6 +79,7 @@ ReactDOM.createRoot(
         <EditorSettingsProvider>
           <GamepadProvider>
             <App />
+            <FirstRunWelcome />
           </GamepadProvider>
         </EditorSettingsProvider>
       </CommandCenterProvider>
