@@ -21,6 +21,8 @@ public:
       const char* path =
           "/config/signal-logic.ndjson");
 
+  void loop();
+
   bool reload();
   void evaluate();
 
@@ -65,8 +67,14 @@ private:
 
   std::vector<SignalRuleSet> _signals;
 
+  unsigned long _lastConfigCheckMs = 0;
+  uint32_t _configFingerprint = 0;
+  bool _configFingerprintValid = false;
+
   bool parseMeta(JsonObjectConst row);
   bool parseSignal(JsonObjectConst row);
+
+  uint32_t calculateConfigFingerprint() const;
 
   bool conditionMatches(
       const Condition& condition) const;

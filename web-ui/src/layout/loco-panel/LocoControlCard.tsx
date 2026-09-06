@@ -134,18 +134,7 @@ export default function LocoControlCard({
           </Title>
         </Badge>
 
-        <div
-          style={{
-            height: 20,
-            minHeight: 20,
-            width: "100%",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            overflow: "hidden",
-          }}
-        >
-        </div>
+       
 
         {!alive && (
           <Badge color="red" variant="light">

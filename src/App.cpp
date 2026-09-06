@@ -238,6 +238,7 @@ void App::begin() {
 void App::loop() {
   _serialConfigurator.loop();
   _dcc.loop();
+  _signalAutomation.loop();
   _wsProtocol.loop();
   _wsProtocol.cleanupClients();
   updateDisplay();

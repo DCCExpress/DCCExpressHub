@@ -2,6 +2,17 @@
 
 #include "Logger.h"
 
+namespace {
+constexpr unsigned long CONFIG_CHECK_INTERVAL_MS =
+    250;
+
+constexpr uint32_t FNV1A_OFFSET_BASIS =
+    2166136261UL;
+
+constexpr uint32_t FNV1A_PRIME =
+    16777619UL;
+}
+
 SignalAutomationEngine::SignalAutomationEngine(
     DccExBridge& dcc,
     LayoutRuntime& runtime,
@@ -29,11 +40,55 @@ bool SignalAutomationEngine::begin(
 
   const bool loaded = reload();
 
+  _configFingerprint =
+      calculateConfigFingerprint();
+  _configFingerprintValid = true;
+  _lastConfigCheckMs = millis();
+
   if (loaded) {
     evaluate();
   }
 
   return loaded;
+}
+
+void SignalAutomationEngine::loop() {
+  if (!_fs) {
+    return;
+  }
+
+  const unsigned long now =
+      millis();
+
+  if (now - _lastConfigCheckMs <
+      CONFIG_CHECK_INTERVAL_MS) {
+    return;
+  }
+
+  _lastConfigCheckMs = now;
+
+  const uint32_t fingerprint =
+      calculateConfigFingerprint();
+
+  if (_configFingerprintValid &&
+      fingerprint == _configFingerprint) {
+    return;
+  }
+
+  _configFingerprint =
+      fingerprint;
+  _configFingerprintValid = true;
+
+  Logger::info(
+      "SignalAutomation: rule file changed, reloading");
+
+  if (!reload()) {
+    Logger::error(
+        "SignalAutomation: changed rule file rejected; keeping current runtime rules");
+    return;
+  }
+
+  evaluate();
 }
 
 bool SignalAutomationEngine::parseMeta(
@@ -161,6 +216,48 @@ bool SignalAutomationEngine::parseSignal(
       std::move(signal));
 
   return true;
+}
+
+uint32_t SignalAutomationEngine::calculateConfigFingerprint() const {
+  if (!_fs) {
+    return 0;
+  }
+
+  File file =
+      _fs->open(
+          _path,
+          "r");
+
+  if (!file) {
+    return 0;
+  }
+
+  uint32_t hash =
+      FNV1A_OFFSET_BASIS;
+
+  // Include a marker so an existing empty file is distinguishable from
+  // a missing file, which uses fingerprint 0.
+  hash ^= 0xA5U;
+  hash *= FNV1A_PRIME;
+
+  while (file.available()) {
+    const int value =
+        file.read();
+
+    if (value < 0) {
+      break;
+    }
+
+    hash ^=
+        static_cast<uint8_t>(value);
+
+    hash *=
+        FNV1A_PRIME;
+  }
+
+  file.close();
+
+  return hash;
 }
 
 bool SignalAutomationEngine::reload() {
@@ -494,11 +591,7 @@ void SignalAutomationEngine::handleRuntimeChange(
     return;
   }
 
-  // Reload only on a relevant state event. This makes saved rule changes
-  // visible without continuously polling the filesystem.
-  if (!reload()) {
-    return;
-  }
-
+  // The configuration file is watched independently in loop().
+  // State changes therefore only need to evaluate the already loaded rules.
   evaluate();
 }
