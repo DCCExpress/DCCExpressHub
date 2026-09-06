@@ -45,6 +45,9 @@ import {
 import {
   installLayoutExportOverride,
 } from "@/services/layoutExportOverride";
+import {
+  installBlockTargetLocoVisual,
+} from "@/services/blockTargetLocoVisual";
 
 import App from "./App";
 import FirstRunWelcome from "@/components/FirstRunWelcome";
@@ -58,6 +61,7 @@ installFileViewerEnhancer();
 installSignalLogicStatusIndicator();
 installDccExHeartbeatStatusIndicator();
 installLayoutExportOverride();
+installBlockTargetLocoVisual();
 
 ReactDOM.createRoot(
   document.getElementById("root")!

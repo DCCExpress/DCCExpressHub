@@ -97,6 +97,16 @@ const SCRIPT_HELP_ITEMS: ScriptHelpItem[] = [
     insert: 'const locoAddress = dcc.getBlock("A1");',
   },
   {
+    syntax: "dcc.getBlockTargetLoco(blockName)",
+    description: "Returns the locomotive address currently targeted to the named block, or 0 when there is no target.",
+    insert: 'const targetLoco = dcc.getBlockTargetLoco("A2");',
+  },
+  {
+    syntax: "dcc.clearBlockTargetLoco(blockName)",
+    description: "Clears the current target locomotive marker from the named block.",
+    insert: 'dcc.clearBlockTargetLoco("A2");',
+  },
+  {
     syntax: 'dcc.loco(address, speed, "forward|reverse")',
     description: "Sets locomotive speed and direction. Speed range is 0–126.",
     insert: 'dcc.loco(18, 30, "forward");',
@@ -135,6 +145,11 @@ const SCRIPT_HELP_ITEMS: ScriptHelpItem[] = [
     syntax: "dcc.setBlock(blockName, locoAddress)",
     description: "Looks up the layout block by name and moves the locomotive there by DCC address. The same locomotive is automatically removed from its previous block.",
     insert: 'dcc.setBlock("A2", 10);',
+  },
+  {
+    syntax: "dcc.setBlockTargetLoco(blockName, locoAddress)",
+    description: "Marks a locomotive as heading to the named block. All connected clients show the block in yellow until the locomotive arrives or the owning script is aborted.",
+    insert: 'dcc.setBlockTargetLoco("A2", 10);',
   },
   {
     syntax: "dcc.signal(address, aspect)",
@@ -688,7 +703,7 @@ export default function ScriptEditorDialog({
           </Text>
 
           <Alert color="blue" variant="light">
-            Block IDs are currently numeric layout IDs (1–65535). For example use dcc.getBlock(12), not dcc.getBlock("A1").
+            Block functions accept layout block names. For example: dcc.getBlock("A1"), dcc.setBlockTargetLoco("A2", 10), dcc.setBlock("A2", 10).
           </Alert>
 
           <ScrollArea

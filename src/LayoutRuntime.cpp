@@ -561,7 +561,7 @@ bool LayoutRuntime::setBlock(
   }
 
   if (clearing) {
-    if (target->occupied()) {
+    if (target->hasRuntimeState()) {
       target->locoId = "";
       target->locoAddress = 0;
       changed = true;
@@ -587,7 +587,7 @@ bool LayoutRuntime::removeBlock(
   RuntimeBlock* block = findBlockById(blockId);
   if (!block) return false;
 
-  if (!block->occupied()) {
+  if (!block->hasRuntimeState()) {
     return true;
   }
 
@@ -608,7 +608,7 @@ bool LayoutRuntime::clearBlocks() {
   bool changed = false;
 
   for (auto& block : _blocks) {
-    if (!block.occupied()) continue;
+    if (!block.hasRuntimeState()) continue;
 
     block.locoId = "";
     block.locoAddress = 0;

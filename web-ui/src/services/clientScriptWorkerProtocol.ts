@@ -20,6 +20,8 @@ export type ClientScriptWorkerDccMethod =
   | "signal"
   | "block"
   | "setBlock"
+  | "setBlockTargetLoco"
+  | "clearBlockTargetLoco"
   | "clearBlock"
   | "resetBlocks"
   | "raw";
@@ -36,6 +38,11 @@ export type MainToWorkerMessage =
   | {
       type: "blockSnapshot";
       blocks: Record<string, number>;
+      ready: boolean;
+    }
+  | {
+      type: "blockTargetSnapshot";
+      targets: Record<string, number>;
       ready: boolean;
     }
   | {

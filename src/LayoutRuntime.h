@@ -48,12 +48,35 @@ struct RuntimeSensor {
 };
 
 struct RuntimeBlock {
+  static constexpr const char* TARGET_LOCO_PREFIX =
+      "__dcc_target_loco__:";
+
   uint16_t id = 0;
   String locoId;
   uint16_t locoAddress = 0;
 
+  bool targetOnly() const {
+    return (
+        locoAddress == 0 &&
+        locoId.startsWith(
+            TARGET_LOCO_PREFIX));
+  }
+
   bool occupied() const {
-    return locoAddress > 0 || !locoId.isEmpty();
+    return (
+        locoAddress > 0 ||
+        (
+            !locoId.isEmpty() &&
+            !targetOnly()
+        )
+    );
+  }
+
+  bool hasRuntimeState() const {
+    return (
+        occupied() ||
+        targetOnly()
+    );
   }
 };
 

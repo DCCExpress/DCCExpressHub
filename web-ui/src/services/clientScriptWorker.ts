@@ -42,6 +42,9 @@ const executions =
 const blockAddresses =
   new Map<string, number>();
 
+const blockTargetAddresses =
+  new Map<string, number>();
+
 const blockNamesExact =
   new Map<string, string>();
 
@@ -52,6 +55,9 @@ let blockCatalogReady =
   false;
 
 let blockSnapshotReady =
+  false;
+
+let blockTargetSnapshotReady =
   false;
 
 class WorkerScriptAbortError extends Error {
@@ -354,6 +360,24 @@ function getBlockAddress(
   );
 }
 
+function getBlockTargetAddress(
+  blockId: string | number
+): number {
+  if (!blockTargetSnapshotReady) {
+    throw new Error(
+      "Block target snapshot is not ready yet."
+    );
+  }
+
+  return (
+    blockTargetAddresses.get(
+      resolveBlockId(
+        blockId
+      )
+    ) ?? 0
+  );
+}
+
 function optimisticallySetBlock(
   blockId: string | number,
   locoAddress: number
@@ -383,6 +407,11 @@ function optimisticallySetBlock(
   blockAddresses.set(
     normalizedBlockId,
     locoAddress
+  );
+
+  blockTargetAddresses.set(
+    normalizedBlockId,
+    0
   );
 
   return normalizedBlockId;
@@ -639,6 +668,74 @@ function createDccApi(
       );
     },
 
+    getBlockTargetLoco(
+      blockId: string | number
+    ): number {
+      check();
+
+      return getBlockTargetAddress(
+        blockId
+      );
+    },
+
+    setBlockTargetLoco(
+      blockId: string | number,
+      locoAddress: number
+    ): void {
+      check();
+
+      const address =
+        integer(
+          locoAddress,
+          1,
+          10239,
+          "Target locomotive address"
+        );
+
+      const normalizedBlockId =
+        resolveBlockId(
+          blockId
+        );
+
+      blockTargetAddresses.set(
+        normalizedBlockId,
+        address
+      );
+
+      sendDcc(
+        executionId,
+        "setBlockTargetLoco",
+        [
+          normalizedBlockId,
+          address,
+        ]
+      );
+    },
+
+    clearBlockTargetLoco(
+      blockId: string | number
+    ): void {
+      check();
+
+      const normalizedBlockId =
+        resolveBlockId(
+          blockId
+        );
+
+      blockTargetAddresses.set(
+        normalizedBlockId,
+        0
+      );
+
+      sendDcc(
+        executionId,
+        "clearBlockTargetLoco",
+        [
+          normalizedBlockId,
+        ]
+      );
+    },
+
     setBlock(
       blockId: string | number,
       locoAddress: number
@@ -724,6 +821,11 @@ function createDccApi(
         0
       );
 
+      blockTargetAddresses.set(
+        normalizedBlockId,
+        0
+      );
+
       sendDcc(
         executionId,
         "clearBlock",
@@ -742,6 +844,16 @@ function createDccApi(
         blockAddresses.keys()
       ) {
         blockAddresses.set(
+          key,
+          0
+        );
+      }
+
+      for (
+        const key of
+        blockTargetAddresses.keys()
+      ) {
+        blockTargetAddresses.set(
           key,
           0
         );
@@ -1136,6 +1248,37 @@ workerScope.addEventListener(
       }
 
       blockSnapshotReady =
+        message.ready;
+
+      return;
+    }
+
+    if (
+      message.type ===
+      "blockTargetSnapshot"
+    ) {
+      blockTargetAddresses.clear();
+
+      for (
+        const [
+          blockId,
+          locoAddress,
+        ] of Object.entries(
+          message.targets
+        )
+      ) {
+        blockTargetAddresses.set(
+          blockId,
+          Number.isInteger(
+            locoAddress
+          ) &&
+          locoAddress > 0
+            ? locoAddress
+            : 0
+        );
+      }
+
+      blockTargetSnapshotReady =
         message.ready;
 
       return;

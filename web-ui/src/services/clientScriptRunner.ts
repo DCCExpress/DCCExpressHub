@@ -6,6 +6,15 @@ import {
   wsClient,
 } from "./wsClient";
 
+import {
+  clearOptimisticBlockTargetLoco,
+  createBlockTargetLocoMarker,
+  getBlockTargetLocoMarker,
+  installBlockTargetLocoRuntime,
+  parseBlockTargetLocoMarker,
+  setOptimisticBlockTargetLoco,
+} from "./blockTargetLocoRuntime";
+
 import type {
   ClientScriptWorkerDccMethod,
   MainToWorkerMessage,
@@ -70,6 +79,21 @@ let blockSnapshotReady =
 
 let blockSnapshot =
   new Map<string, number>();
+
+let blockTargetSnapshotReady =
+  false;
+
+let blockTargetSnapshot =
+  new Map<string, number>();
+
+let blockTargetMarkers =
+  new Map<string, string>();
+
+const ownedBlockTargets =
+  new Map<
+    ClientScriptExecutionId,
+    Map<string, string>
+  >();
 
 
 type LayoutBlockCatalogItem = {
@@ -232,6 +256,77 @@ type BlockStateSnapshot =
     }
   >;
 
+function blockTargetSnapshotRecord(): Record<string, number> {
+  const result:
+    Record<string, number> = {};
+
+  for (
+    const [
+      blockId,
+      locoAddress,
+    ] of blockTargetSnapshot
+  ) {
+    result[blockId] =
+      locoAddress;
+  }
+
+  return result;
+}
+
+function sendBlockTargetSnapshotToWorker(): void {
+  if (!automationWorker) {
+    return;
+  }
+
+  const message:
+    MainToWorkerMessage = {
+      type:
+        "blockTargetSnapshot",
+      targets:
+        blockTargetSnapshotRecord(),
+      ready:
+        blockTargetSnapshotReady,
+    };
+
+  automationWorker.postMessage(
+    message
+  );
+}
+
+function pruneOwnedBlockTargets(): void {
+  for (
+    const [
+      executionId,
+      owned,
+    ] of ownedBlockTargets
+  ) {
+    for (
+      const [
+        blockId,
+        marker,
+      ] of owned
+    ) {
+      if (
+        blockTargetMarkers.get(
+          blockId
+        ) !== marker
+      ) {
+        owned.delete(
+          blockId
+        );
+      }
+    }
+
+    if (
+      owned.size === 0
+    ) {
+      ownedBlockTargets.delete(
+        executionId
+      );
+    }
+  }
+}
+
 function blockSnapshotRecord(): Record<string, number> {
   const result:
     Record<string, number> = {};
@@ -274,6 +369,12 @@ function applyBlockSnapshot(
   const next =
     new Map<string, number>();
 
+  const nextTargets =
+    new Map<string, number>();
+
+  const nextMarkers =
+    new Map<string, string>();
+
   for (
     const [
       key,
@@ -288,6 +389,30 @@ function applyBlockSnapshot(
         key
       );
 
+    const target =
+      parseBlockTargetLocoMarker(
+        state?.locoId
+      );
+
+    if (target) {
+      next.set(
+        blockId,
+        0
+      );
+
+      nextTargets.set(
+        blockId,
+        target.locoAddress
+      );
+
+      nextMarkers.set(
+        blockId,
+        target.marker
+      );
+
+      continue;
+    }
+
     const locoAddress =
       Number(
         state?.locoAddress ??
@@ -301,15 +426,32 @@ function applyBlockSnapshot(
         ? locoAddress
         : 0
     );
+
+    nextTargets.set(
+      blockId,
+      0
+    );
   }
 
   blockSnapshot =
     next;
 
+  blockTargetSnapshot =
+    nextTargets;
+
+  blockTargetMarkers =
+    nextMarkers;
+
   blockSnapshotReady =
     true;
 
+  blockTargetSnapshotReady =
+    true;
+
+  pruneOwnedBlockTargets();
+
   sendBlockSnapshotToWorker();
+  sendBlockTargetSnapshotToWorker();
 }
 
 function installBlockTracking(): void {
@@ -540,6 +682,7 @@ function ensureWorker(): Worker {
   }
 
   installVisibilityLogging();
+  installBlockTargetLocoRuntime();
   installBlockTracking();
 
   const worker =
@@ -621,6 +764,7 @@ function ensureWorker(): Worker {
 
   sendBlockCatalogToWorker();
   sendBlockSnapshotToWorker();
+  sendBlockTargetSnapshotToWorker();
 
   if (
     wsClient.isConnected() &&
@@ -672,6 +816,245 @@ function stringArg(
   return String(
     args[index] ?? ""
   );
+}
+
+function executionOwnerId(
+  executionId: ClientScriptExecutionId
+): string {
+  return (
+    `${wsApi.clientUuid}:` +
+    String(executionId)
+  );
+}
+
+function rememberOwnedBlockTarget(
+  executionId: ClientScriptExecutionId,
+  blockId: string,
+  marker: string
+): void {
+  let owned =
+    ownedBlockTargets.get(
+      executionId
+    );
+
+  if (!owned) {
+    owned =
+      new Map<string, string>();
+
+    ownedBlockTargets.set(
+      executionId,
+      owned
+    );
+  }
+
+  owned.set(
+    blockId,
+    marker
+  );
+}
+
+function clearTargetsOwnedByExecution(
+  executionId: ClientScriptExecutionId
+): void {
+  const owned =
+    ownedBlockTargets.get(
+      executionId
+    );
+
+  if (!owned) {
+    return;
+  }
+
+  for (
+    const [
+      blockId,
+      marker,
+    ] of owned
+  ) {
+    /*
+     * setBlockRemove is owner-safe because the marker is stored in locoId.
+     * If the real locomotive has already arrived, the marker has already been
+     * replaced and this old marker must not clear the actual occupant.
+     */
+    if (
+      blockTargetMarkers.get(
+        blockId
+      ) === marker ||
+      getBlockTargetLocoMarker(
+        blockId
+      ) === marker
+    ) {
+      wsApi.setBlockRemove(
+        blockId,
+        marker
+      );
+
+      clearOptimisticBlockTargetLoco(
+        blockId,
+        marker
+      );
+
+      blockTargetMarkers.delete(
+        blockId
+      );
+
+      blockTargetSnapshot.set(
+        blockId,
+        0
+      );
+    }
+  }
+
+  ownedBlockTargets.delete(
+    executionId
+  );
+
+  sendBlockTargetSnapshotToWorker();
+}
+
+function executeBlockTargetCommand(
+  executionId: ClientScriptExecutionId,
+  method: ClientScriptWorkerDccMethod,
+  args: unknown[]
+): string | null | undefined {
+  if (
+    method ===
+    "setBlockTargetLoco"
+  ) {
+    const blockId =
+      stringArg(
+        args,
+        0
+      );
+
+    const locoAddress =
+      numberArg(
+        args,
+        1
+      );
+
+    const ownerId =
+      executionOwnerId(
+        executionId
+      );
+
+    const marker =
+      createBlockTargetLocoMarker(
+        locoAddress,
+        ownerId
+      );
+
+    const ok =
+      wsApi.setBlock(
+        blockId,
+        marker
+      );
+
+    if (!ok) {
+      return (
+        "dcc.setBlockTargetLoco: " +
+        "WebSocket command could not be sent."
+      );
+    }
+
+    rememberOwnedBlockTarget(
+      executionId,
+      blockId,
+      marker
+    );
+
+    blockTargetMarkers.set(
+      blockId,
+      marker
+    );
+
+    blockTargetSnapshot.set(
+      blockId,
+      locoAddress
+    );
+
+    setOptimisticBlockTargetLoco(
+      blockId,
+      locoAddress,
+      ownerId,
+      marker
+    );
+
+    sendBlockTargetSnapshotToWorker();
+
+    return null;
+  }
+
+  if (
+    method ===
+    "clearBlockTargetLoco"
+  ) {
+    const blockId =
+      stringArg(
+        args,
+        0
+      );
+
+    const marker =
+      blockTargetMarkers.get(
+        blockId
+      ) ??
+      getBlockTargetLocoMarker(
+        blockId
+      );
+
+    if (!marker) {
+      return null;
+    }
+
+    const ok =
+      wsApi.setBlockRemove(
+        blockId,
+        marker
+      );
+
+    if (!ok) {
+      return (
+        "dcc.clearBlockTargetLoco: " +
+        "WebSocket command could not be sent."
+      );
+    }
+
+    for (
+      const owned of
+      ownedBlockTargets.values()
+    ) {
+      if (
+        owned.get(
+          blockId
+        ) === marker
+      ) {
+        owned.delete(
+          blockId
+        );
+      }
+    }
+
+    clearOptimisticBlockTargetLoco(
+      blockId,
+      marker
+    );
+
+    blockTargetMarkers.delete(
+      blockId
+    );
+
+    blockTargetSnapshot.set(
+      blockId,
+      0
+    );
+
+    sendBlockTargetSnapshotToWorker();
+
+    return null;
+  }
+
+  return undefined;
 }
 
 function executeDccCommand(
@@ -891,6 +1274,10 @@ function executeDccCommand(
         "dcc.resetBlocks"
       );
 
+    case "setBlockTargetLoco":
+    case "clearBlockTargetLoco":
+      return null;
+
     case "raw":
       return requireSend(
         wsApi.writeDccExDirectCommand(
@@ -929,11 +1316,21 @@ function handleDccCommand(
     string | null = null;
 
   try {
-    errorMessage =
-      executeDccCommand(
+    const blockTargetResult =
+      executeBlockTargetCommand(
+        message.executionId,
         message.method,
         message.args
       );
+
+    errorMessage =
+      blockTargetResult ===
+        undefined
+        ? executeDccCommand(
+            message.method,
+            message.args
+          )
+        : blockTargetResult;
   } catch (
     error
   ) {
@@ -1027,6 +1424,10 @@ function handleWorkerMessage(
         error.message
       );
 
+      clearTargetsOwnedByExecution(
+        message.executionId
+      );
+
       execution.reject(
         error
       );
@@ -1112,6 +1513,10 @@ function handleWorkerMessage(
       lastErrors.set(
         message.executionId,
         error.message
+      );
+
+      clearTargetsOwnedByExecution(
+        message.executionId
       );
 
       execution.reject(
@@ -1213,6 +1618,10 @@ export function abortClientScript(
 
   execution.abortReason =
     reason;
+
+  clearTargetsOwnedByExecution(
+    elementId
+  );
 
   postToWorker({
     type: "abort",
