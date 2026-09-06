@@ -19,11 +19,25 @@ export type ClientScriptWorkerDccMethod =
   | "accessory"
   | "signal"
   | "block"
+  | "setBlock"
   | "clearBlock"
   | "resetBlocks"
   | "raw";
 
 export type MainToWorkerMessage =
+  | {
+      type: "blockCatalog";
+      blocks: Array<{
+        id: string;
+        name: string;
+      }>;
+      ready: boolean;
+    }
+  | {
+      type: "blockSnapshot";
+      blocks: Record<string, number>;
+      ready: boolean;
+    }
   | {
       type: "start";
       executionId: ClientScriptWorkerExecutionId;

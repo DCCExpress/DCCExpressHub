@@ -2,6 +2,10 @@ import {
   wsApi,
 } from "./wsApi";
 
+import {
+  wsClient,
+} from "./wsClient";
+
 import type {
   ClientScriptWorkerDccMethod,
   MainToWorkerMessage,
@@ -57,6 +61,298 @@ let automationWorker:
 
 let visibilityLoggingInstalled =
   false;
+
+let blockTrackingInstalled =
+  false;
+
+let blockSnapshotReady =
+  false;
+
+let blockSnapshot =
+  new Map<string, number>();
+
+
+type LayoutBlockCatalogItem = {
+  id: string;
+  name: string;
+};
+
+type LayoutForBlockCatalog = {
+  layers?: Array<{
+    elements?: Array<{
+      id?: number | string;
+      type?: string;
+      name?: string;
+    }>;
+  }>;
+};
+
+let blockCatalogReady =
+  false;
+
+let blockCatalog:
+  LayoutBlockCatalogItem[] = [];
+
+let blockCatalogLoadPromise:
+  Promise<void> | null = null;
+
+function sendBlockCatalogToWorker(): void {
+  if (!automationWorker) {
+    return;
+  }
+
+  const message:
+    MainToWorkerMessage = {
+      type: "blockCatalog",
+      blocks:
+        blockCatalog.map(
+          block => ({
+            ...block,
+          })
+        ),
+      ready:
+        blockCatalogReady,
+    };
+
+  automationWorker.postMessage(
+    message
+  );
+}
+
+async function refreshBlockCatalog(): Promise<void> {
+  if (
+    blockCatalogLoadPromise
+  ) {
+    return blockCatalogLoadPromise;
+  }
+
+  blockCatalogLoadPromise =
+    (async () => {
+      const response =
+        await fetch(
+          "/api/layout",
+          {
+            cache: "no-store",
+          }
+        );
+
+      if (!response.ok) {
+        throw new Error(
+          `Layout could not be loaded for script block-name lookup (HTTP ${response.status}).`
+        );
+      }
+
+      const layout =
+        await response.json() as LayoutForBlockCatalog;
+
+      const next:
+        LayoutBlockCatalogItem[] = [];
+
+      for (
+        const layer of
+        layout.layers ?? []
+      ) {
+        for (
+          const element of
+          layer.elements ?? []
+        ) {
+          if (
+            element.type !==
+            "trackblock"
+          ) {
+            continue;
+          }
+
+          const rawId =
+            String(
+              element.id ?? ""
+            ).trim();
+
+          const name =
+            String(
+              element.name ?? ""
+            ).trim();
+
+          if (
+            !/^\d+$/.test(
+              rawId
+            ) ||
+            !name
+          ) {
+            continue;
+          }
+
+          const numericId =
+            Number(rawId);
+
+          if (
+            !Number.isInteger(
+              numericId
+            ) ||
+            numericId < 1 ||
+            numericId > 65535
+          ) {
+            continue;
+          }
+
+          next.push({
+            id:
+              String(
+                numericId
+              ),
+            name,
+          });
+        }
+      }
+
+      blockCatalog =
+        next;
+
+      blockCatalogReady =
+        true;
+
+      sendBlockCatalogToWorker();
+    })().finally(
+      () => {
+        blockCatalogLoadPromise =
+          null;
+      }
+    );
+
+  return blockCatalogLoadPromise;
+}
+
+type BlockStateSnapshot =
+  Record<
+    string,
+    {
+      blockId: string;
+      locoId: string | null;
+      locoAddress?: number;
+    }
+  >;
+
+function blockSnapshotRecord(): Record<string, number> {
+  const result:
+    Record<string, number> = {};
+
+  for (
+    const [
+      blockId,
+      locoAddress,
+    ] of blockSnapshot
+  ) {
+    result[blockId] =
+      locoAddress;
+  }
+
+  return result;
+}
+
+function sendBlockSnapshotToWorker(): void {
+  if (!automationWorker) {
+    return;
+  }
+
+  const message:
+    MainToWorkerMessage = {
+      type: "blockSnapshot",
+      blocks:
+        blockSnapshotRecord(),
+      ready:
+        blockSnapshotReady,
+    };
+
+  automationWorker.postMessage(
+    message
+  );
+}
+
+function applyBlockSnapshot(
+  data: BlockStateSnapshot
+): void {
+  const next =
+    new Map<string, number>();
+
+  for (
+    const [
+      key,
+      state,
+    ] of Object.entries(
+      data
+    )
+  ) {
+    const blockId =
+      String(
+        state?.blockId ??
+        key
+      );
+
+    const locoAddress =
+      Number(
+        state?.locoAddress ??
+        0
+      );
+
+    next.set(
+      blockId,
+      Number.isInteger(locoAddress) &&
+      locoAddress > 0
+        ? locoAddress
+        : 0
+    );
+  }
+
+  blockSnapshot =
+    next;
+
+  blockSnapshotReady =
+    true;
+
+  sendBlockSnapshotToWorker();
+}
+
+function installBlockTracking(): void {
+  if (
+    blockTrackingInstalled
+  ) {
+    return;
+  }
+
+  blockTrackingInstalled =
+    true;
+
+  wsClient.on<BlockStateSnapshot>(
+    "blockStateChanged",
+    data => {
+      applyBlockSnapshot(
+        data
+      );
+    }
+  );
+
+  wsClient.subscribeStatus(
+    status => {
+      if (
+        status !==
+        "connected"
+      ) {
+        return;
+      }
+
+      wsApi.getBlocks();
+
+      void refreshBlockCatalog().catch(
+        error => {
+          console.warn(
+            "[Automation Worker] layout block catalog refresh failed:",
+            error
+          );
+        }
+      );
+    }
+  );
+}
 
 export class ScriptAbortError extends Error {
   constructor(
@@ -244,6 +540,7 @@ function ensureWorker(): Worker {
   }
 
   installVisibilityLogging();
+  installBlockTracking();
 
   const worker =
     new Worker(
@@ -321,6 +618,16 @@ function ensureWorker(): Worker {
 
   automationWorker =
     worker;
+
+  sendBlockCatalogToWorker();
+  sendBlockSnapshotToWorker();
+
+  if (
+    wsClient.isConnected() &&
+    !blockSnapshotReady
+  ) {
+    wsApi.getBlocks();
+  }
 
   return worker;
 }
@@ -501,6 +808,22 @@ function executeDccCommand(
           )
         ),
         "dcc.signal"
+      );
+
+    case "setBlock":
+      return requireSend(
+        wsApi.setBlock(
+          stringArg(
+            args,
+            0
+          ),
+          null,
+          numberArg(
+            args,
+            1
+          )
+        ),
+        "dcc.setBlock"
       );
 
     case "block": {
@@ -925,6 +1248,8 @@ export async function runClientScript(
     );
   }
 
+  await refreshBlockCatalog();
+
   const worker =
     ensureWorker();
 
@@ -1008,3 +1333,6 @@ export async function runClientScript(
     }
   );
 }
+
+
+installBlockTracking();

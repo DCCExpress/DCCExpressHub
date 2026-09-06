@@ -29,7 +29,7 @@ type WorkerExecution = {
 };
 
 const workerScope =
-  self as DedicatedWorkerGlobalScope;
+  self as unknown as DedicatedWorkerGlobalScope;
 
 const AsyncFunction =
   Object.getPrototypeOf(
@@ -38,6 +38,21 @@ const AsyncFunction =
 
 const executions =
   new Map<ClientScriptWorkerExecutionId, WorkerExecution>();
+
+const blockAddresses =
+  new Map<string, number>();
+
+const blockNamesExact =
+  new Map<string, string>();
+
+const blockNamesFolded =
+  new Map<string, string | null>();
+
+let blockCatalogReady =
+  false;
+
+let blockSnapshotReady =
+  false;
 
 class WorkerScriptAbortError extends Error {
   constructor(
@@ -247,6 +262,130 @@ async function controlledDelay(
   assertNotAborted(
     execution
   );
+}
+
+
+function resolveBlockId(
+  value: string | number
+): string {
+  const text =
+    String(value).trim();
+
+  if (!text) {
+    throw new Error(
+      "Block name or ID is required."
+    );
+  }
+
+  if (/^\d+$/.test(text)) {
+    const id =
+      Number(text);
+
+    if (
+      !Number.isInteger(id) ||
+      id < 1 ||
+      id > 65535
+    ) {
+      throw new Error(
+        "Block ID must be an integer between 1 and 65535."
+      );
+    }
+
+    return String(id);
+  }
+
+  if (!blockCatalogReady) {
+    throw new Error(
+      "Layout block catalog is not ready yet."
+    );
+  }
+
+  const exact =
+    blockNamesExact.get(
+      text
+    );
+
+  if (exact) {
+    return exact;
+  }
+
+  const foldedKey =
+    text.toLocaleLowerCase();
+
+  if (
+    blockNamesFolded.has(
+      foldedKey
+    )
+  ) {
+    const folded =
+      blockNamesFolded.get(
+        foldedKey
+      );
+
+    if (folded) {
+      return folded;
+    }
+
+    throw new Error(
+      `Block name "${text}" is ambiguous. Use the exact layout block name.`
+    );
+  }
+
+  throw new Error(
+    `Layout block "${text}" was not found.`
+  );
+}
+
+function getBlockAddress(
+  blockId: string | number
+): number {
+  if (!blockSnapshotReady) {
+    throw new Error(
+      "Block state snapshot is not ready yet."
+    );
+  }
+
+  return (
+    blockAddresses.get(
+      resolveBlockId(
+        blockId
+      )
+    ) ?? 0
+  );
+}
+
+function optimisticallySetBlock(
+  blockId: string | number,
+  locoAddress: number
+): string {
+  const normalizedBlockId =
+    resolveBlockId(
+      blockId
+    );
+
+  for (
+    const [
+      key,
+      currentAddress,
+    ] of blockAddresses
+  ) {
+    if (
+      currentAddress ===
+      locoAddress
+    ) {
+      blockAddresses.set(
+        key,
+        0
+      );
+    }
+  }
+
+  blockAddresses.set(
+    normalizedBlockId,
+    locoAddress
+  );
+
+  return normalizedBlockId;
 }
 
 function integer(
@@ -490,6 +629,46 @@ function createDccApi(
       );
     },
 
+    getBlock(
+      blockId: string | number
+    ): number {
+      check();
+
+      return getBlockAddress(
+        blockId
+      );
+    },
+
+    setBlock(
+      blockId: string | number,
+      locoAddress: number
+    ): void {
+      check();
+
+      const address =
+        integer(
+          locoAddress,
+          1,
+          10239,
+          "Locomotive address"
+        );
+
+      const normalizedBlockId =
+        optimisticallySetBlock(
+          blockId,
+          address
+        );
+
+      sendDcc(
+        executionId,
+        "setBlock",
+        [
+          normalizedBlockId,
+          address,
+        ]
+      );
+    },
+
     block(
       blockId: string | number,
       locoId: string | null,
@@ -497,11 +676,25 @@ function createDccApi(
     ): void {
       check();
 
+      const normalizedBlockId =
+        resolveBlockId(
+          blockId
+        );
+
+      if (
+        locoAddress !== undefined
+      ) {
+        optimisticallySetBlock(
+          normalizedBlockId,
+          locoAddress
+        );
+      }
+
       sendDcc(
         executionId,
         "block",
         [
-          String(blockId),
+          normalizedBlockId,
           locoId,
           locoAddress === undefined
             ? undefined
@@ -521,11 +714,21 @@ function createDccApi(
     ): void {
       check();
 
+      const normalizedBlockId =
+        resolveBlockId(
+          blockId
+        );
+
+      blockAddresses.set(
+        normalizedBlockId,
+        0
+      );
+
       sendDcc(
         executionId,
         "clearBlock",
         [
-          String(blockId),
+          normalizedBlockId,
           locoId,
         ]
       );
@@ -533,6 +736,16 @@ function createDccApi(
 
     resetBlocks(): void {
       check();
+
+      for (
+        const key of
+        blockAddresses.keys()
+      ) {
+        blockAddresses.set(
+          key,
+          0
+        );
+      }
 
       sendDcc(
         executionId,
@@ -838,6 +1051,95 @@ workerScope.addEventListener(
   ) => {
     const message =
       event.data;
+
+    if (
+      message.type ===
+      "blockCatalog"
+    ) {
+      blockNamesExact.clear();
+      blockNamesFolded.clear();
+
+      for (
+        const block of
+        message.blocks
+      ) {
+        const name =
+          String(
+            block.name ?? ""
+          ).trim();
+
+        const id =
+          String(
+            block.id ?? ""
+          ).trim();
+
+        if (
+          !name ||
+          !/^\d+$/.test(id)
+        ) {
+          continue;
+        }
+
+        blockNamesExact.set(
+          name,
+          id
+        );
+
+        const folded =
+          name.toLocaleLowerCase();
+
+        if (
+          !blockNamesFolded.has(
+            folded
+          )
+        ) {
+          blockNamesFolded.set(
+            folded,
+            id
+          );
+        } else if (
+          blockNamesFolded.get(
+            folded
+          ) !== id
+        ) {
+          blockNamesFolded.set(
+            folded,
+            null
+          );
+        }
+      }
+
+      blockCatalogReady =
+        message.ready;
+
+      return;
+    }
+
+    if (
+      message.type ===
+      "blockSnapshot"
+    ) {
+      blockAddresses.clear();
+
+      for (
+        const [
+          blockId,
+          locoAddress,
+        ] of Object.entries(
+          message.blocks
+        )
+      ) {
+        blockAddresses.set(
+          blockId,
+          Number(locoAddress) || 0
+        );
+      }
+
+      blockSnapshotReady =
+        message.ready;
+
+      return;
+    }
 
     if (
       message.type ===
