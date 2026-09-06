@@ -40,6 +40,7 @@ export type ClientScriptState = {
   status: ClientScriptStatus;
   startedAt: number | null;
   error: string | null;
+  info: string | null;
 };
 
 type StateListener =
@@ -52,6 +53,7 @@ type ExecutionControl = {
   aborted: boolean;
   abortReason: string | null;
   commandError: string | null;
+  info: string | null;
   resolve: (value: unknown) => void;
   reject: (reason: unknown) => void;
 };
@@ -518,6 +520,7 @@ function stateFor(
       error:
         lastErrors.get(elementId) ??
         null,
+      info: null,
     };
   }
 
@@ -527,6 +530,8 @@ function stateFor(
     startedAt:
       execution.startedAt,
     error: null,
+    info:
+      execution.info,
   };
 }
 
@@ -1361,6 +1366,16 @@ function handleDccCommand(
 function finishExecution(
   elementId: ClientScriptExecutionId
 ): void {
+  const execution =
+    executions.get(
+      elementId
+    );
+
+  if (execution) {
+    execution.info =
+      null;
+  }
+
   executions.delete(
     elementId
   );
@@ -1392,6 +1407,22 @@ function handleWorkerMessage(
   if (
     !execution
   ) {
+    return;
+  }
+
+  if (
+    message.type ===
+    "info"
+  ) {
+    execution.info =
+      message.message.trim()
+        ? message.message
+        : null;
+
+    emitState(
+      message.executionId
+    );
+
     return;
   }
 
@@ -1619,6 +1650,13 @@ export function abortClientScript(
   execution.abortReason =
     reason;
 
+  execution.info =
+    null;
+
+  emitState(
+    elementId
+  );
+
   clearTargetsOwnedByExecution(
     elementId
   );
@@ -1677,6 +1715,7 @@ export async function runClientScript(
           aborted: false,
           abortReason: null,
           commandError: null,
+          info: null,
           resolve,
           reject,
         };

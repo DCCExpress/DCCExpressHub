@@ -162,6 +162,11 @@ const SCRIPT_HELP_ITEMS: ScriptHelpItem[] = [
     insert: "dcc.turnout(20, true);",
   },
   {
+    syntax: "setInfo(message)",
+    description: "Shows a temporary message on this automation card in the client that is running the script. Calling it again replaces the message. The message is cleared automatically when the run finishes, fails, or is aborted.",
+    insert: 'setInfo("Mozdony indul a B1 blokkba");',
+  },
+  {
     syntax: "log(value, ...)",
     description: "Writes values to the browser console with the automation name prefix.",
     insert: 'log("Automation reached this point");',

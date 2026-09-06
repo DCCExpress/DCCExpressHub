@@ -8,6 +8,7 @@ import {
 
 import {
   ActionIcon,
+  Alert,
   Badge,
   Button,
   Card,
@@ -26,12 +27,17 @@ import {
 
 import {
   IconCode,
+  IconInfoCircle,
   IconPlus,
   IconPlayerPause,
   IconPlayerPlay,
   IconTrash,
   IconTrashX,
 } from "@tabler/icons-react";
+
+import type {
+  AutomationScriptDefinition,
+} from "../services/automationApi";
 
 import {
   abortClientScript,
@@ -43,10 +49,6 @@ import {
   subscribeClientScriptState,
   type ClientScriptState,
 } from "../services/clientScriptRunner";
-
-import type {
-  AutomationScriptDefinition,
-} from "../services/automationApi";
 
 const ScriptEditorDialog =
   lazy(
@@ -63,6 +65,14 @@ type AutomationPanelProps = {
   ) => void;
 };
 
+type ScriptCardProps = {
+  definition: AutomationScriptDefinition;
+  onChange: (
+    next: AutomationScriptDefinition
+  ) => void;
+  onDelete: () => void;
+};
+
 function createAutomationId(): string {
   if (
     typeof crypto !== "undefined" &&
@@ -71,7 +81,12 @@ function createAutomationId(): string {
     return crypto.randomUUID();
   }
 
-  return `automation-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  return (
+    `automation-${Date.now()}-` +
+    Math.random()
+      .toString(36)
+      .slice(2, 10)
+  );
 }
 
 function executionId(
@@ -83,18 +98,20 @@ function executionId(
 function stateColor(
   state: ClientScriptState
 ): string {
-  if (state.status === "running") return "green";
-  if (state.status === "paused") return "yellow";
+  if (
+    state.status === "running"
+  ) {
+    return "green";
+  }
+
+  if (
+    state.status === "paused"
+  ) {
+    return "yellow";
+  }
+
   return "gray";
 }
-
-type ScriptCardProps = {
-  definition: AutomationScriptDefinition;
-  onChange: (
-    next: AutomationScriptDefinition
-  ) => void;
-  onDelete: () => void;
-};
 
 function ScriptCard({
   definition,
@@ -118,27 +135,34 @@ function ScriptCard({
   ] =
     useState<ClientScriptState>(
       () =>
-        getClientScriptState(id)
+        getClientScriptState(
+          id
+        )
     );
 
-  useEffect(() => {
-    return subscribeClientScriptState(
-      id,
-      setScriptState
-    );
-  }, [id]);
-
-  const context = useMemo(
-    () => ({
-      id,
-      name: definition.name,
-      type: "automation",
-    }),
-    [
-      id,
-      definition.name,
-    ]
+  useEffect(
+    () =>
+      subscribeClientScriptState(
+        id,
+        setScriptState
+      ),
+    [id]
   );
+
+  const context =
+    useMemo(
+      () => ({
+        id,
+        name:
+          definition.name,
+        type:
+          "automation",
+      }),
+      [
+        id,
+        definition.name,
+      ]
+    );
 
   const run =
     async (
@@ -152,15 +176,24 @@ function ScriptCard({
 
         showNotification({
           color: "green",
-          title: "Automation completed",
-          message: definition.name,
+          title:
+            "Automation completed",
+          message:
+            definition.name,
         });
-      } catch (error) {
-        if (error instanceof ScriptAbortError) {
+      } catch (
+        error
+      ) {
+        if (
+          error instanceof
+          ScriptAbortError
+        ) {
           showNotification({
             color: "orange",
-            title: "Automation aborted",
-            message: definition.name,
+            title:
+              "Automation aborted",
+            message:
+              definition.name,
           });
 
           throw error;
@@ -168,7 +201,8 @@ function ScriptCard({
 
         showNotification({
           color: "red",
-          title: "Automation failed",
+          title:
+            "Automation failed",
           message:
             error instanceof Error
               ? error.message
@@ -179,36 +213,56 @@ function ScriptCard({
       }
     };
 
-  const pause = () => {
-    if (pauseClientScript(id)) {
-      showNotification({
-        color: "yellow",
-        title: "Automation stopped",
-        message:
-          `${definition.name} is paused at the current/next await delay() checkpoint.`,
-      });
-    }
-  };
+  const pause =
+    (): void => {
+      if (
+        pauseClientScript(
+          id
+        )
+      ) {
+        showNotification({
+          color: "yellow",
+          title:
+            "Automation stopped",
+          message:
+            `${definition.name} is paused at the current/next await delay() checkpoint.`,
+        });
+      }
+    };
 
-  const resume = () => {
-    if (resumeClientScript(id)) {
-      showNotification({
-        color: "green",
-        title: "Automation resumed",
-        message: definition.name,
-      });
-    }
-  };
+  const resume =
+    (): void => {
+      if (
+        resumeClientScript(
+          id
+        )
+      ) {
+        showNotification({
+          color: "green",
+          title:
+            "Automation resumed",
+          message:
+            definition.name,
+        });
+      }
+    };
 
-  const abort = () => {
-    if (abortClientScript(id)) {
-      showNotification({
-        color: "red",
-        title: "Automation abort requested",
-        message: definition.name,
-      });
-    }
-  };
+  const abort =
+    (): void => {
+      if (
+        abortClientScript(
+          id
+        )
+      ) {
+        showNotification({
+          color: "red",
+          title:
+            "Automation abort requested",
+          message:
+            definition.name,
+        });
+      }
+    };
 
   const idle =
     scriptState.status ===
@@ -257,9 +311,11 @@ function ScriptCard({
                   size="xs"
                   c="dimmed"
                 >
-                  {definition.script.trim()
-                    ? `${definition.script.split("\n").length} lines`
-                    : "Empty script"}
+                  {
+                    definition.script.trim()
+                      ? `${definition.script.split("\n").length} lines`
+                      : "Empty script"
+                  }
                 </Text>
               </Group>
 
@@ -268,13 +324,15 @@ function ScriptCard({
                 value={
                   definition.name
                 }
-                onChange={event => {
-                  onChange({
-                    ...definition,
-                    name:
-                      event.currentTarget.value,
-                  });
-                }}
+                onChange={
+                  event => {
+                    onChange({
+                      ...definition,
+                      name:
+                        event.currentTarget.value,
+                    });
+                  }
+                }
               />
             </Stack>
 
@@ -283,9 +341,12 @@ function ScriptCard({
                 <ActionIcon
                   variant="light"
                   color="violet"
-                  onClick={() => {
-                    setOpened(true);
-                  }}
+                  onClick={
+                    () =>
+                      setOpened(
+                        true
+                      )
+                  }
                   aria-label="Edit script"
                 >
                   <IconCode
@@ -318,6 +379,32 @@ function ScriptCard({
             </Group>
           </Group>
 
+          {scriptState.info && (
+            <Alert
+              color="blue"
+              variant="light"
+              icon={
+                <IconInfoCircle
+                  size={16}
+                />
+              }
+              py={6}
+              px="sm"
+            >
+              <Text
+                size="sm"
+                style={{
+                  whiteSpace:
+                    "pre-wrap",
+                  overflowWrap:
+                    "anywhere",
+                }}
+              >
+                {scriptState.info}
+              </Text>
+            </Alert>
+          )}
+
           <Group
             gap={6}
             grow
@@ -335,13 +422,16 @@ function ScriptCard({
                 !idle ||
                 !definition.script.trim()
               }
-              onClick={() => {
-                void run(
-                  definition.script
-                ).catch(
-                  () => undefined
-                );
-              }}
+              onClick={
+                () => {
+                  void run(
+                    definition.script
+                  ).catch(
+                    () =>
+                      undefined
+                  );
+                }
+              }
             >
               Start
             </Button>
@@ -355,8 +445,12 @@ function ScriptCard({
                   size={14}
                 />
               }
-              disabled={!running}
-              onClick={pause}
+              disabled={
+                !running
+              }
+              onClick={
+                pause
+              }
             >
               Stop
             </Button>
@@ -370,8 +464,12 @@ function ScriptCard({
                   size={14}
                 />
               }
-              disabled={!paused}
-              onClick={resume}
+              disabled={
+                !paused
+              }
+              onClick={
+                resume
+              }
             >
               Resume
             </Button>
@@ -385,8 +483,12 @@ function ScriptCard({
                   size={14}
                 />
               }
-              disabled={idle}
-              onClick={abort}
+              disabled={
+                idle
+              }
+              onClick={
+                abort
+              }
             >
               Abort
             </Button>
@@ -415,34 +517,53 @@ function ScriptCard({
           }
         >
           <ScriptEditorDialog
-            opened={opened}
-            title={`Automation · ${definition.name || "Unnamed script"}`}
+            opened={
+              opened
+            }
+            title={
+              `Automation · ${definition.name || "Unnamed script"}`
+            }
             value={
               definition.script
             }
             scriptStatus={
               scriptState.status
             }
-            onClose={() => {
-              setOpened(false);
-            }}
-            onSave={value => {
-              onChange({
-                ...definition,
-                script: value,
-              });
+            onClose={
+              () =>
+                setOpened(
+                  false
+                )
+            }
+            onSave={
+              value => {
+                onChange({
+                  ...definition,
+                  script:
+                    value,
+                });
 
-              showNotification({
-                color: "teal",
-                title: "Automation script saved",
-                message:
-                  "Editor remains open. Save the project to persist it in the Hub automation store.",
-              });
-            }}
-            onRun={run}
-            onPause={pause}
-            onResume={resume}
-            onAbort={abort}
+                showNotification({
+                  color: "teal",
+                  title:
+                    "Automation script saved",
+                  message:
+                    "Editor remains open. Save the project to persist it in the Hub automation store.",
+                });
+              }
+            }
+            onRun={
+              run
+            }
+            onPause={
+              pause
+            }
+            onResume={
+              resume
+            }
+            onAbort={
+              abort
+            }
           />
         </Suspense>
       )}
@@ -457,19 +578,20 @@ export default function AutomationPanel({
   const updateScript = (
     id: string,
     next: AutomationScriptDefinition
-  ) => {
+  ): void => {
     onScriptsChange(
-      scripts.map(script =>
-        script.id === id
-          ? next
-          : script
+      scripts.map(
+        script =>
+          script.id === id
+            ? next
+            : script
       )
     );
   };
 
   const deleteScript = (
     id: string
-  ) => {
+  ): void => {
     onScriptsChange(
       scripts.filter(
         script =>
@@ -479,27 +601,30 @@ export default function AutomationPanel({
 
     showNotification({
       color: "red",
-      title: "Automation deleted",
+      title:
+        "Automation deleted",
       message:
         "Save the project to persist the deletion in the Hub automation store.",
     });
   };
 
-  const createScript = () => {
-    const next:
-      AutomationScriptDefinition = {
-        id:
-          createAutomationId(),
-        name:
-          `Automation ${scripts.length + 1}`,
-        script: "",
-      };
+  const createScript =
+    (): void => {
+      const next:
+        AutomationScriptDefinition = {
+          id:
+            createAutomationId(),
+          name:
+            `Automation ${scripts.length + 1}`,
+          script:
+            "",
+        };
 
-    onScriptsChange([
-      ...scripts,
-      next,
-    ]);
-  };
+      onScriptsChange([
+        ...scripts,
+        next,
+      ]);
+    };
 
   return (
     <ScrollArea
@@ -542,71 +667,71 @@ export default function AutomationPanel({
           </Button>
         </Group>
 
-        {scripts.length === 0 ? (
-          <Card
-            withBorder
-            p="lg"
-          >
-            <Stack
-              gap="xs"
-              align="center"
-            >
-              <Text
-                fw={700}
+        {
+          scripts.length === 0
+            ? (
+              <Card
+                withBorder
+                p="lg"
               >
-                No automation scripts
-              </Text>
+                <Stack
+                  gap="xs"
+                  align="center"
+                >
+                  <Text fw={700}>
+                    No automation scripts
+                  </Text>
 
-              <Text
-                size="sm"
-                c="dimmed"
-                ta="center"
-              >
-                Create a script, give it a name, then edit and run it independently.
-              </Text>
+                  <Text
+                    size="sm"
+                    c="dimmed"
+                    ta="center"
+                  >
+                    Create a script, give it a name, then edit and run it independently.
+                  </Text>
 
-              <Button
-                size="xs"
-                leftSection={
-                  <IconPlus
-                    size={15}
-                  />
-                }
-                onClick={
-                  createScript
-                }
-              >
-                New script
-              </Button>
-            </Stack>
-          </Card>
-        ) : (
-          scripts.map(
-            definition => (
-              <ScriptCard
-                key={
-                  definition.id
-                }
-                definition={
-                  definition
-                }
-                onChange={
-                  next =>
-                    updateScript(
-                      definition.id,
-                      next
-                    )
-                }
-                onDelete={
-                  () =>
-                    deleteScript(
-                      definition.id
-                    )
-                }
-              />
+                  <Button
+                    size="xs"
+                    leftSection={
+                      <IconPlus
+                        size={15}
+                      />
+                    }
+                    onClick={
+                      createScript
+                    }
+                  >
+                    New script
+                  </Button>
+                </Stack>
+              </Card>
             )
-          )
-        )}
+            : scripts.map(
+                definition => (
+                  <ScriptCard
+                    key={
+                      definition.id
+                    }
+                    definition={
+                      definition
+                    }
+                    onChange={
+                      next =>
+                        updateScript(
+                          definition.id,
+                          next
+                        )
+                    }
+                    onDelete={
+                      () =>
+                        deleteScript(
+                          definition.id
+                        )
+                    }
+                  />
+                )
+              )
+        }
 
         <Text
           size="xs"

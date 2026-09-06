@@ -78,6 +78,11 @@ export type WorkerToMainMessage =
       args: unknown[];
     }
   | {
+      type: "info";
+      executionId: ClientScriptWorkerExecutionId;
+      message: string;
+    }
+  | {
       type: "log";
       executionId: ClientScriptWorkerExecutionId;
       values: unknown[];

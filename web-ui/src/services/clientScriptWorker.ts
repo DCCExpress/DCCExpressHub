@@ -1069,6 +1069,23 @@ async function runExecution(
       ms
     );
 
+  const setInfo = (
+    value: unknown
+  ): void => {
+    assertNotAborted(
+      execution
+    );
+
+    post({
+      type: "info",
+      executionId,
+      message:
+        value == null
+          ? ""
+          : String(value),
+    });
+  };
+
   const log = (
     ...values: unknown[]
   ): void => {
@@ -1097,6 +1114,7 @@ async function runExecution(
         "dcc",
         "delay",
         "log",
+        "setInfo",
         "element",
         `"use strict";
 ${script}
@@ -1108,6 +1126,7 @@ ${script}
         dcc,
         delay,
         log,
+        setInfo,
         safeElement
       );
 
