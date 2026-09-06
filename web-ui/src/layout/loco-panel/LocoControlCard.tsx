@@ -9,6 +9,9 @@ import LocoImage from "../../components/loco/LocoImage";
 import LocoDirectionControls from "./LocoDirectionControls";
 import LocoEmergencyButton from "./LocoEmergencyButton";
 import LocoSpeedControls from "./LocoSpeedControls";
+import {
+  useUiBroadcastMessage,
+} from "../../services/uiBroadcast";
 
 type LocoControlCardProps = {
   loco: Loco;
@@ -46,6 +49,12 @@ export default function LocoControlCard({
   const { t } = useTranslation();
   const theme = useMantineTheme();
   const { colorScheme } = useMantineColorScheme();
+
+  const uiMessage =
+    useUiBroadcastMessage(
+      "locoPanel",
+      loco.address
+    );
 
   const badgeBg =
     colorScheme === "dark"
@@ -133,6 +142,40 @@ export default function LocoControlCard({
             {speed}
           </Title>
         </Badge>
+
+        <div
+          style={{
+            height: 20,
+            minHeight: 20,
+            width: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            overflow: "hidden",
+          }}
+        >
+          {uiMessage && (
+            <Badge
+              size="sm"
+              radius="sm"
+              variant="light"
+              color="cyan"
+              maw="100%"
+              styles={{
+                label: {
+                  textTransform: "none",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  maxWidth: "100%",
+                },
+              }}
+              title={uiMessage}
+            >
+              {uiMessage}
+            </Badge>
+          )}
+        </div>
 
         {!alive && (
           <Badge color="red" variant="light">
