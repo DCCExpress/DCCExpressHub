@@ -40,6 +40,11 @@ import type {
 } from "../services/automationApi";
 
 import {
+  getSharedScriptInfo,
+  subscribeSharedScriptInfo,
+} from "../services/scriptInfoRuntime";
+
+import {
   abortClientScript,
   getClientScriptState,
   pauseClientScript,
@@ -140,11 +145,31 @@ function ScriptCard({
         )
     );
 
+  const [
+    sharedInfo,
+    setSharedInfo,
+  ] =
+    useState<string | null>(
+      () =>
+        getSharedScriptInfo(
+          id
+        )
+    );
+
   useEffect(
     () =>
       subscribeClientScriptState(
         id,
         setScriptState
+      ),
+    [id]
+  );
+
+  useEffect(
+    () =>
+      subscribeSharedScriptInfo(
+        id,
+        setSharedInfo
       ),
     [id]
   );
@@ -379,7 +404,7 @@ function ScriptCard({
             </Group>
           </Group>
 
-          {scriptState.info && (
+          {sharedInfo && (
             <Alert
               color="blue"
               variant="light"
@@ -400,7 +425,7 @@ function ScriptCard({
                     "anywhere",
                 }}
               >
-                {scriptState.info}
+                {sharedInfo}
               </Text>
             </Alert>
           )}

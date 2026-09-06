@@ -7,6 +7,12 @@ import {
 } from "./wsClient";
 
 import {
+  claimSharedScriptInfo,
+  clearSharedScriptInfo,
+  setSharedScriptInfo,
+} from "./scriptInfoRuntime";
+
+import {
   clearOptimisticBlockTargetLoco,
   createBlockTargetLocoMarker,
   getBlockTargetLocoMarker,
@@ -54,6 +60,7 @@ type ExecutionControl = {
   abortReason: string | null;
   commandError: string | null;
   info: string | null;
+  infoOwnerId: string;
   resolve: (value: unknown) => void;
   reject: (reason: unknown) => void;
 };
@@ -1374,6 +1381,11 @@ function finishExecution(
   if (execution) {
     execution.info =
       null;
+
+    clearSharedScriptInfo(
+      String(elementId),
+      execution.infoOwnerId
+    );
   }
 
   executions.delete(
@@ -1418,6 +1430,14 @@ function handleWorkerMessage(
       message.message.trim()
         ? message.message
         : null;
+
+    setSharedScriptInfo(
+      String(
+        message.executionId
+      ),
+      execution.infoOwnerId,
+      message.message
+    );
 
     emitState(
       message.executionId
@@ -1653,6 +1673,13 @@ export function abortClientScript(
   execution.info =
     null;
 
+  clearSharedScriptInfo(
+    String(
+      elementId
+    ),
+    execution.infoOwnerId
+  );
+
   emitState(
     elementId
   );
@@ -1705,6 +1732,21 @@ export async function runClientScript(
       resolve,
       reject
     ) => {
+      const infoOwnerId =
+        `${wsApi.clientUuid}:` +
+        `${String(element.id)}:` +
+        `${Date.now()}:` +
+        Math.random()
+          .toString(36)
+          .slice(2, 10);
+
+      claimSharedScriptInfo(
+        String(
+          element.id
+        ),
+        infoOwnerId
+      );
+
       const execution:
         ExecutionControl = {
           element: {
@@ -1716,6 +1758,7 @@ export async function runClientScript(
           abortReason: null,
           commandError: null,
           info: null,
+          infoOwnerId,
           resolve,
           reject,
         };

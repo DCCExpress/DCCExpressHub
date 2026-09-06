@@ -11,6 +11,7 @@
 #include "HubConfigStore.h"
 #include "LayoutRuntime.h"
 #include "RuntimeStateStore.h"
+#include "ScriptInfoEndpoint.h"
 #include "WsProtocol.h"
 
 class ApiServer {
@@ -35,6 +36,9 @@ private:
       _server};
 
   DeviceConfigEndpoint _deviceConfigEndpoint{
+      _server};
+
+  ScriptInfoEndpoint _scriptInfoEndpoint{
       _server};
 
   AsyncWebSocket& _ws;
