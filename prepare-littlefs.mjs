@@ -7,18 +7,35 @@ import {
   stat,
   writeFile,
 } from "node:fs/promises";
+
 import {
+  basename,
   dirname,
   extname,
   join,
   relative,
   resolve,
+  sep,
 } from "node:path";
+
 import { gzipSync } from "node:zlib";
 
 const projectRoot = process.cwd();
 const distDir = resolve(projectRoot, "web-ui", "dist");
 const dataDir = resolve(projectRoot, "data");
+
+/*
+ * Some mklittlefs builds used by PlatformIO are compiled with:
+ *
+ *   LFS_NAME_MAX 32
+ *
+ * The usable filename/directory component length is therefore 31 characters.
+ * Validate here so we fail with a useful message before `pio run -t buildfs`
+ * prints the much less helpful:
+ *
+ *   unable to open '/assets/...'
+ */
+const LITTLEFS_MAX_COMPONENT_LENGTH = 31;
 
 const gzipExtensions = new Set([
   ".html",
@@ -51,6 +68,7 @@ async function walk(dir) {
 async function ensureDistExists() {
   try {
     const info = await stat(distDir);
+
     if (!info.isDirectory()) {
       throw new Error();
     }
@@ -64,6 +82,36 @@ async function ensureDistExists() {
         "  npm run build",
       ].join("\n")
     );
+  }
+}
+
+function validateLittleFsPath(relativePath) {
+  const normalized =
+    relativePath.split(sep).join("/");
+
+  const components =
+    normalized
+      .split("/")
+      .filter(Boolean);
+
+  for (const component of components) {
+    if (
+      component.length >
+      LITTLEFS_MAX_COMPONENT_LENGTH
+    ) {
+      throw new Error(
+        [
+          "LittleFS filename component is too long.",
+          "",
+          `Path: ${normalized}`,
+          `Component: ${component}`,
+          `Length: ${component.length}`,
+          `Maximum: ${LITTLEFS_MAX_COMPONENT_LENGTH}`,
+          "",
+          "Use a shorter Vite asset/worker filename pattern.",
+        ].join("\n")
+      );
+    }
   }
 }
 
@@ -85,18 +133,60 @@ await mkdir(dataDir, {
 const files = await walk(distDir);
 
 for (const sourcePath of files) {
-  const relativePath = relative(distDir, sourcePath);
-  const targetPath = resolve(dataDir, relativePath);
+  const relativePath =
+    relative(
+      distDir,
+      sourcePath
+    );
 
-  await mkdir(dirname(targetPath), {
-    recursive: true,
-  });
+  const extension =
+    extname(
+      sourcePath
+    ).toLowerCase();
 
-  const extension = extname(sourcePath).toLowerCase();
+  const targetRelativePath =
+    gzipExtensions.has(extension)
+      ? `${relativePath}.gz`
+      : relativePath;
 
-  if (gzipExtensions.has(extension)) {
-    const source = await readFile(sourcePath);
-    const compressed = gzipSync(source, { level: 9 });
+  /*
+   * Validate the FINAL filename, not only the Vite filename:
+   * `.gz` adds another three characters.
+   */
+  validateLittleFsPath(
+    targetRelativePath
+  );
+
+  const targetPath =
+    resolve(
+      dataDir,
+      relativePath
+    );
+
+  await mkdir(
+    dirname(targetPath),
+    {
+      recursive: true,
+    }
+  );
+
+  if (
+    gzipExtensions.has(
+      extension
+    )
+  ) {
+    const source =
+      await readFile(
+        sourcePath
+      );
+
+    const compressed =
+      gzipSync(
+        source,
+        {
+          level: 9,
+        }
+      );
 
     await writeFile(
       `${targetPath}.gz`,
@@ -111,8 +201,14 @@ for (const sourcePath of files) {
     continue;
   }
 
-  await cp(sourcePath, targetPath);
-  console.log(`copy  ${relativePath}`);
+  await cp(
+    sourcePath,
+    targetPath
+  );
+
+  console.log(
+    `copy  ${relativePath}`
+  );
 }
 
 console.log("");

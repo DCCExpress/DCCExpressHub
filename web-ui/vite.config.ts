@@ -83,15 +83,44 @@ export default defineConfig(({ mode }) => {
           }
     },
 
+    /*
+     * The ESP32 PlatformIO mklittlefs tool used by this project has a
+     * 31-character LittleFS filename-component limit (LFS_NAME_MAX=32,
+     * including the terminating NUL in affected builds).
+     *
+     * Vite's default Worker output uses the source entry name:
+     *
+     *   clientScriptWorker-ByESKuoJ.js
+     *
+     * After prepare-littlefs.mjs gzip compression this becomes:
+     *
+     *   clientScriptWorker-ByESKuoJ.js.gz
+     *
+     * which is too long for mklittlefs.
+     *
+     * Keep worker entry/chunk filenames deliberately short.
+     */
+    worker: {
+      format: "es",
+
+      rolldownOptions: {
+        output: {
+          entryFileNames: "assets/w-[hash].js",
+          chunkFileNames: "assets/wc-[hash].js",
+          assetFileNames: "assets/wa-[hash][extname]"
+        }
+      }
+    },
+
     build: {
       outDir: "dist",
       emptyOutDir: true,
       target: "es2017",
 
-      rollupOptions: {
+      rolldownOptions: {
         output: {
           entryFileNames: "assets/app-v2.js",
-          chunkFileNames: "assets/chunk-[hash].js",
+          chunkFileNames: "assets/c-[hash].js",
           assetFileNames: assetInfo =>
             assetInfo.names.some(name => name.endsWith(".css"))
               ? "assets/index-v2.css"

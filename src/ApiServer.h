@@ -6,6 +6,7 @@
 #include <LittleFS.h>
 
 #include "AutomationsEndpoint.h"
+#include "DeviceConfigEndpoint.h"
 #include "DccExBridge.h"
 #include "HubConfigStore.h"
 #include "LayoutRuntime.h"
@@ -26,11 +27,14 @@ public:
   void begin();
 
 private:
-  // Construction order matters:
-  // _server must exist before AutomationsEndpoint registers its routes.
+  // Construction order matters: the web server must exist before endpoint
+  // helpers register their routes.
   AsyncWebServer _server;
 
   AutomationsEndpoint _automationsEndpoint{
+      _server};
+
+  DeviceConfigEndpoint _deviceConfigEndpoint{
       _server};
 
   AsyncWebSocket& _ws;
