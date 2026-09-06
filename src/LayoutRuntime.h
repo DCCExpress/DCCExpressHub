@@ -83,8 +83,14 @@ public:
 
   bool clearBlocks();
 
+  // Multiple runtime subsystems can observe changes at the same time.
+  // Previously this stored only one callback, so the last subscriber
+  // silently replaced all earlier subscribers.
   void onChange(ChangeCallback callback) {
-    _changeCallback = std::move(callback);
+    if (callback) {
+      _changeCallbacks.push_back(
+          std::move(callback));
+    }
   }
 
   RuntimeAccessory* findAccessory(
@@ -129,7 +135,7 @@ private:
   std::vector<RuntimeAccessory> _accessories;
   std::vector<RuntimeSensor> _sensors;
   std::vector<RuntimeBlock> _blocks;
-  ChangeCallback _changeCallback;
+  std::vector<ChangeCallback> _changeCallbacks;
 
   void notify(
       RuntimeChangeKind kind,

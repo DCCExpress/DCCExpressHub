@@ -44,8 +44,14 @@ void LayoutRuntime::notify(
     RuntimeChangeKind kind,
     uint16_t id,
     uint8_t channel) {
-  if (_changeCallback) {
-    _changeCallback(kind, id, channel);
+  for (const auto& callback :
+       _changeCallbacks) {
+    if (callback) {
+      callback(
+          kind,
+          id,
+          channel);
+    }
   }
 }
 
