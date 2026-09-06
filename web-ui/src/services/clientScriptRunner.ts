@@ -2,6 +2,12 @@ import {
   wsApi,
 } from "./wsApi";
 
+import type {
+  ClientScriptWorkerDccMethod,
+  MainToWorkerMessage,
+  WorkerToMainMessage,
+} from "./clientScriptWorkerProtocol";
+
 export type ClientScriptExecutionId =
   | number
   | string;
@@ -23,16 +29,8 @@ export type ClientScriptState = {
   error: string | null;
 };
 
-type ScriptDirection =
-  | "forward"
-  | "reverse";
-
-type AsyncFunctionFactory =
-  new (
-    ...args: string[]
-  ) => (
-    ...values: unknown[]
-  ) => Promise<unknown>;
+type StateListener =
+  (state: ClientScriptState) => void;
 
 type ExecutionControl = {
   element: ClientScriptElementContext;
@@ -40,17 +38,10 @@ type ExecutionControl = {
   startedAt: number;
   aborted: boolean;
   abortReason: string | null;
-  pauseWaiters: Set<() => void>;
-  abortWaiters: Set<(error: ScriptAbortError) => void>;
+  commandError: string | null;
+  resolve: (value: unknown) => void;
+  reject: (reason: unknown) => void;
 };
-
-type StateListener =
-  (state: ClientScriptState) => void;
-
-const AsyncFunction =
-  Object.getPrototypeOf(
-    async function () {}
-  ).constructor as AsyncFunctionFactory;
 
 const executions =
   new Map<ClientScriptExecutionId, ExecutionControl>();
@@ -60,6 +51,12 @@ const listeners =
 
 const lastErrors =
   new Map<ClientScriptExecutionId, string | null>();
+
+let automationWorker:
+  Worker | null = null;
+
+let visibilityLoggingInstalled =
+  false;
 
 export class ScriptAbortError extends Error {
   constructor(
@@ -105,14 +102,18 @@ function emitState(
     const listener of
     listeners.get(elementId) ?? []
   ) {
-    listener(state);
+    listener(
+      state
+    );
   }
 }
 
 export function getClientScriptState(
   elementId: ClientScriptExecutionId
 ): ClientScriptState {
-  return stateFor(elementId);
+  return stateFor(
+    elementId
+  );
 }
 
 export function subscribeClientScriptState(
@@ -132,18 +133,27 @@ export function subscribeClientScriptState(
     );
   }
 
-  set.add(listener);
+  set.add(
+    listener
+  );
+
   listener(
-    stateFor(elementId)
+    stateFor(
+      elementId
+    )
   );
 
   return () => {
     const current =
       listeners.get(elementId);
 
-    if (!current) return;
+    if (!current) {
+      return;
+    }
 
-    current.delete(listener);
+    current.delete(
+      listener
+    );
 
     if (
       current.size === 0
@@ -155,493 +165,668 @@ export function subscribeClientScriptState(
   };
 }
 
-function abortError(
-  execution: ExecutionControl
-): ScriptAbortError {
-  return new ScriptAbortError(
-    execution.abortReason ??
-      "Script aborted."
-  );
-}
-
-function assertNotAborted(
-  execution: ExecutionControl
-): void {
-  if (execution.aborted) {
-    throw abortError(
-      execution
-    );
-  }
-}
-
-async function waitUntilResumed(
-  execution: ExecutionControl
-): Promise<void> {
-  assertNotAborted(
-    execution
-  );
-
+function installVisibilityLogging(): void {
   if (
-    execution.status !==
-    "paused"
+    visibilityLoggingInstalled ||
+    typeof document ===
+      "undefined"
   ) {
     return;
   }
 
-  await new Promise<void>(
-    (resolve, reject) => {
-      const onResume = () => {
-        execution.pauseWaiters.delete(
-          onResume
-        );
+  visibilityLoggingInstalled =
+    true;
 
-        execution.abortWaiters.delete(
-          onAbort
-        );
+  document.addEventListener(
+    "visibilitychange",
+    () => {
+      if (
+        executions.size === 0
+      ) {
+        return;
+      }
 
-        resolve();
-      };
-
-      const onAbort = (
-        error: ScriptAbortError
-      ) => {
-        execution.pauseWaiters.delete(
-          onResume
-        );
-
-        execution.abortWaiters.delete(
-          onAbort
-        );
-
-        reject(error);
-      };
-
-      execution.pauseWaiters.add(
-        onResume
-      );
-
-      execution.abortWaiters.add(
-        onAbort
+      console.info(
+        `[Automation Worker] browser ${
+          document.hidden
+            ? "hidden"
+            : "visible"
+        }; ${executions.size} script(s) active.`
       );
     }
-  );
-
-  assertNotAborted(
-    execution
   );
 }
 
-async function controlledDelay(
-  execution: ExecutionControl,
-  ms: number
-): Promise<void> {
-  assertNotAborted(
-    execution
+function postToWorker(
+  message: MainToWorkerMessage
+): void {
+  ensureWorker().postMessage(
+    message
   );
+}
 
-  await waitUntilResumed(
-    execution
-  );
+function failAllExecutions(
+  error: Error
+): void {
+  const active =
+    [
+      ...executions.entries(),
+    ];
 
-  const safeMs =
-    Math.max(
-      0,
-      Math.min(
-        600000,
-        Number(ms) || 0
-      )
-    );
+  executions.clear();
 
-  const started =
-    performance.now();
-
-  let remaining =
-    safeMs;
-
-  while (
-    remaining > 0
+  for (
+    const [
+      elementId,
+      execution,
+    ] of active
   ) {
-    assertNotAborted(
-      execution
+    lastErrors.set(
+      elementId,
+      error.message
     );
 
-    await waitUntilResumed(
-      execution
+    execution.reject(
+      error
     );
 
-    const slice =
-      Math.min(
-        remaining,
-        100
-      );
+    emitState(
+      elementId
+    );
+  }
+}
 
-    await new Promise<void>(
-      (resolve, reject) => {
-        const timer =
-          window.setTimeout(
-            () => {
-              execution.abortWaiters.delete(
-                onAbort
-              );
-              resolve();
-            },
-            slice
-          );
+function ensureWorker(): Worker {
+  if (
+    automationWorker
+  ) {
+    return automationWorker;
+  }
 
-        const onAbort = (
-          error: ScriptAbortError
-        ) => {
-          window.clearTimeout(
-            timer
-          );
+  installVisibilityLogging();
 
-          execution.abortWaiters.delete(
-            onAbort
-          );
-
-          reject(error);
-        };
-
-        execution.abortWaiters.add(
-          onAbort
-        );
+  const worker =
+    new Worker(
+      new URL(
+        "./clientScriptWorker.ts",
+        import.meta.url
+      ),
+      {
+        type: "module",
+        name:
+          "dcc-express-automation",
       }
     );
 
-    if (
-      execution.status ===
-      "running"
-    ) {
-      remaining -=
-        slice;
+  worker.addEventListener(
+    "message",
+    (
+      event:
+        MessageEvent<WorkerToMainMessage>
+    ) => {
+      handleWorkerMessage(
+        event.data
+      );
     }
-  }
-
-  void started;
-  assertNotAborted(
-    execution
   );
+
+  worker.addEventListener(
+    "error",
+    event => {
+      const error =
+        new Error(
+          event.message ||
+            "Automation Worker crashed."
+        );
+
+      console.error(
+        "[Automation Worker]",
+        error
+      );
+
+      failAllExecutions(
+        error
+      );
+
+      worker.terminate();
+
+      if (
+        automationWorker ===
+        worker
+      ) {
+        automationWorker =
+          null;
+      }
+    }
+  );
+
+  worker.addEventListener(
+    "messageerror",
+    () => {
+      const error =
+        new Error(
+          "Automation Worker message could not be decoded."
+        );
+
+      console.error(
+        "[Automation Worker]",
+        error
+      );
+
+      failAllExecutions(
+        error
+      );
+    }
+  );
+
+  automationWorker =
+    worker;
+
+  return worker;
 }
 
 function requireSend(
-  execution: ExecutionControl,
   ok: boolean,
   label: string
-): void {
-  assertNotAborted(
-    execution
-  );
-
-  if (!ok) {
-    throw new Error(
-      `${label}: WebSocket command could not be sent.`
-    );
-  }
-}
-
-function integer(
-  value: number,
-  min: number,
-  max: number,
-  name: string
-): number {
+): string | null {
   if (
-    !Number.isInteger(value) ||
-    value < min ||
-    value > max
+    ok
   ) {
-    throw new Error(
-      `${name} must be an integer between ${min} and ${max}.`
-    );
+    return null;
   }
 
-  return value;
+  return (
+    `${label}: WebSocket command could not be sent.`
+  );
 }
 
-function createDccApi(
-  execution: ExecutionControl
-) {
-  const check = () => {
-    assertNotAborted(
-      execution
-    );
-  };
+function numberArg(
+  args: unknown[],
+  index: number
+): number {
+  return Number(
+    args[index]
+  );
+}
 
-  return Object.freeze({
-    power(on: boolean): void {
-      check();
-      requireSend(
-        execution,
+function booleanArg(
+  args: unknown[],
+  index: number
+): boolean {
+  return Boolean(
+    args[index]
+  );
+}
+
+function stringArg(
+  args: unknown[],
+  index: number
+): string {
+  return String(
+    args[index] ?? ""
+  );
+}
+
+function executeDccCommand(
+  method: ClientScriptWorkerDccMethod,
+  args: unknown[]
+): string | null {
+  switch (
+    method
+  ) {
+    case "power":
+      return requireSend(
         wsApi.setTrackPower(
-          Boolean(on)
+          booleanArg(
+            args,
+            0
+          )
         ),
         "dcc.power"
       );
-    },
 
-    programmingPower(on: boolean): void {
-      check();
-      requireSend(
-        execution,
+    case "programmingPower":
+      return requireSend(
         wsApi.setProgrammingPower(
-          Boolean(on)
+          booleanArg(
+            args,
+            0
+          )
         ),
         "dcc.programmingPower"
       );
-    },
 
-    emergencyStop(): void {
-      check();
-      requireSend(
-        execution,
+    case "emergencyStop":
+      return requireSend(
         wsApi.emergencyStop(),
         "dcc.emergencyStop"
       );
-    },
 
-    loco(
-      address: number,
-      speed: number,
-      direction: ScriptDirection = "forward"
-    ): void {
-      check();
+    case "loco": {
+      const direction =
+        args[2] === "reverse"
+          ? "reverse"
+          : "forward";
 
-      const locoAddress =
-        integer(
-          address,
-          1,
-          10239,
-          "Locomotive address"
-        );
-
-      const locoSpeed =
-        integer(
-          speed,
-          0,
-          126,
-          "Locomotive speed"
-        );
-
-      if (
-        direction !== "forward" &&
-        direction !== "reverse"
-      ) {
-        throw new Error(
-          'Direction must be "forward" or "reverse".'
-        );
-      }
-
-      requireSend(
-        execution,
+      return requireSend(
         wsApi.setLoco(
-          locoAddress,
-          locoSpeed,
+          numberArg(
+            args,
+            0
+          ),
+          numberArg(
+            args,
+            1
+          ),
           direction
         ),
         "dcc.loco"
       );
-    },
+    }
 
-    locoFunction(
-      address: number,
-      functionNumber: number,
-      active: boolean
-    ): void {
-      check();
-      requireSend(
-        execution,
+    case "locoFunction":
+      return requireSend(
         wsApi.setLocoFunction(
-          integer(
-            address,
-            1,
-            10239,
-            "Locomotive address"
+          numberArg(
+            args,
+            0
           ),
-          integer(
-            functionNumber,
-            0,
-            28,
-            "Function number"
+          numberArg(
+            args,
+            1
           ),
-          Boolean(active)
+          booleanArg(
+            args,
+            2
+          )
         ),
         "dcc.locoFunction"
       );
-    },
 
-    turnout(
-      address: number,
-      closed: boolean
-    ): void {
-      check();
-      requireSend(
-        execution,
+    case "turnout":
+      return requireSend(
         wsApi.setTurnout(
-          integer(
-            address,
-            1,
-            2048,
-            "Turnout address"
+          numberArg(
+            args,
+            0
           ),
-          Boolean(closed)
+          booleanArg(
+            args,
+            1
+          )
         ),
         "dcc.turnout"
       );
-    },
 
-    sensor(
-      address: number,
-      on: boolean
-    ): void {
-      check();
-      requireSend(
-        execution,
+    case "sensor":
+      return requireSend(
         wsApi.setSensor(
-          integer(
-            address,
-            1,
-            65535,
-            "Sensor address"
+          numberArg(
+            args,
+            0
           ),
-          Boolean(on)
+          booleanArg(
+            args,
+            1
+          )
         ),
         "dcc.sensor"
       );
-    },
 
-    accessory(
-      address: number,
-      active: boolean
-    ): void {
-      check();
-      requireSend(
-        execution,
+    case "accessory":
+      return requireSend(
         wsApi.setBasicAccessory(
-          integer(
-            address,
-            1,
-            2048,
-            "Accessory address"
+          numberArg(
+            args,
+            0
           ),
-          Boolean(active)
+          booleanArg(
+            args,
+            1
+          )
         ),
         "dcc.accessory"
       );
-    },
 
-    signal(
-      address: number,
-      aspect: number
-    ): void {
-      check();
-      requireSend(
-        execution,
+    case "signal":
+      return requireSend(
         wsApi.setSignalAspect(
-          integer(
-            address,
-            1,
-            2048,
-            "Signal address"
+          numberArg(
+            args,
+            0
           ),
-          integer(
-            aspect,
-            0,
-            255,
-            "Signal aspect"
+          numberArg(
+            args,
+            1
           )
         ),
         "dcc.signal"
       );
-    },
 
-    block(
-      blockId: string | number,
-      locoId: string | null,
-      locoAddress?: number
-    ): void {
-      check();
+    case "block": {
+      const rawLocoId =
+        args[1];
 
-      requireSend(
-        execution,
+      const locoId =
+        rawLocoId === null ||
+        rawLocoId === undefined
+          ? null
+          : String(
+              rawLocoId
+            );
+
+      const rawAddress =
+        args[2];
+
+      const locoAddress =
+        rawAddress === undefined
+          ? undefined
+          : Number(
+              rawAddress
+            );
+
+      return requireSend(
         wsApi.setBlock(
-          String(blockId),
+          stringArg(
+            args,
+            0
+          ),
           locoId,
-          locoAddress === undefined
-            ? undefined
-            : integer(
-                locoAddress,
-                1,
-                10239,
-                "Locomotive address"
-              )
+          locoAddress
         ),
         "dcc.block"
       );
-    },
+    }
 
-    clearBlock(
-      blockId: string | number,
-      locoId: string | null = null
-    ): void {
-      check();
-      requireSend(
-        execution,
+    case "clearBlock": {
+      const rawLocoId =
+        args[1];
+
+      const locoId =
+        rawLocoId === null ||
+        rawLocoId === undefined
+          ? null
+          : String(
+              rawLocoId
+            );
+
+      return requireSend(
         wsApi.setBlockRemove(
-          String(blockId),
+          stringArg(
+            args,
+            0
+          ),
           locoId
         ),
         "dcc.clearBlock"
       );
-    },
+    }
 
-    resetBlocks(): void {
-      check();
-      requireSend(
-        execution,
+    case "resetBlocks":
+      return requireSend(
         wsApi.setBlocksReset(),
         "dcc.resetBlocks"
       );
-    },
 
-    raw(command: string): void {
-      check();
-
-      const value =
-        String(command).trim();
-
-      if (!value) {
-        throw new Error(
-          "dcc.raw requires a DCC-EX command."
-        );
-      }
-
-      requireSend(
-        execution,
+    case "raw":
+      return requireSend(
         wsApi.writeDccExDirectCommand(
-          value
+          stringArg(
+            args,
+            0
+          )
         ),
         "dcc.raw"
       );
-    },
+  }
+}
+
+function handleDccCommand(
+  message:
+    Extract<
+      WorkerToMainMessage,
+      {
+        type: "dcc";
+      }
+    >
+): void {
+  const execution =
+    executions.get(
+      message.executionId
+    );
+
+  if (
+    !execution ||
+    execution.aborted
+  ) {
+    return;
+  }
+
+  let errorMessage:
+    string | null = null;
+
+  try {
+    errorMessage =
+      executeDccCommand(
+        message.method,
+        message.args
+      );
+  } catch (
+    error
+  ) {
+    errorMessage =
+      error instanceof Error
+        ? error.message
+        : String(error);
+  }
+
+  if (
+    !errorMessage
+  ) {
+    return;
+  }
+
+  execution.commandError =
+    errorMessage;
+
+  postToWorker({
+    type: "commandError",
+    executionId:
+      message.executionId,
+    message:
+      errorMessage,
   });
+}
+
+function finishExecution(
+  elementId: ClientScriptExecutionId
+): void {
+  executions.delete(
+    elementId
+  );
+
+  emitState(
+    elementId
+  );
+}
+
+function handleWorkerMessage(
+  message: WorkerToMainMessage
+): void {
+  const execution =
+    executions.get(
+      message.executionId
+    );
+
+  if (
+    message.type ===
+    "dcc"
+  ) {
+    handleDccCommand(
+      message
+    );
+
+    return;
+  }
+
+  if (
+    !execution
+  ) {
+    return;
+  }
+
+  if (
+    message.type ===
+    "log"
+  ) {
+    console.log(
+      `[ScriptButton ${execution.element.name || execution.element.id}]`,
+      ...message.values
+    );
+
+    return;
+  }
+
+  if (
+    message.type ===
+    "done"
+  ) {
+    if (
+      execution.commandError
+    ) {
+      const error =
+        new Error(
+          execution.commandError
+        );
+
+      lastErrors.set(
+        message.executionId,
+        error.message
+      );
+
+      execution.reject(
+        error
+      );
+    } else if (
+      execution.aborted
+    ) {
+      lastErrors.set(
+        message.executionId,
+        null
+      );
+
+      execution.reject(
+        new ScriptAbortError(
+          execution.abortReason ??
+            "Script aborted."
+        )
+      );
+    } else {
+      lastErrors.set(
+        message.executionId,
+        null
+      );
+
+      execution.resolve(
+        message.result
+      );
+    }
+
+    finishExecution(
+      message.executionId
+    );
+
+    return;
+  }
+
+  if (
+    message.type ===
+    "error"
+  ) {
+    if (
+      message.aborted ||
+      execution.aborted
+    ) {
+      lastErrors.set(
+        message.executionId,
+        execution.commandError
+          ? execution.commandError
+          : null
+      );
+
+      if (
+        execution.commandError
+      ) {
+        execution.reject(
+          new Error(
+            execution.commandError
+          )
+        );
+      } else {
+        execution.reject(
+          new ScriptAbortError(
+            execution.abortReason ??
+              message.message
+          )
+        );
+      }
+    } else {
+      const error =
+        new Error(
+          message.message
+        );
+
+      error.name =
+        message.name;
+
+      if (
+        message.stack
+      ) {
+        error.stack =
+          message.stack;
+      }
+
+      lastErrors.set(
+        message.executionId,
+        error.message
+      );
+
+      execution.reject(
+        error
+      );
+    }
+
+    finishExecution(
+      message.executionId
+    );
+  }
 }
 
 export function pauseClientScript(
   elementId: ClientScriptExecutionId
 ): boolean {
   const execution =
-    executions.get(elementId);
+    executions.get(
+      elementId
+    );
 
   if (
     !execution ||
     execution.aborted ||
-    execution.status === "paused"
+    execution.status ===
+      "paused"
   ) {
     return false;
   }
 
   execution.status =
     "paused";
+
+  postToWorker({
+    type: "pause",
+    executionId:
+      elementId,
+  });
 
   emitState(
     elementId
@@ -654,12 +839,15 @@ export function resumeClientScript(
   elementId: ClientScriptExecutionId
 ): boolean {
   const execution =
-    executions.get(elementId);
+    executions.get(
+      elementId
+    );
 
   if (
     !execution ||
     execution.aborted ||
-    execution.status !== "paused"
+    execution.status !==
+      "paused"
   ) {
     return false;
   }
@@ -667,19 +855,11 @@ export function resumeClientScript(
   execution.status =
     "running";
 
-  const waiters =
-    [
-      ...execution.pauseWaiters,
-    ];
-
-  execution.pauseWaiters.clear();
-
-  for (
-    const resolve of
-    waiters
-  ) {
-    resolve();
-  }
+  postToWorker({
+    type: "resume",
+    executionId:
+      elementId,
+  });
 
   emitState(
     elementId
@@ -694,7 +874,9 @@ export function abortClientScript(
     "Script aborted by user."
 ): boolean {
   const execution =
-    executions.get(elementId);
+    executions.get(
+      elementId
+    );
 
   if (
     !execution ||
@@ -709,36 +891,12 @@ export function abortClientScript(
   execution.abortReason =
     reason;
 
-  const error =
-    abortError(execution);
-
-  const abortWaiters =
-    [
-      ...execution.abortWaiters,
-    ];
-
-  execution.abortWaiters.clear();
-
-  for (
-    const reject of
-    abortWaiters
-  ) {
-    reject(error);
-  }
-
-  const pauseWaiters =
-    [
-      ...execution.pauseWaiters,
-    ];
-
-  execution.pauseWaiters.clear();
-
-  for (
-    const resolve of
-    pauseWaiters
-  ) {
-    resolve();
-  }
+  postToWorker({
+    type: "abort",
+    executionId:
+      elementId,
+    reason,
+  });
 
   emitState(
     elementId
@@ -751,7 +909,9 @@ export async function runClientScript(
   script: string,
   element: ClientScriptElementContext
 ): Promise<unknown> {
-  if (!script.trim()) {
+  if (
+    !script.trim()
+  ) {
     return undefined;
   }
 
@@ -765,119 +925,86 @@ export async function runClientScript(
     );
   }
 
-  const execution:
-    ExecutionControl = {
-      element: {
-        ...element,
-      },
-      status: "running",
-      startedAt: Date.now(),
-      aborted: false,
-      abortReason: null,
-      pauseWaiters:
-        new Set(),
-      abortWaiters:
-        new Set(),
-    };
+  const worker =
+    ensureWorker();
 
-  executions.set(
-    element.id,
-    execution
-  );
+  return await new Promise<unknown>(
+    (
+      resolve,
+      reject
+    ) => {
+      const execution:
+        ExecutionControl = {
+          element: {
+            ...element,
+          },
+          status: "running",
+          startedAt: Date.now(),
+          aborted: false,
+          abortReason: null,
+          commandError: null,
+          resolve,
+          reject,
+        };
 
-  lastErrors.set(
-    element.id,
-    null
-  );
-
-  emitState(
-    element.id
-  );
-
-  const dcc =
-    createDccApi(
-      execution
-    );
-
-  const delay = (
-    ms: number
-  ): Promise<void> =>
-    controlledDelay(
-      execution,
-      ms
-    );
-
-  const log = (
-    ...values: unknown[]
-  ): void => {
-    assertNotAborted(
-      execution
-    );
-
-    console.log(
-      `[ScriptButton ${element.name || element.id}]`,
-      ...values
-    );
-  };
-
-  const safeElement =
-    Object.freeze({
-      ...element,
-    });
-
-  try {
-    const fn =
-      new AsyncFunction(
-        "dcc",
-        "delay",
-        "log",
-        "element",
-        `"use strict";
-${script}
-//# sourceURL=dcc-express-script-${String(element.id).replace(/[^a-zA-Z0-9_-]/g, "_")}.js`
+      executions.set(
+        element.id,
+        execution
       );
 
-    const result =
-      await fn(
-        dcc,
-        delay,
-        log,
-        safeElement
-      );
-
-    assertNotAborted(
-      execution
-    );
-
-    return result;
-  } catch (error) {
-    if (
-      error instanceof
-      ScriptAbortError
-    ) {
       lastErrors.set(
         element.id,
         null
       );
 
-      throw error;
+      emitState(
+        element.id
+      );
+
+      const message:
+        MainToWorkerMessage = {
+          type: "start",
+          executionId:
+            element.id,
+          script,
+          element: {
+            ...element,
+          },
+        };
+
+      try {
+        worker.postMessage(
+          message
+        );
+      } catch (
+        error
+      ) {
+        executions.delete(
+          element.id
+        );
+
+        const sendError =
+          error instanceof Error
+            ? error
+            : new Error(
+                String(
+                  error
+                )
+              );
+
+        lastErrors.set(
+          element.id,
+          sendError.message
+        );
+
+        emitState(
+          element.id
+        );
+
+        reject(
+          sendError
+        );
+      }
     }
-
-    lastErrors.set(
-      element.id,
-      error instanceof Error
-        ? error.message
-        : String(error)
-    );
-
-    throw error;
-  } finally {
-    executions.delete(
-      element.id
-    );
-
-    emitState(
-      element.id
-    );
-  }
+  );
 }
