@@ -9,8 +9,8 @@ void HubDisplay::begin() {
       2);
 
   _display.setTextColor(
-      MiniIli9342Display::WHITE,
-      MiniIli9342Display::BLACK);
+      HubDisplayDevice::WHITE,
+      HubDisplayDevice::BLACK);
 
   _initialized =
       true;

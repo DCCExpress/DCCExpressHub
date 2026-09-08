@@ -36,6 +36,60 @@ bool valueFitsSignal(
       mask;
 }
 
+bool keyAllowed(
+    const char* key,
+    const char* const* allowed,
+    size_t count) {
+  if (!key) {
+    return false;
+  }
+
+  for (
+      size_t index = 0;
+      index < count;
+      ++index
+  ) {
+    if (
+        strcmp(
+            key,
+            allowed[index]) ==
+        0
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+void warnUnknownKeys(
+    JsonObjectConst object,
+    const char* const* allowed,
+    size_t count,
+    const String& context) {
+  for (
+      JsonPairConst pair :
+      object
+  ) {
+    const char* key =
+        pair.key().c_str();
+
+    if (
+        !keyAllowed(
+            key,
+            allowed,
+            count)
+    ) {
+      Logger::warn(
+          "SignalAutomation: " +
+          context +
+          " unknown field \"" +
+          String(key) +
+          "\" ignored");
+    }
+  }
+}
+
 }
 
 SignalAutomationEngine::SignalAutomationEngine(
@@ -79,28 +133,72 @@ bool SignalAutomationEngine::begin(
 bool SignalAutomationEngine::parseSignal(
     JsonObjectConst row,
     std::vector<SignalRuleSet>& signals) const {
+  static const char* const SIGNAL_KEYS[] = {
+      "kind",
+      "id",
+      "address",
+      "mode",
+      "outputs",
+      "default",
+      "rules"
+  };
+
+  warnUnknownKeys(
+      row,
+      SIGNAL_KEYS,
+      sizeof(SIGNAL_KEYS) /
+          sizeof(SIGNAL_KEYS[0]),
+      "signal");
+
+  uint16_t signalId =
+      0;
+
   const long rawId =
       row["id"] |
       0L;
 
   if (
-      rawId <= 0 ||
-      rawId > 0xffff
+      rawId > 0 &&
+      rawId <= 0xffff
   ) {
-    return false;
+    signalId =
+        static_cast<uint16_t>(
+            rawId);
+  } else {
+    const long legacyAddress =
+        row["address"] |
+        0L;
+
+    if (
+        legacyAddress > 0 &&
+        legacyAddress <= 0xffff
+    ) {
+      RuntimeAccessory* runtimeSignal =
+          _runtime.findAccessory(
+              RuntimeAccessoryKind::Signal,
+              static_cast<uint16_t>(
+                  legacyAddress));
+
+      if (runtimeSignal) {
+        signalId =
+            runtimeSignal->id;
+
+        Logger::warn(
+            "SignalAutomation: legacy signal address " +
+            String(
+                legacyAddress) +
+            " mapped to layout id " +
+            String(
+                signalId));
+      }
+    }
   }
 
-  for (
-      const auto& existing :
-      signals
-  ) {
-    if (
-        existing.signalId ==
-        static_cast<uint16_t>(
-            rawId)
-    ) {
-      return false;
-    }
+  if (signalId == 0) {
+    Logger::warn(
+        "SignalAutomation: signal row has no usable id/address and was skipped");
+
+    return false;
   }
 
   const char* mode =
@@ -115,14 +213,21 @@ bool SignalAutomationEngine::parseSignal(
           mode,
           "basic") != 0
   ) {
+    Logger::warn(
+        "SignalAutomation: signal id " +
+        String(
+            signalId) +
+        " has unsupported mode \"" +
+        String(mode) +
+        "\" and was skipped");
+
     return false;
   }
 
   SignalRuleSet signal;
 
   signal.signalId =
-      static_cast<uint16_t>(
-          rawId);
+      signalId;
 
   signal.extended =
       strcmp(
@@ -130,7 +235,7 @@ bool SignalAutomationEngine::parseSignal(
           "extended") ==
       0;
 
-  const int rawOutputs =
+  int rawOutputs =
       row["outputs"] |
       1;
 
@@ -138,7 +243,20 @@ bool SignalAutomationEngine::parseSignal(
       rawOutputs < 1 ||
       rawOutputs > 16
   ) {
-    return false;
+    Logger::warn(
+        "SignalAutomation: signal id " +
+        String(
+            signalId) +
+        " outputs=" +
+        String(
+            rawOutputs) +
+        " clamped to supported range 1..16");
+
+    rawOutputs =
+        constrain(
+            rawOutputs,
+            1,
+            16);
   }
 
   signal.outputs =
@@ -155,6 +273,15 @@ bool SignalAutomationEngine::parseSignal(
           signal.outputs,
           defaultValue)
   ) {
+    Logger::warn(
+        "SignalAutomation: signal id " +
+        String(
+            signalId) +
+        " has invalid default value " +
+        String(
+            defaultValue) +
+        " and was skipped");
+
     return false;
   }
 
@@ -162,31 +289,66 @@ bool SignalAutomationEngine::parseSignal(
       static_cast<int32_t>(
           defaultValue);
 
+  JsonArrayConst rules;
+
   if (
-      !row["rules"]
-           .is<JsonArray>()
+      row["rules"]
+          .is<JsonArray>()
   ) {
-    return false;
+    rules =
+        row["rules"]
+            .as<JsonArrayConst>();
+  } else {
+    Logger::warn(
+        "SignalAutomation: signal id " +
+        String(
+            signalId) +
+        " has no valid rules array; using empty rule list");
   }
 
-  const JsonArrayConst rules =
-      row["rules"]
-          .as<JsonArrayConst>();
+  size_t ruleIndex =
+      0;
 
   for (
       JsonVariantConst rawRuleVariant :
       rules
   ) {
+    ++ruleIndex;
+
     if (
         !rawRuleVariant
              .is<JsonObject>()
     ) {
-      return false;
+      Logger::warn(
+          "SignalAutomation: signal id " +
+          String(
+              signalId) +
+          " rule " +
+          String(
+              ruleIndex) +
+          " is not an object and was skipped");
+
+      continue;
     }
 
     const JsonObjectConst rawRule =
         rawRuleVariant
             .as<JsonObjectConst>();
+
+    static const char* const RULE_KEYS[] = {
+        "value",
+        "conditions"
+    };
+
+    warnUnknownKeys(
+        rawRule,
+        RULE_KEYS,
+        sizeof(RULE_KEYS) /
+            sizeof(RULE_KEYS[0]),
+        "signal id " +
+            String(signalId) +
+            " rule " +
+            String(ruleIndex));
 
     const long rawValue =
         rawRule["value"] |
@@ -198,14 +360,19 @@ bool SignalAutomationEngine::parseSignal(
             signal.outputs,
             rawValue)
     ) {
-      return false;
-    }
+      Logger::warn(
+          "SignalAutomation: signal id " +
+          String(
+              signalId) +
+          " rule " +
+          String(
+              ruleIndex) +
+          " has invalid value " +
+          String(
+              rawValue) +
+          " and was skipped");
 
-    if (
-        !rawRule["conditions"]
-             .is<JsonArray>()
-    ) {
-      return false;
+      continue;
     }
 
     Rule rule;
@@ -214,19 +381,52 @@ bool SignalAutomationEngine::parseSignal(
         static_cast<int32_t>(
             rawValue);
 
-    const JsonArrayConst conditions =
+    JsonArrayConst conditions;
+
+    if (
         rawRule["conditions"]
-            .as<JsonArrayConst>();
+            .is<JsonArray>()
+    ) {
+      conditions =
+          rawRule["conditions"]
+              .as<JsonArrayConst>();
+    } else {
+      Logger::warn(
+          "SignalAutomation: signal id " +
+          String(
+              signalId) +
+          " rule " +
+          String(
+              ruleIndex) +
+          " has no valid conditions array; treating it as unconditional");
+    }
+
+    size_t conditionIndex =
+        0;
 
     for (
         JsonVariantConst rawConditionVariant :
         conditions
     ) {
+      ++conditionIndex;
+
       if (
           !rawConditionVariant
                .is<JsonArray>()
       ) {
-        return false;
+        Logger::warn(
+            "SignalAutomation: signal id " +
+            String(
+                signalId) +
+            " rule " +
+            String(
+                ruleIndex) +
+            " condition " +
+            String(
+                conditionIndex) +
+            " is not an array and was skipped");
+
+        continue;
       }
 
       const JsonArrayConst rawCondition =
@@ -235,72 +435,226 @@ bool SignalAutomationEngine::parseSignal(
 
       if (
           rawCondition.size() !=
-          4
+              4 &&
+          rawCondition.size() !=
+              3
       ) {
-        return false;
+        Logger::warn(
+            "SignalAutomation: signal id " +
+            String(
+                signalId) +
+            " rule " +
+            String(
+                ruleIndex) +
+            " condition " +
+            String(
+                conditionIndex) +
+            " has unsupported shape and was skipped");
+
+        continue;
       }
 
       const char* source =
           rawCondition[0] |
           "";
 
-      const long conditionId =
-          rawCondition[1] |
-          0L;
-
-      const int channel =
-          rawCondition[2] |
-          0;
-
-      const int value =
-          rawCondition[3] |
-          0;
-
-      if (
-          conditionId <= 0 ||
-          conditionId > 0xffff ||
-          channel < 0 ||
-          channel > 1 ||
-          (
-              value != 0 &&
-              value != 1
-          )
-      ) {
-        return false;
-      }
-
       Condition condition;
 
       if (
-          strcmp(
-              source,
-              "turnout") ==
-          0
+          rawCondition.size() ==
+          4
       ) {
-        condition.source =
-            Condition::Source::Turnout;
-      } else if (
-          strcmp(
-              source,
-              "sensor") ==
-          0
-      ) {
-        condition.source =
-            Condition::Source::Sensor;
+        const long conditionId =
+            rawCondition[1] |
+            0L;
+
+        const int channel =
+            rawCondition[2] |
+            0;
+
+        const int value =
+            rawCondition[3] |
+            0;
+
+        if (
+            conditionId <= 0 ||
+            conditionId > 0xffff ||
+            channel < 0 ||
+            channel > 1 ||
+            (
+                value != 0 &&
+                value != 1
+            )
+        ) {
+          Logger::warn(
+              "SignalAutomation: signal id " +
+              String(
+                  signalId) +
+              " rule " +
+              String(
+                  ruleIndex) +
+              " condition " +
+              String(
+                  conditionIndex) +
+              " contains invalid values and was skipped");
+
+          continue;
+        }
+
+        if (
+            strcmp(
+                source,
+                "turnout") ==
+            0
+        ) {
+          condition.source =
+              Condition::Source::Turnout;
+        } else if (
+            strcmp(
+                source,
+                "sensor") ==
+            0
+        ) {
+          condition.source =
+              Condition::Source::Sensor;
+        } else {
+          Logger::warn(
+              "SignalAutomation: signal id " +
+              String(
+                  signalId) +
+              " rule " +
+              String(
+                  ruleIndex) +
+              " condition " +
+              String(
+                  conditionIndex) +
+              " has unsupported source \"" +
+              String(source) +
+              "\" and was skipped");
+
+          continue;
+        }
+
+        condition.id =
+            static_cast<uint16_t>(
+                conditionId);
+
+        condition.channel =
+            static_cast<uint8_t>(
+                channel);
+
+        condition.value =
+            value != 0;
       } else {
-        return false;
+        const long legacyAddress =
+            rawCondition[1] |
+            0L;
+
+        const int value =
+            rawCondition[2] |
+            0;
+
+        if (
+            legacyAddress <= 0 ||
+            legacyAddress > 0xffff ||
+            (
+                value != 0 &&
+                value != 1
+            )
+        ) {
+          Logger::warn(
+              "SignalAutomation: signal id " +
+              String(
+                  signalId) +
+              " rule " +
+              String(
+                  ruleIndex) +
+              " legacy condition " +
+              String(
+                  conditionIndex) +
+              " contains invalid values and was skipped");
+
+          continue;
+        }
+
+        if (
+            strcmp(
+                source,
+                "sensor") ==
+            0
+        ) {
+          RuntimeSensor* sensor =
+              _runtime.findSensor(
+                  static_cast<uint16_t>(
+                      legacyAddress));
+
+          if (!sensor) {
+            Logger::warn(
+                "SignalAutomation: legacy sensor address " +
+                String(
+                    legacyAddress) +
+                " was not found and the condition was skipped");
+
+            continue;
+          }
+
+          condition.source =
+              Condition::Source::Sensor;
+
+          condition.id =
+              sensor->id;
+
+          condition.channel =
+              0;
+
+          condition.value =
+              value != 0;
+        } else if (
+            strcmp(
+                source,
+                "turnout") ==
+            0
+        ) {
+          RuntimeAccessory* turnout =
+              _runtime.findAccessory(
+                  RuntimeAccessoryKind::Turnout,
+                  static_cast<uint16_t>(
+                      legacyAddress));
+
+          if (!turnout) {
+            Logger::warn(
+                "SignalAutomation: legacy turnout address " +
+                String(
+                    legacyAddress) +
+                " was not found and the condition was skipped");
+
+            continue;
+          }
+
+          condition.source =
+              Condition::Source::Turnout;
+
+          condition.id =
+              turnout->id;
+
+          condition.channel =
+              turnout->channel;
+
+          const bool physicalValue =
+              value != 0;
+
+          condition.value =
+              physicalValue ==
+              turnout->closedValue;
+        } else {
+          Logger::warn(
+              "SignalAutomation: legacy condition source \"" +
+              String(source) +
+              "\" is unsupported and was skipped");
+
+          continue;
+        }
       }
-
-      condition.id =
-          static_cast<uint16_t>(
-              conditionId);
-
-      condition.channel =
-          static_cast<uint8_t>(
-              channel);
-
-      condition.value =
-          value != 0;
 
       rule.conditions
           .push_back(
@@ -312,6 +666,28 @@ bool SignalAutomationEngine::parseSignal(
         .push_back(
             std::move(
                 rule));
+  }
+
+  for (
+      auto& existing :
+      signals
+  ) {
+    if (
+        existing.signalId ==
+        signal.signalId
+    ) {
+      Logger::warn(
+          "SignalAutomation: duplicate signal id " +
+          String(
+              signal.signalId) +
+          "; later definition wins");
+
+      existing =
+          std::move(
+              signal);
+
+      return true;
+    }
   }
 
   signals.push_back(
@@ -344,21 +720,23 @@ bool SignalAutomationEngine::parseFile(
     return false;
   }
 
-  bool metaSeen =
+  bool parsedEnabled =
       false;
 
-  bool parsedEnabled =
+  bool recognizedAny =
       false;
 
   std::vector<SignalRuleSet>
       parsedSignals;
 
-  bool valid =
-      true;
+  size_t lineNumber =
+      0;
 
   while (
       file.available()
   ) {
+    ++lineNumber;
+
     String line =
         file.readStringUntil(
             '\n');
@@ -382,10 +760,13 @@ bool SignalAutomationEngine::parseFile(
         error ||
         !row.is<JsonObject>()
     ) {
-      valid =
-          false;
+      Logger::warn(
+          "SignalAutomation: line " +
+          String(
+              lineNumber) +
+          " is not valid JSON object and was skipped");
 
-      break;
+      continue;
     }
 
     const JsonObjectConst object =
@@ -401,50 +782,69 @@ bool SignalAutomationEngine::parseFile(
             "meta") ==
         0
     ) {
-      if (
-          metaSeen ||
-          (object["version"] | 0) != 2
-      ) {
-        valid =
-            false;
+      static const char* const META_KEYS[] = {
+          "kind",
+          "enabled",
+          "version"
+      };
 
-        break;
+      warnUnknownKeys(
+          object,
+          META_KEYS,
+          sizeof(META_KEYS) /
+              sizeof(META_KEYS[0]),
+          "meta");
+
+      if (
+          object.containsKey(
+              "version")
+      ) {
+        Logger::warn(
+            "SignalAutomation: legacy meta version field ignored");
       }
 
       parsedEnabled =
           object["enabled"] |
           false;
 
-      metaSeen =
+      recognizedAny =
           true;
 
       continue;
     }
 
     if (
-        !metaSeen ||
         strcmp(
             kind,
-            "signal") !=
-            0 ||
-        !parseSignal(
-            object,
-            parsedSignals)
+            "signal") ==
+        0
     ) {
-      valid =
-          false;
+      if (
+          parseSignal(
+              object,
+              parsedSignals)
+      ) {
+        recognizedAny =
+            true;
+      }
 
-      break;
+      continue;
     }
+
+    Logger::warn(
+        "SignalAutomation: line " +
+        String(
+            lineNumber) +
+        " has unknown kind \"" +
+        String(kind) +
+        "\" and was skipped");
   }
 
   file.close();
 
-  if (
-      !valid ||
-      !metaSeen
-  ) {
-    return false;
+  if (!recognizedAny) {
+    Logger::warn(
+        "SignalAutomation: no recognized rows found; automation remains disabled");
   }
 
   enabled =
@@ -508,7 +908,7 @@ bool SignalAutomationEngine::reload() {
           parsedSignals)
   ) {
     Logger::error(
-        "SignalAutomation: invalid NDJSON");
+        "SignalAutomation: rule file could not be opened");
 
     return false;
   }

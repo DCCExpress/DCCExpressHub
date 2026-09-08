@@ -6,8 +6,24 @@
 #define HUB_USE_DISPLAY 0
 #endif
 
+#ifndef HUB_DISPLAY_M5STACK_BASIC
+#define HUB_DISPLAY_M5STACK_BASIC 0
+#endif
+
+#ifndef HUB_DISPLAY_CYD_2432S028
+#define HUB_DISPLAY_CYD_2432S028 0
+#endif
+
 #if HUB_USE_DISPLAY
-#include "MiniIli9342Display.h"
+  #if HUB_DISPLAY_CYD_2432S028
+    #include "CydIli9341Display.h"
+    using HubDisplayDevice = CydIli9341Display;
+  #elif HUB_DISPLAY_M5STACK_BASIC
+    #include "MiniIli9342Display.h"
+    using HubDisplayDevice = MiniIli9342Display;
+  #else
+    #error "HUB_USE_DISPLAY=1 requires a supported HUB_DISPLAY_* target"
+  #endif
 #endif
 
 class HubDisplay {
@@ -34,7 +50,7 @@ public:
 
 private:
 #if HUB_USE_DISPLAY
-  MiniIli9342Display _display;
+  HubDisplayDevice _display;
 
   String _ip;
   uint16_t _httpPort = 80;
