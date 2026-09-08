@@ -66,7 +66,7 @@ void HubDisplay::showWifiConnecting(
       ssid);
 
 #if HUB_DISPLAY_CYD_2432S028
-  redrawEmergencyButton();
+  redrawControlButtons();
 #endif
 }
 
@@ -141,11 +141,27 @@ void HubDisplay::showEmergencyStopActive(
       active;
 
 #if HUB_DISPLAY_CYD_2432S028
-  // Do NOT mark the whole display dirty. The emergency button has a fixed
-  // rectangle, so repainting only that region avoids the visible full-screen
-  // clear/redraw flicker.
   if (_initialized) {
     redrawEmergencyButton();
+  }
+#endif
+}
+
+void HubDisplay::showPowerActive(
+    bool active) {
+  if (
+      _powerActive ==
+      active
+  ) {
+    return;
+  }
+
+  _powerActive =
+      active;
+
+#if HUB_DISPLAY_CYD_2432S028
+  if (_initialized) {
+    redrawPowerButton();
   }
 #endif
 }
@@ -160,18 +176,39 @@ bool HubDisplay::takeEmergencyStopRequest() {
   return pending;
 }
 
+bool HubDisplay::takePowerToggleRequest() {
+  const bool pending =
+      _powerToggleRequest;
+
+  _powerToggleRequest =
+      false;
+
+  return pending;
+}
+
 void HubDisplay::loop() {
   if (!_initialized) {
     return;
   }
 
 #if HUB_DISPLAY_CYD_2432S028
-  if (
+  switch (
       _display
-          .takeEmergencyButtonPress()
+          .takeButtonPress()
   ) {
-    _emergencyStopRequest =
-        true;
+    case CydIli9341Display::TouchButton::Emergency:
+      _emergencyStopRequest =
+          true;
+      break;
+
+    case CydIli9341Display::TouchButton::Power:
+      _powerToggleRequest =
+          true;
+      break;
+
+    case CydIli9341Display::TouchButton::None:
+    default:
+      break;
   }
 #endif
 
@@ -186,10 +223,28 @@ void HubDisplay::loop() {
 
 void HubDisplay::redrawEmergencyButton() {
   _display.drawEmergencyButton(
-      "EMERGENCY STOP",
+      _emergencyStopActive
+          ? "RESUME"
+          : "E-STOP",
       _emergencyStopActive
           ? HubDisplayDevice::RED
           : HubDisplayDevice::DARK_GREY);
+}
+
+void HubDisplay::redrawPowerButton() {
+  _display.drawPowerButton(
+      "POWER",
+      _powerActive
+          ? HubDisplayDevice::LIME
+          : HubDisplayDevice::DARK_GREY,
+      _powerActive
+          ? HubDisplayDevice::BLACK
+          : HubDisplayDevice::WHITE);
+}
+
+void HubDisplay::redrawControlButtons() {
+  redrawEmergencyButton();
+  redrawPowerButton();
 }
 
 #endif
@@ -221,14 +276,6 @@ void HubDisplay::redraw() {
   _display.println();
 
   _display.print(
-      "IP: ");
-
-  _display.println(
-      _ip.length()
-          ? _ip
-          : String("-"));
-
-  _display.print(
       "WEB: ");
 
   if (
@@ -255,10 +302,24 @@ void HubDisplay::redraw() {
   _display.print(
       "CC: ");
 
+#if HUB_DISPLAY_CYD_2432S028
+  _display.setTextColor(
+      _ccConnected
+          ? HubDisplayDevice::LIME
+          : HubDisplayDevice::RED,
+      HubDisplayDevice::BLACK);
+#endif
+
   _display.println(
       _ccConnected
           ? "CONNECTED"
-          : "OFFLINE");
+          : "DISCONNECTED");
+
+#if HUB_DISPLAY_CYD_2432S028
+  _display.setTextColor(
+      HubDisplayDevice::WHITE,
+      HubDisplayDevice::BLACK);
+#endif
 
   _display.print(
       "HOST: ");
@@ -279,7 +340,7 @@ void HubDisplay::redraw() {
   }
 
 #if HUB_DISPLAY_CYD_2432S028
-  redrawEmergencyButton();
+  redrawControlButtons();
 #endif
 }
 
@@ -306,9 +367,16 @@ void HubDisplay::showCommandCenter(
 void HubDisplay::showEmergencyStopActive(
     bool) {}
 
+void HubDisplay::showPowerActive(
+    bool) {}
+
 void HubDisplay::loop() {}
 
 bool HubDisplay::takeEmergencyStopRequest() {
+  return false;
+}
+
+bool HubDisplay::takePowerToggleRequest() {
   return false;
 }
 

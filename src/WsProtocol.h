@@ -33,15 +33,83 @@ public:
     return _emergencyStop;
   }
 
-  // Shared emergency-stop entry point for hardware/display controls.
-  // It uses the same command-center abstraction and updates the same
-  // powerInfo emergencyStop state that WebSocket clients see.
+  bool trackPowerOn() const {
+    return _trackPower;
+  }
+
+  // Shared track-power toggle for hardware/display controls.
+  // The actual state remains feedback-driven; DCC-EX/Z21 power feedback will
+  // update _trackPower and the CYD LED colour on the next loop.
+  bool triggerTrackPowerToggle() {
+    return
+        _commandCenter
+            .setTrackPower(
+                !_trackPower,
+                _powerIncludesProgramming);
+  }
+
+  // Pull the authoritative pause state from command centers that expose one.
+  // This also repairs the legacy WsProtocol.cpp behaviour that can briefly
+  // clear _emergencyStop on power/loco feedback.
+  void syncEmergencyStopState() {
+    if (
+        !_commandCenter
+             .emergencyPauseStateKnown()
+    ) {
+      return;
+    }
+
+    const bool active =
+        _commandCenter
+            .emergencyPaused();
+
+    if (
+        _emergencyStop ==
+        active
+    ) {
+      return;
+    }
+
+    _emergencyStop =
+        active;
+
+    broadcastPowerInfo();
+  }
+
+  // Shared E-STOP toggle entry point for hardware/display controls.
+  //
+  // DCC-EX:
+  //   inactive -> <!P>
+  //   active   -> <!> then <!R>
+  //
+  // Other command centers may implement their own safe toggle semantics.
   bool triggerEmergencyStop() {
     if (
         !_commandCenter
              .emergencyStop()
     ) {
       return false;
+    }
+
+    if (
+        _commandCenter
+            .emergencyPauseStateKnown()
+    ) {
+      const bool active =
+          _commandCenter
+              .emergencyPaused();
+
+      if (
+          _emergencyStop !=
+          active
+      ) {
+        _emergencyStop =
+            active;
+
+        broadcastPowerInfo();
+      }
+
+      return true;
     }
 
     _emergencyStop =

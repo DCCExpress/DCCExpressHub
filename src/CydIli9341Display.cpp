@@ -138,27 +138,32 @@ void CydIli9341Display::println(
       value);
 }
 
-void CydIli9341Display::drawEmergencyButton(
+void CydIli9341Display::drawButton(
+    int16_t x,
+    int16_t y,
+    int16_t width,
+    int16_t height,
     const char* label,
-    uint16_t fillColor) {
+    uint16_t fillColor,
+    uint16_t textColor) {
   const char* text =
       label
           ? label
-          : "EMERGENCY STOP";
+          : "";
 
   _tft.fillRoundRect(
-      EMERGENCY_X,
-      EMERGENCY_Y,
-      EMERGENCY_W,
-      EMERGENCY_H,
+      x,
+      y,
+      width,
+      height,
       6,
       fillColor);
 
   _tft.drawRoundRect(
-      EMERGENCY_X,
-      EMERGENCY_Y,
-      EMERGENCY_W,
-      EMERGENCY_H,
+      x,
+      y,
+      width,
+      height,
       6,
       WHITE);
 
@@ -166,7 +171,7 @@ void CydIli9341Display::drawEmergencyButton(
       2);
 
   _tft.setTextColor(
-      WHITE,
+      textColor,
       fillColor);
 
   int16_t x1 = 0;
@@ -183,30 +188,61 @@ void CydIli9341Display::drawEmergencyButton(
       &textWidth,
       &textHeight);
 
-  const int16_t x =
-      EMERGENCY_X +
+  const int16_t textX =
+      x +
       (
-          EMERGENCY_W -
+          width -
           static_cast<int16_t>(
               textWidth)
       ) /
           2;
 
-  const int16_t y =
-      EMERGENCY_Y +
+  const int16_t textY =
+      y +
       (
-          EMERGENCY_H -
+          height -
           static_cast<int16_t>(
               textHeight)
       ) /
           2;
 
   _tft.setCursor(
-      x,
-      y);
+      textX,
+      textY);
 
   _tft.print(
       text);
+}
+
+void CydIli9341Display::drawEmergencyButton(
+    const char* label,
+    uint16_t fillColor) {
+  drawButton(
+      EMERGENCY_X,
+      BUTTON_Y,
+      EMERGENCY_W,
+      BUTTON_H,
+      label
+          ? label
+          : "E-STOP",
+      fillColor,
+      WHITE);
+}
+
+void CydIli9341Display::drawPowerButton(
+    const char* label,
+    uint16_t fillColor,
+    uint16_t textColor) {
+  drawButton(
+      POWER_X,
+      BUTTON_Y,
+      POWER_W,
+      BUTTON_H,
+      label
+          ? label
+          : "POWER",
+      fillColor,
+      textColor);
 }
 
 int16_t CydIli9341Display::bestTwoAverage(
@@ -450,33 +486,86 @@ bool CydIli9341Display::mapTouchToScreen(
   return true;
 }
 
-bool CydIli9341Display::takeEmergencyButtonPress() {
+CydIli9341Display::TouchButton
+CydIli9341Display::takeButtonPress() {
+  const unsigned long now =
+      millis();
+
   const bool irqDown =
       digitalRead(
           TOUCH_IRQ) ==
       LOW;
 
   if (!irqDown) {
+    _touchPressCandidateAt =
+        0;
+
+    if (!_touchWasDown) {
+      _touchReleaseCandidateAt =
+          0;
+
+      return TouchButton::None;
+    }
+
+    if (
+        _touchReleaseCandidateAt ==
+        0
+    ) {
+      _touchReleaseCandidateAt =
+          now;
+
+      return TouchButton::None;
+    }
+
+    if (
+        now -
+            _touchReleaseCandidateAt <
+        TOUCH_RELEASE_DEBOUNCE_MS
+    ) {
+      return TouchButton::None;
+    }
+
     _touchWasDown =
         false;
 
-    return false;
+    _touchReleaseCandidateAt =
+        0;
+
+    return TouchButton::None;
   }
 
-  // One event per physical touch/release cycle.
+  // Any brief HIGH pulse before this point was touch chatter, not a release.
+  _touchReleaseCandidateAt =
+      0;
+
   if (_touchWasDown) {
-    return false;
+    return TouchButton::None;
   }
 
-  const unsigned long now =
-      millis();
+  if (
+      _touchPressCandidateAt ==
+      0
+  ) {
+    _touchPressCandidateAt =
+        now;
+
+    return TouchButton::None;
+  }
+
+  if (
+      now -
+          _touchPressCandidateAt <
+      TOUCH_PRESS_DEBOUNCE_MS
+  ) {
+    return TouchButton::None;
+  }
 
   if (
       now -
           _lastTouchSampleAt <
       TOUCH_SAMPLE_INTERVAL_MS
   ) {
-    return false;
+    return TouchButton::None;
   }
 
   _lastTouchSampleAt =
@@ -492,11 +581,16 @@ bool CydIli9341Display::takeEmergencyButtonPress() {
           rawY,
           pressure)
   ) {
-    return false;
+    return TouchButton::None;
   }
 
+  // Consume this physical touch once. It will not re-arm until the stable
+  // 120 ms release period completes.
   _touchWasDown =
       true;
+
+  _touchPressCandidateAt =
+      0;
 
   int16_t x = 0;
   int16_t y = 0;
@@ -507,33 +601,50 @@ bool CydIli9341Display::takeEmergencyButtonPress() {
       x,
       y);
 
-  const bool inside =
+  const bool inButtonRow =
+      y >=
+          BUTTON_Y &&
+      y <
+          BUTTON_Y +
+              BUTTON_H;
+
+  if (!inButtonRow) {
+    return TouchButton::None;
+  }
+
+  if (
       x >=
           EMERGENCY_X &&
       x <
           EMERGENCY_X +
-              EMERGENCY_W &&
-      y >=
-          EMERGENCY_Y &&
-      y <
-          EMERGENCY_Y +
-              EMERGENCY_H;
-
-  if (inside) {
+              EMERGENCY_W
+  ) {
     Logger::warn(
         "CYD E-STOP touch x=" +
         String(x) +
         " y=" +
-        String(y) +
-        " raw=" +
-        String(rawX) +
-        "," +
-        String(rawY) +
-        " z=" +
-        String(pressure));
+        String(y));
+
+    return TouchButton::Emergency;
   }
 
-  return inside;
+  if (
+      x >=
+          POWER_X &&
+      x <
+          POWER_X +
+              POWER_W
+  ) {
+    Logger::info(
+        "CYD POWER touch x=" +
+        String(x) +
+        " y=" +
+        String(y));
+
+    return TouchButton::Power;
+  }
+
+  return TouchButton::None;
 }
 
 #endif

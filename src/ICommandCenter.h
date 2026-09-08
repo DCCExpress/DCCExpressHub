@@ -142,7 +142,22 @@ public:
   virtual bool setProgrammingPower(
       bool on) = 0;
 
+  // Emergency control is intentionally a single toggle operation at the
+  // Hub boundary. Concrete command-center wrappers may implement this as a
+  // latched pause/resume pair (DCC-EX) or as a non-latched emergency stop
+  // with a local release state (Z21).
   virtual bool emergencyStop() = 0;
+
+  // Some command centers can expose an authoritative latched emergency/pause
+  // state. Generic callers should only trust emergencyPaused() when this
+  // returns true.
+  virtual bool emergencyPauseStateKnown() const {
+    return false;
+  }
+
+  virtual bool emergencyPaused() const {
+    return false;
+  }
 
   virtual bool setLoco(
       uint16_t address,

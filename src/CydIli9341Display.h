@@ -14,11 +14,21 @@
 
 class CydIli9341Display {
 public:
+  enum class TouchButton :
+      uint8_t {
+    None,
+    Emergency,
+    Power
+  };
+
   static constexpr uint16_t BLACK = ILI9341_BLACK;
   static constexpr uint16_t WHITE = ILI9341_WHITE;
   static constexpr uint16_t RED = ILI9341_RED;
 
-  // Dark neutral idle state for the emergency button.
+  // CSS-like "lime" / full green in RGB565.
+  static constexpr uint16_t LIME = 0x07E0;
+
+  // Dark neutral idle state.
   static constexpr uint16_t DARK_GREY = 0x4208;
 
   void begin();
@@ -57,14 +67,17 @@ public:
   void println(
       uint32_t value);
 
-  // Draws the large touch emergency button at the bottom of the CYD screen.
   void drawEmergencyButton(
       const char* label,
       uint16_t fillColor);
 
-  // Edge-triggered: returns true only once per physical touch/release cycle
-  // and only when the touch is inside the emergency button.
-  bool takeEmergencyButtonPress();
+  void drawPowerButton(
+      const char* label,
+      uint16_t fillColor,
+      uint16_t textColor = WHITE);
+
+  // Returns exactly one logical button event per physical touch/release cycle.
+  TouchButton takeButtonPress();
 
 private:
   // ESP32-2432S028 / ESP32-2432S028R (CYD) ILI9341 wiring.
@@ -74,13 +87,12 @@ private:
   static constexpr int TFT_CS = 15;
   static constexpr int TFT_DC = 2;
 
-  // TFT reset is tied to the ESP32 board reset on the common CYD revision.
   static constexpr int TFT_RST = -1;
   static constexpr int TFT_BL = 21;
 
   static constexpr uint32_t SPI_HZ = 40000000;
 
-  // XPT2046 touch controller is on its own SPI bus on the classic CYD.
+  // XPT2046 touch controller.
   static constexpr int TOUCH_SCLK = 25;
   static constexpr int TOUCH_MISO = 39;
   static constexpr int TOUCH_MOSI = 32;
@@ -89,9 +101,6 @@ private:
 
   static constexpr uint32_t TOUCH_SPI_HZ = 2000000;
 
-  // Broad calibration values commonly used by the original 2.8" CYD.
-  // The emergency button is deliberately large, so small panel-to-panel
-  // calibration differences do not matter.
   static constexpr int TOUCH_X_MIN = 200;
   static constexpr int TOUCH_X_MAX = 3700;
   static constexpr int TOUCH_Y_MIN = 240;
@@ -100,13 +109,22 @@ private:
   static constexpr int SCREEN_WIDTH = 320;
   static constexpr int SCREEN_HEIGHT = 240;
 
+  // Two side-by-side bottom buttons.
+  static constexpr int BUTTON_Y = 184;
+  static constexpr int BUTTON_H = 48;
+
   static constexpr int EMERGENCY_X = 8;
-  static constexpr int EMERGENCY_Y = 184;
-  static constexpr int EMERGENCY_W = 304;
-  static constexpr int EMERGENCY_H = 48;
+  static constexpr int EMERGENCY_W = 149;
+
+  static constexpr int POWER_X = 163;
+  static constexpr int POWER_W = 149;
 
   static constexpr int TOUCH_PRESSURE_THRESHOLD = 80;
   static constexpr unsigned long TOUCH_SAMPLE_INTERVAL_MS = 15;
+
+  // Proven debounce from the previous CYD fix.
+  static constexpr unsigned long TOUCH_PRESS_DEBOUNCE_MS = 30;
+  static constexpr unsigned long TOUCH_RELEASE_DEBOUNCE_MS = 120;
 
   SPIClass _spi{HSPI};
   SPIClass _touchSpi{VSPI};
@@ -118,7 +136,18 @@ private:
       TFT_RST};
 
   bool _touchWasDown = false;
+  unsigned long _touchPressCandidateAt = 0;
+  unsigned long _touchReleaseCandidateAt = 0;
   unsigned long _lastTouchSampleAt = 0;
+
+  void drawButton(
+      int16_t x,
+      int16_t y,
+      int16_t width,
+      int16_t height,
+      const char* label,
+      uint16_t fillColor,
+      uint16_t textColor);
 
   static int16_t bestTwoAverage(
       int16_t a,

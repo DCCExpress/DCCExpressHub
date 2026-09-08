@@ -268,10 +268,17 @@ void App::loop() {
   _wsProtocol.loop();
   _wsProtocol.cleanupClients();
 
-  // The display follows the single HUB E-STOP state, regardless of whether
-  // E-STOP was requested from the CYD touchscreen or the web UI.
+  // DCC-EX pause/resume is the authoritative E-STOP state. The compiled
+  // command-center wrapper also learns external <!PAUSED>/<!RESUMED>
+  // broadcasts and queries the status after reconnect.
+  _wsProtocol.syncEmergencyStopState();
+
+  // The display follows the same authoritative Hub states used by the web UI.
   _display.showEmergencyStopActive(
       _wsProtocol.emergencyStopActive());
+
+  _display.showPowerActive(
+      _wsProtocol.trackPowerOn());
 
   // HubDisplay::loop() also polls the CYD resistive touchscreen.
   updateDisplay();
@@ -281,7 +288,7 @@ void App::loop() {
           .takeEmergencyStopRequest()
   ) {
     Logger::warn(
-        "CYD EMERGENCY STOP requested");
+        "CYD E-STOP toggle requested");
 
     const bool sent =
         _wsProtocol
@@ -295,10 +302,35 @@ void App::loop() {
 
     if (sent) {
       Logger::warn(
-          "CYD EMERGENCY STOP sent");
+          "CYD E-STOP toggle sent");
     } else {
       Logger::error(
-          "CYD EMERGENCY STOP failed");
+          "CYD E-STOP toggle failed");
+    }
+  }
+
+  if (
+      _display
+          .takePowerToggleRequest()
+  ) {
+    const bool targetOn =
+        !_wsProtocol
+             .trackPowerOn();
+
+    Logger::info(
+        String("CYD POWER toggle requested -> ") +
+        (
+            targetOn
+                ? "ON"
+                : "OFF"
+        ));
+
+    if (
+        !_wsProtocol
+             .triggerTrackPowerToggle()
+    ) {
+      Logger::error(
+          "CYD POWER toggle failed");
     }
   }
 
