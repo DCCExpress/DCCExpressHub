@@ -57,6 +57,7 @@ public:
 
   bool takeEmergencyStopRequest();
   bool takePowerToggleRequest();
+  bool takeInfoRequest();
 
 private:
 #if HUB_USE_DISPLAY
@@ -74,6 +75,7 @@ private:
 
   bool _emergencyStopRequest = false;
   bool _powerToggleRequest = false;
+  bool _infoRequest = false;
 
   bool _emergencyStopActive = false;
   bool _powerActive = false;
@@ -82,6 +84,7 @@ private:
 
   void redrawEmergencyButton();
   void redrawPowerButton();
+  void redrawInfoButton();
   void redrawControlButtons();
 #endif
 };

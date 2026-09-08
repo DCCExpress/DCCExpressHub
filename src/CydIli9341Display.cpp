@@ -214,6 +214,22 @@ void CydIli9341Display::drawButton(
       text);
 }
 
+void CydIli9341Display::drawPowerButton(
+    const char* label,
+    uint16_t fillColor,
+    uint16_t textColor) {
+  drawButton(
+      POWER_X,
+      BUTTON_Y,
+      POWER_W,
+      BUTTON_H,
+      label
+          ? label
+          : "PWR",
+      fillColor,
+      textColor);
+}
+
 void CydIli9341Display::drawEmergencyButton(
     const char* label,
     uint16_t fillColor) {
@@ -229,18 +245,18 @@ void CydIli9341Display::drawEmergencyButton(
       WHITE);
 }
 
-void CydIli9341Display::drawPowerButton(
+void CydIli9341Display::drawInfoButton(
     const char* label,
     uint16_t fillColor,
     uint16_t textColor) {
   drawButton(
-      POWER_X,
+      INFO_X,
       BUTTON_Y,
-      POWER_W,
+      INFO_W,
       BUTTON_H,
       label
           ? label
-          : "POWER",
+          : "INFO",
       fillColor,
       textColor);
 }
@@ -614,6 +630,22 @@ CydIli9341Display::takeButtonPress() {
 
   if (
       x >=
+          POWER_X &&
+      x <
+          POWER_X +
+              POWER_W
+  ) {
+    Logger::info(
+        "CYD PWR touch x=" +
+        String(x) +
+        " y=" +
+        String(y));
+
+    return TouchButton::Power;
+  }
+
+  if (
+      x >=
           EMERGENCY_X &&
       x <
           EMERGENCY_X +
@@ -630,18 +662,18 @@ CydIli9341Display::takeButtonPress() {
 
   if (
       x >=
-          POWER_X &&
+          INFO_X &&
       x <
-          POWER_X +
-              POWER_W
+          INFO_X +
+              INFO_W
   ) {
     Logger::info(
-        "CYD POWER touch x=" +
+        "CYD INFO touch x=" +
         String(x) +
         " y=" +
         String(y));
 
-    return TouchButton::Power;
+    return TouchButton::Info;
   }
 
   return TouchButton::None;

@@ -5,6 +5,14 @@
 
 class MiniIli9342Display {
 public:
+  enum class PhysicalButton :
+      uint8_t {
+    None,
+    Power,
+    Emergency,
+    Info
+  };
+
   static constexpr uint16_t BLACK = 0x0000;
   static constexpr uint16_t WHITE = 0xFFFF;
   static constexpr uint16_t RED = 0xF800;
@@ -62,6 +70,14 @@ public:
       uint16_t fillColor,
       uint16_t textColor = WHITE);
 
+  void drawInfoButton(
+      const char* label,
+      uint16_t fillColor,
+      uint16_t textColor = WHITE);
+
+  // M5Stack physical A/B/C buttons -> PWR / E-STOP / INFO.
+  PhysicalButton takeButtonPress();
+
 private:
   static constexpr int TFT_SCLK = 18;
   static constexpr int TFT_MISO = 19;
@@ -77,15 +93,25 @@ private:
   static constexpr uint32_t SPI_HZ =
       40000000;
 
-  // Same bottom control/status geometry as the CYD.
+  // Same three-button geometry as the CYD: PWR | E-STOP | INFO.
   static constexpr int BUTTON_Y = 184;
   static constexpr int BUTTON_H = 48;
 
-  static constexpr int EMERGENCY_X = 8;
-  static constexpr int EMERGENCY_W = 149;
+  static constexpr int POWER_X = 6;
+  static constexpr int POWER_W = 98;
 
-  static constexpr int POWER_X = 163;
-  static constexpr int POWER_W = 149;
+  static constexpr int EMERGENCY_X = 111;
+  static constexpr int EMERGENCY_W = 98;
+
+  static constexpr int INFO_X = 216;
+  static constexpr int INFO_W = 98;
+
+  // Official M5Stack Basic button pins. GPIO34..39 are input-only and the
+  // board provides the required external pull-ups, so use INPUT.
+  static constexpr int BUTTON_A_PIN = 39;
+  static constexpr int BUTTON_B_PIN = 38;
+  static constexpr int BUTTON_C_PIN = 37;
+  static constexpr unsigned long BUTTON_DEBOUNCE_MS = 20;
 
   SPIClass* _spi = &SPI;
 
@@ -96,6 +122,16 @@ private:
 
   uint16_t _foreground = WHITE;
   uint16_t _background = BLACK;
+
+  struct ButtonState {
+    bool rawDown = false;
+    bool stableDown = false;
+    unsigned long rawChangedAt = 0;
+  };
+
+  ButtonState _buttonA;
+  ButtonState _buttonB;
+  ButtonState _buttonC;
 
   void writeCommand(
       uint8_t command);
@@ -128,6 +164,11 @@ private:
       int16_t width,
       int16_t height,
       uint16_t color);
+
+  bool takeDebouncedPress(
+      int pin,
+      ButtonState& state,
+      unsigned long now);
 
   void drawButton(
       int16_t x,

@@ -17,8 +17,9 @@ public:
   enum class TouchButton :
       uint8_t {
     None,
+    Power,
     Emergency,
-    Power
+    Info
   };
 
   static constexpr uint16_t BLACK = ILI9341_BLACK;
@@ -76,6 +77,11 @@ public:
       uint16_t fillColor,
       uint16_t textColor = WHITE);
 
+  void drawInfoButton(
+      const char* label,
+      uint16_t fillColor,
+      uint16_t textColor = WHITE);
+
   // Returns exactly one logical button event per physical touch/release cycle.
   TouchButton takeButtonPress();
 
@@ -109,15 +115,18 @@ private:
   static constexpr int SCREEN_WIDTH = 320;
   static constexpr int SCREEN_HEIGHT = 240;
 
-  // Two side-by-side bottom buttons.
+  // Three bottom buttons: PWR | E-STOP | INFO.
   static constexpr int BUTTON_Y = 184;
   static constexpr int BUTTON_H = 48;
 
-  static constexpr int EMERGENCY_X = 8;
-  static constexpr int EMERGENCY_W = 149;
+  static constexpr int POWER_X = 6;
+  static constexpr int POWER_W = 98;
 
-  static constexpr int POWER_X = 163;
-  static constexpr int POWER_W = 149;
+  static constexpr int EMERGENCY_X = 111;
+  static constexpr int EMERGENCY_W = 98;
+
+  static constexpr int INFO_X = 216;
+  static constexpr int INFO_W = 98;
 
   static constexpr int TOUCH_PRESSURE_THRESHOLD = 80;
   static constexpr unsigned long TOUCH_SAMPLE_INTERVAL_MS = 15;

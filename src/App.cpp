@@ -280,7 +280,7 @@ void App::loop() {
   _display.showPowerActive(
       _wsProtocol.trackPowerOn());
 
-  // HubDisplay::loop() also polls the CYD resistive touchscreen.
+  // HubDisplay::loop() also polls the active display controls.
   updateDisplay();
 
   if (
@@ -288,24 +288,24 @@ void App::loop() {
           .takeEmergencyStopRequest()
   ) {
     Logger::warn(
-        "CYD E-STOP toggle requested");
+        "DISPLAY E-STOP toggle requested");
 
     const bool sent =
         _wsProtocol
             .triggerEmergencyStop();
 
     // triggerEmergencyStop() updates the same state used by the WebSocket UI.
-    // Reflect it on the CYD immediately; showEmergencyStopActive() redraws
+    // Reflect it on the display immediately; showEmergencyStopActive() redraws
     // only the button area, not the whole display.
     _display.showEmergencyStopActive(
         _wsProtocol.emergencyStopActive());
 
     if (sent) {
       Logger::warn(
-          "CYD E-STOP toggle sent");
+          "DISPLAY E-STOP toggle sent");
     } else {
       Logger::error(
-          "CYD E-STOP toggle failed");
+          "DISPLAY E-STOP toggle failed");
     }
   }
 
@@ -318,7 +318,7 @@ void App::loop() {
              .trackPowerOn();
 
     Logger::info(
-        String("CYD POWER toggle requested -> ") +
+        String("DISPLAY PWR toggle requested -> ") +
         (
             targetOn
                 ? "ON"
@@ -330,8 +330,19 @@ void App::loop() {
              .triggerTrackPowerToggle()
     ) {
       Logger::error(
-          "CYD POWER toggle failed");
+          "DISPLAY PWR toggle failed");
     }
+  }
+
+  if (
+      _display
+          .takeInfoRequest()
+  ) {
+    // Placeholder for the future INFO page. Both CYD touch and M5 button C
+    // already produce this event, so page navigation can be added later
+    // without changing the hardware control mapping.
+    Logger::info(
+        "DISPLAY INFO requested");
   }
 
   delay(1);

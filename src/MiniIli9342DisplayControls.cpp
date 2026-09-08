@@ -30,6 +30,42 @@ void MiniIli9342Display::configureForHub() {
   _textSize = 1;
   _foreground = WHITE;
   _background = BLACK;
+
+  pinMode(
+      BUTTON_A_PIN,
+      INPUT);
+
+  pinMode(
+      BUTTON_B_PIN,
+      INPUT);
+
+  pinMode(
+      BUTTON_C_PIN,
+      INPUT);
+
+  const unsigned long now =
+      millis();
+
+  _buttonA.rawDown =
+      digitalRead(BUTTON_A_PIN) == LOW;
+  _buttonA.stableDown =
+      _buttonA.rawDown;
+  _buttonA.rawChangedAt =
+      now;
+
+  _buttonB.rawDown =
+      digitalRead(BUTTON_B_PIN) == LOW;
+  _buttonB.stableDown =
+      _buttonB.rawDown;
+  _buttonB.rawChangedAt =
+      now;
+
+  _buttonC.rawDown =
+      digitalRead(BUTTON_C_PIN) == LOW;
+  _buttonC.stableDown =
+      _buttonC.rawDown;
+  _buttonC.rawChangedAt =
+      now;
 }
 
 void MiniIli9342Display::fillRect(
@@ -122,8 +158,10 @@ void MiniIli9342Display::drawButton(
       height - 2,
       fillColor);
 
+  // Three 98 px buttons fit much better with the native 8x8 font.
+  // Keep the main status screen at text size 2; only button labels use 1x.
   setTextSize(
-      2);
+      1);
 
   setTextColor(
       textColor,
@@ -132,10 +170,10 @@ void MiniIli9342Display::drawButton(
   const int16_t textWidth =
       static_cast<int16_t>(
           strlen(text) *
-          16);
+          8);
 
   const int16_t textHeight =
-      16;
+      8;
 
   setCursor(
       x +
@@ -155,6 +193,22 @@ void MiniIli9342Display::drawButton(
       text);
 }
 
+void MiniIli9342Display::drawPowerButton(
+    const char* label,
+    uint16_t fillColor,
+    uint16_t textColor) {
+  drawButton(
+      POWER_X,
+      BUTTON_Y,
+      POWER_W,
+      BUTTON_H,
+      label
+          ? label
+          : "PWR",
+      fillColor,
+      textColor);
+}
+
 void MiniIli9342Display::drawEmergencyButton(
     const char* label,
     uint16_t fillColor) {
@@ -170,18 +224,94 @@ void MiniIli9342Display::drawEmergencyButton(
       WHITE);
 }
 
-void MiniIli9342Display::drawPowerButton(
+void MiniIli9342Display::drawInfoButton(
     const char* label,
     uint16_t fillColor,
     uint16_t textColor) {
   drawButton(
-      POWER_X,
+      INFO_X,
       BUTTON_Y,
-      POWER_W,
+      INFO_W,
       BUTTON_H,
       label
           ? label
-          : "POWER",
+          : "INFO",
       fillColor,
       textColor);
+}
+
+bool MiniIli9342Display::takeDebouncedPress(
+    int pin,
+    ButtonState& state,
+    unsigned long now) {
+  const bool rawDown =
+      digitalRead(pin) == LOW;
+
+  if (
+      rawDown !=
+      state.rawDown
+  ) {
+    state.rawDown =
+        rawDown;
+
+    state.rawChangedAt =
+        now;
+
+    return false;
+  }
+
+  if (
+      rawDown ==
+      state.stableDown
+  ) {
+    return false;
+  }
+
+  if (
+      now -
+          state.rawChangedAt <
+      BUTTON_DEBOUNCE_MS
+  ) {
+    return false;
+  }
+
+  state.stableDown =
+      rawDown;
+
+  return rawDown;
+}
+
+MiniIli9342Display::PhysicalButton
+MiniIli9342Display::takeButtonPress() {
+  const unsigned long now =
+      millis();
+
+  if (
+      takeDebouncedPress(
+          BUTTON_A_PIN,
+          _buttonA,
+          now)
+  ) {
+    return PhysicalButton::Power;
+  }
+
+  if (
+      takeDebouncedPress(
+          BUTTON_B_PIN,
+          _buttonB,
+          now)
+  ) {
+    return PhysicalButton::Emergency;
+  }
+
+  if (
+      takeDebouncedPress(
+          BUTTON_C_PIN,
+          _buttonC,
+          now)
+  ) {
+    return PhysicalButton::Info;
+  }
+
+  return PhysicalButton::None;
 }

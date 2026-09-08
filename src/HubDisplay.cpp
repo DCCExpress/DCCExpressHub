@@ -66,6 +66,11 @@ void HubDisplay::showWifiConnecting(
 
   _display.println();
 
+#if HUB_DISPLAY_M5STACK_BASIC
+  _display.setTextSize(
+      1);
+#endif
+
   _display.println(
       "WiFi...");
 
@@ -187,6 +192,16 @@ bool HubDisplay::takePowerToggleRequest() {
   return pending;
 }
 
+bool HubDisplay::takeInfoRequest() {
+  const bool pending =
+      _infoRequest;
+
+  _infoRequest =
+      false;
+
+  return pending;
+}
+
 void HubDisplay::loop() {
   if (!_initialized) {
     return;
@@ -197,17 +212,46 @@ void HubDisplay::loop() {
       _display
           .takeButtonPress()
   ) {
-    case CydIli9341Display::TouchButton::Emergency:
-      _emergencyStopRequest =
-          true;
-      break;
-
     case CydIli9341Display::TouchButton::Power:
       _powerToggleRequest =
           true;
       break;
 
+    case CydIli9341Display::TouchButton::Emergency:
+      _emergencyStopRequest =
+          true;
+      break;
+
+    case CydIli9341Display::TouchButton::Info:
+      _infoRequest =
+          true;
+      break;
+
     case CydIli9341Display::TouchButton::None:
+    default:
+      break;
+  }
+#elif HUB_DISPLAY_M5STACK_BASIC
+  switch (
+      _display
+          .takeButtonPress()
+  ) {
+    case MiniIli9342Display::PhysicalButton::Power:
+      _powerToggleRequest =
+          true;
+      break;
+
+    case MiniIli9342Display::PhysicalButton::Emergency:
+      _emergencyStopRequest =
+          true;
+      break;
+
+    case MiniIli9342Display::PhysicalButton::Info:
+      _infoRequest =
+          true;
+      break;
+
+    case MiniIli9342Display::PhysicalButton::None:
     default:
       break;
   }
@@ -232,7 +276,7 @@ void HubDisplay::redrawEmergencyButton() {
 
 void HubDisplay::redrawPowerButton() {
   _display.drawPowerButton(
-      "POWER",
+      "PWR",
       _powerActive
           ? HubDisplayDevice::LIME
           : HubDisplayDevice::DARK_GREY,
@@ -241,9 +285,17 @@ void HubDisplay::redrawPowerButton() {
           : HubDisplayDevice::WHITE);
 }
 
+void HubDisplay::redrawInfoButton() {
+  _display.drawInfoButton(
+      "INFO",
+      HubDisplayDevice::DARK_GREY,
+      HubDisplayDevice::WHITE);
+}
+
 void HubDisplay::redrawControlButtons() {
-  redrawEmergencyButton();
   redrawPowerButton();
+  redrawEmergencyButton();
+  redrawInfoButton();
 }
 
 void HubDisplay::redraw() {
@@ -271,6 +323,13 @@ void HubDisplay::redraw() {
       "DCCExpressHub");
 
   _display.println();
+
+#if HUB_DISPLAY_M5STACK_BASIC
+  // The M5 native 8x8 font at 2x cannot fit a full WEB/HOST IP:port line
+  // inside 320 pixels. Keep the title large, but render status rows at 1x.
+  _display.setTextSize(
+      1);
+#endif
 
   _display.print(
       "WEB: ");
@@ -368,6 +427,10 @@ bool HubDisplay::takeEmergencyStopRequest() {
 }
 
 bool HubDisplay::takePowerToggleRequest() {
+  return false;
+}
+
+bool HubDisplay::takeInfoRequest() {
   return false;
 }
 
