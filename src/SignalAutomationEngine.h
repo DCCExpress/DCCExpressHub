@@ -30,6 +30,14 @@ public:
 
   void evaluate();
 
+  bool enabled() const {
+    return _enabled;
+  }
+
+  size_t signalCount() const {
+    return _signals.size();
+  }
+
 private:
   struct Condition {
     enum class Source : uint8_t {
@@ -55,6 +63,11 @@ private:
 
   struct SignalRuleSet {
     uint16_t signalId = 0;
+
+    // Durable DCC address fallback. Layout IDs may be migrated/restored, while
+    // the configured signal output address is the physical identity.
+    uint16_t signalAddress = 0;
+
     bool extended = true;
     uint8_t outputs = 1;
 

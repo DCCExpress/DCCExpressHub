@@ -82,12 +82,40 @@ bool RuntimeStateStore::load(
             8) ==
         0
     ) {
-      _runtime->setTurnout(
-          atoi(
-              key +
-              8),
+      const uint16_t address =
+          static_cast<uint16_t>(
+              atoi(
+                  key +
+                  8));
+
+      const bool logicalClosed =
           value["closed"] |
-              false);
+          false;
+
+      RuntimeAccessory* turnout =
+          _runtime->findAccessory(
+              RuntimeAccessoryKind::Turnout,
+              address);
+
+      if (!turnout) {
+        Logger::warn(
+            "Runtime state: turnout address " +
+            String(address) +
+            " not found during restore");
+
+        continue;
+      }
+
+      // LayoutRuntime::setTurnout() consumes the PHYSICAL decoder value.
+      // runtime-state.json stores the LOGICAL CLOSED/THROWN state.
+      const bool physicalValue =
+          logicalClosed
+              ? turnout->closedValue
+              : !turnout->closedValue;
+
+      _runtime->setTurnout(
+          address,
+          physicalValue);
     } else if (
         strncmp(
             key,

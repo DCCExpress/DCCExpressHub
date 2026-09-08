@@ -13,6 +13,226 @@ uint16_t readElementId(JsonObjectConst element) {
 
   return static_cast<uint16_t>(value);
 }
+
+bool readPersistedNumericId(
+    JsonVariantConst value,
+    uint16_t& out) {
+  if (
+      value.isNull() ||
+      value.is<bool>() ||
+      value.is<const char*>()
+  ) {
+    return false;
+  }
+
+  if (
+      !value.is<long>() &&
+      !value.is<unsigned long>() &&
+      !value.is<int>() &&
+      !value.is<unsigned int>()
+  ) {
+    return false;
+  }
+
+  const long raw =
+      value.as<long>();
+
+  if (
+      raw <= 0 ||
+      raw > 0xffff
+  ) {
+    return false;
+  }
+
+  out =
+      static_cast<uint16_t>(
+          raw);
+
+  return true;
+}
+
+bool containsId(
+    const std::vector<uint16_t>& ids,
+    uint16_t id) {
+  for (
+      const uint16_t item :
+      ids
+  ) {
+    if (item == id) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+uint16_t nextFreeLayoutId(
+    const std::vector<uint16_t>& used,
+    uint16_t start) {
+  uint32_t candidate =
+      start > 0
+          ? start
+          : 1;
+
+  for (
+      uint32_t attempts = 0;
+      attempts < 0xffffUL;
+      ++attempts
+  ) {
+    if (candidate > 0xffffUL) {
+      candidate = 1;
+    }
+
+    const uint16_t id =
+        static_cast<uint16_t>(
+            candidate);
+
+    if (!containsId(used, id)) {
+      return id;
+    }
+
+    ++candidate;
+  }
+
+  return 0;
+}
+
+// Keep firmware runtime IDs bit-for-bit compatible with the browser-side
+// migrateSerializedLayoutIds() algorithm. This is critical for automation:
+// compiled rules reference layout IDs, while restored/legacy layouts may still
+// contain UUID/string IDs on LittleFS.
+size_t migrateRuntimeElementIds(
+    JsonDocument& doc) {
+  JsonArray layers =
+      doc["layers"]
+          .as<JsonArray>();
+
+  std::vector<uint16_t> reservedNumeric;
+  std::vector<uint16_t> seenNumeric;
+
+  // Pass 1: reserve every first unique persisted numeric ID, regardless of
+  // where it occurs in the layout. Legacy/string IDs must never steal one.
+  for (
+      JsonObject layer :
+      layers
+  ) {
+    JsonArray elements =
+        layer["elements"]
+            .as<JsonArray>();
+
+    for (
+        JsonObject element :
+        elements
+    ) {
+      uint16_t id = 0;
+
+      if (
+          readPersistedNumericId(
+              element["id"],
+              id) &&
+          !containsId(
+              reservedNumeric,
+              id)
+      ) {
+        reservedNumeric.push_back(
+            id);
+      }
+    }
+  }
+
+  std::vector<uint16_t> used =
+      reservedNumeric;
+
+  uint16_t next =
+      1;
+
+  size_t migrated =
+      0;
+
+  // Pass 2: keep the first occurrence of every valid numeric ID. UUID/string,
+  // missing and duplicate IDs receive the lowest free uint16 ID in persisted
+  // layer/element order -- exactly like the web UI migration.
+  for (
+      JsonObject layer :
+      layers
+  ) {
+    JsonArray elements =
+        layer["elements"]
+            .as<JsonArray>();
+
+    for (
+        JsonObject element :
+        elements
+    ) {
+      uint16_t persistedId =
+          0;
+
+      const bool hasNumericId =
+          readPersistedNumericId(
+              element["id"],
+              persistedId);
+
+      uint16_t runtimeId =
+          0;
+
+      if (
+          hasNumericId &&
+          !containsId(
+              seenNumeric,
+              persistedId)
+      ) {
+        runtimeId =
+            persistedId;
+
+        seenNumeric.push_back(
+            persistedId);
+      } else {
+        runtimeId =
+            nextFreeLayoutId(
+                used,
+                next);
+
+        if (runtimeId == 0) {
+          Logger::error(
+              "LayoutRuntime: no free uint16 element ID");
+
+          continue;
+        }
+
+        used.push_back(
+            runtimeId);
+
+        next =
+            runtimeId ==
+                    0xffff
+                ? 1
+                : static_cast<uint16_t>(
+                      runtimeId +
+                      1);
+
+        ++migrated;
+      }
+
+      if (
+          !hasNumericId ||
+          persistedId !=
+              runtimeId
+      ) {
+        element["id"] =
+            runtimeId;
+      }
+    }
+  }
+
+  if (migrated > 0) {
+    Logger::warn(
+        "LayoutRuntime: migrated " +
+        String(migrated) +
+        " legacy/duplicate element ID(s) in RAM");
+  }
+
+  return migrated;
+}
 }
 
 bool LayoutRuntime::begin(fs::FS& fs) {
@@ -269,6 +489,13 @@ bool LayoutRuntime::rebuildFromLayout(
   _accessories.clear();
   _sensors.clear();
   _blocks.clear();
+
+  // The browser compiles signal automation against migrated numeric layout
+  // IDs. Apply the exact same deterministic migration in firmware before
+  // building runtime objects, otherwise legacy UUID/string layouts produce
+  // runtime id=0 and no automation condition can ever match.
+  migrateRuntimeElementIds(
+      doc);
 
   const JsonArrayConst layers =
       doc["layers"].as<JsonArrayConst>();
