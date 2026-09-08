@@ -9,8 +9,6 @@ on:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 jobs:
   firmware:
@@ -40,7 +38,10 @@ jobs:
         env:
           RELEASE_VERSION: ${{ inputs.version }}
         run: |
+          set -euo pipefail
+
           version="${RELEASE_VERSION#v}"
+
           npm version "$version" \
             --prefix web-ui \
             --no-git-tag-version \
@@ -66,9 +67,12 @@ jobs:
 
           for target in "${targets[@]}"; do
             echo "== Building $target =="
+
             pio run -e "$target"
             pio run -e "$target" -t buildfs
-            node tools/firmware/merge-firmware.mjs --env "$target"
+
+            node tools/firmware/merge-firmware.mjs \
+              --env "$target"
           done
 
       - name: Verify merged firmware set
@@ -87,6 +91,8 @@ jobs:
             "dist/firmware/DCCExpressHub-ESP32-DevKit-Z21-v${version}-merged.bin"
           )
 
+          mkdir -p artifacts/release
+
           for file in "${expected[@]}"; do
             if [[ ! -f "$file" ]]; then
               echo "::error::Missing merged firmware: $file"
@@ -94,286 +100,9 @@ jobs:
             fi
 
             echo "$(stat -c '%s' "$file") bytes  $file"
+
+            cp "$file" artifacts/release/
           done
-
-      - name: Prepare release and GitHub Pages files
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_VERSION: ${{ inputs.version }}
-        run: |
-          $version = $env:RELEASE_VERSION.TrimStart('v')
-          $tagName = "v$version"
-
-          $releaseRoot = 'artifacts/release'
-          $webRoot = 'artifacts/webinstaller'
-          $pagesBase = 'https://dccexpress.github.io/DCCExpressHub'
-
-          New-Item -ItemType Directory -Path $releaseRoot -Force | Out-Null
-          New-Item -ItemType Directory -Path $webRoot -Force | Out-Null
-
-          Copy-Item 'webinstaller/*' $webRoot -Recurse -Force
-
-          $targets = @(
-            [ordered]@{
-              Environment = 'm5stack-basic-dccex'
-              FileTag = 'M5Stack-Basic-DCCEX'
-              DisplayName = 'M5Stack Basic / DCC-EX'
-              Hardware = 'm5stack-basic'
-              CommandCenter = 'dcc-ex'
-              Default = $true
-            },
-            [ordered]@{
-              Environment = 'm5stack-basic-z21'
-              FileTag = 'M5Stack-Basic-Z21'
-              DisplayName = 'M5Stack Basic / Z21'
-              Hardware = 'm5stack-basic'
-              CommandCenter = 'z21'
-              Default = $false
-            },
-            [ordered]@{
-              Environment = 'esp32dev-dccex'
-              FileTag = 'ESP32-DevKit-DCCEX'
-              DisplayName = 'ESP32 DevKit / DCC-EX'
-              Hardware = 'esp32-devkit'
-              CommandCenter = 'dcc-ex'
-              Default = $false
-            },
-            [ordered]@{
-              Environment = 'esp32dev-z21'
-              FileTag = 'ESP32-DevKit-Z21'
-              DisplayName = 'ESP32 DevKit / Z21'
-              Hardware = 'esp32-devkit'
-              CommandCenter = 'z21'
-              Default = $false
-            }
-          )
-
-          $currentDirectory = Join-Path $webRoot "firmware/$tagName"
-          New-Item -ItemType Directory -Path $currentDirectory -Force | Out-Null
-
-          foreach ($target in $targets) {
-            $sourceMerged =
-              "dist/firmware/DCCExpressHub-$($target.FileTag)-v$version-merged.bin"
-
-            if (-not (Test-Path $sourceMerged)) {
-              throw "Merged firmware not found: $sourceMerged"
-            }
-
-            $releaseAssetName =
-              "DCCExpressHub-$($target.FileTag)-v$version-merged.bin"
-
-            Copy-Item `
-              $sourceMerged `
-              (Join-Path $releaseRoot $releaseAssetName) `
-              -Force
-
-            $targetDirectory =
-              Join-Path $currentDirectory $target.Environment
-
-            New-Item `
-              -ItemType Directory `
-              -Path $targetDirectory `
-              -Force |
-              Out-Null
-
-            Copy-Item `
-              $sourceMerged `
-              (Join-Path $targetDirectory 'merged-firmware.bin') `
-              -Force
-
-            $targetManifest = [ordered]@{
-              name = "DCCExpressHub · $($target.DisplayName)"
-              version = $version
-              new_install_prompt_erase = $true
-              builds = @(
-                @{
-                  chipFamily = 'ESP32'
-                  improv = $false
-                  parts = @(
-                    @{
-                      path = 'merged-firmware.bin'
-                      offset = 0
-                    }
-                  )
-                }
-              )
-            }
-
-            ConvertTo-Json `
-              -InputObject $targetManifest `
-              -Depth 6 |
-              Set-Content `
-                (Join-Path $targetDirectory 'manifest.json') `
-                -Encoding utf8NoBOM
-
-            if ($target.Default) {
-              Copy-Item `
-                $sourceMerged `
-                (Join-Path $currentDirectory 'merged-firmware.bin') `
-                -Force
-
-              $compatibilityManifest = [ordered]@{
-                name = 'DCCExpressHub · M5Stack Basic / DCC-EX'
-                version = $version
-                new_install_prompt_erase = $true
-                builds = @(
-                  @{
-                    chipFamily = 'ESP32'
-                    improv = $false
-                    parts = @(
-                      @{
-                        path = 'merged-firmware.bin'
-                        offset = 0
-                      }
-                    )
-                  }
-                )
-              }
-
-              ConvertTo-Json `
-                -InputObject $compatibilityManifest `
-                -Depth 6 |
-                Set-Content `
-                  (Join-Path $currentDirectory 'manifest.json') `
-                  -Encoding utf8NoBOM
-            }
-          }
-
-          # Root fallback remains backward-compatible and points to the
-          # M5Stack Basic / DCC-EX firmware for this release.
-          $rootManifest = [ordered]@{
-            name = 'DCCExpressHub · M5Stack Basic / DCC-EX'
-            version = $version
-            new_install_prompt_erase = $true
-            builds = @(
-              @{
-                chipFamily = 'ESP32'
-                improv = $false
-                parts = @(
-                  @{
-                    path =
-                      "firmware/$tagName/m5stack-basic-dccex/merged-firmware.bin"
-                    offset = 0
-                  }
-                )
-              }
-            )
-          }
-
-          ConvertTo-Json `
-            -InputObject $rootManifest `
-            -Depth 6 |
-            Set-Content `
-              (Join-Path $webRoot 'manifest.json') `
-              -Encoding utf8NoBOM
-
-          # releases.json keeps the legacy manifestUrl and adds a targets array.
-          # Existing installers can keep using manifestUrl; the next installer
-          # revision can consume targets without changing the release layout.
-          $entries = [System.Collections.Generic.List[object]]::new()
-
-          $currentTargets = @()
-
-          foreach ($target in $targets) {
-            $currentTargets += [ordered]@{
-              id = $target.Environment
-              name = $target.DisplayName
-              hardware = $target.Hardware
-              commandCenter = $target.CommandCenter
-              manifestUrl =
-                "$pagesBase/firmware/$tagName/$($target.Environment)/manifest.json"
-            }
-          }
-
-          $entries.Add([ordered]@{
-            tagName = $tagName
-            prerelease = $version.Contains('-')
-            manifestUrl = "$pagesBase/firmware/$tagName/manifest.json"
-            targets = $currentTargets
-          })
-
-          # Keep older releases visible to the existing installer. Historical
-          # releases may have only one merged firmware asset, so they use the
-          # legacy single-manifest representation.
-          $published =
-            gh api 'repos/${{ github.repository }}/releases?per_page=100' |
-            ConvertFrom-Json
-
-          foreach ($release in $published) {
-            if (
-              $release.draft -or
-              $release.tag_name -eq $tagName
-            ) {
-              continue
-            }
-
-            $asset =
-              $release.assets |
-              Where-Object {
-                $_.name -match '^DCCExpressHub-.+-merged\.bin$'
-              } |
-              Select-Object -First 1
-
-            if (-not $asset) {
-              continue
-            }
-
-            $releaseDirectory =
-              Join-Path $webRoot "firmware/$($release.tag_name)"
-
-            New-Item `
-              -ItemType Directory `
-              -Path $releaseDirectory `
-              -Force |
-              Out-Null
-
-            Invoke-WebRequest `
-              -Uri $asset.browser_download_url `
-              -OutFile (Join-Path $releaseDirectory 'merged-firmware.bin')
-
-            $releaseVersion =
-              $release.tag_name.TrimStart('v')
-
-            $releaseManifest = [ordered]@{
-              name = 'DCCExpressHub'
-              version = $releaseVersion
-              new_install_prompt_erase = $true
-              builds = @(
-                @{
-                  chipFamily = 'ESP32'
-                  improv = $false
-                  parts = @(
-                    @{
-                      path = 'merged-firmware.bin'
-                      offset = 0
-                    }
-                  )
-                }
-              )
-            }
-
-            ConvertTo-Json `
-              -InputObject $releaseManifest `
-              -Depth 6 |
-              Set-Content `
-                (Join-Path $releaseDirectory 'manifest.json') `
-                -Encoding utf8NoBOM
-
-            $entries.Add([ordered]@{
-              tagName = $release.tag_name
-              prerelease = [bool]$release.prerelease
-              manifestUrl =
-                "$pagesBase/firmware/$($release.tag_name)/manifest.json"
-            })
-          }
-
-          ConvertTo-Json `
-            -InputObject $entries `
-            -Depth 8 |
-            Set-Content `
-              (Join-Path $webRoot 'releases.json') `
-              -Encoding utf8NoBOM
 
       - name: Upload merged firmware artifact
         uses: actions/upload-artifact@v4
@@ -381,11 +110,6 @@ jobs:
           name: merged-firmware-release
           path: artifacts/release/DCCExpressHub-*-merged.bin
           if-no-files-found: error
-
-      - name: Upload GitHub Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: artifacts/webinstaller
 
   github-release:
     needs: firmware
@@ -419,16 +143,3 @@ jobs:
             --title "DCCExpressHub v$version" \
             --generate-notes \
             $prerelease_flag
-
-  deploy-web-installer:
-    needs: firmware
-    runs-on: ubuntu-latest
-
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
-    steps:
-      - name: Deploy Web Installer & Serial Configurator
-        id: deployment
-        uses: actions/deploy-pages@v4
