@@ -22,6 +22,9 @@ public:
   void abort(
       const char* finalPath);
 
+  bool recover(
+      const char* finalPath) const;
+
   bool exists(
       const char* path) const;
 

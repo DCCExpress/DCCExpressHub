@@ -1,9 +1,11 @@
 param(
     [ValidateSet(
-        "m5stack-basic",
-        "esp32dev"
+        "m5stack-basic-dccex",
+        "m5stack-basic-z21",
+        "esp32dev-dccex",
+        "esp32dev-z21"
     )]
-    [string]$Environment = "m5stack-basic",
+    [string]$Environment = "m5stack-basic-dccex",
 
     [switch]$SkipWeb
 )
@@ -45,17 +47,31 @@ function Get-FirmwareTarget {
     )
 
     switch ($Environment) {
-        "m5stack-basic" {
+        "m5stack-basic-dccex" {
             return @{
-                DisplayName = "M5Stack Basic"
-                FileTag = "M5Stack-Basic"
+                DisplayName = "M5Stack Basic / DCC-EX"
+                FileTag = "M5Stack-Basic-DCCEX"
             }
         }
 
-        "esp32dev" {
+        "m5stack-basic-z21" {
             return @{
-                DisplayName = "ESP32 DevKit"
-                FileTag = "ESP32-DevKit"
+                DisplayName = "M5Stack Basic / Z21"
+                FileTag = "M5Stack-Basic-Z21"
+            }
+        }
+
+        "esp32dev-dccex" {
+            return @{
+                DisplayName = "ESP32 DevKit / DCC-EX"
+                FileTag = "ESP32-DevKit-DCCEX"
+            }
+        }
+
+        "esp32dev-z21" {
+            return @{
+                DisplayName = "ESP32 DevKit / Z21"
+                FileTag = "ESP32-DevKit-Z21"
             }
         }
 
@@ -86,6 +102,9 @@ Write-Host ""
 
 if (-not $SkipWeb) {
     & ".\build-web.ps1"
+    if ($LASTEXITCODE -ne 0) {
+        throw "Web build failed."
+    }
 }
 
 Write-Host "== Building firmware [$Environment] ==" -ForegroundColor Cyan

@@ -2,9 +2,20 @@
 
 File FileStore::openRead(
     const char* path) const {
-  return _fs.open(
-      path,
-      "r");
+  if (
+      !path ||
+      !*path
+  ) {
+    return File();
+  }
+
+  recover(
+      path);
+
+  return
+      _fs.open(
+          path,
+          "r");
 }
 
 String FileStore::tempPath(
@@ -54,6 +65,82 @@ bool FileStore::ensureParent(
           parent);
 }
 
+bool FileStore::recover(
+    const char* finalPath) const {
+  if (
+      !finalPath ||
+      !*finalPath
+  ) {
+    return false;
+  }
+
+  const String temp =
+      tempPath(
+          finalPath);
+
+  const String backup =
+      backupPath(
+          finalPath);
+
+  const bool hasFinal =
+      _fs.exists(
+          finalPath);
+
+  const bool hasBackup =
+      _fs.exists(
+          backup);
+
+  const bool hasTemp =
+      _fs.exists(
+          temp);
+
+  // A committed final file is authoritative.
+  // Any remaining backup/temp is stale debris from an interrupted cleanup.
+  if (hasFinal) {
+    if (hasBackup) {
+      _fs.remove(
+          backup);
+    }
+
+    if (hasTemp) {
+      _fs.remove(
+          temp);
+    }
+
+    return true;
+  }
+
+  // If final disappeared after final -> backup but before temp -> final,
+  // restore the last known-good committed version.
+  if (hasBackup) {
+    if (
+        !_fs.rename(
+            backup,
+            finalPath)
+    ) {
+      return false;
+    }
+
+    // The interrupted candidate must never replace the restored backup
+    // without going through its normal validator/commit path.
+    if (hasTemp) {
+      _fs.remove(
+          temp);
+    }
+
+    return true;
+  }
+
+  // A lone temp file is an uncommitted candidate. We cannot assume it is
+  // complete or valid after power loss, so discard it.
+  if (hasTemp) {
+    _fs.remove(
+        temp);
+  }
+
+  return false;
+}
+
 File FileStore::beginWrite(
     const char* finalPath) {
   if (
@@ -64,6 +151,10 @@ File FileStore::beginWrite(
   ) {
     return File();
   }
+
+  // Clean up or restore an interrupted previous transaction before a new one.
+  recover(
+      finalPath);
 
   const String temp =
       tempPath(
@@ -154,18 +245,72 @@ bool FileStore::commit(
 
 bool FileStore::exists(
     const char* path) const {
+  if (
+      !path ||
+      !*path
+  ) {
+    return false;
+  }
+
+  recover(
+      path);
+
   return
-      path &&
       _fs.exists(
           path);
 }
 
 bool FileStore::remove(
     const char* path) {
-  return
-      path &&
-      _fs.remove(
+  if (
+      !path ||
+      !*path
+  ) {
+    return false;
+  }
+
+  const String temp =
+      tempPath(
           path);
+
+  const String backup =
+      backupPath(
+          path);
+
+  bool removed =
+      false;
+
+  if (
+      _fs.exists(
+          path)
+  ) {
+    removed =
+        _fs.remove(
+            path) ||
+        removed;
+  }
+
+  if (
+      _fs.exists(
+          temp)
+  ) {
+    removed =
+        _fs.remove(
+            temp) ||
+        removed;
+  }
+
+  if (
+      _fs.exists(
+          backup)
+  ) {
+    removed =
+        _fs.remove(
+            backup) ||
+        removed;
+  }
+
+  return removed;
 }
 
 bool FileStore::saveJson(

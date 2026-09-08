@@ -4,16 +4,28 @@ Set-Location $PSScriptRoot
 Write-Host "== DCCExpressHub: build all firmware targets ==" -ForegroundColor Cyan
 Write-Host ""
 
-# Build the common web UI only once.
 & ".\build-web.ps1"
+if ($LASTEXITCODE -ne 0) {
+    throw "Web build failed."
+}
 
-Write-Host ""
-Write-Host "== M5Stack Basic ==" -ForegroundColor Cyan
-& ".\build-merged.ps1" -Environment "m5stack-basic" -SkipWeb
+$targets = @(
+    "m5stack-basic-dccex",
+    "m5stack-basic-z21",
+    "esp32dev-dccex",
+    "esp32dev-z21"
+)
 
-Write-Host ""
-Write-Host "== ESP32 DevKit ==" -ForegroundColor Cyan
-& ".\build-merged.ps1" -Environment "esp32dev" -SkipWeb
+foreach ($target in $targets) {
+    Write-Host ""
+    Write-Host "== $target ==" -ForegroundColor Cyan
+
+    & ".\build-merged.ps1" -Environment $target -SkipWeb
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "Build failed for $target."
+    }
+}
 
 Write-Host ""
 Write-Host "All firmware targets built successfully." -ForegroundColor Green

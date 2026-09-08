@@ -36,25 +36,35 @@ function argumentValue(name) {
 
 const environment =
   argumentValue("--env") ??
-  "m5stack-basic";
+  "m5stack-basic-dccex";
 
 const targetDefinitions = {
-  "m5stack-basic": {
-    id:
-      "m5stack-basic",
-    displayName:
-      "M5Stack Basic",
-    fileTag:
-      "M5Stack-Basic",
+  "m5stack-basic-dccex": {
+    id: "m5stack-basic",
+    commandCenter: "dcc-ex",
+    displayName: "M5Stack Basic / DCC-EX",
+    fileTag: "M5Stack-Basic-DCCEX",
   },
 
-  "esp32dev": {
-    id:
-      "esp32-devkit",
-    displayName:
-      "ESP32 DevKit",
-    fileTag:
-      "ESP32-DevKit",
+  "m5stack-basic-z21": {
+    id: "m5stack-basic",
+    commandCenter: "z21",
+    displayName: "M5Stack Basic / Z21",
+    fileTag: "M5Stack-Basic-Z21",
+  },
+
+  "esp32dev-dccex": {
+    id: "esp32-devkit",
+    commandCenter: "dcc-ex",
+    displayName: "ESP32 DevKit / DCC-EX",
+    fileTag: "ESP32-DevKit-DCCEX",
+  },
+
+  "esp32dev-z21": {
+    id: "esp32-devkit",
+    commandCenter: "z21",
+    displayName: "ESP32 DevKit / Z21",
+    fileTag: "ESP32-DevKit-Z21",
   },
 };
 
@@ -147,56 +157,16 @@ function parsePartitionTable(
       continue;
     }
 
-    const type =
-      buffer[
-        offset + 2
-      ];
-
-    const subtype =
-      buffer[
-        offset + 3
-      ];
-
-    const partitionOffset =
-      readU32LE(
-        buffer,
-        offset + 4,
-      );
-
-    const size =
-      readU32LE(
-        buffer,
-        offset + 8,
-      );
-
-    const label =
-      buffer
-        .subarray(
-          offset + 12,
-          offset + 28,
-        )
-        .toString(
-          "utf8",
-        )
-        .replace(
-          /\0.*$/,
-          "",
-        );
-
-    const flags =
-      readU32LE(
-        buffer,
-        offset + 28,
-      );
-
     entries.push({
-      type,
-      subtype,
-      offset:
-        partitionOffset,
-      size,
-      label,
-      flags,
+      type: buffer[offset + 2],
+      subtype: buffer[offset + 3],
+      offset: readU32LE(buffer, offset + 4),
+      size: readU32LE(buffer, offset + 8),
+      label: buffer
+        .subarray(offset + 12, offset + 28)
+        .toString("utf8")
+        .replace(/\0.*$/, ""),
+      flags: readU32LE(buffer, offset + 28),
     });
   }
 
@@ -210,9 +180,7 @@ function findBootApp0() {
       "boot_app0.bin",
     );
 
-  if (
-    fs.existsSync(local)
-  ) {
+  if (fs.existsSync(local)) {
     return local;
   }
 
@@ -231,9 +199,7 @@ function findBootApp0() {
       "boot_app0.bin",
     );
 
-  if (
-    fs.existsSync(framework)
-  ) {
+  if (fs.existsSync(framework)) {
     return framework;
   }
 
@@ -300,7 +266,8 @@ const appPartitions =
     );
 
 if (
-  appPartitions.length === 0
+  appPartitions.length ===
+  0
 ) {
   throw new Error(
     "No application partition found in partitions.bin.",
@@ -319,14 +286,10 @@ const filesystemPartition =
           0x82 ||
         entry.label
           .toLowerCase()
-          .includes(
-            "spiffs",
-          ) ||
+          .includes("spiffs") ||
         entry.label
           .toLowerCase()
-          .includes(
-            "littlefs",
-          )
+          .includes("littlefs")
       ),
   );
 
@@ -338,54 +301,34 @@ if (!filesystemPartition) {
 
 const components = [
   {
-    name:
-      "bootloader",
-    address:
-      0x1000,
-    file:
-      bootloaderFile,
-    partitionSize:
-      0x7000,
+    name: "bootloader",
+    address: 0x1000,
+    file: bootloaderFile,
+    partitionSize: 0x7000,
   },
   {
-    name:
-      "partition-table",
-    address:
-      0x8000,
-    file:
-      partitionsFile,
-    partitionSize:
-      0x1000,
+    name: "partition-table",
+    address: 0x8000,
+    file: partitionsFile,
+    partitionSize: 0x1000,
   },
   {
-    name:
-      "boot-app0",
-    address:
-      0xe000,
-    file:
-      bootApp0File,
-    partitionSize:
-      0x2000,
+    name: "boot-app0",
+    address: 0xe000,
+    file: bootApp0File,
+    partitionSize: 0x2000,
   },
   {
-    name:
-      "application",
-    address:
-      appPartition.offset,
-    file:
-      firmwareFile,
-    partitionSize:
-      appPartition.size,
+    name: "application",
+    address: appPartition.offset,
+    file: firmwareFile,
+    partitionSize: appPartition.size,
   },
   {
-    name:
-      "littlefs",
-    address:
-      filesystemPartition.offset,
-    file:
-      littlefsFile,
-    partitionSize:
-      filesystemPartition.size,
+    name: "littlefs",
+    address: filesystemPartition.offset,
+    file: littlefsFile,
+    partitionSize: filesystemPartition.size,
   },
 ].map(
   component => ({
@@ -505,7 +448,7 @@ fs.writeFileSync(
 const metadata = {
   format:
     "dcc-express-hub-merged",
-  version: 2,
+  version: 3,
 
   firmwareVersion,
   platformioEnvironment:
@@ -515,6 +458,8 @@ const metadata = {
     target.id,
   hardwareName:
     target.displayName,
+  commandCenter:
+    target.commandCenter,
 
   fileName:
     path.basename(
@@ -581,16 +526,19 @@ console.log(
   "Merged firmware created:",
 );
 console.log(
-  `  Hardware: ${target.displayName}`,
+  `  Hardware:       ${target.displayName}`,
 );
 console.log(
-  `  Version:  ${firmwareVersion}`,
+  `  Command center: ${target.commandCenter}`,
 );
 console.log(
-  `  BIN:      ${outputBin}`,
+  `  Version:        ${firmwareVersion}`,
 );
 console.log(
-  `  Metadata: ${metadataFile}`,
+  `  BIN:            ${outputBin}`,
+);
+console.log(
+  `  Metadata:       ${metadataFile}`,
 );
 console.log("");
 console.log(

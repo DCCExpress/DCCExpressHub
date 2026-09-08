@@ -1,5 +1,6 @@
 #include "CommandCenterManager.h"
 
+#include "CommandCenterBuild.h"
 #include "CommandCenterFactory.h"
 #include "Logger.h"
 
@@ -10,42 +11,28 @@ CommandCenterManager::emptyHost() {
 }
 
 bool CommandCenterManager::begin(
-    const String& typeValue,
+    const String&,
     const String& hostValue,
     uint16_t portValue) {
   return select(
-      typeValue,
+      CommandCenterBuild::type(),
       hostValue,
       portValue);
 }
 
 bool CommandCenterManager::select(
-    const String& typeValue,
+    const String&,
     const String& hostValue,
     uint16_t portValue) {
-  String normalized =
-      CommandCenterFactory::normalizeType(
-          typeValue);
-
-  if (
-      !CommandCenterFactory::supports(
-          normalized)
-  ) {
-    Logger::error(
-        "Unsupported command center type: " +
-        normalized);
-
-    return false;
-  }
-
   auto next =
       CommandCenterFactory::create(
-          normalized);
+          CommandCenterBuild::type());
 
   if (!next) {
     Logger::error(
-        "Cannot create command center type: " +
-        normalized);
+        String(
+            "Cannot create compiled command center: ") +
+        CommandCenterBuild::type());
 
     return false;
   }
@@ -54,7 +41,7 @@ bool CommandCenterManager::select(
       std::move(next);
 
   _selectedType =
-      normalized;
+      CommandCenterBuild::type();
 
   _host =
       hostValue;
@@ -69,8 +56,9 @@ bool CommandCenterManager::select(
       _port);
 
   Logger::info(
-      "Command center selected: " +
-      _selectedType +
+      String(
+          "Command center selected: ") +
+      CommandCenterBuild::name() +
       " " +
       _host +
       ":" +
@@ -111,7 +99,7 @@ void CommandCenterManager::begin(
     uint16_t portValue) {
   if (!_implementation) {
     select(
-        _selectedType,
+        CommandCenterBuild::type(),
         hostValue,
         portValue);
 
@@ -145,36 +133,6 @@ bool CommandCenterManager::ensureConnected() {
 void CommandCenterManager::setEndpoint(
     const String& hostValue,
     uint16_t portValue) {
-  String inferredType =
-      _selectedType;
-
-  if (
-      portValue == 21105 ||
-      portValue == 21106
-  ) {
-    inferredType =
-        "z21";
-  } else if (
-      portValue == 2560
-  ) {
-    inferredType =
-        "dcc-ex";
-  }
-
-  if (
-      inferredType !=
-          _selectedType &&
-      CommandCenterFactory::supports(
-          inferredType)
-  ) {
-    select(
-        inferredType,
-        hostValue,
-        portValue);
-
-    return;
-  }
-
   _host =
       hostValue;
 
@@ -217,14 +175,14 @@ const char* CommandCenterManager::type() const {
   return
       _implementation
           ? _implementation->type()
-          : _selectedType.c_str();
+          : CommandCenterBuild::type();
 }
 
 const char* CommandCenterManager::name() const {
   return
       _implementation
           ? _implementation->name()
-          : "Command Center";
+          : CommandCenterBuild::name();
 }
 
 void CommandCenterManager::onRawInfo(

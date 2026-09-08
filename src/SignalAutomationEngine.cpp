@@ -3,21 +3,6 @@
 #include "Logger.h"
 #include "FileStore.h"
 
-namespace {
-
-constexpr unsigned long
-    CONFIG_CHECK_INTERVAL_MS =
-        250;
-
-constexpr uint32_t
-    FNV1A_OFFSET_BASIS =
-        2166136261UL;
-
-constexpr uint32_t
-    FNV1A_PRIME =
-        16777619UL;
-
-}
 
 
 SignalAutomationEngine::SignalAutomationEngine(
@@ -52,70 +37,12 @@ bool SignalAutomationEngine::begin(
   const bool loaded =
       reload();
 
-  _configFingerprint =
-      calculateConfigFingerprint();
-
-  _configFingerprintValid =
-      true;
-
-  _lastConfigCheckMs =
-      millis();
 
   if (loaded) {
     evaluate();
   }
 
   return loaded;
-}
-
-
-void SignalAutomationEngine::loop() {
-  if (!_fs) {
-    return;
-  }
-
-  const unsigned long now =
-      millis();
-
-  if (
-      now -
-          _lastConfigCheckMs <
-      CONFIG_CHECK_INTERVAL_MS
-  ) {
-    return;
-  }
-
-  _lastConfigCheckMs =
-      now;
-
-  const uint32_t fingerprint =
-      calculateConfigFingerprint();
-
-  if (
-      _configFingerprintValid &&
-      fingerprint ==
-          _configFingerprint
-  ) {
-    return;
-  }
-
-  _configFingerprint =
-      fingerprint;
-
-  _configFingerprintValid =
-      true;
-
-  Logger::info(
-      "SignalAutomation: rule file changed, reloading");
-
-  if (!reload()) {
-    Logger::error(
-        "SignalAutomation: changed rule file rejected; keeping current runtime rules");
-
-    return;
-  }
-
-  evaluate();
 }
 
 
@@ -301,58 +228,6 @@ bool SignalAutomationEngine::parseSignal(
           signal));
 
   return true;
-}
-
-
-uint32_t
-SignalAutomationEngine::calculateConfigFingerprint() const {
-  if (!_fs) {
-    return 0;
-  }
-
-  FileStore files(
-      *_fs);
-
-  File file =
-      files.openRead(
-          _path.c_str());
-
-  if (!file) {
-    return 0;
-  }
-
-  uint32_t hash =
-      FNV1A_OFFSET_BASIS;
-
-  hash ^=
-      0xA5U;
-
-  hash *=
-      FNV1A_PRIME;
-
-  while (
-      file.available()
-  ) {
-    const int value =
-        file.read();
-
-    if (
-        value < 0
-    ) {
-      break;
-    }
-
-    hash ^=
-        static_cast<uint8_t>(
-            value);
-
-    hash *=
-        FNV1A_PRIME;
-  }
-
-  file.close();
-
-  return hash;
 }
 
 

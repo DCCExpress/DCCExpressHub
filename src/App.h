@@ -5,7 +5,7 @@
 #include <memory>
 
 #include "ApiServer.h"
-#include "CommandCenterManager.h"
+#include "CompiledCommandCenter.h"
 #include "HubConfigStore.h"
 #include "HubDisplay.h"
 #include "LayoutRuntime.h"
@@ -22,7 +22,7 @@ public:
 private:
   HubConfigStore _config;
 
-  CommandCenterManager _commandCenter;
+  CompiledCommandCenter _commandCenter;
 
   LayoutRuntime _runtime;
   RuntimeStateStore _stateStore;
@@ -34,20 +34,23 @@ private:
 
   WsProtocol _wsProtocol{
       _ws,
-      _commandCenter,
+      static_cast<ICommandCenter&>(
+          _commandCenter),
       _runtime,
       _stateStore};
 
   SerialConfigurator _serialConfigurator{
       _config,
-      _commandCenter,
+      static_cast<ICommandCenter&>(
+          _commandCenter),
       _wsProtocol};
 
   std::unique_ptr<ApiServer>
       _apiServer;
 
   SignalAutomationEngine _signalAutomation{
-      _commandCenter,
+      static_cast<ICommandCenter&>(
+          _commandCenter),
       _runtime,
       _ws};
 

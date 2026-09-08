@@ -3,24 +3,12 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 
-#include "DccExBridge.h"
 #include "HubConfigStore.h"
 #include "ICommandCenter.h"
 #include "WsProtocol.h"
 
 class SerialConfigurator {
 public:
-  // Existing constructor retained for source compatibility with
-  // SerialConfigurator.cpp.
-  SerialConfigurator(
-      HubConfigStore& config,
-      DccExBridge& dcc,
-      WsProtocol& wsProtocol)
-      : _config(config),
-        _dcc(dcc),
-        _wsProtocol(wsProtocol) {}
-
-  // Generic constructor used by App/CommandCenterManager.
   SerialConfigurator(
       HubConfigStore& config,
       ICommandCenter& commandCenter,
@@ -34,10 +22,12 @@ public:
 
 private:
   static constexpr const char*
-      RESPONSE_PREFIX = "@HUBCFG ";
+      RESPONSE_PREFIX =
+          "@HUBCFG ";
 
   static constexpr size_t
-      MAX_LINE_LENGTH = 1536;
+      MAX_LINE_LENGTH =
+          1536;
 
   HubConfigStore& _config;
   ICommandCenter& _dcc;

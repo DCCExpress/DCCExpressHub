@@ -7,13 +7,13 @@
 
 #include "AutomationsEndpoint.h"
 #include "DeviceConfigEndpoint.h"
-#include "DccExBridge.h"
 #include "FileStore.h"
 #include "HubConfigStore.h"
 #include "ICommandCenter.h"
 #include "LayoutRuntime.h"
 #include "RuntimeStateStore.h"
 #include "ScriptInfoEndpoint.h"
+#include "SignalAutomationEngine.h"
 #include "WsProtocol.h"
 
 class ApiServer {
@@ -21,27 +21,20 @@ public:
   ApiServer(
       uint16_t httpPort,
       AsyncWebSocket& ws,
-      DccExBridge& dcc,
-      LayoutRuntime& runtime,
-      RuntimeStateStore& stateStore,
-      HubConfigStore& config,
-      WsProtocol& wsProtocol);
-
-  ApiServer(
-      uint16_t httpPort,
-      AsyncWebSocket& ws,
       ICommandCenter& commandCenter,
       LayoutRuntime& runtime,
       RuntimeStateStore& stateStore,
       HubConfigStore& config,
-      WsProtocol& wsProtocol)
+      WsProtocol& wsProtocol,
+      SignalAutomationEngine& signalAutomation)
       : _server(httpPort),
         _ws(ws),
         _dcc(commandCenter),
         _runtime(runtime),
         _stateStore(stateStore),
         _config(config),
-        _wsProtocol(wsProtocol) {}
+        _wsProtocol(wsProtocol),
+        _signalAutomation(signalAutomation) {}
 
   void begin();
 
@@ -73,6 +66,7 @@ private:
   RuntimeStateStore& _stateStore;
   HubConfigStore& _config;
   WsProtocol& _wsProtocol;
+  SignalAutomationEngine& _signalAutomation;
 
   FileStore _files{
       LittleFS};

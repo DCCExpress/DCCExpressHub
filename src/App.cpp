@@ -4,7 +4,6 @@
 #include <LittleFS.h>
 #include <WiFi.h>
 
-#include "CommandCenterBuild.h"
 #include "Logger.h"
 
 namespace {
@@ -32,24 +31,13 @@ void App::loadConfiguration() {
   _wsProtocol.setPowerIncludesProgramming(
       commandCenter.powerIncludesProgramming);
 
-  if (
-      !_commandCenter.begin(
-          CommandCenterBuild::type(),
-          commandCenter.host,
-          commandCenter.port)
-  ) {
-    Logger::error(
-        String(
-            "Cannot create compiled command center: ") +
-        CommandCenterBuild::type());
-
-    return;
-  }
+  _commandCenter.begin(
+      commandCenter.host,
+      commandCenter.port);
 
   Logger::info(
-      String(
-          "Firmware command center: ") +
-      CommandCenterBuild::name());
+      String("Firmware command center: ") +
+      _commandCenter.name());
 
   _display.showCommandCenter(
       _commandCenter.host(),
@@ -250,7 +238,8 @@ void App::begin() {
           _runtime,
           _stateStore,
           _config,
-          _wsProtocol));
+          _wsProtocol,
+          _signalAutomation));
 
   _apiServer->begin();
 
@@ -260,7 +249,6 @@ void App::begin() {
 void App::loop() {
   _serialConfigurator.loop();
   _commandCenter.loop();
-  _signalAutomation.loop();
   _wsProtocol.loop();
   _wsProtocol.cleanupClients();
   updateDisplay();

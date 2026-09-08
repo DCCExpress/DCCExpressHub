@@ -3,6 +3,8 @@
 #include <WiFi.h>
 #include <stdlib.h>
 
+#include "CommandCenterBuild.h"
+#include "CommandCenterCapabilities.h"
 #include "CommandCenterEndpoint.h"
 #include "Logger.h"
 
@@ -202,22 +204,6 @@ bool parseBooleanValue(
 }
 
 }
-
-ApiServer::ApiServer(
-    uint16_t httpPort,
-    AsyncWebSocket& ws,
-    DccExBridge& dcc,
-    LayoutRuntime& runtime,
-    RuntimeStateStore& stateStore,
-    HubConfigStore& config,
-    WsProtocol& wsProtocol)
-    : _server(httpPort),
-      _ws(ws),
-      _dcc(dcc),
-      _runtime(runtime),
-      _stateStore(stateStore),
-      _config(config),
-      _wsProtocol(wsProtocol) {}
 
 void ApiServer::sendJson(
     AsyncWebServerRequest* request,
@@ -880,8 +866,27 @@ void ApiServer::handleSignalLogicBody(
     return;
   }
 
+  if (
+      !_signalAutomation.reload()
+  ) {
+    response["ok"] =
+        false;
+
+    response["message"] =
+        "Signal automation saved but runtime reload failed";
+
+    sendJson(
+        request,
+        500,
+        response);
+
+    return;
+  }
+
+  _signalAutomation.evaluate();
+
   Logger::info(
-      "Signal automation saved: " +
+      "Signal automation saved and reloaded: " +
       String(total) +
       " bytes");
 
@@ -907,6 +912,85 @@ void ApiServer::setupApi() {
       .addHeader(
           "Access-Control-Allow-Headers",
           "Content-Type");
+
+  _server.on(
+      "/api/command-center-info",
+      HTTP_GET,
+      [this](
+          AsyncWebServerRequest* request) {
+        JsonDocument doc;
+
+        doc["ok"] =
+            true;
+
+        doc["type"] =
+            CommandCenterBuild::type();
+
+        doc["name"] =
+            CommandCenterBuild::name();
+
+        doc["defaultPort"] =
+            CommandCenterBuild::defaultPort();
+
+        doc["connected"] =
+            _dcc.connected();
+
+        JsonObject capabilities =
+            doc["capabilities"]
+                .to<JsonObject>();
+
+        capabilities["trackPower"] =
+            true;
+
+        capabilities["programmingTrackPower"] =
+            CommandCenterCapabilities
+                ::programmingTrackPower();
+
+        capabilities["rawCommand"] =
+            CommandCenterCapabilities
+                ::rawCommand();
+
+        capabilities["vPin"] =
+            CommandCenterCapabilities
+                ::vPin();
+
+        capabilities["extendedAccessory"] =
+            CommandCenterCapabilities
+                ::extendedAccessory();
+
+        capabilities["currentTelemetry"] =
+            CommandCenterCapabilities
+                ::currentTelemetry();
+
+        capabilities["trackConfiguration"] =
+            CommandCenterCapabilities
+                ::trackConfiguration();
+
+        capabilities["locomotiveControl"] =
+            CommandCenterCapabilities
+                ::locomotiveControl();
+
+        capabilities["locomotiveFunctions"] =
+            CommandCenterCapabilities
+                ::locomotiveFunctions();
+
+        capabilities["turnoutControl"] =
+            CommandCenterCapabilities
+                ::turnoutControl();
+
+        capabilities["basicAccessory"] =
+            CommandCenterCapabilities
+                ::basicAccessory();
+
+        capabilities["signalAspect"] =
+            CommandCenterCapabilities
+                ::signalAspect();
+
+        sendJson(
+            request,
+            200,
+            doc);
+      });
 
   _server.on(
       "/api/command-center-config",

@@ -2,19 +2,27 @@
 
 #include <ESPmDNS.h>
 #include <WiFi.h>
+
+#include "CommandCenterBuild.h"
+
+#if defined(HUB_CC_Z21)
 #include <WiFiUdp.h>
+#endif
 
 namespace {
 
 bool isZeroAddress(
     const IPAddress& address) {
-  return address ==
-         IPAddress(
-             0,
-             0,
-             0,
-             0);
+  return
+      address ==
+      IPAddress(
+          0,
+          0,
+          0,
+          0);
 }
+
+#if defined(HUB_CC_Z21)
 
 uint16_t readLe16(
     const uint8_t* data) {
@@ -28,7 +36,7 @@ uint16_t readLe16(
       );
 }
 
-CommandCenterProbeResult probeZ21Endpoint(
+CommandCenterProbeResult probeCompiledZ21(
     const String& host,
     uint16_t port,
     uint32_t resolveTimeoutMs,
@@ -53,17 +61,16 @@ CommandCenterProbeResult probeZ21Endpoint(
     return result;
   }
 
-  result.resolved =
-      true;
-
-  result.resolvedAddress =
-      resolved;
+  result.resolved = true;
+  result.resolvedAddress = resolved;
 
   WiFiUDP udp;
 
-  // Dedicated temporary local probe port so the live Z21CommandCenter can
-  // remain bound to its own client port at the same time.
-  if (!udp.begin(21107)) {
+  // Temporary local port, separate from the live Z21 session.
+  if (
+      !udp.begin(
+          21107)
+  ) {
     result.elapsedMs =
         millis() -
         started;
@@ -72,7 +79,7 @@ CommandCenterProbeResult probeZ21Endpoint(
   }
 
   // LAN_SYSTEMSTATE_GETDATA:
-  // DataLen=4, Header=0x0085, no data.
+  // DataLen=4, Header=0x0085.
   const uint8_t request[] = {
       0x04,
       0x00,
@@ -85,10 +92,8 @@ CommandCenterProbeResult probeZ21Endpoint(
           port) ||
       udp.write(
           request,
-          sizeof(
-              request)) !=
-          sizeof(
-              request) ||
+          sizeof(request)) !=
+          sizeof(request) ||
       udp.endPacket() !=
           1
   ) {
@@ -121,11 +126,11 @@ CommandCenterProbeResult probeZ21Endpoint(
               min(
                   packetSize,
                   static_cast<int>(
-                      sizeof(
-                          buffer))));
+                      sizeof(buffer))));
 
       if (
-          read >= 4
+          read >=
+          4
       ) {
         size_t offset =
             0;
@@ -142,7 +147,8 @@ CommandCenterProbeResult probeZ21Endpoint(
                   offset);
 
           if (
-              dataLen < 4 ||
+              dataLen <
+                  4 ||
               offset +
                   dataLen >
                   static_cast<size_t>(
@@ -161,12 +167,8 @@ CommandCenterProbeResult probeZ21Endpoint(
               header ==
               0x0084
           ) {
-            result.tcpConnected =
-                true;
-
-            result.dccExAlive =
-                true;
-
+            result.tcpConnected = true;
+            result.dccExAlive = true;
             result.reply =
                 "Z21 LAN system-state reply";
 
@@ -196,6 +198,8 @@ CommandCenterProbeResult probeZ21Endpoint(
 
   return result;
 }
+
+#endif
 
 }
 
@@ -256,6 +260,8 @@ bool resolveCommandCenterHost(
           address);
 }
 
+#if defined(HUB_CC_DCCEX)
+
 bool connectCommandCenterClient(
     WiFiClient& client,
     const String& host,
@@ -278,27 +284,30 @@ bool connectCommandCenterClient(
         address;
   }
 
-  return client.connect(
-      address,
-      port,
-      timeoutMs);
+  return
+      client.connect(
+          address,
+          port,
+          timeoutMs);
 }
+
+#endif
 
 CommandCenterProbeResult probeDccExEndpoint(
     const String& host,
     uint16_t port,
     uint32_t connectTimeoutMs,
     uint32_t totalTimeoutMs) {
-  if (
-      port == 21105 ||
-      port == 21106
-  ) {
-    return probeZ21Endpoint(
-        host,
-        port,
-        connectTimeoutMs,
-        totalTimeoutMs);
-  }
+#if defined(HUB_CC_Z21)
+
+  return
+      probeCompiledZ21(
+          host,
+          port,
+          connectTimeoutMs,
+          totalTimeoutMs);
+
+#else
 
   CommandCenterProbeResult result;
 
@@ -320,11 +329,8 @@ CommandCenterProbeResult probeDccExEndpoint(
     return result;
   }
 
-  result.resolved =
-      true;
-
-  result.resolvedAddress =
-      resolved;
+  result.resolved = true;
+  result.resolvedAddress = resolved;
 
   WiFiClient probe;
 
@@ -341,8 +347,7 @@ CommandCenterProbeResult probeDccExEndpoint(
     return result;
   }
 
-  result.tcpConnected =
-      true;
+  result.tcpConnected = true;
 
   probe.setNoDelay(
       true);
@@ -372,24 +377,21 @@ CommandCenterProbeResult probeDccExEndpoint(
 
       if (!insideFrame) {
         if (
-            c == '<'
+            c ==
+            '<'
         ) {
-          insideFrame =
-              true;
-
-          frame =
-              "<";
+          insideFrame = true;
+          frame = "<";
         }
 
         continue;
       }
 
       if (
-          c == '<'
+          c ==
+          '<'
       ) {
-        frame =
-            "<";
-
+        frame = "<";
         continue;
       }
 
@@ -397,21 +399,17 @@ CommandCenterProbeResult probeDccExEndpoint(
           c;
 
       if (
-          c == '>'
+          c ==
+          '>'
       ) {
-        insideFrame =
-            false;
-
-        result.reply =
-            frame;
+        insideFrame = false;
+        result.reply = frame;
 
         if (
             frame.startsWith(
                 "<#")
         ) {
-          result.dccExAlive =
-              true;
-
+          result.dccExAlive = true;
           result.elapsedMs =
               millis() -
               started;
@@ -428,9 +426,7 @@ CommandCenterProbeResult probeDccExEndpoint(
           frame.length() >
           128
       ) {
-        insideFrame =
-            false;
-
+        insideFrame = false;
         frame.clear();
       }
     }
@@ -452,4 +448,6 @@ CommandCenterProbeResult probeDccExEndpoint(
   probe.stop();
 
   return result;
+
+#endif
 }

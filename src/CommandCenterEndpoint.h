@@ -7,9 +7,8 @@ struct CommandCenterProbeResult {
   bool resolved = false;
   IPAddress resolvedAddress;
 
-  // Compatibility names used by the existing API/frontend.
-  // For Z21 probes these indicate transport/session reachability even though
-  // the transport is UDP rather than TCP.
+  // Legacy frontend/API field names retained for compatibility.
+  // In a Z21 firmware these mean transport/session reachability.
   bool tcpConnected = false;
   bool dccExAlive = false;
 
@@ -22,15 +21,19 @@ bool resolveCommandCenterHost(
     IPAddress& address,
     uint32_t timeoutMs = 1200);
 
+#if defined(HUB_CC_DCCEX)
 bool connectCommandCenterClient(
     WiFiClient& client,
     const String& host,
     uint16_t port,
     uint32_t timeoutMs = 1200,
     IPAddress* resolvedAddress = nullptr);
+#endif
 
-// Backward-compatible entry point used by the current API/serial tooling.
-// Ports 21105/21106 are probed as Z21 UDP; other ports use DCC-EX TCP.
+// Compatibility entry point used by ApiServer and SerialConfigurator.
+// Its implementation is selected at compile time:
+//   HUB_CC_DCCEX -> TCP / <#>
+//   HUB_CC_Z21   -> UDP / LAN_SYSTEMSTATE_GETDATA
 CommandCenterProbeResult probeDccExEndpoint(
     const String& host,
     uint16_t port,
