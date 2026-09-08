@@ -32,6 +32,18 @@ String defaultHubHostname() {
 #endif
 }
 
+bool isOtherFirmwareDefaultPort(
+    uint16_t port) {
+#if defined(HUB_CC_DCCEX)
+  return
+      port == 21105 ||
+      port == 21106;
+#else
+  return
+      port == 2560;
+#endif
+}
+
 }
 
 void HubConfigStore::begin() {
@@ -94,7 +106,10 @@ void HubConfigStore::loadNetwork() {
           "httpPort",
           DEFAULT_HUB_HTTP_PORT);
 
-  if (_network.httpPort == 0) {
+  if (
+      _network.httpPort ==
+      0
+  ) {
     _network.httpPort =
         DEFAULT_HUB_HTTP_PORT;
   }
@@ -102,17 +117,7 @@ void HubConfigStore::loadNetwork() {
 
 void HubConfigStore::loadCommandCenter() {
   _commandCenter.type =
-      _prefs.getString(
-          "csbType",
-          "dcc-ex");
-
-  _commandCenter.type.trim();
-  _commandCenter.type.toLowerCase();
-
-  if (_commandCenter.type.isEmpty()) {
-    _commandCenter.type =
-        "dcc-ex";
-  }
+      CommandCenterBuild::type();
 
   _commandCenter.host =
       _prefs.getString(
@@ -122,26 +127,15 @@ void HubConfigStore::loadCommandCenter() {
   _commandCenter.port =
       _prefs.getUShort(
           "csbPort",
-          DEFAULT_CSB1_PORT);
+          CommandCenterBuild::defaultPort());
 
-  if (_commandCenter.port == 0) {
-    _commandCenter.port =
-        DEFAULT_CSB1_PORT;
-  }
-
-  // Backward-compatible protocol selection for the existing config UI.
-  // Official Z21 LAN ports are 21105/21106; DCC-EX defaults to 2560.
   if (
-      _commandCenter.port == 21105 ||
-      _commandCenter.port == 21106
+      _commandCenter.port == 0 ||
+      isOtherFirmwareDefaultPort(
+          _commandCenter.port)
   ) {
-    _commandCenter.type =
-        "z21";
-  } else if (
-      _commandCenter.port == 2560
-  ) {
-    _commandCenter.type =
-        "dcc-ex";
+    _commandCenter.port =
+        CommandCenterBuild::defaultPort();
   }
 
   _commandCenter.powerIncludesProgramming =
@@ -209,27 +203,15 @@ bool HubConfigStore::saveCommandCenter(
   _commandCenter =
       settings;
 
-  _commandCenter.type.trim();
-  _commandCenter.type.toLowerCase();
+  _commandCenter.type =
+      CommandCenterBuild::type();
 
-  if (_commandCenter.type.isEmpty()) {
-    _commandCenter.type =
-        "dcc-ex";
-  }
-
-  // Keep the legacy host/port-only configuration screen useful until the
-  // frontend gains an explicit command-center type selector.
   if (
-      _commandCenter.port == 21105 ||
-      _commandCenter.port == 21106
+      _commandCenter.port ==
+      0
   ) {
-    _commandCenter.type =
-        "z21";
-  } else if (
-      _commandCenter.port == 2560
-  ) {
-    _commandCenter.type =
-        "dcc-ex";
+    _commandCenter.port =
+        CommandCenterBuild::defaultPort();
   }
 
   bool ok = true;

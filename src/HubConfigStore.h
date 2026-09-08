@@ -3,6 +3,8 @@
 #include <Arduino.h>
 #include <Preferences.h>
 
+#include "CommandCenterBuild.h"
+
 struct HubNetworkSettings {
   String wifiSsid;
   String wifiPassword;
@@ -20,10 +22,16 @@ struct HubNetworkSettings {
 };
 
 struct CommandCenterSettings {
-  String type = "dcc-ex";
+  String type =
+      CommandCenterBuild::type();
+
   String host;
-  uint16_t port = 2560;
-  bool powerIncludesProgramming = true;
+
+  uint16_t port =
+      CommandCenterBuild::defaultPort();
+
+  bool powerIncludesProgramming =
+      true;
 };
 
 class HubConfigStore {

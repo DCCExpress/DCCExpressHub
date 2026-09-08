@@ -4,6 +4,7 @@
 #include <LittleFS.h>
 #include <WiFi.h>
 
+#include "CommandCenterBuild.h"
 #include "Logger.h"
 
 namespace {
@@ -33,18 +34,22 @@ void App::loadConfiguration() {
 
   if (
       !_commandCenter.begin(
-          commandCenter.type,
+          CommandCenterBuild::type(),
           commandCenter.host,
           commandCenter.port)
   ) {
-    Logger::warn(
-        "Configured command center type is unavailable; falling back to dcc-ex");
+    Logger::error(
+        String(
+            "Cannot create compiled command center: ") +
+        CommandCenterBuild::type());
 
-    _commandCenter.begin(
-        "dcc-ex",
-        commandCenter.host,
-        commandCenter.port);
+    return;
   }
+
+  Logger::info(
+      String(
+          "Firmware command center: ") +
+      CommandCenterBuild::name());
 
   _display.showCommandCenter(
       _commandCenter.host(),

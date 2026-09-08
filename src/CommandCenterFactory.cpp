@@ -1,7 +1,12 @@
 #include "CommandCenterFactory.h"
 
+#include "CommandCenterBuild.h"
+
+#if defined(HUB_CC_DCCEX)
 #include "DccExBridge.h"
+#elif defined(HUB_CC_Z21)
 #include "Z21CommandCenter.h"
+#endif
 
 String CommandCenterFactory::normalizeType(
     String type) {
@@ -34,8 +39,8 @@ bool CommandCenterFactory::supports(
           std::move(type));
 
   return
-      type == "dcc-ex" ||
-      type == "z21";
+      type ==
+      CommandCenterBuild::type();
 }
 
 std::unique_ptr<ICommandCenter>
@@ -46,22 +51,19 @@ CommandCenterFactory::create(
           std::move(type));
 
   if (
-      type ==
-      "dcc-ex"
+      type !=
+      CommandCenterBuild::type()
   ) {
-    return
-        std::unique_ptr<ICommandCenter>(
-            new DccExBridge());
+    return nullptr;
   }
 
-  if (
-      type ==
-      "z21"
-  ) {
-    return
-        std::unique_ptr<ICommandCenter>(
-            new Z21CommandCenter());
-  }
-
-  return nullptr;
+#if defined(HUB_CC_DCCEX)
+  return
+      std::unique_ptr<ICommandCenter>(
+          new DccExBridge());
+#else
+  return
+      std::unique_ptr<ICommandCenter>(
+          new Z21CommandCenter());
+#endif
 }
