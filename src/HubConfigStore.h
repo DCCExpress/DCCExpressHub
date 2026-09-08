@@ -20,6 +20,7 @@ struct HubNetworkSettings {
 };
 
 struct CommandCenterSettings {
+  String type = "dcc-ex";
   String host;
   uint16_t port = 2560;
   bool powerIncludesProgramming = true;

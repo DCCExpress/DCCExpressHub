@@ -7,6 +7,7 @@
 #endif
 
 namespace {
+
 String defaultWifiSsid() {
 #ifdef WIFI_SSID
   return String(WIFI_SSID);
@@ -30,6 +31,7 @@ String defaultHubHostname() {
   return String("dcc-express-hub");
 #endif
 }
+
 }
 
 void HubConfigStore::begin() {
@@ -99,6 +101,19 @@ void HubConfigStore::loadNetwork() {
 }
 
 void HubConfigStore::loadCommandCenter() {
+  _commandCenter.type =
+      _prefs.getString(
+          "csbType",
+          "dcc-ex");
+
+  _commandCenter.type.trim();
+  _commandCenter.type.toLowerCase();
+
+  if (_commandCenter.type.isEmpty()) {
+    _commandCenter.type =
+        "dcc-ex";
+  }
+
   _commandCenter.host =
       _prefs.getString(
           "csbHost",
@@ -114,6 +129,21 @@ void HubConfigStore::loadCommandCenter() {
         DEFAULT_CSB1_PORT;
   }
 
+  // Backward-compatible protocol selection for the existing config UI.
+  // Official Z21 LAN ports are 21105/21106; DCC-EX defaults to 2560.
+  if (
+      _commandCenter.port == 21105 ||
+      _commandCenter.port == 21106
+  ) {
+    _commandCenter.type =
+        "z21";
+  } else if (
+      _commandCenter.port == 2560
+  ) {
+    _commandCenter.type =
+        "dcc-ex";
+  }
+
   _commandCenter.powerIncludesProgramming =
       _prefs.getBool(
           "powerProg",
@@ -126,23 +156,25 @@ bool HubConfigStore::saveNetwork(
 
   bool ok = true;
 
-  ok &= _prefs.putString(
-            "wifiSsid",
-            _network.wifiSsid) > 0 ||
-        _network.wifiSsid.isEmpty();
+  ok &=
+      _prefs.putString(
+          "wifiSsid",
+          _network.wifiSsid) > 0 ||
+      _network.wifiSsid.isEmpty();
 
-  // Preferences::putString() can return zero for an empty string.
   _prefs.putString(
       "wifiPass",
       _network.wifiPassword);
 
-  ok &= _prefs.putString(
-            "hubHost",
-            _network.hostname) > 0;
+  ok &=
+      _prefs.putString(
+          "hubHost",
+          _network.hostname) > 0;
 
-  ok &= _prefs.putBool(
-            "netDhcp",
-            _network.dhcp) == 1;
+  ok &=
+      _prefs.putBool(
+          "netDhcp",
+          _network.dhcp) == 1;
 
   _prefs.putString(
       "netIp",
@@ -164,30 +196,63 @@ bool HubConfigStore::saveNetwork(
       "netDns2",
       _network.dns2);
 
-  ok &= _prefs.putUShort(
-            "httpPort",
-            _network.httpPort) == 2;
+  ok &=
+      _prefs.putUShort(
+          "httpPort",
+          _network.httpPort) == 2;
 
   return ok;
 }
 
 bool HubConfigStore::saveCommandCenter(
     const CommandCenterSettings& settings) {
-  _commandCenter = settings;
+  _commandCenter =
+      settings;
+
+  _commandCenter.type.trim();
+  _commandCenter.type.toLowerCase();
+
+  if (_commandCenter.type.isEmpty()) {
+    _commandCenter.type =
+        "dcc-ex";
+  }
+
+  // Keep the legacy host/port-only configuration screen useful until the
+  // frontend gains an explicit command-center type selector.
+  if (
+      _commandCenter.port == 21105 ||
+      _commandCenter.port == 21106
+  ) {
+    _commandCenter.type =
+        "z21";
+  } else if (
+      _commandCenter.port == 2560
+  ) {
+    _commandCenter.type =
+        "dcc-ex";
+  }
 
   bool ok = true;
 
-  ok &= _prefs.putString(
-            "csbHost",
-            _commandCenter.host) > 0;
+  ok &=
+      _prefs.putString(
+          "csbType",
+          _commandCenter.type) > 0;
 
-  ok &= _prefs.putUShort(
-            "csbPort",
-            _commandCenter.port) == 2;
+  ok &=
+      _prefs.putString(
+          "csbHost",
+          _commandCenter.host) > 0;
 
-  ok &= _prefs.putBool(
-            "powerProg",
-            _commandCenter.powerIncludesProgramming) == 1;
+  ok &=
+      _prefs.putUShort(
+          "csbPort",
+          _commandCenter.port) == 2;
+
+  ok &=
+      _prefs.putBool(
+          "powerProg",
+          _commandCenter.powerIncludesProgramming) == 1;
 
   return ok;
 }

@@ -1,20 +1,23 @@
 #include "WsProtocol.h"
+
 #include "Logger.h"
 #include "config.h"
 
-#include <WiFi.h>
 #include <LittleFS.h>
+#include <WiFi.h>
 #include <esp_freertos_hooks.h>
 #include <esp_system.h>
 #include <stdlib.h>
 
 namespace {
+
 volatile uint32_t cpuIdleCounters[2] = {0, 0};
 uint32_t cpuIdleBaseline[2] = {1, 1};
 uint32_t cpuIdlePrevious[2] = {0, 0};
 uint8_t cpuUsagePercent[2] = {0, 0};
 unsigned long lastCpuSampleAtMs = 0;
-esp_reset_reason_t bootResetReason = ESP_RST_UNKNOWN;
+esp_reset_reason_t bootResetReason =
+    ESP_RST_UNKNOWN;
 
 bool cpuIdleHook0() {
   ++cpuIdleCounters[0];
@@ -27,21 +30,41 @@ bool cpuIdleHook1() {
 }
 
 void updateCpuUsage() {
-  const unsigned long now = millis();
+  const unsigned long now =
+      millis();
 
-  if (now - lastCpuSampleAtMs < 1000) {
+  if (
+      now -
+          lastCpuSampleAtMs <
+      1000
+  ) {
     return;
   }
 
-  lastCpuSampleAtMs = now;
+  lastCpuSampleAtMs =
+      now;
 
-  for (uint8_t core = 0; core < 2; ++core) {
-    const uint32_t current = cpuIdleCounters[core];
-    const uint32_t idleDelta = current - cpuIdlePrevious[core];
-    cpuIdlePrevious[core] = current;
+  for (
+      uint8_t core = 0;
+      core < 2;
+      ++core
+  ) {
+    const uint32_t current =
+        cpuIdleCounters[core];
 
-    if (idleDelta > cpuIdleBaseline[core]) {
-      cpuIdleBaseline[core] = idleDelta;
+    const uint32_t idleDelta =
+        current -
+        cpuIdlePrevious[core];
+
+    cpuIdlePrevious[core] =
+        current;
+
+    if (
+        idleDelta >
+        cpuIdleBaseline[core]
+    ) {
+      cpuIdleBaseline[core] =
+          idleDelta;
     }
 
     const uint32_t baseline =
@@ -50,7 +73,8 @@ void updateCpuUsage() {
             : 1;
 
     const uint32_t measuredIdlePercent =
-        (idleDelta * 100ULL) / baseline;
+        (idleDelta * 100ULL) /
+        baseline;
 
     const uint32_t idlePercent =
         measuredIdlePercent > 100
@@ -58,155 +82,188 @@ void updateCpuUsage() {
             : measuredIdlePercent;
 
     cpuUsagePercent[core] =
-        static_cast<uint8_t>(100 - idlePercent);
+        static_cast<uint8_t>(
+            100 -
+            idlePercent);
   }
 }
 
-const char* resetReasonName(esp_reset_reason_t reason) {
+const char* resetReasonName(
+    esp_reset_reason_t reason) {
   switch (reason) {
     case ESP_RST_POWERON:
       return "power-on";
+
     case ESP_RST_EXT:
       return "external";
+
     case ESP_RST_SW:
       return "software";
+
     case ESP_RST_PANIC:
       return "panic";
+
     case ESP_RST_INT_WDT:
       return "interrupt-watchdog";
+
     case ESP_RST_TASK_WDT:
       return "task-watchdog";
+
     case ESP_RST_WDT:
       return "watchdog";
+
     case ESP_RST_DEEPSLEEP:
       return "deep-sleep";
+
     case ESP_RST_BROWNOUT:
       return "brownout";
+
     case ESP_RST_SDIO:
       return "sdio";
+
     default:
       return "unknown";
   }
 }
 
-size_t parseIntegerList(
-    const String& text,
-    int32_t* values,
-    size_t maxValues) {
-  if (!values || maxValues == 0) {
-    return 0;
-  }
+uint16_t parseBlockId(
+    JsonVariantConst value) {
+  if (
+      value.is<
+          const char*>()
+  ) {
+    const char* text =
+        value.as<
+            const char*>();
 
-  const char* cursor = text.c_str();
-  size_t count = 0;
-
-  while (*cursor && count < maxValues) {
-    while (*cursor &&
-           (*cursor == ' ' ||
-            *cursor == '\t' ||
-            *cursor == ',')) {
-      ++cursor;
+    if (
+        !text ||
+        !*text
+    ) {
+      return 0;
     }
 
-    if (!*cursor) {
-      break;
-    }
+    const long parsed =
+        strtol(
+            text,
+            nullptr,
+            10);
 
-    char* end = nullptr;
-    const long value = strtol(cursor, &end, 10);
-
-    if (end == cursor) {
-      while (*cursor &&
-             *cursor != ' ' &&
-             *cursor != '\t' &&
-             *cursor != ',') {
-        ++cursor;
-      }
-      continue;
-    }
-
-    values[count++] =
-        static_cast<int32_t>(value);
-
-    cursor = end;
+    return
+        parsed > 0 &&
+        parsed <= 0xffff
+            ? static_cast<uint16_t>(
+                  parsed)
+            : 0;
   }
 
-  return count;
+  const long parsed =
+      value | 0L;
+
+  return
+      parsed > 0 &&
+      parsed <= 0xffff
+          ? static_cast<uint16_t>(
+                parsed)
+          : 0;
 }
 
-String cleanDccVersion(String value) {
-  value.trim();
-
-  if (value.startsWith("DCC-EX")) {
-    value.remove(0, 6);
-  } else if (value.startsWith("DCCEX")) {
-    value.remove(0, 5);
-  }
-
-  value.trim();
-
-  if (value.startsWith("V-")) {
-    value.remove(0, 2);
-  } else if (value.startsWith("V")) {
-    value.remove(0, 1);
-  }
-
-  value.trim();
-  return value;
 }
 
-uint16_t parseBlockId(JsonVariantConst value) {
-  if (value.is<const char*>()) {
-    const char* text = value.as<const char*>();
-    if (!text || !*text) return 0;
-    const long parsed = strtol(text, nullptr, 10);
-    return parsed > 0 && parsed <= 0xffff
-        ? static_cast<uint16_t>(parsed)
-        : 0;
-  }
-
-  const long parsed = value | 0L;
-  return parsed > 0 && parsed <= 0xffff
-      ? static_cast<uint16_t>(parsed)
-      : 0;
-}
-}
 
 WsProtocol::WsProtocol(
     AsyncWebSocket& ws,
-    DccExBridge& dcc,
+    ICommandCenter& commandCenter,
     LayoutRuntime& runtime,
     RuntimeStateStore& stateStore)
-    : _ws(ws), _dcc(dcc), _runtime(runtime), _stateStore(stateStore) {}
+    : _ws(ws),
+      _commandCenter(commandCenter),
+      _runtime(runtime),
+      _stateStore(stateStore) {}
+
 
 void WsProtocol::begin() {
-  _ws.onEvent([this](
-      AsyncWebSocket* server,
-      AsyncWebSocketClient* client,
-      AwsEventType type,
-      void* arg,
-      uint8_t* data,
-      size_t len) {
-    handleEvent(server, client, type, arg, data, len);
-  });
+  _ws.onEvent(
+      [this](
+          AsyncWebSocket* server,
+          AsyncWebSocketClient* client,
+          AwsEventType type,
+          void* arg,
+          uint8_t* data,
+          size_t len) {
+        handleEvent(
+            server,
+            client,
+            type,
+            arg,
+            data,
+            len);
+      });
 
-  _dcc.onFrame([this](const String& frame) {
-    handleDccFrame(frame);
-  });
+  _commandCenter.onRawInfo(
+      [this](
+          const String& raw) {
+        broadcastRawInfo(
+            raw);
+      });
 
-  // LayoutRuntime is the single authoritative block store. Any current or
-  // future firmware subsystem that changes a block through LayoutRuntime
-  // automatically publishes the new complete snapshot to all clients.
-  _runtime.onChange([this](
-      RuntimeChangeKind kind,
-      uint16_t,
-      uint8_t) {
-    if (kind == RuntimeChangeKind::Block) {
-      broadcastBlockStateSnapshot();
-    }
-  });
+  _commandCenter.onStationInfo(
+      [this](
+          const CommandCenterStationInfo& info) {
+        handleStationInfo(
+            info);
+      });
 
-  bootResetReason = esp_reset_reason();
+  _commandCenter.onTrackConfiguration(
+      [this](
+          const CommandCenterTrackConfiguration& info) {
+        handleTrackConfiguration(
+            info);
+      });
+
+  _commandCenter.onCurrentTelemetry(
+      [this](
+          const CommandCenterCurrentTelemetry& info) {
+        handleCurrentTelemetry(
+            info);
+      });
+
+  _commandCenter.onTripTelemetry(
+      [this](
+          const CommandCenterTripTelemetry& info) {
+        handleTripTelemetry(
+            info);
+      });
+
+  _commandCenter.onPowerFeedback(
+      [this](
+          const CommandCenterPowerFeedback& info) {
+        handlePowerFeedback(
+            info);
+      });
+
+  _commandCenter.onLocoFeedback(
+      [this](
+          const CommandCenterLocoFeedback& info) {
+        handleLocoFeedback(
+            info);
+      });
+
+  _runtime.onChange(
+      [this](
+          RuntimeChangeKind kind,
+          uint16_t,
+          uint8_t) {
+        if (
+            kind ==
+            RuntimeChangeKind::Block
+        ) {
+          broadcastBlockStateSnapshot();
+        }
+      });
+
+  bootResetReason =
+      esp_reset_reason();
 
   esp_register_freertos_idle_hook_for_cpu(
       cpuIdleHook0,
@@ -216,388 +273,760 @@ void WsProtocol::begin() {
       cpuIdleHook1,
       1);
 
-  // Short calibration sample, same approach as DCCExpressLite.
   delay(250);
 
-  for (uint8_t core = 0; core < 2; ++core) {
+  for (
+      uint8_t core = 0;
+      core < 2;
+      ++core
+  ) {
     cpuIdleBaseline[core] =
         cpuIdleCounters[core]
-            ? cpuIdleCounters[core] * 4
+            ? cpuIdleCounters[core] *
+                  4
             : 1;
 
     cpuIdlePrevious[core] =
         cpuIdleCounters[core];
   }
 
-  lastCpuSampleAtMs = millis();
-  _lastDccConnected = _dcc.connected();
+  lastCpuSampleAtMs =
+      millis();
 
-  if (_lastDccConnected) {
-    _dccConnectedSinceAt = millis();
+  _lastCommandCenterConnected =
+      _commandCenter.connected();
+
+  if (
+      _lastCommandCenterConnected
+  ) {
+    _commandCenterConnectedSinceAt =
+        millis();
   }
 }
 
+
 void WsProtocol::loop() {
-  const unsigned long now = millis();
+  const unsigned long now =
+      millis();
 
   updateCpuUsage();
-  handleDccConnectionState(now);
-  pollLocoStateSync(now);
-  pollDccExTelemetry(now);
 
-  if (_nextHubStatusAt == 0 ||
-      static_cast<long>(now - _nextHubStatusAt) >= 0) {
-    if (_wsClientCount > 0) {
+  handleCommandCenterConnectionState(
+      now);
+
+  pollLocoStateSync(
+      now);
+
+  pollDccExTelemetry(
+      now);
+
+  if (
+      _nextHubStatusAt == 0 ||
+      static_cast<long>(
+          now -
+          _nextHubStatusAt) >= 0
+  ) {
+    if (
+        _wsClientCount > 0
+    ) {
       broadcastDccExStatus();
     }
 
     _nextHubStatusAt =
-        now + HUB_STATUS_INTERVAL_MS;
+        now +
+        HUB_STATUS_INTERVAL_MS;
   }
 }
+
 
 void WsProtocol::cleanupClients() {
   _ws.cleanupClients();
 }
+
 
 void WsProtocol::send(
     AsyncWebSocketClient* client,
     const char* type,
     JsonVariantConst data) {
   JsonDocument out;
-  out["type"] = type;
-  out["data"].set(data);
+
+  out["type"] =
+      type;
+
+  out["data"].set(
+      data);
 
   String body;
-  serializeJson(out, body);
-  client->text(body);
+
+  serializeJson(
+      out,
+      body);
+
+  client->text(
+      body);
 }
 
-void WsProtocol::broadcast(const char* type, JsonDocument& data) {
+
+void WsProtocol::broadcast(
+    const char* type,
+    JsonDocument& data) {
   JsonDocument out;
-  out["type"] = type;
-  out["data"].set(data.as<JsonVariantConst>());
+
+  out["type"] =
+      type;
+
+  out["data"].set(
+      data.as<
+          JsonVariantConst>());
 
   String body;
-  serializeJson(out, body);
-  _ws.textAll(body);
+
+  serializeJson(
+      out,
+      body);
+
+  _ws.textAll(
+      body);
 }
 
-void WsProtocol::sendCommandCenterInfo(AsyncWebSocketClient* client) {
+
+void WsProtocol::sendCommandCenterInfo(
+    AsyncWebSocketClient* client) {
   JsonDocument data;
-  data["alive"] = _dcc.connected();
-  data["power"] = _trackPower;
-  data["type"] = "dcc-ex-tcp";
-  data["name"] = "DCC-EX CommandStation";
-  data["ip"] = _dcc.host();
-  data["port"] = _dcc.port();
-  data["connectionString"] = _dcc.host() + ":" + String(_dcc.port());
 
-  send(client, "commandCenterInfo", data.as<JsonVariantConst>());
+  data["alive"] =
+      _commandCenter.connected();
+
+  data["power"] =
+      _trackPower;
+
+  data["type"] =
+      _commandCenter.type();
+
+  data["name"] =
+      _commandCenter.name();
+
+  data["ip"] =
+      _commandCenter.host();
+
+  data["port"] =
+      _commandCenter.port();
+
+  data["connectionString"] =
+      _commandCenter.host() +
+      ":" +
+      String(
+          _commandCenter.port());
+
+  send(
+      client,
+      "commandCenterInfo",
+      data.as<
+          JsonVariantConst>());
 }
 
-void WsProtocol::sendPowerInfo(AsyncWebSocketClient* client) {
+
+void WsProtocol::sendPowerInfo(
+    AsyncWebSocketClient* client) {
   JsonDocument data;
-  data["emergencyStop"] = _emergencyStop;
-  data["trackVoltageOn"] = _trackPower;
-  data["trackVoltageOff"] = !_trackPower;
-  data["shortCircuit"] = false;
-  data["programmingModeActive"] = _programmingPower;
 
-  send(client, "powerInfo", data.as<JsonVariantConst>());
+  data["emergencyStop"] =
+      _emergencyStop;
+
+  data["trackVoltageOn"] =
+      _trackPower;
+
+  data["trackVoltageOff"] =
+      !_trackPower;
+
+  data["shortCircuit"] =
+      false;
+
+  data["programmingModeActive"] =
+      _programmingPower;
+
+  send(
+      client,
+      "powerInfo",
+      data.as<
+          JsonVariantConst>());
 }
+
 
 void WsProtocol::broadcastPowerInfo() {
   JsonDocument data;
-  data["emergencyStop"] = _emergencyStop;
-  data["trackVoltageOn"] = _trackPower;
-  data["trackVoltageOff"] = !_trackPower;
-  data["shortCircuit"] = false;
-  data["programmingModeActive"] = _programmingPower;
 
-  broadcast("powerInfo", data);
+  data["emergencyStop"] =
+      _emergencyStop;
+
+  data["trackVoltageOn"] =
+      _trackPower;
+
+  data["trackVoltageOff"] =
+      !_trackPower;
+
+  data["shortCircuit"] =
+      false;
+
+  data["programmingModeActive"] =
+      _programmingPower;
+
+  broadcast(
+      "powerInfo",
+      data);
 }
+
 
 void WsProtocol::sendBlockStateSnapshot(
     AsyncWebSocketClient* client) {
   JsonDocument data;
 
-  for (const auto& block : _runtime.blocks()) {
+  for (
+      const auto& block :
+      _runtime.blocks()
+  ) {
     JsonObject state =
-        data[String(block.id)].to<JsonObject>();
+        data[
+            String(
+                block.id)]
+            .to<
+                JsonObject>();
 
-    state["blockId"] = String(block.id);
+    state["blockId"] =
+        String(
+            block.id);
 
-    if (block.locoId.isEmpty()) {
-      state["locoId"] = nullptr;
+    if (
+        block.locoId
+            .isEmpty()
+    ) {
+      state["locoId"] =
+          nullptr;
     } else {
-      state["locoId"] = block.locoId;
+      state["locoId"] =
+          block.locoId;
     }
 
-    if (block.locoAddress > 0) {
-      state["locoAddress"] = block.locoAddress;
+    if (
+        block.locoAddress >
+        0
+    ) {
+      state["locoAddress"] =
+          block.locoAddress;
     }
   }
 
   send(
       client,
       "blockStateChanged",
-      data.as<JsonVariantConst>());
+      data.as<
+          JsonVariantConst>());
 }
+
 
 void WsProtocol::broadcastBlockStateSnapshot() {
   JsonDocument data;
 
-  for (const auto& block : _runtime.blocks()) {
+  for (
+      const auto& block :
+      _runtime.blocks()
+  ) {
     JsonObject state =
-        data[String(block.id)].to<JsonObject>();
+        data[
+            String(
+                block.id)]
+            .to<
+                JsonObject>();
 
-    state["blockId"] = String(block.id);
+    state["blockId"] =
+        String(
+            block.id);
 
-    if (block.locoId.isEmpty()) {
-      state["locoId"] = nullptr;
+    if (
+        block.locoId
+            .isEmpty()
+    ) {
+      state["locoId"] =
+          nullptr;
     } else {
-      state["locoId"] = block.locoId;
+      state["locoId"] =
+          block.locoId;
     }
 
-    if (block.locoAddress > 0) {
-      state["locoAddress"] = block.locoAddress;
+    if (
+        block.locoAddress >
+        0
+    ) {
+      state["locoAddress"] =
+          block.locoAddress;
     }
   }
 
-  broadcast("blockStateChanged", data);
+  broadcast(
+      "blockStateChanged",
+      data);
 }
 
+
 void WsProtocol::recomputePowerStateFromTrackTelemetry() {
-  bool mainSeen = false;
-  bool mainKnown = true;
-  bool mainOn = true;
+  bool mainSeen =
+      false;
 
-  bool progSeen = false;
-  bool progKnown = true;
-  bool progOn = true;
+  bool mainKnown =
+      true;
 
-  for (uint8_t index = 0;
-       index < MAX_DCC_TRACKS;
-       ++index) {
+  bool mainOn =
+      true;
+
+  bool progSeen =
+      false;
+
+  bool progKnown =
+      true;
+
+  bool progOn =
+      true;
+
+  for (
+      uint8_t index = 0;
+      index < MAX_DCC_TRACKS;
+      ++index
+  ) {
     const DccTrackState& track =
         _dccTracks[index];
 
-    if (!track.configured) {
+    if (
+        !track.configured
+    ) {
       continue;
     }
 
-    if (track.mode.startsWith("MAIN")) {
-      mainSeen = true;
+    if (
+        track.mode
+            .startsWith(
+                "MAIN")
+    ) {
+      mainSeen =
+          true;
 
-      if (!track.powerKnown) {
-        mainKnown = false;
-      } else if (!track.powerOn) {
-        mainOn = false;
+      if (
+          !track.powerKnown
+      ) {
+        mainKnown =
+            false;
+      } else if (
+          !track.powerOn
+      ) {
+        mainOn =
+            false;
       }
     }
 
-    if (track.mode.startsWith("PROG")) {
-      progSeen = true;
+    if (
+        track.mode
+            .startsWith(
+                "PROG")
+    ) {
+      progSeen =
+          true;
 
-      if (!track.powerKnown) {
-        progKnown = false;
-      } else if (!track.powerOn) {
-        progOn = false;
+      if (
+          !track.powerKnown
+      ) {
+        progKnown =
+            false;
+      } else if (
+          !track.powerOn
+      ) {
+        progOn =
+            false;
       }
     }
   }
 
-  if (mainSeen && mainKnown) {
-    _trackPower = mainOn;
+  if (
+      mainSeen &&
+      mainKnown
+  ) {
+    _trackPower =
+        mainOn;
   }
 
-  if (progSeen && progKnown) {
-    _programmingPower = progOn;
+  if (
+      progSeen &&
+      progKnown
+  ) {
+    _programmingPower =
+        progOn;
   }
 }
 
-void WsProtocol::appendHubStatus(JsonObject hub) {
-  hub["uptimeMs"] = millis();
-  hub["chipModel"] = ESP.getChipModel();
-  hub["chipRevision"] = ESP.getChipRevision();
-  hub["cpuCores"] = 2;
-  hub["cpuFrequencyMhz"] = ESP.getCpuFreqMHz();
-  hub["cpuCore0Percent"] = cpuUsagePercent[0];
-  hub["cpuCore1Percent"] = cpuUsagePercent[1];
-  hub["chipTemperatureC"] = temperatureRead();
 
-  hub["heapSizeBytes"] = ESP.getHeapSize();
-  hub["freeHeapBytes"] = ESP.getFreeHeap();
-  hub["minimumFreeHeapBytes"] = ESP.getMinFreeHeap();
-  hub["largestFreeHeapBlockBytes"] = ESP.getMaxAllocHeap();
+void WsProtocol::appendHubStatus(
+    JsonObject hub) {
+  hub["uptimeMs"] =
+      millis();
 
-  hub["psramSizeBytes"] = ESP.getPsramSize();
-  hub["freePsramBytes"] = ESP.getFreePsram();
+  hub["chipModel"] =
+      ESP.getChipModel();
 
-  hub["hostname"] = DEVICE_HOSTNAME;
-  hub["wifiIp"] = WiFi.localIP().toString();
-  hub["wifiRssiDbm"] = WiFi.RSSI();
-  hub["wifiSsid"] = WiFi.SSID();
-  hub["wifiMac"] = WiFi.macAddress();
-  hub["wifiChannel"] = WiFi.channel();
+  hub["chipRevision"] =
+      ESP.getChipRevision();
 
-  hub["wsClients"] = _wsClientCount;
-  hub["runtimeAccessories"] = _runtime.accessoryCount();
-  hub["runtimeSensors"] = _runtime.sensorCount();
-  hub["runtimeBlocks"] = _runtime.blockCount();
+  hub["cpuCores"] =
+      2;
 
-  hub["flashChipBytes"] = ESP.getFlashChipSize();
-  hub["sketchBytes"] = ESP.getSketchSize();
-  hub["freeSketchBytes"] = ESP.getFreeSketchSpace();
-  hub["sdkVersion"] = ESP.getSdkVersion();
-  hub["resetReason"] = resetReasonName(bootResetReason);
+  hub["cpuFrequencyMhz"] =
+      ESP.getCpuFreqMHz();
+
+  hub["cpuCore0Percent"] =
+      cpuUsagePercent[0];
+
+  hub["cpuCore1Percent"] =
+      cpuUsagePercent[1];
+
+  hub["chipTemperatureC"] =
+      temperatureRead();
+
+  hub["heapSizeBytes"] =
+      ESP.getHeapSize();
+
+  hub["freeHeapBytes"] =
+      ESP.getFreeHeap();
+
+  hub["minimumFreeHeapBytes"] =
+      ESP.getMinFreeHeap();
+
+  hub["largestFreeHeapBlockBytes"] =
+      ESP.getMaxAllocHeap();
+
+  hub["psramSizeBytes"] =
+      ESP.getPsramSize();
+
+  hub["freePsramBytes"] =
+      ESP.getFreePsram();
+
+  hub["hostname"] =
+      DEVICE_HOSTNAME;
+
+  hub["wifiIp"] =
+      WiFi.localIP()
+          .toString();
+
+  hub["wifiRssiDbm"] =
+      WiFi.RSSI();
+
+  hub["wifiSsid"] =
+      WiFi.SSID();
+
+  hub["wifiMac"] =
+      WiFi.macAddress();
+
+  hub["wifiChannel"] =
+      WiFi.channel();
+
+  hub["wsClients"] =
+      _wsClientCount;
+
+  hub["runtimeAccessories"] =
+      _runtime.accessoryCount();
+
+  hub["runtimeSensors"] =
+      _runtime.sensorCount();
+
+  hub["runtimeBlocks"] =
+      _runtime.blockCount();
+
+  hub["flashChipBytes"] =
+      ESP.getFlashChipSize();
+
+  hub["sketchBytes"] =
+      ESP.getSketchSize();
+
+  hub["freeSketchBytes"] =
+      ESP.getFreeSketchSpace();
+
+  hub["sdkVersion"] =
+      ESP.getSdkVersion();
+
+  hub["resetReason"] =
+      resetReasonName(
+          bootResetReason);
 }
 
-void WsProtocol::appendDccExStatus(JsonDocument& data) {
-  const bool alive = _dcc.connected();
 
-  int32_t mainCurrentMa = -1;
-  int32_t progCurrentMa = -1;
+void WsProtocol::appendDccExStatus(
+    JsonDocument& data) {
+  const bool alive =
+      _commandCenter.connected();
 
-  for (uint8_t index = 0; index < MAX_DCC_TRACKS; ++index) {
-    const DccTrackState& track = _dccTracks[index];
+  int32_t mainCurrentMa =
+      -1;
 
-    if (!track.configured) {
+  int32_t progCurrentMa =
+      -1;
+
+  for (
+      uint8_t index = 0;
+      index < MAX_DCC_TRACKS;
+      ++index
+  ) {
+    const DccTrackState& track =
+        _dccTracks[index];
+
+    if (
+        !track.configured
+    ) {
       continue;
     }
 
-    if (track.mode.startsWith("MAIN") &&
-        mainCurrentMa < 0) {
-      mainCurrentMa = track.currentMa;
+    if (
+        track.mode
+                .startsWith(
+                    "MAIN") &&
+        mainCurrentMa < 0
+    ) {
+      mainCurrentMa =
+          track.currentMa;
     }
 
-    if (track.mode.startsWith("PROG") &&
-        progCurrentMa < 0) {
-      progCurrentMa = track.currentMa;
+    if (
+        track.mode
+                .startsWith(
+                    "PROG") &&
+        progCurrentMa < 0
+    ) {
+      progCurrentMa =
+          track.currentMa;
     }
   }
 
-  data["version"] = _dccVersion;
-  data["processor"] = _dccProcessor;
-  data["hardware"] = _dccHardware;
-  data["build"] = _dccBuild;
-  data["host"] = _dcc.host();
-  data["port"] = _dcc.port();
-  data["alive"] = alive;
-  data["maxLocos"] = _dccMaxLocos;
+  data["version"] =
+      _dccVersion;
 
-  data["trackVoltageOn"] = _trackPower;
-  data["voltageMeasured"] = false;
-  data["trackVoltageV"] = nullptr;
+  data["processor"] =
+      _dccProcessor;
+
+  data["hardware"] =
+      _dccHardware;
+
+  data["build"] =
+      _dccBuild;
+
+  data["host"] =
+      _commandCenter.host();
+
+  data["port"] =
+      _commandCenter.port();
+
+  data["alive"] =
+      alive;
+
+  data["maxLocos"] =
+      _dccMaxLocos;
+
+  data["trackVoltageOn"] =
+      _trackPower;
+
+  data["voltageMeasured"] =
+      false;
+
+  data["trackVoltageV"] =
+      nullptr;
+
   data["mainCurrentMa"] =
-      mainCurrentMa >= 0 ? mainCurrentMa : 0;
+      mainCurrentMa >= 0
+          ? mainCurrentMa
+          : 0;
+
   data["progCurrentMa"] =
-      progCurrentMa >= 0 ? progCurrentMa : 0;
-  data["currentUpdatedAtMs"] = _dccCurrentUpdatedAt;
+      progCurrentMa >= 0
+          ? progCurrentMa
+          : 0;
+
+  data["currentUpdatedAtMs"] =
+      _dccCurrentUpdatedAt;
+
   data["linkUptimeMs"] =
-      alive && _dccConnectedSinceAt
-          ? millis() - _dccConnectedSinceAt
+      alive &&
+      _commandCenterConnectedSinceAt
+          ? millis() -
+                _commandCenterConnectedSinceAt
           : 0;
 
   JsonArray tracks =
-      data["tracks"].to<JsonArray>();
+      data["tracks"]
+          .to<
+              JsonArray>();
 
-  for (uint8_t index = 0; index < MAX_DCC_TRACKS; ++index) {
-    const DccTrackState& track = _dccTracks[index];
+  for (
+      uint8_t index = 0;
+      index < MAX_DCC_TRACKS;
+      ++index
+  ) {
+    const DccTrackState& track =
+        _dccTracks[index];
 
-    if (!track.configured) {
+    if (
+        !track.configured
+    ) {
       continue;
     }
 
     JsonObject out =
-        tracks.add<JsonObject>();
+        tracks
+            .add<
+                JsonObject>();
 
     char letter[2] = {
-        static_cast<char>('A' + index),
+        static_cast<char>(
+            'A' +
+            index),
         '\0'};
 
-    out["letter"] = letter;
-    out["mode"] = track.mode;
+    out["letter"] =
+        letter;
 
-    if (track.currentMa >= 0) {
-      out["currentMa"] = track.currentMa;
+    out["mode"] =
+        track.mode;
+
+    if (
+        track.currentMa >=
+        0
+    ) {
+      out["currentMa"] =
+          track.currentMa;
     } else {
-      out["currentMa"] = nullptr;
+      out["currentMa"] =
+          nullptr;
     }
 
-    out["overload"] = track.overload;
+    out["overload"] =
+        track.overload;
 
-    if (track.tripMa >= 0) {
-      out["tripMa"] = track.tripMa;
+    if (
+        track.tripMa >=
+        0
+    ) {
+      out["tripMa"] =
+          track.tripMa;
     } else {
-      out["tripMa"] = nullptr;
+      out["tripMa"] =
+          nullptr;
     }
   }
 
   JsonObject hub =
-      data["hub"].to<JsonObject>();
+      data["hub"]
+          .to<
+              JsonObject>();
 
-  appendHubStatus(hub);
+  appendHubStatus(
+      hub);
 
-  data["uptimeMs"] = millis();
-  data["freeHeapBytes"] = ESP.getFreeHeap();
-  data["cpuCores"] = 2;
-  data["cpuFrequencyMhz"] = ESP.getCpuFreqMHz();
-  data["cpuCore0Percent"] = cpuUsagePercent[0];
-  data["cpuCore1Percent"] = cpuUsagePercent[1];
-  data["chipTemperatureC"] = temperatureRead();
-  data["wsClients"] = _wsClientCount;
-  data["minimumFreeHeapBytes"] = ESP.getMinFreeHeap();
-  data["largestFreeHeapBlockBytes"] = ESP.getMaxAllocHeap();
-  data["resetReason"] = resetReasonName(bootResetReason);
+  data["uptimeMs"] =
+      millis();
+
+  data["freeHeapBytes"] =
+      ESP.getFreeHeap();
+
+  data["cpuCores"] =
+      2;
+
+  data["cpuFrequencyMhz"] =
+      ESP.getCpuFreqMHz();
+
+  data["cpuCore0Percent"] =
+      cpuUsagePercent[0];
+
+  data["cpuCore1Percent"] =
+      cpuUsagePercent[1];
+
+  data["chipTemperatureC"] =
+      temperatureRead();
+
+  data["wsClients"] =
+      _wsClientCount;
+
+  data["minimumFreeHeapBytes"] =
+      ESP.getMinFreeHeap();
+
+  data["largestFreeHeapBlockBytes"] =
+      ESP.getMaxAllocHeap();
+
+  data["resetReason"] =
+      resetReasonName(
+          bootResetReason);
 }
+
 
 void WsProtocol::sendDccExStatus(
     AsyncWebSocketClient* client) {
   JsonDocument data;
-  appendDccExStatus(data);
+
+  appendDccExStatus(
+      data);
 
   send(
       client,
       "dccExStatus",
-      data.as<JsonVariantConst>());
+      data.as<
+          JsonVariantConst>());
 }
+
 
 void WsProtocol::broadcastDccExStatus() {
   JsonDocument data;
-  appendDccExStatus(data);
-  broadcast("dccExStatus", data);
+
+  appendDccExStatus(
+      data);
+
+  broadcast(
+      "dccExStatus",
+      data);
 }
+
 
 bool WsProtocol::requestLocoState(
     uint16_t address,
     bool logCommand) {
-  if (address == 0 ||
+  if (
+      address == 0 ||
       address > 10239 ||
-      !_dcc.connected()) {
+      !_commandCenter.connected()
+  ) {
     return false;
   }
 
-  return _dcc.sendCommand(
-      "<t " +
-          String(address) +
-          ">",
-      logCommand);
+  return
+      _commandCenter
+          .requestLocoState(
+              address,
+              logCommand);
 }
+
 
 void WsProtocol::beginConfiguredLocoStateSync(
     unsigned long now) {
-  _locoSyncCount = 0;
-  _locoSyncIndex = 0;
-  _nextLocoSyncAt = 0;
+  _locoSyncCount =
+      0;
+
+  _locoSyncIndex =
+      0;
+
+  _nextLocoSyncAt =
+      0;
 
   static constexpr const char* LOCOS_PATH =
       "/config/locos.json";
 
-  if (!LittleFS.exists(LOCOS_PATH)) {
+  if (
+      !LittleFS.exists(
+          LOCOS_PATH)
+  ) {
     Logger::info(
         "Loco state sync: no saved locomotive list");
+
     return;
   }
 
@@ -609,35 +1038,50 @@ void WsProtocol::beginConfiguredLocoStateSync(
   if (!file) {
     Logger::warn(
         "Loco state sync: cannot open locos.json");
+
     return;
   }
 
   JsonDocument filter;
-  filter[0]["address"] = true;
+
+  filter[0]["address"] =
+      true;
 
   JsonDocument document;
+
   const DeserializationError error =
       deserializeJson(
           document,
           file,
-          DeserializationOption::Filter(filter));
+          DeserializationOption::Filter(
+              filter));
 
   file.close();
 
-  if (error ||
-      !document.is<JsonArray>()) {
+  if (
+      error ||
+      !document.is<
+          JsonArray>()
+  ) {
     Logger::warn(
         "Loco state sync: invalid locos.json");
+
     return;
   }
 
-  for (JsonObjectConst item :
-       document.as<JsonArrayConst>()) {
+  for (
+      JsonObjectConst item :
+      document.as<
+          JsonArrayConst>()
+  ) {
     const int addressValue =
-        item["address"] | 0;
+        item["address"] |
+        0;
 
-    if (addressValue <= 0 ||
-        addressValue > 10239) {
+    if (
+        addressValue <= 0 ||
+        addressValue > 10239
+    ) {
       continue;
     }
 
@@ -645,14 +1089,21 @@ void WsProtocol::beginConfiguredLocoStateSync(
         static_cast<uint16_t>(
             addressValue);
 
-    bool duplicate = false;
+    bool duplicate =
+        false;
 
-    for (size_t index = 0;
-         index < _locoSyncCount;
-         ++index) {
-      if (_locoSyncAddresses[index] ==
-          address) {
-        duplicate = true;
+    for (
+        size_t index = 0;
+        index < _locoSyncCount;
+        ++index
+    ) {
+      if (
+          _locoSyncAddresses[index] ==
+          address
+      ) {
+        duplicate =
+            true;
+
         break;
       }
     }
@@ -661,9 +1112,13 @@ void WsProtocol::beginConfiguredLocoStateSync(
       continue;
     }
 
-    if (_locoSyncCount >= MAX_LOCOS) {
+    if (
+        _locoSyncCount >=
+        MAX_LOCOS
+    ) {
       Logger::warn(
           "Loco state sync: locomotive limit reached");
+
       break;
     }
 
@@ -672,30 +1127,42 @@ void WsProtocol::beginConfiguredLocoStateSync(
         address;
   }
 
-  if (_locoSyncCount == 0) {
+  if (
+      _locoSyncCount == 0
+  ) {
     Logger::info(
         "Loco state sync: no valid DCC addresses");
+
     return;
   }
 
-  _nextLocoSyncAt = now;
+  _nextLocoSyncAt =
+      now;
 
   Logger::info(
       "Loco state sync queued: " +
-      String(_locoSyncCount) +
+      String(
+          _locoSyncCount) +
       " locomotive(s)");
 }
 
+
 void WsProtocol::pollLocoStateSync(
     unsigned long now) {
-  if (!_dcc.connected() ||
-      _locoSyncIndex >= _locoSyncCount) {
+  if (
+      !_commandCenter.connected() ||
+      _locoSyncIndex >=
+          _locoSyncCount
+  ) {
     return;
   }
 
-  if (_nextLocoSyncAt != 0 &&
+  if (
+      _nextLocoSyncAt != 0 &&
       static_cast<long>(
-          now - _nextLocoSyncAt) < 0) {
+          now -
+          _nextLocoSyncAt) < 0
+  ) {
     return;
   }
 
@@ -703,23 +1170,30 @@ void WsProtocol::pollLocoStateSync(
       _locoSyncAddresses[
           _locoSyncIndex];
 
-  if (!requestLocoState(
+  if (
+      !requestLocoState(
           address,
-          false)) {
+          false)
+  ) {
     _nextLocoSyncAt =
         now +
         LOCO_STATE_SYNC_INTERVAL_MS;
+
     return;
   }
 
   ++_locoSyncIndex;
 
-  if (_locoSyncIndex >=
-      _locoSyncCount) {
-    _nextLocoSyncAt = 0;
+  if (
+      _locoSyncIndex >=
+      _locoSyncCount
+  ) {
+    _nextLocoSyncAt =
+        0;
 
     Logger::info(
         "Loco state sync requests completed");
+
     return;
   }
 
@@ -728,511 +1202,736 @@ void WsProtocol::pollLocoStateSync(
       LOCO_STATE_SYNC_INTERVAL_MS;
 }
 
-void WsProtocol::handleDccConnectionState(
-    unsigned long now) {
-  const bool connected = _dcc.connected();
 
-  if (connected == _lastDccConnected) {
+void WsProtocol::handleCommandCenterConnectionState(
+    unsigned long now) {
+  const bool connected =
+      _commandCenter.connected();
+
+  if (
+      connected ==
+      _lastCommandCenterConnected
+  ) {
     return;
   }
 
-  _lastDccConnected = connected;
+  _lastCommandCenterConnected =
+      connected;
 
   if (!connected) {
-    _dccConnectedSinceAt = 0;
-    _nextDccCurrentPollAt = 0;
+    _commandCenterConnectedSinceAt =
+        0;
 
-    _locoSyncCount = 0;
-    _locoSyncIndex = 0;
-    _nextLocoSyncAt = 0;
+    _nextDccCurrentPollAt =
+        0;
 
-    for (uint8_t index = 0; index < MAX_DCC_TRACKS; ++index) {
-      _dccTracks[index].configured = false;
-      _dccTracks[index].mode = "";
-      _dccTracks[index].powerKnown = false;
-      _dccTracks[index].powerOn = false;
-      _dccTracks[index].currentMa = -1;
-      _dccTracks[index].tripMa = -1;
-      _dccTracks[index].overload = false;
+    _locoSyncCount =
+        0;
+
+    _locoSyncIndex =
+        0;
+
+    _nextLocoSyncAt =
+        0;
+
+    for (
+        uint8_t index = 0;
+        index < MAX_DCC_TRACKS;
+        ++index
+    ) {
+      _dccTracks[index].configured =
+          false;
+
+      _dccTracks[index].mode =
+          "";
+
+      _dccTracks[index].powerKnown =
+          false;
+
+      _dccTracks[index].powerOn =
+          false;
+
+      _dccTracks[index].currentMa =
+          -1;
+
+      _dccTracks[index].tripMa =
+          -1;
+
+      _dccTracks[index].overload =
+          false;
     }
 
     return;
   }
 
-  _dccConnectedSinceAt = now;
-  _nextDccCurrentPollAt = 0;
+  _commandCenterConnectedSinceAt =
+      now;
 
-  _dcc.sendCommand("<=>", false);
-  _dcc.sendCommand("<JG>", false);
+  _nextDccCurrentPollAt =
+      0;
 
-  beginConfiguredLocoStateSync(now);
+  _commandCenter
+      .requestTrackConfiguration(
+          false);
+
+  _commandCenter
+      .requestTripTelemetry(
+          false);
+
+  beginConfiguredLocoStateSync(
+      now);
 }
+
 
 void WsProtocol::pollDccExTelemetry(
     unsigned long now) {
-  if (!_dcc.connected() ||
-      _wsClientCount == 0) {
+  if (
+      !_commandCenter.connected() ||
+      _wsClientCount == 0
+  ) {
     return;
   }
 
-  if (_nextDccCurrentPollAt == 0 ||
-      static_cast<long>(now - _nextDccCurrentPollAt) >= 0) {
-    _dcc.sendCommand("<JI>", false);
+  if (
+      _nextDccCurrentPollAt == 0 ||
+      static_cast<long>(
+          now -
+          _nextDccCurrentPollAt) >= 0
+  ) {
+    _commandCenter
+        .requestCurrentTelemetry(
+            false);
 
     _nextDccCurrentPollAt =
-        now + DCC_CURRENT_POLL_MS;
+        now +
+        DCC_CURRENT_POLL_MS;
   }
 }
 
-void WsProtocol::sendRuntimeSnapshot(AsyncWebSocketClient* client) {
-  sendCommandCenterInfo(client);
-  sendPowerInfo(client);
-  sendDccExStatus(client);
 
-  for (const auto& item : _runtime.accessories()) {
+void WsProtocol::sendRuntimeSnapshot(
+    AsyncWebSocketClient* client) {
+  sendCommandCenterInfo(
+      client);
+
+  sendPowerInfo(
+      client);
+
+  sendDccExStatus(
+      client);
+
+  for (
+      const auto& item :
+      _runtime.accessories()
+  ) {
     JsonDocument data;
 
-    switch (item.kind) {
+    switch (
+        item.kind
+    ) {
       case RuntimeAccessoryKind::Turnout:
-        data["address"] = item.address;
-        data["closed"] = item.closed;
-        send(client, "turnoutChanged", data.as<JsonVariantConst>());
+        data["address"] =
+            item.address;
+
+        data["closed"] =
+            item.closed;
+
+        send(
+            client,
+            "turnoutChanged",
+            data.as<
+                JsonVariantConst>());
+
         break;
 
       case RuntimeAccessoryKind::Signal:
-        if (item.aspect >= 0) {
-          data["address"] = item.address;
-          data["aspect"] = item.aspect;
-          send(client, "signalAspectChanged", data.as<JsonVariantConst>());
+        if (
+            item.aspect >=
+            0
+        ) {
+          data["address"] =
+              item.address;
+
+          data["aspect"] =
+              item.aspect;
+
+          send(
+              client,
+              "signalAspectChanged",
+              data.as<
+                  JsonVariantConst>());
         }
+
         break;
 
       case RuntimeAccessoryKind::Accessory:
-        data["address"] = item.address;
-        data["active"] = item.active;
-        send(client, "accessoryChanged", data.as<JsonVariantConst>());
+        data["address"] =
+            item.address;
+
+        data["active"] =
+            item.active;
+
+        send(
+            client,
+            "accessoryChanged",
+            data.as<
+                JsonVariantConst>());
+
         break;
 
       case RuntimeAccessoryKind::VPin:
-        data["vpin"] = item.address;
-        data["active"] = item.active;
-        send(client, "vpinChanged", data.as<JsonVariantConst>());
+        data["vpin"] =
+            item.address;
+
+        data["active"] =
+            item.active;
+
+        send(
+            client,
+            "vpinChanged",
+            data.as<
+                JsonVariantConst>());
+
         break;
     }
   }
 
-  for (const auto& sensor : _runtime.sensors()) {
+  for (
+      const auto& sensor :
+      _runtime.sensors()
+  ) {
     JsonDocument data;
-    data["address"] = sensor.address;
-    data["on"] = sensor.on;
-    send(client, "sensorChanged", data.as<JsonVariantConst>());
+
+    data["address"] =
+        sensor.address;
+
+    data["on"] =
+        sensor.on;
+
+    send(
+        client,
+        "sensorChanged",
+        data.as<
+            JsonVariantConst>());
   }
 
-  sendBlockStateSnapshot(client);
+  sendBlockStateSnapshot(
+      client);
 }
+
 
 void WsProtocol::broadcastRuntimeSnapshot() {
   JsonDocument cc;
-  cc["alive"] = _dcc.connected();
-  cc["power"] = _trackPower;
-  cc["type"] = "dcc-ex-tcp";
-  cc["name"] = "DCC-EX CommandStation";
-  cc["ip"] = _dcc.host();
-  cc["port"] = _dcc.port();
 
-  broadcast("commandCenterInfo", cc);
+  cc["alive"] =
+      _commandCenter.connected();
+
+  cc["power"] =
+      _trackPower;
+
+  cc["type"] =
+      _commandCenter.type();
+
+  cc["name"] =
+      _commandCenter.name();
+
+  cc["ip"] =
+      _commandCenter.host();
+
+  cc["port"] =
+      _commandCenter.port();
+
+  broadcast(
+      "commandCenterInfo",
+      cc);
+
   broadcastPowerInfo();
   broadcastDccExStatus();
 
-  for (const auto& item : _runtime.accessories()) {
+  for (
+      const auto& item :
+      _runtime.accessories()
+  ) {
     JsonDocument data;
 
-    switch (item.kind) {
+    switch (
+        item.kind
+    ) {
       case RuntimeAccessoryKind::Turnout:
-        data["address"] = item.address;
-        data["closed"] = item.closed;
-        broadcast("turnoutChanged", data);
+        data["address"] =
+            item.address;
+
+        data["closed"] =
+            item.closed;
+
+        broadcast(
+            "turnoutChanged",
+            data);
+
         break;
 
       case RuntimeAccessoryKind::Signal:
-        if (item.aspect >= 0) {
-          data["address"] = item.address;
-          data["aspect"] = item.aspect;
-          broadcast("signalAspectChanged", data);
+        if (
+            item.aspect >=
+            0
+        ) {
+          data["address"] =
+              item.address;
+
+          data["aspect"] =
+              item.aspect;
+
+          broadcast(
+              "signalAspectChanged",
+              data);
         }
+
         break;
 
       case RuntimeAccessoryKind::Accessory:
-        data["address"] = item.address;
-        data["active"] = item.active;
-        broadcast("accessoryChanged", data);
+        data["address"] =
+            item.address;
+
+        data["active"] =
+            item.active;
+
+        broadcast(
+            "accessoryChanged",
+            data);
+
         break;
 
       case RuntimeAccessoryKind::VPin:
-        data["vpin"] = item.address;
-        data["active"] = item.active;
-        broadcast("vpinChanged", data);
+        data["vpin"] =
+            item.address;
+
+        data["active"] =
+            item.active;
+
+        broadcast(
+            "vpinChanged",
+            data);
+
         break;
     }
   }
 
-  for (const auto& sensor : _runtime.sensors()) {
+  for (
+      const auto& sensor :
+      _runtime.sensors()
+  ) {
     JsonDocument data;
-    data["address"] = sensor.address;
-    data["on"] = sensor.on;
-    broadcast("sensorChanged", data);
+
+    data["address"] =
+        sensor.address;
+
+    data["on"] =
+        sensor.on;
+
+    broadcast(
+        "sensorChanged",
+        data);
   }
 
   broadcastBlockStateSnapshot();
 }
 
-void WsProtocol::broadcastRawInfo(const String& raw) {
+
+void WsProtocol::broadcastRawInfo(
+    const String& raw) {
   JsonDocument data;
-  data["raw"] = raw;
-  broadcast("rawInfo", data);
+
+  data["raw"] =
+      raw;
+
+  broadcast(
+      "rawInfo",
+      data);
 }
 
-WsProtocol::LocoState* WsProtocol::getLoco(uint16_t address, bool create) {
-  for (size_t i = 0; i < _locoCount; ++i) {
-    if (_locos[i].address == address) {
-      return &_locos[i];
+
+WsProtocol::LocoState*
+WsProtocol::getLoco(
+    uint16_t address,
+    bool create) {
+  for (
+      size_t index = 0;
+      index < _locoCount;
+      ++index
+  ) {
+    if (
+        _locos[index].address ==
+        address
+    ) {
+      return
+          &_locos[index];
     }
   }
 
-  if (!create || _locoCount >= MAX_LOCOS) {
+  if (
+      !create ||
+      _locoCount >=
+          MAX_LOCOS
+  ) {
     return nullptr;
   }
 
-  auto& loco = _locos[_locoCount++];
-  loco.address = address;
-  loco.speed = 0;
-  loco.forward = true;
-  loco.functionsMask = 0;
+  auto& loco =
+      _locos[
+          _locoCount++];
+
+  loco.address =
+      address;
+
+  loco.speed =
+      0;
+
+  loco.forward =
+      true;
+
+  loco.functionsMask =
+      0;
 
   return &loco;
 }
 
-void WsProtocol::broadcastLoco(const LocoState& loco) {
+
+void WsProtocol::broadcastLoco(
+    const LocoState& loco) {
   JsonDocument data;
-  JsonObject out = data["loco"].to<JsonObject>();
 
-  out["address"] = loco.address;
-  out["speed"] = loco.speed;
-  out["direction"] = loco.forward ? "forward" : "reverse";
-  out["functionsMask"] = loco.functionsMask;
+  JsonObject out =
+      data["loco"]
+          .to<
+              JsonObject>();
 
-  broadcast("locoState", data);
+  out["address"] =
+      loco.address;
+
+  out["speed"] =
+      loco.speed;
+
+  out["direction"] =
+      loco.forward
+          ? "forward"
+          : "reverse";
+
+  out["functionsMask"] =
+      loco.functionsMask;
+
+  broadcast(
+      "locoState",
+      data);
 }
 
-void WsProtocol::handleDccFrame(const String& frame) {
-  if (!frame.startsWith("<jI") &&
-      !frame.startsWith("<jG")) {
-    broadcastRawInfo(frame);
+
+void WsProtocol::handleStationInfo(
+    const CommandCenterStationInfo& info) {
+  _dccVersion =
+      info.version;
+
+  _dccProcessor =
+      info.processor;
+
+  _dccHardware =
+      info.hardware;
+
+  _dccBuild =
+      info.build;
+
+  _dccMaxLocos =
+      info.maxLocos;
+}
+
+
+void WsProtocol::handleTrackConfiguration(
+    const CommandCenterTrackConfiguration& info) {
+  if (
+      info.index >=
+      MAX_DCC_TRACKS
+  ) {
+    return;
   }
 
-  if (frame.startsWith("<#")) {
-    unsigned int maxLocos = 0;
+  _dccTracks[
+      info.index]
+      .configured =
+      true;
 
-    if (sscanf(
-            frame.c_str(),
-            "<# %u>",
-            &maxLocos) == 1 &&
-        maxLocos <= 65535) {
-      _dccMaxLocos =
-          static_cast<uint16_t>(maxLocos);
-    }
+  _dccTracks[
+      info.index]
+      .mode =
+      info.mode;
+}
+
+
+void WsProtocol::handleCurrentTelemetry(
+    const CommandCenterCurrentTelemetry& info) {
+  for (
+      uint8_t index = 0;
+      index < MAX_DCC_TRACKS;
+      ++index
+  ) {
+    _dccTracks[index].currentMa =
+        -1;
+
+    _dccTracks[index].overload =
+        false;
   }
 
-  if (frame.startsWith("<i")) {
-    String body =
-        frame.substring(2, frame.length() - 1);
+  const size_t count =
+      min(
+          info.count,
+          static_cast<size_t>(
+              MAX_DCC_TRACKS));
 
-    String fields[4];
-    uint8_t fieldCount = 0;
-    int start = 0;
+  for (
+      size_t index = 0;
+      index < count;
+      ++index
+  ) {
+    _dccTracks[index].overload =
+        info.values[index] <
+        0;
 
-    while (fieldCount < 4) {
-      const int slash = body.indexOf('/', start);
+    _dccTracks[index].currentMa =
+        info.values[index] <
+                0
+            ? 0
+            : info.values[index];
 
-      if (slash < 0) {
-        fields[fieldCount++] = body.substring(start);
-        break;
-      }
+    if (
+        !_dccTracks[index]
+             .configured
+    ) {
+      _dccTracks[index].configured =
+          true;
 
-      fields[fieldCount++] =
-          body.substring(start, slash);
-      start = slash + 1;
-    }
-
-    for (uint8_t index = 0; index < fieldCount; ++index) {
-      fields[index].trim();
-    }
-
-    if (fieldCount > 0) {
-      _dccVersion = cleanDccVersion(fields[0]);
-    }
-
-    if (fieldCount > 1) {
-      _dccProcessor = fields[1];
-    }
-
-    if (fieldCount > 2) {
-      _dccHardware = fields[2];
-
-      const int buildAt =
-          _dccHardware.lastIndexOf(" G-");
-
-      if (buildAt >= 0) {
-        _dccBuild =
-            _dccHardware.substring(buildAt + 1);
-        _dccHardware =
-            _dccHardware.substring(0, buildAt);
-        _dccHardware.trim();
-        _dccBuild.trim();
-      }
-    }
-
-    if (fieldCount > 3) {
-      _dccBuild = fields[3];
-    }
-  }
-
-  if (frame.startsWith("<= ") &&
-      frame.length() >= 6) {
-    const char letter = frame.charAt(3);
-
-    if (letter >= 'A' && letter <= 'H') {
-      const uint8_t index =
-          static_cast<uint8_t>(letter - 'A');
-
-      String mode =
-          frame.substring(5, frame.length() - 1);
-      mode.trim();
-
-      _dccTracks[index].configured = true;
-      _dccTracks[index].mode = mode;
-    }
-  }
-
-  if (frame.startsWith("<jI")) {
-    const String body =
-        frame.substring(3, frame.length() - 1);
-
-    int32_t values[MAX_DCC_TRACKS] = {};
-    const size_t count =
-        parseIntegerList(
-            body,
-            values,
-            MAX_DCC_TRACKS);
-
-    for (uint8_t index = 0; index < MAX_DCC_TRACKS; ++index) {
-      _dccTracks[index].currentMa = -1;
-      _dccTracks[index].overload = false;
-    }
-
-    for (size_t index = 0; index < count; ++index) {
-      _dccTracks[index].overload =
-          values[index] < 0;
-
-      _dccTracks[index].currentMa =
-          values[index] < 0 ? 0 : values[index];
-
-      if (!_dccTracks[index].configured) {
-        _dccTracks[index].configured = true;
-        _dccTracks[index].mode = "TRACK";
-      }
-    }
-
-    _dccCurrentUpdatedAt = millis();
-  }
-
-  if (frame.startsWith("<jG")) {
-    const String body =
-        frame.substring(3, frame.length() - 1);
-
-    int32_t values[MAX_DCC_TRACKS] = {};
-    const size_t count =
-        parseIntegerList(
-            body,
-            values,
-            MAX_DCC_TRACKS);
-
-    for (uint8_t index = 0; index < MAX_DCC_TRACKS; ++index) {
-      _dccTracks[index].tripMa = -1;
-    }
-
-    for (size_t index = 0; index < count; ++index) {
-      _dccTracks[index].tripMa =
-          values[index] < 0 ? 0 : values[index];
-
-      if (!_dccTracks[index].configured) {
-        _dccTracks[index].configured = true;
-        _dccTracks[index].mode = "TRACK";
-      }
+      _dccTracks[index].mode =
+          "TRACK";
     }
   }
 
-  if (frame.startsWith("<p0") ||
-      frame.startsWith("<p1")) {
-    const bool on =
-        frame.charAt(2) == '1';
+  _dccCurrentUpdatedAt =
+      millis();
+}
 
-    String target =
-        frame.substring(
-            3,
-            frame.length() - 1);
 
-    target.trim();
+void WsProtocol::handleTripTelemetry(
+    const CommandCenterTripTelemetry& info) {
+  for (
+      uint8_t index = 0;
+      index < MAX_DCC_TRACKS;
+      ++index
+  ) {
+    _dccTracks[index].tripMa =
+        -1;
+  }
 
-    const bool wasMainOn =
-        _trackPower;
+  const size_t count =
+      min(
+          info.count,
+          static_cast<size_t>(
+              MAX_DCC_TRACKS));
 
-    const bool wasProgOn =
-        _programmingPower;
+  for (
+      size_t index = 0;
+      index < count;
+      ++index
+  ) {
+    _dccTracks[index].tripMa =
+        info.values[index] <
+                0
+            ? 0
+            : info.values[index];
 
-    bool handled = false;
+    if (
+        !_dccTracks[index]
+             .configured
+    ) {
+      _dccTracks[index].configured =
+          true;
 
-    if (target.length() == 0) {
-      _trackPower = on;
-      _programmingPower = on;
+      _dccTracks[index].mode =
+          "TRACK";
+    }
+  }
+}
 
-      for (uint8_t index = 0;
-           index < MAX_DCC_TRACKS;
-           ++index) {
-        if (!_dccTracks[index].configured) {
+
+void WsProtocol::handlePowerFeedback(
+    const CommandCenterPowerFeedback& info) {
+  const bool wasMainOn =
+      _trackPower;
+
+  const bool wasProgOn =
+      _programmingPower;
+
+  switch (
+      info.target
+  ) {
+    case CommandCenterPowerTarget::All:
+      _trackPower =
+          info.on;
+
+      _programmingPower =
+          info.on;
+
+      for (
+          uint8_t index = 0;
+          index < MAX_DCC_TRACKS;
+          ++index
+      ) {
+        if (
+            !_dccTracks[index]
+                 .configured
+        ) {
           continue;
         }
 
-        _dccTracks[index].powerKnown = true;
-        _dccTracks[index].powerOn = on;
+        _dccTracks[index].powerKnown =
+            true;
+
+        _dccTracks[index].powerOn =
+            info.on;
       }
 
-      handled = true;
-    } else if (target == "MAIN") {
-      _trackPower = on;
-      handled = true;
-    } else if (target == "PROG") {
-      _programmingPower = on;
-      handled = true;
-    } else if (target == "JOIN") {
-      _trackPower = on;
-      _programmingPower = on;
-      handled = true;
-    } else if (target.length() == 1) {
-      const char letter =
-          target.charAt(0);
+      break;
 
-      if (letter >= 'A' &&
-          letter <= 'H') {
-        const uint8_t index =
-            static_cast<uint8_t>(
-                letter - 'A');
+    case CommandCenterPowerTarget::Main:
+      _trackPower =
+          info.on;
 
-        _dccTracks[index].powerKnown = true;
-        _dccTracks[index].powerOn = on;
+      break;
 
-        recomputePowerStateFromTrackTelemetry();
-        handled = true;
-      }
-    }
+    case CommandCenterPowerTarget::Programming:
+      _programmingPower =
+          info.on;
 
-    if (handled) {
-      _emergencyStop = false;
+      break;
 
-      if (wasMainOn &&
-          !_trackPower) {
-        _stateStore.save();
+    case CommandCenterPowerTarget::Joined:
+      _trackPower =
+          info.on;
+
+      _programmingPower =
+          info.on;
+
+      break;
+
+    case CommandCenterPowerTarget::Track:
+      if (
+          info.trackIndex >=
+          MAX_DCC_TRACKS
+      ) {
+        return;
       }
 
-      if (wasMainOn != _trackPower ||
-          wasProgOn != _programmingPower) {
-        broadcastPowerInfo();
-      }
+      _dccTracks[
+          info.trackIndex]
+          .powerKnown =
+          true;
 
-      return;
-    }
+      _dccTracks[
+          info.trackIndex]
+          .powerOn =
+          info.on;
+
+      recomputePowerStateFromTrackTelemetry();
+
+      break;
   }
 
-  if (frame.startsWith("<l ")) {
-    unsigned int addressValue = 0;
-    int registerValue = 0;
-    unsigned int speedByteValue = 0;
-    unsigned long functionMapValue = 0;
+  _emergencyStop =
+      false;
 
-    const int parsed = sscanf(
-        frame.c_str(),
-        "<l %u %d %u %lu>",
-        &addressValue,
-        &registerValue,
-        &speedByteValue,
-        &functionMapValue);
+  if (
+      wasMainOn &&
+      !_trackPower
+  ) {
+    _stateStore.save();
+  }
 
-    (void)registerValue;
+  if (
+      wasMainOn !=
+          _trackPower ||
+      wasProgOn !=
+          _programmingPower
+  ) {
+    broadcastPowerInfo();
+  }
+}
 
-    if (parsed != 4 ||
-        addressValue == 0 ||
-        addressValue > 10239 ||
-        speedByteValue > 255) {
-      Logger::warn(
-          "Ignoring malformed DCC-EX loco feedback: " +
-          frame);
-      return;
-    }
 
-    auto* loco = getLoco(
-        static_cast<uint16_t>(addressValue),
-        true);
-
-    if (!loco) {
-      Logger::warn(
-          "Cannot allocate loco state for DCC address " +
-          String(addressValue));
-      return;
-    }
-
-    const uint8_t speedByte =
-        static_cast<uint8_t>(speedByteValue);
-
-    const uint8_t encodedSpeed =
-        speedByte & 0x7f;
-
-    loco->forward =
-        (speedByte & 0x80) != 0;
-
-    loco->speed =
-        encodedSpeed <= 1
-            ? 0
-            : static_cast<uint8_t>(
-                  encodedSpeed - 1);
-
-    loco->functionsMask =
-        static_cast<uint32_t>(
-            functionMapValue);
-
-    if (_emergencyStop &&
-        loco->speed > 0) {
-      _emergencyStop = false;
-      broadcastPowerInfo();
-
-      Logger::info(
-          "DCC-EX ESTOP cleared by loco feedback");
-    }
-
-    broadcastLoco(*loco);
-
-    Logger::info(
-        "Loco feedback: " +
-        String(loco->address) +
-        " speed=" +
-        String(loco->speed) +
-        " direction=" +
-        String(loco->forward ? "forward" : "reverse") +
-        " functionsMask=" +
-        String(loco->functionsMask));
+void WsProtocol::handleLocoFeedback(
+    const CommandCenterLocoFeedback& info) {
+  if (
+      info.address == 0 ||
+      info.address > 10239 ||
+      info.speed > 126
+  ) {
+    Logger::warn(
+        "Ignoring malformed command-center loco feedback");
 
     return;
   }
+
+  auto* loco =
+      getLoco(
+          info.address,
+          true);
+
+  if (!loco) {
+    Logger::warn(
+        "Cannot allocate loco state for DCC address " +
+        String(
+            info.address));
+
+    return;
+  }
+
+  loco->forward =
+      info.forward;
+
+  loco->speed =
+      info.speed;
+
+  loco->functionsMask =
+      info.functionsMask;
+
+  if (
+      _emergencyStop &&
+      loco->speed > 0
+  ) {
+    _emergencyStop =
+        false;
+
+    broadcastPowerInfo();
+
+    Logger::info(
+        "ESTOP cleared by loco feedback");
+  }
+
+  broadcastLoco(
+      *loco);
+
+  Logger::info(
+      "Loco feedback: " +
+      String(
+          loco->address) +
+      " speed=" +
+      String(
+          loco->speed) +
+      " direction=" +
+      String(
+          loco->forward
+              ? "forward"
+              : "reverse") +
+      " functionsMask=" +
+      String(
+          loco->functionsMask));
 }
+
 
 void WsProtocol::handleEvent(
     AsyncWebSocket*,
@@ -1241,153 +1940,315 @@ void WsProtocol::handleEvent(
     void* arg,
     uint8_t* data,
     size_t len) {
-  if (type == WS_EVT_CONNECT) {
-    if (_wsClientCount < 255) {
+  if (
+      type ==
+      WS_EVT_CONNECT
+  ) {
+    if (
+        _wsClientCount <
+        255
+    ) {
       ++_wsClientCount;
     }
 
-    _nextDccCurrentPollAt = 0;
+    _nextDccCurrentPollAt =
+        0;
 
-    Logger::info("WS client connected #" + String(client->id()));
+    Logger::info(
+        "WS client connected #" +
+        String(
+            client->id()));
 
     JsonDocument welcome;
-    welcome["message"] = "DCCExpressHub";
-    send(client, "ws:welcome", welcome.as<JsonVariantConst>());
-    sendRuntimeSnapshot(client);
+
+    welcome["message"] =
+        "DCCExpressHub";
+
+    send(
+        client,
+        "ws:welcome",
+        welcome.as<
+            JsonVariantConst>());
+
+    sendRuntimeSnapshot(
+        client);
+
     return;
   }
 
-  if (type == WS_EVT_DISCONNECT) {
-    if (_wsClientCount > 0) {
+  if (
+      type ==
+      WS_EVT_DISCONNECT
+  ) {
+    if (
+        _wsClientCount >
+        0
+    ) {
       --_wsClientCount;
     }
 
-    Logger::info("WS client disconnected #" + String(client->id()));
+    Logger::info(
+        "WS client disconnected #" +
+        String(
+            client->id()));
+
     return;
   }
 
-  if (type != WS_EVT_DATA) {
+  if (
+      type !=
+      WS_EVT_DATA
+  ) {
     return;
   }
 
-  AwsFrameInfo* info = static_cast<AwsFrameInfo*>(arg);
+  AwsFrameInfo* info =
+      static_cast<
+          AwsFrameInfo*>(
+              arg);
 
-  if (!info->final ||
+  if (
+      !info->final ||
       info->index != 0 ||
       info->len != len ||
-      info->opcode != WS_TEXT) {
-    Logger::warn("Ignoring fragmented/non-text WS message");
+      info->opcode !=
+          WS_TEXT
+  ) {
+    Logger::warn(
+        "Ignoring fragmented/non-text WS message");
+
     return;
   }
 
   String payload;
-  payload.reserve(len + 1);
 
-  for (size_t i = 0; i < len; ++i) {
-    payload += static_cast<char>(data[i]);
+  payload.reserve(
+      len +
+      1);
+
+  for (
+      size_t index = 0;
+      index < len;
+      ++index
+  ) {
+    payload +=
+        static_cast<char>(
+            data[index]);
   }
 
-  handleMessage(client, payload);
+  handleMessage(
+      client,
+      payload);
 }
+
 
 void WsProtocol::handleMessage(
     AsyncWebSocketClient* client,
     const String& payload) {
   JsonDocument message;
-  DeserializationError error = deserializeJson(message, payload);
+
+  const DeserializationError error =
+      deserializeJson(
+          message,
+          payload);
 
   if (error) {
     JsonDocument data;
-    data["message"] = error.c_str();
-    send(client, "error", data.as<JsonVariantConst>());
+
+    data["message"] =
+        error.c_str();
+
+    send(
+        client,
+        "error",
+        data.as<
+            JsonVariantConst>());
+
     return;
   }
 
-  const char* type = message["type"] | "";
-  JsonObjectConst data = message["data"];
+  const char* type =
+      message["type"] |
+      "";
 
-  if (strcmp(type, "heartbeat") == 0) {
+  JsonObjectConst data =
+      message["data"];
+
+  if (
+      strcmp(
+          type,
+          "heartbeat") ==
+      0
+  ) {
     JsonDocument empty;
-    send(client, "heartbeatAck", empty.as<JsonVariantConst>());
-    sendCommandCenterInfo(client);
-    sendPowerInfo(client);
-    return;
-  }
 
-  if (strcmp(type, "setTrackPower") == 0) {
-    const bool on = data["on"] | false;
+    send(
+        client,
+        "heartbeatAck",
+        empty.as<
+            JsonVariantConst>());
 
-    const String command =
-        _powerIncludesProgramming
-            ? (on ? "<1>" : "<0>")
-            : (on ? "<1 MAIN>" : "<0 MAIN>");
+    sendCommandCenterInfo(
+        client);
 
-    _dcc.sendCommand(command);
-    return;
-  }
-
-  if (strcmp(type, "setProgrammingPower") == 0) {
-    const bool on = data["on"] | false;
-
-    _dcc.sendCommand(
-        on
-            ? "<1 PROG>"
-            : "<0 PROG>");
+    sendPowerInfo(
+        client);
 
     return;
   }
 
-  if (strcmp(type, "emergencyStop") == 0) {
-    if (_dcc.sendCommand("<!>")) {
-      _emergencyStop = true;
+  if (
+      strcmp(
+          type,
+          "setTrackPower") ==
+      0
+  ) {
+    const bool on =
+        data["on"] |
+        false;
+
+    _commandCenter
+        .setTrackPower(
+            on,
+            _powerIncludesProgramming);
+
+    return;
+  }
+
+  if (
+      strcmp(
+          type,
+          "setProgrammingPower") ==
+      0
+  ) {
+    const bool on =
+        data["on"] |
+        false;
+
+    _commandCenter
+        .setProgrammingPower(
+            on);
+
+    return;
+  }
+
+  if (
+      strcmp(
+          type,
+          "emergencyStop") ==
+      0
+  ) {
+    if (
+        _commandCenter
+            .emergencyStop()
+    ) {
+      _emergencyStop =
+          true;
+
       broadcastPowerInfo();
     }
 
     return;
   }
 
-  if (strcmp(type, "writeDccExDirectCommand") == 0) {
-    const String command = data["command"] | "";
-    const bool ok = _dcc.sendCommand(command);
+  if (
+      strcmp(
+          type,
+          "writeDccExDirectCommand") ==
+      0
+  ) {
+    const String command =
+        data["command"] |
+        "";
+
+    const bool ok =
+        _commandCenter
+            .supportsRawCommand() &&
+        _commandCenter
+            .sendRawCommand(
+                command);
 
     JsonDocument out;
-    out["response"] = ok ? "sent" : "send failed";
-    send(client, "dccExDirectCommandResponse", out.as<JsonVariantConst>());
+
+    out["response"] =
+        ok
+            ? "sent"
+            : "send failed";
+
+    send(
+        client,
+        "dccExDirectCommandResponse",
+        out.as<
+            JsonVariantConst>());
+
     return;
   }
 
-  if (strcmp(type, "setLoco") == 0) {
-    const uint16_t address = data["locoAddress"] | 0;
+  if (
+      strcmp(
+          type,
+          "setLoco") ==
+      0
+  ) {
+    const uint16_t address =
+        data["locoAddress"] |
+        0;
+
     const uint8_t speed =
-        min(126, max(0, data["speed"].as<int>()));
+        min(
+            126,
+            max(
+                0,
+                data["speed"]
+                    .as<
+                        int>()));
 
     const bool forward =
-        strcmp(data["direction"] | "forward", "reverse") != 0;
+        strcmp(
+            data["direction"] |
+                "forward",
+            "reverse") != 0;
 
-    auto* loco = getLoco(address, true);
+    auto* loco =
+        getLoco(
+            address,
+            true);
+
     if (!loco) {
       return;
     }
 
-    loco->speed = speed;
-    loco->forward = forward;
+    if (
+        !_commandCenter
+             .setLoco(
+                 address,
+                 speed,
+                 forward)
+    ) {
+      return;
+    }
 
-    _dcc.sendCommand(
-        "<t " +
-        String(address) +
-        " " +
-        String(speed) +
-        " " +
-        String(forward ? 1 : 0) +
-        ">");
+    loco->speed =
+        speed;
 
-    broadcastLoco(*loco);
+    loco->forward =
+        forward;
+
+    broadcastLoco(
+        *loco);
+
     return;
   }
 
-  if (strcmp(type, "getLoco") == 0) {
+  if (
+      strcmp(
+          type,
+          "getLoco") ==
+      0
+  ) {
     const uint16_t address =
-        data["locoAddress"] | 0;
+        data["locoAddress"] |
+        0;
 
     requestLocoState(
         address,
@@ -1396,209 +2257,426 @@ void WsProtocol::handleMessage(
     return;
   }
 
-  if (strcmp(type, "setLocoFunction") == 0) {
-    const uint16_t address = data["locoAddress"] | 0;
-    const uint8_t fn = data["functionNumber"] | 0;
-    const bool active = data["active"] | false;
+  if (
+      strcmp(
+          type,
+          "setLocoFunction") ==
+      0
+  ) {
+    const uint16_t address =
+        data["locoAddress"] |
+        0;
 
-    if (fn > MAX_LOCO_FUNCTION) {
-      Logger::warn("Ignoring unsupported loco function F" + String(fn));
+    const uint8_t fn =
+        data["functionNumber"] |
+        0;
+
+    const bool active =
+        data["active"] |
+        false;
+
+    if (
+        fn >
+        MAX_LOCO_FUNCTION
+    ) {
+      Logger::warn(
+          "Ignoring unsupported loco function F" +
+          String(
+              fn));
+
       return;
     }
 
-    auto* loco = getLoco(address, true);
+    auto* loco =
+        getLoco(
+            address,
+            true);
+
     if (!loco) {
       return;
     }
 
-    const bool sent = _dcc.sendCommand(
-        "<F " +
-        String(address) +
-        " " +
-        String(fn) +
-        " " +
-        String(active ? 1 : 0) +
-        ">");
-
-    if (!sent) {
+    if (
+        !_commandCenter
+             .setLocoFunction(
+                 address,
+                 fn,
+                 active)
+    ) {
       return;
     }
 
-    const uint32_t bit = (1UL << fn);
+    const uint32_t bit =
+        1UL <<
+        fn;
 
     if (active) {
-      loco->functionsMask |= bit;
+      loco->functionsMask |=
+          bit;
     } else {
-      loco->functionsMask &= ~bit;
+      loco->functionsMask &=
+          ~bit;
     }
 
-    broadcastLoco(*loco);
+    broadcastLoco(
+        *loco);
+
     return;
   }
 
-  if (strcmp(type, "setTurnout") == 0) {
-    const uint16_t address = data["address"] | 0;
-    const bool physicalValue = data["closed"] | false;
+  if (
+      strcmp(
+          type,
+          "setTurnout") ==
+      0
+  ) {
+    const uint16_t address =
+        data["address"] |
+        0;
 
-    _runtime.setTurnout(address, physicalValue);
+    const bool physicalValue =
+        data["closed"] |
+        false;
 
-    _dcc.sendCommand(
-        "<a " +
-        String(address) +
-        " " +
-        String(physicalValue ? 1 : 0) +
-        ">");
+    _runtime.setTurnout(
+        address,
+        physicalValue);
+
+    _commandCenter.setTurnout(
+        address,
+        physicalValue);
 
     JsonDocument out;
-    out["address"] = address;
-    out["closed"] = physicalValue;
-    broadcast("turnoutChanged", out);
+
+    out["address"] =
+        address;
+
+    out["closed"] =
+        physicalValue;
+
+    broadcast(
+        "turnoutChanged",
+        out);
+
     return;
   }
 
-  if (strcmp(type, "setSignalAspect") == 0) {
-    const uint16_t address = data["address"] | 0;
-    const int aspect = data["aspect"] | 0;
+  if (
+      strcmp(
+          type,
+          "setSignalAspect") ==
+      0
+  ) {
+    const uint16_t address =
+        data["address"] |
+        0;
 
-    _runtime.setSignal(address, aspect);
+    const int aspect =
+        data["aspect"] |
+        0;
 
-    _dcc.sendCommand(
-        "<A " +
-        String(address) +
-        " " +
-        String(aspect) +
-        ">");
+    _runtime.setSignal(
+        address,
+        aspect);
+
+    _commandCenter
+        .setSignalAspect(
+            address,
+            aspect);
 
     JsonDocument out;
-    out["address"] = address;
-    out["aspect"] = aspect;
-    broadcast("signalAspectChanged", out);
 
-    if (!data["turnoutPhysicalValue"].isNull()) {
+    out["address"] =
+        address;
+
+    out["aspect"] =
+        aspect;
+
+    broadcast(
+        "signalAspectChanged",
+        out);
+
+    if (
+        !data[
+             "turnoutPhysicalValue"]
+             .isNull()
+    ) {
       const bool physicalValue =
-          data["turnoutPhysicalValue"].as<bool>();
+          data[
+              "turnoutPhysicalValue"]
+              .as<
+                  bool>();
 
-      _runtime.setTurnout(address, physicalValue);
+      _runtime.setTurnout(
+          address,
+          physicalValue);
 
       JsonDocument turnout;
-      turnout["address"] = address;
-      turnout["closed"] = physicalValue;
-      broadcast("turnoutChanged", turnout);
+
+      turnout["address"] =
+          address;
+
+      turnout["closed"] =
+          physicalValue;
+
+      broadcast(
+          "turnoutChanged",
+          turnout);
     }
 
     return;
   }
 
-  if (strcmp(type, "setBasicAccessory") == 0) {
-    const uint16_t address = data["address"] | 0;
-    const bool active = data["active"] | false;
+  if (
+      strcmp(
+          type,
+          "setBasicAccessory") ==
+      0
+  ) {
+    const uint16_t address =
+        data["address"] |
+        0;
 
-    _runtime.setAccessory(address, active);
+    const bool active =
+        data["active"] |
+        false;
 
-    _dcc.sendCommand(
-        "<a " +
-        String(address) +
-        " " +
-        String(active ? 1 : 0) +
-        ">");
+    _runtime.setAccessory(
+        address,
+        active);
+
+    _commandCenter.setAccessory(
+        address,
+        active);
 
     JsonDocument out;
-    out["address"] = address;
-    out["active"] = active;
-    broadcast("accessoryChanged", out);
+
+    out["address"] =
+        address;
+
+    out["active"] =
+        active;
+
+    broadcast(
+        "accessoryChanged",
+        out);
+
     return;
   }
 
-  if (strcmp(type, "setVpin") == 0) {
-    const uint16_t vpin = data["vpin"] | 0;
-    const bool active = data["active"] | false;
+  if (
+      strcmp(
+          type,
+          "setVpin") ==
+      0
+  ) {
+    const uint16_t vpin =
+        data["vpin"] |
+        0;
 
-    _runtime.setVPin(vpin, active);
+    const bool active =
+        data["active"] |
+        false;
 
-    _dcc.sendCommand(
-        "<z " +
-        String(
-            active
-                ? vpin
-                : -static_cast<int>(vpin)) +
-        ">");
+    _runtime.setVPin(
+        vpin,
+        active);
+
+    _commandCenter.setVPin(
+        vpin,
+        active);
 
     JsonDocument out;
-    out["vpin"] = vpin;
-    out["active"] = active;
-    broadcast("vpinChanged", out);
+
+    out["vpin"] =
+        vpin;
+
+    out["active"] =
+        active;
+
+    broadcast(
+        "vpinChanged",
+        out);
+
     return;
   }
 
-  if (strcmp(type, "setSensor") == 0) {
-    const uint16_t address = data["address"] | 0;
-    const bool on = data["on"] | false;
+  if (
+      strcmp(
+          type,
+          "setSensor") ==
+      0
+  ) {
+    const uint16_t address =
+        data["address"] |
+        0;
 
-    _runtime.setSensor(address, on);
+    const bool on =
+        data["on"] |
+        false;
+
+    _runtime.setSensor(
+        address,
+        on);
 
     JsonDocument out;
-    out["address"] = address;
-    out["on"] = on;
-    broadcast("sensorChanged", out);
+
+    out["address"] =
+        address;
+
+    out["on"] =
+        on;
+
+    broadcast(
+        "sensorChanged",
+        out);
+
     return;
   }
 
-  if (strcmp(type, "setBlock") == 0) {
-    const uint16_t blockId = parseBlockId(data["blockId"]);
-    const String locoId = data["locoId"].isNull()
-        ? String()
-        : String(data["locoId"].as<const char*>());
+  if (
+      strcmp(
+          type,
+          "setBlock") ==
+      0
+  ) {
+    const uint16_t blockId =
+        parseBlockId(
+            data["blockId"]);
 
-    const long addressValue = data["locoAddress"] | 0L;
+    const String locoId =
+        data["locoId"]
+            .isNull()
+            ? String()
+            : String(
+                  data["locoId"]
+                      .as<
+                          const char*>());
+
+    const long addressValue =
+        data["locoAddress"] |
+        0L;
+
     const uint16_t locoAddress =
-        addressValue > 0 && addressValue <= 10239
-            ? static_cast<uint16_t>(addressValue)
+        addressValue > 0 &&
+        addressValue <= 10239
+            ? static_cast<uint16_t>(
+                  addressValue)
             : 0;
 
-    if (!blockId ||
-        (locoId.isEmpty() && locoAddress == 0) ||
-        !_runtime.setBlock(blockId, locoId, locoAddress)) {
+    if (
+        !blockId ||
+        (
+            locoId.isEmpty() &&
+            locoAddress == 0
+        ) ||
+        !_runtime.setBlock(
+            blockId,
+            locoId,
+            locoAddress)
+    ) {
       JsonDocument out;
-      out["message"] = "invalid_block_assignment";
-      send(client, "error", out.as<JsonVariantConst>());
+
+      out["message"] =
+          "invalid_block_assignment";
+
+      send(
+          client,
+          "error",
+          out.as<
+              JsonVariantConst>());
     }
 
     return;
   }
 
-  if (strcmp(type, "setBlockRemove") == 0) {
-    const uint16_t blockId = parseBlockId(data["blockId"]);
-    const String locoId = data["locoId"].isNull()
-        ? String()
-        : String(data["locoId"].as<const char*>());
+  if (
+      strcmp(
+          type,
+          "setBlockRemove") ==
+      0
+  ) {
+    const uint16_t blockId =
+        parseBlockId(
+            data["blockId"]);
 
-    if (!blockId ||
-        !_runtime.removeBlock(blockId, locoId)) {
+    const String locoId =
+        data["locoId"]
+            .isNull()
+            ? String()
+            : String(
+                  data["locoId"]
+                      .as<
+                          const char*>());
+
+    if (
+        !blockId ||
+        !_runtime.removeBlock(
+            blockId,
+            locoId)
+    ) {
       JsonDocument out;
-      out["message"] = "invalid_block_remove";
-      send(client, "error", out.as<JsonVariantConst>());
+
+      out["message"] =
+          "invalid_block_remove";
+
+      send(
+          client,
+          "error",
+          out.as<
+              JsonVariantConst>());
     }
 
     return;
   }
 
-  if (strcmp(type, "setBlocksReset") == 0) {
+  if (
+      strcmp(
+          type,
+          "setBlocksReset") ==
+      0
+  ) {
     _runtime.clearBlocks();
     return;
   }
 
-  if (strcmp(type, "getBlocks") == 0) {
-    sendBlockStateSnapshot(client);
+  if (
+      strcmp(
+          type,
+          "getBlocks") ==
+      0
+  ) {
+    sendBlockStateSnapshot(
+        client);
+
     return;
   }
 
-  if (strcmp(type, "getLayoutRuntimeSnapshot") == 0) {
-    sendRuntimeSnapshot(client);
+  if (
+      strcmp(
+          type,
+          "getLayoutRuntimeSnapshot") ==
+      0
+  ) {
+    sendRuntimeSnapshot(
+        client);
+
     return;
   }
 
   JsonDocument ack;
-  ack["ok"] = true;
-  ack["message"] = String("Not implemented yet: ") + type;
-  send(client, "ack", ack.as<JsonVariantConst>());
+
+  ack["ok"] =
+      true;
+
+  ack["message"] =
+      String(
+          "Not implemented yet: ") +
+      type;
+
+  send(
+      client,
+      "ack",
+      ack.as<
+          JsonVariantConst>());
 }

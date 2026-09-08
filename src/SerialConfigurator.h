@@ -5,16 +5,28 @@
 
 #include "DccExBridge.h"
 #include "HubConfigStore.h"
+#include "ICommandCenter.h"
 #include "WsProtocol.h"
 
 class SerialConfigurator {
 public:
+  // Existing constructor retained for source compatibility with
+  // SerialConfigurator.cpp.
   SerialConfigurator(
       HubConfigStore& config,
       DccExBridge& dcc,
       WsProtocol& wsProtocol)
       : _config(config),
         _dcc(dcc),
+        _wsProtocol(wsProtocol) {}
+
+  // Generic constructor used by App/CommandCenterManager.
+  SerialConfigurator(
+      HubConfigStore& config,
+      ICommandCenter& commandCenter,
+      WsProtocol& wsProtocol)
+      : _config(config),
+        _dcc(commandCenter),
         _wsProtocol(wsProtocol) {}
 
   void begin();
@@ -28,7 +40,7 @@ private:
       MAX_LINE_LENGTH = 1536;
 
   HubConfigStore& _config;
-  DccExBridge& _dcc;
+  ICommandCenter& _dcc;
   WsProtocol& _wsProtocol;
 
   String _line;

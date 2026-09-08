@@ -5,7 +5,7 @@
 #include <memory>
 
 #include "ApiServer.h"
-#include "DccExBridge.h"
+#include "CommandCenterManager.h"
 #include "HubConfigStore.h"
 #include "HubDisplay.h"
 #include "LayoutRuntime.h"
@@ -22,7 +22,8 @@ public:
 private:
   HubConfigStore _config;
 
-  DccExBridge _dcc;
+  CommandCenterManager _commandCenter;
+
   LayoutRuntime _runtime;
   RuntimeStateStore _stateStore;
   HubDisplay _display;
@@ -33,20 +34,20 @@ private:
 
   WsProtocol _wsProtocol{
       _ws,
-      _dcc,
+      _commandCenter,
       _runtime,
       _stateStore};
 
   SerialConfigurator _serialConfigurator{
       _config,
-      _dcc,
+      _commandCenter,
       _wsProtocol};
 
   std::unique_ptr<ApiServer>
       _apiServer;
 
   SignalAutomationEngine _signalAutomation{
-      _dcc,
+      _commandCenter,
       _runtime,
       _ws};
 

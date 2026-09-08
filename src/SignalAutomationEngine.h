@@ -6,13 +6,13 @@
 #include <LittleFS.h>
 #include <vector>
 
-#include "DccExBridge.h"
+#include "ICommandCenter.h"
 #include "LayoutRuntime.h"
 
 class SignalAutomationEngine {
 public:
   SignalAutomationEngine(
-      DccExBridge& dcc,
+      ICommandCenter& commandCenter,
       LayoutRuntime& runtime,
       AsyncWebSocket& ws);
 
@@ -33,7 +33,9 @@ private:
       Sensor
     };
 
-    Source source = Source::Turnout;
+    Source source =
+        Source::Turnout;
+
     uint16_t id = 0;
     uint8_t channel = 0;
     bool value = false;
@@ -41,7 +43,8 @@ private:
 
   struct Rule {
     int16_t value = 0;
-    std::vector<Condition> conditions;
+    std::vector<Condition>
+        conditions;
   };
 
   struct SignalRuleSet {
@@ -49,32 +52,46 @@ private:
     bool extended = true;
     uint8_t outputs = 1;
     int16_t defaultValue = 0;
-    std::vector<Rule> rules;
+
+    std::vector<Rule>
+        rules;
+
     bool hasAppliedValue = false;
     int16_t appliedValue = 0;
   };
 
-  DccExBridge& _dcc;
+  ICommandCenter& _commandCenter;
   LayoutRuntime& _runtime;
   AsyncWebSocket& _ws;
 
   fs::FS* _fs = nullptr;
+
   String _path =
       "/config/signal-logic.ndjson";
 
   bool _enabled = false;
   bool _evaluating = false;
 
-  std::vector<SignalRuleSet> _signals;
+  std::vector<SignalRuleSet>
+      _signals;
 
-  unsigned long _lastConfigCheckMs = 0;
-  uint32_t _configFingerprint = 0;
-  bool _configFingerprintValid = false;
+  unsigned long
+      _lastConfigCheckMs = 0;
 
-  bool parseMeta(JsonObjectConst row);
-  bool parseSignal(JsonObjectConst row);
+  uint32_t
+      _configFingerprint = 0;
 
-  uint32_t calculateConfigFingerprint() const;
+  bool
+      _configFingerprintValid = false;
+
+  bool parseMeta(
+      JsonObjectConst row);
+
+  bool parseSignal(
+      JsonObjectConst row);
+
+  uint32_t
+  calculateConfigFingerprint() const;
 
   bool conditionMatches(
       const Condition& condition) const;

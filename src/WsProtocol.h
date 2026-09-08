@@ -4,7 +4,7 @@
 #include <ArduinoJson.h>
 #include <ESPAsyncWebServer.h>
 
-#include "DccExBridge.h"
+#include "ICommandCenter.h"
 #include "LayoutRuntime.h"
 #include "RuntimeStateStore.h"
 
@@ -12,7 +12,7 @@ class WsProtocol {
 public:
   WsProtocol(
       AsyncWebSocket& ws,
-      DccExBridge& dcc,
+      ICommandCenter& commandCenter,
       LayoutRuntime& runtime,
       RuntimeStateStore& stateStore);
 
@@ -30,11 +30,12 @@ public:
   }
 
   void broadcastRuntimeSnapshot();
-  void broadcastRawInfo(const String& raw);
+  void broadcastRawInfo(
+      const String& raw);
 
 private:
   AsyncWebSocket& _ws;
-  DccExBridge& _dcc;
+  ICommandCenter& _commandCenter;
   LayoutRuntime& _runtime;
   RuntimeStateStore& _stateStore;
 
@@ -82,13 +83,17 @@ private:
   unsigned long _nextLocoSyncAt = 0;
 
   DccTrackState _dccTracks[MAX_DCC_TRACKS];
+
+  // Feedback parsing is still DCC-EX-specific in Phase 2.
+  // It will move behind ICommandCenter events in the next phase.
   String _dccVersion;
   String _dccProcessor;
   String _dccHardware;
   String _dccBuild;
   uint16_t _dccMaxLocos = 0;
-  bool _lastDccConnected = false;
-  unsigned long _dccConnectedSinceAt = 0;
+
+  bool _lastCommandCenterConnected = false;
+  unsigned long _commandCenterConnectedSinceAt = 0;
   unsigned long _dccCurrentUpdatedAt = 0;
   unsigned long _nextDccCurrentPollAt = 0;
   unsigned long _nextHubStatusAt = 0;
@@ -107,7 +112,23 @@ private:
       AsyncWebSocketClient* client,
       const String& payload);
 
-  void handleDccFrame(const String& frame);
+  void handleStationInfo(
+      const CommandCenterStationInfo& info);
+
+  void handleTrackConfiguration(
+      const CommandCenterTrackConfiguration& info);
+
+  void handleCurrentTelemetry(
+      const CommandCenterCurrentTelemetry& info);
+
+  void handleTripTelemetry(
+      const CommandCenterTripTelemetry& info);
+
+  void handlePowerFeedback(
+      const CommandCenterPowerFeedback& info);
+
+  void handleLocoFeedback(
+      const CommandCenterLocoFeedback& info);
 
   void send(
       AsyncWebSocketClient* client,
@@ -147,7 +168,7 @@ private:
   void pollDccExTelemetry(
       unsigned long now);
 
-  void handleDccConnectionState(
+  void handleCommandCenterConnectionState(
       unsigned long now);
 
   void beginConfiguredLocoStateSync(

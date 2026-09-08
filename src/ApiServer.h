@@ -9,6 +9,7 @@
 #include "DeviceConfigEndpoint.h"
 #include "DccExBridge.h"
 #include "HubConfigStore.h"
+#include "ICommandCenter.h"
 #include "LayoutRuntime.h"
 #include "RuntimeStateStore.h"
 #include "ScriptInfoEndpoint.h"
@@ -16,6 +17,7 @@
 
 class ApiServer {
 public:
+  // Existing constructor retained for source compatibility with ApiServer.cpp.
   ApiServer(
       uint16_t httpPort,
       AsyncWebSocket& ws,
@@ -25,11 +27,26 @@ public:
       HubConfigStore& config,
       WsProtocol& wsProtocol);
 
+  // Generic constructor used by App/CommandCenterManager.
+  ApiServer(
+      uint16_t httpPort,
+      AsyncWebSocket& ws,
+      ICommandCenter& commandCenter,
+      LayoutRuntime& runtime,
+      RuntimeStateStore& stateStore,
+      HubConfigStore& config,
+      WsProtocol& wsProtocol)
+      : _server(httpPort),
+        _ws(ws),
+        _dcc(commandCenter),
+        _runtime(runtime),
+        _stateStore(stateStore),
+        _config(config),
+        _wsProtocol(wsProtocol) {}
+
   void begin();
 
 private:
-  // Construction order matters: the web server must exist before endpoint
-  // helpers register their routes.
   AsyncWebServer _server;
 
   AutomationsEndpoint _automationsEndpoint{
@@ -43,7 +60,7 @@ private:
 
   AsyncWebSocket& _ws;
 
-  DccExBridge& _dcc;
+  ICommandCenter& _dcc;
   LayoutRuntime& _runtime;
   RuntimeStateStore& _stateStore;
   HubConfigStore& _config;

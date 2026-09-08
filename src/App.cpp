@@ -7,6 +7,7 @@
 #include "Logger.h"
 
 namespace {
+
 bool parseIp(
     const String& text,
     IPAddress& out,
@@ -18,6 +19,7 @@ bool parseIp(
   return out.fromString(
       text);
 }
+
 }
 
 void App::loadConfiguration() {
@@ -29,13 +31,24 @@ void App::loadConfiguration() {
   _wsProtocol.setPowerIncludesProgramming(
       commandCenter.powerIncludesProgramming);
 
-  _dcc.begin(
-      commandCenter.host,
-      commandCenter.port);
+  if (
+      !_commandCenter.begin(
+          commandCenter.type,
+          commandCenter.host,
+          commandCenter.port)
+  ) {
+    Logger::warn(
+        "Configured command center type is unavailable; falling back to dcc-ex");
+
+    _commandCenter.begin(
+        "dcc-ex",
+        commandCenter.host,
+        commandCenter.port);
+  }
 
   _display.showCommandCenter(
-      _dcc.host(),
-      _dcc.port(),
+      _commandCenter.host(),
+      _commandCenter.port(),
       false);
 }
 
@@ -76,12 +89,14 @@ void App::connectWifi() {
             true);
 
     if (valid) {
-      if (!WiFi.config(
+      if (
+          !WiFi.config(
               ip,
               gateway,
               subnet,
               dns1,
-              dns2)) {
+              dns2)
+      ) {
         Logger::warn(
             "Static Wi-Fi configuration failed");
       }
@@ -109,17 +124,18 @@ void App::connectWifi() {
       WiFi.status() !=
           WL_CONNECTED &&
       millis() - started <
-          15000) {
-    // Keep the serial recovery path alive even while normal networking
-    // is unavailable or badly configured.
+          15000
+  ) {
     _serialConfigurator.loop();
 
     _display.loop();
     delay(25);
   }
 
-  if (WiFi.status() ==
-      WL_CONNECTED) {
+  if (
+      WiFi.status() ==
+      WL_CONNECTED
+  ) {
     const String ip =
         WiFi.localIP().toString();
 
@@ -127,8 +143,10 @@ void App::connectWifi() {
         "Wi-Fi connected: " +
         ip);
 
-    if (MDNS.begin(
-            network.hostname.c_str())) {
+    if (
+        MDNS.begin(
+            network.hostname.c_str())
+    ) {
       Logger::info(
           "mDNS ready: " +
           network.hostname +
@@ -151,16 +169,18 @@ void App::connectWifi() {
 
 void App::updateDisplay() {
   const bool connected =
-      _dcc.connected();
+      _commandCenter.connected();
 
-  if (connected !=
-      _lastCommandCenterConnected) {
+  if (
+      connected !=
+      _lastCommandCenterConnected
+  ) {
     _lastCommandCenterConnected =
         connected;
 
     _display.showCommandCenter(
-        _dcc.host(),
-        _dcc.port(),
+        _commandCenter.host(),
+        _commandCenter.port(),
         connected);
   }
 
@@ -178,12 +198,12 @@ void App::begin() {
 
   loadConfiguration();
 
-  // Start the recovery/configuration protocol before Wi-Fi is touched.
   _serialConfigurator.begin();
 
   if (!LittleFS.begin(true)) {
     Logger::error(
         "LittleFS mount failed");
+
     return;
   }
 
@@ -204,17 +224,19 @@ void App::begin() {
 
   connectWifi();
 
-  if (WiFi.status() ==
-      WL_CONNECTED) {
-    _dcc.ensureConnected();
+  if (
+      WiFi.status() ==
+      WL_CONNECTED
+  ) {
+    _commandCenter.ensureConnected();
   }
 
   _lastCommandCenterConnected =
-      _dcc.connected();
+      _commandCenter.connected();
 
   _display.showCommandCenter(
-      _dcc.host(),
-      _dcc.port(),
+      _commandCenter.host(),
+      _commandCenter.port(),
       _lastCommandCenterConnected);
 
   _signalAutomation.begin(
@@ -224,7 +246,8 @@ void App::begin() {
       new ApiServer(
           _config.network().httpPort,
           _ws,
-          _dcc,
+          static_cast<ICommandCenter&>(
+              _commandCenter),
           _runtime,
           _stateStore,
           _config,
@@ -237,10 +260,11 @@ void App::begin() {
 
 void App::loop() {
   _serialConfigurator.loop();
-  _dcc.loop();
+  _commandCenter.loop();
   _signalAutomation.loop();
   _wsProtocol.loop();
   _wsProtocol.cleanupClients();
   updateDisplay();
+
   delay(1);
 }
