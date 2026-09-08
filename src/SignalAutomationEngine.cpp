@@ -1,6 +1,7 @@
 #include "SignalAutomationEngine.h"
 
 #include "Logger.h"
+#include "FileStore.h"
 
 namespace {
 
@@ -309,10 +310,12 @@ SignalAutomationEngine::calculateConfigFingerprint() const {
     return 0;
   }
 
+  FileStore files(
+      *_fs);
+
   File file =
-      _fs->open(
-          _path,
-          "r");
+      files.openRead(
+          _path.c_str());
 
   if (!file) {
     return 0;
@@ -358,10 +361,12 @@ bool SignalAutomationEngine::reload() {
     return false;
   }
 
+  FileStore files(
+      *_fs);
+
   File file =
-      _fs->open(
-          _path,
-          "r");
+      files.openRead(
+          _path.c_str());
 
   if (!file) {
     _enabled =

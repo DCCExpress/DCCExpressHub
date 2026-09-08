@@ -4,6 +4,8 @@
 #include <ESPAsyncWebServer.h>
 #include <LittleFS.h>
 
+#include "FileStore.h"
+
 class AutomationsEndpoint {
 public:
   explicit AutomationsEndpoint(
@@ -13,22 +15,12 @@ private:
   static constexpr const char* FINAL_PATH =
       "/config/automations.json";
 
-  static constexpr const char* TEMP_PATH =
-      "/config/automations.json.tmp";
-
-  static constexpr const char* BACKUP_PATH =
-      "/config/automations.json.bak";
-
   static constexpr size_t MAX_UPLOAD_BYTES =
       512 * 1024;
 
   AsyncWebServer& _server;
-
-  File _upload;
-  size_t _uploadExpected = 0;
-  size_t _uploadWritten = 0;
-  bool _uploadFailed = false;
-  bool _uploadTooLarge = false;
+  FileStore _files{LittleFS};
+  AtomicFileUpload _upload;
 
   void setupRoutes();
 
@@ -39,8 +31,7 @@ private:
       size_t index,
       size_t total);
 
-  static bool verifyFile(
-      const char* path,
+  bool verifyTemp(
       String& error);
 
   static void sendJson(

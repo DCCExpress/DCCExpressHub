@@ -32,13 +32,14 @@ void DeviceConfigEndpoint::sendJson(
       response);
 }
 
-bool DeviceConfigEndpoint::verifyFile(
-    const char* path,
+bool DeviceConfigEndpoint::verifyTemp(
     String& error) {
+  const String path =
+      _upload.tempPath();
+
   File file =
-      LittleFS.open(
-          path,
-          "r");
+      _files.openRead(
+          path.c_str());
 
   if (!file) {
     error =
@@ -55,30 +56,37 @@ bool DeviceConfigEndpoint::verifyFile(
 
   file.close();
 
-  if (parseError ||
-      !document.is<JsonObject>()) {
+  if (
+      parseError ||
+      !document.is<JsonObject>()
+  ) {
     error =
         "Invalid device configuration JSON";
     return false;
   }
 
-  const int version =
-      document["version"] | 0;
-
-  if (version != 1) {
+  if (
+      (document["version"] | 0) != 1
+  ) {
     error =
         "Unsupported device configuration version";
     return false;
   }
 
-  if (!document["devices"].is<JsonArray>()) {
+  if (
+      !document["devices"]
+           .is<JsonArray>()
+  ) {
     error =
         "Device configuration requires a devices array";
     return false;
   }
 
-  for (JsonObjectConst device :
-       document["devices"].as<JsonArrayConst>()) {
+  for (
+      JsonObjectConst device :
+      document["devices"]
+          .as<JsonArrayConst>()
+  ) {
     const char* id =
         device["id"] | nullptr;
 
@@ -88,21 +96,22 @@ bool DeviceConfigEndpoint::verifyFile(
     const char* type =
         device["type"] | nullptr;
 
-    if (!id ||
-        !*id ||
-        !name ||
-        !*name ||
-        !type ||
-        !*type) {
+    if (
+        !id || !*id ||
+        !name || !*name ||
+        !type || !*type
+    ) {
       error =
           "Every device requires id, name and type";
       return false;
     }
 
-    if (!device["enabled"].is<bool>() ||
+    if (
+        !device["enabled"].is<bool>() ||
         !device["address"].is<int>() ||
         !device["firstVpin"].is<int>() ||
-        !device["pinCount"].is<int>()) {
+        !device["pinCount"].is<int>()
+    ) {
       error =
           "Device configuration contains invalid required fields";
       return false;
@@ -117,13 +126,18 @@ bool DeviceConfigEndpoint::verifyFile(
     const int pinCount =
         device["pinCount"].as<int>();
 
-    if (address < 0 ||
+    if (
+        address < 0 ||
         address > 0x7f ||
         firstVpin < 1 ||
         firstVpin > 32767 ||
         pinCount < 1 ||
         pinCount > 64 ||
-        firstVpin + pinCount - 1 > 32767) {
+        firstVpin +
+                pinCount -
+                1 >
+            32767
+    ) {
       error =
           "Device address or VPIN range is invalid";
       return false;
@@ -140,73 +154,34 @@ void DeviceConfigEndpoint::handleBody(
     size_t index,
     size_t total) {
   if (index == 0) {
-    _uploadExpected =
-        total;
-
-    _uploadWritten =
-        0;
-
-    _uploadFailed =
-        false;
-
-    _uploadTooLarge =
-        total >
-        MAX_UPLOAD_BYTES;
-
-    LittleFS.mkdir(
-        "/config");
-
-    LittleFS.remove(
-        TEMP_PATH);
-
-    if (!_uploadTooLarge) {
-      _upload =
-          LittleFS.open(
-              TEMP_PATH,
-              "w");
-
-      if (!_upload) {
-        _uploadFailed =
-            true;
-      }
-    }
+    _upload.begin(
+        _files,
+        FINAL_PATH,
+        total,
+        MAX_UPLOAD_BYTES);
   }
 
-  if (!_uploadTooLarge &&
-      !_uploadFailed &&
-      _upload) {
-    const size_t written =
-        _upload.write(
-            data,
-            len);
-
-    _uploadWritten +=
-        written;
-
-    if (written != len) {
-      _uploadFailed =
-          true;
-    }
+  if (
+      !_upload.tooLarge() &&
+      !_upload.failed()
+  ) {
+    _upload.write(
+        data,
+        len);
   }
 
-  if (index + len != total) {
+  if (
+      index + len != total
+  ) {
     return;
-  }
-
-  if (_upload) {
-    _upload.flush();
-    _upload.close();
   }
 
   JsonDocument response;
 
-  if (_uploadTooLarge) {
-    LittleFS.remove(
-        TEMP_PATH);
+  if (_upload.tooLarge()) {
+    _upload.abort();
 
-    response["ok"] =
-        false;
-
+    response["ok"] = false;
     response["message"] =
         "Device configuration exceeds 256 KB";
 
@@ -217,15 +192,10 @@ void DeviceConfigEndpoint::handleBody(
     return;
   }
 
-  if (_uploadFailed ||
-      _uploadWritten !=
-          _uploadExpected) {
-    LittleFS.remove(
-        TEMP_PATH);
+  if (!_upload.finish()) {
+    _upload.abort();
 
-    response["ok"] =
-        false;
-
+    response["ok"] = false;
     response["message"] =
         "Device configuration upload failed";
 
@@ -238,15 +208,13 @@ void DeviceConfigEndpoint::handleBody(
 
   String verifyError;
 
-  if (!verifyFile(
-          TEMP_PATH,
-          verifyError)) {
-    LittleFS.remove(
-        TEMP_PATH);
+  if (
+      !verifyTemp(
+          verifyError)
+  ) {
+    _upload.abort();
 
-    response["ok"] =
-        false;
-
+    response["ok"] = false;
     response["message"] =
         verifyError;
 
@@ -257,29 +225,8 @@ void DeviceConfigEndpoint::handleBody(
     return;
   }
 
-  LittleFS.remove(
-      BACKUP_PATH);
-
-  if (LittleFS.exists(
-          FINAL_PATH)) {
-    LittleFS.rename(
-        FINAL_PATH,
-        BACKUP_PATH);
-  }
-
-  if (!LittleFS.rename(
-          TEMP_PATH,
-          FINAL_PATH)) {
-    if (LittleFS.exists(
-            BACKUP_PATH)) {
-      LittleFS.rename(
-          BACKUP_PATH,
-          FINAL_PATH);
-    }
-
-    response["ok"] =
-        false;
-
+  if (!_upload.commit()) {
+    response["ok"] = false;
     response["message"] =
         "Device configuration atomic rename failed";
 
@@ -290,20 +237,13 @@ void DeviceConfigEndpoint::handleBody(
     return;
   }
 
-  LittleFS.remove(
-      BACKUP_PATH);
-
   Logger::info(
       "Device configuration saved: " +
       String(total) +
       " bytes");
 
-  response["ok"] =
-      true;
-
-  response["bytes"] =
-      total;
-
+  response["ok"] = true;
+  response["bytes"] = total;
   response["message"] =
       "Device configuration saved";
 
@@ -317,10 +257,12 @@ void DeviceConfigEndpoint::setupRoutes() {
   _server.on(
       "/api/device-config",
       HTTP_GET,
-      [](
+      [this](
           AsyncWebServerRequest* request) {
-        if (!LittleFS.exists(
-                FINAL_PATH)) {
+        if (
+            !_files.exists(
+                FINAL_PATH)
+        ) {
           auto* response =
               request->beginResponse(
                   200,

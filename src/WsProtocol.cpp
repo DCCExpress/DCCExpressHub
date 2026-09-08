@@ -1,6 +1,7 @@
 #include "WsProtocol.h"
 
 #include "Logger.h"
+#include "FileStore.h"
 #include "config.h"
 
 #include <LittleFS.h>
@@ -1020,8 +1021,11 @@ void WsProtocol::beginConfiguredLocoStateSync(
   static constexpr const char* LOCOS_PATH =
       "/config/locos.json";
 
+  FileStore files(
+      LittleFS);
+
   if (
-      !LittleFS.exists(
+      !files.exists(
           LOCOS_PATH)
   ) {
     Logger::info(
@@ -1031,9 +1035,8 @@ void WsProtocol::beginConfiguredLocoStateSync(
   }
 
   File file =
-      LittleFS.open(
-          LOCOS_PATH,
-          "r");
+      files.openRead(
+          LOCOS_PATH);
 
   if (!file) {
     Logger::warn(

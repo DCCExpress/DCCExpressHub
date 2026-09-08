@@ -8,6 +8,7 @@
 #include "AutomationsEndpoint.h"
 #include "DeviceConfigEndpoint.h"
 #include "DccExBridge.h"
+#include "FileStore.h"
 #include "HubConfigStore.h"
 #include "ICommandCenter.h"
 #include "LayoutRuntime.h"
@@ -17,7 +18,6 @@
 
 class ApiServer {
 public:
-  // Existing constructor retained for source compatibility with ApiServer.cpp.
   ApiServer(
       uint16_t httpPort,
       AsyncWebSocket& ws,
@@ -27,7 +27,6 @@ public:
       HubConfigStore& config,
       WsProtocol& wsProtocol);
 
-  // Generic constructor used by App/CommandCenterManager.
   ApiServer(
       uint16_t httpPort,
       AsyncWebSocket& ws,
@@ -47,6 +46,15 @@ public:
   void begin();
 
 private:
+  static constexpr const char* LAYOUT_PATH =
+      "/config/layout.json";
+
+  static constexpr const char* LOCOS_PATH =
+      "/config/locos.json";
+
+  static constexpr const char* SIGNAL_LOGIC_PATH =
+      "/config/signal-logic.ndjson";
+
   AsyncWebServer _server;
 
   AutomationsEndpoint _automationsEndpoint{
@@ -66,20 +74,12 @@ private:
   HubConfigStore& _config;
   WsProtocol& _wsProtocol;
 
-  File _layoutUpload;
-  size_t _layoutUploadExpected = 0;
-  size_t _layoutUploadWritten = 0;
-  bool _layoutUploadFailed = false;
+  FileStore _files{
+      LittleFS};
 
-  File _locosUpload;
-  size_t _locosUploadExpected = 0;
-  size_t _locosUploadWritten = 0;
-  bool _locosUploadFailed = false;
-
-  File _signalLogicUpload;
-  size_t _signalLogicUploadExpected = 0;
-  size_t _signalLogicUploadWritten = 0;
-  bool _signalLogicUploadFailed = false;
+  AtomicFileUpload _layoutUpload;
+  AtomicFileUpload _locosUpload;
+  AtomicFileUpload _signalLogicUpload;
 
   void setupApi();
   void setupStaticFiles();
@@ -104,6 +104,9 @@ private:
       size_t len,
       size_t index,
       size_t total);
+
+  bool verifyLocosTemp();
+  bool verifySignalLogicTemp();
 
   static void sendJson(
       AsyncWebServerRequest* request,

@@ -24,16 +24,18 @@ void AutomationsEndpoint::sendJson(
       "Cache-Control",
       "no-store");
 
-  request->send(response);
+  request->send(
+      response);
 }
 
-bool AutomationsEndpoint::verifyFile(
-    const char* path,
+bool AutomationsEndpoint::verifyTemp(
     String& error) {
+  const String path =
+      _upload.tempPath();
+
   File file =
-      LittleFS.open(
-          path,
-          "r");
+      _files.openRead(
+          path.c_str());
 
   if (!file) {
     error =
@@ -56,32 +58,40 @@ bool AutomationsEndpoint::verifyFile(
     return false;
   }
 
-  if (!document.is<JsonObject>()) {
+  if (
+      !document.is<
+          JsonObject>()
+  ) {
     error =
         "Automation root must be an object";
     return false;
   }
 
-  const int version =
-      document["version"] | 0;
-
-  if (version != 1) {
+  if (
+      (document["version"] | 0) != 1
+  ) {
     error =
         "Unsupported automation storage version";
     return false;
   }
 
-  if (!document["scripts"].is<JsonArray>()) {
+  if (
+      !document["scripts"]
+           .is<JsonArray>()
+  ) {
     error =
         "Automation scripts must be an array";
     return false;
   }
 
-  JsonArray scripts =
-      document["scripts"].as<JsonArray>();
-
-  for (JsonVariant item : scripts) {
-    if (!item.is<JsonObject>()) {
+  for (
+      JsonVariant item :
+      document["scripts"]
+          .as<JsonArray>()
+  ) {
+    if (
+        !item.is<JsonObject>()
+    ) {
       error =
           "Automation script entry must be an object";
       return false;
@@ -90,9 +100,11 @@ bool AutomationsEndpoint::verifyFile(
     JsonObject script =
         item.as<JsonObject>();
 
-    if (!script["id"].is<const char*>() ||
+    if (
+        !script["id"].is<const char*>() ||
         !script["name"].is<const char*>() ||
-        !script["script"].is<const char*>()) {
+        !script["script"].is<const char*>()
+    ) {
       error =
           "Automation script requires id, name and script strings";
       return false;
@@ -104,15 +116,19 @@ bool AutomationsEndpoint::verifyFile(
     const String name =
         script["name"].as<String>();
 
-    if (id.length() == 0 ||
-        id.length() > 160) {
+    if (
+        id.isEmpty() ||
+        id.length() > 160
+    ) {
       error =
           "Automation id is invalid";
       return false;
     }
 
-    if (name.length() == 0 ||
-        name.length() > 160) {
+    if (
+        name.isEmpty() ||
+        name.length() > 160
+    ) {
       error =
           "Automation name is invalid";
       return false;
@@ -129,61 +145,30 @@ void AutomationsEndpoint::handleBody(
     size_t index,
     size_t total) {
   if (index == 0) {
-    _uploadExpected = total;
-    _uploadWritten = 0;
-    _uploadFailed = false;
-    _uploadTooLarge =
-        total > MAX_UPLOAD_BYTES;
-
-    LittleFS.mkdir(
-        "/config");
-
-    LittleFS.remove(
-        TEMP_PATH);
-
-    if (!_uploadTooLarge) {
-      _upload =
-          LittleFS.open(
-              TEMP_PATH,
-              "w");
-
-      if (!_upload) {
-        _uploadFailed = true;
-
-        Logger::error(
-            "Cannot open automation temp file");
-      }
-    }
+    _upload.begin(
+        _files,
+        FINAL_PATH,
+        total,
+        MAX_UPLOAD_BYTES);
   }
 
-  if (!_uploadTooLarge &&
-      !_uploadFailed &&
-      _upload) {
-    const size_t written =
-        _upload.write(
-            data,
-            len);
-
-    _uploadWritten +=
-        written;
-
-    if (written != len) {
-      _uploadFailed = true;
-    }
+  if (
+      !_upload.tooLarge() &&
+      !_upload.failed()
+  ) {
+    _upload.write(
+        data,
+        len);
   }
 
-  if (index + len != total) {
+  if (
+      index + len != total
+  ) {
     return;
   }
 
-  if (_upload) {
-    _upload.flush();
-    _upload.close();
-  }
-
-  if (_uploadTooLarge) {
-    LittleFS.remove(
-        TEMP_PATH);
+  if (_upload.tooLarge()) {
+    _upload.abort();
 
     sendJson(
         request,
@@ -192,11 +177,8 @@ void AutomationsEndpoint::handleBody(
     return;
   }
 
-  if (_uploadFailed ||
-      _uploadWritten !=
-          _uploadExpected) {
-    LittleFS.remove(
-        TEMP_PATH);
+  if (!_upload.finish()) {
+    _upload.abort();
 
     sendJson(
         request,
@@ -207,11 +189,11 @@ void AutomationsEndpoint::handleBody(
 
   String verifyError;
 
-  if (!verifyFile(
-          TEMP_PATH,
-          verifyError)) {
-    LittleFS.remove(
-        TEMP_PATH);
+  if (
+      !verifyTemp(
+          verifyError)
+  ) {
+    _upload.abort();
 
     JsonDocument response;
     response["ok"] = false;
@@ -230,35 +212,13 @@ void AutomationsEndpoint::handleBody(
     return;
   }
 
-  LittleFS.remove(
-      BACKUP_PATH);
-
-  if (LittleFS.exists(
-          FINAL_PATH)) {
-    LittleFS.rename(
-        FINAL_PATH,
-        BACKUP_PATH);
-  }
-
-  if (!LittleFS.rename(
-          TEMP_PATH,
-          FINAL_PATH)) {
-    if (LittleFS.exists(
-            BACKUP_PATH)) {
-      LittleFS.rename(
-          BACKUP_PATH,
-          FINAL_PATH);
-    }
-
+  if (!_upload.commit()) {
     sendJson(
         request,
         500,
         "{\"ok\":false,\"message\":\"Automation atomic rename failed\"}");
     return;
   }
-
-  LittleFS.remove(
-      BACKUP_PATH);
 
   Logger::info(
       "Automations saved: " +
@@ -267,8 +227,7 @@ void AutomationsEndpoint::handleBody(
 
   JsonDocument response;
   response["ok"] = true;
-  response["bytes"] =
-      total;
+  response["bytes"] = total;
 
   String body;
   serializeJson(
@@ -285,10 +244,12 @@ void AutomationsEndpoint::setupRoutes() {
   _server.on(
       "/api/automations",
       HTTP_GET,
-      [](
+      [this](
           AsyncWebServerRequest* request) {
-        if (!LittleFS.exists(
-                FINAL_PATH)) {
+        if (
+            !_files.exists(
+                FINAL_PATH)
+        ) {
           auto* response =
               request->beginResponse(
                   200,

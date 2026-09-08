@@ -2,60 +2,79 @@
 
 #include <WiFi.h>
 #include <stdlib.h>
-#include "Logger.h"
+
 #include "CommandCenterEndpoint.h"
+#include "Logger.h"
 
 namespace {
-const char* cacheControlFor(const String& path) {
-  if (path.endsWith(".json") ||
-      path.endsWith(".ndjson")) {
+
+const char* cacheControlFor(
+    const String& path) {
+  if (
+      path.endsWith(".json") ||
+      path.endsWith(".ndjson")
+  ) {
     return "no-store";
   }
 
-  if (path.endsWith(".js") ||
+  if (
+      path.endsWith(".js") ||
       path.endsWith(".css") ||
       path.endsWith(".html") ||
-      path.endsWith(".map")) {
+      path.endsWith(".map")
+  ) {
     return "no-cache";
   }
 
-  if (path.endsWith(".png") ||
+  if (
+      path.endsWith(".png") ||
       path.endsWith(".jpg") ||
       path.endsWith(".jpeg") ||
       path.endsWith(".webp") ||
       path.endsWith(".gif") ||
       path.endsWith(".svg") ||
-      path.endsWith(".ico")) {
-    return "public, max-age=86400";
+      path.endsWith(".ico")
+  ) {
+    return
+        "public, max-age=86400";
   }
 
-  if (path.endsWith(".woff") ||
-      path.endsWith(".woff2")) {
-    return "public, max-age=31536000, immutable";
+  if (
+      path.endsWith(".woff") ||
+      path.endsWith(".woff2")
+  ) {
+    return
+        "public, max-age=31536000, immutable";
   }
 
   return "no-cache";
 }
 
-
 bool isValidCommandCenterHost(
     const String& host) {
-  if (host.length() == 0 ||
-      host.length() > 253) {
+  if (
+      host.isEmpty() ||
+      host.length() > 253
+  ) {
     return false;
   }
 
-  for (size_t index = 0;
-       index < host.length();
-       ++index) {
-    const char c = host.charAt(index);
+  for (
+      size_t index = 0;
+      index < host.length();
+      ++index
+  ) {
+    const char c =
+        host.charAt(index);
 
-    if (static_cast<uint8_t>(c) <= 32 ||
+    if (
+        static_cast<uint8_t>(c) <= 32 ||
         c == '/' ||
         c == '\\' ||
         c == ':' ||
         c == '<' ||
-        c == '>') {
+        c == '>'
+    ) {
       return false;
     }
   }
@@ -67,18 +86,23 @@ bool readPostValue(
     AsyncWebServerRequest* request,
     const char* name,
     String& value) {
-  if (!request->hasParam(
+  if (
+      !request->hasParam(
           name,
-          true)) {
+          true)
+  ) {
     return false;
   }
 
   value =
       request
-          ->getParam(name, true)
+          ->getParam(
+              name,
+              true)
           ->value();
 
   value.trim();
+
   return true;
 }
 
@@ -89,39 +113,51 @@ bool parseEndpointFromRequest(
     String& error) {
   String portText;
 
-  if (!readPostValue(
+  if (
+      !readPostValue(
           request,
           "host",
           host) ||
       !readPostValue(
           request,
           "port",
-          portText)) {
+          portText)
+  ) {
     error =
         "Missing host or port";
+
     return false;
   }
 
-  if (!isValidCommandCenterHost(
-          host)) {
+  if (
+      !isValidCommandCenterHost(
+          host)
+  ) {
     error =
         "Invalid host";
+
     return false;
   }
 
-  char* end = nullptr;
+  char* end =
+      nullptr;
+
   const long parsedPort =
       strtol(
           portText.c_str(),
           &end,
           10);
 
-  if (end == portText.c_str() ||
+  if (
+      end ==
+          portText.c_str() ||
       *end != '\0' ||
       parsedPort < 1 ||
-      parsedPort > 65535) {
+      parsedPort > 65535
+  ) {
     error =
         "Port must be between 1 and 65535";
+
     return false;
   }
 
@@ -138,19 +174,27 @@ bool parseBooleanValue(
   value.trim();
   value.toLowerCase();
 
-  if (value == "true" ||
+  if (
+      value == "true" ||
       value == "1" ||
       value == "yes" ||
-      value == "on") {
-    result = true;
+      value == "on"
+  ) {
+    result =
+        true;
+
     return true;
   }
 
-  if (value == "false" ||
+  if (
+      value == "false" ||
       value == "0" ||
       value == "no" ||
-      value == "off") {
-    result = false;
+      value == "off"
+  ) {
+    result =
+        false;
+
     return true;
   }
 
@@ -180,7 +224,10 @@ void ApiServer::sendJson(
     int code,
     JsonDocument& doc) {
   String body;
-  serializeJson(doc, body);
+
+  serializeJson(
+      doc,
+      body);
 
   auto* response =
       request->beginResponse(
@@ -192,68 +239,149 @@ void ApiServer::sendJson(
       "Cache-Control",
       "no-store");
 
-  request->send(response);
+  request->send(
+      response);
 }
 
 const char* ApiServer::mimeFor(
     const String& path) {
-  if (path.endsWith(".html"))
-    return "text/html; charset=utf-8";
-  if (path.endsWith(".js"))
-    return "application/javascript; charset=utf-8";
-  if (path.endsWith(".css"))
-    return "text/css; charset=utf-8";
-  if (path.endsWith(".json"))
-    return "application/json; charset=utf-8";
-  if (path.endsWith(".ndjson"))
-    return "application/x-ndjson; charset=utf-8";
-  if (path.endsWith(".svg"))
-    return "image/svg+xml";
-  if (path.endsWith(".png"))
-    return "image/png";
-  if (path.endsWith(".jpg") ||
-      path.endsWith(".jpeg"))
-    return "image/jpeg";
-  if (path.endsWith(".webp"))
-    return "image/webp";
-  if (path.endsWith(".gif"))
-    return "image/gif";
-  if (path.endsWith(".ico"))
-    return "image/x-icon";
-  if (path.endsWith(".woff"))
-    return "font/woff";
-  if (path.endsWith(".woff2"))
-    return "font/woff2";
+  if (
+      path.endsWith(".html")
+  ) {
+    return
+        "text/html; charset=utf-8";
+  }
 
-  return "application/octet-stream";
+  if (
+      path.endsWith(".js")
+  ) {
+    return
+        "application/javascript; charset=utf-8";
+  }
+
+  if (
+      path.endsWith(".css")
+  ) {
+    return
+        "text/css; charset=utf-8";
+  }
+
+  if (
+      path.endsWith(".json")
+  ) {
+    return
+        "application/json; charset=utf-8";
+  }
+
+  if (
+      path.endsWith(".ndjson")
+  ) {
+    return
+        "application/x-ndjson; charset=utf-8";
+  }
+
+  if (
+      path.endsWith(".svg")
+  ) {
+    return
+        "image/svg+xml";
+  }
+
+  if (
+      path.endsWith(".png")
+  ) {
+    return
+        "image/png";
+  }
+
+  if (
+      path.endsWith(".jpg") ||
+      path.endsWith(".jpeg")
+  ) {
+    return
+        "image/jpeg";
+  }
+
+  if (
+      path.endsWith(".webp")
+  ) {
+    return
+        "image/webp";
+  }
+
+  if (
+      path.endsWith(".gif")
+  ) {
+    return
+        "image/gif";
+  }
+
+  if (
+      path.endsWith(".ico")
+  ) {
+    return
+        "image/x-icon";
+  }
+
+  if (
+      path.endsWith(".woff")
+  ) {
+    return
+        "font/woff";
+  }
+
+  if (
+      path.endsWith(".woff2")
+  ) {
+    return
+        "font/woff2";
+  }
+
+  return
+      "application/octet-stream";
 }
 
 bool ApiServer::safePath(
     const String& path) {
-  return path.startsWith("/") &&
-         path.indexOf("..") < 0 &&
-         path.indexOf('\\') < 0;
+  return
+      path.startsWith("/") &&
+      path.indexOf("..") < 0 &&
+      path.indexOf('\\') < 0;
 }
 
 void ApiServer::sendFsFile(
     AsyncWebServerRequest* request,
     const String& requestedPath) {
-  String path = requestedPath;
+  String path =
+      requestedPath;
 
-  if (path == "/")
-    path = "/index.html";
+  if (
+      path == "/"
+  ) {
+    path =
+        "/index.html";
+  }
 
-  if (!safePath(path)) {
+  if (
+      !safePath(
+          path)
+  ) {
     request->send(
         400,
         "text/plain",
         "Invalid path");
+
     return;
   }
 
-  const String gz = path + ".gz";
+  const String gz =
+      path +
+      ".gz";
 
-  if (LittleFS.exists(gz)) {
+  if (
+      LittleFS.exists(
+          gz)
+  ) {
     auto* response =
         request->beginResponse(
             LittleFS,
@@ -267,13 +395,19 @@ void ApiServer::sendFsFile(
 
     response->addHeader(
         "Cache-Control",
-        cacheControlFor(path));
+        cacheControlFor(
+            path));
 
-    request->send(response);
+    request->send(
+        response);
+
     return;
   }
 
-  if (LittleFS.exists(path)) {
+  if (
+      LittleFS.exists(
+          path)
+  ) {
     auto* response =
         request->beginResponse(
             LittleFS,
@@ -283,9 +417,12 @@ void ApiServer::sendFsFile(
 
     response->addHeader(
         "Cache-Control",
-        cacheControlFor(path));
+        cacheControlFor(
+            path));
 
-    request->send(response);
+    request->send(
+        response);
+
     return;
   }
 
@@ -301,57 +438,40 @@ void ApiServer::handleLayoutBody(
     size_t len,
     size_t index,
     size_t total) {
-  if (index == 0) {
-    _layoutUploadExpected = total;
-    _layoutUploadWritten = 0;
-    _layoutUploadFailed = false;
-
-    LittleFS.mkdir("/config");
-    LittleFS.remove(
-        "/config/layout.json.tmp");
-
-    _layoutUpload =
-        LittleFS.open(
-            "/config/layout.json.tmp",
-            "w");
-
-    if (!_layoutUpload) {
-      _layoutUploadFailed = true;
-      Logger::error(
-          "Cannot open layout temp file");
-    }
+  if (
+      index == 0
+  ) {
+    _layoutUpload.begin(
+        _files,
+        LAYOUT_PATH,
+        total);
   }
 
-  if (!_layoutUploadFailed &&
-      _layoutUpload) {
-    const size_t written =
-        _layoutUpload.write(
-            data,
-            len);
-
-    _layoutUploadWritten += written;
-
-    if (written != len)
-      _layoutUploadFailed = true;
+  if (
+      !_layoutUpload.failed()
+  ) {
+    _layoutUpload.write(
+        data,
+        len);
   }
 
-  if (index + len != total)
+  if (
+      index + len !=
+      total
+  ) {
     return;
-
-  if (_layoutUpload) {
-    _layoutUpload.flush();
-    _layoutUpload.close();
   }
 
   JsonDocument response;
 
-  if (_layoutUploadFailed ||
-      _layoutUploadWritten !=
-          _layoutUploadExpected) {
-    LittleFS.remove(
-        "/config/layout.json.tmp");
+  if (
+      !_layoutUpload.finish()
+  ) {
+    _layoutUpload.abort();
 
-    response["ok"] = false;
+    response["ok"] =
+        false;
+
     response["message"] =
         "Layout upload failed";
 
@@ -359,18 +479,25 @@ void ApiServer::handleLayoutBody(
         request,
         507,
         response);
+
     return;
   }
 
-  if (!_runtime.rebuildFromLayout(
-          "/config/layout.json.tmp")) {
-    LittleFS.remove(
-        "/config/layout.json.tmp");
+  const String tempPath =
+      _layoutUpload.tempPath();
+
+  if (
+      !_runtime.rebuildFromLayout(
+          tempPath.c_str())
+  ) {
+    _layoutUpload.abort();
 
     _runtime.rebuildFromLayout(
-        "/config/layout.json");
+        LAYOUT_PATH);
 
-    response["ok"] = false;
+    response["ok"] =
+        false;
+
     response["message"] =
         "Invalid layout JSON";
 
@@ -378,33 +505,19 @@ void ApiServer::handleLayoutBody(
         request,
         400,
         response);
+
     return;
   }
 
-  LittleFS.remove(
-      "/config/layout.json.bak");
-
-  if (LittleFS.exists(
-          "/config/layout.json")) {
-    LittleFS.rename(
-        "/config/layout.json",
-        "/config/layout.json.bak");
-  }
-
-  if (!LittleFS.rename(
-          "/config/layout.json.tmp",
-          "/config/layout.json")) {
-    if (LittleFS.exists(
-            "/config/layout.json.bak")) {
-      LittleFS.rename(
-          "/config/layout.json.bak",
-          "/config/layout.json");
-    }
-
+  if (
+      !_layoutUpload.commit()
+  ) {
     _runtime.rebuildFromLayout(
-        "/config/layout.json");
+        LAYOUT_PATH);
 
-    response["ok"] = false;
+    response["ok"] =
+        false;
+
     response["message"] =
         "Layout atomic rename failed";
 
@@ -412,25 +525,33 @@ void ApiServer::handleLayoutBody(
         request,
         500,
         response);
+
     return;
   }
 
   _runtime.rebuildFromLayout(
-      "/config/layout.json");
+      LAYOUT_PATH);
 
   Logger::info(
       "Layout saved: " +
       String(total) +
       " bytes; runtime " +
-      String(_runtime.accessoryCount()) +
+      String(
+          _runtime.accessoryCount()) +
       " accessories / " +
-      String(_runtime.sensorCount()) +
+      String(
+          _runtime.sensorCount()) +
       " sensors");
 
-  response["ok"] = true;
-  response["bytes"] = total;
+  response["ok"] =
+      true;
+
+  response["bytes"] =
+      total;
+
   response["accessories"] =
       _runtime.accessoryCount();
+
   response["sensors"] =
       _runtime.sensorCount();
 
@@ -439,7 +560,34 @@ void ApiServer::handleLayoutBody(
       200,
       response);
 
-  _wsProtocol.broadcastRuntimeSnapshot();
+  _wsProtocol
+      .broadcastRuntimeSnapshot();
+}
+
+bool ApiServer::verifyLocosTemp() {
+  const String tempPath =
+      _locosUpload.tempPath();
+
+  File file =
+      _files.openRead(
+          tempPath.c_str());
+
+  if (!file) {
+    return false;
+  }
+
+  JsonDocument document;
+
+  const DeserializationError error =
+      deserializeJson(
+          document,
+          file);
+
+  file.close();
+
+  return
+      !error &&
+      document.is<JsonArray>();
 }
 
 void ApiServer::handleLocosBody(
@@ -448,57 +596,40 @@ void ApiServer::handleLocosBody(
     size_t len,
     size_t index,
     size_t total) {
-  if (index == 0) {
-    _locosUploadExpected = total;
-    _locosUploadWritten = 0;
-    _locosUploadFailed = false;
-
-    LittleFS.mkdir("/config");
-    LittleFS.remove(
-        "/config/locos.json.tmp");
-
-    _locosUpload =
-        LittleFS.open(
-            "/config/locos.json.tmp",
-            "w");
-
-    if (!_locosUpload) {
-      _locosUploadFailed = true;
-      Logger::error(
-          "Cannot open locos temp file");
-    }
+  if (
+      index == 0
+  ) {
+    _locosUpload.begin(
+        _files,
+        LOCOS_PATH,
+        total);
   }
 
-  if (!_locosUploadFailed &&
-      _locosUpload) {
-    const size_t written =
-        _locosUpload.write(
-            data,
-            len);
-
-    _locosUploadWritten += written;
-
-    if (written != len)
-      _locosUploadFailed = true;
+  if (
+      !_locosUpload.failed()
+  ) {
+    _locosUpload.write(
+        data,
+        len);
   }
 
-  if (index + len != total)
+  if (
+      index + len !=
+      total
+  ) {
     return;
-
-  if (_locosUpload) {
-    _locosUpload.flush();
-    _locosUpload.close();
   }
 
   JsonDocument response;
 
-  if (_locosUploadFailed ||
-      _locosUploadWritten !=
-          _locosUploadExpected) {
-    LittleFS.remove(
-        "/config/locos.json.tmp");
+  if (
+      !_locosUpload.finish()
+  ) {
+    _locosUpload.abort();
 
-    response["ok"] = false;
+    response["ok"] =
+        false;
+
     response["message"] =
         "Locomotive upload failed";
 
@@ -506,43 +637,18 @@ void ApiServer::handleLocosBody(
         request,
         507,
         response);
+
     return;
   }
 
-  File verify =
-      LittleFS.open(
-          "/config/locos.json.tmp",
-          "r");
+  if (
+      !verifyLocosTemp()
+  ) {
+    _locosUpload.abort();
 
-  if (!verify) {
-    LittleFS.remove(
-        "/config/locos.json.tmp");
+    response["ok"] =
+        false;
 
-    response["ok"] = false;
-    response["message"] =
-        "Cannot verify locomotive file";
-
-    sendJson(
-        request,
-        500,
-        response);
-    return;
-  }
-
-  JsonDocument check;
-  const DeserializationError error =
-      deserializeJson(
-          check,
-          verify);
-
-  verify.close();
-
-  if (error ||
-      !check.is<JsonArray>()) {
-    LittleFS.remove(
-        "/config/locos.json.tmp");
-
-    response["ok"] = false;
     response["message"] =
         "Expected locomotive JSON array";
 
@@ -550,30 +656,16 @@ void ApiServer::handleLocosBody(
         request,
         400,
         response);
+
     return;
   }
 
-  LittleFS.remove(
-      "/config/locos.json.bak");
+  if (
+      !_locosUpload.commit()
+  ) {
+    response["ok"] =
+        false;
 
-  if (LittleFS.exists(
-          "/config/locos.json")) {
-    LittleFS.rename(
-        "/config/locos.json",
-        "/config/locos.json.bak");
-  }
-
-  if (!LittleFS.rename(
-          "/config/locos.json.tmp",
-          "/config/locos.json")) {
-    if (LittleFS.exists(
-            "/config/locos.json.bak")) {
-      LittleFS.rename(
-          "/config/locos.json.bak",
-          "/config/locos.json");
-    }
-
-    response["ok"] = false;
     response["message"] =
         "Locomotive atomic rename failed";
 
@@ -581,6 +673,7 @@ void ApiServer::handleLocosBody(
         request,
         500,
         response);
+
     return;
   }
 
@@ -589,13 +682,115 @@ void ApiServer::handleLocosBody(
       String(total) +
       " bytes");
 
-  response["ok"] = true;
-  response["bytes"] = total;
+  response["ok"] =
+      true;
+
+  response["bytes"] =
+      total;
 
   sendJson(
       request,
       200,
       response);
+}
+
+bool ApiServer::verifySignalLogicTemp() {
+  const String tempPath =
+      _signalLogicUpload.tempPath();
+
+  File file =
+      _files.openRead(
+          tempPath.c_str());
+
+  if (!file) {
+    return false;
+  }
+
+  bool valid =
+      true;
+
+  bool hasMeta =
+      false;
+
+  size_t rowCount =
+      0;
+
+  while (
+      file.available()
+  ) {
+    String line =
+        file.readStringUntil(
+            '\n');
+
+    line.trim();
+
+    if (
+        line.isEmpty()
+    ) {
+      continue;
+    }
+
+    JsonDocument row;
+
+    const DeserializationError error =
+        deserializeJson(
+            row,
+            line);
+
+    if (
+        error ||
+        !row.is<JsonObject>()
+    ) {
+      valid =
+          false;
+
+      break;
+    }
+
+    ++rowCount;
+
+    const char* kind =
+        row["kind"] |
+        "";
+
+    if (
+        rowCount == 1
+    ) {
+      if (
+          String(kind) !=
+          "meta"
+      ) {
+        valid =
+            false;
+
+        break;
+      }
+
+      const int version =
+          row["version"] |
+          0;
+
+      if (
+          version != 1 &&
+          version != 2
+      ) {
+        valid =
+            false;
+
+        break;
+      }
+
+      hasMeta =
+          true;
+    }
+  }
+
+  file.close();
+
+  return
+      valid &&
+      hasMeta &&
+      rowCount > 0;
 }
 
 void ApiServer::handleSignalLogicBody(
@@ -604,62 +799,40 @@ void ApiServer::handleSignalLogicBody(
     size_t len,
     size_t index,
     size_t total) {
-  static constexpr const char* FINAL_PATH =
-      "/config/signal-logic.ndjson";
-  static constexpr const char* TEMP_PATH =
-      "/config/signal-logic.ndjson.tmp";
-  static constexpr const char* BACKUP_PATH =
-      "/config/signal-logic.ndjson.bak";
-
-  if (index == 0) {
-    _signalLogicUploadExpected = total;
-    _signalLogicUploadWritten = 0;
-    _signalLogicUploadFailed = false;
-
-    LittleFS.mkdir("/config");
-    LittleFS.remove(TEMP_PATH);
-
-    _signalLogicUpload =
-        LittleFS.open(
-            TEMP_PATH,
-            "w");
-
-    if (!_signalLogicUpload) {
-      _signalLogicUploadFailed = true;
-      Logger::error(
-          "Cannot open signal logic temp file");
-    }
+  if (
+      index == 0
+  ) {
+    _signalLogicUpload.begin(
+        _files,
+        SIGNAL_LOGIC_PATH,
+        total);
   }
 
-  if (!_signalLogicUploadFailed &&
-      _signalLogicUpload) {
-    const size_t written =
-        _signalLogicUpload.write(
-            data,
-            len);
-
-    _signalLogicUploadWritten += written;
-
-    if (written != len)
-      _signalLogicUploadFailed = true;
+  if (
+      !_signalLogicUpload.failed()
+  ) {
+    _signalLogicUpload.write(
+        data,
+        len);
   }
 
-  if (index + len != total)
+  if (
+      index + len !=
+      total
+  ) {
     return;
-
-  if (_signalLogicUpload) {
-    _signalLogicUpload.flush();
-    _signalLogicUpload.close();
   }
 
   JsonDocument response;
 
-  if (_signalLogicUploadFailed ||
-      _signalLogicUploadWritten !=
-          _signalLogicUploadExpected) {
-    LittleFS.remove(TEMP_PATH);
+  if (
+      !_signalLogicUpload.finish()
+  ) {
+    _signalLogicUpload.abort();
 
-    response["ok"] = false;
+    response["ok"] =
+        false;
+
     response["message"] =
         "Signal automation upload failed";
 
@@ -667,84 +840,18 @@ void ApiServer::handleSignalLogicBody(
         request,
         507,
         response);
+
     return;
   }
 
-  File verify =
-      LittleFS.open(
-          TEMP_PATH,
-          "r");
+  if (
+      !verifySignalLogicTemp()
+  ) {
+    _signalLogicUpload.abort();
 
-  if (!verify) {
-    LittleFS.remove(TEMP_PATH);
+    response["ok"] =
+        false;
 
-    response["ok"] = false;
-    response["message"] =
-        "Cannot verify signal automation file";
-
-    sendJson(
-        request,
-        500,
-        response);
-    return;
-  }
-
-  bool valid = true;
-  bool hasMeta = false;
-  size_t rowCount = 0;
-
-  while (verify.available()) {
-    String line =
-        verify.readStringUntil('\n');
-    line.trim();
-
-    if (line.length() == 0)
-      continue;
-
-    JsonDocument row;
-    const DeserializationError error =
-        deserializeJson(
-            row,
-            line);
-
-    if (error ||
-        !row.is<JsonObject>()) {
-      valid = false;
-      break;
-    }
-
-    ++rowCount;
-
-    const char* kind =
-        row["kind"] | "";
-
-    if (rowCount == 1) {
-      if (String(kind) != "meta") {
-        valid = false;
-        break;
-      }
-
-      const int version =
-          row["version"] | 0;
-
-      if (version != 1 &&
-          version != 2) {
-        valid = false;
-        break;
-      }
-
-      hasMeta = true;
-    }
-  }
-
-  verify.close();
-
-  if (!valid ||
-      !hasMeta ||
-      rowCount == 0) {
-    LittleFS.remove(TEMP_PATH);
-
-    response["ok"] = false;
     response["message"] =
         "Invalid signal automation NDJSON";
 
@@ -752,27 +859,16 @@ void ApiServer::handleSignalLogicBody(
         request,
         400,
         response);
+
     return;
   }
 
-  LittleFS.remove(BACKUP_PATH);
+  if (
+      !_signalLogicUpload.commit()
+  ) {
+    response["ok"] =
+        false;
 
-  if (LittleFS.exists(FINAL_PATH)) {
-    LittleFS.rename(
-        FINAL_PATH,
-        BACKUP_PATH);
-  }
-
-  if (!LittleFS.rename(
-          TEMP_PATH,
-          FINAL_PATH)) {
-    if (LittleFS.exists(BACKUP_PATH)) {
-      LittleFS.rename(
-          BACKUP_PATH,
-          FINAL_PATH);
-    }
-
-    response["ok"] = false;
     response["message"] =
         "Signal automation atomic rename failed";
 
@@ -780,18 +876,20 @@ void ApiServer::handleSignalLogicBody(
         request,
         500,
         response);
+
     return;
   }
-
-  LittleFS.remove(BACKUP_PATH);
 
   Logger::info(
       "Signal automation saved: " +
       String(total) +
       " bytes");
 
-  response["ok"] = true;
-  response["bytes"] = total;
+  response["ok"] =
+      true;
+
+  response["bytes"] =
+      total;
 
   sendJson(
       request,
@@ -800,13 +898,15 @@ void ApiServer::handleSignalLogicBody(
 }
 
 void ApiServer::setupApi() {
-  DefaultHeaders::Instance().addHeader(
-      "Access-Control-Allow-Origin",
-      "*");
+  DefaultHeaders::Instance()
+      .addHeader(
+          "Access-Control-Allow-Origin",
+          "*");
 
-  DefaultHeaders::Instance().addHeader(
-      "Access-Control-Allow-Headers",
-      "Content-Type");
+  DefaultHeaders::Instance()
+      .addHeader(
+          "Access-Control-Allow-Headers",
+          "Content-Type");
 
   _server.on(
       "/api/command-center-config",
@@ -814,11 +914,20 @@ void ApiServer::setupApi() {
       [this](
           AsyncWebServerRequest* request) {
         JsonDocument doc;
-        doc["ok"] = true;
-        doc["host"] = _dcc.host();
-        doc["port"] = _dcc.port();
+
+        doc["ok"] =
+            true;
+
+        doc["host"] =
+            _dcc.host();
+
+        doc["port"] =
+            _dcc.port();
+
         doc["powerIncludesProgramming"] =
-            _wsProtocol.powerIncludesProgramming();
+            _wsProtocol
+                .powerIncludesProgramming();
+
         doc["connected"] =
             _dcc.connected();
 
@@ -834,38 +943,51 @@ void ApiServer::setupApi() {
       [this](
           AsyncWebServerRequest* request) {
         String host;
-        uint16_t port = 0;
-        String error;
+        uint16_t port =
+            0;
 
+        String error;
         JsonDocument doc;
 
-        if (!parseEndpointFromRequest(
+        if (
+            !parseEndpointFromRequest(
                 request,
                 host,
                 port,
-                error)) {
-          doc["ok"] = false;
-          doc["message"] = error;
+                error)
+        ) {
+          doc["ok"] =
+              false;
+
+          doc["message"] =
+              error;
 
           sendJson(
               request,
               400,
               doc);
+
           return;
         }
 
         String powerText;
-        bool powerIncludesProgramming =
-            _wsProtocol.powerIncludesProgramming();
 
-        if (!readPostValue(
+        bool powerIncludesProgramming =
+            _wsProtocol
+                .powerIncludesProgramming();
+
+        if (
+            !readPostValue(
                 request,
                 "powerIncludesProgramming",
                 powerText) ||
             !parseBooleanValue(
                 powerText,
-                powerIncludesProgramming)) {
-          doc["ok"] = false;
+                powerIncludesProgramming)
+        ) {
+          doc["ok"] =
+              false;
+
           doc["message"] =
               "Invalid powerIncludesProgramming value";
 
@@ -873,14 +995,19 @@ void ApiServer::setupApi() {
               request,
               400,
               doc);
+
           return;
         }
 
         CommandCenterSettings settings =
             _config.commandCenter();
 
-        settings.host = host;
-        settings.port = port;
+        settings.host =
+            host;
+
+        settings.port =
+            port;
+
         settings.powerIncludesProgramming =
             powerIncludesProgramming;
 
@@ -888,16 +1015,21 @@ void ApiServer::setupApi() {
             _config.saveCommandCenter(
                 settings);
 
-        _wsProtocol.setPowerIncludesProgramming(
-            powerIncludesProgramming);
+        _wsProtocol
+            .setPowerIncludesProgramming(
+                powerIncludesProgramming);
 
         const bool endpointChanged =
-            host != _dcc.host() ||
-            port != _dcc.port();
+            host !=
+                _dcc.host() ||
+            port !=
+                _dcc.port();
 
-        if (endpointChanged) {
+        if (
+            endpointChanged
+        ) {
           Logger::info(
-              "EX-CSB1 endpoint changed to " +
+              "Command center endpoint changed to " +
               host +
               ":" +
               String(port));
@@ -907,24 +1039,37 @@ void ApiServer::setupApi() {
               port);
         }
 
-        _wsProtocol.broadcastRuntimeSnapshot();
+        _wsProtocol
+            .broadcastRuntimeSnapshot();
 
-        doc["ok"] = persisted;
-        doc["host"] = _dcc.host();
-        doc["port"] = _dcc.port();
+        doc["ok"] =
+            persisted;
+
+        doc["host"] =
+            _dcc.host();
+
+        doc["port"] =
+            _dcc.port();
+
         doc["powerIncludesProgramming"] =
-            _wsProtocol.powerIncludesProgramming();
+            _wsProtocol
+                .powerIncludesProgramming();
+
         doc["connected"] =
             _dcc.connected();
 
-        if (!persisted) {
+        if (
+            !persisted
+        ) {
           doc["message"] =
-              "EX-CSB1 settings were applied but persistence reported an error";
+              "Command center settings were applied but persistence reported an error";
         }
 
         sendJson(
             request,
-            persisted ? 200 : 500,
+            persisted
+                ? 200
+                : 500,
             doc);
       });
 
@@ -934,23 +1079,30 @@ void ApiServer::setupApi() {
       [](
           AsyncWebServerRequest* request) {
         String host;
-        uint16_t port = 0;
-        String error;
+        uint16_t port =
+            0;
 
+        String error;
         JsonDocument doc;
 
-        if (!parseEndpointFromRequest(
+        if (
+            !parseEndpointFromRequest(
                 request,
                 host,
                 port,
-                error)) {
-          doc["ok"] = false;
-          doc["message"] = error;
+                error)
+        ) {
+          doc["ok"] =
+              false;
+
+          doc["message"] =
+              error;
 
           sendJson(
               request,
               400,
               doc);
+
           return;
         }
 
@@ -961,21 +1113,29 @@ void ApiServer::setupApi() {
 
         doc["ok"] =
             probe.dccExAlive;
+
         doc["tcpConnected"] =
             probe.tcpConnected;
+
         doc["dccExAlive"] =
             probe.dccExAlive;
+
         doc["reply"] =
             probe.reply;
+
         doc["elapsedMs"] =
             probe.elapsedMs;
 
-        if (!probe.tcpConnected) {
+        if (
+            !probe.tcpConnected
+        ) {
           doc["message"] =
-              "TCP connection failed";
-        } else if (!probe.dccExAlive) {
+              "Command center connection failed";
+        } else if (
+            !probe.dccExAlive
+        ) {
           doc["message"] =
-              "TCP connected, but DCC-EX did not answer <#>";
+              "Command center did not answer";
         }
 
         sendJson(
@@ -993,36 +1153,57 @@ void ApiServer::setupApi() {
           AsyncWebServerRequest* request) {
         JsonDocument doc;
 
-        doc["ok"] = true;
+        doc["ok"] =
+            true;
+
         doc["wifiConnected"] =
             WiFi.status() ==
             WL_CONNECTED;
+
         doc["wifiSsid"] =
             WiFi.SSID();
+
         doc["deviceIp"] =
-            WiFi.localIP().toString();
+            WiFi.localIP()
+                .toString();
+
         doc["rssi"] =
             WiFi.RSSI();
+
         doc["csbConnected"] =
             _dcc.connected();
+
         doc["csbHost"] =
             _dcc.host();
+
         doc["csbPort"] =
             _dcc.port();
+
         doc["hubHostname"] =
-            _config.network().hostname;
+            _config.network()
+                .hostname;
+
         doc["hubHttpPort"] =
-            _config.network().httpPort;
+            _config.network()
+                .httpPort;
+
         doc["hubDhcp"] =
-            _config.network().dhcp;
+            _config.network()
+                .dhcp;
+
         doc["uptimeMs"] =
             millis();
+
         doc["freeHeapBytes"] =
             ESP.getFreeHeap();
+
         doc["accessories"] =
-            _runtime.accessoryCount();
+            _runtime
+                .accessoryCount();
+
         doc["sensors"] =
-            _runtime.sensorCount();
+            _runtime
+                .sensorCount();
 
         sendJson(
             request,
@@ -1033,26 +1214,32 @@ void ApiServer::setupApi() {
   _server.on(
       "/api/layout",
       HTTP_GET,
-      [](
+      [this](
           AsyncWebServerRequest* request) {
-        if (!LittleFS.exists(
-                "/config/layout.json")) {
+        if (
+            !_files.exists(
+                LAYOUT_PATH)
+        ) {
           auto* response =
               request->beginResponse(
                   200,
                   "application/json",
                   "{}");
+
           response->addHeader(
               "Cache-Control",
               "no-store");
-          request->send(response);
+
+          request->send(
+              response);
+
           return;
         }
 
         auto* response =
             request->beginResponse(
                 LittleFS,
-                "/config/layout.json",
+                LAYOUT_PATH,
                 "application/json",
                 false);
 
@@ -1060,13 +1247,15 @@ void ApiServer::setupApi() {
             "Cache-Control",
             "no-store");
 
-        request->send(response);
+        request->send(
+            response);
       });
 
   _server.on(
       "/api/layout",
       HTTP_POST,
-      [](AsyncWebServerRequest*) {},
+      [](
+          AsyncWebServerRequest*) {},
       nullptr,
       [this](
           AsyncWebServerRequest* request,
@@ -1085,26 +1274,32 @@ void ApiServer::setupApi() {
   _server.on(
       "/api/locos",
       HTTP_GET,
-      [](
+      [this](
           AsyncWebServerRequest* request) {
-        if (!LittleFS.exists(
-                "/config/locos.json")) {
+        if (
+            !_files.exists(
+                LOCOS_PATH)
+        ) {
           auto* response =
               request->beginResponse(
                   200,
                   "application/json",
                   "[]");
+
           response->addHeader(
               "Cache-Control",
               "no-store");
-          request->send(response);
+
+          request->send(
+              response);
+
           return;
         }
 
         auto* response =
             request->beginResponse(
                 LittleFS,
-                "/config/locos.json",
+                LOCOS_PATH,
                 "application/json",
                 false);
 
@@ -1112,13 +1307,15 @@ void ApiServer::setupApi() {
             "Cache-Control",
             "no-store");
 
-        request->send(response);
+        request->send(
+            response);
       });
 
   _server.on(
       "/api/locos",
       HTTP_POST,
-      [](AsyncWebServerRequest*) {},
+      [](
+          AsyncWebServerRequest*) {},
       nullptr,
       [this](
           AsyncWebServerRequest* request,
@@ -1137,28 +1334,32 @@ void ApiServer::setupApi() {
   _server.on(
       "/api/signal-logic",
       HTTP_GET,
-      [](
+      [this](
           AsyncWebServerRequest* request) {
-        static constexpr const char* PATH =
-            "/config/signal-logic.ndjson";
-
-        if (!LittleFS.exists(PATH)) {
+        if (
+            !_files.exists(
+                SIGNAL_LOGIC_PATH)
+        ) {
           auto* response =
               request->beginResponse(
                   404,
                   "text/plain; charset=utf-8",
                   "Not found");
+
           response->addHeader(
               "Cache-Control",
               "no-store");
-          request->send(response);
+
+          request->send(
+              response);
+
           return;
         }
 
         auto* response =
             request->beginResponse(
                 LittleFS,
-                PATH,
+                SIGNAL_LOGIC_PATH,
                 "application/x-ndjson; charset=utf-8",
                 false);
 
@@ -1166,13 +1367,15 @@ void ApiServer::setupApi() {
             "Cache-Control",
             "no-store");
 
-        request->send(response);
+        request->send(
+            response);
       });
 
   _server.on(
       "/api/signal-logic",
       HTTP_POST,
-      [](AsyncWebServerRequest*) {},
+      [](
+          AsyncWebServerRequest*) {},
       nullptr,
       [this](
           AsyncWebServerRequest* request,
@@ -1193,38 +1396,53 @@ void ApiServer::setupApi() {
       HTTP_GET,
       [](
           AsyncWebServerRequest* request) {
-        if (!request->hasParam(
-                "path")) {
+        if (
+            !request->hasParam(
+                "path")
+        ) {
           request->send(
               400,
               "text/plain",
               "Missing path");
+
           return;
         }
 
         String path =
             request
-                ->getParam("path")
+                ->getParam(
+                    "path")
                 ->value();
 
-        if (!safePath(path)) {
+        if (
+            !safePath(
+                path)
+        ) {
           request->send(
               400,
               "text/plain",
               "Invalid path");
+
           return;
         }
 
-        if (!LittleFS.exists(path)) {
+        if (
+            !LittleFS.exists(
+                path)
+        ) {
           auto* response =
               request->beginResponse(
                   200,
                   "text/plain; charset=utf-8",
                   "");
+
           response->addHeader(
               "Cache-Control",
               "no-store");
-          request->send(response);
+
+          request->send(
+              response);
+
           return;
         }
 
@@ -1239,7 +1457,8 @@ void ApiServer::setupApi() {
             "Cache-Control",
             "no-store");
 
-        request->send(response);
+        request->send(
+            response);
       });
 
   _server.on(
@@ -1251,8 +1470,10 @@ void ApiServer::setupApi() {
 
         doc["totalBytes"] =
             LittleFS.totalBytes();
+
         doc["usedBytes"] =
             LittleFS.usedBytes();
+
         doc["freeBytes"] =
             LittleFS.totalBytes() -
             LittleFS.usedBytes();
@@ -1268,53 +1489,72 @@ void ApiServer::setupApi() {
       HTTP_GET,
       [](
           AsyncWebServerRequest* request) {
-        String path = "/";
+        String path =
+            "/";
 
-        if (request->hasParam(
-                "path")) {
+        if (
+            request->hasParam(
+                "path")
+        ) {
           path =
               request
-                  ->getParam("path")
+                  ->getParam(
+                      "path")
                   ->value();
         }
 
-        if (!safePath(path)) {
+        if (
+            !safePath(
+                path)
+        ) {
           request->send(
               400,
               "application/json",
               "{}");
+
           return;
         }
 
         File dir =
-            LittleFS.open(path);
+            LittleFS.open(
+                path);
 
         JsonDocument doc;
-        doc["path"] = path;
+
+        doc["path"] =
+            path;
 
         JsonArray entries =
             doc["entries"]
                 .to<JsonArray>();
 
-        if (dir &&
-            dir.isDirectory()) {
+        if (
+            dir &&
+            dir.isDirectory()
+        ) {
           File item =
               dir.openNextFile();
 
           while (item) {
             const String itemPath =
-                String(item.name());
+                String(
+                    item.name());
 
             String name =
                 itemPath;
 
             const int slash =
-                name.lastIndexOf('/');
+                name.lastIndexOf(
+                    '/');
 
-            if (slash >= 0)
+            if (
+                slash >= 0
+            ) {
               name =
                   name.substring(
-                      slash + 1);
+                      slash +
+                      1);
+            }
 
             JsonObject out =
                 entries
@@ -1326,9 +1566,14 @@ void ApiServer::setupApi() {
             out["path"] =
                 itemPath.startsWith("/")
                     ? itemPath
-                    : (path == "/"
-                           ? "/" + name
-                           : path + "/" + name);
+                    : (
+                          path == "/"
+                              ? "/" +
+                                    name
+                              : path +
+                                    "/" +
+                                    name
+                      );
 
             out["type"] =
                 item.isDirectory()
@@ -1356,37 +1601,48 @@ void ApiServer::setupApi() {
       HTTP_DELETE,
       [](
           AsyncWebServerRequest* request) {
-        if (!request->hasParam(
-                "path")) {
+        if (
+            !request->hasParam(
+                "path")
+        ) {
           request->send(
               400,
               "application/json",
               "{\"ok\":false}");
+
           return;
         }
 
         const String path =
             request
-                ->getParam("path")
+                ->getParam(
+                    "path")
                 ->value();
 
-        if (!safePath(path) ||
+        if (
+            !safePath(
+                path) ||
             path ==
-                "/config/layout.json" ||
+                LAYOUT_PATH ||
             path ==
-                "/state/runtime-state.json") {
+                "/state/runtime-state.json"
+        ) {
           request->send(
               403,
               "application/json",
               "{\"ok\":false}");
+
           return;
         }
 
         const bool ok =
-            LittleFS.remove(path);
+            LittleFS.remove(
+                path);
 
         request->send(
-            ok ? 200 : 404,
+            ok
+                ? 200
+                : 404,
             "application/json",
             ok
                 ? "{\"ok\":true}"
@@ -1399,55 +1655,73 @@ void ApiServer::setupApi() {
       [this](
           AsyncWebServerRequest* request) {
         JsonDocument doc;
-        doc["ok"] = true;
+
+        doc["ok"] =
+            true;
 
         JsonArray accessories =
             doc["accessories"]
                 .to<JsonArray>();
 
-        for (const auto& item :
-             _runtime.accessories()) {
+        for (
+            const auto& item :
+            _runtime.accessories()
+        ) {
           JsonObject out =
               accessories
                   .add<JsonObject>();
 
           out["id"] =
               item.id;
+
           out["address"] =
               item.address;
 
-          switch (item.kind) {
+          switch (
+              item.kind
+          ) {
             case RuntimeAccessoryKind::Turnout:
               out["kind"] =
                   "turnout";
+
               out["closed"] =
                   item.closed;
+
               break;
 
             case RuntimeAccessoryKind::Signal:
               out["kind"] =
                   "signal";
 
-              if (item.aspect >= 0)
+              if (
+                  item.aspect >=
+                  0
+              ) {
                 out["aspect"] =
                     item.aspect;
-              else
+              } else {
                 out["aspect"] =
                     nullptr;
+              }
+
               break;
 
             case RuntimeAccessoryKind::Accessory:
               out["kind"] =
                   "accessory";
+
               out["active"] =
                   item.active;
+
               break;
 
             case RuntimeAccessoryKind::VPin:
               out["kind"] =
                   "vpin";
+
               out["active"] =
                   item.active;
+
               break;
           }
         }
@@ -1456,16 +1730,20 @@ void ApiServer::setupApi() {
             doc["sensors"]
                 .to<JsonArray>();
 
-        for (const auto& item :
-             _runtime.sensors()) {
+        for (
+            const auto& item :
+            _runtime.sensors()
+        ) {
           JsonObject out =
               sensors
                   .add<JsonObject>();
 
           out["id"] =
               item.id;
+
           out["address"] =
               item.address;
+
           out["on"] =
               item.on;
         }
@@ -1491,25 +1769,33 @@ void ApiServer::setupStaticFiles() {
   _server.onNotFound(
       [](
           AsyncWebServerRequest* request) {
-        if (request->url()
-                .startsWith("/api/")) {
+        if (
+            request->url()
+                .startsWith(
+                    "/api/")
+        ) {
           request->send(
               404,
               "application/json",
-              "{\"ok\":false,"
-              "\"message\":\"API route not found\"}");
+              "{\"ok\":false,\"message\":\"API route not found\"}");
+
           return;
         }
 
         const String url =
             request->url();
 
-        if (LittleFS.exists(url) ||
+        if (
             LittleFS.exists(
-                url + ".gz")) {
+                url) ||
+            LittleFS.exists(
+                url +
+                ".gz")
+        ) {
           sendFsFile(
               request,
               url);
+
           return;
         }
 
@@ -1524,7 +1810,9 @@ void ApiServer::begin() {
   setupStaticFiles();
 
   _wsProtocol.begin();
-  _server.addHandler(&_ws);
+
+  _server.addHandler(
+      &_ws);
 
   _server.begin();
 

@@ -207,12 +207,6 @@ void App::begin() {
     return;
   }
 
-  LittleFS.mkdir(
-      "/config");
-
-  LittleFS.mkdir(
-      "/state");
-
   _runtime.begin(
       LittleFS);
 
