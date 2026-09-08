@@ -150,12 +150,6 @@ bool SignalAutomationEngine::parseSignal(
           sizeof(SIGNAL_KEYS[0]),
       "signal");
 
-  uint16_t signalId =
-      0;
-
-  uint16_t signalAddress =
-      0;
-
   const long rawId =
       row["id"] |
       0L;
@@ -164,96 +158,57 @@ bool SignalAutomationEngine::parseSignal(
       row["address"] |
       0L;
 
+  uint16_t signalId =
+      (
+          rawId > 0 &&
+          rawId <= 0xffff
+      )
+          ? static_cast<uint16_t>(
+                rawId)
+          : 0;
+
+  const uint16_t signalAddress =
+      (
+          rawAddress > 0 &&
+          rawAddress <= 0xffff
+      )
+          ? static_cast<uint16_t>(
+                rawAddress)
+          : 0;
+
+  // Validate/rebind the target against the live layout runtime. The DCC
+  // address is the durable fallback when layout IDs have been migrated.
+  RuntimeAccessory* target =
+      signalId != 0
+          ? _runtime.findAccessoryById(
+                RuntimeAccessoryKind::Signal,
+                signalId,
+                0)
+          : nullptr;
+
   if (
-      rawAddress > 0 &&
-      rawAddress <= 0xffff
+      target &&
+      signalAddress != 0 &&
+      target->address !=
+          signalAddress
   ) {
-    signalAddress =
-        static_cast<uint16_t>(
-            rawAddress);
+    target =
+        nullptr;
   }
 
-  RuntimeAccessory* runtimeSignal =
-      nullptr;
-
   if (
-      rawId > 0 &&
-      rawId <= 0xffff
-  ) {
-    const uint16_t candidateId =
-        static_cast<uint16_t>(
-            rawId);
-
-    runtimeSignal =
-        _runtime.findAccessoryById(
-            RuntimeAccessoryKind::Signal,
-            candidateId,
-            0);
-
-    // An ID is only authoritative when it actually resolves to a signal.
-    // If the row also carries an address, require the ID target to match it.
-    if (
-        runtimeSignal &&
-        (
-            signalAddress == 0 ||
-            runtimeSignal->address ==
-                signalAddress
-        )
-    ) {
-      signalId =
-          candidateId;
-    } else if (
-        runtimeSignal &&
-        signalAddress != 0 &&
-        runtimeSignal->address !=
-            signalAddress
-    ) {
-      Logger::warn(
-          "SignalAutomation: signal id " +
-          String(candidateId) +
-          " points to address " +
-          String(runtimeSignal->address) +
-          " but rule row says address " +
-          String(signalAddress) +
-          "; rebinding by address");
-
-      runtimeSignal =
-          nullptr;
-    }
-  }
-
-  // Address is the durable fallback across layout ID migration/restore.
-  if (
-      signalId == 0 &&
+      !target &&
       signalAddress != 0
   ) {
-    runtimeSignal =
+    target =
         _runtime.findAccessory(
             RuntimeAccessoryKind::Signal,
             signalAddress);
 
-    if (runtimeSignal) {
+    if (target) {
       signalId =
-          runtimeSignal->id;
-
-      Logger::warn(
-          "SignalAutomation: signal row rebound by DCC address " +
-          String(signalAddress) +
-          " to layout id " +
-          String(signalId));
+          target->id;
     }
-  }
-
-  // Keep an otherwise syntactically valid ID so applySignal() can emit a
-  // precise runtime warning even when the current layout is missing the target.
-  if (
-      signalId == 0 &&
-      rawId > 0 &&
-      rawId <= 0xffff
-  ) {
-    signalId =
-        static_cast<uint16_t>(
-            rawId);
   }
 
   if (signalId == 0) {
@@ -267,21 +222,69 @@ bool SignalAutomationEngine::parseSignal(
       row["mode"] |
       "";
 
+  const bool extended =
+      strcmp(
+          mode,
+          "extended") ==
+      0;
+
   if (
+      !extended &&
       strcmp(
           mode,
-          "extended") != 0 &&
-      strcmp(
-          mode,
-          "basic") != 0
+          "basic") !=
+          0
   ) {
     Logger::warn(
         "SignalAutomation: signal id " +
-        String(
-            signalId) +
+        String(signalId) +
         " has unsupported mode \"" +
         String(mode) +
         "\" and was skipped");
+
+    return false;
+  }
+
+  int outputs =
+      row["outputs"] |
+      1;
+
+  outputs =
+      constrain(
+          outputs,
+          1,
+          16);
+
+  const long defaultValue =
+      row["default"] |
+      0L;
+
+  if (
+      !valueFitsSignal(
+          extended,
+          static_cast<uint8_t>(
+              outputs),
+          defaultValue)
+  ) {
+    Logger::warn(
+        "SignalAutomation: signal id " +
+        String(signalId) +
+        " has invalid default value " +
+        String(defaultValue) +
+        " and was skipped");
+
+    return false;
+  }
+
+  const JsonArrayConst rawRules =
+      row["rules"]
+          .as<JsonArrayConst>();
+
+  if (rawRules.isNull()) {
+    Logger::warn(
+        "SignalAutomation: signal id " +
+        String(signalId) +
+        " has no rules array and was skipped");
 
     return false;
   }
@@ -295,110 +298,39 @@ bool SignalAutomationEngine::parseSignal(
       signalAddress;
 
   signal.extended =
-      strcmp(
-          mode,
-          "extended") ==
-      0;
-
-  int rawOutputs =
-      row["outputs"] |
-      1;
-
-  if (
-      rawOutputs < 1 ||
-      rawOutputs > 16
-  ) {
-    Logger::warn(
-        "SignalAutomation: signal id " +
-        String(
-            signalId) +
-        " outputs=" +
-        String(
-            rawOutputs) +
-        " clamped to supported range 1..16");
-
-    rawOutputs =
-        constrain(
-            rawOutputs,
-            1,
-            16);
-  }
+      extended;
 
   signal.outputs =
       static_cast<uint8_t>(
-          rawOutputs);
-
-  const long defaultValue =
-      row["default"] |
-      0L;
-
-  if (
-      !valueFitsSignal(
-          signal.extended,
-          signal.outputs,
-          defaultValue)
-  ) {
-    Logger::warn(
-        "SignalAutomation: signal id " +
-        String(
-            signalId) +
-        " has invalid default value " +
-        String(
-            defaultValue) +
-        " and was skipped");
-
-    return false;
-  }
+          outputs);
 
   signal.defaultValue =
       static_cast<int32_t>(
           defaultValue);
-
-  JsonArrayConst rules;
-
-  if (
-      row["rules"]
-          .is<JsonArray>()
-  ) {
-    rules =
-        row["rules"]
-            .as<JsonArrayConst>();
-  } else {
-    Logger::warn(
-        "SignalAutomation: signal id " +
-        String(
-            signalId) +
-        " has no valid rules array; using empty rule list");
-  }
 
   size_t ruleIndex =
       0;
 
   for (
       JsonVariantConst rawRuleVariant :
-      rules
+      rawRules
   ) {
     ++ruleIndex;
-
-    if (
-        !rawRuleVariant
-             .is<JsonObject>()
-    ) {
-      Logger::warn(
-          "SignalAutomation: signal id " +
-          String(
-              signalId) +
-          " rule " +
-          String(
-              ruleIndex) +
-          " is not an object and was skipped");
-
-      continue;
-    }
 
     const JsonObjectConst rawRule =
         rawRuleVariant
             .as<JsonObjectConst>();
+
+    if (rawRule.isNull()) {
+      Logger::warn(
+          "SignalAutomation: signal id " +
+          String(signalId) +
+          " rule " +
+          String(ruleIndex) +
+          " is not an object and was skipped");
+
+      continue;
+    }
 
     static const char* const RULE_KEYS[] = {
         "value",
@@ -427,15 +359,29 @@ bool SignalAutomationEngine::parseSignal(
     ) {
       Logger::warn(
           "SignalAutomation: signal id " +
-          String(
-              signalId) +
+          String(signalId) +
           " rule " +
-          String(
-              ruleIndex) +
-          " has invalid value " +
-          String(
-              rawValue) +
-          " and was skipped");
+          String(ruleIndex) +
+          " has invalid value and was skipped");
+
+      continue;
+    }
+
+    const JsonArrayConst rawConditions =
+        rawRule["conditions"]
+            .as<JsonArrayConst>();
+
+    if (
+        rawConditions.isNull() ||
+        rawConditions.size() ==
+            0
+    ) {
+      Logger::warn(
+          "SignalAutomation: signal id " +
+          String(signalId) +
+          " rule " +
+          String(ruleIndex) +
+          " has no conditions and was skipped");
 
       continue;
     }
@@ -446,97 +392,44 @@ bool SignalAutomationEngine::parseSignal(
         static_cast<int32_t>(
             rawValue);
 
-    JsonArrayConst conditions;
-
-    const bool hasConditionArray =
-        rawRule["conditions"]
-            .is<JsonArray>();
-
-    if (hasConditionArray) {
-      conditions =
-          rawRule["conditions"]
-              .as<JsonArrayConst>();
-    } else {
-      Logger::warn(
-          "SignalAutomation: signal id " +
-          String(
-              signalId) +
-          " rule " +
-          String(
-              ruleIndex) +
-          " has no valid conditions array and was skipped");
-
-      continue;
-    }
-
-    const size_t declaredConditionCount =
-        conditions.size();
-
-    if (declaredConditionCount == 0) {
-      Logger::warn(
-          "SignalAutomation: signal id " +
-          String(signalId) +
-          " rule " +
-          String(ruleIndex) +
-          " has zero conditions and was skipped");
-
-      continue;
-    }
-
-    bool conditionParseFailed =
-        false;
+    bool validRule =
+        true;
 
     size_t conditionIndex =
         0;
 
     for (
         JsonVariantConst rawConditionVariant :
-        conditions
+        rawConditions
     ) {
       ++conditionIndex;
-
-      if (
-          !rawConditionVariant
-               .is<JsonArray>()
-      ) {
-        Logger::warn(
-            "SignalAutomation: signal id " +
-            String(
-                signalId) +
-            " rule " +
-            String(
-                ruleIndex) +
-            " condition " +
-            String(
-                conditionIndex) +
-            " is not an array and was skipped");
-
-        continue;
-      }
 
       const JsonArrayConst rawCondition =
           rawConditionVariant
               .as<JsonArrayConst>();
 
       if (
-          rawCondition.size() !=
-              4 &&
-          rawCondition.size() !=
-              3
+          rawCondition.isNull() ||
+          (
+              rawCondition.size() !=
+                  4 &&
+              rawCondition.size() !=
+                  3
+          )
       ) {
         Logger::warn(
             "SignalAutomation: signal id " +
-            String(
-                signalId) +
+            String(signalId) +
             " rule " +
-            String(
-                ruleIndex) +
+            String(ruleIndex) +
             " condition " +
-            String(
-                conditionIndex) +
-            " has unsupported shape and was skipped");
+            String(conditionIndex) +
+            " has invalid shape; rule skipped");
 
-        continue;
+        validRule =
+            false;
+
+        break;
       }
 
       const char* source =
@@ -549,6 +442,8 @@ bool SignalAutomationEngine::parseSignal(
           rawCondition.size() ==
           4
       ) {
+        // Current ID-based format:
+        // [source, layoutId, channel, logicalValue]
         const long conditionId =
             rawCondition[1] |
             0L;
@@ -559,7 +454,7 @@ bool SignalAutomationEngine::parseSignal(
 
         const int value =
             rawCondition[3] |
-            0;
+            -1;
 
         if (
             conditionId <= 0 ||
@@ -571,55 +466,10 @@ bool SignalAutomationEngine::parseSignal(
                 value != 1
             )
         ) {
-          Logger::warn(
-              "SignalAutomation: signal id " +
-              String(
-                  signalId) +
-              " rule " +
-              String(
-                  ruleIndex) +
-              " condition " +
-              String(
-                  conditionIndex) +
-              " contains invalid values and invalidates the rule");
+          validRule =
+              false;
 
-          conditionParseFailed = true;
-          continue;
-        }
-
-        if (
-            strcmp(
-                source,
-                "turnout") ==
-            0
-        ) {
-          condition.source =
-              Condition::Source::Turnout;
-        } else if (
-            strcmp(
-                source,
-                "sensor") ==
-            0
-        ) {
-          condition.source =
-              Condition::Source::Sensor;
-        } else {
-          Logger::warn(
-              "SignalAutomation: signal id " +
-              String(
-                  signalId) +
-              " rule " +
-              String(
-                  ruleIndex) +
-              " condition " +
-              String(
-                  conditionIndex) +
-              " has unsupported source \"" +
-              String(source) +
-              "\" and invalidates the rule");
-
-          conditionParseFailed = true;
-          continue;
+          break;
         }
 
         condition.id =
@@ -632,40 +482,126 @@ bool SignalAutomationEngine::parseSignal(
 
         condition.value =
             value != 0;
+
+        if (
+            strcmp(
+                source,
+                "turnout") ==
+            0
+        ) {
+          condition.source =
+              Condition::Source::Turnout;
+
+          if (
+              !_runtime.findAccessoryById(
+                  RuntimeAccessoryKind::Turnout,
+                  condition.id,
+                  condition.channel)
+          ) {
+            Logger::warn(
+                "SignalAutomation: turnout condition id=" +
+                String(condition.id) +
+                " ch=" +
+                String(condition.channel) +
+                " not found; rule skipped");
+
+            validRule =
+                false;
+
+            break;
+          }
+        } else if (
+            strcmp(
+                source,
+                "sensor") ==
+            0
+        ) {
+          condition.source =
+              Condition::Source::Sensor;
+
+          condition.channel =
+              0;
+
+          if (
+              !_runtime.findSensorById(
+                  condition.id)
+          ) {
+            Logger::warn(
+                "SignalAutomation: sensor condition id=" +
+                String(condition.id) +
+                " not found; rule skipped");
+
+            validRule =
+                false;
+
+            break;
+          }
+        } else {
+          validRule =
+              false;
+
+          break;
+        }
       } else {
-        const long legacyAddress =
+        // Legacy/address-based format:
+        // [source, dccAddress, physicalValue]
+        const long address =
             rawCondition[1] |
             0L;
 
-        const int value =
+        const int physical =
             rawCondition[2] |
-            0;
+            -1;
 
         if (
-            legacyAddress <= 0 ||
-            legacyAddress > 0xffff ||
+            address <= 0 ||
+            address > 0xffff ||
             (
-                value != 0 &&
-                value != 1
+                physical != 0 &&
+                physical != 1
             )
         ) {
-          Logger::warn(
-              "SignalAutomation: signal id " +
-              String(
-                  signalId) +
-              " rule " +
-              String(
-                  ruleIndex) +
-              " legacy condition " +
-              String(
-                  conditionIndex) +
-              " contains invalid values and invalidates the rule");
+          validRule =
+              false;
 
-          conditionParseFailed = true;
-          continue;
+          break;
         }
 
         if (
+            strcmp(
+                source,
+                "turnout") ==
+            0
+        ) {
+          RuntimeAccessory* turnout =
+              _runtime.findAccessory(
+                  RuntimeAccessoryKind::Turnout,
+                  static_cast<uint16_t>(
+                      address));
+
+          if (!turnout) {
+            validRule =
+                false;
+
+            break;
+          }
+
+          condition.source =
+              Condition::Source::Turnout;
+
+          condition.id =
+              turnout->id;
+
+          condition.channel =
+              turnout->channel;
+
+          condition.value =
+              (
+                  physical !=
+                  0
+              ) ==
+              turnout->closedValue;
+        } else if (
             strcmp(
                 source,
                 "sensor") ==
@@ -674,17 +610,13 @@ bool SignalAutomationEngine::parseSignal(
           RuntimeSensor* sensor =
               _runtime.findSensor(
                   static_cast<uint16_t>(
-                      legacyAddress));
+                      address));
 
           if (!sensor) {
-            Logger::warn(
-                "SignalAutomation: legacy sensor address " +
-                String(
-                    legacyAddress) +
-                " was not found and invalidates the rule");
+            validRule =
+                false;
 
-            conditionParseFailed = true;
-            continue;
+            break;
           }
 
           condition.source =
@@ -697,53 +629,13 @@ bool SignalAutomationEngine::parseSignal(
               0;
 
           condition.value =
-              value != 0;
-        } else if (
-            strcmp(
-                source,
-                "turnout") ==
-            0
-        ) {
-          RuntimeAccessory* turnout =
-              _runtime.findAccessory(
-                  RuntimeAccessoryKind::Turnout,
-                  static_cast<uint16_t>(
-                      legacyAddress));
-
-          if (!turnout) {
-            Logger::warn(
-                "SignalAutomation: legacy turnout address " +
-                String(
-                    legacyAddress) +
-                " was not found and invalidates the rule");
-
-            conditionParseFailed = true;
-            continue;
-          }
-
-          condition.source =
-              Condition::Source::Turnout;
-
-          condition.id =
-              turnout->id;
-
-          condition.channel =
-              turnout->channel;
-
-          const bool physicalValue =
-              value != 0;
-
-          condition.value =
-              physicalValue ==
-              turnout->closedValue;
+              physical !=
+              0;
         } else {
-          Logger::warn(
-              "SignalAutomation: legacy condition source \"" +
-              String(source) +
-              "\" is unsupported and invalidates the rule");
+          validRule =
+              false;
 
-          conditionParseFailed = true;
-          continue;
+          break;
         }
       }
 
@@ -754,39 +646,45 @@ bool SignalAutomationEngine::parseSignal(
     }
 
     if (
-        conditionParseFailed ||
+        !validRule ||
         rule.conditions.size() !=
-            declaredConditionCount
+            rawConditions.size()
     ) {
       Logger::warn(
           "SignalAutomation: signal id " +
           String(signalId) +
           " rule " +
           String(ruleIndex) +
-          " rejected: parsed " +
-          String(rule.conditions.size()) +
-          "/" +
-          String(declaredConditionCount) +
-          " conditions");
+          " could not be resolved and was skipped");
 
       continue;
     }
-
-    Logger::info(
-        "SignalAutomation: loaded signal id=" +
-        String(signalId) +
-        " rule=" +
-        String(ruleIndex) +
-        " value=" +
-        String(rule.value) +
-        " conditions=" +
-        String(rule.conditions.size()));
 
     signal.rules
         .push_back(
             std::move(
                 rule));
   }
+
+  // Critical safety rule: an automation entry without a valid rule must not
+  // drive the signal to its default aspect. That would overwrite manual
+  // signal control (typically to STOP) even though no automation rule exists.
+  if (signal.rules.empty()) {
+    Logger::warn(
+        "SignalAutomation: signal id " +
+        String(signal.signalId) +
+        " has zero valid rules; automation for this signal is disabled");
+
+    return false;
+  }
+
+  Logger::info(
+      "SignalAutomation: signal id=" +
+      String(signal.signalId) +
+      " address=" +
+      String(signal.signalAddress) +
+      " rules=" +
+      String(signal.rules.size()));
 
   for (
       auto& existing :
@@ -798,8 +696,7 @@ bool SignalAutomationEngine::parseSignal(
     ) {
       Logger::warn(
           "SignalAutomation: duplicate signal id " +
-          String(
-              signal.signalId) +
+          String(signal.signalId) +
           "; later definition wins");
 
       existing =
@@ -1040,11 +937,23 @@ bool SignalAutomationEngine::reload() {
       std::move(
           parsedSignals);
 
+  size_t totalRules =
+      0;
+
+  for (
+      const auto& signal :
+      _signals
+  ) {
+    totalRules +=
+        signal.rules.size();
+  }
+
   Logger::info(
       "SignalAutomation: loaded " +
-      String(
-          _signals.size()) +
-      " signal rule sets; enabled=" +
+      String(_signals.size()) +
+      " signal(s), " +
+      String(totalRules) +
+      " rule(s); enabled=" +
       String(
           _enabled
               ? "true"
@@ -1065,28 +974,16 @@ bool SignalAutomationEngine::conditionMatches(
 
     if (!sensor) {
       Logger::warn(
-          "SignalAutomation: condition sensor id=" +
+          "SignalAutomation: sensor id=" +
           String(condition.id) +
-          " not found");
+          " disappeared from runtime");
 
       return false;
     }
 
-    const bool match =
+    return
         sensor->on ==
         condition.value;
-
-    Logger::info(
-        "SignalAutomation: condition sensor id=" +
-        String(condition.id) +
-        " expected=" +
-        String(condition.value ? 1 : 0) +
-        " actual=" +
-        String(sensor->on ? 1 : 0) +
-        " match=" +
-        String(match ? "true" : "false"));
-
-    return match;
   }
 
   const RuntimeAccessory* turnout =
@@ -1097,58 +994,26 @@ bool SignalAutomationEngine::conditionMatches(
 
   if (!turnout) {
     Logger::warn(
-        "SignalAutomation: condition turnout id=" +
+        "SignalAutomation: turnout id=" +
         String(condition.id) +
         " ch=" +
         String(condition.channel) +
-        " not found");
+        " disappeared from runtime");
 
     return false;
   }
 
-  const bool match =
+  return
       turnout->closed ==
       condition.value;
-
-  Logger::info(
-      "SignalAutomation: condition turnout id=" +
-      String(condition.id) +
-      " ch=" +
-      String(condition.channel) +
-      " expected=" +
-      String(condition.value ? "CLOSED" : "THROWN") +
-      " actual=" +
-      String(turnout->closed ? "CLOSED" : "THROWN") +
-      " match=" +
-      String(match ? "true" : "false"));
-
-  return match;
 }
 
 int32_t SignalAutomationEngine::desiredValue(
     const SignalRuleSet& signal) const {
-  size_t ruleIndex =
-      0;
-
   for (
       const auto& rule :
       signal.rules
   ) {
-    ++ruleIndex;
-
-    // Defensive invariant: an automation rule without conditions must never
-    // silently become "always true".
-    if (rule.conditions.empty()) {
-      Logger::warn(
-          "SignalAutomation: signal id=" +
-          String(signal.signalId) +
-          " rule=" +
-          String(ruleIndex) +
-          " has no conditions at runtime; ignored");
-
-      continue;
-    }
-
     bool matches =
         true;
 
@@ -1167,27 +1032,11 @@ int32_t SignalAutomationEngine::desiredValue(
       }
     }
 
-    Logger::info(
-        "SignalAutomation: signal id=" +
-        String(signal.signalId) +
-        " rule=" +
-        String(ruleIndex) +
-        " value=" +
-        String(rule.value) +
-        " match=" +
-        String(matches ? "true" : "false"));
-
     if (matches) {
       return
           rule.value;
     }
   }
-
-  Logger::info(
-      "SignalAutomation: signal id=" +
-      String(signal.signalId) +
-      " no rule matched; default=" +
-      String(signal.defaultValue));
 
   return
       signal.defaultValue;
@@ -1505,8 +1354,8 @@ void SignalAutomationEngine::evaluate() {
 
 void SignalAutomationEngine::handleRuntimeChange(
     RuntimeChangeKind kind,
-    uint16_t id,
-    uint8_t channel) {
+    uint16_t,
+    uint8_t) {
   if (
       kind !=
           RuntimeChangeKind::Turnout &&
@@ -1515,34 +1364,6 @@ void SignalAutomationEngine::handleRuntimeChange(
   ) {
     return;
   }
-
-  for (
-      auto& signal :
-      _signals
-  ) {
-    signal.hasAppliedValue =
-        false;
-  }
-
-  Logger::info(
-      "SignalAutomation: runtime trigger kind=" +
-      String(
-          kind ==
-                  RuntimeChangeKind::Turnout
-              ? "turnout"
-              : "sensor") +
-      " id=" +
-      String(id) +
-      " ch=" +
-      String(channel) +
-      " enabled=" +
-      String(
-          _enabled
-              ? "true"
-              : "false") +
-      " ruleSets=" +
-      String(
-          _signals.size()));
 
   evaluate();
 }

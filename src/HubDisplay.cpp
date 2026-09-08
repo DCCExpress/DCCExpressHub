@@ -64,6 +64,10 @@ void HubDisplay::showWifiConnecting(
 
   _display.println(
       ssid);
+
+#if HUB_DISPLAY_CYD_2432S028
+  redrawEmergencyButton();
+#endif
 }
 
 void HubDisplay::showWifiConnected(
@@ -124,16 +128,71 @@ void HubDisplay::showCommandCenter(
       true;
 }
 
-void HubDisplay::loop() {
+void HubDisplay::showEmergencyStopActive(
+    bool active) {
   if (
-      !_initialized ||
-      !_dirty
+      _emergencyStopActive ==
+      active
   ) {
+    return;
+  }
+
+  _emergencyStopActive =
+      active;
+
+#if HUB_DISPLAY_CYD_2432S028
+  // Do NOT mark the whole display dirty. The emergency button has a fixed
+  // rectangle, so repainting only that region avoids the visible full-screen
+  // clear/redraw flicker.
+  if (_initialized) {
+    redrawEmergencyButton();
+  }
+#endif
+}
+
+bool HubDisplay::takeEmergencyStopRequest() {
+  const bool pending =
+      _emergencyStopRequest;
+
+  _emergencyStopRequest =
+      false;
+
+  return pending;
+}
+
+void HubDisplay::loop() {
+  if (!_initialized) {
+    return;
+  }
+
+#if HUB_DISPLAY_CYD_2432S028
+  if (
+      _display
+          .takeEmergencyButtonPress()
+  ) {
+    _emergencyStopRequest =
+        true;
+  }
+#endif
+
+  if (!_dirty) {
     return;
   }
 
   redraw();
 }
+
+#if HUB_DISPLAY_CYD_2432S028
+
+void HubDisplay::redrawEmergencyButton() {
+  _display.drawEmergencyButton(
+      "EMERGENCY STOP",
+      _emergencyStopActive
+          ? HubDisplayDevice::RED
+          : HubDisplayDevice::DARK_GREY);
+}
+
+#endif
 
 void HubDisplay::redraw() {
   if (!_initialized) {
@@ -148,6 +207,13 @@ void HubDisplay::redraw() {
   _display.setCursor(
       8,
       8);
+
+  _display.setTextSize(
+      2);
+
+  _display.setTextColor(
+      HubDisplayDevice::WHITE,
+      HubDisplayDevice::BLACK);
 
   _display.println(
       "DCCExpressHub");
@@ -211,6 +277,10 @@ void HubDisplay::redraw() {
     _display.println(
         "-");
   }
+
+#if HUB_DISPLAY_CYD_2432S028
+  redrawEmergencyButton();
+#endif
 }
 
 #else
@@ -233,6 +303,13 @@ void HubDisplay::showCommandCenter(
     uint16_t,
     bool) {}
 
+void HubDisplay::showEmergencyStopActive(
+    bool) {}
+
 void HubDisplay::loop() {}
+
+bool HubDisplay::takeEmergencyStopRequest() {
+  return false;
+}
 
 #endif

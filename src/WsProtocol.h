@@ -29,6 +29,29 @@ public:
     return _powerIncludesProgramming;
   }
 
+  bool emergencyStopActive() const {
+    return _emergencyStop;
+  }
+
+  // Shared emergency-stop entry point for hardware/display controls.
+  // It uses the same command-center abstraction and updates the same
+  // powerInfo emergencyStop state that WebSocket clients see.
+  bool triggerEmergencyStop() {
+    if (
+        !_commandCenter
+             .emergencyStop()
+    ) {
+      return false;
+    }
+
+    _emergencyStop =
+        true;
+
+    broadcastPowerInfo();
+
+    return true;
+  }
+
   void broadcastRuntimeSnapshot();
   void broadcastRawInfo(
       const String& raw);
@@ -84,8 +107,6 @@ private:
 
   DccTrackState _dccTracks[MAX_DCC_TRACKS];
 
-  // Feedback parsing is still DCC-EX-specific in Phase 2.
-  // It will move behind ICommandCenter events in the next phase.
   String _dccVersion;
   String _dccProcessor;
   String _dccHardware;

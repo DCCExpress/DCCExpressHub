@@ -268,62 +268,39 @@ void App::loop() {
   _wsProtocol.loop();
   _wsProtocol.cleanupClients();
 
-  // Signal automation already evaluates synchronously from LayoutRuntime
-  // turnout/sensor change callbacks. Keep a light polling fallback as well:
-  // it makes automation resilient to a missed callback or a future runtime
-  // producer that updates state without notifying observers.
-  //
-  // applySignal() caches the last applied value, so unchanged signal outputs
-  // are NOT re-transmitted every 100 ms.
-  static unsigned long nextSignalAutomationEvaluateAt =
-      0;
+  // The display follows the single HUB E-STOP state, regardless of whether
+  // E-STOP was requested from the CYD touchscreen or the web UI.
+  _display.showEmergencyStopActive(
+      _wsProtocol.emergencyStopActive());
 
-  static unsigned long nextSignalAutomationHealthLogAt =
-      0;
-
-  const unsigned long now =
-      millis();
-
-  if (
-      nextSignalAutomationEvaluateAt == 0 ||
-      static_cast<long>(
-          now -
-          nextSignalAutomationEvaluateAt) >= 0
-  ) {
-    _signalAutomation.evaluate();
-
-    nextSignalAutomationEvaluateAt =
-        now +
-        100;
-  }
-
-  if (
-      nextSignalAutomationHealthLogAt == 0 ||
-      static_cast<long>(
-          now -
-          nextSignalAutomationHealthLogAt) >= 0
-  ) {
-    Logger::info(
-        "SignalAutomation health: enabled=" +
-        String(
-            _signalAutomation.enabled()
-                ? "true"
-                : "false") +
-        " ruleSets=" +
-        String(
-            _signalAutomation.signalCount()) +
-        " cc=" +
-        String(
-            _commandCenter.connected()
-                ? "online"
-                : "offline"));
-
-    nextSignalAutomationHealthLogAt =
-        now +
-        5000;
-  }
-
+  // HubDisplay::loop() also polls the CYD resistive touchscreen.
   updateDisplay();
+
+  if (
+      _display
+          .takeEmergencyStopRequest()
+  ) {
+    Logger::warn(
+        "CYD EMERGENCY STOP requested");
+
+    const bool sent =
+        _wsProtocol
+            .triggerEmergencyStop();
+
+    // triggerEmergencyStop() updates the same state used by the WebSocket UI.
+    // Reflect it on the CYD immediately; showEmergencyStopActive() redraws
+    // only the button area, not the whole display.
+    _display.showEmergencyStopActive(
+        _wsProtocol.emergencyStopActive());
+
+    if (sent) {
+      Logger::warn(
+          "CYD EMERGENCY STOP sent");
+    } else {
+      Logger::error(
+          "CYD EMERGENCY STOP failed");
+    }
+  }
 
   delay(1);
 }

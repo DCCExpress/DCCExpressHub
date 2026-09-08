@@ -46,7 +46,15 @@ public:
       uint16_t port,
       bool connected);
 
+  // Synchronizes the CYD button with the real HUB E-STOP state.
+  // State changes redraw only the button rectangle to avoid display flicker.
+  void showEmergencyStopActive(
+      bool active);
+
   void loop();
+
+  // Returns and clears the pending display-generated E-STOP request.
+  bool takeEmergencyStopRequest();
 
 private:
 #if HUB_USE_DISPLAY
@@ -62,6 +70,13 @@ private:
   bool _initialized = false;
   bool _dirty = false;
 
+  bool _emergencyStopRequest = false;
+  bool _emergencyStopActive = false;
+
   void redraw();
+
+#if HUB_DISPLAY_CYD_2432S028
+  void redrawEmergencyButton();
+#endif
 #endif
 };
