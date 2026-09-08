@@ -404,19 +404,46 @@ RuntimeBlock* LayoutRuntime::findBlockById(
 
 bool LayoutRuntime::setTurnout(
     uint16_t address,
-    bool closed) {
+    bool physicalValue) {
   auto* item =
       findAccessory(
           RuntimeAccessoryKind::Turnout,
           address);
 
-  if (!item) return false;
+  if (!item) {
+    Logger::warn(
+        "LayoutRuntime: turnout address " +
+        String(address) +
+        " not found");
+    return false;
+  }
 
-  if (item->closed == closed) {
+  // WS/output callers send the physical decoder value (0/1).
+  // Runtime state must remain semantic: closed=true means CLOSED,
+  // regardless of whether the configured decoder uses 0 or 1 for CLOSED.
+  const bool logicalClosed =
+      physicalValue ==
+      item->closedValue;
+
+  Logger::info(
+      "LayoutRuntime: turnout id=" +
+      String(item->id) +
+      " ch=" +
+      String(item->channel) +
+      " address=" +
+      String(item->address) +
+      " physical=" +
+      String(physicalValue ? 1 : 0) +
+      " closedValue=" +
+      String(item->closedValue ? 1 : 0) +
+      " logical=" +
+      String(logicalClosed ? "CLOSED" : "THROWN"));
+
+  if (item->closed == logicalClosed) {
     return true;
   }
 
-  item->closed = closed;
+  item->closed = logicalClosed;
 
   notify(
       RuntimeChangeKind::Turnout,
