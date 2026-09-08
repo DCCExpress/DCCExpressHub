@@ -80,10 +80,8 @@ private:
 
   void redraw();
 
-#if HUB_DISPLAY_CYD_2432S028
   void redrawEmergencyButton();
   void redrawPowerButton();
   void redrawControlButtons();
-#endif
 #endif
 };

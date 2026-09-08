@@ -7,6 +7,9 @@ class MiniIli9342Display {
 public:
   static constexpr uint16_t BLACK = 0x0000;
   static constexpr uint16_t WHITE = 0xFFFF;
+  static constexpr uint16_t RED = 0xF800;
+  static constexpr uint16_t LIME = 0x07E0;
+  static constexpr uint16_t DARK_GREY = 0x4208;
 
   void begin();
 
@@ -44,6 +47,17 @@ public:
   void println(
       uint32_t value);
 
+  // Same bottom-row visual language as the CYD display.
+  // On M5Stack these are status boxes, not touch controls.
+  void drawEmergencyButton(
+      const char* label,
+      uint16_t fillColor);
+
+  void drawPowerButton(
+      const char* label,
+      uint16_t fillColor,
+      uint16_t textColor = WHITE);
+
 private:
   static constexpr int TFT_SCLK = 18;
   static constexpr int TFT_MISO = 19;
@@ -58,6 +72,16 @@ private:
 
   static constexpr uint32_t SPI_HZ =
       40000000;
+
+  // Same bottom control/status geometry as the CYD.
+  static constexpr int BUTTON_Y = 184;
+  static constexpr int BUTTON_H = 48;
+
+  static constexpr int EMERGENCY_X = 8;
+  static constexpr int EMERGENCY_W = 149;
+
+  static constexpr int POWER_X = 163;
+  static constexpr int POWER_W = 149;
 
   SPIClass* _spi = &SPI;
 
@@ -93,6 +117,22 @@ private:
   void pushColor(
       uint16_t color,
       uint32_t count);
+
+  void fillRect(
+      int16_t x,
+      int16_t y,
+      int16_t width,
+      int16_t height,
+      uint16_t color);
+
+  void drawButton(
+      int16_t x,
+      int16_t y,
+      int16_t width,
+      int16_t height,
+      const char* label,
+      uint16_t fillColor,
+      uint16_t textColor);
 
   void drawChar(
       char c);

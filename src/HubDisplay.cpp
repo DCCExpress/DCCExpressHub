@@ -65,9 +65,7 @@ void HubDisplay::showWifiConnecting(
   _display.println(
       ssid);
 
-#if HUB_DISPLAY_CYD_2432S028
   redrawControlButtons();
-#endif
 }
 
 void HubDisplay::showWifiConnected(
@@ -140,11 +138,9 @@ void HubDisplay::showEmergencyStopActive(
   _emergencyStopActive =
       active;
 
-#if HUB_DISPLAY_CYD_2432S028
   if (_initialized) {
     redrawEmergencyButton();
   }
-#endif
 }
 
 void HubDisplay::showPowerActive(
@@ -159,11 +155,9 @@ void HubDisplay::showPowerActive(
   _powerActive =
       active;
 
-#if HUB_DISPLAY_CYD_2432S028
   if (_initialized) {
     redrawPowerButton();
   }
-#endif
 }
 
 bool HubDisplay::takeEmergencyStopRequest() {
@@ -219,8 +213,6 @@ void HubDisplay::loop() {
   redraw();
 }
 
-#if HUB_DISPLAY_CYD_2432S028
-
 void HubDisplay::redrawEmergencyButton() {
   _display.drawEmergencyButton(
       _emergencyStopActive
@@ -246,8 +238,6 @@ void HubDisplay::redrawControlButtons() {
   redrawEmergencyButton();
   redrawPowerButton();
 }
-
-#endif
 
 void HubDisplay::redraw() {
   if (!_initialized) {
@@ -302,24 +292,20 @@ void HubDisplay::redraw() {
   _display.print(
       "CC: ");
 
-#if HUB_DISPLAY_CYD_2432S028
   _display.setTextColor(
       _ccConnected
           ? HubDisplayDevice::LIME
           : HubDisplayDevice::RED,
       HubDisplayDevice::BLACK);
-#endif
 
   _display.println(
       _ccConnected
           ? "CONNECTED"
           : "DISCONNECTED");
 
-#if HUB_DISPLAY_CYD_2432S028
   _display.setTextColor(
       HubDisplayDevice::WHITE,
       HubDisplayDevice::BLACK);
-#endif
 
   _display.print(
       "HOST: ");
@@ -339,9 +325,7 @@ void HubDisplay::redraw() {
         "-");
   }
 
-#if HUB_DISPLAY_CYD_2432S028
   redrawControlButtons();
-#endif
 }
 
 #else
