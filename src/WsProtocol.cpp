@@ -130,12 +130,10 @@ const char* resetReasonName(
 uint16_t parseBlockId(
     JsonVariantConst value) {
   if (
-      value.is<
-          const char*>()
+      value.is<const char*>()
   ) {
     const char* text =
-        value.as<
-            const char*>();
+        value.as<const char*>();
 
     if (
         !text ||
@@ -159,7 +157,8 @@ uint16_t parseBlockId(
   }
 
   const long parsed =
-      value | 0L;
+      value |
+      0L;
 
   return
       parsed > 0 &&
@@ -171,7 +170,6 @@ uint16_t parseBlockId(
 
 }
 
-
 WsProtocol::WsProtocol(
     AsyncWebSocket& ws,
     ICommandCenter& commandCenter,
@@ -181,7 +179,6 @@ WsProtocol::WsProtocol(
       _commandCenter(commandCenter),
       _runtime(runtime),
       _stateStore(stateStore) {}
-
 
 void WsProtocol::begin() {
   _ws.onEvent(
@@ -305,7 +302,6 @@ void WsProtocol::begin() {
   }
 }
 
-
 void WsProtocol::loop() {
   const unsigned long now =
       millis();
@@ -339,11 +335,9 @@ void WsProtocol::loop() {
   }
 }
 
-
 void WsProtocol::cleanupClients() {
   _ws.cleanupClients();
 }
-
 
 void WsProtocol::send(
     AsyncWebSocketClient* client,
@@ -367,7 +361,6 @@ void WsProtocol::send(
       body);
 }
 
-
 void WsProtocol::broadcast(
     const char* type,
     JsonDocument& data) {
@@ -377,8 +370,7 @@ void WsProtocol::broadcast(
       type;
 
   out["data"].set(
-      data.as<
-          JsonVariantConst>());
+      data.as<JsonVariantConst>());
 
   String body;
 
@@ -389,7 +381,6 @@ void WsProtocol::broadcast(
   _ws.textAll(
       body);
 }
-
 
 void WsProtocol::sendCommandCenterInfo(
     AsyncWebSocketClient* client) {
@@ -422,10 +413,8 @@ void WsProtocol::sendCommandCenterInfo(
   send(
       client,
       "commandCenterInfo",
-      data.as<
-          JsonVariantConst>());
+      data.as<JsonVariantConst>());
 }
-
 
 void WsProtocol::sendPowerInfo(
     AsyncWebSocketClient* client) {
@@ -449,10 +438,8 @@ void WsProtocol::sendPowerInfo(
   send(
       client,
       "powerInfo",
-      data.as<
-          JsonVariantConst>());
+      data.as<JsonVariantConst>());
 }
-
 
 void WsProtocol::broadcastPowerInfo() {
   JsonDocument data;
@@ -477,7 +464,6 @@ void WsProtocol::broadcastPowerInfo() {
       data);
 }
 
-
 void WsProtocol::sendBlockStateSnapshot(
     AsyncWebSocketClient* client) {
   JsonDocument data;
@@ -490,8 +476,7 @@ void WsProtocol::sendBlockStateSnapshot(
         data[
             String(
                 block.id)]
-            .to<
-                JsonObject>();
+            .to<JsonObject>();
 
     state["blockId"] =
         String(
@@ -520,10 +505,8 @@ void WsProtocol::sendBlockStateSnapshot(
   send(
       client,
       "blockStateChanged",
-      data.as<
-          JsonVariantConst>());
+      data.as<JsonVariantConst>());
 }
-
 
 void WsProtocol::broadcastBlockStateSnapshot() {
   JsonDocument data;
@@ -536,8 +519,7 @@ void WsProtocol::broadcastBlockStateSnapshot() {
         data[
             String(
                 block.id)]
-            .to<
-                JsonObject>();
+            .to<JsonObject>();
 
     state["blockId"] =
         String(
@@ -567,7 +549,6 @@ void WsProtocol::broadcastBlockStateSnapshot() {
       "blockStateChanged",
       data);
 }
-
 
 void WsProtocol::recomputePowerStateFromTrackTelemetry() {
   bool mainSeen =
@@ -662,7 +643,6 @@ void WsProtocol::recomputePowerStateFromTrackTelemetry() {
   }
 }
 
-
 void WsProtocol::appendHubStatus(
     JsonObject hub) {
   hub["uptimeMs"] =
@@ -754,7 +734,6 @@ void WsProtocol::appendHubStatus(
       resetReasonName(
           bootResetReason);
 }
-
 
 void WsProtocol::appendDccExStatus(
     JsonDocument& data) {
@@ -857,8 +836,7 @@ void WsProtocol::appendDccExStatus(
 
   JsonArray tracks =
       data["tracks"]
-          .to<
-              JsonArray>();
+          .to<JsonArray>();
 
   for (
       uint8_t index = 0;
@@ -876,8 +854,7 @@ void WsProtocol::appendDccExStatus(
 
     JsonObject out =
         tracks
-            .add<
-                JsonObject>();
+            .add<JsonObject>();
 
     char letter[2] = {
         static_cast<char>(
@@ -919,8 +896,7 @@ void WsProtocol::appendDccExStatus(
 
   JsonObject hub =
       data["hub"]
-          .to<
-              JsonObject>();
+          .to<JsonObject>();
 
   appendHubStatus(
       hub);
@@ -960,7 +936,6 @@ void WsProtocol::appendDccExStatus(
           bootResetReason);
 }
 
-
 void WsProtocol::sendDccExStatus(
     AsyncWebSocketClient* client) {
   JsonDocument data;
@@ -971,10 +946,8 @@ void WsProtocol::sendDccExStatus(
   send(
       client,
       "dccExStatus",
-      data.as<
-          JsonVariantConst>());
+      data.as<JsonVariantConst>());
 }
-
 
 void WsProtocol::broadcastDccExStatus() {
   JsonDocument data;
@@ -986,7 +959,6 @@ void WsProtocol::broadcastDccExStatus() {
       "dccExStatus",
       data);
 }
-
 
 bool WsProtocol::requestLocoState(
     uint16_t address,
@@ -1005,7 +977,6 @@ bool WsProtocol::requestLocoState(
               address,
               logCommand);
 }
-
 
 void WsProtocol::beginConfiguredLocoStateSync(
     unsigned long now) {
@@ -1063,8 +1034,7 @@ void WsProtocol::beginConfiguredLocoStateSync(
 
   if (
       error ||
-      !document.is<
-          JsonArray>()
+      !document.is<JsonArray>()
   ) {
     Logger::warn(
         "Loco state sync: invalid locos.json");
@@ -1074,8 +1044,7 @@ void WsProtocol::beginConfiguredLocoStateSync(
 
   for (
       JsonObjectConst item :
-      document.as<
-          JsonArrayConst>()
+      document.as<JsonArrayConst>()
   ) {
     const int addressValue =
         item["address"] |
@@ -1149,7 +1118,6 @@ void WsProtocol::beginConfiguredLocoStateSync(
       " locomotive(s)");
 }
 
-
 void WsProtocol::pollLocoStateSync(
     unsigned long now) {
   if (
@@ -1204,7 +1172,6 @@ void WsProtocol::pollLocoStateSync(
       now +
       LOCO_STATE_SYNC_INTERVAL_MS;
 }
-
 
 void WsProtocol::handleCommandCenterConnectionState(
     unsigned long now) {
@@ -1285,7 +1252,6 @@ void WsProtocol::handleCommandCenterConnectionState(
       now);
 }
 
-
 void WsProtocol::pollDccExTelemetry(
     unsigned long now) {
   if (
@@ -1310,7 +1276,6 @@ void WsProtocol::pollDccExTelemetry(
         DCC_CURRENT_POLL_MS;
   }
 }
-
 
 void WsProtocol::sendRuntimeSnapshot(
     AsyncWebSocketClient* client) {
@@ -1342,8 +1307,7 @@ void WsProtocol::sendRuntimeSnapshot(
         send(
             client,
             "turnoutChanged",
-            data.as<
-                JsonVariantConst>());
+            data.as<JsonVariantConst>());
 
         break;
 
@@ -1361,8 +1325,7 @@ void WsProtocol::sendRuntimeSnapshot(
           send(
               client,
               "signalAspectChanged",
-              data.as<
-                  JsonVariantConst>());
+              data.as<JsonVariantConst>());
         }
 
         break;
@@ -1377,8 +1340,7 @@ void WsProtocol::sendRuntimeSnapshot(
         send(
             client,
             "accessoryChanged",
-            data.as<
-                JsonVariantConst>());
+            data.as<JsonVariantConst>());
 
         break;
 
@@ -1392,8 +1354,7 @@ void WsProtocol::sendRuntimeSnapshot(
         send(
             client,
             "vpinChanged",
-            data.as<
-                JsonVariantConst>());
+            data.as<JsonVariantConst>());
 
         break;
     }
@@ -1414,14 +1375,12 @@ void WsProtocol::sendRuntimeSnapshot(
     send(
         client,
         "sensorChanged",
-        data.as<
-            JsonVariantConst>());
+        data.as<JsonVariantConst>());
   }
 
   sendBlockStateSnapshot(
       client);
 }
-
 
 void WsProtocol::broadcastRuntimeSnapshot() {
   JsonDocument cc;
@@ -1539,7 +1498,6 @@ void WsProtocol::broadcastRuntimeSnapshot() {
   broadcastBlockStateSnapshot();
 }
 
-
 void WsProtocol::broadcastRawInfo(
     const String& raw) {
   JsonDocument data;
@@ -1551,7 +1509,6 @@ void WsProtocol::broadcastRawInfo(
       "rawInfo",
       data);
 }
-
 
 WsProtocol::LocoState*
 WsProtocol::getLoco(
@@ -1598,15 +1555,13 @@ WsProtocol::getLoco(
   return &loco;
 }
 
-
 void WsProtocol::broadcastLoco(
     const LocoState& loco) {
   JsonDocument data;
 
   JsonObject out =
       data["loco"]
-          .to<
-              JsonObject>();
+          .to<JsonObject>();
 
   out["address"] =
       loco.address;
@@ -1627,7 +1582,6 @@ void WsProtocol::broadcastLoco(
       data);
 }
 
-
 void WsProtocol::handleStationInfo(
     const CommandCenterStationInfo& info) {
   _dccVersion =
@@ -1645,7 +1599,6 @@ void WsProtocol::handleStationInfo(
   _dccMaxLocos =
       info.maxLocos;
 }
-
 
 void WsProtocol::handleTrackConfiguration(
     const CommandCenterTrackConfiguration& info) {
@@ -1666,7 +1619,6 @@ void WsProtocol::handleTrackConfiguration(
       .mode =
       info.mode;
 }
-
 
 void WsProtocol::handleCurrentTelemetry(
     const CommandCenterCurrentTelemetry& info) {
@@ -1719,7 +1671,6 @@ void WsProtocol::handleCurrentTelemetry(
       millis();
 }
 
-
 void WsProtocol::handleTripTelemetry(
     const CommandCenterTripTelemetry& info) {
   for (
@@ -1760,7 +1711,6 @@ void WsProtocol::handleTripTelemetry(
     }
   }
 }
-
 
 void WsProtocol::handlePowerFeedback(
     const CommandCenterPowerFeedback& info) {
@@ -1865,7 +1815,6 @@ void WsProtocol::handlePowerFeedback(
   }
 }
 
-
 void WsProtocol::handleLocoFeedback(
     const CommandCenterLocoFeedback& info) {
   if (
@@ -1935,7 +1884,6 @@ void WsProtocol::handleLocoFeedback(
           loco->functionsMask));
 }
 
-
 void WsProtocol::handleEvent(
     AsyncWebSocket*,
     AsyncWebSocketClient* client,
@@ -1970,8 +1918,7 @@ void WsProtocol::handleEvent(
     send(
         client,
         "ws:welcome",
-        welcome.as<
-            JsonVariantConst>());
+        welcome.as<JsonVariantConst>());
 
     sendRuntimeSnapshot(
         client);
@@ -2006,9 +1953,8 @@ void WsProtocol::handleEvent(
   }
 
   AwsFrameInfo* info =
-      static_cast<
-          AwsFrameInfo*>(
-              arg);
+      static_cast<AwsFrameInfo*>(
+          arg);
 
   if (
       !info->final ||
@@ -2044,7 +1990,6 @@ void WsProtocol::handleEvent(
       payload);
 }
 
-
 void WsProtocol::handleMessage(
     AsyncWebSocketClient* client,
     const String& payload) {
@@ -2064,8 +2009,7 @@ void WsProtocol::handleMessage(
     send(
         client,
         "error",
-        data.as<
-            JsonVariantConst>());
+        data.as<JsonVariantConst>());
 
     return;
   }
@@ -2076,6 +2020,23 @@ void WsProtocol::handleMessage(
 
   JsonObjectConst data =
       message["data"];
+
+  auto sendCommandFailure =
+      [this, client](
+          const char* operation) {
+        JsonDocument out;
+
+        out["message"] =
+            "command_center_send_failed";
+
+        out["operation"] =
+            operation;
+
+        send(
+            client,
+            "error",
+            out.as<JsonVariantConst>());
+      };
 
   if (
       strcmp(
@@ -2088,8 +2049,7 @@ void WsProtocol::handleMessage(
     send(
         client,
         "heartbeatAck",
-        empty.as<
-            JsonVariantConst>());
+        empty.as<JsonVariantConst>());
 
     sendCommandCenterInfo(
         client);
@@ -2110,10 +2070,15 @@ void WsProtocol::handleMessage(
         data["on"] |
         false;
 
-    _commandCenter
-        .setTrackPower(
-            on,
-            _powerIncludesProgramming);
+    if (
+        !_commandCenter
+             .setTrackPower(
+                 on,
+                 _powerIncludesProgramming)
+    ) {
+      sendCommandFailure(
+          "setTrackPower");
+    }
 
     return;
   }
@@ -2128,9 +2093,14 @@ void WsProtocol::handleMessage(
         data["on"] |
         false;
 
-    _commandCenter
-        .setProgrammingPower(
-            on);
+    if (
+        !_commandCenter
+             .setProgrammingPower(
+                 on)
+    ) {
+      sendCommandFailure(
+          "setProgrammingPower");
+    }
 
     return;
   }
@@ -2149,6 +2119,9 @@ void WsProtocol::handleMessage(
           true;
 
       broadcastPowerInfo();
+    } else {
+      sendCommandFailure(
+          "emergencyStop");
     }
 
     return;
@@ -2181,8 +2154,7 @@ void WsProtocol::handleMessage(
     send(
         client,
         "dccExDirectCommandResponse",
-        out.as<
-            JsonVariantConst>());
+        out.as<JsonVariantConst>());
 
     return;
   }
@@ -2203,8 +2175,7 @@ void WsProtocol::handleMessage(
             max(
                 0,
                 data["speed"]
-                    .as<
-                        int>()));
+                    .as<int>()));
 
     const bool forward =
         strcmp(
@@ -2228,6 +2199,9 @@ void WsProtocol::handleMessage(
                  speed,
                  forward)
     ) {
+      sendCommandFailure(
+          "setLoco");
+
       return;
     }
 
@@ -2253,9 +2227,14 @@ void WsProtocol::handleMessage(
         data["locoAddress"] |
         0;
 
-    requestLocoState(
-        address,
-        false);
+    if (
+        !requestLocoState(
+            address,
+            false)
+    ) {
+      sendCommandFailure(
+          "getLoco");
+    }
 
     return;
   }
@@ -2306,6 +2285,9 @@ void WsProtocol::handleMessage(
                  fn,
                  active)
     ) {
+      sendCommandFailure(
+          "setLocoFunction");
+
       return;
     }
 
@@ -2341,11 +2323,21 @@ void WsProtocol::handleMessage(
         data["closed"] |
         false;
 
-    _runtime.setTurnout(
-        address,
-        physicalValue);
+    if (
+        !_commandCenter
+             .setTurnout(
+                 address,
+                 physicalValue)
+    ) {
+      sendCommandFailure(
+          "setTurnout");
 
-    _commandCenter.setTurnout(
+      return;
+    }
+
+    // Runtime and UI follow the command only after the command center
+    // accepted the operation.
+    _runtime.setTurnout(
         address,
         physicalValue);
 
@@ -2378,14 +2370,21 @@ void WsProtocol::handleMessage(
         data["aspect"] |
         0;
 
+    if (
+        !_commandCenter
+             .setSignalAspect(
+                 address,
+                 aspect)
+    ) {
+      sendCommandFailure(
+          "setSignalAspect");
+
+      return;
+    }
+
     _runtime.setSignal(
         address,
         aspect);
-
-    _commandCenter
-        .setSignalAspect(
-            address,
-            aspect);
 
     JsonDocument out;
 
@@ -2407,8 +2406,7 @@ void WsProtocol::handleMessage(
       const bool physicalValue =
           data[
               "turnoutPhysicalValue"]
-              .as<
-                  bool>();
+              .as<bool>();
 
       _runtime.setTurnout(
           address,
@@ -2444,11 +2442,19 @@ void WsProtocol::handleMessage(
         data["active"] |
         false;
 
-    _runtime.setAccessory(
-        address,
-        active);
+    if (
+        !_commandCenter
+             .setAccessory(
+                 address,
+                 active)
+    ) {
+      sendCommandFailure(
+          "setBasicAccessory");
 
-    _commandCenter.setAccessory(
+      return;
+    }
+
+    _runtime.setAccessory(
         address,
         active);
 
@@ -2481,11 +2487,19 @@ void WsProtocol::handleMessage(
         data["active"] |
         false;
 
-    _runtime.setVPin(
-        vpin,
-        active);
+    if (
+        !_commandCenter
+             .setVPin(
+                 vpin,
+                 active)
+    ) {
+      sendCommandFailure(
+          "setVpin");
 
-    _commandCenter.setVPin(
+      return;
+    }
+
+    _runtime.setVPin(
         vpin,
         active);
 
@@ -2553,8 +2567,7 @@ void WsProtocol::handleMessage(
             ? String()
             : String(
                   data["locoId"]
-                      .as<
-                          const char*>());
+                      .as<const char*>());
 
     const long addressValue =
         data["locoAddress"] |
@@ -2586,8 +2599,7 @@ void WsProtocol::handleMessage(
       send(
           client,
           "error",
-          out.as<
-              JsonVariantConst>());
+          out.as<JsonVariantConst>());
     }
 
     return;
@@ -2609,8 +2621,7 @@ void WsProtocol::handleMessage(
             ? String()
             : String(
                   data["locoId"]
-                      .as<
-                          const char*>());
+                      .as<const char*>());
 
     if (
         !blockId ||
@@ -2626,8 +2637,7 @@ void WsProtocol::handleMessage(
       send(
           client,
           "error",
-          out.as<
-              JsonVariantConst>());
+          out.as<JsonVariantConst>());
     }
 
     return;
@@ -2680,6 +2690,5 @@ void WsProtocol::handleMessage(
   send(
       client,
       "ack",
-      ack.as<
-          JsonVariantConst>());
+      ack.as<JsonVariantConst>());
 }

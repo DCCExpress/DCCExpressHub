@@ -22,6 +22,12 @@ public:
           "/config/signal-logic.ndjson");
 
   bool reload();
+
+  // Validates a candidate rule file with the exact same parser and semantic
+  // rules that reload() uses, without changing the currently active rules.
+  bool validateFile(
+      const char* path);
+
   void evaluate();
 
 private:
@@ -40,7 +46,9 @@ private:
   };
 
   struct Rule {
-    int16_t value = 0;
+    // int32_t is deliberate: a 16-output basic signal may use 0..65535.
+    int32_t value = 0;
+
     std::vector<Condition>
         conditions;
   };
@@ -49,13 +57,15 @@ private:
     uint16_t signalId = 0;
     bool extended = true;
     uint8_t outputs = 1;
-    int16_t defaultValue = 0;
+
+    // int32_t avoids overflow for 16-bit basic output masks.
+    int32_t defaultValue = 0;
 
     std::vector<Rule>
         rules;
 
     bool hasAppliedValue = false;
-    int16_t appliedValue = 0;
+    int32_t appliedValue = 0;
   };
 
   ICommandCenter& _commandCenter;
@@ -73,23 +83,24 @@ private:
   std::vector<SignalRuleSet>
       _signals;
 
-
-  bool parseMeta(
-      JsonObjectConst row);
+  bool parseFile(
+      const char* path,
+      bool& enabled,
+      std::vector<SignalRuleSet>& signals) const;
 
   bool parseSignal(
-      JsonObjectConst row);
-
+      JsonObjectConst row,
+      std::vector<SignalRuleSet>& signals) const;
 
   bool conditionMatches(
       const Condition& condition) const;
 
-  int16_t desiredValue(
+  int32_t desiredValue(
       const SignalRuleSet& signal) const;
 
   void applySignal(
       SignalRuleSet& signal,
-      int16_t value);
+      int32_t value);
 
   void broadcastExtended(
       uint16_t address,

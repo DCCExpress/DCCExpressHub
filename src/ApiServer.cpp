@@ -684,99 +684,13 @@ bool ApiServer::verifySignalLogicTemp() {
   const String tempPath =
       _signalLogicUpload.tempPath();
 
-  File file =
-      _files.openRead(
-          tempPath.c_str());
-
-  if (!file) {
-    return false;
-  }
-
-  bool valid =
-      true;
-
-  bool hasMeta =
-      false;
-
-  size_t rowCount =
-      0;
-
-  while (
-      file.available()
-  ) {
-    String line =
-        file.readStringUntil(
-            '\n');
-
-    line.trim();
-
-    if (
-        line.isEmpty()
-    ) {
-      continue;
-    }
-
-    JsonDocument row;
-
-    const DeserializationError error =
-        deserializeJson(
-            row,
-            line);
-
-    if (
-        error ||
-        !row.is<JsonObject>()
-    ) {
-      valid =
-          false;
-
-      break;
-    }
-
-    ++rowCount;
-
-    const char* kind =
-        row["kind"] |
-        "";
-
-    if (
-        rowCount == 1
-    ) {
-      if (
-          String(kind) !=
-          "meta"
-      ) {
-        valid =
-            false;
-
-        break;
-      }
-
-      const int version =
-          row["version"] |
-          0;
-
-      if (
-          version != 1 &&
-          version != 2
-      ) {
-        valid =
-            false;
-
-        break;
-      }
-
-      hasMeta =
-          true;
-    }
-  }
-
-  file.close();
-
+  // IMPORTANT: validate the uncommitted candidate with the exact same parser
+  // and semantic checks used by SignalAutomationEngine::reload().
+  // No invalid v1/malformed rule file can replace the last committed file.
   return
-      valid &&
-      hasMeta &&
-      rowCount > 0;
+      _signalAutomation
+          .validateFile(
+              tempPath.c_str());
 }
 
 void ApiServer::handleSignalLogicBody(
@@ -839,7 +753,7 @@ void ApiServer::handleSignalLogicBody(
         false;
 
     response["message"] =
-        "Invalid signal automation NDJSON";
+        "Invalid signal automation NDJSON v2";
 
     sendJson(
         request,
@@ -873,7 +787,7 @@ void ApiServer::handleSignalLogicBody(
         false;
 
     response["message"] =
-        "Signal automation saved but runtime reload failed";
+        "Signal automation committed but runtime reload failed";
 
     sendJson(
         request,
@@ -1680,6 +1594,7 @@ void ApiServer::setupApi() {
             doc);
       });
 
+  // Keep the existing DELETE endpoint for backwards compatibility.
   _server.on(
       "/delete",
       HTTP_DELETE,
@@ -1719,14 +1634,39 @@ void ApiServer::setupApi() {
           return;
         }
 
-        const bool ok =
-            LittleFS.remove(
+        File target =
+            LittleFS.open(
                 path);
+
+        if (!target) {
+          request->send(
+              404,
+              "application/json",
+              "{\"ok\":false}");
+
+          return;
+        }
+
+        const bool isDirectory =
+            target.isDirectory();
+
+        target.close();
+
+        const bool ok =
+            isDirectory
+                ? LittleFS.rmdir(
+                      path)
+                : LittleFS.remove(
+                      path);
 
         request->send(
             ok
                 ? 200
-                : 404,
+                : (
+                      isDirectory
+                          ? 409
+                          : 404
+                  ),
             "application/json",
             ok
                 ? "{\"ok\":true}"
@@ -1901,5 +1841,5 @@ void ApiServer::begin() {
   _server.begin();
 
   Logger::info(
-      "HTTP/WS server started on port 80");
+      "HTTP/WS server started");
 }

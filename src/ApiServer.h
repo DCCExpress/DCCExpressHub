@@ -7,6 +7,7 @@
 
 #include "AutomationsEndpoint.h"
 #include "DeviceConfigEndpoint.h"
+#include "FileManagementEndpoint.h"
 #include "FileStore.h"
 #include "HubConfigStore.h"
 #include "ICommandCenter.h"
@@ -57,6 +58,9 @@ private:
       _server};
 
   ScriptInfoEndpoint _scriptInfoEndpoint{
+      _server};
+
+  FileManagementEndpoint _fileManagementEndpoint{
       _server};
 
   AsyncWebSocket& _ws;

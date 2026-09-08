@@ -1,9 +1,42 @@
 #include "SignalAutomationEngine.h"
 
-#include "Logger.h"
 #include "FileStore.h"
+#include "Logger.h"
 
+namespace {
 
+bool valueFitsSignal(
+    bool extended,
+    uint8_t outputs,
+    int32_t value) {
+  if (extended) {
+    return
+        value >= 0 &&
+        value <= 255;
+  }
+
+  if (
+      value < 0 ||
+      value > 65535
+  ) {
+    return false;
+  }
+
+  const uint32_t mask =
+      outputs >= 16
+          ? 0xffffUL
+          : (
+                (1UL << outputs) -
+                1UL
+            );
+
+  return
+      static_cast<uint32_t>(
+          value) <=
+      mask;
+}
+
+}
 
 SignalAutomationEngine::SignalAutomationEngine(
     ICommandCenter& commandCenter,
@@ -12,7 +45,6 @@ SignalAutomationEngine::SignalAutomationEngine(
     : _commandCenter(commandCenter),
       _runtime(runtime),
       _ws(ws) {}
-
 
 bool SignalAutomationEngine::begin(
     fs::FS& fs,
@@ -37,7 +69,6 @@ bool SignalAutomationEngine::begin(
   const bool loaded =
       reload();
 
-
   if (loaded) {
     evaluate();
   }
@@ -45,30 +76,9 @@ bool SignalAutomationEngine::begin(
   return loaded;
 }
 
-
-bool SignalAutomationEngine::parseMeta(
-    JsonObjectConst row) {
-  const int version =
-      row["version"] |
-      0;
-
-  if (version != 2) {
-    Logger::warn(
-        "SignalAutomation: only compiled version 2 is supported");
-
-    return false;
-  }
-
-  _enabled =
-      row["enabled"] |
-      false;
-
-  return true;
-}
-
-
 bool SignalAutomationEngine::parseSignal(
-    JsonObjectConst row) {
+    JsonObjectConst row,
+    std::vector<SignalRuleSet>& signals) const {
   const long rawId =
       row["id"] |
       0L;
@@ -78,6 +88,19 @@ bool SignalAutomationEngine::parseSignal(
       rawId > 0xffff
   ) {
     return false;
+  }
+
+  for (
+      const auto& existing :
+      signals
+  ) {
+    if (
+        existing.signalId ==
+        static_cast<uint16_t>(
+            rawId)
+    ) {
+      return false;
+    }
   }
 
   const char* mode =
@@ -107,41 +130,109 @@ bool SignalAutomationEngine::parseSignal(
           "extended") ==
       0;
 
+  const int rawOutputs =
+      row["outputs"] |
+      1;
+
+  if (
+      rawOutputs < 1 ||
+      rawOutputs > 16
+  ) {
+    return false;
+  }
+
   signal.outputs =
-      constrain(
-          row["outputs"] |
-              1,
-          1,
-          16);
+      static_cast<uint8_t>(
+          rawOutputs);
+
+  const long defaultValue =
+      row["default"] |
+      0L;
+
+  if (
+      !valueFitsSignal(
+          signal.extended,
+          signal.outputs,
+          defaultValue)
+  ) {
+    return false;
+  }
 
   signal.defaultValue =
-      row["default"] |
-      0;
+      static_cast<int32_t>(
+          defaultValue);
+
+  if (
+      !row["rules"]
+           .is<JsonArray>()
+  ) {
+    return false;
+  }
 
   const JsonArrayConst rules =
       row["rules"]
-          .as<
-              JsonArrayConst>();
+          .as<JsonArrayConst>();
 
   for (
-      JsonObjectConst rawRule :
+      JsonVariantConst rawRuleVariant :
       rules
   ) {
+    if (
+        !rawRuleVariant
+             .is<JsonObject>()
+    ) {
+      return false;
+    }
+
+    const JsonObjectConst rawRule =
+        rawRuleVariant
+            .as<JsonObjectConst>();
+
+    const long rawValue =
+        rawRule["value"] |
+        0L;
+
+    if (
+        !valueFitsSignal(
+            signal.extended,
+            signal.outputs,
+            rawValue)
+    ) {
+      return false;
+    }
+
+    if (
+        !rawRule["conditions"]
+             .is<JsonArray>()
+    ) {
+      return false;
+    }
+
     Rule rule;
 
     rule.value =
-        rawRule["value"] |
-        0;
+        static_cast<int32_t>(
+            rawValue);
 
     const JsonArrayConst conditions =
         rawRule["conditions"]
-            .as<
-                JsonArrayConst>();
+            .as<JsonArrayConst>();
 
     for (
-        JsonArrayConst rawCondition :
+        JsonVariantConst rawConditionVariant :
         conditions
     ) {
+      if (
+          !rawConditionVariant
+               .is<JsonArray>()
+      ) {
+        return false;
+      }
+
+      const JsonArrayConst rawCondition =
+          rawConditionVariant
+              .as<JsonArrayConst>();
+
       if (
           rawCondition.size() !=
           4
@@ -223,16 +314,22 @@ bool SignalAutomationEngine::parseSignal(
                 rule));
   }
 
-  _signals.push_back(
+  signals.push_back(
       std::move(
           signal));
 
   return true;
 }
 
-
-bool SignalAutomationEngine::reload() {
-  if (!_fs) {
+bool SignalAutomationEngine::parseFile(
+    const char* path,
+    bool& enabled,
+    std::vector<SignalRuleSet>& signals) const {
+  if (
+      !_fs ||
+      !path ||
+      !*path
+  ) {
     return false;
   }
 
@@ -241,29 +338,20 @@ bool SignalAutomationEngine::reload() {
 
   File file =
       files.openRead(
-          _path.c_str());
+          path);
 
   if (!file) {
-    _enabled =
-        false;
-
-    _signals.clear();
-
-    Logger::info(
-        "SignalAutomation: no rule file");
-
-    return true;
+    return false;
   }
 
-  std::vector<
-      SignalRuleSet>
-      parsedSignals;
+  bool metaSeen =
+      false;
 
   bool parsedEnabled =
       false;
 
-  bool metaSeen =
-      false;
+  std::vector<SignalRuleSet>
+      parsedSignals;
 
   bool valid =
       true;
@@ -278,8 +366,7 @@ bool SignalAutomationEngine::reload() {
     line.trim();
 
     if (
-        line.length() ==
-        0
+        line.isEmpty()
     ) {
       continue;
     }
@@ -293,8 +380,7 @@ bool SignalAutomationEngine::reload() {
 
     if (
         error ||
-        !row.is<
-            JsonObject>()
+        !row.is<JsonObject>()
     ) {
       valid =
           false;
@@ -303,8 +389,7 @@ bool SignalAutomationEngine::reload() {
     }
 
     const JsonObjectConst object =
-        row.as<
-            JsonObjectConst>();
+        row.as<JsonObjectConst>();
 
     const char* kind =
         object["kind"] |
@@ -316,19 +401,9 @@ bool SignalAutomationEngine::reload() {
             "meta") ==
         0
     ) {
-      if (metaSeen) {
-        valid =
-            false;
-
-        break;
-      }
-
-      const int version =
-          object["version"] |
-          0;
-
       if (
-          version != 2
+          metaSeen ||
+          (object["version"] | 0) != 2
       ) {
         valid =
             false;
@@ -351,34 +426,16 @@ bool SignalAutomationEngine::reload() {
         strcmp(
             kind,
             "signal") !=
-            0
-    ) {
-      valid =
-          false;
-
-      break;
-    }
-
-    const size_t oldSize =
-        _signals.size();
-
-    if (
+            0 ||
         !parseSignal(
-            object)
+            object,
+            parsedSignals)
     ) {
       valid =
           false;
 
       break;
     }
-
-    parsedSignals
-        .push_back(
-            std::move(
-                _signals.back()));
-
-    _signals.resize(
-        oldSize);
   }
 
   file.close();
@@ -386,6 +443,69 @@ bool SignalAutomationEngine::reload() {
   if (
       !valid ||
       !metaSeen
+  ) {
+    return false;
+  }
+
+  enabled =
+      parsedEnabled;
+
+  signals =
+      std::move(
+          parsedSignals);
+
+  return true;
+}
+
+bool SignalAutomationEngine::validateFile(
+    const char* path) {
+  bool enabled =
+      false;
+
+  std::vector<SignalRuleSet>
+      signals;
+
+  return
+      parseFile(
+          path,
+          enabled,
+          signals);
+}
+
+bool SignalAutomationEngine::reload() {
+  if (!_fs) {
+    return false;
+  }
+
+  FileStore files(
+      *_fs);
+
+  if (
+      !files.exists(
+          _path.c_str())
+  ) {
+    _enabled =
+        false;
+
+    _signals.clear();
+
+    Logger::info(
+        "SignalAutomation: no rule file");
+
+    return true;
+  }
+
+  bool parsedEnabled =
+      false;
+
+  std::vector<SignalRuleSet>
+      parsedSignals;
+
+  if (
+      !parseFile(
+          _path.c_str(),
+          parsedEnabled,
+          parsedSignals)
   ) {
     Logger::error(
         "SignalAutomation: invalid NDJSON");
@@ -412,7 +532,6 @@ bool SignalAutomationEngine::reload() {
 
   return true;
 }
-
 
 bool SignalAutomationEngine::conditionMatches(
     const Condition& condition) const {
@@ -442,8 +561,7 @@ bool SignalAutomationEngine::conditionMatches(
           condition.value;
 }
 
-
-int16_t SignalAutomationEngine::desiredValue(
+int32_t SignalAutomationEngine::desiredValue(
     const SignalRuleSet& signal) const {
   for (
       const auto& rule :
@@ -477,7 +595,6 @@ int16_t SignalAutomationEngine::desiredValue(
       signal.defaultValue;
 }
 
-
 void SignalAutomationEngine::broadcastExtended(
     uint16_t address,
     int16_t aspect) {
@@ -495,8 +612,7 @@ void SignalAutomationEngine::broadcastExtended(
       "signalAspectChanged";
 
   message["data"].set(
-      data.as<
-          JsonVariantConst>());
+      data.as<JsonVariantConst>());
 
   String body;
 
@@ -507,7 +623,6 @@ void SignalAutomationEngine::broadcastExtended(
   _ws.textAll(
       body);
 }
-
 
 void SignalAutomationEngine::broadcastBasic(
     uint16_t address,
@@ -543,8 +658,7 @@ void SignalAutomationEngine::broadcastBasic(
         "accessoryChanged";
 
     message["data"].set(
-        data.as<
-            JsonVariantConst>());
+        data.as<JsonVariantConst>());
 
     String body;
 
@@ -557,10 +671,9 @@ void SignalAutomationEngine::broadcastBasic(
   }
 }
 
-
 void SignalAutomationEngine::applySignal(
     SignalRuleSet& signal,
-    int16_t value) {
+    int32_t value) {
   RuntimeAccessory* target =
       _runtime.findAccessoryById(
           RuntimeAccessoryKind::Signal,
@@ -587,21 +700,26 @@ void SignalAutomationEngine::applySignal(
 
   if (signal.extended) {
     if (
+        value < 0 ||
+        value > 255 ||
         !_commandCenter
              .setSignalAspect(
                  target->address,
-                 value)
+                 static_cast<int16_t>(
+                     value))
     ) {
       return;
     }
 
     _runtime.setSignal(
         target->address,
-        value);
+        static_cast<int>(
+            value));
 
     broadcastExtended(
         target->address,
-        value);
+        static_cast<int16_t>(
+            value));
 
     Logger::info(
         "SignalAutomation: extended signal address " +
@@ -611,6 +729,13 @@ void SignalAutomationEngine::applySignal(
         String(
             value));
   } else {
+    if (
+        value < 0 ||
+        value > 65535
+    ) {
+      return;
+    }
+
     const uint16_t bits =
         static_cast<uint16_t>(
             value);
@@ -643,7 +768,8 @@ void SignalAutomationEngine::applySignal(
 
     _runtime.setSignal(
         target->address,
-        value);
+        static_cast<int>(
+            value));
 
     broadcastBasic(
         target->address,
@@ -665,7 +791,6 @@ void SignalAutomationEngine::applySignal(
   signal.hasAppliedValue =
       true;
 }
-
 
 void SignalAutomationEngine::evaluate() {
   if (
@@ -691,7 +816,6 @@ void SignalAutomationEngine::evaluate() {
   _evaluating =
       false;
 }
-
 
 void SignalAutomationEngine::handleRuntimeChange(
     RuntimeChangeKind kind,
