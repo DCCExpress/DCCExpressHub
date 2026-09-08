@@ -13,6 +13,10 @@ public:
 
   void begin();
 
+  // Applies the M5Stack / ILI9342C panel settings expected by the Hub:
+  // normal landscape orientation and display inversion ON.
+  void configureForHub();
+
   void clear(
       uint16_t color = BLACK);
 

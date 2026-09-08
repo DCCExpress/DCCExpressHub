@@ -2,6 +2,36 @@
 
 #include <string.h>
 
+void MiniIli9342Display::configureForHub() {
+  // The original driver currently leaves the panel at MADCTL 0xA8:
+  //   MY | MV | BGR -> inverse landscape.
+  //
+  // M5Stack's own TFT_eSPI rotation table uses this for setRotation(1):
+  //   BGR only = 0x08.
+  const uint8_t madctl[] = {
+      0x08};
+
+  writeCommandData(
+      0x36,
+      madctl,
+      sizeof(madctl));
+
+  // ILI9342C panels used by M5Stack require Display Inversion ON for the
+  // expected black background / normal colour rendering. Without this the
+  // same framebuffer can appear white/inverted.
+  writeCommand(
+      0x21);
+
+  delay(10);
+
+  // Re-establish the Hub's logical defaults after changing panel mode.
+  _cursorX = 0;
+  _cursorY = 0;
+  _textSize = 1;
+  _foreground = WHITE;
+  _background = BLACK;
+}
+
 void MiniIli9342Display::fillRect(
     int16_t x,
     int16_t y,

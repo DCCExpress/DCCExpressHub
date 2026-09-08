@@ -5,6 +5,13 @@
 void HubDisplay::begin() {
   _display.begin();
 
+#if HUB_DISPLAY_M5STACK_BASIC
+  // The M5Stack ILI9342C panel needs normal landscape (rotation 1) and
+  // inversion ON. The original low-level init leaves it inverse-landscape
+  // with inverted/white-looking colours on this panel revision.
+  _display.configureForHub();
+#endif
+
   _display.setTextSize(
       2);
 
