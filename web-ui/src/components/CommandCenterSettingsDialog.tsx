@@ -19,8 +19,39 @@ import {
 import {
   useCallback,
   useEffect,
+  useMemo,
   useState,
 } from "react";
+
+type CommandCenterType =
+  | "dcc-ex"
+  | "z21"
+  | string;
+
+type CommandCenterCapabilities = {
+  trackPower: boolean;
+  programmingTrackPower: boolean;
+  rawCommand: boolean;
+  vPin: boolean;
+  extendedAccessory: boolean;
+  currentTelemetry: boolean;
+  trackConfiguration: boolean;
+  locomotiveControl: boolean;
+  locomotiveFunctions: boolean;
+  turnoutControl: boolean;
+  basicAccessory: boolean;
+  signalAspect: boolean;
+};
+
+type CommandCenterInfoDto = {
+  ok: boolean;
+  type: CommandCenterType;
+  name: string;
+  defaultPort: number;
+  connected: boolean;
+  capabilities: CommandCenterCapabilities;
+  message?: string;
+};
 
 type CommandCenterConfigDto = {
   ok: boolean;
@@ -33,8 +64,12 @@ type CommandCenterConfigDto = {
 
 type CommandCenterTestDto = {
   ok: boolean;
+
+  // Legacy backend field names. For Z21 these mean transport/session
+  // reachability even though the transport is UDP rather than TCP.
   tcpConnected: boolean;
   dccExAlive: boolean;
+
   reply?: string;
   elapsedMs?: number;
   message?: string;
@@ -48,11 +83,15 @@ type Props = {
 function formBody(
   values: Record<string, string>,
 ): URLSearchParams {
-  const body = new URLSearchParams();
+  const body =
+    new URLSearchParams();
 
   Object.entries(values).forEach(
     ([key, value]) => {
-      body.set(key, value);
+      body.set(
+        key,
+        value,
+      );
     },
   );
 
@@ -67,63 +106,155 @@ export default function CommandCenterSettingsDialog(
     onClose,
   } = props;
 
-  const [host, setHost] = useState("");
-  const [port, setPort] = useState("2560");
+  const [info, setInfo] =
+    useState<CommandCenterInfoDto | null>(
+      null,
+    );
+
+  const [host, setHost] =
+    useState("");
+
+  const [port, setPort] =
+    useState("");
+
   const [
     powerIncludesProgramming,
     setPowerIncludesProgramming,
   ] = useState(true);
-  const [connected, setConnected] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [testing, setTesting] = useState(false);
-  const [saving, setSaving] = useState(false);
+
+  const [connected, setConnected] =
+    useState(false);
+
+  const [loading, setLoading] =
+    useState(false);
+
+  const [testing, setTesting] =
+    useState(false);
+
+  const [saving, setSaving] =
+    useState(false);
+
   const [
     testResult,
     setTestResult,
-  ] = useState<CommandCenterTestDto | null>(null);
-  const [error, setError] = useState("");
+  ] =
+    useState<CommandCenterTestDto | null>(
+      null,
+    );
 
-  const loadConfig = useCallback(
-    async () => {
-      setLoading(true);
-      setError("");
-      setTestResult(null);
+  const [error, setError] =
+    useState("");
 
-      try {
-        const response = await fetch(
-          "/api/command-center-config",
-          {
-            cache: "no-store",
-          },
-        );
+  const isZ21 =
+    info?.type ===
+    "z21";
 
-        if (!response.ok) {
-          throw new Error(
-            `Could not load EX-CSB1 settings (HTTP ${response.status}).`,
+  const commandCenterName =
+    info?.name ??
+    "Command center";
+
+  const transportLabel =
+    isZ21
+      ? "Z21 UDP port"
+      : "DCC-EX TCP port";
+
+  const defaultPortPlaceholder =
+    String(
+      info?.defaultPort ??
+        (
+          isZ21
+            ? 21105
+            : 2560
+        ),
+    );
+
+  const loadConfig =
+    useCallback(
+      async () => {
+        setLoading(true);
+        setError("");
+        setTestResult(null);
+
+        try {
+          const [
+            infoResponse,
+            configResponse,
+          ] =
+            await Promise.all([
+              fetch(
+                "/api/command-center-info",
+                {
+                  cache:
+                    "no-store",
+                },
+              ),
+              fetch(
+                "/api/command-center-config",
+                {
+                  cache:
+                    "no-store",
+                },
+              ),
+            ]);
+
+          if (!infoResponse.ok) {
+            throw new Error(
+              `Could not load command-center capabilities (HTTP ${infoResponse.status}).`,
+            );
+          }
+
+          if (!configResponse.ok) {
+            throw new Error(
+              `Could not load command-center settings (HTTP ${configResponse.status}).`,
+            );
+          }
+
+          const loadedInfo =
+            await infoResponse.json() as
+              CommandCenterInfoDto;
+
+          const config =
+            await configResponse.json() as
+              CommandCenterConfigDto;
+
+          setInfo(
+            loadedInfo,
           );
+
+          setHost(
+            config.host,
+          );
+
+          setPort(
+            String(
+              config.port,
+            ),
+          );
+
+          setPowerIncludesProgramming(
+            loadedInfo
+              .capabilities
+              .programmingTrackPower
+              ? config
+                  .powerIncludesProgramming
+              : false,
+          );
+
+          setConnected(
+            config.connected,
+          );
+        } catch (cause) {
+          setError(
+            cause instanceof Error
+              ? cause.message
+              : String(cause),
+          );
+        } finally {
+          setLoading(false);
         }
-
-        const config =
-          await response.json() as CommandCenterConfigDto;
-
-        setHost(config.host);
-        setPort(String(config.port));
-        setPowerIncludesProgramming(
-          config.powerIncludesProgramming,
-        );
-        setConnected(config.connected);
-      } catch (cause) {
-        setError(
-          cause instanceof Error
-            ? cause.message
-            : String(cause),
-        );
-      } finally {
-        setLoading(false);
-      }
-    },
-    [],
-  );
+      },
+      [],
+    );
 
   useEffect(
     () => {
@@ -143,43 +274,56 @@ export default function CommandCenterSettingsDialog(
         port: number;
       }
     | null {
-    const cleanHost = host.trim();
-    const numericPort = Number(port);
+    const cleanHost =
+      host.trim();
+
+    const numericPort =
+      Number(port);
 
     if (!cleanHost) {
       setError(
         "IP address / hostname is required.",
       );
+
       return null;
     }
 
     if (
-      !Number.isInteger(numericPort) ||
+      !Number.isInteger(
+        numericPort,
+      ) ||
       numericPort < 1 ||
       numericPort > 65535
     ) {
       setError(
         "Port must be between 1 and 65535.",
       );
+
       return null;
     }
 
     return {
-      host: cleanHost,
-      port: numericPort,
+      host:
+        cleanHost,
+      port:
+        numericPort,
     };
   }
 
-  async function testConnection(): Promise<void> {
-    const endpoint = validatedEndpoint();
+  async function testConnection():
+    Promise<void> {
+    const endpoint =
+      validatedEndpoint();
 
     if (!endpoint) {
       setTestResult({
         ok: false,
         tcpConnected: false,
         dccExAlive: false,
-        message: "Invalid connection settings.",
+        message:
+          "Invalid connection settings.",
       });
+
       return;
     }
 
@@ -188,26 +332,38 @@ export default function CommandCenterSettingsDialog(
     setTestResult(null);
 
     try {
-      const response = await fetch(
-        "/api/command-center-test",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type":
-              "application/x-www-form-urlencoded;charset=UTF-8",
-          },
-          body: formBody({
-            host: endpoint.host,
-            port: String(endpoint.port),
-          }),
-        },
-      );
+      const response =
+        await fetch(
+          "/api/command-center-test",
+          {
+            method:
+              "POST",
 
-      let result: CommandCenterTestDto;
+            headers: {
+              "Content-Type":
+                "application/x-www-form-urlencoded;charset=UTF-8",
+            },
+
+            body:
+              formBody({
+                host:
+                  endpoint.host,
+
+                port:
+                  String(
+                    endpoint.port,
+                  ),
+              }),
+          },
+        );
+
+      let result:
+        CommandCenterTestDto;
 
       try {
         result =
-          await response.json() as CommandCenterTestDto;
+          await response.json() as
+            CommandCenterTestDto;
       } catch {
         result = {
           ok: false,
@@ -218,7 +374,9 @@ export default function CommandCenterSettingsDialog(
         };
       }
 
-      setTestResult(result);
+      setTestResult(
+        result,
+      );
     } catch (cause) {
       setTestResult({
         ok: false,
@@ -234,36 +392,58 @@ export default function CommandCenterSettingsDialog(
     }
   }
 
-  async function saveConfig(): Promise<void> {
-    const endpoint = validatedEndpoint();
+  async function saveConfig():
+    Promise<void> {
+    const endpoint =
+      validatedEndpoint();
 
-    if (!endpoint) return;
+    if (!endpoint) {
+      return;
+    }
 
     setSaving(true);
     setError("");
 
     try {
-      const response = await fetch(
-        "/api/command-center-config",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type":
-              "application/x-www-form-urlencoded;charset=UTF-8",
+      const effectivePowerIncludesProgramming =
+        info?.capabilities
+          .programmingTrackPower
+          ? powerIncludesProgramming
+          : false;
+
+      const response =
+        await fetch(
+          "/api/command-center-config",
+          {
+            method:
+              "POST",
+
+            headers: {
+              "Content-Type":
+                "application/x-www-form-urlencoded;charset=UTF-8",
+            },
+
+            body:
+              formBody({
+                host:
+                  endpoint.host,
+
+                port:
+                  String(
+                    endpoint.port,
+                  ),
+
+                powerIncludesProgramming:
+                  effectivePowerIncludesProgramming
+                    ? "true"
+                    : "false",
+              }),
           },
-          body: formBody({
-            host: endpoint.host,
-            port: String(endpoint.port),
-            powerIncludesProgramming:
-              powerIncludesProgramming
-                ? "true"
-                : "false",
-          }),
-        },
-      );
+        );
 
       const result =
-        await response.json() as CommandCenterConfigDto;
+        await response.json() as
+          CommandCenterConfigDto;
 
       if (
         !response.ok ||
@@ -271,22 +451,23 @@ export default function CommandCenterSettingsDialog(
       ) {
         throw new Error(
           result.message ??
-            "Could not save EX-CSB1 settings.",
+            "Could not save command-center settings.",
         );
       }
 
-      setConnected(result.connected);
+      setConnected(
+        result.connected,
+      );
 
       showNotification({
-        color: "green",
-        title: "EX-CSB1 settings saved",
+        color:
+          "green",
+
+        title:
+          `${commandCenterName} settings saved`,
+
         message:
-          `${endpoint.host}:${endpoint.port} · ` +
-          (
-            powerIncludesProgramming
-              ? "POWER controls MAIN + PROG"
-              : "POWER controls MAIN only"
-          ),
+          `${endpoint.host}:${endpoint.port}`,
       });
 
       onClose();
@@ -301,53 +482,107 @@ export default function CommandCenterSettingsDialog(
     }
   }
 
-  let testColor = "gray";
-  let testTitle = "Connection test";
-  let testMessage =
-    "Press TEST to verify TCP connectivity and the DCC-EX <#> reply.";
-  let testReply = "Reply: —";
-  let testElapsed = "Elapsed: —";
+  const testPresentation =
+    useMemo(
+      () => {
+        let color =
+          "gray";
 
-  if (testing) {
-    testColor = "gray";
-    testTitle = "Testing EX-CSB1 connection...";
-    testMessage =
-      `Checking ${host.trim() || "host"}:${port || "port"}`;
-    testReply = "Waiting for DCC-EX reply...";
-  } else if (testResult) {
-    if (testResult.dccExAlive) {
-      testColor = "green";
-      testTitle = "DCC-EX connection OK";
-    } else {
-      testColor = "red";
-      testTitle =
-        testResult.tcpConnected
-          ? "TCP connected, but no DCC-EX reply"
-          : "EX-CSB1 connection failed";
-    }
+        let title =
+          "Connection test";
 
-    testMessage =
-      testResult.message ??
-      (
-        testResult.dccExAlive
-          ? "The configured endpoint answered the DCC-EX <#> query."
-          : "No valid DCC-EX <#> reply was received."
-      );
+        let message =
+          isZ21
+            ? "Press TEST to verify the Z21 UDP session."
+            : "Press TEST to verify TCP connectivity and the DCC-EX <#> reply.";
 
-    testReply =
-      `Reply: ${testResult.reply ?? "—"}`;
+        let reply =
+          "Reply: —";
 
-    testElapsed =
-      testResult.elapsedMs === undefined
-        ? "Elapsed: —"
-        : `Elapsed: ${testResult.elapsedMs} ms`;
-  }
+        let elapsed =
+          "Elapsed: —";
+
+        if (testing) {
+          title =
+            `Testing ${commandCenterName} connection...`;
+
+          message =
+            `Checking ${host.trim() || "host"}:${port || "port"}`;
+
+          reply =
+            isZ21
+              ? "Waiting for Z21 system-state reply..."
+              : "Waiting for DCC-EX reply...";
+        } else if (testResult) {
+          if (testResult.dccExAlive) {
+            color =
+              "green";
+
+            title =
+              `${commandCenterName} connection OK`;
+          } else {
+            color =
+              "red";
+
+            title =
+              isZ21
+                ? "Z21 connection failed"
+                : (
+                  testResult.tcpConnected
+                    ? "TCP connected, but no DCC-EX reply"
+                    : "DCC-EX connection failed"
+                );
+          }
+
+          message =
+            testResult.message ??
+            (
+              testResult.dccExAlive
+                ? (
+                  isZ21
+                    ? "The configured endpoint answered the Z21 system-state query."
+                    : "The configured endpoint answered the DCC-EX <#> query."
+                )
+                : (
+                  isZ21
+                    ? "No valid Z21 system-state reply was received."
+                    : "No valid DCC-EX <#> reply was received."
+                )
+            );
+
+          reply =
+            `Reply: ${testResult.reply ?? "—"}`;
+
+          elapsed =
+            testResult.elapsedMs ===
+            undefined
+              ? "Elapsed: —"
+              : `Elapsed: ${testResult.elapsedMs} ms`;
+        }
+
+        return {
+          color,
+          title,
+          message,
+          reply,
+          elapsed,
+        };
+      },
+      [
+        commandCenterName,
+        host,
+        isZ21,
+        port,
+        testResult,
+        testing,
+      ],
+    );
 
   return (
     <Modal
       opened={opened}
       onClose={onClose}
-      title="EX-CSB1 connection"
+      title={`${commandCenterName} connection`}
       size={500}
       centered
       closeOnClickOutside={
@@ -360,12 +595,25 @@ export default function CommandCenterSettingsDialog(
       }
       styles={{
         content: {
-          height: 570,
-          maxHeight: 570,
+          height:
+            info?.capabilities
+              .programmingTrackPower
+              ? 570
+              : 500,
+
+          maxHeight:
+            info?.capabilities
+              .programmingTrackPower
+              ? 570
+              : 500,
         },
+
         body: {
-          height: "calc(100% - 60px)",
-          overflow: "hidden",
+          height:
+            "calc(100% - 60px)",
+
+          overflow:
+            "hidden",
         },
       }}
     >
@@ -377,12 +625,27 @@ export default function CommandCenterSettingsDialog(
           justify="space-between"
           wrap="nowrap"
         >
-          <Text
-            size="sm"
-            c="dimmed"
+          <Stack
+            gap={0}
           >
-            Current connection
-          </Text>
+            <Text
+              size="sm"
+              c="dimmed"
+            >
+              Current connection
+            </Text>
+
+            {
+              info && (
+                <Text
+                  size="xs"
+                  c="dimmed"
+                >
+                  Firmware: {info.name} ({info.type})
+                </Text>
+              )
+            }
+          </Stack>
 
           <Badge
             color={
@@ -402,7 +665,11 @@ export default function CommandCenterSettingsDialog(
 
         <TextInput
           label="IP address / hostname"
-          placeholder="192.168.1.143"
+          placeholder={
+            isZ21
+              ? "192.168.0.111"
+              : "192.168.1.143"
+          }
           value={host}
           onChange={
             event =>
@@ -418,8 +685,10 @@ export default function CommandCenterSettingsDialog(
         />
 
         <TextInput
-          label="DCC-EX TCP port"
-          placeholder="2560"
+          label={transportLabel}
+          placeholder={
+            defaultPortPlaceholder
+          }
           value={port}
           inputMode="numeric"
           onChange={
@@ -435,36 +704,48 @@ export default function CommandCenterSettingsDialog(
           }
         />
 
-        <Switch
-          checked={
-            powerIncludesProgramming
-          }
-          onChange={
-            event =>
-              setPowerIncludesProgramming(
-                event.currentTarget.checked,
-              )
-          }
-          disabled={
-            loading ||
-            saving ||
-            testing
-          }
-          label="POWER button also controls the PROG track"
-          description={
-            powerIncludesProgramming
-              ? "POWER ON/OFF controls MAIN + PROG."
-              : "POWER ON/OFF controls MAIN only; PROG remains independent."
-          }
-        />
+        {
+          info?.capabilities
+            .programmingTrackPower && (
+            <Switch
+              checked={
+                powerIncludesProgramming
+              }
+              onChange={
+                event =>
+                  setPowerIncludesProgramming(
+                    event.currentTarget.checked,
+                  )
+              }
+              disabled={
+                loading ||
+                saving ||
+                testing
+              }
+              label="POWER button also controls the PROG track"
+              description={
+                powerIncludesProgramming
+                  ? "POWER ON/OFF controls MAIN + PROG."
+                  : "POWER ON/OFF controls MAIN only; PROG remains independent."
+              }
+            />
+          )
+        }
 
         <Alert
-          color={testColor}
+          color={
+            testPresentation.color
+          }
           variant="light"
           style={{
-            height: 132,
-            overflowY: "auto",
-            flexShrink: 0,
+            height:
+              132,
+
+            overflowY:
+              "auto",
+
+            flexShrink:
+              0,
           }}
         >
           <Stack gap={4}>
@@ -472,25 +753,25 @@ export default function CommandCenterSettingsDialog(
               size="sm"
               fw={700}
             >
-              {testTitle}
+              {testPresentation.title}
             </Text>
 
             <Text size="xs">
-              {testMessage}
+              {testPresentation.message}
             </Text>
 
             <Text
               size="xs"
               ff="monospace"
             >
-              {testReply}
+              {testPresentation.reply}
             </Text>
 
             <Text
               size="xs"
               c="dimmed"
             >
-              {testElapsed}
+              {testPresentation.elapsed}
             </Text>
           </Stack>
         </Alert>
@@ -499,9 +780,14 @@ export default function CommandCenterSettingsDialog(
           size="xs"
           c="red"
           style={{
-            height: 34,
-            overflowY: "auto",
-            flexShrink: 0,
+            height:
+              34,
+
+            overflowY:
+              "auto",
+
+            flexShrink:
+              0,
           }}
         >
           {error}

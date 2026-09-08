@@ -1,6 +1,8 @@
 import {
   ActionIcon,
+  Alert,
   Group,
+  Loader,
   Stack,
   Text,
   ThemeIcon,
@@ -8,9 +10,20 @@ import {
 } from "@mantine/core";
 
 import {
+  IconAlertTriangle,
   IconArrowLeft,
   IconTerminal2,
 } from "@tabler/icons-react";
+
+import {
+  useEffect,
+  useState,
+} from "react";
+
+import {
+  getCommandCenterInfo,
+  type CommandCenterInfo,
+} from "@/api/commandCenterInfo";
 
 import ConsolePanel from "@/components/ConsolePanel";
 
@@ -21,6 +34,55 @@ type Props = {
 export default function ConsolePage({
   onBack,
 }: Props) {
+  const [
+    info,
+    setInfo,
+  ] =
+    useState<CommandCenterInfo | null>(
+      null,
+    );
+
+  const [
+    error,
+    setError,
+  ] =
+    useState("");
+
+  useEffect(
+    () => {
+      let active =
+        true;
+
+      void getCommandCenterInfo()
+        .then(
+          value => {
+            if (active) {
+              setInfo(
+                value,
+              );
+            }
+          },
+        )
+        .catch(
+          cause => {
+            if (active) {
+              setError(
+                cause instanceof Error
+                  ? cause.message
+                  : String(cause),
+              );
+            }
+          },
+        );
+
+      return () => {
+        active =
+          false;
+      };
+    },
+    [],
+  );
+
   return (
     <Stack gap="md">
       <Group
@@ -64,15 +126,70 @@ export default function ConsolePage({
               size="sm"
               c="dimmed"
             >
-              Send raw DCC-EX
-              commands over
-              WebSocket
+              {
+                info
+                  ? `${info.name} diagnostics`
+                  : "Command-center diagnostics"
+              }
             </Text>
           </div>
         </Group>
       </Group>
 
-      <ConsolePanel />
+      {
+        !info &&
+        !error && (
+          <Group
+            justify="center"
+            py="xl"
+          >
+            <Loader
+              size="sm"
+            />
+          </Group>
+        )
+      }
+
+      {
+        error && (
+          <Alert
+            color="red"
+            icon={
+              <IconAlertTriangle
+                size={18}
+              />
+            }
+          >
+            {error}
+          </Alert>
+        )
+      }
+
+      {
+        info &&
+        !info.capabilities.rawCommand && (
+          <Alert
+            color="blue"
+            title={`${info.name} raw console is not available`}
+            icon={
+              <IconAlertTriangle
+                size={18}
+              />
+            }
+          >
+            This firmware uses the {info.name} protocol and does not expose
+            raw DCC-EX commands. Normal locomotive, turnout, accessory,
+            signal and power controls remain available through DCCExpressHub.
+          </Alert>
+        )
+      }
+
+      {
+        info?.capabilities
+          .rawCommand && (
+          <ConsolePanel />
+        )
+      }
     </Stack>
   );
 }
