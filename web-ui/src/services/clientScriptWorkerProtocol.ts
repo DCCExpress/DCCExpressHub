@@ -46,6 +46,11 @@ export type MainToWorkerMessage =
       ready: boolean;
     }
   | {
+      type: "sensorSnapshot";
+      sensors: Record<string, boolean>;
+      ready: boolean;
+    }
+  | {
       type: "start";
       executionId: ClientScriptWorkerExecutionId;
       script: string;

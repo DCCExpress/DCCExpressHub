@@ -1,10 +1,12 @@
 #include "App.h"
 
+#include <ArduinoJson.h>
 #include <ESPmDNS.h>
 #include <LittleFS.h>
 #include <WiFi.h>
 
 #include "Logger.h"
+#include "S88I2CConfig.h"
 
 namespace {
 
@@ -20,6 +22,122 @@ bool parseIp(
       text);
 }
 
+void sendWsJson(
+    AsyncWebSocket& ws,
+    JsonDocument& document) {
+  String body;
+
+  serializeJson(
+      document,
+      body);
+
+  ws.textAll(
+      body);
+}
+
+}
+
+void App::broadcastS88SensorChanged(
+    uint16_t address,
+    bool occupied) {
+  // Keep dedicated TrackSensor runtime objects synchronized as well.
+  // Ordinary track elements are updated by the browser from sensorChanged /
+  // sensorSnapshot using their occupancy address.
+  _runtime.setSensor(
+      address,
+      occupied);
+
+  JsonDocument message;
+
+  message["type"] =
+      "sensorChanged";
+
+  JsonObject data =
+      message["data"]
+          .to<JsonObject>();
+
+  data["address"] =
+      address;
+
+  data["on"] =
+      occupied;
+
+  sendWsJson(
+      _ws,
+      message);
+
+  Logger::info(
+      "S88 WS sensorChanged: address=" +
+      String(address) +
+      " on=" +
+      String(
+          occupied
+              ? "true"
+              : "false"));
+}
+
+void App::broadcastS88Snapshot() {
+  if (
+      !_s88I2c.enabled() ||
+      !_s88I2c.snapshotKnown()
+  ) {
+    return;
+  }
+
+  JsonDocument message;
+
+  message["type"] =
+      "sensorSnapshot";
+
+  JsonObject data =
+      message["data"]
+          .to<JsonObject>();
+
+  JsonArray groups =
+      data["groups"]
+          .to<JsonArray>();
+
+  JsonArray group =
+      groups.add<JsonArray>();
+
+  group.add(
+      _s88I2c.baseSensorAddress());
+
+  group.add(
+      _s88I2c.activeBits());
+
+  // Current transport knows all 16 bits.
+  group.add(
+      0xffffU);
+
+  sendWsJson(
+      _ws,
+      message);
+}
+
+void App::updateS88WebSocket() {
+  if (
+      !_s88I2c.enabled() ||
+      !_s88I2c.snapshotKnown()
+  ) {
+    return;
+  }
+
+  const unsigned long now =
+      millis();
+
+  if (
+      now -
+          _lastS88WsSnapshotAt <
+      S88_WS_SNAPSHOT_INTERVAL_MS
+  ) {
+    return;
+  }
+
+  _lastS88WsSnapshotAt =
+      now;
+
+  broadcastS88Snapshot();
 }
 
 void App::loadConfiguration() {
@@ -116,10 +234,20 @@ void App::connectWifi() {
   while (
       WiFi.status() !=
           WL_CONNECTED &&
-      millis() - started <
+      millis() -
+          started <
           15000
   ) {
     _serialConfigurator.loop();
+
+    _s88I2c.loop();
+    updateS88WebSocket();
+
+    if (_s88I2c.enabled()) {
+      _display.showS88Status(
+          _s88I2c.slaveAddress(),
+          _s88I2c.slavePresent());
+    }
 
     _display.loop();
     delay(25);
@@ -177,6 +305,12 @@ void App::updateDisplay() {
         connected);
   }
 
+  if (_s88I2c.enabled()) {
+    _display.showS88Status(
+        _s88I2c.slaveAddress(),
+        _s88I2c.slavePresent());
+  }
+
   _display.loop();
 }
 
@@ -192,6 +326,23 @@ void App::begin() {
   loadConfiguration();
 
   _serialConfigurator.begin();
+
+  _s88I2c.onSensorChange(
+      [this](
+          uint16_t address,
+          bool occupied) {
+        broadcastS88SensorChanged(
+            address,
+            occupied);
+      });
+
+  _s88I2c.begin();
+
+  if (_s88I2c.enabled()) {
+    _display.showS88Status(
+        _s88I2c.slaveAddress(),
+        _s88I2c.slavePresent());
+  }
 
   if (!LittleFS.begin(true)) {
     Logger::error(
@@ -264,23 +415,22 @@ void App::begin() {
 
 void App::loop() {
   _serialConfigurator.loop();
+
+  _s88I2c.loop();
+  updateS88WebSocket();
+
   _commandCenter.loop();
   _wsProtocol.loop();
   _wsProtocol.cleanupClients();
 
-  // DCC-EX pause/resume is the authoritative E-STOP state. The compiled
-  // command-center wrapper also learns external <!PAUSED>/<!RESUMED>
-  // broadcasts and queries the status after reconnect.
   _wsProtocol.syncEmergencyStopState();
 
-  // The display follows the same authoritative Hub states used by the web UI.
   _display.showEmergencyStopActive(
       _wsProtocol.emergencyStopActive());
 
   _display.showPowerActive(
       _wsProtocol.trackPowerOn());
 
-  // HubDisplay::loop() also polls the active display controls.
   updateDisplay();
 
   if (
@@ -294,9 +444,6 @@ void App::loop() {
         _wsProtocol
             .triggerEmergencyStop();
 
-    // triggerEmergencyStop() updates the same state used by the WebSocket UI.
-    // Reflect it on the display immediately; showEmergencyStopActive() redraws
-    // only the button area, not the whole display.
     _display.showEmergencyStopActive(
         _wsProtocol.emergencyStopActive());
 
@@ -338,9 +485,6 @@ void App::loop() {
       _display
           .takeInfoRequest()
   ) {
-    // Placeholder for the future INFO page. Both CYD touch and M5 button C
-    // already produce this event, so page navigation can be added later
-    // without changing the hardware control mapping.
     Logger::info(
         "DISPLAY INFO requested");
   }

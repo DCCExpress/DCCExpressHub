@@ -59,6 +59,29 @@ public:
   void println(
       uint32_t value);
 
+  // M5-only condensed 2x text:
+  // glyphs keep the normal 2x height, but advance only 13 px horizontally
+  // instead of 16 px. This keeps IP:port rows readable while fitting 320 px.
+  void printCondensed(
+      const String& text);
+
+  void printCondensed(
+      const char* text);
+
+  void printCondensed(
+      uint32_t value);
+
+  void printlnCondensed();
+
+  void printlnCondensed(
+      const String& text);
+
+  void printlnCondensed(
+      const char* text);
+
+  void printlnCondensed(
+      uint32_t value);
+
   // Same bottom-row visual language as the CYD display.
   // On M5Stack these are status boxes, not touch controls.
   void drawEmergencyButton(
@@ -180,6 +203,9 @@ private:
       uint16_t textColor);
 
   void drawChar(
+      char c);
+
+  void drawCondensedChar(
       char c);
 
   void newline();

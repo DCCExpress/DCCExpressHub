@@ -2,13 +2,27 @@
 
 #if HUB_USE_DISPLAY
 
+namespace {
+
+String formatI2CAddress(
+    uint8_t address) {
+  char buffer[5];
+
+  snprintf(
+      buffer,
+      sizeof(buffer),
+      "0x%02X",
+      address);
+
+  return String(buffer);
+}
+
+}
+
 void HubDisplay::begin() {
   _display.begin();
 
 #if HUB_DISPLAY_M5STACK_BASIC
-  // The M5Stack ILI9342C panel needs normal landscape (rotation 1) and
-  // inversion ON. The original low-level init leaves it inverse-landscape
-  // with inverted/white-looking colours on this panel revision.
   _display.configureForHub();
 #endif
 
@@ -45,6 +59,15 @@ void HubDisplay::showBoot() {
   _ccConnected =
       false;
 
+  _s88Address =
+      0;
+
+  _s88Connected =
+      false;
+
+  _s88StatusKnown =
+      false;
+
   _dirty =
       true;
 }
@@ -61,15 +84,17 @@ void HubDisplay::showWifiConnecting(
       8,
       8);
 
+  _display.setTextSize(
+      2);
+
+  _display.setTextColor(
+      HubDisplayDevice::WHITE,
+      HubDisplayDevice::BLACK);
+
   _display.println(
       "DCCExpressHub");
 
   _display.println();
-
-#if HUB_DISPLAY_M5STACK_BASIC
-  _display.setTextSize(
-      1);
-#endif
 
   _display.println(
       "WiFi...");
@@ -133,6 +158,34 @@ void HubDisplay::showCommandCenter(
 
   _ccConnected =
       connected;
+
+  _dirty =
+      true;
+}
+
+void HubDisplay::showS88Status(
+    uint8_t address,
+    bool connected) {
+  if (!_initialized) {
+    return;
+  }
+
+  if (
+      _s88StatusKnown &&
+      _s88Address == address &&
+      _s88Connected == connected
+  ) {
+    return;
+  }
+
+  _s88Address =
+      address;
+
+  _s88Connected =
+      connected;
+
+  _s88StatusKnown =
+      true;
 
   _dirty =
       true;
@@ -312,6 +365,8 @@ void HubDisplay::redraw() {
       8,
       8);
 
+  // Keep the whole status area readable on the 320x240 M5Stack display.
+  // Shorter rows are preferable to tiny text.
   _display.setTextSize(
       2);
 
@@ -324,13 +379,7 @@ void HubDisplay::redraw() {
 
   _display.println();
 
-#if HUB_DISPLAY_M5STACK_BASIC
-  // The M5 native 8x8 font at 2x cannot fit a full WEB/HOST IP:port line
-  // inside 320 pixels. Keep the title large, but render status rows at 1x.
-  _display.setTextSize(
-      1);
-#endif
-
+  // WEB
   _display.print(
       "WEB: ");
 
@@ -339,22 +388,22 @@ void HubDisplay::redraw() {
       _ip !=
           "NOT CONNECTED"
   ) {
-    _display.print(
+    _display.println(
         _ip);
-
-    _display.print(
-        ":");
-
-    _display.println(
-        static_cast<uint32_t>(
-            _httpPort));
   } else {
+    _display.setTextColor(
+        HubDisplayDevice::RED,
+        HubDisplayDevice::BLACK);
+
     _display.println(
-        "-");
+        "NOK");
+
+    _display.setTextColor(
+        HubDisplayDevice::WHITE,
+        HubDisplayDevice::BLACK);
   }
 
-  _display.println();
-
+  // Command center state.
   _display.print(
       "CC: ");
 
@@ -366,16 +415,14 @@ void HubDisplay::redraw() {
 
   _display.println(
       _ccConnected
-          ? "CONNECTED"
-          : "DISCONNECTED");
+          ? "OK"
+          : "NOK");
 
   _display.setTextColor(
       HubDisplayDevice::WHITE,
       HubDisplayDevice::BLACK);
 
-  _display.print(
-      "HOST: ");
-
+  // Host gets its own row so the large text remains readable.
   if (_ccHost.length()) {
     _display.print(
         _ccHost);
@@ -386,6 +433,37 @@ void HubDisplay::redraw() {
     _display.println(
         static_cast<uint32_t>(
             _ccPort));
+  } else {
+    _display.println(
+        "-");
+  }
+
+  // S88 I2C adapter state.
+  _display.print(
+      "S88: ");
+
+  if (_s88StatusKnown) {
+    _display.print(
+        formatI2CAddress(
+            _s88Address));
+
+    _display.print(
+        " ");
+
+    _display.setTextColor(
+        _s88Connected
+            ? HubDisplayDevice::LIME
+            : HubDisplayDevice::RED,
+        HubDisplayDevice::BLACK);
+
+    _display.println(
+        _s88Connected
+            ? "OK"
+            : "NOK");
+
+    _display.setTextColor(
+        HubDisplayDevice::WHITE,
+        HubDisplayDevice::BLACK);
   } else {
     _display.println(
         "-");
@@ -412,6 +490,10 @@ void HubDisplay::showWifiFailed() {}
 void HubDisplay::showCommandCenter(
     const String&,
     uint16_t,
+    bool) {}
+
+void HubDisplay::showS88Status(
+    uint8_t,
     bool) {}
 
 void HubDisplay::showEmergencyStopActive(

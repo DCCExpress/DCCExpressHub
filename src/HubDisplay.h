@@ -46,7 +46,10 @@ public:
       uint16_t port,
       bool connected);
 
-  // Both only repaint their own small button rectangle.
+  void showS88Status(
+      uint8_t address,
+      bool connected);
+
   void showEmergencyStopActive(
       bool active);
 
@@ -69,6 +72,10 @@ private:
   String _ccHost;
   uint16_t _ccPort = 0;
   bool _ccConnected = false;
+
+  uint8_t _s88Address = 0;
+  bool _s88Connected = false;
+  bool _s88StatusKnown = false;
 
   bool _initialized = false;
   bool _dirty = false;

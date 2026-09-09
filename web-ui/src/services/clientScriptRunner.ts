@@ -505,6 +505,240 @@ function installBlockTracking(): void {
   );
 }
 
+// -----------------------------------------------------------------------------
+// Live sensor state for automation scripts.
+// The Hub already broadcasts sensorChanged and sensorSnapshot.
+// We mirror those states into the automation Worker.
+// -----------------------------------------------------------------------------
+
+type SensorChangedPayload = {
+  address: number;
+  on: boolean;
+};
+
+type SensorSnapshotPayload = {
+  groups: Array<
+    [
+      number,
+      number,
+      number,
+    ]
+  >;
+};
+
+let sensorTrackingInstalled =
+  false;
+
+let sensorSnapshotReady =
+  false;
+
+let sensorSnapshot =
+  new Map<number, boolean>();
+
+function sensorSnapshotRecord(): Record<string, boolean> {
+  const result:
+    Record<string, boolean> = {};
+
+  for (
+    const [
+      address,
+      on,
+    ] of sensorSnapshot
+  ) {
+    result[
+      String(address)
+    ] =
+      on;
+  }
+
+  return result;
+}
+
+function sendSensorSnapshotToWorker(): void {
+  if (!automationWorker) {
+    return;
+  }
+
+  const message:
+    MainToWorkerMessage = {
+      type:
+        "sensorSnapshot",
+      sensors:
+        sensorSnapshotRecord(),
+      ready:
+        sensorSnapshotReady,
+    };
+
+  automationWorker.postMessage(
+    message
+  );
+}
+
+function applySensorChanged(
+  data: SensorChangedPayload
+): void {
+  const address =
+    Number(
+      data?.address
+    );
+
+  if (
+    !Number.isInteger(
+      address
+    ) ||
+    address < 1 ||
+    address > 65535
+  ) {
+    return;
+  }
+
+  sensorSnapshot.set(
+    address,
+    Boolean(
+      data?.on
+    )
+  );
+
+  sendSensorSnapshotToWorker();
+}
+
+function applySensorSnapshot(
+  data: SensorSnapshotPayload
+): void {
+  // Merge only known bits. Do not clear states belonging to other
+  // sensor sources/adapters.
+  for (
+    const group of
+    data?.groups ?? []
+  ) {
+    if (
+      !Array.isArray(
+        group
+      ) ||
+      group.length < 3
+    ) {
+      continue;
+    }
+
+    const baseAddress =
+      Number(
+        group[0]
+      );
+
+    const activeBits =
+      Number(
+        group[1]
+      ) &
+      0xffff;
+
+    const knownBits =
+      Number(
+        group[2]
+      ) &
+      0xffff;
+
+    if (
+      !Number.isInteger(
+        baseAddress
+      ) ||
+      baseAddress < 1 ||
+      baseAddress > 65535
+    ) {
+      continue;
+    }
+
+    for (
+      let offset = 0;
+      offset < 16;
+      ++offset
+    ) {
+      const address =
+        baseAddress +
+        offset;
+
+      if (
+        address >
+        65535
+      ) {
+        break;
+      }
+
+      const bit =
+        1 <<
+        offset;
+
+      if (
+        (
+          knownBits &
+          bit
+        ) ===
+        0
+      ) {
+        continue;
+      }
+
+      sensorSnapshot.set(
+        address,
+        (
+          activeBits &
+          bit
+        ) !==
+          0
+      );
+    }
+  }
+
+  sensorSnapshotReady =
+    true;
+
+  sendSensorSnapshotToWorker();
+}
+
+function installSensorTracking(): void {
+  if (
+    sensorTrackingInstalled
+  ) {
+    return;
+  }
+
+  sensorTrackingInstalled =
+    true;
+
+  wsClient.on<SensorChangedPayload>(
+    "sensorChanged",
+    data => {
+      applySensorChanged(
+        data
+      );
+    }
+  );
+
+  wsClient.on<SensorSnapshotPayload>(
+    "sensorSnapshot",
+    data => {
+      applySensorSnapshot(
+        data
+      );
+    }
+  );
+
+  wsClient.subscribeStatus(
+    status => {
+      if (
+        status ===
+        "connected"
+      ) {
+        return;
+      }
+
+      sensorSnapshotReady =
+        false;
+
+      sendSensorSnapshotToWorker();
+    }
+  );
+}
+
 export class ScriptAbortError extends Error {
   constructor(
     message = "Script aborted."
@@ -696,6 +930,7 @@ function ensureWorker(): Worker {
   installVisibilityLogging();
   installBlockTargetLocoRuntime();
   installBlockTracking();
+  installSensorTracking();
 
   const worker =
     new Worker(
@@ -777,6 +1012,7 @@ function ensureWorker(): Worker {
   sendBlockCatalogToWorker();
   sendBlockSnapshotToWorker();
   sendBlockTargetSnapshotToWorker();
+  sendSensorSnapshotToWorker();
 
   if (
     wsClient.isConnected() &&
@@ -1827,3 +2063,4 @@ export async function runClientScript(
 
 
 installBlockTracking();
+installSensorTracking();

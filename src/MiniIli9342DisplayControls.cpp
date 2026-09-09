@@ -68,6 +68,113 @@ void MiniIli9342Display::configureForHub() {
       now;
 }
 
+void MiniIli9342Display::drawCondensedChar(
+    char c) {
+  if (c == '\r') {
+    return;
+  }
+
+  if (c == '\n') {
+    _cursorX =
+        0;
+
+    _cursorY +=
+        18;
+
+    return;
+  }
+
+  const uint8_t previousSize =
+      _textSize;
+
+  const int16_t startX =
+      _cursorX;
+
+  // Reuse the existing 2x font renderer, but compress horizontal advance.
+  _textSize =
+      2;
+
+  drawChar(
+      c);
+
+  _textSize =
+      previousSize;
+
+  // If drawChar() did not auto-wrap, replace its normal 16 px advance
+  // with a 13 px advance. The next opaque glyph overlaps 3 px, producing
+  // a compact but still very readable 2x-height font.
+  if (
+      _cursorX >
+      startX
+  ) {
+    _cursorX =
+        startX +
+        13;
+  }
+}
+
+void MiniIli9342Display::printCondensed(
+    const String& text) {
+  for (
+      size_t index = 0;
+      index < text.length();
+      ++index
+  ) {
+    drawCondensedChar(
+        text.charAt(index));
+  }
+}
+
+void MiniIli9342Display::printCondensed(
+    const char* text) {
+  if (!text) {
+    return;
+  }
+
+  while (*text) {
+    drawCondensedChar(
+        *text++);
+  }
+}
+
+void MiniIli9342Display::printCondensed(
+    uint32_t value) {
+  printCondensed(
+      String(value));
+}
+
+void MiniIli9342Display::printlnCondensed() {
+  _cursorX =
+      0;
+
+  _cursorY +=
+      18;
+}
+
+void MiniIli9342Display::printlnCondensed(
+    const String& text) {
+  printCondensed(
+      text);
+
+  printlnCondensed();
+}
+
+void MiniIli9342Display::printlnCondensed(
+    const char* text) {
+  printCondensed(
+      text);
+
+  printlnCondensed();
+}
+
+void MiniIli9342Display::printlnCondensed(
+    uint32_t value) {
+  printCondensed(
+      value);
+
+  printlnCondensed();
+}
+
 void MiniIli9342Display::fillRect(
     int16_t x,
     int16_t y,

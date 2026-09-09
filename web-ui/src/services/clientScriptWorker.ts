@@ -60,6 +60,19 @@ let blockSnapshotReady =
 let blockTargetSnapshotReady =
   false;
 
+// -----------------------------------------------------------------------------
+// Live sensor state mirrored from clientScriptRunner.
+// -----------------------------------------------------------------------------
+
+const sensorStates =
+  new Map<number, boolean>();
+
+let sensorSnapshotReady =
+  false;
+
+const sensorStateWaiters =
+  new Set<() => void>();
+
 class WorkerScriptAbortError extends Error {
   constructor(
     message = "Script aborted."
@@ -271,6 +284,283 @@ async function controlledDelay(
 }
 
 
+function notifySensorStateWaiters(): void {
+  const waiters =
+    [
+      ...sensorStateWaiters,
+    ];
+
+  sensorStateWaiters.clear();
+
+  for (
+    const resolve of
+    waiters
+  ) {
+    resolve();
+  }
+}
+
+function integer(
+  value: number,
+  min: number,
+  max: number,
+  name: string
+): number {
+  if (
+    !Number.isInteger(value) ||
+    value < min ||
+    value > max
+  ) {
+    throw new Error(
+      `${name} must be an integer between ${min} and ${max}.`
+    );
+  }
+
+  return value;
+}
+
+function sensorAddress(
+  value: number
+): number {
+  return integer(
+    value,
+    1,
+    65535,
+    "Sensor address"
+  );
+}
+
+function getSensorState(
+  address: number
+): boolean {
+  const normalized =
+    sensorAddress(
+      address
+    );
+
+  // A sensorChanged event is already authoritative for its own address,
+  // even if the first complete snapshot has not arrived yet.
+  if (
+    sensorStates.has(
+      normalized
+    )
+  ) {
+    return (
+      sensorStates.get(
+        normalized
+      ) ===
+      true
+    );
+  }
+
+  if (!sensorSnapshotReady) {
+    throw new Error(
+      "Sensor state snapshot is not ready yet."
+    );
+  }
+
+  throw new Error(
+    `Sensor address ${normalized} is not present in the current sensor snapshot.`
+  );
+}
+
+function waitForSensorUpdate(
+  execution: WorkerExecution,
+  timeoutMs: number | null,
+  address: number,
+  target: boolean
+): Promise<void> {
+  return new Promise<void>(
+    (
+      resolve,
+      reject
+    ) => {
+      let settled =
+        false;
+
+      let timer:
+        number | null =
+        null;
+
+      const cleanup = () => {
+        sensorStateWaiters.delete(
+          onSensorUpdate
+        );
+
+        execution.abortWaiters.delete(
+          onAbort
+        );
+
+        if (
+          timer !==
+          null
+        ) {
+          workerScope.clearTimeout(
+            timer
+          );
+
+          timer =
+            null;
+        }
+      };
+
+      const finishResolve = () => {
+        if (settled) {
+          return;
+        }
+
+        settled =
+          true;
+
+        cleanup();
+        resolve();
+      };
+
+      const finishReject = (
+        error: Error
+      ) => {
+        if (settled) {
+          return;
+        }
+
+        settled =
+          true;
+
+        cleanup();
+        reject(
+          error
+        );
+      };
+
+      const onSensorUpdate = () => {
+        finishResolve();
+      };
+
+      const onAbort = (
+        error: WorkerScriptAbortError
+      ) => {
+        finishReject(
+          error
+        );
+      };
+
+      sensorStateWaiters.add(
+        onSensorUpdate
+      );
+
+      execution.abortWaiters.add(
+        onAbort
+      );
+
+      if (
+        timeoutMs !==
+        null
+      ) {
+        timer =
+          workerScope.setTimeout(
+            () => {
+              finishReject(
+                new Error(
+                  `waitForSensor timeout: sensor ${address} did not become ${target ? "ON" : "OFF"}.`
+                )
+              );
+            },
+            timeoutMs
+          );
+      }
+    }
+  );
+}
+
+async function waitForSensorState(
+  execution: WorkerExecution,
+  address: number,
+  target: boolean,
+  timeoutMs?: number
+): Promise<void> {
+  const normalized =
+    sensorAddress(
+      address
+    );
+
+  const desired =
+    Boolean(
+      target
+    );
+
+  const timeout =
+    timeoutMs ===
+    undefined
+      ? null
+      : integer(
+          timeoutMs,
+          1,
+          600000,
+          "waitForSensor timeout"
+        );
+
+  const deadline =
+    timeout ===
+    null
+      ? null
+      : performance.now() +
+        timeout;
+
+  while (true) {
+    assertNotAborted(
+      execution
+    );
+
+    await waitUntilResumed(
+      execution
+    );
+
+    if (
+      sensorStates.has(
+        normalized
+      ) &&
+      sensorStates.get(
+        normalized
+      ) ===
+        desired
+    ) {
+      return;
+    }
+
+    let remaining:
+      number | null =
+      null;
+
+    if (
+      deadline !==
+      null
+    ) {
+      remaining =
+        Math.ceil(
+          deadline -
+          performance.now()
+        );
+
+      if (
+        remaining <=
+        0
+      ) {
+        throw new Error(
+          `waitForSensor timeout: sensor ${normalized} did not become ${desired ? "ON" : "OFF"}.`
+        );
+      }
+    }
+
+    await waitForSensorUpdate(
+      execution,
+      remaining,
+      normalized,
+      desired
+    );
+  }
+}
+
+
 function resolveBlockId(
   value: string | number
 ): string {
@@ -415,25 +705,6 @@ function optimisticallySetBlock(
   );
 
   return normalizedBlockId;
-}
-
-function integer(
-  value: number,
-  min: number,
-  max: number,
-  name: string
-): number {
-  if (
-    !Number.isInteger(value) ||
-    value < min ||
-    value > max
-  ) {
-    throw new Error(
-      `${name} must be an integer between ${min} and ${max}.`
-    );
-  }
-
-  return value;
 }
 
 function sendDcc(
@@ -608,6 +879,31 @@ function createDccApi(
           ),
           Boolean(on),
         ]
+      );
+    },
+
+    getSensor(
+      address: number
+    ): boolean {
+      check();
+
+      return getSensorState(
+        address
+      );
+    },
+
+    async waitForSensor(
+      address: number,
+      on: boolean,
+      timeoutMs?: number
+    ): Promise<void> {
+      check();
+
+      await waitForSensorState(
+        execution,
+        address,
+        Boolean(on),
+        timeoutMs
       );
     },
 
@@ -1299,6 +1595,51 @@ workerScope.addEventListener(
 
       blockTargetSnapshotReady =
         message.ready;
+
+      return;
+    }
+
+    if (
+      message.type ===
+      "sensorSnapshot"
+    ) {
+      sensorStates.clear();
+
+      for (
+        const [
+          rawAddress,
+          rawState,
+        ] of Object.entries(
+          message.sensors
+        )
+      ) {
+        const address =
+          Number(
+            rawAddress
+          );
+
+        if (
+          !Number.isInteger(
+            address
+          ) ||
+          address < 1 ||
+          address > 65535
+        ) {
+          continue;
+        }
+
+        sensorStates.set(
+          address,
+          Boolean(
+            rawState
+          )
+        );
+      }
+
+      sensorSnapshotReady =
+        message.ready;
+
+      notifySensorStateWaiters();
 
       return;
     }
