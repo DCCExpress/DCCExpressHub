@@ -45,7 +45,7 @@ import {
   IconPower,
   IconTerminal2,
 } from "@tabler/icons-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 
 import type { Loco, SignalLogicDocumentDto } from "@domain/types";
 
@@ -55,22 +55,23 @@ import { loadSignalLogicRulesWs, saveSignalLogicRulesWs } from "@/api/signalLogi
 import LocoDialog from "@/components/LocoDialog";
 import CommandCenterSettingsDialog from "@/components/CommandCenterSettingsDialog";
 import LocoPanel from "@/layout/LocoPanel";
-import LiteLayoutPage from "./LiteLayoutPage";
-import RuntimeLayoutOverlay from "./RuntimeLayoutOverlay";
-import ProgrammingPage from "./ProgrammingPage";
 import { getDefaultWsUrl } from "@/services/defaultWsUrl";
 import { wsApi } from "@/services/wsApi";
 import {
   wsClient,
   type WsConnectionStatus,
 } from "@/services/wsClient";
-import GamepadPage from "./GamepadPage";
 import DeviceConfigurationPage, {
   isDeviceConfigurationDocument,
   type DeviceConfigurationDocument,
 } from "./DeviceConfigurationPage";
 import { useCommandCenter } from "./context/CommandCenterContext";
-import ConsolePage from "./ConsolePage";
+
+const LiteLayoutPage = lazy(() => import("./LiteLayoutPage"));
+const RuntimeLayoutOverlay = lazy(() => import("./RuntimeLayoutOverlay"));
+const ProgrammingPage = lazy(() => import("./ProgrammingPage"));
+const GamepadPage = lazy(() => import("./GamepadPage"));
+const ConsolePage = lazy(() => import("./ConsolePage"));
 
 type LoadState = "idle" | "loading" | "ready" | "error";
 type Page = "home" | "drive" | "layout" | "programming" | "settings" | "device-config" | "gamepad" | "console" | "files" | "backup";
@@ -298,7 +299,6 @@ function HomePage({
             Program locomotive, accessory and DigiTools decoders
           </Text>
         </Card>
-
         <Card className="action-card" withBorder radius={5} p="lg" onClick={() => onNavigate("settings")}>
           <ThemeIcon size={48} radius="lg" color="indigo" variant="light">
             <IconRouter size={27} />
@@ -1275,7 +1275,17 @@ export default function App() {
 
 
       <Stack gap="md">
-        <Box className="mobile-content">{renderPage()}</Box>
+        <Box className="mobile-content">
+          <Suspense
+            fallback={
+              <Group justify="center" py="xl">
+                <Loader />
+              </Group>
+            }
+          >
+            {renderPage()}
+          </Suspense>
+        </Box>
       </Stack>
       <LocoDialog
         opened={locoEditorOpened}
