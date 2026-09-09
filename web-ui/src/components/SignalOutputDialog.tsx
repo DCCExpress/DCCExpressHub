@@ -356,6 +356,7 @@ export default function SignalOutputDialog({
               fullWidth
               value={draft.protocol}
               onChange={changeProtocol}
+              color="blue" 
               data={[
                 { value: "dcc", label: "DCC" },
                 { value: "dccext", label: "DCC Extended" },
