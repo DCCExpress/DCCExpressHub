@@ -76,7 +76,7 @@ void App::broadcastS88SensorChanged(
 void App::broadcastS88Snapshot() {
   if (
       !_s88I2c.enabled() ||
-      !_s88I2c.snapshotKnown()
+      !_s88I2c.dataFresh()
   ) {
     return;
   }
@@ -130,7 +130,7 @@ void App::broadcastS88Snapshot() {
 void App::updateS88WebSocket() {
   if (
       !_s88I2c.enabled() ||
-      !_s88I2c.snapshotKnown()
+      !_s88I2c.dataFresh()
   ) {
     return;
   }

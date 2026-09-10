@@ -731,6 +731,11 @@ function installSensorTracking(): void {
         return;
       }
 
+      // A stale FREE state must never allow waitForSensor(..., false) to
+      // continue after WebSocket loss. Drop all cached sensor values until a
+      // fresh sensorChanged or sensorSnapshot arrives.
+      sensorSnapshot.clear();
+
       sensorSnapshotReady =
         false;
 

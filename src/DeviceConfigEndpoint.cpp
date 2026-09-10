@@ -84,14 +84,23 @@ bool DeviceConfigEndpoint::verifyTemp(
     return false;
   }
 
-  uint8_t s88Count =
+  JsonArrayConst devices =
+      document["devices"]
+          .as<JsonArrayConst>();
+
+  uint16_t s88Count =
       0;
 
   for (
-      JsonObjectConst device :
-      document["devices"]
-          .as<JsonArrayConst>()
+      size_t index = 0;
+      index <
+          devices.size();
+      ++index
   ) {
+    JsonObjectConst device =
+        devices[index]
+            .as<JsonObjectConst>();
+
     const char* id =
         device["id"] | nullptr;
 
@@ -120,8 +129,48 @@ bool DeviceConfigEndpoint::verifyTemp(
       return false;
     }
 
+    const String typeText =
+        String(type);
+
+    const bool isS88 =
+        typeText ==
+        "s88adapter";
+
+    const bool isPca =
+        typeText ==
+        "pca9685";
+
+    const bool isMcp =
+        typeText ==
+        "mcp23017";
+
+    const bool isPcf8 =
+        typeText ==
+        "pcf8574";
+
+    const bool isPcf16 =
+        typeText ==
+        "pcf8575";
+
+    const bool isLegacy =
+        isPca ||
+        isMcp ||
+        isPcf8 ||
+        isPcf16;
+
+    if (
+        !isS88 &&
+        !isLegacy
+    ) {
+      error =
+          "Unsupported device type: " +
+          typeText;
+      return false;
+    }
+
     const int address =
-        device["address"].as<int>();
+        device["address"]
+            .as<int>();
 
     if (
         address < 0x08 ||
@@ -132,13 +181,7 @@ bool DeviceConfigEndpoint::verifyTemp(
       return false;
     }
 
-    const String typeText =
-        String(type);
-
-    if (
-        typeText ==
-        "s88adapter"
-    ) {
+    if (isS88) {
       ++s88Count;
 
       if (
@@ -160,13 +203,16 @@ bool DeviceConfigEndpoint::verifyTemp(
       }
 
       const int baseAddress =
-          device["baseAddress"].as<int>();
+          device["baseAddress"]
+              .as<int>();
 
       const int groupCount =
-          device["groupCount"].as<int>();
+          device["groupCount"]
+              .as<int>();
 
       const int byteCount =
-          device["byteCount"].as<int>();
+          device["byteCount"]
+              .as<int>();
 
       const int sensorCount =
           groupCount *
@@ -188,38 +234,171 @@ bool DeviceConfigEndpoint::verifyTemp(
             "Invalid S88 group, byte or base-address configuration";
         return false;
       }
+    } else {
+      if (
+          !device["firstVpin"].is<int>() ||
+          !device["pinCount"].is<int>()
+      ) {
+        error =
+            "HAL device requires firstVpin and pinCount";
+        return false;
+      }
 
-      continue;
+      const int firstVpin =
+          device["firstVpin"]
+              .as<int>();
+
+      const int pinCount =
+          device["pinCount"]
+              .as<int>();
+
+      const int expectedPinCount =
+          isPcf8
+              ? 8
+              : 16;
+
+      if (
+          firstVpin < 40 ||
+          firstVpin > 32767 ||
+          pinCount !=
+              expectedPinCount ||
+          firstVpin +
+                  pinCount -
+                  1 >
+              32767
+      ) {
+        error =
+            "HAL device VPIN range or pin count is invalid";
+        return false;
+      }
+
+      if (
+          isPca &&
+          (
+              address < 0x40 ||
+              address > 0x7d
+          )
+      ) {
+        error =
+            "PCA9685 I2C address must be between 0x40 and 0x7D";
+        return false;
+      }
+
+      if (
+          !isPca &&
+          (
+              address < 0x20 ||
+              address > 0x27
+          )
+      ) {
+        error =
+            "Configured digital I2C expander address must be between 0x20 and 0x27";
+        return false;
+      }
     }
 
-    if (
-        !device["firstVpin"].is<int>() ||
-        !device["pinCount"].is<int>()
+    // Pairwise validation keeps the persisted file safe even if the browser
+    // UI is bypassed or an old client submits malformed data.
+    for (
+        size_t previousIndex = 0;
+        previousIndex <
+            index;
+        ++previousIndex
     ) {
-      error =
-          "HAL device requires firstVpin and pinCount";
-      return false;
-    }
+      JsonObjectConst previous =
+          devices[previousIndex]
+              .as<JsonObjectConst>();
 
-    const int firstVpin =
-        device["firstVpin"].as<int>();
+      const char* previousId =
+          previous["id"] |
+          "";
 
-    const int pinCount =
-        device["pinCount"].as<int>();
+      if (
+          String(previousId) ==
+          String(id)
+      ) {
+        error =
+            "Device IDs must be unique";
+        return false;
+      }
 
-    if (
-        firstVpin < 1 ||
-        firstVpin > 32767 ||
-        pinCount < 1 ||
-        pinCount > 64 ||
-        firstVpin +
-                pinCount -
-                1 >
-            32767
-    ) {
-      error =
-          "HAL device VPIN range is invalid";
-      return false;
+      const bool enabled =
+          device["enabled"]
+              .as<bool>();
+
+      const bool previousEnabled =
+          previous["enabled"] |
+          false;
+
+      if (
+          enabled &&
+          previousEnabled &&
+          previous["address"].is<int>() &&
+          previous["address"].as<int>() ==
+              address
+      ) {
+        error =
+            "Enabled devices cannot share the same I2C address";
+        return false;
+      }
+
+      const String previousType =
+          String(
+              previous["type"] |
+              "");
+
+      const bool previousIsLegacy =
+          previousType ==
+              "pca9685" ||
+          previousType ==
+              "mcp23017" ||
+          previousType ==
+              "pcf8574" ||
+          previousType ==
+              "pcf8575";
+
+      if (
+          enabled &&
+          previousEnabled &&
+          isLegacy &&
+          previousIsLegacy &&
+          previous["firstVpin"].is<int>() &&
+          previous["pinCount"].is<int>()
+      ) {
+        const int firstVpin =
+            device["firstVpin"]
+                .as<int>();
+
+        const int pinCount =
+            device["pinCount"]
+                .as<int>();
+
+        const int lastVpin =
+            firstVpin +
+            pinCount -
+            1;
+
+        const int previousFirst =
+            previous["firstVpin"]
+                .as<int>();
+
+        const int previousLast =
+            previousFirst +
+            previous["pinCount"]
+                .as<int>() -
+            1;
+
+        if (
+            firstVpin <=
+                previousLast &&
+            lastVpin >=
+                previousFirst
+        ) {
+          error =
+              "Enabled HAL device VPIN ranges cannot overlap";
+          return false;
+        }
+      }
     }
   }
 
@@ -238,6 +417,9 @@ void DeviceConfigEndpoint::sendS88Status(
 
   document["snapshotKnown"] =
       _s88.snapshotKnown();
+
+  document["dataFresh"] =
+      _s88.dataFresh();
 
   document["adapterConfigurationSent"] =
       _s88.adapterConfigurationSent();
@@ -316,7 +498,7 @@ void DeviceConfigEndpoint::sendS88Status(
             0xffU);
 
     group["knownBits"] =
-        _s88.snapshotKnown()
+        _s88.dataFresh()
             ? 0xffU
             : 0U;
   }

@@ -50,6 +50,8 @@ public:
     return _adapterConfigurationSent;
   }
 
+  bool dataFresh() const;
+
   uint16_t baseSensorAddress() const {
     return _baseSensorAddress;
   }
@@ -108,6 +110,12 @@ private:
   bool _slavePresent = false;
   bool _presenceKnown = false;
   bool _snapshotKnown = false;
+
+  // True once at least one snapshot has been published for the current
+  // logical mapping. Unlike _snapshotKnown this survives a temporary adapter
+  // disconnect so an offline base-address change can still clear old sensors.
+  bool _hasPublishedState = false;
+
   bool _adapterConfigurationSent = false;
 
   uint8_t _slaveAddress = 0x30;
@@ -120,6 +128,8 @@ private:
   unsigned long _lastProbeMs = 0;
   unsigned long _lastReadMs = 0;
   unsigned long _lastShortReadLogMs = 0;
+  unsigned long _lastConfigSendMs = 0;
+  unsigned long _lastSuccessfulReadMs = 0;
 
   SensorChangeCallback
       _sensorChangeCallback;
@@ -145,7 +155,8 @@ private:
   void updateSlavePresence(
       bool forceLog);
 
-  bool sendAdapterConfiguration();
+  bool sendAdapterConfiguration(
+      bool force = false);
 
   bool readSnapshot();
 

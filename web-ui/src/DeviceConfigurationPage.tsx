@@ -114,6 +114,7 @@ type S88Status = {
   enabled: boolean;
   online: boolean;
   snapshotKnown: boolean;
+  dataFresh: boolean;
   adapterConfigurationSent: boolean;
   address: number;
   addressHex: string;
@@ -121,6 +122,12 @@ type S88Status = {
   groupCount: number;
   byteCount: number;
   sensorCount: number;
+  groups?: Array<{
+    index: number;
+    baseAddress: number;
+    activeBits: number;
+    knownBits: number;
+  }>;
 };
 
 type SensorChangedPayload = {
@@ -820,9 +827,64 @@ export default function DeviceConfigurationPage({
             );
           }
 
+          const status =
+            await response.json() as S88Status;
+
           setS88Status(
-            await response.json() as S88Status
+            status
           );
+
+          if (
+            status.dataFresh &&
+            Array.isArray(
+              status.groups
+            )
+          ) {
+            setSensorStates(
+              current => {
+                const next = {
+                  ...current,
+                };
+
+                for (
+                  const group of
+                  status.groups ?? []
+                ) {
+                  for (
+                    let offset = 0;
+                    offset < 8;
+                    ++offset
+                  ) {
+                    const bit =
+                      1 <<
+                      offset;
+
+                    if (
+                      (
+                        group.knownBits &
+                        bit
+                      ) ===
+                      0
+                    ) {
+                      continue;
+                    }
+
+                    next[
+                      group.baseAddress +
+                      offset
+                    ] =
+                      (
+                        group.activeBits &
+                        bit
+                      ) !==
+                      0;
+                  }
+                }
+
+                return next;
+              }
+            );
+          }
         } catch {
           setS88Status(
             null
@@ -932,6 +994,11 @@ export default function DeviceConfigurationPage({
               wsApi.getLayoutRuntimeSnapshot();
 
               void refreshS88Status();
+            } else {
+              // Do not present stale WebSocket data as live.
+              setSensorStates(
+                {}
+              );
             }
           }
         );
@@ -1165,36 +1232,79 @@ export default function DeviceConfigurationPage({
       }
 
       if (
-        legacyForm.firstVpin < 1 ||
+        legacyForm.firstVpin < 40 ||
         legacyForm.firstVpin +
             legacyDefinition.pinCount -
             1 >
           32767
       ) {
-        return "VPIN range is invalid.";
+        return "Choose a free VPIN range between 40 and 32767.";
       }
 
-      const conflict =
-        devices.some(
-          device =>
-            device.id !==
-              legacyForm.id &&
-            device.enabled &&
-            device.address ===
-              parsedLegacyAddress
-        );
+      if (legacyForm.enabled) {
+        const addressConflict =
+          devices.some(
+            device =>
+              device.id !==
+                legacyForm.id &&
+              device.enabled &&
+              device.address ===
+                parsedLegacyAddress
+          );
 
-      if (conflict) {
-        return (
-          `I2C address ${hexAddress(parsedLegacyAddress)} ` +
-          "is already used by another configured device."
-        );
+        if (addressConflict) {
+          return (
+            `I2C address ${hexAddress(parsedLegacyAddress)} ` +
+            "is already used by another configured device."
+          );
+        }
+
+        const first =
+          legacyForm.firstVpin;
+
+        const last =
+          first +
+          legacyDefinition.pinCount -
+          1;
+
+        const rangeConflict =
+          legacyDevices.find(
+            device => {
+              if (
+                device.id ===
+                  legacyForm.id ||
+                !device.enabled
+              ) {
+                return false;
+              }
+
+              const deviceLast =
+                device.firstVpin +
+                device.pinCount -
+                1;
+
+              return (
+                first <=
+                  deviceLast &&
+                last >=
+                  device.firstVpin
+              );
+            }
+          );
+
+        if (rangeConflict) {
+          return (
+            `VPIN range overlaps ${rangeConflict.name} ` +
+            `(${rangeConflict.firstVpin}–${rangeConflict.firstVpin + rangeConflict.pinCount - 1}).`
+          );
+        }
       }
 
       return null;
     }, [
       devices,
       legacyDefinition,
+      legacyDevices,
       legacyForm,
       parsedLegacyAddress,
     ]);
@@ -1457,7 +1567,7 @@ export default function DeviceConfigurationPage({
               value={
                 legacyForm.firstVpin
               }
-              min={1}
+              min={40}
               max={32767}
               allowDecimal={
                 false
@@ -1810,8 +1920,24 @@ export default function DeviceConfigurationPage({
                 CONFIG{" "}
                 {s88Status
                   ?.adapterConfigurationSent
-                  ? "SYNCED"
+                  ? "SENT"
                   : "PENDING"}
+              </Badge>
+
+              <Badge
+                color={
+                  s88Status
+                    ?.dataFresh
+                    ? "green"
+                    : "orange"
+                }
+                variant="light"
+              >
+                DATA{" "}
+                {s88Status
+                  ?.dataFresh
+                  ? "LIVE"
+                  : "STALE"}
               </Badge>
             </Group>
 
@@ -2020,13 +2146,13 @@ export default function DeviceConfigurationPage({
 
           <Badge
             color={
-              s88Status?.snapshotKnown
+              s88Status?.dataFresh
                 ? "teal"
                 : "gray"
             }
             variant="light"
           >
-            {s88Status?.snapshotKnown
+            {s88Status?.dataFresh
               ? `${sensorCount} states available`
               : "Waiting for snapshot"}
           </Badge>
@@ -2104,8 +2230,10 @@ export default function DeviceConfigurationPage({
                           ];
 
                         const known =
+                          s88Status?.dataFresh ===
+                            true &&
                           typeof state ===
-                          "boolean";
+                            "boolean";
 
                         const occupied =
                           state ===
@@ -2292,7 +2420,70 @@ export default function DeviceConfigurationPage({
                             device.enabled
                           }
                           onChange={
-                            event =>
+                            event => {
+                              const enabled =
+                                event.currentTarget.checked;
+
+                              if (enabled) {
+                                const addressConflict =
+                                  devices.some(
+                                    item =>
+                                      item.id !==
+                                        device.id &&
+                                      item.enabled &&
+                                      item.address ===
+                                        device.address
+                                  );
+
+                                const targetLast =
+                                  device.firstVpin +
+                                  device.pinCount -
+                                  1;
+
+                                const rangeConflict =
+                                  legacyDevices.some(
+                                    item => {
+                                      if (
+                                        item.id ===
+                                          device.id ||
+                                        !item.enabled
+                                      ) {
+                                        return false;
+                                      }
+
+                                      const itemLast =
+                                        item.firstVpin +
+                                        item.pinCount -
+                                        1;
+
+                                      return (
+                                        device.firstVpin <=
+                                          itemLast &&
+                                        targetLast >=
+                                          item.firstVpin
+                                      );
+                                    }
+                                  );
+
+                                if (
+                                  addressConflict ||
+                                  rangeConflict
+                                ) {
+                                  showNotification({
+                                    color:
+                                      "red",
+                                    title:
+                                      "Device cannot be enabled",
+                                    message:
+                                      addressConflict
+                                        ? "Its I2C address is already used by another enabled device."
+                                        : "Its VPIN range overlaps another enabled HAL device.",
+                                  });
+
+                                  return;
+                                }
+                              }
+
                               replaceDevices(
                                 devices.map(
                                   item =>
@@ -2300,12 +2491,12 @@ export default function DeviceConfigurationPage({
                                     device.id
                                       ? {
                                           ...device,
-                                          enabled:
-                                            event.currentTarget.checked,
+                                          enabled,
                                         }
                                       : item
                                 )
-                              )
+                              );
+                            }
                           }
                         />
 

@@ -59,6 +59,20 @@
 #define S88_I2C_PROBE_INTERVAL_MS 2000UL
 #endif
 
+// Re-send the tiny adapter configuration periodically. This makes a quick UNO
+// reset self-healing even when the requested byte count is smaller than the
+// adapter firmware default and therefore cannot be detected by a short read.
+#ifndef S88_I2C_CONFIG_RESEND_MS
+#define S88_I2C_CONFIG_RESEND_MS 2000UL
+#endif
+
+// Successful S88 reads normally happen every 20 ms. If no successful read has
+// happened for this long, the UI treats the data as stale and the Hub stops
+// sending periodic sensorSnapshot packets until fresh data returns.
+#ifndef S88_I2C_DATA_FRESH_MS
+#define S88_I2C_DATA_FRESH_MS 1000UL
+#endif
+
 #ifndef S88_WS_SNAPSHOT_INTERVAL_MS
 #define S88_WS_SNAPSHOT_INTERVAL_MS 1000UL
 #endif

@@ -227,6 +227,22 @@ bool S88I2CMaster::loadSettings(
   return true;
 }
 
+bool S88I2CMaster::dataFresh() const {
+  if (
+      !_enabled ||
+      !_slavePresent ||
+      !_snapshotKnown ||
+      _lastSuccessfulReadMs == 0
+  ) {
+    return false;
+  }
+
+  return
+      millis() -
+          _lastSuccessfulReadMs <=
+      S88_I2C_DATA_FRESH_MS;
+}
+
 void S88I2CMaster::clearPublishedSensors(
     uint16_t baseAddress,
     uint16_t sensorCount) {
@@ -249,6 +265,22 @@ void S88I2CMaster::clearPublishedSensors(
 
 bool S88I2CMaster::applySettings(
     const Settings& settings) {
+  const bool settingsChanged =
+      _enabled !=
+          settings.enabled ||
+      _slaveAddress !=
+          settings.address ||
+      _baseSensorAddress !=
+          settings.baseAddress ||
+      _groupCount !=
+          settings.groupCount;
+
+  // Saving an unrelated PCA/PCF device must not invalidate S88 state or cause
+  // a full 8..256 sensorChanged burst.
+  if (!settingsChanged) {
+    return false;
+  }
+
   const uint16_t oldBase =
       _baseSensorAddress;
 
@@ -256,20 +288,26 @@ bool S88I2CMaster::applySettings(
       sensorCount();
 
   const bool mappingChanged =
-      oldBase !=
+      _baseSensorAddress !=
           settings.baseAddress ||
       _groupCount !=
           settings.groupCount ||
       _enabled !=
           settings.enabled;
 
+  // _snapshotKnown becomes false on disconnect. _hasPublishedState does not,
+  // so changing the mapping while the adapter is offline still clears the old
+  // addresses from the browser/runtime.
   if (
-      _snapshotKnown &&
+      _hasPublishedState &&
       mappingChanged
   ) {
     clearPublishedSensors(
         oldBase,
         oldSensorCount);
+
+    _hasPublishedState =
+        false;
   }
 
   const bool addressChanged =
@@ -296,8 +334,14 @@ bool S88I2CMaster::applySettings(
   _snapshotKnown =
       false;
 
+  _lastSuccessfulReadMs =
+      0;
+
   _adapterConfigurationSent =
       false;
+
+  _lastConfigSendMs =
+      0;
 
   if (addressChanged) {
     _presenceKnown =
@@ -364,10 +408,6 @@ bool S88I2CMaster::reloadConfiguration(
 
   updateSlavePresence(
       true);
-
-  if (_slavePresent) {
-    sendAdapterConfiguration();
-  }
 
   return parsed;
 #else
@@ -448,7 +488,8 @@ void S88I2CMaster::scanBus() {
       " device(s)");
 }
 
-bool S88I2CMaster::sendAdapterConfiguration() {
+bool S88I2CMaster::sendAdapterConfiguration(
+    bool force) {
   if (
       !_enabled ||
       !_busInitialized ||
@@ -456,6 +497,26 @@ bool S88I2CMaster::sendAdapterConfiguration() {
   ) {
     return false;
   }
+
+  const unsigned long now =
+      millis();
+
+  if (
+      !force &&
+      _lastConfigSendMs != 0 &&
+      now -
+          _lastConfigSendMs <
+      S88_I2C_CONFIG_RESEND_MS
+  ) {
+    return
+        _adapterConfigurationSent;
+  }
+
+  const bool wasSent =
+      _adapterConfigurationSent;
+
+  _lastConfigSendMs =
+      now;
 
   const uint8_t groups =
       _groupCount;
@@ -495,13 +556,21 @@ bool S88I2CMaster::sendAdapterConfiguration() {
   _adapterConfigurationSent =
       result == 0;
 
-  if (_adapterConfigurationSent) {
+  if (
+      _adapterConfigurationSent &&
+      (
+          !wasSent ||
+          force
+      )
+  ) {
     Logger::info(
         "S88 adapter config sent: groups=" +
         String(groups) +
         " bytes=" +
         String(bytes));
-  } else {
+  } else if (
+      !_adapterConfigurationSent
+  ) {
     Logger::warn(
         "S88 adapter config write failed at " +
         formatAddress(
@@ -527,19 +596,17 @@ void S88I2CMaster::updateSlavePresence(
       ping(
           _slaveAddress);
 
-  if (
-      !forceLog &&
-      _presenceKnown &&
-      present ==
-          _slavePresent
-  ) {
-    return;
-  }
-
   const bool changed =
       !_presenceKnown ||
       present !=
           _slavePresent;
+
+  if (
+      !forceLog &&
+      !changed
+  ) {
+    return;
+  }
 
   _presenceKnown =
       true;
@@ -551,24 +618,38 @@ void S88I2CMaster::updateSlavePresence(
     _snapshotKnown =
         false;
 
+    _lastSuccessfulReadMs =
+        0;
+
     _adapterConfigurationSent =
         false;
+
+    _lastConfigSendMs =
+        0;
   }
 
   if (present) {
-    Logger::info(
-        "S88 I2C slave detected at " +
-        formatAddress(
-            _slaveAddress));
+    if (
+        changed ||
+        forceLog
+    ) {
+      Logger::info(
+          "S88 I2C slave detected at " +
+          formatAddress(
+              _slaveAddress));
+    }
 
     if (
         changed ||
-        forceLog ||
         !_adapterConfigurationSent
     ) {
-      sendAdapterConfiguration();
+      sendAdapterConfiguration(
+          true);
     }
-  } else {
+  } else if (
+      changed ||
+      forceLog
+  ) {
     Logger::warn(
         "S88 I2C slave NOT detected at " +
         formatAddress(
@@ -745,6 +826,9 @@ void S88I2CMaster::publishSnapshot(
 
   _snapshotKnown =
       true;
+
+  _hasPublishedState =
+      true;
 }
 
 bool S88I2CMaster::readSnapshot() {
@@ -795,8 +879,11 @@ bool S88I2CMaster::readSnapshot() {
           String(received));
     }
 
-    // Re-send configuration in case the UNO has just restarted.
-    sendAdapterConfiguration();
+    // Typical case: the UNO has restarted with its compile-time default.
+    // Retry is rate-limited so a legacy/broken adapter cannot be hammered at
+    // the 20 ms read cadence.
+    sendAdapterConfiguration(
+        false);
 
     return false;
   }
@@ -809,10 +896,20 @@ bool S88I2CMaster::readSnapshot() {
       index < expected;
       ++index
   ) {
+    if (!Wire.available()) {
+      Logger::warn(
+          "S88 I2C receive buffer ended unexpectedly");
+
+      return false;
+    }
+
     data[index] =
         static_cast<uint8_t>(
             Wire.read());
   }
+
+  _lastSuccessfulReadMs =
+      millis();
 
   publishSnapshot(
       data,
@@ -888,6 +985,14 @@ void S88I2CMaster::loop() {
 
     updateSlavePresence(
         false);
+
+    // Periodic 5-byte reconfiguration is intentionally cheap. It guarantees
+    // convergence after a fast UNO reset even when Hub expects fewer bytes than
+    // the adapter's default, a case that cannot be detected by requestFrom().
+    if (_slavePresent) {
+      sendAdapterConfiguration(
+          false);
+    }
   }
 
   if (
