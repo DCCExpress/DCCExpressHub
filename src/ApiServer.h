@@ -13,6 +13,7 @@
 #include "ICommandCenter.h"
 #include "LayoutRuntime.h"
 #include "RuntimeStateStore.h"
+#include "S88I2CMaster.h"
 #include "ScriptInfoEndpoint.h"
 #include "SignalAutomationEngine.h"
 #include "WsProtocol.h"
@@ -27,8 +28,19 @@ public:
       RuntimeStateStore& stateStore,
       HubConfigStore& config,
       WsProtocol& wsProtocol,
+      S88I2CMaster& s88,
       SignalAutomationEngine& signalAutomation)
       : _server(httpPort),
+        _s88(s88),
+        _automationsEndpoint(
+            _server),
+        _deviceConfigEndpoint(
+            _server,
+            _s88),
+        _scriptInfoEndpoint(
+            _server),
+        _fileManagementEndpoint(
+            _server),
         _ws(ws),
         _dcc(commandCenter),
         _runtime(runtime),
@@ -51,17 +63,12 @@ private:
 
   AsyncWebServer _server;
 
-  AutomationsEndpoint _automationsEndpoint{
-      _server};
+  S88I2CMaster& _s88;
 
-  DeviceConfigEndpoint _deviceConfigEndpoint{
-      _server};
-
-  ScriptInfoEndpoint _scriptInfoEndpoint{
-      _server};
-
-  FileManagementEndpoint _fileManagementEndpoint{
-      _server};
+  AutomationsEndpoint _automationsEndpoint;
+  DeviceConfigEndpoint _deviceConfigEndpoint;
+  ScriptInfoEndpoint _scriptInfoEndpoint;
+  FileManagementEndpoint _fileManagementEndpoint;
 
   AsyncWebSocket& _ws;
 

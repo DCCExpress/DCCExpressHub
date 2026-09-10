@@ -3,8 +3,10 @@
 #include "Logger.h"
 
 DeviceConfigEndpoint::DeviceConfigEndpoint(
-    AsyncWebServer& server)
-    : _server(server) {
+    AsyncWebServer& server,
+    S88I2CMaster& s88)
+    : _server(server),
+      _s88(s88) {
   setupRoutes();
 }
 
@@ -82,6 +84,9 @@ bool DeviceConfigEndpoint::verifyTemp(
     return false;
   }
 
+  uint8_t s88Count =
+      0;
+
   for (
       JsonObjectConst device :
       document["devices"]
@@ -108,9 +113,7 @@ bool DeviceConfigEndpoint::verifyTemp(
 
     if (
         !device["enabled"].is<bool>() ||
-        !device["address"].is<int>() ||
-        !device["firstVpin"].is<int>() ||
-        !device["pinCount"].is<int>()
+        !device["address"].is<int>()
     ) {
       error =
           "Device configuration contains invalid required fields";
@@ -120,6 +123,85 @@ bool DeviceConfigEndpoint::verifyTemp(
     const int address =
         device["address"].as<int>();
 
+    if (
+        address < 0x08 ||
+        address > 0x77
+    ) {
+      error =
+          "I2C address must be between 0x08 and 0x77";
+      return false;
+    }
+
+    const String typeText =
+        String(type);
+
+    if (
+        typeText ==
+        "s88adapter"
+    ) {
+      ++s88Count;
+
+      if (
+          s88Count > 1
+      ) {
+        error =
+            "Only one S88 adapter is currently supported";
+        return false;
+      }
+
+      if (
+          !device["baseAddress"].is<int>() ||
+          !device["groupCount"].is<int>() ||
+          !device["byteCount"].is<int>()
+      ) {
+        error =
+            "S88 adapter requires baseAddress, groupCount and byteCount";
+        return false;
+      }
+
+      const int baseAddress =
+          device["baseAddress"].as<int>();
+
+      const int groupCount =
+          device["groupCount"].as<int>();
+
+      const int byteCount =
+          device["byteCount"].as<int>();
+
+      const int sensorCount =
+          groupCount *
+          16;
+
+      if (
+          groupCount < 1 ||
+          groupCount >
+              S88I2CMaster::MAX_GROUPS ||
+          byteCount !=
+              groupCount *
+              S88I2CMaster::BYTES_PER_GROUP ||
+          baseAddress < 1 ||
+          baseAddress +
+                  sensorCount -
+                  1 >
+              65535
+      ) {
+        error =
+            "Invalid S88 group, byte or base-address configuration";
+        return false;
+      }
+
+      continue;
+    }
+
+    if (
+        !device["firstVpin"].is<int>() ||
+        !device["pinCount"].is<int>()
+    ) {
+      error =
+          "HAL device requires firstVpin and pinCount";
+      return false;
+    }
+
     const int firstVpin =
         device["firstVpin"].as<int>();
 
@@ -127,8 +209,6 @@ bool DeviceConfigEndpoint::verifyTemp(
         device["pinCount"].as<int>();
 
     if (
-        address < 0 ||
-        address > 0x7f ||
         firstVpin < 1 ||
         firstVpin > 32767 ||
         pinCount < 1 ||
@@ -139,12 +219,95 @@ bool DeviceConfigEndpoint::verifyTemp(
             32767
     ) {
       error =
-          "Device address or VPIN range is invalid";
+          "HAL device VPIN range is invalid";
       return false;
     }
   }
 
   return true;
+}
+
+void DeviceConfigEndpoint::sendS88Status(
+    AsyncWebServerRequest* request) {
+  JsonDocument document;
+
+  document["enabled"] =
+      _s88.enabled();
+
+  document["online"] =
+      _s88.slavePresent();
+
+  document["snapshotKnown"] =
+      _s88.snapshotKnown();
+
+  document["adapterConfigurationSent"] =
+      _s88.adapterConfigurationSent();
+
+  document["address"] =
+      _s88.slaveAddress();
+
+  char addressHex[5];
+
+  snprintf(
+      addressHex,
+      sizeof(addressHex),
+      "0x%02X",
+      _s88.slaveAddress());
+
+  document["addressHex"] =
+      addressHex;
+
+  document["baseAddress"] =
+      _s88.baseSensorAddress();
+
+  document["groupCount"] =
+      _s88.groupCount();
+
+  document["byteCount"] =
+      _s88.byteCount();
+
+  document["sensorCount"] =
+      _s88.sensorCount();
+
+  JsonArray groups =
+      document["groups"]
+          .to<JsonArray>();
+
+  for (
+      uint8_t groupIndex = 0;
+      groupIndex <
+          _s88.groupCount();
+      ++groupIndex
+  ) {
+    JsonObject group =
+        groups.add<JsonObject>();
+
+    group["index"] =
+        static_cast<uint8_t>(
+            groupIndex +
+            1);
+
+    group["baseAddress"] =
+        static_cast<uint16_t>(
+            _s88.baseSensorAddress() +
+            static_cast<uint16_t>(
+                groupIndex) *
+                16U);
+
+    group["activeBits"] =
+        _s88.activeBitsForGroup(
+            groupIndex);
+
+    group["knownBits"] =
+        _s88.snapshotKnown()
+            ? 0xffffU
+            : 0U;
+  }
+
+  sendJson(
+      request,
+      200,
+      document);
 }
 
 void DeviceConfigEndpoint::handleBody(
@@ -171,7 +334,8 @@ void DeviceConfigEndpoint::handleBody(
   }
 
   if (
-      index + len != total
+      index + len !=
+      total
   ) {
     return;
   }
@@ -237,15 +401,31 @@ void DeviceConfigEndpoint::handleBody(
     return;
   }
 
+  const bool s88Applied =
+      _s88.reloadConfiguration(
+          LittleFS);
+
   Logger::info(
       "Device configuration saved: " +
       String(total) +
       " bytes");
 
-  response["ok"] = true;
-  response["bytes"] = total;
+  response["ok"] =
+      true;
+
+  response["bytes"] =
+      total;
+
+  response["s88Applied"] =
+      s88Applied;
+
+  response["s88Online"] =
+      _s88.slavePresent();
+
   response["message"] =
-      "Device configuration saved";
+      s88Applied
+          ? "Device configuration saved; S88 settings applied live"
+          : "Device configuration saved; S88 runtime fell back to defaults";
 
   sendJson(
       request,
@@ -311,5 +491,14 @@ void DeviceConfigEndpoint::setupRoutes() {
             len,
             index,
             total);
+      });
+
+  _server.on(
+      "/api/s88-status",
+      HTTP_GET,
+      [this](
+          AsyncWebServerRequest* request) {
+        sendS88Status(
+            request);
       });
 }

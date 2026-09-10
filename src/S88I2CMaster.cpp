@@ -1,5 +1,6 @@
 #include "S88I2CMaster.h"
 
+#include <ArduinoJson.h>
 #include <Wire.h>
 
 #include "Logger.h"
@@ -19,32 +20,23 @@ String S88I2CMaster::formatAddress(
 }
 
 String S88I2CMaster::formatBits(
-    uint16_t activeBits) {
+    const uint8_t* data,
+    uint8_t count) {
   String result;
 
   for (
       uint8_t byteIndex = 0;
-      byteIndex < DATA_BYTES;
+      byteIndex < count;
       ++byteIndex
   ) {
     if (byteIndex > 0) {
-      result +=
-          ' ';
+      result += ' ';
     }
 
-    result +=
-        '_';
+    result += '_';
 
     const uint8_t value =
-        static_cast<uint8_t>(
-            (
-                activeBits >>
-                (
-                    byteIndex *
-                    8U
-                )
-            ) &
-            0xffU);
+        data[byteIndex];
 
     for (
         int8_t bit = 7;
@@ -67,8 +59,333 @@ String S88I2CMaster::formatBits(
   return result;
 }
 
+bool S88I2CMaster::startBus() {
+  if (_busInitialized) {
+    return true;
+  }
+
+#if S88_I2C_ENABLED
+  Logger::info(
+      "S88 I2C bus starting: "
+      "SDA=" +
+      String(S88_I2C_SDA_PIN) +
+      " SCL=" +
+      String(S88_I2C_SCL_PIN) +
+      " clock=" +
+      String(S88_I2C_CLOCK_HZ) +
+      "Hz");
+
+  const bool started =
+      Wire.begin(
+          S88_I2C_SDA_PIN,
+          S88_I2C_SCL_PIN,
+          S88_I2C_CLOCK_HZ);
+
+  if (!started) {
+    Logger::error(
+        "S88 I2C bus initialization failed");
+
+    return false;
+  }
+
+  _busInitialized =
+      true;
+
+  return true;
+#else
+  return false;
+#endif
+}
+
+bool S88I2CMaster::loadSettings(
+    fs::FS& fs,
+    Settings& settings) {
+  settings.enabled =
+      S88_I2C_ENABLED != 0;
+
+  settings.address =
+      static_cast<uint8_t>(
+          S88_I2C_ADDRESS);
+
+  settings.baseAddress =
+      static_cast<uint16_t>(
+          S88_I2C_BASE_SENSOR_ADDRESS);
+
+  settings.groupCount =
+      static_cast<uint8_t>(
+          S88_I2C_DEFAULT_GROUP_COUNT);
+
+  File file =
+      fs.open(
+          DEVICE_CONFIG_PATH,
+          "r");
+
+  if (!file) {
+    Logger::info(
+        "S88 device config not found; using firmware defaults");
+
+    return true;
+  }
+
+  JsonDocument document;
+
+  const DeserializationError error =
+      deserializeJson(
+          document,
+          file);
+
+  file.close();
+
+  if (error) {
+    Logger::warn(
+        "S88 device config JSON parse failed; using firmware defaults");
+
+    return false;
+  }
+
+  JsonArrayConst devices =
+      document["devices"]
+          .as<JsonArrayConst>();
+
+  for (
+      JsonObjectConst device :
+      devices
+  ) {
+    const char* type =
+        device["type"] |
+        "";
+
+    if (
+        String(type) !=
+        "s88adapter"
+    ) {
+      continue;
+    }
+
+    const bool enabled =
+        device["enabled"] |
+        true;
+
+    const int address =
+        device["address"] |
+        static_cast<int>(
+            S88_I2C_ADDRESS);
+
+    const int baseAddress =
+        device["baseAddress"] |
+        static_cast<int>(
+            S88_I2C_BASE_SENSOR_ADDRESS);
+
+    const int groupCount =
+        device["groupCount"] |
+        static_cast<int>(
+            S88_I2C_DEFAULT_GROUP_COUNT);
+
+    const int sensorCount =
+        groupCount *
+        16;
+
+    if (
+        address < 0x08 ||
+        address > 0x77 ||
+        baseAddress < 1 ||
+        baseAddress +
+                sensorCount -
+                1 >
+            65535 ||
+        groupCount < 1 ||
+        groupCount >
+            MAX_GROUPS
+    ) {
+      Logger::warn(
+          "Invalid S88 adapter entry in device-config.json; using firmware defaults");
+
+      return false;
+    }
+
+    settings.enabled =
+        enabled;
+
+    settings.address =
+        static_cast<uint8_t>(
+            address);
+
+    settings.baseAddress =
+        static_cast<uint16_t>(
+            baseAddress);
+
+    settings.groupCount =
+        static_cast<uint8_t>(
+            groupCount);
+
+    return true;
+  }
+
+  Logger::info(
+      "No S88 adapter entry in device config; using firmware defaults");
+
+  return true;
+}
+
+void S88I2CMaster::clearPublishedSensors(
+    uint16_t baseAddress,
+    uint16_t sensorCount) {
+  if (!_sensorChangeCallback) {
+    return;
+  }
+
+  for (
+      uint16_t offset = 0;
+      offset < sensorCount;
+      ++offset
+  ) {
+    _sensorChangeCallback(
+        static_cast<uint16_t>(
+            baseAddress +
+            offset),
+        false);
+  }
+}
+
+bool S88I2CMaster::applySettings(
+    const Settings& settings) {
+  const uint16_t oldBase =
+      _baseSensorAddress;
+
+  const uint16_t oldSensorCount =
+      sensorCount();
+
+  const bool mappingChanged =
+      oldBase !=
+          settings.baseAddress ||
+      _groupCount !=
+          settings.groupCount ||
+      _enabled !=
+          settings.enabled;
+
+  if (
+      _snapshotKnown &&
+      mappingChanged
+  ) {
+    clearPublishedSensors(
+        oldBase,
+        oldSensorCount);
+  }
+
+  const bool addressChanged =
+      _slaveAddress !=
+      settings.address;
+
+  _enabled =
+      settings.enabled;
+
+  _slaveAddress =
+      settings.address;
+
+  _baseSensorAddress =
+      settings.baseAddress;
+
+  _groupCount =
+      settings.groupCount;
+
+  memset(
+      _activeBytes,
+      0,
+      sizeof(_activeBytes));
+
+  _snapshotKnown =
+      false;
+
+  _adapterConfigurationSent =
+      false;
+
+  if (addressChanged) {
+    _presenceKnown =
+        false;
+
+    _slavePresent =
+        false;
+  }
+
+  Logger::info(
+      "S88 settings: enabled=" +
+      String(
+          _enabled
+              ? "true"
+              : "false") +
+      " address=" +
+      formatAddress(
+          _slaveAddress) +
+      " base=" +
+      String(
+          _baseSensorAddress) +
+      " groups=" +
+      String(
+          _groupCount) +
+      " bytes=" +
+      String(
+          byteCount()) +
+      " sensors=" +
+      String(
+          sensorCount()));
+
+  return true;
+}
+
+bool S88I2CMaster::reloadConfiguration(
+    fs::FS& fs) {
+#if S88_I2C_ENABLED
+  Settings settings;
+
+  const bool parsed =
+      loadSettings(
+          fs,
+          settings);
+
+  applySettings(
+      settings);
+
+  if (!startBus()) {
+    return false;
+  }
+
+  if (!_enabled) {
+    _slavePresent =
+        false;
+
+    _presenceKnown =
+        true;
+
+    Logger::info(
+        "S88 adapter disabled by device configuration");
+
+    return parsed;
+  }
+
+  updateSlavePresence(
+      true);
+
+  if (_slavePresent) {
+    sendAdapterConfiguration();
+  }
+
+  return parsed;
+#else
+  (void)fs;
+
+  _enabled =
+      false;
+
+  return true;
+#endif
+}
+
 bool S88I2CMaster::ping(
     uint8_t address) {
+  if (!_busInitialized) {
+    return false;
+  }
+
   Wire.beginTransmission(
       address);
 
@@ -81,7 +398,7 @@ bool S88I2CMaster::ping(
 }
 
 void S88I2CMaster::scanBus() {
-  if (!_initialized) {
+  if (!_busInitialized) {
     return;
   }
 
@@ -131,9 +448,78 @@ void S88I2CMaster::scanBus() {
       " device(s)");
 }
 
+bool S88I2CMaster::sendAdapterConfiguration() {
+  if (
+      !_enabled ||
+      !_busInitialized ||
+      !_slavePresent
+  ) {
+    return false;
+  }
+
+  const uint8_t groups =
+      _groupCount;
+
+  const uint8_t bytes =
+      byteCount();
+
+  const uint8_t checksum =
+      static_cast<uint8_t>(
+          CONFIG_MAGIC ^
+          CONFIG_COMMAND ^
+          groups ^
+          bytes);
+
+  Wire.beginTransmission(
+      _slaveAddress);
+
+  Wire.write(
+      CONFIG_MAGIC);
+
+  Wire.write(
+      CONFIG_COMMAND);
+
+  Wire.write(
+      groups);
+
+  Wire.write(
+      bytes);
+
+  Wire.write(
+      checksum);
+
+  const uint8_t result =
+      Wire.endTransmission(
+          true);
+
+  _adapterConfigurationSent =
+      result == 0;
+
+  if (_adapterConfigurationSent) {
+    Logger::info(
+        "S88 adapter config sent: groups=" +
+        String(groups) +
+        " bytes=" +
+        String(bytes));
+  } else {
+    Logger::warn(
+        "S88 adapter config write failed at " +
+        formatAddress(
+            _slaveAddress) +
+        " code=" +
+        String(result));
+  }
+
+  return
+      _adapterConfigurationSent;
+}
+
 void S88I2CMaster::updateSlavePresence(
     bool forceLog) {
-  if (!_initialized) {
+  if (
+      !_busInitialized ||
+      !_enabled
+  ) {
     return;
   }
 
@@ -162,10 +548,10 @@ void S88I2CMaster::updateSlavePresence(
       present;
 
   if (changed) {
-    // A reconnect must publish a complete fresh snapshot.
-    // On disconnect keep the last UI occupancy state rather than falsely
-    // declaring the railway free.
     _snapshotKnown =
+        false;
+
+    _adapterConfigurationSent =
         false;
   }
 
@@ -174,6 +560,14 @@ void S88I2CMaster::updateSlavePresence(
         "S88 I2C slave detected at " +
         formatAddress(
             _slaveAddress));
+
+    if (
+        changed ||
+        forceLog ||
+        !_adapterConfigurationSent
+    ) {
+      sendAdapterConfiguration();
+    }
   } else {
     Logger::warn(
         "S88 I2C slave NOT detected at " +
@@ -182,93 +576,162 @@ void S88I2CMaster::updateSlavePresence(
   }
 }
 
+uint16_t S88I2CMaster::activeBitsForGroup(
+    uint8_t groupIndex) const {
+  if (
+      groupIndex >=
+      _groupCount
+  ) {
+    return 0;
+  }
+
+  const uint8_t byteIndex =
+      static_cast<uint8_t>(
+          groupIndex *
+          BYTES_PER_GROUP);
+
+  return
+      static_cast<uint16_t>(
+          _activeBytes[
+              byteIndex]) |
+      (
+          static_cast<uint16_t>(
+              _activeBytes[
+                  byteIndex +
+                  1]) <<
+          8U
+      );
+}
+
 void S88I2CMaster::publishSnapshot(
-    uint16_t activeBits) {
+    const uint8_t* data,
+    uint8_t count) {
   const bool first =
       !_snapshotKnown;
 
-  const uint16_t changedBits =
-      first
-          ? 0xffffU
-          : static_cast<uint16_t>(
-                _activeBits ^
-                activeBits);
+  bool anyChanged =
+      first;
 
-  _activeBits =
-      activeBits;
-
-  _snapshotKnown =
-      true;
-
-  if (
-      first ||
-      changedBits != 0
+  for (
+      uint8_t index = 0;
+      index < count;
+      ++index
   ) {
+    if (
+        _activeBytes[index] !=
+        data[index]
+    ) {
+      anyChanged =
+          true;
+      break;
+    }
+  }
+
+  if (anyChanged) {
     Logger::info(
         "S88 I2C RX: " +
         formatBits(
-            activeBits));
-  }
-
-  if (!_sensorChangeCallback) {
-    return;
+            data,
+            count));
   }
 
   for (
-      uint8_t bit = 0;
-      bit < S88_I2C_INPUT_COUNT;
-      ++bit
+      uint8_t byteIndex = 0;
+      byteIndex < count;
+      ++byteIndex
   ) {
-    const uint16_t mask =
-        static_cast<uint16_t>(
-            1U <<
-            bit);
+    const uint8_t previous =
+        _activeBytes[
+            byteIndex];
 
-    if (
-        !first &&
-        (
-            changedBits &
-            mask
-        ) ==
-        0
-    ) {
+    const uint8_t current =
+        data[
+            byteIndex];
+
+    const uint8_t changed =
+        first
+            ? 0xffU
+            : static_cast<uint8_t>(
+                  previous ^
+                  current);
+
+    _activeBytes[
+        byteIndex] =
+        current;
+
+    if (!_sensorChangeCallback) {
       continue;
     }
 
-    const uint16_t address =
-        static_cast<uint16_t>(
-            _baseSensorAddress +
-            bit);
+    for (
+        uint8_t bit = 0;
+        bit < 8;
+        ++bit
+    ) {
+      const uint8_t mask =
+          static_cast<uint8_t>(
+              1U <<
+              bit);
 
-    const bool occupied =
-        (
-            activeBits &
-            mask
-        ) !=
-        0;
+      if (
+          !first &&
+          (
+              changed &
+              mask
+          ) ==
+          0
+      ) {
+        continue;
+      }
 
-    _sensorChangeCallback(
-        address,
-        occupied);
+      const uint16_t offset =
+          static_cast<uint16_t>(
+              byteIndex) *
+              8U +
+          bit;
+
+      const uint16_t address =
+          static_cast<uint16_t>(
+              _baseSensorAddress +
+              offset);
+
+      const bool occupied =
+          (
+              current &
+              mask
+          ) !=
+          0;
+
+      _sensorChangeCallback(
+          address,
+          occupied);
+    }
   }
+
+  _snapshotKnown =
+      true;
 }
 
 bool S88I2CMaster::readSnapshot() {
   if (
-      !_initialized ||
+      !_busInitialized ||
+      !_enabled ||
       !_slavePresent
   ) {
     return false;
   }
 
+  const uint8_t expected =
+      byteCount();
+
   const size_t received =
       Wire.requestFrom(
           _slaveAddress,
-          DATA_BYTES);
+          expected);
 
   if (
       received !=
-      DATA_BYTES
+      expected
   ) {
     while (
         Wire.available()
@@ -276,83 +739,77 @@ bool S88I2CMaster::readSnapshot() {
       Wire.read();
     }
 
-    Logger::warn(
-        "S88 I2C short read from " +
-        formatAddress(
-            _slaveAddress) +
-        ": expected=2 received=" +
-        String(
-            received));
+    const unsigned long now =
+        millis();
+
+    if (
+        now -
+            _lastShortReadLogMs >=
+        1000UL
+    ) {
+      _lastShortReadLogMs =
+          now;
+
+      Logger::warn(
+          "S88 I2C short read from " +
+          formatAddress(
+              _slaveAddress) +
+          ": expected=" +
+          String(expected) +
+          " received=" +
+          String(received));
+    }
+
+    // Re-send configuration in case the UNO has just restarted.
+    sendAdapterConfiguration();
 
     return false;
   }
 
-  const uint8_t byte0 =
-      static_cast<uint8_t>(
-          Wire.read());
+  uint8_t data[
+      MAX_DATA_BYTES] = {};
 
-  const uint8_t byte1 =
-      static_cast<uint8_t>(
-          Wire.read());
-
-  const uint16_t activeBits =
-      static_cast<uint16_t>(
-          byte0) |
-      (
-          static_cast<uint16_t>(
-              byte1) <<
-          8U
-      );
+  for (
+      uint8_t index = 0;
+      index < expected;
+      ++index
+  ) {
+    data[index] =
+        static_cast<uint8_t>(
+            Wire.read());
+  }
 
   publishSnapshot(
-      activeBits);
+      data,
+      expected);
 
   return true;
 }
 
-void S88I2CMaster::begin() {
+void S88I2CMaster::begin(
+    fs::FS& fs) {
 #if S88_I2C_ENABLED
-  _enabled =
-      true;
-
-  _slaveAddress =
-      static_cast<uint8_t>(
-          S88_I2C_ADDRESS);
-
-  _baseSensorAddress =
-      static_cast<uint16_t>(
-          S88_I2C_BASE_SENSOR_ADDRESS);
-
-  Logger::info(
-      "S88 I2C master starting: "
-      "SDA=" +
-      String(S88_I2C_SDA_PIN) +
-      " SCL=" +
-      String(S88_I2C_SCL_PIN) +
-      " clock=" +
-      String(S88_I2C_CLOCK_HZ) +
-      "Hz target=" +
-      formatAddress(
-          _slaveAddress) +
-      " baseSensor=" +
-      String(
-          _baseSensorAddress));
-
-  const bool started =
-      Wire.begin(
-          S88_I2C_SDA_PIN,
-          S88_I2C_SCL_PIN,
-          S88_I2C_CLOCK_HZ);
-
-  if (!started) {
-    Logger::error(
-        "S88 I2C master initialization failed");
-
+  if (!startBus()) {
+    _enabled =
+        false;
     return;
   }
 
-  _initialized =
-      true;
+  Settings settings;
+
+  loadSettings(
+      fs,
+      settings);
+
+  applySettings(
+      settings);
+
+  if (!_enabled) {
+    Logger::info(
+        "S88 adapter disabled");
+
+    return;
+  }
 
   scanBus();
 
@@ -365,6 +822,8 @@ void S88I2CMaster::begin() {
   _lastReadMs =
       millis();
 #else
+  (void)fs;
+
   _enabled =
       false;
 
@@ -376,7 +835,7 @@ void S88I2CMaster::begin() {
 void S88I2CMaster::loop() {
   if (
       !_enabled ||
-      !_initialized
+      !_busInitialized
   ) {
     return;
   }

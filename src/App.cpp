@@ -40,9 +40,6 @@ void sendWsJson(
 void App::broadcastS88SensorChanged(
     uint16_t address,
     bool occupied) {
-  // Keep dedicated TrackSensor runtime objects synchronized as well.
-  // Ordinary track elements are updated by the browser from sensorChanged /
-  // sensorSnapshot using their occupancy address.
   _runtime.setSensor(
       address,
       occupied);
@@ -97,18 +94,29 @@ void App::broadcastS88Snapshot() {
       data["groups"]
           .to<JsonArray>();
 
-  JsonArray group =
-      groups.add<JsonArray>();
+  for (
+      uint8_t groupIndex = 0;
+      groupIndex <
+          _s88I2c.groupCount();
+      ++groupIndex
+  ) {
+    JsonArray group =
+        groups.add<JsonArray>();
 
-  group.add(
-      _s88I2c.baseSensorAddress());
+    group.add(
+        static_cast<uint16_t>(
+            _s88I2c.baseSensorAddress() +
+            static_cast<uint16_t>(
+                groupIndex) *
+                16U));
 
-  group.add(
-      _s88I2c.activeBits());
+    group.add(
+        _s88I2c.activeBitsForGroup(
+            groupIndex));
 
-  // Current transport knows all 16 bits.
-  group.add(
-      0xffffU);
+    group.add(
+        0xffffU);
+  }
 
   sendWsJson(
       _ws,
@@ -327,23 +335,8 @@ void App::begin() {
 
   _serialConfigurator.begin();
 
-  _s88I2c.onSensorChange(
-      [this](
-          uint16_t address,
-          bool occupied) {
-        broadcastS88SensorChanged(
-            address,
-            occupied);
-      });
-
-  _s88I2c.begin();
-
-  if (_s88I2c.enabled()) {
-    _display.showS88Status(
-        _s88I2c.slaveAddress(),
-        _s88I2c.slavePresent());
-  }
-
+  // Device configuration now participates in S88 startup, so LittleFS must
+  // already be mounted before the I2C master loads its runtime settings.
   if (!LittleFS.begin(true)) {
     Logger::error(
         "LittleFS mount failed");
@@ -359,6 +352,24 @@ void App::begin() {
       _runtime);
 
   _stateStore.load();
+
+  _s88I2c.onSensorChange(
+      [this](
+          uint16_t address,
+          bool occupied) {
+        broadcastS88SensorChanged(
+            address,
+            occupied);
+      });
+
+  _s88I2c.begin(
+      LittleFS);
+
+  if (_s88I2c.enabled()) {
+    _display.showS88Status(
+        _s88I2c.slaveAddress(),
+        _s88I2c.slavePresent());
+  }
 
   connectWifi();
 
@@ -406,6 +417,7 @@ void App::begin() {
           _stateStore,
           _config,
           _wsProtocol,
+          _s88I2c,
           _signalAutomation));
 
   _apiServer->begin();
