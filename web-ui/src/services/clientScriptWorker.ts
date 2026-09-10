@@ -1,6 +1,8 @@
 /// <reference lib="webworker" />
 
 import type {
+  ClientScriptSignalCatalogItem,
+  ClientScriptTurnoutCatalogItem,
   ClientScriptWorkerDccMethod,
   ClientScriptWorkerElement,
   ClientScriptWorkerExecutionId,
@@ -71,6 +73,34 @@ let sensorSnapshotReady =
   false;
 
 const sensorStateWaiters =
+  new Set<() => void>();
+
+// -----------------------------------------------------------------------------
+// Semantic signal / turnout state mirrored from the main-thread layout runtime.
+// -----------------------------------------------------------------------------
+
+const signalCatalog =
+  new Map<number, ClientScriptSignalCatalogItem | null>();
+
+const turnoutCatalog =
+  new Map<number, ClientScriptTurnoutCatalogItem | null>();
+
+let signalCatalogReady =
+  false;
+
+let turnoutCatalogReady =
+  false;
+
+const signalStates =
+  new Map<number, string>();
+
+const turnoutStates =
+  new Map<number, boolean>();
+
+const signalStateWaiters =
+  new Set<() => void>();
+
+const turnoutStateWaiters =
   new Set<() => void>();
 
 class WorkerScriptAbortError extends Error {
@@ -561,6 +591,515 @@ async function waitForSensorState(
 }
 
 
+function notifyWaiters(
+  waiters: Set<() => void>
+): void {
+  const pending =
+    [
+      ...waiters,
+    ];
+
+  waiters.clear();
+
+  for (
+    const resolve of
+    pending
+  ) {
+    resolve();
+  }
+}
+
+function signalAddress(
+  value: number
+): number {
+  return integer(
+    value,
+    1,
+    2048,
+    "Signal address"
+  );
+}
+
+function turnoutAddress(
+  value: number
+): number {
+  return integer(
+    value,
+    1,
+    2048,
+    "Turnout address"
+  );
+}
+
+function normalizeSignalLabel(
+  value: string
+): string {
+  return String(value)
+    .trim()
+    .toLocaleLowerCase();
+}
+
+function signalConfigFor(
+  address: number
+): ClientScriptSignalCatalogItem {
+  const normalized =
+    signalAddress(
+      address
+    );
+
+  if (!signalCatalogReady) {
+    throw new Error(
+      "Signal layout catalog is not ready yet."
+    );
+  }
+
+  if (
+    !signalCatalog.has(
+      normalized
+    )
+  ) {
+    throw new Error(
+      `Signal address ${normalized} is not configured in the layout.`
+    );
+  }
+
+  const config =
+    signalCatalog.get(
+      normalized
+    );
+
+  if (!config) {
+    throw new Error(
+      `Signal address ${normalized} is ambiguous in the layout.`
+    );
+  }
+
+  return config;
+}
+
+function configuredSignalState(
+  address: number,
+  label: string
+): {
+  config: ClientScriptSignalCatalogItem;
+  label: string;
+} {
+  const config =
+    signalConfigFor(
+      address
+    );
+
+  const wanted =
+    normalizeSignalLabel(
+      label
+    );
+
+  if (!wanted) {
+    throw new Error(
+      "Signal state name is required."
+    );
+  }
+
+  const matches =
+    config.states.filter(
+      state =>
+        normalizeSignalLabel(
+          state.label
+        ) ===
+        wanted
+    );
+
+  if (
+    matches.length !== 1
+  ) {
+    throw new Error(
+      `Signal ${config.address} has no unique configured state "${label}".`
+    );
+  }
+
+  return {
+    config,
+    label:
+      matches[0]!.label,
+  };
+}
+
+function turnoutConfigFor(
+  address: number
+): ClientScriptTurnoutCatalogItem {
+  const normalized =
+    turnoutAddress(
+      address
+    );
+
+  if (!turnoutCatalogReady) {
+    throw new Error(
+      "Turnout layout catalog is not ready yet."
+    );
+  }
+
+  if (
+    !turnoutCatalog.has(
+      normalized
+    )
+  ) {
+    throw new Error(
+      `Turnout address ${normalized} is not configured in the layout.`
+    );
+  }
+
+  const config =
+    turnoutCatalog.get(
+      normalized
+    );
+
+  if (!config) {
+    throw new Error(
+      `Turnout address ${normalized} is ambiguous in the layout.`
+    );
+  }
+
+  return config;
+}
+
+function getSignalStateValue(
+  address: number
+): string {
+  const normalized =
+    signalAddress(
+      address
+    );
+
+  signalConfigFor(
+    normalized
+  );
+
+  if (
+    !signalStates.has(
+      normalized
+    )
+  ) {
+    throw new Error(
+      `Signal state for address ${normalized} is not known yet.`
+    );
+  }
+
+  return signalStates.get(
+    normalized
+  )!;
+}
+
+function getTurnoutStateValue(
+  address: number
+): boolean {
+  const normalized =
+    turnoutAddress(
+      address
+    );
+
+  turnoutConfigFor(
+    normalized
+  );
+
+  if (
+    !turnoutStates.has(
+      normalized
+    )
+  ) {
+    throw new Error(
+      `Turnout state for address ${normalized} is not known yet.`
+    );
+  }
+
+  return turnoutStates.get(
+    normalized
+  ) === true;
+}
+
+function waitForDomainUpdate(
+  waiters: Set<() => void>,
+  execution: WorkerExecution,
+  timeoutMs: number | null,
+  timeoutMessage: string
+): Promise<void> {
+  return new Promise<void>(
+    (resolve, reject) => {
+      let settled =
+        false;
+
+      let timer:
+        number | null =
+        null;
+
+      const cleanup = () => {
+        waiters.delete(
+          onUpdate
+        );
+
+        execution.abortWaiters.delete(
+          onAbort
+        );
+
+        if (
+          timer !==
+          null
+        ) {
+          workerScope.clearTimeout(
+            timer
+          );
+
+          timer =
+            null;
+        }
+      };
+
+      const finishResolve = () => {
+        if (settled) {
+          return;
+        }
+
+        settled =
+          true;
+
+        cleanup();
+        resolve();
+      };
+
+      const finishReject = (
+        error: Error
+      ) => {
+        if (settled) {
+          return;
+        }
+
+        settled =
+          true;
+
+        cleanup();
+        reject(error);
+      };
+
+      const onUpdate = () => {
+        finishResolve();
+      };
+
+      const onAbort = (
+        error: WorkerScriptAbortError
+      ) => {
+        finishReject(
+          error
+        );
+      };
+
+      waiters.add(
+        onUpdate
+      );
+
+      execution.abortWaiters.add(
+        onAbort
+      );
+
+      if (
+        timeoutMs !==
+        null
+      ) {
+        timer =
+          workerScope.setTimeout(
+            () => {
+              finishReject(
+                new Error(
+                  timeoutMessage
+                )
+              );
+            },
+            timeoutMs
+          );
+      }
+    }
+  );
+}
+
+function waitTimeout(
+  timeoutMs: number | undefined,
+  name: string
+): {
+  timeout: number | null;
+  deadline: number | null;
+} {
+  const timeout =
+    timeoutMs ===
+    undefined
+      ? null
+      : integer(
+          timeoutMs,
+          1,
+          600000,
+          `${name} timeout`
+        );
+
+  return {
+    timeout,
+    deadline:
+      timeout ===
+      null
+        ? null
+        : performance.now() +
+          timeout,
+  };
+}
+
+function remainingUntil(
+  deadline: number | null,
+  timeoutMessage: string
+): number | null {
+  if (
+    deadline ===
+    null
+  ) {
+    return null;
+  }
+
+  const remaining =
+    Math.ceil(
+      deadline -
+      performance.now()
+    );
+
+  if (
+    remaining <= 0
+  ) {
+    throw new Error(
+      timeoutMessage
+    );
+  }
+
+  return remaining;
+}
+
+async function waitForSignalStateValue(
+  execution: WorkerExecution,
+  address: number,
+  stateName: string,
+  timeoutMs?: number
+): Promise<void> {
+  const configured =
+    configuredSignalState(
+      address,
+      stateName
+    );
+
+  const normalizedAddress =
+    configured.config.address;
+
+  const wanted =
+    normalizeSignalLabel(
+      configured.label
+    );
+
+  const timing =
+    waitTimeout(
+      timeoutMs,
+      "waitForSignalState"
+    );
+
+  const timeoutMessage =
+    `waitForSignalState timeout: signal ${normalizedAddress} did not become "${configured.label}".`;
+
+  while (true) {
+    assertNotAborted(
+      execution
+    );
+
+    await waitUntilResumed(
+      execution
+    );
+
+    const current =
+      signalStates.get(
+        normalizedAddress
+      );
+
+    if (
+      typeof current ===
+        "string" &&
+      normalizeSignalLabel(
+        current
+      ) ===
+        wanted
+    ) {
+      return;
+    }
+
+    await waitForDomainUpdate(
+      signalStateWaiters,
+      execution,
+      remainingUntil(
+        timing.deadline,
+        timeoutMessage
+      ),
+      timeoutMessage
+    );
+  }
+}
+
+async function waitForTurnoutStateValue(
+  execution: WorkerExecution,
+  address: number,
+  closed: boolean,
+  timeoutMs?: number
+): Promise<void> {
+  const config =
+    turnoutConfigFor(
+      address
+    );
+
+  const wanted =
+    Boolean(
+      closed
+    );
+
+  const timing =
+    waitTimeout(
+      timeoutMs,
+      "waitForTurnout"
+    );
+
+  const timeoutMessage =
+    `waitForTurnout timeout: turnout ${config.address} did not become ${wanted ? "CLOSED" : "THROWN"}.`;
+
+  while (true) {
+    assertNotAborted(
+      execution
+    );
+
+    await waitUntilResumed(
+      execution
+    );
+
+    if (
+      turnoutStates.has(
+        config.address
+      ) &&
+      turnoutStates.get(
+        config.address
+      ) ===
+        wanted
+    ) {
+      return;
+    }
+
+    await waitForDomainUpdate(
+      turnoutStateWaiters,
+      execution,
+      remainingUntil(
+        timing.deadline,
+        timeoutMessage
+      ),
+      timeoutMessage
+    );
+  }
+}
+
 function resolveBlockId(
   value: string | number
 ): string {
@@ -731,28 +1270,28 @@ function createDccApi(
   };
 
   return Object.freeze({
-    power(
+    setPower(
       on: boolean
     ): void {
       check();
 
       sendDcc(
         executionId,
-        "power",
+        "setPower",
         [
           Boolean(on),
         ]
       );
     },
 
-    programmingPower(
+    setProgrammingPower(
       on: boolean
     ): void {
       check();
 
       sendDcc(
         executionId,
-        "programmingPower",
+        "setProgrammingPower",
         [
           Boolean(on),
         ]
@@ -769,7 +1308,7 @@ function createDccApi(
       );
     },
 
-    loco(
+    setLoco(
       address: number,
       speed: number,
       direction: ScriptDirection = "forward"
@@ -803,7 +1342,7 @@ function createDccApi(
 
       sendDcc(
         executionId,
-        "loco",
+        "setLoco",
         [
           locoAddress,
           locoSpeed,
@@ -812,7 +1351,7 @@ function createDccApi(
       );
     },
 
-    locoFunction(
+    setLocoFunction(
       address: number,
       functionNumber: number,
       active: boolean
@@ -821,7 +1360,7 @@ function createDccApi(
 
       sendDcc(
         executionId,
-        "locoFunction",
+        "setLocoFunction",
         [
           integer(
             address,
@@ -840,7 +1379,28 @@ function createDccApi(
       );
     },
 
-    turnout(
+    setTurnout(
+      address: number,
+      closed: boolean
+    ): void {
+      check();
+
+      const config =
+        turnoutConfigFor(
+          address
+        );
+
+      sendDcc(
+        executionId,
+        "setTurnoutState",
+        [
+          config.address,
+          Boolean(closed),
+        ]
+      );
+    },
+
+    setTurnoutRaw(
       address: number,
       closed: boolean
     ): void {
@@ -848,7 +1408,7 @@ function createDccApi(
 
       sendDcc(
         executionId,
-        "turnout",
+        "setTurnoutRaw",
         [
           integer(
             address,
@@ -861,7 +1421,120 @@ function createDccApi(
       );
     },
 
-    sensor(
+    getTurnout(
+      address: number
+    ): boolean {
+      check();
+
+      return getTurnoutStateValue(
+        address
+      );
+    },
+
+    isClosed(
+      address: number
+    ): boolean {
+      check();
+
+      return getTurnoutStateValue(
+        address
+      );
+    },
+
+    isThrown(
+      address: number
+    ): boolean {
+      check();
+
+      return !getTurnoutStateValue(
+        address
+      );
+    },
+
+    setClosed(
+      address: number
+    ): void {
+      check();
+
+      const config =
+        turnoutConfigFor(
+          address
+        );
+
+      sendDcc(
+        executionId,
+        "setTurnoutState",
+        [
+          config.address,
+          true,
+        ]
+      );
+    },
+
+    setThrown(
+      address: number
+    ): void {
+      check();
+
+      const config =
+        turnoutConfigFor(
+          address
+        );
+
+      sendDcc(
+        executionId,
+        "setTurnoutState",
+        [
+          config.address,
+          false,
+        ]
+      );
+    },
+
+    async waitForTurnout(
+      address: number,
+      closed: boolean,
+      timeoutMs?: number
+    ): Promise<void> {
+      check();
+
+      await waitForTurnoutStateValue(
+        execution,
+        address,
+        Boolean(closed),
+        timeoutMs
+      );
+    },
+
+    async waitForClosed(
+      address: number,
+      timeoutMs?: number
+    ): Promise<void> {
+      check();
+
+      await waitForTurnoutStateValue(
+        execution,
+        address,
+        true,
+        timeoutMs
+      );
+    },
+
+    async waitForThrown(
+      address: number,
+      timeoutMs?: number
+    ): Promise<void> {
+      check();
+
+      await waitForTurnoutStateValue(
+        execution,
+        address,
+        false,
+        timeoutMs
+      );
+    },
+
+    setSensor(
       address: number,
       on: boolean
     ): void {
@@ -869,7 +1542,7 @@ function createDccApi(
 
       sendDcc(
         executionId,
-        "sensor",
+        "setSensor",
         [
           integer(
             address,
@@ -907,7 +1580,7 @@ function createDccApi(
       );
     },
 
-    accessory(
+    setAccessory(
       address: number,
       active: boolean
     ): void {
@@ -915,7 +1588,7 @@ function createDccApi(
 
       sendDcc(
         executionId,
-        "accessory",
+        "setAccessory",
         [
           integer(
             address,
@@ -928,7 +1601,7 @@ function createDccApi(
       );
     },
 
-    signal(
+    setSignalAspect(
       address: number,
       aspect: number
     ): void {
@@ -936,7 +1609,7 @@ function createDccApi(
 
       sendDcc(
         executionId,
-        "signal",
+        "setSignalAspect",
         [
           integer(
             address,
@@ -952,6 +1625,223 @@ function createDccApi(
           ),
         ]
       );
+    },
+
+    getSignalState(
+      address: number
+    ): string {
+      check();
+
+      return getSignalStateValue(
+        address
+      );
+    },
+
+    isSignalState(
+      address: number,
+      stateName: string
+    ): boolean {
+      check();
+
+      const configured =
+        configuredSignalState(
+          address,
+          stateName
+        );
+
+      const current =
+        getSignalStateValue(
+          configured.config.address
+        );
+
+      return (
+        normalizeSignalLabel(
+          current
+        ) ===
+        normalizeSignalLabel(
+          configured.label
+        )
+      );
+    },
+
+    setSignalState(
+      address: number,
+      stateName: string
+    ): void {
+      check();
+
+      const configured =
+        configuredSignalState(
+          address,
+          stateName
+        );
+
+      sendDcc(
+        executionId,
+        "setSignalState",
+        [
+          configured.config.address,
+          configured.label,
+        ]
+      );
+    },
+
+    setRed(
+      address: number
+    ): void {
+      check();
+      const configured =
+        configuredSignalState(
+          address,
+          "Red"
+        );
+      sendDcc(
+        executionId,
+        "setSignalState",
+        [
+          configured.config.address,
+          configured.label,
+        ]
+      );
+    },
+
+    setGreen(
+      address: number
+    ): void {
+      check();
+      const configured =
+        configuredSignalState(
+          address,
+          "Green"
+        );
+      sendDcc(
+        executionId,
+        "setSignalState",
+        [
+          configured.config.address,
+          configured.label,
+        ]
+      );
+    },
+
+    setYellow(
+      address: number
+    ): void {
+      check();
+      const configured =
+        configuredSignalState(
+          address,
+          "Yellow"
+        );
+      sendDcc(
+        executionId,
+        "setSignalState",
+        [
+          configured.config.address,
+          configured.label,
+        ]
+      );
+    },
+
+    setWhite(
+      address: number
+    ): void {
+      check();
+      const configured =
+        configuredSignalState(
+          address,
+          "White"
+        );
+      sendDcc(
+        executionId,
+        "setSignalState",
+        [
+          configured.config.address,
+          configured.label,
+        ]
+      );
+    },
+
+    isRed(
+      address: number
+    ): boolean {
+      check();
+      const configured = configuredSignalState(address, "Red");
+      return normalizeSignalLabel(getSignalStateValue(configured.config.address)) ===
+        normalizeSignalLabel(configured.label);
+    },
+
+    isGreen(
+      address: number
+    ): boolean {
+      check();
+      const configured = configuredSignalState(address, "Green");
+      return normalizeSignalLabel(getSignalStateValue(configured.config.address)) ===
+        normalizeSignalLabel(configured.label);
+    },
+
+    isYellow(
+      address: number
+    ): boolean {
+      check();
+      const configured = configuredSignalState(address, "Yellow");
+      return normalizeSignalLabel(getSignalStateValue(configured.config.address)) ===
+        normalizeSignalLabel(configured.label);
+    },
+
+    isWhite(
+      address: number
+    ): boolean {
+      check();
+      const configured = configuredSignalState(address, "White");
+      return normalizeSignalLabel(getSignalStateValue(configured.config.address)) ===
+        normalizeSignalLabel(configured.label);
+    },
+
+    async waitForSignalState(
+      address: number,
+      stateName: string,
+      timeoutMs?: number
+    ): Promise<void> {
+      check();
+      await waitForSignalStateValue(
+        execution,
+        address,
+        stateName,
+        timeoutMs
+      );
+    },
+
+    async waitForRed(
+      address: number,
+      timeoutMs?: number
+    ): Promise<void> {
+      check();
+      await waitForSignalStateValue(execution, address, "Red", timeoutMs);
+    },
+
+    async waitForGreen(
+      address: number,
+      timeoutMs?: number
+    ): Promise<void> {
+      check();
+      await waitForSignalStateValue(execution, address, "Green", timeoutMs);
+    },
+
+    async waitForYellow(
+      address: number,
+      timeoutMs?: number
+    ): Promise<void> {
+      check();
+      await waitForSignalStateValue(execution, address, "Yellow", timeoutMs);
+    },
+
+    async waitForWhite(
+      address: number,
+      timeoutMs?: number
+    ): Promise<void> {
+      check();
+      await waitForSignalStateValue(execution, address, "White", timeoutMs);
     },
 
     getBlock(
@@ -1162,7 +2052,7 @@ function createDccApi(
       );
     },
 
-    raw(
+    sendRaw(
       command: string
     ): void {
       check();
@@ -1172,17 +2062,65 @@ function createDccApi(
 
       if (!value) {
         throw new Error(
-          "dcc.raw requires a DCC-EX command."
+          "dcc.sendRaw requires a DCC-EX command."
         );
       }
 
       sendDcc(
         executionId,
-        "raw",
+        "sendRaw",
         [
           value,
         ]
       );
+    },
+
+    // -----------------------------------------------------------------------
+    // Legacy compatibility aliases. New scripts should use the explicit
+    // set*/send* names shown in Script quick help.
+    // -----------------------------------------------------------------------
+    power(on: boolean): void {
+      this.setPower(on);
+    },
+
+    programmingPower(on: boolean): void {
+      this.setProgrammingPower(on);
+    },
+
+    loco(
+      address: number,
+      speed: number,
+      direction: ScriptDirection = "forward"
+    ): void {
+      this.setLoco(address, speed, direction);
+    },
+
+    locoFunction(
+      address: number,
+      functionNumber: number,
+      active: boolean
+    ): void {
+      this.setLocoFunction(address, functionNumber, active);
+    },
+
+    turnout(address: number, closed: boolean): void {
+      this.setTurnoutRaw(address, closed);
+    },
+
+    sensor(address: number, on: boolean): void {
+      this.setSensor(address, on);
+    },
+
+    accessory(address: number, active: boolean): void {
+      this.setAccessory(address, active);
+    },
+
+    signal(address: number, aspect: number): void {
+      this.setSignalAspect(address, aspect);
+    },
+
+    raw(command: string): void {
+      this.sendRaw(command);
     },
   });
 }
@@ -1640,6 +2578,190 @@ workerScope.addEventListener(
         message.ready;
 
       notifySensorStateWaiters();
+
+      return;
+    }
+
+    if (
+      message.type ===
+      "signalCatalog"
+    ) {
+      signalCatalog.clear();
+
+      for (
+        const signal of
+        message.signals
+      ) {
+        const address =
+          Number(
+            signal.address
+          );
+
+        if (
+          !Number.isInteger(
+            address
+          ) ||
+          address < 1 ||
+          address > 2048
+        ) {
+          continue;
+        }
+
+        if (
+          signalCatalog.has(
+            address
+          )
+        ) {
+          signalCatalog.set(
+            address,
+            null
+          );
+        } else {
+          signalCatalog.set(
+            address,
+            signal
+          );
+        }
+      }
+
+      signalCatalogReady =
+        message.ready;
+
+      return;
+    }
+
+    if (
+      message.type ===
+      "turnoutCatalog"
+    ) {
+      turnoutCatalog.clear();
+
+      for (
+        const turnout of
+        message.turnouts
+      ) {
+        const address =
+          Number(
+            turnout.address
+          );
+
+        if (
+          !Number.isInteger(
+            address
+          ) ||
+          address < 1 ||
+          address > 2048
+        ) {
+          continue;
+        }
+
+        if (
+          turnoutCatalog.has(
+            address
+          )
+        ) {
+          turnoutCatalog.set(
+            address,
+            null
+          );
+        } else {
+          turnoutCatalog.set(
+            address,
+            turnout
+          );
+        }
+      }
+
+      turnoutCatalogReady =
+        message.ready;
+
+      return;
+    }
+
+    if (
+      message.type ===
+      "signalStateSnapshot"
+    ) {
+      signalStates.clear();
+
+      for (
+        const [
+          rawAddress,
+          rawState,
+        ] of Object.entries(
+          message.states
+        )
+      ) {
+        const address =
+          Number(
+            rawAddress
+          );
+
+        const state =
+          String(
+            rawState ?? ""
+          ).trim();
+
+        if (
+          Number.isInteger(
+            address
+          ) &&
+          address >= 1 &&
+          address <= 2048 &&
+          state
+        ) {
+          signalStates.set(
+            address,
+            state
+          );
+        }
+      }
+
+      notifyWaiters(
+        signalStateWaiters
+      );
+
+      return;
+    }
+
+    if (
+      message.type ===
+      "turnoutStateSnapshot"
+    ) {
+      turnoutStates.clear();
+
+      for (
+        const [
+          rawAddress,
+          rawState,
+        ] of Object.entries(
+          message.states
+        )
+      ) {
+        const address =
+          Number(
+            rawAddress
+          );
+
+        if (
+          Number.isInteger(
+            address
+          ) &&
+          address >= 1 &&
+          address <= 2048
+        ) {
+          turnoutStates.set(
+            address,
+            Boolean(
+              rawState
+            )
+          );
+        }
+      }
+
+      notifyWaiters(
+        turnoutStateWaiters
+      );
 
       return;
     }

@@ -7,6 +7,13 @@ import {
 } from "./wsClient";
 
 import {
+  applyClientScriptLayoutAccessoryCatalog,
+  executeClientScriptLayoutAccessoryCommand,
+  installClientScriptLayoutAccessoryTracking,
+  sendClientScriptLayoutAccessoryStateToWorker,
+} from "./clientScriptLayoutAccessoryRuntime";
+
+import {
   claimSharedScriptInfo,
   clearSharedScriptInfo,
   setSharedScriptInfo,
@@ -243,6 +250,10 @@ async function refreshBlockCatalog(): Promise<void> {
 
       blockCatalogReady =
         true;
+
+      applyClientScriptLayoutAccessoryCatalog(
+        layout
+      );
 
       sendBlockCatalogToWorker();
     })().finally(
@@ -936,6 +947,13 @@ function ensureWorker(): Worker {
   installBlockTargetLocoRuntime();
   installBlockTracking();
   installSensorTracking();
+  installClientScriptLayoutAccessoryTracking(
+    message => {
+      automationWorker?.postMessage(
+        message
+      );
+    }
+  );
 
   const worker =
     new Worker(
@@ -1018,6 +1036,7 @@ function ensureWorker(): Worker {
   sendBlockSnapshotToWorker();
   sendBlockTargetSnapshotToWorker();
   sendSensorSnapshotToWorker();
+  sendClientScriptLayoutAccessoryStateToWorker();
 
   if (
     wsClient.isConnected() &&
@@ -1317,7 +1336,7 @@ function executeDccCommand(
   switch (
     method
   ) {
-    case "power":
+    case "setPower":
       return requireSend(
         wsApi.setTrackPower(
           booleanArg(
@@ -1325,10 +1344,10 @@ function executeDccCommand(
             0
           )
         ),
-        "dcc.power"
+        "dcc.setPower"
       );
 
-    case "programmingPower":
+    case "setProgrammingPower":
       return requireSend(
         wsApi.setProgrammingPower(
           booleanArg(
@@ -1336,7 +1355,7 @@ function executeDccCommand(
             0
           )
         ),
-        "dcc.programmingPower"
+        "dcc.setProgrammingPower"
       );
 
     case "emergencyStop":
@@ -1345,7 +1364,7 @@ function executeDccCommand(
         "dcc.emergencyStop"
       );
 
-    case "loco": {
+    case "setLoco": {
       const direction =
         args[2] === "reverse"
           ? "reverse"
@@ -1363,11 +1382,11 @@ function executeDccCommand(
           ),
           direction
         ),
-        "dcc.loco"
+        "dcc.setLoco"
       );
     }
 
-    case "locoFunction":
+    case "setLocoFunction":
       return requireSend(
         wsApi.setLocoFunction(
           numberArg(
@@ -1383,10 +1402,24 @@ function executeDccCommand(
             2
           )
         ),
-        "dcc.locoFunction"
+        "dcc.setLocoFunction"
       );
 
-    case "turnout":
+    case "setTurnoutState":
+    case "setSignalState": {
+      const result =
+        executeClientScriptLayoutAccessoryCommand(
+          method,
+          args
+        );
+
+      return result ===
+        undefined
+        ? `dcc.${method}: semantic layout command is unavailable.`
+        : result;
+    }
+
+    case "setTurnoutRaw":
       return requireSend(
         wsApi.setTurnout(
           numberArg(
@@ -1398,10 +1431,10 @@ function executeDccCommand(
             1
           )
         ),
-        "dcc.turnout"
+        "dcc.setTurnout"
       );
 
-    case "sensor":
+    case "setSensor":
       return requireSend(
         wsApi.setSensor(
           numberArg(
@@ -1413,10 +1446,10 @@ function executeDccCommand(
             1
           )
         ),
-        "dcc.sensor"
+        "dcc.setSensor"
       );
 
-    case "accessory":
+    case "setAccessory":
       return requireSend(
         wsApi.setBasicAccessory(
           numberArg(
@@ -1428,10 +1461,10 @@ function executeDccCommand(
             1
           )
         ),
-        "dcc.accessory"
+        "dcc.setAccessory"
       );
 
-    case "signal":
+    case "setSignalAspect":
       return requireSend(
         wsApi.setSignalAspect(
           numberArg(
@@ -1443,7 +1476,7 @@ function executeDccCommand(
             1
           )
         ),
-        "dcc.signal"
+        "dcc.setSignalAspect"
       );
 
     case "setBlock":
@@ -1531,7 +1564,7 @@ function executeDccCommand(
     case "clearBlockTargetLoco":
       return null;
 
-    case "raw":
+    case "sendRaw":
       return requireSend(
         wsApi.writeDccExDirectCommand(
           stringArg(
@@ -1539,7 +1572,7 @@ function executeDccCommand(
             0
           )
         ),
-        "dcc.raw"
+        "dcc.sendRaw"
       );
   }
 }
@@ -2069,3 +2102,10 @@ export async function runClientScript(
 
 installBlockTracking();
 installSensorTracking();
+installClientScriptLayoutAccessoryTracking(
+  message => {
+    automationWorker?.postMessage(
+      message
+    );
+  }
+);

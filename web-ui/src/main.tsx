@@ -48,6 +48,9 @@ import {
 import {
   installBlockTargetLocoVisual,
 } from "@/services/blockTargetLocoVisual";
+import {
+  installApiFetchTimeout,
+} from "@/services/apiFetchTimeout";
 
 import App from "./App";
 import FirstRunWelcome from "@/components/FirstRunWelcome";
@@ -57,6 +60,11 @@ installTurnoutAccessoryModes();
 installOccupancySensorProperties();
 resetDemoStorageOnStartup();
 installDemoRuntime();
+
+// Install after the demo runtime so both the real backend and the local
+// development/demo backend get the same fast JSON/API timeout behaviour.
+installApiFetchTimeout();
+
 installFileViewerEnhancer();
 installSignalLogicStatusIndicator();
 installDccExHeartbeatStatusIndicator();

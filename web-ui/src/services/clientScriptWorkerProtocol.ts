@@ -8,23 +8,52 @@ export type ClientScriptWorkerElement = {
   type: string;
 };
 
+export type ClientScriptSignalDccDirection =
+  | "R"
+  | "G";
+
+export type ClientScriptSignalStateCatalogItem = {
+  label: string;
+  aspect: number;
+  dccOutputs: ClientScriptSignalDccDirection[];
+};
+
+export type ClientScriptSignalCatalogItem = {
+  address: number;
+  name: string;
+  protocol: "dcc" | "dccext";
+  outputCount: number;
+  states: ClientScriptSignalStateCatalogItem[];
+};
+
+export type ClientScriptTurnoutCatalogItem = {
+  address: number;
+  name: string;
+  outputMode: "accessory" | "vpin" | "extended";
+  closedValue: boolean;
+  closedAspect: number;
+  openedAspect: number;
+};
+
 export type ClientScriptWorkerDccMethod =
-  | "power"
-  | "programmingPower"
+  | "setPower"
+  | "setProgrammingPower"
   | "emergencyStop"
-  | "loco"
-  | "locoFunction"
-  | "turnout"
-  | "sensor"
-  | "accessory"
-  | "signal"
+  | "setLoco"
+  | "setLocoFunction"
+  | "setTurnoutRaw"
+  | "setTurnoutState"
+  | "setSensor"
+  | "setAccessory"
+  | "setSignalAspect"
+  | "setSignalState"
   | "block"
   | "setBlock"
   | "setBlockTargetLoco"
   | "clearBlockTargetLoco"
   | "clearBlock"
   | "resetBlocks"
-  | "raw";
+  | "sendRaw";
 
 export type MainToWorkerMessage =
   | {
@@ -49,6 +78,24 @@ export type MainToWorkerMessage =
       type: "sensorSnapshot";
       sensors: Record<string, boolean>;
       ready: boolean;
+    }
+  | {
+      type: "signalCatalog";
+      signals: ClientScriptSignalCatalogItem[];
+      ready: boolean;
+    }
+  | {
+      type: "turnoutCatalog";
+      turnouts: ClientScriptTurnoutCatalogItem[];
+      ready: boolean;
+    }
+  | {
+      type: "signalStateSnapshot";
+      states: Record<string, string>;
+    }
+  | {
+      type: "turnoutStateSnapshot";
+      states: Record<string, boolean>;
     }
   | {
       type: "start";
