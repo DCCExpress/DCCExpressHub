@@ -22,6 +22,47 @@ bool parseIp(
       text);
 }
 
+#if defined(HUB_DISPLAY_WAVESHARE_S3_LCD7) && HUB_DISPLAY_WAVESHARE_S3_LCD7
+
+struct WaveshareWsGuardState {
+  bool congested = false;
+  size_t maxQueue = 0;
+  size_t clientCount = 0;
+};
+
+WaveshareWsGuardState tuneWaveshareWebSocketClients(
+    AsyncWebSocket& ws) {
+  WaveshareWsGuardState state;
+
+  // ESPAsyncWebServer 3.x defaults to closing a WS client when its outgoing
+  // queue is full. The Layout page requests a multi-message runtime snapshot
+  // immediately after mounting, so a busy browser can otherwise enter a
+  // disconnect/reconnect/snapshot loop and exhaust lwIP/heap resources.
+  for (auto& client : ws.getClients()) {
+    ++state.clientCount;
+
+    client.setCloseClientOnQueueFull(false);
+
+    const size_t queued =
+        client.queueLen();
+
+    if (queued > state.maxQueue) {
+      state.maxQueue = queued;
+    }
+
+    // Start applying backpressure well before the library's hard queue limit.
+    // Existing queued control/state frames may drain; we simply avoid adding
+    // periodic telemetry while the browser catches up.
+    if (queued >= 6U) {
+      state.congested = true;
+    }
+  }
+
+  return state;
+}
+
+#endif
+
 void sendWsJson(
     AsyncWebSocket& ws,
     JsonDocument& document) {
@@ -30,6 +71,12 @@ void sendWsJson(
   serializeJson(
       document,
       body);
+
+#if defined(HUB_DISPLAY_WAVESHARE_S3_LCD7) && HUB_DISPLAY_WAVESHARE_S3_LCD7
+  if (!ws.availableForWriteAll()) {
+    return;
+  }
+#endif
 
   ws.textAll(
       body);
@@ -182,6 +229,15 @@ void App::connectWifi() {
   WiFi.mode(
       WIFI_STA);
 
+#if defined(HUB_DISPLAY_WAVESHARE_S3_LCD7) && HUB_DISPLAY_WAVESHARE_S3_LCD7
+  // This board is a mains-powered network HMI. Disable Wi-Fi power saving so
+  // TCP/HTTP/mDNS latency does not depend on modem-sleep windows while the RGB
+  // peripheral is continuously active. Existing M5/CYD targets are unchanged.
+  WiFi.setSleep(false);
+  Logger::info(
+      "Waveshare Wi-Fi power save disabled");
+#endif
+
   WiFi.setHostname(
       network.hostname.c_str());
 
@@ -274,7 +330,10 @@ void App::connectWifi() {
 
     Logger::info(
         "Wi-Fi connected: " +
-        ip);
+        ip +
+        " RSSI=" +
+        String(WiFi.RSSI()) +
+        "dBm");
 
     if (
         MDNS.begin(
@@ -377,6 +436,28 @@ void App::begin() {
 
   connectWifi();
 
+  // Bring the HTTP/WebSocket API online immediately after Wi-Fi. The command
+  // center is allowed to be offline; connection attempts and automation startup
+  // must never delay access to the Hub's own web UI/configuration page.
+  _apiServer.reset(
+      new ApiServer(
+          _config.network().httpPort,
+          _ws,
+          static_cast<ICommandCenter&>(
+              _commandCenter),
+          _runtime,
+          _stateStore,
+          _config,
+          _wsProtocol,
+          _s88I2c,
+          _signalAutomation));
+
+  _apiServer->begin();
+
+  Logger::info(
+      "Hub HTTP/API started on port " +
+      String(_config.network().httpPort));
+
   if (
       WiFi.status() ==
       WL_CONNECTED
@@ -411,21 +492,6 @@ void App::begin() {
       String(
           _signalAutomation.signalCount()));
 
-  _apiServer.reset(
-      new ApiServer(
-          _config.network().httpPort,
-          _ws,
-          static_cast<ICommandCenter&>(
-              _commandCenter),
-          _runtime,
-          _stateStore,
-          _config,
-          _wsProtocol,
-          _s88I2c,
-          _signalAutomation));
-
-  _apiServer->begin();
-
   updateDisplay();
 }
 
@@ -435,9 +501,69 @@ void App::loop() {
   _s88I2c.loop();
   updateS88WebSocket();
 
+#if defined(HUB_DISPLAY_WAVESHARE_S3_LCD7) && HUB_DISPLAY_WAVESHARE_S3_LCD7
+  // Protect the shared lwIP heap from Layout-editor WebSocket bursts. Keep the
+  // command-center bridge running first, because DCC heartbeat traffic is more
+  // important than periodic browser telemetry.
+  const WaveshareWsGuardState wsGuard =
+      tuneWaveshareWebSocketClients(
+          _ws);
+
+  // Dashboard-only Waveshare statistic. This does not touch the common
+  // M5Stack/CYD display API and updates only when the count changes.
+  WaveshareS3Lcd7Display::setConnectedWebClients(
+      wsGuard.clientCount);
+
+  // Dashboard health/runtime telemetry is local-only. Refresh it slowly so it
+  // remains useful without adding WebSocket traffic or unnecessary LVGL work.
+  static unsigned long nextDashboardStatsAt = 0;
+  const unsigned long dashboardNow = millis();
+
+  if (
+      nextDashboardStatsAt == 0 ||
+      static_cast<long>(dashboardNow - nextDashboardStatsAt) >= 0
+  ) {
+    WaveshareS3Lcd7Display::setDashboardSystemStats(
+        ESP.getFreeHeap(),
+        ESP.getFreePsram(),
+        dashboardNow,
+        _runtime.accessoryCount(),
+        _runtime.sensorCount(),
+        _runtime.blockCount());
+
+    nextDashboardStatsAt =
+        dashboardNow + 5000UL;
+  }
+
+  _commandCenter.loop();
+
+  if (!wsGuard.congested) {
+    _wsProtocol.loop();
+  } else {
+    static unsigned long lastWsGuardLogAt = 0;
+    const unsigned long now = millis();
+
+    if (
+        now - lastWsGuardLogAt >= 1000UL
+    ) {
+      lastWsGuardLogAt = now;
+
+      Logger::warn(
+          "Waveshare WS backpressure: queue=" +
+          String(static_cast<unsigned>(wsGuard.maxQueue)) +
+          " freeHeap=" +
+          String(ESP.getFreeHeap()) +
+          " maxBlock=" +
+          String(ESP.getMaxAllocHeap()));
+    }
+  }
+
+  _wsProtocol.cleanupClients();
+#else
   _commandCenter.loop();
   _wsProtocol.loop();
   _wsProtocol.cleanupClients();
+#endif
 
   _wsProtocol.syncEmergencyStopState();
 

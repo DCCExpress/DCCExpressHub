@@ -18,7 +18,14 @@
 #endif
 
 #ifndef S88_I2C_ADDRESS
-#define S88_I2C_ADDRESS 0x30
+  // Waveshare ESP32-S3-Touch-LCD-7 reserves 0x20..0x27 and 0x30..0x3F
+  // for its onboard CH422G IO expander. 0x5D is the onboard GT911 touch.
+  // Keep legacy targets on 0x30, but use a collision-free default on LCD7.
+  #if defined(HUB_TARGET_WAVESHARE_S3_LCD7) && HUB_TARGET_WAVESHARE_S3_LCD7
+    #define S88_I2C_ADDRESS 0x48
+  #else
+    #define S88_I2C_ADDRESS 0x30
+  #endif
 #endif
 
 #ifndef S88_I2C_SDA_PIN

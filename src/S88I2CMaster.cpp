@@ -6,6 +6,42 @@
 #include "Logger.h"
 #include "S88I2CConfig.h"
 
+#if defined(HUB_TARGET_WAVESHARE_S3_LCD7) && HUB_TARGET_WAVESHARE_S3_LCD7
+#include "WaveshareLvglAdapter.h"
+#endif
+
+namespace {
+#if defined(HUB_TARGET_WAVESHARE_S3_LCD7) && HUB_TARGET_WAVESHARE_S3_LCD7
+bool isWaveshareReservedI2CAddress(uint8_t address) {
+  // ESP32-S3-Touch-LCD-7 onboard devices:
+  // CH422G aliases: 0x20..0x27 and 0x30..0x3F
+  // GT911: 0x5D normally, 0x14 is its alternate address.
+  return
+      (address >= 0x20 && address <= 0x27) ||
+      (address >= 0x30 && address <= 0x3F) ||
+      address == 0x5D ||
+      address == 0x14;
+}
+
+class WaveshareSharedI2CGuard {
+public:
+  explicit WaveshareSharedI2CGuard(uint32_t timeoutMs = 25)
+      : _locked(waveshareSharedI2CLock(timeoutMs)) {}
+
+  ~WaveshareSharedI2CGuard() {
+    if (_locked) {
+      waveshareSharedI2CUnlock();
+    }
+  }
+
+  bool locked() const { return _locked; }
+
+private:
+  bool _locked = false;
+};
+#endif
+}  // namespace
+
 String S88I2CMaster::formatAddress(
     uint8_t address) {
   char buffer[5];
@@ -78,6 +114,28 @@ bool S88I2CMaster::startBus() {
   }
 
 #if S88_I2C_ENABLED
+  // The Waveshare ESP32-S3-Touch-LCD-7 uses one shared I2C bus on GPIO8/GPIO9
+  // for the onboard GT911 touch controller, CH422G IO expander and the external
+  // S88 adapter. The display driver initializes Arduino Wire before the S88
+  // master starts. Re-running Wire.begin() here can invalidate the I2C host
+  // state already owned by the touch/panel stack and causes continuous GT911
+  // read failures. On this target S88 therefore only reuses the existing bus.
+#if defined(HUB_TARGET_WAVESHARE_S3_LCD7)
+  Logger::info(
+      "S88 I2C: reusing Waveshare shared bus "
+      "SDA=" +
+      String(S88_I2C_SDA_PIN) +
+      " SCL=" +
+      String(S88_I2C_SCL_PIN) +
+      " clock=" +
+      String(S88_I2C_CLOCK_HZ) +
+      "Hz");
+
+  _busInitialized =
+      true;
+
+  return true;
+#else
   Logger::info(
       "S88 I2C bus starting: "
       "SDA=" +
@@ -105,6 +163,7 @@ bool S88I2CMaster::startBus() {
       true;
 
   return true;
+#endif
 #else
   return false;
 #endif
@@ -179,9 +238,24 @@ bool S88I2CMaster::loadSettings(
     if (
         address < 0x08 ||
         address > 0x77
+#if defined(HUB_TARGET_WAVESHARE_S3_LCD7) && HUB_TARGET_WAVESHARE_S3_LCD7
+        || isWaveshareReservedI2CAddress(
+               static_cast<uint8_t>(address))
+#endif
     ) {
+#if defined(HUB_TARGET_WAVESHARE_S3_LCD7) && HUB_TARGET_WAVESHARE_S3_LCD7
+      Logger::warn(
+          "Invalid/reserved S88 I2C address in device-config.json; "
+          "Waveshare LCD7 reserves 0x20-0x27, 0x30-0x3F and touch address 0x5D; "
+          "using firmware default " +
+          formatAddress(static_cast<uint8_t>(S88_I2C_ADDRESS)));
+#else
       Logger::warn(
           "Invalid S88 I2C address in device-config.json; using firmware default");
+#endif
+
+      settings.address =
+          static_cast<uint8_t>(S88_I2C_ADDRESS);
 
       return false;
     }
@@ -393,6 +467,13 @@ bool S88I2CMaster::ping(
     return false;
   }
 
+#if defined(HUB_TARGET_WAVESHARE_S3_LCD7) && HUB_TARGET_WAVESHARE_S3_LCD7
+  WaveshareSharedI2CGuard busGuard;
+  if (!busGuard.locked()) {
+    return false;
+  }
+#endif
+
   Wire.beginTransmission(
       address);
 
@@ -409,6 +490,28 @@ void S88I2CMaster::scanBus() {
     return;
   }
 
+#if defined(HUB_TARGET_WAVESHARE_S3_LCD7) && HUB_TARGET_WAVESHARE_S3_LCD7
+  // Do not sweep the whole bus on this board. CH422G intentionally responds
+  // through multiple command addresses, which makes a generic scanner look as
+  // if dozens of devices exist and can produce false S88 positives. Probe only
+  // the configured, collision-free S88 address.
+  Logger::info(
+      "I2C scan: Waveshare onboard ranges are reserved; probing S88 only at " +
+      formatAddress(_slaveAddress));
+
+  if (isWaveshareReservedI2CAddress(_slaveAddress)) {
+    Logger::error(
+        "S88 address " +
+        formatAddress(_slaveAddress) +
+        " conflicts with Waveshare onboard I2C devices; probe skipped");
+    return;
+  }
+
+  Logger::info(
+      String("S88 probe ") +
+      formatAddress(_slaveAddress) +
+      (ping(_slaveAddress) ? " ACK" : " no device"));
+#else
   Logger::info(
       "I2C scan started");
 
@@ -453,6 +556,7 @@ void S88I2CMaster::scanBus() {
       "I2C scan complete: " +
       String(found) +
       " device(s)");
+#endif
 }
 
 bool S88I2CMaster::requestAdapterInfo(
@@ -464,6 +568,13 @@ bool S88I2CMaster::requestAdapterInfo(
   ) {
     return false;
   }
+
+#if defined(HUB_TARGET_WAVESHARE_S3_LCD7) && HUB_TARGET_WAVESHARE_S3_LCD7
+  WaveshareSharedI2CGuard busGuard(50);
+  if (!busGuard.locked()) {
+    return false;
+  }
+#endif
 
   _lastInfoAttemptMs =
       millis();
@@ -958,6 +1069,13 @@ bool S88I2CMaster::readSnapshot() {
   ) {
     return false;
   }
+
+#if defined(HUB_TARGET_WAVESHARE_S3_LCD7) && HUB_TARGET_WAVESHARE_S3_LCD7
+  WaveshareSharedI2CGuard busGuard(50);
+  if (!busGuard.locked()) {
+    return false;
+  }
+#endif
 
   const uint8_t expected =
       byteCount();

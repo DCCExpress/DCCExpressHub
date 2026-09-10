@@ -30,4 +30,5 @@ Thumbs.db
 
 dist
 data/
+include/config.h
 src/config.h
