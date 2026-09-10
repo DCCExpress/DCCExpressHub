@@ -35,6 +35,23 @@ void setObjectText(lv_obj_t* label, const String& text) {
   }
 }
 
+String formatEventTime(uint32_t timestampMs) {
+  const uint32_t totalSeconds = timestampMs / 1000UL;
+  const uint32_t hours = (totalSeconds / 3600UL) % 100UL;
+  const uint32_t minutes = (totalSeconds / 60UL) % 60UL;
+  const uint32_t seconds = totalSeconds % 60UL;
+
+  char text[16];
+  snprintf(
+      text,
+      sizeof(text),
+      "%02lu:%02lu:%02lu",
+      static_cast<unsigned long>(hours),
+      static_cast<unsigned long>(minutes),
+      static_cast<unsigned long>(seconds));
+  return String(text);
+}
+
 }  // namespace
 
 lv_color_t WaveshareS3Lcd7Display::color(uint32_t rgb) {
@@ -144,8 +161,6 @@ void WaveshareS3Lcd7Display::begin() {
     return;
   }
 
-  // Arduino Wire owns the physical I2C host because the S88 adapter shares
-  // GPIO8/GPIO9 with GT911 + CH422G. The panel library must reuse that host.
   if (_touch) {
     auto* touchBus = static_cast<BusI2C*>(_touch->getBus());
     if (!touchBus->configI2C_HostSkipInit()) {
@@ -160,10 +175,6 @@ void WaveshareS3Lcd7Display::begin() {
     return;
   }
 
-  // Stability-first RGB setup. Keep the panel on a single native framebuffer;
-  // LVGL itself uses small partial PSRAM draw buffers. This deliberately
-  // avoids full-screen framebuffer swapping / VSYNC task notifications while
-  // keeping the RGB bounce buffer that prevents display drift on ESP32-S3.
   auto* lcdBus = _lcd->getBus();
   if (
       lcdBus &&
@@ -172,11 +183,6 @@ void WaveshareS3Lcd7Display::begin() {
     _lcd->configFrameBufferNumber(1);
 
     auto* rgbBus = static_cast<BusRGB*>(lcdBus);
-
-    // Keep the Waveshare vendor timing. The supported board profile for the
-    // ESP32-S3-Touch-LCD-7 uses a 16 MHz RGB pixel clock. Do not override it:
-    // lowering this board to 8 MHz caused the panel to fall back into a
-    // colour-pattern/test-like output instead of displaying the LVGL frame.
     rgbBus->configRGB_BounceBufferSize(
         static_cast<size_t>(_lcd->getFrameWidth()) * 10U);
 
@@ -189,9 +195,6 @@ void WaveshareS3Lcd7Display::begin() {
   }
 
   WaveshareLvglAdapterConfig adapterConfig;
-  // LVGL no longer owns a dedicated FreeRTOS task. Only the tick source uses
-  // esp_timer; actual rendering/input processing is pumped cooperatively from
-  // the existing Hub loop. This prevents renderer/network cross-core races.
   adapterConfig.tickPeriodMs = 5;
   adapterConfig.minDelayMs = 10;
   adapterConfig.maxDelayMs = 50;
@@ -254,11 +257,10 @@ void WaveshareS3Lcd7Display::buildUi() {
   }
 
   buildDashboardPage();
-  buildControlPage();
   buildSensorsPage();
-  buildSystemPage();
+  buildBlocksPage();
+  buildEventsPage();
   buildNavigation();
-  buildKeyboardOverlay();
 
   showPage(Page::Dashboard);
 }
@@ -311,8 +313,6 @@ void WaveshareS3Lcd7Display::buildTopBar() {
     *labelOut = label;
   };
 
-  // Compact, always-visible status strip. The Power and E-STOP controls live
-  // outside the page containers, so they remain available on every HMI page.
   makeChip(318, 84, "WiFi --", &_wifiChip, &_wifiChipLabel);
   makeChip(408, 72, "CC --", &_ccChip, &_ccChipLabel);
   makeChip(486, 82, "S88 --", &_s88Chip, &_s88ChipLabel);
@@ -327,7 +327,6 @@ void WaveshareS3Lcd7Display::buildTopBar() {
       &_topPowerLabel);
   lv_obj_set_style_radius(_topPowerButton, 12, 0);
   lv_obj_set_style_text_font(_topPowerLabel, &lv_font_montserrat_14, 0);
-  lv_obj_set_style_text_align(_topPowerLabel, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_add_event_cb(
       _topPowerButton,
       actionEvent,
@@ -344,7 +343,6 @@ void WaveshareS3Lcd7Display::buildTopBar() {
       &_topEmergencyLabel);
   lv_obj_set_style_radius(_topEmergencyButton, 12, 0);
   lv_obj_set_style_text_font(_topEmergencyLabel, &lv_font_montserrat_14, 0);
-  lv_obj_set_style_text_align(_topEmergencyLabel, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_add_event_cb(
       _topEmergencyButton,
       actionEvent,
@@ -355,8 +353,6 @@ void WaveshareS3Lcd7Display::buildTopBar() {
 void WaveshareS3Lcd7Display::buildDashboardPage() {
   lv_obj_t* page = _pages[static_cast<uint8_t>(Page::Dashboard)];
 
-  // The product identity now lives in the top bar. Keep the dashboard itself
-  // focused on live railway state instead of repeating a title/subtitle.
   lv_obj_t* ccCard = makeCard(page, 0, 0, 376, 112);
   makeLabel(ccCard, "COMMAND CENTER", &lv_font_montserrat_14, COLOR_MUTED);
   lv_obj_set_pos(lv_obj_get_child(ccCard, 0), 18, 14);
@@ -483,216 +479,206 @@ void WaveshareS3Lcd7Display::buildDashboardPage() {
   lv_obj_set_pos(_dashSystemUptime, 18, 134);
 }
 
-void WaveshareS3Lcd7Display::buildControlPage() {
-  lv_obj_t* page = _pages[static_cast<uint8_t>(Page::Control)];
-
-  lv_obj_t* title = makeLabel(
-      page,
-      "Control",
-      &lv_font_montserrat_28,
-      COLOR_TEXT);
-  lv_obj_set_pos(title, 2, 0);
-
-  lv_obj_t* subtitle = makeLabel(
-      page,
-      "Fast access to the track and command station",
-      &lv_font_montserrat_14,
-      COLOR_MUTED);
-  lv_obj_set_pos(subtitle, 4, 35);
-
-  lv_obj_t* ccCard = makeCard(page, 0, 62, 768, 76);
-  makeLabel(ccCard, "COMMAND CENTER", &lv_font_montserrat_14, COLOR_MUTED);
-  lv_obj_set_pos(lv_obj_get_child(ccCard, 0), 18, 14);
-  _controlCcValue = makeLabel(
-      ccCard,
-      "Offline",
-      &lv_font_montserrat_20,
-      COLOR_TEXT);
-  lv_obj_set_pos(_controlCcValue, 18, 39);
-
-  _controlPowerButton = makeButton(
-      page,
-      0,
-      154,
-      376,
-      156,
-      "TRACK POWER\nOFF",
-      &_controlPowerLabel);
-  lv_obj_set_style_text_align(_controlPowerLabel, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_add_event_cb(
-      _controlPowerButton,
-      actionEvent,
-      LV_EVENT_CLICKED,
-      this);
-
-  _controlEmergencyButton = makeButton(
-      page,
-      392,
-      154,
-      376,
-      156,
-      "EMERGENCY\nSTOP",
-      &_controlEmergencyLabel);
-  lv_obj_set_style_text_align(_controlEmergencyLabel, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_add_event_cb(
-      _controlEmergencyButton,
-      actionEvent,
-      LV_EVENT_CLICKED,
-      this);
-}
-
 void WaveshareS3Lcd7Display::buildSensorsPage() {
   lv_obj_t* page = _pages[static_cast<uint8_t>(Page::Sensors)];
 
   lv_obj_t* title = makeLabel(
       page,
-      "S88 Feedback",
+      "S88 Sensors",
       &lv_font_montserrat_28,
       COLOR_TEXT);
   lv_obj_set_pos(title, 2, 0);
 
-  lv_obj_t* subtitle = makeLabel(
-      page,
-      "Adapter health now; live sensor matrix can bind here next",
-      &lv_font_montserrat_14,
-      COLOR_MUTED);
-  lv_obj_set_pos(subtitle, 4, 35);
-
-  lv_obj_t* summary = makeCard(page, 0, 62, 768, 86);
   _sensorHeadline = makeLabel(
-      summary,
+      page,
       "Waiting for S88 adapter",
-      &lv_font_montserrat_24,
+      &lv_font_montserrat_14,
       COLOR_AMBER);
-  lv_obj_set_pos(_sensorHeadline, 18, 14);
+  lv_obj_set_pos(_sensorHeadline, 4, 38);
+
   _sensorAddressLabel = makeLabel(
-      summary,
-      "I2C address: -",
+      page,
+      "I2C: -",
       &lv_font_montserrat_14,
       COLOR_MUTED);
-  lv_obj_set_pos(_sensorAddressLabel, 18, 51);
+  lv_obj_set_pos(_sensorAddressLabel, 250, 38);
+
   _sensorStateLabel = makeLabel(
-      summary,
-      "No live feedback yet",
+      page,
+      "0 configured",
       &lv_font_montserrat_14,
       COLOR_MUTED);
-  lv_obj_align(_sensorStateLabel, LV_ALIGN_TOP_RIGHT, -18, 51);
+  lv_obj_set_pos(_sensorStateLabel, 385, 38);
 
-  for (int group = 0; group < 4; ++group) {
-    const int x = (group % 2) * 392;
-    const int y = 164 + (group / 2) * 74;
-    lv_obj_t* card = makeCard(page, x, y, 376, 62, COLOR_PANEL_ALT, COLOR_BORDER);
+  _sensorPrevButton = makeButton(
+      page, 600, 4, 50, 42, "<", nullptr);
+  _sensorNextButton = makeButton(
+      page, 656, 4, 50, 42, ">", nullptr);
+  _sensorPageLabel = makeLabel(
+      page,
+      "1/1",
+      &lv_font_montserrat_14,
+      COLOR_MUTED);
+  lv_obj_set_pos(_sensorPageLabel, 716, 17);
 
-    char groupText[16];
-    snprintf(groupText, sizeof(groupText), "GROUP %02d", group + 1);
-    lv_obj_t* groupLabel = makeLabel(
-        card,
-        groupText,
+  lv_obj_add_event_cb(_sensorPrevButton, actionEvent, LV_EVENT_CLICKED, this);
+  lv_obj_add_event_cb(_sensorNextButton, actionEvent, LV_EVENT_CLICKED, this);
+
+  for (size_t i = 0; i < SENSOR_PAGE_SIZE; ++i) {
+    const int column = static_cast<int>(i % 8U);
+    const int row = static_cast<int>(i / 8U);
+    const int x = column * 96;
+    const int y = 64 + row * 62;
+
+    _sensorCells[i] = makeCard(
+        page,
+        x,
+        y,
+        88,
+        54,
+        COLOR_PANEL_ALT,
+        COLOR_BORDER);
+
+    _sensorCellLabels[i] = makeLabel(
+        _sensorCells[i],
+        "--\nFREE",
         &lv_font_montserrat_14,
         COLOR_MUTED);
-    lv_obj_set_pos(groupLabel, 16, 8);
-
-    for (int bit = 0; bit < 8; ++bit) {
-      lv_obj_t* dot = lv_obj_create(card);
-      lv_obj_set_size(dot, 18, 18);
-      lv_obj_set_pos(dot, 16 + bit * 38, 32);
-      lv_obj_set_style_radius(dot, LV_RADIUS_CIRCLE, 0);
-      lv_obj_set_style_bg_color(dot, color(0x2B3A4E), 0);
-      lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, 0);
-      lv_obj_set_style_border_width(dot, 0, 0);
-      lv_obj_clear_flag(dot, LV_OBJ_FLAG_SCROLLABLE);
-    }
+    lv_obj_set_style_text_align(
+        _sensorCellLabels[i],
+        LV_TEXT_ALIGN_CENTER,
+        0);
+    lv_obj_center(_sensorCellLabels[i]);
   }
 }
 
-void WaveshareS3Lcd7Display::buildSystemPage() {
-  lv_obj_t* page = _pages[static_cast<uint8_t>(Page::System)];
+void WaveshareS3Lcd7Display::buildBlocksPage() {
+  lv_obj_t* page = _pages[static_cast<uint8_t>(Page::Blocks)];
 
   lv_obj_t* title = makeLabel(
       page,
-      "System",
+      "Blocks",
       &lv_font_montserrat_28,
       COLOR_TEXT);
   lv_obj_set_pos(title, 2, 0);
 
-  lv_obj_t* subtitle = makeLabel(
+  _blockHeadline = makeLabel(
       page,
-      "Runtime endpoints, diagnostics and touch test",
+      "Live block occupancy / locomotive assignment",
       &lv_font_montserrat_14,
       COLOR_MUTED);
-  lv_obj_set_pos(subtitle, 4, 35);
+  lv_obj_set_pos(_blockHeadline, 4, 38);
 
-  lv_obj_t* networkCard = makeCard(page, 0, 62, 376, 96);
-  makeLabel(networkCard, "NETWORK", &lv_font_montserrat_14, COLOR_MUTED);
-  lv_obj_set_pos(lv_obj_get_child(networkCard, 0), 18, 14);
-  _systemWifiValue = makeLabel(
-      networkCard,
-      "Starting...",
-      &lv_font_montserrat_20,
+  _blockPrevButton = makeButton(
+      page, 600, 4, 50, 42, "<", nullptr);
+  _blockNextButton = makeButton(
+      page, 656, 4, 50, 42, ">", nullptr);
+  _blockPageLabel = makeLabel(
+      page,
+      "1/1",
+      &lv_font_montserrat_14,
+      COLOR_MUTED);
+  lv_obj_set_pos(_blockPageLabel, 716, 17);
+
+  lv_obj_add_event_cb(_blockPrevButton, actionEvent, LV_EVENT_CLICKED, this);
+  lv_obj_add_event_cb(_blockNextButton, actionEvent, LV_EVENT_CLICKED, this);
+
+  for (size_t i = 0; i < BLOCK_PAGE_SIZE; ++i) {
+    const int column = static_cast<int>(i % 2U);
+    const int row = static_cast<int>(i / 2U);
+    const int x = column * 392;
+    const int y = 64 + row * 62;
+
+    _blockRows[i] = makeCard(
+        page,
+        x,
+        y,
+        376,
+        54,
+        COLOR_PANEL_ALT,
+        COLOR_BORDER);
+
+    _blockIdLabels[i] = makeLabel(
+        _blockRows[i],
+        "BLOCK --",
+        &lv_font_montserrat_16,
+        COLOR_TEXT);
+    lv_obj_set_pos(_blockIdLabels[i], 14, 8);
+
+    _blockStateLabels[i] = makeLabel(
+        _blockRows[i],
+        "FREE",
+        &lv_font_montserrat_14,
+        COLOR_GREEN);
+    lv_obj_set_pos(_blockStateLabels[i], 14, 30);
+
+    _blockLocoLabels[i] = makeLabel(
+        _blockRows[i],
+        "",
+        &lv_font_montserrat_14,
+        COLOR_MUTED);
+    lv_obj_set_width(_blockLocoLabels[i], 190);
+    lv_label_set_long_mode(_blockLocoLabels[i], LV_LABEL_LONG_DOT);
+    lv_obj_align(_blockLocoLabels[i], LV_ALIGN_RIGHT_MID, -14, 0);
+  }
+}
+
+void WaveshareS3Lcd7Display::buildEventsPage() {
+  lv_obj_t* page = _pages[static_cast<uint8_t>(Page::Events)];
+
+  lv_obj_t* title = makeLabel(
+      page,
+      "Events",
+      &lv_font_montserrat_28,
       COLOR_TEXT);
-  lv_obj_set_pos(_systemWifiValue, 18, 42);
-  lv_obj_set_width(_systemWifiValue, 330);
-  lv_label_set_long_mode(_systemWifiValue, LV_LABEL_LONG_DOT);
+  lv_obj_set_pos(title, 2, 0);
 
-  lv_obj_t* ccCard = makeCard(page, 392, 62, 376, 96);
-  makeLabel(ccCard, "COMMAND CENTER", &lv_font_montserrat_14, COLOR_MUTED);
-  lv_obj_set_pos(lv_obj_get_child(ccCard, 0), 18, 14);
-  _systemCcValue = makeLabel(
-      ccCard,
-      "Offline",
-      &lv_font_montserrat_20,
-      COLOR_TEXT);
-  lv_obj_set_pos(_systemCcValue, 18, 42);
-  lv_obj_set_width(_systemCcValue, 330);
-  lv_label_set_long_mode(_systemCcValue, LV_LABEL_LONG_DOT);
+  _eventHeadline = makeLabel(
+      page,
+      "Recent railway runtime events",
+      &lv_font_montserrat_14,
+      COLOR_MUTED);
+  lv_obj_set_pos(_eventHeadline, 4, 38);
 
-  lv_obj_t* s88Card = makeCard(page, 0, 174, 376, 126);
-  makeLabel(s88Card, "S88 / I2C", &lv_font_montserrat_14, COLOR_MUTED);
-  lv_obj_set_pos(lv_obj_get_child(s88Card, 0), 18, 14);
-  _systemS88Value = makeLabel(
-      s88Card,
-      "Waiting for adapter",
-      &lv_font_montserrat_20,
-      COLOR_TEXT);
-  lv_obj_set_pos(_systemS88Value, 18, 42);
-
-  _systemInfoButton = makeButton(
-      s88Card,
-      18,
-      78,
-      150,
-      34,
-      "INFO EVENT",
+  _eventClearButton = makeButton(
+      page,
+      650,
+      4,
+      118,
+      42,
+      "CLEAR",
       nullptr);
-  lv_obj_add_event_cb(
-      _systemInfoButton,
-      actionEvent,
-      LV_EVENT_CLICKED,
-      this);
+  lv_obj_add_event_cb(_eventClearButton, actionEvent, LV_EVENT_CLICKED, this);
 
-  lv_obj_t* touchCard = makeCard(page, 392, 174, 376, 126);
-  makeLabel(touchCard, "TOUCH / KEYBOARD", &lv_font_montserrat_14, COLOR_MUTED);
-  lv_obj_set_pos(lv_obj_get_child(touchCard, 0), 18, 14);
-  lv_obj_t* touchText = makeLabel(
-      touchCard,
-      "GT911 input test",
-      &lv_font_montserrat_20,
-      COLOR_TEXT);
-  lv_obj_set_pos(touchText, 18, 42);
+  for (size_t i = 0; i < EVENT_VISIBLE_ROWS; ++i) {
+    const int y = 64 + static_cast<int>(i) * 30;
 
-  _systemTouchButton = makeButton(
-      touchCard,
-      18,
-      78,
-      220,
-      34,
-      "OPEN KEYBOARD",
-      nullptr);
-  lv_obj_add_event_cb(
-      _systemTouchButton,
-      actionEvent,
-      LV_EVENT_CLICKED,
-      this);
+    _eventRows[i] = makeCard(
+        page,
+        0,
+        y,
+        768,
+        26,
+        (i % 2U == 0U) ? COLOR_PANEL : COLOR_PANEL_ALT,
+        COLOR_BORDER);
+    lv_obj_set_style_radius(_eventRows[i], 8, 0);
+
+    _eventTimeLabels[i] = makeLabel(
+        _eventRows[i],
+        "--:--:--",
+        &lv_font_montserrat_14,
+        COLOR_MUTED);
+    lv_obj_set_pos(_eventTimeLabels[i], 10, 5);
+
+    _eventTextLabels[i] = makeLabel(
+        _eventRows[i],
+        "",
+        &lv_font_montserrat_14,
+        COLOR_TEXT);
+    lv_obj_set_pos(_eventTextLabels[i], 92, 5);
+    lv_obj_set_width(_eventTextLabels[i], 660);
+    lv_label_set_long_mode(_eventTextLabels[i], LV_LABEL_LONG_DOT);
+  }
 }
 
 void WaveshareS3Lcd7Display::buildNavigation() {
@@ -707,9 +693,9 @@ void WaveshareS3Lcd7Display::buildNavigation() {
 
   const char* names[4] = {
       "DASHBOARD",
-      "CONTROL",
       "SENSORS",
-      "SYSTEM"
+      "BLOCKS",
+      "EVENTS"
   };
 
   for (int i = 0; i < 4; ++i) {
@@ -730,56 +716,6 @@ void WaveshareS3Lcd7Display::buildNavigation() {
         LV_EVENT_CLICKED,
         this);
   }
-}
-
-void WaveshareS3Lcd7Display::buildKeyboardOverlay() {
-  _keyboardOverlay = makeCard(
-      _screen,
-      22,
-      76,
-      756,
-      324,
-      0x0A1422,
-      COLOR_BLUE);
-  lv_obj_set_style_border_width(_keyboardOverlay, 2, 0);
-
-  lv_obj_t* title = makeLabel(
-      _keyboardOverlay,
-      "Touch keyboard test",
-      &lv_font_montserrat_24,
-      COLOR_TEXT);
-  lv_obj_set_pos(title, 18, 12);
-
-  lv_obj_t* subtitle = makeLabel(
-      _keyboardOverlay,
-      "If you can type here, GT911 + LVGL input is alive.",
-      &lv_font_montserrat_14,
-      COLOR_MUTED);
-  lv_obj_set_pos(subtitle, 18, 42);
-
-  _keyboardTextArea = lv_textarea_create(_keyboardOverlay);
-  lv_obj_set_pos(_keyboardTextArea, 18, 68);
-  lv_obj_set_size(_keyboardTextArea, 720, 44);
-  lv_textarea_set_one_line(_keyboardTextArea, true);
-  lv_textarea_set_placeholder_text(_keyboardTextArea, "Tap keys below...");
-  lv_obj_set_style_text_font(_keyboardTextArea, &lv_font_montserrat_18, 0);
-  lv_obj_set_style_bg_color(_keyboardTextArea, color(COLOR_PANEL_ALT), 0);
-  lv_obj_set_style_text_color(_keyboardTextArea, color(COLOR_TEXT), 0);
-  lv_obj_set_style_border_color(_keyboardTextArea, color(COLOR_BORDER), 0);
-  lv_obj_set_style_radius(_keyboardTextArea, 12, 0);
-
-  _keyboard = lv_keyboard_create(_keyboardOverlay);
-  lv_obj_set_pos(_keyboard, 18, 120);
-  lv_obj_set_size(_keyboard, 720, 184);
-  lv_keyboard_set_textarea(_keyboard, _keyboardTextArea);
-  lv_obj_set_style_text_font(_keyboard, &lv_font_montserrat_16, LV_PART_ITEMS);
-  lv_obj_add_event_cb(
-      _keyboard,
-      keyboardEvent,
-      LV_EVENT_ALL,
-      this);
-
-  lv_obj_add_flag(_keyboardOverlay, LV_OBJ_FLAG_HIDDEN);
 }
 
 void WaveshareS3Lcd7Display::showPage(Page page) {
@@ -808,19 +744,13 @@ void WaveshareS3Lcd7Display::showPage(Page page) {
           0);
     }
   }
-}
 
-void WaveshareS3Lcd7Display::showKeyboardTest(bool show) {
-  if (!_keyboardOverlay) {
-    return;
-  }
-
-  if (show) {
-    lv_textarea_set_text(_keyboardTextArea, "");
-    lv_obj_clear_flag(_keyboardOverlay, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_move_foreground(_keyboardOverlay);
-  } else {
-    lv_obj_add_flag(_keyboardOverlay, LV_OBJ_FLAG_HIDDEN);
+  if (page == Page::Sensors) {
+    refreshSensorsPage();
+  } else if (page == Page::Blocks) {
+    refreshBlocksPage();
+  } else if (page == Page::Events) {
+    refreshEventsPage();
   }
 }
 
@@ -881,92 +811,201 @@ void WaveshareS3Lcd7Display::refreshStatusChips() {
 }
 
 void WaveshareS3Lcd7Display::refreshActionButtons() {
-  auto styleTopPower = [this](lv_obj_t* button, lv_obj_t* label) {
-    if (!button || !label) {
-      return;
-    }
-
+  if (_topPowerButton && _topPowerLabel) {
     lv_obj_set_style_bg_color(
-        button,
+        _topPowerButton,
         color(_powerActive ? COLOR_GREEN_DARK : COLOR_PANEL_ALT),
         0);
     lv_obj_set_style_border_color(
-        button,
+        _topPowerButton,
         color(_powerActive ? COLOR_GREEN : COLOR_BORDER),
         0);
     lv_obj_set_style_text_color(
-        label,
+        _topPowerLabel,
         color(_powerActive ? COLOR_GREEN : COLOR_TEXT),
         0);
     lv_label_set_text(
-        label,
+        _topPowerLabel,
         _powerActive ? "PWR ON" : "PWR OFF");
-  };
+  }
 
-  auto styleTopEmergency = [this](lv_obj_t* button, lv_obj_t* label) {
-    if (!button || !label) {
-      return;
-    }
-
+  if (_topEmergencyButton && _topEmergencyLabel) {
     lv_obj_set_style_bg_color(
-        button,
+        _topEmergencyButton,
         color(_emergencyActive ? COLOR_RED : COLOR_RED_DARK),
-        0);
-    lv_obj_set_style_border_color(button, color(COLOR_RED), 0);
-    lv_obj_set_style_text_color(
-        label,
-        color(_emergencyActive ? 0xFFFFFF : COLOR_RED),
-        0);
-    lv_label_set_text(
-        label,
-        _emergencyActive ? "RESUME" : "E-STOP");
-  };
-
-  auto stylePower = [this](lv_obj_t* button, lv_obj_t* label) {
-    if (!button || !label) {
-      return;
-    }
-
-    lv_obj_set_style_bg_color(
-        button,
-        color(_powerActive ? COLOR_GREEN_DARK : COLOR_PANEL_ALT),
         0);
     lv_obj_set_style_border_color(
-        button,
-        color(_powerActive ? COLOR_GREEN : COLOR_BORDER),
+        _topEmergencyButton,
+        color(COLOR_RED),
         0);
     lv_obj_set_style_text_color(
-        label,
-        color(_powerActive ? COLOR_GREEN : COLOR_TEXT),
-        0);
-    lv_label_set_text(
-        label,
-        _powerActive ? "TRACK POWER\nON" : "TRACK POWER\nOFF");
-  };
-
-  auto styleEmergency = [this](lv_obj_t* button, lv_obj_t* label) {
-    if (!button || !label) {
-      return;
-    }
-
-    lv_obj_set_style_bg_color(
-        button,
-        color(_emergencyActive ? COLOR_RED : COLOR_RED_DARK),
-        0);
-    lv_obj_set_style_border_color(button, color(COLOR_RED), 0);
-    lv_obj_set_style_text_color(
-        label,
+        _topEmergencyLabel,
         color(_emergencyActive ? 0xFFFFFF : COLOR_RED),
         0);
     lv_label_set_text(
-        label,
-        _emergencyActive ? "EMERGENCY ACTIVE\nTAP TO RESUME" : "EMERGENCY\nSTOP");
-  };
+        _topEmergencyLabel,
+        _emergencyActive ? "RESUME" : "E-STOP");
+  }
+}
 
-  styleTopPower(_topPowerButton, _topPowerLabel);
-  styleTopEmergency(_topEmergencyButton, _topEmergencyLabel);
-  stylePower(_controlPowerButton, _controlPowerLabel);
-  styleEmergency(_controlEmergencyButton, _controlEmergencyLabel);
+void WaveshareS3Lcd7Display::refreshSensorsPage() {
+  const size_t pages = std::max<size_t>(
+      1U,
+      (_sensorItemCount + SENSOR_PAGE_SIZE - 1U) / SENSOR_PAGE_SIZE);
+
+  if (_sensorPage >= pages) {
+    _sensorPage = pages - 1U;
+  }
+
+  setObjectText(
+      _sensorPageLabel,
+      String(static_cast<unsigned>(_sensorPage + 1U)) +
+          "/" +
+          String(static_cast<unsigned>(pages)));
+
+  setObjectText(
+      _sensorStateLabel,
+      String(static_cast<unsigned>(_sensorItemCount)) +
+          " configured");
+
+  const size_t first = _sensorPage * SENSOR_PAGE_SIZE;
+
+  for (size_t i = 0; i < SENSOR_PAGE_SIZE; ++i) {
+    const size_t index = first + i;
+    lv_obj_t* card = _sensorCells[i];
+    lv_obj_t* label = _sensorCellLabels[i];
+
+    if (!card || !label) {
+      continue;
+    }
+
+    if (index >= _sensorItemCount) {
+      setObjectText(label, "--\n-");
+      lv_obj_set_style_bg_color(card, color(COLOR_PANEL_ALT), 0);
+      lv_obj_set_style_border_color(card, color(COLOR_BORDER), 0);
+      lv_obj_set_style_text_color(label, color(COLOR_MUTED), 0);
+      continue;
+    }
+
+    const auto& item = _sensorItems[index];
+    setObjectText(
+        label,
+        String(item.address) +
+            (item.on ? "\nOCC" : "\nFREE"));
+
+    lv_obj_set_style_bg_color(
+        card,
+        color(item.on ? COLOR_RED_DARK : COLOR_GREEN_DARK),
+        0);
+    lv_obj_set_style_border_color(
+        card,
+        color(item.on ? COLOR_RED : COLOR_GREEN),
+        0);
+    lv_obj_set_style_text_color(
+        label,
+        color(item.on ? COLOR_RED : COLOR_GREEN),
+        0);
+  }
+}
+
+void WaveshareS3Lcd7Display::refreshBlocksPage() {
+  const size_t pages = std::max<size_t>(
+      1U,
+      (_blockItemCount + BLOCK_PAGE_SIZE - 1U) / BLOCK_PAGE_SIZE);
+
+  if (_blockPage >= pages) {
+    _blockPage = pages - 1U;
+  }
+
+  setObjectText(
+      _blockPageLabel,
+      String(static_cast<unsigned>(_blockPage + 1U)) +
+          "/" +
+          String(static_cast<unsigned>(pages)));
+
+  setObjectText(
+      _blockHeadline,
+      String(static_cast<unsigned>(_blockItemCount)) +
+          " blocks | live occupancy / locomotive assignment");
+
+  const size_t first = _blockPage * BLOCK_PAGE_SIZE;
+
+  for (size_t i = 0; i < BLOCK_PAGE_SIZE; ++i) {
+    const size_t index = first + i;
+    lv_obj_t* row = _blockRows[i];
+
+    if (!row) {
+      continue;
+    }
+
+    if (index >= _blockItemCount) {
+      setObjectText(_blockIdLabels[i], "BLOCK --");
+      setObjectText(_blockStateLabels[i], "-");
+      setObjectText(_blockLocoLabels[i], "");
+      lv_obj_set_style_bg_color(row, color(COLOR_PANEL_ALT), 0);
+      lv_obj_set_style_border_color(row, color(COLOR_BORDER), 0);
+      continue;
+    }
+
+    const auto& block = _blockItems[index];
+    setObjectText(
+        _blockIdLabels[i],
+        String("BLOCK ") + String(block.id));
+
+    const char* stateText =
+        block.targetOnly
+            ? "RESERVED"
+            : (block.occupied ? "OCCUPIED" : "FREE");
+    const uint32_t stateColor =
+        block.targetOnly
+            ? COLOR_AMBER
+            : (block.occupied ? COLOR_RED : COLOR_GREEN);
+    const uint32_t stateBg =
+        block.targetOnly
+            ? COLOR_AMBER_DARK
+            : (block.occupied ? COLOR_RED_DARK : COLOR_GREEN_DARK);
+
+    setObjectText(_blockStateLabels[i], stateText);
+    lv_obj_set_style_text_color(
+        _blockStateLabels[i],
+        color(stateColor),
+        0);
+    lv_obj_set_style_bg_color(row, color(stateBg), 0);
+    lv_obj_set_style_border_color(row, color(stateColor), 0);
+
+    String locoText;
+    if (block.locoAddress > 0) {
+      locoText = String("LOCO #") + String(block.locoAddress);
+    } else if (!block.locoId.isEmpty()) {
+      locoText = block.targetOnly ? String("TARGET") : block.locoId;
+    }
+    setObjectText(_blockLocoLabels[i], locoText);
+  }
+}
+
+void WaveshareS3Lcd7Display::refreshEventsPage() {
+  setObjectText(
+      _eventHeadline,
+      _eventCount == 0
+          ? String("No runtime events yet")
+          : String(static_cast<unsigned>(_eventCount)) +
+                " recent runtime events");
+
+  for (size_t row = 0; row < EVENT_VISIBLE_ROWS; ++row) {
+    if (row >= _eventCount) {
+      setObjectText(_eventTimeLabels[row], "--:--:--");
+      setObjectText(_eventTextLabels[row], "");
+      continue;
+    }
+
+    const size_t index = _eventCount - 1U - row;
+    setObjectText(
+        _eventTimeLabels[row],
+        formatEventTime(_events[index].timestampMs));
+    setObjectText(
+        _eventTextLabels[row],
+        _events[index].text);
+  }
 }
 
 void WaveshareS3Lcd7Display::refreshUi() {
@@ -980,7 +1019,6 @@ void WaveshareS3Lcd7Display::refreshUi() {
           : (_wifiConnected ? _wifiIp : String("Not connected"));
 
   setObjectText(_dashWifiValue, wifiText);
-  setObjectText(_systemWifiValue, wifiText);
 
   setObjectText(
       _dashWifiClients,
@@ -1004,29 +1042,33 @@ void WaveshareS3Lcd7Display::refreshUi() {
         0);
   }
   setObjectText(_dashCcEndpoint, _ccEndpoint);
-  setObjectText(
-      _controlCcValue,
-      (_ccConnected ? String("ONLINE  |  ") : String("OFFLINE  |  ")) +
-          _ccEndpoint);
-  setObjectText(
-      _systemCcValue,
-      (_ccConnected ? String("ONLINE  |  ") : String("OFFLINE  |  ")) +
-          _ccEndpoint);
 
   if (!_s88Known) {
     setObjectText(_dashS88Status, "WAITING");
     if (_dashS88Status) {
       lv_obj_set_style_text_color(_dashS88Status, color(COLOR_AMBER), 0);
     }
-  } else {
-    setObjectText(
-        _dashS88Status,
-        _s88Connected ? "DATA LIVE" : "OFFLINE");
+    setObjectText(_sensorHeadline, "Waiting for S88 adapter");
+    if (_sensorHeadline) {
+      lv_obj_set_style_text_color(_sensorHeadline, color(COLOR_AMBER), 0);
+    }
+  } else if (_s88Connected) {
+    setObjectText(_dashS88Status, "DATA LIVE");
     if (_dashS88Status) {
-      lv_obj_set_style_text_color(
-          _dashS88Status,
-          color(_s88Connected ? COLOR_GREEN : COLOR_RED),
-          0);
+      lv_obj_set_style_text_color(_dashS88Status, color(COLOR_GREEN), 0);
+    }
+    setObjectText(_sensorHeadline, "S88 feedback bus live");
+    if (_sensorHeadline) {
+      lv_obj_set_style_text_color(_sensorHeadline, color(COLOR_GREEN), 0);
+    }
+  } else {
+    setObjectText(_dashS88Status, "OFFLINE");
+    if (_dashS88Status) {
+      lv_obj_set_style_text_color(_dashS88Status, color(COLOR_RED), 0);
+    }
+    setObjectText(_sensorHeadline, "S88 adapter offline");
+    if (_sensorHeadline) {
+      lv_obj_set_style_text_color(_sensorHeadline, color(COLOR_RED), 0);
     }
   }
 
@@ -1035,34 +1077,7 @@ void WaveshareS3Lcd7Display::refreshUi() {
       String("I2C ") + _s88Address);
   setObjectText(
       _sensorAddressLabel,
-      String("I2C address: ") + _s88Address);
-
-  if (!_s88Known) {
-    setObjectText(_sensorHeadline, "Waiting for S88 adapter");
-    setObjectText(_sensorStateLabel, "No adapter status yet");
-    if (_sensorHeadline) {
-      lv_obj_set_style_text_color(_sensorHeadline, color(COLOR_AMBER), 0);
-    }
-  } else if (_s88Connected) {
-    setObjectText(_sensorHeadline, "S88 adapter is live");
-    setObjectText(_sensorStateLabel, "Feedback bus online");
-    if (_sensorHeadline) {
-      lv_obj_set_style_text_color(_sensorHeadline, color(COLOR_GREEN), 0);
-    }
-  } else {
-    setObjectText(_sensorHeadline, "S88 adapter offline");
-    setObjectText(_sensorStateLabel, "Check I2C / adapter power");
-    if (_sensorHeadline) {
-      lv_obj_set_style_text_color(_sensorHeadline, color(COLOR_RED), 0);
-    }
-  }
-
-  setObjectText(
-      _systemS88Value,
-      !_s88Known
-          ? String("Waiting for adapter")
-          : String(_s88Connected ? "LIVE  |  " : "OFFLINE  |  ") +
-                _s88Address);
+      String("I2C: ") + _s88Address);
 
   const bool runtimeActive =
       _runtimeAccessoryCount > 0 ||
@@ -1092,10 +1107,8 @@ void WaveshareS3Lcd7Display::refreshUi() {
       String("Blocks: ") +
           String(static_cast<unsigned>(_runtimeBlockCount)));
 
-  const bool heapHealthy =
-      _freeHeapBytes >= 50000U;
-  const bool heapWarning =
-      _freeHeapBytes >= 25000U;
+  const bool heapHealthy = _freeHeapBytes >= 50000U;
+  const bool heapWarning = _freeHeapBytes >= 25000U;
 
   setObjectText(
       _dashSystemHealth,
@@ -1131,12 +1144,9 @@ void WaveshareS3Lcd7Display::refreshUi() {
           String(psramTenthsMb % 10U) +
           " MB");
 
-  const uint32_t uptimeMinutes =
-      _uptimeMs / 60000UL;
-  const uint32_t uptimeHours =
-      uptimeMinutes / 60UL;
-  const uint32_t uptimeDays =
-      uptimeHours / 24UL;
+  const uint32_t uptimeMinutes = _uptimeMs / 60000UL;
+  const uint32_t uptimeHours = uptimeMinutes / 60UL;
+  const uint32_t uptimeDays = uptimeHours / 24UL;
 
   String uptimeText = "Uptime: ";
   if (uptimeDays > 0) {
@@ -1148,18 +1158,78 @@ void WaveshareS3Lcd7Display::refreshUi() {
       String(uptimeMinutes % 60UL) +
       "m";
   setObjectText(_dashSystemUptime, uptimeText);
+
+  refreshSensorsPage();
+  refreshBlocksPage();
+  refreshEventsPage();
+}
+
+void WaveshareS3Lcd7Display::copyRuntimeSnapshot(
+    const RuntimeSensor* sensors,
+    size_t sensorCount,
+    const RuntimeBlock* blocks,
+    size_t blockCount) {
+  _sensorItemCount = std::min(sensorCount, MAX_MONITOR_SENSORS);
+  for (size_t i = 0; i < _sensorItemCount; ++i) {
+    _sensorItems[i].id = sensors[i].id;
+    _sensorItems[i].address = sensors[i].address;
+    _sensorItems[i].on = sensors[i].on;
+  }
+
+  std::sort(
+      _sensorItems,
+      _sensorItems + _sensorItemCount,
+      [](const SensorMonitorItem& a, const SensorMonitorItem& b) {
+        return a.address < b.address;
+      });
+
+  _blockItemCount = std::min(blockCount, MAX_MONITOR_BLOCKS);
+  for (size_t i = 0; i < _blockItemCount; ++i) {
+    _blockItems[i].id = blocks[i].id;
+    _blockItems[i].locoId = blocks[i].locoId;
+    _blockItems[i].locoAddress = blocks[i].locoAddress;
+    _blockItems[i].occupied = blocks[i].occupied();
+    _blockItems[i].targetOnly = blocks[i].targetOnly();
+  }
+
+  std::sort(
+      _blockItems,
+      _blockItems + _blockItemCount,
+      [](const BlockMonitorItem& a, const BlockMonitorItem& b) {
+        return a.id < b.id;
+      });
+}
+
+void WaveshareS3Lcd7Display::addRuntimeEvent(
+    const String& text,
+    uint32_t timestampMs) {
+  if (text.isEmpty()) {
+    return;
+  }
+
+  if (_eventCount < MAX_EVENTS) {
+    _events[_eventCount].text = text;
+    _events[_eventCount].timestampMs = timestampMs;
+    ++_eventCount;
+    return;
+  }
+
+  for (size_t i = 1; i < MAX_EVENTS; ++i) {
+    _events[i - 1U] = _events[i];
+  }
+
+  _events[MAX_EVENTS - 1U].text = text;
+  _events[MAX_EVENTS - 1U].timestampMs = timestampMs;
 }
 
 void WaveshareS3Lcd7Display::setConnectedWebClients(size_t count) {
   WaveshareS3Lcd7Display* display = g_activeWaveshareDisplay;
-
   if (!display) {
     return;
   }
 
   const uint8_t boundedCount =
-      static_cast<uint8_t>(
-          std::min<size_t>(count, 255U));
+      static_cast<uint8_t>(std::min<size_t>(count, 255U));
 
   if (display->_webClientCount == boundedCount) {
     return;
@@ -1167,10 +1237,7 @@ void WaveshareS3Lcd7Display::setConnectedWebClients(size_t count) {
 
   display->_webClientCount = boundedCount;
 
-  if (
-      display->_initialized &&
-      waveshareLvglLock(0)
-  ) {
+  if (display->_initialized && waveshareLvglLock(0)) {
     display->refreshUi();
     waveshareLvglUnlock();
   }
@@ -1184,7 +1251,6 @@ void WaveshareS3Lcd7Display::setDashboardSystemStats(
     size_t sensorCount,
     size_t blockCount) {
   WaveshareS3Lcd7Display* display = g_activeWaveshareDisplay;
-
   if (!display) {
     return;
   }
@@ -1196,11 +1262,61 @@ void WaveshareS3Lcd7Display::setDashboardSystemStats(
   display->_runtimeSensorCount = sensorCount;
   display->_runtimeBlockCount = blockCount;
 
-  if (
-      display->_initialized &&
-      waveshareLvglLock(0)
-  ) {
+  if (display->_initialized && waveshareLvglLock(0)) {
     display->refreshUi();
+    waveshareLvglUnlock();
+  }
+}
+
+void WaveshareS3Lcd7Display::setRuntimeSnapshot(
+    const RuntimeSensor* sensors,
+    size_t sensorCount,
+    const RuntimeBlock* blocks,
+    size_t blockCount) {
+  WaveshareS3Lcd7Display* display = g_activeWaveshareDisplay;
+  if (!display) {
+    return;
+  }
+
+  const RuntimeSensor* safeSensors =
+      sensors ? sensors : nullptr;
+  const RuntimeBlock* safeBlocks =
+      blocks ? blocks : nullptr;
+
+  if (!safeSensors) {
+    sensorCount = 0;
+  }
+  if (!safeBlocks) {
+    blockCount = 0;
+  }
+
+  display->copyRuntimeSnapshot(
+      safeSensors,
+      sensorCount,
+      safeBlocks,
+      blockCount);
+
+  if (display->_initialized && waveshareLvglLock(0)) {
+    display->refreshSensorsPage();
+    display->refreshBlocksPage();
+    waveshareLvglUnlock();
+  }
+}
+
+void WaveshareS3Lcd7Display::pushRuntimeEvent(
+    const String& text,
+    uint32_t timestampMs) {
+  WaveshareS3Lcd7Display* display = g_activeWaveshareDisplay;
+  if (!display) {
+    return;
+  }
+
+  display->addRuntimeEvent(
+      text,
+      timestampMs == 0 ? millis() : timestampMs);
+
+  if (display->_initialized && waveshareLvglLock(0)) {
+    display->refreshEventsPage();
     waveshareLvglUnlock();
   }
 }
@@ -1217,10 +1333,8 @@ void WaveshareS3Lcd7Display::navEvent(lv_event_t* event) {
   }
 
   lv_obj_t* target = lv_event_get_target(event);
-
   for (int i = 0; i < 4; ++i) {
     if (target == self->_navButtons[i]) {
-      self->showKeyboardTest(false);
       self->showPage(static_cast<Page>(i));
       return;
     }
@@ -1236,42 +1350,59 @@ void WaveshareS3Lcd7Display::actionEvent(lv_event_t* event) {
 
   lv_obj_t* target = lv_event_get_target(event);
 
-  if (
-      target == self->_topPowerButton ||
-      target == self->_controlPowerButton
-  ) {
+  if (target == self->_topPowerButton) {
     self->queueTouchButton(TouchButton::Power);
     return;
   }
 
-  if (
-      target == self->_topEmergencyButton ||
-      target == self->_controlEmergencyButton
-  ) {
+  if (target == self->_topEmergencyButton) {
     self->queueTouchButton(TouchButton::Emergency);
     return;
   }
 
-  if (target == self->_systemInfoButton) {
-    self->queueTouchButton(TouchButton::Info);
+  if (target == self->_sensorPrevButton) {
+    if (self->_sensorPage > 0) {
+      --self->_sensorPage;
+      self->refreshSensorsPage();
+    }
     return;
   }
 
-  if (target == self->_systemTouchButton) {
-    self->showKeyboardTest(true);
-  }
-}
-
-void WaveshareS3Lcd7Display::keyboardEvent(lv_event_t* event) {
-  auto* self = static_cast<WaveshareS3Lcd7Display*>(
-      lv_event_get_user_data(event));
-  if (!self) {
+  if (target == self->_sensorNextButton) {
+    const size_t pages = std::max<size_t>(
+        1U,
+        (self->_sensorItemCount + SENSOR_PAGE_SIZE - 1U) /
+            SENSOR_PAGE_SIZE);
+    if (self->_sensorPage + 1U < pages) {
+      ++self->_sensorPage;
+      self->refreshSensorsPage();
+    }
     return;
   }
 
-  const lv_event_code_t code = lv_event_get_code(event);
-  if (code == LV_EVENT_READY || code == LV_EVENT_CANCEL) {
-    self->showKeyboardTest(false);
+  if (target == self->_blockPrevButton) {
+    if (self->_blockPage > 0) {
+      --self->_blockPage;
+      self->refreshBlocksPage();
+    }
+    return;
+  }
+
+  if (target == self->_blockNextButton) {
+    const size_t pages = std::max<size_t>(
+        1U,
+        (self->_blockItemCount + BLOCK_PAGE_SIZE - 1U) /
+            BLOCK_PAGE_SIZE);
+    if (self->_blockPage + 1U < pages) {
+      ++self->_blockPage;
+      self->refreshBlocksPage();
+    }
+    return;
+  }
+
+  if (target == self->_eventClearButton) {
+    self->_eventCount = 0;
+    self->refreshEventsPage();
   }
 }
 
@@ -1369,8 +1500,6 @@ void WaveshareS3Lcd7Display::appendLegacyText(
 }
 
 void WaveshareS3Lcd7Display::clear(uint16_t) {
-  // HubDisplay starts every full redraw with clear(). For LVGL this is simply
-  // a new capture frame; widgets stay allocated and only their state changes.
   _legacyLine = "";
   _expectWifiSsid = false;
   _expectCcEndpoint = false;
@@ -1449,14 +1578,11 @@ void WaveshareS3Lcd7Display::drawInfoButton(
     const char*,
     uint16_t,
     uint16_t) {
-  // INFO is exposed as a real LVGL action on the System page.
+  // INFO is intentionally not exposed on the operational HMI pages.
 }
 
 WaveshareS3Lcd7Display::TouchButton
 WaveshareS3Lcd7Display::takeButtonPress() {
-  // HubDisplay::loop() calls this continuously. Service LVGL here instead of
-  // from a second FreeRTOS task so the UI cannot contend with Wi-Fi/AsyncTCP
-  // or mutate LVGL objects concurrently with Hub status updates.
   static uint32_t nextLvglServiceAt = 0;
   const uint32_t now = millis();
 
@@ -1464,7 +1590,6 @@ WaveshareS3Lcd7Display::takeButtonPress() {
       _initialized &&
       static_cast<int32_t>(now - nextLvglServiceAt) >= 0
   ) {
-    // 100 Hz is plenty for a touch HMI and keeps rendering bounded.
     nextLvglServiceAt = now + 10U;
 
     if (waveshareLvglLock(0)) {

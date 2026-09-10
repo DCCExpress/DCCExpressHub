@@ -1,6 +1,7 @@
 #include "App.h"
 
 #include <ArduinoJson.h>
+#include <algorithm>
 #include <ESPmDNS.h>
 #include <LittleFS.h>
 #include <WiFi.h>
@@ -18,8 +19,7 @@ bool parseIp(
     return allowEmpty;
   }
 
-  return out.fromString(
-      text);
+  return out.fromString(text);
 }
 
 #if defined(HUB_DISPLAY_WAVESHARE_S3_LCD7) && HUB_DISPLAY_WAVESHARE_S3_LCD7
@@ -34,31 +34,162 @@ WaveshareWsGuardState tuneWaveshareWebSocketClients(
     AsyncWebSocket& ws) {
   WaveshareWsGuardState state;
 
-  // ESPAsyncWebServer 3.x defaults to closing a WS client when its outgoing
-  // queue is full. The Layout page requests a multi-message runtime snapshot
-  // immediately after mounting, so a busy browser can otherwise enter a
-  // disconnect/reconnect/snapshot loop and exhaust lwIP/heap resources.
   for (auto& client : ws.getClients()) {
     ++state.clientCount;
 
     client.setCloseClientOnQueueFull(false);
 
-    const size_t queued =
-        client.queueLen();
-
+    const size_t queued = client.queueLen();
     if (queued > state.maxQueue) {
       state.maxQueue = queued;
     }
 
-    // Start applying backpressure well before the library's hard queue limit.
-    // Existing queued control/state frames may drain; we simply avoid adding
-    // periodic telemetry while the browser catches up.
     if (queued >= 6U) {
       state.congested = true;
     }
   }
 
   return state;
+}
+
+void syncWaveshareRuntimeMonitor(
+    const S88I2CMaster& s88,
+    const LayoutRuntime& runtime) {
+  static RuntimeSensor sensorViews[
+      S88I2CMaster::MAX_DATA_BYTES *
+      S88I2CMaster::BITS_PER_BYTE];
+
+  size_t sensorCount = 0;
+
+  if (s88.adapterInfoKnown()) {
+    sensorCount = std::min<size_t>(
+        s88.sensorCount(),
+        S88I2CMaster::MAX_DATA_BYTES *
+            S88I2CMaster::BITS_PER_BYTE);
+
+    for (size_t i = 0; i < sensorCount; ++i) {
+      const uint16_t address =
+          static_cast<uint16_t>(
+              s88.baseSensorAddress() + i);
+      const uint8_t group =
+          static_cast<uint8_t>(i / 16U);
+      const uint8_t bit =
+          static_cast<uint8_t>(i % 16U);
+      const uint16_t mask =
+          static_cast<uint16_t>(1U << bit);
+
+      sensorViews[i].id = address;
+      sensorViews[i].address = address;
+      sensorViews[i].on =
+          (s88.activeBitsForSnapshotGroup(group) & mask) != 0U;
+    }
+  }
+
+  const auto& blocks = runtime.blocks();
+
+  WaveshareS3Lcd7Display::setRuntimeSnapshot(
+      sensorCount > 0 ? sensorViews : nullptr,
+      sensorCount,
+      blocks.empty() ? nullptr : blocks.data(),
+      blocks.size());
+}
+
+String runtimeEventText(
+    LayoutRuntime& runtime,
+    RuntimeChangeKind kind,
+    uint16_t id,
+    uint8_t channel) {
+  switch (kind) {
+    case RuntimeChangeKind::Turnout: {
+      auto* item = runtime.findAccessoryById(
+          RuntimeAccessoryKind::Turnout,
+          id,
+          channel);
+      if (!item) {
+        return String("Turnout ") + String(id) + " changed";
+      }
+      return String("Turnout ") +
+          String(item->address) +
+          " -> " +
+          (item->closed ? "CLOSED" : "THROWN");
+    }
+
+    case RuntimeChangeKind::Signal: {
+      auto* item = runtime.findAccessoryById(
+          RuntimeAccessoryKind::Signal,
+          id,
+          channel);
+      if (!item) {
+        return String("Signal ") + String(id) + " changed";
+      }
+      return String("Signal ") +
+          String(item->address) +
+          " -> aspect " +
+          String(item->aspect);
+    }
+
+    case RuntimeChangeKind::Accessory: {
+      auto* item = runtime.findAccessoryById(
+          RuntimeAccessoryKind::Accessory,
+          id,
+          channel);
+      if (!item) {
+        return String("Accessory ") + String(id) + " changed";
+      }
+      return String("Accessory ") +
+          String(item->address) +
+          " -> " +
+          (item->active ? "ON" : "OFF");
+    }
+
+    case RuntimeChangeKind::VPin: {
+      auto* item = runtime.findAccessoryById(
+          RuntimeAccessoryKind::VPin,
+          id,
+          channel);
+      if (!item) {
+        return String("VPin ") + String(id) + " changed";
+      }
+      return String("VPin ") +
+          String(item->address) +
+          " -> " +
+          (item->active ? "ON" : "OFF");
+    }
+
+    case RuntimeChangeKind::Block: {
+      if (id == 0) {
+        return "All block assignments cleared";
+      }
+
+      auto* block = runtime.findBlockById(id);
+      if (!block) {
+        return String("Block ") + String(id) + " changed";
+      }
+
+      if (block->targetOnly()) {
+        return String("Block ") + String(id) + " -> RESERVED";
+      }
+
+      if (!block->occupied()) {
+        return String("Block ") + String(id) + " -> FREE";
+      }
+
+      String result = String("Block ") + String(id) + " -> OCCUPIED";
+      if (block->locoAddress > 0) {
+        result += String(" | LOCO #") + String(block->locoAddress);
+      } else if (!block->locoId.isEmpty()) {
+        result += String(" | ") + block->locoId;
+      }
+      return result;
+    }
+
+    case RuntimeChangeKind::Sensor:
+      // S88 sensor events are emitted directly by broadcastS88SensorChanged(),
+      // including addresses that are not represented in layout.json.
+      return String();
+  }
+
+  return String();
 }
 
 #endif
@@ -68,9 +199,7 @@ void sendWsJson(
     JsonDocument& document) {
   String body;
 
-  serializeJson(
-      document,
-      body);
+  serializeJson(document, body);
 
 #if defined(HUB_DISPLAY_WAVESHARE_S3_LCD7) && HUB_DISPLAY_WAVESHARE_S3_LCD7
   if (!ws.availableForWriteAll()) {
@@ -78,46 +207,50 @@ void sendWsJson(
   }
 #endif
 
-  ws.textAll(
-      body);
+  ws.textAll(body);
 }
 
-}
+}  // namespace
 
 void App::broadcastS88SensorChanged(
     uint16_t address,
     bool occupied) {
-  _runtime.setSensor(
-      address,
-      occupied);
+  _runtime.setSensor(address, occupied);
+
+#if defined(HUB_DISPLAY_WAVESHARE_S3_LCD7) && HUB_DISPLAY_WAVESHARE_S3_LCD7
+  // The adapter deliberately publishes every bit on its first snapshot. Do
+  // not flood the HMI event history with 32..256 startup FREE/OCCUPIED rows;
+  // the periodic snapshot sync below will populate the Sensors page instead.
+  if (_s88I2c.snapshotKnown()) {
+    WaveshareS3Lcd7Display::pushRuntimeEvent(
+        String("S88 ") +
+            String(address) +
+            " -> " +
+            (occupied ? "OCCUPIED" : "FREE"),
+        millis());
+
+    syncWaveshareRuntimeMonitor(
+        _s88I2c,
+        _runtime);
+  }
+#endif
 
   JsonDocument message;
-
-  message["type"] =
-      "sensorChanged";
+  message["type"] = "sensorChanged";
 
   JsonObject data =
-      message["data"]
-          .to<JsonObject>();
+      message["data"].to<JsonObject>();
 
-  data["address"] =
-      address;
+  data["address"] = address;
+  data["on"] = occupied;
 
-  data["on"] =
-      occupied;
-
-  sendWsJson(
-      _ws,
-      message);
+  sendWsJson(_ws, message);
 
   Logger::info(
       "S88 WS sensorChanged: address=" +
       String(address) +
       " on=" +
-      String(
-          occupied
-              ? "true"
-              : "false"));
+      String(occupied ? "true" : "false"));
 }
 
 void App::broadcastS88Snapshot() {
@@ -129,49 +262,34 @@ void App::broadcastS88Snapshot() {
   }
 
   JsonDocument message;
-
-  message["type"] =
-      "sensorSnapshot";
+  message["type"] = "sensorSnapshot";
 
   JsonObject data =
-      message["data"]
-          .to<JsonObject>();
+      message["data"].to<JsonObject>();
 
   JsonArray groups =
-      data["groups"]
-          .to<JsonArray>();
+      data["groups"].to<JsonArray>();
 
-  // WebSocket compatibility: browser snapshots are still packed into
-  // 16-bit groups. A chain with an odd number of S88 bytes therefore has an
-  // 0x00FF known-mask in the last WebSocket group.
   for (
       uint8_t groupIndex = 0;
-      groupIndex <
-          _s88I2c.snapshotGroupCount();
+      groupIndex < _s88I2c.snapshotGroupCount();
       ++groupIndex
   ) {
-    JsonArray group =
-        groups.add<JsonArray>();
+    JsonArray group = groups.add<JsonArray>();
 
     group.add(
         static_cast<uint16_t>(
             _s88I2c.baseSensorAddress() +
-            static_cast<uint16_t>(
-                groupIndex) *
-                16U));
+            static_cast<uint16_t>(groupIndex) * 16U));
 
     group.add(
-        _s88I2c.activeBitsForSnapshotGroup(
-            groupIndex));
+        _s88I2c.activeBitsForSnapshotGroup(groupIndex));
 
     group.add(
-        _s88I2c.knownBitsForSnapshotGroup(
-            groupIndex));
+        _s88I2c.knownBitsForSnapshotGroup(groupIndex));
   }
 
-  sendWsJson(
-      _ws,
-      message);
+  sendWsJson(_ws, message);
 }
 
 void App::updateS88WebSocket() {
@@ -182,20 +300,16 @@ void App::updateS88WebSocket() {
     return;
   }
 
-  const unsigned long now =
-      millis();
+  const unsigned long now = millis();
 
   if (
-      now -
-          _lastS88WsSnapshotAt <
+      now - _lastS88WsSnapshotAt <
       S88_WS_SNAPSHOT_INTERVAL_MS
   ) {
     return;
   }
 
-  _lastS88WsSnapshotAt =
-      now;
-
+  _lastS88WsSnapshotAt = now;
   broadcastS88Snapshot();
 }
 
@@ -226,20 +340,14 @@ void App::connectWifi() {
   const auto& network =
       _config.network();
 
-  WiFi.mode(
-      WIFI_STA);
+  WiFi.mode(WIFI_STA);
 
 #if defined(HUB_DISPLAY_WAVESHARE_S3_LCD7) && HUB_DISPLAY_WAVESHARE_S3_LCD7
-  // This board is a mains-powered network HMI. Disable Wi-Fi power saving so
-  // TCP/HTTP/mDNS latency does not depend on modem-sleep windows while the RGB
-  // peripheral is continuously active. Existing M5/CYD targets are unchanged.
   WiFi.setSleep(false);
-  Logger::info(
-      "Waveshare Wi-Fi power save disabled");
+  Logger::info("Waveshare Wi-Fi power save disabled");
 #endif
 
-  WiFi.setHostname(
-      network.hostname.c_str());
+  WiFi.setHostname(network.hostname.c_str());
 
   if (!network.dhcp) {
     IPAddress ip;
@@ -249,35 +357,15 @@ void App::connectWifi() {
     IPAddress dns2;
 
     const bool valid =
-        parseIp(
-            network.ip,
-            ip) &&
-        parseIp(
-            network.gateway,
-            gateway) &&
-        parseIp(
-            network.subnet,
-            subnet) &&
-        parseIp(
-            network.dns1,
-            dns1,
-            true) &&
-        parseIp(
-            network.dns2,
-            dns2,
-            true);
+        parseIp(network.ip, ip) &&
+        parseIp(network.gateway, gateway) &&
+        parseIp(network.subnet, subnet) &&
+        parseIp(network.dns1, dns1, true) &&
+        parseIp(network.dns2, dns2, true);
 
     if (valid) {
-      if (
-          !WiFi.config(
-              ip,
-              gateway,
-              subnet,
-              dns1,
-              dns2)
-      ) {
-        Logger::warn(
-            "Static Wi-Fi configuration failed");
+      if (!WiFi.config(ip, gateway, subnet, dns1, dns2)) {
+        Logger::warn("Static Wi-Fi configuration failed");
       }
     } else {
       Logger::warn(
@@ -285,8 +373,7 @@ void App::connectWifi() {
     }
   }
 
-  _display.showWifiConnecting(
-      network.wifiSsid);
+  _display.showWifiConnecting(network.wifiSsid);
 
   WiFi.begin(
       network.wifiSsid.c_str(),
@@ -296,15 +383,11 @@ void App::connectWifi() {
       "Connecting Wi-Fi: " +
       network.wifiSsid);
 
-  const unsigned long started =
-      millis();
+  const unsigned long started = millis();
 
   while (
-      WiFi.status() !=
-          WL_CONNECTED &&
-      millis() -
-          started <
-          15000
+      WiFi.status() != WL_CONNECTED &&
+      millis() - started < 15000
   ) {
     _serialConfigurator.loop();
 
@@ -321,12 +404,8 @@ void App::connectWifi() {
     delay(25);
   }
 
-  if (
-      WiFi.status() ==
-      WL_CONNECTED
-  ) {
-    const String ip =
-        WiFi.localIP().toString();
+  if (WiFi.status() == WL_CONNECTED) {
+    const String ip = WiFi.localIP().toString();
 
     Logger::info(
         "Wi-Fi connected: " +
@@ -335,26 +414,20 @@ void App::connectWifi() {
         String(WiFi.RSSI()) +
         "dBm");
 
-    if (
-        MDNS.begin(
-            network.hostname.c_str())
-    ) {
+    if (MDNS.begin(network.hostname.c_str())) {
       Logger::info(
           "mDNS ready: " +
           network.hostname +
           ".local");
     } else {
-      Logger::warn(
-          "mDNS initialization failed");
+      Logger::warn("mDNS initialization failed");
     }
 
     _display.showWifiConnected(
         ip,
         network.httpPort);
   } else {
-    Logger::warn(
-        "Wi-Fi connection timeout");
-
+    Logger::warn("Wi-Fi connection timeout");
     _display.showWifiFailed();
   }
 }
@@ -363,12 +436,8 @@ void App::updateDisplay() {
   const bool connected =
       _commandCenter.connected();
 
-  if (
-      connected !=
-      _lastCommandCenterConnected
-  ) {
-    _lastCommandCenterConnected =
-        connected;
+  if (connected != _lastCommandCenterConnected) {
+    _lastCommandCenterConnected = connected;
 
     _display.showCommandCenter(
         _commandCenter.host(),
@@ -387,9 +456,7 @@ void App::updateDisplay() {
 
 void App::begin() {
   Logger::begin();
-
-  Logger::info(
-      "DCCExpressHub booting");
+  Logger::info("DCCExpressHub booting");
 
   _display.begin();
   _display.showBoot();
@@ -398,23 +465,43 @@ void App::begin() {
 
   _serialConfigurator.begin();
 
-  // Device configuration now participates in S88 startup, so LittleFS must
-  // already be mounted before the I2C master loads its runtime settings.
   if (!LittleFS.begin(true)) {
-    Logger::error(
-        "LittleFS mount failed");
-
+    Logger::error("LittleFS mount failed");
     return;
   }
 
-  _runtime.begin(
-      LittleFS);
+  _runtime.begin(LittleFS);
 
   _stateStore.begin(
       LittleFS,
       _runtime);
 
   _stateStore.load();
+
+#if defined(HUB_DISPLAY_WAVESHARE_S3_LCD7) && HUB_DISPLAY_WAVESHARE_S3_LCD7
+  _runtime.onChange(
+      [this](
+          RuntimeChangeKind kind,
+          uint16_t id,
+          uint8_t channel) {
+        syncWaveshareRuntimeMonitor(
+            _s88I2c,
+            _runtime);
+
+        const String eventText =
+            runtimeEventText(
+                _runtime,
+                kind,
+                id,
+                channel);
+
+        if (!eventText.isEmpty()) {
+          WaveshareS3Lcd7Display::pushRuntimeEvent(
+              eventText,
+              millis());
+        }
+      });
+#endif
 
   _s88I2c.onSensorChange(
       [this](
@@ -425,8 +512,7 @@ void App::begin() {
             occupied);
       });
 
-  _s88I2c.begin(
-      LittleFS);
+  _s88I2c.begin(LittleFS);
 
   if (_s88I2c.enabled()) {
     _display.showS88Status(
@@ -434,17 +520,23 @@ void App::begin() {
         _s88I2c.ready());
   }
 
+#if defined(HUB_DISPLAY_WAVESHARE_S3_LCD7) && HUB_DISPLAY_WAVESHARE_S3_LCD7
+  syncWaveshareRuntimeMonitor(
+      _s88I2c,
+      _runtime);
+
+  WaveshareS3Lcd7Display::pushRuntimeEvent(
+      "Runtime monitor ready",
+      millis());
+#endif
+
   connectWifi();
 
-  // Bring the HTTP/WebSocket API online immediately after Wi-Fi. The command
-  // center is allowed to be offline; connection attempts and automation startup
-  // must never delay access to the Hub's own web UI/configuration page.
   _apiServer.reset(
       new ApiServer(
           _config.network().httpPort,
           _ws,
-          static_cast<ICommandCenter&>(
-              _commandCenter),
+          static_cast<ICommandCenter&>(_commandCenter),
           _runtime,
           _stateStore,
           _config,
@@ -458,10 +550,7 @@ void App::begin() {
       "Hub HTTP/API started on port " +
       String(_config.network().httpPort));
 
-  if (
-      WiFi.status() ==
-      WL_CONNECTED
-  ) {
+  if (WiFi.status() == WL_CONNECTED) {
     _commandCenter.ensureConnected();
   }
 
@@ -474,23 +563,15 @@ void App::begin() {
       _lastCommandCenterConnected);
 
   const bool signalAutomationStarted =
-      _signalAutomation.begin(
-          LittleFS);
+      _signalAutomation.begin(LittleFS);
 
   Logger::info(
       "SignalAutomation health: begin=" +
-      String(
-          signalAutomationStarted
-              ? "true"
-              : "false") +
+      String(signalAutomationStarted ? "true" : "false") +
       " enabled=" +
-      String(
-          _signalAutomation.enabled()
-              ? "true"
-              : "false") +
+      String(_signalAutomation.enabled() ? "true" : "false") +
       " ruleSets=" +
-      String(
-          _signalAutomation.signalCount()));
+      String(_signalAutomation.signalCount()));
 
   updateDisplay();
 }
@@ -502,20 +583,12 @@ void App::loop() {
   updateS88WebSocket();
 
 #if defined(HUB_DISPLAY_WAVESHARE_S3_LCD7) && HUB_DISPLAY_WAVESHARE_S3_LCD7
-  // Protect the shared lwIP heap from Layout-editor WebSocket bursts. Keep the
-  // command-center bridge running first, because DCC heartbeat traffic is more
-  // important than periodic browser telemetry.
   const WaveshareWsGuardState wsGuard =
-      tuneWaveshareWebSocketClients(
-          _ws);
+      tuneWaveshareWebSocketClients(_ws);
 
-  // Dashboard-only Waveshare statistic. This does not touch the common
-  // M5Stack/CYD display API and updates only when the count changes.
   WaveshareS3Lcd7Display::setConnectedWebClients(
       wsGuard.clientCount);
 
-  // Dashboard health/runtime telemetry is local-only. Refresh it slowly so it
-  // remains useful without adding WebSocket traffic or unnecessary LVGL work.
   static unsigned long nextDashboardStatsAt = 0;
   const unsigned long dashboardNow = millis();
 
@@ -531,6 +604,13 @@ void App::loop() {
         _runtime.sensorCount(),
         _runtime.blockCount());
 
+    // Also re-copy the monitor model periodically. This catches runtime/layout
+    // rebuilds that legitimately change the vectors without emitting a state
+    // transition callback for every newly-created object.
+    syncWaveshareRuntimeMonitor(
+        _s88I2c,
+        _runtime);
+
     nextDashboardStatsAt =
         dashboardNow + 5000UL;
   }
@@ -543,9 +623,7 @@ void App::loop() {
     static unsigned long lastWsGuardLogAt = 0;
     const unsigned long now = millis();
 
-    if (
-        now - lastWsGuardLogAt >= 1000UL
-    ) {
+    if (now - lastWsGuardLogAt >= 1000UL) {
       lastWsGuardLogAt = now;
 
       Logger::warn(
@@ -575,60 +653,37 @@ void App::loop() {
 
   updateDisplay();
 
-  if (
-      _display
-          .takeEmergencyStopRequest()
-  ) {
-    Logger::warn(
-        "DISPLAY E-STOP toggle requested");
+  if (_display.takeEmergencyStopRequest()) {
+    Logger::warn("DISPLAY E-STOP toggle requested");
 
     const bool sent =
-        _wsProtocol
-            .triggerEmergencyStop();
+        _wsProtocol.triggerEmergencyStop();
 
     _display.showEmergencyStopActive(
         _wsProtocol.emergencyStopActive());
 
     if (sent) {
-      Logger::warn(
-          "DISPLAY E-STOP toggle sent");
+      Logger::warn("DISPLAY E-STOP toggle sent");
     } else {
-      Logger::error(
-          "DISPLAY E-STOP toggle failed");
+      Logger::error("DISPLAY E-STOP toggle failed");
     }
   }
 
-  if (
-      _display
-          .takePowerToggleRequest()
-  ) {
+  if (_display.takePowerToggleRequest()) {
     const bool targetOn =
-        !_wsProtocol
-             .trackPowerOn();
+        !_wsProtocol.trackPowerOn();
 
     Logger::info(
         String("DISPLAY PWR toggle requested -> ") +
-        (
-            targetOn
-                ? "ON"
-                : "OFF"
-        ));
+        (targetOn ? "ON" : "OFF"));
 
-    if (
-        !_wsProtocol
-             .triggerTrackPowerToggle()
-    ) {
-      Logger::error(
-          "DISPLAY PWR toggle failed");
+    if (!_wsProtocol.triggerTrackPowerToggle()) {
+      Logger::error("DISPLAY PWR toggle failed");
     }
   }
 
-  if (
-      _display
-          .takeInfoRequest()
-  ) {
-    Logger::info(
-        "DISPLAY INFO requested");
+  if (_display.takeInfoRequest()) {
+    Logger::info("DISPLAY INFO requested");
   }
 
   delay(1);
