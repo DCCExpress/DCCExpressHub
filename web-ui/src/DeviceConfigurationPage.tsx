@@ -172,6 +172,8 @@ type LegacyDeviceForm = {
   interruptPin: number | null;
 };
 
+const SHOW_OTHER_I2C_HAL_DEVICES = false;
+
 const STORAGE_KEY =
   "dcc-express-lite.device-configuration-draft.v2";
 
@@ -2306,6 +2308,7 @@ export default function DeviceConfigurationPage({
         </Stack>
       </Card>
 
+      {SHOW_OTHER_I2C_HAL_DEVICES && (
       <Card
         withBorder
         radius={5}
@@ -2554,6 +2557,7 @@ export default function DeviceConfigurationPage({
           keeps the device overview compact.
         </Alert>
       </Card>
+      )}
     </Stack>
   );
 }
