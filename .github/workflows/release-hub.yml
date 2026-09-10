@@ -63,6 +63,8 @@ jobs:
             "m5stack-basic-z21"
             "esp32dev-dccex"
             "esp32dev-z21"
+            "waveshare-s3-lcd7-dccex"
+            "waveshare-s3-lcd7-z21"
           )
 
           for target in "${targets[@]}"; do
@@ -89,6 +91,8 @@ jobs:
             "dist/firmware/DCCExpressHub-M5Stack-Basic-Z21-v${version}-merged.bin"
             "dist/firmware/DCCExpressHub-ESP32-DevKit-DCCEX-v${version}-merged.bin"
             "dist/firmware/DCCExpressHub-ESP32-DevKit-Z21-v${version}-merged.bin"
+            "dist/firmware/DCCExpressHub-Waveshare-S3-LCD7-DCCEX-v${version}-merged.bin"
+            "dist/firmware/DCCExpressHub-Waveshare-S3-LCD7-Z21-v${version}-merged.bin"
           )
 
           mkdir -p artifacts/release

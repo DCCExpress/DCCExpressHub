@@ -260,7 +260,31 @@ void HubDisplay::loop() {
     return;
   }
 
-#if HUB_DISPLAY_CYD_2432S028
+#if HUB_DISPLAY_WAVESHARE_S3_LCD7
+  switch (
+      _display
+          .takeButtonPress()
+  ) {
+    case WaveshareS3Lcd7Display::TouchButton::Power:
+      _powerToggleRequest =
+          true;
+      break;
+
+    case WaveshareS3Lcd7Display::TouchButton::Emergency:
+      _emergencyStopRequest =
+          true;
+      break;
+
+    case WaveshareS3Lcd7Display::TouchButton::Info:
+      _infoRequest =
+          true;
+      break;
+
+    case WaveshareS3Lcd7Display::TouchButton::None:
+    default:
+      break;
+  }
+#elif HUB_DISPLAY_CYD_2432S028
   switch (
       _display
           .takeButtonPress()

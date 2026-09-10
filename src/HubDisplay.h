@@ -14,8 +14,15 @@
 #define HUB_DISPLAY_CYD_2432S028 0
 #endif
 
+#ifndef HUB_DISPLAY_WAVESHARE_S3_LCD7
+#define HUB_DISPLAY_WAVESHARE_S3_LCD7 0
+#endif
+
 #if HUB_USE_DISPLAY
-  #if HUB_DISPLAY_CYD_2432S028
+  #if HUB_DISPLAY_WAVESHARE_S3_LCD7
+    #include "WaveshareS3Lcd7Display.h"
+    using HubDisplayDevice = WaveshareS3Lcd7Display;
+  #elif HUB_DISPLAY_CYD_2432S028
     #include "CydIli9341Display.h"
     using HubDisplayDevice = CydIli9341Display;
   #elif HUB_DISPLAY_M5STACK_BASIC

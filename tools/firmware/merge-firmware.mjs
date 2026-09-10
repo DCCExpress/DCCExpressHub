@@ -66,6 +66,22 @@ const targetDefinitions = {
     displayName: "ESP32 DevKit / Z21",
     fileTag: "ESP32-DevKit-Z21",
   },
+
+  "waveshare-s3-lcd7-dccex": {
+    id: "waveshare-s3-lcd7",
+    commandCenter: "dcc-ex",
+    displayName: "Waveshare ESP32-S3 Touch LCD 7 / DCC-EX",
+    fileTag: "Waveshare-S3-LCD7-DCCEX",
+    bootloaderAddress: 0x0000,
+  },
+
+  "waveshare-s3-lcd7-z21": {
+    id: "waveshare-s3-lcd7",
+    commandCenter: "z21",
+    displayName: "Waveshare ESP32-S3 Touch LCD 7 / Z21",
+    fileTag: "Waveshare-S3-LCD7-Z21",
+    bootloaderAddress: 0x0000,
+  },
 };
 
 const target =
@@ -299,12 +315,18 @@ if (!filesystemPartition) {
   );
 }
 
+const bootloaderAddress =
+  target.bootloaderAddress ??
+  0x1000;
+
 const components = [
   {
     name: "bootloader",
-    address: 0x1000,
+    address: bootloaderAddress,
     file: bootloaderFile,
-    partitionSize: 0x7000,
+    partitionSize:
+      0x8000 -
+      bootloaderAddress,
   },
   {
     name: "partition-table",
