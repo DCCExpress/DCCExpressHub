@@ -178,7 +178,7 @@ const S88_DEFAULT:
     baseAddress:
       1,
     groupCount:
-      1,
+      2,
     byteCount:
       2,
   };
@@ -485,7 +485,7 @@ function normalizeDevices(
             Math.max(
               1,
               Math.min(
-                16,
+                32,
                 s88.groupCount
               )
             ),
@@ -493,11 +493,10 @@ function normalizeDevices(
             Math.max(
               1,
               Math.min(
-                16,
+                32,
                 s88.groupCount
               )
-            ) *
-            2,
+            ),
         }
       : {
           ...S88_DEFAULT,
@@ -713,7 +712,7 @@ export default function DeviceConfigurationPage({
 
   const sensorCount =
     s88.groupCount *
-    16;
+    8;
 
   const lastSensorAddress =
     s88.baseAddress +
@@ -724,17 +723,16 @@ export default function DeviceConfigurationPage({
     useMemo(() => {
       if (
         s88.groupCount < 1 ||
-        s88.groupCount > 16
+        s88.groupCount > 32
       ) {
-        return "S88 groups must be between 1 and 16.";
+        return "S88 byte-groups must be between 1 and 32.";
       }
 
       if (
         s88.byteCount !==
-        s88.groupCount *
-          2
+        s88.groupCount
       ) {
-        return "S88 byte count must be exactly 2 bytes per group.";
+        return "S88 byte count must equal the number of 8-bit groups.";
       }
 
       if (
@@ -1892,13 +1890,13 @@ export default function DeviceConfigurationPage({
           />
 
           <NumberInput
-            label="S88 groups"
-            description="1 group = 16 sensors"
+            label="S88 8-bit groups"
+            description="1 group = 1 byte = 8 sensors"
             value={
               s88.groupCount
             }
             min={1}
-            max={16}
+            max={32}
             allowDecimal={
               false
             }
@@ -1915,7 +1913,7 @@ export default function DeviceConfigurationPage({
                   Math.max(
                     1,
                     Math.min(
-                      16,
+                      32,
                       value
                     )
                   );
@@ -1924,8 +1922,7 @@ export default function DeviceConfigurationPage({
                   groupCount:
                     groups,
                   byteCount:
-                    groups *
-                    2,
+                    groups,
                 });
               }
             }
@@ -1935,7 +1932,7 @@ export default function DeviceConfigurationPage({
             label="I2C payload"
             description="Calculated automatically"
             value={
-              `${s88.byteCount} bytes · ${sensorCount} sensors`
+              `${s88.byteCount} bytes · ${s88.groupCount}×8-bit groups · ${sensorCount} sensors`
             }
             readOnly
           />
@@ -1991,10 +1988,10 @@ export default function DeviceConfigurationPage({
           mt="md"
           color="blue"
         >
-          The Hub sends the selected group and byte count to the Arduino adapter
-          over I2C after startup and immediately after Save &amp; apply. The base
-          address is Hub-side only: the Arduino returns raw S88 bits and the Hub
-          maps them to sensor addresses.
+          One S88 transport group is eight bits, therefore one group is exactly
+          one byte. An 8-input module consumes one group; a 16-input module consumes
+          two groups. Mixed chains work because the adapter only reads the requested
+          total byte count. The base address is Hub-side only.
         </Alert>
       </Card>
 
@@ -2049,7 +2046,7 @@ export default function DeviceConfigurationPage({
               const groupBase =
                 s88.baseAddress +
                 groupIndex *
-                  16;
+                  8;
 
               return (
                 <div
@@ -2077,7 +2074,7 @@ export default function DeviceConfigurationPage({
                       {groupBase}
                       {" – "}
                       {groupBase +
-                        15}
+                        7}
                     </Badge>
                   </Group>
 
@@ -2091,7 +2088,7 @@ export default function DeviceConfigurationPage({
                   >
                     {Array.from({
                       length:
-                        16,
+                        8,
                     }).map(
                       (
                         __,

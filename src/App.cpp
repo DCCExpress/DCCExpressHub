@@ -94,10 +94,13 @@ void App::broadcastS88Snapshot() {
       data["groups"]
           .to<JsonArray>();
 
+  // WebSocket compatibility: browser snapshots are still packed into
+  // 16-bit groups. A chain with an odd number of S88 bytes therefore has an
+  // 0x00FF known-mask in the last WebSocket group.
   for (
       uint8_t groupIndex = 0;
       groupIndex <
-          _s88I2c.groupCount();
+          _s88I2c.snapshotGroupCount();
       ++groupIndex
   ) {
     JsonArray group =
@@ -111,11 +114,12 @@ void App::broadcastS88Snapshot() {
                 16U));
 
     group.add(
-        _s88I2c.activeBitsForGroup(
+        _s88I2c.activeBitsForSnapshotGroup(
             groupIndex));
 
     group.add(
-        0xffffU);
+        _s88I2c.knownBitsForSnapshotGroup(
+            groupIndex));
   }
 
   sendWsJson(

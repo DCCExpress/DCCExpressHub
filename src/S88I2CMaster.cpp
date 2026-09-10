@@ -183,7 +183,7 @@ bool S88I2CMaster::loadSettings(
 
     const int sensorCount =
         groupCount *
-        16;
+        BITS_PER_GROUP;
 
     if (
         address < 0x08 ||
@@ -319,7 +319,7 @@ bool S88I2CMaster::applySettings(
       " base=" +
       String(
           _baseSensorAddress) +
-      " groups=" +
+      " byteGroups=" +
       String(
           _groupCount) +
       " bytes=" +
@@ -576,31 +576,66 @@ void S88I2CMaster::updateSlavePresence(
   }
 }
 
-uint16_t S88I2CMaster::activeBitsForGroup(
-    uint8_t groupIndex) const {
+uint16_t S88I2CMaster::activeBitsForSnapshotGroup(
+    uint8_t snapshotGroupIndex) const {
   if (
-      groupIndex >=
-      _groupCount
+      snapshotGroupIndex >=
+      snapshotGroupCount()
   ) {
     return 0;
   }
 
   const uint8_t byteIndex =
       static_cast<uint8_t>(
-          groupIndex *
-          BYTES_PER_GROUP);
+          snapshotGroupIndex *
+          2U);
 
-  return
+  uint16_t result =
       static_cast<uint16_t>(
           _activeBytes[
-              byteIndex]) |
-      (
-          static_cast<uint16_t>(
-              _activeBytes[
-                  byteIndex +
-                  1]) <<
-          8U
-      );
+              byteIndex]);
+
+  if (
+      static_cast<uint8_t>(
+          byteIndex +
+          1U) <
+      byteCount()
+  ) {
+    result |=
+        static_cast<uint16_t>(
+            _activeBytes[
+                byteIndex +
+                1U]) <<
+        8U;
+  }
+
+  return result;
+}
+
+uint16_t S88I2CMaster::knownBitsForSnapshotGroup(
+    uint8_t snapshotGroupIndex) const {
+  if (
+      !_snapshotKnown ||
+      snapshotGroupIndex >=
+          snapshotGroupCount()
+  ) {
+    return 0;
+  }
+
+  const uint8_t firstByteIndex =
+      static_cast<uint8_t>(
+          snapshotGroupIndex *
+          2U);
+
+  const uint8_t bytesRemaining =
+      static_cast<uint8_t>(
+          byteCount() -
+          firstByteIndex);
+
+  return
+      bytesRemaining >= 2
+          ? 0xffffU
+          : 0x00ffU;
 }
 
 void S88I2CMaster::publishSnapshot(

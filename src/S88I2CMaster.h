@@ -9,10 +9,12 @@ public:
   using SensorChangeCallback =
       std::function<void(uint16_t address, bool occupied)>;
 
-  static constexpr uint8_t BYTES_PER_GROUP = 2;
-  static constexpr uint8_t MAX_GROUPS = 16;
-  static constexpr uint8_t MAX_DATA_BYTES =
-      MAX_GROUPS * BYTES_PER_GROUP;
+  // Transport model:
+  //   one group = one byte = eight S88 sensors.
+  static constexpr uint8_t BITS_PER_GROUP = 8;
+  static constexpr uint8_t BYTES_PER_GROUP = 1;
+  static constexpr uint8_t MAX_GROUPS = 32;
+  static constexpr uint8_t MAX_DATA_BYTES = MAX_GROUPS;
 
   void begin(
       fs::FS& fs);
@@ -57,26 +59,39 @@ public:
   }
 
   uint8_t byteCount() const {
-    return static_cast<uint8_t>(
-        _groupCount *
-        BYTES_PER_GROUP);
+    return _groupCount;
   }
 
   uint16_t sensorCount() const {
-    return static_cast<uint16_t>(
-        _groupCount) *
-        16U;
+    return
+        static_cast<uint16_t>(
+            _groupCount) *
+        BITS_PER_GROUP;
   }
 
-  uint16_t activeBitsForGroup(
-      uint8_t groupIndex) const;
+  // Browser sensorSnapshot packets stay 16-bit for compatibility.
+  uint8_t snapshotGroupCount() const {
+    return
+        static_cast<uint8_t>(
+            (
+                byteCount() +
+                1U
+            ) /
+            2U);
+  }
+
+  uint16_t activeBitsForSnapshotGroup(
+      uint8_t snapshotGroupIndex) const;
+
+  uint16_t knownBitsForSnapshotGroup(
+      uint8_t snapshotGroupIndex) const;
 
 private:
   struct Settings {
     bool enabled = true;
     uint8_t address = 0x30;
     uint16_t baseAddress = 1;
-    uint8_t groupCount = 1;
+    uint8_t groupCount = 2;
   };
 
   static constexpr const char* DEVICE_CONFIG_PATH =
@@ -97,7 +112,7 @@ private:
 
   uint8_t _slaveAddress = 0x30;
   uint16_t _baseSensorAddress = 1;
-  uint8_t _groupCount = 1;
+  uint8_t _groupCount = 2;
 
   uint8_t _activeBytes[
       MAX_DATA_BYTES] = {};

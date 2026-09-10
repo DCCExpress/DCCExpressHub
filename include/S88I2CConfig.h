@@ -4,7 +4,13 @@
 // DCCExpressHub - S88 I2C defaults
 //
 // Runtime values are loaded from /config/device-config.json when an
-// "s88adapter" device exists. These values are only fallbacks.
+// "s88adapter" device exists.
+//
+// IMPORTANT:
+//   1 S88 transport group = 8 feedback bits = 1 byte.
+//
+// Physical modules may expose 8, 16, 32... inputs. The Hub does not need to
+// know the physical module boundaries; it reads one continuous S88 bit stream.
 // -----------------------------------------------------------------------------
 
 #ifndef S88_I2C_ENABLED
@@ -24,13 +30,13 @@
 #endif
 
 #ifndef S88_I2C_DEFAULT_GROUP_COUNT
-#define S88_I2C_DEFAULT_GROUP_COUNT 1
+#define S88_I2C_DEFAULT_GROUP_COUNT 2
 #endif
 
-// Arduino Wire can return at most 32 bytes in one request.
-// One S88 group = 16 sensors = 2 bytes.
+// Arduino AVR Wire transmit buffer is 32 bytes.
+// 32 byte-groups = 256 feedback inputs.
 #ifndef S88_I2C_MAX_GROUPS
-#define S88_I2C_MAX_GROUPS 16
+#define S88_I2C_MAX_GROUPS 32
 #endif
 
 #ifndef S88_I2C_SDA_PIN
@@ -65,8 +71,8 @@ static_assert(
 static_assert(
     S88_I2C_DEFAULT_GROUP_COUNT >= 1 &&
     S88_I2C_DEFAULT_GROUP_COUNT <= S88_I2C_MAX_GROUPS,
-    "Invalid default S88 group count");
+    "Invalid default S88 byte-group count");
 
 static_assert(
-    S88_I2C_MAX_GROUPS <= 16,
-    "16 groups = 32 bytes, the AVR Wire transmit-buffer limit");
+    S88_I2C_MAX_GROUPS <= 32,
+    "AVR Wire can return at most 32 S88 bytes in one request");

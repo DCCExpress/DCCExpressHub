@@ -170,15 +170,14 @@ bool DeviceConfigEndpoint::verifyTemp(
 
       const int sensorCount =
           groupCount *
-          16;
+          S88I2CMaster::BITS_PER_GROUP;
 
       if (
           groupCount < 1 ||
           groupCount >
               S88I2CMaster::MAX_GROUPS ||
           byteCount !=
-              groupCount *
-              S88I2CMaster::BYTES_PER_GROUP ||
+              groupCount ||
           baseAddress < 1 ||
           baseAddress +
                   sensorCount -
@@ -292,15 +291,33 @@ void DeviceConfigEndpoint::sendS88Status(
             _s88.baseSensorAddress() +
             static_cast<uint16_t>(
                 groupIndex) *
-                16U);
+                S88I2CMaster::BITS_PER_GROUP);
+
+    const uint8_t snapshotGroup =
+        static_cast<uint8_t>(
+            groupIndex /
+            2U);
+
+    const uint8_t shift =
+        static_cast<uint8_t>(
+            (
+                groupIndex %
+                2U
+            ) *
+            8U);
 
     group["activeBits"] =
-        _s88.activeBitsForGroup(
-            groupIndex);
+        static_cast<uint8_t>(
+            (
+                _s88.activeBitsForSnapshotGroup(
+                    snapshotGroup) >>
+                shift
+            ) &
+            0xffU);
 
     group["knownBits"] =
         _s88.snapshotKnown()
-            ? 0xffffU
+            ? 0xffU
             : 0U;
   }
 
