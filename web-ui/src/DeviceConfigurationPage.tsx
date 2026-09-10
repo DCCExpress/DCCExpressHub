@@ -82,9 +82,6 @@ export type S88AdapterConfiguration = {
   type: "s88adapter";
   enabled: boolean;
   address: number;
-  baseAddress: number;
-  groupCount: number;
-  byteCount: number;
 };
 
 export type LegacyDeviceConfiguration = {
@@ -113,9 +110,17 @@ export type DeviceConfigurationDocument = {
 type S88Status = {
   enabled: boolean;
   online: boolean;
+  ready: boolean;
   snapshotKnown: boolean;
   dataFresh: boolean;
-  adapterConfigurationSent: boolean;
+  adapterInfoKnown: boolean;
+  protocolVersion: number;
+  firmwareVersion: string;
+  firmwareMajor: number;
+  firmwareMinor: number;
+  firmwarePatch: number;
+  maxByteCount: number;
+  capabilities: number;
   address: number;
   addressHex: string;
   baseAddress: number;
@@ -182,12 +187,6 @@ const S88_DEFAULT:
       true,
     address:
       0x30,
-    baseAddress:
-      1,
-    groupCount:
-      2,
-    byteCount:
-      2,
   };
 
 const LEGACY_DEFINITIONS:
@@ -387,15 +386,6 @@ function isS88Configuration(
       "boolean" &&
     Number.isInteger(
       device.address
-    ) &&
-    Number.isInteger(
-      device.baseAddress
-    ) &&
-    Number.isInteger(
-      device.groupCount
-    ) &&
-    Number.isInteger(
-      device.byteCount
     )
   );
 }
@@ -487,21 +477,20 @@ function normalizeDevices(
   return [
     s88
       ? {
-          ...s88,
-          groupCount:
+          id:
+            s88.id,
+          name:
+            s88.name,
+          type:
+            "s88adapter",
+          enabled:
+            s88.enabled,
+          address:
             Math.max(
-              1,
+              0x08,
               Math.min(
-                32,
-                s88.groupCount
-              )
-            ),
-          byteCount:
-            Math.max(
-              1,
-              Math.min(
-                32,
-                s88.groupCount
+                0x77,
+                s88.address
               )
             ),
         }
@@ -717,43 +706,70 @@ export default function DeviceConfigurationPage({
     wsStatus ===
     "connected";
 
+  const runtimeByteCount =
+    s88Status?.adapterInfoKnown
+      ? s88Status.byteCount
+      : 0;
+
   const sensorCount =
-    s88.groupCount *
-    8;
+    s88Status?.adapterInfoKnown
+      ? s88Status.sensorCount
+      : 0;
+
+  const runtimeBaseAddress =
+    s88Status?.baseAddress ??
+    1;
 
   const lastSensorAddress =
-    s88.baseAddress +
-    sensorCount -
-    1;
+    sensorCount > 0
+      ? runtimeBaseAddress +
+        sensorCount -
+        1
+      : runtimeBaseAddress;
+
+  const [
+    s88AddressText,
+    setS88AddressText,
+  ] =
+    useState(
+      () =>
+        hexAddress(
+          S88_DEFAULT.address
+        )
+    );
+
+  useEffect(
+    () => {
+      setS88AddressText(
+        hexAddress(
+          s88.address
+        )
+      );
+    },
+    [s88.address]
+  );
+
+  const parsedS88Address =
+    parseHexAddress(
+      s88AddressText
+    );
 
   const s88Error =
     useMemo(() => {
       if (
-        s88.groupCount < 1 ||
-        s88.groupCount > 32
+        parsedS88Address ===
+          null ||
+        parsedS88Address <
+          0x08 ||
+        parsedS88Address >
+          0x77
       ) {
-        return "S88 byte-groups must be between 1 and 32.";
-      }
-
-      if (
-        s88.byteCount !==
-        s88.groupCount
-      ) {
-        return "S88 byte count must equal the number of 8-bit groups.";
-      }
-
-      if (
-        s88.baseAddress < 1 ||
-        lastSensorAddress >
-          65535
-      ) {
-        return "The S88 sensor address range must fit between 1 and 65535.";
+        return "S88 I2C address must be between 0x08 and 0x77.";
       }
 
       return null;
     }, [
-      s88,
-      lastSensorAddress,
+      parsedS88Address,
     ]);
 
   const replaceDevices =
@@ -1169,7 +1185,7 @@ export default function DeviceConfigurationPage({
             "Device configuration saved",
           message:
             result?.message ??
-            "S88 configuration applied.",
+            "S88 I2C address applied.",
         });
       } catch (
         error
@@ -1454,6 +1470,15 @@ export default function DeviceConfigurationPage({
       : s88Status?.online
         ? "ONLINE"
         : "OFFLINE";
+
+  const s88InfoColor =
+    !s88.enabled
+      ? "gray"
+      : s88Status?.adapterInfoKnown
+        ? "teal"
+        : s88Status?.online
+          ? "yellow"
+          : "gray";
 
   return (
     <Stack gap="md">
@@ -1910,17 +1935,14 @@ export default function DeviceConfigurationPage({
 
               <Badge
                 color={
-                  s88Status
-                    ?.adapterConfigurationSent
-                    ? "teal"
-                    : "gray"
+                  s88InfoColor
                 }
                 variant="light"
               >
-                CONFIG{" "}
+                INFO{" "}
                 {s88Status
-                  ?.adapterConfigurationSent
-                  ? "SENT"
+                  ?.adapterInfoKnown
+                  ? "OK"
                   : "PENDING"}
               </Badge>
 
@@ -1976,89 +1998,73 @@ export default function DeviceConfigurationPage({
         >
           <TextInput
             label="I2C address"
-            description="Current adapter firmware address"
+            description="Hub-side address used to find the adapter"
             value={
-              hexAddress(
-                s88.address
-              )
+              s88AddressText
             }
-            readOnly
-          />
-
-          <NumberInput
-            label="Base sensor address / offset"
-            description={`First sensor = ${s88.baseAddress}`}
-            value={
-              s88.baseAddress
-            }
-            min={1}
-            max={
-              65535 -
-              sensorCount +
-              1
-            }
-            allowDecimal={
-              false
+            error={
+              s88Error ??
+              undefined
             }
             onChange={
-              value => {
+              event => {
+                const text =
+                  event.currentTarget.value;
+
+                setS88AddressText(
+                  text
+                );
+
+                const parsed =
+                  parseHexAddress(
+                    text
+                  );
+
                 if (
-                  typeof value ===
-                  "number"
+                  parsed !== null &&
+                  parsed >= 0x08 &&
+                  parsed <= 0x77
                 ) {
                   updateS88({
-                    baseAddress:
-                      value,
+                    address:
+                      parsed,
                   });
                 }
               }
             }
           />
 
-          <NumberInput
-            label="S88 8-bit groups"
-            description="1 group = 1 byte = 8 sensors"
+          <TextInput
+            label="Adapter firmware"
+            description="Reported by the S88 adapter INFO packet"
             value={
-              s88.groupCount
+              s88Status?.adapterInfoKnown
+                ? `v${s88Status.firmwareVersion}`
+                : "-"
             }
-            min={1}
-            max={32}
-            allowDecimal={
-              false
-            }
-            onChange={
-              value => {
-                if (
-                  typeof value !==
-                  "number"
-                ) {
-                  return;
-                }
-
-                const groups =
-                  Math.max(
-                    1,
-                    Math.min(
-                      32,
-                      value
-                    )
-                  );
-
-                updateS88({
-                  groupCount:
-                    groups,
-                  byteCount:
-                    groups,
-                });
-              }
-            }
+            readOnly
           />
 
           <TextInput
-            label="I2C payload"
-            description="Calculated automatically"
+            label="S88 payload"
+            description="Owned and reported by the adapter"
             value={
-              `${s88.byteCount} bytes · ${s88.groupCount}×8-bit groups · ${sensorCount} sensors`
+              s88Status?.adapterInfoKnown
+                ? `${runtimeByteCount} bytes · ${sensorCount} sensors`
+                : "Waiting for adapter INFO"
+            }
+            readOnly
+          />
+
+          <TextInput
+            label="Protocol"
+            description="Read-only adapter capability information"
+            value={
+              s88Status?.adapterInfoKnown
+                ? `INFO v${s88Status.protocolVersion} · max ${s88Status.maxByteCount} bytes · caps 0x${s88Status.capabilities
+                    .toString(16)
+                    .toUpperCase()}`
+                : "-"
             }
             readOnly
           />
@@ -2087,11 +2093,11 @@ export default function DeviceConfigurationPage({
             size="sm"
             c="dimmed"
           >
-            Address range:{" "}
+            Input range:{" "}
             <b>
-              {s88.baseAddress}
-              {" – "}
-              {lastSensorAddress}
+              {s88Status?.adapterInfoKnown
+                ? `${runtimeBaseAddress} – ${lastSensorAddress}`
+                : "waiting for INFO"}
             </b>
           </Text>
         </Group>
@@ -2114,10 +2120,10 @@ export default function DeviceConfigurationPage({
           mt="md"
           color="blue"
         >
-          One S88 transport group is eight bits, therefore one group is exactly
-          one byte. An 8-input module consumes one group; a 16-input module consumes
-          two groups. Mixed chains work because the adapter only reads the requested
-          total byte count. The base address is Hub-side only.
+          The Arduino adapter owns the S88 byte length and is configured over its
+          USB serial port. DCCExpressHub stores only the adapter I2C address, reads
+          the adapter INFO packet, and then requests exactly the reported number of
+          S88 bytes. The Hub never changes adapter configuration.
         </Alert>
       </Card>
 
@@ -2154,7 +2160,9 @@ export default function DeviceConfigurationPage({
           >
             {s88Status?.dataFresh
               ? `${sensorCount} states available`
-              : "Waiting for snapshot"}
+              : s88Status?.adapterInfoKnown
+                ? "Waiting for snapshot"
+                : "Waiting for adapter INFO"}
           </Badge>
         </Group>
 
@@ -2163,14 +2171,14 @@ export default function DeviceConfigurationPage({
         <Stack gap="md">
           {Array.from({
             length:
-              s88.groupCount,
+              runtimeByteCount,
           }).map(
             (
               _,
               groupIndex
             ) => {
               const groupBase =
-                s88.baseAddress +
+                runtimeBaseAddress +
                 groupIndex *
                   8;
 

@@ -1,16 +1,12 @@
 #pragma once
 
 // -----------------------------------------------------------------------------
-// DCCExpressHub - S88 I2C defaults
+// DCCExpressHub - S88 I2C transport defaults
 //
-// Runtime values are loaded from /config/device-config.json when an
-// "s88adapter" device exists.
-//
-// IMPORTANT:
-//   1 S88 transport group = 8 feedback bits = 1 byte.
-//
-// Physical modules may expose 8, 16, 32... inputs. The Hub does not need to
-// know the physical module boundaries; it reads one continuous S88 bit stream.
+// The Arduino S88 adapter owns its S88 byte count. The Hub stores only the
+// adapter I2C address (plus the generic enabled flag), requests adapter INFO,
+// learns the byte count from that response, then reads exactly that many bytes.
+// Sensor addresses are fixed to 1..N on the Hub side.
 // -----------------------------------------------------------------------------
 
 #ifndef S88_I2C_ENABLED
@@ -23,20 +19,6 @@
 
 #ifndef S88_I2C_ADDRESS
 #define S88_I2C_ADDRESS 0x30
-#endif
-
-#ifndef S88_I2C_BASE_SENSOR_ADDRESS
-#define S88_I2C_BASE_SENSOR_ADDRESS 1
-#endif
-
-#ifndef S88_I2C_DEFAULT_GROUP_COUNT
-#define S88_I2C_DEFAULT_GROUP_COUNT 2
-#endif
-
-// Arduino AVR Wire transmit buffer is 32 bytes.
-// 32 byte-groups = 256 feedback inputs.
-#ifndef S88_I2C_MAX_GROUPS
-#define S88_I2C_MAX_GROUPS 32
 #endif
 
 #ifndef S88_I2C_SDA_PIN
@@ -59,16 +41,20 @@
 #define S88_I2C_PROBE_INTERVAL_MS 2000UL
 #endif
 
-// Re-send the tiny adapter configuration periodically. This makes a quick UNO
-// reset self-healing even when the requested byte count is smaller than the
-// adapter firmware default and therefore cannot be detected by a short read.
-#ifndef S88_I2C_CONFIG_RESEND_MS
-#define S88_I2C_CONFIG_RESEND_MS 2000UL
+// Retry INFO quickly while an adapter answers at the configured address but
+// has not yet returned a valid v0.5+ INFO packet.
+#ifndef S88_I2C_INFO_RETRY_MS
+#define S88_I2C_INFO_RETRY_MS 1000UL
+#endif
+
+// Re-read INFO periodically so a serial-side byte-count change is discovered
+// without restarting the Hub.
+#ifndef S88_I2C_INFO_REFRESH_MS
+#define S88_I2C_INFO_REFRESH_MS 5000UL
 #endif
 
 // Successful S88 reads normally happen every 20 ms. If no successful read has
-// happened for this long, the UI treats the data as stale and the Hub stops
-// sending periodic sensorSnapshot packets until fresh data returns.
+// happened for this long, the UI treats the data as stale.
 #ifndef S88_I2C_DATA_FRESH_MS
 #define S88_I2C_DATA_FRESH_MS 1000UL
 #endif
@@ -81,12 +67,3 @@ static_assert(
     S88_I2C_ADDRESS >= 0x08 &&
     S88_I2C_ADDRESS <= 0x77,
     "S88_I2C_ADDRESS must be a normal 7-bit I2C address");
-
-static_assert(
-    S88_I2C_DEFAULT_GROUP_COUNT >= 1 &&
-    S88_I2C_DEFAULT_GROUP_COUNT <= S88_I2C_MAX_GROUPS,
-    "Invalid default S88 byte-group count");
-
-static_assert(
-    S88_I2C_MAX_GROUPS <= 32,
-    "AVR Wire can return at most 32 S88 bytes in one request");

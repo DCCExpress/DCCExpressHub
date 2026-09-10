@@ -59,6 +59,19 @@ String S88I2CMaster::formatBits(
   return result;
 }
 
+String S88I2CMaster::firmwareVersion() const {
+  if (!_adapterInfoKnown) {
+    return String("-");
+  }
+
+  return
+      String(_firmwareMajor) +
+      "." +
+      String(_firmwareMinor) +
+      "." +
+      String(_firmwarePatch);
+}
+
 bool S88I2CMaster::startBus() {
   if (_busInitialized) {
     return true;
@@ -107,14 +120,6 @@ bool S88I2CMaster::loadSettings(
       static_cast<uint8_t>(
           S88_I2C_ADDRESS);
 
-  settings.baseAddress =
-      static_cast<uint16_t>(
-          S88_I2C_BASE_SENSOR_ADDRESS);
-
-  settings.groupCount =
-      static_cast<uint8_t>(
-          S88_I2C_DEFAULT_GROUP_COUNT);
-
   File file =
       fs.open(
           DEVICE_CONFIG_PATH,
@@ -122,7 +127,7 @@ bool S88I2CMaster::loadSettings(
 
   if (!file) {
     Logger::info(
-        "S88 device config not found; using firmware defaults");
+        "S88 device config not found; using firmware default I2C address");
 
     return true;
   }
@@ -138,7 +143,7 @@ bool S88I2CMaster::loadSettings(
 
   if (error) {
     Logger::warn(
-        "S88 device config JSON parse failed; using firmware defaults");
+        "S88 device config JSON parse failed; using firmware default I2C address");
 
     return false;
   }
@@ -171,34 +176,12 @@ bool S88I2CMaster::loadSettings(
         static_cast<int>(
             S88_I2C_ADDRESS);
 
-    const int baseAddress =
-        device["baseAddress"] |
-        static_cast<int>(
-            S88_I2C_BASE_SENSOR_ADDRESS);
-
-    const int groupCount =
-        device["groupCount"] |
-        static_cast<int>(
-            S88_I2C_DEFAULT_GROUP_COUNT);
-
-    const int sensorCount =
-        groupCount *
-        BITS_PER_GROUP;
-
     if (
         address < 0x08 ||
-        address > 0x77 ||
-        baseAddress < 1 ||
-        baseAddress +
-                sensorCount -
-                1 >
-            65535 ||
-        groupCount < 1 ||
-        groupCount >
-            MAX_GROUPS
+        address > 0x77
     ) {
       Logger::warn(
-          "Invalid S88 adapter entry in device-config.json; using firmware defaults");
+          "Invalid S88 I2C address in device-config.json; using firmware default");
 
       return false;
     }
@@ -210,19 +193,11 @@ bool S88I2CMaster::loadSettings(
         static_cast<uint8_t>(
             address);
 
-    settings.baseAddress =
-        static_cast<uint16_t>(
-            baseAddress);
-
-    settings.groupCount =
-        static_cast<uint8_t>(
-            groupCount);
-
     return true;
   }
 
   Logger::info(
-      "No S88 adapter entry in device config; using firmware defaults");
+      "No S88 adapter entry in device config; using firmware default I2C address");
 
   return true;
 }
@@ -231,6 +206,7 @@ bool S88I2CMaster::dataFresh() const {
   if (
       !_enabled ||
       !_slavePresent ||
+      !_adapterInfoKnown ||
       !_snapshotKnown ||
       _lastSuccessfulReadMs == 0
   ) {
@@ -244,7 +220,6 @@ bool S88I2CMaster::dataFresh() const {
 }
 
 void S88I2CMaster::clearPublishedSensors(
-    uint16_t baseAddress,
     uint16_t sensorCount) {
   if (!_sensorChangeCallback) {
     return;
@@ -257,10 +232,47 @@ void S88I2CMaster::clearPublishedSensors(
   ) {
     _sensorChangeCallback(
         static_cast<uint16_t>(
-            baseAddress +
+            BASE_SENSOR_ADDRESS +
             offset),
         false);
   }
+}
+
+void S88I2CMaster::invalidateAdapterInfo() {
+  _adapterInfoKnown =
+      false;
+
+  _byteCount =
+      0;
+
+  _protocolVersion =
+      0;
+
+  _firmwareMajor =
+      0;
+
+  _firmwareMinor =
+      0;
+
+  _firmwarePatch =
+      0;
+
+  _adapterMaxByteCount =
+      0;
+
+  _adapterCapabilities =
+      0;
+
+  _snapshotKnown =
+      false;
+
+  _lastSuccessfulReadMs =
+      0;
+
+  memset(
+      _activeBytes,
+      0,
+      sizeof(_activeBytes));
 }
 
 bool S88I2CMaster::applySettings(
@@ -269,45 +281,24 @@ bool S88I2CMaster::applySettings(
       _enabled !=
           settings.enabled ||
       _slaveAddress !=
-          settings.address ||
-      _baseSensorAddress !=
-          settings.baseAddress ||
-      _groupCount !=
-          settings.groupCount;
+          settings.address;
 
-  // Saving an unrelated PCA/PCF device must not invalidate S88 state or cause
-  // a full 8..256 sensorChanged burst.
   if (!settingsChanged) {
     return false;
   }
 
-  const uint16_t oldBase =
-      _baseSensorAddress;
-
-  const uint16_t oldSensorCount =
-      sensorCount();
-
-  const bool mappingChanged =
-      _baseSensorAddress !=
-          settings.baseAddress ||
-      _groupCount !=
-          settings.groupCount ||
-      _enabled !=
-          settings.enabled;
-
-  // _snapshotKnown becomes false on disconnect. _hasPublishedState does not,
-  // so changing the mapping while the adapter is offline still clears the old
-  // addresses from the browser/runtime.
   if (
       _hasPublishedState &&
-      mappingChanged
+      _publishedSensorCount > 0
   ) {
     clearPublishedSensors(
-        oldBase,
-        oldSensorCount);
+        _publishedSensorCount);
 
     _hasPublishedState =
         false;
+
+    _publishedSensorCount =
+        0;
   }
 
   const bool addressChanged =
@@ -320,27 +311,12 @@ bool S88I2CMaster::applySettings(
   _slaveAddress =
       settings.address;
 
-  _baseSensorAddress =
-      settings.baseAddress;
+  invalidateAdapterInfo();
 
-  _groupCount =
-      settings.groupCount;
-
-  memset(
-      _activeBytes,
-      0,
-      sizeof(_activeBytes));
-
-  _snapshotKnown =
-      false;
-
-  _lastSuccessfulReadMs =
+  _lastInfoAttemptMs =
       0;
 
-  _adapterConfigurationSent =
-      false;
-
-  _lastConfigSendMs =
+  _lastInfoSuccessMs =
       0;
 
   if (addressChanged) {
@@ -360,18 +336,7 @@ bool S88I2CMaster::applySettings(
       " address=" +
       formatAddress(
           _slaveAddress) +
-      " base=" +
-      String(
-          _baseSensorAddress) +
-      " byteGroups=" +
-      String(
-          _groupCount) +
-      " bytes=" +
-      String(
-          byteCount()) +
-      " sensors=" +
-      String(
-          sensorCount()));
+      " adapter owns byte count");
 
   return true;
 }
@@ -399,6 +364,8 @@ bool S88I2CMaster::reloadConfiguration(
 
     _presenceKnown =
         true;
+
+    invalidateAdapterInfo();
 
     Logger::info(
         "S88 adapter disabled by device configuration");
@@ -469,7 +436,7 @@ void S88I2CMaster::scanBus() {
         _slaveAddress
     ) {
       message +=
-          " [configured S88 adapter]";
+          " [configured S88 adapter address]";
     } else if (
         address ==
         0x75
@@ -488,8 +455,8 @@ void S88I2CMaster::scanBus() {
       " device(s)");
 }
 
-bool S88I2CMaster::sendAdapterConfiguration(
-    bool force) {
+bool S88I2CMaster::requestAdapterInfo(
+    bool forceLog) {
   if (
       !_enabled ||
       !_busInitialized ||
@@ -498,89 +465,249 @@ bool S88I2CMaster::sendAdapterConfiguration(
     return false;
   }
 
-  const unsigned long now =
+  _lastInfoAttemptMs =
       millis();
 
-  if (
-      !force &&
-      _lastConfigSendMs != 0 &&
-      now -
-          _lastConfigSendMs <
-      S88_I2C_CONFIG_RESEND_MS
-  ) {
-    return
-        _adapterConfigurationSent;
-  }
-
-  const bool wasSent =
-      _adapterConfigurationSent;
-
-  _lastConfigSendMs =
-      now;
-
-  const uint8_t groups =
-      _groupCount;
-
-  const uint8_t bytes =
-      byteCount();
-
-  const uint8_t checksum =
+  const uint8_t selectorChecksum =
       static_cast<uint8_t>(
-          CONFIG_MAGIC ^
-          CONFIG_COMMAND ^
-          groups ^
-          bytes);
+          PROTOCOL_MAGIC ^
+          INFO_REQUEST);
 
   Wire.beginTransmission(
       _slaveAddress);
 
   Wire.write(
-      CONFIG_MAGIC);
+      PROTOCOL_MAGIC);
 
   Wire.write(
-      CONFIG_COMMAND);
+      INFO_REQUEST);
 
   Wire.write(
-      groups);
+      selectorChecksum);
 
-  Wire.write(
-      bytes);
-
-  Wire.write(
-      checksum);
-
-  const uint8_t result =
+  const uint8_t selectResult =
       Wire.endTransmission(
           true);
 
-  _adapterConfigurationSent =
-      result == 0;
+  if (selectResult != 0) {
+    if (
+        forceLog ||
+        _adapterInfoKnown
+    ) {
+      Logger::warn(
+          "S88 INFO selector failed at " +
+          formatAddress(
+              _slaveAddress) +
+          " code=" +
+          String(selectResult));
+    }
 
-  if (
-      _adapterConfigurationSent &&
-      (
-          !wasSent ||
-          force
-      )
-  ) {
-    Logger::info(
-        "S88 adapter config sent: groups=" +
-        String(groups) +
-        " bytes=" +
-        String(bytes));
-  } else if (
-      !_adapterConfigurationSent
-  ) {
-    Logger::warn(
-        "S88 adapter config write failed at " +
-        formatAddress(
-            _slaveAddress) +
-        " code=" +
-        String(result));
+    invalidateAdapterInfo();
+    return false;
   }
 
-  return
-      _adapterConfigurationSent;
+  const size_t received =
+      Wire.requestFrom(
+          _slaveAddress,
+          INFO_RESPONSE_SIZE);
+
+  if (
+      received !=
+      INFO_RESPONSE_SIZE
+  ) {
+    while (
+        Wire.available()
+    ) {
+      Wire.read();
+    }
+
+    if (
+        forceLog ||
+        _adapterInfoKnown
+    ) {
+      Logger::warn(
+          "S88 INFO short read from " +
+          formatAddress(
+              _slaveAddress) +
+          ": expected=" +
+          String(INFO_RESPONSE_SIZE) +
+          " received=" +
+          String(received));
+    }
+
+    invalidateAdapterInfo();
+    return false;
+  }
+
+  uint8_t packet[
+      INFO_RESPONSE_SIZE] = {};
+
+  for (
+      uint8_t index = 0;
+      index < INFO_RESPONSE_SIZE;
+      ++index
+  ) {
+    if (!Wire.available()) {
+      Logger::warn(
+          "S88 INFO receive buffer ended unexpectedly");
+
+      invalidateAdapterInfo();
+      return false;
+    }
+
+    packet[index] =
+        static_cast<uint8_t>(
+            Wire.read());
+  }
+
+  uint8_t checksum =
+      0;
+
+  for (
+      uint8_t index = 0;
+      index <
+          INFO_RESPONSE_SIZE -
+              1U;
+      ++index
+  ) {
+    checksum ^=
+        packet[index];
+  }
+
+  const uint8_t protocolVersion =
+      packet[2];
+
+  const uint8_t byteCount =
+      packet[6];
+
+  const uint8_t maxByteCount =
+      packet[7];
+
+  const bool valid =
+      packet[0] ==
+          PROTOCOL_MAGIC &&
+      packet[1] ==
+          INFO_RESPONSE &&
+      packet[9] ==
+          checksum &&
+      protocolVersion ==
+          SUPPORTED_PROTOCOL_VERSION &&
+      byteCount >= 1 &&
+      byteCount <=
+          MAX_DATA_BYTES &&
+      maxByteCount >=
+          byteCount;
+
+  if (!valid) {
+    Logger::warn(
+        "S88 INFO packet invalid at " +
+        formatAddress(
+            _slaveAddress));
+
+    invalidateAdapterInfo();
+    return false;
+  }
+
+  const bool hadInfo =
+      _adapterInfoKnown;
+
+  const uint8_t oldByteCount =
+      _byteCount;
+
+  const uint16_t newSensorCount =
+      static_cast<uint16_t>(
+          byteCount) *
+      BITS_PER_BYTE;
+
+  const bool byteCountChanged =
+      hadInfo &&
+      oldByteCount !=
+          byteCount;
+
+  // Adapter INFO may have been invalidated by a disconnect or short read, so
+  // compare against the last actually published mapping as well.
+  if (
+      _hasPublishedState &&
+      _publishedSensorCount > 0 &&
+      _publishedSensorCount !=
+          newSensorCount
+  ) {
+    clearPublishedSensors(
+        _publishedSensorCount);
+
+    _hasPublishedState =
+        false;
+
+    _publishedSensorCount =
+        0;
+  }
+
+  _adapterInfoKnown =
+      true;
+
+  _protocolVersion =
+      protocolVersion;
+
+  _firmwareMajor =
+      packet[3];
+
+  _firmwareMinor =
+      packet[4];
+
+  _firmwarePatch =
+      packet[5];
+
+  _byteCount =
+      byteCount;
+
+  _adapterMaxByteCount =
+      maxByteCount;
+
+  _adapterCapabilities =
+      packet[8];
+
+  _lastInfoSuccessMs =
+      millis();
+
+  if (byteCountChanged) {
+    _snapshotKnown =
+        false;
+
+    _lastSuccessfulReadMs =
+        0;
+
+    memset(
+        _activeBytes,
+        0,
+        sizeof(_activeBytes));
+  }
+
+  if (
+      !hadInfo ||
+      byteCountChanged ||
+      forceLog
+  ) {
+    Logger::info(
+        "S88 adapter INFO: address=" +
+        formatAddress(
+            _slaveAddress) +
+        " protocol=" +
+        String(_protocolVersion) +
+        " firmware=" +
+        firmwareVersion() +
+        " bytes=" +
+        String(_byteCount) +
+        " sensors=" +
+        String(sensorCount()) +
+        " maxBytes=" +
+        String(_adapterMaxByteCount) +
+        " capabilities=0x" +
+        String(
+            _adapterCapabilities,
+            HEX));
+  }
+
+  return true;
 }
 
 void S88I2CMaster::updateSlavePresence(
@@ -601,13 +728,6 @@ void S88I2CMaster::updateSlavePresence(
       present !=
           _slavePresent;
 
-  if (
-      !forceLog &&
-      !changed
-  ) {
-    return;
-  }
-
   _presenceKnown =
       true;
 
@@ -615,45 +735,38 @@ void S88I2CMaster::updateSlavePresence(
       present;
 
   if (changed) {
-    _snapshotKnown =
-        false;
+    invalidateAdapterInfo();
 
-    _lastSuccessfulReadMs =
+    _lastInfoAttemptMs =
         0;
 
-    _adapterConfigurationSent =
-        false;
-
-    _lastConfigSendMs =
+    _lastInfoSuccessMs =
         0;
   }
 
-  if (present) {
-    if (
-        changed ||
-        forceLog
-    ) {
+  if (
+      forceLog ||
+      changed
+  ) {
+    if (present) {
       Logger::info(
           "S88 I2C slave detected at " +
           formatAddress(
               _slaveAddress));
+    } else {
+      Logger::warn(
+          "S88 I2C slave NOT detected at " +
+          formatAddress(
+              _slaveAddress));
     }
+  }
 
-    if (
-        changed ||
-        !_adapterConfigurationSent
-    ) {
-      sendAdapterConfiguration(
-          true);
-    }
-  } else if (
-      changed ||
-      forceLog
+  if (
+      present &&
+      changed
   ) {
-    Logger::warn(
-        "S88 I2C slave NOT detected at " +
-        formatAddress(
-            _slaveAddress));
+    requestAdapterInfo(
+        true);
   }
 }
 
@@ -808,7 +921,7 @@ void S88I2CMaster::publishSnapshot(
 
       const uint16_t address =
           static_cast<uint16_t>(
-              _baseSensorAddress +
+              BASE_SENSOR_ADDRESS +
               offset);
 
       const bool occupied =
@@ -829,19 +942,34 @@ void S88I2CMaster::publishSnapshot(
 
   _hasPublishedState =
       true;
+
+  _publishedSensorCount =
+      static_cast<uint16_t>(
+          count) *
+      BITS_PER_BYTE;
 }
 
 bool S88I2CMaster::readSnapshot() {
   if (
       !_busInitialized ||
       !_enabled ||
-      !_slavePresent
+      !_slavePresent ||
+      !_adapterInfoKnown
   ) {
     return false;
   }
 
   const uint8_t expected =
       byteCount();
+
+  if (
+      expected < 1 ||
+      expected >
+          MAX_DATA_BYTES
+  ) {
+    invalidateAdapterInfo();
+    return false;
+  }
 
   const size_t received =
       Wire.requestFrom(
@@ -876,14 +1004,14 @@ bool S88I2CMaster::readSnapshot() {
           ": expected=" +
           String(expected) +
           " received=" +
-          String(received));
+          String(received) +
+          "; refreshing adapter INFO");
     }
 
-    // Typical case: the UNO has restarted with its compile-time default.
-    // Retry is rate-limited so a legacy/broken adapter cannot be hammered at
-    // the 20 ms read cadence.
-    sendAdapterConfiguration(
-        false);
+    invalidateAdapterInfo();
+
+    _lastInfoAttemptMs =
+        0;
 
     return false;
   }
@@ -899,6 +1027,11 @@ bool S88I2CMaster::readSnapshot() {
     if (!Wire.available()) {
       Logger::warn(
           "S88 I2C receive buffer ended unexpectedly");
+
+      invalidateAdapterInfo();
+
+      _lastInfoAttemptMs =
+          0;
 
       return false;
     }
@@ -985,18 +1118,34 @@ void S88I2CMaster::loop() {
 
     updateSlavePresence(
         false);
+  }
 
-    // Periodic 5-byte reconfiguration is intentionally cheap. It guarantees
-    // convergence after a fast UNO reset even when Hub expects fewer bytes than
-    // the adapter's default, a case that cannot be detected by requestFrom().
-    if (_slavePresent) {
-      sendAdapterConfiguration(
-          false);
-    }
+  if (!_slavePresent) {
+    return;
+  }
+
+  const bool infoDue =
+      !_adapterInfoKnown
+          ? (
+                _lastInfoAttemptMs == 0 ||
+                now -
+                        _lastInfoAttemptMs >=
+                    S88_I2C_INFO_RETRY_MS
+            )
+          : (
+                _lastInfoSuccessMs == 0 ||
+                now -
+                        _lastInfoSuccessMs >=
+                    S88_I2C_INFO_REFRESH_MS
+            );
+
+  if (infoDue) {
+    requestAdapterInfo(
+        !_adapterInfoKnown);
   }
 
   if (
-      !_slavePresent ||
+      !_adapterInfoKnown ||
       now -
           _lastReadMs <
       S88_I2C_READ_INTERVAL_MS

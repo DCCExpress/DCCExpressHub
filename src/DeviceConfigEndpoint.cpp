@@ -192,48 +192,9 @@ bool DeviceConfigEndpoint::verifyTemp(
         return false;
       }
 
-      if (
-          !device["baseAddress"].is<int>() ||
-          !device["groupCount"].is<int>() ||
-          !device["byteCount"].is<int>()
-      ) {
-        error =
-            "S88 adapter requires baseAddress, groupCount and byteCount";
-        return false;
-      }
-
-      const int baseAddress =
-          device["baseAddress"]
-              .as<int>();
-
-      const int groupCount =
-          device["groupCount"]
-              .as<int>();
-
-      const int byteCount =
-          device["byteCount"]
-              .as<int>();
-
-      const int sensorCount =
-          groupCount *
-          S88I2CMaster::BITS_PER_GROUP;
-
-      if (
-          groupCount < 1 ||
-          groupCount >
-              S88I2CMaster::MAX_GROUPS ||
-          byteCount !=
-              groupCount ||
-          baseAddress < 1 ||
-          baseAddress +
-                  sensorCount -
-                  1 >
-              65535
-      ) {
-        error =
-            "Invalid S88 group, byte or base-address configuration";
-        return false;
-      }
+      // The adapter owns its S88 byte count. The Hub persists only the
+      // adapter I2C address (plus the generic enabled flag). Old files may
+      // still contain baseAddress/groupCount/byteCount; they are ignored.
     } else {
       if (
           !device["firstVpin"].is<int>() ||
@@ -421,8 +382,32 @@ void DeviceConfigEndpoint::sendS88Status(
   document["dataFresh"] =
       _s88.dataFresh();
 
-  document["adapterConfigurationSent"] =
-      _s88.adapterConfigurationSent();
+  document["ready"] =
+      _s88.ready();
+
+  document["adapterInfoKnown"] =
+      _s88.adapterInfoKnown();
+
+  document["protocolVersion"] =
+      _s88.protocolVersion();
+
+  document["firmwareVersion"] =
+      _s88.firmwareVersion();
+
+  document["firmwareMajor"] =
+      _s88.firmwareMajor();
+
+  document["firmwareMinor"] =
+      _s88.firmwareMinor();
+
+  document["firmwarePatch"] =
+      _s88.firmwarePatch();
+
+  document["maxByteCount"] =
+      _s88.adapterMaxByteCount();
+
+  document["capabilities"] =
+      _s88.adapterCapabilities();
 
   document["address"] =
       _s88.slaveAddress();
@@ -473,7 +458,7 @@ void DeviceConfigEndpoint::sendS88Status(
             _s88.baseSensorAddress() +
             static_cast<uint16_t>(
                 groupIndex) *
-                S88I2CMaster::BITS_PER_GROUP);
+                S88I2CMaster::BITS_PER_BYTE);
 
     const uint8_t snapshotGroup =
         static_cast<uint8_t>(
@@ -623,7 +608,7 @@ void DeviceConfigEndpoint::handleBody(
 
   response["message"] =
       s88Applied
-          ? "Device configuration saved; S88 settings applied live"
+          ? "Device configuration saved; S88 I2C address applied live"
           : "Device configuration saved; S88 runtime fell back to defaults";
 
   sendJson(

@@ -258,7 +258,7 @@ void App::connectWifi() {
     if (_s88I2c.enabled()) {
       _display.showS88Status(
           _s88I2c.slaveAddress(),
-          _s88I2c.slavePresent());
+          _s88I2c.ready());
     }
 
     _display.loop();
@@ -320,7 +320,7 @@ void App::updateDisplay() {
   if (_s88I2c.enabled()) {
     _display.showS88Status(
         _s88I2c.slaveAddress(),
-        _s88I2c.slavePresent());
+        _s88I2c.ready());
   }
 
   _display.loop();
@@ -372,7 +372,7 @@ void App::begin() {
   if (_s88I2c.enabled()) {
     _display.showS88Status(
         _s88I2c.slaveAddress(),
-        _s88I2c.slavePresent());
+        _s88I2c.ready());
   }
 
   connectWifi();
