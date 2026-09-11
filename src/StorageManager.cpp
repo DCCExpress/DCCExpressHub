@@ -40,6 +40,52 @@ bool StorageManager::begin() {
   }
 
   if (_sdMounted) {
+    // Keep one well-known audio directory available for the layout audio picker.
+    if (!SD.exists("/audio")) {
+      if (SD.mkdir("/audio")) {
+        Logger::info("SD audio directory created: /audio");
+      } else {
+        Logger::warn("Could not create SD audio directory: /audio");
+      }
+    } else {
+      Logger::info("SD audio directory ready: /audio");
+    }
+
+    // Small boot-time write/delete self-test. This isolates SD write problems
+    // from the HTTP upload path and immediately tells us whether the mounted
+    // card is actually writable on the shared SPI bus.
+    static constexpr const char* WRITE_TEST_PATH = "/.dcchub_write_test.tmp";
+
+    SD.remove(WRITE_TEST_PATH);
+
+    File writeTest = SD.open(WRITE_TEST_PATH, FILE_WRITE);
+
+    if (!writeTest) {
+      Logger::warn("SD write test: FAILED (open)");
+    } else {
+      static constexpr char WRITE_TEST_TEXT[] = "DCCExpressHub";
+      const size_t expected = sizeof(WRITE_TEST_TEXT) - 1;
+      const size_t written = writeTest.write(
+          reinterpret_cast<const uint8_t*>(WRITE_TEST_TEXT),
+          expected);
+
+      writeTest.flush();
+      writeTest.close();
+
+      if (written != expected) {
+        Logger::warn(
+            "SD write test: FAILED (write " +
+            String(static_cast<unsigned long>(written)) +
+            "/" +
+            String(static_cast<unsigned long>(expected)) +
+            " bytes)");
+      } else if (!SD.remove(WRITE_TEST_PATH)) {
+        Logger::warn("SD write test: WRITE OK, DELETE FAILED");
+      } else {
+        Logger::info("SD write test: OK");
+      }
+    }
+
     Logger::info(
         "SD card mounted: type=" +
         String(sdCardTypeName()) +

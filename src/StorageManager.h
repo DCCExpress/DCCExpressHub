@@ -49,5 +49,5 @@ private:
   bool _sdMounted = false;
 
   static constexpr uint8_t M5STACK_SD_CS = 4;
-  static constexpr uint32_t SD_SPI_HZ = 20000000UL;
+  static constexpr uint32_t SD_SPI_HZ = 10000000UL;
 };

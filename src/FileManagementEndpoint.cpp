@@ -266,6 +266,9 @@ void FileManagementEndpoint::resetUpload() {
   _uploadVirtualPath =
       "";
 
+  _uploadError =
+      "";
+
   _uploadBytes =
       0;
 
@@ -317,6 +320,9 @@ void FileManagementEndpoint::handleUploadChunk(
     ) {
       _uploadFailed =
           true;
+      _uploadError =
+          "Missing upload target path";
+      Logger::warn("Upload failed: " + _uploadError);
 
       return;
     }
@@ -338,6 +344,17 @@ void FileManagementEndpoint::handleUploadChunk(
     ) {
       _uploadFailed =
           true;
+      _uploadError =
+          directory == "/"
+              ? "Choose Internal Flash or SD Card before uploading"
+              : "Invalid upload filename";
+      Logger::warn(
+          "Upload failed: " +
+          _uploadError +
+          " file=" +
+          filename +
+          " path=" +
+          directory);
 
       return;
     }
@@ -360,6 +377,13 @@ void FileManagementEndpoint::handleUploadChunk(
     ) {
       _uploadFailed =
           true;
+      _uploadError =
+          "Upload target storage/path is unavailable";
+      Logger::warn(
+          "Upload failed: " +
+          _uploadError +
+          " path=" +
+          directory);
 
       return;
     }
@@ -392,6 +416,13 @@ void FileManagementEndpoint::handleUploadChunk(
     ) {
       _uploadFailed =
           true;
+      _uploadError =
+          "Upload destination is protected or invalid";
+      Logger::warn(
+          "Upload failed: " +
+          _uploadError +
+          " target=" +
+          _uploadVirtualPath);
 
       return;
     }
@@ -403,6 +434,16 @@ void FileManagementEndpoint::handleUploadChunk(
     if (!_uploadFile) {
       _uploadFailed =
           true;
+      _uploadError =
+          "Could not open temporary file for writing";
+      Logger::warn(
+          "Upload failed: " +
+          _uploadError +
+          " target=" +
+          _uploadVirtualPath +
+          " temp=" +
+          _uploadStore->tempPath(
+              _uploadFinalPath.c_str()));
 
       return;
     }
@@ -431,6 +472,8 @@ void FileManagementEndpoint::handleUploadChunk(
 
     _uploadFailed =
         true;
+    _uploadError =
+        "Internal Flash upload exceeds 2 MB";
 
     _uploadFile.close();
 
@@ -454,6 +497,19 @@ void FileManagementEndpoint::handleUploadChunk(
   ) {
     _uploadFailed =
         true;
+    _uploadError =
+        "Storage write failed after " +
+        String(_uploadBytes) +
+        " bytes (requested chunk " +
+        String(len) +
+        ", wrote " +
+        String(written) +
+        ")";
+    Logger::warn(
+        "Upload failed: " +
+        _uploadError +
+        " target=" +
+        _uploadVirtualPath);
 
     _uploadFile.close();
 
@@ -476,6 +532,13 @@ void FileManagementEndpoint::handleUploadChunk(
   ) {
     _uploadFailed =
         true;
+    _uploadError =
+        "Upload data was written, but final rename/commit failed";
+    Logger::warn(
+        "Upload failed: " +
+        _uploadError +
+        " target=" +
+        _uploadVirtualPath);
 
     _uploadStore->abort(
         _uploadFinalPath.c_str());
@@ -530,9 +593,11 @@ void FileManagementEndpoint::finishUploadRequest(
       !_uploadCommitted
   ) {
     const String message =
-        _uploadTooLarge
-            ? "Internal Flash upload exceeds 2 MB"
-            : "File upload failed";
+        !_uploadError.isEmpty()
+            ? _uploadError
+            : (_uploadTooLarge
+                   ? "Internal Flash upload exceeds 2 MB"
+                   : "File upload failed");
 
     sendJson(
         request,

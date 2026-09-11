@@ -33,6 +33,7 @@ private:
 
   String _uploadFinalPath;
   String _uploadVirtualPath;
+  String _uploadError;
 
   size_t _uploadBytes = 0;
 

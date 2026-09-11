@@ -4,6 +4,7 @@
 
 #include <LittleFS.h>
 
+#include "Logger.h"
 #include "StorageManager.h"
 
 namespace {
@@ -69,15 +70,32 @@ String formatBytesCompact(
 }
 
 void HubDisplay::begin() {
+#if HUB_DISPLAY_M5STACK_BASIC
+  constexpr uint8_t M5STACK_SD_CS_PIN = 4;
+  // IMPORTANT: TFT and microSD share the same SPI bus on M5Stack Basic.
+  // With a card inserted the SD CS pin must already be inactive before the
+  // display driver starts touching SPI, otherwise the card may drive MISO and
+  // interfere with TFT initialization.
+  pinMode(M5STACK_SD_CS_PIN, OUTPUT);
+  digitalWrite(M5STACK_SD_CS_PIN, HIGH);
+
+  Logger::info("M5Stack SD deselected before display init");
+#endif
+
+  Logger::info("Display init starting");
   _display.begin();
+  Logger::info("Display init complete");
 
 #if HUB_DISPLAY_M5STACK_BASIC
   _display.configureForHub();
 
-  // Detect/mount the built-in M5Stack microSD during display startup. This is
-  // intentionally early in boot so the INFO page and HTTP file manager share
-  // the same authoritative storage state.
+  Logger::info("SD init starting");
+
+  // Detect/mount the built-in M5Stack microSD only after the display has been
+  // initialized and released the shared SPI bus.
   StorageManager::instance().begin();
+
+  Logger::info("SD init complete");
 #endif
 
   _display.setTextSize(

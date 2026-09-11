@@ -46,6 +46,8 @@ Current functionality includes:
 - gamepad support,
 - external device configuration,
 - LittleFS file browser,
+- SD-card storage on M5Stack Basic,
+- audio files and layout Audio Button elements,
 - complete Export / Import backup,
 - browser-based firmware installation,
 - USB serial configuration and recovery.
@@ -75,6 +77,107 @@ cyd-2432s028-z21
 ```
 
 During alpha development the release workflow and browser installer may lag behind source-level hardware targets. Check the current release assets before assuming every PlatformIO target has a ready-made merged firmware image.
+
+### M5Stack SD card and audio files
+
+The **M5Stack Basic** can use its built-in microSD slot as external storage. SD storage is intended primarily for larger user files such as locomotive sounds, announcements and other audio files that should not consume the ESP32 LittleFS partition.
+
+#### SD card format
+
+Use a good-quality **microSD / microSDHC / microSDXC** card formatted as **FAT32**.
+
+Recommended setup:
+
+```text
+File system:          FAT32
+Allocation unit size: 32 KB (32768 bytes)
+Volume label:         DCCEXPRESS (optional)
+```
+
+**Do not use NTFS.** For the current M5Stack SD implementation, **FAT32 is the recommended format instead of exFAT**.
+
+Large cards such as 64 GB SDXC cards are normally supplied as exFAT. Windows also usually offers only exFAT or NTFS for cards larger than 32 GB. The card can still be used by creating a FAT32 partition.
+
+One Windows-only method that does not require an additional formatter is to create a partition of approximately 30 GB with DiskPart:
+
+```text
+diskpart
+list disk
+select disk N
+clean
+create partition primary size=30000
+format fs=fat32 quick label=DCCEXPRESS
+assign
+exit
+```
+
+> **WARNING:** `clean` erases the selected disk. Double-check the disk number before running it. Selecting the wrong disk can erase another drive in the computer.
+
+Alternatively, a FAT32 formatter such as **guiformat / FAT32 Format** or another trusted partitioning tool can format larger media as FAT32 while retaining a larger partition.
+
+FAT32 has a maximum individual file size of approximately 4 GB. This is normally irrelevant for locomotive and layout audio files.
+
+#### `/audio` directory
+
+After a successful SD mount, DCCExpressHub automatically ensures that this directory exists:
+
+```text
+/audio
+```
+
+The recommended SD-card layout is therefore:
+
+```text
+SD Card
+└── audio
+    ├── horn.mp3
+    ├── station.mp3
+    ├── crossing.mp3
+    └── mav_szignal.mp3
+```
+
+MP3 is the recommended format for normal use. The browser performs the audio decoding; the ESP32 only serves/streams the file from the SD card.
+
+#### Uploading audio files
+
+Audio files can be uploaded from the DCCExpressHub web interface:
+
+1. Open **Files / File Manager**.
+2. Select **SD Card**.
+3. Open the **audio** directory.
+4. Upload the desired MP3 file.
+
+Files stored there use virtual Hub paths such as:
+
+```text
+/sd/audio/mav_szignal.mp3
+```
+
+The SD-card upload path is separate from the internal LittleFS storage. Large audio files should therefore be stored on the SD card rather than in LittleFS.
+
+#### Adding an Audio Button to the layout
+
+To play a sound from the layout:
+
+1. Open the **Layout editor**.
+2. Press the element **+ / picker** button.
+3. Select **Audio Button**.
+4. Place the button on the layout.
+5. Select the button and open its properties.
+6. Set the **Label** shown on the layout.
+7. Use the **Audio file** picker to browse the SD card and select a file from `/audio`.
+8. Use **Play / Test** in the property panel to verify the selected sound.
+9. Save the layout.
+
+A typical Audio Button can therefore reference:
+
+```text
+/sd/audio/mav_szignal.mp3
+```
+
+At runtime, pressing the Audio Button asks the browser to play the selected file. The file is streamed from the Hub through the storage API, so the ESP32 does not need to load the complete MP3 into RAM or decode it itself.
+
+For best reliability, keep audio files under `/audio` and use short, simple filenames. Spaces are supported, but names such as `mav_szignal.mp3` are easier to manage and diagnose.
 
 ### PC, tablet and mobile use
 
