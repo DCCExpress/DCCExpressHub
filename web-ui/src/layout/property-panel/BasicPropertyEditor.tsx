@@ -1,20 +1,14 @@
 import {
-  ActionIcon,
   Checkbox,
   ColorSwatch,
-  FileButton,
-  Group,
   NumberInput,
   Select,
   TextInput,
 } from "@mantine/core";
-import {
-  IconFolderOpen,
-  IconPlayerPlayFilled,
-} from "@tabler/icons-react";
 
 import type { BaseElementView } from "../../models/editor/core/BaseElementView";
 import type { IEditableProperty } from "../../models/editor/elements/PropertyDescriptor";
+import AudioFilePropertyEditor from "./AudioFilePropertyEditor";
 import type { PropertyChangeHandler } from "./propertyPanelTypes";
 
 const DEFAULT_COLORS = [
@@ -85,54 +79,10 @@ export default function BasicPropertyEditor({
 
   if (prop.type === "audiofile") {
     return (
-      <TextInput
-        label="Audio file"
-        value={value ?? ""}
-        onChange={event => onChange(prop, event.target.value)}
-        rightSection={
-          <Group gap={2} wrap="nowrap">
-            <FileButton
-              onChange={file => {
-                if (!file) {
-                  return;
-                }
-
-                onChange(prop, file.name);
-              }}
-              accept="audio/*"
-            >
-              {fileButtonProps => (
-                <ActionIcon
-                  {...fileButtonProps}
-                  size="sm"
-                  variant="subtle"
-                  title="Choose audio file"
-                  onClick={event => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    fileButtonProps.onClick?.();
-                  }}
-                >
-                  <IconFolderOpen size={16} />
-                </ActionIcon>
-              )}
-            </FileButton>
-
-            <ActionIcon
-              size="sm"
-              variant="subtle"
-              title="Test audio"
-              onClick={event => {
-                event.preventDefault();
-                event.stopPropagation();
-                prop.callback?.();
-              }}
-            >
-              <IconPlayerPlayFilled size={16} />
-            </ActionIcon>
-          </Group>
-        }
-        rightSectionWidth={68}
+      <AudioFilePropertyEditor
+        prop={prop}
+        selectedElement={selectedElement}
+        onChange={onChange}
       />
     );
   }

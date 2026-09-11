@@ -18,7 +18,6 @@ export class AudioButtonElementView
     label: string = "Audio";
 
     private active = false;
-    private activeTimer: number | null = null;
 
     constructor(x: number, y: number) {
         super(x, y);
@@ -34,7 +33,7 @@ export class AudioButtonElementView
             showErrorMessage(
                 i18n.t("common.error"),
                 i18n.t("audio.messages.fileNameMissing")
-            )
+            );
             return;
         }
 
@@ -47,7 +46,7 @@ export class AudioButtonElementView
             showWarningMessage(
                 i18n.t("common.warning"),
                 i18n.t("audio.messages.fileNameMissing")
-            )
+            );
             return;
         }
 
@@ -65,7 +64,7 @@ export class AudioButtonElementView
                 showErrorMessage(
                     i18n.t("common.error"),
                     errorToString(error)
-                )
+                );
                 onChanged?.();
             },
         });
@@ -80,19 +79,7 @@ export class AudioButtonElementView
             ctx.globalAlpha = this.alpha;
         }
 
-        // const p = 5;
-
-        // ctx.lineWidth = 1;
-        // ctx.strokeStyle = this.active ? this.colorOn : "gainsboro";
-        // ctx.strokeRect(
-        //     this.posLeft + p,
-        //     this.posTop + p,
-        //     this.width - 2 * p,
-        //     this.height - 2 * p
-        // );
-
-
-        var w = this.GridSizeX - 10
+        const w = this.GridSizeX - 10;
 
         ctx.fillStyle = this.bg;
         if (!this.active) {
@@ -100,21 +87,11 @@ export class AudioButtonElementView
         }
         ctx.strokeStyle = "black";
 
-
         ctx.beginPath();
         ctx.roundRect(this.centerX - w / 2, this.centerY - w / 2, w, w, 5);
         ctx.fill();
         ctx.stroke();
         ctx.globalAlpha = 1;
-
-        // ctx.fillStyle = "white";
-        // ctx.fillStyle = this.active ? "black" : "white";
-        // ctx.font = "8px Arial";
-        // ctx.textAlign = "center";
-        // ctx.textBaseline = "middle";
-        // this.textOn = "JS";
-        // this.textOff = "JS";
-        // ctx.fillText(this.on ? this.textOn : this.textOff, this.centerX, this.centerY + 1);
 
         const iconSize = Math.min(this.width, this.height) - 14;
         const x = this.posLeft + 7;
@@ -125,9 +102,8 @@ export class AudioButtonElementView
         ctx.translate(x, y);
         ctx.scale(iconSize / 24, iconSize / 24);
 
-        ctx.fillStyle = "black"; // this.active ? this.colorOn : "gray";
+        ctx.fillStyle = "black";
 
-        // Speaker body
         ctx.beginPath();
         ctx.moveTo(5, 9);
         ctx.lineTo(5, 15);
@@ -138,7 +114,6 @@ export class AudioButtonElementView
         ctx.closePath();
         ctx.fill();
 
-        // Sound wave
         ctx.beginPath();
         ctx.arc(15, 12, 3, -Math.PI / 2, Math.PI / 2);
         ctx.fill();
@@ -148,7 +123,7 @@ export class AudioButtonElementView
         if (this.label) {
             ctx.save();
 
-            ctx.fillStyle = "black"; // this.active ? this.colorOn : "gray"; 
+            ctx.fillStyle = "black";
             ctx.font = "6px sans-serif";
             ctx.textAlign = "center";
             ctx.textBaseline = "bottom";
@@ -207,23 +182,27 @@ export class AudioButtonElementView
     getEditableProperties(): IEditableProperty[] {
         return [
             ...super.getEditableProperties(),
-            { key: "label", label: "Label", type: "string", },
-            //{ key: "fileName", label: "Audio file", type: "string", },
+            { key: "label", label: "Label", type: "string" },
             {
-                key: "fileName", label: "Audio file", type: "audiofile", callback: () => {
-                    this.press()
-                }
+                key: "fileName",
+                label: "Audio file",
+                type: "audiofile",
+                callback: () => {
+                    this.press();
+                },
             },
-            { key: "bg", label: "Active color", type: "colorpicker", },
+            { key: "bg", label: "Active color", type: "colorpicker" },
         ];
     }
+
     getHelp(): string {
         return `
       <h3 style="margin-top:0;">Audio button</h3>
-      <p>Plays an audio file from the public/audio folder.</p>
+      <p>Plays an audio file in the browser running the DCCExpressHub client.</p>
       <ul>
-        <li>Set fileName to something like horn.mp3</li>
-        <li>Click the button in runtime mode to play it</li>
+        <li>Use the Audio file picker to select an MP3 or other supported audio file from the Hub SD card.</li>
+        <li>SD selections are stored as virtual paths such as /sd/audio/horn.mp3.</li>
+        <li>Click the button in runtime mode to stream and play the file.</li>
       </ul>
     `;
     }

@@ -2,6 +2,10 @@
 
 #if HUB_USE_DISPLAY
 
+#include <LittleFS.h>
+
+#include "StorageManager.h"
+
 namespace {
 
 String formatI2CAddress(
@@ -17,6 +21,51 @@ String formatI2CAddress(
   return String(buffer);
 }
 
+String formatBytesCompact(
+    uint64_t bytes) {
+  constexpr uint64_t KB = 1024ULL;
+  constexpr uint64_t MB = 1024ULL * 1024ULL;
+  constexpr uint64_t GB = 1024ULL * 1024ULL * 1024ULL;
+
+  if (bytes >= GB) {
+    const uint64_t tenths =
+        bytes * 10ULL /
+        GB;
+
+    return
+        String(
+            static_cast<unsigned long>(
+                tenths / 10ULL)) +
+        "." +
+        String(
+            static_cast<unsigned long>(
+                tenths % 10ULL)) +
+        "G";
+  }
+
+  if (bytes >= MB) {
+    const uint64_t tenths =
+        bytes * 10ULL /
+        MB;
+
+    return
+        String(
+            static_cast<unsigned long>(
+                tenths / 10ULL)) +
+        "." +
+        String(
+            static_cast<unsigned long>(
+                tenths % 10ULL)) +
+        "M";
+  }
+
+  return
+      String(
+          static_cast<unsigned long>(
+              bytes / KB)) +
+      "K";
+}
+
 }
 
 void HubDisplay::begin() {
@@ -24,6 +73,11 @@ void HubDisplay::begin() {
 
 #if HUB_DISPLAY_M5STACK_BASIC
   _display.configureForHub();
+
+  // Detect/mount the built-in M5Stack microSD during display startup. This is
+  // intentionally early in boot so the INFO page and HTTP file manager share
+  // the same authoritative storage state.
+  StorageManager::instance().begin();
 #endif
 
   _display.setTextSize(
@@ -66,6 +120,9 @@ void HubDisplay::showBoot() {
       false;
 
   _s88StatusKnown =
+      false;
+
+  _infoPage =
       false;
 
   _dirty =
@@ -324,6 +381,12 @@ void HubDisplay::loop() {
       break;
 
     case MiniIli9342Display::PhysicalButton::Info:
+      _infoPage =
+          !_infoPage;
+
+      _dirty =
+          true;
+
       _infoRequest =
           true;
       break;
@@ -364,7 +427,9 @@ void HubDisplay::redrawPowerButton() {
 
 void HubDisplay::redrawInfoButton() {
   _display.drawInfoButton(
-      "INFO",
+      _infoPage
+          ? "BACK"
+          : "INFO",
       HubDisplayDevice::DARK_GREY,
       HubDisplayDevice::WHITE);
 }
@@ -375,6 +440,102 @@ void HubDisplay::redrawControlButtons() {
   redrawInfoButton();
 }
 
+void HubDisplay::redrawInfoPage() {
+  _display.clear();
+
+  _display.setCursor(
+      8,
+      8);
+
+  _display.setTextSize(
+      2);
+
+  _display.setTextColor(
+      HubDisplayDevice::WHITE,
+      HubDisplayDevice::BLACK);
+
+  _display.println(
+      "DCCExpressHub INFO");
+
+  _display.println();
+
+  _display.print(
+      "Heap: ");
+  _display.print(
+      static_cast<uint32_t>(
+          ESP.getFreeHeap() /
+          1024U));
+  _display.println(
+      " KB");
+
+  const uint64_t flashUsed =
+      LittleFS.usedBytes();
+  const uint64_t flashTotal =
+      LittleFS.totalBytes();
+
+  _display.print(
+      "Flash: ");
+  _display.print(
+      formatBytesCompact(
+          flashUsed));
+  _display.print(
+      "/");
+  _display.println(
+      formatBytesCompact(
+          flashTotal));
+
+  StorageManager& storage =
+      StorageManager::instance();
+
+  _display.print(
+      "SD: ");
+
+  if (!storage.sdAvailable()) {
+    _display.setTextColor(
+        HubDisplayDevice::RED,
+        HubDisplayDevice::BLACK);
+
+    _display.println(
+        "NOT PRESENT");
+
+    _display.setTextColor(
+        HubDisplayDevice::WHITE,
+        HubDisplayDevice::BLACK);
+  } else {
+    _display.setTextColor(
+        HubDisplayDevice::LIME,
+        HubDisplayDevice::BLACK);
+
+    _display.println(
+        storage.sdCardTypeName());
+
+    _display.setTextColor(
+        HubDisplayDevice::WHITE,
+        HubDisplayDevice::BLACK);
+
+    _display.print(
+        "Size: ");
+    _display.println(
+        formatBytesCompact(
+            storage.sdCardSizeBytes()));
+
+    _display.print(
+        "Used: ");
+    _display.print(
+        formatBytesCompact(
+            storage.usedBytes(
+                StorageMedium::SdCard)));
+    _display.print(
+        " Free: ");
+    _display.println(
+        formatBytesCompact(
+            storage.freeBytes(
+                StorageMedium::SdCard)));
+  }
+
+  redrawControlButtons();
+}
+
 void HubDisplay::redraw() {
   if (!_initialized) {
     return;
@@ -382,6 +543,13 @@ void HubDisplay::redraw() {
 
   _dirty =
       false;
+
+#if HUB_DISPLAY_M5STACK_BASIC
+  if (_infoPage) {
+    redrawInfoPage();
+    return;
+  }
+#endif
 
   _display.clear();
 

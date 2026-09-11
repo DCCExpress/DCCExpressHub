@@ -63,6 +63,7 @@ import { TrackCrossingElementView } from "@/models/editor/elements/TrackCrossing
 import { TrackCurveElementView } from "@/models/editor/elements/TrackCurveElementView";
 import { TrackEndElementView } from "@/models/editor/elements/TrackEndElementView";
 import { TrackLevelCrossingElementView } from "@/models/editor/elements/TrackLevelCrossingElementView";
+import { AudioButtonElementView } from "@/models/editor/elements/AudioButtonElementView";
 import { BlockElementView } from "@/models/editor/elements/BlockElementView";
 import { ButtonElementView } from "@/models/editor/elements/ButtonElementView";
 import { TrackSensorElementView } from "@/models/editor/elements/TrackSensorElementView";
@@ -109,31 +110,6 @@ type FlashInfo = {
   systemReservedBytes?: number;
 };
 
-type ConfiguredHardwareDevice = {
-  type: string;
-  bus: "GPIO" | "I2C";
-  address: number | null;
-  addressHex: string | null;
-  firstVpin: number;
-  lastVpin: number;
-  pinCount: number;
-  state: string;
-  online: boolean;
-};
-
-type DetectedI2cDevice = {
-  address: number;
-  addressHex: string;
-  typeGuess: string;
-  detected: boolean;
-};
-
-type HardwareDevicesSnapshot = {
-  scannedAtMs: number;
-  configuredDevices: ConfiguredHardwareDevice[];
-  i2cDevices: DetectedI2cDevice[];
-};
-
 type PickerItem = {
   type: ElementType;
   label: string;
@@ -170,10 +146,7 @@ function prepareLayoutForLoad(raw: unknown): {
       ? structuredClone(raw) as LayoutWithLegacyAutomation
       : {} as LayoutWithLegacyAutomation;
 
-  let legacyAutomationScripts =
-    normalizeAutomationScripts(
-      source.automationScripts
-    );
+  let legacyAutomationScripts = normalizeAutomationScripts(source.automationScripts);
 
   if (
     legacyAutomationScripts.length === 0 &&
@@ -200,10 +173,7 @@ function prepareLayoutForLoad(raw: unknown): {
           return true;
         }
 
-        const script =
-          typeof element.script === "string"
-            ? element.script.trim()
-            : "";
+        const script = typeof element.script === "string" ? element.script.trim() : "";
 
         if (script) {
           const name =
@@ -223,12 +193,8 @@ function prepareLayoutForLoad(raw: unknown): {
     }
   }
 
-  if (
-    legacyAutomationScripts.length === 0 &&
-    legacyButtonScripts.length > 0
-  ) {
-    legacyAutomationScripts =
-      legacyButtonScripts;
+  if (legacyAutomationScripts.length === 0 && legacyButtonScripts.length > 0) {
+    legacyAutomationScripts = legacyButtonScripts;
   }
 
   delete source.automationScript;
@@ -240,20 +206,13 @@ function prepareLayoutForLoad(raw: unknown): {
   };
 }
 
-function serializeLayoutOnly(
-  layout: LayoutView
-): string {
-  const plainLayout =
-    JSON.parse(
-      JSON.stringify(layout)
-    ) as Record<string, unknown>;
+function serializeLayoutOnly(layout: LayoutView): string {
+  const plainLayout = JSON.parse(JSON.stringify(layout)) as Record<string, unknown>;
 
   delete plainLayout.automationScript;
   delete plainLayout.automationScripts;
 
-  return JSON.stringify(
-    plainLayout
-  );
+  return JSON.stringify(plainLayout);
 }
 
 function createProjectExport(
@@ -263,18 +222,9 @@ function createProjectExport(
   return {
     format: "dccexpress-project",
     version: 1,
-    exportedAt:
-      new Date().toISOString(),
-    layout:
-      JSON.parse(
-        serializeLayoutOnly(
-          layout
-        )
-      ),
-    automations:
-      createAutomationPayload(
-        automationScripts
-      ),
+    exportedAt: new Date().toISOString(),
+    layout: JSON.parse(serializeLayoutOnly(layout)),
+    automations: createAutomationPayload(automationScripts),
   };
 }
 
@@ -282,37 +232,23 @@ function parseImportedProject(raw: unknown): {
   layoutData: unknown;
   automationScripts: AutomationScriptDefinition[];
 } {
-  if (
-    raw &&
-    typeof raw === "object"
-  ) {
-    const candidate =
-      raw as Record<string, unknown>;
+  if (raw && typeof raw === "object") {
+    const candidate = raw as Record<string, unknown>;
 
     if (
       candidate.format === "dccexpress-project" &&
       Number(candidate.version) === 1 &&
       "layout" in candidate
     ) {
-      const prepared =
-        prepareLayoutForLoad(
-          candidate.layout
-        );
-
+      const prepared = prepareLayoutForLoad(candidate.layout);
       const automations =
-        candidate.automations &&
-        typeof candidate.automations === "object"
+        candidate.automations && typeof candidate.automations === "object"
           ? candidate.automations as Record<string, unknown>
           : {};
-
-      const importedScripts =
-        normalizeAutomationScripts(
-          automations.scripts
-        );
+      const importedScripts = normalizeAutomationScripts(automations.scripts);
 
       return {
-        layoutData:
-          prepared.layoutData,
+        layoutData: prepared.layoutData,
         automationScripts:
           importedScripts.length > 0
             ? importedScripts
@@ -321,17 +257,11 @@ function parseImportedProject(raw: unknown): {
     }
   }
 
-  // Backward compatibility:
-  // old exports were plain layout JSON with automationScript,
-  // automationScripts or buttonscript elements embedded in it.
-  const prepared =
-    prepareLayoutForLoad(raw);
+  const prepared = prepareLayoutForLoad(raw);
 
   return {
-    layoutData:
-      prepared.layoutData,
-    automationScripts:
-      prepared.legacyAutomationScripts,
+    layoutData: prepared.layoutData,
+    automationScripts: prepared.legacyAutomationScripts,
   };
 }
 
@@ -353,6 +283,7 @@ const PICKER_ITEMS: PickerItem[] = [
   { type: ELEMENT_TYPES.TRACK_SIGNAL2, label: "Signal", preview: createSignalPreview() },
   { type: ELEMENT_TYPES.BUTTON, label: "Output button", preview: new ButtonElementView(0, 0) },
   { type: ELEMENT_TYPES.BUTTON_ROUTE, label: "Route", preview: new RouteButtonElementView(0, 0) },
+  { type: ELEMENT_TYPES.BUTTON_AUDIO, label: "Audio button", preview: new AudioButtonElementView(0, 0) },
   { type: ELEMENT_TYPES.LABEL, label: "Label", preview: new LabelElementView(0, 0) },
 ];
 
@@ -475,202 +406,6 @@ function LitePropertyPanel({
   );
 }
 
-function formatUptime(uptimeMs: number): string {
-  const totalSeconds = Math.max(0, Math.floor(uptimeMs / 1000));
-  const days = Math.floor(totalSeconds / 86400);
-  const hours = Math.floor((totalSeconds % 86400) / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-
-  return days > 0 ? `${days}d ${hours}h ${minutes}m` : `${hours}h ${minutes}m ${seconds}s`;
-}
-
-function InfoRow({ label, value, color = "blue" }: { label: string; value: string; color?: string }) {
-  return (
-    <Group justify="space-between" gap="xs" wrap="nowrap">
-      <Text size="sm" c="dimmed">{label}</Text>
-      <Badge size="lg" variant="light" color={color}>{value}</Badge>
-    </Group>
-  );
-}
-
-type TemperatureLevel = {
-  label: "NORMAL" | "WARM" | "WARNING" | "CRITICAL";
-  color: "green" | "yellow" | "orange" | "red";
-};
-
-function getTemperatureLevel(temperatureC: number): TemperatureLevel {
-  if (temperatureC > 85) return { label: "CRITICAL", color: "red" };
-  if (temperatureC >= 75) return { label: "WARNING", color: "orange" };
-  if (temperatureC >= 65) return { label: "WARM", color: "yellow" };
-  return { label: "NORMAL", color: "green" };
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-  return `${Math.round(bytes / 1024)} KB`;
-}
-
-function DccExInfoPanel({
-  status,
-  wsStatus,
-  flashInfo,
-}: {
-  status: DccExStatusPayload | null;
-  wsStatus: WsConnectionStatus;
-  flashInfo: FlashInfo | null;
-}) {
-  const totalBytes = flashInfo?.totalBytes ?? (flashInfo ? flashInfo.total * 1024 : 0);
-  const usedBytes = flashInfo?.usedBytes ?? (flashInfo ? flashInfo.used * 1024 : 0);
-  const freeBytes = flashInfo?.freeBytes ?? (flashInfo ? flashInfo.free * 1024 : 0);
-  const usedPercent = totalBytes > 0 ? Math.round((usedBytes / totalBytes) * 100) : 0;
-  const firmwarePercent = flashInfo?.firmwareBytes && flashInfo.firmwarePartitionBytes
-    ? Math.round((flashInfo.firmwareBytes / flashInfo.firmwarePartitionBytes) * 100)
-    : 0;
-  const temperature = status?.chipTemperatureC;
-  const temperatureLevel = temperature !== undefined ? getTemperatureLevel(temperature) : null;
-
-  return (
-    <ScrollArea h="100%" type="always" scrollbarSize={9} className="lite-info-scroll">
-      <Stack gap="sm">
-        <Card withBorder p="sm">
-          <Stack gap="xs">
-            <Text fw={700}>DCC-EX status</Text>
-            <InfoRow label="Connection" value={wsStatus === "connected" ? "ONLINE" : wsStatus.toUpperCase()} color={wsStatus === "connected" ? "green" : "red"} />
-            <InfoRow label="DCC-EX version" value={status ? `V-${status.version}` : "—"} color="violet" />
-            <InfoRow label="Hardware" value={status?.hardware ?? "—"} color="cyan" />
-            <InfoRow label="Track voltage" value={status?.trackVoltageOn ? "ON" : "OFF"} color={status?.trackVoltageOn ? "green" : "red"} />
-            <InfoRow label="MAIN current" value={status ? `${status.mainCurrentMa} mA` : "—"} color="orange" />
-            <InfoRow label="PROG current" value={status ? `${status.progCurrentMa} mA` : "—"} color="yellow" />
-            <InfoRow label="Uptime" value={status ? formatUptime(status.uptimeMs) : "—"} color="teal" />
-            <InfoRow label="Free memory" value={status ? `${Math.round(status.freeHeapBytes / 1024)} KB` : "—"} color="indigo" />
-            <InfoRow label="Minimum free memory" value={status?.minimumFreeHeapBytes !== undefined ? `${Math.round(status.minimumFreeHeapBytes / 1024)} KB` : "—"} color={(status?.minimumFreeHeapBytes ?? 999999) < 40000 ? "red" : "blue"} />
-            <InfoRow label="Processor" value={status?.cpuCores ? `${status.cpuCores} cores · ${status.cpuFrequencyMhz ?? 240} MHz` : "—"} color="violet" />
-            <InfoRow label="Core 0 · Wi-Fi / web" value={status?.cpuCore0Percent !== undefined ? `${status.cpuCore0Percent}%` : "—"} color={(status?.cpuCore0Percent ?? 0) >= 85 ? "red" : "cyan"} />
-            <InfoRow label="Core 1 · DCC-EX activity" value={status?.cpuCore1Percent !== undefined ? `${status.cpuCore1Percent}%` : "—"} color="teal" />
-            <InfoRow
-              label="Chip temperature"
-              value={temperature !== undefined && temperatureLevel ? `${temperature.toFixed(1)} °C · ${temperatureLevel.label}` : "—"}
-              color={temperatureLevel?.color ?? "gray"}
-            />
-            <InfoRow label="WebSocket clients" value={status?.wsClients !== undefined ? String(status.wsClients) : "—"} color="cyan" />
-            <InfoRow label="WS command queue" value={status?.wsCommandQueueLength !== undefined ? String(status.wsCommandQueueLength) : "—"} color={(status?.wsCommandQueueLength ?? 0) >= 6 ? "red" : "teal"} />
-            <InfoRow label="Dropped WS commands" value={status?.droppedWsCommands !== undefined ? String(status.droppedWsCommands) : "—"} color={(status?.droppedWsCommands ?? 0) > 0 ? "red" : "green"} />
-            <InfoRow label="Dropped telemetry" value={status?.droppedWsTelemetry !== undefined ? String(status.droppedWsTelemetry) : "—"} color={(status?.droppedWsTelemetry ?? 0) > 0 ? "orange" : "green"} />
-            <InfoRow label="Dropped control messages" value={status?.droppedWsControl !== undefined ? String(status.droppedWsControl) : "—"} color={(status?.droppedWsControl ?? 0) > 0 ? "red" : "green"} />
-            <InfoRow label="Low-memory WS drops" value={status?.droppedWsLowMemory !== undefined ? String(status.droppedWsLowMemory) : "—"} color={(status?.droppedWsLowMemory ?? 0) > 0 ? "orange" : "green"} />
-            <InfoRow label="Largest free heap block" value={status?.largestFreeHeapBlockBytes !== undefined ? `${Math.round(status.largestFreeHeapBlockBytes / 1024)} KB` : "—"} color={(status?.largestFreeHeapBlockBytes ?? 999999) < 16000 ? "red" : "blue"} />
-            <InfoRow label="Reset reason" value={status?.resetReason ?? "—"} color={status?.resetReason === "panic" || status?.resetReason?.includes("watchdog") ? "red" : "gray"} />
-            {status && !status.voltageMeasured && (
-              <Text size="xs" c="dimmed">
-                EX-CSB1 reports track power state, but this hardware does not expose a numeric track-voltage measurement.
-              </Text>
-            )}
-          </Stack>
-        </Card>
-
-        <Card withBorder p="sm">
-          <Stack gap="xs">
-            <Text fw={700}>Flash storage</Text>
-            <InfoRow label="Flash chip" value={flashInfo?.flashChipBytes ? formatBytes(flashInfo.flashChipBytes) : "—"} color="violet" />
-            <InfoRow
-              label="Firmware"
-              value={flashInfo?.firmwareBytes && flashInfo.firmwarePartitionBytes ? `${formatBytes(flashInfo.firmwareBytes)} / ${formatBytes(flashInfo.firmwarePartitionBytes)} · ${firmwarePercent}%` : "—"}
-              color={firmwarePercent >= 90 ? "red" : firmwarePercent >= 75 ? "orange" : "teal"}
-            />
-            <InfoRow label="OTA reserve" value={flashInfo?.otaPartitionBytes ? formatBytes(flashInfo.otaPartitionBytes) : "—"} color="indigo" />
-            <InfoRow label="Data partition" value={totalBytes ? formatBytes(totalBytes) : "—"} color="blue" />
-            <InfoRow label="Data used" value={totalBytes ? `${formatBytes(usedBytes)} · ${usedPercent}%` : "—"} color={usedPercent >= 85 ? "red" : usedPercent >= 70 ? "orange" : "teal"} />
-            <InfoRow label="Data free" value={totalBytes ? formatBytes(freeBytes) : "—"} color="green" />
-            <InfoRow label="System reserved" value={flashInfo?.systemReservedBytes ? formatBytes(flashInfo.systemReservedBytes) : "—"} color="gray" />
-            <Text size="xs" c="dimmed">Firmware and data percentages refer to their own partitions, not the whole flash chip.</Text>
-          </Stack>
-        </Card>
-      </Stack>
-    </ScrollArea>
-  );
-}
-
-const HAL_DRIVER_FAMILIES = [
-  "GPIO", "PCA9685", "MCP23017 / MCP23008", "PCF8574 / PCF8575", "PCA9555 / TCA9555",
-  "ADS111x", "VL53L0X", "HC-SR04", "DFPlayer", "EX-Turntable", "EX-IOExpander",
-];
-
-function DevicesPanel({
-  snapshot,
-  loading,
-  error,
-  onRefresh,
-}: {
-  snapshot: HardwareDevicesSnapshot | null;
-  loading: boolean;
-  error: string | null;
-  onRefresh: () => void;
-}) {
-  return (
-    <ScrollArea h="100%" type="always" scrollbarSize={9} className="lite-info-scroll">
-      <Stack gap="sm">
-        <Group justify="space-between" wrap="nowrap">
-          <Text fw={700}>Hardware devices</Text>
-          <Button size="xs" variant="light" leftSection={<IconRefresh size={15} />} loading={loading} onClick={onRefresh}>
-            Refresh
-          </Button>
-        </Group>
-
-        {error && <Alert color="red">{error}</Alert>}
-
-        <Card withBorder p="sm">
-          <Stack gap="xs">
-            <Text fw={700}>Configured HAL devices</Text>
-            <Text size="xs" c="dimmed">Devices and VPIN ranges defined in the DCC-EX hardware abstraction layer.</Text>
-            {snapshot?.configuredDevices.map((device, index) => (
-              <Card key={`${device.firstVpin}-${index}`} withBorder p="xs" radius="sm">
-                <Stack gap={5}>
-                  <Group justify="space-between" align="flex-start" wrap="nowrap">
-                    <Text size="sm" fw={600}>{device.type}</Text>
-                    <Badge size="sm" color={device.online ? "green" : "red"} title={`DCC-EX state: ${device.state}`}>
-                      {device.online ? "ONLINE" : "OFFLINE"}
-                    </Badge>
-                  </Group>
-                  <Group gap={5}>
-                    <Badge size="sm" variant="light" color={device.bus === "I2C" ? "blue" : "gray"}>{device.bus}</Badge>
-                    {device.addressHex && <Badge size="sm" variant="light" color="cyan">{device.addressHex}</Badge>}
-                    <Badge size="sm" variant="light" color="violet">VPIN {device.firstVpin}–{device.lastVpin}</Badge>
-                    <Badge size="sm" variant="light" color="gray">{device.pinCount} pins</Badge>
-                  </Group>
-                </Stack>
-              </Card>
-            ))}
-            {!loading && snapshot?.configuredDevices.length === 0 && <Text size="sm" c="dimmed">No HAL devices are configured.</Text>}
-          </Stack>
-        </Card>
-
-        <Card withBorder p="sm">
-          <Stack gap="xs">
-            <Text fw={700}>Detected I²C devices</Text>
-            <Text size="xs" c="dimmed">Live scan of the physical I²C bus. Device type is inferred from its address and can be ambiguous.</Text>
-            {snapshot?.i2cDevices.map(device => (
-              <Group key={device.address} justify="space-between" wrap="nowrap">
-                <Text size="sm">{device.typeGuess}</Text>
-                <Badge color="cyan" variant="light">{device.addressHex}</Badge>
-              </Group>
-            ))}
-            {!loading && snapshot?.i2cDevices.length === 0 && <Text size="sm" c="dimmed">No device responded on the I²C bus.</Text>}
-          </Stack>
-        </Card>
-
-        <Card withBorder p="sm">
-          <Stack gap="xs">
-            <Text fw={700}>DCC-EX HAL driver families</Text>
-            <Text size="xs" c="dimmed">Common built-in and supported device families; only configured or physically detected devices appear above.</Text>
-            <Group gap={5}>{HAL_DRIVER_FAMILIES.map(name => <Badge key={name} size="sm" variant="light" color="gray">{name}</Badge>)}</Group>
-          </Stack>
-        </Card>
-      </Stack>
-    </ScrollArea>
-  );
-}
-
 export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEditor }: LiteLayoutPageProps) {
   const commandCenter = useCommandCenter();
   const [layout, setLayout] = useState(() => new LayoutView());
@@ -694,9 +429,6 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
   const [wsStatus, setWsStatus] = useState<WsConnectionStatus>(() => wsClient.getStatus());
   const [dccExStatus, setDccExStatus] = useState<DccExStatusPayload | null>(null);
   const [flashInfo, setFlashInfo] = useState<FlashInfo | null>(null);
-  const [hardwareDevices, setHardwareDevices] = useState<HardwareDevicesSnapshot | null>(null);
-  const [devicesLoading, setDevicesLoading] = useState(false);
-  const [devicesError, setDevicesError] = useState<string | null>(null);
   const [locoPanelWidth, setLocoPanelWidth] = useState(() => readStoredNumber(LOCO_WIDTH_KEY, 380));
   const [propertyPanelWidth, setPropertyPanelWidth] = useState(() => readStoredNumber(PROPERTY_WIDTH_KEY, 380));
   const [locoPanelCollapsed, setLocoPanelCollapsed] = useState(() => readStoredBoolean(LOCO_COLLAPSED_KEY));
@@ -717,71 +449,29 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
     setError(null);
 
     try {
-      const [
-        layoutResponse,
-        storedAutomations,
-      ] =
-        await Promise.all([
-          fetch(
-            "/api/layout",
-            {
-              cache: "no-store",
-            }
-          ),
-          loadAutomationScripts(),
-        ]);
+      const [layoutResponse, storedAutomations] = await Promise.all([
+        fetch("/api/layout", { cache: "no-store" }),
+        loadAutomationScripts(),
+      ]);
 
       if (!layoutResponse.ok) {
-        throw new Error(
-          "The layout could not be loaded from the EX-CSB1."
-        );
+        throw new Error("The layout could not be loaded from the EX-CSB1.");
       }
 
-      const prepared =
-        prepareLayoutForLoad(
-          await layoutResponse.json()
-        );
-
-      const nextLayout =
-        LayoutView.fromJSON(
-          prepared.layoutData
-        );
-
+      const prepared = prepareLayoutForLoad(await layoutResponse.json());
+      const nextLayout = LayoutView.fromJSON(prepared.layoutData);
       nextLayout.checkRoutes();
-
       setLayout(nextLayout);
-
-      // Migration path: if the new dedicated store is still empty,
-      // accept automation data embedded by older layout versions.
       setAutomationScripts(
         storedAutomations.length > 0
           ? storedAutomations
           : prepared.legacyAutomationScripts
       );
-
       setSelectedElement(null);
     } catch (loadError) {
-      setError(
-        loadError instanceof Error
-          ? loadError.message
-          : String(loadError)
-      );
+      setError(loadError instanceof Error ? loadError.message : String(loadError));
     } finally {
       setLoading(false);
-    }
-  }, []);
-
-  const loadHardwareDevices = useCallback(async () => {
-    setDevicesLoading(true);
-    setDevicesError(null);
-    try {
-      const response = await fetch("/api/devices", { cache: "no-store" });
-      if (!response.ok) throw new Error("Hardware device information is unavailable.");
-      setHardwareDevices(await response.json() as HardwareDevicesSnapshot);
-    } catch (loadError) {
-      setDevicesError(loadError instanceof Error ? loadError.message : String(loadError));
-    } finally {
-      setDevicesLoading(false);
     }
   }, []);
 
@@ -802,7 +492,6 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
   }, [editMode, layout, invalidate]);
 
   useEffect(() => wsClient.subscribeStatus(setWsStatus), []);
-
   useEffect(() => wsClient.on("dccExStatus", setDccExStatus), []);
 
   useEffect(() => {
@@ -956,29 +645,6 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
     invalidate();
   }), [layout, invalidate]);
 
-  // useEffect(() => wsClient.on("vpinChanged", data => {
-  //   for (const element of layout.getAllElements()) {
-  //     if (isTurnoutElement(element) && element.outputMode === "vpin" && element.turnoutAddress === data.vpin) {
-  //       element.turnoutClosed = data.active;
-  //     } else if (element instanceof TrackTurnoutDoubleElementView && element.outputMode === "vpin") {
-  //       if (element.turnout1Address === data.vpin) element.turnout1Closed = data.active;
-  //       if (element.turnout2Address === data.vpin) element.turnout2Closed = data.active;
-  //     } else if (
-  //       element instanceof TrackSignalElementView &&
-  //       element.signalOutput.protocol === "dcc" &&
-  //       element.outputMode === "vpin" &&
-  //       element.signalOutput.address <= data.vpin &&
-  //       element.lastAddress >= data.vpin
-  //     ) {
-  //       element.setValue(data.vpin, data.active);
-  //     } else if (element instanceof ButtonElementView && element.outputMode === "vpin" && element.address === data.vpin) {
-  //       element.on = data.active === element.activeValue;
-  //     }
-  //   }
-  //   layout.checkRoutes();
-  //   invalidate();
-  // }), [layout, invalidate]);
-
   useEffect(() => wsClient.on("signalAspectChanged", data => {
     for (const element of layout.getAllElements()) {
       if (
@@ -997,13 +663,19 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
       (element): element is BlockElementView => element instanceof BlockElementView,
     );
     for (const block of blocks) block.locoAddress = 0;
-    for (const [wireBlockId, state] of Object.entries(data)) {
+    for (const [wireBlockId, state] of Object.entries(data.blocks ?? {})) {
       const blockId = Number(wireBlockId);
       if (!Number.isInteger(blockId) || blockId < 1 || blockId > 0xffff) continue;
       const block = blocks.find(item => item.id === blockId);
-      if (!block) continue;
-      block.locoAddress = state.locoAddress ??
-        locos.find(loco => loco.id === state.locoId)?.address ?? 0;
+      if (!block || state === null || typeof state !== "object") continue;
+
+      const blockState = state as {
+        locoAddress?: number | null;
+        locoId?: string | number | null;
+      };
+
+      block.locoAddress = blockState.locoAddress ??
+        locos.find(loco => String(loco.id) === String(blockState.locoId))?.address ?? 0;
     }
     invalidate();
   }), [layout, locos, invalidate]);
@@ -1019,210 +691,100 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
     setError(null);
 
     try {
-      const layoutResponse =
-        await fetch(
-          "/api/layout",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-            body:
-              serializeLayoutOnly(
-                layout
-              ),
-          }
-        );
+      const layoutResponse = await fetch(
+        "/api/layout",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: serializeLayoutOnly(layout),
+        }
+      );
 
       if (!layoutResponse.ok) {
-        throw new Error(
-          "The layout could not be saved to the EX-CSB1."
-        );
+        throw new Error("The layout could not be saved to the EX-CSB1.");
       }
 
-      await saveAutomationScripts(
-        automationScripts
-      );
+      await saveAutomationScripts(automationScripts);
 
       showNotification({
         color: "teal",
         title: "Project saved",
-        message:
-          "Layout and automation scripts were saved to their separate Hub stores.",
+        message: "Layout and automation scripts were saved to their separate Hub stores.",
       });
     } catch (saveError) {
-      setError(
-        saveError instanceof Error
-          ? saveError.message
-          : String(saveError)
-      );
+      setError(saveError instanceof Error ? saveError.message : String(saveError));
     } finally {
       setSaving(false);
     }
-  }, [
-    layout,
-    automationScripts,
-  ]);
+  }, [layout, automationScripts]);
 
   const exportLayout = useCallback(() => {
-    const project =
-      createProjectExport(
-        layout,
-        automationScripts
-      );
-
-    const json =
-      JSON.stringify(
-        project,
-        null,
-        2
-      );
-
-    const blob =
-      new Blob(
-        [json],
-        {
-          type:
-            "application/json;charset=utf-8",
-        }
-      );
-
-    const url =
-      URL.createObjectURL(
-        blob
-      );
-
-    const now =
-      new Date();
-
-    const pad = (
-      value: number
-    ) =>
-      String(value)
-        .padStart(2, "0");
-
+    const project = createProjectExport(layout, automationScripts);
+    const json = JSON.stringify(project, null, 2);
+    const blob = new Blob([json], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const now = new Date();
+    const pad = (value: number) => String(value).padStart(2, "0");
     const stamp =
       `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-` +
       `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-
-    const link =
-      document.createElement(
-        "a"
-      );
-
+    const link = document.createElement("a");
     link.href = url;
-    link.download =
-      `dccexpress-project-${stamp}.json`;
-
-    document.body.appendChild(
-      link
-    );
-
+    link.download = `dccexpress-project-${stamp}.json`;
+    document.body.appendChild(link);
     link.click();
     link.remove();
-
-    window.setTimeout(
-      () =>
-        URL.revokeObjectURL(
-          url
-        ),
-      0
-    );
-  }, [
-    layout,
-    automationScripts,
-  ]);
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  }, [layout, automationScripts]);
 
   const importProject = useCallback(
-    async (
-      file: File
-    ): Promise<void> => {
+    async (file: File): Promise<void> => {
       setSaving(true);
       setError(null);
 
       try {
-        const parsed =
-          JSON.parse(
-            await file.text()
-          ) as unknown;
-
-        const imported =
-          parseImportedProject(
-            parsed
-          );
-
-        const nextLayout =
-          LayoutView.fromJSON(
-            imported.layoutData
-          );
-
+        const parsed = JSON.parse(await file.text()) as unknown;
+        const imported = parseImportedProject(parsed);
+        const nextLayout = LayoutView.fromJSON(imported.layoutData);
         nextLayout.checkRoutes();
 
-        const layoutResponse =
-          await fetch(
-            "/api/layout",
-            {
-              method: "POST",
-              headers: {
-                "Content-Type":
-                  "application/json",
-              },
-              body:
-                serializeLayoutOnly(
-                  nextLayout
-                ),
-            }
-          );
+        const layoutResponse = await fetch(
+          "/api/layout",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: serializeLayoutOnly(nextLayout),
+          }
+        );
 
         if (!layoutResponse.ok) {
-          throw new Error(
-            "Imported layout could not be saved to the Hub."
-          );
+          throw new Error("Imported layout could not be saved to the Hub.");
         }
 
-        await saveAutomationScripts(
-          imported.automationScripts
-        );
-
+        await saveAutomationScripts(imported.automationScripts);
         setLayout(nextLayout);
-        setAutomationScripts(
-          imported.automationScripts
-        );
+        setAutomationScripts(imported.automationScripts);
         setSelectedElement(null);
 
         showNotification({
           color: "teal",
           title: "Project imported",
-          message:
-            `Layout and ${imported.automationScripts.length} automation script(s) were restored.`,
+          message: `Layout and ${imported.automationScripts.length} automation script(s) were restored.`,
         });
       } catch (importError) {
-        const message =
-          importError instanceof Error
-            ? importError.message
-            : String(importError);
-
+        const message = importError instanceof Error ? importError.message : String(importError);
         setError(message);
-
-        showNotification({
-          color: "red",
-          title: "Import failed",
-          message,
-        });
+        showNotification({ color: "red", title: "Import failed", message });
       } finally {
         setSaving(false);
-
-        if (
-          importFileRef.current
-        ) {
-          importFileRef.current.value =
-            "";
+        if (importFileRef.current) {
+          importFileRef.current.value = "";
         }
       }
     },
     []
   );
+
   useLayoutPageShortcuts({
     saveLayoutToServer: saveLayout,
     setTool,
@@ -1259,130 +821,126 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
         accept=".json,application/json"
         hidden
         onChange={event => {
-          const file =
-            event.currentTarget.files?.[0];
-
-          if (file) {
-            void importProject(file);
-          }
+          const file = event.currentTarget.files?.[0];
+          if (file) void importProject(file);
         }}
       />
+
       <Card withBorder px={6} py={3} radius="sm" className="lite-layout-toolbar">
-      <Group justify="space-between" align="center" wrap="nowrap">
-        <Group gap="xs">
-          <ActionIcon variant="subtle" color="gray" onClick={onBack} aria-label="Back" title="Home">
-            <IconArrowLeft size={20} />
-          </ActionIcon>
-          <Title order={3} lh={1}>Layout</Title>
-          <Badge size="sm" variant="light" color="violet">v{version}</Badge>
+        <Group justify="space-between" align="center" wrap="nowrap">
+          <Group gap="xs">
+            <ActionIcon variant="subtle" color="gray" onClick={onBack} aria-label="Back" title="Home">
+              <IconArrowLeft size={20} />
+            </ActionIcon>
+            <Title order={3} lh={1}>Layout</Title>
+            <Badge size="sm" variant="light" color="violet">v{version}</Badge>
+          </Group>
+
+          <Group gap={6} wrap="nowrap">
+            <ActionIcon
+              variant={editMode ? "filled" : "light"}
+              color="violet"
+              title="Edit mode"
+              onClick={() => {
+                setEditMode(value => !value);
+                setTool({ mode: "cursor", elementType: "general" });
+                setSelectedElement(null);
+              }}
+            >
+              <IconEdit size={18} />
+            </ActionIcon>
+
+            {editMode && (
+              <>
+                <ActionIcon variant={tool.mode === "cursor" ? "filled" : "light"} onClick={() => setTool({ mode: "cursor", elementType: "general" })} title="Select">
+                  <IconPointer size={18} />
+                </ActionIcon>
+                <ActionIcon variant={tool.mode === "draw" ? "filled" : "light"} onClick={() => setPickerOpened(true)} title="Add layout element">
+                  <IconPlus size={18} />
+                </ActionIcon>
+                <ActionIcon variant="light" color="red" disabled={!selectedElement} onClick={removeSelected} title="Delete selected">
+                  <IconTrash size={18} />
+                </ActionIcon>
+              </>
+            )}
+
+            <Divider orientation="vertical" className="lite-toolbar-divider" />
+            <ActionIcon variant="light" onClick={() => setFitCounter(value => value + 1)} aria-label="Fit layout" title="Fit layout">
+              <IconFocusCentered size={19} />
+            </ActionIcon>
+            <ActionIcon variant="light" loading={loading} onClick={() => void loadLayout()} aria-label="Reload layout" title="Reload">
+              <IconRefresh size={19} />
+            </ActionIcon>
+            <ActionIcon color="teal" variant="light" loading={saving} onClick={() => void saveLayout()} aria-label="Save layout" title="Save">
+              <IconDeviceFloppy size={19} />
+            </ActionIcon>
+            <ActionIcon color="blue" variant="light" onClick={exportLayout} aria-label="Export layout" title="Export layout JSON">
+              <IconDownload size={19} />
+            </ActionIcon>
+            <ActionIcon
+              color="cyan"
+              variant="light"
+              onClick={() => importFileRef.current?.click()}
+              aria-label="Import project"
+              title="Import project JSON"
+            >
+              <IconUpload size={19} />
+            </ActionIcon>
+
+            <Divider orientation="vertical" className="lite-toolbar-divider" />
+            <Button
+              size="xs"
+              variant={commandCenter.powerInfo?.trackVoltageOn ? "filled" : "light"}
+              color={commandCenter.powerInfo?.trackVoltageOn ? "green" : "red"}
+              leftSection={<IconPower size={16} />}
+              disabled={wsStatus !== "connected" || !commandCenter.alive}
+              onClick={() => wsApi.setTrackPower(!commandCenter.powerInfo?.trackVoltageOn)}
+              title={commandCenter.powerInfo?.trackVoltageOn ? "Turn track power off" : "Turn track power on"}
+            >
+              POWER {commandCenter.powerInfo?.trackVoltageOn ? "ON" : "OFF"}
+            </Button>
+
+            <Divider orientation="vertical" className="lite-toolbar-divider" />
+            <Button size="xs" variant="light" color="violet" leftSection={<IconTrain size={16} />} onClick={onOpenLocoEditor} title="Edit locomotives">
+              LOCOS
+            </Button>
+            <Button size="xs" variant="light" color="yellow" leftSection={<IconTrafficLights size={16} />} onClick={() => setSignalLogicOpened(true)} title="Automatic signal aspects">
+              SIGNALS
+            </Button>
+            <Button size="xs" variant="light" color="teal" leftSection={<IconShieldCheck size={16} />} onClick={() => setIntegrityCheckOpened(true)} title="Check all project references">
+              CHECK
+            </Button>
+            <Button
+              component="a"
+              href="https://github.com/DCCExpress/DCCExpressLite/wiki"
+              target="_blank"
+              rel="noopener noreferrer"
+              size="xs"
+              variant="light"
+              color="blue"
+              leftSection={<IconHelpCircle size={16} />}
+              title="Open the online DCCExpressLite documentation"
+            >
+              HELP
+            </Button>
+            <ActionIcon variant={locoPanelCollapsed ? "light" : "filled"} onClick={() => setLocoPanelCollapsed(value => !value)} title="Toggle locomotive panel">
+              <IconTrain size={19} />
+            </ActionIcon>
+            <ActionIcon variant={propertyPanelCollapsed ? "light" : "filled"} onClick={() => setPropertyPanelCollapsed(value => !value)} title="Toggle property panel">
+              <IconSettings size={18} />
+            </ActionIcon>
+          </Group>
         </Group>
-        <Group gap={6} wrap="nowrap">
-          <ActionIcon
-            variant={editMode ? "filled" : "light"}
-            color="violet"
-            title="Edit mode"
-            onClick={() => {
-              setEditMode(value => !value);
-              setTool({ mode: "cursor", elementType: "general" });
-              setSelectedElement(null);
-            }}
-          >
-            <IconEdit size={18} />
-          </ActionIcon>
-          {editMode && (
-            <>
-              <ActionIcon variant={tool.mode === "cursor" ? "filled" : "light"} onClick={() => setTool({ mode: "cursor", elementType: "general" })} title="Select">
-                <IconPointer size={18} />
-              </ActionIcon>
-              <ActionIcon variant={tool.mode === "draw" ? "filled" : "light"} onClick={() => setPickerOpened(true)} title="Add track">
-                <IconPlus size={18} />
-              </ActionIcon>
-              <ActionIcon variant="light" color="red" disabled={!selectedElement} onClick={removeSelected} title="Delete selected">
-                <IconTrash size={18} />
-              </ActionIcon>
-            </>
-          )}
-          <Divider orientation="vertical" className="lite-toolbar-divider" />
-          <ActionIcon variant="light" onClick={() => setFitCounter(value => value + 1)} aria-label="Fit layout" title="Fit layout">
-            <IconFocusCentered size={19} />
-          </ActionIcon>
-          <ActionIcon variant="light" loading={loading} onClick={() => void loadLayout()} aria-label="Reload layout" title="Reload">
-            <IconRefresh size={19} />
-          </ActionIcon>
-          <ActionIcon color="teal" variant="light" loading={saving} onClick={() => void saveLayout()} aria-label="Save layout" title="Save">
-            <IconDeviceFloppy size={19} />
-          </ActionIcon>
-          <ActionIcon
-            color="blue"
-            variant="light"
-            onClick={exportLayout}
-            aria-label="Export layout"
-            title="Export layout JSON"
-          >
-            <IconDownload size={19} />
-          </ActionIcon>
-          <ActionIcon
-            color="cyan"
-            variant="light"
-            onClick={() => {
-              importFileRef.current?.click();
-            }}
-            aria-label="Import project"
-            title="Import project JSON"
-          >
-            <IconUpload size={19} />
-          </ActionIcon>
-          <Divider orientation="vertical" className="lite-toolbar-divider" />
-          <Button
-            size="xs"
-            variant={commandCenter.powerInfo?.trackVoltageOn ? "filled" : "light"}
-            color={commandCenter.powerInfo?.trackVoltageOn ? "green" : "red"}
-            leftSection={<IconPower size={16} />}
-            disabled={wsStatus !== "connected" || !commandCenter.alive}
-            onClick={() => wsApi.setTrackPower(!commandCenter.powerInfo?.trackVoltageOn)}
-            title={commandCenter.powerInfo?.trackVoltageOn ? "Turn track power off" : "Turn track power on"}
-          >
-            POWER {commandCenter.powerInfo?.trackVoltageOn ? "ON" : "OFF"}
-          </Button>
-          <Divider orientation="vertical" className="lite-toolbar-divider" />
-          <Button size="xs" variant="light" color="violet" leftSection={<IconTrain size={16} />} onClick={onOpenLocoEditor} title="Edit locomotives">
-            LOCOS
-          </Button>
-          <Button size="xs" variant="light" color="yellow" leftSection={<IconTrafficLights size={16} />} onClick={() => setSignalLogicOpened(true)} title="Automatic signal aspects">
-            SIGNALS
-          </Button>
-          <Button size="xs" variant="light" color="teal" leftSection={<IconShieldCheck size={16} />} onClick={() => setIntegrityCheckOpened(true)} title="Check all project references">
-            CHECK
-          </Button>
-          <Button
-            component="a"
-            href="https://github.com/DCCExpress/DCCExpressLite/wiki"
-            target="_blank"
-            rel="noopener noreferrer"
-            size="xs"
-            variant="light"
-            color="blue"
-            leftSection={<IconHelpCircle size={16} />}
-            title="Open the online DCCExpressLite documentation"
-          >
-            HELP
-          </Button>
-          <ActionIcon variant={locoPanelCollapsed ? "light" : "filled"} onClick={() => setLocoPanelCollapsed(value => !value)} title="Toggle locomotive panel">
-            <IconTrain size={19} />
-          </ActionIcon>
-          <ActionIcon variant={propertyPanelCollapsed ? "light" : "filled"} onClick={() => setPropertyPanelCollapsed(value => !value)} title="Toggle property panel">
-            <IconSettings size={18} />
-          </ActionIcon>
-        </Group>
-      </Group>
       </Card>
 
       {error && <Alert color="red">{error}</Alert>}
 
       <div className="lite-layout-workspace" style={workspaceStyle}>
-        {!locoPanelCollapsed && <div className="lite-loco-panel">
-          <LocoPanel locos={locos} />
-        </div>}
+        {!locoPanelCollapsed && (
+          <div className="lite-loco-panel">
+            <LocoPanel locos={locos} />
+          </div>
+        )}
 
         <div className="lite-panel-resizer lite-panel-resizer-left" onPointerDown={event => beginResize("left", event)}>
           <button type="button" onPointerDown={event => event.stopPropagation()} onClick={() => setLocoPanelCollapsed(value => !value)} title="Toggle locomotive panel">
@@ -1434,10 +992,7 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
                   />
                 </>
               ) : (
-                <Tabs
-                  defaultValue="automation"
-                  className="lite-runtime-tabs"
-                >
+                <Tabs defaultValue="automation" className="lite-runtime-tabs">
                   <Tabs.List grow mb="sm">
                     <Tabs.Tab value="automation">Automation</Tabs.Tab>
                     <Tabs.Tab value="info">Info</Tabs.Tab>

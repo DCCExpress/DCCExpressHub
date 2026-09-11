@@ -3,14 +3,51 @@ class AudioManager {
   private audioTimeouts: Map<string, number> = new Map();
   private readonly maxAudioDuration = 600000;
 
-  private normalizeFileName(fileName: string): string {
-    if (!fileName) return "";
+  private storageUrl(virtualPath: string): string {
+    return `/api/storage/file?path=${encodeURIComponent(virtualPath)}`;
+  }
 
-    if (fileName.startsWith("/audio/")) {
-      return fileName;
+  private normalizeFileName(fileName: string): string[] {
+    const normalized = fileName.trim();
+
+    if (!normalized) return [];
+
+    if (
+      normalized.startsWith("http://") ||
+      normalized.startsWith("https://") ||
+      normalized.startsWith("blob:") ||
+      normalized.startsWith("data:")
+    ) {
+      return [normalized];
     }
 
-    return `/audio/${fileName}`;
+    if (normalized.startsWith("/api/storage/file")) {
+      return [normalized];
+    }
+
+    if (normalized.startsWith("/sd/") || normalized === "/sd") {
+      return [this.storageUrl(normalized)];
+    }
+
+    if (normalized.startsWith("/flash/") || normalized === "/flash") {
+      return [this.storageUrl(normalized)];
+    }
+
+    if (normalized.startsWith("/audio/")) {
+      return [normalized];
+    }
+
+    if (normalized.startsWith("/")) {
+      return [normalized];
+    }
+
+    // New Hub default: plain legacy names such as "horn.mp3" resolve to
+    // /sd/audio/horn.mp3. Keep the original /audio/<name> URL as a fallback so
+    // layouts created before SD support continue to work with LittleFS builds.
+    return [
+      this.storageUrl(`/sd/audio/${normalized}`),
+      `/audio/${normalized}`,
+    ];
   }
 
   play(
@@ -20,64 +57,114 @@ class AudioManager {
       onError?: (error: unknown) => void;
     }
   ) {
-    const url = this.normalizeFileName(fileName);
+    const candidates = this.normalizeFileName(fileName);
 
-    if (!url) {
+    if (candidates.length === 0) {
       console.warn("[AudioManager] Missing audio filename");
       return;
     }
 
-    if (this.activeAudios.has(url)) {
-      this.stop(url);
-    }
+    let candidateIndex = 0;
+    let audio: HTMLAudioElement | null = null;
+    let activeUrl = "";
+    let finished = false;
 
-    const audio = new Audio(url);
-
-    audio.onended = () => {
-      this.activeAudios.delete(url);
-      this.clearAudioTimeout(url);
-      options?.onEnded?.();
+    const cleanup = () => {
+      if (activeUrl) {
+        this.activeAudios.delete(activeUrl);
+        this.clearAudioTimeout(activeUrl);
+      }
     };
 
-    audio.onerror = () => {
-      this.activeAudios.delete(url);
-      this.clearAudioTimeout(url);
-
-      const error = new Error(`Audio load/play error: ${url}`);
-      console.error("[AudioManager]", error);
-
-      options?.onError?.(error);
-    };
-
-    audio.play().catch((error) => {
-      this.activeAudios.delete(url);
-      this.clearAudioTimeout(url);
+    const fail = (error: unknown) => {
+      if (finished) return;
+      finished = true;
+      cleanup();
       console.error("[AudioManager] Audio play error:", error);
-
       options?.onError?.(error);
-    });
+    };
 
-    this.activeAudios.set(url, audio);
+    const startCandidate = () => {
+      if (candidateIndex >= candidates.length) {
+        fail(new Error(`Audio load/play error: ${fileName}`));
+        return;
+      }
 
-    const timeoutId = window.setTimeout(() => {
-      this.stop(url);
-    }, this.maxAudioDuration);
+      const url = candidates[candidateIndex];
+      candidateIndex += 1;
 
-    this.audioTimeouts.set(url, timeoutId);
+      if (!url) {
+        fail(new Error(`Audio load/play error: ${fileName}`));
+        return;
+      }
 
-    return audio;
+      if (this.activeAudios.has(url)) {
+        this.stop(url);
+      }
+
+      cleanup();
+      activeUrl = url;
+      audio = new Audio(url);
+
+      audio.onended = () => {
+        if (finished) return;
+        finished = true;
+        cleanup();
+        options?.onEnded?.();
+      };
+
+      audio.onerror = () => {
+        cleanup();
+
+        if (candidateIndex < candidates.length) {
+          startCandidate();
+          return;
+        }
+
+        fail(new Error(`Audio load/play error: ${url}`));
+      };
+
+      this.activeAudios.set(url, audio);
+
+      const timeoutId = window.setTimeout(() => {
+        if (audio) {
+          audio.pause();
+          audio.currentTime = 0;
+        }
+        fail(new Error(`Audio playback timeout: ${url}`));
+      }, this.maxAudioDuration);
+
+      this.audioTimeouts.set(url, timeoutId);
+
+      audio.play().catch((error) => {
+        cleanup();
+
+        if (candidateIndex < candidates.length) {
+          startCandidate();
+          return;
+        }
+
+        fail(error);
+      });
+    };
+
+    startCandidate();
+    return audio ?? undefined;
   }
 
   stop(fileName: string) {
-    const url = this.normalizeFileName(fileName);
-    const audio = this.activeAudios.get(url);
+    const urls = this.normalizeFileName(fileName);
 
-    if (!audio) return;
+    for (const url of urls) {
+      const audio = this.activeAudios.get(url);
 
-    audio.pause();
-    audio.currentTime = 0;
-    this.activeAudios.delete(url);
-    this.clearAudioTimeout(url);
+      if (!audio) continue;
+
+      audio.pause();
+      audio.currentTime = 0;
+      this.activeAudios.delete(url);
+      this.clearAudioTimeout(url);
+    }
   }
 
   stopAll() {
@@ -97,6 +184,7 @@ class AudioManager {
 
   private clearAudioTimeout(url: string) {
     const timeoutId = this.audioTimeouts.get(url);
+
     if (timeoutId !== undefined) {
       clearTimeout(timeoutId);
       this.audioTimeouts.delete(url);

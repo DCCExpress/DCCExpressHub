@@ -86,6 +86,7 @@ private:
 
   bool _initialized = false;
   bool _dirty = false;
+  bool _infoPage = false;
 
   bool _emergencyStopRequest = false;
   bool _powerToggleRequest = false;
@@ -95,6 +96,7 @@ private:
   bool _powerActive = false;
 
   void redraw();
+  void redrawInfoPage();
 
   void redrawEmergencyButton();
   void redrawPowerButton();
