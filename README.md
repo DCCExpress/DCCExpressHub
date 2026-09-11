@@ -78,6 +78,18 @@ cyd-2432s028-z21
 
 During alpha development the release workflow and browser installer may lag behind source-level hardware targets. Check the current release assets before assuming every PlatformIO target has a ready-made merged firmware image.
 
+### S88 / s88-N feedback
+
+DCCExpressHub supports S88 / s88-N occupancy feedback through the companion **DCCExpress-S88Adapter** project.
+
+The adapter uses an Arduino-compatible controller to read standard S88 / s88-N feedback modules and forwards the detected occupancy states to DCCExpressHub.
+
+The current implementation has been tested with the **YaMoRC YD6016ES-CS** feedback module.
+
+Project repository:
+
+https://github.com/DCCExpress/DCCExpress-S88Adapter
+
 ### M5Stack SD card and audio files
 
 The **M5Stack Basic** can use its built-in microSD slot as external storage. SD storage is intended primarily for larger user files such as locomotive sounds, announcements and other audio files that should not consume the ESP32 LittleFS partition.
