@@ -302,6 +302,11 @@ const SCRIPT_HELP_ITEMS: ScriptHelpItem[] = [
     insert: "dcc.setProgrammingPower(true);",
   },
   {
+    syntax: "playAudio(name)",
+    description: "Plays /sd/audio/<name>.mp3 from the SD card. Use only the base filename, without a path or .mp3 extension.",
+    insert: 'playAudio("mav_szignal");',
+  },
+  {
     syntax: "log(value, ...)",
     description: "Writes values to the browser console with the automation name prefix.",
     insert: 'log("Automation reached this point");',
@@ -346,8 +351,7 @@ async function formatScriptBody(
     .replace(/\n}\s*$/, "")
     .split("\n")
     .map(line =>
-      line.startsWith("  ")
-        ? line.slice(2)
+      line.startsWith("  ")        ? line.slice(2)
         : line
     )
     .join("\n");

@@ -7,6 +7,10 @@ import {
 } from "./wsClient";
 
 import {
+  audioManager,
+} from "./audioManager";
+
+import {
   applyClientScriptLayoutAccessoryCatalog,
   executeClientScriptLayoutAccessoryCommand,
   installClientScriptLayoutAccessoryTracking,
@@ -80,6 +84,12 @@ const listeners =
 
 const lastErrors =
   new Map<ClientScriptExecutionId, string | null>();
+
+const SCRIPT_AUDIO_COMMAND_PREFIX =
+  "__DCCEXPRESS_PLAY_AUDIO__:";
+
+const SCRIPT_AUDIO_MAX_NAME_LENGTH =
+  120;
 
 let automationWorker:
   Worker | null = null;
@@ -698,7 +708,6 @@ function applySensorSnapshot(
       );
     }
   }
-
   sensorSnapshotReady =
     true;
 
@@ -1090,6 +1099,97 @@ function stringArg(
   );
 }
 
+function validateScriptAudioName(
+  rawName: string
+): string {
+  const name =
+    rawName.trim();
+
+  if (
+    !name ||
+    name.length >
+      SCRIPT_AUDIO_MAX_NAME_LENGTH ||
+    name.includes("/") ||
+    name.includes("\\") ||
+    name.includes(".")
+  ) {
+    throw new Error(
+      "playAudio(name): use only the base MP3 filename from /sd/audio, without path or extension."
+    );
+  }
+
+  return name;
+}
+
+function executeScriptAudioCommand(
+  command: string
+): string | null {
+  const name =
+    validateScriptAudioName(
+      command.slice(
+        SCRIPT_AUDIO_COMMAND_PREFIX.length
+      )
+    );
+
+  const virtualPath =
+    `/sd/audio/${name}.mp3`;
+
+  audioManager.play(
+    virtualPath,
+    {
+      onError:
+        error => {
+          console.error(
+            `[Automation Audio] playAudio("${name}") failed:`,
+            error
+          );
+        },
+    }
+  );
+
+  console.info(
+    `[Automation Audio] ${virtualPath}`
+  );
+
+  return null;
+}
+
+function scriptWithAudioHelper(
+  script: string
+): string {
+  const prefix =
+    JSON.stringify(
+      SCRIPT_AUDIO_COMMAND_PREFIX
+    );
+
+  const maxLength =
+    String(
+      SCRIPT_AUDIO_MAX_NAME_LENGTH
+    );
+
+  return `
+const playAudio = (name) => {
+  const value = String(name ?? "").trim();
+
+  if (
+    !value ||
+    value.length > ${maxLength} ||
+    value.includes("/") ||
+    value.includes("\\\\") ||
+    value.includes(".")
+  ) {
+    throw new Error(
+      "playAudio(name): use only the base MP3 filename from /sd/audio, without path or extension."
+    );
+  }
+
+  dcc.sendRaw(${prefix} + value);
+};
+
+${script}
+`;
+}
+
 function executionOwnerId(
   executionId: ClientScriptExecutionId
 ): string {
@@ -1397,8 +1497,7 @@ function executeDccCommand(
             args,
             1
           ),
-          booleanArg(
-            args,
+          booleanArg(            args,
             2
           )
         ),
@@ -1564,16 +1663,30 @@ function executeDccCommand(
     case "clearBlockTargetLoco":
       return null;
 
-    case "sendRaw":
+    case "sendRaw": {
+      const command =
+        stringArg(
+          args,
+          0
+        );
+
+      if (
+        command.startsWith(
+          SCRIPT_AUDIO_COMMAND_PREFIX
+        )
+      ) {
+        return executeScriptAudioCommand(
+          command
+        );
+      }
+
       return requireSend(
         wsApi.writeDccExDirectCommand(
-          stringArg(
-            args,
-            0
-          )
+          command
         ),
         "dcc.sendRaw"
       );
+    }
   }
 }
 
@@ -2056,7 +2169,10 @@ export async function runClientScript(
           type: "start",
           executionId:
             element.id,
-          script,
+          script:
+            scriptWithAudioHelper(
+              script
+            ),
           element: {
             ...element,
           },

@@ -666,10 +666,9 @@ bool LayoutRuntime::setTurnout(
       " logical=" +
       String(logicalClosed ? "CLOSED" : "THROWN"));
 
-  if (item->closed == logicalClosed) {
-    return true;
-  }
-
+  // A successful turnout command is itself a relevant runtime event.
+  // Even if the cached logical state already has the same value, dependent
+  // signal automation must re-evaluate all rules after the command.
   item->closed = logicalClosed;
 
   notify(

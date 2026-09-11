@@ -18,7 +18,10 @@ import {
 export const TrackColors = {
   free: "#e6e6e6",
   selected: "yellow",
+  route: "yellow",
   occupied: "red",
+  routeOccupied: "#ff3333",
+  busy: "orange",
   transit: "#fd2020",
 };
 
@@ -30,8 +33,8 @@ export type TrackElementViewSupportTarget =
 // sensorSnapshot WebSocket protocol.
 //
 // Every normal track element already has an occupancy `address` property.
-// Keeping the cache here means all track shapes use S88 state automatically,
-// without duplicating sensor logic in every layout page.
+// Keeping the cache here means all track shapes -- including turnouts -- use
+// the same S88 occupancy state and color priority.
 const occupancyByAddress =
   new Map<number, boolean>();
 
@@ -86,32 +89,49 @@ wsClient.on(
   }
 );
 
-export function getTrackStateColor(
+function isTrackOccupied(
   element: TrackElementViewSupportTarget
-): string {
-  /**
-   * Priority:
-   * 1. Physical occupancy feedback (S88 / sensor WS)
-   * 2. Existing explicit occupied state
-   * 3. Locomotive transit
-   * 4. Reserved route
-   * 5. Route indication
-   * 6. Selection
-   * 7. Free
-   */
-  if (
+): boolean {
+  const sensorOccupied =
     element.address > 0 &&
     occupancyByAddress.get(
       element.address
-    ) === true
+    ) === true;
+
+  return (
+    sensorOccupied ||
+    element.state ===
+      TrackStates.occupied
+  );
+}
+
+export function getTrackStateColor(
+  element: TrackElementViewSupportTarget
+): string {
+  const occupied =
+    isTrackOccupied(element);
+
+  /**
+   * Visual priority:
+   *
+   * route + occupied -> orange-red
+   * occupied         -> red
+   * transit          -> transit red
+   * busy/reserved    -> orange
+   * route            -> yellow
+   * selected         -> yellow
+   * free             -> light gray
+   *
+   * All normal track elements and turnouts call this same function.
+   */
+  if (
+    occupied &&
+    element.isRoute
   ) {
-    return TrackColors.occupied;
+    return TrackColors.routeOccupied;
   }
 
-  if (
-    element.state ===
-    TrackStates.occupied
-  ) {
+  if (occupied) {
     return TrackColors.occupied;
   }
 
@@ -120,11 +140,11 @@ export function getTrackStateColor(
   }
 
   if (element.isBusy) {
-    return "orange";
+    return TrackColors.busy;
   }
 
   if (element.isRoute) {
-    return "yellow";
+    return TrackColors.route;
   }
 
   if (
