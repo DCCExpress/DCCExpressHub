@@ -1,4 +1,3 @@
-
 import type {
   Dispatch,
   SetStateAction,
@@ -12,7 +11,18 @@ import type {
 export type DoubleTurnoutPopoverStateSetter =
   Dispatch<SetStateAction<DoubleTurnoutPopoverState>>;
 
-export function openTrackCanvasDoubleTurnoutPopover(
+function isCoarsePointerDevice(): boolean {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return (
+    window.matchMedia?.("(pointer: coarse)").matches === true ||
+    navigator.maxTouchPoints > 0
+  );
+}
+
+function setDoubleTurnoutPopoverOpen(
   setDoubleTurnoutPopover: DoubleTurnoutPopoverStateSetter,
   turnout: TrackTurnoutDoubleElementView,
   clientX: number,
@@ -24,6 +34,55 @@ export function openTrackCanvasDoubleTurnoutPopover(
     y: clientY,
     turnout,
   });
+}
+
+export function openTrackCanvasDoubleTurnoutPopover(
+  setDoubleTurnoutPopover: DoubleTurnoutPopoverStateSetter,
+  turnout: TrackTurnoutDoubleElementView,
+  clientX: number,
+  clientY: number
+): void {
+  if (!isCoarsePointerDevice()) {
+    setDoubleTurnoutPopoverOpen(
+      setDoubleTurnoutPopover,
+      turnout,
+      clientX,
+      clientY
+    );
+    return;
+  }
+
+  const handlePointerUp = (
+    event: PointerEvent
+  ) => {
+    if (event.pointerType !== "touch") {
+      return;
+    }
+
+    window.removeEventListener(
+      "pointerup",
+      handlePointerUp,
+      true
+    );
+
+    // Let the original touch/click sequence finish before mounting
+    // the Mantine popover. Otherwise mobile browsers can immediately
+    // treat that same gesture as an outside click and close it.
+    window.setTimeout(() => {
+      setDoubleTurnoutPopoverOpen(
+        setDoubleTurnoutPopover,
+        turnout,
+        clientX,
+        clientY
+      );
+    }, 0);
+  };
+
+  window.addEventListener(
+    "pointerup",
+    handlePointerUp,
+    true
+  );
 }
 
 export function closeTrackCanvasDoubleTurnoutPopover(
@@ -47,8 +106,18 @@ export function reopenTrackCanvasDoubleTurnoutPopover(
     setDoubleTurnoutPopover
   );
 
-  window.setTimeout(() => {
+  if (isCoarsePointerDevice()) {
     openTrackCanvasDoubleTurnoutPopover(
+      setDoubleTurnoutPopover,
+      turnout,
+      clientX,
+      clientY
+    );
+    return;
+  }
+
+  window.setTimeout(() => {
+    setDoubleTurnoutPopoverOpen(
       setDoubleTurnoutPopover,
       turnout,
       clientX,
