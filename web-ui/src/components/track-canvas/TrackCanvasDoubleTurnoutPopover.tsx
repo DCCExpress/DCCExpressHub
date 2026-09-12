@@ -227,6 +227,43 @@ function isMobileLikePointer(): boolean {
   );
 }
 
+function getMobileMapCenter(): {
+  left: number;
+  top: number;
+} | null {
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  const mapOverlay =
+    document.querySelector<HTMLElement>(
+      ".mobile-runtime-layout-overlay"
+    );
+
+  if (!mapOverlay) {
+    return null;
+  }
+
+  const rect =
+    mapOverlay.getBoundingClientRect();
+
+  if (
+    rect.width <= 0 ||
+    rect.height <= 0
+  ) {
+    return null;
+  }
+
+  return {
+    left:
+      rect.left +
+      rect.width / 2,
+    top:
+      rect.top +
+      rect.height / 2,
+  };
+}
+
 function getPanelPosition(
   x: number,
   y: number
@@ -306,6 +343,11 @@ export function TrackCanvasDoubleTurnoutPopover({
   const mobileCentered =
     isMobileLikePointer();
 
+  const mobileMapCenter =
+    mobileCentered
+      ? getMobileMapCenter()
+      : null;
+
   const position =
     getPanelPosition(
       state.x,
@@ -336,13 +378,13 @@ export function TrackCanvasDoubleTurnoutPopover({
         p={6}
         style={{
           position: "fixed",
-          left: mobileCentered
-            ? "50%"
-            : position.left,
-          top: mobileCentered
-            ? "50%"
-            : position.top,
-          transform: mobileCentered
+          left:
+            mobileMapCenter?.left ??
+            position.left,
+          top:
+            mobileMapCenter?.top ??
+            position.top,
+          transform: mobileMapCenter
             ? "translate(-50%, -50%)"
             : undefined,
           zIndex: 2000,
