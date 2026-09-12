@@ -5,6 +5,7 @@ import TrackTurnoutDoubleElementView from "../../models/editor/elements/TrackTur
 import { TrackTurnoutLeftElementView } from "../../models/editor/elements/TrackTurnoutLeftElementView";
 import { TrackTurnoutRightElementView } from "../../models/editor/elements/TrackTurnoutRightElementView";
 import { TrackTurnoutTwoWayElementView } from "../../models/editor/elements/TrackTurnoutTwoWayElementView";
+import { TrackTurnoutThreeWayElementView } from "../../models/editor/elements/TrackTurnoutThreeWayElementView";
 
 export type SignalPreviewColor = 1 | 2 | 3 | 4;
 
@@ -57,6 +58,31 @@ export function createDoubleTurnoutPreview(
   const turnout = new TrackTurnoutDoubleElementView(0, 0);
 
   turnout.rotation = selectedElement.rotation;
+  turnout.turnout1Address = selectedElement.turnout1Address;
+  turnout.turnout2Address = selectedElement.turnout2Address;
+  turnout.turnout1ClosedValue = selectedElement.turnout1ClosedValue;
+  turnout.turnout2ClosedValue = selectedElement.turnout2ClosedValue;
+
+  turnout.turnout1Closed = firstClosed
+    ? turnout.turnout1ClosedValue
+    : !turnout.turnout1ClosedValue;
+
+  turnout.turnout2Closed = secondClosed
+    ? turnout.turnout2ClosedValue
+    : !turnout.turnout2ClosedValue;
+
+  return turnout;
+}
+
+export function createThreeWayTurnoutPreview(
+  selectedElement: TrackTurnoutThreeWayElementView,
+  firstClosed: boolean,
+  secondClosed: boolean
+): BaseElementView {
+  const turnout = new TrackTurnoutThreeWayElementView(0, 0);
+
+  turnout.rotation = selectedElement.rotation;
+  turnout.outputMode = selectedElement.outputMode;
   turnout.turnout1Address = selectedElement.turnout1Address;
   turnout.turnout2Address = selectedElement.turnout2Address;
   turnout.turnout1ClosedValue = selectedElement.turnout1ClosedValue;

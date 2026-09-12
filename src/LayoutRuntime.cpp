@@ -289,10 +289,11 @@ void LayoutRuntime::addElement(JsonObjectConst element) {
   }
 
   if (isTurnoutType(type)) {
-    const bool isDouble =
-        strcmp(type, "trackturnoutdouble") == 0;
+    const bool isDualMotorTurnout =
+        strcmp(type, "trackturnoutdouble") == 0 ||
+        strcmp(type, "trackturnouttreeway") == 0;
 
-    if (isDouble) {
+    if (isDualMotorTurnout) {
       const uint16_t address1 =
           element["turnout1Address"] | 0;
 

@@ -74,6 +74,7 @@ import TrackTurnoutDoubleElementView from "@/models/editor/elements/TrackTurnout
 import { TrackTurnoutLeftElementView } from "@/models/editor/elements/TrackTurnoutLeftElementView";
 import { TrackTurnoutRightElementView } from "@/models/editor/elements/TrackTurnoutRightElementView";
 import { TrackTurnoutTwoWayElementView } from "@/models/editor/elements/TrackTurnoutTwoWayElementView";
+import { TrackTurnoutThreeWayElementView } from "@/models/editor/elements/TrackTurnoutThreeWayElementView";
 import { LabelElementView } from "@/models/editor/elements/LabelElementView";
 import { RouteButtonElementView } from "@/models/editor/elements/RouteButtonElementView";
 import ElementPreview from "@/models/editor/rendering/ElementPreviewRenderer";
@@ -279,6 +280,7 @@ const PICKER_ITEMS: PickerItem[] = [
   { type: ELEMENT_TYPES.TRACK_TURNOUT_LEFT, label: "Left turnout", preview: new TrackTurnoutLeftElementView(0, 0) },
   { type: ELEMENT_TYPES.TRACK_TURNOUT_RIGHT, label: "Right turnout", preview: new TrackTurnoutRightElementView(0, 0) },
   { type: ELEMENT_TYPES.TRACK_TURNOUT_TWO_WAY, label: "Y turnout", preview: new TrackTurnoutTwoWayElementView(0, 0) },
+  { type: ELEMENT_TYPES.TRACK_TURNOUT_THREE_WAY, label: "W / three-way turnout", preview: new TrackTurnoutThreeWayElementView(0, 0) },
   { type: ELEMENT_TYPES.TRACK_TURNOUT_DOUBLE, label: "Double turnout", preview: new TrackTurnoutDoubleElementView(0, 0) },
   { type: ELEMENT_TYPES.TRACK_SENSOR, label: "Sensor", preview: new TrackSensorElementView(0, 0) },
   { type: ELEMENT_TYPES.TRACK_BLOCK, label: "Block", preview: new BlockElementView(0, 0) },
@@ -597,7 +599,11 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
     for (const element of layout.getAllElements()) {
       if (isTurnoutElement(element) && element.outputMode === "accessory" && element.turnoutAddress === data.address) {
         element.turnoutClosed = data.closed;
-      } else if (element instanceof TrackTurnoutDoubleElementView && element.outputMode === "accessory") {
+      } else if (
+        (element instanceof TrackTurnoutDoubleElementView ||
+          element instanceof TrackTurnoutThreeWayElementView) &&
+        element.outputMode === "accessory"
+      ) {
         if (element.turnout1Address === data.address) element.turnout1Closed = data.closed;
         if (element.turnout2Address === data.address) element.turnout2Closed = data.closed;
       }

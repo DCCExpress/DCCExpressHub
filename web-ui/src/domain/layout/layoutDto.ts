@@ -243,8 +243,11 @@ export interface TrackTurnoutDoubleElementDto extends TrackElementDto {
 
 export interface TrackTurnoutThreeWayElementDto extends TrackElementDto {
   type: "trackturnouttreeway";
+  outputMode?: OutputCommandModeDto;
   turnout1Address: number;
   turnout2Address: number;
+  turnout1ClosedValue: boolean;
+  turnout2ClosedValue: boolean;
 }
 
 export interface TrackSensorElementDto extends TrackElementDto {

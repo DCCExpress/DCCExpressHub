@@ -21,6 +21,7 @@ import { TrackStraightElementView } from "../../models/editor/elements/TrackStra
 import TrackTurnoutDoubleElementView from "../../models/editor/elements/TrackTurnoutDoubleElementView";
 import { TrackTurnoutLeftElementView } from "../../models/editor/elements/TrackTurnoutLeftElementView";
 import { TrackTurnoutRightElementView } from "../../models/editor/elements/TrackTurnoutRightElementView";
+import { TrackTurnoutThreeWayElementView } from "../../models/editor/elements/TrackTurnoutThreeWayElementView";
 import { TrackTurnoutTwoWayElementView } from "../../models/editor/elements/TrackTurnoutTwoWayElementView";
 import { TreeElementView } from "../../models/editor/elements/TreeElementView";
 import type { EditorTool } from "../../models/editor/types/EditorTypes";
@@ -34,14 +35,10 @@ const cursorTrackCurveElement = new TrackCurveElementView(0, 0);
 const cursorTrackTurnoutLeftElement = new TrackTurnoutLeftElementView(0, 0);
 const cursorTrackTurnoutRightElement = new TrackTurnoutRightElementView(0, 0);
 const cursorTrackTurnoutTwoWayElement = new TrackTurnoutTwoWayElementView(0, 0);
+const cursorTrackTurnoutThreeWayElement = new TrackTurnoutThreeWayElementView(0, 0);
 const cursorTrackTurnoutDoubleElement = new TrackTurnoutDoubleElementView(0, 0);
 const cursorTrackSensorElement = new TrackSensorElementView(0, 0);
-
-/**
- * One generic Signal cursor.
- */
 const cursorTrackSignalElement = new TrackSignalElementView(0, 0);
-
 const cursorTrackCrossingElement = new TrackCrossingElementView(0, 0);
 const cursorButtonElement = new ButtonElementView(0, 0);
 const cursorButtonScriptElement = new ButtonScriptElementView(0, 0);
@@ -54,86 +51,35 @@ const cursorTreeElement = new TreeElementView(0, 0);
 const cursorBlockElement = new BlockElementView(0, 0);
 const cursorLabelElement = new LabelElementView(0, 0);
 
-export function createCursorElement(
-  tool: EditorTool
-): BaseElementView | null {
+export function createCursorElement(tool: EditorTool): BaseElementView | null {
   switch (tool.elementType) {
-    case ELEMENT_TYPES.TRACK_STRAIGHT:
-      return cursorTrackElement;
-
-    case ELEMENT_TYPES.TRACK_LEVEL_CROSSING:
-      return cursorTrackLevelCrossingElement;
-
-    case ELEMENT_TYPES.TRACK_DIRECTION:
-      return cursorTrackDirectionElement;
-
-    case ELEMENT_TYPES.TRACK_END:
-      return cursorTrackEndElement;
-
-    case ELEMENT_TYPES.TRACK_CORNER:
-      return cursorTrackCornerElement;
-
-    case ELEMENT_TYPES.TRACK_CURVE:
-      return cursorTrackCurveElement;
-
-    case ELEMENT_TYPES.TRACK_CROSSING:
-      return cursorTrackCrossingElement;
-
-    case ELEMENT_TYPES.TRACK_TURNOUT_LEFT:
-      return cursorTrackTurnoutLeftElement;
-
-    case ELEMENT_TYPES.TRACK_TURNOUT_RIGHT:
-      return cursorTrackTurnoutRightElement;
-
-    case ELEMENT_TYPES.TRACK_TURNOUT_TWO_WAY:
-      return cursorTrackTurnoutTwoWayElement;
-
-    case ELEMENT_TYPES.TRACK_TURNOUT_DOUBLE:
-      return cursorTrackTurnoutDoubleElement;
-
-    case ELEMENT_TYPES.TRACK_SENSOR:
-      return cursorTrackSensorElement;
-
-    case ELEMENT_TYPES.BUTTON:
-      return cursorButtonElement;
-
-    case ELEMENT_TYPES.BUTTON_SCRIPT:
-      return cursorButtonScriptElement;
-
-    case ELEMENT_TYPES.BUTTON_AUDIO:
-      return cursorAudioButtonElement;
-
-    case ELEMENT_TYPES.BUTTON_AUDIO_LIST:
-      return cursorAudioListButtonElement;
-
-    case ELEMENT_TYPES.BUTTON_ROUTE:
-      return cursorRouteButtonElement;
-
-    case ELEMENT_TYPES.BUTTON_ROUTE_EXTENDED:
-      return cursorExtendedRouteButtonElement;
-
-    case ELEMENT_TYPES.CLOCK:
-      return cursorClockElement;
-
-    case ELEMENT_TYPES.TREE:
-      return cursorTreeElement;
-
-    case ELEMENT_TYPES.TRACK_BLOCK:
-      return cursorBlockElement;
-
-    /**
-     * New layouts use TRACK_SIGNAL2 as the one generic Signal.
-     * Legacy aliases still resolve to the same cursor.
-     */
+    case ELEMENT_TYPES.TRACK_STRAIGHT: return cursorTrackElement;
+    case ELEMENT_TYPES.TRACK_LEVEL_CROSSING: return cursorTrackLevelCrossingElement;
+    case ELEMENT_TYPES.TRACK_DIRECTION: return cursorTrackDirectionElement;
+    case ELEMENT_TYPES.TRACK_END: return cursorTrackEndElement;
+    case ELEMENT_TYPES.TRACK_CORNER: return cursorTrackCornerElement;
+    case ELEMENT_TYPES.TRACK_CURVE: return cursorTrackCurveElement;
+    case ELEMENT_TYPES.TRACK_CROSSING: return cursorTrackCrossingElement;
+    case ELEMENT_TYPES.TRACK_TURNOUT_LEFT: return cursorTrackTurnoutLeftElement;
+    case ELEMENT_TYPES.TRACK_TURNOUT_RIGHT: return cursorTrackTurnoutRightElement;
+    case ELEMENT_TYPES.TRACK_TURNOUT_TWO_WAY: return cursorTrackTurnoutTwoWayElement;
+    case ELEMENT_TYPES.TRACK_TURNOUT_THREE_WAY: return cursorTrackTurnoutThreeWayElement;
+    case ELEMENT_TYPES.TRACK_TURNOUT_DOUBLE: return cursorTrackTurnoutDoubleElement;
+    case ELEMENT_TYPES.TRACK_SENSOR: return cursorTrackSensorElement;
+    case ELEMENT_TYPES.BUTTON: return cursorButtonElement;
+    case ELEMENT_TYPES.BUTTON_SCRIPT: return cursorButtonScriptElement;
+    case ELEMENT_TYPES.BUTTON_AUDIO: return cursorAudioButtonElement;
+    case ELEMENT_TYPES.BUTTON_AUDIO_LIST: return cursorAudioListButtonElement;
+    case ELEMENT_TYPES.BUTTON_ROUTE: return cursorRouteButtonElement;
+    case ELEMENT_TYPES.BUTTON_ROUTE_EXTENDED: return cursorExtendedRouteButtonElement;
+    case ELEMENT_TYPES.CLOCK: return cursorClockElement;
+    case ELEMENT_TYPES.TREE: return cursorTreeElement;
+    case ELEMENT_TYPES.TRACK_BLOCK: return cursorBlockElement;
     case ELEMENT_TYPES.TRACK_SIGNAL2:
     case ELEMENT_TYPES.TRACK_SIGNAL3:
     case ELEMENT_TYPES.TRACK_SIGNAL4:
       return cursorTrackSignalElement;
-
-    case ELEMENT_TYPES.LABEL:
-      return cursorLabelElement;
-
-    default:
-      return null;
+    case ELEMENT_TYPES.LABEL: return cursorLabelElement;
+    default: return null;
   }
 }

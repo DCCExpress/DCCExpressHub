@@ -39,6 +39,7 @@ import { TrackCrossingElement } from "../layout/elements/TrackCrossingElement.js
 import { TrackTurnoutLeftElement } from "../layout/elements/TrackTurnoutLeftElement.js";
 import { TrackTurnoutRightElement } from "../layout/elements/TrackTurnoutRightElement.js";
 import { TrackTurnoutTwoWayElement } from "../layout/elements/TrackTurnoutTwoWayElement.js";
+import { TrackTurnoutThreeWayElement } from "../layout/elements/TrackTurnoutThreeWayElement.js";
 import TrackTurnoutDoubleElement from "../layout/elements/TrackTurnoutDoubleElement.js";
 import { BlockElement } from "../layout/elements/BlockElement.js";
 import { TrackSensorElement } from "../layout/elements/TrackSensorElement.js";
@@ -65,6 +66,7 @@ export {
   TrackTurnoutLeftElement as TopologyTurnoutLeftElement,
   TrackTurnoutRightElement as TopologyTurnoutRightElement,
   TrackTurnoutTwoWayElement as TopologyTurnoutTwoWayElement,
+  TrackTurnoutThreeWayElement as TopologyTurnoutThreeWayElement,
   TrackTurnoutDoubleElement as TopologyTurnoutDoubleElement,
   BlockElement as TopologyBlockElement,
   TrackSensorElement as TopologySensorElement,
@@ -192,6 +194,19 @@ function createTurnoutTwoWayElement(data: SerializedLayoutElementDto): TrackTurn
   return element;
 }
 
+function createTurnoutThreeWayElement(data: SerializedLayoutElementDto): TrackTurnoutThreeWayElement {
+  const element = applyTrackData(
+    new TrackTurnoutThreeWayElement(numberValue(data.x, 0), numberValue(data.y, 0)),
+    data
+  );
+  element.turnout1Address = numberValue(data.turnout1Address, element.turnout1Address);
+  element.turnout2Address = numberValue(data.turnout2Address, element.turnout2Address);
+  element.turnout1ClosedValue = boolValue(data.turnout1ClosedValue, element.turnout1ClosedValue);
+  element.turnout2ClosedValue = boolValue(data.turnout2ClosedValue, element.turnout2ClosedValue);
+  if (data.outputMode === "vpin" || data.outputMode === "accessory") element.outputMode = data.outputMode;
+  return element;
+}
+
 function createTurnoutDoubleElement(data: SerializedLayoutElementDto): TrackTurnoutDoubleElement {
   const element = applyTrackData(
     new TrackTurnoutDoubleElement(numberValue(data.x, 0), numberValue(data.y, 0)),
@@ -247,6 +262,7 @@ export type TopologyTurnoutElement =
   | TrackTurnoutLeftElement
   | TrackTurnoutRightElement
   | TrackTurnoutTwoWayElement
+  | TrackTurnoutThreeWayElement
   | TrackTurnoutDoubleElement;
 
 export type TopologyTrackElement =
@@ -272,6 +288,7 @@ export function isTopologyTurnoutElement(
     element instanceof TrackTurnoutLeftElement ||
     element instanceof TrackTurnoutRightElement ||
     element instanceof TrackTurnoutTwoWayElement ||
+    element instanceof TrackTurnoutThreeWayElement ||
     element instanceof TrackTurnoutDoubleElement
   );
 }
@@ -342,6 +359,7 @@ function createTopologyElement(data: SerializedLayoutElementDto): RailwayTopolog
     case ELEMENT_TYPES.TRACK_TURNOUT_LEFT: return createTurnoutLeftElement(data);
     case ELEMENT_TYPES.TRACK_TURNOUT_RIGHT: return createTurnoutRightElement(data);
     case ELEMENT_TYPES.TRACK_TURNOUT_TWO_WAY: return createTurnoutTwoWayElement(data);
+    case ELEMENT_TYPES.TRACK_TURNOUT_THREE_WAY: return createTurnoutThreeWayElement(data);
     case ELEMENT_TYPES.TRACK_TURNOUT_DOUBLE: return createTurnoutDoubleElement(data);
     case ELEMENT_TYPES.TRACK_BLOCK: return createBlockElement(data);
     case ELEMENT_TYPES.TRACK_SENSOR: return createSensorElement(data);

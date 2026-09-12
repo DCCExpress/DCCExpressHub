@@ -17,6 +17,7 @@ import TrackTurnoutDoubleElementView from "../../models/editor/elements/TrackTur
 import { TrackTurnoutLeftElementView } from "../../models/editor/elements/TrackTurnoutLeftElementView";
 import { TrackTurnoutRightElementView } from "../../models/editor/elements/TrackTurnoutRightElementView";
 import { TrackTurnoutTwoWayElementView } from "../../models/editor/elements/TrackTurnoutTwoWayElementView";
+import { TrackTurnoutThreeWayElementView } from "../../models/editor/elements/TrackTurnoutThreeWayElementView";
 import {
   getDoubleTurnoutAspect,
   getTurnoutClosedAspect,
@@ -27,6 +28,7 @@ import ElementPreview from "../../models/editor/rendering/ElementPreviewRenderer
 import { sendTurnoutOutput } from "../../services/layoutOutput";
 import {
   createDoubleTurnoutPreview,
+  createThreeWayTurnoutPreview,
   createTurnoutPreview,
 } from "./previewFactories";
 import type { PropertyChangeHandler } from "./propertyPanelTypes";
@@ -55,6 +57,12 @@ const DOUBLE_TURNOUT_POSITIONS: DoubleTurnoutPosition[] = [
   { label: "C-C", firstClosed: true, secondClosed: true },
 ];
 
+const THREE_WAY_TURNOUT_POSITIONS: DoubleTurnoutPosition[] = [
+  { label: "Left", firstClosed: true, secondClosed: false },
+  { label: "Straight", firstClosed: false, secondClosed: false },
+  { label: "Right", firstClosed: false, secondClosed: true },
+];
+
 function isTurnoutElement(element: BaseElementView): element is SingleTurnoutElement {
   return (
     element instanceof TrackTurnoutLeftElementView ||
@@ -67,6 +75,12 @@ function isDoubleTurnoutElement(
   element: BaseElementView
 ): element is TrackTurnoutDoubleElementView {
   return element instanceof TrackTurnoutDoubleElementView;
+}
+
+function isThreeWayTurnoutElement(
+  element: BaseElementView
+): element is TrackTurnoutThreeWayElementView {
+  return element instanceof TrackTurnoutThreeWayElementView;
 }
 
 function isDoubleTurnoutClosedValueProperty(prop: IEditableProperty): boolean {
@@ -265,6 +279,36 @@ function sendDoubleTurnoutPosition(
   );
 }
 
+function sendThreeWayTurnoutPosition(
+  element: TrackTurnoutThreeWayElementView,
+  position: DoubleTurnoutPosition
+): void {
+  const firstPhysical = getPhysicalValueForLogicalState(
+    element.turnout1ClosedValue,
+    position.firstClosed
+  );
+  const secondPhysical = getPhysicalValueForLogicalState(
+    element.turnout2ClosedValue,
+    position.secondClosed
+  );
+
+  element.turnout1Closed = firstPhysical;
+  element.turnout2Closed = secondPhysical;
+
+  sendTurnoutOutput(
+    String(element.outputMode),
+    element.turnout1Address,
+    firstPhysical,
+    { closedValue: element.turnout1ClosedValue }
+  );
+  sendTurnoutOutput(
+    String(element.outputMode),
+    element.turnout2Address,
+    secondPhysical,
+    { closedValue: element.turnout2ClosedValue }
+  );
+}
+
 function createClosedValueProperty(
   label: string,
   key: "turnout1ClosedValue" | "turnout2ClosedValue"
@@ -377,6 +421,74 @@ function renderSingleBasicEditor(
   );
 }
 
+function renderThreeWayBasicEditor(
+  selectedElement: TrackTurnoutThreeWayElementView,
+  onChange: PropertyChangeHandler
+) {
+  const firstClosedValueProperty = createClosedValueProperty(
+    "Left motor closed value",
+    "turnout1ClosedValue"
+  );
+  const secondClosedValueProperty = createClosedValueProperty(
+    "Right motor closed value",
+    "turnout2ClosedValue"
+  );
+
+  return (
+    <Stack gap="xs">
+      <Text size="sm" fw={500}>Three-way turnout positions</Text>
+      <Text size="xs" c="dimmed">
+        Left, straight and right are the three valid positions. The fourth two-motor combination is intentionally not used.
+      </Text>
+
+      {THREE_WAY_TURNOUT_POSITIONS.map(position => {
+        const firstPhysicalValue = getPhysicalValueForLogicalState(
+          selectedElement.turnout1ClosedValue,
+          position.firstClosed
+        );
+        const secondPhysicalValue = getPhysicalValueForLogicalState(
+          selectedElement.turnout2ClosedValue,
+          position.secondClosed
+        );
+
+        return (
+          <Group key={position.label} justify="space-between" align="center" wrap="nowrap">
+            <Box className="route-turnout-preview-button">
+              <ElementPreview
+                element={createThreeWayTurnoutPreview(
+                  selectedElement,
+                  position.firstClosed,
+                  position.secondClosed
+                )}
+                label={position.label}
+                width={54}
+                height={54}
+                onClick={() => sendThreeWayTurnoutPosition(selectedElement, position)}
+              />
+            </Box>
+            <Group gap="xs" wrap="nowrap">
+              <BitToggleElement
+                value={firstPhysicalValue}
+                onChange={value => onChange(
+                  firstClosedValueProperty,
+                  getClosedValueFromPhysicalValue(value, position.firstClosed)
+                )}
+              />
+              <BitToggleElement
+                value={secondPhysicalValue}
+                onChange={value => onChange(
+                  secondClosedValueProperty,
+                  getClosedValueFromPhysicalValue(value, position.secondClosed)
+                )}
+              />
+            </Group>
+          </Group>
+        );
+      })}
+    </Stack>
+  );
+}
+
 function renderDoubleExtendedEditor(
   selectedElement: TrackTurnoutDoubleElementView,
   onChange: PropertyChangeHandler
@@ -479,6 +591,14 @@ export default function TurnoutBitPropertyEditor({
   const values = selectedElement as unknown as Record<string, unknown>;
   const propValue = Boolean(values[prop.key]);
   const mode = normalizeTurnoutOutputMode((selectedElement as any).outputMode);
+
+  if (
+    isThreeWayTurnoutElement(selectedElement) &&
+    isDoubleTurnoutClosedValueProperty(prop)
+  ) {
+    if (prop.key !== "turnout1ClosedValue") return null;
+    return renderThreeWayBasicEditor(selectedElement, onChange);
+  }
 
   if (
     isDoubleTurnoutElement(selectedElement) &&

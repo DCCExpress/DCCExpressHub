@@ -8,6 +8,7 @@ import { TrackTurnoutLeftElementView } from "../elements/TrackTurnoutLeftElement
 import { TrackTurnoutRightElementView } from "../elements/TrackTurnoutRightElementView";
 import TrackTurnoutDoubleElementView from "../elements/TrackTurnoutDoubleElementView";
 import { TrackTurnoutTwoWayElementView } from "../elements/TrackTurnoutTwoWayElementView";
+import { TrackTurnoutThreeWayElementView } from "../elements/TrackTurnoutThreeWayElementView";
 import { TrackSensorElementView } from "../elements/TrackSensorElementView";
 import { ButtonElementView } from "../elements/ButtonElementView";
 import { ClockElementView } from "../elements/ClockElementView";
@@ -28,84 +29,35 @@ import { ELEMENT_TYPES } from "@domain/layout/elementTypes";
 export class ElementFactory {
   static create(data: EditorElementData): BaseElementView {
     switch (data.type) {
-      case ELEMENT_TYPES.TRACK_STRAIGHT:
-        return TrackStraightElementView.fromJSON(data);
-
-      case ELEMENT_TYPES.TRACK_LEVEL_CROSSING:
-        return TrackLevelCrossingElementView.fromJSON(data);
-
-      case ELEMENT_TYPES.TRACK_DIRECTION:
-        return TrackDirectionElementView.fromJSON(data);
-
-      case ELEMENT_TYPES.TRACK_END:
-        return TrackEndElementView.fromJSON(data);
-
-      case ELEMENT_TYPES.TRACK_CORNER:
-        return TrackCornerElementView.fromJSON(data);
-
-      case ELEMENT_TYPES.TRACK_CURVE:
-        return TrackCurveElementView.fromJSON(data);
-
-      case ELEMENT_TYPES.TRACK_CROSSING:
-        return TrackCrossingElementView.fromJSON(data);
-
-      case ELEMENT_TYPES.TRACK_TURNOUT_LEFT:
-        return TrackTurnoutLeftElementView.fromJSON(data);
-
-      case ELEMENT_TYPES.TRACK_TURNOUT_RIGHT:
-        return TrackTurnoutRightElementView.fromJSON(data);
-
-      case ELEMENT_TYPES.TRACK_TURNOUT_TWO_WAY:
-        return TrackTurnoutTwoWayElementView.fromJSON(data);
-
-      case ELEMENT_TYPES.TRACK_TURNOUT_DOUBLE:
-        return TrackTurnoutDoubleElementView.fromJSON(data);
-
-      case ELEMENT_TYPES.TRACK_SENSOR:
-        return TrackSensorElementView.fromJSON(data);
-
-      /**
-       * All old signal element names now migrate into the one dynamic signal.
-       */
+      case ELEMENT_TYPES.TRACK_STRAIGHT: return TrackStraightElementView.fromJSON(data);
+      case ELEMENT_TYPES.TRACK_LEVEL_CROSSING: return TrackLevelCrossingElementView.fromJSON(data);
+      case ELEMENT_TYPES.TRACK_DIRECTION: return TrackDirectionElementView.fromJSON(data);
+      case ELEMENT_TYPES.TRACK_END: return TrackEndElementView.fromJSON(data);
+      case ELEMENT_TYPES.TRACK_CORNER: return TrackCornerElementView.fromJSON(data);
+      case ELEMENT_TYPES.TRACK_CURVE: return TrackCurveElementView.fromJSON(data);
+      case ELEMENT_TYPES.TRACK_CROSSING: return TrackCrossingElementView.fromJSON(data);
+      case ELEMENT_TYPES.TRACK_TURNOUT_LEFT: return TrackTurnoutLeftElementView.fromJSON(data);
+      case ELEMENT_TYPES.TRACK_TURNOUT_RIGHT: return TrackTurnoutRightElementView.fromJSON(data);
+      case ELEMENT_TYPES.TRACK_TURNOUT_TWO_WAY: return TrackTurnoutTwoWayElementView.fromJSON(data);
+      case ELEMENT_TYPES.TRACK_TURNOUT_THREE_WAY: return TrackTurnoutThreeWayElementView.fromJSON(data);
+      case ELEMENT_TYPES.TRACK_TURNOUT_DOUBLE: return TrackTurnoutDoubleElementView.fromJSON(data);
+      case ELEMENT_TYPES.TRACK_SENSOR: return TrackSensorElementView.fromJSON(data);
       case ELEMENT_TYPES.TRACK_SIGNAL2:
       case ELEMENT_TYPES.TRACK_SIGNAL3:
       case ELEMENT_TYPES.TRACK_SIGNAL4:
         return TrackSignalElementView.fromJSON(data);
-
-      case ELEMENT_TYPES.BUTTON:
-        return ButtonElementView.fromJSON(data);
-
-      case ELEMENT_TYPES.BUTTON_SCRIPT:
-        return ButtonScriptElementView.fromJSON(data);
-
-      case ELEMENT_TYPES.BUTTON_AUDIO:
-        return AudioButtonElementView.fromJSON(data);
-
-      case ELEMENT_TYPES.BUTTON_AUDIO_LIST:
-        return AudioListButtonElementView.fromJSON(data);
-
-      case ELEMENT_TYPES.BUTTON_ROUTE:
-        return RouteButtonElementView.fromJSON(data);
-
-      case ELEMENT_TYPES.BUTTON_ROUTE_EXTENDED:
-        return ExtendedRouteButtonElementView.fromJSON(data);
-
-      case ELEMENT_TYPES.CLOCK:
-        return ClockElementView.fromJSON(data);
-
-      case ELEMENT_TYPES.TRACK_BLOCK:
-        return BlockElementView.fromJSON(data);
-
-      case ELEMENT_TYPES.TREE:
-        return TreeElementView.fromJSON(data);
-
-      case ELEMENT_TYPES.LABEL:
-        return LabelElementView.fromJSON(data);
-
+      case ELEMENT_TYPES.BUTTON: return ButtonElementView.fromJSON(data);
+      case ELEMENT_TYPES.BUTTON_SCRIPT: return ButtonScriptElementView.fromJSON(data);
+      case ELEMENT_TYPES.BUTTON_AUDIO: return AudioButtonElementView.fromJSON(data);
+      case ELEMENT_TYPES.BUTTON_AUDIO_LIST: return AudioListButtonElementView.fromJSON(data);
+      case ELEMENT_TYPES.BUTTON_ROUTE: return RouteButtonElementView.fromJSON(data);
+      case ELEMENT_TYPES.BUTTON_ROUTE_EXTENDED: return ExtendedRouteButtonElementView.fromJSON(data);
+      case ELEMENT_TYPES.CLOCK: return ClockElementView.fromJSON(data);
+      case ELEMENT_TYPES.TRACK_BLOCK: return BlockElementView.fromJSON(data);
+      case ELEMENT_TYPES.TREE: return TreeElementView.fromJSON(data);
+      case ELEMENT_TYPES.LABEL: return LabelElementView.fromJSON(data);
       default:
-        throw new Error(
-          `Unsupported element type: ${(data as { type?: string }).type}`
-        );
+        throw new Error(`Unsupported element type: ${(data as { type?: string }).type}`);
     }
   }
 
