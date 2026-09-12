@@ -1,7 +1,7 @@
 import {
   Box,
   Group,
-  Popover,
+  Paper,
   Stack,
 } from "@mantine/core";
 
@@ -216,97 +216,200 @@ function setDoubleTurnoutPosition(
   );
 }
 
+function isMobileLikePointer(): boolean {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return (
+    window.matchMedia?.("(pointer: coarse)").matches === true ||
+    navigator.maxTouchPoints > 0
+  );
+}
+
+function getPanelPosition(
+  x: number,
+  y: number
+): {
+  left: number;
+  top: number;
+} {
+  const panelWidth = 210;
+  const panelHeight = 86;
+  const margin = 8;
+
+  const viewportWidth =
+    typeof window !== "undefined"
+      ? window.innerWidth
+      : 1024;
+
+  const viewportHeight =
+    typeof window !== "undefined"
+      ? window.innerHeight
+      : 768;
+
+  let left = x + 12;
+  let top = y + 12;
+
+  if (
+    left + panelWidth + margin >
+    viewportWidth
+  ) {
+    left =
+      x - panelWidth - 12;
+  }
+
+  if (
+    top + panelHeight + margin >
+    viewportHeight
+  ) {
+    top =
+      y - panelHeight - 12;
+  }
+
+  return {
+    left: Math.max(
+      margin,
+      Math.min(
+        left,
+        viewportWidth -
+          panelWidth -
+          margin
+      )
+    ),
+    top: Math.max(
+      margin,
+      Math.min(
+        top,
+        viewportHeight -
+          panelHeight -
+          margin
+      )
+    ),
+  };
+}
+
 export function TrackCanvasDoubleTurnoutPopover({
   state,
   onClose,
 }: TrackCanvasDoubleTurnoutPopoverProps) {
-  const turnout = state.turnout;
+  if (
+    !state.opened ||
+    !state.turnout
+  ) {
+    return null;
+  }
+
+  const turnout =
+    state.turnout;
+
+  const mobileCentered =
+    isMobileLikePointer();
+
+  const position =
+    getPanelPosition(
+      state.x,
+      state.y
+    );
 
   return (
-    <Popover
-      opened={state.opened}
-      onChange={opened => {
-        if (!opened) {
-          onClose();
-        }
-      }}
-      withArrow
-      shadow="xl"
-      closeOnClickOutside
-      closeOnEscape
-      withinPortal
-      offset={18}
-      transitionProps={{
-        transition: "scale",
-        duration: 200,
-        timingFunction: "ease-out",
-      }}
-    >
-      <Popover.Target>
-        <Box
-          p={4}
-          style={{
-            position: "fixed",
-            left: state.x,
-            top: state.y,
-            width: 0,
-            height: 0,
-            pointerEvents: "none",
-          }}
-        />
-      </Popover.Target>
-
-      <Popover.Dropdown
-        p={4}
-        onPointerDown={event => {
-          event.stopPropagation();
+    <>
+      <Box
+        style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 1999,
+          background: "transparent",
+          touchAction: "none",
         }}
-        onMouseDown={event => {
+        onPointerDown={event => {
+          event.preventDefault();
+          event.stopPropagation();
+          onClose();
+        }}
+      />
+
+      <Paper
+        withBorder
+        shadow="xl"
+        radius="md"
+        p={6}
+        style={{
+          position: "fixed",
+          left: mobileCentered
+            ? "50%"
+            : position.left,
+          top: mobileCentered
+            ? "50%"
+            : position.top,
+          transform: mobileCentered
+            ? "translate(-50%, -50%)"
+            : undefined,
+          zIndex: 2000,
+          background:
+            "var(--mantine-color-dark-7)",
+          touchAction: "manipulation",
+        }}
+        onPointerDown={event => {
           event.stopPropagation();
         }}
         onClick={event => {
           event.stopPropagation();
         }}
       >
-        <Stack gap="xs">
-          <Group gap={4}>
-            {turnout &&
-              DOUBLE_TURNOUT_POSITIONS.map(
-                position => (
-                  <Box
-                    key={position.label}
-                    className="signal-aspect-button"
-                    onClick={() => {
-                      onClose();
+        <Stack gap={4}>
+          <Group
+            gap={4}
+            wrap="nowrap"
+          >
+            {DOUBLE_TURNOUT_POSITIONS.map(
+              turnoutPosition => (
+                <Box
+                  key={
+                    turnoutPosition.label
+                  }
+                  className="signal-aspect-button"
+                  style={{
+                    cursor: "pointer",
+                    touchAction:
+                      "manipulation",
+                  }}
+                  onPointerDown={
+                    event => {
+                      event.stopPropagation();
+                    }
+                  }
+                  onClick={() => {
+                    setDoubleTurnoutPosition(
+                      turnout,
+                      turnoutPosition
+                    );
 
-                      setDoubleTurnoutPosition(
-                        turnout,
-                        position
-                      );
+                    onClose();
+                  }}
+                >
+                  <ElementPreview
+                    style={{
+                      cursor: "pointer",
                     }}
-                  >
-                    <ElementPreview
-                      style={{
-                        cursor: "pointer",
-                      }}
-                      element={
-                        createDoubleTurnoutPreview(
-                          turnout,
-                          position
-                        )
-                      }
-                      label={
-                        position.label
-                      }
-                      width={40}
-                      height={40}
-                    />
-                  </Box>
-                )
-              )}
+                    element={
+                      createDoubleTurnoutPreview(
+                        turnout,
+                        turnoutPosition
+                      )
+                    }
+                    label={
+                      turnoutPosition.label
+                    }
+                    width={40}
+                    height={40}
+                  />
+                </Box>
+              )
+            )}
           </Group>
         </Stack>
-      </Popover.Dropdown>
-    </Popover>
+      </Paper>
+    </>
   );
 }

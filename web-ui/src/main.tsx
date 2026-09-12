@@ -55,6 +55,7 @@ import {
 import App from "./App";
 import FirstRunWelcome from "@/components/FirstRunWelcome";
 import "./styles.css";
+import "./mobile-drive-split.css";
 
 installTurnoutAccessoryModes();
 installOccupancySensorProperties();
