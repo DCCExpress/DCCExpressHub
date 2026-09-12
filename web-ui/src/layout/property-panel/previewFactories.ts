@@ -4,6 +4,7 @@ import { TrackSignalElementView } from "../../models/editor/elements/TrackSignal
 import TrackTurnoutDoubleElementView from "../../models/editor/elements/TrackTurnoutDoubleElementView";
 import { TrackTurnoutLeftElementView } from "../../models/editor/elements/TrackTurnoutLeftElementView";
 import { TrackTurnoutRightElementView } from "../../models/editor/elements/TrackTurnoutRightElementView";
+import { TrackTurnoutTwoWayElementView } from "../../models/editor/elements/TrackTurnoutTwoWayElementView";
 
 export type SignalPreviewColor = 1 | 2 | 3 | 4;
 
@@ -17,21 +18,35 @@ export function createTurnoutPreview(
   selectedElement: BaseElementView,
   closed: boolean
 ): BaseElementView {
+  let turnout:
+    | TrackTurnoutLeftElementView
+    | TrackTurnoutRightElementView
+    | TrackTurnoutTwoWayElementView;
+
   if (selectedElement.type === ELEMENT_TYPES.TRACK_TURNOUT_LEFT) {
-    const turnout = new TrackTurnoutLeftElementView(0, 0);
-    turnout.rotation = selectedElement.rotation;
-    turnout.turnoutClosed = closed === turnout.turnoutClosedValue;
-    return turnout;
+    turnout = new TrackTurnoutLeftElementView(0, 0);
+  } else if (selectedElement.type === ELEMENT_TYPES.TRACK_TURNOUT_RIGHT) {
+    turnout = new TrackTurnoutRightElementView(0, 0);
+  } else if (selectedElement.type === ELEMENT_TYPES.TRACK_TURNOUT_TWO_WAY) {
+    turnout = new TrackTurnoutTwoWayElementView(0, 0);
+  } else {
+    return createFallbackTurnoutPreview();
   }
 
-  if (selectedElement.type === ELEMENT_TYPES.TRACK_TURNOUT_RIGHT) {
-    const turnout = new TrackTurnoutRightElementView(0, 0);
-    turnout.rotation = selectedElement.rotation;
-    turnout.turnoutClosed = closed === turnout.turnoutClosedValue;
-    return turnout;
-  }
+  const source = selectedElement as
+    | TrackTurnoutLeftElementView
+    | TrackTurnoutRightElementView
+    | TrackTurnoutTwoWayElementView;
 
-  return createFallbackTurnoutPreview();
+  turnout.rotation = selectedElement.rotation;
+  turnout.turnoutAddress = source.turnoutAddress;
+  turnout.outputMode = source.outputMode;
+  turnout.turnoutClosedValue = source.turnoutClosedValue;
+  turnout.turnoutClosed = closed
+    ? turnout.turnoutClosedValue
+    : !turnout.turnoutClosedValue;
+
+  return turnout;
 }
 
 export function createDoubleTurnoutPreview(

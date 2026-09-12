@@ -227,6 +227,9 @@ export interface TrackTurnoutRightElementDto extends TrackElementDto {
 
 export interface TrackTurnoutTwoWayElementDto extends TrackElementDto {
   type: "trackturnouttwoway";
+  outputMode?: OutputCommandModeDto;
+  turnoutAddress: number;
+  turnoutClosedValue: boolean;
 }
 
 export interface TrackTurnoutDoubleElementDto extends TrackElementDto {

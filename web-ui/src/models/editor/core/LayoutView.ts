@@ -20,6 +20,9 @@ import {
 import {
   TrackTurnoutRightElementView,
 } from "../elements/TrackTurnoutRightElementView";
+import {
+  TrackTurnoutTwoWayElementView,
+} from "../elements/TrackTurnoutTwoWayElementView";
 import type {
   DrawOptions,
 } from "../types/EditorTypes";
@@ -59,14 +62,16 @@ type LayoutTrackElement =
 
 export type RouteTurnoutElement =
   | TrackTurnoutLeftElementView
-  | TrackTurnoutRightElementView;
+  | TrackTurnoutRightElementView
+  | TrackTurnoutTwoWayElementView;
 
 export function isTurnoutElement(
   element: BaseElementView | null | undefined
 ): element is RouteTurnoutElement {
   return (
     element instanceof TrackTurnoutLeftElementView ||
-    element instanceof TrackTurnoutRightElementView
+    element instanceof TrackTurnoutRightElementView ||
+    element instanceof TrackTurnoutTwoWayElementView
   );
 }
 

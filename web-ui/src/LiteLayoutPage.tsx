@@ -73,6 +73,7 @@ import { TrackStraightElementView } from "@/models/editor/elements/TrackStraight
 import TrackTurnoutDoubleElementView from "@/models/editor/elements/TrackTurnoutDoubleElementView";
 import { TrackTurnoutLeftElementView } from "@/models/editor/elements/TrackTurnoutLeftElementView";
 import { TrackTurnoutRightElementView } from "@/models/editor/elements/TrackTurnoutRightElementView";
+import { TrackTurnoutTwoWayElementView } from "@/models/editor/elements/TrackTurnoutTwoWayElementView";
 import { LabelElementView } from "@/models/editor/elements/LabelElementView";
 import { RouteButtonElementView } from "@/models/editor/elements/RouteButtonElementView";
 import ElementPreview from "@/models/editor/rendering/ElementPreviewRenderer";
@@ -277,6 +278,7 @@ const PICKER_ITEMS: PickerItem[] = [
   { type: ELEMENT_TYPES.TRACK_CROSSING, label: "Crossing", preview: new TrackCrossingElementView(0, 0) },
   { type: ELEMENT_TYPES.TRACK_TURNOUT_LEFT, label: "Left turnout", preview: new TrackTurnoutLeftElementView(0, 0) },
   { type: ELEMENT_TYPES.TRACK_TURNOUT_RIGHT, label: "Right turnout", preview: new TrackTurnoutRightElementView(0, 0) },
+  { type: ELEMENT_TYPES.TRACK_TURNOUT_TWO_WAY, label: "Y turnout", preview: new TrackTurnoutTwoWayElementView(0, 0) },
   { type: ELEMENT_TYPES.TRACK_TURNOUT_DOUBLE, label: "Double turnout", preview: new TrackTurnoutDoubleElementView(0, 0) },
   { type: ELEMENT_TYPES.TRACK_SENSOR, label: "Sensor", preview: new TrackSensorElementView(0, 0) },
   { type: ELEMENT_TYPES.TRACK_BLOCK, label: "Block", preview: new BlockElementView(0, 0) },

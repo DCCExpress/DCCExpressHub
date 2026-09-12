@@ -4,8 +4,6 @@ import { useTranslation } from "react-i18next";
 
 import { BaseElementView } from "../models/editor/core/BaseElementView";
 import { isTurnoutElement } from "../models/editor/core/LayoutView";
-import { TrackTurnoutLeftElementView } from "../models/editor/elements/TrackTurnoutLeftElementView";
-import { TrackTurnoutRightElementView } from "../models/editor/elements/TrackTurnoutRightElementView";
 import TrackTurnoutDoubleElementView from "../models/editor/elements/TrackTurnoutDoubleElementView";
 import { AudioButtonElementView } from "../models/editor/elements/AudioButtonElementView";
 import { BlockElementView } from "../models/editor/elements/BlockElementView";
@@ -444,8 +442,7 @@ export default function TrackCanvas({
 
     if (turnoutSelectionMode) {
       for (const elem of elems) {
-        elem.enabled = elem instanceof TrackTurnoutLeftElementView ||
-          elem instanceof TrackTurnoutRightElementView;
+        elem.enabled = isTurnoutElement(elem);
       }
 
       if (selectedElementRef.current instanceof RouteButtonElementView) {

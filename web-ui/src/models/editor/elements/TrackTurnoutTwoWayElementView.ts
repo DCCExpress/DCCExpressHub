@@ -1,4 +1,10 @@
 import {
+  drawTurnoutElement,
+  getTurnoutEditableProperties,
+  mouseDownTurnout,
+  toggleTurnout,
+} from "../core/view/support/TrackTurnoutElementViewSupport";
+import {
   beginElementDraw,
   degreesToRadians,
   drawElementBounds,
@@ -37,12 +43,9 @@ import {
   ELEMENT_TYPES,
 } from "@domain/layout/elementTypes";
 import {
-  drawTextWithRoundedBackground,
-} from "../../../graphics";
-import {
   generateId,
 } from "../../../helpers";
-import {
+import type {
   DrawOptions,
   ITrackTurnoutTwoWayElement,
 } from "../types/EditorTypes";
@@ -50,27 +53,25 @@ import {
 export class TrackTurnoutTwoWayElementView
   extends CommonTrackTurnoutTwoWayElement
   implements ITrackTurnoutTwoWayElement {
-  get stateColor(): string {
-    return getTrackStateColor(this);
-  }
-
-  drawSectionInfo(
-    ctx: CanvasRenderingContext2D,
-    options?: DrawOptions
-  ): void {
-    drawTrackSectionInfo(this, ctx, options);
-  }
-
-  getTravelDirectionArrow(): string {
-    return getTrackTravelDirectionArrow(this);
-  }
-
+  turnoutLockedColor: string | CanvasGradient | CanvasPattern = "red";
+  turnoutUnLockedColor: string | CanvasGradient | CanvasPattern = "white";
 
   selected: boolean = false;
   marked: boolean = false;
   enabled: boolean = true;
   alpha: number = 0.5;
   debug: boolean = false;
+
+  type: typeof ELEMENT_TYPES.TRACK_TURNOUT_TWO_WAY =
+    ELEMENT_TYPES.TRACK_TURNOUT_TWO_WAY;
+
+  constructor(x: number, y: number) {
+    super(x, y);
+  }
+
+  get stateColor(): string {
+    return getTrackStateColor(this);
+  }
 
   get GridSizeX(): number {
     return getGridSizeX();
@@ -180,7 +181,7 @@ export class TrackTurnoutTwoWayElementView
   }
 
   mouseDown(ev: MouseEvent): void {
-    noopMouseHandler(ev);
+    mouseDownTurnout(this, ev);
   }
 
   mouseUp(ev: MouseEvent): void {
@@ -203,53 +204,41 @@ export class TrackTurnoutTwoWayElementView
     drawElementNeighbors(this, ctx);
   }
 
+  drawSectionInfo(
+    ctx: CanvasRenderingContext2D,
+    options?: DrawOptions
+  ): void {
+    drawTrackSectionInfo(this, ctx, options);
+  }
+
+  getTravelDirectionArrow(): string {
+    return getTrackTravelDirectionArrow(this);
+  }
+
   getEditableProperties() {
-    return getBaseEditableProperties();
+    return getTurnoutEditableProperties(
+      getBaseEditableProperties()
+    );
   }
 
   getHelp(): string {
     return getBaseHelp();
   }
 
-
-  type: typeof ELEMENT_TYPES.TRACK_TURNOUT_TWO_WAY =
-    ELEMENT_TYPES.TRACK_TURNOUT_TWO_WAY;
-
-  turnoutLocked: string | CanvasGradient | CanvasPattern = "yellow";
-  turnoutUnLocked: string | CanvasGradient | CanvasPattern = "red";
-
-  constructor(x: number, y: number) {
-    super(x, y);
+  toggle(): void {
+    toggleTurnout(this);
   }
 
   draw(
     ctx: CanvasRenderingContext2D,
     options?: DrawOptions
   ): void {
-    if (!this.visible) return;
-
-    this.beginDraw(ctx, options);
-    this.drawTurnout(ctx, false);
-    this.endDraw(ctx);
-
-    this.beginDraw(ctx);
-
-    if (options?.showTurnoutAddress) {
-      drawTextWithRoundedBackground(
-        ctx,
-        this.posLeft,
-        this.posBottom - 10,
-        "#" + this.turnoutAddress.toString()
-      );
-    }
-
-    this.endDraw(ctx);
-    this.drawSelection(ctx);
+    drawTurnoutElement(this, ctx, options);
   }
 
   drawTurnout(
     ctx: CanvasRenderingContext2D,
-    firstClosed: boolean
+    closed: boolean
   ): void {
     const dx = this.width / 5;
 
@@ -257,7 +246,7 @@ export class TrackTurnoutTwoWayElementView
     ctx.strokeStyle = this.TrackPrimaryColor;
     ctx.lineWidth = this.TrackWidth7;
 
-    if (this.rotation % 90 == 0) {
+    if (this.rotation % 90 === 0) {
       ctx.translate(this.centerX, this.centerY);
       ctx.rotate(this.rotation * Math.PI / 180);
       ctx.translate(-this.centerX, -this.centerY);
@@ -276,25 +265,13 @@ export class TrackTurnoutTwoWayElementView
       ctx.moveTo(this.posLeft + dx, this.centerY);
       ctx.lineTo(this.centerX, this.centerY);
 
-      if (firstClosed) {
+      if (closed) {
         ctx.lineTo(this.posRight - dx, this.posTop + dx);
       } else {
-        ctx.moveTo(this.centerX, this.centerY);
         ctx.lineTo(this.posRight - dx, this.posBottom - dx);
       }
 
       ctx.stroke();
-
-      if (this.selected) {
-        ctx.beginPath();
-        ctx.strokeStyle = "red";
-        ctx.moveTo(this.posRight - 3, this.centerY);
-        ctx.lineTo(this.posRight - 6, this.centerY - 2);
-        ctx.lineTo(this.posRight - 6, this.centerY + 2);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-      }
     } else {
       ctx.translate(this.centerX, this.centerY);
       ctx.rotate((this.rotation + 45) * Math.PI / 180);
@@ -314,30 +291,13 @@ export class TrackTurnoutTwoWayElementView
       ctx.moveTo(this.posLeft + dx, this.posBottom - dx);
       ctx.lineTo(this.centerX, this.centerY);
 
-      if (firstClosed) {
+      if (closed) {
         ctx.lineTo(this.centerX, this.posTop + dx);
       } else {
-        ctx.moveTo(this.centerX, this.centerY);
         ctx.lineTo(this.posRight - dx, this.centerY);
       }
 
       ctx.stroke();
-
-      if (this.selected) {
-        ctx.translate(this.centerX, this.centerY);
-        ctx.rotate(-this.rotation * Math.PI * 180);
-        ctx.rotate((this.rotation - 45) * Math.PI * 180);
-        ctx.translate(-this.centerX, -this.centerY);
-
-        ctx.beginPath();
-        ctx.strokeStyle = "red";
-        ctx.moveTo(this.posRight - 3, this.centerY);
-        ctx.lineTo(this.posRight - 6, this.centerY - 2);
-        ctx.lineTo(this.posRight - 6, this.centerY + 2);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-      }
     }
 
     ctx.beginPath();
@@ -345,8 +305,8 @@ export class TrackTurnoutTwoWayElementView
     ctx.strokeStyle = "black";
     ctx.fillStyle =
       this.locked
-        ? this.turnoutLocked
-        : this.turnoutUnLocked;
+        ? this.turnoutLockedColor
+        : this.turnoutUnLockedColor;
 
     ctx.arc(this.centerX, this.centerY, 3, 0, 2 * Math.PI);
     ctx.fill();
@@ -359,6 +319,9 @@ export class TrackTurnoutTwoWayElementView
       type: ELEMENT_TYPES.TRACK_TURNOUT_TWO_WAY,
       address: this.address,
       length: this.length,
+      turnoutAddress: this.turnoutAddress,
+      outputMode: this.outputMode,
+      turnoutClosedValue: this.turnoutClosedValue,
     };
   }
 
@@ -377,6 +340,9 @@ export class TrackTurnoutTwoWayElementView
     element.rotationStep = data.rotationStep;
     element.address = data.address;
     element.length = data.length;
+    element.turnoutAddress = data.turnoutAddress ?? 0;
+    element.outputMode = data.outputMode === "vpin" ? "vpin" : "accessory";
+    element.turnoutClosedValue = data.turnoutClosedValue ?? false;
     element.bg = data.bg;
     element.fg = data.fg;
 
@@ -396,6 +362,9 @@ export class TrackTurnoutTwoWayElementView
     copy.address = this.address;
     copy.length = this.length;
     copy.turnoutAddress = this.turnoutAddress;
+    copy.outputMode = this.outputMode;
+    copy.turnoutClosedValue = this.turnoutClosedValue;
+    copy.turnoutClosed = this.turnoutClosed;
 
     return copy;
   }
