@@ -177,34 +177,35 @@ export class TrackTurnoutThreeWayElementView
   ): void {
     if (this.locked || !this.enabled) return;
 
-    const firstLogicalClosed = position === "left";
-    const secondLogicalClosed = position === "right";
+    const bits =
+      this.getBitsForPosition(
+        position
+      );
 
-    const firstPhysical = physicalState(
-      this.turnout1ClosedValue,
-      firstLogicalClosed
-    );
+    this.turnout1Closed =
+      bits.first;
 
-    const secondPhysical = physicalState(
-      this.turnout2ClosedValue,
-      secondLogicalClosed
-    );
-
-    this.turnout1Closed = firstPhysical;
-    this.turnout2Closed = secondPhysical;
+    this.turnout2Closed =
+      bits.second;
 
     sendTurnoutOutput(
       String(this.outputMode),
       this.turnout1Address,
-      firstPhysical,
-      { closedValue: this.turnout1ClosedValue }
+      bits.first,
+      {
+        closedValue:
+          this.turnout1ClosedValue,
+      }
     );
 
     sendTurnoutOutput(
       String(this.outputMode),
       this.turnout2Address,
-      secondPhysical,
-      { closedValue: this.turnout2ClosedValue }
+      bits.second,
+      {
+        closedValue:
+          this.turnout2ClosedValue,
+      }
     );
   }
 
@@ -304,6 +305,12 @@ export class TrackTurnoutThreeWayElementView
       turnout2Address: this.turnout2Address,
       turnout1ClosedValue: this.turnout1ClosedValue,
       turnout2ClosedValue: this.turnout2ClosedValue,
+      leftMotor1Value: this.leftMotor1Value,
+      leftMotor2Value: this.leftMotor2Value,
+      straightMotor1Value: this.straightMotor1Value,
+      straightMotor2Value: this.straightMotor2Value,
+      rightMotor1Value: this.rightMotor1Value,
+      rightMotor2Value: this.rightMotor2Value,
     };
   }
 
@@ -327,6 +334,24 @@ export class TrackTurnoutThreeWayElementView
     element.turnout1ClosedValue = data.turnout1ClosedValue ?? true;
     element.turnout2ClosedValue = data.turnout2ClosedValue ?? true;
 
+    const legacyFirstClosed = element.turnout1ClosedValue;
+    const legacyFirstOpened = !element.turnout1ClosedValue;
+    const legacySecondClosed = element.turnout2ClosedValue;
+    const legacySecondOpened = !element.turnout2ClosedValue;
+
+    element.leftMotor1Value =
+      data.leftMotor1Value ?? legacyFirstClosed;
+    element.leftMotor2Value =
+      data.leftMotor2Value ?? legacySecondOpened;
+    element.straightMotor1Value =
+      data.straightMotor1Value ?? legacyFirstOpened;
+    element.straightMotor2Value =
+      data.straightMotor2Value ?? legacySecondOpened;
+    element.rightMotor1Value =
+      data.rightMotor1Value ?? legacyFirstOpened;
+    element.rightMotor2Value =
+      data.rightMotor2Value ?? legacySecondClosed;
+
     return element;
   }
 
@@ -344,6 +369,12 @@ export class TrackTurnoutThreeWayElementView
     copy.turnout2Address = this.turnout2Address;
     copy.turnout1ClosedValue = this.turnout1ClosedValue;
     copy.turnout2ClosedValue = this.turnout2ClosedValue;
+    copy.leftMotor1Value = this.leftMotor1Value;
+    copy.leftMotor2Value = this.leftMotor2Value;
+    copy.straightMotor1Value = this.straightMotor1Value;
+    copy.straightMotor2Value = this.straightMotor2Value;
+    copy.rightMotor1Value = this.rightMotor1Value;
+    copy.rightMotor2Value = this.rightMotor2Value;
     copy.turnout1Closed = this.turnout1Closed;
     copy.turnout2Closed = this.turnout2Closed;
 

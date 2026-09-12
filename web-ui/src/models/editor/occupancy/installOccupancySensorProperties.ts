@@ -34,6 +34,9 @@ import TrackTurnoutDoubleElementView
 import {
   TrackTurnoutTwoWayElementView,
 } from "../elements/TrackTurnoutTwoWayElementView";
+import {
+  TrackTurnoutThreeWayElementView,
+} from "../elements/TrackTurnoutThreeWayElementView";
 
 type EditableElementPrototype = {
   getEditableProperties:
@@ -136,5 +139,8 @@ export function installOccupancySensorProperties():
   );
   extendEditableProperties(
     TrackTurnoutTwoWayElementView.prototype
+  );
+  extendEditableProperties(
+    TrackTurnoutThreeWayElementView.prototype
   );
 }

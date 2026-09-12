@@ -54,14 +54,23 @@ export function drawTurnoutElement(
   element.drawTurnout(ctx, element.isClosed);
   element.endDraw(ctx);
 
-  element.beginDraw(ctx);
+  element.beginDraw(ctx, options);
 
   if (options?.showTurnoutAddress) {
     drawTextWithRoundedBackground(
       ctx,
       element.posLeft,
       element.posBottom - 10,
-      "#" + element.turnoutAddress.toString()
+      "T#" + element.turnoutAddress.toString()
+    );
+  }
+
+  if (options?.showOccupancySensorAddress) {
+    drawTextWithRoundedBackground(
+      ctx,
+      element.posLeft,
+      element.posBottom + 2,
+      "S#" + element.address.toString()
     );
   }
 

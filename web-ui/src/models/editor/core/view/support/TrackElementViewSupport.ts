@@ -38,16 +38,20 @@ export type TrackElementViewSupportTarget =
 const occupancyByAddress =
   new Map<number, boolean>();
 
+function normalizeOccupancyAddress(value: unknown): number {
+  const address = Math.trunc(Number(value ?? 0));
+  return Number.isInteger(address) && address > 0 ? address : 0;
+}
+
 wsClient.on(
   "sensorChanged",
   data => {
-    if (
-      Number.isInteger(data.address) &&
-      data.address > 0
-    ) {
+    const address = normalizeOccupancyAddress(data.address);
+
+    if (address > 0) {
       occupancyByAddress.set(
-        data.address,
-        data.on
+        address,
+        Boolean(data.on)
       );
     }
   }
@@ -89,17 +93,23 @@ wsClient.on(
   }
 );
 
-function isTrackOccupied(
+export function isTrackOccupied(
   element: TrackElementViewSupportTarget
 ): boolean {
-  const sensorOccupied =
-    element.address > 0 &&
-    occupancyByAddress.get(
+  const occupancyAddress =
+    normalizeOccupancyAddress(
       element.address
+    );
+
+  const sensorOccupied =
+    occupancyAddress > 0 &&
+    occupancyByAddress.get(
+      occupancyAddress
     ) === true;
 
   return (
     sensorOccupied ||
+    element.occupied === true ||
     element.state ===
       TrackStates.occupied
   );
