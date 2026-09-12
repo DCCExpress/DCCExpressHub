@@ -147,8 +147,69 @@ export default class TrackTurnoutDoubleElement
       value;
   }
 
+  private getConfiguredLogicalState(): {
+    firstClosed: boolean;
+    secondClosed: boolean;
+  } | null {
+    const first =
+      this.turnout1Closed;
+    const second =
+      this.turnout2Closed;
+
+    if (
+      first === this.ooMotor1Value &&
+      second === this.ooMotor2Value
+    ) {
+      return {
+        firstClosed: false,
+        secondClosed: false,
+      };
+    }
+
+    if (
+      first === this.ocMotor1Value &&
+      second === this.ocMotor2Value
+    ) {
+      return {
+        firstClosed: false,
+        secondClosed: true,
+      };
+    }
+
+    if (
+      first === this.coMotor1Value &&
+      second === this.coMotor2Value
+    ) {
+      return {
+        firstClosed: true,
+        secondClosed: false,
+      };
+    }
+
+    if (
+      first === this.ccMotor1Value &&
+      second === this.ccMotor2Value
+    ) {
+      return {
+        firstClosed: true,
+        secondClosed: true,
+      };
+    }
+
+    return null;
+  }
+
   get firstLogicalClosed():
     boolean {
+    const configured =
+      this.getConfiguredLogicalState();
+
+    if (configured) {
+      return configured.firstClosed;
+    }
+
+    // Backward-compatible fallback for a runtime bit pair
+    // that does not match any configured Double position.
     return (
       this.turnout1Closed ===
       this.turnout1ClosedValue
@@ -157,6 +218,15 @@ export default class TrackTurnoutDoubleElement
 
   get secondLogicalClosed():
     boolean {
+    const configured =
+      this.getConfiguredLogicalState();
+
+    if (configured) {
+      return configured.secondClosed;
+    }
+
+    // Backward-compatible fallback for a runtime bit pair
+    // that does not match any configured Double position.
     return (
       this.turnout2Closed ===
       this.turnout2ClosedValue
