@@ -522,20 +522,120 @@ function sendSingleTurnoutState(
   );
 }
 
+function doubleStateProperty(
+  label: string,
+  key:
+    | "ooMotor1Value"
+    | "ooMotor2Value"
+    | "ocMotor1Value"
+    | "ocMotor2Value"
+    | "coMotor1Value"
+    | "coMotor2Value"
+    | "ccMotor1Value"
+    | "ccMotor2Value"
+): IEditableProperty {
+  return {
+    label,
+    key,
+    type: "bittoggle",
+    readonly: false,
+    validate: () => true,
+  };
+}
+
+function doublePositionValues(
+  selectedElement:
+    TrackTurnoutDoubleElementView,
+  position: MultiTurnoutPosition
+): {
+  first: boolean;
+  second: boolean;
+  firstProperty: IEditableProperty;
+  secondProperty: IEditableProperty;
+} {
+  switch (position.label) {
+    case "O-C":
+      return {
+        first: selectedElement.ocMotor1Value,
+        second: selectedElement.ocMotor2Value,
+        firstProperty: doubleStateProperty(
+          "O-C motor 1",
+          "ocMotor1Value"
+        ),
+        secondProperty: doubleStateProperty(
+          "O-C motor 2",
+          "ocMotor2Value"
+        ),
+      };
+
+    case "C-O":
+      return {
+        first: selectedElement.coMotor1Value,
+        second: selectedElement.coMotor2Value,
+        firstProperty: doubleStateProperty(
+          "C-O motor 1",
+          "coMotor1Value"
+        ),
+        secondProperty: doubleStateProperty(
+          "C-O motor 2",
+          "coMotor2Value"
+        ),
+      };
+
+    case "C-C":
+      return {
+        first: selectedElement.ccMotor1Value,
+        second: selectedElement.ccMotor2Value,
+        firstProperty: doubleStateProperty(
+          "C-C motor 1",
+          "ccMotor1Value"
+        ),
+        secondProperty: doubleStateProperty(
+          "C-C motor 2",
+          "ccMotor2Value"
+        ),
+      };
+
+    case "O-O":
+    default:
+      return {
+        first: selectedElement.ooMotor1Value,
+        second: selectedElement.ooMotor2Value,
+        firstProperty: doubleStateProperty(
+          "O-O motor 1",
+          "ooMotor1Value"
+        ),
+        secondProperty: doubleStateProperty(
+          "O-O motor 2",
+          "ooMotor2Value"
+        ),
+      };
+  }
+}
+
 function sendDoubleTurnoutPosition(
   element:
     TrackTurnoutDoubleElementView,
   position: MultiTurnoutPosition
 ): void {
+  const values =
+    doublePositionValues(
+      element,
+      position
+    );
+
+  element.turnout1Closed =
+    values.first;
+
+  element.turnout2Closed =
+    values.second;
+
   sendTurnoutOutput(
     String(
       (element as any).outputMode
     ),
     element.turnout1Address,
-    getPhysicalValueForLogicalState(
-      element.turnout1ClosedValue,
-      position.firstClosed
-    ),
+    values.first,
     {
       closedValue:
         element.turnout1ClosedValue,
@@ -559,10 +659,7 @@ function sendDoubleTurnoutPosition(
       (element as any).outputMode
     ),
     element.turnout2Address,
-    getPhysicalValueForLogicalState(
-      element.turnout2ClosedValue,
-      position.secondClosed
-    ),
+    values.second,
     {
       closedValue:
         element.turnout2ClosedValue,
@@ -1058,118 +1155,6 @@ function renderThreeWayBasicEditor(
   );
 }
 
-function renderDoubleBasicEditor(
-  selectedElement:
-    TrackTurnoutDoubleElementView,
-  onChange: PropertyChangeHandler
-) {
-  const firstClosedValueProperty =
-    closedValueProperty(
-      "Turnout 1 Closed Value",
-      "turnout1ClosedValue"
-    );
-
-  const secondClosedValueProperty =
-    closedValueProperty(
-      "Turnout 2 Closed Value",
-      "turnout2ClosedValue"
-    );
-
-  return (
-    <Stack gap="xs">
-      <Text
-        size="sm"
-        fw={500}
-      >
-        Double turnout positions
-      </Text>
-
-      {DOUBLE_TURNOUT_POSITIONS.map(
-        position => {
-          const firstPhysicalValue =
-            getPhysicalValueForLogicalState(
-              selectedElement
-                .turnout1ClosedValue,
-              position.firstClosed
-            );
-
-          const secondPhysicalValue =
-            getPhysicalValueForLogicalState(
-              selectedElement
-                .turnout2ClosedValue,
-              position.secondClosed
-            );
-
-          return (
-            <Group
-              key={position.label}
-              justify="space-between"
-              align="center"
-              wrap="nowrap"
-            >
-              <Box className="route-turnout-preview-button">
-                <ElementPreview
-                  element={
-                    createDoubleTurnoutPreview(
-                      selectedElement,
-                      position.firstClosed,
-                      position.secondClosed
-                    )
-                  }
-                  label={
-                    position.label
-                  }
-                  width={46}
-                  height={46}
-                  onClick={() =>
-                    sendDoubleTurnoutPosition(
-                      selectedElement,
-                      position
-                    )
-                  }
-                />
-              </Box>
-
-              <Group
-                gap="xs"
-                wrap="nowrap"
-              >
-                <BitToggleElement
-                  value={
-                    firstPhysicalValue
-                  }
-                  onChange={value =>
-                    onChange(
-                      firstClosedValueProperty,
-                      position.firstClosed
-                        ? value
-                        : !value
-                    )
-                  }
-                />
-
-                <BitToggleElement
-                  value={
-                    secondPhysicalValue
-                  }
-                  onChange={value =>
-                    onChange(
-                      secondClosedValueProperty,
-                      position.secondClosed
-                        ? value
-                        : !value
-                    )
-                  }
-                />
-              </Group>
-            </Group>
-          );
-        }
-      )}
-    </Stack>
-  );
-}
-
 function renderDoubleExtendedEditor(
   selectedElement:
     TrackTurnoutDoubleElementView,
@@ -1332,6 +1317,103 @@ function renderDoubleExtendedEditor(
           )
         )}
       </Group>
+    </Stack>
+  );
+}
+
+function renderDoubleBasicEditor(
+  selectedElement:
+    TrackTurnoutDoubleElementView,
+  onChange: PropertyChangeHandler
+) {
+  return (
+    <Stack gap="xs">
+      <Text
+        size="sm"
+        fw={500}
+      >
+        Double turnout positions
+      </Text>
+
+      <Text
+        size="xs"
+        c="dimmed"
+      >
+        Each preview row stores its own
+        two physical output bits. Changing
+        one bit never changes another row.
+      </Text>
+
+      {DOUBLE_TURNOUT_POSITIONS.map(
+        position => {
+          const values =
+            doublePositionValues(
+              selectedElement,
+              position
+            );
+
+          return (
+            <Group
+              key={position.label}
+              justify="space-between"
+              align="center"
+              wrap="nowrap"
+            >
+              <Box className="route-turnout-preview-button">
+                <ElementPreview
+                  element={
+                    createDoubleTurnoutPreview(
+                      selectedElement,
+                      position.firstClosed,
+                      position.secondClosed
+                    )
+                  }
+                  label={
+                    position.label
+                  }
+                  width={46}
+                  height={46}
+                  onClick={() =>
+                    sendDoubleTurnoutPosition(
+                      selectedElement,
+                      position
+                    )
+                  }
+                />
+              </Box>
+
+              <Group
+                gap="xs"
+                wrap="nowrap"
+              >
+                <BitToggleElement
+                  value={
+                    values.first
+                  }
+                  onChange={value =>
+                    onChange(
+                      values.firstProperty,
+                      value
+                    )
+                  }
+                />
+
+                <BitToggleElement
+                  value={
+                    values.second
+                  }
+                  onChange={value =>
+                    onChange(
+                      values.secondProperty,
+                      value
+                    )
+                  }
+                />
+              </Group>
+            </Group>
+          );
+        }
+      )}
     </Stack>
   );
 }

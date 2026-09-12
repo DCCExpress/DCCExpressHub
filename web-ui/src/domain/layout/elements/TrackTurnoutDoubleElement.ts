@@ -1,3 +1,5 @@
+import "../doubleTurnoutDtoAugmentation.js";
+
 import {
   getDirectionXy,
 } from "../../helpers.js";
@@ -25,7 +27,8 @@ export type DoubleTurnoutSide =
   | "bStraight"
   | "bDiv";
 
-export type DoubleTurnoutConnections = Record<DoubleTurnoutSide, Point>;
+export type DoubleTurnoutConnections =
+  Record<DoubleTurnoutSide, Point>;
 
 export type DoubleTurnoutRoute = {
   from: DoubleTurnoutSide;
@@ -42,175 +45,324 @@ export type DoubleTurnoutRoute = {
   ];
 };
 
-export default class TrackTurnoutDoubleElement extends TrackElement {
-  override type: typeof ELEMENT_TYPES.TRACK_TURNOUT_DOUBLE =
+type DoubleStateBits = {
+  first: boolean;
+  second: boolean;
+};
+
+export default class TrackTurnoutDoubleElement
+  extends TrackElement {
+  override type:
+    typeof ELEMENT_TYPES.TRACK_TURNOUT_DOUBLE =
+      ELEMENT_TYPES.TRACK_TURNOUT_DOUBLE;
+
+  name: string =
     ELEMENT_TYPES.TRACK_TURNOUT_DOUBLE;
 
-  name: string = ELEMENT_TYPES.TRACK_TURNOUT_DOUBLE;
-  rotationStep: RotationStepDto = 45;
+  rotationStep:
+    RotationStepDto = 45;
 
-  turnout1Address: number = 0;
-  outputMode: OutputCommandModeDto = "accessory";
-  turnout2Address: number = 0;
-  turnout1ClosedValue: boolean = true;
-  turnout2ClosedValue: boolean = true;
+  turnout1Address:
+    number = 0;
+
+  outputMode:
+    OutputCommandModeDto =
+      "accessory";
+
+  turnout2Address:
+    number = 0;
+
+  turnout1ClosedValue:
+    boolean = true;
+
+  turnout2ClosedValue:
+    boolean = true;
 
   /**
-   * Runtime physical feedback values from the command center.
+   * Explicit physical two-bit output table for all four displayed positions.
+   * Every row is fully independent.
    */
-  turnout1Closed: boolean = false;
-  turnout2Closed: boolean = false;
+  ooMotor1Value:
+    boolean = false;
+  ooMotor2Value:
+    boolean = false;
 
-  /**
-   * Backward-compatible alias for legacy code paths that still treat a
-   * turnout as a single accessory. The first motor is exposed here; route
-   * graph edges still use both turnout1Address and turnout2Address.
-   */
-  get turnoutAddress(): number {
+  ocMotor1Value:
+    boolean = false;
+  ocMotor2Value:
+    boolean = true;
+
+  coMotor1Value:
+    boolean = true;
+  coMotor2Value:
+    boolean = false;
+
+  ccMotor1Value:
+    boolean = true;
+  ccMotor2Value:
+    boolean = true;
+
+  /** Runtime physical feedback values. */
+  turnout1Closed:
+    boolean = false;
+
+  turnout2Closed:
+    boolean = false;
+
+  get turnoutAddress():
+    number {
     return this.turnout1Address;
   }
 
-  set turnoutAddress(value: number) {
-    this.turnout1Address = value;
+  set turnoutAddress(
+    value: number
+  ) {
+    this.turnout1Address =
+      value;
   }
 
-  get turnoutClosedValue(): boolean {
-    return this.turnout1ClosedValue;
+  get turnoutClosedValue():
+    boolean {
+    return (
+      this.turnout1ClosedValue
+    );
   }
 
-  set turnoutClosedValue(value: boolean) {
-    this.turnout1ClosedValue = value;
+  set turnoutClosedValue(
+    value: boolean
+  ) {
+    this.turnout1ClosedValue =
+      value;
   }
 
-  get turnoutClosed(): boolean {
+  get turnoutClosed():
+    boolean {
     return this.turnout1Closed;
   }
 
-  set turnoutClosed(value: boolean) {
-    this.turnout1Closed = value;
+  set turnoutClosed(
+    value: boolean
+  ) {
+    this.turnout1Closed =
+      value;
   }
 
-  get firstLogicalClosed(): boolean {
-    return this.turnout1Closed === this.turnout1ClosedValue;
+  get firstLogicalClosed():
+    boolean {
+    return (
+      this.turnout1Closed ===
+      this.turnout1ClosedValue
+    );
   }
 
-  get secondLogicalClosed(): boolean {
-    return this.turnout2Closed === this.turnout2ClosedValue;
+  get secondLogicalClosed():
+    boolean {
+    return (
+      this.turnout2Closed ===
+      this.turnout2ClosedValue
+    );
   }
 
-  /**
-   * Publikus konstruktor kell, hogy a kliensoldali
-   * TrackElementViewMixin(CommonTrackTurnoutDoubleElement)
-   * használni tudja ezt a common domain osztályt.
-   */
-  constructor(x: number, y: number) {
+  constructor(
+    x: number,
+    y: number
+  ) {
     super(x, y);
   }
 
-  getConnections(): DoubleTurnoutConnections {
+  getBitsForRoute(
+    from: DoubleTurnoutSide,
+    to: DoubleTurnoutSide
+  ): DoubleStateBits {
+    const pair =
+      `${from}->${to}`;
+
+    const reverse =
+      `${to}->${from}`;
+
+    if (
+      pair ===
+        "aStraight->bDiv" ||
+      reverse ===
+        "aStraight->bDiv"
+    ) {
+      return {
+        first:
+          this.ocMotor1Value,
+        second:
+          this.ocMotor2Value,
+      };
+    }
+
+    if (
+      pair ===
+        "aDiv->bStraight" ||
+      reverse ===
+        "aDiv->bStraight"
+    ) {
+      return {
+        first:
+          this.coMotor1Value,
+        second:
+          this.coMotor2Value,
+      };
+    }
+
+    if (
+      pair ===
+        "aDiv->bDiv" ||
+      reverse ===
+        "aDiv->bDiv"
+    ) {
+      return {
+        first:
+          this.ccMotor1Value,
+        second:
+          this.ccMotor2Value,
+      };
+    }
+
     return {
-      aStraight: getDirectionXy(this.pos, this.rotation + 180),
-      aDiv: getDirectionXy(this.pos, this.rotation + 225),
-      bStraight: getDirectionXy(this.pos, this.rotation),
-      bDiv: getDirectionXy(this.pos, this.rotation + 45),
+      first:
+        this.ooMotor1Value,
+      second:
+        this.ooMotor2Value,
     };
   }
 
-  override getNeighborPointPairs(): NeighborPointPair[] {
-    const connections = this.getConnections();
+  getConnections():
+    DoubleTurnoutConnections {
+    return {
+      aStraight:
+        getDirectionXy(
+          this.pos,
+          this.rotation + 180
+        ),
+      aDiv:
+        getDirectionXy(
+          this.pos,
+          this.rotation + 225
+        ),
+      bStraight:
+        getDirectionXy(
+          this.pos,
+          this.rotation
+        ),
+      bDiv:
+        getDirectionXy(
+          this.pos,
+          this.rotation + 45
+        ),
+    };
+  }
+
+  override getNeighborPointPairs():
+    NeighborPointPair[] {
+    const c =
+      this.getConnections();
 
     return [
       [
-        connections.aStraight,
-        connections.bStraight,
+        c.aStraight,
+        c.bStraight,
       ],
       [
-        connections.aDiv,
-        connections.bDiv,
+        c.aDiv,
+        c.bDiv,
       ],
     ];
   }
 
-  override getNeigbordsXy(): Point[] {
-    const connections = this.getConnections();
+  override getNeigbordsXy():
+    Point[] {
+    const c =
+      this.getConnections();
 
     return [
-      connections.aStraight,
-      connections.aDiv,
-      connections.bStraight,
-      connections.bDiv,
+      c.aStraight,
+      c.aDiv,
+      c.bStraight,
+      c.bDiv,
     ];
   }
 
-  getAllowedRoutes(): DoubleTurnoutRoute[] {
+  getAllowedRoutes():
+    DoubleTurnoutRoute[] {
+    const route = (
+      from:
+        DoubleTurnoutSide,
+      to:
+        DoubleTurnoutSide
+    ): DoubleTurnoutRoute => {
+      const bits =
+        this.getBitsForRoute(
+          from,
+          to
+        );
+
+      return {
+        from,
+        to,
+        turnoutStates: [
+          {
+            address:
+              this.turnout1Address,
+            closed:
+              bits.first,
+          },
+          {
+            address:
+              this.turnout2Address,
+            closed:
+              bits.second,
+          },
+        ],
+      };
+    };
+
     return [
-      {
-        from: "aStraight",
-        to: "bStraight",
-        turnoutStates: [
-          {
-            address: this.turnout1Address,
-            closed: !this.turnout1ClosedValue,
-          },
-          {
-            address: this.turnout2Address,
-            closed: !this.turnout2ClosedValue,
-          },
-        ],
-      },
-      {
-        from: "aStraight",
-        to: "bDiv",
-        turnoutStates: [
-          {
-            address: this.turnout1Address,
-            closed: !this.turnout1ClosedValue,
-          },
-          {
-            address: this.turnout2Address,
-            closed: this.turnout2ClosedValue,
-          },
-        ],
-      },
-      {
-        from: "aDiv",
-        to: "bStraight",
-        turnoutStates: [
-          {
-            address: this.turnout1Address,
-            closed: this.turnout1ClosedValue,
-          },
-          {
-            address: this.turnout2Address,
-            closed: !this.turnout2ClosedValue,
-          },
-        ],
-      },
-      {
-        from: "aDiv",
-        to: "bDiv",
-        turnoutStates: [
-          {
-            address: this.turnout1Address,
-            closed: this.turnout1ClosedValue,
-          },
-          {
-            address: this.turnout2Address,
-            closed: this.turnout2ClosedValue,
-          },
-        ],
-      },
+      route(
+        "aStraight",
+        "bStraight"
+      ),
+      route(
+        "aStraight",
+        "bDiv"
+      ),
+      route(
+        "aDiv",
+        "bStraight"
+      ),
+      route(
+        "aDiv",
+        "bDiv"
+      ),
     ];
   }
 
   getSideConnectedToPoint(
     point: Point
-  ): DoubleTurnoutSide | undefined {
-    const connections = this.getConnections();
+  ):
+    | DoubleTurnoutSide
+    | undefined {
+    const c =
+      this.getConnections();
 
-    for (const [side, connectionPoint] of Object.entries(connections)) {
-      if (connectionPoint.isEqual(point)) {
-        return side as DoubleTurnoutSide;
+    for (
+      const [
+        side,
+        connectionPoint,
+      ] of Object.entries(c)
+    ) {
+      if (
+        connectionPoint.isEqual(
+          point
+        )
+      ) {
+        return (
+          side as
+            DoubleTurnoutSide
+        );
       }
     }
 
@@ -218,22 +370,39 @@ export default class TrackTurnoutDoubleElement extends TrackElement {
   }
 
   getOppositeRoutesFromSide(
-    side: DoubleTurnoutSide
-  ): DoubleTurnoutRoute[] {
-    return this.getAllowedRoutes().filter(
-      route => route.from === side || route.to === side
+    side:
+      DoubleTurnoutSide
+  ):
+    DoubleTurnoutRoute[] {
+    return (
+      this.getAllowedRoutes()
+        .filter(
+          route =>
+            route.from === side ||
+            route.to === side
+        )
     );
   }
 
   getRouteExitSide(
-    route: DoubleTurnoutRoute,
-    enteredSide: DoubleTurnoutSide
-  ): DoubleTurnoutSide | undefined {
-    if (route.from === enteredSide) {
+    route:
+      DoubleTurnoutRoute,
+    enteredSide:
+      DoubleTurnoutSide
+  ):
+    | DoubleTurnoutSide
+    | undefined {
+    if (
+      route.from ===
+      enteredSide
+    ) {
       return route.to;
     }
 
-    if (route.to === enteredSide) {
+    if (
+      route.to ===
+      enteredSide
+    ) {
       return route.from;
     }
 
@@ -241,33 +410,127 @@ export default class TrackTurnoutDoubleElement extends TrackElement {
   }
 
   static fromJSON(
-    data: TrackTurnoutDoubleElementDto
-  ): TrackTurnoutDoubleElement {
-    const element = new TrackTurnoutDoubleElement(data.x, data.y);
-    element.id = data.id;
-    element.name = data.name;
-    element.layerName = data.layerName;
-    element.rotation = data.rotation;
-    element.rotationStep = data.rotationStep;
-    element.address = data.address;
-    element.length = data.length;
-    element.bg = data.bg;
-    element.fg = data.fg;
-    element.turnout1Address = data.turnout1Address;
-    element.turnout2Address = data.turnout2Address;
-    element.turnout1ClosedValue = data.turnout1ClosedValue ?? element.turnout1ClosedValue;
-    element.turnout2ClosedValue = data.turnout2ClosedValue ?? element.turnout2ClosedValue;
+    data:
+      TrackTurnoutDoubleElementDto
+  ):
+    TrackTurnoutDoubleElement {
+    const element =
+      new TrackTurnoutDoubleElement(
+        data.x,
+        data.y
+      );
+
+    element.id =
+      data.id;
+    element.name =
+      data.name;
+    element.layerName =
+      data.layerName;
+    element.rotation =
+      data.rotation;
+    element.rotationStep =
+      data.rotationStep;
+    element.address =
+      data.address;
+    element.length =
+      data.length;
+    element.bg =
+      data.bg;
+    element.fg =
+      data.fg;
+
+    element.turnout1Address =
+      data.turnout1Address;
+    element.turnout2Address =
+      data.turnout2Address;
+
+    element.outputMode =
+      data.outputMode ===
+        "vpin"
+        ? "vpin"
+        : "accessory";
+
+    element.turnout1ClosedValue =
+      data.turnout1ClosedValue ??
+      element.turnout1ClosedValue;
+
+    element.turnout2ClosedValue =
+      data.turnout2ClosedValue ??
+      element.turnout2ClosedValue;
+
+    const firstClosed =
+      element.turnout1ClosedValue;
+    const firstOpened =
+      !element.turnout1ClosedValue;
+    const secondClosed =
+      element.turnout2ClosedValue;
+    const secondOpened =
+      !element.turnout2ClosedValue;
+
+    element.ooMotor1Value =
+      data.ooMotor1Value ??
+      firstOpened;
+    element.ooMotor2Value =
+      data.ooMotor2Value ??
+      secondOpened;
+
+    element.ocMotor1Value =
+      data.ocMotor1Value ??
+      firstOpened;
+    element.ocMotor2Value =
+      data.ocMotor2Value ??
+      secondClosed;
+
+    element.coMotor1Value =
+      data.coMotor1Value ??
+      firstClosed;
+    element.coMotor2Value =
+      data.coMotor2Value ??
+      secondOpened;
+
+    element.ccMotor1Value =
+      data.ccMotor1Value ??
+      firstClosed;
+    element.ccMotor2Value =
+      data.ccMotor2Value ??
+      secondClosed;
+
     return element;
   }
 
-  override toJSON(): TrackTurnoutDoubleElementDto {
+  override toJSON():
+    TrackTurnoutDoubleElementDto {
     return {
       ...super.toJSON(),
-      type: ELEMENT_TYPES.TRACK_TURNOUT_DOUBLE,
-      turnout1Address: this.turnout1Address,
-      turnout2Address: this.turnout2Address,
-      turnout1ClosedValue: this.turnout1ClosedValue,
-      turnout2ClosedValue: this.turnout2ClosedValue,
+      type:
+        ELEMENT_TYPES
+          .TRACK_TURNOUT_DOUBLE,
+      turnout1Address:
+        this.turnout1Address,
+      turnout2Address:
+        this.turnout2Address,
+      outputMode:
+        this.outputMode,
+      turnout1ClosedValue:
+        this.turnout1ClosedValue,
+      turnout2ClosedValue:
+        this.turnout2ClosedValue,
+      ooMotor1Value:
+        this.ooMotor1Value,
+      ooMotor2Value:
+        this.ooMotor2Value,
+      ocMotor1Value:
+        this.ocMotor1Value,
+      ocMotor2Value:
+        this.ocMotor2Value,
+      coMotor1Value:
+        this.coMotor1Value,
+      coMotor2Value:
+        this.coMotor2Value,
+      ccMotor1Value:
+        this.ccMotor1Value,
+      ccMotor2Value:
+        this.ccMotor2Value,
     };
   }
 }
