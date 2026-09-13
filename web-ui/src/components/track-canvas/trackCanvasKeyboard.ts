@@ -5,8 +5,8 @@ import type {
 } from "react";
 
 import type {
-  BaseElementView,
-} from "../../models/editor/core/BaseElementView";
+  BaseElement,
+} from "../../models/editor/core/BaseElement";
 
 import type {
   LayoutView,
@@ -37,13 +37,13 @@ export type TrackCanvasKeyboardContext = {
   layoutRef: TrackCanvasRef<LayoutView>;
   toolRef: TrackCanvasRef<EditorTool>;
   editModeRef: TrackCanvasRef<boolean>;
-  currentCursorRef: TrackCanvasRef<BaseElementView | null>;
-  selectedElementRef: TrackCanvasRef<BaseElementView | null>;
+  currentCursorRef: TrackCanvasRef<BaseElement | null>;
+  selectedElementRef: TrackCanvasRef<BaseElement | null>;
   viewRef: TrackCanvasRef<ViewState>;
-  setCurrentCursor: Dispatch<SetStateAction<BaseElementView | null>>;
+  setCurrentCursor: Dispatch<SetStateAction<BaseElement | null>>;
   onBeforeLayoutChange?: (() => void) | undefined;
   onLayoutChange: Dispatch<SetStateAction<LayoutView>>;
-  onSelectedElementChange: (element: BaseElementView | null) => void;
+  onSelectedElementChange: (element: BaseElement | null) => void;
   closeSignalAspectPopover: () => void;
   persistView: () => void;
   invalidate: () => void;

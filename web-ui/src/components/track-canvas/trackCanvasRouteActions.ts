@@ -14,12 +14,12 @@ import {
 } from "../../models/editor/core/LayoutView";
 
 import type {
-  ExtendedRouteButtonElementView,
-} from "../../models/editor/elements/ExtendedRouteButtonElementView";
+  ExtendedRouteButtonElement,
+} from "../../models/editor/elements/ExtendedRouteButtonElement";
 
 import type {
-  RouteButtonElementView,
-} from "../../models/editor/elements/RouteButtonElementView";
+  RouteButtonElement,
+} from "../../models/editor/elements/RouteButtonElement";
 
 import {
   routeGraphStore,
@@ -43,7 +43,7 @@ export type TrackCanvasRouteActionContext = {
 };
 
 export async function executeRouteButton(
-  routeButton: RouteButtonElementView,
+  routeButton: RouteButtonElement,
   layout: LayoutView,
   context: TrackCanvasRouteActionContext
 ): Promise<void> {
@@ -76,7 +76,7 @@ export async function executeRouteButton(
 }
 
 export async function executeExtendedRouteButton(
-  routeButton: ExtendedRouteButtonElementView,
+  routeButton: ExtendedRouteButtonElement,
   context: TrackCanvasRouteActionContext
 ): Promise<void> {
   const { t, commandCenterLocked } =

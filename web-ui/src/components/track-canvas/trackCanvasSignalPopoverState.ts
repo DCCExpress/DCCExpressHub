@@ -5,8 +5,8 @@ import type {
 } from "react";
 
 import type {
-  TrackSignalElementView,
-} from "../../models/editor/elements/TrackSignalElementView";
+  TrackSignalElement,
+} from "../../models/editor/elements/TrackSignalElement";
 
 import type {
   SignalAspectPopoverState,
@@ -21,7 +21,7 @@ export type SignalAspectPopoverStateSetter =
 
 export function openTrackCanvasSignalAspectPopover(
   setSignalAspectPopover: SignalAspectPopoverStateSetter,
-  signal: TrackSignalElementView,
+  signal: TrackSignalElement,
   clientX: number,
   clientY: number
 ): void {
@@ -49,7 +49,7 @@ export function closeTrackCanvasSignalAspectPopover(
 
 export function reopenTrackCanvasSignalAspectPopover(
   setSignalAspectPopover: SignalAspectPopoverStateSetter,
-  signal: TrackSignalElementView,
+  signal: TrackSignalElement,
   clientX: number,
   clientY: number,
   delayMs = 100

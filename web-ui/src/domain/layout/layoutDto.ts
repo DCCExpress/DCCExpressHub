@@ -211,34 +211,39 @@ export type ButtonBehaviorDto =
   | "push"
   | "momentary";
 
-export interface TrackTurnoutLeftElementDto extends TrackElementDto {
+export type TurnoutOutputModeDto = OutputCommandModeDto | "extended";
+
+export interface TrackTurnoutElementDto extends TrackElementDto {
+  outputMode?: TurnoutOutputModeDto;
+  turnoutAddress: number;
+  turnoutClosedValue: boolean;
+  turnoutClosedAspect?: number;
+  turnoutOpenedAspect?: number;
+}
+
+export interface TrackTurnoutLeftElementDto extends TrackTurnoutElementDto {
   type: "trackturnoutleft";
-  outputMode?: OutputCommandModeDto;
-  turnoutAddress: number;
-  turnoutClosedValue: boolean;
 }
 
-export interface TrackTurnoutRightElementDto extends TrackElementDto {
+export interface TrackTurnoutRightElementDto extends TrackTurnoutElementDto {
   type: "trackturnoutright";
-  outputMode?: OutputCommandModeDto;
-  turnoutAddress: number;
-  turnoutClosedValue: boolean;
 }
 
-export interface TrackTurnoutTwoWayElementDto extends TrackElementDto {
+export interface TrackTurnoutTwoWayElementDto extends TrackTurnoutElementDto {
   type: "trackturnouttwoway";
-  outputMode?: OutputCommandModeDto;
-  turnoutAddress: number;
-  turnoutClosedValue: boolean;
 }
 
 export interface TrackTurnoutDoubleElementDto extends TrackElementDto {
   type: "trackturnoutdouble";
-  outputMode?: OutputCommandModeDto;
+  outputMode?: TurnoutOutputModeDto;
   turnout1Address: number;
   turnout2Address: number;
   turnout1ClosedValue: boolean;
   turnout2ClosedValue: boolean;
+  turnout1ClosedAspect?: number;
+  turnout1OpenedAspect?: number;
+  turnout2ClosedAspect?: number;
+  turnout2OpenedAspect?: number;
 }
 
 export interface TrackTurnoutThreeWayElementDto extends TrackElementDto {

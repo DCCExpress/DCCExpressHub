@@ -35,9 +35,9 @@ import {
   isTurnoutElement,
   type LayoutView,
 } from "@/models/editor/core/LayoutView";
-import { TrackSensorElementView } from "@/models/editor/elements/TrackSensorElementView";
-import { TrackSignalElementView } from "@/models/editor/elements/TrackSignalElementView";
-import TrackTurnoutDoubleElementView from "@/models/editor/elements/TrackTurnoutDoubleElementView";
+import { TrackSensorElement } from "../models/editor/elements/TrackSensorElement";
+import { TrackSignalElement } from "../models/editor/elements/TrackSignalElement";
+import TrackTurnoutDoubleElement from "../models/editor/elements/TrackTurnoutDoubleElement";
 import type { LayoutElementId } from "@domain/layout/layoutDto";
 import type {
   SignalLogicConditionDto,
@@ -145,8 +145,8 @@ export default function SignalLogicDialog({
       layout
         .getAllElements()
         .filter(
-          (element): element is TrackSignalElementView =>
-            element instanceof TrackSignalElementView &&
+          (element): element is TrackSignalElement =>
+            element instanceof TrackSignalElement &&
             element.signalOutput.address > 0
         )
         .map(signal => ({
@@ -169,7 +169,7 @@ export default function SignalLogicDialog({
     const result: TurnoutOption[] = [];
 
     for (const turnout of layout.getAllElements()) {
-      if (turnout instanceof TrackTurnoutDoubleElementView) {
+      if (turnout instanceof TrackTurnoutDoubleElement) {
         if (turnout.turnout1Address > 0) {
           result.push({
             value: `${turnout.id}:0`,
@@ -214,8 +214,8 @@ export default function SignalLogicDialog({
       layout
         .getAllElements()
         .filter(
-          (element): element is TrackSensorElementView =>
-            element instanceof TrackSensorElementView && element.address > 0
+          (element): element is TrackSensorElement =>
+            element instanceof TrackSensorElement && element.address > 0
         )
         .map(sensor => ({
           value: String(sensor.id),

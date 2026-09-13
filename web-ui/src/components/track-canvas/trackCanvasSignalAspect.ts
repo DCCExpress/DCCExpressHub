@@ -1,21 +1,21 @@
 import {
-  TrackSignalElementView,
-} from "../../models/editor/elements/TrackSignalElementView";
+  TrackSignalElement,
+} from "../../models/editor/elements/TrackSignalElement";
 
 import {
   cloneSignalOutputConfiguration,
 } from "@/domain/layout/signalOutput";
 
 export type SignalAspectPreviews =
-  TrackSignalElementView[];
+  TrackSignalElement[];
 
 export function createSignalAspectPreviews(
-  signal: TrackSignalElementView
+  signal: TrackSignalElement
 ): SignalAspectPreviews {
   return signal.signalOutput.states.map(
     (_, stateIndex) => {
       const preview =
-        new TrackSignalElementView(0, 0);
+        new TrackSignalElement(0, 0);
 
       preview.signalOutput =
         cloneSignalOutputConfiguration(

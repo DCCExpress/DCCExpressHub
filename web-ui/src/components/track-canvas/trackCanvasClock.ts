@@ -4,8 +4,8 @@ import type {
 } from "../../models/editor/core/LayoutView";
 
 import {
-  ClockElementView,
-} from "../../models/editor/elements/ClockElementView";
+  ClockElement,
+} from "../../models/editor/elements/ClockElement";
 
 import {
   fastClockStore,
@@ -25,7 +25,7 @@ export function syncClockElementsWithFastClock(
     new Date(1970, 0, 1, 0, 0, 0, snapshot.timeMs);
 
   for (const element of layout.getAllElements()) {
-    if (element instanceof ClockElementView) {
+    if (element instanceof ClockElement) {
       element.currentTime = currentTime;
     }
   }

@@ -12,22 +12,22 @@ import type {
 } from "@domain/layout/layoutDto";
 
 import type {
-  BaseElementView,
-} from "../../models/editor/core/BaseElementView";
+  BaseElement,
+} from "../../models/editor/core/BaseElement";
 
 import type {
   LayoutView,
 } from "../../models/editor/core/LayoutView";
 
 import type {
-  AudioListButtonElementView,
-} from "../../models/editor/elements/AudioListButtonElementView";
+  AudioListButtonElement,
+} from "../../models/editor/elements/AudioListButtonElement";
 
 import type {
-  TrackSignalElementView,
-} from "../../models/editor/elements/TrackSignalElementView";
+  TrackSignalElement,
+} from "../../models/editor/elements/TrackSignalElement";
 
-import type TrackTurnoutDoubleElementView from "../../models/editor/elements/TrackTurnoutDoubleElementView";
+import type TrackTurnoutDoubleElement from "../../models/editor/elements/TrackTurnoutDoubleElement";
 
 import type {
   EditorTool,
@@ -43,8 +43,8 @@ export type TrackCanvasProps = {
   layout: LayoutView;
   onLayoutChange: Dispatch<SetStateAction<LayoutView>>;
   onBeforeLayoutChange?: () => void;
-  selectedElement: BaseElementView | null;
-  onSelectedElementChange: (element: BaseElementView | null) => void;
+  selectedElement: BaseElement | null;
+  onSelectedElementChange: (element: BaseElement | null) => void;
   invalidateCounter: number;
   onInvalidate: () => void;
   fitCounter: number;
@@ -129,7 +129,7 @@ export type SignalAspectPopoverState = {
   opened: boolean;
   x: number;
   y: number;
-  signal: TrackSignalElementView | null;
+  signal: TrackSignalElement | null;
   previews: SignalAspectPreviews | null;
 };
 
@@ -137,12 +137,12 @@ export type DoubleTurnoutPopoverState = {
   opened: boolean;
   x: number;
   y: number;
-  turnout: TrackTurnoutDoubleElementView | null;
+  turnout: TrackTurnoutDoubleElement | null;
 };
 
 export type AudioListPopoverState = {
   opened: boolean;
   x: number;
   y: number;
-  audioListButton: AudioListButtonElementView | null;
+  audioListButton: AudioListButtonElement | null;
 };

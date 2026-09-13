@@ -1,7 +1,7 @@
 import { isTurnoutElement, type LayoutView } from "../models/editor/core/LayoutView";
-import type { RouteButtonElementView } from "../models/editor/elements/RouteButtonElementView";
-import TrackTurnoutDoubleElementView from "../models/editor/elements/TrackTurnoutDoubleElementView";
-import { TrackTurnoutThreeWayElementView } from "../models/editor/elements/TrackTurnoutThreeWayElementView";
+import type { RouteButtonElement } from "../models/editor/elements/RouteButtonElement";
+import TrackTurnoutDoubleElement from "../models/editor/elements/TrackTurnoutDoubleElement";
+import { TrackTurnoutThreeWayElement } from "../models/editor/elements/TrackTurnoutThreeWayElement";
 import { getTurnoutClosedAspect, getTurnoutOpenedAspect } from "../models/editor/turnout/turnoutAccessoryHelpers";
 import { sleep } from "../helpers";
 import { sendTurnoutOutput } from "./layoutOutput";
@@ -9,7 +9,7 @@ import { wsApi } from "./wsApi";
 import { resolveRouteSecondClosed } from "../models/editor/turnout/routeTurnoutState";
 
 type ExecuteLegacyRouteButtonParams = {
-  routeButton: RouteButtonElementView;
+  routeButton: RouteButtonElement;
   layout: LayoutView;
   commandCenterLocked: boolean;
   busyText?: string;
@@ -36,13 +36,13 @@ export async function executeLegacyRouteButton({
   // silently produce a partially set route or guess a second motor position.
   const turnouts = routeButton.routeTurnouts.map(reference => {
     const element = layout.getElementById(reference.turnoutId);
-    const secondClosed = element instanceof TrackTurnoutDoubleElementView || element instanceof TrackTurnoutThreeWayElementView
+    const secondClosed = element instanceof TrackTurnoutDoubleElement || element instanceof TrackTurnoutThreeWayElement
       ? resolveRouteSecondClosed(element, reference)
       : reference.secondClosed;
     return { ...reference, element, secondClosed };
   });
   if (turnouts.some(({ element, secondClosed }) => {
-    if (element instanceof TrackTurnoutDoubleElementView || element instanceof TrackTurnoutThreeWayElementView) {
+    if (element instanceof TrackTurnoutDoubleElement || element instanceof TrackTurnoutThreeWayElement) {
       return typeof secondClosed !== "boolean";
     }
     return !isTurnoutElement(element);
@@ -58,7 +58,7 @@ export async function executeLegacyRouteButton({
   try {
     setBusy?.(true, busyText);
     for (const { element, closed, secondClosed } of turnouts) {
-      if (element instanceof TrackTurnoutDoubleElementView || element instanceof TrackTurnoutThreeWayElementView) {
+      if (element instanceof TrackTurnoutDoubleElement || element instanceof TrackTurnoutThreeWayElement) {
         const firstSent = sendTurnoutOutput(element.outputMode, element.turnout1Address, closed, {
           closedValue: element.turnout1ClosedValue,
         });

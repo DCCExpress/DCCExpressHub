@@ -13,27 +13,27 @@ import {
 
 import BitToggleElement from "../../components/editor/BitToggleElement";
 import type {
-  BaseElementView,
-} from "../../models/editor/core/BaseElementView";
+  BaseElement,
+} from "../../models/editor/core/BaseElement";
 import {
-  ButtonElementView,
-} from "../../models/editor/elements/ButtonElementView";
+  ButtonElement,
+} from "../../models/editor/elements/ButtonElement";
 import type {
   IEditableProperty,
 } from "../../models/editor/elements/PropertyDescriptor";
-import TrackTurnoutDoubleElementView from "../../models/editor/elements/TrackTurnoutDoubleElementView";
+import TrackTurnoutDoubleElement from "../../models/editor/elements/TrackTurnoutDoubleElement";
 import {
-  TrackTurnoutLeftElementView,
-} from "../../models/editor/elements/TrackTurnoutLeftElementView";
+  TrackTurnoutLeftElement,
+} from "../../models/editor/elements/TrackTurnoutLeftElement";
 import {
-  TrackTurnoutRightElementView,
-} from "../../models/editor/elements/TrackTurnoutRightElementView";
+  TrackTurnoutRightElement,
+} from "../../models/editor/elements/TrackTurnoutRightElement";
 import {
-  TrackTurnoutTwoWayElementView,
-} from "../../models/editor/elements/TrackTurnoutTwoWayElementView";
+  TrackTurnoutTwoWayElement,
+} from "../../models/editor/elements/TrackTurnoutTwoWayElement";
 import {
-  TrackTurnoutThreeWayElementView,
-} from "../../models/editor/elements/TrackTurnoutThreeWayElementView";
+  TrackTurnoutThreeWayElement,
+} from "../../models/editor/elements/TrackTurnoutThreeWayElement";
 import {
   getDoubleTurnoutAspect,
   getTurnoutClosedAspect,
@@ -55,14 +55,14 @@ import type {
 
 type TurnoutBitPropertyEditorProps = {
   prop: IEditableProperty;
-  selectedElement: BaseElementView;
+  selectedElement: BaseElement;
   onChange: PropertyChangeHandler;
 };
 
 type SingleTurnoutElement =
-  | TrackTurnoutLeftElementView
-  | TrackTurnoutRightElementView
-  | TrackTurnoutTwoWayElementView;
+  | TrackTurnoutLeftElement
+  | TrackTurnoutRightElement
+  | TrackTurnoutTwoWayElement;
 
 type MultiTurnoutPosition = {
   label: string;
@@ -112,33 +112,33 @@ const THREE_WAY_TURNOUT_POSITIONS: MultiTurnoutPosition[] = [
 ];
 
 function isSingleTurnoutElement(
-  element: BaseElementView
+  element: BaseElement
 ): element is SingleTurnoutElement {
   return (
     element instanceof
-      TrackTurnoutLeftElementView ||
+      TrackTurnoutLeftElement ||
     element instanceof
-      TrackTurnoutRightElementView ||
+      TrackTurnoutRightElement ||
     element instanceof
-      TrackTurnoutTwoWayElementView
+      TrackTurnoutTwoWayElement
   );
 }
 
 function isDoubleTurnoutElement(
-  element: BaseElementView
-): element is TrackTurnoutDoubleElementView {
+  element: BaseElement
+): element is TrackTurnoutDoubleElement {
   return (
     element instanceof
-    TrackTurnoutDoubleElementView
+    TrackTurnoutDoubleElement
   );
 }
 
 function isThreeWayTurnoutElement(
-  element: BaseElementView
-): element is TrackTurnoutThreeWayElementView {
+  element: BaseElement
+): element is TrackTurnoutThreeWayElement {
   return (
     element instanceof
-    TrackTurnoutThreeWayElementView
+    TrackTurnoutThreeWayElement
   );
 }
 
@@ -221,7 +221,7 @@ function TestButton({
 }
 
 function renderButtonBasicEditor(
-  selectedElement: ButtonElementView,
+  selectedElement: ButtonElement,
   onChange: PropertyChangeHandler
 ) {
   const onValueProperty:
@@ -353,7 +353,7 @@ function renderButtonBasicEditor(
 }
 
 function renderButtonExtendedEditor(
-  selectedElement: ButtonElementView,
+  selectedElement: ButtonElement,
   onChange: PropertyChangeHandler
 ) {
   const onAspectProperty =
@@ -477,7 +477,7 @@ function renderButtonExtendedEditor(
 }
 
 function renderButtonOutputEditor(
-  selectedElement: ButtonElementView,
+  selectedElement: ButtonElement,
   onChange: PropertyChangeHandler
 ) {
   return (
@@ -549,7 +549,7 @@ function doubleStateProperty(
 
 function doublePositionValues(
   selectedElement:
-    TrackTurnoutDoubleElementView,
+    TrackTurnoutDoubleElement,
   position: MultiTurnoutPosition
 ): {
   first: boolean;
@@ -619,7 +619,7 @@ function doublePositionValues(
 
 function sendDoubleTurnoutValues(
   element:
-    TrackTurnoutDoubleElementView,
+    TrackTurnoutDoubleElement,
   first: boolean,
   second: boolean
 ): void {
@@ -673,7 +673,7 @@ function sendDoubleTurnoutValues(
 }
 
 function sendDoubleTurnoutBitClick(
-  element: TrackTurnoutDoubleElementView,
+  element: TrackTurnoutDoubleElement,
   position: MultiTurnoutPosition,
   motor: 1 | 2,
   clickedValue: boolean
@@ -705,7 +705,7 @@ function sendDoubleTurnoutBitClick(
 
 function sendDoubleTurnoutPosition(
   element:
-    TrackTurnoutDoubleElementView,
+    TrackTurnoutDoubleElement,
   position: MultiTurnoutPosition
 ): void {
   const values =
@@ -723,7 +723,7 @@ function sendDoubleTurnoutPosition(
 
 function sendThreeWayTurnoutPosition(
   element:
-    TrackTurnoutThreeWayElementView,
+    TrackTurnoutThreeWayElement,
   position: MultiTurnoutPosition
 ): void {
   const firstPhysical =
@@ -1012,7 +1012,7 @@ function threeWayStateProperty(
 
 function threeWayPositionValues(
   selectedElement:
-    TrackTurnoutThreeWayElementView,
+    TrackTurnoutThreeWayElement,
   position: MultiTurnoutPosition
 ): {
   first: boolean;
@@ -1078,7 +1078,7 @@ function threeWayPositionValues(
 
 function sendConfiguredThreeWayValues(
   element:
-    TrackTurnoutThreeWayElementView,
+    TrackTurnoutThreeWayElement,
   first: boolean,
   second: boolean
 ): void {
@@ -1104,7 +1104,7 @@ function sendConfiguredThreeWayValues(
 }
 
 function sendThreeWayTurnoutBitClick(
-  element: TrackTurnoutThreeWayElementView,
+  element: TrackTurnoutThreeWayElement,
   position: MultiTurnoutPosition,
   motor: 1 | 2,
   clickedValue: boolean
@@ -1136,7 +1136,7 @@ function sendThreeWayTurnoutBitClick(
 
 function sendConfiguredThreeWayPosition(
   element:
-    TrackTurnoutThreeWayElementView,
+    TrackTurnoutThreeWayElement,
   position: MultiTurnoutPosition
 ): void {
   const values =
@@ -1154,7 +1154,7 @@ function sendConfiguredThreeWayPosition(
 
 function renderThreeWayBasicEditor(
   selectedElement:
-    TrackTurnoutThreeWayElementView,
+    TrackTurnoutThreeWayElement,
   onChange: PropertyChangeHandler
 ) {
   return (
@@ -1267,7 +1267,7 @@ function renderThreeWayBasicEditor(
 
 function renderDoubleExtendedEditor(
   selectedElement:
-    TrackTurnoutDoubleElementView,
+    TrackTurnoutDoubleElement,
   onChange: PropertyChangeHandler
 ) {
   const t1Closed =
@@ -1433,7 +1433,7 @@ function renderDoubleExtendedEditor(
 
 function renderDoubleBasicEditor(
   selectedElement:
-    TrackTurnoutDoubleElementView,
+    TrackTurnoutDoubleElement,
   onChange: PropertyChangeHandler
 ) {
   return (
@@ -1551,7 +1551,7 @@ export default function TurnoutBitPropertyEditor({
 }: TurnoutBitPropertyEditorProps) {
   if (
     selectedElement instanceof
-    ButtonElementView
+    ButtonElement
   ) {
     return renderButtonOutputEditor(
       selectedElement,

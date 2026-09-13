@@ -1,5 +1,5 @@
 import type { Loco } from "@domain/types";
-import type { BlockElementView } from "../../models/editor/elements/BlockElementView";
+import type { BlockElement } from "../../models/editor/elements/BlockElement";
 import {
   clearOptimisticBlockTargetLoco,
 } from "../../services/blockTargetLocoRuntime";
@@ -9,7 +9,7 @@ import LocoPicker from "../loco/LocoPicker";
 export type TrackCanvasBlockLocoPickerProps = {
   opened: boolean;
   locos: Loco[];
-  selectedBlock: BlockElementView | null;
+  selectedBlock: BlockElement | null;
   onClose: () => void;
 };
 

@@ -27,12 +27,12 @@ import {
 } from "@tabler/icons-react";
 
 import type {
-  BaseElementView,
-} from "../../models/editor/core/BaseElementView";
+  BaseElement,
+} from "../../models/editor/core/BaseElement";
 
 import {
-  ButtonScriptElementView,
-} from "../../models/editor/elements/ButtonScriptElementView";
+  ButtonScriptElement,
+} from "../../models/editor/elements/ButtonScriptElement";
 
 import type {
   IEditableProperty,
@@ -64,7 +64,7 @@ const ScriptEditorDialog =
 type ScriptPropertyEditorProps = {
   prop: IEditableProperty;
   selectedElement:
-    BaseElementView;
+    BaseElement;
   onChange:
     PropertyChangeHandler;
 };
@@ -102,7 +102,7 @@ export default function ScriptPropertyEditor({
 
   const element =
     selectedElement instanceof
-      ButtonScriptElementView
+      ButtonScriptElement
       ? selectedElement
       : null;
 

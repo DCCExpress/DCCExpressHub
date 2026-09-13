@@ -6,7 +6,7 @@ import {
 } from "@mantine/core";
 
 import ElementPreview from "../../models/editor/rendering/ElementPreviewRenderer";
-import TrackTurnoutDoubleElementView from "../../models/editor/elements/TrackTurnoutDoubleElementView";
+import TrackTurnoutDoubleElement from "../../models/editor/elements/TrackTurnoutDoubleElement";
 import {
   getDoubleTurnoutAspect,
 } from "../../models/editor/turnout/turnoutAccessoryHelpers";
@@ -58,7 +58,7 @@ export type TrackCanvasDoubleTurnoutPopoverProps = {
 };
 
 function getConfiguredBits(
-  turnout: TrackTurnoutDoubleElementView,
+  turnout: TrackTurnoutDoubleElement,
   position: DoubleTurnoutPosition
 ): DoubleTurnoutBits {
   switch (position.label) {
@@ -90,8 +90,8 @@ function getConfiguredBits(
 }
 
 function copyConfiguredStateTable(
-  source: TrackTurnoutDoubleElementView,
-  target: TrackTurnoutDoubleElementView
+  source: TrackTurnoutDoubleElement,
+  target: TrackTurnoutDoubleElement
 ): void {
   target.ooMotor1Value = source.ooMotor1Value;
   target.ooMotor2Value = source.ooMotor2Value;
@@ -107,11 +107,11 @@ function copyConfiguredStateTable(
 }
 
 function createDoubleTurnoutPreview(
-  selectedElement: TrackTurnoutDoubleElementView,
+  selectedElement: TrackTurnoutDoubleElement,
   position: DoubleTurnoutPosition
-): TrackTurnoutDoubleElementView {
+): TrackTurnoutDoubleElement {
   const turnout =
-    new TrackTurnoutDoubleElementView(0, 0);
+    new TrackTurnoutDoubleElement(0, 0);
 
   turnout.rotation =
     selectedElement.rotation;
@@ -152,7 +152,7 @@ function createDoubleTurnoutPreview(
 }
 
 function setDoubleTurnoutPosition(
-  turnout: TrackTurnoutDoubleElementView,
+  turnout: TrackTurnoutDoubleElement,
   position: DoubleTurnoutPosition
 ): void {
   const bits =

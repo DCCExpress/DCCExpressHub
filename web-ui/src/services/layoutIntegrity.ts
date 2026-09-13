@@ -6,8 +6,8 @@ import { validateSignalLogicDocument } from "@domain/signalLogic";
 import { ELEMENT_TYPES } from "@domain/layout/elementTypes";
 import type { LayoutView } from "@/models/editor/core/LayoutView";
 import { isTurnoutElement } from "@/models/editor/core/LayoutView";
-import { TrackSensorElementView } from "@/models/editor/elements/TrackSensorElementView";
-import { TrackSignalElementView } from "@/models/editor/elements/TrackSignalElementView";
+import { TrackSensorElement } from "../models/editor/elements/TrackSensorElement";
+import { TrackSignalElement } from "../models/editor/elements/TrackSignalElement";
 
 export type IntegrityArea = "Layout" | "Route buttons" | "Automatic routes" | "Signal logic" | "Locomotives";
 export type IntegrityIssue = { level: "error" | "warning"; area: IntegrityArea; message: string };
@@ -102,19 +102,19 @@ export function inspectProjectIntegrity(
       (total, group) => total + group.rules.reduce((sum, rule) => sum + rule.conditions.length, 0), 0));
     const signalIssues = validateSignalLogicDocument(
       signalDocument,
-      elements.filter((element): element is TrackSignalElementView => element instanceof TrackSignalElementView)
+      elements.filter((element): element is TrackSignalElement => element instanceof TrackSignalElement)
         .map(signal => ({ id: signal.id, address: signal.address, aspect: signal.aspect })),
       [...turnoutById.values()].map(turnout => ({ id: turnout.id, address: turnout.turnoutAddress })),
-      elements.filter((element): element is TrackSensorElementView => element instanceof TrackSensorElementView)
+      elements.filter((element): element is TrackSensorElement => element instanceof TrackSensorElement)
         .map(sensor => ({ id: sensor.id, address: sensor.address }))
     );
     for (const issue of [...signalLoadIssues, ...signalIssues]) add("Signal logic", issue.level, issue.message);
 
     const signalIds = new Set(elements
-      .filter((element): element is TrackSignalElementView => element instanceof TrackSignalElementView)
+      .filter((element): element is TrackSignalElement => element instanceof TrackSignalElement)
       .map(signal => signal.id));
     const sensorIds = new Set(elements
-      .filter((element): element is TrackSensorElementView => element instanceof TrackSensorElementView)
+      .filter((element): element is TrackSensorElement => element instanceof TrackSensorElement)
       .map(sensor => sensor.id));
 
     for (const group of signalDocument.groups) {

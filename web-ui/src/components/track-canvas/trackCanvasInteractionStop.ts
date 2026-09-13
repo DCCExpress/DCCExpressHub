@@ -5,8 +5,8 @@ import type {
 } from "react";
 
 import type {
-  BaseElementView,
-} from "../../models/editor/core/BaseElementView";
+  BaseElement,
+} from "../../models/editor/core/BaseElement";
 
 import type {
   LayoutView,
@@ -34,9 +34,9 @@ export type StopTrackCanvasInteractionContext = {
   dragRef: TrackCanvasMutableRef<DragState>;
   panRef: TrackCanvasMutableRef<PanState>;
   selectionRef: TrackCanvasMutableRef<SelectionState>;
-  currentCursorRef: TrackCanvasMutableRef<BaseElementView | null>;
+  currentCursorRef: TrackCanvasMutableRef<BaseElement | null>;
   setHoverGrid: Dispatch<SetStateAction<{ x: number; y: number } | null>>;
-  onSelectedElementChange: (element: BaseElementView | null) => void;
+  onSelectedElementChange: (element: BaseElement | null) => void;
   onLayoutChange: Dispatch<SetStateAction<LayoutView>>;
   persistView: () => void;
   invalidate: () => void;

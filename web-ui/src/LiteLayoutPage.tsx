@@ -56,27 +56,27 @@ import TurnoutBitPropertyEditor from "@/layout/property-panel/TurnoutBitProperty
 import RouteTurnoutSelectionPropertyEditor from "@/layout/property-panel/RouteTurnoutSelectionPropertyEditor";
 import LocoPanel from "@/layout/LocoPanel";
 import AutomationPanel from "@/components/AutomationPanel";
-import type { BaseElementView } from "@/models/editor/core/BaseElementView";
+import type { BaseElement } from "./models/editor/core/BaseElement";
 import { isTurnoutElement, LayoutView } from "@/models/editor/core/LayoutView";
-import { TrackCornerElementView } from "@/models/editor/elements/TrackCornerElementView";
-import { TrackCrossingElementView } from "@/models/editor/elements/TrackCrossingElementView";
-import { TrackCurveElementView } from "@/models/editor/elements/TrackCurveElementView";
-import { TrackEndElementView } from "@/models/editor/elements/TrackEndElementView";
-import { TrackLevelCrossingElementView } from "@/models/editor/elements/TrackLevelCrossingElementView";
-import { AudioButtonElementView } from "@/models/editor/elements/AudioButtonElementView";
-import { BlockElementView } from "@/models/editor/elements/BlockElementView";
-import { ButtonElementView } from "@/models/editor/elements/ButtonElementView";
-import { TrackSensorElementView } from "@/models/editor/elements/TrackSensorElementView";
-import { TrackSignalElementView } from "@/models/editor/elements/TrackSignalElementView";
+import { TrackCornerElement } from "./models/editor/elements/TrackCornerElement";
+import { TrackCrossingElement } from "./models/editor/elements/TrackCrossingElement";
+import { TrackCurveElement } from "./models/editor/elements/TrackCurveElement";
+import { TrackEndElement } from "./models/editor/elements/TrackEndElement";
+import { TrackLevelCrossingElement } from "./models/editor/elements/TrackLevelCrossingElement";
+import { AudioButtonElement } from "./models/editor/elements/AudioButtonElement";
+import { BlockElement } from "./models/editor/elements/BlockElement";
+import { ButtonElement } from "./models/editor/elements/ButtonElement";
+import { TrackSensorElement } from "./models/editor/elements/TrackSensorElement";
+import { TrackSignalElement } from "./models/editor/elements/TrackSignalElement";
 import type { IEditableProperty } from "@/models/editor/elements/PropertyDescriptor";
-import { TrackStraightElementView } from "@/models/editor/elements/TrackStraightElementView";
-import TrackTurnoutDoubleElementView from "@/models/editor/elements/TrackTurnoutDoubleElementView";
-import { TrackTurnoutLeftElementView } from "@/models/editor/elements/TrackTurnoutLeftElementView";
-import { TrackTurnoutRightElementView } from "@/models/editor/elements/TrackTurnoutRightElementView";
-import { TrackTurnoutTwoWayElementView } from "@/models/editor/elements/TrackTurnoutTwoWayElementView";
-import { TrackTurnoutThreeWayElementView } from "@/models/editor/elements/TrackTurnoutThreeWayElementView";
-import { LabelElementView } from "@/models/editor/elements/LabelElementView";
-import { RouteButtonElementView } from "@/models/editor/elements/RouteButtonElementView";
+import { TrackStraightElement } from "./models/editor/elements/TrackStraightElement";
+import TrackTurnoutDoubleElement from "./models/editor/elements/TrackTurnoutDoubleElement";
+import { TrackTurnoutLeftElement } from "./models/editor/elements/TrackTurnoutLeftElement";
+import { TrackTurnoutRightElement } from "./models/editor/elements/TrackTurnoutRightElement";
+import { TrackTurnoutTwoWayElement } from "./models/editor/elements/TrackTurnoutTwoWayElement";
+import { TrackTurnoutThreeWayElement } from "./models/editor/elements/TrackTurnoutThreeWayElement";
+import { LabelElement } from "./models/editor/elements/LabelElement";
+import { RouteButtonElement } from "./models/editor/elements/RouteButtonElement";
 import ElementPreview from "@/models/editor/rendering/ElementPreviewRenderer";
 import type { EditorTool } from "@/models/editor/types/EditorTypes";
 import { wsApi } from "@/services/wsApi";
@@ -115,7 +115,7 @@ type FlashInfo = {
 type PickerItem = {
   type: ElementType;
   label: string;
-  preview: BaseElementView;
+  preview: BaseElement;
 };
 
 type LayoutWithLegacyAutomation = {
@@ -267,28 +267,28 @@ function parseImportedProject(raw: unknown): {
   };
 }
 
-function createSignalPreview(): TrackSignalElementView {
-  return new TrackSignalElementView(0, 0);
+function createSignalPreview(): TrackSignalElement {
+  return new TrackSignalElement(0, 0);
 }
 
 const PICKER_ITEMS: PickerItem[] = [
-  { type: ELEMENT_TYPES.TRACK_STRAIGHT, label: "Straight", preview: new TrackStraightElementView(0, 0) },
-  { type: ELEMENT_TYPES.TRACK_END, label: "Track end", preview: new TrackEndElementView(0, 0) },
-  { type: ELEMENT_TYPES.TRACK_CORNER, label: "Corner", preview: new TrackCornerElementView(0, 0) },
-  { type: ELEMENT_TYPES.TRACK_CURVE, label: "Curve", preview: new TrackCurveElementView(0, 0) },
-  { type: ELEMENT_TYPES.TRACK_CROSSING, label: "Crossing", preview: new TrackCrossingElementView(0, 0) },
-  { type: ELEMENT_TYPES.TRACK_TURNOUT_LEFT, label: "Left turnout", preview: new TrackTurnoutLeftElementView(0, 0) },
-  { type: ELEMENT_TYPES.TRACK_TURNOUT_RIGHT, label: "Right turnout", preview: new TrackTurnoutRightElementView(0, 0) },
-  { type: ELEMENT_TYPES.TRACK_TURNOUT_TWO_WAY, label: "Y turnout", preview: new TrackTurnoutTwoWayElementView(0, 0) },
-  { type: ELEMENT_TYPES.TRACK_TURNOUT_THREE_WAY, label: "W / three-way turnout", preview: new TrackTurnoutThreeWayElementView(0, 0) },
-  { type: ELEMENT_TYPES.TRACK_TURNOUT_DOUBLE, label: "Double turnout", preview: new TrackTurnoutDoubleElementView(0, 0) },
-  { type: ELEMENT_TYPES.TRACK_SENSOR, label: "Sensor", preview: new TrackSensorElementView(0, 0) },
-  { type: ELEMENT_TYPES.TRACK_BLOCK, label: "Block", preview: new BlockElementView(0, 0) },
+  { type: ELEMENT_TYPES.TRACK_STRAIGHT, label: "Straight", preview: new TrackStraightElement(0, 0) },
+  { type: ELEMENT_TYPES.TRACK_END, label: "Track end", preview: new TrackEndElement(0, 0) },
+  { type: ELEMENT_TYPES.TRACK_CORNER, label: "Corner", preview: new TrackCornerElement(0, 0) },
+  { type: ELEMENT_TYPES.TRACK_CURVE, label: "Curve", preview: new TrackCurveElement(0, 0) },
+  { type: ELEMENT_TYPES.TRACK_CROSSING, label: "Crossing", preview: new TrackCrossingElement(0, 0) },
+  { type: ELEMENT_TYPES.TRACK_TURNOUT_LEFT, label: "Left turnout", preview: new TrackTurnoutLeftElement(0, 0) },
+  { type: ELEMENT_TYPES.TRACK_TURNOUT_RIGHT, label: "Right turnout", preview: new TrackTurnoutRightElement(0, 0) },
+  { type: ELEMENT_TYPES.TRACK_TURNOUT_TWO_WAY, label: "Y turnout", preview: new TrackTurnoutTwoWayElement(0, 0) },
+  { type: ELEMENT_TYPES.TRACK_TURNOUT_THREE_WAY, label: "W / three-way turnout", preview: new TrackTurnoutThreeWayElement(0, 0) },
+  { type: ELEMENT_TYPES.TRACK_TURNOUT_DOUBLE, label: "Double turnout", preview: new TrackTurnoutDoubleElement(0, 0) },
+  { type: ELEMENT_TYPES.TRACK_SENSOR, label: "Sensor", preview: new TrackSensorElement(0, 0) },
+  { type: ELEMENT_TYPES.TRACK_BLOCK, label: "Block", preview: new BlockElement(0, 0) },
   { type: ELEMENT_TYPES.TRACK_SIGNAL2, label: "Signal", preview: createSignalPreview() },
-  { type: ELEMENT_TYPES.BUTTON, label: "Output button", preview: new ButtonElementView(0, 0) },
-  { type: ELEMENT_TYPES.BUTTON_ROUTE, label: "Route", preview: new RouteButtonElementView(0, 0) },
-  { type: ELEMENT_TYPES.BUTTON_AUDIO, label: "Audio button", preview: new AudioButtonElementView(0, 0) },
-  { type: ELEMENT_TYPES.LABEL, label: "Label", preview: new LabelElementView(0, 0) },
+  { type: ELEMENT_TYPES.BUTTON, label: "Output button", preview: new ButtonElement(0, 0) },
+  { type: ELEMENT_TYPES.BUTTON_ROUTE, label: "Route", preview: new RouteButtonElement(0, 0) },
+  { type: ELEMENT_TYPES.BUTTON_AUDIO, label: "Audio button", preview: new AudioButtonElement(0, 0) },
+  { type: ELEMENT_TYPES.LABEL, label: "Label", preview: new LabelElement(0, 0) },
 ];
 
 const LOCO_WIDTH_KEY = "dcc-express-lite.layout.locoPanelWidth";
@@ -313,7 +313,7 @@ function readStoredRightPanelMode(): RightPanelMode {
   return localStorage.getItem(RIGHT_PANEL_MODE_KEY) === "loco" ? "loco" : "property";
 }
 
-function updateProperty(element: BaseElementView, property: IEditableProperty, rawValue: unknown): void {
+function updateProperty(element: BaseElement, property: IEditableProperty, rawValue: unknown): void {
   if (property.type === "number") {
     const numberValue = typeof rawValue === "number" ? rawValue : Number(rawValue);
     if (!Number.isNaN(numberValue) && (!property.validate || property.validate(numberValue))) {
@@ -339,7 +339,7 @@ function LitePropertyPanel({
   setBusy,
   invalidate,
 }: {
-  selectedElement: BaseElementView | null;
+  selectedElement: BaseElement | null;
   layout: LayoutView;
   setLayout: React.Dispatch<React.SetStateAction<LayoutView>>;
   turnoutSelectionMode: boolean;
@@ -415,7 +415,7 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
   const [layout, setLayout] = useState(() => new LayoutView());
   const [automationScripts, setAutomationScripts] = useState<AutomationScriptDefinition[]>([]);
   const importFileRef = useRef<HTMLInputElement | null>(null);
-  const [selectedElement, setSelectedElement] = useState<BaseElementView | null>(null);
+  const [selectedElement, setSelectedElement] = useState<BaseElement | null>(null);
   const [tool, setTool] = useState<EditorTool>({ mode: "cursor", elementType: "general" });
   const [editMode, setEditMode] = useState(false);
   const [turnoutSelectionMode, setTurnoutSelectionMode] = useState(false);
@@ -484,7 +484,7 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
   }, [loadLayout]);
 
   useEffect(() => {
-    if (!editMode || !(selectedElement instanceof RouteButtonElementView)) {
+    if (!editMode || !(selectedElement instanceof RouteButtonElement)) {
       setTurnoutSelectionMode(false);
     }
   }, [editMode, selectedElement]);
@@ -600,8 +600,8 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
       if (isTurnoutElement(element) && element.outputMode === "accessory" && element.turnoutAddress === data.address) {
         element.turnoutClosed = data.closed;
       } else if (
-        (element instanceof TrackTurnoutDoubleElementView ||
-          element instanceof TrackTurnoutThreeWayElementView) &&
+        (element instanceof TrackTurnoutDoubleElement ||
+          element instanceof TrackTurnoutThreeWayElement) &&
         element.outputMode === "accessory"
       ) {
         if (element.turnout1Address === data.address) element.turnout1Closed = data.closed;
@@ -614,7 +614,7 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
 
   useEffect(() => wsClient.on("sensorChanged", data => {
     for (const element of layout.getAllElements()) {
-      if (element instanceof TrackSensorElementView && element.address === data.address) {
+      if (element instanceof TrackSensorElement && element.address === data.address) {
         element.on = data.on;
       }
     }
@@ -624,15 +624,15 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
   useEffect(() => wsClient.on("accessoryChanged", data => {
     for (const element of layout.getAllElements()) {
       if (
-        element instanceof TrackSignalElementView &&
+        element instanceof TrackSignalElement &&
         element.signalOutput.protocol === "dcc" &&
         element.signalOutput.address <= data.address &&
         element.lastAddress >= data.address
       ) {
         element.setValue(data.address, data.active);
-      } else if (element instanceof ButtonElementView && element.outputMode === "accessory" && element.address === data.address) {
+      } else if (element instanceof ButtonElement && element.outputMode === "accessory" && element.address === data.address) {
         element.on = data.active === element.activeValue;
-      } else if (element instanceof TrackLevelCrossingElementView && element.basicAccessoryAddress === data.address) {
+      } else if (element instanceof TrackLevelCrossingElement && element.basicAccessoryAddress === data.address) {
         element.barrierClosed = data.active === element.basicAccessoryClosedValue;
       }
     }
@@ -642,7 +642,7 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
   useEffect(() => wsClient.on("sensorSnapshot", data => {
     for (const [baseAddress, activeBits, knownBits] of data.groups) {
       for (const element of layout.getAllElements()) {
-        if (!(element instanceof TrackSensorElementView)) continue;
+        if (!(element instanceof TrackSensorElement)) continue;
         const offset = element.address - baseAddress;
         if (offset < 0 || offset > 15) continue;
         const bit = 1 << offset;
@@ -656,7 +656,7 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
   useEffect(() => wsClient.on("signalAspectChanged", data => {
     for (const element of layout.getAllElements()) {
       if (
-        element instanceof TrackSignalElementView &&
+        element instanceof TrackSignalElement &&
         element.signalOutput.protocol === "dccext" &&
         element.signalOutput.address === data.address
       ) {
@@ -668,7 +668,7 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
 
   useEffect(() => wsClient.on("blockStateChanged", data => {
     const blocks = layout.getAllElements().filter(
-      (element): element is BlockElementView => element instanceof BlockElementView,
+      (element): element is BlockElement => element instanceof BlockElement,
     );
     for (const block of blocks) block.locoAddress = 0;
     for (const [wireBlockId, state] of Object.entries(data ?? {})) {

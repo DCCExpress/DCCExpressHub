@@ -1,7 +1,5 @@
 
-import {
-  BaseElement,
-} from "./BaseElement.js";
+import type { BaseElement } from "../../../models/editor/core/BaseElement";
 
 export type LayerId =
   | "track"

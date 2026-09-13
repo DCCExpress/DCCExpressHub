@@ -6,7 +6,7 @@ import {
   TextInput,
 } from "@mantine/core";
 
-import type { BaseElementView } from "../../models/editor/core/BaseElementView";
+import type { BaseElement } from "../../models/editor/core/BaseElement";
 import type { IEditableProperty } from "../../models/editor/elements/PropertyDescriptor";
 import AudioFilePropertyEditor from "./AudioFilePropertyEditor";
 import type { PropertyChangeHandler } from "./propertyPanelTypes";
@@ -38,7 +38,7 @@ const BARRIER_TYPE_OPTIONS = [
 
 type BasicPropertyEditorProps = {
   prop: IEditableProperty;
-  selectedElement: BaseElementView;
+  selectedElement: BaseElement;
   onChange: PropertyChangeHandler;
 };
 

@@ -1,5 +1,5 @@
 
-import type { BaseElementView } from "../../models/editor/core/BaseElementView";
+import type { BaseElement } from "../../models/editor/core/BaseElement";
 import type { LayoutView } from "../../models/editor/core/LayoutView";
 import type { SelectionRect, SelectionState } from "./TrackCanvas.types";
 
@@ -23,7 +23,7 @@ export function getSelectionRect(selection: SelectionState): SelectionRect | nul
   };
 }
 
-export function getAllLayoutElements(layout: LayoutView): BaseElementView[] {
+export function getAllLayoutElements(layout: LayoutView): BaseElement[] {
   return [
     ...layout.track.elements,
     ...layout.sensors.elements,
@@ -37,7 +37,7 @@ export function applySelectionRect(
   layout: LayoutView,
   rect: SelectionRect,
   additive = false
-): BaseElementView[] {
+): BaseElement[] {
   const normalized = normalizeSelectionRect(rect);
   const all = getAllLayoutElements(layout);
 

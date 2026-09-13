@@ -1,71 +1,71 @@
 
 import type {
-  BaseElementView,
-} from "../../models/editor/core/BaseElementView";
+  BaseElement,
+} from "../../models/editor/core/BaseElement";
 
 import {
-  ClickableBaseElementView,
-} from "../../models/editor/core/ClickableBaseElementView";
+  ClickableBaseElement,
+} from "../../models/editor/core/ClickableBaseElement";
 
 import {
-  AudioButtonElementView,
-} from "../../models/editor/elements/AudioButtonElementView";
+  AudioButtonElement,
+} from "../../models/editor/elements/AudioButtonElement";
 
 import {
-  BlockElementView,
-} from "../../models/editor/elements/BlockElementView";
+  BlockElement,
+} from "../../models/editor/elements/BlockElement";
 
 import {
-  TrackLevelCrossingElementView,
-} from "../../models/editor/elements/TrackLevelCrossingElementView";
+  TrackLevelCrossingElement,
+} from "../../models/editor/elements/TrackLevelCrossingElement";
 
 import {
-  TrackSensorElementView,
-} from "../../models/editor/elements/TrackSensorElementView";
+  TrackSensorElement,
+} from "../../models/editor/elements/TrackSensorElement";
 
 import {
-  TrackSignalElementView,
-} from "../../models/editor/elements/TrackSignalElementView";
+  TrackSignalElement,
+} from "../../models/editor/elements/TrackSignalElement";
 
 import {
-  TrackTurnoutLeftElementView,
-} from "../../models/editor/elements/TrackTurnoutLeftElementView";
+  TrackTurnoutLeftElement,
+} from "../../models/editor/elements/TrackTurnoutLeftElement";
 
 import {
-  TrackTurnoutRightElementView,
-} from "../../models/editor/elements/TrackTurnoutRightElementView";
+  TrackTurnoutRightElement,
+} from "../../models/editor/elements/TrackTurnoutRightElement";
 
-import TrackTurnoutDoubleElementView from "../../models/editor/elements/TrackTurnoutDoubleElementView";
+import TrackTurnoutDoubleElement from "../../models/editor/elements/TrackTurnoutDoubleElement";
 
 import {
-  TrackTurnoutTwoWayElementView,
-} from "../../models/editor/elements/TrackTurnoutTwoWayElementView";
+  TrackTurnoutTwoWayElement,
+} from "../../models/editor/elements/TrackTurnoutTwoWayElement";
 
 import type {
   EditorTool,
 } from "../../models/editor/types/EditorTypes";
 
 export function isTrackCanvasPointerElement(
-  element: BaseElementView | null
+  element: BaseElement | null
 ): boolean {
   return (
-    element instanceof TrackTurnoutLeftElementView ||
-    element instanceof TrackTurnoutRightElementView ||
-    element instanceof TrackTurnoutTwoWayElementView ||
-    element instanceof TrackTurnoutDoubleElementView ||
-    element instanceof TrackSignalElementView ||
-    element instanceof TrackSensorElementView ||
-    element instanceof TrackLevelCrossingElementView ||
-    element instanceof ClickableBaseElementView ||
-    element instanceof AudioButtonElementView ||
-    element instanceof BlockElementView
+    element instanceof TrackTurnoutLeftElement ||
+    element instanceof TrackTurnoutRightElement ||
+    element instanceof TrackTurnoutTwoWayElement ||
+    element instanceof TrackTurnoutDoubleElement ||
+    element instanceof TrackSignalElement ||
+    element instanceof TrackSensorElement ||
+    element instanceof TrackLevelCrossingElement ||
+    element instanceof ClickableBaseElement ||
+    element instanceof AudioButtonElement ||
+    element instanceof BlockElement
   );
 }
 
 export function getTrackCanvasCursor(
   editMode: boolean,
   tool: EditorTool,
-  hoveredElement: BaseElementView | null
+  hoveredElement: BaseElement | null
 ): string {
   if (!editMode) {
     return isTrackCanvasPointerElement(hoveredElement)

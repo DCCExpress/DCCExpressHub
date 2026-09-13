@@ -1,12 +1,12 @@
 import type { TFunction } from "i18next";
-import type { BaseElementView } from "../../models/editor/core/BaseElementView";
-import { ClickableBaseElementView } from "../../models/editor/core/ClickableBaseElementView";
+import type { BaseElement } from "../../models/editor/core/BaseElement";
+import { ClickableBaseElement } from "../../models/editor/core/ClickableBaseElement";
 import { isTurnoutElement, type LayoutView } from "../../models/editor/core/LayoutView";
-import { ExtendedRouteButtonElementView } from "../../models/editor/elements/ExtendedRouteButtonElementView";
-import { RouteButtonElementView } from "../../models/editor/elements/RouteButtonElementView";
-import { TrackLevelCrossingElementView } from "../../models/editor/elements/TrackLevelCrossingElementView";
-import { TrackSensorElementView } from "../../models/editor/elements/TrackSensorElementView";
-import { TrackTurnoutThreeWayElementView } from "../../models/editor/elements/TrackTurnoutThreeWayElementView";
+import { ExtendedRouteButtonElement } from "../../models/editor/elements/ExtendedRouteButtonElement";
+import { RouteButtonElement } from "../../models/editor/elements/RouteButtonElement";
+import { TrackLevelCrossingElement } from "../../models/editor/elements/TrackLevelCrossingElement";
+import { TrackSensorElement } from "../../models/editor/elements/TrackSensorElement";
+import { TrackTurnoutThreeWayElement } from "../../models/editor/elements/TrackTurnoutThreeWayElement";
 import { wsApi } from "../../services/wsApi";
 import { executeExtendedRouteButton, executeRouteButton, type RouteBusySetter } from "./trackCanvasRouteActions";
 
@@ -19,7 +19,7 @@ export type TrackCanvasClickableActionContext = {
 };
 
 function getPhysicalValueForLogicalBarrierState(
-  crossing: TrackLevelCrossingElementView,
+  crossing: TrackLevelCrossingElement,
   logicalClosed: boolean
 ): boolean {
   return logicalClosed
@@ -28,7 +28,7 @@ function getPhysicalValueForLogicalBarrierState(
 }
 
 function executeLevelCrossingToggle(
-  crossing: TrackLevelCrossingElementView
+  crossing: TrackLevelCrossingElement
 ): void {
   if (crossing.basicAccessoryAddress <= 0) return;
   const nextClosed = !crossing.barrierClosed;
@@ -38,43 +38,43 @@ function executeLevelCrossingToggle(
   );
 }
 
-function executeSensorToggle(sensor: TrackSensorElementView): void {
+function executeSensorToggle(sensor: TrackSensorElement): void {
   if (sensor.address <= 0) return;
   wsApi.setSensor(sensor.address, !sensor.on);
 }
 
-function isDirectTurnout(element: BaseElementView): boolean {
+function isDirectTurnout(element: BaseElement): boolean {
   return (
     isTurnoutElement(element) ||
-    element instanceof TrackTurnoutThreeWayElementView
+    element instanceof TrackTurnoutThreeWayElement
   );
 }
 
 export function handleTrackCanvasClickableDown(
-  hitElement: BaseElementView | null,
+  hitElement: BaseElement | null,
   event: MouseEvent | PointerEvent,
   context: TrackCanvasClickableActionContext
 ): boolean {
   if (!hitElement) return false;
 
-  if (hitElement instanceof TrackSensorElementView) {
+  if (hitElement instanceof TrackSensorElement) {
     executeSensorToggle(hitElement);
     return true;
   }
 
-  if (hitElement instanceof TrackLevelCrossingElementView) {
+  if (hitElement instanceof TrackLevelCrossingElement) {
     executeLevelCrossingToggle(hitElement);
     return true;
   }
 
   if (
-    !(hitElement instanceof ClickableBaseElementView) &&
+    !(hitElement instanceof ClickableBaseElement) &&
     !isDirectTurnout(hitElement)
   ) {
     return false;
   }
 
-  if (hitElement instanceof RouteButtonElementView) {
+  if (hitElement instanceof RouteButtonElement) {
     void executeRouteButton(
       hitElement,
       context.layout,
@@ -92,7 +92,7 @@ export function handleTrackCanvasClickableDown(
     return true;
   }
 
-  if (hitElement instanceof ExtendedRouteButtonElementView) {
+  if (hitElement instanceof ExtendedRouteButtonElement) {
     void executeExtendedRouteButton(
       hitElement,
       {
@@ -112,20 +112,20 @@ export function handleTrackCanvasClickableDown(
 }
 
 export function handleTrackCanvasClickableUp(
-  hitElement: BaseElementView | null,
+  hitElement: BaseElement | null,
   event: MouseEvent | PointerEvent
 ): boolean {
   if (!hitElement) return false;
 
   if (
-    hitElement instanceof TrackSensorElementView ||
-    hitElement instanceof TrackLevelCrossingElementView
+    hitElement instanceof TrackSensorElement ||
+    hitElement instanceof TrackLevelCrossingElement
   ) {
     return true;
   }
 
   if (
-    !(hitElement instanceof ClickableBaseElementView) &&
+    !(hitElement instanceof ClickableBaseElement) &&
     !isDirectTurnout(hitElement)
   ) {
     return false;

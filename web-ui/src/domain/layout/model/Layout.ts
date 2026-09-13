@@ -5,9 +5,7 @@ import {
   type IRect,
   Point,
 } from "../../Rect.js";
-import {
-  BaseElement,
-} from "./BaseElement.js";
+import type { BaseElement } from "../../../models/editor/core/BaseElement";
 import {
   Layer,
   type LayerId,

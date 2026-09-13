@@ -7,14 +7,14 @@ import type { Loco } from "@domain/types";
 import FullscreenLoader from "@/components/FullscreenLoader";
 import TrackCanvas from "@/components/TrackCanvas";
 import { useCommandCenter } from "@/context/CommandCenterContext";
-import type { BaseElementView } from "@/models/editor/core/BaseElementView";
+import type { BaseElement } from "./models/editor/core/BaseElement";
 import { isTurnoutElement, LayoutView } from "@/models/editor/core/LayoutView";
-import { TrackLevelCrossingElementView } from "@/models/editor/elements/TrackLevelCrossingElementView";
-import { TrackSensorElementView } from "@/models/editor/elements/TrackSensorElementView";
-import { TrackSignalElementView } from "@/models/editor/elements/TrackSignalElementView";
-import { BlockElementView } from "@/models/editor/elements/BlockElementView";
-import { ButtonElementView } from "@/models/editor/elements/ButtonElementView";
-import TrackTurnoutDoubleElementView from "@/models/editor/elements/TrackTurnoutDoubleElementView";
+import { TrackLevelCrossingElement } from "./models/editor/elements/TrackLevelCrossingElement";
+import { TrackSensorElement } from "./models/editor/elements/TrackSensorElement";
+import { TrackSignalElement } from "./models/editor/elements/TrackSignalElement";
+import { BlockElement } from "./models/editor/elements/BlockElement";
+import { ButtonElement } from "./models/editor/elements/ButtonElement";
+import TrackTurnoutDoubleElement from "./models/editor/elements/TrackTurnoutDoubleElement";
 import { getCanvasImage } from "@/models/editor/rendering/ImageCache";
 import type { EditorTool } from "@/models/editor/types/EditorTypes";
 import { wsApi } from "@/services/wsApi";
@@ -26,7 +26,7 @@ type RuntimeLayoutOverlayProps = { locos: Loco[]; open: boolean };
 export default function RuntimeLayoutOverlay({ locos, open }: RuntimeLayoutOverlayProps) {
   const commandCenter = useCommandCenter();
   const [layout, setLayout] = useState(() => new LayoutView());
-  const [selectedElement, setSelectedElement] = useState<BaseElementView | null>(null);
+  const [selectedElement, setSelectedElement] = useState<BaseElement | null>(null);
   const [invalidateCounter, setInvalidateCounter] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -77,7 +77,7 @@ export default function RuntimeLayoutOverlay({ locos, open }: RuntimeLayoutOverl
     for (const element of layout.getAllElements()) {
       if (isTurnoutElement(element) && element.outputMode === "accessory" && element.turnoutAddress === data.address) {
         element.turnoutClosed = data.closed;
-      } else if (element instanceof TrackTurnoutDoubleElementView && element.outputMode === "accessory") {
+      } else if (element instanceof TrackTurnoutDoubleElement && element.outputMode === "accessory") {
         if (element.turnout1Address === data.address) element.turnout1Closed = data.closed;
         if (element.turnout2Address === data.address) element.turnout2Closed = data.closed;
       }
@@ -87,14 +87,14 @@ export default function RuntimeLayoutOverlay({ locos, open }: RuntimeLayoutOverl
   }), [layout, invalidate]);
 
   useEffect(() => wsClient.on("sensorChanged", data => {
-    for (const element of layout.getAllElements()) if (element instanceof TrackSensorElementView && element.address === data.address) element.on = data.on;
+    for (const element of layout.getAllElements()) if (element instanceof TrackSensorElement && element.address === data.address) element.on = data.on;
     invalidate();
   }), [layout, invalidate]);
 
   useEffect(() => wsClient.on("sensorSnapshot", data => {
     for (const [baseAddress, activeBits, knownBits] of data.groups) {
       for (const element of layout.getAllElements()) {
-        if (!(element instanceof TrackSensorElementView)) continue;
+        if (!(element instanceof TrackSensorElement)) continue;
         const offset = element.address - baseAddress;
         if (offset < 0 || offset > 15) continue;
         const bit = 1 << offset;
@@ -107,11 +107,11 @@ export default function RuntimeLayoutOverlay({ locos, open }: RuntimeLayoutOverl
 
   useEffect(() => wsClient.on("accessoryChanged", data => {
     for (const element of layout.getAllElements()) {
-      if (element instanceof TrackSignalElementView && element.outputMode === "accessory" && element.address <= data.address && element.lastAddress >= data.address) {
+      if (element instanceof TrackSignalElement && element.outputMode === "accessory" && element.address <= data.address && element.lastAddress >= data.address) {
         element.setValue(data.address, data.active);
-      } else if (element instanceof ButtonElementView && element.outputMode === "accessory" && element.address === data.address) {
+      } else if (element instanceof ButtonElement && element.outputMode === "accessory" && element.address === data.address) {
         element.on = data.active === element.activeValue;
-      } else if (element instanceof TrackLevelCrossingElementView && element.basicAccessoryAddress === data.address) {
+      } else if (element instanceof TrackLevelCrossingElement && element.basicAccessoryAddress === data.address) {
         element.barrierClosed = data.active === element.basicAccessoryClosedValue;
       }
     }
@@ -122,12 +122,12 @@ export default function RuntimeLayoutOverlay({ locos, open }: RuntimeLayoutOverl
   //   for (const element of layout.getAllElements()) {
   //     if (isTurnoutElement(element) && element.outputMode === "vpin" && element.turnoutAddress === data.vpin) {
   //       element.turnoutClosed = data.active;
-  //     } else if (element instanceof TrackTurnoutDoubleElementView && element.outputMode === "vpin") {
+  //     } else if (element instanceof TrackTurnoutDoubleElement && element.outputMode === "vpin") {
   //       if (element.turnout1Address === data.vpin) element.turnout1Closed = data.active;
   //       if (element.turnout2Address === data.vpin) element.turnout2Closed = data.active;
-  //     } else if (element instanceof TrackSignalElementView && element.outputMode === "vpin" && element.address <= data.vpin && element.lastAddress >= data.vpin) {
+  //     } else if (element instanceof TrackSignalElement && element.outputMode === "vpin" && element.address <= data.vpin && element.lastAddress >= data.vpin) {
   //       element.setValue(data.vpin, data.active);
-  //     } else if (element instanceof ButtonElementView && element.outputMode === "vpin" && element.address === data.vpin) {
+  //     } else if (element instanceof ButtonElement && element.outputMode === "vpin" && element.address === data.vpin) {
   //       element.on = data.active === element.activeValue;
   //     }
   //   }
@@ -137,7 +137,7 @@ export default function RuntimeLayoutOverlay({ locos, open }: RuntimeLayoutOverl
 
   useEffect(() => wsClient.on("signalAspectChanged", data => {
     for (const element of layout.getAllElements()) {
-      if (element instanceof TrackSignalElementView && element.signalOutput.protocol === "dccext" && element.signalOutput.address === data.address) {
+      if (element instanceof TrackSignalElement && element.signalOutput.protocol === "dccext" && element.signalOutput.address === data.address) {
         element.setCurrentStateByAspect(data.aspect);
       }
     }
@@ -145,7 +145,7 @@ export default function RuntimeLayoutOverlay({ locos, open }: RuntimeLayoutOverl
   }), [layout, invalidate]);
 
   useEffect(() => wsClient.on("blockStateChanged", data => {
-    const blocks = layout.getAllElements().filter((element): element is BlockElementView => element instanceof BlockElementView);
+    const blocks = layout.getAllElements().filter((element): element is BlockElement => element instanceof BlockElement);
     for (const block of blocks) block.locoAddress = 0;
     for (const [wireBlockId, state] of Object.entries(data)) {
       const blockId = Number(wireBlockId);

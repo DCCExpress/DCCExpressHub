@@ -5,6 +5,7 @@
     "moduleResolution": "Bundler",
     "strict": true,
     "noImplicitAny": true,
+    "noImplicitOverride": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
     "forceConsistentCasingInFileNames": true,

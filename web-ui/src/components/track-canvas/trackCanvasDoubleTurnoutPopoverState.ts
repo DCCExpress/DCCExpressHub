@@ -3,7 +3,7 @@ import type {
   SetStateAction,
 } from "react";
 
-import type TrackTurnoutDoubleElementView from "../../models/editor/elements/TrackTurnoutDoubleElementView";
+import type TrackTurnoutDoubleElement from "../../models/editor/elements/TrackTurnoutDoubleElement";
 import type {
   DoubleTurnoutPopoverState,
 } from "./TrackCanvas.types";
@@ -13,7 +13,7 @@ export type DoubleTurnoutPopoverStateSetter =
 
 export function openTrackCanvasDoubleTurnoutPopover(
   setDoubleTurnoutPopover: DoubleTurnoutPopoverStateSetter,
-  turnout: TrackTurnoutDoubleElementView,
+  turnout: TrackTurnoutDoubleElement,
   clientX: number,
   clientY: number
 ): void {
@@ -37,7 +37,7 @@ export function closeTrackCanvasDoubleTurnoutPopover(
 
 export function reopenTrackCanvasDoubleTurnoutPopover(
   setDoubleTurnoutPopover: DoubleTurnoutPopoverStateSetter,
-  turnout: TrackTurnoutDoubleElementView,
+  turnout: TrackTurnoutDoubleElement,
   clientX: number,
   clientY: number,
   _delayMs = 100

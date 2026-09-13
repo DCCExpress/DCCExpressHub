@@ -2,13 +2,13 @@ import { Select } from "@mantine/core";
 import { useTranslation } from "react-i18next";
 
 import { BLOCK_TYPES } from "@domain/layout/elementTypes";
-import type { BaseElementView } from "../../models/editor/core/BaseElementView";
+import type { BaseElement } from "../../models/editor/core/BaseElement";
 import type { IEditableProperty } from "../../models/editor/elements/PropertyDescriptor";
 import type { PropertyChangeHandler } from "./propertyPanelTypes";
 
 type BlockTypeSelectPropertyEditorProps = {
   prop: IEditableProperty;
-  selectedElement: BaseElementView;
+  selectedElement: BaseElement;
   onChange: PropertyChangeHandler;
 };
 

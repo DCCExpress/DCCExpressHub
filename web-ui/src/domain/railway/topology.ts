@@ -23,27 +23,27 @@ import {
 
 import {
   BaseElement,
-} from "../layout/model/BaseElement.js";
+} from "../../models/editor/core/BaseElement";
 import {
   TrackElement,
   type TravelDirection,
-} from "../layout/model/TrackElement.js";
+} from "../../models/editor/core/TrackElement";
 
-import { TrackStraightElement } from "../layout/elements/TrackStraightElement.js";
-import { TrackLevelCrossingElement } from "../layout/elements/TrackLevelCrossingElement.js";
-import { TrackDirectionElement } from "../layout/elements/TrackDirectionElement.js";
-import { TrackEndElement } from "../layout/elements/TrackEndElement.js";
-import { TrackCornerElement } from "../layout/elements/TrackCornerElement.js";
-import { TrackCurveElement } from "../layout/elements/TrackCurveElement.js";
-import { TrackCrossingElement } from "../layout/elements/TrackCrossingElement.js";
-import { TrackTurnoutLeftElement } from "../layout/elements/TrackTurnoutLeftElement.js";
-import { TrackTurnoutRightElement } from "../layout/elements/TrackTurnoutRightElement.js";
-import { TrackTurnoutTwoWayElement } from "../layout/elements/TrackTurnoutTwoWayElement.js";
-import { TrackTurnoutThreeWayElement } from "../layout/elements/TrackTurnoutThreeWayElement.js";
-import TrackTurnoutDoubleElement from "../layout/elements/TrackTurnoutDoubleElement.js";
-import { BlockElement } from "../layout/elements/BlockElement.js";
-import { TrackSensorElement } from "../layout/elements/TrackSensorElement.js";
-import { TrackSignalElement } from "../layout/elements/TrackSignalElement.js";
+import { TrackStraightElement } from "../../models/editor/elements/TrackStraightElement";
+import { TrackLevelCrossingElement } from "../../models/editor/elements/TrackLevelCrossingElement";
+import { TrackDirectionElement } from "../../models/editor/elements/TrackDirectionElement";
+import { TrackEndElement } from "../../models/editor/elements/TrackEndElement";
+import { TrackCornerElement } from "../../models/editor/elements/TrackCornerElement";
+import { TrackCurveElement } from "../../models/editor/elements/TrackCurveElement";
+import { TrackCrossingElement } from "../../models/editor/elements/TrackCrossingElement";
+import { TrackTurnoutLeftElement } from "../../models/editor/elements/TrackTurnoutLeftElement";
+import { TrackTurnoutRightElement } from "../../models/editor/elements/TrackTurnoutRightElement";
+import { TrackTurnoutTwoWayElement } from "../../models/editor/elements/TrackTurnoutTwoWayElement";
+import { TrackTurnoutThreeWayElement } from "../../models/editor/elements/TrackTurnoutThreeWayElement";
+import TrackTurnoutDoubleElement from "../../models/editor/elements/TrackTurnoutDoubleElement";
+import { BlockElement } from "../../models/editor/elements/BlockElement";
+import { TrackSensorElement } from "../../models/editor/elements/TrackSensorElement";
+import { TrackSignalElement } from "../../models/editor/elements/TrackSignalElement";
 
 export type {
   SerializedLayoutDto,
@@ -53,7 +53,7 @@ export type {
 
 export type {
   TravelDirection,
-} from "../layout/model/TrackElement.js";
+} from "../../models/editor/core/TrackElement";
 
 export {
   TrackStraightElement as TopologyStraightElement,

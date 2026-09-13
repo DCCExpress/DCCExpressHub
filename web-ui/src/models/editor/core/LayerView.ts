@@ -7,8 +7,8 @@ import {
   type LayerOptions,
 } from "@domain/layout/model/Layer";
 import {
-  BaseElementView,
-} from "./BaseElementView";
+  BaseElement,
+} from "./BaseElement";
 
 export type {
   LayerId,
@@ -22,7 +22,7 @@ export type {
  * ez csak a rajzolási felületet adja hozzá.
  */
 export class LayerView
-  extends CommonLayer<BaseElementView> {
+  extends CommonLayer<BaseElement> {
   constructor(
     id: LayerId,
     name: string,

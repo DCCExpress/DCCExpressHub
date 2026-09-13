@@ -5,8 +5,8 @@ import type {
 } from "react";
 
 import type {
-  BaseElementView,
-} from "../../models/editor/core/BaseElementView";
+  BaseElement,
+} from "../../models/editor/core/BaseElement";
 
 import type {
   LayoutView,
@@ -50,7 +50,7 @@ export type TrackCanvasMouseMoveContext = {
   layoutRef: MouseMoveRef<LayoutView>;
   toolRef: MouseMoveRef<EditorTool>;
   viewRef: MouseMoveRef<ViewState>;
-  currentCursorRef: MouseMoveRef<BaseElementView | null>;
+  currentCursorRef: MouseMoveRef<BaseElement | null>;
   panRef: MouseMoveRef<PanState>;
   selectionRef: MouseMoveRef<SelectionState>;
   dragRef: MouseMoveRef<DragState>;

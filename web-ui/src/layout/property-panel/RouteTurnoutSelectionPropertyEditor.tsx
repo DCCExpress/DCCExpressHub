@@ -9,17 +9,17 @@ import {
 import { IconPlayerPlay, IconTrash } from "@tabler/icons-react";
 
 import type { LayoutElementId } from "@domain/layout/layoutDto";
-import type { BaseElementView } from "../../models/editor/core/BaseElementView";
+import type { BaseElement } from "../../models/editor/core/BaseElement";
 import type { LayoutView } from "../../models/editor/core/LayoutView";
 import type { IEditableProperty } from "../../models/editor/elements/PropertyDescriptor";
 import {
-  RouteButtonElementView,
+  RouteButtonElement,
   type RouteTurnoutItem,
-} from "../../models/editor/elements/RouteButtonElementView";
-import TrackTurnoutDoubleElementView from "../../models/editor/elements/TrackTurnoutDoubleElementView";
+} from "../../models/editor/elements/RouteButtonElement";
+import TrackTurnoutDoubleElement from "../../models/editor/elements/TrackTurnoutDoubleElement";
 import {
-  TrackTurnoutThreeWayElementView,
-} from "../../models/editor/elements/TrackTurnoutThreeWayElementView";
+  TrackTurnoutThreeWayElement,
+} from "../../models/editor/elements/TrackTurnoutThreeWayElement";
 import ElementPreview from "../../models/editor/rendering/ElementPreviewRenderer";
 import { useCommandCenter } from "../../context/CommandCenterContext";
 import { showWarningMessage } from "../../helpers";
@@ -31,7 +31,7 @@ import type {
 
 type RouteTurnoutSelectionPropertyEditorProps = {
   prop: IEditableProperty;
-  selectedElement: BaseElementView;
+  selectedElement: BaseElement;
   layout: LayoutView;
   turnoutSelectionMode: boolean;
   setTurnoutSelectionMode: (on: boolean) => void;
@@ -45,7 +45,7 @@ function findElementById(layout: LayoutView, id: LayoutElementId) {
 }
 
 function getItems(
-  selectedElement: BaseElementView,
+  selectedElement: BaseElement,
   prop: IEditableProperty
 ): RouteTurnoutItem[] {
   const value = (selectedElement as any)[prop.key];
@@ -53,11 +53,11 @@ function getItems(
 }
 
 function removeTurnout(
-  selectedElement: BaseElementView,
+  selectedElement: BaseElement,
   turnoutId: LayoutElementId,
   onUpdateSelectedElement: SelectedElementUpdateHandler
 ) {
-  const routeButton = selectedElement as RouteButtonElementView;
+  const routeButton = selectedElement as RouteButtonElement;
   routeButton.removeTurnout(turnoutId);
   onUpdateSelectedElement(selectedElement);
 }
@@ -67,7 +67,7 @@ function getRouteTurnoutLogicalLabel(
   firstClosed: boolean,
   secondClosed?: boolean
 ): string {
-  if (turnout instanceof TrackTurnoutThreeWayElementView) {
+  if (turnout instanceof TrackTurnoutThreeWayElement) {
     const second = secondClosed ?? turnout.turnout2Closed;
 
     const positions = ["left", "straight", "right"] as const;
@@ -85,7 +85,7 @@ function getRouteTurnoutLogicalLabel(
     return `${Number(firstClosed)}-${Number(second)}`;
   }
 
-  if (turnout instanceof TrackTurnoutDoubleElementView) {
+  if (turnout instanceof TrackTurnoutDoubleElement) {
     const second = secondClosed ?? turnout.turnout2Closed;
 
     const states = [
@@ -153,7 +153,7 @@ export default function RouteTurnoutSelectionPropertyEditor({
     const turnout = findElementById(layout, turnoutId);
     if (!turnout) return;
 
-    if (turnout instanceof TrackTurnoutThreeWayElementView) {
+    if (turnout instanceof TrackTurnoutThreeWayElement) {
       const states = [
         turnout.getBitsForPosition("left"),
         turnout.getBitsForPosition("straight"),
@@ -170,7 +170,7 @@ export default function RouteTurnoutSelectionPropertyEditor({
       return;
     }
 
-    if (turnout instanceof TrackTurnoutDoubleElementView) {
+    if (turnout instanceof TrackTurnoutDoubleElement) {
       const states = [
         { first: turnout.ooMotor1Value, second: turnout.ooMotor2Value },
         { first: turnout.ocMotor1Value, second: turnout.ocMotor2Value },
@@ -192,7 +192,7 @@ export default function RouteTurnoutSelectionPropertyEditor({
   };
 
   const testRouteButton = async (): Promise<void> => {
-    if (!(selectedElement instanceof RouteButtonElementView)) return;
+    if (!(selectedElement instanceof RouteButtonElement)) return;
 
     const completed = await executeLegacyRouteButton({
       routeButton: selectedElement,
@@ -266,14 +266,14 @@ export default function RouteTurnoutSelectionPropertyEditor({
             previewTurnout.selected = false;
             previewTurnout.enabled = true;
 
-            // TrackTurnoutDoubleElementView.clone() currently does not copy the
+            // TrackTurnoutDoubleElement.clone() currently does not copy the
             // explicit per-position bit table. RouteButton preview must use
             // the exact O-O / O-C / C-O / C-C mapping configured on the real
             // turnout, otherwise the stored physical bit pair can be rendered
             // as the wrong logical Double position.
             if (
-              turnout instanceof TrackTurnoutDoubleElementView &&
-              previewTurnout instanceof TrackTurnoutDoubleElementView
+              turnout instanceof TrackTurnoutDoubleElement &&
+              previewTurnout instanceof TrackTurnoutDoubleElement
             ) {
               previewTurnout.ooMotor1Value = turnout.ooMotor1Value;
               previewTurnout.ooMotor2Value = turnout.ooMotor2Value;
@@ -286,8 +286,8 @@ export default function RouteTurnoutSelectionPropertyEditor({
             }
 
             if (
-              previewTurnout instanceof TrackTurnoutDoubleElementView ||
-              previewTurnout instanceof TrackTurnoutThreeWayElementView
+              previewTurnout instanceof TrackTurnoutDoubleElement ||
+              previewTurnout instanceof TrackTurnoutThreeWayElement
             ) {
               previewTurnout.turnout1Closed = item.closed;
               previewTurnout.turnout2Closed =
@@ -308,8 +308,8 @@ export default function RouteTurnoutSelectionPropertyEditor({
                   <ElementPreview
                     element={previewTurnout}
                     label={
-                      previewTurnout instanceof TrackTurnoutDoubleElementView ||
-                      previewTurnout instanceof TrackTurnoutThreeWayElementView
+                      previewTurnout instanceof TrackTurnoutDoubleElement ||
+                      previewTurnout instanceof TrackTurnoutThreeWayElement
                         ? `#${previewTurnout.turnout1Address}/#${previewTurnout.turnout2Address}`
                         : "#" + (previewTurnout as any).turnoutAddress
                     }

@@ -23,7 +23,7 @@ import {
 } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import type { BaseElementView } from "../../models/editor/core/BaseElementView";
+import type { BaseElement } from "../../models/editor/core/BaseElement";
 import type { IEditableProperty } from "../../models/editor/elements/PropertyDescriptor";
 import type { PropertyChangeHandler } from "./propertyPanelTypes";
 
@@ -43,7 +43,7 @@ type StorageListing = {
 
 type AudioFilePropertyEditorProps = {
   prop: IEditableProperty;
-  selectedElement: BaseElementView;
+  selectedElement: BaseElement;
   onChange: PropertyChangeHandler;
 };
 

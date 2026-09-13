@@ -1,5 +1,5 @@
 import type { Loco } from "@domain/types";
-import type { BaseElementView } from "../../models/editor/core/BaseElementView";
+import type { BaseElement } from "../../models/editor/core/BaseElement";
 import type { LayoutView } from "../../models/editor/core/LayoutView";
 import type { EditorSettings } from "../../context/EditorSettingsContext";
 import type { DrawOptions, EditorTool } from "../../models/editor/types/EditorTypes";
@@ -15,7 +15,7 @@ type DebugTurnoutRoute = {
   to: string;
   turnoutStates: readonly { closed: boolean }[];
 };
-type DebugRouteAwareElement = BaseElementView & {
+type DebugRouteAwareElement = BaseElement & {
   getAllowedRoutes?: () => DebugTurnoutRoute[];
   getConnections?: () => Record<string, DebugPoint>;
   turnout1Closed?: boolean;
@@ -84,7 +84,7 @@ function drawDebugConnectionLine(
 
 function drawSelectedTrackDebugOverlay(
   ctx: CanvasRenderingContext2D,
-  selected: BaseElementView | undefined,
+  selected: BaseElement | undefined,
   gridSize: number,
   scale: number
 ): void {
@@ -163,11 +163,11 @@ export function drawScene(
   mouseGrid: { x: number; y: number },
   tool: EditorTool,
   hoverGrid: { x: number; y: number } | null,
-  currentCursor: BaseElementView | null,
+  currentCursor: BaseElement | null,
   layout: LayoutView,
   settings: EditorSettings,
   dragId?: number,
-  selected?: BaseElementView,
+  selected?: BaseElement,
   selectionRect?: SelectionRect | null,
   turnoutSelectionMode?: boolean,
   locos?: Loco[]
@@ -288,7 +288,7 @@ export function drawInfo(
   scale: number,
   mouseGrid: { x: number; y: number },
   tool: EditorTool,
-  currentCursor: BaseElementView | null
+  currentCursor: BaseElement | null
 ): void {
   const px = 20;
   const toolText = tool.mode === "cursor" ? "Kurzor" : `Rajz: ${tool.elementType}`;

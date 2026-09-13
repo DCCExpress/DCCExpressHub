@@ -37,16 +37,16 @@ import {
 } from "../../models/editor/core/LayoutView";
 
 import type {
-  BaseElementView,
-} from "../../models/editor/core/BaseElementView";
+  BaseElement,
+} from "../../models/editor/core/BaseElement";
 
 import type {
   IEditableProperty,
 } from "../../models/editor/elements/PropertyDescriptor";
 
 import {
-  TrackSignalElementView,
-} from "../../models/editor/elements/TrackSignalElementView";
+  TrackSignalElement,
+} from "../../models/editor/elements/TrackSignalElement";
 
 import ElementPreview from "../../models/editor/rendering/ElementPreviewRenderer";
 
@@ -56,16 +56,16 @@ import type {
 
 type SignalAspectPropertyEditorProps = {
   prop: IEditableProperty;
-  selectedElement: BaseElementView;
+  selectedElement: BaseElement;
   onUpdateSelectedElement: SelectedElementUpdateHandler;
 };
 
 function createStatePreview(
-  signal: TrackSignalElementView,
+  signal: TrackSignalElement,
   stateIndex: number
-): TrackSignalElementView {
+): TrackSignalElement {
   const preview =
-    new TrackSignalElementView(0, 0);
+    new TrackSignalElement(0, 0);
 
   preview.signalOutput =
     cloneSignalOutputConfiguration(
@@ -91,7 +91,7 @@ export default function SignalAspectPropertyEditor({
   onUpdateSelectedElement,
 }: SignalAspectPropertyEditorProps) {
   const signal =
-    selectedElement as TrackSignalElementView;
+    selectedElement as TrackSignalElement;
 
   const [opened, setOpened] =
     useState(false);
@@ -182,7 +182,7 @@ export default function SignalAspectPropertyEditor({
           .getAllElements()
           .find(element => element.id === signal.id);
 
-      if (!(savedSignal instanceof TrackSignalElementView)) {
+      if (!(savedSignal instanceof TrackSignalElement)) {
         throw new Error(
           "Save the layout before configuring automation for this signal."
         );

@@ -6,33 +6,33 @@ import {
 } from "../../../helpers";
 import i18n from "../../../i18n";
 import {
-  BlockElementView,
-} from "../elements/BlockElementView";
+  BlockElement,
+} from "../elements/BlockElement";
 import {
-  RouteButtonElementView,
-} from "../elements/RouteButtonElementView";
+  RouteButtonElement,
+} from "../elements/RouteButtonElement";
 import {
-  TrackStraightElementView,
-} from "../elements/TrackStraightElementView";
+  TrackStraightElement,
+} from "../elements/TrackStraightElement";
 import {
-  TrackTurnoutLeftElementView,
-} from "../elements/TrackTurnoutLeftElementView";
+  TrackTurnoutLeftElement,
+} from "../elements/TrackTurnoutLeftElement";
 import {
-  TrackTurnoutRightElementView,
-} from "../elements/TrackTurnoutRightElementView";
+  TrackTurnoutRightElement,
+} from "../elements/TrackTurnoutRightElement";
 import {
-  TrackTurnoutTwoWayElementView,
-} from "../elements/TrackTurnoutTwoWayElementView";
-import TrackTurnoutDoubleElementView from "../elements/TrackTurnoutDoubleElementView";
+  TrackTurnoutTwoWayElement,
+} from "../elements/TrackTurnoutTwoWayElement";
+import TrackTurnoutDoubleElement from "../elements/TrackTurnoutDoubleElement";
 import {
-  TrackTurnoutThreeWayElementView,
-} from "../elements/TrackTurnoutThreeWayElementView";
+  TrackTurnoutThreeWayElement,
+} from "../elements/TrackTurnoutThreeWayElement";
 import type {
   DrawOptions,
 } from "../types/EditorTypes";
 import {
-  BaseElementView,
-} from "./BaseElementView";
+  BaseElement,
+} from "./BaseElement";
 import {
   ElementFactory,
 } from "./ElementFactory";
@@ -46,11 +46,11 @@ import {
   Layout as CommonLayout,
 } from "@domain/layout/model/Layout";
 import {
-  TrackElement as DomainTrackElement,
-} from "@domain/layout/model/TrackElement";
+  TrackElement,
+} from "./TrackElement";
 import type {
   NeighborPointPair,
-} from "@domain/layout/model/BaseElement";
+} from "./BaseElement";
 import type {
   Point,
 } from "@domain/Rect";
@@ -67,42 +67,40 @@ import {
 } from "./LayerView";
 import { resolveRouteSecondClosed } from "../turnout/routeTurnoutState";
 
-type LayoutTrackElement =
-  BaseElementView &
-  DomainTrackElement;
+
 
 export type RouteTurnoutElement =
-  | TrackTurnoutLeftElementView
-  | TrackTurnoutRightElementView
-  | TrackTurnoutTwoWayElementView;
+  | TrackTurnoutLeftElement
+  | TrackTurnoutRightElement
+  | TrackTurnoutTwoWayElement;
 
 export function isTurnoutElement(
-  element: BaseElementView | null | undefined
+  element: BaseElement | null | undefined
 ): element is RouteTurnoutElement {
   return (
-    element instanceof TrackTurnoutLeftElementView ||
-    element instanceof TrackTurnoutRightElementView ||
-    element instanceof TrackTurnoutTwoWayElementView
+    element instanceof TrackTurnoutLeftElement ||
+    element instanceof TrackTurnoutRightElement ||
+    element instanceof TrackTurnoutTwoWayElement
   );
 }
 
 function isMultiMotorTurnout(
-  element: BaseElementView | null | undefined
+  element: BaseElement | null | undefined
 ): element is
-  | TrackTurnoutDoubleElementView
-  | TrackTurnoutThreeWayElementView {
+  | TrackTurnoutDoubleElement
+  | TrackTurnoutThreeWayElement {
   return (
-    element instanceof TrackTurnoutDoubleElementView ||
-    element instanceof TrackTurnoutThreeWayElementView
+    element instanceof TrackTurnoutDoubleElement ||
+    element instanceof TrackTurnoutThreeWayElement
   );
 }
 
 function isRouteButtonTurnout(
-  element: BaseElementView | null | undefined
+  element: BaseElement | null | undefined
 ): element is
   | RouteTurnoutElement
-  | TrackTurnoutDoubleElementView
-  | TrackTurnoutThreeWayElementView {
+  | TrackTurnoutDoubleElement
+  | TrackTurnoutThreeWayElement {
   return (
     isTurnoutElement(element) ||
     isMultiMotorTurnout(element)
@@ -112,8 +110,8 @@ function isRouteButtonTurnout(
 function routeTurnoutMatches(
   turnout:
     | RouteTurnoutElement
-    | TrackTurnoutDoubleElementView
-    | TrackTurnoutThreeWayElementView,
+    | TrackTurnoutDoubleElement
+    | TrackTurnoutThreeWayElement,
   reference: {
     closed: boolean;
     secondClosed?: boolean;
@@ -160,8 +158,8 @@ function routeStatesMatch(
 
 function getMultiMotorBits(
   element:
-    | TrackTurnoutDoubleElementView
-    | TrackTurnoutThreeWayElementView,
+    | TrackTurnoutDoubleElement
+    | TrackTurnoutThreeWayElement,
   routeStates?: RouteStateMap
 ): {
   first: boolean;
@@ -188,12 +186,12 @@ function getMultiMotorBits(
 }
 
 function getActiveConnectionPairs(
-  element: LayoutTrackElement,
+  element: TrackElement,
   routeStates?: RouteStateMap
 ): NeighborPointPair[] {
   if (
     element instanceof
-    TrackTurnoutDoubleElementView
+    TrackTurnoutDoubleElement
   ) {
     const bits =
       getMultiMotorBits(
@@ -226,7 +224,7 @@ function getActiveConnectionPairs(
 
   if (
     element instanceof
-    TrackTurnoutThreeWayElementView
+    TrackTurnoutThreeWayElement
   ) {
     const bits =
       getMultiMotorBits(
@@ -261,7 +259,7 @@ function getActiveConnectionPairs(
 }
 
 function getExitPointsForEntry(
-  element: LayoutTrackElement,
+  element: TrackElement,
   enteredFrom: Point,
   routeStates?: RouteStateMap
 ): Point[] {
@@ -287,7 +285,7 @@ function getExitPointsForEntry(
 }
 
 function acceptsConnectionFrom(
-  element: LayoutTrackElement,
+  element: TrackElement,
   neighborCenter: Point,
   routeStates?: RouteStateMap
 ): boolean {
@@ -310,7 +308,7 @@ export type CheckRoutesResult = {
 
 /** Kliensoldali layout-view. */
 export class LayoutView
-  extends CommonLayout<BaseElementView, LayerView> {
+  extends CommonLayout<BaseElement, LayerView> {
   constructor() {
     super(
       (id, name, options) =>
@@ -318,19 +316,19 @@ export class LayoutView
     );
 
     const track =
-      new TrackStraightElementView(10, 10);
+      new TrackStraightElement(10, 10);
 
     // addElement owns ID allocation. Do not manufacture IDs in view classes.
     this.addElement(track, "track");
   }
 
   override removeElement(
-    element: BaseElementView
+    element: BaseElement
   ): void {
     const elements = this.getAllElements();
 
     for (const current of elements) {
-      if (!(current instanceof RouteButtonElementView)) {
+      if (!(current instanceof RouteButtonElement)) {
         continue;
       }
 
@@ -353,16 +351,16 @@ export class LayoutView
     super.removeElement(element);
   }
 
-  public getTrackElements(): LayoutTrackElement[] {
+  public getTrackElements(): TrackElement[] {
     return [
-      ...this.track.elements as LayoutTrackElement[],
-      ...this.blocks.elements as LayoutTrackElement[],
-      ...this.signals.elements as LayoutTrackElement[],
-      ...this.sensors.elements as LayoutTrackElement[],
-    ];
+      ...this.track.elements,
+      ...this.blocks.elements,
+      ...this.signals.elements,
+      ...this.sensors.elements,
+    ].filter((element): element is TrackElement => element instanceof TrackElement);
   }
 
-  getSelected(): BaseElementView | null {
+  getSelected(): BaseElement | null {
     for (const layer of [
       this.track,
       this.blocks,
@@ -380,7 +378,7 @@ export class LayoutView
     return null;
   }
 
-  setSelected(element: BaseElementView): void {
+  setSelected(element: BaseElement): void {
     this.unselectAll();
 
     for (const layer of [
@@ -428,13 +426,13 @@ export class LayoutView
   }
 
   setBlockLocoAddress(
-    selectedBlock: BlockElementView,
+    selectedBlock: BlockElement,
     loco: Loco
   ): void {
     const elements = this.getAllElements();
 
     for (const element of elements) {
-      if (!(element instanceof BlockElementView)) {
+      if (!(element instanceof BlockElement)) {
         continue;
       }
 
@@ -499,7 +497,7 @@ export class LayoutView
     // Repair old single-bit references in memory so the editor previews and
     // the next explicit save also retain the recovered second motor value.
     for (const element of layout.getAllElements()) {
-      if (!(element instanceof RouteButtonElementView)) continue;
+      if (!(element instanceof RouteButtonElement)) continue;
       for (const reference of element.routeTurnouts) {
         const turnout = layout.getElementById(reference.turnoutId);
         if (!isMultiMotorTurnout(turnout)) continue;
@@ -516,7 +514,7 @@ export class LayoutView
       this.getTrackElements();
 
     elements.forEach(
-      (element: LayoutTrackElement) => {
+      (element: TrackElement) => {
         element.isVisited = false;
         element.isRoute = false;
         element.routeConnectionIndices = [];
@@ -538,7 +536,7 @@ export class LayoutView
       null;
 
     elements.forEach(
-      (element: LayoutTrackElement) => {
+      (element: TrackElement) => {
         element.isVisited = false;
         element.isRoute = false;
         element.routeConnectionIndices = [];
@@ -547,10 +545,10 @@ export class LayoutView
 
     const routeButtons =
       this.getAllElements().filter(
-        (element: BaseElementView) =>
+        (element: BaseElement) =>
           element instanceof
-          RouteButtonElementView
-      ) as RouteButtonElementView[];
+          RouteButtonElement
+      ) as RouteButtonElement[];
 
     for (const routeButton of routeButtons) {
       const active =
@@ -619,9 +617,9 @@ export class LayoutView
     for (const overlay of elements) {
       if (this.track.elements.includes(overlay)) continue;
       const track = this.track.elements.find(element =>
-        element instanceof DomainTrackElement &&
+        element instanceof TrackElement &&
         element.x === overlay.x && element.y === overlay.y
-      ) as LayoutTrackElement | undefined;
+      ) as TrackElement | undefined;
       if (track) {
         overlay.isRoute = track.isRoute;
         overlay.routeConnectionIndices = [...track.routeConnectionIndices];
@@ -635,7 +633,7 @@ export class LayoutView
   }
 
   startWalk(
-    obj: LayoutTrackElement,
+    obj: TrackElement,
     routeStates?: RouteStateMap
   ): void {
     this.walkActiveRoute(
@@ -647,7 +645,7 @@ export class LayoutView
   }
 
   private walkActiveRoute(
-    obj: LayoutTrackElement,
+    obj: TrackElement,
     enteredFrom:
       Point |
       null,
@@ -707,7 +705,7 @@ export class LayoutView
       // block overlay must never hide a neighboring standalone sensor/rail.
       const candidate =
         this.getTrackElements().find(element =>
-          element instanceof DomainTrackElement &&
+          element instanceof TrackElement &&
           element.x === exit.x && element.y === exit.y
         );
 
@@ -715,14 +713,14 @@ export class LayoutView
         !candidate ||
         candidate === obj ||
         !(candidate instanceof
-          DomainTrackElement)
+          TrackElement)
       ) {
         continue;
       }
 
       const next =
         candidate as
-          LayoutTrackElement;
+          TrackElement;
 
       if (
         !acceptsConnectionFrom(
@@ -747,7 +745,7 @@ export class LayoutView
 
 
   walkTrack(
-    obj: LayoutTrackElement,
+    obj: TrackElement,
     section: number
   ): void {
     obj.isVisited = true;
@@ -757,7 +755,7 @@ export class LayoutView
     const nextPosition = obj.getNextItemXy();
     const prevPosition = obj.getPrevItemXy();
 
-    const next = this.getObjectXy(nextPosition) as LayoutTrackElement;
+    const next = this.getObjectXy(nextPosition) as TrackElement;
 
     if (
       next &&
@@ -772,7 +770,7 @@ export class LayoutView
       this.walkTrack(next, section);
     }
 
-    const prev = this.getObjectXy(prevPosition) as LayoutTrackElement;
+    const prev = this.getObjectXy(prevPosition) as TrackElement;
 
     if (
       prev &&
@@ -830,8 +828,8 @@ export class LayoutView
 
     const physicalTrackElements =
       this.track.elements.filter(
-        (element): element is LayoutTrackElement =>
-          element instanceof DomainTrackElement
+        (element): element is TrackElement =>
+          element instanceof TrackElement
       );
 
     const normalizeRotation = (
@@ -842,7 +840,7 @@ export class LayoutView
     };
 
     for (const element of trackElements) {
-      if (!(element instanceof BlockElementView)) {
+      if (!(element instanceof BlockElement)) {
         continue;
       }
 

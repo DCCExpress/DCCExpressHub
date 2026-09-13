@@ -16,8 +16,8 @@ import {
 } from "../../helpers";
 
 import type {
-  BaseElementView,
-} from "../../models/editor/core/BaseElementView";
+  BaseElement,
+} from "../../models/editor/core/BaseElement";
 
 import {
   isTurnoutElement,
@@ -25,25 +25,25 @@ import {
 } from "../../models/editor/core/LayoutView";
 
 import {
-  AudioButtonElementView,
-} from "../../models/editor/elements/AudioButtonElementView";
+  AudioButtonElement,
+} from "../../models/editor/elements/AudioButtonElement";
 
 import {
-  BlockElementView,
-} from "../../models/editor/elements/BlockElementView";
+  BlockElement,
+} from "../../models/editor/elements/BlockElement";
 
 import {
-  RouteButtonElementView,
-} from "../../models/editor/elements/RouteButtonElementView";
+  RouteButtonElement,
+} from "../../models/editor/elements/RouteButtonElement";
 
 import {
-  TrackSignalElementView,
-} from "../../models/editor/elements/TrackSignalElementView";
+  TrackSignalElement,
+} from "../../models/editor/elements/TrackSignalElement";
 
-import TrackTurnoutDoubleElementView from "../../models/editor/elements/TrackTurnoutDoubleElementView";
+import TrackTurnoutDoubleElement from "../../models/editor/elements/TrackTurnoutDoubleElement";
 import {
-  TrackTurnoutThreeWayElementView,
-} from "../../models/editor/elements/TrackTurnoutThreeWayElementView";
+  TrackTurnoutThreeWayElement,
+} from "../../models/editor/elements/TrackTurnoutThreeWayElement";
 
 import type {
   EditorTool,
@@ -78,44 +78,44 @@ export type TrackCanvasMouseDownContext = {
   viewRef: MouseDownRef<ViewState>;
   editModeRef: MouseDownRef<boolean>;
   turnoutSelectionModeRef: MouseDownRef<boolean>;
-  selectedElementRef: MouseDownRef<BaseElementView | null>;
-  currentCursorRef: MouseDownRef<BaseElementView | null>;
+  selectedElementRef: MouseDownRef<BaseElement | null>;
+  currentCursorRef: MouseDownRef<BaseElement | null>;
   signalAspectPopoverRef: MouseDownRef<SignalAspectPopoverState>;
   doubleTurnoutPopoverRef: MouseDownRef<DoubleTurnoutPopoverState>;
   panRef: MouseDownRef<PanState>;
   dragRef: MouseDownRef<DragState>;
   selectionRef: MouseDownRef<SelectionState>;
-  setSelectedBlock: Dispatch<SetStateAction<BlockElementView | null>>;
+  setSelectedBlock: Dispatch<SetStateAction<BlockElement | null>>;
   setLocoPickerOpen: Dispatch<SetStateAction<boolean>>;
-  setRouteTurnoutsMarked: (routeButton: RouteButtonElementView) => void;
+  setRouteTurnoutsMarked: (routeButton: RouteButtonElement) => void;
   onInvalidate: () => void;
   onBeforeLayoutChange?: (() => void) | undefined;
   onLayoutChange: Dispatch<SetStateAction<LayoutView>>;
-  onSelectedElementChange: (element: BaseElementView | null) => void;
+  onSelectedElementChange: (element: BaseElement | null) => void;
   openSignalAspectPopover: (
-    signal: TrackSignalElementView,
+    signal: TrackSignalElement,
     clientX: number,
     clientY: number
   ) => void;
   reopenSignalAspectPopover: (
-    signal: TrackSignalElementView,
+    signal: TrackSignalElement,
     clientX: number,
     clientY: number
   ) => void;
   closeSignalAspectPopover: () => void;
   openDoubleTurnoutPopover: (
-    turnout: TrackTurnoutDoubleElementView,
+    turnout: TrackTurnoutDoubleElement,
     clientX: number,
     clientY: number
   ) => void;
   reopenDoubleTurnoutPopover: (
-    turnout: TrackTurnoutDoubleElementView,
+    turnout: TrackTurnoutDoubleElement,
     clientX: number,
     clientY: number
   ) => void;
   closeDoubleTurnoutPopover: () => void;
   handleClickableDown: (
-    hitElement: BaseElementView | null,
+    hitElement: BaseElement | null,
     event: MouseEvent | PointerEvent
   ) => boolean;
   invalidate: () => void;
@@ -196,7 +196,7 @@ export function handleTrackCanvasMouseDown(
   const hitElement = currentLayout.getElement(grid.x, grid.y);
 
   if (!editModeRef.current && hitElement?.type === ELEMENT_TYPES.BUTTON_AUDIO) {
-    const audioButton = hitElement as AudioButtonElementView;
+    const audioButton = hitElement as AudioButtonElement;
     audioButton.press(() => {
       invalidate();
     });
@@ -205,10 +205,10 @@ export function handleTrackCanvasMouseDown(
 
   if (currentEditMode && currentTurnoutSelection) {
     if (hitElement) {
-      if (currentElement instanceof RouteButtonElementView) {
+      if (currentElement instanceof RouteButtonElement) {
         if (
-          hitElement instanceof TrackTurnoutDoubleElementView ||
-          hitElement instanceof TrackTurnoutThreeWayElementView
+          hitElement instanceof TrackTurnoutDoubleElement ||
+          hitElement instanceof TrackTurnoutThreeWayElement
         ) {
           currentElement.addOrUpdateTurnout(
             hitElement.id,
@@ -238,12 +238,12 @@ export function handleTrackCanvasMouseDown(
   }
 
   if (!editModeRef.current) {
-    if (hitElement instanceof BlockElementView) {
+    if (hitElement instanceof BlockElement) {
       setSelectedBlock(hitElement);
       setLocoPickerOpen(true);
     }
 
-    if (hitElement instanceof TrackSignalElementView) {
+    if (hitElement instanceof TrackSignalElement) {
       if (doubleTurnoutPopoverRef.current.opened) {
         closeDoubleTurnoutPopover();
       }
@@ -265,7 +265,7 @@ export function handleTrackCanvasMouseDown(
       return;
     }
 
-    if (hitElement instanceof TrackTurnoutDoubleElementView) {
+    if (hitElement instanceof TrackTurnoutDoubleElement) {
       if (signalAspectPopoverRef.current.opened) {
         closeSignalAspectPopover();
       }

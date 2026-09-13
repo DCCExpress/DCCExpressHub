@@ -1,11 +1,11 @@
 import { Box, CSSProperties, Text, useMantineColorScheme, useMantineTheme } from "@mantine/core";
-import { BaseElementView } from "../core/BaseElementView";
+import { BaseElement } from "../core/BaseElement";
 import { DrawOptions } from "../types/EditorTypes";
 
 export class ElementPreviewRenderer {
   static renderToCanvas(
     canvas: HTMLCanvasElement,
-    element: BaseElementView,
+    element: BaseElement,
     options: DrawOptions = {
       showOccupancySensorAddress: false,
       showSensorAddress: false,
@@ -29,7 +29,7 @@ export class ElementPreviewRenderer {
   static renderToDataUrl(
     width: number,
     height: number,
-    element: BaseElementView,
+    element: BaseElement,
     options: DrawOptions
   ): string {
     const canvas = document.createElement("canvas");
@@ -56,7 +56,7 @@ export class ElementPreviewRenderer {
 import { useEffect, useRef } from "react";
 
 type ElementPreviewProps = {
-  element: BaseElementView;
+  element: BaseElement;
   label: string;
   width?: number;
   height?: number;

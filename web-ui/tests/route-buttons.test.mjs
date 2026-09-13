@@ -1,43 +1,22 @@
 import assert from "node:assert/strict";
-import { after, test } from "node:test";
-import { fileURLToPath } from "node:url";
-import { resolve } from "node:path";
-import { createServer } from "vite";
+import { test } from "node:test";
 import { readFile } from "node:fs/promises";
-
-// Load the real view models with the application's aliases, without a browser
-// or a connection to railway hardware.
-const storage = new Map();
-globalThis.localStorage = {
-  getItem: key => storage.get(key) ?? null,
-  setItem: (key, value) => storage.set(key, String(value)),
-};
-globalThis.window = { location: { search: "" }, localStorage, setTimeout: callback => setTimeout(callback, 0) };
-const root = fileURLToPath(new URL("../", import.meta.url));
-const server = await createServer({
-  root,
-  configFile: false,
-  optimizeDeps: { noDiscovery: true, include: [] },
-  server: { middlewareMode: true, watch: null },
-  resolve: { alias: { "@": resolve(root, "src"), "@domain": resolve(root, "src/domain") } },
-});
-after(() => server.close());
-const load = path => server.ssrLoadModule(`/src/${path}.ts`);
+import { load } from "./editor-test-runtime.mjs";
+const { TrackElement } = await load("models/editor/core/TrackElement");
 const { LayoutView } = await load("models/editor/core/LayoutView");
-const { RouteButtonElementView: Button } = await load("models/editor/elements/RouteButtonElementView");
-const { TrackStraightElementView: Straight } = await load("models/editor/elements/TrackStraightElementView");
-const { TrackTurnoutLeftElementView: Left } = await load("models/editor/elements/TrackTurnoutLeftElementView");
-const { TrackTurnoutRightElementView: Right } = await load("models/editor/elements/TrackTurnoutRightElementView");
-const { TrackTurnoutTwoWayElementView: TwoWay } = await load("models/editor/elements/TrackTurnoutTwoWayElementView");
-const { TrackCrossingElementView: Crossing } = await load("models/editor/elements/TrackCrossingElementView");
-const { BlockElementView: Block } = await load("models/editor/elements/BlockElementView");
-const { TrackSensorElementView: Sensor } = await load("models/editor/elements/TrackSensorElementView");
-const { default: Double } = await load("models/editor/elements/TrackTurnoutDoubleElementView");
-const { TrackTurnoutThreeWayElementView: ThreeWay } = await load("models/editor/elements/TrackTurnoutThreeWayElementView");
+const { RouteButtonElement: Button } = await load("models/editor/elements/RouteButtonElement");
+const { TrackStraightElement: Straight } = await load("models/editor/elements/TrackStraightElement");
+const { TrackTurnoutLeftElement: Left } = await load("models/editor/elements/TrackTurnoutLeftElement");
+const { TrackTurnoutRightElement: Right } = await load("models/editor/elements/TrackTurnoutRightElement");
+const { TrackTurnoutTwoWayElement: TwoWay } = await load("models/editor/elements/TrackTurnoutTwoWayElement");
+const { TrackCrossingElement: Crossing } = await load("models/editor/elements/TrackCrossingElement");
+const { BlockElement: Block } = await load("models/editor/elements/BlockElement");
+const { TrackSensorElement: Sensor } = await load("models/editor/elements/TrackSensorElement");
+const { default: Double } = await load("models/editor/elements/TrackTurnoutDoubleElement");
+const { TrackTurnoutThreeWayElement: ThreeWay } = await load("models/editor/elements/TrackTurnoutThreeWayElement");
 const { wsApi } = await load("services/wsApi");
 const { executeRouteButton } = await load("components/track-canvas/trackCanvasRouteActions");
 const { executeLegacyRouteButton } = await load("services/routeButtonExecutor");
-const { getTrackStateColor } = await load("models/editor/core/view/support/TrackElementViewSupport");
 
 function layoutWith(...elements) {
   const layout = new LayoutView();
@@ -141,7 +120,7 @@ test("Next station geometry: A1 to C1 is continuous and independent of turnout l
   for (let order = 0; order < 3; order++) {
     layout.checkRoutes();
     assert.equal(route.active, true);
-    for (const element of layout.track.elements) {
+    for (const element of layout.track.elements.filter(element => element instanceof TrackElement)) {
       const expected = (element.y === 5 && (element.x <= 15 || element.x >= 25)) ||
         (element.y === 6 && element.x >= 16 && element.x <= 24);
       assert.equal(element.isRoute, expected, `${element.type} (${element.x},${element.y})`);
@@ -171,8 +150,8 @@ test("crossing drawing colors only the traversed line", () => {
   crossing.draw(ctx);
   assert.deepEqual(strokes.slice(0, 3), ["black", "#e6e6e6", "yellow"]);
   crossing.occupied = true;
-  assert.equal(getTrackStateColor(crossing, false), "red");
-  assert.equal(getTrackStateColor(crossing, true), "#ff3333");
+  assert.equal(crossing.getStateColor(false), "red");
+  assert.equal(crossing.getStateColor(true), "#ff3333");
 });
 
 test("failed output does not activate the route and always releases the busy state", async () => {

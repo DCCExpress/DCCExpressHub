@@ -1,7 +1,7 @@
 
 import type {
-  BaseElementView,
-} from "../../models/editor/core/BaseElementView";
+  BaseElement,
+} from "../../models/editor/core/BaseElement";
 
 import type {
   TouchPoint,
@@ -32,7 +32,7 @@ export function screenToGrid(
 }
 
 export function getCenteredElementGridAnchor(
-  element: BaseElementView,
+  element: BaseElement,
   grid: GridPoint
 ): GridPoint {
   const bounds =

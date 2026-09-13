@@ -28,12 +28,6 @@ import {
   resetDemoStorageOnStartup,
 } from "@/demo/demoReset";
 import {
-  installOccupancySensorProperties,
-} from "@/models/editor/occupancy/installOccupancySensorProperties";
-import {
-  installTurnoutAccessoryModes,
-} from "@/models/editor/turnout/installTurnoutAccessoryModes";
-import {
   installSignalLogicStatusIndicator,
 } from "@/services/signalLogicStatusIndicator";
 import {
@@ -46,8 +40,8 @@ import {
   installLayoutExportOverride,
 } from "@/services/layoutExportOverride";
 import {
-  installBlockTargetLocoVisual,
-} from "@/services/blockTargetLocoVisual";
+  installBlockTargetLocoRuntime,
+} from "@/services/blockTargetLocoRuntime";
 import {
   installApiFetchTimeout,
 } from "@/services/apiFetchTimeout";
@@ -57,8 +51,6 @@ import FirstRunWelcome from "@/components/FirstRunWelcome";
 import "./styles.css";
 import "./mobile-drive-split.css";
 
-installTurnoutAccessoryModes();
-installOccupancySensorProperties();
 resetDemoStorageOnStartup();
 installDemoRuntime();
 
@@ -70,7 +62,7 @@ installFileViewerEnhancer();
 installSignalLogicStatusIndicator();
 installDccExHeartbeatStatusIndicator();
 installLayoutExportOverride();
-installBlockTargetLocoVisual();
+installBlockTargetLocoRuntime();
 
 ReactDOM.createRoot(
   document.getElementById("root")!

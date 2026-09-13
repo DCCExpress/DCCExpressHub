@@ -2,16 +2,16 @@ import { useMantineColorScheme } from "@mantine/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { BaseElementView } from "../models/editor/core/BaseElementView";
+import { BaseElement } from "../models/editor/core/BaseElement";
 import { isTurnoutElement } from "../models/editor/core/LayoutView";
-import TrackTurnoutDoubleElementView from "../models/editor/elements/TrackTurnoutDoubleElementView";
+import TrackTurnoutDoubleElement from "../models/editor/elements/TrackTurnoutDoubleElement";
 import {
-  TrackTurnoutThreeWayElementView,
-} from "../models/editor/elements/TrackTurnoutThreeWayElementView";
-import { AudioButtonElementView } from "../models/editor/elements/AudioButtonElementView";
-import { BlockElementView } from "../models/editor/elements/BlockElementView";
-import { RouteButtonElementView } from "../models/editor/elements/RouteButtonElementView";
-import { TrackSignalElementView } from "../models/editor/elements/TrackSignalElementView";
+  TrackTurnoutThreeWayElement,
+} from "../models/editor/elements/TrackTurnoutThreeWayElement";
+import { AudioButtonElement } from "../models/editor/elements/AudioButtonElement";
+import { BlockElement } from "../models/editor/elements/BlockElement";
+import { RouteButtonElement } from "../models/editor/elements/RouteButtonElement";
+import { TrackSignalElement } from "../models/editor/elements/TrackSignalElement";
 import { EditorTool } from "../models/editor/types/EditorTypes";
 import { subscribeCanvasImageCache } from "../models/editor/rendering/ImageCache";
 import { useCommandCenter } from "../context/CommandCenterContext";
@@ -89,11 +89,11 @@ export default function TrackCanvas({
 
   const [mouseGrid, setMouseGrid] = useState({ x: 0, y: 0 });
   const [hoverGrid, setHoverGrid] = useState<{ x: number; y: number } | null>(null);
-  const [currentCursor, setCurrentCursor] = useState<BaseElementView | null>(null);
+  const [currentCursor, setCurrentCursor] = useState<BaseElement | null>(null);
   const [drawVersion, setDrawVersion] = useState(0);
   const [canvasSize, setCanvasSize] = useState<CanvasSize>({ width: 0, height: 0 });
   const [locoPickerOpen, setLocoPickerOpen] = useState(false);
-  const [selectedBlock, setSelectedBlock] = useState<BlockElementView | null>(null);
+  const [selectedBlock, setSelectedBlock] = useState<BlockElement | null>(null);
 
   const [signalAspectPopover, setSignalAspectPopover] =
     useState<SignalAspectPopoverState>({
@@ -154,12 +154,12 @@ export default function TrackCanvas({
   const layoutRef = useRef(layout);
   const toolRef = useRef(tool);
   const editModeRef = useRef(editMode);
-  const selectedElementRef = useRef<BaseElementView | null>(selectedElement);
-  const currentCursorRef = useRef<BaseElementView | null>(currentCursor);
+  const selectedElementRef = useRef<BaseElement | null>(selectedElement);
+  const currentCursorRef = useRef<BaseElement | null>(currentCursor);
   const signalAspectPopoverRef = useRef(signalAspectPopover);
   const doubleTurnoutPopoverRef = useRef(doubleTurnoutPopover);
   const commandCenterRef = useRef(commandCenter);
-  const pressedClickableRef = useRef<BaseElementView | null>(null);
+  const pressedClickableRef = useRef<BaseElement | null>(null);
 
   const requestDraw = useCallback(() => {
     if (drawRafRef.current !== null) {
@@ -186,7 +186,7 @@ export default function TrackCanvas({
   };
 
   const openSignalAspectPopover = (
-    signal: TrackSignalElementView,
+    signal: TrackSignalElement,
     clientX: number,
     clientY: number
   ) => {
@@ -203,7 +203,7 @@ export default function TrackCanvas({
   };
 
   const reopenSignalAspectPopover = (
-    signal: TrackSignalElementView,
+    signal: TrackSignalElement,
     clientX: number,
     clientY: number
   ) => {
@@ -216,7 +216,7 @@ export default function TrackCanvas({
   };
 
   const openDoubleTurnoutPopover = (
-    turnout: TrackTurnoutDoubleElementView,
+    turnout: TrackTurnoutDoubleElement,
     clientX: number,
     clientY: number
   ) => {
@@ -233,7 +233,7 @@ export default function TrackCanvas({
   };
 
   const reopenDoubleTurnoutPopover = (
-    turnout: TrackTurnoutDoubleElementView,
+    turnout: TrackTurnoutDoubleElement,
     clientX: number,
     clientY: number
   ) => {
@@ -245,14 +245,14 @@ export default function TrackCanvas({
     );
   };
 
-  const setRouteTurnoutsMarked = (rb: RouteButtonElementView) => {
+  const setRouteTurnoutsMarked = (rb: RouteButtonElement) => {
     const elems = layoutRef.current.getAllElements();
 
     for (const elem of elems) {
       const isRouteTurnout =
         isTurnoutElement(elem) ||
-        elem instanceof TrackTurnoutDoubleElementView ||
-        elem instanceof TrackTurnoutThreeWayElementView;
+        elem instanceof TrackTurnoutDoubleElement ||
+        elem instanceof TrackTurnoutThreeWayElement;
 
       if (isRouteTurnout) {
         const found = rb.routeTurnouts.find(e => e.turnoutId === elem.id);
@@ -297,8 +297,8 @@ export default function TrackCanvas({
 
         if (
           (
-            element instanceof TrackTurnoutDoubleElementView ||
-            element instanceof TrackTurnoutThreeWayElementView
+            element instanceof TrackTurnoutDoubleElement ||
+            element instanceof TrackTurnoutThreeWayElement
           ) &&
           element.outputMode === "accessory"
         ) {
@@ -394,7 +394,7 @@ export default function TrackCanvas({
   }, [editMode]);
 
   useEffect(() => {
-    if (selectedElementRef.current instanceof RouteButtonElementView) {
+    if (selectedElementRef.current instanceof RouteButtonElement) {
       const elems = layoutRef.current.getAllElements();
       elems.forEach(elem => {
         elem.marked = false;
@@ -513,11 +513,11 @@ export default function TrackCanvas({
       for (const elem of elems) {
         elem.enabled =
           isTurnoutElement(elem) ||
-          elem instanceof TrackTurnoutDoubleElementView ||
-          elem instanceof TrackTurnoutThreeWayElementView;
+          elem instanceof TrackTurnoutDoubleElement ||
+          elem instanceof TrackTurnoutThreeWayElement;
       }
 
-      if (selectedElementRef.current instanceof RouteButtonElementView) {
+      if (selectedElementRef.current instanceof RouteButtonElement) {
         setRouteTurnoutsMarked(selectedElementRef.current);
       }
     } else {
@@ -546,7 +546,7 @@ export default function TrackCanvas({
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.scale(dpr, dpr);
 
-    if (selectedElementRef.current instanceof RouteButtonElementView) {
+    if (selectedElementRef.current instanceof RouteButtonElement) {
       setRouteTurnoutsMarked(selectedElementRef.current);
     }
 
@@ -602,7 +602,7 @@ export default function TrackCanvas({
     };
 
     const handleClickableDown = (
-      hitElement: BaseElementView | null,
+      hitElement: BaseElement | null,
       ev: MouseEvent | PointerEvent
     ): boolean => {
       const handled = handleTrackCanvasClickableDown(
@@ -624,7 +624,7 @@ export default function TrackCanvas({
     };
 
     const handleClickableUp = (
-      hitElement: BaseElementView | null,
+      hitElement: BaseElement | null,
       ev: MouseEvent | PointerEvent
     ): boolean => {
       const pressedElement = pressedClickableRef.current ?? hitElement;
@@ -758,7 +758,7 @@ export default function TrackCanvas({
       const hitElement = currentLayout.getElement(grid.x, grid.y);
 
       if (!editModeRef.current) {
-        if (hitElement instanceof AudioButtonElementView) {
+        if (hitElement instanceof AudioButtonElement) {
           hitElement.press(() => {
             invalidate();
           });
@@ -772,7 +772,7 @@ export default function TrackCanvas({
           return;
         }
 
-        if (hitElement instanceof BlockElementView) {
+        if (hitElement instanceof BlockElement) {
           ev.stopPropagation();
           setSelectedBlock(hitElement);
 
@@ -789,7 +789,7 @@ export default function TrackCanvas({
           return;
         }
 
-        if (hitElement instanceof TrackSignalElementView) {
+        if (hitElement instanceof TrackSignalElement) {
           if (doubleTurnoutPopoverRef.current.opened) {
             closeDoubleTurnoutPopover();
           }
@@ -809,7 +809,7 @@ export default function TrackCanvas({
           return;
         }
 
-        if (hitElement instanceof TrackTurnoutDoubleElementView) {
+        if (hitElement instanceof TrackTurnoutDoubleElement) {
           if (signalAspectPopoverRef.current.opened) {
             closeSignalAspectPopover();
           }
