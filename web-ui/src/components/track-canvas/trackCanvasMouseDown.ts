@@ -270,16 +270,42 @@ export function handleTrackCanvasMouseDown(
         closeSignalAspectPopover();
       }
 
+      /*
+       * Anchor the popup to the ACTUAL SCREEN CENTER of the Double turnout,
+       * not to the exact mouse-down X coordinate.
+       *
+       * drawScene renders world coordinates as:
+       *   screen = canvasRect + view.offset + world * view.scale
+       *
+       * getBounds() is expressed in grid cells, so convert its center to world
+       * pixels using the layout grid size first.
+       */
+      const turnoutBounds =
+        hitElement.getBounds();
+
+      const turnoutCenterWorldX =
+        (
+          turnoutBounds.x +
+          turnoutBounds.width / 2
+        ) *
+        currentLayout.gridSize;
+
+      const turnoutCenterClientX =
+        rect.left +
+        viewRef.current.offsetX +
+        turnoutCenterWorldX *
+          viewRef.current.scale;
+
       if (doubleTurnoutPopoverRef.current.opened) {
         reopenDoubleTurnoutPopover(
           hitElement,
-          event.clientX,
+          turnoutCenterClientX,
           event.clientY
         );
       } else {
         openDoubleTurnoutPopover(
           hitElement,
-          event.clientX,
+          turnoutCenterClientX,
           event.clientY
         );
       }

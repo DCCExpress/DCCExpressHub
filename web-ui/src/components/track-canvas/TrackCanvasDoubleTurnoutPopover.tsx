@@ -285,16 +285,12 @@ function getPanelPosition(
       ? window.innerHeight
       : 768;
 
-  let left = x + 12;
-  let top = y + 12;
+  // `x` is now the actual on-screen center of the Double turnout.
+  let left =
+    x - panelWidth / 2;
 
-  if (
-    left + panelWidth + margin >
-    viewportWidth
-  ) {
-    left =
-      x - panelWidth - 12;
-  }
+  let top =
+    y + 12;
 
   if (
     top + panelHeight + margin >
