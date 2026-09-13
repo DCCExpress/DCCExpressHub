@@ -48,6 +48,12 @@ import {
 import {
   TrackElement as DomainTrackElement,
 } from "@domain/layout/model/TrackElement";
+import type {
+  NeighborPointPair,
+} from "@domain/layout/model/BaseElement";
+import type {
+  Point,
+} from "@domain/Rect";
 import {
   migrateSerializedLayoutIds,
 } from "@domain/layout/layoutIdMigration";
@@ -59,9 +65,6 @@ import {
   LayerView,
   type LayerId,
 } from "./LayerView";
-import type {
-  Point,
-} from "@domain/Rect";
 
 type LayoutTrackElement =
   BaseElementView &
@@ -131,44 +134,137 @@ function routeTurnoutMatches(
   );
 }
 
-function getActiveRouteEndpoints(
+function getActiveConnectionPairs(
   element: LayoutTrackElement
-): {
-  next: Point;
-  prev: Point;
-} {
-  if (element instanceof TrackTurnoutDoubleElementView) {
-    const connections =
+): NeighborPointPair[] {
+  if (
+    element instanceof
+    TrackTurnoutDoubleElementView
+  ) {
+    const c =
       element.getConnections();
 
-    return {
-      prev:
-        element.firstLogicalClosed
-          ? connections.aDiv
-          : connections.aStraight,
-      next:
-        element.secondLogicalClosed
-          ? connections.bDiv
-          : connections.bStraight,
-    };
+    if (
+      !element.firstLogicalClosed &&
+      !element.secondLogicalClosed
+    ) {
+      return [[
+        c.aStraight,
+        c.bStraight,
+      ]];
+    }
+
+    if (
+      !element.firstLogicalClosed &&
+      element.secondLogicalClosed
+    ) {
+      return [[
+        c.aStraight,
+        c.bDiv,
+      ]];
+    }
+
+    if (
+      element.firstLogicalClosed &&
+      !element.secondLogicalClosed
+    ) {
+      return [[
+        c.aDiv,
+        c.bStraight,
+      ]];
+    }
+
+    return [[
+      c.aDiv,
+      c.bDiv,
+    ]];
   }
 
-  return {
-    next: element.getNextItemXy(),
-    prev: element.getPrevItemXy(),
-  };
+  if (
+    element instanceof
+    TrackTurnoutThreeWayElementView
+  ) {
+    const c =
+      element.getConnections();
+
+    switch (element.position) {
+      case "left":
+        return [[
+          c.entry,
+          c.left,
+        ]];
+
+      case "right":
+        return [[
+          c.entry,
+          c.right,
+        ]];
+
+      case "straight":
+        return [[
+          c.entry,
+          c.straight,
+        ]];
+
+      case "invalid":
+      default:
+        return [];
+    }
+  }
+
+  /*
+   * Normal track elements already expose their real connection pair(s).
+   *
+   * - Straight / curve / corner: one pair
+   * - Normal turnout: BaseElement calls the turnout's state-aware
+   *   getPrevItemXy()/getNextItemXy(), therefore one active pair
+   * - Crossing: two independent pairs
+   *
+   * Using connection pairs rather than a single global next/prev pair is the
+   * key to following crossings and multi-ended track elements correctly.
+   */
+  return element.getNeighborPointPairs();
 }
 
-function connectsBackTo(
+function getExitPointsForEntry(
   element: LayoutTrackElement,
-  point: Point
-): boolean {
-  const endpoints =
-    getActiveRouteEndpoints(element);
+  enteredFrom: Point
+): Point[] {
+  const exits: Point[] = [];
 
+  for (
+    const [first, second]
+    of getActiveConnectionPairs(
+      element
+    )
+  ) {
+    if (first.isEqual(enteredFrom)) {
+      exits.push(second);
+    } else if (
+      second.isEqual(enteredFrom)
+    ) {
+      exits.push(first);
+    }
+  }
+
+  return exits;
+}
+
+function acceptsConnectionFrom(
+  element: LayoutTrackElement,
+  neighborCenter: Point
+): boolean {
   return (
-    point.isEqual(endpoints.next) ||
-    point.isEqual(endpoints.prev)
+    getActiveConnectionPairs(element)
+      .some(
+        ([first, second]) =>
+          first.isEqual(
+            neighborCenter
+          ) ||
+          second.isEqual(
+            neighborCenter
+          )
+      )
   );
 }
 
@@ -407,7 +503,8 @@ export class LayoutView
       ) as RouteButtonElementView[];
 
     routeButtons.forEach(routeButton => {
-      let active = true;
+      let active =
+        routeButton.routeTurnouts.length > 0;
 
       routeButton.routeTurnouts.forEach(turnoutRef => {
         const turnout =
@@ -452,45 +549,99 @@ export class LayoutView
     };
   }
 
-  startWalk(obj: LayoutTrackElement): void {
+  startWalk(
+    obj: LayoutTrackElement
+  ): void {
+    this.walkActiveRoute(
+      obj,
+      null
+    );
+  }
+
+  private walkActiveRoute(
+    obj: LayoutTrackElement,
+    enteredFrom:
+      Point |
+      null
+  ): void {
+    if (obj.isVisited) {
+      return;
+    }
+
     obj.isVisited = true;
     obj.isRoute = true;
 
-    const endpoints =
-      getActiveRouteEndpoints(obj);
+    let exitPoints: Point[];
 
-    const next =
-      this.getObjectXy(
-        endpoints.next
-      ) as LayoutTrackElement;
-
-    if (
-      next &&
-      !next.isVisited &&
-      connectsBackTo(
-        next,
-        obj.pos
-      )
-    ) {
-      next.isRoute = true;
-      this.startWalk(next);
+    if (enteredFrom) {
+      /*
+       * We arrived from a concrete neighboring element. Only continue through
+       * the active connection pair that contains that entry point.
+       *
+       * This is especially important for crossings: entering on one line must
+       * not jump to the other crossing line.
+       */
+      exitPoints =
+        getExitPointsForEntry(
+          obj,
+          enteredFrom
+        );
+    } else {
+      /*
+       * Route walk starts at the first turnout stored by the RouteButton.
+       * A configured turnout has one active connection pair, so both ends are
+       * valid starting directions.
+       */
+      exitPoints =
+        getActiveConnectionPairs(obj)
+          .flatMap(
+            ([first, second]) => [
+              first,
+              second,
+            ]
+          );
     }
 
-    const prev =
-      this.getObjectXy(
-        endpoints.prev
-      ) as LayoutTrackElement;
+    for (const exit of exitPoints) {
+      const candidate =
+        this.getObjectXy(exit);
 
-    if (
-      prev &&
-      !prev.isVisited &&
-      connectsBackTo(
-        prev,
+      if (
+        !candidate ||
+        candidate === obj ||
+        !(candidate instanceof
+          DomainTrackElement)
+      ) {
+        continue;
+      }
+
+      const next =
+        candidate as LayoutTrackElement;
+
+      if (next.isVisited) {
+        continue;
+      }
+
+      /*
+       * The neighboring element must actually expose an active connection
+       * back to our center cell. Merely occupying the target grid cell is not
+       * enough.
+       */
+      if (
+        !acceptsConnectionFrom(
+          next,
+          obj.pos
+        )
+      ) {
+        continue;
+      }
+
+      next.isRoute = true;
+
+      this.walkActiveRoute(
+        next,
         obj.pos
-      )
-    ) {
-      prev.isRoute = true;
-      this.startWalk(prev);
+      );
     }
   }
 
@@ -509,7 +660,7 @@ export class LayoutView
 
     if (
       next &&
-      !isTurnoutElement(next) &&
+      !isRouteButtonTurnout(next) &&
       !next.isVisited &&
       (
         obj.pos.isEqual(next.getNextItemXy()) ||
@@ -524,7 +675,7 @@ export class LayoutView
 
     if (
       prev &&
-      !isTurnoutElement(prev) &&
+      !isRouteButtonTurnout(prev) &&
       !prev.isVisited &&
       (
         obj.pos.isEqual(prev.getNextItemXy()) ||

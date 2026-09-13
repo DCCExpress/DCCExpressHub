@@ -2,6 +2,7 @@ import type {
   LayoutElementId,
   SerializedLayoutDto,
   SerializedLayoutElementDto,
+  SerializedRouteTurnoutItemDto,
 } from "./layoutDto.js";
 import {
   INVALID_LAYOUT_ELEMENT_ID,
@@ -109,10 +110,36 @@ export function migrateSerializedLayoutIds(input: SerializedLayoutDto): LayoutId
       element.routeTurnouts = element.routeTurnouts
         .map(item => {
           const turnoutId = resolveReference(item.turnoutId);
-          if (item.turnoutId !== turnoutId) migratedReferenceCount += 1;
+
+          if (item.turnoutId !== turnoutId) {
+            migratedReferenceCount += 1;
+          }
+
+          /*
+           * IMPORTANT:
+           * Multi-motor RouteButton items store the second physical motor bit
+           * in `secondClosed`.
+           *
+           * The old migration rebuilt every item using only turnoutId+closed,
+           * silently deleting secondClosed on every load. That made Y/ThreeWay
+           * and Double RouteButton states impossible to match after loading.
+           *
+           * Keep the field when it exists, while remaining fully compatible
+           * with legacy single-motor items.
+           */
+          const secondClosed =
+            (
+              item as SerializedRouteTurnoutItemDto & {
+                secondClosed?: unknown;
+              }
+            ).secondClosed;
+
           return {
             turnoutId,
             closed: Boolean(item.closed),
+            ...(typeof secondClosed === "boolean"
+              ? { secondClosed }
+              : {}),
           };
         })
         .filter(item => item.turnoutId !== INVALID_LAYOUT_ELEMENT_ID);

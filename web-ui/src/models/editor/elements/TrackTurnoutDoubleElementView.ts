@@ -1,3 +1,4 @@
+import "@domain/layout/doubleTurnoutDtoAugmentation";
 import {
   beginElementDraw,
   degreesToRadians,
@@ -473,18 +474,13 @@ export default class TrackTurnoutDoubleElementView
     ctx.restore();
   }
 
+  /*
+   * IMPORTANT:
+   * The domain class already serializes all Double-position bit pairs.
+   * Do not rebuild the DTO here and accidentally drop the augmented fields.
+   */
   toJSON(): ITrackTurnoutDoubleElement {
-    return {
-      ...super.toJSON(),
-      type: ELEMENT_TYPES.TRACK_TURNOUT_DOUBLE,
-      address: this.address,
-      length: this.length,
-      turnout1Address: this.turnout1Address,
-      outputMode: this.outputMode,
-      turnout2Address: this.turnout2Address,
-      turnout1ClosedValue: this.turnout1ClosedValue,
-      turnout2ClosedValue: this.turnout2ClosedValue,
-    };
+    return super.toJSON();
   }
 
   static fromJSON(
@@ -504,11 +500,67 @@ export default class TrackTurnoutDoubleElementView
     element.length = data.length;
     element.bg = data.bg;
     element.fg = data.fg;
-    element.turnout1Address = data.turnout1Address;
-    element.outputMode = data.outputMode === "vpin" ? "vpin" : "accessory";
-    element.turnout2Address = data.turnout2Address;
-    element.turnout1ClosedValue = data.turnout1ClosedValue ?? element.turnout1ClosedValue;
-    element.turnout2ClosedValue = data.turnout2ClosedValue ?? element.turnout2ClosedValue;
+
+    element.turnout1Address =
+      data.turnout1Address;
+
+    element.outputMode =
+      data.outputMode === "vpin"
+        ? "vpin"
+        : "accessory";
+
+    element.turnout2Address =
+      data.turnout2Address;
+
+    element.turnout1ClosedValue =
+      data.turnout1ClosedValue ??
+      element.turnout1ClosedValue;
+
+    element.turnout2ClosedValue =
+      data.turnout2ClosedValue ??
+      element.turnout2ClosedValue;
+
+    /*
+     * Preserve the complete explicit Double-position table.
+     * Legacy files without these fields keep the same fallback mapping as the
+     * common domain class.
+     */
+    const firstClosed =
+      element.turnout1ClosedValue;
+    const firstOpened =
+      !element.turnout1ClosedValue;
+    const secondClosed =
+      element.turnout2ClosedValue;
+    const secondOpened =
+      !element.turnout2ClosedValue;
+
+    element.ooMotor1Value =
+      data.ooMotor1Value ??
+      firstOpened;
+    element.ooMotor2Value =
+      data.ooMotor2Value ??
+      secondOpened;
+
+    element.ocMotor1Value =
+      data.ocMotor1Value ??
+      firstOpened;
+    element.ocMotor2Value =
+      data.ocMotor2Value ??
+      secondClosed;
+
+    element.coMotor1Value =
+      data.coMotor1Value ??
+      firstClosed;
+    element.coMotor2Value =
+      data.coMotor2Value ??
+      secondOpened;
+
+    element.ccMotor1Value =
+      data.ccMotor1Value ??
+      firstClosed;
+    element.ccMotor2Value =
+      data.ccMotor2Value ??
+      secondClosed;
 
     return element;
   }
@@ -530,6 +582,16 @@ export default class TrackTurnoutDoubleElementView
     copy.turnout2Address = this.turnout2Address;
     copy.turnout1ClosedValue = this.turnout1ClosedValue;
     copy.turnout2ClosedValue = this.turnout2ClosedValue;
+
+    copy.ooMotor1Value = this.ooMotor1Value;
+    copy.ooMotor2Value = this.ooMotor2Value;
+    copy.ocMotor1Value = this.ocMotor1Value;
+    copy.ocMotor2Value = this.ocMotor2Value;
+    copy.coMotor1Value = this.coMotor1Value;
+    copy.coMotor2Value = this.coMotor2Value;
+    copy.ccMotor1Value = this.ccMotor1Value;
+    copy.ccMotor2Value = this.ccMotor2Value;
+
     copy.turnout1Closed = this.turnout1Closed;
     copy.turnout2Closed = this.turnout2Closed;
 
