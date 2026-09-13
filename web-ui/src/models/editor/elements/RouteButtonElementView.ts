@@ -8,7 +8,11 @@ import { ClickableBaseElementView } from "../core/ClickableBaseElementView";
 import { DrawOptions, IRouteButtonElement } from "../types/EditorTypes";
 import { IEditableProperty } from "./PropertyDescriptor";
 
-export type RouteTurnoutItem = RouteTurnoutItemDto;
+export type RouteTurnoutItem =
+  RouteTurnoutItemDto & {
+    /** Physical state of motor 2 for Y/ThreeWay and Double turnouts. */
+    secondClosed?: boolean;
+  };
 
 export class RouteButtonElementView extends ClickableBaseElementView implements IRouteButtonElement {
   override type: typeof ELEMENT_TYPES.BUTTON_ROUTE = ELEMENT_TYPES.BUTTON_ROUTE;
@@ -24,13 +28,32 @@ export class RouteButtonElementView extends ClickableBaseElementView implements 
     this.layerName = "buildings";
   }
 
-  addOrUpdateTurnout(turnoutId: LayoutElementId, closed: boolean): void {
+  addOrUpdateTurnout(
+    turnoutId: LayoutElementId,
+    closed: boolean,
+    secondClosed?: boolean
+  ): void {
     const existing = this.routeTurnouts.find(x => x.turnoutId === turnoutId);
+
     if (existing) {
       existing.closed = closed;
+
+      if (secondClosed === undefined) {
+        delete existing.secondClosed;
+      } else {
+        existing.secondClosed = secondClosed;
+      }
+
       return;
     }
-    this.routeTurnouts.push({ turnoutId, closed });
+
+    const item: RouteTurnoutItem = { turnoutId, closed };
+
+    if (secondClosed !== undefined) {
+      item.secondClosed = secondClosed;
+    }
+
+    this.routeTurnouts.push(item);
   }
 
   removeTurnout(turnoutId: LayoutElementId): void {
@@ -133,7 +156,19 @@ export class RouteButtonElementView extends ClickableBaseElementView implements 
     e.routeTurnouts = Array.isArray(data.routeTurnouts)
       ? data.routeTurnouts
           .filter(item => Number.isInteger(item?.turnoutId) && item.turnoutId > 0)
-          .map(item => ({ turnoutId: item.turnoutId, closed: Boolean(item.closed) }))
+          .map(item => {
+            const mapped: RouteTurnoutItem = {
+              turnoutId: item.turnoutId,
+              closed: Boolean(item.closed),
+            };
+
+            const secondClosed = (item as any).secondClosed;
+            if (typeof secondClosed === "boolean") {
+              mapped.secondClosed = secondClosed;
+            }
+
+            return mapped;
+          })
       : [];
     return e;
   }

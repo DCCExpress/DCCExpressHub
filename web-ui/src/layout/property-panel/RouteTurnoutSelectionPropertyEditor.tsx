@@ -16,6 +16,10 @@ import {
   RouteButtonElementView,
   type RouteTurnoutItem,
 } from "../../models/editor/elements/RouteButtonElementView";
+import TrackTurnoutDoubleElementView from "../../models/editor/elements/TrackTurnoutDoubleElementView";
+import {
+  TrackTurnoutThreeWayElementView,
+} from "../../models/editor/elements/TrackTurnoutThreeWayElementView";
 import ElementPreview from "../../models/editor/rendering/ElementPreviewRenderer";
 import { useCommandCenter } from "../../context/CommandCenterContext";
 import { showWarningMessage } from "../../helpers";
@@ -60,14 +64,52 @@ function removeTurnout(
 
 function getRouteTurnoutLogicalLabel(
   turnout: unknown,
-  physicalClosed: boolean
+  firstClosed: boolean,
+  secondClosed?: boolean
 ): string {
+  if (turnout instanceof TrackTurnoutThreeWayElementView) {
+    const second = secondClosed ?? turnout.turnout2Closed;
+
+    const positions = ["left", "straight", "right"] as const;
+    for (const position of positions) {
+      const bits = turnout.getBitsForPosition(position);
+      if (bits.first === firstClosed && bits.second === second) {
+        return position === "left"
+          ? "Left"
+          : position === "right"
+            ? "Right"
+            : "Straight";
+      }
+    }
+
+    return `${Number(firstClosed)}-${Number(second)}`;
+  }
+
+  if (turnout instanceof TrackTurnoutDoubleElementView) {
+    const second = secondClosed ?? turnout.turnout2Closed;
+
+    const states = [
+      ["O-O", turnout.ooMotor1Value, turnout.ooMotor2Value],
+      ["O-C", turnout.ocMotor1Value, turnout.ocMotor2Value],
+      ["C-O", turnout.coMotor1Value, turnout.coMotor2Value],
+      ["C-C", turnout.ccMotor1Value, turnout.ccMotor2Value],
+    ] as const;
+
+    for (const [label, first, secondBit] of states) {
+      if (first === firstClosed && secondBit === second) {
+        return label;
+      }
+    }
+
+    return `${Number(firstClosed)}-${Number(second)}`;
+  }
+
   const turnoutClosedValue =
     typeof (turnout as any)?.turnoutClosedValue === "boolean"
       ? (turnout as any).turnoutClosedValue as boolean
       : true;
 
-  return physicalClosed === turnoutClosedValue ? "C" : "T";
+  return firstClosed === turnoutClosedValue ? "C" : "T";
 }
 
 export default function RouteTurnoutSelectionPropertyEditor({
@@ -84,21 +126,69 @@ export default function RouteTurnoutSelectionPropertyEditor({
   const items = getItems(selectedElement, prop);
   const hasTurnouts = items.length > 0;
 
-  const setRouteTurnoutPhysicalClosed = (
+  const setRouteTurnoutState = (
     turnoutId: LayoutElementId,
-    physicalClosed: boolean
+    firstClosed: boolean,
+    secondClosed?: boolean
   ): void => {
     const routeItems = getItems(selectedElement, prop);
     const item = routeItems.find(routeItem => routeItem.turnoutId === turnoutId);
     if (!item) return;
-    item.closed = physicalClosed;
+
+    item.closed = firstClosed;
+
+    if (secondClosed === undefined) {
+      delete item.secondClosed;
+    } else {
+      item.secondClosed = secondClosed;
+    }
+
     onLayoutChange(previous => previous);
   };
 
   const toggleRouteTurnout = (turnoutId: LayoutElementId): void => {
     const item = items.find(routeItem => routeItem.turnoutId === turnoutId);
     if (!item) return;
-    setRouteTurnoutPhysicalClosed(turnoutId, !item.closed);
+
+    const turnout = findElementById(layout, turnoutId);
+    if (!turnout) return;
+
+    if (turnout instanceof TrackTurnoutThreeWayElementView) {
+      const states = [
+        turnout.getBitsForPosition("left"),
+        turnout.getBitsForPosition("straight"),
+        turnout.getBitsForPosition("right"),
+      ];
+
+      const second = item.secondClosed ?? turnout.turnout2Closed;
+      const currentIndex = states.findIndex(
+        state => state.first === item.closed && state.second === second
+      );
+      const next = states[(currentIndex + 1) % states.length]!;
+
+      setRouteTurnoutState(turnoutId, next.first, next.second);
+      return;
+    }
+
+    if (turnout instanceof TrackTurnoutDoubleElementView) {
+      const states = [
+        { first: turnout.ooMotor1Value, second: turnout.ooMotor2Value },
+        { first: turnout.ocMotor1Value, second: turnout.ocMotor2Value },
+        { first: turnout.coMotor1Value, second: turnout.coMotor2Value },
+        { first: turnout.ccMotor1Value, second: turnout.ccMotor2Value },
+      ];
+
+      const second = item.secondClosed ?? turnout.turnout2Closed;
+      const currentIndex = states.findIndex(
+        state => state.first === item.closed && state.second === second
+      );
+      const next = states[(currentIndex + 1) % states.length]!;
+
+      setRouteTurnoutState(turnoutId, next.first, next.second);
+      return;
+    }
+
+    setRouteTurnoutState(turnoutId, !item.closed);
   };
 
   const testRouteButton = async (): Promise<void> => {
@@ -171,7 +261,36 @@ export default function RouteTurnoutSelectionPropertyEditor({
             previewTurnout.y = 0;
             previewTurnout.selected = false;
             previewTurnout.enabled = true;
-            (previewTurnout as any).turnoutClosed = item.closed;
+
+            // TrackTurnoutDoubleElementView.clone() currently does not copy the
+            // explicit per-position bit table. RouteButton preview must use
+            // the exact O-O / O-C / C-O / C-C mapping configured on the real
+            // turnout, otherwise the stored physical bit pair can be rendered
+            // as the wrong logical Double position.
+            if (
+              turnout instanceof TrackTurnoutDoubleElementView &&
+              previewTurnout instanceof TrackTurnoutDoubleElementView
+            ) {
+              previewTurnout.ooMotor1Value = turnout.ooMotor1Value;
+              previewTurnout.ooMotor2Value = turnout.ooMotor2Value;
+              previewTurnout.ocMotor1Value = turnout.ocMotor1Value;
+              previewTurnout.ocMotor2Value = turnout.ocMotor2Value;
+              previewTurnout.coMotor1Value = turnout.coMotor1Value;
+              previewTurnout.coMotor2Value = turnout.coMotor2Value;
+              previewTurnout.ccMotor1Value = turnout.ccMotor1Value;
+              previewTurnout.ccMotor2Value = turnout.ccMotor2Value;
+            }
+
+            if (
+              previewTurnout instanceof TrackTurnoutDoubleElementView ||
+              previewTurnout instanceof TrackTurnoutThreeWayElementView
+            ) {
+              previewTurnout.turnout1Closed = item.closed;
+              previewTurnout.turnout2Closed =
+                item.secondClosed ?? previewTurnout.turnout2Closed;
+            } else {
+              (previewTurnout as any).turnoutClosed = item.closed;
+            }
 
             return (
               <Group key={item.turnoutId} gap="xs" wrap="nowrap" align="center">
@@ -184,7 +303,12 @@ export default function RouteTurnoutSelectionPropertyEditor({
                 >
                   <ElementPreview
                     element={previewTurnout}
-                    label={"#" + (previewTurnout as any).turnoutAddress}
+                    label={
+                      previewTurnout instanceof TrackTurnoutDoubleElementView ||
+                      previewTurnout instanceof TrackTurnoutThreeWayElementView
+                        ? `#${previewTurnout.turnout1Address}/#${previewTurnout.turnout2Address}`
+                        : "#" + (previewTurnout as any).turnoutAddress
+                    }
                     width={40}
                     height={40}
                   />
@@ -192,7 +316,11 @@ export default function RouteTurnoutSelectionPropertyEditor({
                 <Stack gap={0} style={{ flex: 1, minWidth: 0 }}>
                   <Text size="xs" fw={500} truncate>{turnout.name || "Turnout"}</Text>
                   <Text size="xs" c="dimmed">
-                    Route state: {getRouteTurnoutLogicalLabel(turnout, item.closed)}
+                    Route state: {getRouteTurnoutLogicalLabel(
+                      turnout,
+                      item.closed,
+                      item.secondClosed
+                    )}
                   </Text>
                 </Stack>
                 <ActionIcon

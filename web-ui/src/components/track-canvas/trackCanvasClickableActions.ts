@@ -15,16 +15,27 @@ export type TrackCanvasClickableActionContext = {
   t: TFunction;
   commandCenterLocked: boolean;
   setBusy?: RouteBusySetter | undefined;
+  invalidate?: (() => void) | undefined;
 };
 
-function getPhysicalValueForLogicalBarrierState(crossing: TrackLevelCrossingElementView, logicalClosed: boolean): boolean {
-  return logicalClosed ? crossing.basicAccessoryClosedValue : !crossing.basicAccessoryClosedValue;
+function getPhysicalValueForLogicalBarrierState(
+  crossing: TrackLevelCrossingElementView,
+  logicalClosed: boolean
+): boolean {
+  return logicalClosed
+    ? crossing.basicAccessoryClosedValue
+    : !crossing.basicAccessoryClosedValue;
 }
 
-function executeLevelCrossingToggle(crossing: TrackLevelCrossingElementView): void {
+function executeLevelCrossingToggle(
+  crossing: TrackLevelCrossingElementView
+): void {
   if (crossing.basicAccessoryAddress <= 0) return;
   const nextClosed = !crossing.barrierClosed;
-  wsApi.setBasicAccessory(crossing.basicAccessoryAddress, getPhysicalValueForLogicalBarrierState(crossing, nextClosed));
+  wsApi.setBasicAccessory(
+    crossing.basicAccessoryAddress,
+    getPhysicalValueForLogicalBarrierState(crossing, nextClosed)
+  );
 }
 
 function executeSensorToggle(sensor: TrackSensorElementView): void {
@@ -33,7 +44,10 @@ function executeSensorToggle(sensor: TrackSensorElementView): void {
 }
 
 function isDirectTurnout(element: BaseElementView): boolean {
-  return isTurnoutElement(element) || element instanceof TrackTurnoutThreeWayElementView;
+  return (
+    isTurnoutElement(element) ||
+    element instanceof TrackTurnoutThreeWayElementView
+  );
 }
 
 export function handleTrackCanvasClickableDown(
@@ -42,31 +56,57 @@ export function handleTrackCanvasClickableDown(
   context: TrackCanvasClickableActionContext
 ): boolean {
   if (!hitElement) return false;
+
   if (hitElement instanceof TrackSensorElementView) {
     executeSensorToggle(hitElement);
     return true;
   }
+
   if (hitElement instanceof TrackLevelCrossingElementView) {
     executeLevelCrossingToggle(hitElement);
     return true;
   }
-  if (!(hitElement instanceof ClickableBaseElementView) && !isDirectTurnout(hitElement)) return false;
+
+  if (
+    !(hitElement instanceof ClickableBaseElementView) &&
+    !isDirectTurnout(hitElement)
+  ) {
+    return false;
+  }
+
   if (hitElement instanceof RouteButtonElementView) {
-    void executeRouteButton(hitElement, context.layout, {
-      t: context.t,
-      commandCenterLocked: context.commandCenterLocked,
-      setBusy: context.setBusy,
-    });
+    void executeRouteButton(
+      hitElement,
+      context.layout,
+      {
+        t: context.t,
+        commandCenterLocked:
+          context.commandCenterLocked,
+        setBusy:
+          context.setBusy,
+        onInvalidate:
+          context.invalidate,
+      }
+    );
+
     return true;
   }
+
   if (hitElement instanceof ExtendedRouteButtonElementView) {
-    void executeExtendedRouteButton(hitElement, {
-      t: context.t,
-      commandCenterLocked: context.commandCenterLocked,
-      setBusy: context.setBusy,
-    });
+    void executeExtendedRouteButton(
+      hitElement,
+      {
+        t: context.t,
+        commandCenterLocked:
+          context.commandCenterLocked,
+        setBusy:
+          context.setBusy,
+      }
+    );
+
     return true;
   }
+
   hitElement.mouseDown(event as any);
   return true;
 }
@@ -76,8 +116,21 @@ export function handleTrackCanvasClickableUp(
   event: MouseEvent | PointerEvent
 ): boolean {
   if (!hitElement) return false;
-  if (hitElement instanceof TrackSensorElementView || hitElement instanceof TrackLevelCrossingElementView) return true;
-  if (!(hitElement instanceof ClickableBaseElementView) && !isDirectTurnout(hitElement)) return false;
+
+  if (
+    hitElement instanceof TrackSensorElementView ||
+    hitElement instanceof TrackLevelCrossingElementView
+  ) {
+    return true;
+  }
+
+  if (
+    !(hitElement instanceof ClickableBaseElementView) &&
+    !isDirectTurnout(hitElement)
+  ) {
+    return false;
+  }
+
   hitElement.mouseUp(event as any);
   return true;
 }

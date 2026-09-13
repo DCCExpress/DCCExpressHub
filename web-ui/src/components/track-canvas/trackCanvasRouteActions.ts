@@ -23,6 +23,11 @@ import type {
   RouteButtonElementView,
 } from "../../models/editor/elements/RouteButtonElementView";
 
+import TrackTurnoutDoubleElementView from "../../models/editor/elements/TrackTurnoutDoubleElementView";
+import {
+  TrackTurnoutThreeWayElementView,
+} from "../../models/editor/elements/TrackTurnoutThreeWayElementView";
+
 import {
   routeGraphStore,
 } from "../../services/routeGraphStore";
@@ -43,6 +48,7 @@ export type TrackCanvasRouteActionContext = {
   t: TFunction;
   commandCenterLocked: boolean;
   setBusy?: RouteBusySetter | undefined;
+  onInvalidate?: (() => void) | undefined;
 };
 
 export async function executeRouteButton(
@@ -50,8 +56,12 @@ export async function executeRouteButton(
   layout: LayoutView,
   context: TrackCanvasRouteActionContext
 ): Promise<void> {
-  const { t, commandCenterLocked, setBusy } =
-    context;
+  const {
+    t,
+    commandCenterLocked,
+    setBusy,
+    onInvalidate,
+  } = context;
 
   if (commandCenterLocked) {
     showWarningMessage(
@@ -79,6 +89,34 @@ export async function executeRouteButton(
         candidate => candidate.id === routeTurnout.turnoutId
       );
 
+      if (
+        element instanceof TrackTurnoutDoubleElementView ||
+        element instanceof TrackTurnoutThreeWayElementView
+      ) {
+        const first = routeTurnout.closed;
+        const second = routeTurnout.secondClosed ?? element.turnout2Closed;
+
+        element.turnout1Closed = first;
+        element.turnout2Closed = second;
+
+        sendTurnoutOutput(
+          element.outputMode,
+          element.turnout1Address,
+          first,
+          { closedValue: element.turnout1ClosedValue }
+        );
+
+        sendTurnoutOutput(
+          element.outputMode,
+          element.turnout2Address,
+          second,
+          { closedValue: element.turnout2ClosedValue }
+        );
+
+        await sleep(1000);
+        continue;
+      }
+
       if (!isTurnoutElement(element)) {
         continue;
       }
@@ -92,6 +130,11 @@ export async function executeRouteButton(
 
       await sleep(1000);
     }
+    // Route execution updates the client-side turnout runtime state directly.
+    // Recalculate RouteButton active state and route highlighting immediately,
+    // instead of waiting for a later turnout-state feedback event.
+    layout.checkRoutes();
+    onInvalidate?.();
   } finally {
     wsApi.routeUnlock();
     setBusy?.(false);

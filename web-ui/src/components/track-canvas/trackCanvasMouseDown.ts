@@ -41,6 +41,9 @@ import {
 } from "../../models/editor/elements/TrackSignalElementView";
 
 import TrackTurnoutDoubleElementView from "../../models/editor/elements/TrackTurnoutDoubleElementView";
+import {
+  TrackTurnoutThreeWayElementView,
+} from "../../models/editor/elements/TrackTurnoutThreeWayElementView";
 
 import type {
   EditorTool,
@@ -155,20 +158,11 @@ export function handleTrackCanvasMouseDown(
     t,
   } = context;
 
-  const currentLayout =
-    layoutRef.current;
-
-  const currentTool =
-    toolRef.current;
-
-  const currentEditMode =
-    editModeRef.current;
-
-  const currentTurnoutSelection =
-    turnoutSelectionModeRef.current;
-
-  const currentElement =
-    selectedElementRef.current;
+  const currentLayout = layoutRef.current;
+  const currentTool = toolRef.current;
+  const currentEditMode = editModeRef.current;
+  const currentTurnoutSelection = turnoutSelectionModeRef.current;
+  const currentElement = selectedElementRef.current;
 
   if (event.button === 2) {
     event.preventDefault();
@@ -188,14 +182,9 @@ export function handleTrackCanvasMouseDown(
     return;
   }
 
-  const rect =
-    canvas.getBoundingClientRect();
-
-  const mouseX =
-    event.clientX - rect.left;
-
-  const mouseY =
-    event.clientY - rect.top;
+  const rect = canvas.getBoundingClientRect();
+  const mouseX = event.clientX - rect.left;
+  const mouseY = event.clientY - rect.top;
 
   const grid = screenToGrid(
     mouseX,
@@ -204,48 +193,48 @@ export function handleTrackCanvasMouseDown(
     currentLayout.gridSize
   );
 
-  const hitElement =
-    currentLayout.getElement(grid.x, grid.y);
+  const hitElement = currentLayout.getElement(grid.x, grid.y);
 
   if (!editModeRef.current && hitElement?.type === ELEMENT_TYPES.BUTTON_AUDIO) {
-    const audioButton =
-      hitElement as AudioButtonElementView;
-
+    const audioButton = hitElement as AudioButtonElementView;
     audioButton.press(() => {
       invalidate();
     });
-
     return;
   }
 
-  if (currentEditMode) {
-    if (currentTurnoutSelection) {
-      if (hitElement) {
-        if (currentElement instanceof RouteButtonElementView) {
-          if (isTurnoutElement(hitElement)) {
-            const closed =
-              hitElement.turnoutClosed;
+  if (currentEditMode && currentTurnoutSelection) {
+    if (hitElement) {
+      if (currentElement instanceof RouteButtonElementView) {
+        if (
+          hitElement instanceof TrackTurnoutDoubleElementView ||
+          hitElement instanceof TrackTurnoutThreeWayElementView
+        ) {
+          currentElement.addOrUpdateTurnout(
+            hitElement.id,
+            hitElement.turnout1Closed,
+            hitElement.turnout2Closed
+          );
 
-            currentElement.addOrUpdateTurnout(
-              hitElement.id,
-              closed
-            );
+          setRouteTurnoutsMarked(currentElement);
+          onInvalidate();
+        } else if (isTurnoutElement(hitElement)) {
+          currentElement.addOrUpdateTurnout(
+            hitElement.id,
+            hitElement.turnoutClosed
+          );
 
-            setRouteTurnoutsMarked(
-              selectedElementRef.current as RouteButtonElementView
-            );
-
-            onInvalidate();
-          }
-        } else {
-          alert("Nincs aktív RouteButton");
+          setRouteTurnoutsMarked(currentElement);
+          onInvalidate();
         }
-
-        return;
+      } else {
+        alert("Nincs aktív RouteButton");
       }
 
       return;
     }
+
+    return;
   }
 
   if (!editModeRef.current) {
@@ -318,8 +307,7 @@ export function handleTrackCanvasMouseDown(
   }
 
   if (currentTool.mode === "delete") {
-    const element =
-      currentLayout.getElement(grid.x, grid.y);
+    const element = currentLayout.getElement(grid.x, grid.y);
 
     if (element) {
       onBeforeLayoutChange?.();
@@ -332,8 +320,7 @@ export function handleTrackCanvasMouseDown(
   }
 
   if (currentTool.mode === "draw") {
-    const cursor =
-      currentCursorRef.current;
+    const cursor = currentCursorRef.current;
 
     if (!cursor) {
       return;
@@ -355,22 +342,16 @@ export function handleTrackCanvasMouseDown(
         t("common.error"),
         t("editor.messages.alreadyHasElement")
       );
-
       return;
     }
 
     onBeforeLayoutChange?.();
 
-    const newElement =
-      cursor.clone();
-
+    const newElement = cursor.clone();
     newElement.x = cursorAnchor.x;
     newElement.y = cursorAnchor.y;
     newElement.selected = false;
 
-    // IMPORTANT:
-    // Layout.addElement() is the single owner of stable uint16 element IDs.
-    // Do not use generateId() and do not push directly into a layer.
     currentLayout.addElement(
       newElement,
       newElement.layerName
@@ -399,8 +380,7 @@ export function handleTrackCanvasMouseDown(
       return;
     }
 
-    const wasSelected =
-      hitElement.selected;
+    const wasSelected = hitElement.selected;
 
     if (!wasSelected) {
       currentLayout.unselectAll();

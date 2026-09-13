@@ -23,6 +23,10 @@ import {
 import {
   TrackTurnoutTwoWayElementView,
 } from "../elements/TrackTurnoutTwoWayElementView";
+import TrackTurnoutDoubleElementView from "../elements/TrackTurnoutDoubleElementView";
+import {
+  TrackTurnoutThreeWayElementView,
+} from "../elements/TrackTurnoutThreeWayElementView";
 import type {
   DrawOptions,
 } from "../types/EditorTypes";
@@ -55,6 +59,9 @@ import {
   LayerView,
   type LayerId,
 } from "./LayerView";
+import type {
+  Point,
+} from "@domain/Rect";
 
 type LayoutTrackElement =
   BaseElementView &
@@ -72,6 +79,96 @@ export function isTurnoutElement(
     element instanceof TrackTurnoutLeftElementView ||
     element instanceof TrackTurnoutRightElementView ||
     element instanceof TrackTurnoutTwoWayElementView
+  );
+}
+
+function isMultiMotorTurnout(
+  element: BaseElementView | null | undefined
+): element is
+  | TrackTurnoutDoubleElementView
+  | TrackTurnoutThreeWayElementView {
+  return (
+    element instanceof TrackTurnoutDoubleElementView ||
+    element instanceof TrackTurnoutThreeWayElementView
+  );
+}
+
+function isRouteButtonTurnout(
+  element: BaseElementView | null | undefined
+): element is
+  | RouteTurnoutElement
+  | TrackTurnoutDoubleElementView
+  | TrackTurnoutThreeWayElementView {
+  return (
+    isTurnoutElement(element) ||
+    isMultiMotorTurnout(element)
+  );
+}
+
+function routeTurnoutMatches(
+  turnout:
+    | RouteTurnoutElement
+    | TrackTurnoutDoubleElementView
+    | TrackTurnoutThreeWayElementView,
+  reference: {
+    closed: boolean;
+    secondClosed?: boolean;
+  }
+): boolean {
+  if (isMultiMotorTurnout(turnout)) {
+    if (typeof reference.secondClosed !== "boolean") {
+      return false;
+    }
+
+    return (
+      turnout.turnout1Closed === reference.closed &&
+      turnout.turnout2Closed === reference.secondClosed
+    );
+  }
+
+  return (
+    turnout.turnoutClosed === reference.closed
+  );
+}
+
+function getActiveRouteEndpoints(
+  element: LayoutTrackElement
+): {
+  next: Point;
+  prev: Point;
+} {
+  if (element instanceof TrackTurnoutDoubleElementView) {
+    const connections =
+      element.getConnections();
+
+    return {
+      prev:
+        element.firstLogicalClosed
+          ? connections.aDiv
+          : connections.aStraight,
+      next:
+        element.secondLogicalClosed
+          ? connections.bDiv
+          : connections.bStraight,
+    };
+  }
+
+  return {
+    next: element.getNextItemXy(),
+    prev: element.getPrevItemXy(),
+  };
+}
+
+function connectsBackTo(
+  element: LayoutTrackElement,
+  point: Point
+): boolean {
+  const endpoints =
+    getActiveRouteEndpoints(element);
+
+  return (
+    point.isEqual(endpoints.next) ||
+    point.isEqual(endpoints.prev)
   );
 }
 
@@ -317,8 +414,11 @@ export class LayoutView
           this.getElementById(turnoutRef.turnoutId);
 
         if (
-          isTurnoutElement(turnout) &&
-          turnout.turnoutClosed === turnoutRef.closed
+          isRouteButtonTurnout(turnout) &&
+          routeTurnoutMatches(
+            turnout,
+            turnoutRef
+          )
         ) {
           return;
         }
@@ -336,8 +436,12 @@ export class LayoutView
           routeButton.routeTurnouts[0]!.turnoutId
         );
 
-        if (isTurnoutElement(turnout)) {
-          this.startWalk(turnout);
+        if (
+          isRouteButtonTurnout(turnout)
+        ) {
+          this.startWalk(
+            turnout as LayoutTrackElement
+          );
         }
       }
     });
@@ -352,31 +456,37 @@ export class LayoutView
     obj.isVisited = true;
     obj.isRoute = true;
 
-    const nextPosition = obj.getNextItemXy();
-    const prevPosition = obj.getPrevItemXy();
+    const endpoints =
+      getActiveRouteEndpoints(obj);
 
-    const next = this.getObjectXy(nextPosition) as LayoutTrackElement;
+    const next =
+      this.getObjectXy(
+        endpoints.next
+      ) as LayoutTrackElement;
 
     if (
       next &&
       !next.isVisited &&
-      (
-        obj.pos.isEqual(next.getNextItemXy()) ||
-        obj.pos.isEqual(next.getPrevItemXy())
+      connectsBackTo(
+        next,
+        obj.pos
       )
     ) {
       next.isRoute = true;
       this.startWalk(next);
     }
 
-    const prev = this.getObjectXy(prevPosition) as LayoutTrackElement;
+    const prev =
+      this.getObjectXy(
+        endpoints.prev
+      ) as LayoutTrackElement;
 
     if (
       prev &&
       !prev.isVisited &&
-      (
-        obj.pos.isEqual(prev.getNextItemXy()) ||
-        obj.pos.isEqual(prev.getPrevItemXy())
+      connectsBackTo(
+        prev,
+        obj.pos
       )
     ) {
       prev.isRoute = true;

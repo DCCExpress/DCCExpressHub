@@ -7,6 +7,11 @@ import type {
   RouteButtonElementView,
 } from "../models/editor/elements/RouteButtonElementView";
 
+import TrackTurnoutDoubleElementView from "../models/editor/elements/TrackTurnoutDoubleElementView";
+import {
+  TrackTurnoutThreeWayElementView,
+} from "../models/editor/elements/TrackTurnoutThreeWayElementView";
+
 import {
   getTurnoutClosedAspect,
   getTurnoutOpenedAspect,
@@ -49,8 +54,7 @@ export async function executeLegacyRouteButton({
     return false;
   }
 
-  const elements =
-    layout.getAllElements();
+  const elements = layout.getAllElements();
 
   wsApi.routeLock();
   setBusy?.(true, busyText);
@@ -60,19 +64,41 @@ export async function executeLegacyRouteButton({
   try {
     for (const routeTurnout of routeButton.routeTurnouts) {
       const turnout = elements.find(
-        element =>
-          element.id === routeTurnout.turnoutId
+        element => element.id === routeTurnout.turnoutId
       );
+
+      if (
+        turnout instanceof TrackTurnoutDoubleElementView ||
+        turnout instanceof TrackTurnoutThreeWayElementView
+      ) {
+        const first = routeTurnout.closed;
+        const second = routeTurnout.secondClosed ?? turnout.turnout2Closed;
+
+        turnout.turnout1Closed = first;
+        turnout.turnout2Closed = second;
+
+        sendTurnoutOutput(
+          String(turnout.outputMode),
+          turnout.turnout1Address,
+          first,
+          { closedValue: turnout.turnout1ClosedValue }
+        );
+
+        sendTurnoutOutput(
+          String(turnout.outputMode),
+          turnout.turnout2Address,
+          second,
+          { closedValue: turnout.turnout2ClosedValue }
+        );
+
+        await sleep(1000);
+        continue;
+      }
 
       if (!isTurnoutElement(turnout)) {
         continue;
       }
 
-      /**
-       * Legacy RouteButton stores the physical turnout state.
-       * Keep that representation, then map it to either R/G or
-       * Extended Accessory aspect at the output boundary.
-       */
       turnout.turnoutClosed = routeTurnout.closed;
 
       sendTurnoutOutput(

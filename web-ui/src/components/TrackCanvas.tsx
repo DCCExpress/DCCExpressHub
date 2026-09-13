@@ -5,6 +5,9 @@ import { useTranslation } from "react-i18next";
 import { BaseElementView } from "../models/editor/core/BaseElementView";
 import { isTurnoutElement } from "../models/editor/core/LayoutView";
 import TrackTurnoutDoubleElementView from "../models/editor/elements/TrackTurnoutDoubleElementView";
+import {
+  TrackTurnoutThreeWayElementView,
+} from "../models/editor/elements/TrackTurnoutThreeWayElementView";
 import { AudioButtonElementView } from "../models/editor/elements/AudioButtonElementView";
 import { BlockElementView } from "../models/editor/elements/BlockElementView";
 import { RouteButtonElementView } from "../models/editor/elements/RouteButtonElementView";
@@ -245,7 +248,12 @@ export default function TrackCanvas({
     const elems = layoutRef.current.getAllElements();
 
     for (const elem of elems) {
-      if (isTurnoutElement(elem)) {
+      const isRouteTurnout =
+        isTurnoutElement(elem) ||
+        elem instanceof TrackTurnoutDoubleElementView ||
+        elem instanceof TrackTurnoutThreeWayElementView;
+
+      if (isRouteTurnout) {
         const found = rb.routeTurnouts.find(e => e.turnoutId === elem.id);
         elem.marked = Boolean(found);
       }
@@ -442,7 +450,10 @@ export default function TrackCanvas({
 
     if (turnoutSelectionMode) {
       for (const elem of elems) {
-        elem.enabled = isTurnoutElement(elem);
+        elem.enabled =
+          isTurnoutElement(elem) ||
+          elem instanceof TrackTurnoutDoubleElementView ||
+          elem instanceof TrackTurnoutThreeWayElementView;
       }
 
       if (selectedElementRef.current instanceof RouteButtonElementView) {
@@ -541,6 +552,7 @@ export default function TrackCanvas({
           t,
           commandCenterLocked: commandCenterRef.current.locked,
           setBusy,
+          invalidate,
         }
       );
       if (handled) {
