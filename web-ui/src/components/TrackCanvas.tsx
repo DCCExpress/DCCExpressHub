@@ -17,6 +17,7 @@ import { subscribeCanvasImageCache } from "../models/editor/rendering/ImageCache
 import { useCommandCenter } from "../context/CommandCenterContext";
 import { useEditorSettings } from "../context/EditorSettingsContext";
 import { fastClockStore } from "../services/fastClockStore";
+import { wsClient } from "../services/wsClient";
 import "../styles/TrackCanvas.css";
 
 import {
@@ -278,6 +279,66 @@ export default function TrackCanvas({
   useEffect(() => {
     commandCenterRef.current = commandCenter;
   }, [commandCenter]);
+
+  useEffect(() => {
+    const applyTurnoutRuntime = (
+      address: number,
+      physicalValue: boolean
+    ) => {
+      for (const element of layout.getAllElements()) {
+        if (
+          isTurnoutElement(element) &&
+          element.outputMode === "accessory" &&
+          element.turnoutAddress === address
+        ) {
+          element.turnoutClosed = physicalValue;
+          continue;
+        }
+
+        if (
+          (
+            element instanceof TrackTurnoutDoubleElementView ||
+            element instanceof TrackTurnoutThreeWayElementView
+          ) &&
+          element.outputMode === "accessory"
+        ) {
+          if (element.turnout1Address === address) {
+            element.turnout1Closed = physicalValue;
+          }
+
+          if (element.turnout2Address === address) {
+            element.turnout2Closed = physicalValue;
+          }
+        }
+      }
+
+      // Every physical turnout/accessory event may change which legacy
+      // RouteButton is active. Recalculate immediately and redraw.
+      layout.checkRoutes();
+      invalidate();
+    };
+
+    const unsubscribeTurnout =
+      wsClient.on("turnoutChanged", data => {
+        applyTurnoutRuntime(
+          data.address,
+          data.closed
+        );
+      });
+
+    const unsubscribeAccessory =
+      wsClient.on("accessoryChanged", data => {
+        applyTurnoutRuntime(
+          data.address,
+          data.active
+        );
+      });
+
+    return () => {
+      unsubscribeTurnout();
+      unsubscribeAccessory();
+    };
+  }, [layout, invalidate]);
 
   useEffect(() => {
     signalAspectPopoverRef.current = signalAspectPopover;
