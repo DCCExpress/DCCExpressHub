@@ -207,7 +207,8 @@ export function drawScene(
   layout.draw(ctx, options);
 
   if (editMode) {
-    drawSelectedTrackDebugOverlay(ctx, selected, layout.gridSize, view.scale);
+    
+    //drawSelectedTrackDebugOverlay(ctx, selected, layout.gridSize, view.scale);
   }
 
   if (currentCursor) {

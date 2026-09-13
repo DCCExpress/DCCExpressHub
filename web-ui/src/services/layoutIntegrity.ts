@@ -6,6 +6,8 @@ import { validateSignalLogicDocument } from "@domain/signalLogic";
 import { ELEMENT_TYPES } from "@domain/layout/elementTypes";
 import type { LayoutView } from "@/models/editor/core/LayoutView";
 import { isTurnoutElement } from "@/models/editor/core/LayoutView";
+import TrackTurnoutDoubleElement from "../models/editor/elements/TrackTurnoutDoubleElement";
+import { TrackTurnoutThreeWayElement } from "../models/editor/elements/TrackTurnoutThreeWayElement";
 import { TrackSensorElement } from "../models/editor/elements/TrackSensorElement";
 import { TrackSignalElement } from "../models/editor/elements/TrackSignalElement";
 
@@ -20,6 +22,16 @@ function elementLabel(data: { name?: string; id?: LayoutElementId }, fallback: s
   const name = data.name?.trim();
   const id = data.id && data.id !== INVALID_LAYOUT_ELEMENT_ID ? String(data.id) : "missing ID";
   return name && name !== "element" ? `${name} (${id})` : `${fallback} (${id})`;
+}
+
+function isRouteButtonTurnoutElement(
+  element: ReturnType<LayoutView["getAllElements"]>[number]
+): boolean {
+  return (
+    isTurnoutElement(element) ||
+    element instanceof TrackTurnoutDoubleElement ||
+    element instanceof TrackTurnoutThreeWayElement
+  );
 }
 
 export function inspectProjectIntegrity(
@@ -44,7 +56,18 @@ export function inspectProjectIntegrity(
   }
   for (const [id, count] of idCounts) if (count > 1) add("Layout", "error", `Element ID ${id} is used ${count} times.`);
 
+  // Signal logic currently uses the classic one-motor turnout shape/address.
   const turnoutById = new Map(elements.filter(isTurnoutElement).map(element => [element.id, element]));
+
+  // Route buttons support both classic one-motor and multi-motor turnouts.
+  // Keep this separate from turnoutById so widening RouteButton validation does
+  // not change the signal-logic turnout/address contract.
+  const routeTurnoutById = new Map(
+    elements
+      .filter(isRouteButtonTurnoutElement)
+      .map(element => [element.id, element])
+  );
+
   const blockById = new Map(elements.filter(element => element.type === ELEMENT_TYPES.TRACK_BLOCK).map(element => [element.id, element]));
 
   const routeButtons = elements.filter(element => element.type === ELEMENT_TYPES.BUTTON_ROUTE);
@@ -69,7 +92,7 @@ export function inspectProjectIntegrity(
       const key = `${turnoutId}:${channel}`;
       if (usedTurnouts.has(key)) add("Route buttons", "error", `${label} references turnout ${turnoutId}/${channel} more than once.`);
       usedTurnouts.add(key);
-      if (!turnoutById.has(turnoutId)) {
+      if (!routeTurnoutById.has(turnoutId)) {
         const existing = elements.find(candidate => candidate.id === turnoutId);
         add("Route buttons", "error", existing
           ? `${label} references ${turnoutId}, but that element is not a supported turnout.`
