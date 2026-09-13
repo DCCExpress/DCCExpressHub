@@ -7,11 +7,9 @@ import {
   showErrorMessage,
   showOkMessage,
   showWarningMessage,
-  sleep,
 } from "../../helpers";
 
 import {
-  isTurnoutElement,
   type LayoutView,
 } from "../../models/editor/core/LayoutView";
 
@@ -23,18 +21,11 @@ import type {
   RouteButtonElementView,
 } from "../../models/editor/elements/RouteButtonElementView";
 
-import TrackTurnoutDoubleElementView from "../../models/editor/elements/TrackTurnoutDoubleElementView";
-import {
-  TrackTurnoutThreeWayElementView,
-} from "../../models/editor/elements/TrackTurnoutThreeWayElementView";
-
 import {
   routeGraphStore,
 } from "../../services/routeGraphStore";
 
-import {
-  sendTurnoutOutput,
-} from "../../services/layoutOutput";
+import { executeLegacyRouteButton } from "../../services/routeButtonExecutor";
 import {
   wsApi,
 } from "../../services/wsApi";
@@ -68,76 +59,19 @@ export async function executeRouteButton(
       t("common.error"),
       t("routesPanel.commandCenterBusy")
     );
-
     return;
   }
 
-  const elements =
-    layout.getAllElements();
-
-  wsApi.routeLock();
-  setBusy?.(
-    true,
-    t("routesPanel.routeIsBeingSet")
-  );
-
-  await sleep(1000);
-
-  try {
-    for (const routeTurnout of routeButton.routeTurnouts) {
-      const element = elements.find(
-        candidate => candidate.id === routeTurnout.turnoutId
-      );
-
-      if (
-        element instanceof TrackTurnoutDoubleElementView ||
-        element instanceof TrackTurnoutThreeWayElementView
-      ) {
-        const first = routeTurnout.closed;
-        const second = routeTurnout.secondClosed ?? element.turnout2Closed;
-
-        element.turnout1Closed = first;
-        element.turnout2Closed = second;
-
-        sendTurnoutOutput(
-          element.outputMode,
-          element.turnout1Address,
-          first,
-          { closedValue: element.turnout1ClosedValue }
-        );
-
-        sendTurnoutOutput(
-          element.outputMode,
-          element.turnout2Address,
-          second,
-          { closedValue: element.turnout2ClosedValue }
-        );
-
-        await sleep(1000);
-        continue;
-      }
-
-      if (!isTurnoutElement(element)) {
-        continue;
-      }
-
-      element.turnoutClosed = routeTurnout.closed;
-      sendTurnoutOutput(
-        element.outputMode,
-        element.turnoutAddress,
-        routeTurnout.closed
-      );
-
-      await sleep(1000);
-    }
-    // Route execution updates the client-side turnout runtime state directly.
-    // Recalculate RouteButton active state and route highlighting immediately,
-    // instead of waiting for a later turnout-state feedback event.
-    layout.checkRoutes();
-    onInvalidate?.();
-  } finally {
-    wsApi.routeUnlock();
-    setBusy?.(false);
+  const completed = await executeLegacyRouteButton({
+    routeButton,
+    layout,
+    commandCenterLocked,
+    busyText: t("routesPanel.routeIsBeingSet"),
+    ...(setBusy ? { setBusy } : {}),
+    ...(onInvalidate ? { onInvalidate } : {}),
+  });
+  if (!completed) {
+    showWarningMessage(t("common.error"), t("routesPanel.automaticRouteFailed"));
   }
 }
 

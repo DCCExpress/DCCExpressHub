@@ -10,6 +10,7 @@
         "demo:seed": "node tools/prepare-demo-seed.mjs",
         "dev:demo": "npm run demo:seed && vite --mode demo",
         "typecheck": "tsc --noEmit",
+        "test:routes": "node --test tests/route-buttons.test.mjs",
         "build": "npm run typecheck && vite build",
         "build:demo": "npm run demo:seed && npm run typecheck && vite build --mode demo",
         "embed": "npm run build && node tools/embed.mjs",

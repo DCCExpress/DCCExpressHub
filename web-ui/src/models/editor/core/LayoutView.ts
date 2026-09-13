@@ -65,6 +65,7 @@ import {
   LayerView,
   type LayerId,
 } from "./LayerView";
+import { resolveRouteSecondClosed } from "../turnout/routeTurnoutState";
 
 type LayoutTrackElement =
   BaseElementView &
@@ -119,13 +120,14 @@ function routeTurnoutMatches(
   }
 ): boolean {
   if (isMultiMotorTurnout(turnout)) {
-    if (typeof reference.secondClosed !== "boolean") {
+    const secondClosed = resolveRouteSecondClosed(turnout, reference);
+    if (typeof secondClosed !== "boolean") {
       return false;
     }
 
     return (
       turnout.turnout1Closed === reference.closed &&
-      turnout.turnout2Closed === reference.secondClosed
+      turnout.turnout2Closed === secondClosed
     );
   }
 
@@ -134,49 +136,91 @@ function routeTurnoutMatches(
   );
 }
 
+type RouteStateReference = {
+  closed: boolean;
+  secondClosed?: boolean;
+};
+
+type RouteStateMap =
+  Map<number, RouteStateReference>;
+
+function routeStatesMatch(
+  turnoutStates: readonly {
+    closed: boolean;
+  }[],
+  first: boolean,
+  second: boolean
+): boolean {
+  return (
+    turnoutStates.length >= 2 &&
+    turnoutStates[0]!.closed === first &&
+    turnoutStates[1]!.closed === second
+  );
+}
+
+function getMultiMotorBits(
+  element:
+    | TrackTurnoutDoubleElementView
+    | TrackTurnoutThreeWayElementView,
+  routeStates?: RouteStateMap
+): {
+  first: boolean;
+  second: boolean;
+} {
+  const configured =
+    routeStates?.get(element.id);
+
+  if (
+    configured &&
+    typeof configured.secondClosed ===
+      "boolean"
+  ) {
+    return {
+      first: configured.closed,
+      second: configured.secondClosed,
+    };
+  }
+
+  return {
+    first: element.turnout1Closed,
+    second: element.turnout2Closed,
+  };
+}
+
 function getActiveConnectionPairs(
-  element: LayoutTrackElement
+  element: LayoutTrackElement,
+  routeStates?: RouteStateMap
 ): NeighborPointPair[] {
   if (
     element instanceof
     TrackTurnoutDoubleElementView
   ) {
+    const bits =
+      getMultiMotorBits(
+        element,
+        routeStates
+      );
+
+    const route =
+      element.getAllowedRoutes().find(
+        candidate =>
+          routeStatesMatch(
+            candidate.turnoutStates,
+            bits.first,
+            bits.second
+          )
+      );
+
+    if (!route) {
+      return [];
+    }
+
     const c =
       element.getConnections();
 
-    if (
-      !element.firstLogicalClosed &&
-      !element.secondLogicalClosed
-    ) {
-      return [[
-        c.aStraight,
-        c.bStraight,
-      ]];
-    }
-
-    if (
-      !element.firstLogicalClosed &&
-      element.secondLogicalClosed
-    ) {
-      return [[
-        c.aStraight,
-        c.bDiv,
-      ]];
-    }
-
-    if (
-      element.firstLogicalClosed &&
-      !element.secondLogicalClosed
-    ) {
-      return [[
-        c.aDiv,
-        c.bStraight,
-      ]];
-    }
-
     return [[
-      c.aDiv,
-      c.bDiv,
+      c[route.from],
+      c[route.to],
     ]];
   }
 
@@ -184,58 +228,50 @@ function getActiveConnectionPairs(
     element instanceof
     TrackTurnoutThreeWayElementView
   ) {
+    const bits =
+      getMultiMotorBits(
+        element,
+        routeStates
+      );
+
+    const route =
+      element.getAllowedRoutes().find(
+        candidate =>
+          routeStatesMatch(
+            candidate.turnoutStates,
+            bits.first,
+            bits.second
+          )
+      );
+
+    if (!route) {
+      return [];
+    }
+
     const c =
       element.getConnections();
 
-    switch (element.position) {
-      case "left":
-        return [[
-          c.entry,
-          c.left,
-        ]];
-
-      case "right":
-        return [[
-          c.entry,
-          c.right,
-        ]];
-
-      case "straight":
-        return [[
-          c.entry,
-          c.straight,
-        ]];
-
-      case "invalid":
-      default:
-        return [];
-    }
+    return [[
+      c[route.from],
+      c[route.to],
+    ]];
   }
 
-  /*
-   * Normal track elements already expose their real connection pair(s).
-   *
-   * - Straight / curve / corner: one pair
-   * - Normal turnout: BaseElement calls the turnout's state-aware
-   *   getPrevItemXy()/getNextItemXy(), therefore one active pair
-   * - Crossing: two independent pairs
-   *
-   * Using connection pairs rather than a single global next/prev pair is the
-   * key to following crossings and multi-ended track elements correctly.
-   */
   return element.getNeighborPointPairs();
 }
 
 function getExitPointsForEntry(
   element: LayoutTrackElement,
-  enteredFrom: Point
+  enteredFrom: Point,
+  routeStates?: RouteStateMap
 ): Point[] {
   const exits: Point[] = [];
 
   for (
     const [first, second]
     of getActiveConnectionPairs(
-      element
+      element,
+      routeStates
     )
   ) {
     if (first.isEqual(enteredFrom)) {
@@ -252,19 +288,18 @@ function getExitPointsForEntry(
 
 function acceptsConnectionFrom(
   element: LayoutTrackElement,
-  neighborCenter: Point
+  neighborCenter: Point,
+  routeStates?: RouteStateMap
 ): boolean {
   return (
-    getActiveConnectionPairs(element)
-      .some(
-        ([first, second]) =>
-          first.isEqual(
-            neighborCenter
-          ) ||
-          second.isEqual(
-            neighborCenter
-          )
-      )
+    getActiveConnectionPairs(
+      element,
+      routeStates
+    ).some(
+      ([first, second]) =>
+        first.isEqual(neighborCenter) ||
+        second.isEqual(neighborCenter)
+    )
   );
 }
 
@@ -461,6 +496,18 @@ export class LayoutView
     // allocator so every subsequently added/cloned element continues at max+1.
     layout.rebuildElementIdSequence();
 
+    // Repair old single-bit references in memory so the editor previews and
+    // the next explicit save also retain the recovered second motor value.
+    for (const element of layout.getAllElements()) {
+      if (!(element instanceof RouteButtonElementView)) continue;
+      for (const reference of element.routeTurnouts) {
+        const turnout = layout.getElementById(reference.turnoutId);
+        if (!isMultiMotorTurnout(turnout)) continue;
+        const secondClosed = resolveRouteSecondClosed(turnout, reference);
+        if (typeof secondClosed === "boolean") reference.secondClosed = secondClosed;
+      }
+    }
+
     return layout;
   }
 
@@ -472,6 +519,7 @@ export class LayoutView
       (element: LayoutTrackElement) => {
         element.isVisited = false;
         element.isRoute = false;
+        element.routeConnectionIndices = [];
         element.section = 0;
       }
     );
@@ -493,55 +541,92 @@ export class LayoutView
       (element: LayoutTrackElement) => {
         element.isVisited = false;
         element.isRoute = false;
+        element.routeConnectionIndices = [];
       }
     );
 
     const routeButtons =
       this.getAllElements().filter(
         (element: BaseElementView) =>
-          element instanceof RouteButtonElementView
+          element instanceof
+          RouteButtonElementView
       ) as RouteButtonElementView[];
 
-    routeButtons.forEach(routeButton => {
-      let active =
-        routeButton.routeTurnouts.length > 0;
+    for (const routeButton of routeButtons) {
+      const active =
+        routeButton.routeTurnouts.length > 0 &&
+        routeButton.routeTurnouts.every(
+          reference => {
+            const turnout =
+              this.getElementById(
+                reference.turnoutId
+              );
 
-      routeButton.routeTurnouts.forEach(turnoutRef => {
-        const turnout =
-          this.getElementById(turnoutRef.turnoutId);
-
-        if (
-          isRouteButtonTurnout(turnout) &&
-          routeTurnoutMatches(
-            turnout,
-            turnoutRef
-          )
-        ) {
-          return;
-        }
-
-        active = false;
-      });
+            return (
+              isRouteButtonTurnout(turnout) &&
+              routeTurnoutMatches(
+                turnout,
+                reference
+              )
+            );
+          }
+        );
 
       routeButton.active = active;
 
-      if (
-        active &&
-        routeButton.routeTurnouts.length > 0
-      ) {
-        const turnout = this.getElementById(
-          routeButton.routeTurnouts[0]!.turnoutId
-        );
+      if (!active) {
+        continue;
+      }
 
-        if (
-          isRouteButtonTurnout(turnout)
-        ) {
-          this.startWalk(
-            turnout as LayoutTrackElement
-          );
+      const routeStates:
+        RouteStateMap =
+          new Map();
+
+      for (
+        const reference
+        of routeButton.routeTurnouts
+      ) {
+        routeStates.set(
+          reference.turnoutId,
+          {
+            closed:
+              reference.closed,
+            ...(typeof reference.secondClosed ===
+              "boolean"
+              ? {
+                  secondClosed:
+                    reference.secondClosed,
+                }
+              : {}),
+          }
+        );
+      }
+
+      // A button can configure several independent connected track sections.
+      // Seed every configured turnout, sharing visits without losing crossing
+      // entries. The order in the property editor must not affect the result.
+      const visitedConnections = new Set<string>();
+      for (const reference of routeButton.routeTurnouts) {
+        const turnout = this.getElementById(reference.turnoutId);
+        if (isRouteButtonTurnout(turnout)) {
+          this.walkActiveRoute(turnout, null, visitedConnections, routeStates);
         }
       }
-    });
+    }
+
+    // Blocks, signals and sensors are drawn over physical rails. Looking up
+    // the rail first during traversal must not leave those overlays unmarked.
+    for (const overlay of elements) {
+      if (this.track.elements.includes(overlay)) continue;
+      const track = this.track.elements.find(element =>
+        element instanceof DomainTrackElement &&
+        element.x === overlay.x && element.y === overlay.y
+      ) as LayoutTrackElement | undefined;
+      if (track) {
+        overlay.isRoute = track.isRoute;
+        overlay.routeConnectionIndices = [...track.routeConnectionIndices];
+      }
+    }
 
     return {
       graph,
@@ -550,11 +635,14 @@ export class LayoutView
   }
 
   startWalk(
-    obj: LayoutTrackElement
+    obj: LayoutTrackElement,
+    routeStates?: RouteStateMap
   ): void {
     this.walkActiveRoute(
       obj,
-      null
+      null,
+      new Set<string>(),
+      routeStates
     );
   }
 
@@ -562,49 +650,66 @@ export class LayoutView
     obj: LayoutTrackElement,
     enteredFrom:
       Point |
-      null
+      null,
+    visitedConnections: Set<string>,
+    routeStates?: RouteStateMap
   ): void {
-    if (obj.isVisited) {
+    const visitKey =
+      enteredFrom
+        ? `${obj.id}:${enteredFrom.x}:${enteredFrom.y}`
+        : `${obj.id}:start`;
+
+    if (
+      visitedConnections.has(
+        visitKey
+      )
+    ) {
       return;
     }
 
+    visitedConnections.add(
+      visitKey
+    );
+
     obj.isVisited = true;
-    obj.isRoute = true;
+    const pairs = getActiveConnectionPairs(obj, routeStates);
+    for (const [index, [first, second]] of pairs.entries()) {
+      if (!enteredFrom || first.isEqual(enteredFrom) || second.isEqual(enteredFrom)) {
+        obj.isRoute = true;
+        if (!obj.routeConnectionIndices.includes(index)) {
+          obj.routeConnectionIndices.push(index);
+        }
+      }
+    }
 
-    let exitPoints: Point[];
-
-    if (enteredFrom) {
-      /*
-       * We arrived from a concrete neighboring element. Only continue through
-       * the active connection pair that contains that entry point.
-       *
-       * This is especially important for crossings: entering on one line must
-       * not jump to the other crossing line.
-       */
-      exitPoints =
-        getExitPointsForEntry(
-          obj,
-          enteredFrom
-        );
-    } else {
-      /*
-       * Route walk starts at the first turnout stored by the RouteButton.
-       * A configured turnout has one active connection pair, so both ends are
-       * valid starting directions.
-       */
-      exitPoints =
-        getActiveConnectionPairs(obj)
-          .flatMap(
+    const exitPoints =
+      enteredFrom
+        ? getExitPointsForEntry(
+            obj,
+            enteredFrom,
+            routeStates
+          )
+        : getActiveConnectionPairs(
+            obj,
+            routeStates
+          ).flatMap(
             ([first, second]) => [
               first,
               second,
             ]
           );
-    }
 
-    for (const exit of exitPoints) {
+    for (
+      const exit
+      of exitPoints
+    ) {
+      // Connectivity uses anchor cells, not visual hit boxes. A three-cell
+      // block overlay must never hide a neighboring standalone sensor/rail.
       const candidate =
-        this.getObjectXy(exit);
+        this.getTrackElements().find(element =>
+          element instanceof DomainTrackElement &&
+          element.x === exit.x && element.y === exit.y
+        );
 
       if (
         !candidate ||
@@ -616,21 +721,14 @@ export class LayoutView
       }
 
       const next =
-        candidate as LayoutTrackElement;
+        candidate as
+          LayoutTrackElement;
 
-      if (next.isVisited) {
-        continue;
-      }
-
-      /*
-       * The neighboring element must actually expose an active connection
-       * back to our center cell. Merely occupying the target grid cell is not
-       * enough.
-       */
       if (
         !acceptsConnectionFrom(
           next,
-          obj.pos
+          obj.pos,
+          routeStates
         )
       ) {
         continue;
@@ -640,10 +738,13 @@ export class LayoutView
 
       this.walkActiveRoute(
         next,
-        obj.pos
+        obj.pos,
+        visitedConnections,
+        routeStates
       );
     }
   }
+
 
   walkTrack(
     obj: LayoutTrackElement,

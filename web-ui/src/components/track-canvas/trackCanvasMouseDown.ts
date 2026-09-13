@@ -296,7 +296,7 @@ export function handleTrackCanvasMouseDown(
     closeDoubleTurnoutPopover();
   }
 
-  if (toolRef.current.mode === "cursor" && !editModeRef.current) {
+  if (!editModeRef.current) {
     if (handleClickableDown(hitElement, event)) {
       return;
     }

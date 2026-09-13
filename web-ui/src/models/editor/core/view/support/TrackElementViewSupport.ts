@@ -116,7 +116,8 @@ export function isTrackOccupied(
 }
 
 export function getTrackStateColor(
-  element: TrackElementViewSupportTarget
+  element: TrackElementViewSupportTarget,
+  isRoute = element.isRoute
 ): string {
   const occupied =
     isTrackOccupied(element);
@@ -136,7 +137,7 @@ export function getTrackStateColor(
    */
   if (
     occupied &&
-    element.isRoute
+    isRoute
   ) {
     return TrackColors.routeOccupied;
   }
@@ -153,7 +154,7 @@ export function getTrackStateColor(
     return TrackColors.busy;
   }
 
-  if (element.isRoute) {
+  if (isRoute) {
     return TrackColors.route;
   }
 

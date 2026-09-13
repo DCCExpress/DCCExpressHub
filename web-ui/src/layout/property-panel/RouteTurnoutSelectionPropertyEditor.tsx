@@ -194,16 +194,20 @@ export default function RouteTurnoutSelectionPropertyEditor({
   const testRouteButton = async (): Promise<void> => {
     if (!(selectedElement instanceof RouteButtonElementView)) return;
 
-    await executeLegacyRouteButton({
+    const completed = await executeLegacyRouteButton({
       routeButton: selectedElement,
       layout,
       commandCenterLocked: commandCenter.locked,
       busyText: "Route is being tested...",
+      onInvalidate: () => onUpdateSelectedElement(selectedElement),
       onCommandCenterBusy: () => {
         showWarningMessage("Route test", "Command center is busy.");
       },
       ...(setBusy !== undefined ? { setBusy } : {}),
     });
+    if (!completed && !commandCenter.locked) {
+      showWarningMessage("Route test", "The route could not be set. Check the turnout configuration and connection.");
+    }
   };
 
   return (

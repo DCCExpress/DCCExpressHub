@@ -238,13 +238,21 @@ export class TrackCrossingElementView
     this.drawCrossingPath(ctx, 0);
     ctx.stroke();
 
-    ctx.beginPath();
-    ctx.strokeStyle = this.stateColor;
     ctx.lineWidth = this.TrackWidth3;
-
     const dx = this.width / 5;
-    this.drawCrossingPath(ctx, dx);
-    ctx.stroke();
+    for (const [index, [from, to]] of this.getNeighborPointPairs().entries()) {
+      ctx.beginPath();
+      ctx.strokeStyle = getTrackStateColor(this, this.routeConnectionIndices.includes(index));
+      ctx.moveTo(
+        this.centerX + (from.x - this.x) * (this.width / 2 - dx),
+        this.centerY + (from.y - this.y) * (this.height / 2 - dx)
+      );
+      ctx.lineTo(
+        this.centerX + (to.x - this.x) * (this.width / 2 - dx),
+        this.centerY + (to.y - this.y) * (this.height / 2 - dx)
+      );
+      ctx.stroke();
+    }
 
     if (options?.showOccupancySensorAddress) {
       drawTextWithRoundedBackground(

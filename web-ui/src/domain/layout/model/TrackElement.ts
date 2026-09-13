@@ -24,6 +24,8 @@ export abstract class TrackElement extends BaseElement {
   state: TrackStates = TrackStates.free;
   section: number = 0;
   isRoute: boolean = false;
+  /** Runtime indices of the traversed connection pairs (crossing lines). */
+  routeConnectionIndices: number[] = [];
   travelDirection: TravelDirection = "unknown";
   isBusy: boolean = false;
 
