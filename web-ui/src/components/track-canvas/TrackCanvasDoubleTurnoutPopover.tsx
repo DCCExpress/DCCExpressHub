@@ -271,23 +271,23 @@ function getPanelPosition(
   left: number;
   top: number;
 } {
-  const panelWidth = 210;
   const panelHeight = 86;
   const margin = 8;
-
-  const viewportWidth =
-    typeof window !== "undefined"
-      ? window.innerWidth
-      : 1024;
 
   const viewportHeight =
     typeof window !== "undefined"
       ? window.innerHeight
       : 768;
 
-  // `x` is now the actual on-screen center of the Double turnout.
-  let left =
-    x - panelWidth / 2;
+  /*
+   * X is the horizontal anchor only.
+   *
+   * Do NOT guess the popup width here. Mantine Paper gets its real width from
+   * the rendered content, so hardcoding 210px can never guarantee exact
+   * centering. The Paper uses translateX(-50%) below, which centers it using
+   * its ACTUAL rendered width.
+   */
+  const left = x;
 
   let top =
     y + 12;
@@ -301,15 +301,7 @@ function getPanelPosition(
   }
 
   return {
-    left: Math.max(
-      margin,
-      Math.min(
-        left,
-        viewportWidth -
-          panelWidth -
-          margin
-      )
-    ),
+    left,
     top: Math.max(
       margin,
       Math.min(
@@ -382,7 +374,7 @@ export function TrackCanvasDoubleTurnoutPopover({
             position.top,
           transform: mobileMapCenter
             ? "translate(-50%, -50%)"
-            : undefined,
+            : "translateX(-50%)",
           zIndex: 2000,
           background:
             "var(--mantine-color-dark-7)",
