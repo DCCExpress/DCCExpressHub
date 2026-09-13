@@ -496,20 +496,24 @@ function renderButtonOutputEditor(
 
 function sendSingleTurnoutState(
   element: SingleTurnoutElement,
-  logicalClosed: boolean
+  logicalClosed: boolean,
+  closedValueOverride?: boolean
 ): void {
+  const closedValue =
+    closedValueOverride ??
+    element.turnoutClosedValue;
+
   sendTurnoutOutput(
     String(
       (element as any).outputMode
     ),
     element.turnoutAddress,
     getPhysicalValueForLogicalState(
-      element.turnoutClosedValue,
+      closedValue,
       logicalClosed
     ),
     {
-      closedValue:
-        element.turnoutClosedValue,
+      closedValue,
       closedAspect:
         getTurnoutClosedAspect(
           element
@@ -613,29 +617,18 @@ function doublePositionValues(
   }
 }
 
-function sendDoubleTurnoutPosition(
+function sendDoubleTurnoutValues(
   element:
     TrackTurnoutDoubleElementView,
-  position: MultiTurnoutPosition
+  first: boolean,
+  second: boolean
 ): void {
-  const values =
-    doublePositionValues(
-      element,
-      position
-    );
-
-  element.turnout1Closed =
-    values.first;
-
-  element.turnout2Closed =
-    values.second;
-
   sendTurnoutOutput(
     String(
       (element as any).outputMode
     ),
     element.turnout1Address,
-    values.first,
+    first,
     {
       closedValue:
         element.turnout1ClosedValue,
@@ -659,7 +652,7 @@ function sendDoubleTurnoutPosition(
       (element as any).outputMode
     ),
     element.turnout2Address,
-    values.second,
+    second,
     {
       closedValue:
         element.turnout2ClosedValue,
@@ -676,6 +669,55 @@ function sendDoubleTurnoutPosition(
           false
         ),
     }
+  );
+}
+
+function sendDoubleTurnoutBitClick(
+  element: TrackTurnoutDoubleElementView,
+  position: MultiTurnoutPosition,
+  motor: 1 | 2,
+  clickedValue: boolean
+): void {
+  const current = doublePositionValues(
+    element,
+    position
+  );
+
+  const first =
+    motor === 1
+      ? clickedValue
+      : current.first;
+
+  const second =
+    motor === 2
+      ? clickedValue
+      : current.second;
+
+  // Explicit physical mapping:
+  // motor 1 -> turnout1Address
+  // motor 2 -> turnout2Address
+  sendDoubleTurnoutValues(
+    element,
+    first,
+    second
+  );
+}
+
+function sendDoubleTurnoutPosition(
+  element:
+    TrackTurnoutDoubleElementView,
+  position: MultiTurnoutPosition
+): void {
+  const values =
+    doublePositionValues(
+      element,
+      position
+    );
+
+  sendDoubleTurnoutValues(
+    element,
+    values.first,
+    values.second
   );
 }
 
@@ -887,12 +929,19 @@ function renderSingleBasicEditor(
 
         <BitToggleElement
           value={propValue}
-          onChange={value =>
+          onChange={value => {
             onChange(
               prop,
               value
-            )
-          }
+            );
+          }}
+          onValueClick={value => {
+            sendSingleTurnoutState(
+              selectedElement,
+              true,
+              value
+            );
+          }}
         />
       </Group>
 
@@ -923,12 +972,19 @@ function renderSingleBasicEditor(
 
         <BitToggleElement
           value={!propValue}
-          onChange={value =>
+          onChange={value => {
             onChange(
               prop,
               !value
-            )
-          }
+            );
+          }}
+          onValueClick={value => {
+            sendSingleTurnoutState(
+              selectedElement,
+              false,
+              !value
+            );
+          }}
         />
       </Group>
     </Stack>
@@ -1020,6 +1076,64 @@ function threeWayPositionValues(
   };
 }
 
+function sendConfiguredThreeWayValues(
+  element:
+    TrackTurnoutThreeWayElementView,
+  first: boolean,
+  second: boolean
+): void {
+  sendTurnoutOutput(
+    String(element.outputMode),
+    element.turnout1Address,
+    first,
+    {
+      closedValue:
+        element.turnout1ClosedValue,
+    }
+  );
+
+  sendTurnoutOutput(
+    String(element.outputMode),
+    element.turnout2Address,
+    second,
+    {
+      closedValue:
+        element.turnout2ClosedValue,
+    }
+  );
+}
+
+function sendThreeWayTurnoutBitClick(
+  element: TrackTurnoutThreeWayElementView,
+  position: MultiTurnoutPosition,
+  motor: 1 | 2,
+  clickedValue: boolean
+): void {
+  const current = threeWayPositionValues(
+    element,
+    position
+  );
+
+  const first =
+    motor === 1
+      ? clickedValue
+      : current.first;
+
+  const second =
+    motor === 2
+      ? clickedValue
+      : current.second;
+
+  // Explicit physical mapping:
+  // motor 1 -> turnout1Address
+  // motor 2 -> turnout2Address
+  sendConfiguredThreeWayValues(
+    element,
+    first,
+    second
+  );
+}
+
 function sendConfiguredThreeWayPosition(
   element:
     TrackTurnoutThreeWayElementView,
@@ -1031,30 +1145,10 @@ function sendConfiguredThreeWayPosition(
       position
     );
 
-  element.turnout1Closed =
-    values.first;
-
-  element.turnout2Closed =
-    values.second;
-
-  sendTurnoutOutput(
-    String(element.outputMode),
-    element.turnout1Address,
+  sendConfiguredThreeWayValues(
+    element,
     values.first,
-    {
-      closedValue:
-        element.turnout1ClosedValue,
-    }
-  );
-
-  sendTurnoutOutput(
-    String(element.outputMode),
-    element.turnout2Address,
-    values.second,
-    {
-      closedValue:
-        element.turnout2ClosedValue,
-    }
+    values.second
   );
 }
 
@@ -1127,24 +1221,40 @@ function renderThreeWayBasicEditor(
                   value={
                     values.first
                   }
-                  onChange={value =>
+                  onChange={value => {
                     onChange(
                       values.firstProperty,
                       value
-                    )
-                  }
+                    );
+                  }}
+                  onValueClick={value => {
+                    sendThreeWayTurnoutBitClick(
+                      selectedElement,
+                      position,
+                      1,
+                      value
+                    );
+                  }}
                 />
 
                 <BitToggleElement
                   value={
                     values.second
                   }
-                  onChange={value =>
+                  onChange={value => {
                     onChange(
                       values.secondProperty,
                       value
-                    )
-                  }
+                    );
+                  }}
+                  onValueClick={value => {
+                    sendThreeWayTurnoutBitClick(
+                      selectedElement,
+                      position,
+                      2,
+                      value
+                    );
+                  }}
                 />
               </Group>
             </Group>
@@ -1390,24 +1500,40 @@ function renderDoubleBasicEditor(
                   value={
                     values.first
                   }
-                  onChange={value =>
+                  onChange={value => {
                     onChange(
                       values.firstProperty,
                       value
-                    )
-                  }
+                    );
+                  }}
+                  onValueClick={value => {
+                    sendDoubleTurnoutBitClick(
+                      selectedElement,
+                      position,
+                      1,
+                      value
+                    );
+                  }}
                 />
 
                 <BitToggleElement
                   value={
                     values.second
                   }
-                  onChange={value =>
+                  onChange={value => {
                     onChange(
                       values.secondProperty,
                       value
-                    )
-                  }
+                    );
+                  }}
+                  onValueClick={value => {
+                    sendDoubleTurnoutBitClick(
+                      selectedElement,
+                      position,
+                      2,
+                      value
+                    );
+                  }}
                 />
               </Group>
             </Group>

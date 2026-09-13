@@ -1,7 +1,7 @@
-
 type BitToggleElementProps = {
   value: true | false;
   onChange?: (value: true | false) => void;
+  onValueClick?: (value: true | false) => void;
 
   color0?: string;
   color1?: string;
@@ -12,12 +12,17 @@ type BitToggleElementProps = {
 export default function BitToggleElement({
   value,
   onChange,
+  onValueClick,
   color0 = "#555",
   color1 = "#2ecc71",
   size = 32,
 }: BitToggleElementProps) {
 
   const handleClick = (val: true | false) => {
+    // A click can be meaningful even when the selected bit value does not
+    // change. Property-panel turnout editors use this as a live test command.
+    onValueClick?.(val);
+
     if (val !== value) {
       onChange?.(val);
     }
