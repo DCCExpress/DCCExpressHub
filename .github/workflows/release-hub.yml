@@ -1,11 +1,9 @@
 name: DCCExpressHub release
 
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: Release version (for example 0.1.0-alpha.1)
-        required: true
+  push:
+    tags:
+      - "v*"
 
 permissions:
   contents: write
@@ -27,22 +25,49 @@ jobs:
           cache: npm
           cache-dependency-path: web-ui/package-lock.json
 
+      - name: Verify release version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ ! -f VERSION ]]; then
+            echo "::error::VERSION file is missing"
+            exit 1
+          fi
+
+          version="$(tr -d '\r\n' < VERSION)"
+          tag_version="${GITHUB_REF_NAME#v}"
+
+          if [[ -z "$version" ]]; then
+            echo "::error::VERSION is empty"
+            exit 1
+          fi
+
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)*$ ]]; then
+            echo "::error::Invalid VERSION: $version"
+            exit 1
+          fi
+
+          if [[ "$version" != "$tag_version" ]]; then
+            echo "::error::VERSION ($version) does not match tag ($tag_version)"
+            exit 1
+          fi
+
+          echo "Release version verified: $version"
+          echo "RELEASE_VERSION=$version" >> "$GITHUB_ENV"
+
       - name: Install PlatformIO
         run: pip install platformio
 
       - name: Install web UI dependencies
         run: npm ci --prefix web-ui
 
-      - name: Set release version
+      - name: Sync web UI package version
         shell: bash
-        env:
-          RELEASE_VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
 
-          version="${RELEASE_VERSION#v}"
-
-          npm version "$version" \
+          npm version "$RELEASE_VERSION" \
             --prefix web-ui \
             --no-git-tag-version \
             --allow-same-version
@@ -53,16 +78,14 @@ jobs:
       - name: Prepare LittleFS data
         run: node prepare-littlefs.mjs
 
-      - name: Build all firmware targets
+      - name: Build official DCC-EX release firmware targets
         shell: bash
         run: |
           set -euo pipefail
 
           targets=(
             "m5stack-basic-dccex"
-            "m5stack-basic-z21"
             "esp32dev-dccex"
-            "esp32dev-z21"
           )
 
           for target in "${targets[@]}"; do
@@ -77,18 +100,14 @@ jobs:
 
       - name: Verify merged firmware set
         shell: bash
-        env:
-          RELEASE_VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
 
-          version="${RELEASE_VERSION#v}"
+          version="$RELEASE_VERSION"
 
           expected=(
             "dist/firmware/DCCExpressHub-M5Stack-Basic-DCCEX-v${version}-merged.bin"
-            "dist/firmware/DCCExpressHub-M5Stack-Basic-Z21-v${version}-merged.bin"
             "dist/firmware/DCCExpressHub-ESP32-DevKit-DCCEX-v${version}-merged.bin"
-            "dist/firmware/DCCExpressHub-ESP32-DevKit-Z21-v${version}-merged.bin"
           )
 
           mkdir -p artifacts/release
@@ -100,7 +119,6 @@ jobs:
             fi
 
             echo "$(stat -c '%s' "$file") bytes  $file"
-
             cp "$file" artifacts/release/
           done
 
@@ -108,7 +126,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: merged-firmware-release
-          path: artifacts/release/DCCExpressHub-*-merged.bin
+          path: artifacts/release/DCCExpressHub-*-DCCEX-v*-merged.bin
           if-no-files-found: error
 
   github-release:
@@ -125,11 +143,10 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
 
-          version="${RELEASE_VERSION#v}"
+          version="${GITHUB_REF_NAME#v}"
           prerelease_flag=""
 
           if [[ "$version" == *-* ]]; then
@@ -142,4 +159,5 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --title "DCCExpressHub v$version" \
             --generate-notes \
+            --verify-tag \
             $prerelease_flag

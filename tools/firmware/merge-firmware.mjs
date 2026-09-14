@@ -46,6 +46,8 @@ const targetDefinitions = {
     fileTag: "M5Stack-Basic-DCCEX",
   },
 
+  // Experimental / future backend.
+  // Kept in source intentionally, but not built by the official release workflow.
   "m5stack-basic-z21": {
     id: "m5stack-basic",
     commandCenter: "z21",
@@ -60,6 +62,8 @@ const targetDefinitions = {
     fileTag: "ESP32-DevKit-DCCEX",
   },
 
+  // Experimental / future backend.
+  // Kept in source intentionally, but not built by the official release workflow.
   "esp32dev-z21": {
     id: "esp32-devkit",
     commandCenter: "z21",
@@ -79,30 +83,37 @@ if (!target) {
   );
 }
 
-const packageJsonFile =
+const versionFile =
   path.join(
     repoRoot,
-    "web-ui",
-    "package.json",
+    "VERSION",
   );
 
-const packageJson =
-  JSON.parse(
-    fs.readFileSync(
-      packageJsonFile,
-      "utf8",
-    ),
+if (!fs.existsSync(versionFile)) {
+  throw new Error(
+    "VERSION file does not exist.",
   );
+}
 
 const firmwareVersion =
-  String(
-    packageJson.version ??
-      "",
+  fs.readFileSync(
+    versionFile,
+    "utf8",
   ).trim();
 
 if (!firmwareVersion) {
   throw new Error(
-    "web-ui/package.json does not contain a firmware version.",
+    "VERSION is empty.",
+  );
+}
+
+if (
+  !/^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(
+    firmwareVersion,
+  )
+) {
+  throw new Error(
+    `Invalid VERSION: ${firmwareVersion}`,
   );
 }
 

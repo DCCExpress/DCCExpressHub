@@ -18,8 +18,7 @@ PC / tablet / phone
  DCCExpressHub
  ESP32 / M5Stack
         |
-        +-- DCC-EX native TCP protocol   <- primary / recommended
-        +-- Z21 LAN / UDP                <- experimental / in development
+        +-- DCC-EX native TCP protocol
         |
         v
  Command station
@@ -52,11 +51,11 @@ Current functionality includes:
 - browser-based firmware installation,
 - USB serial configuration and recovery.
 
-The Hub is designed first and foremost for **DCC-EX / EX-CSB1**. DCC-EX is the current priority, reference implementation and most tested command-station backend.
+The Hub is designed first and foremost for **DCC-EX / EX-CSB1**. DCC-EX is the current priority, reference implementation and officially supported command-station backend.
 
-**Roco/Fleischmann Z21 LAN support is also planned and under active development.** Z21-specific firmware targets and an experimental Z21 backend already exist in the source tree, but DCC-EX support currently has priority and should be considered the recommended configuration.
+**Roco/Fleischmann Z21 LAN support is planned for a future release.** Experimental Z21 implementation work remains in the source tree, but Z21 is not currently an officially supported target and no Z21 firmware is published in DCCExpressHub releases.
 
-No cloud connection is required for normal operation.
+
 
 ## Supported Hub hardware and client devices
 
@@ -65,14 +64,7 @@ No cloud connection is required for normal operation.
 | **M5Stack Basic** | `m5stack-basic-dccex` | Built-in display | Primary tested target |
 | **Generic ESP32 DevKit** | `esp32dev-dccex` | None | Supported |
 
-Z21 variants also exist in `platformio.ini`:
-
-```text
-m5stack-basic-z21
-esp32dev-z21
-```
-
-During alpha development the release workflow and browser installer may lag behind source-level hardware targets. Check the current release assets before assuming every PlatformIO target has a ready-made merged firmware image.
+Official firmware releases are currently built for **DCC-EX only**.
 
 ### S88 / s88-N feedback
 
@@ -290,17 +282,11 @@ Build the web UI and prepare LittleFS content:
 .\build-web.ps1
 ```
 
-Build the primary DCC-EX firmware targets:
+Build the official DCC-EX firmware targets:
 
 ```powershell
 .\build-merged.ps1 -Environment m5stack-basic-dccex
 .\build-merged.ps1 -Environment esp32dev-dccex
-```
-
-Build all targets currently included by the helper script:
-
-```powershell
-.\build-all-merged.ps1
 ```
 
 Merged firmware is written to:
@@ -308,6 +294,42 @@ Merged firmware is written to:
 ```text
 dist/firmware/
 ```
+
+### Versioning and releases
+
+The repository-root `VERSION` file is the single source of truth for release versioning.
+
+Example:
+
+```text
+0.1.0-alpha.2
+```
+
+Official GitHub releases are created from matching Git tags. For example:
+
+```powershell
+.\release.ps1 0.1.0-alpha.2
+```
+
+The release script:
+
+- updates `VERSION`,
+- synchronizes the web UI npm package version,
+- creates a release commit,
+- creates an annotated `v0.1.0-alpha.2` tag,
+- pushes the branch and tag,
+- and the tag starts the GitHub Actions release workflow.
+
+The workflow refuses to publish a release if the Git tag and `VERSION` do not match.
+
+Official releases currently contain only DCC-EX firmware for:
+
+```text
+m5stack-basic-dccex
+esp32dev-dccex
+```
+
+Z21 support remains a future-development item and is not included in official firmware releases.
 
 ### Web UI development
 
@@ -338,7 +360,6 @@ cd web-ui
 npm run mock
 
 # Terminal 2
-cd web-ui
 npm run dev:mock
 ```
 
@@ -354,6 +375,8 @@ DCCExpressHub/
 ├── data/                 prepared LittleFS web content
 ├── tools/firmware/       merged firmware tools
 ├── platformio.ini        hardware / command-station targets
+├── VERSION               release version source
+├── release.ps1           release helper
 ├── build-web.ps1
 ├── build-merged.ps1
 └── build-all-merged.ps1
