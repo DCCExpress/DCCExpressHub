@@ -335,55 +335,7 @@ void HubDisplay::loop() {
     return;
   }
 
-#if HUB_DISPLAY_WAVESHARE_S3_LCD7
-  switch (
-      _display
-          .takeButtonPress()
-  ) {
-    case WaveshareS3Lcd7Display::TouchButton::Power:
-      _powerToggleRequest =
-          true;
-      break;
-
-    case WaveshareS3Lcd7Display::TouchButton::Emergency:
-      _emergencyStopRequest =
-          true;
-      break;
-
-    case WaveshareS3Lcd7Display::TouchButton::Info:
-      _infoRequest =
-          true;
-      break;
-
-    case WaveshareS3Lcd7Display::TouchButton::None:
-    default:
-      break;
-  }
-#elif HUB_DISPLAY_CYD_2432S028
-  switch (
-      _display
-          .takeButtonPress()
-  ) {
-    case CydIli9341Display::TouchButton::Power:
-      _powerToggleRequest =
-          true;
-      break;
-
-    case CydIli9341Display::TouchButton::Emergency:
-      _emergencyStopRequest =
-          true;
-      break;
-
-    case CydIli9341Display::TouchButton::Info:
-      _infoRequest =
-          true;
-      break;
-
-    case CydIli9341Display::TouchButton::None:
-    default:
-      break;
-  }
-#elif HUB_DISPLAY_M5STACK_BASIC
+#if HUB_DISPLAY_M5STACK_BASIC
   switch (
       _display
           .takeButtonPress()

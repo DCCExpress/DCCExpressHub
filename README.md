@@ -16,7 +16,7 @@ PC / tablet / phone
         | HTTP / WebSocket
         v
  DCCExpressHub
- ESP32 / M5Stack / CYD
+ ESP32 / M5Stack
         |
         +-- DCC-EX native TCP protocol   <- primary / recommended
         +-- Z21 LAN / UDP                <- experimental / in development
@@ -64,16 +64,12 @@ No cloud connection is required for normal operation.
 |---|---|---|---|
 | **M5Stack Basic** | `m5stack-basic-dccex` | Built-in display | Primary tested target |
 | **Generic ESP32 DevKit** | `esp32dev-dccex` | None | Supported |
-| **ESP32-2432S028 / CYD (Cheap Yellow Display)** | `cyd-2432s028-dccex` | 2.8" ILI9341 + XPT2046 touch | Supported in source / PlatformIO |
-
-The CYD board is the inexpensive ESP32 display module often sold as **ESP32-2432S028**, **2.8" ESP32 HMI**, or **Cheap Yellow Display (CYD)**. The firmware contains display and touch support for this target.
 
 Z21 variants also exist in `platformio.ini`:
 
 ```text
 m5stack-basic-z21
 esp32dev-z21
-cyd-2432s028-z21
 ```
 
 During alpha development the release workflow and browser installer may lag behind source-level hardware targets. Check the current release assets before assuming every PlatformIO target has a ready-made merged firmware image.
@@ -312,14 +308,6 @@ Merged firmware is written to:
 ```text
 dist/firmware/
 ```
-
-The CYD PlatformIO target can currently be built directly with PlatformIO:
-
-```powershell
-pio run -e cyd-2432s028-dccex
-```
-
-The source-level CYD target may appear in `platformio.ini` before it is included in the merged-image helper scripts and automated release workflow.
 
 ### Web UI development
 

@@ -66,22 +66,6 @@ const targetDefinitions = {
     displayName: "ESP32 DevKit / Z21",
     fileTag: "ESP32-DevKit-Z21",
   },
-
-  "waveshare-s3-lcd7-dccex": {
-    id: "waveshare-s3-lcd7",
-    commandCenter: "dcc-ex",
-    displayName: "Waveshare ESP32-S3 Touch LCD 7 / DCC-EX",
-    fileTag: "Waveshare-S3-LCD7-DCCEX",
-    bootloaderAddress: 0x0000,
-  },
-
-  "waveshare-s3-lcd7-z21": {
-    id: "waveshare-s3-lcd7",
-    commandCenter: "z21",
-    displayName: "Waveshare ESP32-S3 Touch LCD 7 / Z21",
-    fileTag: "Waveshare-S3-LCD7-Z21",
-    bootloaderAddress: 0x0000,
-  },
 };
 
 const target =

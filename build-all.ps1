@@ -33,8 +33,6 @@ $targets = @(
     "m5stack-basic-z21",
     "esp32dev-dccex",
     "esp32dev-z21",
-    "waveshare-s3-lcd7-dccex",
-    "waveshare-s3-lcd7-z21"
 )
 
 foreach ($target in $targets) {
