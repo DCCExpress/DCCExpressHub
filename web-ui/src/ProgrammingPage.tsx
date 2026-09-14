@@ -35,38 +35,25 @@ import {
   getCommandCenterInfo,
   type CommandCenterInfo,
 } from "@/api/commandCenterInfo";
-
+import { CvHelpPanel } from "@/components/programming/CvHelpPanel";
+import { wsApi } from "@/services/wsApi";
+import type { WsConnectionStatus } from "@/services/wsClient";
 import type {
   ProgrammingCommandAction,
   ProgrammingResponsePayload,
 } from "@domain/types";
-
-import {
-  wsApi,
-} from "@/services/wsApi";
-
-import type {
-  WsConnectionStatus,
-} from "@/services/wsClient";
 
 type Props = {
   onBack: () => void;
   status: WsConnectionStatus;
 };
 
-type NumberValue =
-  string | number;
+type NumberValue = string | number;
 
-function numberValue(
-  value: NumberValue,
-): number {
-  return typeof value ===
-    "number"
-      ? value
-      : Number.parseInt(
-          value,
-          10,
-        );
+function numberValue(value: NumberValue): number {
+  return typeof value === "number"
+    ? value
+    : Number.parseInt(value, 10);
 }
 
 function BitEditor({
@@ -74,63 +61,63 @@ function BitEditor({
   onChange,
 }: {
   value: number;
-  onChange: (
-    value: number,
-  ) => void;
+  onChange: (value: number) => void;
 }) {
   return (
     <Group
       gap="xs"
       wrap="wrap"
+      align="stretch"
     >
-      {
-        Array.from(
-          {
-            length: 8,
-          },
-          (
-            _,
-            index,
-          ) =>
-            7 -
-            index,
-        ).map(
-          bit => (
-            <Checkbox
-              key={bit}
-              label={`b${bit}`}
-              checked={
-                (
-                  value &
-                  (
-                    1 <<
-                    bit
-                  )
-                ) !==
-                0
-              }
-              onChange={
-                event =>
-                  onChange(
-                    event
-                      .currentTarget
-                      .checked
-                      ? value |
-                        (
-                          1 <<
-                          bit
-                        )
-                      : value &
-                        ~(
-                          1 <<
-                          bit
-                        ),
-                  )
-              }
-            />
-          ),
-        )
-      }
+      {Array.from({ length: 8 }, (_, index) => 7 - index).map(bit => (
+        <Card
+          key={bit}
+          withBorder
+          radius="sm"
+          p="xs"
+          style={{
+            minWidth: 68,
+          }}
+        >
+          <Checkbox
+            label={`b${bit}`}
+            checked={(value & (1 << bit)) !== 0}
+            onChange={event =>
+              onChange(
+                event.currentTarget.checked
+                  ? value | (1 << bit)
+                  : value & ~(1 << bit),
+              )
+            }
+          />
+        </Card>
+      ))}
+    </Group>
+  );
+}
+
+
+function CvValueFormats({ value }: { value: number }) {
+  const normalized = Number.isFinite(value)
+    ? Math.max(0, Math.min(255, Math.trunc(value)))
+    : 0;
+
+  const hex = `0x${normalized
+    .toString(16)
+    .toUpperCase()
+    .padStart(2, "0")}`;
+
+  const binary = normalized
+    .toString(2)
+    .padStart(8, "0");
+
+  return (
+    <Group gap="xs" wrap="wrap">
+      <Badge variant="outline">DEC {normalized}</Badge>
+      <Badge variant="outline">HEX {hex}</Badge>
+      <Badge variant="outline" ff="monospace">
+        BIN {binary}
+      </Badge>
     </Group>
   );
 }
@@ -138,8 +125,7 @@ function BitEditor({
 function ProgrammingResult({
   result,
 }: {
-  result:
-    ProgrammingResponsePayload | null;
+  result: ProgrammingResponsePayload | null;
 }) {
   if (!result) {
     return null;
@@ -147,64 +133,28 @@ function ProgrammingResult({
 
   return (
     <Alert
-      color={
-        result.ok
-          ? "teal"
-          : "red"
-      }
+      color={result.ok ? "teal" : "red"}
       icon={
         result.ok
-          ? (
-            <IconCheck
-              size={18}
-            />
-          )
-          : (
-            <IconAlertTriangle
-              size={18}
-            />
-          )
+          ? <IconCheck size={18} />
+          : <IconAlertTriangle size={18} />
       }
     >
-      <Text
-        size="sm"
-        fw={600}
-      >
-        {
-          result.message ??
-          (
-            result.ok
-              ? "Command completed."
-              : "Command failed."
-          )
-        }
+      <Text size="sm" fw={600}>
+        {result.message ?? (result.ok ? "Command completed." : "Command failed.")}
       </Text>
 
-      {
-        typeof result.value ===
-          "number" &&
-        result.value >= 0 && (
-          <Text size="sm">
-            Returned value:{" "}
-            <strong>
-              {result.value}
-            </strong>
-          </Text>
-        )
-      }
+      {typeof result.value === "number" && result.value >= 0 && (
+        <Text size="sm">
+          Returned value: <strong>{result.value}</strong>
+        </Text>
+      )}
 
-      {
-        result.raw && (
-          <Text
-            size="xs"
-            c="dimmed"
-            ff="monospace"
-            mt={4}
-          >
-            {result.raw}
-          </Text>
-        )
-      }
+      {result.raw && (
+        <Text size="xs" c="dimmed" ff="monospace" mt={4}>
+          {result.raw}
+        </Text>
+      )}
     </Alert>
   );
 }
@@ -221,443 +171,195 @@ function ProgrammingUnsupported({
       <Button
         variant="subtle"
         color="gray"
-        leftSection={
-          <IconArrowLeft
-            size={18}
-          />
-        }
+        leftSection={<IconArrowLeft size={18} />}
         onClick={onBack}
-        style={{
-          alignSelf:
-            "flex-start",
-        }}
+        style={{ alignSelf: "flex-start" }}
       >
         Back to home
       </Button>
 
-      <Group
-        gap="sm"
-        wrap="nowrap"
-      >
-        <ThemeIcon
-          size={42}
-          radius="md"
-          variant="light"
-          color="orange"
-        >
-          <IconTool
-            size={24}
-          />
+      <Group gap="sm" wrap="nowrap">
+        <ThemeIcon size={42} radius="md" variant="light" color="orange">
+          <IconTool size={24} />
         </ThemeIcon>
 
         <div>
-          <Title order={3}>
-            Decoder programming
-          </Title>
-
-          <Text
-            size="sm"
-            c="dimmed"
-          >
-            {info.name}
-          </Text>
+          <Title order={3}>Decoder programming</Title>
+          <Text size="sm" c="dimmed">{info.name}</Text>
         </div>
       </Group>
 
       <Alert
         color="blue"
-        icon={
-          <IconAlertTriangle
-            size={18}
-          />
-        }
+        icon={<IconAlertTriangle size={18} />}
         title={`Programming is not available in the ${info.name} firmware`}
       >
-        The current DCCExpressHub programming screen uses DCC-EX
-        service-mode and POM commands. This firmware does not expose
-        that DCC-EX programming interface. Normal driving, turnout,
-        accessory, signal and power control remain available.
+        The current DCCExpressHub programming screen uses DCC-EX service-mode
+        and POM commands. This firmware does not expose that DCC-EX programming
+        interface. Normal driving, turnout, accessory, signal and power control
+        remain available.
       </Alert>
     </Stack>
   );
 }
 
-function DccExProgrammingPage({
-  onBack,
-  status,
-}: Props) {
-  const [
-    busy,
-    setBusy,
-  ] =
-    useState(false);
+function DccExProgrammingPage({ onBack, status }: Props) {
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] =
+    useState<ProgrammingResponsePayload | null>(null);
 
-  const [
-    result,
-    setResult,
-  ] =
-    useState<ProgrammingResponsePayload | null>(
-      null,
-    );
+  const [locoAddress, setLocoAddress] = useState<NumberValue>(3);
+  const [cv, setCv] = useState<NumberValue>(1);
+  const [cvValue, setCvValue] = useState<NumberValue>(0);
+  const [pom, setPom] = useState(false);
 
-  const [
-    locoAddress,
-    setLocoAddress,
-  ] =
-    useState<NumberValue>(
-      3,
-    );
+  const [accessoryCv, setAccessoryCv] = useState<NumberValue>(1);
+  const [accessoryCvValue, setAccessoryCvValue] = useState<NumberValue>(0);
+  const [accessoryAddress, setAccessoryAddress] = useState<NumberValue>(1);
 
-  const [
-    cv,
-    setCv,
-  ] =
-    useState<NumberValue>(
-      1,
-    );
+  const [digiSwitchAddress, setDigiSwitchAddress] = useState<NumberValue>(1);
+  const [digiSignalAddress, setDigiSignalAddress] = useState<NumberValue>(1);
 
-  const [
-    cvValue,
-    setCvValue,
-  ] =
-    useState<NumberValue>(
-      0,
-    );
+  const run = async (
+    action: ProgrammingCommandAction,
+    values: {
+      address?: number;
+      cv?: number;
+      value?: number;
+      active?: boolean;
+    },
+    confirmText?: string,
+    valueTarget?: "locomotive" | "accessory",
+  ) => {
+    if (confirmText && !window.confirm(confirmText)) {
+      return;
+    }
 
-  const [
-    pom,
-    setPom,
-  ] =
-    useState(false);
+    setBusy(true);
+    setResult(null);
 
-  const [
-    accessoryCv,
-    setAccessoryCv,
-  ] =
-    useState<NumberValue>(
-      1,
-    );
+    try {
+      const requestId =
+        `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
-  const [
-    accessoryCvValue,
-    setAccessoryCvValue,
-  ] =
-    useState<NumberValue>(
-      0,
-    );
+      const response = await wsApi.programmingRequest(
+        requestId,
+        action,
+        values,
+      );
 
-  const [
-    accessoryAddress,
-    setAccessoryAddress,
-  ] =
-    useState<NumberValue>(
-      1,
-    );
+      setResult(response);
 
-  const [
-    digiSwitchAddress,
-    setDigiSwitchAddress,
-  ] =
-    useState<NumberValue>(
-      1,
-    );
-
-  const [
-    digiSignalAddress,
-    setDigiSignalAddress,
-  ] =
-    useState<NumberValue>(
-      1,
-    );
-
-  const run =
-    async (
-      action:
-        ProgrammingCommandAction,
-
-      values: {
-        address?: number;
-        cv?: number;
-        value?: number;
-        active?: boolean;
-      },
-
-      confirmText?: string,
-
-      valueTarget?:
-        | "locomotive"
-        | "accessory",
-    ) => {
       if (
-        confirmText &&
-        !window.confirm(
-          confirmText,
-        )
+        response.ok &&
+        typeof response.value === "number" &&
+        response.value >= 0
       ) {
-        return;
-      }
-
-      setBusy(
-        true,
-      );
-
-      setResult(
-        null,
-      );
-
-      try {
-        const requestId =
-          `${Date.now()}-${Math.random()
-            .toString(36)
-            .slice(2, 9)}`;
-
-        const response =
-          await wsApi
-            .programmingRequest(
-              requestId,
-              action,
-              values,
-            );
-
-        setResult(
-          response,
-        );
-
-        if (
-          response.ok &&
-          typeof response.value ===
-            "number" &&
-          response.value >=
-            0
-        ) {
-          if (
-            action ===
-            "readAddress"
-          ) {
-            setLocoAddress(
-              response.value,
-            );
-          }
-
-          if (
-            action ===
-              "readCv" &&
-            valueTarget ===
-              "locomotive"
-          ) {
-            setCvValue(
-              response.value,
-            );
-          }
-
-          if (
-            action ===
-              "readCv" &&
-            valueTarget ===
-              "accessory"
-          ) {
-            setAccessoryCvValue(
-              response.value,
-            );
-          }
+        if (action === "readAddress") {
+          setLocoAddress(response.value);
         }
-      } catch (error) {
-        setResult({
-          requestId:
-            "local",
 
-          action,
+        if (action === "readCv" && valueTarget === "locomotive") {
+          setCvValue(response.value);
+        }
 
-          ok:
-            false,
-
-          message:
-            error instanceof Error
-              ? error.message
-              : "Programming request failed.",
-        });
-      } finally {
-        setBusy(
-          false,
-        );
+        if (action === "readCv" && valueTarget === "accessory") {
+          setAccessoryCvValue(response.value);
+        }
       }
-    };
+    } catch (error) {
+      setResult({
+        requestId: "local",
+        action,
+        ok: false,
+        message:
+          error instanceof Error
+            ? error.message
+            : "Programming request failed.",
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
 
-  const disconnected =
-    status !==
-    "connected";
+  const disconnected = status !== "connected";
+  const locoCv = numberValue(cv);
+  const locoValue = numberValue(cvValue);
+  const accCv = numberValue(accessoryCv);
+  const accValue = numberValue(accessoryCvValue);
 
-  const locoCv =
-    numberValue(
-      cv,
-    );
-
-  const locoValue =
-    numberValue(
-      cvValue,
-    );
-
-  const accCv =
-    numberValue(
-      accessoryCv,
-    );
-
-  const accValue =
-    numberValue(
-      accessoryCvValue,
-    );
+  const safeLocoValue = Number.isFinite(locoValue) ? locoValue : 0;
+  const safeAccValue = Number.isFinite(accValue) ? accValue : 0;
 
   return (
     <Stack gap="lg">
-      <Group
-        justify="space-between"
-      >
+      <Group justify="space-between">
         <Button
           variant="subtle"
           color="gray"
-          leftSection={
-            <IconArrowLeft
-              size={18}
-            />
-          }
+          leftSection={<IconArrowLeft size={18} />}
           onClick={onBack}
         >
           Back to home
         </Button>
 
         <Badge
-          color={
-            disconnected
-              ? "red"
-              : "teal"
-          }
-          variant={
-            disconnected
-              ? "filled"
-              : "light"
-          }
+          color={disconnected ? "red" : "teal"}
+          variant={disconnected ? "filled" : "light"}
         >
-          {
-            disconnected
-              ? "Offline"
-              : "Connected"
-          }
+          {disconnected ? "Offline" : "Connected"}
         </Badge>
       </Group>
 
-      <Group
-        gap="sm"
-        wrap="nowrap"
-      >
-        <ThemeIcon
-          size={42}
-          radius="md"
-          variant="light"
-          color="orange"
-        >
-          <IconTool
-            size={24}
-          />
+      <Group gap="sm" wrap="nowrap">
+        <ThemeIcon size={42} radius="md" variant="light" color="orange">
+          <IconTool size={24} />
         </ThemeIcon>
 
         <div>
-          <Title order={3}>
-            Decoder programming
-          </Title>
-
-          <Text
-            size="sm"
-            c="dimmed"
-          >
+          <Title order={3}>Decoder programming</Title>
+          <Text size="sm" c="dimmed">
             Locomotive, accessory and DigiTools setup
           </Text>
         </div>
       </Group>
 
-      {
-        disconnected && (
-          <Alert
-            color="red"
-            icon={
-              <IconAlertTriangle
-                size={18}
-              />
-            }
-          >
-            Connect to the DCC-EX command center before sending programming commands.
-          </Alert>
-        )
-      }
+      {disconnected && (
+        <Alert color="red" icon={<IconAlertTriangle size={18} />}>
+          Connect to the DCC-EX command center before sending programming commands.
+        </Alert>
+      )}
 
-      <ProgrammingResult
-        result={result}
-      />
+      <ProgrammingResult result={result} />
 
-      <Tabs
-        defaultValue="locomotive"
-        keepMounted={false}
-      >
+      <Tabs defaultValue="locomotive" keepMounted={false}>
         <Tabs.List grow>
-          <Tabs.Tab
-            value="locomotive"
-            leftSection={
-              <IconTrain
-                size={16}
-              />
-            }
-          >
+          <Tabs.Tab value="locomotive" leftSection={<IconTrain size={16} />}>
             Locomotive
           </Tabs.Tab>
-
-          <Tabs.Tab
-            value="accessory"
-            leftSection={
-              <IconDeviceFloppy
-                size={16}
-              />
-            }
-          >
+          <Tabs.Tab value="accessory" leftSection={<IconDeviceFloppy size={16} />}>
             Accessory
           </Tabs.Tab>
-
-          <Tabs.Tab
-            value="digitools"
-            leftSection={
-              <IconTool
-                size={16}
-              />
-            }
-          >
+          <Tabs.Tab value="digitools" leftSection={<IconTool size={16} />}>
             DigiTools
           </Tabs.Tab>
         </Tabs.List>
 
-        <Tabs.Panel
-          value="locomotive"
-          pt="md"
-        >
+        <Tabs.Panel value="locomotive" pt="md">
           <Stack gap="md">
             <Alert
               color="yellow"
-              icon={
-                <IconAlertTriangle
-                  size={18}
-                />
-              }
+              icon={<IconAlertTriangle size={18} />}
               title="Programming track safety"
             >
-              Service-mode operations automatically power the isolated PROG output for the command, then switch it off. Keep only the decoder being programmed on that track.
+              Service-mode operations automatically power the isolated PROG output
+              for the command, then switch it off. Keep only the decoder being
+              programmed on that track.
             </Alert>
 
-            <Card
-              withBorder
-              radius={5}
-              p="lg"
-            >
+            <Card withBorder radius={5} p="lg">
               <Stack gap="md">
-                <Title order={4}>
-                  Locomotive address
-                </Title>
+                <Title order={4}>Locomotive address</Title>
 
                 <NumberInput
                   label="Address"
@@ -668,57 +370,26 @@ function DccExProgrammingPage({
                   allowDecimal={false}
                 />
 
-                <SimpleGrid
-                  cols={{
-                    base: 1,
-                    sm: 2,
-                  }}
-                >
+                <SimpleGrid cols={{ base: 1, sm: 2 }}>
                   <Button
                     variant="light"
-                    leftSection={
-                      <IconRefresh
-                        size={17}
-                      />
-                    }
-                    disabled={
-                      busy ||
-                      disconnected
-                    }
-                    onClick={
-                      () =>
-                        void run(
-                          "readAddress",
-                          {},
-                        )
-                    }
+                    leftSection={<IconRefresh size={17} />}
+                    disabled={busy || disconnected}
+                    onClick={() => void run("readAddress", {})}
                   >
                     Read address
                   </Button>
 
                   <Button
                     color="orange"
-                    leftSection={
-                      <IconDeviceFloppy
-                        size={17}
-                      />
-                    }
-                    disabled={
-                      busy ||
-                      disconnected
-                    }
-                    onClick={
-                      () =>
-                        void run(
-                          "writeAddress",
-                          {
-                            address:
-                              numberValue(
-                                locoAddress,
-                              ),
-                          },
-                          `Write locomotive address ${numberValue(locoAddress)}?`,
-                        )
+                    leftSection={<IconDeviceFloppy size={17} />}
+                    disabled={busy || disconnected}
+                    onClick={() =>
+                      void run(
+                        "writeAddress",
+                        { address: numberValue(locoAddress) },
+                        `Write locomotive address ${numberValue(locoAddress)}?`,
+                      )
                     }
                   >
                     Write address
@@ -727,25 +398,12 @@ function DccExProgrammingPage({
               </Stack>
             </Card>
 
-            <Card
-              withBorder
-              radius={5}
-              p="lg"
-            >
+            <Card withBorder radius={5} p="lg">
               <Stack gap="md">
-                <Group
-                  justify="space-between"
-                  align="end"
-                >
+                <Group justify="space-between" align="end">
                   <div>
-                    <Title order={4}>
-                      Configuration variable
-                    </Title>
-
-                    <Text
-                      size="sm"
-                      c="dimmed"
-                    >
+                    <Title order={4}>Configuration variable</Title>
+                    <Text size="sm" c="dimmed">
                       Read or write one CV at a time
                     </Text>
                   </div>
@@ -753,51 +411,28 @@ function DccExProgrammingPage({
                   <Switch
                     label="POM / main track"
                     checked={pom}
-                    onChange={
-                      event =>
-                        setPom(
-                          event.currentTarget.checked,
-                        )
-                    }
+                    onChange={event => setPom(event.currentTarget.checked)}
                   />
                 </Group>
 
-                {
-                  pom && (
-                    <Alert
-                      color="blue"
-                      icon={
-                        <IconHelpCircle
-                          size={18}
-                        />
-                      }
-                    >
-                      POM can write but normally cannot confirm the result. Never change a locomotive address with POM.
-                    </Alert>
-                  )
-                }
+                {pom && (
+                  <Alert color="blue" icon={<IconHelpCircle size={18} />}>
+                    POM can write but normally cannot confirm the result. Never
+                    change a locomotive address with POM.
+                  </Alert>
+                )}
 
-                <SimpleGrid
-                  cols={{
-                    base: 1,
-                    sm:
-                      pom
-                        ? 3
-                        : 2,
-                  }}
-                >
-                  {
-                    pom && (
-                      <NumberInput
-                        label="Locomotive address"
-                        value={locoAddress}
-                        onChange={setLocoAddress}
-                        min={1}
-                        max={10239}
-                        allowDecimal={false}
-                      />
-                    )
-                  }
+                <SimpleGrid cols={{ base: 1, sm: pom ? 3 : 2 }}>
+                  {pom && (
+                    <NumberInput
+                      label="Locomotive address"
+                      value={locoAddress}
+                      onChange={setLocoAddress}
+                      min={1}
+                      max={10239}
+                      allowDecimal={false}
+                    />
+                  )}
 
                   <NumberInput
                     label="CV"
@@ -819,87 +454,55 @@ function DccExProgrammingPage({
                 </SimpleGrid>
 
                 <BitEditor
-                  value={
-                    Number.isFinite(
-                      locoValue,
-                    )
-                      ? locoValue
-                      : 0
-                  }
-                  onChange={
-                    setCvValue
-                  }
+                  value={safeLocoValue}
+                  onChange={setCvValue}
                 />
 
-                <SimpleGrid
-                  cols={{
-                    base: 1,
-                    sm:
-                      pom
-                        ? 1
-                        : 2,
-                  }}
-                >
-                  {
-                    !pom && (
-                      <Button
-                        variant="light"
-                        leftSection={
-                          <IconRefresh
-                            size={17}
-                          />
-                        }
-                        disabled={
-                          busy ||
-                          disconnected
-                        }
-                        onClick={
-                          () =>
-                            void run(
-                              "readCv",
-                              {
-                                cv:
-                                  locoCv,
-                              },
-                              undefined,
-                              "locomotive",
-                            )
-                        }
-                      >
-                        Read CV
-                      </Button>
-                    )
-                  }
+                <CvValueFormats value={safeLocoValue} />
+
+                <CvHelpPanel
+                  cv={locoCv}
+                  value={safeLocoValue}
+                  onChange={setCvValue}
+                />
+
+                <SimpleGrid cols={{ base: 1, sm: pom ? 1 : 2 }}>
+                  {!pom && (
+                    <Button
+                      variant="light"
+                      leftSection={<IconRefresh size={17} />}
+                      disabled={busy || disconnected}
+                      onClick={() =>
+                        void run(
+                          "readCv",
+                          { cv: locoCv },
+                          undefined,
+                          "locomotive",
+                        )
+                      }
+                    >
+                      Read CV
+                    </Button>
+                  )}
 
                   <Button
                     color="orange"
-                    leftSection={
-                      <IconDeviceFloppy
-                        size={17}
-                      />
-                    }
-                    disabled={
-                      busy ||
-                      disconnected
-                    }
-                    onClick={
-                      () =>
-                        void run(
+                    leftSection={<IconDeviceFloppy size={17} />}
+                    disabled={busy || disconnected}
+                    onClick={() =>
+                      void run(
+                        pom ? "pomWriteCv" : "writeCv",
+                        {
+                          address: numberValue(locoAddress),
+                          cv: locoCv,
+                          value: locoValue,
+                        },
+                        `Write CV ${locoCv} = ${locoValue}${
                           pom
-                            ? "pomWriteCv"
-                            : "writeCv",
-                          {
-                            address:
-                              numberValue(
-                                locoAddress,
-                              ),
-                            cv:
-                              locoCv,
-                            value:
-                              locoValue,
-                          },
-                          `Write CV ${locoCv} = ${locoValue}${pom ? ` to locomotive ${numberValue(locoAddress)} on the main track` : " on the programming track"}?`,
-                        )
+                            ? ` to locomotive ${numberValue(locoAddress)} on the main track`
+                            : " on the programming track"
+                        }?`,
+                      )
                     }
                   >
                     Write CV
@@ -910,39 +513,23 @@ function DccExProgrammingPage({
           </Stack>
         </Tabs.Panel>
 
-        <Tabs.Panel
-          value="accessory"
-          pt="md"
-        >
+        <Tabs.Panel value="accessory" pt="md">
           <Stack gap="md">
             <Alert
               color="yellow"
-              icon={
-                <IconAlertTriangle
-                  size={18}
-                />
-              }
+              icon={<IconAlertTriangle size={18} />}
               title="Two different programming methods"
             >
-              CV programming uses the isolated PROG output. Address learning uses the MAIN track: press the decoder&apos;s learn/program button first, then send one accessory direction below.
+              CV programming uses the isolated PROG output. Address learning uses
+              the MAIN track: press the decoder&apos;s learn/program button first,
+              then send one accessory direction below.
             </Alert>
 
-            <Card
-              withBorder
-              radius={5}
-              p="lg"
-            >
+            <Card withBorder radius={5} p="lg">
               <Stack gap="md">
-                <Title order={4}>
-                  Accessory decoder CV
-                </Title>
+                <Title order={4}>Accessory decoder CV</Title>
 
-                <SimpleGrid
-                  cols={{
-                    base: 1,
-                    sm: 2,
-                  }}
-                >
+                <SimpleGrid cols={{ base: 1, sm: 2 }}>
                   <NumberInput
                     label="CV"
                     value={accessoryCv}
@@ -963,41 +550,29 @@ function DccExProgrammingPage({
                 </SimpleGrid>
 
                 <BitEditor
-                  value={
-                    Number.isFinite(
-                      accValue,
-                    )
-                      ? accValue
-                      : 0
-                  }
-                  onChange={
-                    setAccessoryCvValue
-                  }
+                  value={safeAccValue}
+                  onChange={setAccessoryCvValue}
                 />
 
-                <SimpleGrid
-                  cols={{
-                    base: 1,
-                    sm: 2,
-                  }}
-                >
+                <CvValueFormats value={safeAccValue} />
+
+                <CvHelpPanel
+                  cv={accCv}
+                  value={safeAccValue}
+                  onChange={setAccessoryCvValue}
+                />
+
+                <SimpleGrid cols={{ base: 1, sm: 2 }}>
                   <Button
                     variant="light"
-                    disabled={
-                      busy ||
-                      disconnected
-                    }
-                    onClick={
-                      () =>
-                        void run(
-                          "readCv",
-                          {
-                            cv:
-                              accCv,
-                          },
-                          undefined,
-                          "accessory",
-                        )
+                    disabled={busy || disconnected}
+                    onClick={() =>
+                      void run(
+                        "readCv",
+                        { cv: accCv },
+                        undefined,
+                        "accessory",
+                      )
                     }
                   >
                     Read CV
@@ -1005,22 +580,13 @@ function DccExProgrammingPage({
 
                   <Button
                     color="orange"
-                    disabled={
-                      busy ||
-                      disconnected
-                    }
-                    onClick={
-                      () =>
-                        void run(
-                          "writeCv",
-                          {
-                            cv:
-                              accCv,
-                            value:
-                              accValue,
-                          },
-                          `Write accessory decoder CV ${accCv} = ${accValue} on the PROG output?`,
-                        )
+                    disabled={busy || disconnected}
+                    onClick={() =>
+                      void run(
+                        "writeCv",
+                        { cv: accCv, value: accValue },
+                        `Write accessory decoder CV ${accCv} = ${accValue} on the PROG output?`,
+                      )
                     }
                   >
                     Write CV
@@ -1029,15 +595,9 @@ function DccExProgrammingPage({
               </Stack>
             </Card>
 
-            <Card
-              withBorder
-              radius={5}
-              p="lg"
-            >
+            <Card withBorder radius={5} p="lg">
               <Stack gap="md">
-                <Title order={4}>
-                  Address learning
-                </Title>
+                <Title order={4}>Address learning</Title>
 
                 <NumberInput
                   label="Linear accessory address"
@@ -1049,31 +609,18 @@ function DccExProgrammingPage({
                   allowDecimal={false}
                 />
 
-                <SimpleGrid
-                  cols={{
-                    base: 1,
-                    sm: 2,
-                  }}
-                >
+                <SimpleGrid cols={{ base: 1, sm: 2 }}>
                   <Button
                     variant="light"
-                    disabled={
-                      busy ||
-                      disconnected
-                    }
-                    onClick={
-                      () =>
-                        void run(
-                          "accessoryLearn",
-                          {
-                            address:
-                              numberValue(
-                                accessoryAddress,
-                              ),
-                            active:
-                              false,
-                          },
-                        )
+                    disabled={busy || disconnected}
+                    onClick={() =>
+                      void run(
+                        "accessoryLearn",
+                        {
+                          address: numberValue(accessoryAddress),
+                          active: false,
+                        },
+                      )
                     }
                   >
                     Send direction 0
@@ -1081,23 +628,15 @@ function DccExProgrammingPage({
 
                   <Button
                     variant="light"
-                    disabled={
-                      busy ||
-                      disconnected
-                    }
-                    onClick={
-                      () =>
-                        void run(
-                          "accessoryLearn",
-                          {
-                            address:
-                              numberValue(
-                                accessoryAddress,
-                              ),
-                            active:
-                              true,
-                          },
-                        )
+                    disabled={busy || disconnected}
+                    onClick={() =>
+                      void run(
+                        "accessoryLearn",
+                        {
+                          address: numberValue(accessoryAddress),
+                          active: true,
+                        },
+                      )
                     }
                   >
                     Send direction 1
@@ -1108,39 +647,25 @@ function DccExProgrammingPage({
           </Stack>
         </Tabs.Panel>
 
-        <Tabs.Panel
-          value="digitools"
-          pt="md"
-        >
+        <Tabs.Panel value="digitools" pt="md">
           <Stack gap="md">
             <Alert
               color="yellow"
-              icon={
-                <IconAlertTriangle
-                  size={18}
-                />
-              }
+              icon={<IconAlertTriangle size={18} />}
               title="Put the device into programming mode first"
             >
-              These buttons send a normal accessory direction to the MAIN track; they do not write CVs. For address setup press PRG briefly. For DigiSwitch timing hold PRG for more than three seconds.
+              These buttons send a normal accessory direction to the MAIN track;
+              they do not write CVs. For address setup press PRG briefly. For
+              DigiSwitch timing hold PRG for more than three seconds.
             </Alert>
 
-            <Card
-              withBorder
-              radius={5}
-              p="lg"
-            >
+            <Card withBorder radius={5} p="lg">
               <Stack gap="md">
                 <div>
-                  <Title order={4}>
-                    DigiSwitch-8
-                  </Title>
-
-                  <Text
-                    size="sm"
-                    c="dimmed"
-                  >
-                    One address sets the first output; the next three addresses follow automatically.
+                  <Title order={4}>DigiSwitch-8</Title>
+                  <Text size="sm" c="dimmed">
+                    One address sets the first output; the next three addresses
+                    follow automatically.
                   </Text>
                 </div>
 
@@ -1153,94 +678,54 @@ function DccExProgrammingPage({
                   allowDecimal={false}
                 />
 
-                <Divider
-                  label="Short PRG press · address"
-                  labelPosition="center"
-                />
+                <Divider label="Short PRG press · address" labelPosition="center" />
 
-                <SimpleGrid
-                  cols={{
-                    base: 1,
-                    sm: 2,
-                  }}
-                >
+                <SimpleGrid cols={{ base: 1, sm: 2 }}>
                   <Button
-                    disabled={
-                      busy ||
-                      disconnected
-                    }
-                    onClick={
-                      () =>
-                        void run(
-                          "accessoryLearn",
-                          {
-                            address:
-                              numberValue(
-                                digiSwitchAddress,
-                              ),
-                            active:
-                              true,
-                          },
-                        )
+                    disabled={busy || disconnected}
+                    onClick={() =>
+                      void run(
+                        "accessoryLearn",
+                        {
+                          address: numberValue(digiSwitchAddress),
+                          active: true,
+                        },
+                      )
                     }
                   >
                     Set K1–K4 address
                   </Button>
 
                   <Button
-                    disabled={
-                      busy ||
-                      disconnected
-                    }
-                    onClick={
-                      () =>
-                        void run(
-                          "accessoryLearn",
-                          {
-                            address:
-                              numberValue(
-                                digiSwitchAddress,
-                              ),
-                            active:
-                              false,
-                          },
-                        )
+                    disabled={busy || disconnected}
+                    onClick={() =>
+                      void run(
+                        "accessoryLearn",
+                        {
+                          address: numberValue(digiSwitchAddress),
+                          active: false,
+                        },
+                      )
                     }
                   >
                     Set K5–K8 address
                   </Button>
                 </SimpleGrid>
 
-                <Divider
-                  label="PRG held 3+ sec · timing"
-                  labelPosition="center"
-                />
+                <Divider label="PRG held 3+ sec · timing" labelPosition="center" />
 
-                <SimpleGrid
-                  cols={{
-                    base: 1,
-                    sm: 2,
-                  }}
-                >
+                <SimpleGrid cols={{ base: 1, sm: 2 }}>
                   <Button
                     variant="light"
-                    disabled={
-                      busy ||
-                      disconnected
-                    }
-                    onClick={
-                      () =>
-                        void run(
-                          "accessoryLearn",
-                          {
-                            address:
-                              numberValue(
-                                digiSwitchAddress,
-                              ),
-                            active:
-                              true,
-                          },
-                        )
+                    disabled={busy || disconnected}
+                    onClick={() =>
+                      void run(
+                        "accessoryLearn",
+                        {
+                          address: numberValue(digiSwitchAddress),
+                          active: true,
+                        },
+                      )
                     }
                   >
                     Set K1–K4 timing
@@ -1248,23 +733,15 @@ function DccExProgrammingPage({
 
                   <Button
                     variant="light"
-                    disabled={
-                      busy ||
-                      disconnected
-                    }
-                    onClick={
-                      () =>
-                        void run(
-                          "accessoryLearn",
-                          {
-                            address:
-                              numberValue(
-                                digiSwitchAddress,
-                              ),
-                            active:
-                              false,
-                          },
-                        )
+                    disabled={busy || disconnected}
+                    onClick={() =>
+                      void run(
+                        "accessoryLearn",
+                        {
+                          address: numberValue(digiSwitchAddress),
+                          active: false,
+                        },
+                      )
                     }
                   >
                     Set K5–K8 timing
@@ -1273,22 +750,13 @@ function DccExProgrammingPage({
               </Stack>
             </Card>
 
-            <Card
-              withBorder
-              radius={5}
-              p="lg"
-            >
+            <Card withBorder radius={5} p="lg">
               <Stack gap="md">
                 <div>
-                  <Title order={4}>
-                    DigiSignal-X4YYY
-                  </Title>
-
-                  <Text
-                    size="sm"
-                    c="dimmed"
-                  >
-                    Each signal group learns its starting address from one accessory command.
+                  <Title order={4}>DigiSignal-X4YYY</Title>
+                  <Text size="sm" c="dimmed">
+                    Each signal group learns its starting address from one
+                    accessory command.
                   </Text>
                 </div>
 
@@ -1301,53 +769,32 @@ function DccExProgrammingPage({
                   allowDecimal={false}
                 />
 
-                <SimpleGrid
-                  cols={{
-                    base: 1,
-                    sm: 2,
-                  }}
-                >
+                <SimpleGrid cols={{ base: 1, sm: 2 }}>
                   <Button
-                    disabled={
-                      busy ||
-                      disconnected
-                    }
-                    onClick={
-                      () =>
-                        void run(
-                          "accessoryLearn",
-                          {
-                            address:
-                              numberValue(
-                                digiSignalAddress,
-                              ),
-                            active:
-                              true,
-                          },
-                        )
+                    disabled={busy || disconnected}
+                    onClick={() =>
+                      void run(
+                        "accessoryLearn",
+                        {
+                          address: numberValue(digiSignalAddress),
+                          active: true,
+                        },
+                      )
                     }
                   >
                     Set A–B address
                   </Button>
 
                   <Button
-                    disabled={
-                      busy ||
-                      disconnected
-                    }
-                    onClick={
-                      () =>
-                        void run(
-                          "accessoryLearn",
-                          {
-                            address:
-                              numberValue(
-                                digiSignalAddress,
-                              ),
-                            active:
-                              false,
-                          },
-                        )
+                    disabled={busy || disconnected}
+                    onClick={() =>
+                      void run(
+                        "accessoryLearn",
+                        {
+                          address: numberValue(digiSignalAddress),
+                          active: false,
+                        },
+                      )
                     }
                   >
                     Set C–D address
@@ -1362,57 +809,33 @@ function DccExProgrammingPage({
   );
 }
 
-export default function ProgrammingPage(
-  props: Props,
-) {
-  const [
-    info,
-    setInfo,
-  ] =
-    useState<CommandCenterInfo | null>(
-      null,
-    );
+export default function ProgrammingPage(props: Props) {
+  const [info, setInfo] = useState<CommandCenterInfo | null>(null);
+  const [error, setError] = useState("");
 
-  const [
-    error,
-    setError,
-  ] =
-    useState("");
+  useEffect(() => {
+    let active = true;
 
-  useEffect(
-    () => {
-      let active =
-        true;
+    void getCommandCenterInfo()
+      .then(value => {
+        if (active) {
+          setInfo(value);
+        }
+      })
+      .catch(cause => {
+        if (active) {
+          setError(
+            cause instanceof Error
+              ? cause.message
+              : String(cause),
+          );
+        }
+      });
 
-      void getCommandCenterInfo()
-        .then(
-          value => {
-            if (active) {
-              setInfo(
-                value,
-              );
-            }
-          },
-        )
-        .catch(
-          cause => {
-            if (active) {
-              setError(
-                cause instanceof Error
-                  ? cause.message
-                  : String(cause),
-              );
-            }
-          },
-        );
-
-      return () => {
-        active =
-          false;
-      };
-    },
-    [],
-  );
+    return () => {
+      active = false;
+    };
+  }, []);
 
   if (error) {
     return (
@@ -1420,30 +843,14 @@ export default function ProgrammingPage(
         <Button
           variant="subtle"
           color="gray"
-          leftSection={
-            <IconArrowLeft
-              size={18}
-            />
-          }
-          onClick={
-            props.onBack
-          }
-          style={{
-            alignSelf:
-              "flex-start",
-          }}
+          leftSection={<IconArrowLeft size={18} />}
+          onClick={props.onBack}
+          style={{ alignSelf: "flex-start" }}
         >
           Back to home
         </Button>
 
-        <Alert
-          color="red"
-          icon={
-            <IconAlertTriangle
-              size={18}
-            />
-          }
-        >
+        <Alert color="red" icon={<IconAlertTriangle size={18} />}>
           {error}
         </Alert>
       </Stack>
@@ -1452,32 +859,20 @@ export default function ProgrammingPage(
 
   if (!info) {
     return (
-      <Group
-        justify="center"
-        py="xl"
-      >
+      <Group justify="center" py="xl">
         <Loader />
       </Group>
     );
   }
 
-  if (
-    !info.capabilities
-      .programmingTrackPower
-  ) {
+  if (!info.capabilities.programmingTrackPower) {
     return (
       <ProgrammingUnsupported
         info={info}
-        onBack={
-          props.onBack
-        }
+        onBack={props.onBack}
       />
     );
   }
 
-  return (
-    <DccExProgrammingPage
-      {...props}
-    />
-  );
+  return <DccExProgrammingPage {...props} />;
 }

@@ -1,4 +1,5 @@
 import http from "node:http";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import WebSocket, { WebSocketServer } from "ws";
@@ -18,6 +19,8 @@ const PORT = Number(process.env.MOCK_HTTP_PORT || 3001);
 const MOCK_FS_ROOT =
   process.env.MOCK_LITTLEFS_ROOT ||
   path.join(__dirname, "mock-fs");
+const CV_HELP_FILE =
+  path.join(__dirname, "public", "help", "cv-help.json");
 
 const littlefs = new MockLittleFS(
   MOCK_FS_ROOT,
@@ -129,6 +132,30 @@ function commandCenterInfo() {
     ip: "127.0.0.1",
     port: PORT,
     connectionString: `ws://127.0.0.1:${PORT}/ws`
+  };
+}
+
+function commandCenterCapabilitiesInfo() {
+  return {
+    ok: true,
+    type: "dcc-ex",
+    name: "DCCExpressHub Local DCC-EX Simulator",
+    defaultPort: 2560,
+    connected: true,
+    capabilities: {
+      trackPower: true,
+      programmingTrackPower: true,
+      rawCommand: true,
+      vPin: true,
+      extendedAccessory: true,
+      currentTelemetry: true,
+      trackConfiguration: true,
+      locomotiveControl: true,
+      locomotiveFunctions: true,
+      turnoutControl: true,
+      basicAccessory: true,
+      signalAspect: true
+    }
   };
 }
 
@@ -743,6 +770,24 @@ async function handleHttp(req, res) {
       return json(res, 204, {});
     }
 
+    if (url.pathname === "/help/cv-help.json") {
+      if (req.method !== "GET") {
+        return json(res, 405, {
+          ok: false,
+          message: "Method not allowed"
+        });
+      }
+
+      const body = await readFile(CV_HELP_FILE);
+
+      return text(
+        res,
+        200,
+        body,
+        "application/json; charset=utf-8"
+      );
+    }
+
     if (url.pathname === "/api/status") {
       return json(res, 200, {
         ok: true,
@@ -753,6 +798,21 @@ async function handleHttp(req, res) {
         uptimeMs: Date.now() - startedAt,
         littlefs: littlefs.info()
       });
+    }
+
+    if (url.pathname === "/api/command-center-info") {
+      if (req.method !== "GET") {
+        return json(res, 405, {
+          ok: false,
+          message: "Method not allowed"
+        });
+      }
+
+      return json(
+        res,
+        200,
+        commandCenterCapabilitiesInfo()
+      );
     }
 
     if (url.pathname === "/api/layout") {
