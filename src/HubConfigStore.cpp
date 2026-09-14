@@ -8,6 +8,12 @@
 
 namespace {
 
+constexpr const char* DEFAULT_HUB_HOSTNAME =
+    "dccexpresshub";
+
+constexpr const char* LEGACY_DEFAULT_HUB_HOSTNAME =
+    "dcc-express-hub";
+
 String defaultWifiSsid() {
 #ifdef WIFI_SSID
   return String(WIFI_SSID);
@@ -28,7 +34,7 @@ String defaultHubHostname() {
 #ifdef DEVICE_HOSTNAME
   return String(DEVICE_HOSTNAME);
 #else
-  return String("dcc-express-hub");
+  return String(DEFAULT_HUB_HOSTNAME);
 #endif
 }
 
@@ -85,6 +91,20 @@ void HubConfigStore::loadNetwork() {
       _prefs.getString(
           "hubHost",
           defaultHubHostname());
+
+  // Migrate the old factory hostname used by earlier Hub builds.
+  // This keeps upgraded devices consistent with the current default.
+  if (
+      _network.hostname ==
+      LEGACY_DEFAULT_HUB_HOSTNAME
+  ) {
+    _network.hostname =
+        DEFAULT_HUB_HOSTNAME;
+
+    _prefs.putString(
+        "hubHost",
+        _network.hostname);
+  }
 
   _network.dhcp =
       _prefs.getBool(
