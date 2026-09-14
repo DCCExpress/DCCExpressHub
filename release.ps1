@@ -9,29 +9,33 @@ $ErrorActionPreference = "Stop"
 
 function Invoke-Git {
     param(
-        [Parameter(ValueFromRemainingArguments = $true)]
-        [string[]]$Arguments
+        [Parameter(Mandatory = $true)]
+        [string[]]$Args
     )
 
-    & git @Arguments
+    & git @Args
 
     if ($LASTEXITCODE -ne 0) {
-        throw "git $($Arguments -join ' ') failed with exit code $LASTEXITCODE"
+        throw "git $($Args -join ' ') failed with exit code $LASTEXITCODE"
     }
 }
 
 function Invoke-Npm {
     param(
-        [Parameter(ValueFromRemainingArguments = $true)]
-        [string[]]$Arguments
+        [Parameter(Mandatory = $true)]
+        [string[]]$Args
     )
 
-    & npm @Arguments
+    & npm @Args
 
     if ($LASTEXITCODE -ne 0) {
-        throw "npm $($Arguments -join ' ') failed with exit code $LASTEXITCODE"
+        throw "npm $($Args -join ' ') failed with exit code $LASTEXITCODE"
     }
 }
+
+# ---------------------------------------------------------------------------
+# Locate repository
+# ---------------------------------------------------------------------------
 
 $RepoRoot = (& git rev-parse --show-toplevel 2>$null)
 
@@ -41,6 +45,10 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($RepoRoot)) {
 
 $RepoRoot = $RepoRoot.Trim()
 Set-Location $RepoRoot
+
+# ---------------------------------------------------------------------------
+# Validate version
+# ---------------------------------------------------------------------------
 
 $Version = $Version.Trim()
 
@@ -54,6 +62,10 @@ if ($Version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za
 
 $Tag = "v$Version"
 
+# ---------------------------------------------------------------------------
+# Require clean working tree BEFORE modifying VERSION/package metadata
+# ---------------------------------------------------------------------------
+
 $status = (& git status --porcelain)
 
 if ($LASTEXITCODE -ne 0) {
@@ -63,12 +75,17 @@ if ($LASTEXITCODE -ne 0) {
 if ($status) {
     Write-Host ""
     Write-Host "Working tree is not clean:" -ForegroundColor Red
+
     $status | ForEach-Object {
         Write-Host "  $_" -ForegroundColor Yellow
     }
 
     throw "Commit or stash current changes before creating a release."
 }
+
+# ---------------------------------------------------------------------------
+# Current branch
+# ---------------------------------------------------------------------------
 
 $branch = (& git branch --show-current)
 
@@ -78,7 +95,10 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($branch)) {
 
 $branch = $branch.Trim()
 
-# Check whether the tag already exists on origin.
+# ---------------------------------------------------------------------------
+# Remote tag must not exist
+# ---------------------------------------------------------------------------
+
 $remoteTag = (& git ls-remote --tags origin "refs/tags/$Tag" 2>$null)
 
 if ($LASTEXITCODE -ne 0) {
@@ -89,7 +109,10 @@ if ($remoteTag) {
     throw "Remote tag $Tag already exists."
 }
 
-# VERSION is the single source of truth.
+# ---------------------------------------------------------------------------
+# Update VERSION
+# ---------------------------------------------------------------------------
+
 [System.IO.File]::WriteAllText(
     (Join-Path $RepoRoot "VERSION"),
     "$Version`n",
@@ -98,29 +121,57 @@ if ($remoteTag) {
 
 Write-Host "VERSION -> $Version" -ForegroundColor Green
 
-# Synchronize npm package metadata from VERSION.
-Invoke-Npm version $Version `
-    --prefix web-ui `
-    --no-git-tag-version `
-    --allow-same-version
+# ---------------------------------------------------------------------------
+# Synchronize npm metadata
+# VERSION remains the single source of truth.
+# ---------------------------------------------------------------------------
 
-Invoke-Git add VERSION web-ui/package.json
+Invoke-Npm -Args @(
+    "version",
+    $Version,
+    "--prefix",
+    "web-ui",
+    "--no-git-tag-version",
+    "--allow-same-version"
+)
+
+Invoke-Git -Args @(
+    "add",
+    "VERSION",
+    "web-ui/package.json"
+)
 
 $packageLock = Join-Path $RepoRoot "web-ui\package-lock.json"
 
 if (Test-Path -LiteralPath $packageLock) {
-    Invoke-Git add web-ui/package-lock.json
+    Invoke-Git -Args @(
+        "add",
+        "web-ui/package-lock.json"
+    )
 }
+
+# ---------------------------------------------------------------------------
+# Commit version changes only if something actually changed
+# ---------------------------------------------------------------------------
 
 & git diff --cached --quiet
 $hasStagedChanges = ($LASTEXITCODE -ne 0)
 
 if ($hasStagedChanges) {
-    Invoke-Git commit -m "Release $Tag"
+    Invoke-Git -Args @(
+        "commit",
+        "-m",
+        "Release $Tag"
+    )
+
     Write-Host "Created release commit: $Tag" -ForegroundColor Green
 } else {
     Write-Host "Version files already match $Version; no release commit needed." -ForegroundColor DarkGray
 }
+
+# ---------------------------------------------------------------------------
+# Determine current HEAD
+# ---------------------------------------------------------------------------
 
 $currentCommit = (& git rev-parse HEAD)
 
@@ -130,9 +181,13 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($currentCommit)) {
 
 $currentCommit = $currentCommit.Trim()
 
-# IMPORTANT:
-# Do not use 'git rev-list <tag>' here because a missing tag returns an error,
-# which older Windows PowerShell versions may promote to a terminating error.
+# ---------------------------------------------------------------------------
+# Local tag handling
+#
+# Use 'git tag --list' first. This succeeds even when the tag does not exist,
+# avoiding the Windows PowerShell/native-command issue from the previous script.
+# ---------------------------------------------------------------------------
+
 $localTagName = (& git tag --list $Tag)
 
 if ($LASTEXITCODE -ne 0) {
@@ -154,9 +209,20 @@ if (-not [string]::IsNullOrWhiteSpace($localTagName)) {
 
     Write-Host "Local tag $Tag already points to HEAD; reusing it." -ForegroundColor DarkGray
 } else {
-    Invoke-Git tag -a $Tag -m "DCCExpressHub $Tag"
+    Invoke-Git -Args @(
+        "tag",
+        "-a",
+        $Tag,
+        "-m",
+        "DCCExpressHub $Tag"
+    )
+
     Write-Host "Created annotated tag: $Tag" -ForegroundColor Green
 }
+
+# ---------------------------------------------------------------------------
+# Optional local-only mode
+# ---------------------------------------------------------------------------
 
 if ($NoPush) {
     Write-Host ""
@@ -168,12 +234,27 @@ if ($NoPush) {
     exit 0
 }
 
+# ---------------------------------------------------------------------------
+# Push branch, then tag.
+# The tag push starts the GitHub Actions release workflow.
+# ---------------------------------------------------------------------------
+
 Write-Host ""
 Write-Host "Pushing branch '$branch'..." -ForegroundColor Cyan
-Invoke-Git push origin $branch
+
+Invoke-Git -Args @(
+    "push",
+    "origin",
+    $branch
+)
 
 Write-Host "Pushing tag '$Tag'..." -ForegroundColor Cyan
-Invoke-Git push origin $Tag
+
+Invoke-Git -Args @(
+    "push",
+    "origin",
+    $Tag
+)
 
 Write-Host ""
 Write-Host "Release tag pushed successfully." -ForegroundColor Green
