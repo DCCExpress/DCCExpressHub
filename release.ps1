@@ -7,32 +7,6 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-function Invoke-Git {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string[]]$Args
-    )
-
-    & git @Args
-
-    if ($LASTEXITCODE -ne 0) {
-        throw "git $($Args -join ' ') failed with exit code $LASTEXITCODE"
-    }
-}
-
-function Invoke-Npm {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string[]]$Args
-    )
-
-    & npm @Args
-
-    if ($LASTEXITCODE -ne 0) {
-        throw "npm $($Args -join ' ') failed with exit code $LASTEXITCODE"
-    }
-}
-
 # ---------------------------------------------------------------------------
 # Locate repository
 # ---------------------------------------------------------------------------
@@ -63,7 +37,7 @@ if ($Version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za
 $Tag = "v$Version"
 
 # ---------------------------------------------------------------------------
-# Require clean working tree BEFORE modifying VERSION/package metadata
+# Require a clean working tree
 # ---------------------------------------------------------------------------
 
 $status = (& git status --porcelain)
@@ -84,7 +58,7 @@ if ($status) {
 }
 
 # ---------------------------------------------------------------------------
-# Current branch
+# Determine current branch
 # ---------------------------------------------------------------------------
 
 $branch = (& git branch --show-current)
@@ -96,7 +70,7 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($branch)) {
 $branch = $branch.Trim()
 
 # ---------------------------------------------------------------------------
-# Remote tag must not exist
+# Refuse an already published tag
 # ---------------------------------------------------------------------------
 
 $remoteTag = (& git ls-remote --tags origin "refs/tags/$Tag" 2>$null)
@@ -110,7 +84,7 @@ if ($remoteTag) {
 }
 
 # ---------------------------------------------------------------------------
-# Update VERSION
+# Update VERSION (single source of truth)
 # ---------------------------------------------------------------------------
 
 [System.IO.File]::WriteAllText(
@@ -122,47 +96,66 @@ if ($remoteTag) {
 Write-Host "VERSION -> $Version" -ForegroundColor Green
 
 # ---------------------------------------------------------------------------
-# Synchronize npm metadata
-# VERSION remains the single source of truth.
+# Synchronize npm metadata from VERSION
+#
+# IMPORTANT:
+# Use npm.cmd explicitly on Windows and place --prefix BEFORE the subcommand.
+# This avoids PowerShell argument forwarding problems.
 # ---------------------------------------------------------------------------
 
-Invoke-Npm -Args @(
-    "version",
-    $Version,
-    "--prefix",
-    "web-ui",
-    "--no-git-tag-version",
-    "--allow-same-version"
-)
+$npmCommand = $null
 
-Invoke-Git -Args @(
-    "add",
-    "VERSION",
-    "web-ui/package.json"
-)
+if (Get-Command npm.cmd -ErrorAction SilentlyContinue) {
+    $npmCommand = "npm.cmd"
+} elseif (Get-Command npm -ErrorAction SilentlyContinue) {
+    $npmCommand = "npm"
+} else {
+    throw "npm was not found in PATH."
+}
+
+& $npmCommand `
+    --prefix web-ui `
+    version $Version `
+    --no-git-tag-version `
+    --allow-same-version
+
+if ($LASTEXITCODE -ne 0) {
+    throw "npm version synchronization failed with exit code $LASTEXITCODE"
+}
+
+# ---------------------------------------------------------------------------
+# Stage only version-related files
+# ---------------------------------------------------------------------------
+
+& git add VERSION web-ui/package.json
+
+if ($LASTEXITCODE -ne 0) {
+    throw "git add VERSION web-ui/package.json failed."
+}
 
 $packageLock = Join-Path $RepoRoot "web-ui\package-lock.json"
 
 if (Test-Path -LiteralPath $packageLock) {
-    Invoke-Git -Args @(
-        "add",
-        "web-ui/package-lock.json"
-    )
+    & git add web-ui/package-lock.json
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "git add web-ui/package-lock.json failed."
+    }
 }
 
 # ---------------------------------------------------------------------------
-# Commit version changes only if something actually changed
+# Commit version changes if needed
 # ---------------------------------------------------------------------------
 
 & git diff --cached --quiet
 $hasStagedChanges = ($LASTEXITCODE -ne 0)
 
 if ($hasStagedChanges) {
-    Invoke-Git -Args @(
-        "commit",
-        "-m",
-        "Release $Tag"
-    )
+    & git commit -m "Release $Tag"
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "Release commit failed."
+    }
 
     Write-Host "Created release commit: $Tag" -ForegroundColor Green
 } else {
@@ -182,10 +175,7 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($currentCommit)) {
 $currentCommit = $currentCommit.Trim()
 
 # ---------------------------------------------------------------------------
-# Local tag handling
-#
-# Use 'git tag --list' first. This succeeds even when the tag does not exist,
-# avoiding the Windows PowerShell/native-command issue from the previous script.
+# Create/reuse local annotated tag
 # ---------------------------------------------------------------------------
 
 $localTagName = (& git tag --list $Tag)
@@ -209,13 +199,11 @@ if (-not [string]::IsNullOrWhiteSpace($localTagName)) {
 
     Write-Host "Local tag $Tag already points to HEAD; reusing it." -ForegroundColor DarkGray
 } else {
-    Invoke-Git -Args @(
-        "tag",
-        "-a",
-        $Tag,
-        "-m",
-        "DCCExpressHub $Tag"
-    )
+    & git tag -a $Tag -m "DCCExpressHub $Tag"
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not create annotated tag $Tag."
+    }
 
     Write-Host "Created annotated tag: $Tag" -ForegroundColor Green
 }
@@ -235,26 +223,25 @@ if ($NoPush) {
 }
 
 # ---------------------------------------------------------------------------
-# Push branch, then tag.
-# The tag push starts the GitHub Actions release workflow.
+# Push branch, then tag
 # ---------------------------------------------------------------------------
 
 Write-Host ""
 Write-Host "Pushing branch '$branch'..." -ForegroundColor Cyan
 
-Invoke-Git -Args @(
-    "push",
-    "origin",
-    $branch
-)
+& git push origin $branch
+
+if ($LASTEXITCODE -ne 0) {
+    throw "Could not push branch '$branch'."
+}
 
 Write-Host "Pushing tag '$Tag'..." -ForegroundColor Cyan
 
-Invoke-Git -Args @(
-    "push",
-    "origin",
-    $Tag
-)
+& git push origin $Tag
+
+if ($LASTEXITCODE -ne 0) {
+    throw "Could not push tag '$Tag'."
+}
 
 Write-Host ""
 Write-Host "Release tag pushed successfully." -ForegroundColor Green
