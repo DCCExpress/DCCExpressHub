@@ -28,7 +28,7 @@ PC / tablet / phone
  Model railway layout
 ```
 
-## Features and command-station support
+## Features
 
 Current functionality includes:
 
@@ -40,159 +40,15 @@ Current functionality includes:
 - decoder programming,
 - automation scripts,
 - track power and emergency control,
-- EX-CSB1 / command-station connection configuration,
+- EX-CSB1 / DCC-EX connection configuration,
 - raw command console and diagnostics,
 - gamepad support,
 - external device configuration,
 - LittleFS file browser,
-- SD-card storage on M5Stack Basic,
-- audio files and layout Audio Button elements,
+- SD-card storage and audio playback on M5Stack Basic,
 - complete Export / Import backup,
 - browser-based firmware installation,
 - USB serial configuration and recovery.
-
-The Hub is designed first and foremost for **DCC-EX / EX-CSB1**. DCC-EX is the current priority, reference implementation and officially supported command-station backend.
-
-**Roco/Fleischmann Z21 LAN support is planned for a future release.** Experimental Z21 implementation work remains in the source tree, but Z21 is not currently an officially supported target and no Z21 firmware is published in DCCExpressHub releases.
-
-
-
-## Supported Hub hardware and client devices
-
-| Hub hardware | PlatformIO target | Display | Status |
-|---|---|---|---|
-| **M5Stack Basic** | `m5stack-basic-dccex` | Built-in display | Primary tested target |
-| **Generic ESP32 DevKit** | `esp32dev-dccex` | None | Supported |
-
-Official firmware releases are currently built for **DCC-EX only**.
-
-### S88 / s88-N feedback
-
-DCCExpressHub supports S88 / s88-N occupancy feedback through the companion **DCCExpress-S88Adapter** project.
-
-The adapter uses an Arduino-compatible controller to read standard S88 / s88-N feedback modules and forwards the detected occupancy states to DCCExpressHub.
-
-The current implementation has been tested with the **YaMoRC YD6016ES-CS** feedback module.
-
-Project repository:
-
-https://github.com/DCCExpress/DCCExpress-S88Adapter
-
-### M5Stack SD card and audio files
-
-The **M5Stack Basic** can use its built-in microSD slot as external storage. SD storage is intended primarily for larger user files such as locomotive sounds, announcements and other audio files that should not consume the ESP32 LittleFS partition.
-
-#### SD card format
-
-Use a good-quality **microSD / microSDHC / microSDXC** card formatted as **FAT32**.
-
-Recommended setup:
-
-```text
-File system:          FAT32
-Allocation unit size: 32 KB (32768 bytes)
-Volume label:         DCCEXPRESS (optional)
-```
-
-**Do not use NTFS.** For the current M5Stack SD implementation, **FAT32 is the recommended format instead of exFAT**.
-
-Large cards such as 64 GB SDXC cards are normally supplied as exFAT. Windows also usually offers only exFAT or NTFS for cards larger than 32 GB. The card can still be used by creating a FAT32 partition.
-
-One Windows-only method that does not require an additional formatter is to create a partition of approximately 30 GB with DiskPart:
-
-```text
-diskpart
-list disk
-select disk N
-clean
-create partition primary size=30000
-format fs=fat32 quick label=DCCEXPRESS
-assign
-exit
-```
-
-> **WARNING:** `clean` erases the selected disk. Double-check the disk number before running it. Selecting the wrong disk can erase another drive in the computer.
-
-Alternatively, a FAT32 formatter such as **guiformat / FAT32 Format** or another trusted partitioning tool can format larger media as FAT32 while retaining a larger partition.
-
-FAT32 has a maximum individual file size of approximately 4 GB. This is normally irrelevant for locomotive and layout audio files.
-
-#### `/audio` directory
-
-After a successful SD mount, DCCExpressHub automatically ensures that this directory exists:
-
-```text
-/audio
-```
-
-The recommended SD-card layout is therefore:
-
-```text
-SD Card
-└── audio
-    ├── horn.mp3
-    ├── station.mp3
-    ├── crossing.mp3
-    └── mav_szignal.mp3
-```
-
-MP3 is the recommended format for normal use. The browser performs the audio decoding; the ESP32 only serves/streams the file from the SD card.
-
-#### Uploading audio files
-
-Audio files can be uploaded from the DCCExpressHub web interface:
-
-1. Open **Files / File Manager**.
-2. Select **SD Card**.
-3. Open the **audio** directory.
-4. Upload the desired MP3 file.
-
-Files stored there use virtual Hub paths such as:
-
-```text
-/sd/audio/mav_szignal.mp3
-```
-
-The SD-card upload path is separate from the internal LittleFS storage. Large audio files should therefore be stored on the SD card rather than in LittleFS.
-
-#### Adding an Audio Button to the layout
-
-To play a sound from the layout:
-
-1. Open the **Layout editor**.
-2. Press the element **+ / picker** button.
-3. Select **Audio Button**.
-4. Place the button on the layout.
-5. Select the button and open its properties.
-6. Set the **Label** shown on the layout.
-7. Use the **Audio file** picker to browse the SD card and select a file from `/audio`.
-8. Use **Play / Test** in the property panel to verify the selected sound.
-9. Save the layout.
-
-A typical Audio Button can therefore reference:
-
-```text
-/sd/audio/mav_szignal.mp3
-```
-
-At runtime, pressing the Audio Button asks the browser to play the selected file. The file is streamed from the Hub through the storage API, so the ESP32 does not need to load the complete MP3 into RAM or decode it itself.
-
-For best reliability, keep audio files under `/audio` and use short, simple filenames. Spaces are supported, but names such as `mav_szignal.mp3` are easier to manage and diagnose.
-
-### PC, tablet and mobile use
-
-The same Hub UI can be used from a desktop PC, notebook, tablet or phone. A modern browser is sufficient for normal operation.
-
-For a permanently mounted Android tablet, a fullscreen / kiosk browser is recommended:
-
-- **Fully Kiosk Browser & Lockdown** - recommended, mature and highly configurable  
-  https://play.google.com/store/apps/details?id=de.ozerov.fully
-- **FreeKiosk** - free and open-source alternative  
-  https://play.google.com/store/apps/details?id=com.freekiosk
-- **Webview Kiosk** - lightweight kiosk-browser alternative  
-  https://play.google.com/store/apps/details?id=com.nktnet.webview_kiosk
-
-On iPhone/iPad, Safari can be used normally; Guided Access is useful when the device is dedicated to layout control.
 
 ## Install, configure and recover
 
@@ -200,19 +56,46 @@ The recommended installation method is the DCCExpressHub Web Installer:
 
 https://dccexpress.github.io/DCCExpressHubWeb/installer/
 
-The installer uses ESP Web Tools and Web Serial. For flashing and serial configuration, use a desktop Chromium-based browser with Web Serial support, such as **Google Chrome** or **Microsoft Edge**.
+Use desktop **Google Chrome** or **Microsoft Edge**. Firmware installation and serial configuration use ESP Web Tools / Web Serial.
 
-Connect the Hub by USB and verify that the operating system sees a serial / COM port. Depending on the board, a **CH340/CH341** or **CP210x** USB-UART driver may be required.
+### 1. Select the Hub hardware
 
-After flashing, the installer can configure the Hub over USB serial at:
+Official releases currently support:
+
+| Hub hardware | PlatformIO target | Display |
+|---|---|---|
+| **M5Stack Basic** | `m5stack-basic-dccex` | Built-in display |
+| **Generic ESP32 DevKit** | `esp32dev-dccex` | None |
+
+The web installer provides separate hardware and firmware-version selectors. Select the exact hardware before flashing.
+
+Official releases are currently built for **DCC-EX only**.
+
+### 2. Install the firmware
+
+Connect the Hub by USB, select the desired published firmware release and press **Install firmware**.
+
+The installer flashes a complete merged image at:
+
+```text
+0x000000
+```
+
+A factory / merged installation may erase existing NVS configuration and stored layout data, so creating an **Export / Import** backup before major updates is recommended.
+
+Depending on the ESP32 board, Windows may require a **CH340/CH341** or **CP210x** USB-UART driver.
+
+For development or recovery, the installer can also flash a local merged `.bin` file.
+
+### 3. Configure the Hub
+
+After flashing, connect through the same web tool over USB serial at:
 
 ```text
 115200 baud
 ```
 
-This recovery path works even if the saved Wi-Fi or command-station configuration is wrong.
-
-Typical configuration:
+Typical settings:
 
 ```text
 Hub hostname:     dccexpresshub
@@ -222,11 +105,21 @@ DCC-EX host:      dccex.local
 DCC-EX TCP port:  2560
 ```
 
-An IPv4 address can also be used instead of an mDNS hostname.
+An IPv4 address can be used instead of an mDNS hostname.
 
-### Serial commands
+The serial recovery path works even when saved Wi-Fi or command-station settings are incorrect.
 
-The firmware accepts both the installer JSON protocol and a compact set of human-readable serial commands:
+Once configured, open:
+
+```text
+http://dccexpresshub.local
+```
+
+On a fresh installation, use **Locomotive editor** and **Layout editor**, or restore a previous installation through **Export / Import**.
+
+### Serial recovery commands
+
+The firmware accepts both the installer JSON protocol and human-readable commands:
 
 ```text
 <STATUS?>                         Show Hub, Wi-Fi and command-station status
@@ -247,19 +140,93 @@ Examples:
 <RESTART>
 ```
 
-`<WIFI ...>` requires a restart before the new Wi-Fi settings take effect. DCC-EX endpoint changes are applied immediately.
+`<WIFI ...>` requires a restart. DCC-EX endpoint changes are applied immediately.
 
-Because `<WIFI?>` and `<STATUS?>` are intended for **physical USB recovery**, they can expose the stored Wi-Fi password. Treat physical serial access to the Hub as trusted access.
+Because `<WIFI?>` and `<STATUS?>` are intended for **physical USB recovery**, they may expose the stored Wi-Fi password. Treat physical serial access as trusted access.
 
-Once configured, open:
+## Command-station support
+
+DCCExpressHub is designed first and foremost for **DCC-EX / EX-CSB1**. DCC-EX is the current priority, reference implementation and officially supported command-station backend.
+
+**Roco/Fleischmann Z21 LAN support is planned for a future release.** Experimental Z21 implementation remains in the source tree, but Z21 is not currently an officially supported target and no Z21 firmware is published in DCCExpressHub releases.
+
+## S88 / s88-N feedback
+
+DCCExpressHub supports S88 / s88-N occupancy feedback through the companion **DCCExpress-S88Adapter** project.
+
+The adapter reads standard S88 / s88-N feedback modules and forwards occupancy states to DCCExpressHub.
+
+The current implementation has been tested with the **YaMoRC YD6016ES-CS**.
+
+Project repository:
+
+https://github.com/DCCExpress/DCCExpress-S88Adapter
+
+## M5Stack SD card and audio
+
+The **M5Stack Basic** can use its built-in microSD slot for larger user files such as locomotive sounds and announcements.
+
+Recommended card format:
 
 ```text
-http://dccexpresshub.local
+File system:          FAT32
+Allocation unit size: 32 KB
+Volume label:         DCCEXPRESS (optional)
 ```
 
-On a fresh installation, use **Locomotive editor** and **Layout editor**, or restore a previous installation through **Export / Import**.
+**FAT32 is recommended. Do not use NTFS.** Large SDXC cards may need to be reformatted from exFAT to FAT32.
 
-A backup can contain the layout, locomotives, locomotive images, signal logic and external-device configuration. Creating a backup before factory flashing or major configuration changes is strongly recommended.
+> **WARNING:** If using DiskPart or another partitioning tool, verify the selected disk carefully. Repartitioning the wrong disk can erase unrelated data.
+
+After a successful SD mount, the Hub automatically ensures this directory exists:
+
+```text
+/audio
+```
+
+Recommended layout:
+
+```text
+SD Card
+└── audio
+    ├── horn.mp3
+    ├── station.mp3
+    ├── crossing.mp3
+    └── mav_szignal.mp3
+```
+
+MP3 is recommended. The browser performs audio decoding; the ESP32 streams the file from the SD card.
+
+Upload sounds from:
+
+```text
+Files / File Manager
+→ SD Card
+→ audio
+```
+
+Virtual Hub paths look like:
+
+```text
+/sd/audio/mav_szignal.mp3
+```
+
+To use a sound on the layout:
+
+1. Open **Layout editor**.
+2. Add an **Audio Button**.
+3. Set its label.
+4. Select a file from `/audio`.
+5. Use **Play / Test** if needed.
+6. Save the layout.
+
+Large audio files should be stored on SD rather than LittleFS.
+
+## PC, tablet and mobile use
+
+The same Hub UI works from a desktop PC, notebook, tablet or phone using a modern browser.
+
+For a permanently mounted Android tablet, a fullscreen / kiosk browser such as **Fully Kiosk Browser** is useful. On iPhone/iPad, Safari works normally and Guided Access can be used for a dedicated control device.
 
 ## Build and development
 
@@ -276,13 +243,13 @@ git clone https://github.com/DCCExpress/DCCExpressHub.git
 cd DCCExpressHub
 ```
 
-Build the web UI and prepare LittleFS content:
+Build the web UI and prepare LittleFS:
 
 ```powershell
 .\build-web.ps1
 ```
 
-Build the official DCC-EX firmware targets:
+Build the official DCC-EX targets:
 
 ```powershell
 .\build-merged.ps1 -Environment m5stack-basic-dccex
@@ -297,7 +264,7 @@ dist/firmware/
 
 ### Versioning and releases
 
-The repository-root `VERSION` file is the single source of truth for release versioning.
+The repository-root `VERSION` file is the single source of truth.
 
 Example:
 
@@ -305,35 +272,35 @@ Example:
 0.1.0-alpha.2
 ```
 
-Official GitHub releases are created from matching Git tags. For example:
+Create an official release with:
 
 ```powershell
 .\release.ps1 0.1.0-alpha.2
 ```
 
-The release script:
+The release helper:
 
 - updates `VERSION`,
 - synchronizes the web UI npm package version,
 - creates a release commit,
-- creates an annotated `v0.1.0-alpha.2` tag,
+- creates the matching annotated Git tag,
 - pushes the branch and tag,
-- and the tag starts the GitHub Actions release workflow.
+- starts the GitHub Actions release workflow.
 
-The workflow refuses to publish a release if the Git tag and `VERSION` do not match.
+The workflow refuses to publish if the Git tag and `VERSION` do not match.
 
-Official releases currently contain only DCC-EX firmware for:
+Official releases currently contain only:
 
 ```text
 m5stack-basic-dccex
 esp32dev-dccex
 ```
 
-Z21 support remains a future-development item and is not included in official firmware releases.
+Z21 remains a future-development target and is not included in official releases.
 
 ### Web UI development
 
-The frontend is React + Mantine + TypeScript with Vite.
+The frontend is **React + Mantine + TypeScript + Vite**.
 
 Against a real Hub:
 
@@ -350,9 +317,7 @@ Open:
 http://localhost:5174
 ```
 
-Vite proxies the Hub API, file and WebSocket endpoints to the configured device.
-
-Development without hardware is also supported:
+Development without hardware:
 
 ```powershell
 # Terminal 1
@@ -363,7 +328,7 @@ npm run mock
 npm run dev:mock
 ```
 
-The mock backend runs locally and is useful for UI, editor, API and WebSocket development without repeatedly flashing an ESP32.
+The mock backend is useful for UI, editor, API and WebSocket development without repeatedly flashing an ESP32.
 
 Main repository areas:
 
@@ -382,7 +347,9 @@ DCCExpressHub/
 └── build-all-merged.ps1
 ```
 
-DCCExpressHub is under active alpha development. Interfaces, hardware support and command-station backends may change while the project evolves.
+## Project status and links
+
+DCCExpressHub is under active **alpha development**. Interfaces, hardware support and command-station backends may change while the project evolves.
 
 Project website:
 
