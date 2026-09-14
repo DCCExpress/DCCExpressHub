@@ -32,6 +32,21 @@ String defaultHubHostname() {
 #endif
 }
 
+String defaultCommandCenterHost() {
+#ifdef DEFAULT_CSB1_HOST
+  // Local src/config.h may override the default endpoint.
+  return String(DEFAULT_CSB1_HOST);
+#elif defined(HUB_CC_DCCEX)
+  // CI/release builds intentionally do not contain the private src/config.h.
+  // DCC-EX therefore needs a repository-owned fallback.
+  return String("dccex.local");
+#else
+  // Z21 support is currently experimental and has no official release
+  // default. Leave the host empty until explicitly configured.
+  return String();
+#endif
+}
+
 bool isOtherFirmwareDefaultPort(
     uint16_t port) {
 #if defined(HUB_CC_DCCEX)
@@ -122,7 +137,7 @@ void HubConfigStore::loadCommandCenter() {
   _commandCenter.host =
       _prefs.getString(
           "csbHost",
-          DEFAULT_CSB1_HOST);
+          defaultCommandCenterHost());
 
   _commandCenter.port =
       _prefs.getUShort(
