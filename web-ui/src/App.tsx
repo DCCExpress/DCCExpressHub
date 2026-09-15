@@ -264,7 +264,7 @@ function HomePage({
           <ThemeIcon size={48} radius="lg" color="teal" variant="light">
             <IconMap size={27} />
           </ThemeIcon>
-          <Title order={4} mt="md">Layout editor</Title>
+          <Title order={4} mt="md">Layout Panel</Title>
           <Text size="sm" c="dimmed" mt={4}>
             Build the track plan and operate turnouts
           </Text>
