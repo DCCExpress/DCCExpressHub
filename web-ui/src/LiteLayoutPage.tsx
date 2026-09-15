@@ -840,7 +840,7 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
             <ActionIcon variant="subtle" color="gray" onClick={onBack} aria-label="Back" title="Home">
               <IconArrowLeft size={20} />
             </ActionIcon>
-            <Title order={3} lh={1}>Layout</Title>
+            <Title order={3} lh={1}>Layout Panel</Title>
             <Badge size="sm" variant="light" color="violet">v{version}</Badge>
           </Group>
 
