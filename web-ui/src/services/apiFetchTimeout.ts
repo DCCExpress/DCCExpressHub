@@ -9,7 +9,7 @@
  */
 
 export const API_JSON_TIMEOUT_MS =
-  3000;
+  6000;
 
 const INSTALL_FLAG =
   "__dccExpressApiFetchTimeoutInstalled";

@@ -14,7 +14,7 @@ function prettyJson(
   }
 }
 
-function prettyJsonl(
+function prettyJsonLines(
   content: string
 ): string {
   const parts: string[] = [];
@@ -202,7 +202,7 @@ function createViewer(
   document.body.append(overlay);
 }
 
-async function openJsonl(
+async function openJsonLines(
   path: string
 ): Promise<void> {
   try {
@@ -225,12 +225,12 @@ async function openJsonl(
 
     createViewer(
       path.split("/").pop() ??
-        "JSONL",
-      prettyJsonl(content)
+        "NDJSON",
+      prettyJsonLines(content)
     );
   } catch (error) {
     createViewer(
-      "JSONL",
+      "NDJSON",
       error instanceof Error
         ? error.message
         : String(error)
@@ -296,6 +296,18 @@ function enhanceJsonModal(): void {
   }
 }
 
+function isJsonLinesPath(
+  pathname: string
+): boolean {
+  const lower =
+    pathname.toLowerCase();
+
+  return (
+    lower.endsWith(".jsonl") ||
+    lower.endsWith(".ndjson")
+  );
+}
+
 export function
 installFileViewerEnhancer(): void {
   if (installed) {
@@ -308,9 +320,9 @@ installFileViewerEnhancer(): void {
    * IMPORTANT:
    * Never monkey-patch window.fetch here.
    *
-   * Signal automation also reads /api/files/text for signal-rules.jsonl.
+   * Signal automation also reads /api/files/text for signal-logic.ndjson.
    * Formatting that response globally would inject viewer comments such as
-   * "// row 1" into runtime data and make JSONL parsing fail.
+   * "// row 1" into runtime data and make NDJSON parsing fail.
    *
    * Formatting is presentation-only.
    */
@@ -356,9 +368,9 @@ installFileViewerEnhancer(): void {
       }
 
       if (
-        !url.pathname
-          .toLowerCase()
-          .endsWith(".jsonl")
+        !isJsonLinesPath(
+          url.pathname
+        )
       ) {
         return;
       }
@@ -366,7 +378,7 @@ installFileViewerEnhancer(): void {
       event.preventDefault();
       event.stopPropagation();
 
-      void openJsonl(
+      void openJsonLines(
         url.pathname
       );
     },

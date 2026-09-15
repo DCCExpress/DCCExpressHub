@@ -6,6 +6,7 @@ import {
   Button,
   Group,
   Loader,
+  ScrollArea,
   Select,
   Stack,
   Table,
@@ -34,6 +35,7 @@ import { TrackElement } from "../models/editor/core/TrackElement";
 import { TrackLevelCrossingElement } from "../models/editor/elements/TrackLevelCrossingElement";
 import { TrackSignalElement } from "../models/editor/elements/TrackSignalElement";
 import TrackTurnoutDoubleElement from "../models/editor/elements/TrackTurnoutDoubleElement";
+import { TrackTurnoutThreeWayElement } from "../models/editor/elements/TrackTurnoutThreeWayElement";
 import type { LayoutElementId } from "@domain/layout/layoutDto";
 import type {
   SignalLogicConditionDto,
@@ -57,6 +59,22 @@ type SignalAutomationDialogProps = {
 
 type Option = { value: string; label: string };
 
+function optionalUserElementName(
+  name: string | undefined
+): string {
+  const value = (name ?? "").trim();
+
+  if (
+    !value ||
+    value === "element" ||
+    value.toLowerCase().startsWith("trackturnout")
+  ) {
+    return "";
+  }
+
+  return ` · ${value}`;
+}
+
 type SignalOption = Option & {
   id: LayoutElementId;
   address: number;
@@ -69,13 +87,26 @@ type TurnoutOption = Option & {
   channel: 0 | 1;
 };
 
+type TurnoutLogicalState = {
+  value: string;
+  label: string;
+  first: boolean;
+  second?: boolean;
+};
+
+type TurnoutLogicalOption = Option & {
+  id: LayoutElementId;
+  kind: "single" | "double" | "threeway";
+  address1: number;
+  address2?: number;
+  states: TurnoutLogicalState[];
+};
+
 type SensorOption = Option & {
   id: LayoutElementId;
   address: number;
 };
 
-const MAX_RULES = 6;
-const MAX_CONDITIONS = 6;
 
 function parseLayoutId(value: string | null): LayoutElementId {
   const parsed = Number(value ?? 0);
@@ -84,14 +115,99 @@ function parseLayoutId(value: string | null): LayoutElementId {
     : 0;
 }
 
-function newTurnoutCondition(option: TurnoutOption): SignalLogicConditionDto {
-  return {
+function newLogicalTurnoutConditions(
+  option: TurnoutLogicalOption
+): SignalLogicConditionDto[] {
+  const state = option.states[0];
+
+  if (!state) {
+    return [];
+  }
+
+  const first: SignalLogicConditionDto = {
     id: generateId(),
     type: "turnout",
     turnoutId: option.id,
-    turnoutChannel: option.channel,
-    turnoutAddress: option.address,
-    closed: true,
+    turnoutChannel: 0,
+    turnoutAddress: option.address1,
+    closed: state.first,
+  };
+
+  if (
+    option.kind === "single" ||
+    option.address2 === undefined ||
+    state.second === undefined
+  ) {
+    return [first];
+  }
+
+  return [
+    first,
+    {
+      id: generateId(),
+      type: "turnout",
+      turnoutId: option.id,
+      turnoutChannel: 1,
+      turnoutAddress: option.address2,
+      closed: state.second,
+    },
+  ];
+}
+
+function logicalStateValue(
+  option: TurnoutLogicalOption,
+  conditions: SignalLogicConditionDto[]
+): string {
+  const first = conditions.find(
+    condition =>
+      condition.type === "turnout" &&
+      condition.turnoutId === option.id &&
+      (condition.turnoutChannel ?? 0) === 0
+  );
+
+  const second = conditions.find(
+    condition =>
+      condition.type === "turnout" &&
+      condition.turnoutId === option.id &&
+      (condition.turnoutChannel ?? 0) === 1
+  );
+
+  const state = option.states.find(item =>
+    item.first ===
+      (first?.type === "turnout" ? first.closed : false) &&
+    (
+      item.second === undefined ||
+      item.second ===
+        (second?.type === "turnout" ? second.closed : false)
+    )
+  );
+
+  return state?.value ?? option.states[0]?.value ?? "";
+}
+
+function normalizeRuleConditions(
+  rule: SignalLogicRuleDto
+): SignalLogicRuleDto {
+  const seen = new Set<string>();
+  const conditions: SignalLogicConditionDto[] = [];
+
+  for (const condition of rule.conditions) {
+    const key =
+      condition.type === "sensor"
+        ? `sensor:${condition.sensorId}`
+        : `turnout:${condition.turnoutId}:${condition.turnoutChannel ?? 0}`;
+
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    conditions.push(condition);
+  }
+
+  return {
+    ...rule,
+    conditions,
   };
 }
 
@@ -168,15 +284,19 @@ export default function SignalAutomationDialog({
     const result: TurnoutOption[] = [];
 
     for (const turnout of layout.getAllElements()) {
-      if (turnout instanceof TrackTurnoutDoubleElement) {
+      if (
+        turnout instanceof TrackTurnoutDoubleElement ||
+        turnout instanceof TrackTurnoutThreeWayElement
+      ) {
+        const turnoutKind =
+          turnout instanceof TrackTurnoutThreeWayElement
+            ? "W turnout"
+            : "Double turnout";
+
         if (turnout.turnout1Address > 0) {
           result.push({
             value: `${turnout.id}:0`,
-            label: `Turnout #${turnout.turnout1Address} · ch1${
-              turnout.name && turnout.name !== "element"
-                ? ` · ${turnout.name}`
-                : ""
-            }`,
+            label: `${turnoutKind} #${turnout.turnout1Address} · motor 1${optionalUserElementName(turnout.name)}`,
             id: turnout.id,
             address: turnout.turnout1Address,
             channel: 0,
@@ -186,11 +306,7 @@ export default function SignalAutomationDialog({
         if (turnout.turnout2Address > 0) {
           result.push({
             value: `${turnout.id}:1`,
-            label: `Turnout #${turnout.turnout2Address} · ch2${
-              turnout.name && turnout.name !== "element"
-                ? ` · ${turnout.name}`
-                : ""
-            }`,
+            label: `${turnoutKind} #${turnout.turnout2Address} · motor 2${optionalUserElementName(turnout.name)}`,
             id: turnout.id,
             address: turnout.turnout2Address,
             channel: 1,
@@ -202,11 +318,7 @@ export default function SignalAutomationDialog({
       ) {
         result.push({
           value: `${turnout.id}:0`,
-          label: `Turnout #${turnout.turnoutAddress}${
-            turnout.name && turnout.name !== "element"
-              ? ` · ${turnout.name}`
-              : ""
-          }`,
+          label: `Turnout #${turnout.turnoutAddress}${optionalUserElementName(turnout.name)}`,
           id: turnout.id,
           address: turnout.turnoutAddress,
           channel: 0,
@@ -215,6 +327,130 @@ export default function SignalAutomationDialog({
     }
 
     return result.sort((a, b) => a.address - b.address);
+  }, [layout, opened]);
+
+
+  const turnoutLogicalOptions = useMemo<TurnoutLogicalOption[]>(() => {
+    const result: TurnoutLogicalOption[] = [];
+
+    for (const turnout of layout.getAllElements()) {
+      if (turnout instanceof TrackTurnoutThreeWayElement) {
+        if (turnout.turnout1Address <= 0 || turnout.turnout2Address <= 0) {
+          continue;
+        }
+
+        const state = (
+          value: "left" | "straight" | "right",
+          label: string
+        ): TurnoutLogicalState => {
+          const bits = turnout.getBitsForPosition(value);
+          return {
+            value,
+            label,
+            // getBitsForPosition() returns the configured PHYSICAL decoder
+            // values. Signal automation conditions are semantic CLOSED/THROWN,
+            // because LayoutRuntime converts decoder feedback through each
+            // motor's Closed Value before condition matching.
+            first:
+              bits.first === turnout.turnout1ClosedValue,
+            second:
+              bits.second === turnout.turnout2ClosedValue,
+          };
+        };
+
+        result.push({
+          value: String(turnout.id),
+          label: `W turnout #${turnout.turnout1Address}-${turnout.turnout2Address}${optionalUserElementName(turnout.name)}`,
+          id: turnout.id,
+          kind: "threeway",
+          address1: turnout.turnout1Address,
+          address2: turnout.turnout2Address,
+          states: [
+            state("left", "Left"),
+            state("straight", "Straight"),
+            state("right", "Right"),
+          ],
+        });
+
+        continue;
+      }
+
+      if (turnout instanceof TrackTurnoutDoubleElement) {
+        if (turnout.turnout1Address <= 0 || turnout.turnout2Address <= 0) {
+          continue;
+        }
+
+        result.push({
+          value: String(turnout.id),
+          label: `Double turnout #${turnout.turnout1Address}-${turnout.turnout2Address}${optionalUserElementName(turnout.name)}`,
+          id: turnout.id,
+          kind: "double",
+          address1: turnout.turnout1Address,
+          address2: turnout.turnout2Address,
+          states: [
+            // O/C here is LOGICAL turnout state, not the decoder bit.
+            // The TrackTurnoutDoubleElement stores a configurable physical
+            // output table, while SignalAutomationEngine matches the runtime's
+            // semantic `closed` flags.
+            {
+              value: "oo",
+              label: "O-O",
+              first: false,
+              second: false,
+            },
+            {
+              value: "oc",
+              label: "O-C",
+              first: false,
+              second: true,
+            },
+            {
+              value: "co",
+              label: "C-O",
+              first: true,
+              second: false,
+            },
+            {
+              value: "cc",
+              label: "C-C",
+              first: true,
+              second: true,
+            },
+          ],
+        });
+
+        continue;
+      }
+
+      if (
+        isTurnoutElement(turnout) &&
+        turnout.turnoutAddress > 0
+      ) {
+        result.push({
+          value: String(turnout.id),
+          label: `Turnout #${turnout.turnoutAddress}${optionalUserElementName(turnout.name)}`,
+          id: turnout.id,
+          kind: "single",
+          address1: turnout.turnoutAddress,
+          states: [
+            {
+              value: "closed",
+              label: "Closed",
+              first: true,
+            },
+            {
+              value: "thrown",
+              label: "Thrown",
+              first: false,
+            },
+          ],
+        });
+      }
+    }
+
+    return result.sort(
+      (a, b) => a.address1 - b.address1
+    );
   }, [layout, opened]);
 
   const sensorOptions = useMemo<SensorOption[]>(() => {
@@ -401,7 +637,7 @@ export default function SignalAutomationDialog({
       setMessage(
         result.created
           ? "No automation file exists yet. Save to create it."
-          : result.message ?? "Signal automation loaded."
+          : null
       );
     } catch (loadError) {
       setDocument(null);
@@ -437,8 +673,16 @@ export default function SignalAutomationDialog({
     setMessage(null);
 
     try {
+      const normalizedDocument: SignalLogicDocumentDto = {
+        ...mergedDocument,
+        groups: mergedDocument.groups.map(currentGroup => ({
+          ...currentGroup,
+          rules: currentGroup.rules.map(normalizeRuleConditions),
+        })),
+      };
+
       const result =
-        await saveSignalLogicRulesWs(mergedDocument);
+        await saveSignalLogicRulesWs(normalizedDocument);
 
       setDocument(result.document);
 
@@ -504,13 +748,206 @@ export default function SignalAutomationDialog({
       ),
     }));
 
-  const addRule = (): void => {
-    if (!group || group.rules.length >= MAX_RULES) {
+
+  const replaceTurnoutConditionGroup = (
+    ruleId: string,
+    conditionId: string,
+    option: TurnoutLogicalOption,
+    stateValue?: string
+  ): void => {
+    updateRule(ruleId, rule => {
+      const selectedState =
+        option.states.find(item => item.value === stateValue) ??
+        option.states[0];
+
+      if (!selectedState) {
+        return rule;
+      }
+
+      const currentIndex = rule.conditions.findIndex(
+        item => item.id === conditionId
+      );
+
+      const old = rule.conditions[currentIndex];
+
+      if (!old || old.type !== "turnout") {
+        return rule;
+      }
+
+      const oldTurnoutId = old.turnoutId;
+
+      // Remove both channels of the currently displayed multi-motor turnout.
+      const remaining = rule.conditions.filter(item =>
+        !(
+          item.type === "turnout" &&
+          item.turnoutId === oldTurnoutId
+        )
+      );
+
+      const replacement: SignalLogicConditionDto[] = [
+        {
+          id: conditionId,
+          type: "turnout",
+          turnoutId: option.id,
+          turnoutChannel: 0,
+          turnoutAddress: option.address1,
+          closed: selectedState.first,
+        },
+      ];
+
+      if (
+        option.kind !== "single" &&
+        option.address2 !== undefined &&
+        selectedState.second !== undefined
+      ) {
+        replacement.push({
+          id: generateId(),
+          type: "turnout",
+          turnoutId: option.id,
+          turnoutChannel: 1,
+          turnoutAddress: option.address2,
+          closed: selectedState.second,
+        });
+      }
+
+      const insertAt = Math.max(
+        0,
+        Math.min(currentIndex, remaining.length)
+      );
+
+      return {
+        ...rule,
+        conditions: [
+          ...remaining.slice(0, insertAt),
+          ...replacement,
+          ...remaining.slice(insertAt),
+        ],
+      };
+    });
+  };
+
+  const updateLogicalTurnoutState = (
+    ruleId: string,
+    conditionId: string,
+    option: TurnoutLogicalOption,
+    stateValue: string
+  ): void => {
+    const selectedState =
+      option.states.find(item => item.value === stateValue);
+
+    if (!selectedState) {
       return;
     }
 
-    const firstTurnout = turnoutOptions[0];
+    updateRule(ruleId, rule => ({
+      ...rule,
+      conditions: rule.conditions.map(condition => {
+        if (
+          condition.type !== "turnout" ||
+          condition.turnoutId !== option.id
+        ) {
+          return condition;
+        }
+
+        const channel = condition.turnoutChannel ?? 0;
+
+        if (channel === 0) {
+          return {
+            ...condition,
+            closed: selectedState.first,
+          };
+        }
+
+        if (
+          channel === 1 &&
+          selectedState.second !== undefined
+        ) {
+          return {
+            ...condition,
+            closed: selectedState.second,
+          };
+        }
+
+        return condition;
+      }),
+    }));
+  };
+
+
+  const availableSensorOptionsForRule = (
+    rule: SignalLogicRuleDto,
+    currentConditionId?: string
+  ): SensorOption[] => {
+    const used = new Set(
+      rule.conditions
+        .filter(
+          condition =>
+            condition.type === "sensor" &&
+            condition.id !== currentConditionId
+        )
+        .map(condition =>
+          condition.type === "sensor"
+            ? condition.sensorId
+            : 0
+        )
+    );
+
+    return sensorOptions.filter(
+      option => !used.has(option.id)
+    );
+  };
+
+  const availableTurnoutOptionsForRule = (
+    rule: SignalLogicRuleDto,
+    currentConditionId?: string
+  ): TurnoutLogicalOption[] => {
+    let currentTurnoutId: LayoutElementId | null = null;
+
+    if (currentConditionId) {
+      const current = rule.conditions.find(
+        condition => condition.id === currentConditionId
+      );
+
+      if (current?.type === "turnout") {
+        currentTurnoutId = current.turnoutId;
+      }
+    }
+
+    const used = new Set(
+      rule.conditions
+        .filter(condition => {
+          if (condition.type !== "turnout") {
+            return false;
+          }
+
+          if (
+            currentTurnoutId !== null &&
+            condition.turnoutId === currentTurnoutId
+          ) {
+            return false;
+          }
+
+          return true;
+        })
+        .map(condition =>
+          condition.type === "turnout"
+            ? condition.turnoutId
+            : 0
+        )
+    );
+
+    return turnoutLogicalOptions.filter(
+      option => !used.has(option.id)
+    );
+  };
+
+  const addRule = (): void => {
+    if (!group) {
+      return;
+    }
+
     const firstSensor = sensorOptions[0];
+    const firstTurnout = turnoutLogicalOptions[0];
 
     updateGroup(current => ({
       ...current,
@@ -520,10 +957,10 @@ export default function SignalAutomationDialog({
           id: generateId(),
           stateId:
             targetSignal?.states[0]?.id ?? "",
-          conditions: firstTurnout
-            ? [newTurnoutCondition(firstTurnout)]
-            : firstSensor
-              ? [newSensorCondition(firstSensor)]
+          conditions: firstSensor
+            ? [newSensorCondition(firstSensor)]
+            : firstTurnout
+              ? newLogicalTurnoutConditions(firstTurnout)
               : [],
         },
       ],
@@ -652,7 +1089,7 @@ export default function SignalAutomationDialog({
                   <IconPlus size={14} />
                 }
                 disabled={
-                  group.rules.length >= MAX_RULES
+                  stateOptions(targetSignal).length === 0
                 }
                 onClick={addRule}
               >
@@ -660,12 +1097,19 @@ export default function SignalAutomationDialog({
               </Button>
             </Group>
 
-            <Table
-              striped
-              highlightOnHover
-              withTableBorder
-              withColumnBorders
+            <ScrollArea
+              h="58vh"
+              type="auto"
+              offsetScrollbars
+              scrollbarSize={8}
             >
+              <Box miw={980}>
+                <Table
+                  striped
+                  highlightOnHover
+                  withTableBorder
+                  withColumnBorders
+                >
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th w={72}>
@@ -725,17 +1169,48 @@ export default function SignalAutomationDialog({
                                 condition.type ===
                                 "sensor";
 
+                              const logicalTurnout =
+                                !isSensor
+                                  ? turnoutLogicalOptions.find(
+                                      option =>
+                                        option.id ===
+                                        condition.turnoutId
+                                    )
+                                  : undefined;
+
+
+                              const availableSensors =
+                                availableSensorOptionsForRule(
+                                  rule,
+                                  condition.id
+                                );
+
+                              const availableTurnouts =
+                                availableTurnoutOptionsForRule(
+                                  rule,
+                                  condition.id
+                                );
+
+                              // Multi-motor turnouts are rendered once. Channel 1
+                              // remains in the persisted rule but is edited
+                              // together with channel 0 through the logical state.
+                              if (
+                                !isSensor &&
+                                logicalTurnout &&
+                                logicalTurnout.kind !== "single" &&
+                                (condition.turnoutChannel ?? 0) === 1
+                              ) {
+                                return null;
+                              }
+
                               const conditionValue =
                                 isSensor
                                   ? String(
                                       condition.sensorId
                                     )
-                                  : `${
+                                  : String(
                                       condition.turnoutId
-                                    }:${
-                                      condition.turnoutChannel ??
-                                      0
-                                    }`;
+                                    );
 
                               return (
                                 <Box
@@ -781,34 +1256,96 @@ export default function SignalAutomationDialog({
                                     }
                                     onChange={type => {
                                       if (
-                                        type ===
-                                          "sensor" &&
-                                        sensorOptions[0]
+                                        type === "sensor" &&
+                                        (availableSensors[0] ?? sensorOptions[0])
                                       ) {
-                                        updateCondition(
+                                        const option =
+                                          availableSensors[0] ?? sensorOptions[0]!;
+
+                                        updateRule(
                                           rule.id,
-                                          condition.id,
-                                          () => ({
-                                            ...newSensorCondition(
-                                              sensorOptions[0]!
-                                            ),
-                                            id: condition.id,
-                                          })
+                                          current => {
+                                            const currentIndex =
+                                              current.conditions.findIndex(
+                                                item => item.id === condition.id
+                                              );
+
+                                            const old =
+                                              current.conditions[currentIndex];
+
+                                            if (!old) {
+                                              return current;
+                                            }
+
+                                            const remaining =
+                                              old.type === "turnout"
+                                                ? current.conditions.filter(
+                                                    item =>
+                                                      !(
+                                                        item.type === "turnout" &&
+                                                        item.turnoutId === old.turnoutId
+                                                      )
+                                                  )
+                                                : current.conditions.filter(
+                                                    item => item.id !== condition.id
+                                                  );
+
+                                            const replacement = {
+                                              ...newSensorCondition(option),
+                                              id: condition.id,
+                                            };
+
+                                            const insertAt = Math.max(
+                                              0,
+                                              Math.min(
+                                                currentIndex,
+                                                remaining.length
+                                              )
+                                            );
+
+                                            return {
+                                              ...current,
+                                              conditions: [
+                                                ...remaining.slice(0, insertAt),
+                                                replacement,
+                                                ...remaining.slice(insertAt),
+                                              ],
+                                            };
+                                          }
                                         );
                                       } else if (
-                                        type ===
-                                          "turnout" &&
-                                        turnoutOptions[0]
+                                        type === "turnout" &&
+                                        (availableTurnouts[0] ?? turnoutLogicalOptions[0])
                                       ) {
-                                        updateCondition(
+                                        const option =
+                                          availableTurnouts[0] ?? turnoutLogicalOptions[0]!;
+
+                                        updateRule(
                                           rule.id,
-                                          condition.id,
-                                          () => ({
-                                            ...newTurnoutCondition(
-                                              turnoutOptions[0]!
-                                            ),
-                                            id: condition.id,
-                                          })
+                                          current => {
+                                            const replacement =
+                                              newLogicalTurnoutConditions(
+                                                option
+                                              );
+
+                                            if (replacement[0]) {
+                                              replacement[0] = {
+                                                ...replacement[0],
+                                                id: condition.id,
+                                              };
+                                            }
+
+                                            return {
+                                              ...current,
+                                              conditions:
+                                                current.conditions.flatMap(
+                                                  item =>
+                                                    item.id === condition.id
+                                                      ? replacement
+                                                      : [item]
+                                                ),
+                                            };
+                                          }
                                         );
                                       }
                                     }}
@@ -819,7 +1356,7 @@ export default function SignalAutomationDialog({
                                     data={
                                       isSensor
                                         ? sensorOptions
-                                        : turnoutOptions
+                                        : turnoutLogicalOptions
                                     }
                                     value={
                                       conditionValue
@@ -858,29 +1395,17 @@ export default function SignalAutomationDialog({
                                         }
                                       } else {
                                         const option =
-                                          turnoutOptions.find(
+                                          turnoutLogicalOptions.find(
                                             item =>
                                               item.value ===
                                               value
                                           );
 
                                         if (option) {
-                                          updateCondition(
+                                          replaceTurnoutConditionGroup(
                                             rule.id,
                                             condition.id,
-                                            current =>
-                                              current.type ===
-                                              "turnout"
-                                                ? {
-                                                    ...current,
-                                                    turnoutId:
-                                                      option.id,
-                                                    turnoutChannel:
-                                                      option.channel,
-                                                    turnoutAddress:
-                                                      option.address,
-                                                  }
-                                                : current
+                                            option
                                           );
                                         }
                                       }
@@ -893,65 +1418,64 @@ export default function SignalAutomationDialog({
                                       isSensor
                                         ? [
                                             {
-                                              value:
-                                                "1",
-                                              label:
-                                                "Active",
+                                              value: "1",
+                                              label: "Active",
                                             },
                                             {
-                                              value:
-                                                "0",
-                                              label:
-                                                "Inactive",
+                                              value: "0",
+                                              label: "Inactive",
                                             },
                                           ]
-                                        : [
-                                            {
-                                              value:
-                                                "1",
-                                              label:
-                                                "Closed",
-                                            },
-                                            {
-                                              value:
-                                                "0",
-                                              label:
-                                                "Thrown",
-                                            },
-                                          ]
+                                        : (
+                                            logicalTurnout?.states.map(
+                                              state => ({
+                                                value: state.value,
+                                                label: state.label,
+                                              })
+                                            ) ?? []
+                                          )
                                     }
                                     value={
-                                      (
-                                        isSensor
-                                          ? condition.active
-                                          : condition.closed
-                                      )
-                                        ? "1"
-                                        : "0"
+                                      isSensor
+                                        ? (condition.active ? "1" : "0")
+                                        : (
+                                            logicalTurnout
+                                              ? logicalStateValue(
+                                                  logicalTurnout,
+                                                  rule.conditions
+                                                )
+                                              : ""
+                                          )
                                     }
-                                    onChange={value =>
-                                      updateCondition(
-                                        rule.id,
-                                        condition.id,
-                                        current => {
-                                          const active =
-                                            value ===
-                                            "1";
+                                    onChange={value => {
+                                      if (value === null) {
+                                        return;
+                                      }
 
-                                          return current.type ===
-                                            "sensor"
-                                            ? {
-                                                ...current,
-                                                active,
-                                              }
-                                            : {
-                                                ...current,
-                                                closed:
-                                                  active,
-                                              };
-                                        }
-                                      )
-                                    }
+                                      if (isSensor) {
+                                        updateCondition(
+                                          rule.id,
+                                          condition.id,
+                                          current =>
+                                            current.type === "sensor"
+                                              ? {
+                                                  ...current,
+                                                  active: value === "1",
+                                                }
+                                              : current
+                                        );
+                                        return;
+                                      }
+
+                                      if (logicalTurnout) {
+                                        updateLogicalTurnoutState(
+                                          rule.id,
+                                          condition.id,
+                                          logicalTurnout,
+                                          value
+                                        );
+                                      }
+                                    }}
                                   />
 
                                   <ActionIcon
@@ -967,8 +1491,14 @@ export default function SignalAutomationDialog({
                                           conditions:
                                             current.conditions.filter(
                                               item =>
-                                                item.id !==
-                                                condition.id
+                                                item.id !== condition.id &&
+                                                !(
+                                                  condition.type === "turnout" &&
+                                                  logicalTurnout &&
+                                                  logicalTurnout.kind !== "single" &&
+                                                  item.type === "turnout" &&
+                                                  item.turnoutId === condition.turnoutId
+                                                )
                                             ),
                                         })
                                       )
@@ -992,30 +1522,51 @@ export default function SignalAutomationDialog({
                               />
                             }
                             disabled={
-                              rule.conditions
-                                .length >=
-                                MAX_CONDITIONS ||
-                              (turnoutOptions.length ===
-                                0 &&
-                                sensorOptions.length ===
-                                  0)
+                              sensorOptions.length === 0 &&
+                              turnoutLogicalOptions.length === 0
                             }
                             onClick={() =>
                               updateRule(
                                 rule.id,
-                                current => ({
-                                  ...current,
-                                  conditions: [
-                                    ...current.conditions,
-                                    turnoutOptions[0]
-                                      ? newTurnoutCondition(
-                                          turnoutOptions[0]
-                                        )
-                                      : newSensorCondition(
-                                          sensorOptions[0]!
+                                current => {
+                                  const nextSensor =
+                                    availableSensorOptionsForRule(
+                                      current
+                                    )[0] ??
+                                    sensorOptions[0];
+
+                                  if (nextSensor) {
+                                    return {
+                                      ...current,
+                                      conditions: [
+                                        ...current.conditions,
+                                        newSensorCondition(
+                                          nextSensor
                                         ),
-                                  ],
-                                })
+                                      ],
+                                    };
+                                  }
+
+                                  const nextTurnout =
+                                    availableTurnoutOptionsForRule(
+                                      current
+                                    )[0] ??
+                                    turnoutLogicalOptions[0];
+
+                                  if (nextTurnout) {
+                                    return {
+                                      ...current,
+                                      conditions: [
+                                        ...current.conditions,
+                                        ...newLogicalTurnoutConditions(
+                                          nextTurnout
+                                        ),
+                                      ],
+                                    };
+                                  }
+
+                                  return current;
+                                }
                               )
                             }
                           >
@@ -1051,8 +1602,10 @@ export default function SignalAutomationDialog({
                     </Table.Tr>
                   )
                 )}
-              </Table.Tbody>
-            </Table>
+                  </Table.Tbody>
+                </Table>
+              </Box>
+            </ScrollArea>
           </>
         )}
       </Stack>
