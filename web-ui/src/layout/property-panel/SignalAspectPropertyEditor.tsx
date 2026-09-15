@@ -2,7 +2,6 @@ import {
   Alert,
   Box,
   Button,
-  Group,
   Paper,
   ScrollArea,
   SimpleGrid,
@@ -45,6 +44,10 @@ import type {
 } from "../../models/editor/elements/PropertyDescriptor";
 
 import {
+  TrackLevelCrossingElement,
+} from "../../models/editor/elements/TrackLevelCrossingElement";
+
+import {
   TrackSignalElement,
 } from "../../models/editor/elements/TrackSignalElement";
 
@@ -65,7 +68,9 @@ function createStatePreview(
   stateIndex: number
 ): TrackSignalElement {
   const preview =
-    new TrackSignalElement(0, 0);
+    signal instanceof TrackLevelCrossingElement
+      ? new TrackLevelCrossingElement(0, 0)
+      : new TrackSignalElement(0, 0);
 
   preview.signalOutput =
     cloneSignalOutputConfiguration(
@@ -81,7 +86,22 @@ function createStatePreview(
       )
     );
 
-  preview.rotation = 90;
+  if (
+    preview instanceof TrackLevelCrossingElement &&
+    signal instanceof TrackLevelCrossingElement
+  ) {
+    preview.barrierType = signal.barrierType;
+    preview.roadColor = signal.roadColor;
+    preview.lightsEnabled = signal.lightsEnabled;
+
+    // The property-panel preview should be deterministic:
+    // Closed shows both red lamps lit, Open shows the centre white lamp.
+    // Runtime blinking is animated on the actual layout canvas.
+    preview.blinkingEnabled = false;
+    preview.rotation = signal.rotation;
+  } else {
+    preview.rotation = 90;
+  }
 
   return preview;
 }

@@ -277,6 +277,7 @@ const PICKER_ITEMS: PickerItem[] = [
   { type: ELEMENT_TYPES.TRACK_CORNER, label: "Corner", preview: new TrackCornerElement(0, 0) },
   { type: ELEMENT_TYPES.TRACK_CURVE, label: "Curve", preview: new TrackCurveElement(0, 0) },
   { type: ELEMENT_TYPES.TRACK_CROSSING, label: "Crossing", preview: new TrackCrossingElement(0, 0) },
+  { type: ELEMENT_TYPES.TRACK_LEVEL_CROSSING, label: "Level crossing", preview: new TrackLevelCrossingElement(0, 0) },
   { type: ELEMENT_TYPES.TRACK_TURNOUT_LEFT, label: "Left turnout", preview: new TrackTurnoutLeftElement(0, 0) },
   { type: ELEMENT_TYPES.TRACK_TURNOUT_RIGHT, label: "Right turnout", preview: new TrackTurnoutRightElement(0, 0) },
   { type: ELEMENT_TYPES.TRACK_TURNOUT_TWO_WAY, label: "Y turnout", preview: new TrackTurnoutTwoWayElement(0, 0) },
@@ -442,6 +443,29 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
   const temperatureCriticalRef = useRef(false);
 
   const invalidate = useCallback(() => setInvalidateCounter(value => value + 1), []);
+
+  // Level-crossing lamps are a visual animation. The canvas normally redraws
+  // only after UI/runtime events, so request a lightweight redraw while at
+  // least one level crossing has blinking enabled.
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const needsBlinkRedraw =
+        layout
+          .getAllElements()
+          .some(
+            element =>
+              element instanceof TrackLevelCrossingElement &&
+              element.lightsEnabled &&
+              element.blinkingEnabled
+          );
+
+      if (needsBlinkRedraw) {
+        invalidate();
+      }
+    }, 225);
+
+    return () => window.clearInterval(timer);
+  }, [layout, invalidate]);
 
   const setBusy = useCallback((busy: boolean, text?: string) => {
     setCanvasBusy(busy);

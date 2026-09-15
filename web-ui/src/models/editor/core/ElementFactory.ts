@@ -35,7 +35,7 @@ export class ElementFactory {
         return TrackStraightElement.fromJSON(data);
 
       case ELEMENT_TYPES.TRACK_LEVEL_CROSSING:
-        return TrackLevelCrossingElement.fromJSON(data);
+        return TrackLevelCrossingElement.fromLevelCrossingJSON(data);
 
       case ELEMENT_TYPES.TRACK_DIRECTION:
         return TrackDirectionElement.fromJSON(data);

@@ -157,16 +157,60 @@ function isSignal(
   );
 
   return (
+    type === "tracksignal" ||
     type === "tracksignal2" ||
     type === "tracksignal3" ||
-    type === "tracksignal4"
+    type === "tracksignal4" ||
+    type === "tracklevelcrossing"
   );
 }
 
 function isSensor(
   element: SerializedLayoutElementDto
 ): boolean {
-  return element.type === "tracksensor";
+  const type = String(
+    element.type ?? ""
+  );
+
+  const address = Math.trunc(
+    Number(element.address ?? 0)
+  );
+
+  if (
+    !Number.isInteger(address) ||
+    address <= 0 ||
+    type === "trackblock"
+  ) {
+    return false;
+  }
+
+  // Dedicated TrackSensorElement and ordinary TrackElement subclasses use
+  // `address` as their digital occupancy/sensor input.
+  //
+  // Legacy layouts could use the same `address` field as a turnout/signal
+  // OUTPUT fallback. For those element types only accept `address` as an
+  // occupancy sensor when their canonical output address is also present.
+  if (isTurnout(element)) {
+    return (
+      Number(element.turnoutAddress ?? 0) > 0 ||
+      Number(element.turnout1Address ?? 0) > 0 ||
+      Number(element.turnout2Address ?? 0) > 0
+    );
+  }
+
+  // A level crossing is both a signal-output element and a normal track
+  // element, so its `address` remains an occupancy sensor input. Ordinary
+  // signal elements use `address` as a legacy output alias and must not be
+  // exposed as sensors.
+  if (type === "tracklevelcrossing") {
+    return true;
+  }
+
+  if (isSignal(element)) {
+    return false;
+  }
+
+  return type.startsWith("track");
 }
 
 function numericLayoutId(
@@ -368,6 +412,7 @@ function findSignalByAddress(
     : undefined;
 }
 
+
 function findTurnoutByAddress(
   elements: SerializedLayoutElementDto[],
   address: number
@@ -503,8 +548,11 @@ function normalizeDocumentReferences(
                 condition.sensorAddress
               );
 
-            const matches =
-              elements.filter(
+            // Multiple track shapes may deliberately reference the same
+            // physical occupancy detector. Treat that as one logical sensor
+            // and rebind to the first layout element using the address.
+            const replacement =
+              elements.find(
                 element =>
                   isSensor(element) &&
                   Number(
@@ -512,12 +560,10 @@ function normalizeDocumentReferences(
                   ) === address
               );
 
-            if (
-              matches.length === 1
-            ) {
+            if (replacement) {
               const replacementId =
                 numericLayoutId(
-                  matches[0]
+                  replacement
                 );
 
               if (
@@ -824,6 +870,7 @@ function compileDocument(
     signals,
   };
 }
+
 
 function serializeCompiled(
   document: CompiledDocument
@@ -1333,6 +1380,7 @@ function parseCompiled(
   };
 }
 
+
 function migrateLegacyCompiledCondition(
   condition: LegacyCompiledCondition,
   elements: SerializedLayoutElementDto[]
@@ -1347,8 +1395,8 @@ function migrateLegacyCompiledCondition(
   if (
     source === "sensor"
   ) {
-    const matches =
-      elements.filter(
+    const match =
+      elements.find(
         element =>
           isSensor(element) &&
           Number(
@@ -1356,22 +1404,16 @@ function migrateLegacyCompiledCondition(
           ) === address
       );
 
-    if (
-      matches.length !== 1
-    ) {
+    if (!match) {
       throw new Error(
-        `Legacy sensor address ${address} is ${
-          matches.length === 0
-            ? "missing"
-            : "ambiguous"
-        } in the current layout.`
+        `Legacy sensor address ${address} is missing in the current layout.`
       );
     }
 
     return [
       "sensor",
       requireLayoutId(
-        matches[0],
+        match,
         `Sensor #${address}`
       ),
       0,
@@ -1879,6 +1921,7 @@ function decompileDocument(
     warnings,
   };
 }
+
 
 async function readCompiledRaw(): Promise<
   ParsedCompiledDocument | null

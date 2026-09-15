@@ -30,7 +30,8 @@ import {
   isTurnoutElement,
   type LayoutView,
 } from "@/models/editor/core/LayoutView";
-import { TrackSensorElement } from "../models/editor/elements/TrackSensorElement";
+import { TrackElement } from "../models/editor/core/TrackElement";
+import { TrackLevelCrossingElement } from "../models/editor/elements/TrackLevelCrossingElement";
 import { TrackSignalElement } from "../models/editor/elements/TrackSignalElement";
 import TrackTurnoutDoubleElement from "../models/editor/elements/TrackTurnoutDoubleElement";
 import type { LayoutElementId } from "@domain/layout/layoutDto";
@@ -143,7 +144,11 @@ export default function SignalAutomationDialog({
         )
         .map(signal => ({
           value: String(signal.id),
-          label: `Signal #${signal.signalOutput.address}${
+          label: `${
+            signal instanceof TrackLevelCrossingElement
+              ? "Level crossing"
+              : "Signal"
+          } #${signal.signalOutput.address}${
             signal.name && signal.name !== "element"
               ? ` · ${signal.name}`
               : ""
@@ -156,7 +161,7 @@ export default function SignalAutomationDialog({
           })),
         }))
         .sort((a, b) => a.address - b.address),
-    [layout]
+    [layout, opened]
   );
 
   const turnoutOptions = useMemo<TurnoutOption[]>(() => {
@@ -210,30 +215,45 @@ export default function SignalAutomationDialog({
     }
 
     return result.sort((a, b) => a.address - b.address);
-  }, [layout]);
+  }, [layout, opened]);
 
-  const sensorOptions = useMemo<SensorOption[]>(
-    () =>
-      layout
-        .getAllElements()
-        .filter(
-          (element): element is TrackSensorElement =>
-            element instanceof TrackSensorElement &&
-            element.address > 0
-        )
-        .map(sensor => ({
-          value: String(sensor.id),
-          label: `Sensor #${sensor.address}${
-            sensor.name && sensor.name !== "element"
-              ? ` · ${sensor.name}`
-              : ""
-          }`,
-          id: sensor.id,
-          address: sensor.address,
-        }))
-        .sort((a, b) => a.address - b.address),
-    [layout]
-  );
+  const sensorOptions = useMemo<SensorOption[]>(() => {
+    // Every TrackElement.address is a digital occupancy/sensor input.
+    // A dedicated TrackSensorElement is only a different visual representation
+    // of exactly the same kind of ON/OFF input.  Keep one canonical option per
+    // physical address so repeated use of the same occupancy detector on
+    // several track shapes does not create ambiguous automation entries.
+    const byAddress = new Map<number, SensorOption>();
+
+    for (const element of layout.getAllElements()) {
+      if (
+        !(element instanceof TrackElement) ||
+        (
+          element instanceof TrackSignalElement &&
+          !(element instanceof TrackLevelCrossingElement)
+        ) ||
+        !Number.isInteger(element.address) ||
+        element.address <= 0 ||
+        byAddress.has(element.address)
+      ) {
+        continue;
+      }
+
+      byAddress.set(element.address, {
+        value: String(element.id),
+        label: `Sensor #${element.address}${
+          element.name && element.name !== "element"
+            ? ` · ${element.name}`
+            : ""
+        }`,
+        id: element.id,
+        address: element.address,
+      });
+    }
+
+    return Array.from(byAddress.values())
+      .sort((a, b) => a.address - b.address);
+  }, [layout, opened]);
 
   const targetSignal = useMemo(
     () => signalOptions.find(signal => signal.id === signalId),

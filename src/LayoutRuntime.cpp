@@ -257,7 +257,8 @@ bool LayoutRuntime::isSignalType(const char* type) {
   return strcmp(type, "tracksignal") == 0 ||
          strcmp(type, "tracksignal2") == 0 ||
          strcmp(type, "tracksignal3") == 0 ||
-         strcmp(type, "tracksignal4") == 0;
+         strcmp(type, "tracksignal4") == 0 ||
+         strcmp(type, "tracklevelcrossing") == 0;
 }
 
 void LayoutRuntime::notify(
@@ -278,6 +279,63 @@ void LayoutRuntime::notify(
 void LayoutRuntime::addElement(JsonObjectConst element) {
   const char* type = element["type"] | "";
   const uint16_t id = readElementId(element);
+
+  // A sensor is a sensor in runtime: every normal TrackElement.address is a
+  // digital ON/OFF occupancy input, and TrackSensorElement uses the same field.
+  //
+  // The old layout format also used "address" as a fallback turnout/signal
+  // output address. Do not misclassify those legacy output addresses as
+  // occupancy inputs unless the canonical turnout/signal output field exists.
+  const uint16_t elementAddress =
+      element["address"] | 0;
+
+  bool addressIsSensor = false;
+
+  if (
+      strcmp(type, "trackstraight") == 0 ||
+      strcmp(type, "trackdirection") == 0 ||
+      strcmp(type, "trackend") == 0 ||
+      strcmp(type, "trackcorner") == 0 ||
+      strcmp(type, "trackcurve") == 0 ||
+      strcmp(type, "trackcrossing") == 0 ||
+      strcmp(type, "tracklevelcrossing") == 0 ||
+      strcmp(type, "tracksensor") == 0
+  ) {
+    addressIsSensor = true;
+  } else if (isTurnoutType(type)) {
+    const bool isDualMotorTurnout =
+        strcmp(type, "trackturnoutdouble") == 0 ||
+        strcmp(type, "trackturnouttreeway") == 0;
+
+    if (isDualMotorTurnout) {
+      addressIsSensor =
+          (element["turnout1Address"] | 0) > 0 ||
+          (element["turnout2Address"] | 0) > 0;
+    } else {
+      addressIsSensor =
+          (element["turnoutAddress"] | 0) > 0;
+    }
+  } else if (isSignalType(type)) {
+    // Ordinary signal `address` is a legacy output alias, not an occupancy
+    // input. tracklevelcrossing is handled above because its TrackElement
+    // address intentionally remains an occupancy sensor.
+    addressIsSensor = false;
+  }
+
+  if (
+      id &&
+      addressIsSensor &&
+      elementAddress > 0 &&
+      findSensor(elementAddress) == nullptr
+  ) {
+    RuntimeSensor sensor;
+    sensor.id = id;
+    sensor.address = elementAddress;
+    sensor.on = false;
+
+    _sensors.push_back(
+        std::move(sensor));
+  }
 
   if (strcmp(type, "trackblock") == 0) {
     if (!id) return;
@@ -353,14 +411,23 @@ void LayoutRuntime::addElement(JsonObjectConst element) {
     uint16_t address =
         signalOutput["address"] | 0;
 
-    if (!address) {
+    const bool isLevelCrossing =
+        strcmp(type, "tracklevelcrossing") == 0;
+
+    if (!address && isLevelCrossing) {
+      address =
+          element["basicAccessoryAddress"] | 0;
+    }
+
+    if (!address && !isLevelCrossing) {
       address = element["address"] | 0;
     }
 
     if (!address) return;
 
     const char* protocol =
-        signalOutput["protocol"] | "dccext";
+        signalOutput["protocol"] |
+        (isLevelCrossing ? "dcc" : "dccext");
 
     RuntimeAccessory item;
     item.id = id;
@@ -408,18 +475,10 @@ void LayoutRuntime::addElement(JsonObjectConst element) {
     return;
   }
 
+  // Dedicated TrackSensorElement was already registered above together with
+  // every other occupancy-bearing track element.
   if (strcmp(type, "tracksensor") == 0) {
-    const uint16_t address =
-        element["address"] | 0;
-
-    if (!address) return;
-
-    RuntimeSensor sensor;
-    sensor.id = id;
-    sensor.address = address;
-    sensor.on = false;
-
-    _sensors.push_back(std::move(sensor));
+    return;
   }
 }
 
@@ -465,6 +524,7 @@ bool LayoutRuntime::rebuildFromLayout(
   element["turnout1ClosedValue"] = true;
   element["turnout2ClosedValue"] = true;
   element["outputMode"] = true;
+  element["basicAccessoryAddress"] = true;
   element["signalOutput"]["address"] = true;
   element["signalOutput"]["protocol"] = true;
   element["signalOutput"]["outputCount"] = true;
