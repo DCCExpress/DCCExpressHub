@@ -2167,16 +2167,7 @@ void WsProtocol::handleMessage(
             "emergencyStop") ==
         0)
     {
-        if (
-            _commandCenter
-                .emergencyStop())
-        {
-            _emergencyStop =
-                true;
-
-            broadcastPowerInfo();
-        }
-        else
+        if (!triggerEmergencyStop())
         {
             sendCommandFailure(
                 "emergencyStop");
