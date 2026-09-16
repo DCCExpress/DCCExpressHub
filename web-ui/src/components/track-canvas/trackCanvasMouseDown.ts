@@ -67,6 +67,10 @@ import {
   getAllLayoutElements,
 } from "./trackCanvasSelection";
 
+import type {
+  MultiMotorTurnout,
+} from "./trackCanvasDoubleTurnoutPopoverState";
+
 type MouseDownRef<T> = {
   current: T;
 };
@@ -104,12 +108,12 @@ export type TrackCanvasMouseDownContext = {
   ) => void;
   closeSignalAspectPopover: () => void;
   openDoubleTurnoutPopover: (
-    turnout: TrackTurnoutDoubleElement,
+    turnout: MultiMotorTurnout,
     clientX: number,
     clientY: number
   ) => void;
   reopenDoubleTurnoutPopover: (
-    turnout: TrackTurnoutDoubleElement,
+    turnout: MultiMotorTurnout,
     clientX: number,
     clientY: number
   ) => void;
@@ -265,20 +269,17 @@ export function handleTrackCanvasMouseDown(
       return;
     }
 
-    if (hitElement instanceof TrackTurnoutDoubleElement) {
+    if (
+      hitElement instanceof TrackTurnoutDoubleElement ||
+      hitElement instanceof TrackTurnoutThreeWayElement
+    ) {
       if (signalAspectPopoverRef.current.opened) {
         closeSignalAspectPopover();
       }
 
       /*
-       * Anchor the popup to the ACTUAL SCREEN CENTER of the Double turnout,
-       * not to the exact mouse-down X coordinate.
-       *
-       * drawScene renders world coordinates as:
-       *   screen = canvasRect + view.offset + world * view.scale
-       *
-       * getBounds() is expressed in grid cells, so convert its center to world
-       * pixels using the layout grid size first.
+       * Anchor the popup to the actual screen center of the turnout,
+       * instead of the exact mouse-down X coordinate.
        */
       const turnoutBounds =
         hitElement.getBounds();

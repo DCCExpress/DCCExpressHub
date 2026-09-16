@@ -30,6 +30,10 @@ import type {
 import type TrackTurnoutDoubleElement from "../../models/editor/elements/TrackTurnoutDoubleElement";
 
 import type {
+  TrackTurnoutThreeWayElement,
+} from "../../models/editor/elements/TrackTurnoutThreeWayElement";
+
+import type {
   EditorTool,
 } from "../../models/editor/types/EditorTypes";
 
@@ -137,7 +141,10 @@ export type DoubleTurnoutPopoverState = {
   opened: boolean;
   x: number;
   y: number;
-  turnout: TrackTurnoutDoubleElement | null;
+  turnout:
+    | TrackTurnoutDoubleElement
+    | TrackTurnoutThreeWayElement
+    | null;
 };
 
 export type AudioListPopoverState = {

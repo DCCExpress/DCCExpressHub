@@ -113,6 +113,9 @@ export default function SignalAspectPropertyEditor({
   const signal =
     selectedElement as TrackSignalElement;
 
+  const isLevelCrossing =
+    signal instanceof TrackLevelCrossingElement;
+
   const [opened, setOpened] =
     useState(false);
 
@@ -231,7 +234,9 @@ export default function SignalAspectPropertyEditor({
           }
           onClick={() => setOpened(true)}
         >
-          Signal configuration
+          {isLevelCrossing
+            ? "Level crossing configuration"
+            : "Signal configuration"}
         </Button>
 
         <Button
@@ -243,7 +248,9 @@ export default function SignalAspectPropertyEditor({
           loading={automationLoading}
           onClick={() => void openAutomation()}
         >
-          Signal automation
+          {isLevelCrossing
+            ? "Level crossing automation"
+            : "Signal automation"}
         </Button>
 
         {automationError && (
@@ -347,7 +354,9 @@ export default function SignalAspectPropertyEditor({
 
         {signal.signalOutput.states.length === 0 && (
           <Text size="xs" c="dimmed">
-            No signal aspects configured.
+            {isLevelCrossing
+              ? "No level crossing aspects configured."
+              : "No signal aspects configured."}
           </Text>
         )}
       </Stack>

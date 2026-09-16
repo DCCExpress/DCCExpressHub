@@ -3,6 +3,10 @@ import {
 } from "../../models/editor/elements/TrackSignalElement";
 
 import {
+  TrackLevelCrossingElement,
+} from "../../models/editor/elements/TrackLevelCrossingElement";
+
+import {
   cloneSignalOutputConfiguration,
 } from "@/domain/layout/signalOutput";
 
@@ -15,7 +19,9 @@ export function createSignalAspectPreviews(
   return signal.signalOutput.states.map(
     (_, stateIndex) => {
       const preview =
-        new TrackSignalElement(0, 0);
+        signal instanceof TrackLevelCrossingElement
+          ? new TrackLevelCrossingElement(0, 0)
+          : new TrackSignalElement(0, 0);
 
       preview.signalOutput =
         cloneSignalOutputConfiguration(
@@ -24,6 +30,21 @@ export function createSignalAspectPreviews(
 
       preview.currentStateIndex =
         stateIndex;
+
+      if (
+        preview instanceof TrackLevelCrossingElement &&
+        signal instanceof TrackLevelCrossingElement
+      ) {
+        preview.barrierType =
+          signal.barrierType;
+        preview.roadColor =
+          signal.roadColor;
+        preview.lightsEnabled =
+          signal.lightsEnabled;
+
+        // Keep popup previews stable instead of blinking independently.
+        preview.blinkingEnabled = false;
+      }
 
       return preview;
     }

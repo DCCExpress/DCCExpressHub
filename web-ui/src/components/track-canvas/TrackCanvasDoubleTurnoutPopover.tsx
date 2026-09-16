@@ -8,6 +8,10 @@ import {
 import ElementPreview from "../../models/editor/rendering/ElementPreviewRenderer";
 import TrackTurnoutDoubleElement from "../../models/editor/elements/TrackTurnoutDoubleElement";
 import {
+  TrackTurnoutThreeWayElement,
+  type ThreeWayTurnoutPosition,
+} from "../../models/editor/elements/TrackTurnoutThreeWayElement";
+import {
   getDoubleTurnoutAspect,
 } from "../../models/editor/turnout/turnoutAccessoryHelpers";
 import {
@@ -49,6 +53,24 @@ const DOUBLE_TURNOUT_POSITIONS: DoubleTurnoutPosition[] = [
     label: "C-C",
     firstClosed: true,
     secondClosed: true,
+  },
+];
+
+const THREE_WAY_POSITIONS: Array<{
+  label: string;
+  position: Exclude<ThreeWayTurnoutPosition, "invalid">;
+}> = [
+  {
+    label: "Left",
+    position: "left",
+  },
+  {
+    label: "Straight",
+    position: "straight",
+  },
+  {
+    label: "Right",
+    position: "right",
   },
 ];
 
@@ -216,6 +238,42 @@ function setDoubleTurnoutPosition(
   );
 }
 
+function copyThreeWayConfiguration(
+  source: TrackTurnoutThreeWayElement,
+  target: TrackTurnoutThreeWayElement
+): void {
+  target.rotation = source.rotation;
+  target.outputMode = source.outputMode;
+  target.turnout1Address = source.turnout1Address;
+  target.turnout2Address = source.turnout2Address;
+  target.turnout1ClosedValue = source.turnout1ClosedValue;
+  target.turnout2ClosedValue = source.turnout2ClosedValue;
+
+  target.leftMotor1Value = source.leftMotor1Value;
+  target.leftMotor2Value = source.leftMotor2Value;
+  target.straightMotor1Value = source.straightMotor1Value;
+  target.straightMotor2Value = source.straightMotor2Value;
+  target.rightMotor1Value = source.rightMotor1Value;
+  target.rightMotor2Value = source.rightMotor2Value;
+}
+
+function createThreeWayTurnoutPreview(
+  selectedElement: TrackTurnoutThreeWayElement,
+  position: Exclude<ThreeWayTurnoutPosition, "invalid">
+): TrackTurnoutThreeWayElement {
+  const turnout =
+    new TrackTurnoutThreeWayElement(0, 0);
+
+  copyThreeWayConfiguration(
+    selectedElement,
+    turnout
+  );
+
+  turnout.setLogicalPosition(position);
+
+  return turnout;
+}
+
 function isMobileLikePointer(): boolean {
   if (typeof window === "undefined") {
     return false;
@@ -279,14 +337,6 @@ function getPanelPosition(
       ? window.innerHeight
       : 768;
 
-  /*
-   * X is the horizontal anchor only.
-   *
-   * Do NOT guess the popup width here. Mantine Paper gets its real width from
-   * the rendered content, so hardcoding 210px can never guarantee exact
-   * centering. The Paper uses translateX(-50%) below, which centers it using
-   * its ACTUAL rendered width.
-   */
   const left = x;
 
   let top =
@@ -392,51 +442,88 @@ export function TrackCanvasDoubleTurnoutPopover({
             gap={4}
             wrap="nowrap"
           >
-            {DOUBLE_TURNOUT_POSITIONS.map(
-              turnoutPosition => (
-                <Box
-                  key={
-                    turnoutPosition.label
-                  }
-                  className="signal-aspect-button"
-                  style={{
-                    cursor: "pointer",
-                    touchAction:
-                      "manipulation",
-                  }}
-                  onPointerDown={
-                    event => {
-                      event.stopPropagation();
-                    }
-                  }
-                  onClick={() => {
-                    setDoubleTurnoutPosition(
-                      turnout,
-                      turnoutPosition
-                    );
+            {turnout instanceof TrackTurnoutThreeWayElement
+              ? THREE_WAY_POSITIONS.map(
+                  turnoutPosition => (
+                    <Box
+                      key={turnoutPosition.position}
+                      className="signal-aspect-button"
+                      style={{
+                        cursor: "pointer",
+                        touchAction: "manipulation",
+                      }}
+                      onPointerDown={event => {
+                        event.stopPropagation();
+                      }}
+                      onClick={() => {
+                        turnout.setPositionAndSend(
+                          turnoutPosition.position
+                        );
+                        onClose();
+                      }}
+                    >
+                      <ElementPreview
+                        style={{
+                          cursor: "pointer",
+                        }}
+                        element={
+                          createThreeWayTurnoutPreview(
+                            turnout,
+                            turnoutPosition.position
+                          )
+                        }
+                        label={turnoutPosition.label}
+                        width={48}
+                        height={40}
+                      />
+                    </Box>
+                  )
+                )
+              : DOUBLE_TURNOUT_POSITIONS.map(
+                  turnoutPosition => (
+                    <Box
+                      key={
+                        turnoutPosition.label
+                      }
+                      className="signal-aspect-button"
+                      style={{
+                        cursor: "pointer",
+                        touchAction:
+                          "manipulation",
+                      }}
+                      onPointerDown={
+                        event => {
+                          event.stopPropagation();
+                        }
+                      }
+                      onClick={() => {
+                        setDoubleTurnoutPosition(
+                          turnout,
+                          turnoutPosition
+                        );
 
-                    onClose();
-                  }}
-                >
-                  <ElementPreview
-                    style={{
-                      cursor: "pointer",
-                    }}
-                    element={
-                      createDoubleTurnoutPreview(
-                        turnout,
-                        turnoutPosition
-                      )
-                    }
-                    label={
-                      turnoutPosition.label
-                    }
-                    width={40}
-                    height={40}
-                  />
-                </Box>
-              )
-            )}
+                        onClose();
+                      }}
+                    >
+                      <ElementPreview
+                        style={{
+                          cursor: "pointer",
+                        }}
+                        element={
+                          createDoubleTurnoutPreview(
+                            turnout,
+                            turnoutPosition
+                          )
+                        }
+                        label={
+                          turnoutPosition.label
+                        }
+                        width={40}
+                        height={40}
+                      />
+                    </Box>
+                  )
+                )}
           </Group>
         </Stack>
       </Paper>

@@ -78,6 +78,7 @@ function optionalUserElementName(
 type SignalOption = Option & {
   id: LayoutElementId;
   address: number;
+  kind: "signal" | "level-crossing";
   states: NonNullable<SignalLogicKnownSignal["states"]>;
 };
 
@@ -271,6 +272,10 @@ export default function SignalAutomationDialog({
           }`,
           id: signal.id,
           address: signal.signalOutput.address,
+          kind:
+            signal instanceof TrackLevelCrossingElement
+              ? ("level-crossing" as const)
+              : ("signal" as const),
           states: signal.signalOutput.states.map(state => ({
             id: state.id,
             label: state.label,
@@ -694,7 +699,11 @@ export default function SignalAutomationDialog({
         setGroup(savedGroup);
       }
 
-      setMessage("Signal automation saved.");
+      setMessage(
+        targetSignal?.kind === "level-crossing"
+          ? "Level crossing automation saved."
+          : "Signal automation saved."
+      );
     } catch (saveError) {
       setError(
         saveError instanceof Error
@@ -973,7 +982,11 @@ export default function SignalAutomationDialog({
       onClose={onClose}
       title={
         targetSignal
-          ? `Signal automation · ${targetSignal.label}`
+          ? `${
+              targetSignal.kind === "level-crossing"
+                ? "Level crossing automation"
+                : "Signal automation"
+            } · ${targetSignal.label}`
           : "Signal automation"
       }
       size={1050}
