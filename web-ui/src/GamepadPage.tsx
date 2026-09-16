@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import i18next from "i18next";
 import {
   ActionIcon,
   Badge,
@@ -55,13 +57,12 @@ const DEADZONE = 0.08;
 const AXIS_LOG_DELTA = 0.2;
 const MAX_LOGS = 120;
 
-const ACTION_SELECT_DATA =
-  GAMEPAD_ACTION_OPTIONS.map(option => ({
+export default function GamepadPage({ onBack }: Props) {
+  useTranslation();
+  const actionSelectData = GAMEPAD_ACTION_OPTIONS.map(option => ({
     value: option.value,
     label: option.label,
   }));
-
-export default function GamepadPage({ onBack }: Props) {
   const {
     gamepads,
     selectedGamepadIndex,
@@ -114,13 +115,13 @@ export default function GamepadPage({ onBack }: Props) {
   useEffect(() => {
     const connected = (event: GamepadEvent) => {
       addLog(
-        `CONNECTED #${event.gamepad.index}: ${event.gamepad.id}`
+        i18next.t("ui.connected", { value1: event.gamepad.index, value2: event.gamepad.id })
       );
     };
 
     const disconnected = (event: GamepadEvent) => {
       addLog(
-        `DISCONNECTED #${event.gamepad.index}: ${event.gamepad.id}`
+        i18next.t("ui.disconnected", { value1: event.gamepad.index, value2: event.gamepad.id })
       );
 
       if (event.gamepad.index === selectedGamepadIndex) {
@@ -183,7 +184,7 @@ export default function GamepadPage({ onBack }: Props) {
         previous.index !== next.index
       ) {
         addLog(
-          `ACTIVE #${next.index}: ${next.id}`
+          i18next.t("ui.active2", { value1: next.index, value2: next.id })
         );
       } else {
         /* GOMBOK */
@@ -227,7 +228,7 @@ export default function GamepadPage({ onBack }: Props) {
               changedEnough
             ) {
               addLog(
-                `AXIS ${index}: ${value.toFixed(3)}`
+                i18next.t("ui.axis", { value1: index, value2: value.toFixed(3) })
               );
             }
           }
@@ -310,16 +311,12 @@ export default function GamepadPage({ onBack }: Props) {
           </ActionIcon>
 
           <div>
-            <Title order={3}>
-              Gamepad diagnostics
-            </Title>
+            <Title order={3}> {i18next.t("ui.gamepadDiagnostics")} </Title>
 
             <Text
               size="sm"
               c="dimmed"
-            >
-              Bluetooth / USB controller
-            </Text>
+            > {i18next.t("ui.bluetoothUsbController")} </Text>
           </div>
         </Group>
 
@@ -330,8 +327,8 @@ export default function GamepadPage({ onBack }: Props) {
           }
         >
           {gamepad
-            ? "Connected"
-            : "Waiting"}
+            ? i18next.t("ui.connected2")
+            : i18next.t("ui.waiting")}
         </Badge>
       </Group>
 
@@ -346,9 +343,9 @@ export default function GamepadPage({ onBack }: Props) {
         {gamepadSupported && (
           <Select
             mb="md"
-            label="Active controller"
-            description="Only this controller can operate the locomotive on this device."
-            placeholder="No controller detected"
+            label={i18next.t("ui.activeController")}
+            description={i18next.t("ui.onlyThisControllerCanOperateTheLocomotiveOnThisDevice")}
+            placeholder={i18next.t("ui.noControllerDetected")}
             data={gamepadSelectData}
             value={
               selectedGamepadIndex === null
@@ -366,10 +363,7 @@ export default function GamepadPage({ onBack }: Props) {
         )}
 
         {!gamepadSupported ? (
-          <Text c="red">
-            Gamepad API is not supported
-            by this browser.
-          </Text>
+          <Text c="red"> {i18next.t("ui.gamepadApiIsNotSupportedByThisBrowser")} </Text>
         ) : (
           <Group
             gap="md"
@@ -389,7 +383,7 @@ export default function GamepadPage({ onBack }: Props) {
                 lineClamp={2}
               >
                 {gamepad?.id ??
-                  "No controller detected"}
+                  i18next.t("ui.noControllerDetected")}
               </Text>
 
               <Text
@@ -397,8 +391,8 @@ export default function GamepadPage({ onBack }: Props) {
                 c="dimmed"
               >
                 {gamepad
-                  ? `Index ${gamepad.index} · ${gamepad.axes.length} axes · ${gamepad.buttons.length} buttons · mapping: ${gamepad.mapping}`
-                  : "Pair the controller and press any gamepad button."}
+                  ? i18next.t("ui.indexAxesButtonsMapping", { value1: gamepad.index, value2: gamepad.axes.length, value3: gamepad.buttons.length, value4: gamepad.mapping })
+                  : i18next.t("ui.pairTheControllerAndPressAnyGamepadButton")}
               </Text>
             </div>
           </Group>
@@ -412,9 +406,7 @@ export default function GamepadPage({ onBack }: Props) {
             <Text
               size="sm"
               fw={700}
-            >
-              Pressed:
-            </Text>
+            > {i18next.t("ui.pressed")} </Text>
 
             {pressedButtons.map(
               ({ index, button }) => (
@@ -443,10 +435,7 @@ export default function GamepadPage({ onBack }: Props) {
               flex: 1,
               minWidth: 0,
             }}
-          >
-            Button assignments are saved in this browser.
-            Each function can belong to one button only.
-          </Text>
+          > {i18next.t("ui.buttonAssignmentsAreSavedInThisBrowserEachFunctionCan")} </Text>
 
           <Button
             size="compact-sm"
@@ -456,12 +445,10 @@ export default function GamepadPage({ onBack }: Props) {
               resetMapping();
 
               addLog(
-                "MAPPING RESET TO DEFAULTS"
+                i18next.t("ui.mappingResetToDefaults")
               );
             }}
-          >
-            Reset to defaults
-          </Button>
+          > {i18next.t("ui.resetToDefaults")} </Button>
         </Group>
 
       </Card>
@@ -485,9 +472,7 @@ export default function GamepadPage({ onBack }: Props) {
           >
             <Stack gap="sm">
 
-              <Title order={4}>
-                Axes
-              </Title>
+              <Title order={4}> {i18next.t("ui.axes")} </Title>
 
               {gamepad.axes.map(
                 (value, index) => (
@@ -500,8 +485,7 @@ export default function GamepadPage({ onBack }: Props) {
                       <Text
                         size="sm"
                         fw={600}
-                      >
-                        Axis {index}
+                      > {i18next.t("ui.axis2")} {index}
                       </Text>
 
                       <Text
@@ -541,14 +525,9 @@ export default function GamepadPage({ onBack }: Props) {
           >
             <Stack gap="sm">
 
-              <Title order={4}>
-                Button assignments
-              </Title>
+              <Title order={4}> {i18next.t("ui.buttonAssignments")} </Title>
 
-              <Text size="xs" c="dimmed">
-                Choose the function for each physical button.
-                Clearing a selection disables that button.
-              </Text>
+              <Text size="xs" c="dimmed"> {i18next.t("ui.chooseTheFunctionForEachPhysicalButtonClearingASelection")} </Text>
 
               <SimpleGrid
                 cols={{
@@ -603,17 +582,17 @@ export default function GamepadPage({ onBack }: Props) {
                             }
                           >
                             {button.pressed
-                              ? "DOWN"
+                              ? i18next.t("ui.down")
                               : button.value.toFixed(2)}
                           </Badge>
                         </Group>
 
                         <Select
                           size="xs"
-                          aria-label={`Button ${index} function`}
-                          placeholder="No function"
+                          aria-label={i18next.t("ui.buttonFunction", { value1: index })}
+                          placeholder={i18next.t("ui.noFunction")}
                           clearable
-                          data={ACTION_SELECT_DATA}
+                          data={actionSelectData}
                           value={
                             actionByButton.get(index) ?? null
                           }
@@ -651,16 +630,12 @@ export default function GamepadPage({ onBack }: Props) {
           <Group justify="space-between">
 
             <div>
-              <Title order={4}>
-                Input log
-              </Title>
+              <Title order={4}> {i18next.t("ui.inputLog")} </Title>
 
               <Text
                 size="xs"
                 c="dimmed"
-              >
-                Button and joystick events
-              </Text>
+              > {i18next.t("ui.buttonAndJoystickEvents")} </Text>
             </div>
 
             <Button
@@ -676,9 +651,7 @@ export default function GamepadPage({ onBack }: Props) {
               onClick={() =>
                 setLogs([])
               }
-            >
-              Clear
-            </Button>
+            > {i18next.t("ui.clear")} </Button>
 
           </Group>
 
@@ -705,7 +678,7 @@ export default function GamepadPage({ onBack }: Props) {
             }}
           >
             {logs.length === 0
-              ? "Waiting for gamepad input…"
+              ? i18next.t("ui.waitingForGamepadInput")
               : logs
                 .map(
                   item =>

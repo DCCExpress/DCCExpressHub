@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import i18next from "i18next";
 import {
   ActionIcon,
   Alert,
@@ -273,24 +275,24 @@ function createSignalPreview(): TrackSignalElement {
 }
 
 const PICKER_ITEMS: PickerItem[] = [
-  { type: ELEMENT_TYPES.TRACK_STRAIGHT, label: "Straight", preview: new TrackStraightElement(0, 0) },
-  { type: ELEMENT_TYPES.TRACK_END, label: "Track end", preview: new TrackEndElement(0, 0) },
-  { type: ELEMENT_TYPES.TRACK_CORNER, label: "Corner", preview: new TrackCornerElement(0, 0) },
-  { type: ELEMENT_TYPES.TRACK_CURVE, label: "Curve", preview: new TrackCurveElement(0, 0) },
-  { type: ELEMENT_TYPES.TRACK_CROSSING, label: "Crossing", preview: new TrackCrossingElement(0, 0) },
-  { type: ELEMENT_TYPES.TRACK_LEVEL_CROSSING, label: "Level crossing", preview: new TrackLevelCrossingElement(0, 0) },
-  { type: ELEMENT_TYPES.TRACK_TURNOUT_LEFT, label: "Left turnout", preview: new TrackTurnoutLeftElement(0, 0) },
-  { type: ELEMENT_TYPES.TRACK_TURNOUT_RIGHT, label: "Right turnout", preview: new TrackTurnoutRightElement(0, 0) },
-  { type: ELEMENT_TYPES.TRACK_TURNOUT_TWO_WAY, label: "Y turnout", preview: new TrackTurnoutTwoWayElement(0, 0) },
-  { type: ELEMENT_TYPES.TRACK_TURNOUT_THREE_WAY, label: "W / three-way turnout", preview: new TrackTurnoutThreeWayElement(0, 0) },
-  { type: ELEMENT_TYPES.TRACK_TURNOUT_DOUBLE, label: "Double turnout", preview: new TrackTurnoutDoubleElement(0, 0) },
-  { type: ELEMENT_TYPES.TRACK_SENSOR, label: "Sensor", preview: new TrackSensorElement(0, 0) },
-  { type: ELEMENT_TYPES.TRACK_BLOCK, label: "Block", preview: new BlockElement(0, 0) },
-  { type: ELEMENT_TYPES.TRACK_SIGNAL2, label: "Signal", preview: createSignalPreview() },
-  { type: ELEMENT_TYPES.BUTTON, label: "Output button", preview: new ButtonElement(0, 0) },
-  { type: ELEMENT_TYPES.BUTTON_ROUTE, label: "Route", preview: new RouteButtonElement(0, 0) },
-  { type: ELEMENT_TYPES.BUTTON_AUDIO, label: "Audio button", preview: new AudioButtonElement(0, 0) },
-  { type: ELEMENT_TYPES.LABEL, label: "Label", preview: new LabelElement(0, 0) },
+  { type: ELEMENT_TYPES.TRACK_STRAIGHT, get label() { return i18next.t("ui.straight"); }, preview: new TrackStraightElement(0, 0) },
+  { type: ELEMENT_TYPES.TRACK_END, get label() { return i18next.t("ui.trackEnd"); }, preview: new TrackEndElement(0, 0) },
+  { type: ELEMENT_TYPES.TRACK_CORNER, get label() { return i18next.t("ui.corner"); }, preview: new TrackCornerElement(0, 0) },
+  { type: ELEMENT_TYPES.TRACK_CURVE, get label() { return i18next.t("ui.curve"); }, preview: new TrackCurveElement(0, 0) },
+  { type: ELEMENT_TYPES.TRACK_CROSSING, get label() { return i18next.t("ui.crossing"); }, preview: new TrackCrossingElement(0, 0) },
+  { type: ELEMENT_TYPES.TRACK_LEVEL_CROSSING, get label() { return i18next.t("ui.levelCrossing"); }, preview: new TrackLevelCrossingElement(0, 0) },
+  { type: ELEMENT_TYPES.TRACK_TURNOUT_LEFT, get label() { return i18next.t("ui.leftTurnout"); }, preview: new TrackTurnoutLeftElement(0, 0) },
+  { type: ELEMENT_TYPES.TRACK_TURNOUT_RIGHT, get label() { return i18next.t("ui.rightTurnout"); }, preview: new TrackTurnoutRightElement(0, 0) },
+  { type: ELEMENT_TYPES.TRACK_TURNOUT_TWO_WAY, get label() { return i18next.t("ui.yTurnout"); }, preview: new TrackTurnoutTwoWayElement(0, 0) },
+  { type: ELEMENT_TYPES.TRACK_TURNOUT_THREE_WAY, get label() { return i18next.t("ui.wThreeWayTurnout"); }, preview: new TrackTurnoutThreeWayElement(0, 0) },
+  { type: ELEMENT_TYPES.TRACK_TURNOUT_DOUBLE, get label() { return i18next.t("ui.doubleTurnout2"); }, preview: new TrackTurnoutDoubleElement(0, 0) },
+  { type: ELEMENT_TYPES.TRACK_SENSOR, get label() { return i18next.t("ui.sensor2"); }, preview: new TrackSensorElement(0, 0) },
+  { type: ELEMENT_TYPES.TRACK_BLOCK, get label() { return i18next.t("ui.block2"); }, preview: new BlockElement(0, 0) },
+  { type: ELEMENT_TYPES.TRACK_SIGNAL2, get label() { return i18next.t("ui.signal2"); }, preview: createSignalPreview() },
+  { type: ELEMENT_TYPES.BUTTON, get label() { return i18next.t("ui.outputButton"); }, preview: new ButtonElement(0, 0) },
+  { type: ELEMENT_TYPES.BUTTON_ROUTE, get label() { return i18next.t("ui.route"); }, preview: new RouteButtonElement(0, 0) },
+  { type: ELEMENT_TYPES.BUTTON_AUDIO, get label() { return i18next.t("ui.audioButton"); }, preview: new AudioButtonElement(0, 0) },
+  { type: ELEMENT_TYPES.LABEL, get label() { return i18next.t("ui.label"); }, preview: new LabelElement(0, 0) },
 ];
 
 const LOCO_WIDTH_KEY = "dcc-express-lite.layout.locoPanelWidth";
@@ -349,13 +351,14 @@ function LitePropertyPanel({
   setBusy: (busy: boolean, text?: string) => void;
   invalidate: () => void;
 }) {
+  useTranslation();
   const properties = useMemo(
     () => selectedElement?.getEditableProperties() ?? [],
-    [selectedElement],
+    [selectedElement, i18next.resolvedLanguage],
   );
 
   if (!selectedElement) {
-    return <VisibilitySettings title="Layout visibility" />;
+    return <VisibilitySettings title={i18next.t("ui.layoutVisibility")} />;
   }
 
   const onChange = (property: IEditableProperty, value: unknown) => {
@@ -413,6 +416,7 @@ function LitePropertyPanel({
 }
 
 export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEditor }: LiteLayoutPageProps) {
+  useTranslation();
   const commandCenter = useCommandCenter();
   const [layout, setLayout] = useState(() => new LayoutView());
   const [automationScripts, setAutomationScripts] = useState<AutomationScriptDefinition[]>([]);
@@ -484,7 +488,7 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
       ]);
 
       if (!layoutResponse.ok) {
-        throw new Error("The layout could not be loaded from the EX-CSB1.");
+        throw new Error(i18next.t("ui.theLayoutCouldNotBeLoadedFromTheExCsb1"));
       }
 
       const prepared = prepareLayoutForLoad(await layoutResponse.json());
@@ -502,7 +506,7 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [i18next.resolvedLanguage, ]);
 
   useEffect(() => {
     void loadLayout();
@@ -538,7 +542,7 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
   useEffect(() => {
     void fetch("/fsinfo", { cache: "no-store" })
       .then(response => {
-        if (!response.ok) throw new Error("Flash information is unavailable.");
+        if (!response.ok) throw new Error(i18next.t("ui.flashInformationIsUnavailable"));
         return response.json() as Promise<FlashInfo>;
       })
       .then(setFlashInfo)
@@ -549,14 +553,14 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
     if (data.message === "track_power_off") {
       showNotification({
         color: "red",
-        title: "Track power is off",
-        message: "Turn POWER ON before operating a turnout.",
+        title: i18next.t("ui.trackPowerIsOff"),
+        message: i18next.t("ui.turnPowerOnBeforeOperatingATurnout"),
       });
     } else if (data.message === "turnout_address_out_of_range") {
       showNotification({
         color: "red",
-        title: "Invalid turnout address",
-        message: "Use a linear DCC accessory address between 1 and 2048.",
+        title: i18next.t("ui.invalidTurnoutAddress"),
+        message: i18next.t("ui.useALinearDccAccessoryAddressBetween1And2048"),
       });
     }
   }), []);
@@ -734,22 +738,22 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
       );
 
       if (!layoutResponse.ok) {
-        throw new Error("The layout could not be saved to the EX-CSB1.");
+        throw new Error(i18next.t("ui.theLayoutCouldNotBeSavedToTheExCsb1"));
       }
 
       await saveAutomationScripts(automationScripts);
 
       showNotification({
         color: "teal",
-        title: "Project saved",
-        message: "Layout and automation scripts were saved to their separate Hub stores.",
+        title: i18next.t("ui.projectSaved"),
+        message: i18next.t("ui.layoutAndAutomationScriptsWereSavedToTheirSeparateHub"),
       });
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : String(saveError));
     } finally {
       setSaving(false);
     }
-  }, [layout, automationScripts]);
+  }, [i18next.resolvedLanguage, layout, automationScripts]);
 
   const exportLayout = useCallback(() => {
     const project = createProjectExport(layout, automationScripts);
@@ -791,7 +795,7 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
         );
 
         if (!layoutResponse.ok) {
-          throw new Error("Imported layout could not be saved to the Hub.");
+          throw new Error(i18next.t("ui.importedLayoutCouldNotBeSavedToTheHub"));
         }
 
         await saveAutomationScripts(imported.automationScripts);
@@ -801,13 +805,13 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
 
         showNotification({
           color: "teal",
-          title: "Project imported",
-          message: `Layout and ${imported.automationScripts.length} automation script(s) were restored.`,
+          title: i18next.t("ui.projectImported"),
+          message: i18next.t("ui.layoutAndAutomationScriptSWereRestored", { value1: imported.automationScripts.length }),
         });
       } catch (importError) {
         const message = importError instanceof Error ? importError.message : String(importError);
         setError(message);
-        showNotification({ color: "red", title: "Import failed", message });
+        showNotification({ color: "red", title: i18next.t("ui.importFailed"), message });
       } finally {
         setSaving(false);
         if (importFileRef.current) {
@@ -815,7 +819,7 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
         }
       }
     },
-    []
+    [i18next.resolvedLanguage, ]
   );
 
   useLayoutPageShortcuts({
@@ -875,10 +879,10 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
       <Card withBorder px={6} py={3} radius="sm" className="lite-layout-toolbar">
         <Group justify="space-between" align="center" wrap="nowrap">
           <Group gap="xs">
-            <ActionIcon variant="subtle" color="gray" onClick={onBack} aria-label="Back" title="Home">
+            <ActionIcon variant="subtle" color="gray" onClick={onBack} aria-label={i18next.t("ui.back")} title={i18next.t("ui.home")}>
               <IconArrowLeft size={20} />
             </ActionIcon>
-            <Title order={3} lh={1}>Layout Panel</Title>
+            <Title order={3} lh={1}>{i18next.t("ui.layoutPanel")}</Title>
             <Badge size="sm" variant="light" color="violet">v{version}</Badge>
           </Group>
 
@@ -886,7 +890,7 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
             <ActionIcon
               variant={editMode ? "filled" : "light"}
               color="violet"
-              title="Edit mode"
+              title={i18next.t("ui.editMode")}
               onClick={() => {
                 setEditMode(value => !value);
                 setTool({ mode: "cursor", elementType: "general" });
@@ -898,37 +902,37 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
 
             {editMode && (
               <>
-                <ActionIcon variant={tool.mode === "cursor" ? "filled" : "light"} onClick={() => setTool({ mode: "cursor", elementType: "general" })} title="Select">
+                <ActionIcon variant={tool.mode === "cursor" ? "filled" : "light"} onClick={() => setTool({ mode: "cursor", elementType: "general" })} title={i18next.t("ui.select")}>
                   <IconPointer size={18} />
                 </ActionIcon>
-                <ActionIcon variant={tool.mode === "draw" ? "filled" : "light"} onClick={() => setPickerOpened(true)} title="Add layout element">
+                <ActionIcon variant={tool.mode === "draw" ? "filled" : "light"} onClick={() => setPickerOpened(true)} title={i18next.t("ui.addLayoutElement")}>
                   <IconPlus size={18} />
                 </ActionIcon>
-                <ActionIcon variant="light" color="red" disabled={!selectedElement} onClick={removeSelected} title="Delete selected">
+                <ActionIcon variant="light" color="red" disabled={!selectedElement} onClick={removeSelected} title={i18next.t("ui.deleteSelected")}>
                   <IconTrash size={18} />
                 </ActionIcon>
               </>
             )}
 
             <Divider orientation="vertical" className="lite-toolbar-divider" />
-            <ActionIcon variant="light" onClick={() => setFitCounter(value => value + 1)} aria-label="Fit layout" title="Fit layout">
+            <ActionIcon variant="light" onClick={() => setFitCounter(value => value + 1)} aria-label={i18next.t("ui.fitLayout")} title={i18next.t("ui.fitLayout")}>
               <IconFocusCentered size={19} />
             </ActionIcon>
-            <ActionIcon variant="light" loading={loading} onClick={() => void loadLayout()} aria-label="Reload layout" title="Reload">
+            <ActionIcon variant="light" loading={loading} onClick={() => void loadLayout()} aria-label={i18next.t("ui.reloadLayout")} title={i18next.t("ui.reload")}>
               <IconRefresh size={19} />
             </ActionIcon>
-            <ActionIcon color="teal" variant="light" loading={saving} onClick={() => void saveLayout()} aria-label="Save layout" title="Save">
+            <ActionIcon color="teal" variant="light" loading={saving} onClick={() => void saveLayout()} aria-label={i18next.t("ui.saveLayout")} title={i18next.t("ui.save2")}>
               <IconDeviceFloppy size={19} />
             </ActionIcon>
-            <ActionIcon color="blue" variant="light" onClick={exportLayout} aria-label="Export layout" title="Export layout JSON">
+            <ActionIcon color="blue" variant="light" onClick={exportLayout} aria-label={i18next.t("ui.exportLayout")} title={i18next.t("ui.exportLayoutJson")}>
               <IconDownload size={19} />
             </ActionIcon>
             <ActionIcon
               color="cyan"
               variant="light"
               onClick={() => importFileRef.current?.click()}
-              aria-label="Import project"
-              title="Import project JSON"
+              aria-label={i18next.t("ui.importProject")}
+              title={i18next.t("ui.importProjectJson")}
             >
               <IconUpload size={19} />
             </ActionIcon>
@@ -941,21 +945,14 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
               leftSection={<IconPower size={16} />}
               disabled={wsStatus !== "connected" || !commandCenter.alive}
               onClick={() => wsApi.setTrackPower(!commandCenter.powerInfo?.trackVoltageOn)}
-              title={commandCenter.powerInfo?.trackVoltageOn ? "Turn track power off" : "Turn track power on"}
-            >
-              POWER {commandCenter.powerInfo?.trackVoltageOn ? "ON" : "OFF"}
+              title={commandCenter.powerInfo?.trackVoltageOn ? i18next.t("ui.turnTrackPowerOff") : i18next.t("ui.turnTrackPowerOn")}
+            > {i18next.t("ui.power")} {commandCenter.powerInfo?.trackVoltageOn ? i18next.t("ui.on") : i18next.t("ui.off")}
             </Button>
 
             <Divider orientation="vertical" className="lite-toolbar-divider" />
-            <Button size="xs" variant="light" color="violet" leftSection={<IconTrain size={16} />} onClick={onOpenLocoEditor} title="Edit locomotives">
-              LOCOS
-            </Button>
-            <Button size="xs" variant="light" color="yellow" leftSection={<IconTrafficLights size={16} />} onClick={() => setSignalLogicOpened(true)} title="Automatic signal aspects">
-              SIGNALS
-            </Button>
-            <Button size="xs" variant="light" color="teal" leftSection={<IconShieldCheck size={16} />} onClick={() => setIntegrityCheckOpened(true)} title="Check all project references">
-              CHECK
-            </Button>
+            <Button size="xs" variant="light" color="violet" leftSection={<IconTrain size={16} />} onClick={onOpenLocoEditor} title={i18next.t("ui.editLocomotives")}> {i18next.t("ui.locos")} </Button>
+            <Button size="xs" variant="light" color="yellow" leftSection={<IconTrafficLights size={16} />} onClick={() => setSignalLogicOpened(true)} title={i18next.t("ui.automaticSignalAspects")}> {i18next.t("ui.signals2")} </Button>
+            <Button size="xs" variant="light" color="teal" leftSection={<IconShieldCheck size={16} />} onClick={() => setIntegrityCheckOpened(true)} title={i18next.t("ui.checkAllProjectReferences")}> {i18next.t("ui.check")} </Button>
             <Button
               component="a"
               href="https://github.com/DCCExpress/DCCExpressLite/wiki"
@@ -965,14 +962,12 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
               variant="light"
               color="blue"
               leftSection={<IconHelpCircle size={16} />}
-              title="Open the online DCCExpressLite documentation"
-            >
-              HELP
-            </Button>
-            <ActionIcon variant={locoPanelCollapsed ? "light" : "filled"} onClick={() => setLocoPanelCollapsed(value => !value)} title="Toggle locomotive panel">
+              title={i18next.t("ui.openTheOnlineDccexpressliteDocumentation")}
+            > {i18next.t("ui.help")} </Button>
+            <ActionIcon variant={locoPanelCollapsed ? "light" : "filled"} onClick={() => setLocoPanelCollapsed(value => !value)} title={i18next.t("ui.toggleLocomotivePanel")}>
               <IconTrain size={19} />
             </ActionIcon>
-            <ActionIcon variant={propertyPanelCollapsed ? "light" : "filled"} onClick={() => setPropertyPanelCollapsed(value => !value)} title="Toggle property panel">
+            <ActionIcon variant={propertyPanelCollapsed ? "light" : "filled"} onClick={() => setPropertyPanelCollapsed(value => !value)} title={i18next.t("ui.togglePropertyPanel")}>
               <IconSettings size={18} />
             </ActionIcon>
           </Group>
@@ -989,7 +984,7 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
         )}
 
         <div className="lite-panel-resizer lite-panel-resizer-left" onPointerDown={event => beginResize("left", event)}>
-          <button type="button" onPointerDown={event => event.stopPropagation()} onClick={() => setLocoPanelCollapsed(value => !value)} title="Toggle locomotive panel">
+          <button type="button" onPointerDown={event => event.stopPropagation()} onClick={() => setLocoPanelCollapsed(value => !value)} title={i18next.t("ui.toggleLocomotivePanel")}>
             {locoPanelCollapsed ? <IconChevronRight size={16} /> : <IconChevronLeft size={16} />}
           </button>
         </div>
@@ -1012,7 +1007,7 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
         </Card>
 
         <div className="lite-panel-resizer lite-panel-resizer-right" onPointerDown={event => beginResize("right", event)}>
-          <button type="button" onPointerDown={event => event.stopPropagation()} onClick={() => setPropertyPanelCollapsed(value => !value)} title="Toggle property panel">
+          <button type="button" onPointerDown={event => event.stopPropagation()} onClick={() => setPropertyPanelCollapsed(value => !value)} title={i18next.t("ui.togglePropertyPanel")}>
             {propertyPanelCollapsed ? <IconChevronLeft size={16} /> : <IconChevronRight size={16} />}
           </button>
         </div>
@@ -1026,7 +1021,7 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
             <Card withBorder p="sm" className="lite-property-panel">
               {editMode ? (
                 <>
-                  <Title order={5} mb="sm">{selectedElement ? "Properties" : "Display"}</Title>
+                  <Title order={5} mb="sm">{selectedElement ? i18next.t("ui.properties") : i18next.t("ui.display")}</Title>
                   <LitePropertyPanel
                     selectedElement={selectedElement}
                     layout={layout}
@@ -1040,9 +1035,9 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
               ) : (
                 <Tabs defaultValue="automation" className="lite-runtime-tabs">
                   <Tabs.List grow mb="sm">
-                    <Tabs.Tab value="automation">Automation</Tabs.Tab>
-                    <Tabs.Tab value="info">Info</Tabs.Tab>
-                    <Tabs.Tab value="log">Log</Tabs.Tab>
+                    <Tabs.Tab value="automation">{i18next.t("ui.automation2")}</Tabs.Tab>
+                    <Tabs.Tab value="info">{i18next.t("ui.info")}</Tabs.Tab>
+                    <Tabs.Tab value="log">{i18next.t("ui.log")}</Tabs.Tab>
                   </Tabs.List>
 
                   <Tabs.Panel value="automation" className="lite-info-tab-panel">
@@ -1079,9 +1074,9 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
               variant={wsStatus === "connected" ? "light" : "filled"}
               color={wsStatus === "connected" ? "green" : "red"}
               className={wsStatus === "connected" ? "" : "lite-ws-alert"}
-              title={wsStatus === "connected" ? "WebSocket connected" : `WebSocket ${wsStatus} — reconnecting automatically`}
+              title={wsStatus === "connected" ? i18next.t("ui.websocketConnected") : i18next.t("ui.websocketReconnectingAutomatically", { value1: wsStatus })}
             >
-              {wsStatus === "connected" ? "WS" : wsStatus === "reconnecting" ? "WS RETRY" : "WS LOST"}
+              {wsStatus === "connected" ? "WS" : wsStatus === "reconnecting" ? i18next.t("ui.wsRetry") : i18next.t("ui.wsLost")}
             </Badge>
 
             <Divider orientation="vertical" />
@@ -1095,9 +1090,7 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
                   ? " blinkBadge"
                   : ""
                 }`}
-            >
-              ESTOP
-            </Badge>
+            > {i18next.t("ui.estop")} </Badge>
             <Divider orientation="vertical" />
             <Badge
               size="sm"
@@ -1106,22 +1099,20 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
               className={anyTrackOverload ? "blinkBadge" : ""}
               title={
                 anyTrackOverload
-                  ? `OVERLOAD: Track ${overloadedTrackNames}`
-                  : "No track overload"
+                  ? i18next.t("ui.overloadTrack", { value1: overloadedTrackNames })
+                  : i18next.t("ui.noTrackOverload")
               }
-            >
-              OVERLOAD
-            </Badge>
+            > {i18next.t("ui.overload")} </Badge>
 
             <Divider orientation="vertical" />
 
-            <Badge style={{ display: "none" }} size="sm" variant="light" color={commandCenter.locked ? "orange" : "gray"}>{commandCenter.locked ? "LOCK" : "FREE"}</Badge>
+            <Badge style={{ display: "none" }} size="sm" variant="light" color={commandCenter.locked ? "orange" : "gray"}>{commandCenter.locked ? i18next.t("ui.lock") : i18next.t("ui.free")}</Badge>
             <ActionIcon
               size="sm"
               variant={rightPanelMode === "loco" ? "filled" : "light"}
               color={rightPanelMode === "loco" ? "green" : "gray"}
-              aria-label="Toggle right locomotive panel"
-              title={rightPanelMode === "loco" ? "Right panel: locomotive control" : "Right panel: properties"}
+              aria-label={i18next.t("ui.toggleRightLocomotivePanel")}
+              title={rightPanelMode === "loco" ? i18next.t("ui.rightPanelLocomotiveControl") : i18next.t("ui.rightPanelProperties")}
               onClick={() => {
                 setRightPanelMode(value => value === "property" ? "loco" : "property");
                 setPropertyPanelCollapsed(false);
@@ -1136,7 +1127,7 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
         </Group>
       </Card>
 
-      <Modal opened={pickerOpened} onClose={() => setPickerOpened(false)} title="Add layout element" size="lg" returnFocus={false}>
+      <Modal opened={pickerOpened} onClose={() => setPickerOpened(false)} title={i18next.t("ui.addLayoutElement")} size="lg" returnFocus={false}>
         <ScrollArea.Autosize mah="70dvh">
           <SimpleGrid cols={{ base: 2, sm: 4 }}>
             {PICKER_ITEMS.map(item => (
@@ -1167,19 +1158,17 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
       <Modal
         opened={temperatureAlertOpened}
         onClose={() => setTemperatureAlertOpened(false)}
-        title="Critical Hub ESP32 temperature"
+        title={i18next.t("ui.criticalHubEsp32Temperature")}
         size="sm"
         centered
       >
         <Stack>
-          <Alert color="red" icon={<IconAlertTriangle size={20} />} title="DCCExpressHub temperature is critical">
+          <Alert color="red" icon={<IconAlertTriangle size={20} />} title={i18next.t("ui.dccexpresshubTemperatureIsCritical")}>
             The ESP32 reports {dccExStatus?.chipTemperatureC?.toFixed(1) ?? "—"} °C. Check enclosure ventilation,
             nearby heat sources and sustained processor/network load.
           </Alert>
-          <Text size="sm" c="dimmed">
-            This is the internal silicon temperature of the ESP32, not the room temperature and not a separate reading for each CPU core.
-          </Text>
-          <Button color="red" onClick={() => setTemperatureAlertOpened(false)}>Acknowledge</Button>
+          <Text size="sm" c="dimmed"> {i18next.t("ui.thisIsTheInternalSiliconTemperatureOfTheEsp32Not")} </Text>
+          <Button color="red" onClick={() => setTemperatureAlertOpened(false)}>{i18next.t("ui.acknowledge")}</Button>
         </Stack>
       </Modal>
 

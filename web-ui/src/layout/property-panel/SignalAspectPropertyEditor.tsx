@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import i18next from "i18next";
 import {
   Alert,
   Box,
@@ -110,6 +112,7 @@ export default function SignalAspectPropertyEditor({
   selectedElement,
   onUpdateSelectedElement,
 }: SignalAspectPropertyEditorProps) {
+  useTranslation();
   const signal =
     selectedElement as TrackSignalElement;
 
@@ -193,7 +196,7 @@ export default function SignalAspectPropertyEditor({
 
       if (!response.ok) {
         throw new Error(
-          "The saved layout could not be loaded for signal automation."
+          i18next.t("ui.theSavedLayoutCouldNotBeLoadedForSignalAutomation")
         );
       }
 
@@ -207,7 +210,7 @@ export default function SignalAspectPropertyEditor({
 
       if (!(savedSignal instanceof TrackSignalElement)) {
         throw new Error(
-          "Save the layout before configuring automation for this signal."
+          i18next.t("ui.saveTheLayoutBeforeConfiguringAutomationForThisSignal")
         );
       }
 
@@ -235,8 +238,8 @@ export default function SignalAspectPropertyEditor({
           onClick={() => setOpened(true)}
         >
           {isLevelCrossing
-            ? "Level crossing configuration"
-            : "Signal configuration"}
+            ? i18next.t("ui.levelCrossingConfiguration")
+            : i18next.t("ui.signalConfiguration")}
         </Button>
 
         <Button
@@ -249,8 +252,8 @@ export default function SignalAspectPropertyEditor({
           onClick={() => void openAutomation()}
         >
           {isLevelCrossing
-            ? "Level crossing automation"
-            : "Signal automation"}
+            ? i18next.t("ui.levelCrossingAutomation")
+            : i18next.t("ui.signalAutomation")}
         </Button>
 
         {automationError && (
@@ -276,9 +279,7 @@ export default function SignalAspectPropertyEditor({
             : "DCC"}
         </Text>
 
-        <Text size="xs" fw={700}>
-          Aspects
-        </Text>
+        <Text size="xs" fw={700}> {i18next.t("ui.aspects")} </Text>
 
         <ScrollArea.Autosize
           mah={260}
@@ -307,7 +308,7 @@ export default function SignalAspectPropertyEditor({
                   onClick={() =>
                     testCurrentState(state)
                   }
-                  title={`Test aspect: ${state.label}`}
+                  title={i18next.t("ui.testAspect", { value1: state.label })}
                 >
                   <Stack
                     gap={2}
@@ -355,8 +356,8 @@ export default function SignalAspectPropertyEditor({
         {signal.signalOutput.states.length === 0 && (
           <Text size="xs" c="dimmed">
             {isLevelCrossing
-              ? "No level crossing aspects configured."
-              : "No signal aspects configured."}
+              ? i18next.t("ui.noLevelCrossingAspectsConfigured")
+              : i18next.t("ui.noSignalAspectsConfigured")}
           </Text>
         )}
       </Stack>

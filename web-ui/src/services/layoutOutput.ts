@@ -1,3 +1,4 @@
+import i18next from "i18next";
 import type { OutputCommandModeDto } from "@domain/layout/layoutDto";
 
 import { wsApi } from "./wsApi";
@@ -5,13 +6,13 @@ import { wsApi } from "./wsApi";
 export type TurnoutOutputMode = "accessory" | "extended";
 
 export const OUTPUT_COMMAND_MODE_OPTIONS = [
-  { value: "accessory", label: "DCC accessory · <a address 0|1>" },
+  { value: "accessory", get label() { return i18next.t("ui.dccAccessoryAAddress01"); } },
   { value: "vpin", label: "DCC-EX VPIN · <z ±vpin>" },
 ] satisfies Array<{ value: OutputCommandModeDto; label: string }>;
 
 export const TURNOUT_OUTPUT_MODE_OPTIONS = [
-  { value: "accessory", label: "Basic accessory · <a address 0|1>" },
-  { value: "extended", label: "Extended accessory · <A address aspect>" },
+  { value: "accessory", get label() { return i18next.t("ui.basicAccessoryAAddress01"); } },
+  { value: "extended", get label() { return i18next.t("ui.extendedAccessoryAAddressAspect"); } },
 ] satisfies Array<{ value: TurnoutOutputMode; label: string }>;
 
 export function normalizeOutputCommandMode(value: unknown): OutputCommandModeDto {

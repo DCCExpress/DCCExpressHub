@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import i18next from "i18next";
 import type { Loco } from "@domain/types";
 import type { BlockElement } from "../../models/editor/elements/BlockElement";
 import {
@@ -19,6 +21,7 @@ export function TrackCanvasBlockLocoPicker({
   selectedBlock,
   onClose,
 }: TrackCanvasBlockLocoPickerProps) {
+  useTranslation();
   const selectedLocoId = selectedBlock?.locoAddress
     ? locos.find(
         loco =>
@@ -35,8 +38,8 @@ export function TrackCanvasBlockLocoPicker({
       title={
         selectedBlock?.name &&
         selectedBlock.name !== "element"
-          ? `Block: ${selectedBlock.name}`
-          : "Assign locomotive to block"
+          ? i18next.t("ui.block", { value1: selectedBlock.name })
+          : i18next.t("ui.assignLocomotiveToBlock")
       }
       onClose={onClose}
       onSelect={loco => {

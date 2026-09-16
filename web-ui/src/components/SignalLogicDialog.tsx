@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import i18next from "i18next";
 import {
   ActionIcon,
   Alert,
@@ -123,6 +125,7 @@ export default function SignalLogicDialog({
   layout,
   signalId,
 }: SignalLogicDialogProps) {
+  useTranslation();
   const [groups, setGroups] = useState<SignalLogicRuleGroupDto[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [runtime, setRuntime] = useState<SignalLogicRuntimeStateDto>({
@@ -151,9 +154,7 @@ export default function SignalLogicDialog({
         )
         .map(signal => ({
           value: String(signal.id),
-          label: `Signal #${signal.signalOutput.address}${
-            signal.name && signal.name !== "element" ? ` · ${signal.name}` : ""
-          }`,
+          label: i18next.t("ui.signal", { value1: signal.signalOutput.address, value2: signal.name && signal.name !== "element" ? ` · ${signal.name}` : "" }),
           id: signal.id,
           address: signal.signalOutput.address,
           states: signal.signalOutput.states.map(state => ({
@@ -162,7 +163,7 @@ export default function SignalLogicDialog({
           })),
         }))
         .sort((a, b) => a.address - b.address),
-    [layout]
+    [i18next.resolvedLanguage, layout]
   );
 
   const turnoutOptions = useMemo<TurnoutOption[]>(() => {
@@ -173,9 +174,7 @@ export default function SignalLogicDialog({
         if (turnout.turnout1Address > 0) {
           result.push({
             value: `${turnout.id}:0`,
-            label: `Turnout #${turnout.turnout1Address} · ch1${
-              turnout.name && turnout.name !== "element" ? ` · ${turnout.name}` : ""
-            }`,
+            label: i18next.t("ui.turnoutCh1", { value1: turnout.turnout1Address, value2: turnout.name && turnout.name !== "element" ? ` · ${turnout.name}` : "" }),
             id: turnout.id,
             address: turnout.turnout1Address,
             channel: 0,
@@ -185,9 +184,7 @@ export default function SignalLogicDialog({
         if (turnout.turnout2Address > 0) {
           result.push({
             value: `${turnout.id}:1`,
-            label: `Turnout #${turnout.turnout2Address} · ch2${
-              turnout.name && turnout.name !== "element" ? ` · ${turnout.name}` : ""
-            }`,
+            label: i18next.t("ui.turnoutCh2", { value1: turnout.turnout2Address, value2: turnout.name && turnout.name !== "element" ? ` · ${turnout.name}` : "" }),
             id: turnout.id,
             address: turnout.turnout2Address,
             channel: 1,
@@ -196,9 +193,7 @@ export default function SignalLogicDialog({
       } else if (isTurnoutElement(turnout) && turnout.turnoutAddress > 0) {
         result.push({
           value: `${turnout.id}:0`,
-          label: `Turnout #${turnout.turnoutAddress}${
-            turnout.name && turnout.name !== "element" ? ` · ${turnout.name}` : ""
-          }`,
+          label: i18next.t("ui.turnout", { value1: turnout.turnoutAddress, value2: turnout.name && turnout.name !== "element" ? ` · ${turnout.name}` : "" }),
           id: turnout.id,
           address: turnout.turnoutAddress,
           channel: 0,
@@ -207,7 +202,7 @@ export default function SignalLogicDialog({
     }
 
     return result.sort((a, b) => a.address - b.address);
-  }, [layout]);
+  }, [i18next.resolvedLanguage, layout]);
 
   const sensorOptions = useMemo<SensorOption[]>(
     () =>
@@ -219,14 +214,12 @@ export default function SignalLogicDialog({
         )
         .map(sensor => ({
           value: String(sensor.id),
-          label: `Sensor #${sensor.address}${
-            sensor.name && sensor.name !== "element" ? ` · ${sensor.name}` : ""
-          }`,
+          label: i18next.t("ui.sensor", { value1: sensor.address, value2: sensor.name && sensor.name !== "element" ? ` · ${sensor.name}` : "" }),
           id: sensor.id,
           address: sensor.address,
         }))
         .sort((a, b) => a.address - b.address),
-    [layout]
+    [i18next.resolvedLanguage, layout]
   );
 
   const document = useMemo<SignalLogicDocumentDto>(
@@ -353,7 +346,7 @@ export default function SignalLogicDialog({
 
       showNotification({
         color: enabled ? "green" : "gray",
-        title: "Signal automation",
+        title: i18next.t("ui.signalAutomation"),
         message: enabled ? "Automation enabled." : "Automation disabled.",
       });
 
@@ -361,7 +354,7 @@ export default function SignalLogicDialog({
     } catch (toggleError) {
       showNotification({
         color: "red",
-        title: "Signal automation",
+        title: i18next.t("ui.signalAutomation"),
         message:
           toggleError instanceof Error
             ? toggleError.message
@@ -523,15 +516,13 @@ export default function SignalLogicDialog({
       <AppModal
         opened={opened}
         onClose={onClose}
-        title="Signal automation"
+        title={i18next.t("ui.signalAutomation")}
         size="sm"
         centered
         draggable
       >
         <Stack gap="md">
-          <Text>
-            What do you want to do with automatic signal control?
-          </Text>
+          <Text> {i18next.t("ui.whatDoYouWantToDoWithAutomaticSignalControl")} </Text>
 
           <Group grow>
             <Button
@@ -539,9 +530,7 @@ export default function SignalLogicDialog({
               loading={toolbarActionLoading}
               disabled={toolbarActionLoading}
               onClick={() => void setGlobalAutomation(true)}
-            >
-              Enable automation
-            </Button>
+            > {i18next.t("ui.enableAutomation")} </Button>
 
             <Button
               color="red"
@@ -549,9 +538,7 @@ export default function SignalLogicDialog({
               loading={toolbarActionLoading}
               disabled={toolbarActionLoading}
               onClick={() => void setGlobalAutomation(false)}
-            >
-              Disable automation
-            </Button>
+            > {i18next.t("ui.disableAutomation")} </Button>
           </Group>
 
           <Button
@@ -559,9 +546,7 @@ export default function SignalLogicDialog({
             color="gray"
             disabled={toolbarActionLoading}
             onClick={onClose}
-          >
-            Cancel
-          </Button>
+          > {i18next.t("ui.cancel")} </Button>
         </Stack>
       </AppModal>
     );
@@ -573,8 +558,8 @@ export default function SignalLogicDialog({
       onClose={onClose}
       title={
         scopedSignal
-          ? `Signal automation · ${scopedSignal.label}`
-          : "Signal automation"
+          ? i18next.t("ui.signalAutomation2", { value1: scopedSignal.label })
+          : i18next.t("ui.signalAutomation")
       }
       size={1150}
       centered
@@ -583,11 +568,8 @@ export default function SignalLogicDialog({
       <Stack gap="sm">
         <Group justify="space-between" wrap="wrap">
           <div>
-            <Text fw={700}>Automatic signal states</Text>
-            <Text size="sm" c="dimmed">
-              First matching rule wins. If none match, the configured default
-              state is used.
-            </Text>
+            <Text fw={700}>{i18next.t("ui.automaticSignalStates")}</Text>
+            <Text size="sm" c="dimmed"> {i18next.t("ui.firstMatchingRuleWinsIfNoneMatchTheConfiguredDefault")} </Text>
           </div>
 
           <Group gap="xs">
@@ -595,12 +577,12 @@ export default function SignalLogicDialog({
               color={runtime.running ? "green" : "gray"}
               variant="light"
             >
-              {runtime.running ? "RUNNING" : "STOPPED"}
+              {runtime.running ? i18next.t("ui.running") : i18next.t("ui.stopped")}
             </Badge>
 
             <Switch
               checked={runtime.enabled}
-              label="Enabled"
+              label={i18next.t("ui.enabled")}
               onChange={event => {
                 const { checked } = event.currentTarget;
                 setRuntime(current => ({
@@ -612,7 +594,7 @@ export default function SignalLogicDialog({
 
             <ActionIcon
               variant="light"
-              title="Reload"
+              title={i18next.t("ui.reload")}
               onClick={() => void load()}
             >
               <IconRefresh size={16} />
@@ -624,16 +606,14 @@ export default function SignalLogicDialog({
               loading={saving}
               disabled={hasErrors}
               onClick={() => void save()}
-            >
-              Save
-            </Button>
+            > {i18next.t("ui.save2")} </Button>
           </Group>
         </Group>
 
         {loading && (
           <Group>
             <Loader size="sm" />
-            <Text size="sm">Loading signal rules…</Text>
+            <Text size="sm">{i18next.t("ui.loadingSignalRules")}</Text>
           </Group>
         )}
 
@@ -659,7 +639,7 @@ export default function SignalLogicDialog({
         <Group align="flex-start" wrap="nowrap">
           <Stack w={300} gap="xs">
             <Group justify="space-between">
-              <Title order={5}>Signals</Title>
+              <Title order={5}>{i18next.t("ui.signals")}</Title>
               <ActionIcon
                 variant="light"
                 disabled={
@@ -668,7 +648,7 @@ export default function SignalLogicDialog({
                   visibleGroups.length > 0
                 }
                 onClick={addGroup}
-                title="Add automation for this signal"
+                title={i18next.t("ui.addAutomationForThisSignal")}
               >
                 <IconPlus size={16} />
               </ActionIcon>
@@ -704,7 +684,7 @@ export default function SignalLogicDialog({
                       <Group justify="space-between" wrap="nowrap">
                         <Text fw={selected ? 700 : 400}>
                           {signal?.label ??
-                            `Missing signal ID ${group.signalId}`}
+                            i18next.t("ui.missingSignalId", { value1: group.signalId })}
                         </Text>
 
                         <ActionIcon
@@ -714,7 +694,7 @@ export default function SignalLogicDialog({
                             event.stopPropagation();
                             deleteGroup(group.id);
                           }}
-                          title="Remove automation for this signal"
+                          title={i18next.t("ui.removeAutomationForThisSignal")}
                         >
                           <IconTrash size={15} />
                         </ActionIcon>
@@ -728,13 +708,11 @@ export default function SignalLogicDialog({
 
           <Stack style={{ flex: 1 }} gap="sm">
             {!selectedGroup ? (
-              <Text c="dimmed">
-                Add an automation rule group for this signal.
-              </Text>
+              <Text c="dimmed"> {i18next.t("ui.addAnAutomationRuleGroupForThisSignal")} </Text>
             ) : (
               <>
                 <Select
-                  label="Signal"
+                  label={i18next.t("ui.signal2")}
                   data={availableSignals}
                   value={String(selectedGroup.signalId)}
                   disabled
@@ -761,7 +739,7 @@ export default function SignalLogicDialog({
                 />
 
                 <Select
-                  label="Default state"
+                  label={i18next.t("ui.defaultState")}
                   data={stateOptions(signalForGroup)}
                   value={selectedGroup.defaultStateId}
                   onChange={value =>
@@ -774,16 +752,14 @@ export default function SignalLogicDialog({
                 />
 
                 <Group justify="space-between">
-                  <Title order={5}>Rules</Title>
+                  <Title order={5}>{i18next.t("ui.rules")}</Title>
                   <Button
                     size="xs"
                     variant="light"
                     leftSection={<IconPlus size={14} />}
                     disabled={selectedGroup.rules.length >= MAX_RULES}
                     onClick={() => addRule(selectedGroup)}
-                  >
-                    Add rule
-                  </Button>
+                  > {i18next.t("ui.addRule")} </Button>
                 </Group>
 
                 <Table
@@ -794,9 +770,9 @@ export default function SignalLogicDialog({
                 >
                   <Table.Thead>
                     <Table.Tr>
-                      <Table.Th w={72}>Rule</Table.Th>
-                      <Table.Th w={210}>Result</Table.Th>
-                      <Table.Th>Conditions</Table.Th>
+                      <Table.Th w={72}>{i18next.t("ui.rule")}</Table.Th>
+                      <Table.Th w={210}>{i18next.t("ui.result")}</Table.Th>
+                      <Table.Th>{i18next.t("ui.conditions")}</Table.Th>
                       <Table.Th w={92} />
                     </Table.Tr>
                   </Table.Thead>
@@ -851,8 +827,7 @@ export default function SignalLogicDialog({
                                       alignItems: "center",
                                     }}
                                   >
-                                    <Text size="xs" c="dimmed">
-                                      Cond {conditionIndex + 1}
+                                    <Text size="xs" c="dimmed"> {i18next.t("ui.cond")} {conditionIndex + 1}
                                     </Text>
 
                                     <Select
@@ -860,11 +835,11 @@ export default function SignalLogicDialog({
                                       data={[
                                         {
                                           value: "turnout",
-                                          label: "Turnout",
+                                          label: i18next.t("ui.turnout2"),
                                         },
                                         {
                                           value: "sensor",
-                                          label: "Sensor",
+                                          label: i18next.t("ui.sensor2"),
                                         },
                                       ]}
                                       value={condition.type}
@@ -970,21 +945,21 @@ export default function SignalLogicDialog({
                                           ? [
                                               {
                                                 value: "1",
-                                                label: "Active",
+                                                label: i18next.t("ui.active"),
                                               },
                                               {
                                                 value: "0",
-                                                label: "Inactive",
+                                                label: i18next.t("ui.inactive"),
                                               },
                                             ]
                                           : [
                                               {
                                                 value: "1",
-                                                label: "Closed",
+                                                label: i18next.t("ui.closed"),
                                               },
                                               {
                                                 value: "0",
-                                                label: "Thrown",
+                                                label: i18next.t("ui.thrown"),
                                               },
                                             ]
                                       }
@@ -1070,9 +1045,7 @@ export default function SignalLogicDialog({
                                   })
                                 )
                               }
-                            >
-                              Add condition
-                            </Button>
+                            > {i18next.t("ui.addCondition")} </Button>
                           </Stack>
                         </Table.Td>
 

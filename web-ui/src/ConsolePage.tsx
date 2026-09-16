@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import i18next from "i18next";
 import {
   ActionIcon,
   Alert,
@@ -34,6 +36,7 @@ type Props = {
 export default function ConsolePage({
   onBack,
 }: Props) {
+  useTranslation();
   const [
     info,
     setInfo,
@@ -98,7 +101,7 @@ export default function ConsolePage({
             variant="subtle"
             color="gray"
             size="lg"
-            aria-label="Back to home"
+            aria-label={i18next.t("ui.backToHome")}
             onClick={onBack}
           >
             <IconArrowLeft
@@ -118,9 +121,7 @@ export default function ConsolePage({
           </ThemeIcon>
 
           <div>
-            <Title order={3}>
-              Console
-            </Title>
+            <Title order={3}> {i18next.t("ui.console")} </Title>
 
             <Text
               size="sm"
@@ -128,8 +129,8 @@ export default function ConsolePage({
             >
               {
                 info
-                  ? `${info.name} diagnostics`
-                  : "Command-center diagnostics"
+                  ? i18next.t("ui.diagnostics", { value1: info.name })
+                  : i18next.t("ui.commandCenterDiagnostics")
               }
             </Text>
           </div>
@@ -170,7 +171,7 @@ export default function ConsolePage({
         !info.capabilities.rawCommand && (
           <Alert
             color="blue"
-            title={`${info.name} raw console is not available`}
+            title={i18next.t("ui.rawConsoleIsNotAvailable", { value1: info.name })}
             icon={
               <IconAlertTriangle
                 size={18}

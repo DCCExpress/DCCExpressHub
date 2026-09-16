@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import i18next from "i18next";
 import {
   ActionIcon,
   Badge,
@@ -130,6 +132,7 @@ function LampPreview({
   lampCount: number;
   onLampColorChange?: (lampIndex: number, color: string) => void;
 }) {
+  useTranslation();
   const lamps = resizeSignalLamps(state.lamps, lampCount);
 
   return (
@@ -146,7 +149,7 @@ function LampPreview({
           <Popover.Target>
             <Box
               role={onLampColorChange ? "button" : undefined}
-              aria-label={onLampColorChange ? `Change lamp ${index + 1} color` : undefined}
+              aria-label={onLampColorChange ? i18next.t("ui.changeLampColor", { value1: index + 1 }) : undefined}
               tabIndex={onLampColorChange ? 0 : undefined}
               w={18}
               h={18}
@@ -184,6 +187,7 @@ export default function SignalOutputDialog({
   onApply,
   onTestState,
 }: Props) {
+  useTranslation();
   const [draft, setDraft] = useState<SignalOutputConfiguration>(() =>
     cloneSignalOutputConfiguration(value)
   );
@@ -294,7 +298,7 @@ export default function SignalOutputDialog({
           ...current.states,
           {
             id: newSignalOutputStateId(),
-            label: `Aspect ${current.states.length + 1}`,
+            label: i18next.t("ui.aspect", { value1: current.states.length + 1 }),
             aspect: nextAspect,
             lamps: Array.from({ length: current.lampCount }, (_, lampIndex) => ({
               color: colors[lampIndex] ?? "#868e96",
@@ -324,7 +328,7 @@ export default function SignalOutputDialog({
     <AppModal
       opened={opened}
       onClose={onClose}
-      title="Signal configuration"
+      title={i18next.t("ui.signalConfiguration")}
       size="90vw"
       draggable
       centered
@@ -338,10 +342,8 @@ export default function SignalOutputDialog({
           <Stack gap="sm">
             <Group justify="space-between" align="center">
               <Box>
-                <Text fw={800}>Signal definition</Text>
-                <Text size="xs" c="dimmed">
-                  Physical lamps, logical states and DCC mapping are independent.
-                </Text>
+                <Text fw={800}>{i18next.t("ui.signalDefinition")}</Text>
+                <Text size="xs" c="dimmed"> {i18next.t("ui.physicalLampsLogicalStatesAndDccMappingAreIndependent")} </Text>
               </Box>
 
               <Badge
@@ -365,7 +367,7 @@ export default function SignalOutputDialog({
 
             <Group grow align="flex-start">
               <NumberInput
-                label={draft.protocol === "dccext" ? "DCC address" : "Start DCC address"}
+                label={draft.protocol === "dccext" ? i18next.t("ui.dccAddress") : i18next.t("ui.startDccAddress")}
                 value={draft.address}
                 min={1}
                 max={2048}
@@ -375,8 +377,8 @@ export default function SignalOutputDialog({
               />
 
               <Switch
-                label="Single lamp display"
-                description="Compact layout display; logical states and lamp definitions stay unchanged"
+                label={i18next.t("ui.singleLampDisplay")}
+                description={i18next.t("ui.compactLayoutDisplayLogicalStatesAndLampDefinitionsStayUnchanged")}
                 checked={draft.displayAsSingleLamp}
                 mt={26}
                 onChange={event => {
@@ -389,8 +391,8 @@ export default function SignalOutputDialog({
               />
 
               <NumberInput
-                label="Physical lamps"
-                description={`Number of lamps drawn on the layout (max ${MAX_SIGNAL_LAMPS})`}
+                label={i18next.t("ui.physicalLamps")}
+                description={i18next.t("ui.numberOfLampsDrawnOnTheLayoutMax", { value1: MAX_SIGNAL_LAMPS })}
                 value={draft.lampCount}
                 min={1}
                 max={MAX_SIGNAL_LAMPS}
@@ -401,8 +403,8 @@ export default function SignalOutputDialog({
 
               {draft.protocol === "dcc" && (
                 <NumberInput
-                  label="DCC output addresses"
-                  description="Consecutive accessory addresses"
+                  label={i18next.t("ui.dccOutputAddresses")}
+                  description={i18next.t("ui.consecutiveAccessoryAddresses")}
                   value={draft.outputCount}
                   min={1}
                   max={16}
@@ -417,16 +419,11 @@ export default function SignalOutputDialog({
 
         <Group justify="space-between" align="flex-end">
           <Box>
-            <Text fw={800}>Signal states / aspects</Text>
-            <Text size="sm" c="dimmed">
-              Each row is one logical state. The number of states does not have to
-              match the number of lamps.
-            </Text>
+            <Text fw={800}>{i18next.t("ui.signalStatesAspects")}</Text>
+            <Text size="sm" c="dimmed"> {i18next.t("ui.eachRowIsOneLogicalStateTheNumberOfStates")} </Text>
           </Box>
 
-          <Button variant="light" leftSection={<IconPlus size={16} />} onClick={addState}>
-            Add aspect
-          </Button>
+          <Button variant="light" leftSection={<IconPlus size={16} />} onClick={addState}> {i18next.t("ui.addAspect")} </Button>
         </Group>
 
         <ScrollArea
@@ -457,17 +454,16 @@ export default function SignalOutputDialog({
           >
             <Table.Thead>
               <Table.Tr>
-                <Table.Th>State</Table.Th>
-                <Table.Th>Preview</Table.Th>
+                <Table.Th>{i18next.t("ui.state")}</Table.Th>
+                <Table.Th>{i18next.t("ui.preview")}</Table.Th>
 
                 {Array.from({ length: draft.lampCount }, (_, index) => (
-                  <Table.Th key={`lamp-head-${index}`} ta="center">
-                    Lamp {index + 1}
+                  <Table.Th key={`lamp-head-${index}`} ta="center"> {i18next.t("ui.lamp")} {index + 1}
                   </Table.Th>
                 ))}
 
                 {draft.protocol === "dccext" ? (
-                  <Table.Th>Aspect</Table.Th>
+                  <Table.Th>{i18next.t("ui.aspect2")}</Table.Th>
                 ) : (
                   dccAddresses.map(address => (
                     <Table.Th key={`dcc-head-${address}`} ta="center">
@@ -476,7 +472,7 @@ export default function SignalOutputDialog({
                   ))
                 )}
 
-                <Table.Th ta="center">Test</Table.Th>
+                <Table.Th ta="center">{i18next.t("ui.test2")}</Table.Th>
                 <Table.Th />
               </Table.Tr>
             </Table.Thead>
@@ -513,7 +509,7 @@ export default function SignalOutputDialog({
                       <Table.Td key={`${state.id}-lamp-${lampIndex}`} miw={75}>
                         <Group justify="center">
                           <Checkbox
-                            label="On"
+                            label={i18next.t("ui.on2")}
                             checked={lamp.active}
                             onChange={event => {
                               const checked = event.currentTarget.checked;
@@ -595,8 +591,8 @@ export default function SignalOutputDialog({
                       <Tooltip
                         label={
                           draft.states.length <= 2
-                            ? "At least two states are required"
-                            : "Delete aspect"
+                            ? i18next.t("ui.atLeastTwoStatesAreRequired")
+                            : i18next.t("ui.deleteAspect")
                         }
                       >
                         <ActionIcon
@@ -618,9 +614,7 @@ export default function SignalOutputDialog({
 
         <Paper withBorder p="xs">
           <Stack gap={5}>
-            <Text size="xs" fw={700} c="dimmed">
-              COMMAND PREVIEW
-            </Text>
+            <Text size="xs" fw={700} c="dimmed"> {i18next.t("ui.commandPreview")} </Text>
 
             {draft.states.map(state => (
               <Group key={`preview-${state.id}`} gap="xs" wrap="nowrap">
@@ -641,16 +635,12 @@ export default function SignalOutputDialog({
         </Paper>
 
         <Group justify="flex-end">
-          <Button variant="default" leftSection={<IconX size={16} />} onClick={onClose}>
-            Cancel
-          </Button>
+          <Button variant="default" leftSection={<IconX size={16} />} onClick={onClose}> {i18next.t("ui.cancel")} </Button>
 
           <Button
             leftSection={<IconDeviceFloppy size={16} />}
             onClick={() => onApply(cloneSignalOutputConfiguration(normalizeLampColors(draft)))}
-          >
-            Apply
-          </Button>
+          > {i18next.t("ui.apply")} </Button>
         </Group>
       </Stack>
     </AppModal>

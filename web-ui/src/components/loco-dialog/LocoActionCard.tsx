@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import i18next from "i18next";
 import type { DragEvent } from "react";
 
 import {
@@ -62,6 +64,7 @@ export default function LocoActionCard({
   onUpdateAction,
   onDeleteAction,
 }: Props) {
+  useTranslation();
   const computedColorScheme = useComputedColorScheme("light");
   const cardBackground = computedColorScheme === "dark"
     ? "var(--mantine-color-dark-5)"
@@ -122,9 +125,9 @@ export default function LocoActionCard({
 
         <Group align="flex-end" wrap="wrap">
           <Select
-            label="Action type"
+            label={i18next.t("ui.actionType")}
             value={action.type}
-            data={ACTION_TYPE_OPTIONS}
+            data={ACTION_TYPE_OPTIONS.map(option => ({ ...option }))}
             w={210}
             allowDeselect={false}
             onChange={value => {
@@ -136,7 +139,7 @@ export default function LocoActionCard({
           {action.type === "setFunction" && (
             <>
               <Select
-                label="Function"
+                label={i18next.t("ui.function")}
                 value={String(action.functionNumber)}
                 data={functionOptions}
                 w={220}
@@ -144,14 +147,14 @@ export default function LocoActionCard({
                 allowDeselect={false}
                 onChange={value => updateCurrentAction({ ...action, functionNumber: Number(value) || 0 })}
               />
-              <Checkbox label="Active" checked={action.active} onChange={event => updateCurrentAction({ ...action, active: event.currentTarget.checked })} />
+              <Checkbox label={i18next.t("ui.active")} checked={action.active} onChange={event => updateCurrentAction({ ...action, active: event.currentTarget.checked })} />
             </>
           )}
 
           {action.type === "momentaryFunction" && (
             <>
               <Select
-                label="Function"
+                label={i18next.t("ui.function")}
                 value={String(action.functionNumber)}
                 data={functionOptions}
                 w={220}
@@ -160,7 +163,7 @@ export default function LocoActionCard({
                 onChange={value => updateCurrentAction({ ...action, functionNumber: Number(value) || 0 })}
               />
               <NumberInput
-                label="Duration (ms)"
+                label={i18next.t("ui.durationMs")}
                 value={action.ms}
                 min={1}
                 step={100}
@@ -172,7 +175,7 @@ export default function LocoActionCard({
 
           {action.type === "playAudio" && (
             <TextInput
-              label="Audio file"
+              label={i18next.t("ui.audioFile")}
               value={action.fileName}
               placeholder="station.mp3"
               w={320}
@@ -191,7 +194,7 @@ export default function LocoActionCard({
                         {...fileButtonProps}
                         size="sm"
                         variant="subtle"
-                        title="Choose audio file"
+                        title={i18next.t("ui.chooseAudioFile")}
                         onClick={event => {
                           event.preventDefault();
                           event.stopPropagation();
@@ -206,7 +209,7 @@ export default function LocoActionCard({
                   <ActionIcon
                     size="sm"
                     variant="subtle"
-                    title="Test audio"
+                    title={i18next.t("ui.testAudio")}
                     disabled={!action.fileName.trim()}
                     onClick={event => {
                       event.preventDefault();
@@ -224,7 +227,7 @@ export default function LocoActionCard({
 
           {action.type === "wait" && (
             <NumberInput
-              label="Wait (ms)"
+              label={i18next.t("ui.waitMs")}
               value={action.ms}
               min={1}
               step={100}

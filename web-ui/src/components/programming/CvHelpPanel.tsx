@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import i18next from "i18next";
 import {
   Alert,
   Badge,
@@ -77,7 +79,7 @@ async function loadCvHelp(): Promise<CvHelpDocument> {
       .then(async response => {
         if (!response.ok) {
           throw new Error(
-            `CV help could not be loaded (HTTP ${response.status}).`,
+            i18next.t("ui.cvHelpCouldNotBeLoadedHttp", { value1: response.status }),
           );
         }
 
@@ -89,7 +91,7 @@ async function loadCvHelp(): Promise<CvHelpDocument> {
           !document.cvs ||
           typeof document.cvs !== "object"
         ) {
-          throw new Error("Invalid CV help database.");
+          throw new Error(i18next.t("ui.invalidCvHelpDatabase"));
         }
 
         cachedDocument = document;
@@ -108,6 +110,7 @@ export function CvHelpPanel({
   value,
   onChange,
 }: Props) {
+  useTranslation();
   const [document, setDocument] =
     useState<CvHelpDocument | null>(cachedDocument);
   const [error, setError] =
@@ -159,9 +162,7 @@ export function CvHelpPanel({
     return (
       <Group gap="xs">
         <Loader size="xs" />
-        <Text size="sm" c="dimmed">
-          Loading CV help…
-        </Text>
+        <Text size="sm" c="dimmed"> {i18next.t("ui.loadingCvHelp")} </Text>
       </Group>
     );
   }
@@ -179,10 +180,7 @@ export function CvHelpPanel({
         variant="light"
         icon={<IconBook2 size={18} />}
         title={`CV${cv}`}
-      >
-        No standard NMRA help entry is stored for this CV. It may be
-        manufacturer-specific; check the decoder manual before writing it.
-      </Alert>
+      > {i18next.t("ui.noStandardNmraHelpEntryIsStoredForThisCv")} </Alert>
     );
   }
 
@@ -205,9 +203,7 @@ export function CvHelpPanel({
                 CV{cv} — {definition.name}
               </Text>
               {definition.readOnlyValue && (
-                <Badge size="sm" variant="light" color="blue">
-                  normally read-only
-                </Badge>
+                <Badge size="sm" variant="light" color="blue"> {i18next.t("ui.normallyReadOnly")} </Badge>
               )}
             </Group>
 
@@ -229,14 +225,9 @@ export function CvHelpPanel({
         {bits.length > 0 && (
           <Stack gap={6}>
             <div>
-              <Text size="sm" fw={700}>
-                Bit meanings for the current value
-              </Text>
+              <Text size="sm" fw={700}> {i18next.t("ui.bitMeaningsForTheCurrentValue")} </Text>
               {onChange && (
-                <Text size="xs" c="dimmed">
-                  Change a bit here to update the CV value. The decoder is only
-                  changed after you press Write CV.
-                </Text>
+                <Text size="xs" c="dimmed"> {i18next.t("ui.changeABitHereToUpdateTheCvValueThe")} </Text>
               )}
             </div>
 
@@ -272,7 +263,7 @@ export function CvHelpPanel({
                       </div>
 
                       <Checkbox
-                        aria-label={`Set CV${cv} bit ${bit.bit}`}
+                        aria-label={i18next.t("ui.setCvBit", { value1: cv, value2: bit.bit })}
                         checked={enabled}
                         disabled={bit.reserved || !onChange}
                         onChange={event => {
@@ -297,20 +288,17 @@ export function CvHelpPanel({
 
         <Group gap="xs">
           {typeof definition.default === "number" && (
-            <Text size="xs" c="dimmed">
-              Default: {definition.default}
+            <Text size="xs" c="dimmed"> {i18next.t("ui.default")} {definition.default}
             </Text>
           )}
 
           {definition.range && (
-            <Text size="xs" c="dimmed">
-              Range: {definition.range.min ?? "?"}–{definition.range.max ?? "?"}
+            <Text size="xs" c="dimmed"> {i18next.t("ui.range")} {definition.range.min ?? "?"}–{definition.range.max ?? "?"}
             </Text>
           )}
 
           {definition.related && definition.related.length > 0 && (
-            <Text size="xs" c="dimmed">
-              Related: {definition.related.map(item => `CV${item}`).join(", ")}
+            <Text size="xs" c="dimmed"> {i18next.t("ui.related")} {definition.related.map(item => `CV${item}`).join(", ")}
             </Text>
           )}
         </Group>

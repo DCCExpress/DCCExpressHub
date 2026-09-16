@@ -1,3 +1,4 @@
+import i18next from "i18next";
 import {
   ActionIcon,
   Box,
@@ -95,17 +96,17 @@ const DOUBLE_TURNOUT_POSITIONS: MultiTurnoutPosition[] = [
 
 const THREE_WAY_TURNOUT_POSITIONS: MultiTurnoutPosition[] = [
   {
-    label: "Left",
+    get label() { return i18next.t("ui.left"); },
     firstClosed: true,
     secondClosed: false,
   },
   {
-    label: "Straight",
+    get label() { return i18next.t("ui.straight"); },
     firstClosed: false,
     secondClosed: false,
   },
   {
-    label: "Right",
+    get label() { return i18next.t("ui.right"); },
     firstClosed: false,
     secondClosed: true,
   },
@@ -226,7 +227,7 @@ function renderButtonBasicEditor(
 ) {
   const onValueProperty:
     IEditableProperty = {
-      label: "ON value",
+      label: i18next.t("ui.onValue"),
       key: "activeValue",
       type: "bittoggle",
       readonly: false,
@@ -234,7 +235,7 @@ function renderButtonBasicEditor(
 
   const offValueProperty:
     IEditableProperty = {
-      label: "OFF value",
+      label: i18next.t("ui.offValue"),
       key: "offValue",
       type: "bittoggle",
       readonly: false,
@@ -245,9 +246,7 @@ function renderButtonBasicEditor(
       <Text
         size="sm"
         fw={500}
-      >
-        Basic accessory values
-      </Text>
+      > {i18next.t("ui.basicAccessoryValues")} </Text>
 
       <Group
         justify="space-between"
@@ -258,9 +257,7 @@ function renderButtonBasicEditor(
           size="sm"
           fw={600}
           w={44}
-        >
-          ON
-        </Text>
+        > {i18next.t("ui.on")} </Text>
 
         <Group
           gap="xs"
@@ -289,7 +286,7 @@ function renderButtonBasicEditor(
           />
 
           <TestButton
-            title="Test ON"
+            title={i18next.t("ui.testOn")}
             onClick={() =>
               selectedElement.sendConfiguredState(
                 true
@@ -308,9 +305,7 @@ function renderButtonBasicEditor(
           size="sm"
           fw={600}
           w={44}
-        >
-          OFF
-        </Text>
+        > {i18next.t("ui.off")} </Text>
 
         <Group
           gap="xs"
@@ -339,7 +334,7 @@ function renderButtonBasicEditor(
           />
 
           <TestButton
-            title="Test OFF"
+            title={i18next.t("ui.testOff")}
             onClick={() =>
               selectedElement.sendConfiguredState(
                 false
@@ -373,9 +368,7 @@ function renderButtonExtendedEditor(
       <Text
         size="sm"
         fw={500}
-      >
-        Extended accessory aspects
-      </Text>
+      > {i18next.t("ui.extendedAccessoryAspects")} </Text>
 
       <Group
         justify="space-between"
@@ -387,9 +380,7 @@ function renderButtonExtendedEditor(
           fw={600}
           w={44}
           pb={9}
-        >
-          ON
-        </Text>
+        > {i18next.t("ui.on")} </Text>
 
         <Group
           gap="xs"
@@ -397,7 +388,7 @@ function renderButtonExtendedEditor(
           wrap="nowrap"
         >
           <NumberInput
-            aria-label="ON aspect"
+            aria-label={i18next.t("ui.onAspect")}
             min={0}
             max={255}
             allowDecimal={false}
@@ -415,7 +406,7 @@ function renderButtonExtendedEditor(
           />
 
           <TestButton
-            title="Test ON aspect"
+            title={i18next.t("ui.testOnAspect")}
             onClick={() =>
               selectedElement.sendConfiguredState(
                 true
@@ -435,9 +426,7 @@ function renderButtonExtendedEditor(
           fw={600}
           w={44}
           pb={9}
-        >
-          OFF
-        </Text>
+        > {i18next.t("ui.off")} </Text>
 
         <Group
           gap="xs"
@@ -445,7 +434,7 @@ function renderButtonExtendedEditor(
           wrap="nowrap"
         >
           <NumberInput
-            aria-label="OFF aspect"
+            aria-label={i18next.t("ui.offAspect")}
             min={0}
             max={255}
             allowDecimal={false}
@@ -463,7 +452,7 @@ function renderButtonExtendedEditor(
           />
 
           <TestButton
-            title="Test OFF aspect"
+            title={i18next.t("ui.testOffAspect")}
             onClick={() =>
               selectedElement.sendConfiguredState(
                 false
@@ -787,9 +776,7 @@ function renderSingleExtendedEditor(
       <Text
         size="sm"
         fw={500}
-      >
-        Turnout positions
-      </Text>
+      > {i18next.t("ui.turnoutPositions")} </Text>
 
       <Group
         justify="space-between"
@@ -804,7 +791,7 @@ function renderSingleExtendedEditor(
                 true
               )
             }
-            label="Closed"
+            label={i18next.t("ui.closed")}
             width={46}
             height={46}
             onClick={() =>
@@ -817,7 +804,7 @@ function renderSingleExtendedEditor(
         </Box>
 
         <NumberInput
-          label="Closed aspect"
+          label={i18next.t("ui.closedAspect")}
           min={0}
           max={255}
           allowDecimal={false}
@@ -850,7 +837,7 @@ function renderSingleExtendedEditor(
                 false
               )
             }
-            label="Opened"
+            label={i18next.t("ui.opened")}
             width={46}
             height={46}
             onClick={() =>
@@ -863,7 +850,7 @@ function renderSingleExtendedEditor(
         </Box>
 
         <NumberInput
-          label="Opened aspect"
+          label={i18next.t("ui.openedAspect")}
           min={0}
           max={255}
           allowDecimal={false}
@@ -915,7 +902,7 @@ function renderSingleBasicEditor(
                 true
               )
             }
-            label="Closed"
+            label={i18next.t("ui.closed")}
             width={46}
             height={46}
             onClick={() =>
@@ -958,7 +945,7 @@ function renderSingleBasicEditor(
                 false
               )
             }
-            label="Opened"
+            label={i18next.t("ui.opened")}
             width={46}
             height={46}
             onClick={() =>
@@ -1162,18 +1149,12 @@ function renderThreeWayBasicEditor(
       <Text
         size="sm"
         fw={500}
-      >
-        Three-way turnout positions
-      </Text>
+      > {i18next.t("ui.threeWayTurnoutPositions")} </Text>
 
       <Text
         size="xs"
         c="dimmed"
-      >
-        Each position stores its own two
-        physical output bits. Changing one
-        row never changes another row.
-      </Text>
+      > {i18next.t("ui.eachPositionStoresItsOwnTwoPhysicalOutputBitsChanging")} </Text>
 
       {THREE_WAY_TURNOUT_POSITIONS.map(
         position => {
@@ -1299,13 +1280,11 @@ function renderDoubleExtendedEditor(
       <Text
         size="sm"
         fw={500}
-      >
-        Extended accessory aspects
-      </Text>
+      > {i18next.t("ui.extendedAccessoryAspects")} </Text>
 
       <SimpleGrid cols={2}>
         <NumberInput
-          label="Turnout 1 closed"
+          label={i18next.t("ui.turnout1Closed")}
           min={0}
           max={255}
           allowDecimal={false}
@@ -1326,7 +1305,7 @@ function renderDoubleExtendedEditor(
         />
 
         <NumberInput
-          label="Turnout 1 opened"
+          label={i18next.t("ui.turnout1Opened")}
           min={0}
           max={255}
           allowDecimal={false}
@@ -1347,7 +1326,7 @@ function renderDoubleExtendedEditor(
         />
 
         <NumberInput
-          label="Turnout 2 closed"
+          label={i18next.t("ui.turnout2Closed")}
           min={0}
           max={255}
           allowDecimal={false}
@@ -1368,7 +1347,7 @@ function renderDoubleExtendedEditor(
         />
 
         <NumberInput
-          label="Turnout 2 opened"
+          label={i18next.t("ui.turnout2Opened")}
           min={0}
           max={255}
           allowDecimal={false}
@@ -1392,9 +1371,7 @@ function renderDoubleExtendedEditor(
       <Text
         size="xs"
         c="dimmed"
-      >
-        Test positions
-      </Text>
+      > {i18next.t("ui.testPositions")} </Text>
 
       <Group gap="xs">
         {DOUBLE_TURNOUT_POSITIONS.map(
@@ -1441,18 +1418,12 @@ function renderDoubleBasicEditor(
       <Text
         size="sm"
         fw={500}
-      >
-        Double turnout positions
-      </Text>
+      > {i18next.t("ui.doubleTurnoutPositions")} </Text>
 
       <Text
         size="xs"
         c="dimmed"
-      >
-        Each preview row stores its own
-        two physical output bits. Changing
-        one bit never changes another row.
-      </Text>
+      > {i18next.t("ui.eachPreviewRowStoresItsOwnTwoPhysicalOutputBits")} </Text>
 
       {DOUBLE_TURNOUT_POSITIONS.map(
         position => {

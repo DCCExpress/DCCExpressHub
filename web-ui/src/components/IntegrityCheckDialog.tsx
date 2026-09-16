@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import i18next from "i18next";
 import {
   Alert,
   Badge,
@@ -187,6 +189,7 @@ export default function IntegrityCheckDialog({
   layout,
   locos,
 }: IntegrityCheckDialogProps) {
+  useTranslation();
   const [
     loading,
     setLoading,
@@ -350,7 +353,7 @@ export default function IntegrityCheckDialog({
     <AppModal
       opened={opened}
       onClose={onClose}
-      title="Project integrity check"
+      title={i18next.t("ui.projectIntegrityCheck")}
       size="lg"
       centered
       draggable
@@ -365,17 +368,12 @@ export default function IntegrityCheckDialog({
             />
 
             <div>
-              <Text fw={700}>
-                All project references
-              </Text>
+              <Text fw={700}> {i18next.t("ui.allProjectReferences")} </Text>
 
               <Text
                 size="sm"
                 c="dimmed"
-              >
-                Layout IDs, route turnouts, automatic routes,
-                signal rules and locomotives.
-              </Text>
+              > {i18next.t("ui.layoutIdsRouteTurnoutsAutomaticRoutesSignalRulesAndLocomotives")} </Text>
             </div>
           </Group>
 
@@ -390,18 +388,14 @@ export default function IntegrityCheckDialog({
             onClick={() =>
               void runCheck()
             }
-          >
-            Check again
-          </Button>
+          > {i18next.t("ui.checkAgain")} </Button>
         </Group>
 
         {loading &&
           !report && (
             <Group gap="xs">
               <Loader size="sm" />
-              <Text>
-                Checking the complete project…
-              </Text>
+              <Text> {i18next.t("ui.checkingTheCompleteProject")} </Text>
             </Group>
           )}
 
@@ -443,10 +437,10 @@ export default function IntegrityCheckDialog({
               }
             >
               {errors > 0
-                ? `Integrity check found ${errors} error(s) and ${warnings} warning(s).`
+                ? i18next.t("ui.integrityCheckFoundErrorSAndWarningS", { value1: errors, value2: warnings })
                 : warnings > 0
-                  ? `No broken references. ${warnings} warning(s) found.`
-                  : "Integrity check passed. Every checked reference is valid."}
+                  ? i18next.t("ui.noBrokenReferencesWarningSFound", { value1: warnings })
+                  : i18next.t("ui.integrityCheckPassedEveryCheckedReferenceIsValid")}
             </Alert>
           )}
 
@@ -498,16 +492,14 @@ export default function IntegrityCheckDialog({
                           variant="light"
                           color="gray"
                         >
-                          {area.checked} checked
-                        </Badge>
+                          {area.checked} {i18next.t("ui.checked")} </Badge>
 
                         {areaErrors >
                           0 && (
                           <Badge
                             color="red"
                           >
-                            {areaErrors} errors
-                          </Badge>
+                            {areaErrors} {i18next.t("ui.errors")} </Badge>
                         )}
 
                         {areaWarnings >
@@ -515,8 +507,7 @@ export default function IntegrityCheckDialog({
                           <Badge
                             color="yellow"
                           >
-                            {areaWarnings} warnings
-                          </Badge>
+                            {areaWarnings} {i18next.t("ui.warnings")} </Badge>
                         )}
 
                         {area.issues.length ===

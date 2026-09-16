@@ -1,3 +1,4 @@
+import i18next from "i18next";
 import { ELEMENT_TYPES } from "@domain/layout/elementTypes";
 import { drawTextWithRoundedBackground } from "../../../graphics";
 import { generateId } from "../../../helpers";
@@ -81,12 +82,12 @@ export class LabelElement extends BaseElement implements ILabelElement {
       // { label: "Név", key: "name", type: "string" },
       // { label: "Forgatás", key: "rotation", type: "number" },
       ...super.getEditableProperties(),
-      { label: "Text", key: "text", type: "string", readonly: false },
-      { label: "Color", key: "color", type: "colorpicker", readonly: false },
-      { label: "Background", key: "bg", type: "colorpicker", readonly: false },
-      { label: "Font Size", key: "fontSize", type: "number", readonly: false },
-      { label: "Offset Y", key: "offsetY", type: "number", readonly: false },
-      { label: "Offset X", key: "offsetX", type: "number", readonly: false },
+      { label: i18next.t("ui.text"), key: "text", type: "string", readonly: false },
+      { label: i18next.t("ui.color"), key: "color", type: "colorpicker", readonly: false },
+      { label: i18next.t("ui.background"), key: "bg", type: "colorpicker", readonly: false },
+      { label: i18next.t("ui.fontSize"), key: "fontSize", type: "number", readonly: false },
+      { label: i18next.t("ui.offsetY"), key: "offsetY", type: "number", readonly: false },
+      { label: i18next.t("ui.offsetX"), key: "offsetX", type: "number", readonly: false },
     ];
   }
   override getHelp(): string {

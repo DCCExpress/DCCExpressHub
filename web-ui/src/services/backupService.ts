@@ -1,3 +1,4 @@
+import i18next from "i18next";
 import {
   showNotification,
 } from "@mantine/notifications";
@@ -180,7 +181,7 @@ export async function exportFullBackup(): Promise<BackupOperationResult> {
           )
         ) {
           throw new Error(
-            "invalid response"
+            i18next.t("ui.invalidResponse")
           );
         }
 
@@ -246,7 +247,7 @@ export async function exportFullBackup(): Promise<BackupOperationResult> {
           )
         ) {
           throw new Error(
-            "invalid response"
+            i18next.t("ui.invalidResponse")
           );
         }
 
@@ -292,7 +293,7 @@ export async function exportFullBackup(): Promise<BackupOperationResult> {
 
     showNotification({
       color: "red",
-      title: "Export failed",
+      title: i18next.t("ui.exportFailed"),
       message,
     });
 
@@ -388,7 +389,7 @@ export async function importFullBackup(
     !isRecord(parsed)
   ) {
     throw new Error(
-      "This is not a valid DCCExpressHub backup file."
+      i18next.t("ui.thisIsNotAValidDccexpresshubBackupFile")
     );
   }
 
@@ -398,7 +399,7 @@ export async function importFullBackup(
       "dcc-express-lite-backup"
   ) {
     throw new Error(
-      "This is not a DCCExpressHub backup file."
+      i18next.t("ui.thisIsNotADccexpresshubBackupFile")
     );
   }
 
@@ -461,7 +462,7 @@ export async function importFullBackup(
     automations === null
   ) {
     throw new Error(
-      "The file contains no layout, locomotive, image, signal logic, HAL device or automation data that this release understands."
+      i18next.t("ui.theFileContainsNoLayoutLocomotiveImageSignalLogicHal")
     );
   }
 
@@ -586,7 +587,7 @@ export async function importFullBackup(
     completed.length === 0
   ) {
     throw new Error(
-      `No data could be restored. ${warnings.join("; ")}`
+      i18next.t("ui.noDataCouldBeRestored", { value1: warnings.join("; ") })
     );
   }
 

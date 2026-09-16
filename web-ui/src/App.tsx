@@ -1,4 +1,5 @@
-﻿﻿import {
+import i18next from "i18next";
+﻿import {
   ActionIcon,
   Alert,
   Badge,
@@ -207,8 +208,7 @@ function AppHeader({ status, version }: { status: WsConnectionStatus; version: s
         disabled={status !== "connected" || !commandCenter.alive}
         onClick={() => wsApi.setTrackPower(!commandCenter.powerInfo?.trackVoltageOn)}
         title={commandCenter.powerInfo?.trackVoltageOn ? t("homeHub.powerOffTitle") : t("homeHub.powerOnTitle")}
-      >
-        POWER {commandCenter.powerInfo?.trackVoltageOn ? "ON" : "OFF"}
+      > {i18next.t("ui.power")} {commandCenter.powerInfo?.trackVoltageOn ? i18next.t("ui.on") : i18next.t("ui.off")}
       </Button>
 
       <Button
@@ -459,6 +459,7 @@ function isViewableTextFile(file: DeviceFile): boolean {
 }
 
 function FilesPage({ onBack }: { onBack: () => void }) {
+  useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<DeviceFile[]>([]);
   const [currentPath, setCurrentPath] = useState("/");
@@ -472,7 +473,7 @@ function FilesPage({ onBack }: { onBack: () => void }) {
     setError(null);
     try {
       const response = await fetch(`/list?path=${encodeURIComponent(currentPath)}`, { cache: "no-store" });
-      if (!response.ok) throw new Error(`Could not load files (HTTP ${response.status}).`);
+      if (!response.ok) throw new Error(i18next.t("ui.couldNotLoadFilesHttp", { value1: response.status }));
       const data = await response.json() as DeviceDirectoryListing;
       setFiles(data.entries.sort((left, right) => {
         if (left.type !== right.type) return left.type === "directory" ? -1 : 1;
@@ -483,7 +484,7 @@ function FilesPage({ onBack }: { onBack: () => void }) {
     } finally {
       setLoading(false);
     }
-  }, [currentPath]);
+  }, [i18next.resolvedLanguage, currentPath]);
 
   useEffect(() => { void loadFiles(); }, [loadFiles]);
 
@@ -496,9 +497,9 @@ function FilesPage({ onBack }: { onBack: () => void }) {
         const formData = new FormData();
         formData.append("file", file, file.name);
         const response = await fetch(`/upload?path=${encodeURIComponent(currentPath)}`, { method: "POST", body: formData });
-        if (!response.ok) throw new Error(`Could not upload ${file.name} (HTTP ${response.status}).`);
+        if (!response.ok) throw new Error(i18next.t("ui.couldNotUploadHttp", { value1: file.name, value2: response.status }));
       }
-      showNotification({ color: "teal", title: "Upload complete", message: `${selected.length} file(s) uploaded.` });
+      showNotification({ color: "teal", title: i18next.t("ui.uploadComplete"), message: i18next.t("ui.fileSUploaded", { value1: selected.length }) });
       await loadFiles();
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "Upload failed.");
@@ -517,7 +518,7 @@ function FilesPage({ onBack }: { onBack: () => void }) {
     setError(null);
     try {
       const response = await fetch(`/delete?path=${encodeURIComponent(file.path)}`, { cache: "no-store" });
-      if (!response.ok) throw new Error(`Could not delete ${file.name} (HTTP ${response.status}).`);
+      if (!response.ok) throw new Error(i18next.t("ui.couldNotDeleteHttp", { value1: file.name, value2: response.status }));
       await loadFiles();
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "Delete failed.");
@@ -531,7 +532,7 @@ function FilesPage({ onBack }: { onBack: () => void }) {
     setTextViewer({ name: file.name, content: "", loading: true });
     try {
       const response = await fetch(`/api/files/text?path=${encodeURIComponent(file.path)}`, { cache: "no-store" });
-      if (!response.ok) throw new Error(`Could not open ${file.name} (HTTP ${response.status}).`);
+      if (!response.ok) throw new Error(i18next.t("ui.couldNotOpenHttp", { value1: file.name, value2: response.status }));
       const content = await response.text();
       setTextViewer({ name: file.name, content, loading: false });
     } catch (viewError) {
@@ -550,7 +551,7 @@ function FilesPage({ onBack }: { onBack: () => void }) {
       <Modal
         opened={textViewer !== null}
         onClose={() => setTextViewer(null)}
-        title={textViewer?.name ?? "Text file"}
+        title={textViewer?.name ?? i18next.t("ui.textFile")}
         size="xl"
         centered
       >
@@ -567,16 +568,12 @@ function FilesPage({ onBack }: { onBack: () => void }) {
           </Box>
         )}
       </Modal>
-      <Button variant="subtle" color="gray" leftSection={<IconArrowLeft size={18} />} onClick={onBack} className="back-button">
-        Back to home
-      </Button>
-      <PageTitle icon={<IconFolder size={24} />} title="Files" subtitle="Browse the complete LittleFS filesystem" />
+      <Button variant="subtle" color="gray" leftSection={<IconArrowLeft size={18} />} onClick={onBack} className="back-button"> {i18next.t("ui.backToHome")} </Button>
+      <PageTitle icon={<IconFolder size={24} />} title={i18next.t("ui.files")} subtitle={i18next.t("ui.browseTheCompleteLittlefsFilesystem")} />
       <Card withBorder radius="xl" p="lg">
         <Stack gap="md">
           <Group gap={4} wrap="wrap">
-            <Button size="compact-sm" variant={currentPath === "/" ? "light" : "subtle"} leftSection={<IconHome size={15} />} onClick={() => navigateToSegment(-1)}>
-              root
-            </Button>
+            <Button size="compact-sm" variant={currentPath === "/" ? "light" : "subtle"} leftSection={<IconHome size={15} />} onClick={() => navigateToSegment(-1)}> {i18next.t("ui.root")} </Button>
             {pathSegments.map((segment, index) => (
               <Button key={`${segment}-${index}`} size="compact-sm" variant={index === pathSegments.length - 1 ? "light" : "subtle"} onClick={() => navigateToSegment(index)}>
                 / {segment}
@@ -586,11 +583,11 @@ function FilesPage({ onBack }: { onBack: () => void }) {
           <Group justify="space-between">
             <div>
               <Text fw={600} size="sm">{currentPath}</Text>
-              <Text c="dimmed" size="xs">{files.length} item(s)</Text>
+              <Text c="dimmed" size="xs">{files.length} {i18next.t("ui.itemS")}</Text>
             </div>
             <Group gap="xs">
-              <Button variant="light" leftSection={<IconRefresh size={17} />} disabled={busy} onClick={() => void loadFiles()}>Refresh</Button>
-              <Button leftSection={<IconUpload size={17} />} loading={busy} onClick={() => inputRef.current?.click()}>Upload</Button>
+              <Button variant="light" leftSection={<IconRefresh size={17} />} disabled={busy} onClick={() => void loadFiles()}>{i18next.t("ui.refresh")}</Button>
+              <Button leftSection={<IconUpload size={17} />} loading={busy} onClick={() => inputRef.current?.click()}>{i18next.t("ui.upload")}</Button>
               <input ref={inputRef} hidden type="file" multiple onChange={event => void uploadFiles(event.currentTarget.files)} />
             </Group>
           </Group>
@@ -598,7 +595,7 @@ function FilesPage({ onBack }: { onBack: () => void }) {
           {loading ? (
             <Group justify="center" py="xl"><Loader /></Group>
           ) : files.length === 0 ? (
-            <Text c="dimmed" ta="center" py="xl">This directory is empty.</Text>
+            <Text c="dimmed" ta="center" py="xl">{i18next.t("ui.thisDirectoryIsEmpty")}</Text>
           ) : (
             <Stack gap="xs">
               {files.map(file => {
@@ -630,22 +627,22 @@ function FilesPage({ onBack }: { onBack: () => void }) {
                         )}
                         <div style={{ minWidth: 0 }}>
                           <Text fw={600} truncate>{file.name}</Text>
-                          <Text size="xs" c="dimmed">{file.type === "directory" ? "Directory" : formatFileSize(file.size)}</Text>
+                          <Text size="xs" c="dimmed">{file.type === "directory" ? i18next.t("ui.directory2") : formatFileSize(file.size)}</Text>
                         </div>
                       </Group>
                       <Group gap={6} wrap="nowrap">
                         {file.type === "file" && (
                           textFile ? (
-                            <ActionIcon variant="light" aria-label={`Open ${file.name}`} onClick={event => { event.stopPropagation(); void openTextFile(file); }}>
+                            <ActionIcon variant="light" aria-label={i18next.t("ui.open", { value1: file.name })} onClick={event => { event.stopPropagation(); void openTextFile(file); }}>
                               <IconExternalLink size={17} />
                             </ActionIcon>
                           ) : (
-                            <ActionIcon component="a" href={href} target="_blank" rel="noreferrer" variant="light" aria-label={`Open ${file.name}`} onClick={event => event.stopPropagation()}>
+                            <ActionIcon component="a" href={href} target="_blank" rel="noreferrer" variant="light" aria-label={i18next.t("ui.open", { value1: file.name })} onClick={event => event.stopPropagation()}>
                               <IconExternalLink size={17} />
                             </ActionIcon>
                           )
                         )}
-                        <ActionIcon color="red" variant="light" disabled={busy} aria-label={`Delete ${file.name}`} onClick={event => { event.stopPropagation(); void deleteFile(file); }}>
+                        <ActionIcon color="red" variant="light" disabled={busy} aria-label={i18next.t("ui.delete", { value1: file.name })} onClick={event => { event.stopPropagation(); void deleteFile(file); }}>
                           <IconTrash size={17} />
                         </ActionIcon>
                       </Group>
@@ -683,6 +680,7 @@ function errorMessage(error: unknown): string {
 }
 
 function BackupPage({ onBack, onDataImported }: { onBack: () => void; onDataImported: () => Promise<void> }) {
+  useTranslation();
   const importInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
 
@@ -712,7 +710,7 @@ function BackupPage({ onBack, onDataImported }: { onBack: () => void; onDataImpo
             const response = await fetch("/api/locos", { cache: "no-store" });
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const locos = await response.json() as unknown;
-            if (!Array.isArray(locos)) throw new Error("invalid response");
+            if (!Array.isArray(locos)) throw new Error(i18next.t("ui.invalidResponse"));
             backup.locos = locos as Loco[];
             exported.push(`${locos.length} locomotives`);
           } catch (error) {
@@ -742,7 +740,7 @@ function BackupPage({ onBack, onDataImported }: { onBack: () => void; onDataImpo
             const response = await fetch("/api/device-config", { cache: "no-store" });
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const devices = await response.json() as unknown;
-            if (!isDeviceConfigurationDocument(devices)) throw new Error("invalid response");
+            if (!isDeviceConfigurationDocument(devices)) throw new Error(i18next.t("ui.invalidResponse"));
             backup.devices = devices;
             exported.push(`${devices.devices.length} HAL devices`);
           } catch (error) {
@@ -751,7 +749,7 @@ function BackupPage({ onBack, onDataImported }: { onBack: () => void; onDataImpo
         })(),
       ]);
 
-      if (exported.length === 0) throw new Error(`No backup data could be read. ${warnings.join("; ")}`);
+      if (exported.length === 0) throw new Error(i18next.t("ui.noBackupDataCouldBeRead", { value1: warnings.join("; ") }));
 
       const blobUrl = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" }));
       const anchor = document.createElement("a");
@@ -762,10 +760,10 @@ function BackupPage({ onBack, onDataImported }: { onBack: () => void; onDataImpo
       showNotification({
         color: warnings.length > 0 ? "yellow" : "teal",
         title: warnings.length > 0 ? "Backup exported with warnings" : "Backup exported",
-        message: `${exported.join(", ")} saved.${warnings.length > 0 ? ` Skipped: ${warnings.join("; ")}` : ""}`,
+        message: i18next.t("ui.saved", { value1: exported.join(", "), value2: warnings.length > 0 ? ` Skipped: ${warnings.join("; ")}` : "" }),
       });
     } catch (exportError) {
-      showNotification({ color: "red", title: "Export failed", message: errorMessage(exportError) });
+      showNotification({ color: "red", title: i18next.t("ui.exportFailed"), message: errorMessage(exportError) });
     }
   };
 
@@ -774,10 +772,10 @@ function BackupPage({ onBack, onDataImported }: { onBack: () => void; onDataImpo
     try {
       const parsed = JSON.parse(await file.text()) as unknown;
       if (!isRecord(parsed)) {
-        throw new Error("This is not a valid DCCExpressLite backup file.");
+        throw new Error(i18next.t("ui.thisIsNotAValidDccexpressliteBackupFile"));
       }
       if (parsed.format !== undefined && parsed.format !== "dcc-express-lite-backup") {
-        throw new Error("This is not a DCCExpressLite backup file.");
+        throw new Error(i18next.t("ui.thisIsNotADccexpressliteBackupFile"));
       }
 
       // Intentionally do not reject unknown backup versions. Each known section
@@ -790,7 +788,7 @@ function BackupPage({ onBack, onDataImported }: { onBack: () => void; onDataImpo
         : null;
       const devices = isDeviceConfigurationDocument(parsed.devices) ? parsed.devices : null;
       if (!hasLayout && locos === null && images === null && signalLogic === null && devices === null) {
-        throw new Error("The file contains no layout, locomotive, image, signal logic or HAL device data that this release understands.");
+        throw new Error(i18next.t("ui.theFileContainsNoLayoutLocomotiveImageSignalLogicOr"));
       }
 
       const imported: string[] = [];
@@ -853,15 +851,15 @@ function BackupPage({ onBack, onDataImported }: { onBack: () => void; onDataImpo
         }
       }
 
-      if (imported.length === 0) throw new Error(`No data could be restored. ${warnings.join("; ")}`);
+      if (imported.length === 0) throw new Error(i18next.t("ui.noDataCouldBeRestored", { value1: warnings.join("; ") }));
       if (locos !== null) await onDataImported();
       showNotification({
         color: warnings.length > 0 ? "yellow" : "teal",
         title: warnings.length > 0 ? "Backup imported with warnings" : "Backup imported",
-        message: `${imported.join(", ")} restored.${warnings.length > 0 ? ` Skipped: ${warnings.join("; ")}` : ""}`,
+        message: i18next.t("ui.restored", { value1: imported.join(", "), value2: warnings.length > 0 ? ` Skipped: ${warnings.join("; ")}` : "" }),
       });
     } catch (importError) {
-      showNotification({ color: "red", title: "Import failed", message: errorMessage(importError) });
+      showNotification({ color: "red", title: i18next.t("ui.importFailed"), message: errorMessage(importError) });
     } finally {
       setImporting(false);
       if (importInputRef.current) importInputRef.current.value = "";
@@ -870,25 +868,17 @@ function BackupPage({ onBack, onDataImported }: { onBack: () => void; onDataImpo
 
   return (
     <Stack gap="lg">
-      <Button variant="subtle" color="gray" leftSection={<IconArrowLeft size={18} />} onClick={onBack} className="back-button">
-        Back to home
-      </Button>
-      <PageTitle icon={<IconDownload size={24} />} title="Export / Import" subtitle="Back up or restore all user data" />
+      <Button variant="subtle" color="gray" leftSection={<IconArrowLeft size={18} />} onClick={onBack} className="back-button"> {i18next.t("ui.backToHome")} </Button>
+      <PageTitle icon={<IconDownload size={24} />} title={i18next.t("ui.exportImport")} subtitle={i18next.t("ui.backUpOrRestoreAllUserData")} />
       <Card withBorder radius={5} p="lg">
         <Stack gap="md">
           <div>
-            <Title order={4}>Layout, locomotives, images, signal logic and devices</Title>
-            <Text size="sm" c="dimmed" mt={4}>
-              Export the complete layout, locomotive list, images, signal automation rules and HAL device configuration into one JSON file, or restore them from an earlier backup.
-            </Text>
+            <Title order={4}>{i18next.t("ui.layoutLocomotivesImagesSignalLogicAndDevices")}</Title>
+            <Text size="sm" c="dimmed" mt={4}> {i18next.t("ui.exportTheCompleteLayoutLocomotiveListImagesSignalAutomationRules")} </Text>
           </div>
           <SimpleGrid cols={{ base: 1, sm: 2 }}>
-            <Button size="lg" variant="light" color="teal" leftSection={<IconDownload size={18} />} onClick={() => void exportData()}>
-              Export backup
-            </Button>
-            <Button size="lg" variant="light" color="blue" leftSection={<IconUpload size={18} />} loading={importing} onClick={() => importInputRef.current?.click()}>
-              Import backup
-            </Button>
+            <Button size="lg" variant="light" color="teal" leftSection={<IconDownload size={18} />} onClick={() => void exportData()}> {i18next.t("ui.exportBackup")} </Button>
+            <Button size="lg" variant="light" color="blue" leftSection={<IconUpload size={18} />} loading={importing} onClick={() => importInputRef.current?.click()}> {i18next.t("ui.importBackup")} </Button>
           </SimpleGrid>
           <input
             ref={importInputRef}
@@ -907,6 +897,7 @@ function BackupPage({ onBack, onDataImported }: { onBack: () => void; onDataImpo
 }
 
 function SettingsPage({ onBack, status }: { onBack: () => void; status: WsConnectionStatus }) {
+  useTranslation();
   const [settings, setSettings] = useState<NetworkSettingsDto | null>(null);
   const [ssid, setSsid] = useState("");
   const [password, setPassword] = useState("");
@@ -921,7 +912,7 @@ function SettingsPage({ onBack, status }: { onBack: () => void; status: WsConnec
     try {
       const response = await fetch("/api/settings/network", { cache: "no-store" });
 
-      if (!response.ok) throw new Error("The device did not return its network settings.");
+      if (!response.ok) throw new Error(i18next.t("ui.theDeviceDidNotReturnItsNetworkSettings"));
 
       const data = await response.json() as NetworkSettingsDto;
       setSettings(data);
@@ -932,7 +923,7 @@ function SettingsPage({ onBack, status }: { onBack: () => void; status: WsConnec
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [i18next.resolvedLanguage, ]);
 
   useEffect(() => {
     void loadSettings();
@@ -955,8 +946,8 @@ function SettingsPage({ onBack, status }: { onBack: () => void; status: WsConnec
 
       showNotification({
         color: "teal",
-        title: "Network saved",
-        message: "The EX-CSB1 is restarting. Reconnect through your local Wi-Fi and open dccex.local.",
+        title: i18next.t("ui.networkSaved"),
+        message: i18next.t("ui.theExCsb1IsRestartingReconnectThroughYourLocalWi"),
         autoClose: 9000,
       });
       setSettings(current => current ? { ...current, configured: true, ssid: ssid.trim(), hasPassword: true, restartPending: true } : current);
@@ -967,7 +958,7 @@ function SettingsPage({ onBack, status }: { onBack: () => void; status: WsConnec
   };
 
   const resetSettings = async () => {
-    if (!window.confirm("Clear the saved network and restart in DCCEX hotspot mode?")) return;
+    if (!window.confirm(i18next.t("ui.clearTheSavedNetworkAndRestartInDccexHotspotMode"))) return;
 
     setSaving(true);
     setError(null);
@@ -980,8 +971,8 @@ function SettingsPage({ onBack, status }: { onBack: () => void; status: WsConnec
 
       showNotification({
         color: "teal",
-        title: "Hotspot mode restored",
-        message: "The EX-CSB1 is restarting. Join its DCCEX hotspot again.",
+        title: i18next.t("ui.hotspotModeRestored"),
+        message: i18next.t("ui.theExCsb1IsRestartingJoinItsDccexHotspotAgain"),
         autoClose: 9000,
       });
       setSettings(current => current ? { ...current, configured: false, ssid: "", hasPassword: false, restartPending: true } : current);
@@ -996,9 +987,7 @@ function SettingsPage({ onBack, status }: { onBack: () => void; status: WsConnec
   return (
     <Stack gap="lg">
       <Group justify="space-between">
-        <Button variant="subtle" color="gray" leftSection={<IconArrowLeft size={18} />} onClick={onBack} className="back-button">
-          Back to home
-        </Button>
+        <Button variant="subtle" color="gray" leftSection={<IconArrowLeft size={18} />} onClick={onBack} className="back-button"> {i18next.t("ui.backToHome")} </Button>
         <Badge
           color={statusColor(status)}
           variant={status === "connected" ? "light" : "filled"}
@@ -1008,14 +997,14 @@ function SettingsPage({ onBack, status }: { onBack: () => void; status: WsConnec
         </Badge>
       </Group>
 
-      <PageTitle icon={<IconSettings size={24} />} title="Settings" subtitle="Device and local network" />
+      <PageTitle icon={<IconSettings size={24} />} title={i18next.t("ui.settings")} subtitle={i18next.t("ui.deviceAndLocalNetwork")} />
 
       <Card withBorder radius="xl" p="lg">
         <Stack gap="md">
           <Group justify="space-between">
             <div>
-              <Title order={4}>Local Wi-Fi network</Title>
-              <Text size="sm" c="dimmed">Saved securely on the EX-CSB1</Text>
+              <Title order={4}>{i18next.t("ui.localWiFiNetwork")}</Title>
+              <Text size="sm" c="dimmed">{i18next.t("ui.savedSecurelyOnTheExCsb1")}</Text>
             </div>
             <ThemeIcon size={42} radius="md" variant="light" color={settings?.configured ? "teal" : "gray"}>
               <IconWifi size={23} />
@@ -1027,20 +1016,19 @@ function SettingsPage({ onBack, status }: { onBack: () => void; status: WsConnec
           ) : (
             <>
               {settings?.configured && (
-                <Alert color="teal" icon={<IconCheck size={18} />} title="Local network configured">
-                  Currently saved: <strong>{settings.ssid}</strong>
+                <Alert color="teal" icon={<IconCheck size={18} />} title={i18next.t("ui.localNetworkConfigured")}> {i18next.t("ui.currentlySaved")} <strong>{settings.ssid}</strong>
                 </Alert>
               )}
 
               {error && (
-                <Alert color="red" icon={<IconAlertTriangle size={18} />} title="Network settings">
+                <Alert color="red" icon={<IconAlertTriangle size={18} />} title={i18next.t("ui.networkSettings")}>
                   {error}
                 </Alert>
               )}
 
               <TextInput
-                label="Wi-Fi name (SSID)"
-                placeholder="Your local network"
+                label={i18next.t("ui.wiFiNameSsid")}
+                placeholder={i18next.t("ui.yourLocalNetwork")}
                 value={ssid}
                 onChange={event => setSsid(event.currentTarget.value)}
                 maxLength={32}
@@ -1050,9 +1038,9 @@ function SettingsPage({ onBack, status }: { onBack: () => void; status: WsConnec
               />
 
               <PasswordInput
-                label="Wi-Fi password"
-                placeholder={settings?.hasPassword ? "Leave blank to keep the saved password" : "8–63 characters"}
-                description={settings?.hasPassword ? "The saved password is never sent back to the browser." : undefined}
+                label={i18next.t("ui.wiFiPassword")}
+                placeholder={settings?.hasPassword ? i18next.t("ui.leaveBlankToKeepTheSavedPassword") : i18next.t("ui.863Characters")}
+                description={settings?.hasPassword ? i18next.t("ui.theSavedPasswordIsNeverSentBackToTheBrowser") : undefined}
                 value={password}
                 onChange={event => setPassword(event.currentTarget.value)}
                 minLength={8}
@@ -1060,9 +1048,7 @@ function SettingsPage({ onBack, status }: { onBack: () => void; status: WsConnec
                 disabled={saving}
               />
 
-              <Alert color="blue" variant="light" icon={<IconWifi size={18} />}>
-                After saving, the device restarts and this hotspot disappears. Join your local Wi-Fi, then open <strong>http://dccex.local</strong> or the IP shown on the EX-CSB1 display.
-              </Alert>
+              <Alert color="blue" variant="light" icon={<IconWifi size={18} />}> {i18next.t("ui.afterSavingTheDeviceRestartsAndThisHotspotDisappearsJoin")} <strong>http://dccex.local</strong> {i18next.t("ui.orTheIpShownOnTheExCsb1Display")} </Alert>
 
               <Button
                 size="md"
@@ -1070,15 +1056,11 @@ function SettingsPage({ onBack, status }: { onBack: () => void; status: WsConnec
                 loading={saving}
                 disabled={!ssid.trim() || (!settings?.hasPassword && password.length < 8)}
                 onClick={() => void saveSettings()}
-              >
-                Save network and restart
-              </Button>
+              > {i18next.t("ui.saveNetworkAndRestart")} </Button>
 
-              <Divider label="Recovery" labelPosition="center" />
+              <Divider label={i18next.t("ui.recovery")} labelPosition="center" />
 
-              <Button variant="light" color="red" disabled={saving || !settings?.configured} onClick={() => void resetSettings()}>
-                Return to DCCEX hotspot mode
-              </Button>
+              <Button variant="light" color="red" disabled={saving || !settings?.configured} onClick={() => void resetSettings()}> {i18next.t("ui.returnToDccexHotspotMode")} </Button>
             </>
           )}
         </Stack>
@@ -1088,6 +1070,7 @@ function SettingsPage({ onBack, status }: { onBack: () => void; status: WsConnec
 }
 
 export default function App() {
+  useTranslation();
   const [page, setPage] = useState<Page>(pageFromHash);
   const [status, setStatus] = useState<WsConnectionStatus>(wsClient.getStatus());
   const [locos, setLocos] = useState<Loco[]>([]);
@@ -1110,9 +1093,9 @@ export default function App() {
 
   const loadLocosForEditor = useCallback(async (): Promise<Loco[]> => {
     const response = await fetch("/api/locos", { cache: "no-store" });
-    if (!response.ok) throw new Error("Could not load locomotives from the EX-CSB1.");
+    if (!response.ok) throw new Error(i18next.t("ui.couldNotLoadLocomotivesFromTheExCsb1"));
     return response.json() as Promise<Loco[]>;
-  }, []);
+  }, [i18next.resolvedLanguage, ]);
 
   const saveLocosForEditor = useCallback(async (nextLocos: Loco[]): Promise<void> => {
     const response = await fetch("/api/locos", {
@@ -1120,8 +1103,8 @@ export default function App() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(nextLocos),
     });
-    if (!response.ok) throw new Error("Could not save locomotives to the EX-CSB1.");
-  }, []);
+    if (!response.ok) throw new Error(i18next.t("ui.couldNotSaveLocomotivesToTheExCsb1"));
+  }, [i18next.resolvedLanguage, ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1206,21 +1189,21 @@ export default function App() {
             radius="xl"
             variant="filled"
             color="dark"
-            aria-label="Back to home"
-            title="Back to home"
+            aria-label={i18next.t("ui.backToHome")}
+            title={i18next.t("ui.backToHome")}
             onClick={() => navigate("home")}
           >
             <IconArrowLeft size={24} />
           </ActionIcon>
           {loadState === "loading" && locos.length === 0 ? (
-            <Card withBorder radius="xl" p="xl"><Stack align="center"><Loader /><Text c="dimmed">Loading locomotives…</Text></Stack></Card>
+            <Card withBorder radius="xl" p="xl"><Stack align="center"><Loader /><Text c="dimmed">{i18next.t("ui.loadingLocomotives")}</Text></Stack></Card>
           ) : (
             <Box className="mobile-loco-panel">
               <LocoPanel locos={locos} mobileViewport />
             </Box>
           )}
           {loadState === "error" && (
-            <Button variant="light" leftSection={<IconRefresh size={16} />} onClick={() => void loadLocos()}>Retry loading locomotives</Button>
+            <Button variant="light" leftSection={<IconRefresh size={16} />} onClick={() => void loadLocos()}>{i18next.t("ui.retryLoadingLocomotives")}</Button>
           )}
           <ActionIcon
             className="mobile-layout-fab"
@@ -1228,8 +1211,8 @@ export default function App() {
             radius="xl"
             variant="filled"
             color={driveLayoutOpen ? "red" : "teal"}
-            aria-label={driveLayoutOpen ? "Close layout panel" : "Open layout panel"}
-            title={driveLayoutOpen ? "Close layout panel" : "Open layout panel"}
+            aria-label={driveLayoutOpen ? i18next.t("ui.closeLayoutPanel") : i18next.t("ui.openLayoutPanel")}
+            title={driveLayoutOpen ? i18next.t("ui.closeLayoutPanel") : i18next.t("ui.openLayoutPanel")}
             onClick={() => setDriveLayoutOpen(value => !value)}
           >
             {driveLayoutOpen ? <IconX size={28} /> : <IconMap size={28} />}

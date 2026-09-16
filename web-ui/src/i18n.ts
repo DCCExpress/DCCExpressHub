@@ -7,6 +7,9 @@ import de from "./i18n/de.json";
 import signalLogicHu from "./i18n/signalLogic.hu.json";
 import signalLogicEn from "./i18n/signalLogic.en.json";
 import signalLogicDe from "./i18n/signalLogic.de.json";
+import uiHu from "./i18n/ui.hu.json";
+import uiEn from "./i18n/ui.en.json";
+import uiDe from "./i18n/ui.de.json";
 
 type SupportedLanguage = "en" | "hu" | "de";
 
@@ -39,6 +42,7 @@ const savedLang = readInitialLanguage();
 
 const enTranslation = {
   ...en,
+  ui: uiEn,
   home: {
     ...en.home,
     thanksDescription:
@@ -114,6 +118,7 @@ const enTranslation = {
 
 const huTranslation = {
   ...hu,
+  ui: uiHu,
   home: {
     ...hu.home,
     thanksDescription:
@@ -172,13 +177,13 @@ const huTranslation = {
     },
   },
   blockActions: {
-    menu: "Blocks",
-    managerTitle: "Block actionök",
+    menu: "Blokkok",
+    managerTitle: "Blokkműveletek",
     blocks: "Blokkok",
-    emptyBlocks: "Nincs blokk a layouton.",
-    selectBlock: "Válassz egy blokkot a listából, vagy előbb tegyél blokkokat a layoutra.",
+    emptyBlocks: "Nincs blokk a terepasztalon.",
+    selectBlock: "Válassz egy blokkot a listából, vagy előbb adj blokkokat a terepasztalhoz.",
     blockDetails: "ID: {{id}} | Cím: {{address}} | Szenzor: {{sensor}}",
-    totalActions: "{{count}} action",
+    totalActions: "{{count}} művelet",
   },
   settings: {
     ...hu.settings,
@@ -189,6 +194,7 @@ const huTranslation = {
 
 const deTranslation = {
   ...de,
+  ui: uiDe,
   home: {
     ...de.home,
     thanksDescription:

@@ -1,3 +1,4 @@
+import i18next from "i18next";
 import type { Loco, LocoAction, LocoActionHook, LocoFunction } from "@domain/types";
 
 import { generateId } from "../../helpers";
@@ -5,17 +6,17 @@ import { generateId } from "../../helpers";
 export type LocoActionType = LocoAction["type"];
 
 export const ACTION_HOOKS: { value: LocoActionHook; label: string; description: string }[] = [
-  { value: "beforeStart", label: "Before start", description: "Runs before the task starts the loco." },
-  { value: "afterStart", label: "After start", description: "Runs after the loco start command was sent." },
-  { value: "beforeStop", label: "Before stop", description: "Runs before a normal task stop." },
-  { value: "afterStop", label: "After stop", description: "Runs after the loco stop command was sent." },
+  { value: "beforeStart", get label() { return i18next.t("ui.beforeStart"); }, get description() { return i18next.t("ui.runsBeforeTheTaskStartsTheLoco"); } },
+  { value: "afterStart", get label() { return i18next.t("ui.afterStart"); }, get description() { return i18next.t("ui.runsAfterTheLocoStartCommandWasSent"); } },
+  { value: "beforeStop", get label() { return i18next.t("ui.beforeStop"); }, get description() { return i18next.t("ui.runsBeforeANormalTaskStop"); } },
+  { value: "afterStop", get label() { return i18next.t("ui.afterStop"); }, get description() { return i18next.t("ui.runsAfterTheLocoStopCommandWasSent"); } },
 ];
 
 export const ACTION_TYPE_OPTIONS: { value: LocoActionType; label: string }[] = [
-  { value: "setFunction", label: "Function ON/OFF" },
-  { value: "momentaryFunction", label: "Momentary function" },
-  { value: "playAudio", label: "Audio" },
-  { value: "wait", label: "Wait" },
+  { value: "setFunction", get label() { return i18next.t("ui.functionOnOff"); } },
+  { value: "momentaryFunction", get label() { return i18next.t("ui.momentaryFunction"); } },
+  { value: "playAudio", get label() { return i18next.t("ui.audio"); } },
+  { value: "wait", get label() { return i18next.t("ui.wait"); } },
 ];
 
 export const createEmptyLocoActions = (): Record<LocoActionHook, LocoAction[]> => ({

@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import i18next from "i18next";
 import {
   ActionIcon,
   Box,
@@ -122,6 +124,7 @@ export default function RouteTurnoutSelectionPropertyEditor({
   onUpdateSelectedElement,
   setBusy,
 }: RouteTurnoutSelectionPropertyEditorProps) {
+  useTranslation();
   const commandCenter = useCommandCenter();
   const items = getItems(selectedElement, prop);
   const hasTurnouts = items.length > 0;
@@ -218,7 +221,7 @@ export default function RouteTurnoutSelectionPropertyEditor({
           variant={turnoutSelectionMode ? "filled" : "light"}
           onClick={() => setTurnoutSelectionMode(!turnoutSelectionMode)}
         >
-          {turnoutSelectionMode ? "Finish selection" : "Add turnouts"}
+          {turnoutSelectionMode ? i18next.t("ui.finishSelection") : i18next.t("ui.addTurnouts")}
         </Button>
         <Button
           size="xs"
@@ -226,19 +229,17 @@ export default function RouteTurnoutSelectionPropertyEditor({
           leftSection={<IconPlayerPlay size={14} />}
           disabled={!hasTurnouts}
           onClick={() => void testRouteButton()}
-        >
-          Test route
-        </Button>
+        > {i18next.t("ui.testRoute")} </Button>
       </Group>
 
       <Text size="xs" c="dimmed">
         {turnoutSelectionMode
-          ? "Click turnouts on the layout to add them, then press Finish selection."
-          : "Use Add turnouts to pick turnouts from the layout. Click a preview below to change its stored route state only. Test route sends the same turnout commands as clicking the route button."}
+          ? i18next.t("ui.clickTurnoutsOnTheLayoutToAddThemThenPress")
+          : i18next.t("ui.useAddTurnoutsToPickTurnoutsFromTheLayoutClick")}
       </Text>
 
       {items.length === 0 ? (
-        <Text size="xs" c="dimmed">No turnouts selected</Text>
+        <Text size="xs" c="dimmed">{i18next.t("ui.noTurnoutsSelected")}</Text>
       ) : (
         <Stack gap={6}>
           {items.map(item => {
@@ -246,7 +247,7 @@ export default function RouteTurnoutSelectionPropertyEditor({
             if (!turnout) {
               return (
                 <Group key={item.turnoutId} justify="space-between" gap="xs">
-                  <Text size="xs" c="red">Missing turnout: {item.turnoutId}</Text>
+                  <Text size="xs" c="red">{i18next.t("ui.missingTurnout")} {item.turnoutId}</Text>
                   <ActionIcon
                     size="sm"
                     color="red"
@@ -318,9 +319,8 @@ export default function RouteTurnoutSelectionPropertyEditor({
                   />
                 </Box>
                 <Stack gap={0} style={{ flex: 1, minWidth: 0 }}>
-                  <Text size="xs" fw={500} truncate>{turnout.name || "Turnout"}</Text>
-                  <Text size="xs" c="dimmed">
-                    Route state: {getRouteTurnoutLogicalLabel(
+                  <Text size="xs" fw={500} truncate>{turnout.name || i18next.t("ui.turnout2")}</Text>
+                  <Text size="xs" c="dimmed"> {i18next.t("ui.routeState")} {getRouteTurnoutLogicalLabel(
                       turnout,
                       item.closed,
                       item.secondClosed
@@ -331,7 +331,7 @@ export default function RouteTurnoutSelectionPropertyEditor({
                   size="sm"
                   color="red"
                   variant="subtle"
-                  title="Remove turnout"
+                  title={i18next.t("ui.removeTurnout")}
                   onClick={event => {
                     event.stopPropagation();
                     removeTurnout(selectedElement, item.turnoutId, onUpdateSelectedElement);

@@ -1,3 +1,4 @@
+import i18next from "i18next";
 import { BLOCK_TYPES, type BlockType, ELEMENT_TYPES } from "../../../domain/layout/elementTypes";
 import type { IRect } from "../../../domain/Rect";
 import { generateId } from "../../../helpers";
@@ -274,27 +275,27 @@ export class BlockElement extends TrackElement {
     return [
       ...super.getEditableProperties(),
       {
-        label: "Block type",
+        label: i18next.t("ui.blockType"),
         key: "blockType",
         type: "blockTypeSelect",
         readonly: false,
       },
       {
-        label: "Length",
+        label: i18next.t("ui.length"),
         key: "length",
         type: "number",
         readonly: false,
         min: 1,
       },
       {
-        label: "Occupancy sensor address",
+        label: i18next.t("ui.occupancySensorAddress"),
         key: "sensorAddress",
         type: "number",
         readonly: false,
         min: 0,
       },
       {
-        label: "Color ON",
+        label: i18next.t("ui.colorOn"),
         key: "colorOn",
         type: "colorpicker",
         readonly: false,

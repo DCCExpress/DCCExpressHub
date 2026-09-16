@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import i18next from "i18next";
 import { ActionIcon, Alert, Box, Center, Group, Loader } from "@mantine/core";
 import { showNotification } from "@mantine/notifications";
 import { IconArrowsMaximize, IconCrosshair, IconPlayerStop } from "@tabler/icons-react";
@@ -24,6 +26,7 @@ const CURSOR_TOOL: EditorTool = { mode: "cursor", elementType: "general" };
 type RuntimeLayoutOverlayProps = { locos: Loco[]; open: boolean };
 
 export default function RuntimeLayoutOverlay({ locos, open }: RuntimeLayoutOverlayProps) {
+  useTranslation();
   const commandCenter = useCommandCenter();
   const [layout, setLayout] = useState(() => new LayoutView());
   const [selectedElement, setSelectedElement] = useState<BaseElement | null>(null);
@@ -46,7 +49,7 @@ export default function RuntimeLayoutOverlay({ locos, open }: RuntimeLayoutOverl
     let cancelled = false;
     void fetch("/api/layout", { cache: "no-store" })
       .then(response => {
-        if (!response.ok) throw new Error("The layout could not be loaded from the EX-CSB1.");
+        if (!response.ok) throw new Error(i18next.t("ui.theLayoutCouldNotBeLoadedFromTheExCsb1"));
         return response.json();
       })
       .then(data => {
@@ -67,9 +70,9 @@ export default function RuntimeLayoutOverlay({ locos, open }: RuntimeLayoutOverl
 
   useEffect(() => wsClient.on("error", data => {
     if (data.message === "track_power_off") {
-      showNotification({ color: "red", title: "Track power is off", message: "Turn POWER ON before operating a turnout." });
+      showNotification({ color: "red", title: i18next.t("ui.trackPowerIsOff"), message: i18next.t("ui.turnPowerOnBeforeOperatingATurnout") });
     } else if (data.message === "turnout_address_out_of_range") {
-      showNotification({ color: "red", title: "Invalid turnout address", message: "Use a linear DCC accessory address between 1 and 2048." });
+      showNotification({ color: "red", title: i18next.t("ui.invalidTurnoutAddress"), message: i18next.t("ui.useALinearDccAccessoryAddressBetween1And2048") });
     }
   }), []);
 
@@ -192,10 +195,10 @@ export default function RuntimeLayoutOverlay({ locos, open }: RuntimeLayoutOverl
         </Box>
       </Box>
       {open && <Group className="mobile-layout-tools" gap="xs" wrap="nowrap">
-        <ActionIcon size={52} radius="xl" variant="filled" color="cyan" aria-label="Center layout view" title="Center layout view" onClick={() => setCenterCounter(value => value + 1)}>
+        <ActionIcon size={52} radius="xl" variant="filled" color="cyan" aria-label={i18next.t("ui.centerLayoutView")} title={i18next.t("ui.centerLayoutView")} onClick={() => setCenterCounter(value => value + 1)}>
           <IconCrosshair size={25} />
         </ActionIcon>
-        <ActionIcon size={52} radius="xl" variant="filled" color="teal" aria-label="Fit layout view" title="Fit layout view" onClick={() => setFitCounter(value => value + 1)}>
+        <ActionIcon size={52} radius="xl" variant="filled" color="teal" aria-label={i18next.t("ui.fitLayoutView")} title={i18next.t("ui.fitLayoutView")} onClick={() => setFitCounter(value => value + 1)}>
           <IconArrowsMaximize size={25} />
         </ActionIcon>
         <ActionIcon
@@ -204,8 +207,8 @@ export default function RuntimeLayoutOverlay({ locos, open }: RuntimeLayoutOverl
           variant={commandCenter.powerInfo?.emergencyStop ? "filled" : "light"}
           color={commandCenter.powerInfo?.emergencyStop ? "red" : "gray"}
           className={commandCenter.powerInfo?.emergencyStop ? "blinkBadge" : ""}
-          aria-label={commandCenter.powerInfo?.emergencyStop ? "Clear emergency stop" : "Emergency stop"}
-          title={commandCenter.powerInfo?.emergencyStop ? "Clear emergency stop" : "Emergency stop"}
+          aria-label={commandCenter.powerInfo?.emergencyStop ? i18next.t("ui.clearEmergencyStop") : i18next.t("ui.emergencyStop")}
+          title={commandCenter.powerInfo?.emergencyStop ? i18next.t("ui.clearEmergencyStop") : i18next.t("ui.emergencyStop")}
           onClick={() => wsApi.emergencyStop()}
         >
           <IconPlayerStop size={27} />

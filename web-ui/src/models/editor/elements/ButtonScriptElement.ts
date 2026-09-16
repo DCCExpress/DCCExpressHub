@@ -1,3 +1,4 @@
+import i18next from "i18next";
 import { ELEMENT_TYPES } from "@domain/layout/elementTypes";
 import { generateId } from "../../../helpers";
 import { BaseElement } from "../core/BaseElement";
@@ -95,7 +96,7 @@ export class ButtonScriptElement extends BaseElement implements IButtonScriptEle
     return [
       ...super.getEditableProperties(),
       {
-        label: "Button color",
+        label: i18next.t("ui.buttonColor"),
         key: "colorOn",
         type: "colorpicker",
         readonly: false,

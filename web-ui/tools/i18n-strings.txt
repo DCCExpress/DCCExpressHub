@@ -1,0 +1,211 @@
+0	Could not load command-center capabilities (HTTP {{value1}}).
+1	Could not load locomotives: HTTP {{value1}}
+2	Could not save locomotives: HTTP {{value1}}
+3	Image backup could not be encoded.
+4	Image upload failed: HTTP {{value1}}
+5	Image list could not be loaded: HTTP {{value1}}
+6	Image list response has an invalid format.
+7	Image could not be backed up ({{value1}}): HTTP {{value2}}
+8	Layout WebSocket response did not contain a route graph.
+9	Invalid signal ID {{value1}}.
+10	Invalid {{value1}} ID {{value2}}.
+11	The layout could not be loaded for signal rule compilation.
+12	{{value1}} has no valid numeric layout ID.
+13	Signal {{value1}} has no valid output configuration.
+14	Signal aspect {{value1}} is invalid.
+15	Signal state {{value1}} no longer exists.
+16	Turnout {{value1}} has no channel 1.
+17	Legacy sensor address {{value1}} is missing in the current layout.
+18	Legacy vpin condition {{value1}} is no longer supported.
+19	Legacy turnout address {{value1}} is missing or ambiguous in the current layout.
+20	Signal ID {{value1}} does not exist in the current layout.
+21	Legacy signal address {{value1}} is missing or ambiguous in the current layout.
+22	No signal state maps to output value {{value1}} at address {{value2}}.
+23	Sensor ID {{value1}} does not exist in the current layout.
+24	Turnout ID {{value1}} does not exist in the current layout.
+25	No signal automation file exists yet. Configure a signal and save to create it.
+26	Signal automation loaded with {{value1}} warning(s).
+27	Signal automation saved with {{value1}} warning(s).
+28	WebSocket command failed ({{value1}} -> {{value2}}): {{value3}}
+29	DCCExpressHub
+30	v
+31	CSB1
+32	directory
+33	file
+34	HTTP {{value1}}
+35	http://dccex.local
+36	loading
+37	error
+38	script
+39	s
+40	in this layout
+41	{{value1}}:{{value2}}
+42	SYS
+43	RX
+44	TX
+45	websocket
+46	WS
+47	SERIAL
+48	WebSocket
+49	serial
+50	baud
+51	<s>
+52	{{value1}}
+
+{{value2}}
+53	OK
+54	EN
+55	HU
+56	DE
+57	I/O
+58	Status polling is hidden by default. The newest
+59	messages are retained in this browser tab.
+60	→ #{{value1}}
+61	#{{value1}}
+62	setFunction
+63	momentaryFunction
+64	playAudio
+65	station.mp3
+66	wait
+67	{{value1}}F{{value2}} - {{value3}}
+68	CV{{value1}}
+69	CV
+70	b
+71	number
+72	idle
+73	running
+74	paused
+75	{{value1}} #{{value2}}{{value3}}
+76	O-O
+77	O-C
+78	C-O
+79	C-C
+80	{{value1}} · {{value2}}
+81	R
+82	G
+83	dccext
+84	DCC Extended
+85	DCC
+86	dcc
+87	DCC-EX / EX-CSB1
+88	connected
+89	WS {{value1}}
+90	Wi-Fi
+91	Wi-Fi MAC
+92	CPU
+93	Firmware
+94	ESP-IDF / SDK
+95	element
+96	This firmware uses the
+97	protocol and does not expose raw DCC-EX commands. Normal locomotive, turnout, accessory, signal and power controls remain available through DCCExpressHub.
+98	useEditorSettings must be used inside EditorSettingsProvider
+99	useGamepad must be used inside GamepadProvider
+100	PCA9685
+101	MCP23017
+102	PCF8574
+103	PCF8575
+104	pca9685
+105	from the configuration?
+106	INFO
+107	YaMoRC / S88-N → Arduino adapter → I2C → DCCExpressHub
+108	{{value1}} – {{value2}}
+109	 · VPIN 
+110	The layout has no free uint16 element ID.
+111	Active layer not found: {{value1}}
+112	Layer not found: {{value1}}
+113	No free uint16 layout element ID is available.
+114	Red
+115	Green
+116	Unknown runtime variable: {{value1}}
+117	Legacy aspect "{{value1}}" cannot be mapped to a state of signal #{{value2}}.
+118	Signal rule group has no valid signal element ID.
+119	The same signal element has more than one rule group.
+120	Referenced signal element was deleted or has the wrong type ({{value1}}).
+121	Signal #{{value1}} has an invalid default state.
+122	Signal #{{value1}} has a rule that references a missing state.
+123	Signal #{{value1}} has no rules and will always use its default state.
+124	Rule has no conditions and will always match.
+125	Another rule has the same conditions.
+126	The same input is used more than once in the same rule.
+127	Sensor condition has no valid sensor element ID.
+128	Referenced sensor was deleted ({{value1}}).
+129	Turnout condition has no valid turnout element ID.
+130	Referenced turnout was deleted ({{value1}}).
+131	#{{value1}} · {{value2}}
+132	B
+133	F
+134	/sd/audio/horn.mp3
+135	#{{value1}}/#{{value2}}
+136	JavaScript
+137	Address 
+138	 lamps · 
+139	 aspects · 
+140	turnoutSelection
+141	bittoggle
+142	signal2
+143	blockTypeSelect
+144	loco
+145	reconnecting
+146	elements ·
+147	locos
+148	The ESP32 reports
+149	°C. Check enclosure ventilation, nearby heat sources and sustained processor/network load.
+150	Unsupported element type: {{value1}}
+151	Basic accessory · <a address 0|1>
+152	Extended accessory · <A address aspect>
+153	Closed
+154	Open
+155	Yellow
+156	White
+157	CanvasRenderingContext2D could not be created.
+158	Első mintapálya
+159	b{{value1}}
+160	DEC
+161	HEX
+162	BIN
+163	DigiTools
+164	DigiSwitch-8
+165	DigiSignal-X4YYY
+166	{{value1}} timed out after {{value2}} ms.
+167	Audio load/play error: {{value1}}
+168	Audio playback timeout: {{value1}}
+169	Automation storage could not be loaded ({{value1}}).
+170	Invalid automation storage response.
+171	Unsupported automation storage version: {{value1}}.
+172	{{value1}}: HTTP {{value2}}
+173	Layout could not be loaded for script block-name lookup (HTTP {{value1}}).
+174	Automation Worker message could not be decoded.
+175	playAudio(name): use only the base MP3 filename from /sd/audio, without path or extension.
+176	Script "{{value1}}" is already running.
+177	{{value1}} must be an integer between {{value2}} and {{value3}}.
+178	Sensor state snapshot is not ready yet.
+179	Sensor address {{value1}} is not present in the current sensor snapshot.
+180	waitForSensor timeout: sensor {{value1}} did not become {{value2}}.
+181	Signal layout catalog is not ready yet.
+182	Signal address {{value1}} is not configured in the layout.
+183	Signal address {{value1}} is ambiguous in the layout.
+184	Signal state name is required.
+185	Signal {{value1}} has no unique configured state "{{value2}}".
+186	Turnout layout catalog is not ready yet.
+187	Turnout address {{value1}} is not configured in the layout.
+188	Turnout address {{value1}} is ambiguous in the layout.
+189	Signal state for address {{value1}} is not known yet.
+190	Turnout state for address {{value1}} is not known yet.
+191	Block name or ID is required.
+192	Block ID must be an integer between 1 and 65535.
+193	Layout block catalog is not ready yet.
+194	Block name "{{value1}}" is ambiguous. Use the exact layout block name.
+195	Layout block "{{value1}}" was not found.
+196	Block state snapshot is not ready yet.
+197	Block target snapshot is not ready yet.
+198	Direction must be "forward" or "reverse".
+199	dcc.sendRaw requires a DCC-EX command.
+200	DCC-EX VPIN · <z ±vpin>
+201	Script info update failed: HTTP {{value1}}
+202	Web Serial API is not available.
+203	Serial port is not connected.
+204	Signal logic status HTTP {{value1}}
+205	WebSocket connection timed out.
+206	WebSocket request failed because connection is {{value1}}: {{value2}}
+207	WebSocket is not connected.
+208	WebSocket request timed out: {{value1}}

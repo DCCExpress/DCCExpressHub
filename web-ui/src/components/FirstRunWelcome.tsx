@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import i18next from "i18next";
 import {
   Button,
   Group,
@@ -32,6 +34,7 @@ function navigateTo(
 }
 
 export default function FirstRunWelcome() {
+  useTranslation();
   const [
     opened,
     setOpened,
@@ -79,7 +82,7 @@ export default function FirstRunWelcome() {
       onClose={() =>
         setOpened(false)
       }
-      title="Welcome to DCCExpressHub"
+      title={i18next.t("ui.welcomeToDccexpresshub")}
       centered
       size="lg"
       radius="md"
@@ -104,50 +107,32 @@ export default function FirstRunWelcome() {
           <div>
             <Title
               order={4}
-            >
-              Your layout is ready to be configured
-            </Title>
+            > {i18next.t("ui.yourLayoutIsReadyToBeConfigured")} </Title>
 
             <Text
               c="dimmed"
               size="sm"
               mt={6}
-            >
-              No locomotives are configured yet, so this looks like a new
-              DCCExpressHub installation.
-            </Text>
+            > {i18next.t("ui.noLocomotivesAreConfiguredYetSoThisLooksLikeA")} </Text>
           </div>
         </Group>
 
         <Stack gap="xs">
-          <Text fw={600}>
-            Already have a DCCExpressHub backup?
-          </Text>
+          <Text fw={600}> {i18next.t("ui.alreadyHaveADccexpresshubBackup")} </Text>
 
           <Text
             c="dimmed"
             size="sm"
-          >
-            Restore your previous backup from Export / Import. This can bring
-            back your layout, locomotives, images, signal logic and device
-            configuration.
-          </Text>
+          > {i18next.t("ui.restoreYourPreviousBackupFromExportImportThisCanBring")} </Text>
         </Stack>
 
         <Stack gap="xs">
-          <Text fw={600}>
-            Starting a new layout?
-          </Text>
+          <Text fw={600}> {i18next.t("ui.startingANewLayout")} </Text>
 
           <Text
             c="dimmed"
             size="sm"
-          >
-            Start by adding your locomotives from Home → Locomotive editor.
-            Then draw your track plan in Layout editor and configure the
-            turnouts, signals, sensors, devices and automation needed for your
-            layout.
-          </Text>
+          > {i18next.t("ui.startByAddingYourLocomotivesFromHomeLocomotiveEditorThen")} </Text>
         </Stack>
 
         <Group
@@ -160,9 +145,7 @@ export default function FirstRunWelcome() {
             onClick={() =>
               setOpened(false)
             }
-          >
-            Close
-          </Button>
+          > {i18next.t("ui.close")} </Button>
 
           <Button
             variant="light"
@@ -171,9 +154,7 @@ export default function FirstRunWelcome() {
               <IconMap size={18} />
             }
             onClick={openLayout}
-          >
-            Open layout editor
-          </Button>
+          > {i18next.t("ui.openLayoutEditor")} </Button>
 
           <Button
             color="blue"
@@ -181,9 +162,7 @@ export default function FirstRunWelcome() {
               <IconDownload size={18} />
             }
             onClick={openBackup}
-          >
-            Restore backup
-          </Button>
+          > {i18next.t("ui.restoreBackup")} </Button>
         </Group>
       </Stack>
     </Modal>

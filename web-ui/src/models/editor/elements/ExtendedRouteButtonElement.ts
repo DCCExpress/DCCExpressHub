@@ -1,3 +1,4 @@
+import i18next from "i18next";
 import { ELEMENT_TYPES } from "@domain/layout/elementTypes";
 import type { LayoutElementId } from "@domain/layout/layoutDto";
 import { INVALID_LAYOUT_ELEMENT_ID } from "@domain/layout/layoutDto";
@@ -113,9 +114,9 @@ export class ExtendedRouteButtonElement
   override getEditableProperties(): IEditableProperty[] {
     return [
       ...super.getEditableProperties(),
-      { label: "Label", key: "label", type: "string", readonly: false },
-      { label: "From block", key: "fromBlockId", type: "routeBlockSelect", readonly: false },
-      { label: "To block", key: "toBlockId", type: "routeBlockSelect", readonly: false },
+      { label: i18next.t("ui.label"), key: "label", type: "string", readonly: false },
+      { label: i18next.t("ui.fromBlock"), key: "fromBlockId", type: "routeBlockSelect", readonly: false },
+      { label: i18next.t("ui.toBlock"), key: "toBlockId", type: "routeBlockSelect", readonly: false },
     ];
   }
   override getHelp(): string {

@@ -1,3 +1,4 @@
+import i18next from "i18next";
 import { ELEMENT_TYPES } from "../../../domain/layout/elementTypes";
 import type { OutputCommandModeDto, TrackSignalElementDto } from "../../../domain/layout/layoutDto";
 import type {
@@ -576,7 +577,7 @@ export class TrackSignalElement extends TrackElement {
     return [
       ...super.getEditableProperties(),
       {
-        label: "Signal",
+        label: i18next.t("ui.signal2"),
         key: "signalOutput",
         type: "signal2",
         readonly: true,

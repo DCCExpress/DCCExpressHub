@@ -1,3 +1,4 @@
+import i18next from "i18next";
 import { ELEMENT_TYPES } from "@domain/layout/elementTypes";
 import type { AudioListButtonItemDto } from "@domain/layout/layoutDto";
 import { errorToString, generateId, showErrorMessage, showWarningMessage } from "../../../helpers";
@@ -323,10 +324,10 @@ export class AudioListButtonElement
   override getEditableProperties(): IEditableProperty[] {
     return [
       ...super.getEditableProperties(),
-      { key: "label", label: "Label", type: "string" },
-      { key: "audioItems", label: "Audio list", type: "audioList" },
-      { key: "bg", label: "Background", type: "colorpicker" },
-      { key: "fg", label: "Foreground", type: "colorpicker" },
+      { key: "label", label: i18next.t("ui.label"), type: "string" },
+      { key: "audioItems", label: i18next.t("ui.audioList"), type: "audioList" },
+      { key: "bg", label: i18next.t("ui.background"), type: "colorpicker" },
+      { key: "fg", label: i18next.t("ui.foreground"), type: "colorpicker" },
     ];
   }
   override getHelp(): string {

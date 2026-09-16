@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import i18next from "i18next";
 import { Badge, Button, Checkbox, Group, Stack, Text } from "@mantine/core";
 import { IconPlayerPlay, IconPlayerStop, IconTrash } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -85,6 +87,7 @@ function directionColor(direction: LogDirection): string {
 }
 
 export default function LayoutRuntimeLogPanel() {
+  useTranslation();
   const [entries, setEntries] = useState<LogEntry[]>([]);
   const [filters, setFilters] = useState<LogFilters>(loadFilters);
   const [enabled, setEnabled] = useState(false);
@@ -145,7 +148,7 @@ export default function LayoutRuntimeLogPanel() {
   return (
     <Stack h="100%" gap="xs" style={{ minHeight: 0 }}>
       <Group justify="space-between" gap="xs">
-        <Text fw={700}>Live command and I/O log</Text>
+        <Text fw={700}>{i18next.t("ui.liveCommandAndIOLog")}</Text>
         <Group gap={5}>
           <Button
             size="compact-xs"
@@ -154,19 +157,17 @@ export default function LayoutRuntimeLogPanel() {
             leftSection={enabled ? <IconPlayerPlay size={14} /> : <IconPlayerStop size={14} />}
             onClick={() => setEnabled(value => !value)}
           >
-            {enabled ? "Enabled" : "Disabled"}
+            {enabled ? i18next.t("ui.enabled") : i18next.t("ui.disabled")}
           </Button>
-          <Button size="compact-xs" variant="light" color="red" leftSection={<IconTrash size={14} />} onClick={() => setEntries([])}>
-            Clear
-          </Button>
+          <Button size="compact-xs" variant="light" color="red" leftSection={<IconTrash size={14} />} onClick={() => setEntries([])}> {i18next.t("ui.clear")} </Button>
         </Group>
       </Group>
 
       <Group gap="sm">
-        <Checkbox size="xs" label="Raw DCC-EX" checked={filters.raw} onChange={event => setFilter("raw", event.currentTarget.checked)} />
+        <Checkbox size="xs" label={i18next.t("ui.rawDccEx")} checked={filters.raw} onChange={event => setFilter("raw", event.currentTarget.checked)} />
         <Checkbox size="xs" label="I/O" checked={filters.io} onChange={event => setFilter("io", event.currentTarget.checked)} />
-        <Checkbox size="xs" label="Status polling" checked={filters.status} onChange={event => setFilter("status", event.currentTarget.checked)} />
-        <Checkbox size="xs" label="Other WS" checked={filters.other} onChange={event => setFilter("other", event.currentTarget.checked)} />
+        <Checkbox size="xs" label={i18next.t("ui.statusPolling")} checked={filters.status} onChange={event => setFilter("status", event.currentTarget.checked)} />
+        <Checkbox size="xs" label={i18next.t("ui.otherWs")} checked={filters.other} onChange={event => setFilter("other", event.currentTarget.checked)} />
       </Group>
 
       <Text size="xs" c="dimmed">
@@ -195,7 +196,7 @@ export default function LayoutRuntimeLogPanel() {
             <span style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{entry.text}</span>
           </div>
         ))}
-        {visibleEntries.length === 0 && <Text size="xs" c="dimmed">Waiting for matching messages…</Text>}
+        {visibleEntries.length === 0 && <Text size="xs" c="dimmed">{i18next.t("ui.waitingForMatchingMessages")}</Text>}
       </div>
     </Stack>
   );

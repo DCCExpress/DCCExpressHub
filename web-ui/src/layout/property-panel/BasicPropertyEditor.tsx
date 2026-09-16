@@ -1,3 +1,4 @@
+import i18next from "i18next";
 import {
   Checkbox,
   ColorSwatch,
@@ -31,9 +32,9 @@ const DEFAULT_COLORS = [
 ];
 
 const BARRIER_TYPE_OPTIONS = [
-  { value: "none", label: "None" },
-  { value: "half", label: "Half" },
-  { value: "full", label: "Full" },
+  { value: "none", get label() { return i18next.t("ui.none"); } },
+  { value: "half", get label() { return i18next.t("ui.half"); } },
+  { value: "full", get label() { return i18next.t("ui.full"); } },
 ];
 
 type BasicPropertyEditorProps = {
@@ -47,6 +48,7 @@ export default function BasicPropertyEditor({
   selectedElement,
   onChange,
 }: BasicPropertyEditorProps) {
+  useTranslation();
   const value = (selectedElement as any)[prop.key];
 
   if (prop.type === "select" || prop.key === "barrierType") {
@@ -54,7 +56,7 @@ export default function BasicPropertyEditor({
       <Select
         label={prop.label}
         disabled={prop.readonly === true}
-        data={prop.options ?? BARRIER_TYPE_OPTIONS}
+        data={(prop.options ?? BARRIER_TYPE_OPTIONS).map(option => ({ ...option }))}
         value={String(value ?? "")}
         onChange={nextValue => {
           if (nextValue !== null) {

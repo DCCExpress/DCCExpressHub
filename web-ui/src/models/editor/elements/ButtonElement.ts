@@ -1,3 +1,4 @@
+import i18next from "i18next";
 import { ELEMENT_TYPES } from "@domain/layout/elementTypes";
 import type { ButtonBehaviorDto, ButtonOutputModeDto } from "@domain/layout/layoutDto";
 import { generateId } from "../../../helpers";
@@ -180,32 +181,32 @@ export class ButtonElement extends ClickableBaseElement implements IButtonElemen
     return [
       ...super.getEditableProperties(),
       {
-        label: "Output type",
+        label: i18next.t("ui.outputType"),
         key: "outputMode",
         type: "select",
         readonly: false,
         options: BUTTON_OUTPUT_MODE_OPTIONS,
       },
       {
-        label: "Button behavior",
+        label: i18next.t("ui.buttonBehavior"),
         key: "behavior",
         type: "select",
         readonly: false,
         options: [
-          { value: "toggle", label: "Toggle · alternate ON / OFF" },
-          { value: "push", label: "Push · timed pulse" },
-          { value: "momentary", label: "Momentary · active while held" },
+          { value: "toggle", label: i18next.t("ui.toggleAlternateOnOff") },
+          { value: "push", label: i18next.t("ui.pushTimedPulse") },
+          { value: "momentary", label: i18next.t("ui.momentaryActiveWhileHeld") },
         ],
       },
       {
-        label: "Push duration (ms)",
+        label: i18next.t("ui.pushDurationMs"),
         key: "pulseDurationMs",
         type: "number",
         min: 50,
         max: 10000,
       },
       {
-        label: "Accessory address",
+        label: i18next.t("ui.accessoryAddress"),
         key: "address",
         type: "number",
         min: 1,
@@ -216,20 +217,20 @@ export class ButtonElement extends ClickableBaseElement implements IButtonElemen
        * a compact two-row ON/OFF editor with test buttons.
        */
       {
-        label: "Output states",
+        label: i18next.t("ui.outputStates"),
         key: "activeValue",
         type: "bittoggle",
       },
-      { label: "ON text", key: "textOn", type: "string" },
-      { label: "OFF text", key: "textOff", type: "string" },
+      { label: i18next.t("ui.onText"), key: "textOn", type: "string" },
+      { label: i18next.t("ui.offText"), key: "textOff", type: "string" },
       {
-        label: "ON color",
+        label: i18next.t("ui.onColor"),
         key: "colorOn",
         type: "colorpicker",
         readonly: false,
       },
       {
-        label: "OFF color",
+        label: i18next.t("ui.offColor"),
         key: "colorOff",
         type: "colorpicker",
         readonly: false,

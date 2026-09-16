@@ -1,3 +1,4 @@
+import i18next from "i18next";
 import type {
   Dispatch,
   SetStateAction,
@@ -232,7 +233,7 @@ export function handleTrackCanvasMouseDown(
           onInvalidate();
         }
       } else {
-        alert("Nincs aktív RouteButton");
+        alert(i18next.t("ui.noActiveRouteButton"));
       }
 
       return;

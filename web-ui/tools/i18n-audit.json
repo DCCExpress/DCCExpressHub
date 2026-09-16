@@ -1,0 +1,3183 @@
+[
+  {
+    "file": "api/commandCenterInfo.ts",
+    "line": 64,
+    "start": 1231,
+    "end": 1302,
+    "kind": "error",
+    "text": "Could not load command-center capabilities (HTTP {{value1}}).",
+    "values": [
+      [
+        "value1",
+        "response.status"
+      ]
+    ]
+  },
+  {
+    "file": "api/domainApi.ts",
+    "line": 5,
+    "start": 205,
+    "end": 258,
+    "kind": "error",
+    "text": "Could not load locomotives: HTTP {{value1}}",
+    "values": [
+      [
+        "value1",
+        "response.status"
+      ]
+    ]
+  },
+  {
+    "file": "api/domainApi.ts",
+    "line": 15,
+    "start": 578,
+    "end": 631,
+    "kind": "error",
+    "text": "Could not save locomotives: HTTP {{value1}}",
+    "values": [
+      [
+        "value1",
+        "response.status"
+      ]
+    ]
+  },
+  {
+    "file": "api/imageApi.ts",
+    "line": 31,
+    "start": 821,
+    "end": 857,
+    "kind": "error",
+    "text": "Image backup could not be encoded.",
+    "values": []
+  },
+  {
+    "file": "api/imageApi.ts",
+    "line": 58,
+    "start": 1735,
+    "end": 1781,
+    "kind": "error",
+    "text": "Image upload failed: HTTP {{value1}}",
+    "values": [
+      [
+        "value1",
+        "response.status"
+      ]
+    ]
+  },
+  {
+    "file": "api/imageApi.ts",
+    "line": 68,
+    "start": 2150,
+    "end": 2211,
+    "kind": "error",
+    "text": "Image list could not be loaded: HTTP {{value1}}",
+    "values": [
+      [
+        "value1",
+        "listResponse.status"
+      ]
+    ]
+  },
+  {
+    "file": "api/imageApi.ts",
+    "line": 72,
+    "start": 2424,
+    "end": 2468,
+    "kind": "error",
+    "text": "Image list response has an invalid format.",
+    "values": []
+  },
+  {
+    "file": "api/imageApi.ts",
+    "line": 77,
+    "start": 2765,
+    "end": 2835,
+    "kind": "error",
+    "text": "Image could not be backed up ({{value1}}): HTTP {{value2}}",
+    "values": [
+      [
+        "value1",
+        "item.name"
+      ],
+      [
+        "value2",
+        "response.status"
+      ]
+    ]
+  },
+  {
+    "file": "api/layoutWsApi.ts",
+    "line": 57,
+    "start": 1270,
+    "end": 1328,
+    "kind": "error",
+    "text": "Layout WebSocket response did not contain a route graph.",
+    "values": []
+  },
+  {
+    "file": "api/signalLogicMaintenance.ts",
+    "line": 68,
+    "start": 1192,
+    "end": 1224,
+    "kind": "error",
+    "text": "Invalid signal ID {{value1}}.",
+    "values": [
+      [
+        "value1",
+        "signalId"
+      ]
+    ]
+  },
+  {
+    "file": "api/signalLogicMaintenance.ts",
+    "line": 164,
+    "start": 2785,
+    "end": 2828,
+    "kind": "error",
+    "text": "Invalid {{value1}} ID {{value2}}.",
+    "values": [
+      [
+        "value1",
+        "referenceType"
+      ],
+      [
+        "value2",
+        "elementId"
+      ]
+    ]
+  },
+  {
+    "file": "api/signalLogicWsApi.ts",
+    "line": 133,
+    "start": 2718,
+    "end": 2779,
+    "kind": "error",
+    "text": "The layout could not be loaded for signal rule compilation.",
+    "values": []
+  },
+  {
+    "file": "api/signalLogicWsApi.ts",
+    "line": 243,
+    "start": 5090,
+    "end": 5132,
+    "kind": "error",
+    "text": "{{value1}} has no valid numeric layout ID.",
+    "values": [
+      [
+        "value1",
+        "label"
+      ]
+    ]
+  },
+  {
+    "file": "api/signalLogicWsApi.ts",
+    "line": 262,
+    "start": 5416,
+    "end": 5480,
+    "kind": "error",
+    "text": "Signal {{value1}} has no valid output configuration.",
+    "values": [
+      [
+        "value1",
+        "element.id ?? \"?\""
+      ]
+    ]
+  },
+  {
+    "file": "api/signalLogicWsApi.ts",
+    "line": 287,
+    "start": 5854,
+    "end": 5905,
+    "kind": "error",
+    "text": "Signal aspect {{value1}} is invalid.",
+    "values": [
+      [
+        "value1",
+        "String(state.aspect)"
+      ]
+    ]
+  },
+  {
+    "file": "api/signalLogicWsApi.ts",
+    "line": 336,
+    "start": 6547,
+    "end": 6590,
+    "kind": "error",
+    "text": "Signal state {{value1}} no longer exists.",
+    "values": [
+      [
+        "value1",
+        "stateId"
+      ]
+    ]
+  },
+  {
+    "file": "api/signalLogicWsApi.ts",
+    "line": 746,
+    "start": 14678,
+    "end": 14718,
+    "kind": "error",
+    "text": "Turnout {{value1}} has no channel 1.",
+    "values": [
+      [
+        "value1",
+        "turnoutId"
+      ]
+    ]
+  },
+  {
+    "file": "api/signalLogicWsApi.ts",
+    "line": 1409,
+    "start": 26332,
+    "end": 26400,
+    "kind": "error",
+    "text": "Legacy sensor address {{value1}} is missing in the current layout.",
+    "values": [
+      [
+        "value1",
+        "address"
+      ]
+    ]
+  },
+  {
+    "file": "api/signalLogicWsApi.ts",
+    "line": 1428,
+    "start": 26621,
+    "end": 26679,
+    "kind": "error",
+    "text": "Legacy vpin condition {{value1}} is no longer supported.",
+    "values": [
+      [
+        "value1",
+        "address"
+      ]
+    ]
+  },
+  {
+    "file": "api/signalLogicWsApi.ts",
+    "line": 1440,
+    "start": 26815,
+    "end": 26897,
+    "kind": "error",
+    "text": "Legacy turnout address {{value1}} is missing or ambiguous in the current layout.",
+    "values": [
+      [
+        "value1",
+        "address"
+      ]
+    ]
+  },
+  {
+    "file": "api/signalLogicWsApi.ts",
+    "line": 1551,
+    "start": 28887,
+    "end": 28942,
+    "kind": "error",
+    "text": "Signal ID {{value1}} does not exist in the current layout.",
+    "values": [
+      [
+        "value1",
+        "id"
+      ]
+    ]
+  },
+  {
+    "file": "api/signalLogicWsApi.ts",
+    "line": 1573,
+    "start": 29353,
+    "end": 29444,
+    "kind": "error",
+    "text": "Legacy signal address {{value1}} is missing or ambiguous in the current layout.",
+    "values": [
+      [
+        "value1",
+        "rawSignal.address"
+      ]
+    ]
+  },
+  {
+    "file": "api/signalLogicWsApi.ts",
+    "line": 1669,
+    "start": 31292,
+    "end": 31369,
+    "kind": "error",
+    "text": "No signal state maps to output value {{value1}} at address {{value2}}.",
+    "values": [
+      [
+        "value1",
+        "value"
+      ],
+      [
+        "value2",
+        "config.address"
+      ]
+    ]
+  },
+  {
+    "file": "api/signalLogicWsApi.ts",
+    "line": 1702,
+    "start": 31866,
+    "end": 31928,
+    "kind": "error",
+    "text": "Sensor ID {{value1}} does not exist in the current layout.",
+    "values": [
+      [
+        "value1",
+        "elementId"
+      ]
+    ]
+  },
+  {
+    "file": "api/signalLogicWsApi.ts",
+    "line": 1733,
+    "start": 32402,
+    "end": 32465,
+    "kind": "error",
+    "text": "Turnout ID {{value1}} does not exist in the current layout.",
+    "values": [
+      [
+        "value1",
+        "elementId"
+      ]
+    ]
+  },
+  {
+    "file": "api/signalLogicWsApi.ts",
+    "line": 1797,
+    "start": 33544,
+    "end": 33614,
+    "kind": "error",
+    "text": "Signal ID {{value1}} does not exist in the current layout.",
+    "values": [
+      [
+        "value1",
+        "compiledSignal.id"
+      ]
+    ]
+  },
+  {
+    "file": "api/signalLogicWsApi.ts",
+    "line": 2050,
+    "start": 39158,
+    "end": 39239,
+    "kind": "property",
+    "text": "No signal automation file exists yet. Configure a signal and save to create it.",
+    "values": []
+  },
+  {
+    "file": "api/signalLogicWsApi.ts",
+    "line": 2110,
+    "start": 40150,
+    "end": 40215,
+    "kind": "property",
+    "text": "Signal automation loaded with {{value1}} warning(s).",
+    "values": [
+      [
+        "value1",
+        "allWarnings.length"
+      ]
+    ]
+  },
+  {
+    "file": "api/signalLogicWsApi.ts",
+    "line": 2163,
+    "start": 41056,
+    "end": 41128,
+    "kind": "property",
+    "text": "Signal automation saved with {{value1}} warning(s).",
+    "values": [
+      [
+        "value1",
+        "normalized.warnings.length"
+      ]
+    ]
+  },
+  {
+    "file": "api/wsRequest.ts",
+    "line": 63,
+    "start": 1331,
+    "end": 1418,
+    "kind": "error",
+    "text": "WebSocket command failed ({{value1}} -> {{value2}}): {{value3}}",
+    "values": [
+      [
+        "value1",
+        "String(clientType)"
+      ],
+      [
+        "value2",
+        "String(serverType)"
+      ],
+      [
+        "value3",
+        "message"
+      ]
+    ]
+  },
+  {
+    "file": "App.tsx",
+    "line": 157,
+    "start": 4375,
+    "end": 4388,
+    "kind": "jsx",
+    "text": "DCCExpressHub",
+    "values": []
+  },
+  {
+    "file": "App.tsx",
+    "line": 170,
+    "start": 4773,
+    "end": 4774,
+    "kind": "jsx",
+    "text": "v",
+    "values": []
+  },
+  {
+    "file": "App.tsx",
+    "line": 222,
+    "start": 6505,
+    "end": 6517,
+    "kind": "jsx",
+    "text": "CSB1",
+    "values": []
+  },
+  {
+    "file": "App.tsx",
+    "line": 615,
+    "start": 21499,
+    "end": 21510,
+    "kind": "expression",
+    "text": "directory",
+    "values": []
+  },
+  {
+    "file": "App.tsx",
+    "line": 630,
+    "start": 22263,
+    "end": 22274,
+    "kind": "expression",
+    "text": "directory",
+    "values": []
+  },
+  {
+    "file": "App.tsx",
+    "line": 634,
+    "start": 22497,
+    "end": 22503,
+    "kind": "expression",
+    "text": "file",
+    "values": []
+  },
+  {
+    "file": "App.tsx",
+    "line": 701,
+    "start": 25205,
+    "end": 25230,
+    "kind": "error",
+    "text": "HTTP {{value1}}",
+    "values": [
+      [
+        "value1",
+        "response.status"
+      ]
+    ]
+  },
+  {
+    "file": "App.tsx",
+    "line": 711,
+    "start": 25610,
+    "end": 25635,
+    "kind": "error",
+    "text": "HTTP {{value1}}",
+    "values": [
+      [
+        "value1",
+        "response.status"
+      ]
+    ]
+  },
+  {
+    "file": "App.tsx",
+    "line": 741,
+    "start": 26830,
+    "end": 26855,
+    "kind": "error",
+    "text": "HTTP {{value1}}",
+    "values": [
+      [
+        "value1",
+        "response.status"
+      ]
+    ]
+  },
+  {
+    "file": "App.tsx",
+    "line": 800,
+    "start": 29950,
+    "end": 29975,
+    "kind": "error",
+    "text": "HTTP {{value1}}",
+    "values": [
+      [
+        "value1",
+        "response.status"
+      ]
+    ]
+  },
+  {
+    "file": "App.tsx",
+    "line": 810,
+    "start": 30365,
+    "end": 30390,
+    "kind": "error",
+    "text": "HTTP {{value1}}",
+    "values": [
+      [
+        "value1",
+        "response.status"
+      ]
+    ]
+  },
+  {
+    "file": "App.tsx",
+    "line": 1051,
+    "start": 40390,
+    "end": 40408,
+    "kind": "jsx",
+    "text": "http://dccex.local",
+    "values": []
+  },
+  {
+    "file": "App.tsx",
+    "line": 1198,
+    "start": 45974,
+    "end": 45983,
+    "kind": "expression",
+    "text": "loading",
+    "values": []
+  },
+  {
+    "file": "App.tsx",
+    "line": 1205,
+    "start": 46351,
+    "end": 46358,
+    "kind": "expression",
+    "text": "error",
+    "values": []
+  },
+  {
+    "file": "components/AutomationPanel.tsx",
+    "line": 668,
+    "start": 13488,
+    "end": 13494,
+    "kind": "jsx",
+    "text": "script",
+    "values": []
+  },
+  {
+    "file": "components/AutomationPanel.tsx",
+    "line": 668,
+    "start": 13523,
+    "end": 13526,
+    "kind": "expression",
+    "text": "s",
+    "values": []
+  },
+  {
+    "file": "components/AutomationPanel.tsx",
+    "line": 668,
+    "start": 13528,
+    "end": 13555,
+    "kind": "jsx",
+    "text": "in this layout",
+    "values": []
+  },
+  {
+    "file": "components/CommandCenterSettingsDialog.tsx",
+    "line": 205,
+    "start": 3895,
+    "end": 3970,
+    "kind": "error",
+    "text": "Could not load command-center capabilities (HTTP {{value1}}).",
+    "values": [
+      [
+        "value1",
+        "infoResponse.status"
+      ]
+    ]
+  },
+  {
+    "file": "components/CommandCenterSettingsDialog.tsx",
+    "line": 473,
+    "start": 9411,
+    "end": 9446,
+    "kind": "property",
+    "text": "{{value1}}:{{value2}}",
+    "values": [
+      [
+        "value1",
+        "endpoint.host"
+      ],
+      [
+        "value2",
+        "endpoint.port"
+      ]
+    ]
+  },
+  {
+    "file": "components/ConsolePanel.tsx",
+    "line": 391,
+    "start": 7206,
+    "end": 7211,
+    "kind": "message",
+    "text": "SYS",
+    "values": []
+  },
+  {
+    "file": "components/ConsolePanel.tsx",
+    "line": 427,
+    "start": 7848,
+    "end": 7852,
+    "kind": "message",
+    "text": "RX",
+    "values": []
+  },
+  {
+    "file": "components/ConsolePanel.tsx",
+    "line": 434,
+    "start": 8000,
+    "end": 8004,
+    "kind": "message",
+    "text": "RX",
+    "values": []
+  },
+  {
+    "file": "components/ConsolePanel.tsx",
+    "line": 461,
+    "start": 8475,
+    "end": 8480,
+    "kind": "message",
+    "text": "SYS",
+    "values": []
+  },
+  {
+    "file": "components/ConsolePanel.tsx",
+    "line": 488,
+    "start": 8976,
+    "end": 8980,
+    "kind": "message",
+    "text": "RX",
+    "values": []
+  },
+  {
+    "file": "components/ConsolePanel.tsx",
+    "line": 521,
+    "start": 9489,
+    "end": 9494,
+    "kind": "message",
+    "text": "SYS",
+    "values": []
+  },
+  {
+    "file": "components/ConsolePanel.tsx",
+    "line": 526,
+    "start": 9659,
+    "end": 9664,
+    "kind": "message",
+    "text": "SYS",
+    "values": []
+  },
+  {
+    "file": "components/ConsolePanel.tsx",
+    "line": 547,
+    "start": 10154,
+    "end": 10159,
+    "kind": "message",
+    "text": "SYS",
+    "values": []
+  },
+  {
+    "file": "components/ConsolePanel.tsx",
+    "line": 552,
+    "start": 10282,
+    "end": 10287,
+    "kind": "message",
+    "text": "SYS",
+    "values": []
+  },
+  {
+    "file": "components/ConsolePanel.tsx",
+    "line": 586,
+    "start": 11048,
+    "end": 11053,
+    "kind": "message",
+    "text": "SYS",
+    "values": []
+  },
+  {
+    "file": "components/ConsolePanel.tsx",
+    "line": 596,
+    "start": 11275,
+    "end": 11279,
+    "kind": "message",
+    "text": "TX",
+    "values": []
+  },
+  {
+    "file": "components/ConsolePanel.tsx",
+    "line": 607,
+    "start": 11487,
+    "end": 11492,
+    "kind": "message",
+    "text": "SYS",
+    "values": []
+  },
+  {
+    "file": "components/ConsolePanel.tsx",
+    "line": 619,
+    "start": 11714,
+    "end": 11719,
+    "kind": "message",
+    "text": "SYS",
+    "values": []
+  },
+  {
+    "file": "components/ConsolePanel.tsx",
+    "line": 627,
+    "start": 11871,
+    "end": 11875,
+    "kind": "message",
+    "text": "TX",
+    "values": []
+  },
+  {
+    "file": "components/ConsolePanel.tsx",
+    "line": 639,
+    "start": 12082,
+    "end": 12087,
+    "kind": "message",
+    "text": "SYS",
+    "values": []
+  },
+  {
+    "file": "components/ConsolePanel.tsx",
+    "line": 811,
+    "start": 15518,
+    "end": 15529,
+    "kind": "expression",
+    "text": "websocket",
+    "values": []
+  },
+  {
+    "file": "components/ConsolePanel.tsx",
+    "line": 819,
+    "start": 15753,
+    "end": 15755,
+    "kind": "jsx",
+    "text": "WS",
+    "values": []
+  },
+  {
+    "file": "components/ConsolePanel.tsx",
+    "line": 832,
+    "start": 16122,
+    "end": 16128,
+    "kind": "jsx",
+    "text": "SERIAL",
+    "values": []
+  },
+  {
+    "file": "components/ConsolePanel.tsx",
+    "line": 866,
+    "start": 17021,
+    "end": 17032,
+    "kind": "property",
+    "text": "WebSocket",
+    "values": []
+  },
+  {
+    "file": "components/ConsolePanel.tsx",
+    "line": 880,
+    "start": 17338,
+    "end": 17346,
+    "kind": "expression",
+    "text": "serial",
+    "values": []
+  },
+  {
+    "file": "components/ConsolePanel.tsx",
+    "line": 904,
+    "start": 18168,
+    "end": 18190,
+    "kind": "jsx",
+    "text": "baud",
+    "values": []
+  },
+  {
+    "file": "components/ConsolePanel.tsx",
+    "line": 967,
+    "start": 19922,
+    "end": 19933,
+    "kind": "expression",
+    "text": "websocket",
+    "values": []
+  },
+  {
+    "file": "components/ConsolePanel.tsx",
+    "line": 968,
+    "start": 19953,
+    "end": 19964,
+    "kind": "expression",
+    "text": "WebSocket",
+    "values": []
+  },
+  {
+    "file": "components/ConsolePanel.tsx",
+    "line": 1153,
+    "start": 25057,
+    "end": 25068,
+    "kind": "expression",
+    "text": "websocket",
+    "values": []
+  },
+  {
+    "file": "components/ConsolePanel.tsx",
+    "line": 1154,
+    "start": 25088,
+    "end": 25092,
+    "kind": "expression",
+    "text": "WS",
+    "values": []
+  },
+  {
+    "file": "components/ConsolePanel.tsx",
+    "line": 1155,
+    "start": 25112,
+    "end": 25120,
+    "kind": "expression",
+    "text": "SERIAL",
+    "values": []
+  },
+  {
+    "file": "components/ConsolePanel.tsx",
+    "line": 1166,
+    "start": 25376,
+    "end": 25381,
+    "kind": "attr",
+    "text": "<s>",
+    "values": []
+  },
+  {
+    "file": "components/ConsolePanel.tsx",
+    "line": 1234,
+    "start": 27094,
+    "end": 27105,
+    "kind": "expression",
+    "text": "websocket",
+    "values": []
+  },
+  {
+    "file": "components/IntegrityCheckDialog.tsx",
+    "line": 285,
+    "start": 4945,
+    "end": 4974,
+    "kind": "message",
+    "text": "{{value1}}\n\n{{value2}}",
+    "values": [
+      [
+        "value1",
+        "description"
+      ],
+      [
+        "value2",
+        "detail"
+      ]
+    ]
+  },
+  {
+    "file": "components/IntegrityCheckDialog.tsx",
+    "line": 523,
+    "start": 11166,
+    "end": 11195,
+    "kind": "jsx",
+    "text": "OK",
+    "values": []
+  },
+  {
+    "file": "components/LanguageSwitcher.tsx",
+    "line": 68,
+    "start": 1174,
+    "end": 1178,
+    "kind": "property",
+    "text": "EN",
+    "values": []
+  },
+  {
+    "file": "components/LanguageSwitcher.tsx",
+    "line": 72,
+    "start": 1253,
+    "end": 1257,
+    "kind": "property",
+    "text": "HU",
+    "values": []
+  },
+  {
+    "file": "components/LanguageSwitcher.tsx",
+    "line": 76,
+    "start": 1332,
+    "end": 1336,
+    "kind": "property",
+    "text": "DE",
+    "values": []
+  },
+  {
+    "file": "components/LayoutRuntimeLogPanel.tsx",
+    "line": 168,
+    "start": 6283,
+    "end": 6288,
+    "kind": "attr",
+    "text": "I/O",
+    "values": []
+  },
+  {
+    "file": "components/LayoutRuntimeLogPanel.tsx",
+    "line": 174,
+    "start": 6760,
+    "end": 6808,
+    "kind": "jsx",
+    "text": "Status polling is hidden by default. The newest",
+    "values": []
+  },
+  {
+    "file": "components/LayoutRuntimeLogPanel.tsx",
+    "line": 174,
+    "start": 6826,
+    "end": 6876,
+    "kind": "jsx",
+    "text": "messages are retained in this browser tab.",
+    "values": []
+  },
+  {
+    "file": "components/loco-dialog/LocoActionCard.tsx",
+    "line": 105,
+    "start": 3099,
+    "end": 3122,
+    "kind": "expression",
+    "text": "→ #{{value1}}",
+    "values": [
+      [
+        "value1",
+        "actionIndex + 1"
+      ]
+    ]
+  },
+  {
+    "file": "components/loco-dialog/LocoActionCard.tsx",
+    "line": 105,
+    "start": 3125,
+    "end": 3146,
+    "kind": "expression",
+    "text": "#{{value1}}",
+    "values": [
+      [
+        "value1",
+        "actionIndex + 1"
+      ]
+    ]
+  },
+  {
+    "file": "components/loco-dialog/LocoActionCard.tsx",
+    "line": 139,
+    "start": 4382,
+    "end": 4395,
+    "kind": "expression",
+    "text": "setFunction",
+    "values": []
+  },
+  {
+    "file": "components/loco-dialog/LocoActionCard.tsx",
+    "line": 154,
+    "start": 5039,
+    "end": 5058,
+    "kind": "expression",
+    "text": "momentaryFunction",
+    "values": []
+  },
+  {
+    "file": "components/loco-dialog/LocoActionCard.tsx",
+    "line": 176,
+    "start": 5834,
+    "end": 5845,
+    "kind": "expression",
+    "text": "playAudio",
+    "values": []
+  },
+  {
+    "file": "components/loco-dialog/LocoActionCard.tsx",
+    "line": 180,
+    "start": 5990,
+    "end": 6003,
+    "kind": "attr",
+    "text": "station.mp3",
+    "values": []
+  },
+  {
+    "file": "components/loco-dialog/LocoActionCard.tsx",
+    "line": 228,
+    "start": 7849,
+    "end": 7855,
+    "kind": "expression",
+    "text": "wait",
+    "values": []
+  },
+  {
+    "file": "components/loco-dialog/useLocoDialogState.ts",
+    "line": 81,
+    "start": 2603,
+    "end": 2662,
+    "kind": "property",
+    "text": "{{value1}}F{{value2}} - {{value3}}",
+    "values": [
+      [
+        "value1",
+        "fn.icon ? `${fn.icon} ` : \"\""
+      ],
+      [
+        "value2",
+        "fn.number"
+      ],
+      [
+        "value3",
+        "fn.name"
+      ]
+    ]
+  },
+  {
+    "file": "components/programming/CvHelpPanel.tsx",
+    "line": 182,
+    "start": 3613,
+    "end": 3622,
+    "kind": "expression",
+    "text": "CV{{value1}}",
+    "values": [
+      [
+        "value1",
+        "cv"
+      ]
+    ]
+  },
+  {
+    "file": "components/programming/CvHelpPanel.tsx",
+    "line": 203,
+    "start": 4159,
+    "end": 4161,
+    "kind": "jsx",
+    "text": "CV",
+    "values": []
+  },
+  {
+    "file": "components/programming/CvHelpPanel.tsx",
+    "line": 258,
+    "start": 5985,
+    "end": 5986,
+    "kind": "jsx",
+    "text": "b",
+    "values": []
+  },
+  {
+    "file": "components/programming/CvHelpPanel.tsx",
+    "line": 290,
+    "start": 7144,
+    "end": 7152,
+    "kind": "expression",
+    "text": "number",
+    "values": []
+  },
+  {
+    "file": "components/ScriptEditorDialog.tsx",
+    "line": 594,
+    "start": 17363,
+    "end": 17369,
+    "kind": "expression",
+    "text": "idle",
+    "values": []
+  },
+  {
+    "file": "components/ScriptEditorDialog.tsx",
+    "line": 608,
+    "start": 17870,
+    "end": 17879,
+    "kind": "expression",
+    "text": "running",
+    "values": []
+  },
+  {
+    "file": "components/ScriptEditorDialog.tsx",
+    "line": 621,
+    "start": 18355,
+    "end": 18363,
+    "kind": "expression",
+    "text": "paused",
+    "values": []
+  },
+  {
+    "file": "components/ScriptEditorDialog.tsx",
+    "line": 634,
+    "start": 18817,
+    "end": 18823,
+    "kind": "expression",
+    "text": "idle",
+    "values": []
+  },
+  {
+    "file": "components/ScriptEditorDialog.tsx",
+    "line": 721,
+    "start": 21528,
+    "end": 21534,
+    "kind": "expression",
+    "text": "idle",
+    "values": []
+  },
+  {
+    "file": "components/ScriptEditorDialog.tsx",
+    "line": 731,
+    "start": 21879,
+    "end": 21888,
+    "kind": "expression",
+    "text": "running",
+    "values": []
+  },
+  {
+    "file": "components/ScriptEditorDialog.tsx",
+    "line": 740,
+    "start": 22183,
+    "end": 22191,
+    "kind": "expression",
+    "text": "paused",
+    "values": []
+  },
+  {
+    "file": "components/ScriptEditorDialog.tsx",
+    "line": 749,
+    "start": 22488,
+    "end": 22494,
+    "kind": "expression",
+    "text": "idle",
+    "values": []
+  },
+  {
+    "file": "components/SignalAutomationDialog.tsx",
+    "line": 267,
+    "start": 6458,
+    "end": 6750,
+    "kind": "property",
+    "text": "{{value1}} #{{value2}}{{value3}}",
+    "values": [
+      [
+        "value1",
+        "signal instanceof TrackLevelCrossingElement\r\n              ? \"Level crossing\"\r\n              : \"Signal\""
+      ],
+      [
+        "value2",
+        "signal.signalOutput.address"
+      ],
+      [
+        "value3",
+        "signal.name && signal.name !== \"element\"\r\n              ? ` · ${signal.name}`\r\n              : \"\""
+      ]
+    ]
+  },
+  {
+    "file": "components/SignalAutomationDialog.tsx",
+    "line": 405,
+    "start": 11512,
+    "end": 11517,
+    "kind": "property",
+    "text": "O-O",
+    "values": []
+  },
+  {
+    "file": "components/SignalAutomationDialog.tsx",
+    "line": 411,
+    "start": 11659,
+    "end": 11664,
+    "kind": "property",
+    "text": "O-C",
+    "values": []
+  },
+  {
+    "file": "components/SignalAutomationDialog.tsx",
+    "line": 417,
+    "start": 11805,
+    "end": 11810,
+    "kind": "property",
+    "text": "C-O",
+    "values": []
+  },
+  {
+    "file": "components/SignalAutomationDialog.tsx",
+    "line": 423,
+    "start": 11951,
+    "end": 11956,
+    "kind": "property",
+    "text": "C-C",
+    "values": []
+  },
+  {
+    "file": "components/SignalAutomationDialog.tsx",
+    "line": 986,
+    "start": 25722,
+    "end": 25905,
+    "kind": "expression",
+    "text": "{{value1}} · {{value2}}",
+    "values": [
+      [
+        "value1",
+        "targetSignal.kind === \"level-crossing\"\r\n                ? \"Level crossing automation\"\r\n                : \"Signal automation\""
+      ],
+      [
+        "value2",
+        "targetSignal.label"
+      ]
+    ]
+  },
+  {
+    "file": "components/SignalOutputDialog.tsx",
+    "line": 60,
+    "start": 1222,
+    "end": 1225,
+    "kind": "property",
+    "text": "R",
+    "values": []
+  },
+  {
+    "file": "components/SignalOutputDialog.tsx",
+    "line": 61,
+    "start": 1253,
+    "end": 1256,
+    "kind": "property",
+    "text": "G",
+    "values": []
+  },
+  {
+    "file": "components/SignalOutputDialog.tsx",
+    "line": 353,
+    "start": 9530,
+    "end": 9538,
+    "kind": "expression",
+    "text": "dccext",
+    "values": []
+  },
+  {
+    "file": "components/SignalOutputDialog.tsx",
+    "line": 353,
+    "start": 9541,
+    "end": 9555,
+    "kind": "expression",
+    "text": "DCC Extended",
+    "values": []
+  },
+  {
+    "file": "components/SignalOutputDialog.tsx",
+    "line": 353,
+    "start": 9558,
+    "end": 9563,
+    "kind": "expression",
+    "text": "DCC",
+    "values": []
+  },
+  {
+    "file": "components/SignalOutputDialog.tsx",
+    "line": 363,
+    "start": 9840,
+    "end": 9845,
+    "kind": "property",
+    "text": "DCC",
+    "values": []
+  },
+  {
+    "file": "components/SignalOutputDialog.tsx",
+    "line": 364,
+    "start": 9892,
+    "end": 9906,
+    "kind": "property",
+    "text": "DCC Extended",
+    "values": []
+  },
+  {
+    "file": "components/SignalOutputDialog.tsx",
+    "line": 370,
+    "start": 10062,
+    "end": 10070,
+    "kind": "expression",
+    "text": "dccext",
+    "values": []
+  },
+  {
+    "file": "components/SignalOutputDialog.tsx",
+    "line": 404,
+    "start": 11405,
+    "end": 11410,
+    "kind": "expression",
+    "text": "dcc",
+    "values": []
+  },
+  {
+    "file": "components/SignalOutputDialog.tsx",
+    "line": 465,
+    "start": 13536,
+    "end": 13544,
+    "kind": "expression",
+    "text": "dccext",
+    "values": []
+  },
+  {
+    "file": "components/SignalOutputDialog.tsx",
+    "line": 533,
+    "start": 16346,
+    "end": 16354,
+    "kind": "expression",
+    "text": "dccext",
+    "values": []
+  },
+  {
+    "file": "components/SystemInfoPanel.tsx",
+    "line": 392,
+    "start": 6921,
+    "end": 6952,
+    "kind": "jsx",
+    "text": "DCC-EX / EX-CSB1",
+    "values": []
+  },
+  {
+    "file": "components/SystemInfoPanel.tsx",
+    "line": 506,
+    "start": 10145,
+    "end": 10173,
+    "kind": "jsx",
+    "text": "DCCExpressHub",
+    "values": []
+  },
+  {
+    "file": "components/SystemInfoPanel.tsx",
+    "line": 517,
+    "start": 10424,
+    "end": 10435,
+    "kind": "expression",
+    "text": "connected",
+    "values": []
+  },
+  {
+    "file": "components/SystemInfoPanel.tsx",
+    "line": 519,
+    "start": 10501,
+    "end": 10531,
+    "kind": "expression",
+    "text": "WS {{value1}}",
+    "values": [
+      [
+        "value1",
+        "wsStatus.toUpperCase()"
+      ]
+    ]
+  },
+  {
+    "file": "components/SystemInfoPanel.tsx",
+    "line": 542,
+    "start": 11073,
+    "end": 11080,
+    "kind": "attr",
+    "text": "Wi-Fi",
+    "values": []
+  },
+  {
+    "file": "components/SystemInfoPanel.tsx",
+    "line": 554,
+    "start": 11418,
+    "end": 11429,
+    "kind": "attr",
+    "text": "Wi-Fi MAC",
+    "values": []
+  },
+  {
+    "file": "components/SystemInfoPanel.tsx",
+    "line": 570,
+    "start": 11833,
+    "end": 11838,
+    "kind": "attr",
+    "text": "CPU",
+    "values": []
+  },
+  {
+    "file": "components/SystemInfoPanel.tsx",
+    "line": 715,
+    "start": 15979,
+    "end": 15989,
+    "kind": "attr",
+    "text": "Firmware",
+    "values": []
+  },
+  {
+    "file": "components/SystemInfoPanel.tsx",
+    "line": 755,
+    "start": 17158,
+    "end": 17173,
+    "kind": "attr",
+    "text": "ESP-IDF / SDK",
+    "values": []
+  },
+  {
+    "file": "components/track-canvas/TrackCanvasBlockLocoPicker.tsx",
+    "line": 40,
+    "start": 1044,
+    "end": 1053,
+    "kind": "expression",
+    "text": "element",
+    "values": []
+  },
+  {
+    "file": "components/track-canvas/TrackCanvasDoubleTurnoutPopover.tsx",
+    "line": 39,
+    "start": 938,
+    "end": 943,
+    "kind": "property",
+    "text": "O-O",
+    "values": []
+  },
+  {
+    "file": "components/track-canvas/TrackCanvasDoubleTurnoutPopover.tsx",
+    "line": 44,
+    "start": 1019,
+    "end": 1024,
+    "kind": "property",
+    "text": "O-C",
+    "values": []
+  },
+  {
+    "file": "components/track-canvas/TrackCanvasDoubleTurnoutPopover.tsx",
+    "line": 49,
+    "start": 1099,
+    "end": 1104,
+    "kind": "property",
+    "text": "C-O",
+    "values": []
+  },
+  {
+    "file": "components/track-canvas/TrackCanvasDoubleTurnoutPopover.tsx",
+    "line": 54,
+    "start": 1179,
+    "end": 1184,
+    "kind": "property",
+    "text": "C-C",
+    "values": []
+  },
+  {
+    "file": "ConsolePage.tsx",
+    "line": 181,
+    "start": 3450,
+    "end": 3473,
+    "kind": "jsx",
+    "text": "This firmware uses the",
+    "values": []
+  },
+  {
+    "file": "ConsolePage.tsx",
+    "line": 181,
+    "start": 3485,
+    "end": 3677,
+    "kind": "jsx",
+    "text": "protocol and does not expose raw DCC-EX commands. Normal locomotive, turnout, accessory, signal and power controls remain available through DCCExpressHub.",
+    "values": []
+  },
+  {
+    "file": "context/EditorSettingsContext.tsx",
+    "line": 125,
+    "start": 4307,
+    "end": 4369,
+    "kind": "error",
+    "text": "useEditorSettings must be used inside EditorSettingsProvider",
+    "values": []
+  },
+  {
+    "file": "context/GamepadContext.tsx",
+    "line": 421,
+    "start": 11222,
+    "end": 11270,
+    "kind": "error",
+    "text": "useGamepad must be used inside GamepadProvider",
+    "values": []
+  },
+  {
+    "file": "DeviceConfigurationPage.tsx",
+    "line": 205,
+    "start": 3599,
+    "end": 3608,
+    "kind": "property",
+    "text": "PCA9685",
+    "values": []
+  },
+  {
+    "file": "DeviceConfigurationPage.tsx",
+    "line": 222,
+    "start": 3932,
+    "end": 3942,
+    "kind": "property",
+    "text": "MCP23017",
+    "values": []
+  },
+  {
+    "file": "DeviceConfigurationPage.tsx",
+    "line": 239,
+    "start": 4263,
+    "end": 4272,
+    "kind": "property",
+    "text": "PCF8574",
+    "values": []
+  },
+  {
+    "file": "DeviceConfigurationPage.tsx",
+    "line": 256,
+    "start": 4591,
+    "end": 4600,
+    "kind": "property",
+    "text": "PCF8575",
+    "values": []
+  },
+  {
+    "file": "DeviceConfigurationPage.tsx",
+    "line": 279,
+    "start": 5017,
+    "end": 5066,
+    "kind": "property",
+    "text": "{{value1}} · {{value2}}",
+    "values": [
+      [
+        "value1",
+        "definition.label"
+      ],
+      [
+        "value2",
+        "definition.description"
+      ]
+    ]
+  },
+  {
+    "file": "DeviceConfigurationPage.tsx",
+    "line": 843,
+    "start": 13760,
+    "end": 13785,
+    "kind": "error",
+    "text": "HTTP {{value1}}",
+    "values": [
+      [
+        "value1",
+        "response.status"
+      ]
+    ]
+  },
+  {
+    "file": "DeviceConfigurationPage.tsx",
+    "line": 933,
+    "start": 15694,
+    "end": 15719,
+    "kind": "error",
+    "text": "HTTP {{value1}}",
+    "values": [
+      [
+        "value1",
+        "response.status"
+      ]
+    ]
+  },
+  {
+    "file": "DeviceConfigurationPage.tsx",
+    "line": 1621,
+    "start": 30513,
+    "end": 30522,
+    "kind": "expression",
+    "text": "pca9685",
+    "values": []
+  },
+  {
+    "file": "DeviceConfigurationPage.tsx",
+    "line": 1758,
+    "start": 33845,
+    "end": 33879,
+    "kind": "jsx",
+    "text": "from the configuration?",
+    "values": []
+  },
+  {
+    "file": "DeviceConfigurationPage.tsx",
+    "line": 1841,
+    "start": 35740,
+    "end": 35742,
+    "kind": "jsx",
+    "text": "WS",
+    "values": []
+  },
+  {
+    "file": "DeviceConfigurationPage.tsx",
+    "line": 1926,
+    "start": 37676,
+    "end": 37680,
+    "kind": "jsx",
+    "text": "INFO",
+    "values": []
+  },
+  {
+    "file": "DeviceConfigurationPage.tsx",
+    "line": 1929,
+    "start": 37770,
+    "end": 37774,
+    "kind": "expression",
+    "text": "OK",
+    "values": []
+  },
+  {
+    "file": "DeviceConfigurationPage.tsx",
+    "line": 1954,
+    "start": 38406,
+    "end": 38473,
+    "kind": "jsx",
+    "text": "YaMoRC / S88-N → Arduino adapter → I2C → DCCExpressHub",
+    "values": []
+  },
+  {
+    "file": "DeviceConfigurationPage.tsx",
+    "line": 2081,
+    "start": 41735,
+    "end": 41781,
+    "kind": "expression",
+    "text": "{{value1}} – {{value2}}",
+    "values": [
+      [
+        "value1",
+        "runtimeBaseAddress"
+      ],
+      [
+        "value2",
+        "lastSensorAddress"
+      ]
+    ]
+  },
+  {
+    "file": "DeviceConfigurationPage.tsx",
+    "line": 2383,
+    "start": 50346,
+    "end": 50356,
+    "kind": "expression",
+    "text": " · VPIN ",
+    "values": []
+  },
+  {
+    "file": "domain/layout/layoutIdMigration.ts",
+    "line": 43,
+    "start": 1272,
+    "end": 1315,
+    "kind": "error",
+    "text": "The layout has no free uint16 element ID.",
+    "values": []
+  },
+  {
+    "file": "domain/layout/model/Layout.ts",
+    "line": 88,
+    "start": 2292,
+    "end": 2340,
+    "kind": "error",
+    "text": "Active layer not found: {{value1}}",
+    "values": [
+      [
+        "value1",
+        "this._activeLayerId"
+      ]
+    ]
+  },
+  {
+    "file": "domain/layout/model/Layout.ts",
+    "line": 112,
+    "start": 3238,
+    "end": 3262,
+    "kind": "error",
+    "text": "Layer not found: {{value1}}",
+    "values": [
+      [
+        "value1",
+        "id"
+      ]
+    ]
+  },
+  {
+    "file": "domain/layout/model/Layout.ts",
+    "line": 134,
+    "start": 3975,
+    "end": 4023,
+    "kind": "error",
+    "text": "No free uint16 layout element ID is available.",
+    "values": []
+  },
+  {
+    "file": "domain/layout/signalOutput.ts",
+    "line": 144,
+    "start": 3377,
+    "end": 3382,
+    "kind": "property",
+    "text": "Red",
+    "values": []
+  },
+  {
+    "file": "domain/layout/signalOutput.ts",
+    "line": 154,
+    "start": 3669,
+    "end": 3676,
+    "kind": "property",
+    "text": "Green",
+    "values": []
+  },
+  {
+    "file": "domain/runtimeVariables.ts",
+    "line": 52,
+    "start": 1207,
+    "end": 1241,
+    "kind": "error",
+    "text": "Unknown runtime variable: {{value1}}",
+    "values": [
+      [
+        "value1",
+        "key"
+      ]
+    ]
+  },
+  {
+    "file": "domain/signalLogic.ts",
+    "line": 208,
+    "start": 9397,
+    "end": 9492,
+    "kind": "property",
+    "text": "Legacy aspect \"{{value1}}\" cannot be mapped to a state of signal #{{value2}}.",
+    "values": [
+      [
+        "value1",
+        "rule.aspect"
+      ],
+      [
+        "value2",
+        "knownSignal.address"
+      ]
+    ]
+  },
+  {
+    "file": "domain/signalLogic.ts",
+    "line": 259,
+    "start": 11970,
+    "end": 12021,
+    "kind": "property",
+    "text": "Signal rule group has no valid signal element ID.",
+    "values": []
+  },
+  {
+    "file": "domain/signalLogic.ts",
+    "line": 262,
+    "start": 12194,
+    "end": 12249,
+    "kind": "property",
+    "text": "The same signal element has more than one rule group.",
+    "values": []
+  },
+  {
+    "file": "domain/signalLogic.ts",
+    "line": 268,
+    "start": 12522,
+    "end": 12620,
+    "kind": "property",
+    "text": "Referenced signal element was deleted or has the wrong type ({{value1}}).",
+    "values": [
+      [
+        "value1",
+        "group.signalId || \"missing ID\""
+      ]
+    ]
+  },
+  {
+    "file": "domain/signalLogic.ts",
+    "line": 275,
+    "start": 12891,
+    "end": 12948,
+    "kind": "property",
+    "text": "Signal #{{value1}} has an invalid default state.",
+    "values": [
+      [
+        "value1",
+        "signal.address"
+      ]
+    ]
+  },
+  {
+    "file": "domain/signalLogic.ts",
+    "line": 279,
+    "start": 13150,
+    "end": 13221,
+    "kind": "property",
+    "text": "Signal #{{value1}} has a rule that references a missing state.",
+    "values": [
+      [
+        "value1",
+        "signal.address"
+      ]
+    ]
+  },
+  {
+    "file": "domain/signalLogic.ts",
+    "line": 285,
+    "start": 13359,
+    "end": 13446,
+    "kind": "property",
+    "text": "Signal #{{value1}} has no rules and will always use its default state.",
+    "values": [
+      [
+        "value1",
+        "signal?.address ?? \"?\""
+      ]
+    ]
+  },
+  {
+    "file": "domain/signalLogic.ts",
+    "line": 291,
+    "start": 13671,
+    "end": 13718,
+    "kind": "property",
+    "text": "Rule has no conditions and will always match.",
+    "values": []
+  },
+  {
+    "file": "domain/signalLogic.ts",
+    "line": 295,
+    "start": 13954,
+    "end": 13993,
+    "kind": "property",
+    "text": "Another rule has the same conditions.",
+    "values": []
+  },
+  {
+    "file": "domain/signalLogic.ts",
+    "line": 306,
+    "start": 14570,
+    "end": 14627,
+    "kind": "property",
+    "text": "The same input is used more than once in the same rule.",
+    "values": []
+  },
+  {
+    "file": "domain/signalLogic.ts",
+    "line": 312,
+    "start": 14904,
+    "end": 14954,
+    "kind": "property",
+    "text": "Sensor condition has no valid sensor element ID.",
+    "values": []
+  },
+  {
+    "file": "domain/signalLogic.ts",
+    "line": 314,
+    "start": 15167,
+    "end": 15223,
+    "kind": "property",
+    "text": "Referenced sensor was deleted ({{value1}}).",
+    "values": [
+      [
+        "value1",
+        "condition.sensorId"
+      ]
+    ]
+  },
+  {
+    "file": "domain/signalLogic.ts",
+    "line": 317,
+    "start": 15427,
+    "end": 15479,
+    "kind": "property",
+    "text": "Turnout condition has no valid turnout element ID.",
+    "values": []
+  },
+  {
+    "file": "domain/signalLogic.ts",
+    "line": 319,
+    "start": 15691,
+    "end": 15749,
+    "kind": "property",
+    "text": "Referenced turnout was deleted ({{value1}}).",
+    "values": [
+      [
+        "value1",
+        "condition.turnoutId"
+      ]
+    ]
+  },
+  {
+    "file": "GamepadPage.tsx",
+    "line": 277,
+    "start": 5878,
+    "end": 5911,
+    "kind": "property",
+    "text": "#{{value1}} · {{value2}}",
+    "values": [
+      [
+        "value1",
+        "device.index"
+      ],
+      [
+        "value2",
+        "device.id"
+      ]
+    ]
+  },
+  {
+    "file": "GamepadPage.tsx",
+    "line": 419,
+    "start": 9552,
+    "end": 9553,
+    "kind": "jsx",
+    "text": "B",
+    "values": []
+  },
+  {
+    "file": "GamepadPage.tsx",
+    "line": 570,
+    "start": 13504,
+    "end": 13505,
+    "kind": "jsx",
+    "text": "B",
+    "values": []
+  },
+  {
+    "file": "layout/loco-panel/LocoFunctionButton.tsx",
+    "line": 151,
+    "start": 3289,
+    "end": 3290,
+    "kind": "jsx",
+    "text": "F",
+    "values": []
+  },
+  {
+    "file": "layout/property-panel/AudioFilePropertyEditor.tsx",
+    "line": 158,
+    "start": 4181,
+    "end": 4201,
+    "kind": "attr",
+    "text": "/sd/audio/horn.mp3",
+    "values": []
+  },
+  {
+    "file": "layout/property-panel/AudioFilePropertyEditor.tsx",
+    "line": 269,
+    "start": 8105,
+    "end": 8116,
+    "kind": "expression",
+    "text": "directory",
+    "values": []
+  },
+  {
+    "file": "layout/property-panel/AudioFilePropertyEditor.tsx",
+    "line": 278,
+    "start": 8513,
+    "end": 8524,
+    "kind": "expression",
+    "text": "directory",
+    "values": []
+  },
+  {
+    "file": "layout/property-panel/AudioFilePropertyEditor.tsx",
+    "line": 283,
+    "start": 8719,
+    "end": 8725,
+    "kind": "expression",
+    "text": "file",
+    "values": []
+  },
+  {
+    "file": "layout/property-panel/RouteTurnoutSelectionPropertyEditor.tsx",
+    "line": 314,
+    "start": 11157,
+    "end": 11228,
+    "kind": "expression",
+    "text": "#{{value1}}/#{{value2}}",
+    "values": [
+      [
+        "value1",
+        "previewTurnout.turnout1Address"
+      ],
+      [
+        "value2",
+        "previewTurnout.turnout2Address"
+      ]
+    ]
+  },
+  {
+    "file": "layout/property-panel/ScriptPropertyEditor.tsx",
+    "line": 272,
+    "start": 4813,
+    "end": 4840,
+    "kind": "jsx",
+    "text": "JavaScript",
+    "values": []
+  },
+  {
+    "file": "layout/property-panel/ScriptPropertyEditor.tsx",
+    "line": 319,
+    "start": 5959,
+    "end": 5965,
+    "kind": "expression",
+    "text": "idle",
+    "values": []
+  },
+  {
+    "file": "layout/property-panel/ScriptPropertyEditor.tsx",
+    "line": 343,
+    "start": 6567,
+    "end": 6576,
+    "kind": "expression",
+    "text": "running",
+    "values": []
+  },
+  {
+    "file": "layout/property-panel/ScriptPropertyEditor.tsx",
+    "line": 358,
+    "start": 6946,
+    "end": 6954,
+    "kind": "expression",
+    "text": "paused",
+    "values": []
+  },
+  {
+    "file": "layout/property-panel/ScriptPropertyEditor.tsx",
+    "line": 373,
+    "start": 7325,
+    "end": 7331,
+    "kind": "expression",
+    "text": "idle",
+    "values": []
+  },
+  {
+    "file": "layout/property-panel/ScriptPropertyEditor.tsx",
+    "line": 389,
+    "start": 7707,
+    "end": 7715,
+    "kind": "expression",
+    "text": "paused",
+    "values": []
+  },
+  {
+    "file": "layout/property-panel/SignalAspectPropertyEditor.tsx",
+    "line": 270,
+    "start": 6452,
+    "end": 6462,
+    "kind": "expression",
+    "text": "Address ",
+    "values": []
+  },
+  {
+    "file": "layout/property-panel/SignalAspectPropertyEditor.tsx",
+    "line": 274,
+    "start": 6579,
+    "end": 6590,
+    "kind": "expression",
+    "text": " lamps · ",
+    "values": []
+  },
+  {
+    "file": "layout/property-panel/SignalAspectPropertyEditor.tsx",
+    "line": 276,
+    "start": 6651,
+    "end": 6664,
+    "kind": "expression",
+    "text": " aspects · ",
+    "values": []
+  },
+  {
+    "file": "layout/property-panel/SignalAspectPropertyEditor.tsx",
+    "line": 277,
+    "start": 6711,
+    "end": 6719,
+    "kind": "expression",
+    "text": "dccext",
+    "values": []
+  },
+  {
+    "file": "layout/property-panel/SignalAspectPropertyEditor.tsx",
+    "line": 278,
+    "start": 6735,
+    "end": 6749,
+    "kind": "expression",
+    "text": "DCC Extended",
+    "values": []
+  },
+  {
+    "file": "layout/property-panel/SignalAspectPropertyEditor.tsx",
+    "line": 279,
+    "start": 6765,
+    "end": 6770,
+    "kind": "expression",
+    "text": "DCC",
+    "values": []
+  },
+  {
+    "file": "layout/property-panel/TurnoutBitPropertyEditor.tsx",
+    "line": 76,
+    "start": 1984,
+    "end": 1989,
+    "kind": "property",
+    "text": "O-O",
+    "values": []
+  },
+  {
+    "file": "layout/property-panel/TurnoutBitPropertyEditor.tsx",
+    "line": 81,
+    "start": 2060,
+    "end": 2065,
+    "kind": "property",
+    "text": "O-C",
+    "values": []
+  },
+  {
+    "file": "layout/property-panel/TurnoutBitPropertyEditor.tsx",
+    "line": 86,
+    "start": 2135,
+    "end": 2140,
+    "kind": "property",
+    "text": "C-O",
+    "values": []
+  },
+  {
+    "file": "layout/property-panel/TurnoutBitPropertyEditor.tsx",
+    "line": 91,
+    "start": 2210,
+    "end": 2215,
+    "kind": "property",
+    "text": "C-C",
+    "values": []
+  },
+  {
+    "file": "LiteLayoutPage.tsx",
+    "line": 375,
+    "start": 14380,
+    "end": 14398,
+    "kind": "expression",
+    "text": "turnoutSelection",
+    "values": []
+  },
+  {
+    "file": "LiteLayoutPage.tsx",
+    "line": 386,
+    "start": 14894,
+    "end": 14905,
+    "kind": "expression",
+    "text": "bittoggle",
+    "values": []
+  },
+  {
+    "file": "LiteLayoutPage.tsx",
+    "line": 392,
+    "start": 15125,
+    "end": 15134,
+    "kind": "expression",
+    "text": "signal2",
+    "values": []
+  },
+  {
+    "file": "LiteLayoutPage.tsx",
+    "line": 398,
+    "start": 15373,
+    "end": 15390,
+    "kind": "expression",
+    "text": "blockTypeSelect",
+    "values": []
+  },
+  {
+    "file": "LiteLayoutPage.tsx",
+    "line": 886,
+    "start": 33705,
+    "end": 33706,
+    "kind": "jsx",
+    "text": "v",
+    "values": []
+  },
+  {
+    "file": "LiteLayoutPage.tsx",
+    "line": 1016,
+    "start": 40817,
+    "end": 40823,
+    "kind": "expression",
+    "text": "loco",
+    "values": []
+  },
+  {
+    "file": "LiteLayoutPage.tsx",
+    "line": 1077,
+    "start": 43502,
+    "end": 43513,
+    "kind": "expression",
+    "text": "connected",
+    "values": []
+  },
+  {
+    "file": "LiteLayoutPage.tsx",
+    "line": 1079,
+    "start": 43671,
+    "end": 43682,
+    "kind": "expression",
+    "text": "connected",
+    "values": []
+  },
+  {
+    "file": "LiteLayoutPage.tsx",
+    "line": 1079,
+    "start": 43685,
+    "end": 43689,
+    "kind": "expression",
+    "text": "WS",
+    "values": []
+  },
+  {
+    "file": "LiteLayoutPage.tsx",
+    "line": 1079,
+    "start": 43705,
+    "end": 43719,
+    "kind": "expression",
+    "text": "reconnecting",
+    "values": []
+  },
+  {
+    "file": "LiteLayoutPage.tsx",
+    "line": 1115,
+    "start": 45362,
+    "end": 45368,
+    "kind": "expression",
+    "text": "loco",
+    "values": []
+  },
+  {
+    "file": "LiteLayoutPage.tsx",
+    "line": 1125,
+    "start": 45840,
+    "end": 45851,
+    "kind": "jsx",
+    "text": "elements ·",
+    "values": []
+  },
+  {
+    "file": "LiteLayoutPage.tsx",
+    "line": 1125,
+    "start": 45866,
+    "end": 45883,
+    "kind": "jsx",
+    "text": "locos",
+    "values": []
+  },
+  {
+    "file": "LiteLayoutPage.tsx",
+    "line": 1167,
+    "start": 47355,
+    "end": 47373,
+    "kind": "jsx",
+    "text": "The ESP32 reports",
+    "values": []
+  },
+  {
+    "file": "LiteLayoutPage.tsx",
+    "line": 1167,
+    "start": 47424,
+    "end": 47539,
+    "kind": "jsx",
+    "text": "°C. Check enclosure ventilation, nearby heat sources and sustained processor/network load.",
+    "values": []
+  },
+  {
+    "file": "models/editor/core/ElementFactory.ts",
+    "line": 110,
+    "start": 4359,
+    "end": 4446,
+    "kind": "error",
+    "text": "Unsupported element type: {{value1}}",
+    "values": [
+      [
+        "value1",
+        "(data as { type?: string }).type"
+      ]
+    ]
+  },
+  {
+    "file": "models/editor/elements/ButtonElement.ts",
+    "line": 11,
+    "start": 594,
+    "end": 629,
+    "kind": "property",
+    "text": "Basic accessory · <a address 0|1>",
+    "values": []
+  },
+  {
+    "file": "models/editor/elements/ButtonElement.ts",
+    "line": 12,
+    "start": 663,
+    "end": 704,
+    "kind": "property",
+    "text": "Extended accessory · <A address aspect>",
+    "values": []
+  },
+  {
+    "file": "models/editor/elements/ButtonScriptElement.ts",
+    "line": 105,
+    "start": 3557,
+    "end": 3569,
+    "kind": "property",
+    "text": "JavaScript",
+    "values": []
+  },
+  {
+    "file": "models/editor/elements/TrackLevelCrossingElement.ts",
+    "line": 48,
+    "start": 1486,
+    "end": 1494,
+    "kind": "property",
+    "text": "Closed",
+    "values": []
+  },
+  {
+    "file": "models/editor/elements/TrackLevelCrossingElement.ts",
+    "line": 58,
+    "start": 1732,
+    "end": 1738,
+    "kind": "property",
+    "text": "Open",
+    "values": []
+  },
+  {
+    "file": "models/editor/elements/TrackLevelCrossingElement.ts",
+    "line": 91,
+    "start": 2429,
+    "end": 2437,
+    "kind": "property",
+    "text": "Closed",
+    "values": []
+  },
+  {
+    "file": "models/editor/elements/TrackLevelCrossingElement.ts",
+    "line": 101,
+    "start": 2710,
+    "end": 2716,
+    "kind": "property",
+    "text": "Open",
+    "values": []
+  },
+  {
+    "file": "models/editor/elements/TrackSignalElement.ts",
+    "line": 514,
+    "start": 16089,
+    "end": 16094,
+    "kind": "property",
+    "text": "Red",
+    "values": []
+  },
+  {
+    "file": "models/editor/elements/TrackSignalElement.ts",
+    "line": 521,
+    "start": 16230,
+    "end": 16237,
+    "kind": "property",
+    "text": "Green",
+    "values": []
+  },
+  {
+    "file": "models/editor/elements/TrackSignalElement.ts",
+    "line": 530,
+    "start": 16450,
+    "end": 16458,
+    "kind": "property",
+    "text": "Yellow",
+    "values": []
+  },
+  {
+    "file": "models/editor/elements/TrackSignalElement.ts",
+    "line": 541,
+    "start": 16703,
+    "end": 16710,
+    "kind": "property",
+    "text": "White",
+    "values": []
+  },
+  {
+    "file": "models/editor/rendering/ElementPreviewRenderer.tsx",
+    "line": 41,
+    "start": 1126,
+    "end": 1174,
+    "kind": "error",
+    "text": "CanvasRenderingContext2D could not be created.",
+    "values": []
+  },
+  {
+    "file": "models/editor/sample/sampleLayout.ts",
+    "line": 6,
+    "start": 163,
+    "end": 180,
+    "kind": "property",
+    "text": "Első mintapálya",
+    "values": []
+  },
+  {
+    "file": "ProgrammingPage.tsx",
+    "line": 85,
+    "start": 1644,
+    "end": 1653,
+    "kind": "expression",
+    "text": "b{{value1}}",
+    "values": [
+      [
+        "value1",
+        "bit"
+      ]
+    ]
+  },
+  {
+    "file": "ProgrammingPage.tsx",
+    "line": 118,
+    "start": 2406,
+    "end": 2410,
+    "kind": "jsx",
+    "text": "DEC",
+    "values": []
+  },
+  {
+    "file": "ProgrammingPage.tsx",
+    "line": 119,
+    "start": 2463,
+    "end": 2467,
+    "kind": "jsx",
+    "text": "HEX",
+    "values": []
+  },
+  {
+    "file": "ProgrammingPage.tsx",
+    "line": 121,
+    "start": 2538,
+    "end": 2542,
+    "kind": "jsx",
+    "text": "BIN",
+    "values": []
+  },
+  {
+    "file": "ProgrammingPage.tsx",
+    "line": 150,
+    "start": 3141,
+    "end": 3149,
+    "kind": "expression",
+    "text": "number",
+    "values": []
+  },
+  {
+    "file": "ProgrammingPage.tsx",
+    "line": 331,
+    "start": 8679,
+    "end": 8700,
+    "kind": "jsx",
+    "text": "DigiTools",
+    "values": []
+  },
+  {
+    "file": "ProgrammingPage.tsx",
+    "line": 412,
+    "start": 11853,
+    "end": 11857,
+    "kind": "attr",
+    "text": "CV",
+    "values": []
+  },
+  {
+    "file": "ProgrammingPage.tsx",
+    "line": 500,
+    "start": 15020,
+    "end": 15024,
+    "kind": "attr",
+    "text": "CV",
+    "values": []
+  },
+  {
+    "file": "ProgrammingPage.tsx",
+    "line": 619,
+    "start": 19217,
+    "end": 19229,
+    "kind": "jsx",
+    "text": "DigiSwitch-8",
+    "values": []
+  },
+  {
+    "file": "ProgrammingPage.tsx",
+    "line": 699,
+    "start": 22204,
+    "end": 22220,
+    "kind": "jsx",
+    "text": "DigiSignal-X4YYY",
+    "values": []
+  },
+  {
+    "file": "services/apiFetchTimeout.ts",
+    "line": 246,
+    "start": 4014,
+    "end": 4081,
+    "kind": "error",
+    "text": "{{value1}} timed out after {{value2}} ms.",
+    "values": [
+      [
+        "value1",
+        "timeoutLabel(input)"
+      ],
+      [
+        "value2",
+        "API_JSON_TIMEOUT_MS"
+      ]
+    ]
+  },
+  {
+    "file": "services/audioManager.ts",
+    "line": 89,
+    "start": 2384,
+    "end": 2420,
+    "kind": "error",
+    "text": "Audio load/play error: {{value1}}",
+    "values": [
+      [
+        "value1",
+        "fileName"
+      ]
+    ]
+  },
+  {
+    "file": "services/audioManager.ts",
+    "line": 97,
+    "start": 2564,
+    "end": 2600,
+    "kind": "error",
+    "text": "Audio load/play error: {{value1}}",
+    "values": [
+      [
+        "value1",
+        "fileName"
+      ]
+    ]
+  },
+  {
+    "file": "services/audioManager.ts",
+    "line": 124,
+    "start": 3097,
+    "end": 3128,
+    "kind": "error",
+    "text": "Audio load/play error: {{value1}}",
+    "values": [
+      [
+        "value1",
+        "url"
+      ]
+    ]
+  },
+  {
+    "file": "services/audioManager.ts",
+    "line": 134,
+    "start": 3346,
+    "end": 3378,
+    "kind": "error",
+    "text": "Audio playback timeout: {{value1}}",
+    "values": [
+      [
+        "value1",
+        "url"
+      ]
+    ]
+  },
+  {
+    "file": "services/automationApi.ts",
+    "line": 92,
+    "start": 1940,
+    "end": 2002,
+    "kind": "error",
+    "text": "Automation storage could not be loaded ({{value1}}).",
+    "values": [
+      [
+        "value1",
+        "response.status"
+      ]
+    ]
+  },
+  {
+    "file": "services/automationApi.ts",
+    "line": 104,
+    "start": 2148,
+    "end": 2186,
+    "kind": "error",
+    "text": "Invalid automation storage response.",
+    "values": []
+  },
+  {
+    "file": "services/automationApi.ts",
+    "line": 119,
+    "start": 2394,
+    "end": 2447,
+    "kind": "error",
+    "text": "Unsupported automation storage version: {{value1}}.",
+    "values": [
+      [
+        "value1",
+        "version"
+      ]
+    ]
+  },
+  {
+    "file": "services/backupService.ts",
+    "line": 83,
+    "start": 1565,
+    "end": 1599,
+    "kind": "error",
+    "text": "{{value1}}: HTTP {{value2}}",
+    "values": [
+      [
+        "value1",
+        "path"
+      ],
+      [
+        "value2",
+        "response.status"
+      ]
+    ]
+  },
+  {
+    "file": "services/clientScriptLayoutAccessoryRuntime.ts",
+    "line": 418,
+    "start": 6640,
+    "end": 6645,
+    "kind": "property",
+    "text": "Red",
+    "values": []
+  },
+  {
+    "file": "services/clientScriptLayoutAccessoryRuntime.ts",
+    "line": 427,
+    "start": 6827,
+    "end": 6834,
+    "kind": "property",
+    "text": "Green",
+    "values": []
+  },
+  {
+    "file": "services/clientScriptLayoutAccessoryRuntime.ts",
+    "line": 439,
+    "start": 7062,
+    "end": 7070,
+    "kind": "property",
+    "text": "Yellow",
+    "values": []
+  },
+  {
+    "file": "services/clientScriptLayoutAccessoryRuntime.ts",
+    "line": 451,
+    "start": 7282,
+    "end": 7289,
+    "kind": "property",
+    "text": "White",
+    "values": []
+  },
+  {
+    "file": "services/clientScriptRunner.ts",
+    "line": 191,
+    "start": 3546,
+    "end": 3630,
+    "kind": "error",
+    "text": "Layout could not be loaded for script block-name lookup (HTTP {{value1}}).",
+    "values": [
+      [
+        "value1",
+        "response.status"
+      ]
+    ]
+  },
+  {
+    "file": "services/clientScriptRunner.ts",
+    "line": 1027,
+    "start": 16507,
+    "end": 16556,
+    "kind": "error",
+    "text": "Automation Worker message could not be decoded.",
+    "values": []
+  },
+  {
+    "file": "services/clientScriptRunner.ts",
+    "line": 1117,
+    "start": 17839,
+    "end": 17931,
+    "kind": "error",
+    "text": "playAudio(name): use only the base MP3 filename from /sd/audio, without path or extension.",
+    "values": []
+  },
+  {
+    "file": "services/clientScriptRunner.ts",
+    "line": 2108,
+    "start": 33395,
+    "end": 33455,
+    "kind": "error",
+    "text": "Script \"{{value1}}\" is already running.",
+    "values": [
+      [
+        "value1",
+        "element.name || element.id"
+      ]
+    ]
+  },
+  {
+    "file": "services/clientScriptWorker.ts",
+    "line": 345,
+    "start": 6494,
+    "end": 6549,
+    "kind": "error",
+    "text": "{{value1}} must be an integer between {{value2}} and {{value3}}.",
+    "values": [
+      [
+        "value1",
+        "name"
+      ],
+      [
+        "value2",
+        "min"
+      ],
+      [
+        "value3",
+        "max"
+      ]
+    ]
+  },
+  {
+    "file": "services/clientScriptWorker.ts",
+    "line": 388,
+    "start": 7211,
+    "end": 7252,
+    "kind": "error",
+    "text": "Sensor state snapshot is not ready yet.",
+    "values": []
+  },
+  {
+    "file": "services/clientScriptWorker.ts",
+    "line": 393,
+    "start": 7293,
+    "end": 7370,
+    "kind": "error",
+    "text": "Sensor address {{value1}} is not present in the current sensor snapshot.",
+    "values": [
+      [
+        "value1",
+        "normalized"
+      ]
+    ]
+  },
+  {
+    "file": "services/clientScriptWorker.ts",
+    "line": 494,
+    "start": 9065,
+    "end": 9148,
+    "kind": "error",
+    "text": "waitForSensor timeout: sensor {{value1}} did not become {{value2}}.",
+    "values": [
+      [
+        "value1",
+        "address"
+      ],
+      [
+        "value2",
+        "target ? \"ON\" : \"OFF\""
+      ]
+    ]
+  },
+  {
+    "file": "services/clientScriptWorker.ts",
+    "line": 579,
+    "start": 10443,
+    "end": 10530,
+    "kind": "error",
+    "text": "waitForSensor timeout: sensor {{value1}} did not become {{value2}}.",
+    "values": [
+      [
+        "value1",
+        "normalized"
+      ],
+      [
+        "value2",
+        "desired ? \"ON\" : \"OFF\""
+      ]
+    ]
+  },
+  {
+    "file": "services/clientScriptWorker.ts",
+    "line": 652,
+    "start": 11518,
+    "end": 11559,
+    "kind": "error",
+    "text": "Signal layout catalog is not ready yet.",
+    "values": []
+  },
+  {
+    "file": "services/clientScriptWorker.ts",
+    "line": 662,
+    "start": 11669,
+    "end": 11732,
+    "kind": "error",
+    "text": "Signal address {{value1}} is not configured in the layout.",
+    "values": [
+      [
+        "value1",
+        "normalized"
+      ]
+    ]
+  },
+  {
+    "file": "services/clientScriptWorker.ts",
+    "line": 673,
+    "start": 11865,
+    "end": 11923,
+    "kind": "error",
+    "text": "Signal address {{value1}} is ambiguous in the layout.",
+    "values": [
+      [
+        "value1",
+        "normalized"
+      ]
+    ]
+  },
+  {
+    "file": "services/clientScriptWorker.ts",
+    "line": 699,
+    "start": 12283,
+    "end": 12315,
+    "kind": "error",
+    "text": "Signal state name is required.",
+    "values": []
+  },
+  {
+    "file": "services/clientScriptWorker.ts",
+    "line": 716,
+    "start": 12558,
+    "end": 12627,
+    "kind": "error",
+    "text": "Signal {{value1}} has no unique configured state \"{{value2}}\".",
+    "values": [
+      [
+        "value1",
+        "config.address"
+      ],
+      [
+        "value2",
+        "label"
+      ]
+    ]
+  },
+  {
+    "file": "services/clientScriptWorker.ts",
+    "line": 737,
+    "start": 12929,
+    "end": 12971,
+    "kind": "error",
+    "text": "Turnout layout catalog is not ready yet.",
+    "values": []
+  },
+  {
+    "file": "services/clientScriptWorker.ts",
+    "line": 747,
+    "start": 13082,
+    "end": 13146,
+    "kind": "error",
+    "text": "Turnout address {{value1}} is not configured in the layout.",
+    "values": [
+      [
+        "value1",
+        "normalized"
+      ]
+    ]
+  },
+  {
+    "file": "services/clientScriptWorker.ts",
+    "line": 758,
+    "start": 13280,
+    "end": 13339,
+    "kind": "error",
+    "text": "Turnout address {{value1}} is ambiguous in the layout.",
+    "values": [
+      [
+        "value1",
+        "normalized"
+      ]
+    ]
+  },
+  {
+    "file": "services/clientScriptWorker.ts",
+    "line": 783,
+    "start": 13645,
+    "end": 13703,
+    "kind": "error",
+    "text": "Signal state for address {{value1}} is not known yet.",
+    "values": [
+      [
+        "value1",
+        "normalized"
+      ]
+    ]
+  },
+  {
+    "file": "services/clientScriptWorker.ts",
+    "line": 810,
+    "start": 14047,
+    "end": 14106,
+    "kind": "error",
+    "text": "Turnout state for address {{value1}} is not known yet.",
+    "values": [
+      [
+        "value1",
+        "normalized"
+      ]
+    ]
+  },
+  {
+    "file": "services/clientScriptWorker.ts",
+    "line": 1111,
+    "start": 19135,
+    "end": 19166,
+    "kind": "error",
+    "text": "Block name or ID is required.",
+    "values": []
+  },
+  {
+    "file": "services/clientScriptWorker.ts",
+    "line": 1125,
+    "start": 19369,
+    "end": 19419,
+    "kind": "error",
+    "text": "Block ID must be an integer between 1 and 65535.",
+    "values": []
+  },
+  {
+    "file": "services/clientScriptWorker.ts",
+    "line": 1134,
+    "start": 19528,
+    "end": 19568,
+    "kind": "error",
+    "text": "Layout block catalog is not ready yet.",
+    "values": []
+  },
+  {
+    "file": "services/clientScriptWorker.ts",
+    "line": 1165,
+    "start": 19970,
+    "end": 20039,
+    "kind": "error",
+    "text": "Block name \"{{value1}}\" is ambiguous. Use the exact layout block name.",
+    "values": [
+      [
+        "value1",
+        "text"
+      ]
+    ]
+  },
+  {
+    "file": "services/clientScriptWorker.ts",
+    "line": 1170,
+    "start": 20080,
+    "end": 20119,
+    "kind": "error",
+    "text": "Layout block \"{{value1}}\" was not found.",
+    "values": [
+      [
+        "value1",
+        "text"
+      ]
+    ]
+  },
+  {
+    "file": "services/clientScriptWorker.ts",
+    "line": 1179,
+    "start": 20258,
+    "end": 20298,
+    "kind": "error",
+    "text": "Block state snapshot is not ready yet.",
+    "values": []
+  },
+  {
+    "file": "services/clientScriptWorker.ts",
+    "line": 1197,
+    "start": 20562,
+    "end": 20603,
+    "kind": "error",
+    "text": "Block target snapshot is not ready yet.",
+    "values": []
+  },
+  {
+    "file": "services/clientScriptWorker.ts",
+    "line": 1339,
+    "start": 22837,
+    "end": 22880,
+    "kind": "error",
+    "text": "Direction must be \"forward\" or \"reverse\".",
+    "values": []
+  },
+  {
+    "file": "services/clientScriptWorker.ts",
+    "line": 2065,
+    "start": 36144,
+    "end": 36184,
+    "kind": "error",
+    "text": "dcc.sendRaw requires a DCC-EX command.",
+    "values": []
+  },
+  {
+    "file": "services/clientScriptWorker.ts",
+    "line": 2264,
+    "start": 39599,
+    "end": 39659,
+    "kind": "property",
+    "text": "Script \"{{value1}}\" is already running.",
+    "values": [
+      [
+        "value1",
+        "element.name || element.id"
+      ]
+    ]
+  },
+  {
+    "file": "services/fileViewerEnhancer.ts",
+    "line": 219,
+    "start": 3664,
+    "end": 3689,
+    "kind": "error",
+    "text": "HTTP {{value1}}",
+    "values": [
+      [
+        "value1",
+        "response.status"
+      ]
+    ]
+  },
+  {
+    "file": "services/layoutOutput.ts",
+    "line": 10,
+    "start": 364,
+    "end": 389,
+    "kind": "property",
+    "text": "DCC-EX VPIN · <z ±vpin>",
+    "values": []
+  },
+  {
+    "file": "services/scriptInfoRuntime.ts",
+    "line": 327,
+    "start": 4493,
+    "end": 4545,
+    "kind": "error",
+    "text": "Script info update failed: HTTP {{value1}}",
+    "values": [
+      [
+        "value1",
+        "response.status"
+      ]
+    ]
+  },
+  {
+    "file": "services/serialConsole.ts",
+    "line": 204,
+    "start": 3725,
+    "end": 3759,
+    "kind": "error",
+    "text": "Web Serial API is not available.",
+    "values": []
+  },
+  {
+    "file": "services/serialConsole.ts",
+    "line": 217,
+    "start": 3956,
+    "end": 3990,
+    "kind": "error",
+    "text": "Web Serial API is not available.",
+    "values": []
+  },
+  {
+    "file": "services/serialConsole.ts",
+    "line": 352,
+    "start": 6324,
+    "end": 6355,
+    "kind": "error",
+    "text": "Serial port is not connected.",
+    "values": []
+  },
+  {
+    "file": "services/signalLogicStatusIndicator.ts",
+    "line": 118,
+    "start": 2006,
+    "end": 2051,
+    "kind": "error",
+    "text": "Signal logic status HTTP {{value1}}",
+    "values": [
+      [
+        "value1",
+        "response.status"
+      ]
+    ]
+  },
+  {
+    "file": "services/wsApi.ts",
+    "line": 102,
+    "start": 2405,
+    "end": 2438,
+    "kind": "error",
+    "text": "WebSocket connection timed out.",
+    "values": []
+  },
+  {
+    "file": "services/wsApi.ts",
+    "line": 157,
+    "start": 4116,
+    "end": 4197,
+    "kind": "error",
+    "text": "WebSocket request failed because connection is {{value1}}: {{value2}}",
+    "values": [
+      [
+        "value1",
+        "status"
+      ],
+      [
+        "value2",
+        "String(clientType)"
+      ]
+    ]
+  },
+  {
+    "file": "services/wsApi.ts",
+    "line": 162,
+    "start": 4328,
+    "end": 4357,
+    "kind": "error",
+    "text": "WebSocket is not connected.",
+    "values": []
+  },
+  {
+    "file": "services/wsApi.ts",
+    "line": 167,
+    "start": 4485,
+    "end": 4514,
+    "kind": "error",
+    "text": "WebSocket is not connected.",
+    "values": []
+  },
+  {
+    "file": "services/wsApi.ts",
+    "line": 171,
+    "start": 4609,
+    "end": 4661,
+    "kind": "error",
+    "text": "WebSocket request timed out: {{value1}}",
+    "values": [
+      [
+        "value1",
+        "String(clientType)"
+      ]
+    ]
+  }
+]

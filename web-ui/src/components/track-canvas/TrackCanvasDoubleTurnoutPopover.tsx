@@ -1,3 +1,4 @@
+import i18next from "i18next";
 import {
   Box,
   Group,
@@ -61,15 +62,15 @@ const THREE_WAY_POSITIONS: Array<{
   position: Exclude<ThreeWayTurnoutPosition, "invalid">;
 }> = [
   {
-    label: "Left",
+    get label() { return i18next.t("ui.left"); },
     position: "left",
   },
   {
-    label: "Straight",
+    get label() { return i18next.t("ui.straight"); },
     position: "straight",
   },
   {
-    label: "Right",
+    get label() { return i18next.t("ui.right"); },
     position: "right",
   },
 ];

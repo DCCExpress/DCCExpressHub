@@ -1,3 +1,4 @@
+import i18next from "i18next";
 import { getDirectionXy } from "../../../domain/helpers";
 import { ELEMENT_TYPES } from "../../../domain/layout/elementTypes";
 import type { OutputCommandModeDto } from "../../../domain/layout/layoutDto";
@@ -189,35 +190,35 @@ export class TrackTurnoutThreeWayElement extends TrackMultiMotorTurnoutElement {
     return [
       ...super.getEditableProperties(),
       {
-        label: "Output type",
+        label: i18next.t("ui.outputType"),
         key: "outputMode",
         type: "select",
         readonly: false,
         options: OUTPUT_COMMAND_MODE_OPTIONS,
       },
       {
-        label: "Left motor address / VPIN",
+        label: i18next.t("ui.leftMotorAddressVpin"),
         key: "turnout1Address",
         type: "number",
         readonly: false,
         validate: () => true,
       },
       {
-        label: "Right motor address / VPIN",
+        label: i18next.t("ui.rightMotorAddressVpin"),
         key: "turnout2Address",
         type: "number",
         readonly: false,
         validate: () => true,
       },
       {
-        label: "Three-way turnout positions",
+        label: i18next.t("ui.threeWayTurnoutPositions"),
         key: "turnout1ClosedValue",
         type: "bittoggle",
         readonly: false,
         validate: () => true,
       },
       {
-        label: "Right motor closed value",
+        label: i18next.t("ui.rightMotorClosedValue"),
         key: "turnout2ClosedValue",
         type: "bittoggle",
         readonly: false,

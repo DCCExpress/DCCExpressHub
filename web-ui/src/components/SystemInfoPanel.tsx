@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import i18next from "i18next";
 import {
   Badge,
   Card,
@@ -89,7 +91,7 @@ type SystemInfoPanelProps = {
 };
 
 type TemperatureLevel = {
-  label: "NORMAL" | "WARM" | "WARNING" | "CRITICAL";
+  label: string;
   color: "green" | "yellow" | "orange" | "red";
 };
 
@@ -98,27 +100,27 @@ function getTemperatureLevel(
 ): TemperatureLevel {
   if (temperatureC > 85) {
     return {
-      label: "CRITICAL",
+      label: i18next.t("ui.critical"),
       color: "red",
     };
   }
 
   if (temperatureC >= 75) {
     return {
-      label: "WARNING",
+      label: i18next.t("ui.warning"),
       color: "orange",
     };
   }
 
   if (temperatureC >= 65) {
     return {
-      label: "WARM",
+      label: i18next.t("ui.warm"),
       color: "yellow",
     };
   }
 
   return {
-    label: "NORMAL",
+    label: i18next.t("ui.normal"),
     color: "green",
   };
 }
@@ -290,6 +292,7 @@ export default function SystemInfoPanel({
   flashInfo,
   version,
 }: SystemInfoPanelProps) {
+  useTranslation();
   const telemetry =
     status as ExtendedDccExStatus | null;
 
@@ -393,42 +396,42 @@ export default function SystemInfoPanel({
                 color={dccAlive ? "green" : "red"}
                 variant={dccAlive ? "light" : "filled"}
               >
-                {dccAlive ? "ONLINE" : "OFFLINE"}
+                {dccAlive ? i18next.t("ui.online") : i18next.t("ui.offline")}
               </Badge>
             </Group>
 
             <InfoRow
-              label="Target"
+              label={i18next.t("ui.target")}
               value={target}
               color="cyan"
             />
 
             <InfoRow
-              label="DCC-EX version"
+              label={i18next.t("ui.dccExVersion")}
               value={dccVersion}
               color="violet"
             />
 
             <InfoRow
-              label="Processor"
+              label={i18next.t("ui.processor")}
               value={telemetry?.processor || "—"}
               color="indigo"
             />
 
             <InfoRow
-              label="Motor driver"
+              label={i18next.t("ui.motorDriver")}
               value={telemetry?.hardware || "—"}
               color="cyan"
             />
 
             <InfoRow
-              label="Build"
+              label={i18next.t("ui.build")}
               value={telemetry?.build || "—"}
               color="gray"
             />
 
             <InfoRow
-              label="Max loco slots"
+              label={i18next.t("ui.maxLocoSlots")}
               value={
                 telemetry?.maxLocos
                   ? String(telemetry.maxLocos)
@@ -438,7 +441,7 @@ export default function SystemInfoPanel({
             />
 
             <InfoRow
-              label="Track power"
+              label={i18next.t("ui.trackPower")}
               value={
                 telemetry?.trackVoltageOn
                   ? "ON"
@@ -453,7 +456,7 @@ export default function SystemInfoPanel({
 
             {tracks.length > 0 && (
               <InfoRow
-                label="Total track current"
+                label={i18next.t("ui.totalTrackCurrent")}
                 value={
                   anyTrackOverload
                     ? "OVERLOAD"
@@ -470,7 +473,7 @@ export default function SystemInfoPanel({
             {tracks.map(track => (
               <InfoRow
                 key={track.letter}
-                label={`Track ${track.letter} · ${track.mode}`}
+                label={i18next.t("ui.track", { value1: track.letter, value2: track.mode })}
                 value={currentValue(track)}
                 color={currentColor(
                   track.currentMa,
@@ -481,22 +484,18 @@ export default function SystemInfoPanel({
             ))}
 
             {tracks.length === 0 && (
-              <Text size="xs" c="dimmed">
-                Waiting for DCC-EX TrackManager/current telemetry…
-              </Text>
+              <Text size="xs" c="dimmed"> {i18next.t("ui.waitingForDccExTrackmanagerCurrentTelemetry")} </Text>
             )}
 
             <InfoRow
-              label="TCP link uptime"
+              label={i18next.t("ui.tcpLinkUptime")}
               value={formatUptime(
                 telemetry?.linkUptimeMs,
               )}
               color="teal"
             />
 
-            <Text size="xs" c="dimmed">
-              Track current is requested from DCC-EX every 1000 ms. The value after “/” is the current trip limit. DCC-EX exposes current per track output, not per individual decoder. Remote RAM, CPU load and chip temperature are not standard native telemetry, so they are intentionally not invented here.
-            </Text>
+            <Text size="xs" c="dimmed"> {i18next.t("ui.trackCurrentIsRequestedFromDccExEvery1000Ms")} </Text>
           </Stack>
         </Card>
 
@@ -516,25 +515,25 @@ export default function SystemInfoPanel({
                 variant="light"
               >
                 {wsStatus === "connected"
-                  ? "WS ONLINE"
+                  ? i18next.t("ui.wsOnline")
                   : `WS ${wsStatus.toUpperCase()}`}
               </Badge>
             </Group>
 
             <InfoRow
-              label="Hub version"
+              label={i18next.t("ui.hubVersion")}
               value={`v${version}`}
               color="violet"
             />
 
             <InfoRow
-              label="Hostname"
+              label={i18next.t("ui.hostname")}
               value={hub?.hostname || "—"}
               color="gray"
             />
 
             <InfoRow
-              label="Hub IP"
+              label={i18next.t("ui.hubIp")}
               value={hub?.wifiIp || "—"}
               color="cyan"
             />
@@ -558,7 +557,7 @@ export default function SystemInfoPanel({
             />
 
             <InfoRow
-              label="Processor"
+              label={i18next.t("ui.processor")}
               value={
                 hub?.chipModel
                   ? `${hub.chipModel} rev ${hub.chipRevision ?? "—"}`
@@ -578,7 +577,7 @@ export default function SystemInfoPanel({
             />
 
             <InfoRow
-              label="CPU core 0"
+              label={i18next.t("ui.cpuCore0")}
               value={
                 hub?.cpuCore0Percent !== undefined
                   ? `${hub.cpuCore0Percent}%`
@@ -592,7 +591,7 @@ export default function SystemInfoPanel({
             />
 
             <InfoRow
-              label="CPU core 1"
+              label={i18next.t("ui.cpuCore1")}
               value={
                 hub?.cpuCore1Percent !== undefined
                   ? `${hub.cpuCore1Percent}%`
@@ -606,7 +605,7 @@ export default function SystemInfoPanel({
             />
 
             <InfoRow
-              label="Chip temperature"
+              label={i18next.t("ui.chipTemperature")}
               value={
                 temperature !== undefined &&
                 temperatureLevel
@@ -620,7 +619,7 @@ export default function SystemInfoPanel({
             />
 
             <InfoRow
-              label="Uptime"
+              label={i18next.t("ui.uptime")}
               value={formatUptime(
                 hub?.uptimeMs,
               )}
@@ -628,7 +627,7 @@ export default function SystemInfoPanel({
             />
 
             <InfoRow
-              label="Heap free / total"
+              label={i18next.t("ui.heapFreeTotal")}
               value={
                 heapTotal !== undefined
                   ? `${formatBytes(heapFree)} / ${formatBytes(heapTotal)}${
@@ -646,7 +645,7 @@ export default function SystemInfoPanel({
             />
 
             <InfoRow
-              label="Minimum free heap"
+              label={i18next.t("ui.minimumFreeHeap")}
               value={formatBytes(
                 hub?.minimumFreeHeapBytes,
               )}
@@ -659,7 +658,7 @@ export default function SystemInfoPanel({
             />
 
             <InfoRow
-              label="Largest free block"
+              label={i18next.t("ui.largestFreeBlock")}
               value={formatBytes(
                 hub?.largestFreeHeapBlockBytes,
               )}
@@ -673,7 +672,7 @@ export default function SystemInfoPanel({
 
             {(hub?.psramSizeBytes ?? 0) > 0 && (
               <InfoRow
-                label="PSRAM free / total"
+                label={i18next.t("ui.psramFreeTotal")}
                 value={`${formatBytes(
                   hub?.freePsramBytes,
                 )} / ${formatBytes(
@@ -684,7 +683,7 @@ export default function SystemInfoPanel({
             )}
 
             <InfoRow
-              label="WebSocket clients"
+              label={i18next.t("ui.websocketClients")}
               value={
                 hub?.wsClients !== undefined
                   ? String(hub.wsClients)
@@ -694,7 +693,7 @@ export default function SystemInfoPanel({
             />
 
             <InfoRow
-              label="Runtime objects"
+              label={i18next.t("ui.runtimeObjects")}
               value={
                 hub?.runtimeAccessories !== undefined &&
                 hub?.runtimeSensors !== undefined
@@ -705,7 +704,7 @@ export default function SystemInfoPanel({
             />
 
             <InfoRow
-              label="Flash chip"
+              label={i18next.t("ui.flashChip")}
               value={formatBytes(
                 hub?.flashChipBytes,
               )}
@@ -723,7 +722,7 @@ export default function SystemInfoPanel({
             />
 
             <InfoRow
-              label="LittleFS data"
+              label={i18next.t("ui.littlefsData")}
               value={
                 dataTotal > 0
                   ? `${formatBytes(dataUsed)} / ${formatBytes(dataTotal)}${
@@ -743,7 +742,7 @@ export default function SystemInfoPanel({
             />
 
             <InfoRow
-              label="LittleFS free"
+              label={i18next.t("ui.littlefsFree")}
               value={
                 dataTotal > 0
                   ? formatBytes(dataFree)
@@ -759,7 +758,7 @@ export default function SystemInfoPanel({
             />
 
             <InfoRow
-              label="Reset reason"
+              label={i18next.t("ui.resetReason")}
               value={hub?.resetReason || "—"}
               color={
                 hub?.resetReason === "panic" ||

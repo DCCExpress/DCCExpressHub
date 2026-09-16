@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import i18next from "i18next";
 import { Card } from "@mantine/core";
 import { IconTrain } from "@tabler/icons-react";
 import { useLocoImageMirrored } from "../../hooks/useLocoImageMirrored";
@@ -21,6 +23,7 @@ export default function LocoImage({
   clickable = false,
   onClick,
 }: LocoImageProps) {
+  useTranslation();
   const mirrored = useLocoImageMirrored(locoId);
 
   return (
@@ -43,7 +46,7 @@ export default function LocoImage({
       {image ? (
         <img
           src={image}
-          alt={name || "Mozdony"}
+          alt={name || i18next.t("ui.locomotive")}
           style={{
             height: "100%",
             width: "auto",

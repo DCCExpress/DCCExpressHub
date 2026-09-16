@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import i18next from "i18next";
 import {
   ActionIcon,
   Alert,
@@ -235,6 +237,7 @@ export default function SignalAutomationDialog({
   layout,
   signalId,
 }: SignalAutomationDialogProps) {
+  useTranslation();
   const [document, setDocument] =
     useState<SignalLogicDocumentDto | null>(null);
 
@@ -301,7 +304,7 @@ export default function SignalAutomationDialog({
         if (turnout.turnout1Address > 0) {
           result.push({
             value: `${turnout.id}:0`,
-            label: `${turnoutKind} #${turnout.turnout1Address} · motor 1${optionalUserElementName(turnout.name)}`,
+            label: i18next.t("ui.motor1", { value1: turnoutKind, value2: turnout.turnout1Address, value3: optionalUserElementName(turnout.name) }),
             id: turnout.id,
             address: turnout.turnout1Address,
             channel: 0,
@@ -311,7 +314,7 @@ export default function SignalAutomationDialog({
         if (turnout.turnout2Address > 0) {
           result.push({
             value: `${turnout.id}:1`,
-            label: `${turnoutKind} #${turnout.turnout2Address} · motor 2${optionalUserElementName(turnout.name)}`,
+            label: i18next.t("ui.motor2", { value1: turnoutKind, value2: turnout.turnout2Address, value3: optionalUserElementName(turnout.name) }),
             id: turnout.id,
             address: turnout.turnout2Address,
             channel: 1,
@@ -323,7 +326,7 @@ export default function SignalAutomationDialog({
       ) {
         result.push({
           value: `${turnout.id}:0`,
-          label: `Turnout #${turnout.turnoutAddress}${optionalUserElementName(turnout.name)}`,
+          label: i18next.t("ui.turnout", { value1: turnout.turnoutAddress, value2: optionalUserElementName(turnout.name) }),
           id: turnout.id,
           address: turnout.turnoutAddress,
           channel: 0,
@@ -332,7 +335,7 @@ export default function SignalAutomationDialog({
     }
 
     return result.sort((a, b) => a.address - b.address);
-  }, [layout, opened]);
+  }, [i18next.resolvedLanguage, layout, opened]);
 
 
   const turnoutLogicalOptions = useMemo<TurnoutLogicalOption[]>(() => {
@@ -365,7 +368,7 @@ export default function SignalAutomationDialog({
 
         result.push({
           value: String(turnout.id),
-          label: `W turnout #${turnout.turnout1Address}-${turnout.turnout2Address}${optionalUserElementName(turnout.name)}`,
+          label: i18next.t("ui.wTurnout", { value1: turnout.turnout1Address, value2: turnout.turnout2Address, value3: optionalUserElementName(turnout.name) }),
           id: turnout.id,
           kind: "threeway",
           address1: turnout.turnout1Address,
@@ -387,7 +390,7 @@ export default function SignalAutomationDialog({
 
         result.push({
           value: String(turnout.id),
-          label: `Double turnout #${turnout.turnout1Address}-${turnout.turnout2Address}${optionalUserElementName(turnout.name)}`,
+          label: i18next.t("ui.doubleTurnout", { value1: turnout.turnout1Address, value2: turnout.turnout2Address, value3: optionalUserElementName(turnout.name) }),
           id: turnout.id,
           kind: "double",
           address1: turnout.turnout1Address,
@@ -433,19 +436,19 @@ export default function SignalAutomationDialog({
       ) {
         result.push({
           value: String(turnout.id),
-          label: `Turnout #${turnout.turnoutAddress}${optionalUserElementName(turnout.name)}`,
+          label: i18next.t("ui.turnout", { value1: turnout.turnoutAddress, value2: optionalUserElementName(turnout.name) }),
           id: turnout.id,
           kind: "single",
           address1: turnout.turnoutAddress,
           states: [
             {
               value: "closed",
-              label: "Closed",
+              label: i18next.t("ui.closed"),
               first: true,
             },
             {
               value: "thrown",
-              label: "Thrown",
+              label: i18next.t("ui.thrown"),
               first: false,
             },
           ],
@@ -456,7 +459,7 @@ export default function SignalAutomationDialog({
     return result.sort(
       (a, b) => a.address1 - b.address1
     );
-  }, [layout, opened]);
+  }, [i18next.resolvedLanguage, layout, opened]);
 
   const sensorOptions = useMemo<SensorOption[]>(() => {
     // Every TrackElement.address is a digital occupancy/sensor input.
@@ -482,11 +485,9 @@ export default function SignalAutomationDialog({
 
       byAddress.set(element.address, {
         value: String(element.id),
-        label: `Sensor #${element.address}${
-          element.name && element.name !== "element"
+        label: i18next.t("ui.sensor", { value1: element.address, value2: element.name && element.name !== "element"
             ? ` · ${element.name}`
-            : ""
-        }`,
+            : "" }),
         id: element.id,
         address: element.address,
       });
@@ -494,7 +495,7 @@ export default function SignalAutomationDialog({
 
     return Array.from(byAddress.values())
       .sort((a, b) => a.address - b.address);
-  }, [layout, opened]);
+  }, [i18next.resolvedLanguage, layout, opened]);
 
   const targetSignal = useMemo(
     () => signalOptions.find(signal => signal.id === signalId),
@@ -625,7 +626,7 @@ export default function SignalAutomationDialog({
 
         if (!targetSignal || !firstState) {
           throw new Error(
-            "This signal has no configured aspect that can be used as a default state."
+            i18next.t("ui.thisSignalHasNoConfiguredAspectThatCanBeUsed")
           );
         }
 
@@ -987,7 +988,7 @@ export default function SignalAutomationDialog({
                 ? "Level crossing automation"
                 : "Signal automation"
             } · ${targetSignal.label}`
-          : "Signal automation"
+          : i18next.t("ui.signalAutomation")
       }
       size={1050}
       centered
@@ -996,19 +997,14 @@ export default function SignalAutomationDialog({
       <Stack gap="sm">
         <Group justify="space-between" wrap="wrap">
           <div>
-            <Text fw={700}>
-              Automatic signal states
-            </Text>
-            <Text size="sm" c="dimmed">
-              First matching rule wins. If none match,
-              the default state is used.
-            </Text>
+            <Text fw={700}> {i18next.t("ui.automaticSignalStates")} </Text>
+            <Text size="sm" c="dimmed"> {i18next.t("ui.firstMatchingRuleWinsIfNoneMatchTheDefaultState")} </Text>
           </div>
 
           <Group gap="xs">
             <ActionIcon
               variant="light"
-              title="Refresh"
+              title={i18next.t("ui.refresh")}
               disabled={loading || saving}
               onClick={() => void load()}
             >
@@ -1027,18 +1023,14 @@ export default function SignalAutomationDialog({
                 hasErrors
               }
               onClick={() => void save()}
-            >
-              Save
-            </Button>
+            > {i18next.t("ui.save2")} </Button>
           </Group>
         </Group>
 
         {loading && (
           <Group>
             <Loader size="sm" />
-            <Text size="sm">
-              Loading signal automation…
-            </Text>
+            <Text size="sm"> {i18next.t("ui.loadingSignalAutomation")} </Text>
           </Group>
         )}
 
@@ -1077,7 +1069,7 @@ export default function SignalAutomationDialog({
         {group && targetSignal && (
           <>
             <Select
-              label="Default state"
+              label={i18next.t("ui.defaultState")}
               data={stateOptions(targetSignal)}
               value={group.defaultStateId}
               onChange={value => {
@@ -1093,7 +1085,7 @@ export default function SignalAutomationDialog({
             />
 
             <Group justify="space-between">
-              <Text fw={700}>Rules</Text>
+              <Text fw={700}>{i18next.t("ui.rules")}</Text>
 
               <Button
                 size="xs"
@@ -1105,9 +1097,7 @@ export default function SignalAutomationDialog({
                   stateOptions(targetSignal).length === 0
                 }
                 onClick={addRule}
-              >
-                Add rule
-              </Button>
+              > {i18next.t("ui.addRule")} </Button>
             </Group>
 
             <ScrollArea
@@ -1125,15 +1115,9 @@ export default function SignalAutomationDialog({
                 >
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th w={72}>
-                    Rule
-                  </Table.Th>
-                  <Table.Th w={210}>
-                    Result
-                  </Table.Th>
-                  <Table.Th>
-                    Conditions
-                  </Table.Th>
+                  <Table.Th w={72}> {i18next.t("ui.rule")} </Table.Th>
+                  <Table.Th w={210}> {i18next.t("ui.result")} </Table.Th>
+                  <Table.Th> {i18next.t("ui.conditions")} </Table.Th>
                   <Table.Th w={60} />
                 </Table.Tr>
               </Table.Thead>
@@ -1242,8 +1226,7 @@ export default function SignalAutomationDialog({
                                   <Text
                                     size="xs"
                                     c="dimmed"
-                                  >
-                                    Cond{" "}
+                                  > {i18next.t("ui.cond")}{" "}
                                     {conditionIndex +
                                       1}
                                   </Text>
@@ -1255,13 +1238,13 @@ export default function SignalAutomationDialog({
                                         value:
                                           "turnout",
                                         label:
-                                          "Turnout",
+                                          i18next.t("ui.turnout2"),
                                       },
                                       {
                                         value:
                                           "sensor",
                                         label:
-                                          "Sensor",
+                                          i18next.t("ui.sensor2"),
                                       },
                                     ]}
                                     value={
@@ -1432,11 +1415,11 @@ export default function SignalAutomationDialog({
                                         ? [
                                             {
                                               value: "1",
-                                              label: "Active",
+                                              label: i18next.t("ui.active"),
                                             },
                                             {
                                               value: "0",
-                                              label: "Inactive",
+                                              label: i18next.t("ui.inactive"),
                                             },
                                           ]
                                         : (
@@ -1495,7 +1478,7 @@ export default function SignalAutomationDialog({
                                     size="sm"
                                     color="red"
                                     variant="subtle"
-                                    title="Delete condition"
+                                    title={i18next.t("ui.deleteCondition")}
                                     onClick={() =>
                                       updateRule(
                                         rule.id,
@@ -1582,9 +1565,7 @@ export default function SignalAutomationDialog({
                                 }
                               )
                             }
-                          >
-                            Add condition
-                          </Button>
+                          > {i18next.t("ui.addCondition")} </Button>
                         </Stack>
                       </Table.Td>
 
@@ -1592,7 +1573,7 @@ export default function SignalAutomationDialog({
                         <ActionIcon
                           color="red"
                           variant="subtle"
-                          title="Delete rule"
+                          title={i18next.t("ui.deleteRule")}
                           onClick={() =>
                             updateGroup(
                               current => ({

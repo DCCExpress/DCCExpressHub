@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import i18next from "i18next";
 import {
   Alert,
   Badge,
@@ -76,47 +78,47 @@ const DEFAULT_QUICK_COMMANDS: QuickCommand[] = [
   {
     id: "power-on",
     command: "<1>",
-    description: "Track power ON",
+    get description() { return i18next.t("ui.trackPowerOn"); },
   },
   {
     id: "power-off",
     command: "<0>",
-    description: "Track power OFF",
+    get description() { return i18next.t("ui.trackPowerOff"); },
   },
   {
     id: "emergency-stop",
     command: "<!>",
-    description: "Emergency stop",
+    get description() { return i18next.t("ui.emergencyStop"); },
   },
   {
     id: "status",
     command: "<s>",
-    description: "Command station status",
+    get description() { return i18next.t("ui.commandStationStatus"); },
   },
   {
     id: "vpin-on",
     command: "<z 100>",
-    description: "VPIN ON",
+    get description() { return i18next.t("ui.vpinOn"); },
   },
   {
     id: "vpin-off",
     command: "<z -100>",
-    description: "VPIN OFF",
+    get description() { return i18next.t("ui.vpinOff"); },
   },
   {
     id: "loco-test",
     command: "<t 3 40 1>",
-    description: "Loco speed / direction",
+    get description() { return i18next.t("ui.locoSpeedDirection"); },
   },
   {
     id: "accessory-on",
     command: "<a 1 1>",
-    description: "Accessory ON",
+    get description() { return i18next.t("ui.accessoryOn"); },
   },
   {
     id: "accessory-off",
     command: "<a 1 0>",
-    description: "Accessory OFF",
+    get description() { return i18next.t("ui.accessoryOff"); },
   },
 ];
 
@@ -273,6 +275,7 @@ function logColor(
 }
 
 export default function ConsolePanel() {
+  useTranslation();
   const commandCenter =
     useCommandCenter();
 
@@ -386,9 +389,9 @@ export default function ConsolePanel() {
           ) {
             addLog(
               "SYS",
-              `WebSocket ${wsStatusLabel(
+              i18next.t("ui.websocket", { value1: wsStatusLabel(
                 nextStatus
-              )}`
+              ) })
             );
           }
         }
@@ -456,9 +459,9 @@ export default function ConsolePanel() {
           ) {
             addLog(
               "SYS",
-              `Serial ${serialStatusLabel(
+              i18next.t("ui.serial", { value1: serialStatusLabel(
                 nextStatus
-              )}`
+              ) })
             );
           }
         }
@@ -516,22 +519,20 @@ export default function ConsolePanel() {
 
           addLog(
             "SYS",
-            `Serial connected · ${serialConsole.getBaudRate()} baud`
+            i18next.t("ui.serialConnectedBaud", { value1: serialConsole.getBaudRate() })
           );
         } catch (error) {
           addLog(
             "SYS",
-            `Serial connection failed: ${
-              error instanceof Error
+            i18next.t("ui.serialConnectionFailed", { value1: error instanceof Error
                 ? error.message
-                : String(error)
-            }`
+                : String(error) })
           );
         } finally {
           setSerialBusy(false);
         }
       },
-      [addLog]
+      [i18next.resolvedLanguage, addLog]
     );
 
   const disconnectSerial =
@@ -544,22 +545,20 @@ export default function ConsolePanel() {
 
           addLog(
             "SYS",
-            "Serial disconnected"
+            i18next.t("ui.serialDisconnected")
           );
         } catch (error) {
           addLog(
             "SYS",
-            `Serial disconnect failed: ${
-              error instanceof Error
+            i18next.t("ui.serialDisconnectFailed", { value1: error instanceof Error
                 ? error.message
-                : String(error)
-            }`
+                : String(error) })
           );
         } finally {
           setSerialBusy(false);
         }
       },
-      [addLog]
+      [i18next.resolvedLanguage, addLog]
     );
 
   const sendRawCommand =
@@ -585,9 +584,9 @@ export default function ConsolePanel() {
           ) {
             addLog(
               "SYS",
-              `Command not sent: WebSocket is ${wsStatusLabel(
+              i18next.t("ui.commandNotSentWebsocketIs", { value1: wsStatusLabel(
                 wsStatus
-              )}`
+              ) })
             );
 
             return false;
@@ -606,7 +605,7 @@ export default function ConsolePanel() {
           if (!sent) {
             addLog(
               "SYS",
-              "Command could not be sent."
+              i18next.t("ui.commandCouldNotBeSent")
             );
           }
 
@@ -618,7 +617,7 @@ export default function ConsolePanel() {
         ) {
           addLog(
             "SYS",
-            "Command not sent: Serial port is not connected."
+            i18next.t("ui.commandNotSentSerialPortIsNotConnected")
           );
 
           return false;
@@ -638,17 +637,15 @@ export default function ConsolePanel() {
         } catch (error) {
           addLog(
             "SYS",
-            `Serial write failed: ${
-              error instanceof Error
+            i18next.t("ui.serialWriteFailed", { value1: error instanceof Error
                 ? error.message
-                : String(error)
-            }`
+                : String(error) })
           );
 
           return false;
         }
       },
-      [
+      [i18next.resolvedLanguage, 
         addLog,
         transport,
         wsStatus,
@@ -800,17 +797,12 @@ export default function ConsolePanel() {
               />
 
               <div>
-                <Text fw={600}>
-                  DCC-EX Console
-                </Text>
+                <Text fw={600}> {i18next.t("ui.dccExConsole")} </Text>
 
                 <Text
                   size="xs"
                   c="dimmed"
-                >
-                  Raw DCC-EX
-                  command console
-                </Text>
+                > {i18next.t("ui.rawDccExCommandConsole")} </Text>
               </div>
             </Group>
 
@@ -852,11 +844,10 @@ export default function ConsolePanel() {
                 }
                 variant="light"
                 size="lg"
-              >
-                POWER{" "}
+              > {i18next.t("ui.power")}{" "}
                 {trackPowerOn
-                  ? "ON"
-                  : "OFF"}
+                  ? i18next.t("ui.on")
+                  : i18next.t("ui.off")}
               </Badge>
             </Group>
           </Group>
@@ -878,7 +869,7 @@ export default function ConsolePanel() {
               },
               {
                 label:
-                  "Serial port",
+                  i18next.t("ui.serialPort"),
                 value:
                   "serial",
               },
@@ -896,15 +887,8 @@ export default function ConsolePanel() {
                       size={18}
                     />
                   }
-                  title="Web Serial is not available"
-                >
-                  Web Serial
-                  requires Chrome
-                  or Edge and a
-                  secure context
-                  such as localhost
-                  or HTTPS.
-                </Alert>
+                  title={i18next.t("ui.webSerialIsNotAvailable")}
+                > {i18next.t("ui.webSerialRequiresChromeOrEdgeAndASecureContext")} </Alert>
               )}
 
               <Group
@@ -915,9 +899,7 @@ export default function ConsolePanel() {
                 <Text
                   size="sm"
                   c="dimmed"
-                >
-                  Direct USB serial
-                  ·{" "}
+                > {i18next.t("ui.directUsbSerial")}{" "}
                   {serialConsole.getBaudRate()}{" "}
                   baud
                 </Text>
@@ -940,9 +922,7 @@ export default function ConsolePanel() {
                     onClick={() =>
                       void connectSerial()
                     }
-                  >
-                    Connect serial
-                  </Button>
+                  > {i18next.t("ui.connectSerial")} </Button>
                 ) : (
                   <Button
                     size="sm"
@@ -959,9 +939,7 @@ export default function ConsolePanel() {
                     onClick={() =>
                       void disconnectSerial()
                     }
-                  >
-                    Disconnect
-                  </Button>
+                  > {i18next.t("ui.disconnect")} </Button>
                 )}
               </Group>
             </Stack>
@@ -979,9 +957,7 @@ export default function ConsolePanel() {
             justify="space-between"
             align="center"
           >
-            <Text fw={600}>
-              Controls
-            </Text>
+            <Text fw={600}> {i18next.t("ui.controls")} </Text>
 
             <Text
               size="xs"
@@ -990,7 +966,7 @@ export default function ConsolePanel() {
               {transport ===
               "websocket"
                 ? "WebSocket"
-                : `Serial ${serialConsole.getBaudRate()}`}
+                : i18next.t("ui.serial", { value1: serialConsole.getBaudRate() })}
             </Text>
           </Group>
 
@@ -1015,9 +991,7 @@ export default function ConsolePanel() {
                   true
                 )
               }
-            >
-              Power ON
-            </Button>
+            > {i18next.t("ui.powerOn")} </Button>
 
             <Button
               color="red"
@@ -1039,9 +1013,7 @@ export default function ConsolePanel() {
                   false
                 )
               }
-            >
-              Power OFF
-            </Button>
+            > {i18next.t("ui.powerOff")} </Button>
 
             <Button
               color="orange"
@@ -1057,9 +1029,7 @@ export default function ConsolePanel() {
               onClick={() =>
                 void emergencyStop()
               }
-            >
-              E-STOP
-            </Button>
+            > {i18next.t("ui.eStop")} </Button>
           </Group>
         </Stack>
       </Card>
@@ -1070,18 +1040,12 @@ export default function ConsolePanel() {
         p="md"
       >
         <Stack gap="sm">
-          <Text fw={600}>
-            Quick commands
-          </Text>
+          <Text fw={600}> {i18next.t("ui.quickCommands")} </Text>
 
           <Text
             size="xs"
             c="dimmed"
-          >
-            Edit commands directly.
-            Changes are saved automatically
-            in this browser.
-          </Text>
+          > {i18next.t("ui.editCommandsDirectlyChangesAreSavedAutomaticallyInThisBrowser")} </Text>
 
           <SimpleGrid
             cols={{
@@ -1144,9 +1108,7 @@ export default function ConsolePanel() {
                             item.command
                           )
                         }
-                      >
-                        Send
-                      </Button>
+                      > {i18next.t("ui.send")} </Button>
                     }
                     styles={{
                       input: {
@@ -1176,9 +1138,7 @@ export default function ConsolePanel() {
             justify="space-between"
             align="center"
           >
-            <Text fw={600}>
-              Command
-            </Text>
+            <Text fw={600}> {i18next.t("ui.command")} </Text>
 
             <Badge
               size="sm"
@@ -1233,9 +1193,7 @@ export default function ConsolePanel() {
                 onClick={() =>
                   void sendCommand()
                 }
-              >
-                Send
-              </Button>
+              > {i18next.t("ui.send")} </Button>
             }
             styles={{
               input: {
@@ -1263,16 +1221,12 @@ export default function ConsolePanel() {
             wrap="wrap"
           >
             <div>
-              <Text fw={600}>
-                Log
-              </Text>
+              <Text fw={600}> {i18next.t("ui.log")} </Text>
 
               <Text
                 size="xs"
                 c="dimmed"
-              >
-                TX · RX · connection events
-              </Text>
+              > {i18next.t("ui.txRxConnectionEvents")} </Text>
             </div>
 
             <Group gap="md">
@@ -1280,7 +1234,7 @@ export default function ConsolePanel() {
                 "websocket" && (
                 <Switch
                   size="sm"
-                  label="DCC-EX status"
+                  label={i18next.t("ui.dccExStatus")}
                   checked={
                     showDccExStatus
                   }
@@ -1307,9 +1261,7 @@ export default function ConsolePanel() {
                 onClick={() =>
                   setLog([])
                 }
-              >
-                Clear
-              </Button>
+              > {i18next.t("ui.clear")} </Button>
             </Group>
           </Group>
 
@@ -1329,10 +1281,7 @@ export default function ConsolePanel() {
                   size="sm"
                   c="dimmed"
                   ff="monospace"
-                >
-                  Waiting for
-                  console activity…
-                </Text>
+                > {i18next.t("ui.waitingForConsoleActivity")} </Text>
               )}
 
               {log.map(entry => (

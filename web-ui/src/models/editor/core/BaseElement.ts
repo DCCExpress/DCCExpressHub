@@ -1,3 +1,4 @@
+import i18next from "i18next";
 import { getDirectionXy } from "../../../domain/helpers";
 import { ELEMENT_TYPES, type ElementType } from "../../../domain/layout/elementTypes";
 import type {
@@ -371,7 +372,7 @@ export abstract class BaseElement {
   getEditableProperties(): IEditableProperty[] {
     return [
       {
-        label: "Name",
+        label: i18next.t("ui.name"),
         key: "name",
         type: "string",
         readonly: false,

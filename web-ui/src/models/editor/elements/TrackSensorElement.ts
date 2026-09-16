@@ -1,3 +1,4 @@
+import i18next from "i18next";
 import { ELEMENT_TYPES } from "../../../domain/layout/elementTypes";
 import { drawTextWithRoundedBackground } from "../../../graphics";
 import { generateId } from "../../../helpers";
@@ -91,19 +92,19 @@ export class TrackSensorElement extends TrackElement {
     return [
       ...super.getEditableProperties(),
       {
-        label: "Sensor Address",
+        label: i18next.t("ui.sensorAddress"),
         key: "address",
         type: "number",
         readonly: false,
       },
       {
-        label: "Color ON",
+        label: i18next.t("ui.colorOn"),
         key: "colorOn",
         type: "colorpicker",
         readonly: false,
       },
       {
-        label: "Radius",
+        label: i18next.t("ui.radius"),
         key: "radius",
         type: "number",
         min: 4,

@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import i18next from "i18next";
 import {
   Alert,
   Badge,
@@ -127,6 +129,7 @@ function ProgrammingResult({
 }: {
   result: ProgrammingResponsePayload | null;
 }) {
+  useTranslation();
   if (!result) {
     return null;
   }
@@ -141,12 +144,11 @@ function ProgrammingResult({
       }
     >
       <Text size="sm" fw={600}>
-        {result.message ?? (result.ok ? "Command completed." : "Command failed.")}
+        {result.message ?? (result.ok ? i18next.t("ui.commandCompleted") : i18next.t("ui.commandFailed"))}
       </Text>
 
       {typeof result.value === "number" && result.value >= 0 && (
-        <Text size="sm">
-          Returned value: <strong>{result.value}</strong>
+        <Text size="sm"> {i18next.t("ui.returnedValue")} <strong>{result.value}</strong>
         </Text>
       )}
 
@@ -166,6 +168,7 @@ function ProgrammingUnsupported({
   info: CommandCenterInfo;
   onBack: () => void;
 }) {
+  useTranslation();
   return (
     <Stack gap="lg">
       <Button
@@ -174,9 +177,7 @@ function ProgrammingUnsupported({
         leftSection={<IconArrowLeft size={18} />}
         onClick={onBack}
         style={{ alignSelf: "flex-start" }}
-      >
-        Back to home
-      </Button>
+      > {i18next.t("ui.backToHome")} </Button>
 
       <Group gap="sm" wrap="nowrap">
         <ThemeIcon size={42} radius="md" variant="light" color="orange">
@@ -184,7 +185,7 @@ function ProgrammingUnsupported({
         </ThemeIcon>
 
         <div>
-          <Title order={3}>Decoder programming</Title>
+          <Title order={3}>{i18next.t("ui.decoderProgramming")}</Title>
           <Text size="sm" c="dimmed">{info.name}</Text>
         </div>
       </Group>
@@ -192,18 +193,14 @@ function ProgrammingUnsupported({
       <Alert
         color="blue"
         icon={<IconAlertTriangle size={18} />}
-        title={`Programming is not available in the ${info.name} firmware`}
-      >
-        The current DCCExpressHub programming screen uses DCC-EX service-mode
-        and POM commands. This firmware does not expose that DCC-EX programming
-        interface. Normal driving, turnout, accessory, signal and power control
-        remain available.
-      </Alert>
+        title={i18next.t("ui.programmingIsNotAvailableInTheFirmware", { value1: info.name })}
+      > {i18next.t("ui.theCurrentDccexpresshubProgrammingScreenUsesDccExServiceMode")} </Alert>
     </Stack>
   );
 }
 
 function DccExProgrammingPage({ onBack, status }: Props) {
+  useTranslation();
   const [busy, setBusy] = useState(false);
   const [result, setResult] =
     useState<ProgrammingResponsePayload | null>(null);
@@ -299,15 +296,13 @@ function DccExProgrammingPage({ onBack, status }: Props) {
           color="gray"
           leftSection={<IconArrowLeft size={18} />}
           onClick={onBack}
-        >
-          Back to home
-        </Button>
+        > {i18next.t("ui.backToHome")} </Button>
 
         <Badge
           color={disconnected ? "red" : "teal"}
           variant={disconnected ? "filled" : "light"}
         >
-          {disconnected ? "Offline" : "Connected"}
+          {disconnected ? i18next.t("ui.offline2") : i18next.t("ui.connected2")}
         </Badge>
       </Group>
 
@@ -317,29 +312,21 @@ function DccExProgrammingPage({ onBack, status }: Props) {
         </ThemeIcon>
 
         <div>
-          <Title order={3}>Decoder programming</Title>
-          <Text size="sm" c="dimmed">
-            Locomotive, accessory and DigiTools setup
-          </Text>
+          <Title order={3}>{i18next.t("ui.decoderProgramming")}</Title>
+          <Text size="sm" c="dimmed"> {i18next.t("ui.locomotiveAccessoryAndDigitoolsSetup")} </Text>
         </div>
       </Group>
 
       {disconnected && (
-        <Alert color="red" icon={<IconAlertTriangle size={18} />}>
-          Connect to the DCC-EX command center before sending programming commands.
-        </Alert>
+        <Alert color="red" icon={<IconAlertTriangle size={18} />}> {i18next.t("ui.connectToTheDccExCommandCenterBeforeSendingProgramming")} </Alert>
       )}
 
       <ProgrammingResult result={result} />
 
       <Tabs defaultValue="locomotive" keepMounted={false}>
         <Tabs.List grow>
-          <Tabs.Tab value="locomotive" leftSection={<IconTrain size={16} />}>
-            Locomotive
-          </Tabs.Tab>
-          <Tabs.Tab value="accessory" leftSection={<IconDeviceFloppy size={16} />}>
-            Accessory
-          </Tabs.Tab>
+          <Tabs.Tab value="locomotive" leftSection={<IconTrain size={16} />}> {i18next.t("ui.locomotive")} </Tabs.Tab>
+          <Tabs.Tab value="accessory" leftSection={<IconDeviceFloppy size={16} />}> {i18next.t("ui.accessory")} </Tabs.Tab>
           <Tabs.Tab value="digitools" leftSection={<IconTool size={16} />}>
             DigiTools
           </Tabs.Tab>
@@ -350,19 +337,15 @@ function DccExProgrammingPage({ onBack, status }: Props) {
             <Alert
               color="yellow"
               icon={<IconAlertTriangle size={18} />}
-              title="Programming track safety"
-            >
-              Service-mode operations automatically power the isolated PROG output
-              for the command, then switch it off. Keep only the decoder being
-              programmed on that track.
-            </Alert>
+              title={i18next.t("ui.programmingTrackSafety")}
+            > {i18next.t("ui.serviceModeOperationsAutomaticallyPowerTheIsolatedProgOutputFor")} </Alert>
 
             <Card withBorder radius={5} p="lg">
               <Stack gap="md">
-                <Title order={4}>Locomotive address</Title>
+                <Title order={4}>{i18next.t("ui.locomotiveAddress")}</Title>
 
                 <NumberInput
-                  label="Address"
+                  label={i18next.t("ui.address")}
                   value={locoAddress}
                   onChange={setLocoAddress}
                   min={1}
@@ -376,9 +359,7 @@ function DccExProgrammingPage({ onBack, status }: Props) {
                     leftSection={<IconRefresh size={17} />}
                     disabled={busy || disconnected}
                     onClick={() => void run("readAddress", {})}
-                  >
-                    Read address
-                  </Button>
+                  > {i18next.t("ui.readAddress")} </Button>
 
                   <Button
                     color="orange"
@@ -391,9 +372,7 @@ function DccExProgrammingPage({ onBack, status }: Props) {
                         `Write locomotive address ${numberValue(locoAddress)}?`,
                       )
                     }
-                  >
-                    Write address
-                  </Button>
+                  > {i18next.t("ui.writeAddress")} </Button>
                 </SimpleGrid>
               </Stack>
             </Card>
@@ -402,30 +381,25 @@ function DccExProgrammingPage({ onBack, status }: Props) {
               <Stack gap="md">
                 <Group justify="space-between" align="end">
                   <div>
-                    <Title order={4}>Configuration variable</Title>
-                    <Text size="sm" c="dimmed">
-                      Read or write one CV at a time
-                    </Text>
+                    <Title order={4}>{i18next.t("ui.configurationVariable")}</Title>
+                    <Text size="sm" c="dimmed"> {i18next.t("ui.readOrWriteOneCvAtATime")} </Text>
                   </div>
 
                   <Switch
-                    label="POM / main track"
+                    label={i18next.t("ui.pomMainTrack")}
                     checked={pom}
                     onChange={event => setPom(event.currentTarget.checked)}
                   />
                 </Group>
 
                 {pom && (
-                  <Alert color="blue" icon={<IconHelpCircle size={18} />}>
-                    POM can write but normally cannot confirm the result. Never
-                    change a locomotive address with POM.
-                  </Alert>
+                  <Alert color="blue" icon={<IconHelpCircle size={18} />}> {i18next.t("ui.pomCanWriteButNormallyCannotConfirmTheResultNever")} </Alert>
                 )}
 
                 <SimpleGrid cols={{ base: 1, sm: pom ? 3 : 2 }}>
                   {pom && (
                     <NumberInput
-                      label="Locomotive address"
+                      label={i18next.t("ui.locomotiveAddress")}
                       value={locoAddress}
                       onChange={setLocoAddress}
                       min={1}
@@ -444,7 +418,7 @@ function DccExProgrammingPage({ onBack, status }: Props) {
                   />
 
                   <NumberInput
-                    label="Value"
+                    label={i18next.t("ui.value")}
                     value={cvValue}
                     onChange={setCvValue}
                     min={0}
@@ -480,9 +454,7 @@ function DccExProgrammingPage({ onBack, status }: Props) {
                           "locomotive",
                         )
                       }
-                    >
-                      Read CV
-                    </Button>
+                    > {i18next.t("ui.readCv")} </Button>
                   )}
 
                   <Button
@@ -504,9 +476,7 @@ function DccExProgrammingPage({ onBack, status }: Props) {
                         }?`,
                       )
                     }
-                  >
-                    Write CV
-                  </Button>
+                  > {i18next.t("ui.writeCv")} </Button>
                 </SimpleGrid>
               </Stack>
             </Card>
@@ -518,16 +488,12 @@ function DccExProgrammingPage({ onBack, status }: Props) {
             <Alert
               color="yellow"
               icon={<IconAlertTriangle size={18} />}
-              title="Two different programming methods"
-            >
-              CV programming uses the isolated PROG output. Address learning uses
-              the MAIN track: press the decoder&apos;s learn/program button first,
-              then send one accessory direction below.
-            </Alert>
+              title={i18next.t("ui.twoDifferentProgrammingMethods")}
+            > {i18next.t("ui.cvProgrammingUsesTheIsolatedProgOutputAddressLearningUses")} </Alert>
 
             <Card withBorder radius={5} p="lg">
               <Stack gap="md">
-                <Title order={4}>Accessory decoder CV</Title>
+                <Title order={4}>{i18next.t("ui.accessoryDecoderCv")}</Title>
 
                 <SimpleGrid cols={{ base: 1, sm: 2 }}>
                   <NumberInput
@@ -540,7 +506,7 @@ function DccExProgrammingPage({ onBack, status }: Props) {
                   />
 
                   <NumberInput
-                    label="Value"
+                    label={i18next.t("ui.value")}
                     value={accessoryCvValue}
                     onChange={setAccessoryCvValue}
                     min={0}
@@ -574,9 +540,7 @@ function DccExProgrammingPage({ onBack, status }: Props) {
                         "accessory",
                       )
                     }
-                  >
-                    Read CV
-                  </Button>
+                  > {i18next.t("ui.readCv")} </Button>
 
                   <Button
                     color="orange"
@@ -588,20 +552,18 @@ function DccExProgrammingPage({ onBack, status }: Props) {
                         `Write accessory decoder CV ${accCv} = ${accValue} on the PROG output?`,
                       )
                     }
-                  >
-                    Write CV
-                  </Button>
+                  > {i18next.t("ui.writeCv")} </Button>
                 </SimpleGrid>
               </Stack>
             </Card>
 
             <Card withBorder radius={5} p="lg">
               <Stack gap="md">
-                <Title order={4}>Address learning</Title>
+                <Title order={4}>{i18next.t("ui.addressLearning")}</Title>
 
                 <NumberInput
-                  label="Linear accessory address"
-                  description="DCC-EX range: 1-2044"
+                  label={i18next.t("ui.linearAccessoryAddress")}
+                  description={i18next.t("ui.dccExRange12044")}
                   value={accessoryAddress}
                   onChange={setAccessoryAddress}
                   min={1}
@@ -622,9 +584,7 @@ function DccExProgrammingPage({ onBack, status }: Props) {
                         },
                       )
                     }
-                  >
-                    Send direction 0
-                  </Button>
+                  > {i18next.t("ui.sendDirection0")} </Button>
 
                   <Button
                     variant="light"
@@ -638,9 +598,7 @@ function DccExProgrammingPage({ onBack, status }: Props) {
                         },
                       )
                     }
-                  >
-                    Send direction 1
-                  </Button>
+                  > {i18next.t("ui.sendDirection1")} </Button>
                 </SimpleGrid>
               </Stack>
             </Card>
@@ -652,25 +610,18 @@ function DccExProgrammingPage({ onBack, status }: Props) {
             <Alert
               color="yellow"
               icon={<IconAlertTriangle size={18} />}
-              title="Put the device into programming mode first"
-            >
-              These buttons send a normal accessory direction to the MAIN track;
-              they do not write CVs. For address setup press PRG briefly. For
-              DigiSwitch timing hold PRG for more than three seconds.
-            </Alert>
+              title={i18next.t("ui.putTheDeviceIntoProgrammingModeFirst")}
+            > {i18next.t("ui.theseButtonsSendANormalAccessoryDirectionToTheMain")} </Alert>
 
             <Card withBorder radius={5} p="lg">
               <Stack gap="md">
                 <div>
                   <Title order={4}>DigiSwitch-8</Title>
-                  <Text size="sm" c="dimmed">
-                    One address sets the first output; the next three addresses
-                    follow automatically.
-                  </Text>
+                  <Text size="sm" c="dimmed"> {i18next.t("ui.oneAddressSetsTheFirstOutputTheNextThreeAddresses")} </Text>
                 </div>
 
                 <NumberInput
-                  label="Address or timing value"
+                  label={i18next.t("ui.addressOrTimingValue")}
                   value={digiSwitchAddress}
                   onChange={setDigiSwitchAddress}
                   min={1}
@@ -678,7 +629,7 @@ function DccExProgrammingPage({ onBack, status }: Props) {
                   allowDecimal={false}
                 />
 
-                <Divider label="Short PRG press · address" labelPosition="center" />
+                <Divider label={i18next.t("ui.shortPrgPressAddress")} labelPosition="center" />
 
                 <SimpleGrid cols={{ base: 1, sm: 2 }}>
                   <Button
@@ -692,9 +643,7 @@ function DccExProgrammingPage({ onBack, status }: Props) {
                         },
                       )
                     }
-                  >
-                    Set K1–K4 address
-                  </Button>
+                  > {i18next.t("ui.setK1K4Address")} </Button>
 
                   <Button
                     disabled={busy || disconnected}
@@ -707,12 +656,10 @@ function DccExProgrammingPage({ onBack, status }: Props) {
                         },
                       )
                     }
-                  >
-                    Set K5–K8 address
-                  </Button>
+                  > {i18next.t("ui.setK5K8Address")} </Button>
                 </SimpleGrid>
 
-                <Divider label="PRG held 3+ sec · timing" labelPosition="center" />
+                <Divider label={i18next.t("ui.prgHeld3SecTiming")} labelPosition="center" />
 
                 <SimpleGrid cols={{ base: 1, sm: 2 }}>
                   <Button
@@ -727,9 +674,7 @@ function DccExProgrammingPage({ onBack, status }: Props) {
                         },
                       )
                     }
-                  >
-                    Set K1–K4 timing
-                  </Button>
+                  > {i18next.t("ui.setK1K4Timing")} </Button>
 
                   <Button
                     variant="light"
@@ -743,9 +688,7 @@ function DccExProgrammingPage({ onBack, status }: Props) {
                         },
                       )
                     }
-                  >
-                    Set K5–K8 timing
-                  </Button>
+                  > {i18next.t("ui.setK5K8Timing")} </Button>
                 </SimpleGrid>
               </Stack>
             </Card>
@@ -754,14 +697,11 @@ function DccExProgrammingPage({ onBack, status }: Props) {
               <Stack gap="md">
                 <div>
                   <Title order={4}>DigiSignal-X4YYY</Title>
-                  <Text size="sm" c="dimmed">
-                    Each signal group learns its starting address from one
-                    accessory command.
-                  </Text>
+                  <Text size="sm" c="dimmed"> {i18next.t("ui.eachSignalGroupLearnsItsStartingAddressFromOneAccessory")} </Text>
                 </div>
 
                 <NumberInput
-                  label="Starting address"
+                  label={i18next.t("ui.startingAddress")}
                   value={digiSignalAddress}
                   onChange={setDigiSignalAddress}
                   min={1}
@@ -781,9 +721,7 @@ function DccExProgrammingPage({ onBack, status }: Props) {
                         },
                       )
                     }
-                  >
-                    Set A–B address
-                  </Button>
+                  > {i18next.t("ui.setABAddress")} </Button>
 
                   <Button
                     disabled={busy || disconnected}
@@ -796,9 +734,7 @@ function DccExProgrammingPage({ onBack, status }: Props) {
                         },
                       )
                     }
-                  >
-                    Set C–D address
-                  </Button>
+                  > {i18next.t("ui.setCDAddress")} </Button>
                 </SimpleGrid>
               </Stack>
             </Card>
@@ -810,6 +746,7 @@ function DccExProgrammingPage({ onBack, status }: Props) {
 }
 
 export default function ProgrammingPage(props: Props) {
+  useTranslation();
   const [info, setInfo] = useState<CommandCenterInfo | null>(null);
   const [error, setError] = useState("");
 
@@ -846,9 +783,7 @@ export default function ProgrammingPage(props: Props) {
           leftSection={<IconArrowLeft size={18} />}
           onClick={props.onBack}
           style={{ alignSelf: "flex-start" }}
-        >
-          Back to home
-        </Button>
+        > {i18next.t("ui.backToHome")} </Button>
 
         <Alert color="red" icon={<IconAlertTriangle size={18} />}>
           {error}

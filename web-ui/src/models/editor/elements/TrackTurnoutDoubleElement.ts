@@ -1,3 +1,4 @@
+import i18next from "i18next";
 import { getDirectionXy } from "../../../domain/helpers";
 import "../../../domain/layout/doubleTurnoutDtoAugmentation";
 import { ELEMENT_TYPES } from "../../../domain/layout/elementTypes";
@@ -222,14 +223,14 @@ export default class TrackTurnoutDoubleElement extends TrackMultiMotorTurnoutEle
     return [
       ...super.getEditableProperties(),
       {
-        label: "Output type",
+        label: i18next.t("ui.outputType"),
         key: "outputMode",
         type: "select",
         readonly: false,
         options: TURNOUT_OUTPUT_MODE_OPTIONS,
       },
       {
-        label: "Turnout 1 accessory address",
+        label: i18next.t("ui.turnout1AccessoryAddress"),
         key: "turnout1Address",
         type: "number",
         readonly: false,
@@ -238,7 +239,7 @@ export default class TrackTurnoutDoubleElement extends TrackMultiMotorTurnoutEle
         validate: () => true,
       },
       {
-        label: "Turnout 2 accessory address",
+        label: i18next.t("ui.turnout2AccessoryAddress"),
         key: "turnout2Address",
         type: "number",
         readonly: false,
@@ -247,14 +248,14 @@ export default class TrackTurnoutDoubleElement extends TrackMultiMotorTurnoutEle
         validate: () => true,
       },
       {
-        label: "Double Turnout Positions",
+        label: i18next.t("ui.doubleTurnoutPositions2"),
         key: "turnout1ClosedValue",
         type: "bittoggle",
         readonly: false,
         validate: () => true,
       },
       {
-        label: "Turnout 2 Closed Value",
+        label: i18next.t("ui.turnout2ClosedValue"),
         key: "turnout2ClosedValue",
         type: "bittoggle",
         readonly: false,

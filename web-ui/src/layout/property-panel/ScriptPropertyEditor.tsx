@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import i18next from "i18next";
 import {
   lazy,
   Suspense,
@@ -94,6 +96,7 @@ export default function ScriptPropertyEditor({
   selectedElement,
   onChange,
 }: ScriptPropertyEditorProps) {
+  useTranslation();
   const [
     opened,
     setOpened,
@@ -133,9 +136,7 @@ export default function ScriptPropertyEditor({
       <Text
         size="sm"
         c="red"
-      >
-        Script editor is available only for Script Button elements.
-      </Text>
+      > {i18next.t("ui.scriptEditorIsAvailableOnlyForScriptButtonElements")} </Text>
     );
   }
 
@@ -161,7 +162,7 @@ export default function ScriptPropertyEditor({
         showNotification({
           color: "green",
           title:
-            "Script completed",
+            i18next.t("ui.scriptCompleted"),
           message:
             element.name ||
             `Script Button #${element.id}`,
@@ -176,7 +177,7 @@ export default function ScriptPropertyEditor({
           showNotification({
             color: "orange",
             title:
-              "Script aborted",
+              i18next.t("ui.scriptAborted"),
             message:
               element.name ||
               `Script Button #${element.id}`,
@@ -188,7 +189,7 @@ export default function ScriptPropertyEditor({
         showNotification({
           color: "red",
           title:
-            "Script failed",
+            i18next.t("ui.scriptFailed"),
           message:
             error instanceof Error
               ? error.message
@@ -207,9 +208,9 @@ export default function ScriptPropertyEditor({
     ) {
       showNotification({
         color: "yellow",
-        title: "Script stopped",
+        title: i18next.t("ui.scriptStopped"),
         message:
-          "Execution will remain paused at the current/next await delay() checkpoint.",
+          i18next.t("ui.executionWillRemainPausedAtTheCurrentNextAwaitDelay"),
       });
     }
   };
@@ -222,7 +223,7 @@ export default function ScriptPropertyEditor({
     ) {
       showNotification({
         color: "green",
-        title: "Script resumed",
+        title: i18next.t("ui.scriptResumed"),
         message:
           element.name ||
           `Script Button #${element.id}`,
@@ -238,7 +239,7 @@ export default function ScriptPropertyEditor({
     ) {
       showNotification({
         color: "red",
-        title: "Script abort requested",
+        title: i18next.t("ui.scriptAbortRequested"),
         message:
           element.name ||
           `Script Button #${element.id}`,
@@ -289,8 +290,8 @@ export default function ScriptPropertyEditor({
                 c="dimmed"
               >
                 {element.script.trim()
-                  ? `${element.script.split("\n").length} lines`
-                  : "Empty script"}
+                  ? i18next.t("ui.lines", { value1: element.script.split("\n").length })
+                  : i18next.t("ui.emptyScript")}
               </Text>
             </div>
           </Group>
@@ -307,9 +308,7 @@ export default function ScriptPropertyEditor({
             onClick={() => {
               setOpened(true);
             }}
-          >
-            Edit
-          </Button>
+          > {i18next.t("ui.edit")} </Button>
         </Group>
 
         <Group
@@ -337,9 +336,7 @@ export default function ScriptPropertyEditor({
                   () => undefined
                 );
               }}
-            >
-              Run
-            </Button>
+            > {i18next.t("ui.run")} </Button>
           )}
 
           {scriptState.status ===
@@ -354,9 +351,7 @@ export default function ScriptPropertyEditor({
                 />
               }
               onClick={pause}
-            >
-              Stop
-            </Button>
+            > {i18next.t("ui.stop")} </Button>
           )}
 
           {scriptState.status ===
@@ -371,9 +366,7 @@ export default function ScriptPropertyEditor({
                 />
               }
               onClick={resume}
-            >
-              Resume
-            </Button>
+            > {i18next.t("ui.resume")} </Button>
           )}
 
           {scriptState.status !==
@@ -388,9 +381,7 @@ export default function ScriptPropertyEditor({
                 />
               }
               onClick={abort}
-            >
-              Abort
-            </Button>
+            > {i18next.t("ui.abort")} </Button>
           )}
         </Group>
 
@@ -399,9 +390,7 @@ export default function ScriptPropertyEditor({
           <Text
             size="xs"
             c="yellow"
-          >
-            Paused. Resume continues the same async run from its delay checkpoint.
-          </Text>
+          > {i18next.t("ui.pausedResumeContinuesTheSameAsyncRunFromItsDelay")} </Text>
         )}
       </Stack>
 
@@ -418,10 +407,8 @@ export default function ScriptPropertyEditor({
         >
           <ScriptEditorDialog
             opened={opened}
-            title={`Script · ${
-              element.name ||
-              `#${element.id}`
-            }`}
+            title={i18next.t("ui.script", { value1: element.name ||
+              `#${element.id}` })}
             value={
               element.script
             }
@@ -440,9 +427,9 @@ export default function ScriptPropertyEditor({
               showNotification({
                 color: "teal",
                 title:
-                  "Script saved",
+                  i18next.t("ui.scriptSaved"),
                 message:
-                  "Editor remains open. Save the layout to persist the change on the Hub.",
+                  i18next.t("ui.editorRemainsOpenSaveTheLayoutToPersistTheChange"),
               });
             }}
             onRun={run}

@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import i18next from "i18next";
 import {
   Box,
   Modal,
@@ -42,6 +44,7 @@ export default function AppModal({
   opened,
   ...props
 }: AppModalProps) {
+  useTranslation();
   const [offset, setOffset] = useState<ModalOffset>({ x: 0, y: 0 });
   const dragStateRef = useRef<DragState | null>(null);
 
@@ -164,7 +167,7 @@ export default function AppModal({
     <Box
       onPointerDown={handleDragAreaPointerDown}
       onDoubleClick={handleDragAreaDoubleClick}
-      title="Drag to move • Double-click to reset position"
+      title={i18next.t("ui.dragToMoveDoubleClickToResetPosition")}
       style={{
         width: "100%",
         height: "100%",

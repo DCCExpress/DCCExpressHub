@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import i18next from "i18next";
 import {
   lazy,
   Suspense,
@@ -123,6 +125,7 @@ function ScriptCard({
   onChange,
   onDelete,
 }: ScriptCardProps) {
+  useTranslation();
   const [
     opened,
     setOpened,
@@ -202,7 +205,7 @@ function ScriptCard({
         showNotification({
           color: "green",
           title:
-            "Automation completed",
+            i18next.t("ui.automationCompleted"),
           message:
             definition.name,
         });
@@ -216,7 +219,7 @@ function ScriptCard({
           showNotification({
             color: "orange",
             title:
-              "Automation aborted",
+              i18next.t("ui.automationAborted"),
             message:
               definition.name,
           });
@@ -227,7 +230,7 @@ function ScriptCard({
         showNotification({
           color: "red",
           title:
-            "Automation failed",
+            i18next.t("ui.automationFailed"),
           message:
             error instanceof Error
               ? error.message
@@ -248,9 +251,9 @@ function ScriptCard({
         showNotification({
           color: "yellow",
           title:
-            "Automation stopped",
+            i18next.t("ui.automationStopped"),
           message:
-            `${definition.name} is paused at the current/next await delay() checkpoint.`,
+            i18next.t("ui.isPausedAtTheCurrentNextAwaitDelayCheckpoint", { value1: definition.name }),
         });
       }
     };
@@ -265,7 +268,7 @@ function ScriptCard({
         showNotification({
           color: "green",
           title:
-            "Automation resumed",
+            i18next.t("ui.automationResumed"),
           message:
             definition.name,
         });
@@ -282,7 +285,7 @@ function ScriptCard({
         showNotification({
           color: "red",
           title:
-            "Automation abort requested",
+            i18next.t("ui.automationAbortRequested"),
           message:
             definition.name,
         });
@@ -338,14 +341,14 @@ function ScriptCard({
                 >
                   {
                     definition.script.trim()
-                      ? `${definition.script.split("\n").length} lines`
-                      : "Empty script"
+                      ? i18next.t("ui.lines", { value1: definition.script.split("\n").length })
+                      : i18next.t("ui.emptyScript")
                   }
                 </Text>
               </Group>
 
               <TextInput
-                label="Name"
+                label={i18next.t("ui.name")}
                 value={
                   definition.name
                 }
@@ -362,7 +365,7 @@ function ScriptCard({
             </Stack>
 
             <Group gap={5}>
-              <Tooltip label="Edit script">
+              <Tooltip label={i18next.t("ui.editScript")}>
                 <ActionIcon
                   variant="light"
                   color="violet"
@@ -372,7 +375,7 @@ function ScriptCard({
                         true
                       )
                   }
-                  aria-label="Edit script"
+                  aria-label={i18next.t("ui.editScript")}
                 >
                   <IconCode
                     size={17}
@@ -383,8 +386,8 @@ function ScriptCard({
               <Tooltip
                 label={
                   idle
-                    ? "Delete script"
-                    : "Stop or abort the script before deleting it"
+                    ? i18next.t("ui.deleteScript")
+                    : i18next.t("ui.stopOrAbortTheScriptBeforeDeletingIt")
                 }
               >
                 <ActionIcon
@@ -394,7 +397,7 @@ function ScriptCard({
                   onClick={
                     onDelete
                   }
-                  aria-label="Delete script"
+                  aria-label={i18next.t("ui.deleteScript")}
                 >
                   <IconTrash
                     size={17}
@@ -457,9 +460,7 @@ function ScriptCard({
                   );
                 }
               }
-            >
-              Start
-            </Button>
+            > {i18next.t("ui.start")} </Button>
 
             <Button
               size="xs"
@@ -476,9 +477,7 @@ function ScriptCard({
               onClick={
                 pause
               }
-            >
-              Stop
-            </Button>
+            > {i18next.t("ui.stop")} </Button>
 
             <Button
               size="xs"
@@ -495,9 +494,7 @@ function ScriptCard({
               onClick={
                 resume
               }
-            >
-              Resume
-            </Button>
+            > {i18next.t("ui.resume")} </Button>
 
             <Button
               size="xs"
@@ -514,18 +511,14 @@ function ScriptCard({
               onClick={
                 abort
               }
-            >
-              Abort
-            </Button>
+            > {i18next.t("ui.abort")} </Button>
           </Group>
 
           {paused && (
             <Text
               size="xs"
               c="yellow"
-            >
-              Paused. Resume continues the same async execution.
-            </Text>
+            > {i18next.t("ui.pausedResumeContinuesTheSameAsyncExecution")} </Text>
           )}
         </Stack>
       </Card>
@@ -546,7 +539,7 @@ function ScriptCard({
               opened
             }
             title={
-              `Automation · ${definition.name || "Unnamed script"}`
+              i18next.t("ui.automation", { value1: definition.name || "Unnamed script" })
             }
             value={
               definition.script
@@ -571,9 +564,9 @@ function ScriptCard({
                 showNotification({
                   color: "teal",
                   title:
-                    "Automation script saved",
+                    i18next.t("ui.automationScriptSaved"),
                   message:
-                    "Editor remains open. Save the project to persist it in the Hub automation store.",
+                    i18next.t("ui.editorRemainsOpenSaveTheProjectToPersistItIn"),
                 });
               }
             }
@@ -600,6 +593,7 @@ export default function AutomationPanel({
   scripts,
   onScriptsChange,
 }: AutomationPanelProps) {
+  useTranslation();
   const updateScript = (
     id: string,
     next: AutomationScriptDefinition
@@ -627,9 +621,9 @@ export default function AutomationPanel({
     showNotification({
       color: "red",
       title:
-        "Automation deleted",
+        i18next.t("ui.automationDeleted"),
       message:
-        "Save the project to persist the deletion in the Hub automation store.",
+        i18next.t("ui.saveTheProjectToPersistTheDeletionInTheHub"),
     });
   };
 
@@ -665,9 +659,7 @@ export default function AutomationPanel({
           wrap="nowrap"
         >
           <div>
-            <Text fw={700}>
-              Automation scripts
-            </Text>
+            <Text fw={700}> {i18next.t("ui.automationScripts")} </Text>
 
             <Text
               size="xs"
@@ -687,9 +679,7 @@ export default function AutomationPanel({
             onClick={
               createScript
             }
-          >
-            New script
-          </Button>
+          > {i18next.t("ui.newScript")} </Button>
         </Group>
 
         {
@@ -703,17 +693,13 @@ export default function AutomationPanel({
                   gap="xs"
                   align="center"
                 >
-                  <Text fw={700}>
-                    No automation scripts
-                  </Text>
+                  <Text fw={700}> {i18next.t("ui.noAutomationScripts")} </Text>
 
                   <Text
                     size="sm"
                     c="dimmed"
                     ta="center"
-                  >
-                    Create a script, give it a name, then edit and run it independently.
-                  </Text>
+                  > {i18next.t("ui.createAScriptGiveItANameThenEditAnd")} </Text>
 
                   <Button
                     size="xs"
@@ -725,9 +711,7 @@ export default function AutomationPanel({
                     onClick={
                       createScript
                     }
-                  >
-                    New script
-                  </Button>
+                  > {i18next.t("ui.newScript")} </Button>
                 </Stack>
               </Card>
             )
@@ -761,9 +745,7 @@ export default function AutomationPanel({
         <Text
           size="xs"
           c="dimmed"
-        >
-          Scripts are stored separately from the layout in /config/automations.json through /api/automations.
-        </Text>
+        > {i18next.t("ui.scriptsAreStoredSeparatelyFromTheLayoutInConfigAutomations")} </Text>
       </Stack>
     </ScrollArea>
   );

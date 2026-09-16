@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import i18next from "i18next";
 import {
   ActionIcon,
   Alert,
@@ -201,8 +203,7 @@ const LEGACY_DEFINITIONS:
         "pca9685",
       label:
         "PCA9685",
-      description:
-        "16-channel PWM / servo controller",
+      get description() { return i18next.t("ui.16ChannelPwmServoController"); },
       pinCount:
         16,
       addressMin:
@@ -219,8 +220,7 @@ const LEGACY_DEFINITIONS:
         "mcp23017",
       label:
         "MCP23017",
-      description:
-        "16-channel digital I/O expander",
+      get description() { return i18next.t("ui.16ChannelDigitalIOExpander"); },
       pinCount:
         16,
       addressMin:
@@ -237,8 +237,7 @@ const LEGACY_DEFINITIONS:
         "pcf8574",
       label:
         "PCF8574",
-      description:
-        "8-channel digital I/O expander",
+      get description() { return i18next.t("ui.8ChannelDigitalIOExpander"); },
       pinCount:
         8,
       addressMin:
@@ -255,8 +254,7 @@ const LEGACY_DEFINITIONS:
         "pcf8575",
       label:
         "PCF8575",
-      description:
-        "16-channel digital I/O expander",
+      get description() { return i18next.t("ui.16ChannelDigitalIOExpander"); },
       pinCount:
         16,
       addressMin:
@@ -600,6 +598,7 @@ function createLegacyForm(
 export default function DeviceConfigurationPage({
   onBack,
 }: Props) {
+  useTranslation();
   const [
     devices,
     setDevices,
@@ -944,7 +943,7 @@ export default function DeviceConfigurationPage({
               )
             ) {
               throw new Error(
-                "Invalid device configuration response"
+                i18next.t("ui.invalidDeviceConfigurationResponse")
               );
             }
 
@@ -1184,7 +1183,7 @@ export default function DeviceConfigurationPage({
               ? "yellow"
               : "teal",
           title:
-            "Device configuration saved",
+            i18next.t("ui.deviceConfigurationSaved"),
           message:
             result?.message ??
             "S88 I2C address applied.",
@@ -1196,7 +1195,7 @@ export default function DeviceConfigurationPage({
           color:
             "red",
           title:
-            "Could not save device configuration",
+            i18next.t("ui.couldNotSaveDeviceConfiguration"),
           message:
             error instanceof Error
               ? error.message
@@ -1495,8 +1494,8 @@ export default function DeviceConfigurationPage({
         }
         title={
           legacyForm.id
-            ? "Edit I2C HAL device"
-            : "Add I2C HAL device"
+            ? i18next.t("ui.editI2cHalDevice")
+            : i18next.t("ui.addI2cHalDevice")
         }
         centered
         size="lg"
@@ -1505,7 +1504,7 @@ export default function DeviceConfigurationPage({
       >
         <Stack gap="md">
           <Select
-            label="Driver"
+            label={i18next.t("ui.driver")}
             data={
               LEGACY_TYPE_OPTIONS
             }
@@ -1550,7 +1549,7 @@ export default function DeviceConfigurationPage({
           />
 
           <TextInput
-            label="Name"
+            label={i18next.t("ui.name")}
             value={
               legacyForm.name
             }
@@ -1573,7 +1572,7 @@ export default function DeviceConfigurationPage({
             }}
           >
             <TextInput
-              label="I2C address"
+              label={i18next.t("ui.i2cAddress")}
               value={
                 legacyForm.address
               }
@@ -1590,7 +1589,7 @@ export default function DeviceConfigurationPage({
             />
 
             <NumberInput
-              label="First VPIN"
+              label={i18next.t("ui.firstVpin")}
               value={
                 legacyForm.firstVpin
               }
@@ -1621,7 +1620,7 @@ export default function DeviceConfigurationPage({
           {legacyForm.type ===
           "pca9685" ? (
             <NumberInput
-              label="PWM frequency"
+              label={i18next.t("ui.pwmFrequency")}
               value={
                 legacyForm.frequency
               }
@@ -1650,7 +1649,7 @@ export default function DeviceConfigurationPage({
             />
           ) : (
             <NumberInput
-              label="Interrupt GPIO (optional)"
+              label={i18next.t("ui.interruptGpioOptional")}
               value={
                 legacyForm.interruptPin ??
                 ""
@@ -1677,7 +1676,7 @@ export default function DeviceConfigurationPage({
           )}
 
           <Switch
-            label="Enabled"
+            label={i18next.t("ui.enabled")}
             checked={
               legacyForm.enabled
             }
@@ -1716,9 +1715,7 @@ export default function DeviceConfigurationPage({
                   false
                 )
               }
-            >
-              Cancel
-            </Button>
+            > {i18next.t("ui.cancel")} </Button>
 
             <Button
               leftSection={
@@ -1732,9 +1729,7 @@ export default function DeviceConfigurationPage({
               onClick={
                 saveLegacyDevice
               }
-            >
-              Save draft
-            </Button>
+            > {i18next.t("ui.saveDraft")} </Button>
           </Group>
         </Stack>
       </AppModal>
@@ -1749,15 +1744,14 @@ export default function DeviceConfigurationPage({
             null
           )
         }
-        title="Delete device"
+        title={i18next.t("ui.deleteDevice")}
         centered
         size="sm"
         returnFocus={false}
         draggable
       >
         <Stack>
-          <Text>
-            Remove{" "}
+          <Text> {i18next.t("ui.remove")}{" "}
             <b>
               {deleteTarget?.name}
             </b>{" "}
@@ -1774,18 +1768,14 @@ export default function DeviceConfigurationPage({
                   null
                 )
               }
-            >
-              Cancel
-            </Button>
+            > {i18next.t("ui.cancel")} </Button>
 
             <Button
               color="red"
               onClick={
                 deleteLegacyDevice
               }
-            >
-              Delete
-            </Button>
+            > {i18next.t("ui.delete2")} </Button>
           </Group>
         </Stack>
       </AppModal>
@@ -1808,7 +1798,7 @@ export default function DeviceConfigurationPage({
               variant="subtle"
               color="gray"
               size="lg"
-              aria-label="Back"
+              aria-label={i18next.t("ui.back")}
               onClick={
                 onBack
               }
@@ -1830,16 +1820,12 @@ export default function DeviceConfigurationPage({
             </ThemeIcon>
 
             <div>
-              <Title order={3}>
-                Device configuration
-              </Title>
+              <Title order={3}> {i18next.t("ui.deviceConfiguration")} </Title>
 
               <Text
                 size="sm"
                 c="dimmed"
-              >
-                S88 occupancy adapter and external I2C devices
-              </Text>
+              > {i18next.t("ui.s88OccupancyAdapterAndExternalI2cDevices")} </Text>
             </div>
           </Group>
 
@@ -1854,7 +1840,7 @@ export default function DeviceConfigurationPage({
             >
               WS{" "}
               {websocketConnected
-                ? "ONLINE"
+                ? i18next.t("ui.online")
                 : wsStatus.toUpperCase()}
             </Badge>
 
@@ -1867,10 +1853,10 @@ export default function DeviceConfigurationPage({
               variant="light"
             >
               {loading
-                ? "Loading"
+                ? i18next.t("ui.loading")
                 : dirty
-                  ? "Unsaved changes"
-                  : "Saved"}
+                  ? i18next.t("ui.unsavedChanges")
+                  : i18next.t("ui.saved2")}
             </Badge>
 
             <Button
@@ -1890,9 +1876,7 @@ export default function DeviceConfigurationPage({
               onClick={() =>
                 void saveConfiguration()
               }
-            >
-              Save &amp; apply
-            </Button>
+            > {i18next.t("ui.saveApply")} </Button>
           </Group>
         </Group>
       </Card>
@@ -1922,9 +1906,7 @@ export default function DeviceConfigurationPage({
         >
           <div>
             <Group gap="xs">
-              <Title order={4}>
-                S88 occupancy adapter
-              </Title>
+              <Title order={4}> {i18next.t("ui.s88OccupancyAdapter")} </Title>
 
               <Badge
                 color={
@@ -1945,7 +1927,7 @@ export default function DeviceConfigurationPage({
                 {s88Status
                   ?.adapterInfoKnown
                   ? "OK"
-                  : "PENDING"}
+                  : i18next.t("ui.pending")}
               </Badge>
 
               <Badge
@@ -1956,12 +1938,11 @@ export default function DeviceConfigurationPage({
                     : "orange"
                 }
                 variant="light"
-              >
-                DATA{" "}
+              > {i18next.t("ui.data")}{" "}
                 {s88Status
                   ?.dataFresh
-                  ? "LIVE"
-                  : "STALE"}
+                  ? i18next.t("ui.live")
+                  : i18next.t("ui.stale")}
               </Badge>
             </Group>
 
@@ -1978,7 +1959,7 @@ export default function DeviceConfigurationPage({
             variant="light"
             color="gray"
             size="lg"
-            aria-label="Refresh S88 status"
+            aria-label={i18next.t("ui.refreshS88Status")}
             onClick={() =>
               void refreshS88Status()
             }
@@ -1999,8 +1980,8 @@ export default function DeviceConfigurationPage({
           }}
         >
           <TextInput
-            label="I2C address"
-            description="Hub-side address used to find the adapter"
+            label={i18next.t("ui.i2cAddress")}
+            description={i18next.t("ui.hubSideAddressUsedToFindTheAdapter")}
             value={
               s88AddressText
             }
@@ -2037,8 +2018,8 @@ export default function DeviceConfigurationPage({
           />
 
           <TextInput
-            label="Adapter firmware"
-            description="Reported by the S88 adapter INFO packet"
+            label={i18next.t("ui.adapterFirmware")}
+            description={i18next.t("ui.reportedByTheS88AdapterInfoPacket")}
             value={
               s88Status?.adapterInfoKnown
                 ? `v${s88Status.firmwareVersion}`
@@ -2048,8 +2029,8 @@ export default function DeviceConfigurationPage({
           />
 
           <TextInput
-            label="S88 payload"
-            description="Owned and reported by the adapter"
+            label={i18next.t("ui.s88Payload")}
+            description={i18next.t("ui.ownedAndReportedByTheAdapter")}
             value={
               s88Status?.adapterInfoKnown
                 ? `${runtimeByteCount} bytes · ${sensorCount} sensors`
@@ -2059,8 +2040,8 @@ export default function DeviceConfigurationPage({
           />
 
           <TextInput
-            label="Protocol"
-            description="Read-only adapter capability information"
+            label={i18next.t("ui.protocol")}
+            description={i18next.t("ui.readOnlyAdapterCapabilityInformation")}
             value={
               s88Status?.adapterInfoKnown
                 ? `INFO v${s88Status.protocolVersion} · max ${s88Status.maxByteCount} bytes · caps 0x${s88Status.capabilities
@@ -2078,7 +2059,7 @@ export default function DeviceConfigurationPage({
           wrap="wrap"
         >
           <Switch
-            label="S88 adapter enabled"
+            label={i18next.t("ui.s88AdapterEnabled")}
             checked={
               s88.enabled
             }
@@ -2094,12 +2075,11 @@ export default function DeviceConfigurationPage({
           <Text
             size="sm"
             c="dimmed"
-          >
-            Input range:{" "}
+          > {i18next.t("ui.inputRange")}{" "}
             <b>
               {s88Status?.adapterInfoKnown
                 ? `${runtimeBaseAddress} – ${lastSensorAddress}`
-                : "waiting for INFO"}
+                : i18next.t("ui.waitingForInfo")}
             </b>
           </Text>
         </Group>
@@ -2121,12 +2101,7 @@ export default function DeviceConfigurationPage({
         <Alert
           mt="md"
           color="blue"
-        >
-          The Arduino adapter owns the S88 byte length and is configured over its
-          USB serial port. DCCExpressHub stores only the adapter I2C address, reads
-          the adapter INFO packet, and then requests exactly the reported number of
-          S88 bytes. The Hub never changes adapter configuration.
-        </Alert>
+        > {i18next.t("ui.theArduinoAdapterOwnsTheS88ByteLengthAndIs")} </Alert>
       </Card>
 
       <Card
@@ -2140,16 +2115,12 @@ export default function DeviceConfigurationPage({
           wrap="wrap"
         >
           <div>
-            <Title order={4}>
-              Live S88 sensors
-            </Title>
+            <Title order={4}> {i18next.t("ui.liveS88Sensors")} </Title>
 
             <Text
               size="sm"
               c="dimmed"
-            >
-              Red = occupied, green = free, gray = not known yet
-            </Text>
+            > {i18next.t("ui.redOccupiedGreenFreeGrayNotKnownYet")} </Text>
           </div>
 
           <Badge
@@ -2161,10 +2132,10 @@ export default function DeviceConfigurationPage({
             variant="light"
           >
             {s88Status?.dataFresh
-              ? `${sensorCount} states available`
+              ? i18next.t("ui.statesAvailable", { value1: sensorCount })
               : s88Status?.adapterInfoKnown
-                ? "Waiting for snapshot"
-                : "Waiting for adapter INFO"}
+                ? i18next.t("ui.waitingForSnapshot")
+                : i18next.t("ui.waitingForAdapterInfo")}
           </Badge>
         </Group>
 
@@ -2197,8 +2168,7 @@ export default function DeviceConfigurationPage({
                     <Text
                       fw={700}
                       size="sm"
-                    >
-                      Group{" "}
+                    > {i18next.t("ui.group")}{" "}
                       {groupIndex +
                         1}
                     </Text>
@@ -2290,9 +2260,9 @@ export default function DeviceConfigurationPage({
                                 }
                               >
                                 {occupied
-                                  ? "BUSY"
+                                  ? i18next.t("ui.busy")
                                   : known
-                                    ? "FREE"
+                                    ? i18next.t("ui.free")
                                     : "?"}
                               </Badge>
                             </Group>
@@ -2320,16 +2290,12 @@ export default function DeviceConfigurationPage({
           wrap="wrap"
         >
           <div>
-            <Title order={4}>
-              Other I2C HAL devices
-            </Title>
+            <Title order={4}> {i18next.t("ui.otherI2cHalDevices")} </Title>
 
             <Text
               size="sm"
               c="dimmed"
-            >
-              PCA9685, MCP23017 and PCF expanders
-            </Text>
+            > {i18next.t("ui.pca9685Mcp23017AndPcfExpanders")} </Text>
           </div>
 
           <Button
@@ -2342,9 +2308,7 @@ export default function DeviceConfigurationPage({
             onClick={
               openAddLegacy
             }
-          >
-            Add I2C device
-          </Button>
+          > {i18next.t("ui.addI2cDevice")} </Button>
         </Group>
 
         <Divider my="md" />
@@ -2355,9 +2319,7 @@ export default function DeviceConfigurationPage({
             c="dimmed"
             ta="center"
             py="lg"
-          >
-            No additional I2C HAL devices configured.
-          </Text>
+          > {i18next.t("ui.noAdditionalI2cHalDevicesConfigured")} </Text>
         ) : (
           <Stack gap="xs">
             {legacyDevices.map(
@@ -2403,8 +2365,8 @@ export default function DeviceConfigurationPage({
                             }
                           >
                             {device.enabled
-                              ? "Enabled"
-                              : "Disabled"}
+                              ? i18next.t("ui.enabled")
+                              : i18next.t("ui.disabled")}
                           </Badge>
                         </Group>
 
@@ -2484,7 +2446,7 @@ export default function DeviceConfigurationPage({
                                     color:
                                       "red",
                                     title:
-                                      "Device cannot be enabled",
+                                      i18next.t("ui.deviceCannotBeEnabled"),
                                     message:
                                       addressConflict
                                         ? "Its I2C address is already used by another enabled device."
@@ -2513,7 +2475,7 @@ export default function DeviceConfigurationPage({
 
                         <ActionIcon
                           variant="light"
-                          aria-label="Edit device"
+                          aria-label={i18next.t("ui.editDevice")}
                           onClick={() =>
                             openEditLegacy(
                               device
@@ -2528,7 +2490,7 @@ export default function DeviceConfigurationPage({
                         <ActionIcon
                           variant="light"
                           color="red"
-                          aria-label="Delete device"
+                          aria-label={i18next.t("ui.deleteDevice")}
                           onClick={() =>
                             setDeleteTarget(
                               device
@@ -2551,11 +2513,7 @@ export default function DeviceConfigurationPage({
         <Alert
           mt="md"
           color="gray"
-        >
-          Existing servoChannels and digitalChannels definitions are preserved
-          when basic device properties are edited here. The page intentionally
-          keeps the device overview compact.
-        </Alert>
+        > {i18next.t("ui.existingServochannelsAndDigitalchannelsDefinitionsArePreservedWhenBasicDevice")} </Alert>
       </Card>
       )}
     </Stack>

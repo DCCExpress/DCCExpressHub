@@ -1,3 +1,4 @@
+import i18next from "i18next";
 import { ELEMENT_TYPES } from "@domain/layout/elementTypes";
 import type { LayoutElementId, RouteTurnoutItemDto } from "@domain/layout/layoutDto";
 import { drawPolarLine, getPolarXy } from "../../../graphics";
@@ -158,7 +159,7 @@ export class RouteButtonElement extends ClickableBaseElement implements IRouteBu
     return [
       ...super.getEditableProperties(),
       {
-        label: "Turnouts",
+        label: i18next.t("ui.turnouts"),
         key: "routeTurnouts",
         type: "turnoutSelection",
         readonly: false,

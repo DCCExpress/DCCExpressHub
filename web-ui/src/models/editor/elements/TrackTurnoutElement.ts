@@ -1,3 +1,4 @@
+import i18next from "i18next";
 import type {
   TrackTurnoutElementDto,
   TurnoutOutputModeDto,
@@ -78,14 +79,14 @@ export abstract class TrackTurnoutElement extends TrackElement {
     return [
       ...super.getEditableProperties(),
       {
-        label: "Output type",
+        label: i18next.t("ui.outputType"),
         key: "outputMode",
         type: "select",
         readonly: false,
         options: TURNOUT_OUTPUT_MODE_OPTIONS,
       },
       {
-        label: "Accessory address",
+        label: i18next.t("ui.accessoryAddress"),
         key: "turnoutAddress",
         type: "number",
         readonly: false,
@@ -94,7 +95,7 @@ export abstract class TrackTurnoutElement extends TrackElement {
         validate: () => true,
       },
       {
-        label: "Turnout positions",
+        label: i18next.t("ui.turnoutPositions"),
         key: "turnoutClosedValue",
         type: "bittoggle",
         readonly: false,

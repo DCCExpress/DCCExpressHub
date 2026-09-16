@@ -1,3 +1,4 @@
+import i18next from "i18next";
 import { useEffect, useMemo, useState } from "react";
 
 import type {
@@ -171,10 +172,10 @@ export function useLocoDialogState(
     try {
       setMessage("");
       await wsApi.setLocoFunction(selectedLoco.address, fn.number, active);
-      setMessage(`F${fn.number} ${active ? "ON" : "OFF"} elküldve.`);
+      setMessage(i18next.t("ui.fSent", { value1: fn.number, value2: active ? "ON" : "OFF" }));
     } catch (error) {
       console.error(error);
-      setMessage(`F${fn.number} parancs nem sikerült.`);
+      setMessage(i18next.t("ui.fCommandFailed", { value1: fn.number }));
     }
   };
 
@@ -199,7 +200,7 @@ export function useLocoDialogState(
         setMessage(t("common.success"));
       } catch (error) {
         console.error(error);
-        setMessage("A kép feltöltése nem sikerült.");
+        setMessage(i18next.t("ui.imageUploadFailed"));
       }
     })();
   };

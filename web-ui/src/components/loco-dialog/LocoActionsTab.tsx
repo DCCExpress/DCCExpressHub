@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import i18next from "i18next";
 import {
   type DragEvent,
   useEffect,
@@ -66,6 +68,7 @@ export default function LocoActionsTab({
   functionOptions,
   onUpdateActionsForHook,
 }: LocoActionsTabProps) {
+  useTranslation();
   const [draggedActionId, setDraggedActionId] = useState<string | null>(null);
   const [testingHook, setTestingHook] = useState<LocoActionHook | null>(null);
   const [testMessage, setTestMessage] = useState("");
@@ -168,11 +171,11 @@ export default function LocoActionsTab({
             </Stack>
 
             <Group gap="xs">
-              <Button size="xs" variant="light" color="green" leftSection={<IconPlayerPlay size={14} />} loading={testingHook === activeActionHook} disabled={testingHook !== null || getLocoActions(selectedLoco, activeActionHook).length === 0} onClick={() => runActionListTest(activeActionHook)}>Test list</Button>
-              <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={() => addAction(activeActionHook, "setFunction")}>Function</Button>
-              <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={() => addAction(activeActionHook, "momentaryFunction")}>Momentary</Button>
-              <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={() => addAction(activeActionHook, "playAudio")}>Audio</Button>
-              <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={() => addAction(activeActionHook, "wait")}>Wait</Button>
+              <Button size="xs" variant="light" color="green" leftSection={<IconPlayerPlay size={14} />} loading={testingHook === activeActionHook} disabled={testingHook !== null || getLocoActions(selectedLoco, activeActionHook).length === 0} onClick={() => runActionListTest(activeActionHook)}>{i18next.t("ui.testList")}</Button>
+              <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={() => addAction(activeActionHook, "setFunction")}>{i18next.t("ui.function")}</Button>
+              <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={() => addAction(activeActionHook, "momentaryFunction")}>{i18next.t("ui.momentary")}</Button>
+              <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={() => addAction(activeActionHook, "playAudio")}>{i18next.t("ui.audio")}</Button>
+              <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={() => addAction(activeActionHook, "wait")}>{i18next.t("ui.wait")}</Button>
             </Group>
           </Group>
         </Stack>
@@ -207,13 +210,13 @@ export default function LocoActionsTab({
 
                   {draggedActionId && actions.length > 0 && (
                     <Card withBorder p="sm" onDragOver={event => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; moveDraggedActionToIndex(hook.value, actions.length); }} style={{ borderStyle: "dashed", opacity: 0.45 }}>
-                      <Text size="sm" c="dimmed" ta="center">Move to end</Text>
+                      <Text size="sm" c="dimmed" ta="center">{i18next.t("ui.moveToEnd")}</Text>
                     </Card>
                   )}
 
                   {actions.length === 0 && (
                     <Card withBorder p="md">
-                      <Text size="sm" c="dimmed">No actions yet. Add a function, momentary function or wait step.</Text>
+                      <Text size="sm" c="dimmed">{i18next.t("ui.noActionsYetAddAFunctionMomentaryFunctionOrWait")}</Text>
                     </Card>
                   )}
                 </Stack>

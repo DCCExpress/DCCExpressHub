@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import i18next from "i18next";
 import {
   Button,
   Checkbox,
@@ -29,6 +31,7 @@ export default function LocoGeneralTab({
   onImageFile,
   t,
 }: LocoGeneralTabProps) {
+  useTranslation();
   const imageMirrored = useLocoImageMirrored(loco.id);
 
   return (
@@ -49,13 +52,11 @@ export default function LocoGeneralTab({
 
         <div>
           <Switch
-            label="Mirror locomotive image on this device"
+            label={i18next.t("ui.mirrorLocomotiveImageOnThisDevice")}
             checked={imageMirrored}
             onChange={event => setLocoImageMirrored(loco.id, event.currentTarget.checked)}
           />
-          <Text size="xs" c="dimmed" mt={4}>
-            Saved only in this browser. It does not change the DCC direction.
-          </Text>
+          <Text size="xs" c="dimmed" mt={4}> {i18next.t("ui.savedOnlyInThisBrowserItDoesNotChangeThe")} </Text>
         </div>
 
         <FileButton onChange={onImageFile} accept="image/png,image/jpeg,image/webp">

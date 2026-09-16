@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import i18next from "i18next";
 import { Button } from "@mantine/core";
 import { IconAlertTriangle } from "@tabler/icons-react";
 
@@ -12,6 +14,7 @@ export default function LocoEmergencyButton({
   emergencyStop,
   onToggle,
 }: LocoEmergencyButtonProps) {
+  useTranslation();
   const handleClick = () => {
     if (emergencyStop) {
       // The backend DCC-EX wrapper treats the same emergencyStop command as
@@ -34,7 +37,7 @@ export default function LocoEmergencyButton({
       }
       onClick={handleClick}
     >
-      {emergencyStop ? "Resume" : "Emergency"}
+      {emergencyStop ? i18next.t("ui.resume") : i18next.t("ui.emergency")}
     </Button>
   );
 }

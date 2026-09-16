@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import i18next from "i18next";
 import {
   ActionIcon,
   Badge,
@@ -70,6 +72,7 @@ export default function BitCalculator({
   defaultValue = 0,
   onChange,
 }: BitCalculatorProps) {
+  useTranslation();
   const isControlled =
     value !== undefined;
 
@@ -202,8 +205,8 @@ export default function BitCalculator({
       <Tooltip
         label={
           isCopied
-            ? "Copied!"
-            : "Copy"
+            ? i18next.t("ui.copied")
+            : i18next.t("ui.copy")
         }
       >
         <ActionIcon
@@ -219,7 +222,7 @@ export default function BitCalculator({
               text
             )
           }
-          aria-label="Copy"
+          aria-label={i18next.t("ui.copy")}
         >
           {isCopied ? (
             <IconCheck
@@ -256,9 +259,7 @@ export default function BitCalculator({
                 size={20}
               />
 
-              <Text fw={700}>
-                8-bit value
-              </Text>
+              <Text fw={700}> {i18next.t("ui.8BitValue")} </Text>
             </Group>
 
             <Badge
@@ -344,7 +345,7 @@ export default function BitCalculator({
 
       <Stack gap="xs">
         <NumberInput
-          label="Decimal"
+          label={i18next.t("ui.decimal")}
           value={currentValue}
           min={0}
           max={255}
@@ -370,7 +371,7 @@ export default function BitCalculator({
         />
 
         <TextInput
-          label="Binary"
+          label={i18next.t("ui.binary")}
           value={binary}
           readOnly
           ff="monospace"
@@ -384,7 +385,7 @@ export default function BitCalculator({
         />
 
         <TextInput
-          label="Hexadecimal"
+          label={i18next.t("ui.hexadecimal")}
           value={hex}
           readOnly
           ff="monospace"
@@ -413,9 +414,7 @@ export default function BitCalculator({
             onClick={() =>
               setValue(0)
             }
-          >
-            Clear
-          </Button>
+          > {i18next.t("ui.clear")} </Button>
 
           <Button
             variant="light"
@@ -423,9 +422,7 @@ export default function BitCalculator({
             onClick={() =>
               setValue(255)
             }
-          >
-            All
-          </Button>
+          > {i18next.t("ui.all")} </Button>
 
           <Button
             variant="light"
@@ -437,19 +434,14 @@ export default function BitCalculator({
             onClick={
               negate
             }
-          >
-            Negate
-          </Button>
+          > {i18next.t("ui.negate")} </Button>
         </Group>
 
         <Box>
           <Text
             size="xs"
             c="dimmed"
-          >
-            Click any bit to
-            toggle it.
-          </Text>
+          > {i18next.t("ui.clickAnyBitToToggleIt")} </Text>
         </Box>
       </Group>
     </Stack>

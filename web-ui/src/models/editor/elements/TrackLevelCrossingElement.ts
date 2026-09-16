@@ -1,3 +1,4 @@
+import i18next from "i18next";
 import { ELEMENT_TYPES } from "../../../domain/layout/elementTypes";
 import type { TrackLevelCrossingElementDto } from "../../../domain/layout/layoutDto";
 import type {
@@ -617,7 +618,7 @@ export class TrackLevelCrossingElement extends TrackSignalElement {
         property.type === "signal2"
           ? {
               ...property,
-              label: "Level crossing",
+              label: i18next.t("ui.levelCrossing"),
             }
           : property
       );
@@ -625,33 +626,33 @@ export class TrackLevelCrossingElement extends TrackSignalElement {
     return [
       ...inheritedProperties,
       {
-        label: "Road color",
+        label: i18next.t("ui.roadColor"),
         key: "roadColor",
         type: "colorpicker",
         readonly: false,
         validate: () => true,
       },
       {
-        label: "Barrier type",
+        label: i18next.t("ui.barrierType"),
         key: "barrierType",
         type: "select",
         readonly: false,
         validate: () => true,
         options: [
-          { value: "none", label: "None" },
-          { value: "half", label: "Half" },
-          { value: "full", label: "Full" },
+          { value: "none", label: i18next.t("ui.none") },
+          { value: "half", label: i18next.t("ui.half") },
+          { value: "full", label: i18next.t("ui.full") },
         ],
       },
       {
-        label: "Lights enabled",
+        label: i18next.t("ui.lightsEnabled"),
         key: "lightsEnabled",
         type: "boolean",
         readonly: false,
         validate: () => true,
       },
       {
-        label: "Blinking enabled",
+        label: i18next.t("ui.blinkingEnabled"),
         key: "blinkingEnabled",
         type: "boolean",
         readonly: false,

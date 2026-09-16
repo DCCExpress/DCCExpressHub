@@ -1,3 +1,4 @@
+import i18next from "i18next";
 import {
   createContext,
   useCallback,
@@ -9,16 +10,16 @@ import {
 } from "react";
 
 export const GAMEPAD_ACTION_OPTIONS = [
-  { value: "speedUp", label: "Speed +" },
-  { value: "speedDown", label: "Speed −" },
-  { value: "forward", label: "Forward" },
-  { value: "reverse", label: "Reverse" },
-  { value: "stop", label: "Stop" },
-  { value: "emergency", label: "Emergency stop" },
-  { value: "function0", label: "Function F0" },
-  { value: "function1", label: "Function F1" },
-  { value: "function2", label: "Function F2" },
-  { value: "function3", label: "Function F3" },
+  { value: "speedUp", get label() { return i18next.t("ui.speed"); } },
+  { value: "speedDown", get label() { return i18next.t("ui.speed2"); } },
+  { value: "forward", get label() { return i18next.t("ui.forward"); } },
+  { value: "reverse", get label() { return i18next.t("ui.reverse"); } },
+  { value: "stop", get label() { return i18next.t("ui.stop"); } },
+  { value: "emergency", get label() { return i18next.t("ui.emergencyStop"); } },
+  { value: "function0", get label() { return i18next.t("ui.functionF0"); } },
+  { value: "function1", get label() { return i18next.t("ui.functionF1"); } },
+  { value: "function2", get label() { return i18next.t("ui.functionF2"); } },
+  { value: "function3", get label() { return i18next.t("ui.functionF3"); } },
 ] as const;
 
 export type GamepadAction =

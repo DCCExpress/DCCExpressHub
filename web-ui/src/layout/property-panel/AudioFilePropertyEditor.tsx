@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import i18next from "i18next";
 import {
   ActionIcon,
   Alert,
@@ -75,6 +77,7 @@ export default function AudioFilePropertyEditor({
   selectedElement,
   onChange,
 }: AudioFilePropertyEditorProps) {
+  useTranslation();
   const value = String((selectedElement as any)[prop.key] ?? "");
   const [opened, setOpened] = useState(false);
   const [currentPath, setCurrentPath] = useState(DEFAULT_AUDIO_PATH);
@@ -98,7 +101,7 @@ export default function AudioFilePropertyEditor({
           return;
         }
 
-        throw new Error(`Could not open ${path} (HTTP ${response.status}).`);
+        throw new Error(i18next.t("ui.couldNotOpenHttp", { value1: path, value2: response.status }));
       }
 
       const listing = await response.json() as StorageListing;
@@ -126,7 +129,7 @@ export default function AudioFilePropertyEditor({
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [i18next.resolvedLanguage, ]);
 
   useEffect(() => {
     if (!opened) return;
@@ -160,7 +163,7 @@ export default function AudioFilePropertyEditor({
               <ActionIcon
                 size="sm"
                 variant="subtle"
-                title="Choose audio from Hub SD card"
+                title={i18next.t("ui.chooseAudioFromHubSdCard")}
                 disabled={prop.readonly === true}
                 onClick={event => {
                   event.preventDefault();
@@ -174,7 +177,7 @@ export default function AudioFilePropertyEditor({
               <ActionIcon
                 size="sm"
                 variant="subtle"
-                title="Test audio"
+                title={i18next.t("ui.testAudio")}
                 disabled={!value}
                 onClick={event => {
                   event.preventDefault();
@@ -189,15 +192,13 @@ export default function AudioFilePropertyEditor({
           rightSectionWidth={68}
         />
 
-        <Text size="xs" c="dimmed">
-          Selected: {selectedName}. The picker reads audio files directly from the Hub SD card.
-        </Text>
+        <Text size="xs" c="dimmed"> {i18next.t("ui.selected")} {selectedName}{i18next.t("ui.thePickerReadsAudioFilesDirectlyFromTheHubSd")} </Text>
       </Stack>
 
       <Modal
         opened={opened}
         onClose={() => setOpened(false)}
-        title="Choose audio from SD card"
+        title={i18next.t("ui.chooseAudioFromSdCard")}
         size="lg"
         centered
         returnFocus={false}
@@ -212,7 +213,7 @@ export default function AudioFilePropertyEditor({
             <Group gap={6} wrap="nowrap">
               <ActionIcon
                 variant="light"
-                title="Parent folder"
+                title={i18next.t("ui.parentFolder")}
                 disabled={currentPath === SD_ROOT || loading}
                 onClick={() => {
                   const nextPath = parentPath(currentPath);
@@ -225,7 +226,7 @@ export default function AudioFilePropertyEditor({
 
               <ActionIcon
                 variant="light"
-                title="Refresh"
+                title={i18next.t("ui.refresh")}
                 loading={loading}
                 onClick={() => void loadDirectory(currentPath)}
               >
@@ -244,9 +245,7 @@ export default function AudioFilePropertyEditor({
             {loading ? (
               <Group justify="center" py="xl"><Loader /></Group>
             ) : entries.length === 0 ? (
-              <Text c="dimmed" ta="center" py="xl">
-                No supported audio files or folders found here.
-              </Text>
+              <Text c="dimmed" ta="center" py="xl"> {i18next.t("ui.noSupportedAudioFilesOrFoldersFoundHere")} </Text>
             ) : (
               <Stack gap={6}>
                 {entries.map(entry => (
@@ -276,13 +275,13 @@ export default function AudioFilePropertyEditor({
                         <div style={{ minWidth: 0 }}>
                           <Text fw={600} truncate>{entry.name}</Text>
                           <Text size="xs" c="dimmed">
-                            {entry.type === "directory" ? "Directory" : formatFileSize(entry.size)}
+                            {entry.type === "directory" ? i18next.t("ui.directory2") : formatFileSize(entry.size)}
                           </Text>
                         </div>
                       </Group>
 
                       {entry.type === "file" && (
-                        <Badge variant="light" color="violet">AUDIO</Badge>
+                        <Badge variant="light" color="violet">{i18next.t("ui.audio2")}</Badge>
                       )}
                     </Group>
                   </Card>
@@ -298,10 +297,8 @@ export default function AudioFilePropertyEditor({
                 setCurrentPath(SD_ROOT);
                 void loadDirectory(SD_ROOT);
               }}
-            >
-              SD root
-            </Button>
-            <Button variant="default" onClick={() => setOpened(false)}>Cancel</Button>
+            > {i18next.t("ui.sdRoot")} </Button>
+            <Button variant="default" onClick={() => setOpened(false)}>{i18next.t("ui.cancel")}</Button>
           </Group>
         </Stack>
       </Modal>

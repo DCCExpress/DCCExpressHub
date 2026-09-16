@@ -1,3 +1,4 @@
+import i18next from "i18next";
 import type { TrackElementDto } from "../../../domain/layout/layoutDto";
 import { drawTextWithRoundedBackground } from "../../../graphics";
 import { wsClient } from "../../../services/wsClient";
@@ -204,7 +205,7 @@ export abstract class TrackElement extends BaseElement {
     return [
       ...properties,
       {
-        label: "Occupancy sensor address",
+        label: i18next.t("ui.occupancySensorAddress"),
         key: "address",
         type: "number",
         readonly: false,

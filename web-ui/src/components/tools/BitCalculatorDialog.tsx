@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import i18next from "i18next";
 import {
     Button,
     Group,
@@ -62,6 +64,7 @@ export default function BitCalculatorDialog({
     initialValue = 0,
     onApply,
 }: BitCalculatorDialogProps) {
+  useTranslation();
     const [
         value,
         setValue,
@@ -145,9 +148,7 @@ export default function BitCalculatorDialog({
                         size={20}
                     />
 
-                    <Text fw={700}>
-                        8-bit Calculator
-                    </Text>
+                    <Text fw={700}> {i18next.t("ui.8BitCalculator")} </Text>
                 </Group>
             }
             size="md"
@@ -181,8 +182,8 @@ export default function BitCalculatorDialog({
                         }
                     >
                         {copied
-                            ? "Copied!"
-                            : "Copy value"}
+                            ? i18next.t("ui.copied")
+                            : i18next.t("ui.copyValue")}
                     </Button>
 
                     <Group gap="xs">
@@ -191,18 +192,14 @@ export default function BitCalculatorDialog({
                             onClick={
                                 onClose
                             }
-                        >
-                            Close
-                        </Button>
+                        > {i18next.t("ui.close")} </Button>
 
                         {onApply && (
                             <Button
                                 onClick={
                                     apply
                                 }
-                            >
-                                Apply
-                            </Button>
+                            > {i18next.t("ui.apply")} </Button>
                         )}
                     </Group>
                 </Group>

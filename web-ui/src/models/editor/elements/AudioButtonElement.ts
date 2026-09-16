@@ -1,3 +1,4 @@
+import i18next from "i18next";
 import { ELEMENT_TYPES } from "@domain/layout/elementTypes";
 import { errorToString, generateId, showErrorMessage, showWarningMessage } from "../../../helpers";
 import i18n from "../../../i18n";
@@ -129,16 +130,16 @@ export class AudioButtonElement extends BaseElement implements IAudioButtonEleme
   override getEditableProperties(): IEditableProperty[] {
     return [
       ...super.getEditableProperties(),
-      { key: "label", label: "Label", type: "string" },
+      { key: "label", label: i18next.t("ui.label"), type: "string" },
       {
         key: "fileName",
-        label: "Audio file",
+        label: i18next.t("ui.audioFile"),
         type: "audiofile",
         callback: () => {
           this.press();
         },
       },
-      { key: "bg", label: "Active color", type: "colorpicker" },
+      { key: "bg", label: i18next.t("ui.activeColor"), type: "colorpicker" },
     ];
   }
   override getHelp(): string {

@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import i18next from "i18next";
 import {
   ActionIcon,
   Box,
@@ -23,6 +25,7 @@ export function TrackCanvasAudioListPopover({
   onClose,
   onPlay,
 }: TrackCanvasAudioListPopoverProps) {
+  useTranslation();
   const items = state.audioListButton?.audioItems ?? [];
 
   return (
@@ -74,13 +77,11 @@ export function TrackCanvasAudioListPopover({
       >
         <Stack gap="xs">
           <Text size="sm" fw={600}>
-            {state.audioListButton?.label || "Audio list"}
+            {state.audioListButton?.label || i18next.t("ui.audioList")}
           </Text>
 
           {items.length === 0 ? (
-            <Text size="sm" c="dimmed">
-              No audio rows configured.
-            </Text>
+            <Text size="sm" c="dimmed"> {i18next.t("ui.noAudioRowsConfigured")} </Text>
           ) : (
             items.map(item => (
               <Group
@@ -95,16 +96,16 @@ export function TrackCanvasAudioListPopover({
               >
                 <Box style={{ minWidth: 0, flex: 1 }}>
                   <Text size="sm" fw={500} truncate>
-                    {item.name || "Audio"}
+                    {item.name || i18next.t("ui.audio")}
                   </Text>
                   <Text size="xs" c="dimmed" truncate>
-                    {item.fileName || "No file selected"}
+                    {item.fileName || i18next.t("ui.noFileSelected")}
                   </Text>
                 </Box>
 
                 <ActionIcon
                   variant={state.audioListButton?.isItemActive(item) ? "filled" : "light"}
-                  title="Play audio"
+                  title={i18next.t("ui.playAudio")}
                   onClick={() => {
                     state.audioListButton?.playItem(item, onPlay);
                   }}

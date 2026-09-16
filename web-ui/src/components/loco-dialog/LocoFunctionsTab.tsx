@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import i18next from "i18next";
 import {
   useEffect,
   useState,
@@ -50,6 +52,7 @@ export default function LocoFunctionsTab({
   onFunctionTest,
   t,
 }: LocoFunctionsTabProps) {
+  useTranslation();
   const [
     activeTestFunctions,
     setActiveTestFunctions,
@@ -219,7 +222,7 @@ export default function LocoFunctionsTab({
                   />
 
                   <TextInput
-                    label="Ikon"
+                    label={i18next.t("ui.icon")}
                     value={fn.icon}
                     w={90}
                     onChange={

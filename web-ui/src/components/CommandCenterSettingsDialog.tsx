@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import i18next from "i18next";
 import {
   Alert,
   Badge,
@@ -101,6 +103,7 @@ function formBody(
 export default function CommandCenterSettingsDialog(
   props: Props,
 ) {
+  useTranslation();
   const {
     opened,
     onClose,
@@ -205,7 +208,7 @@ export default function CommandCenterSettingsDialog(
 
           if (!configResponse.ok) {
             throw new Error(
-              `Could not load command-center settings (HTTP ${configResponse.status}).`,
+              i18next.t("ui.couldNotLoadCommandCenterSettingsHttp", { value1: configResponse.status }),
             );
           }
 
@@ -253,7 +256,7 @@ export default function CommandCenterSettingsDialog(
           setLoading(false);
         }
       },
-      [],
+      [i18next.resolvedLanguage, ],
     );
 
   useEffect(
@@ -282,7 +285,7 @@ export default function CommandCenterSettingsDialog(
 
     if (!cleanHost) {
       setError(
-        "IP address / hostname is required.",
+        i18next.t("ui.ipAddressHostnameIsRequired"),
       );
 
       return null;
@@ -296,7 +299,7 @@ export default function CommandCenterSettingsDialog(
       numericPort > 65535
     ) {
       setError(
-        "Port must be between 1 and 65535.",
+        i18next.t("ui.portMustBeBetween1And65535"),
       );
 
       return null;
@@ -321,7 +324,7 @@ export default function CommandCenterSettingsDialog(
         tcpConnected: false,
         dccExAlive: false,
         message:
-          "Invalid connection settings.",
+          i18next.t("ui.invalidConnectionSettings"),
       });
 
       return;
@@ -370,7 +373,7 @@ export default function CommandCenterSettingsDialog(
           tcpConnected: false,
           dccExAlive: false,
           message:
-            `Invalid test response (HTTP ${response.status}).`,
+            i18next.t("ui.invalidTestResponseHttp", { value1: response.status }),
         };
       }
 
@@ -464,7 +467,7 @@ export default function CommandCenterSettingsDialog(
           "green",
 
         title:
-          `${commandCenterName} settings saved`,
+          i18next.t("ui.settingsSaved", { value1: commandCenterName }),
 
         message:
           `${endpoint.host}:${endpoint.port}`,
@@ -582,7 +585,7 @@ export default function CommandCenterSettingsDialog(
     <Modal
       opened={opened}
       onClose={onClose}
-      title={`${commandCenterName} connection`}
+      title={i18next.t("ui.connection", { value1: commandCenterName })}
       size={500}
       centered
       closeOnClickOutside={
@@ -631,17 +634,14 @@ export default function CommandCenterSettingsDialog(
             <Text
               size="sm"
               c="dimmed"
-            >
-              Current connection
-            </Text>
+            > {i18next.t("ui.currentConnection")} </Text>
 
             {
               info && (
                 <Text
                   size="xs"
                   c="dimmed"
-                >
-                  Firmware: {info.name} ({info.type})
+                > {i18next.t("ui.firmware")} {info.name} ({info.type})
                 </Text>
               )
             }
@@ -657,14 +657,14 @@ export default function CommandCenterSettingsDialog(
           >
             {
               connected
-                ? "ONLINE"
-                : "OFFLINE"
+                ? i18next.t("ui.online")
+                : i18next.t("ui.offline")
             }
           </Badge>
         </Group>
 
         <TextInput
-          label="IP address / hostname"
+          label={i18next.t("ui.ipAddressHostname")}
           placeholder={
             isZ21
               ? "192.168.0.111"
@@ -722,11 +722,11 @@ export default function CommandCenterSettingsDialog(
                 saving ||
                 testing
               }
-              label="POWER button also controls the PROG track"
+              label={i18next.t("ui.powerButtonAlsoControlsTheProgTrack")}
               description={
                 powerIncludesProgramming
-                  ? "POWER ON/OFF controls MAIN + PROG."
-                  : "POWER ON/OFF controls MAIN only; PROG remains independent."
+                  ? i18next.t("ui.powerOnOffControlsMainProg")
+                  : i18next.t("ui.powerOnOffControlsMainOnlyProgRemainsIndependent")
               }
             />
           )
@@ -815,9 +815,7 @@ export default function CommandCenterSettingsDialog(
                 void testConnection();
               }
             }
-          >
-            TEST
-          </Button>
+          > {i18next.t("ui.test")} </Button>
 
           <Group gap="xs">
             <Button
@@ -828,9 +826,7 @@ export default function CommandCenterSettingsDialog(
                 saving ||
                 testing
               }
-            >
-              Cancel
-            </Button>
+            > {i18next.t("ui.cancel")} </Button>
 
             <Button
               color="teal"
@@ -849,9 +845,7 @@ export default function CommandCenterSettingsDialog(
                   void saveConfig();
                 }
               }
-            >
-              SAVE
-            </Button>
+            > {i18next.t("ui.save")} </Button>
           </Group>
         </Group>
       </Stack>
