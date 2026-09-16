@@ -65,48 +65,87 @@ type SingleTurnoutElement =
   | TrackTurnoutRightElement
   | TrackTurnoutTwoWayElement;
 
-type MultiTurnoutPosition = {
+type DoubleTurnoutPositionId =
+  | "oo"
+  | "oc"
+  | "co"
+  | "cc";
+
+type DoubleTurnoutPosition = {
+  id: DoubleTurnoutPositionId;
   label: string;
   firstClosed: boolean;
   secondClosed: boolean;
 };
 
-const DOUBLE_TURNOUT_POSITIONS: MultiTurnoutPosition[] = [
+type ThreeWayTurnoutPositionId =
+  | "left"
+  | "straight"
+  | "right";
+
+type ThreeWayTurnoutPosition = {
+  id: ThreeWayTurnoutPositionId;
+  readonly label: string;
+  firstClosed: boolean;
+  secondClosed: boolean;
+};
+
+/*
+ * IMPORTANT I18N RULE
+ * -------------------
+ * `id` is application state / logic and MUST NEVER be translated.
+ * `label` is presentation only and MUST NEVER be used in comparisons,
+ * switch statements, persistence or React identity.
+ */
+const DOUBLE_TURNOUT_POSITIONS: readonly DoubleTurnoutPosition[] = [
   {
+    id: "oo",
     label: "O-O",
     firstClosed: false,
     secondClosed: false,
   },
   {
+    id: "oc",
     label: "O-C",
     firstClosed: false,
     secondClosed: true,
   },
   {
+    id: "co",
     label: "C-O",
     firstClosed: true,
     secondClosed: false,
   },
   {
+    id: "cc",
     label: "C-C",
     firstClosed: true,
     secondClosed: true,
   },
 ];
 
-const THREE_WAY_TURNOUT_POSITIONS: MultiTurnoutPosition[] = [
+const THREE_WAY_TURNOUT_POSITIONS: readonly ThreeWayTurnoutPosition[] = [
   {
-    get label() { return i18next.t("ui.left"); },
+    id: "left",
+    get label() {
+      return i18next.t("ui.left");
+    },
     firstClosed: true,
     secondClosed: false,
   },
   {
-    get label() { return i18next.t("ui.straight"); },
+    id: "straight",
+    get label() {
+      return i18next.t("ui.straight");
+    },
     firstClosed: false,
     secondClosed: false,
   },
   {
-    get label() { return i18next.t("ui.right"); },
+    id: "right",
+    get label() {
+      return i18next.t("ui.right");
+    },
     firstClosed: false,
     secondClosed: true,
   },
@@ -116,31 +155,22 @@ function isSingleTurnoutElement(
   element: BaseElement
 ): element is SingleTurnoutElement {
   return (
-    element instanceof
-      TrackTurnoutLeftElement ||
-    element instanceof
-      TrackTurnoutRightElement ||
-    element instanceof
-      TrackTurnoutTwoWayElement
+    element instanceof TrackTurnoutLeftElement ||
+    element instanceof TrackTurnoutRightElement ||
+    element instanceof TrackTurnoutTwoWayElement
   );
 }
 
 function isDoubleTurnoutElement(
   element: BaseElement
 ): element is TrackTurnoutDoubleElement {
-  return (
-    element instanceof
-    TrackTurnoutDoubleElement
-  );
+  return element instanceof TrackTurnoutDoubleElement;
 }
 
 function isThreeWayTurnoutElement(
   element: BaseElement
 ): element is TrackTurnoutThreeWayElement {
-  return (
-    element instanceof
-    TrackTurnoutThreeWayElement
-  );
+  return element instanceof TrackTurnoutThreeWayElement;
 }
 
 function isMultiTurnoutClosedValueProperty(
@@ -179,21 +209,6 @@ function numberProperty(
   };
 }
 
-function closedValueProperty(
-  label: string,
-  key:
-    | "turnout1ClosedValue"
-    | "turnout2ClosedValue"
-): IEditableProperty {
-  return {
-    label,
-    key,
-    type: "bittoggle",
-    readonly: false,
-    validate: () => true,
-  };
-}
-
 function TestButton({
   title,
   onClick,
@@ -214,9 +229,7 @@ function TestButton({
         onClick();
       }}
     >
-      <IconPlayerPlayFilled
-        size={17}
-      />
+      <IconPlayerPlayFilled size={17} />
     </ActionIcon>
   );
 }
@@ -225,62 +238,38 @@ function renderButtonBasicEditor(
   selectedElement: ButtonElement,
   onChange: PropertyChangeHandler
 ) {
-  const onValueProperty:
-    IEditableProperty = {
-      label: i18next.t("ui.onValue"),
-      key: "activeValue",
-      type: "bittoggle",
-      readonly: false,
-    };
+  const onValueProperty: IEditableProperty = {
+    label: i18next.t("ui.onValue"),
+    key: "activeValue",
+    type: "bittoggle",
+    readonly: false,
+  };
 
-  const offValueProperty:
-    IEditableProperty = {
-      label: i18next.t("ui.offValue"),
-      key: "offValue",
-      type: "bittoggle",
-      readonly: false,
-    };
+  const offValueProperty: IEditableProperty = {
+    label: i18next.t("ui.offValue"),
+    key: "offValue",
+    type: "bittoggle",
+    readonly: false,
+  };
 
   return (
     <Stack gap="xs">
-      <Text
-        size="sm"
-        fw={500}
-      > {i18next.t("ui.basicAccessoryValues")} </Text>
+      <Text size="sm" fw={500}>
+        {i18next.t("ui.basicAccessoryValues")}
+      </Text>
 
-      <Group
-        justify="space-between"
-        align="center"
-        wrap="nowrap"
-      >
-        <Text
-          size="sm"
-          fw={600}
-          w={44}
-        > {i18next.t("ui.on")} </Text>
+      <Group justify="space-between" align="center" wrap="nowrap">
+        <Text size="sm" fw={600} w={44}>
+          {i18next.t("ui.on")}
+        </Text>
 
-        <Group
-          gap="xs"
-          wrap="nowrap"
-        >
+        <Group gap="xs" wrap="nowrap">
           <BitToggleElement
-            value={
-              selectedElement.activeValue
-            }
+            value={selectedElement.activeValue}
             onChange={value => {
-              onChange(
-                onValueProperty,
-                value
-              );
-
-              if (
-                selectedElement.offValue ===
-                value
-              ) {
-                onChange(
-                  offValueProperty,
-                  !value
-                );
+              onChange(onValueProperty, value);
+              if (selectedElement.offValue === value) {
+                onChange(offValueProperty, !value);
               }
             }}
           />
@@ -288,47 +277,24 @@ function renderButtonBasicEditor(
           <TestButton
             title={i18next.t("ui.testOn")}
             onClick={() =>
-              selectedElement.sendConfiguredState(
-                true
-              )
+              selectedElement.sendConfiguredState(true)
             }
           />
         </Group>
       </Group>
 
-      <Group
-        justify="space-between"
-        align="center"
-        wrap="nowrap"
-      >
-        <Text
-          size="sm"
-          fw={600}
-          w={44}
-        > {i18next.t("ui.off")} </Text>
+      <Group justify="space-between" align="center" wrap="nowrap">
+        <Text size="sm" fw={600} w={44}>
+          {i18next.t("ui.off")}
+        </Text>
 
-        <Group
-          gap="xs"
-          wrap="nowrap"
-        >
+        <Group gap="xs" wrap="nowrap">
           <BitToggleElement
-            value={
-              selectedElement.offValue
-            }
+            value={selectedElement.offValue}
             onChange={value => {
-              onChange(
-                offValueProperty,
-                value
-              );
-
-              if (
-                selectedElement.activeValue ===
-                value
-              ) {
-                onChange(
-                  onValueProperty,
-                  !value
-                );
+              onChange(offValueProperty, value);
+              if (selectedElement.activeValue === value) {
+                onChange(onValueProperty, !value);
               }
             }}
           />
@@ -336,9 +302,7 @@ function renderButtonBasicEditor(
           <TestButton
             title={i18next.t("ui.testOff")}
             onClick={() =>
-              selectedElement.sendConfiguredState(
-                false
-              )
+              selectedElement.sendConfiguredState(false)
             }
           />
         </Group>
@@ -352,55 +316,32 @@ function renderButtonExtendedEditor(
   onChange: PropertyChangeHandler
 ) {
   const onAspectProperty =
-    numberProperty(
-      "ON aspect",
-      "onAspect"
-    );
+    numberProperty("ON aspect", "onAspect");
 
   const offAspectProperty =
-    numberProperty(
-      "OFF aspect",
-      "offAspect"
-    );
+    numberProperty("OFF aspect", "offAspect");
 
   return (
     <Stack gap="xs">
-      <Text
-        size="sm"
-        fw={500}
-      > {i18next.t("ui.extendedAccessoryAspects")} </Text>
+      <Text size="sm" fw={500}>
+        {i18next.t("ui.extendedAccessoryAspects")}
+      </Text>
 
-      <Group
-        justify="space-between"
-        align="flex-end"
-        wrap="nowrap"
-      >
-        <Text
-          size="sm"
-          fw={600}
-          w={44}
-          pb={9}
-        > {i18next.t("ui.on")} </Text>
+      <Group justify="space-between" align="flex-end" wrap="nowrap">
+        <Text size="sm" fw={600} w={44} pb={9}>
+          {i18next.t("ui.on")}
+        </Text>
 
-        <Group
-          gap="xs"
-          align="flex-end"
-          wrap="nowrap"
-        >
+        <Group gap="xs" align="flex-end" wrap="nowrap">
           <NumberInput
             aria-label={i18next.t("ui.onAspect")}
             min={0}
             max={255}
             allowDecimal={false}
             allowNegative={false}
-            value={
-              selectedElement.onAspect
-            }
+            value={selectedElement.onAspect}
             onChange={value =>
-              onChange(
-                onAspectProperty,
-                value
-              )
+              onChange(onAspectProperty, value)
             }
             w={110}
           />
@@ -408,45 +349,27 @@ function renderButtonExtendedEditor(
           <TestButton
             title={i18next.t("ui.testOnAspect")}
             onClick={() =>
-              selectedElement.sendConfiguredState(
-                true
-              )
+              selectedElement.sendConfiguredState(true)
             }
           />
         </Group>
       </Group>
 
-      <Group
-        justify="space-between"
-        align="flex-end"
-        wrap="nowrap"
-      >
-        <Text
-          size="sm"
-          fw={600}
-          w={44}
-          pb={9}
-        > {i18next.t("ui.off")} </Text>
+      <Group justify="space-between" align="flex-end" wrap="nowrap">
+        <Text size="sm" fw={600} w={44} pb={9}>
+          {i18next.t("ui.off")}
+        </Text>
 
-        <Group
-          gap="xs"
-          align="flex-end"
-          wrap="nowrap"
-        >
+        <Group gap="xs" align="flex-end" wrap="nowrap">
           <NumberInput
             aria-label={i18next.t("ui.offAspect")}
             min={0}
             max={255}
             allowDecimal={false}
             allowNegative={false}
-            value={
-              selectedElement.offAspect
-            }
+            value={selectedElement.offAspect}
             onChange={value =>
-              onChange(
-                offAspectProperty,
-                value
-              )
+              onChange(offAspectProperty, value)
             }
             w={110}
           />
@@ -454,9 +377,7 @@ function renderButtonExtendedEditor(
           <TestButton
             title={i18next.t("ui.testOffAspect")}
             onClick={() =>
-              selectedElement.sendConfiguredState(
-                false
-              )
+              selectedElement.sendConfiguredState(false)
             }
           />
         </Group>
@@ -469,18 +390,15 @@ function renderButtonOutputEditor(
   selectedElement: ButtonElement,
   onChange: PropertyChangeHandler
 ) {
-  return (
-    selectedElement.outputMode ===
-      "extended"
-      ? renderButtonExtendedEditor(
-          selectedElement,
-          onChange
-        )
-      : renderButtonBasicEditor(
-          selectedElement,
-          onChange
-        )
-  );
+  return selectedElement.outputMode === "extended"
+    ? renderButtonExtendedEditor(
+        selectedElement,
+        onChange
+      )
+    : renderButtonBasicEditor(
+        selectedElement,
+        onChange
+      );
 }
 
 function sendSingleTurnoutState(
@@ -493,9 +411,7 @@ function sendSingleTurnoutState(
     element.turnoutClosedValue;
 
   sendTurnoutOutput(
-    String(
-      (element as any).outputMode
-    ),
+    String((element as any).outputMode),
     element.turnoutAddress,
     getPhysicalValueForLogicalState(
       closedValue,
@@ -504,13 +420,9 @@ function sendSingleTurnoutState(
     {
       closedValue,
       closedAspect:
-        getTurnoutClosedAspect(
-          element
-        ),
+        getTurnoutClosedAspect(element),
       openedAspect:
-        getTurnoutOpenedAspect(
-          element
-        ),
+        getTurnoutOpenedAspect(element),
     }
   );
 }
@@ -537,17 +449,16 @@ function doubleStateProperty(
 }
 
 function doublePositionValues(
-  selectedElement:
-    TrackTurnoutDoubleElement,
-  position: MultiTurnoutPosition
+  selectedElement: TrackTurnoutDoubleElement,
+  position: DoubleTurnoutPosition
 ): {
   first: boolean;
   second: boolean;
   firstProperty: IEditableProperty;
   secondProperty: IEditableProperty;
 } {
-  switch (position.label) {
-    case "O-C":
+  switch (position.id) {
+    case "oc":
       return {
         first: selectedElement.ocMotor1Value,
         second: selectedElement.ocMotor2Value,
@@ -561,7 +472,7 @@ function doublePositionValues(
         ),
       };
 
-    case "C-O":
+    case "co":
       return {
         first: selectedElement.coMotor1Value,
         second: selectedElement.coMotor2Value,
@@ -575,7 +486,7 @@ function doublePositionValues(
         ),
       };
 
-    case "C-C":
+    case "cc":
       return {
         first: selectedElement.ccMotor1Value,
         second: selectedElement.ccMotor2Value,
@@ -589,7 +500,7 @@ function doublePositionValues(
         ),
       };
 
-    case "O-O":
+    case "oo":
     default:
       return {
         first: selectedElement.ooMotor1Value,
@@ -607,15 +518,12 @@ function doublePositionValues(
 }
 
 function sendDoubleTurnoutValues(
-  element:
-    TrackTurnoutDoubleElement,
+  element: TrackTurnoutDoubleElement,
   first: boolean,
   second: boolean
 ): void {
   sendTurnoutOutput(
-    String(
-      (element as any).outputMode
-    ),
+    String((element as any).outputMode),
     element.turnout1Address,
     first,
     {
@@ -637,9 +545,7 @@ function sendDoubleTurnoutValues(
   );
 
   sendTurnoutOutput(
-    String(
-      (element as any).outputMode
-    ),
+    String((element as any).outputMode),
     element.turnout2Address,
     second,
     {
@@ -663,14 +569,15 @@ function sendDoubleTurnoutValues(
 
 function sendDoubleTurnoutBitClick(
   element: TrackTurnoutDoubleElement,
-  position: MultiTurnoutPosition,
+  position: DoubleTurnoutPosition,
   motor: 1 | 2,
   clickedValue: boolean
 ): void {
-  const current = doublePositionValues(
-    element,
-    position
-  );
+  const current =
+    doublePositionValues(
+      element,
+      position
+    );
 
   const first =
     motor === 1
@@ -682,9 +589,6 @@ function sendDoubleTurnoutBitClick(
       ? clickedValue
       : current.second;
 
-  // Explicit physical mapping:
-  // motor 1 -> turnout1Address
-  // motor 2 -> turnout2Address
   sendDoubleTurnoutValues(
     element,
     first,
@@ -693,9 +597,8 @@ function sendDoubleTurnoutBitClick(
 }
 
 function sendDoubleTurnoutPosition(
-  element:
-    TrackTurnoutDoubleElement,
-  position: MultiTurnoutPosition
+  element: TrackTurnoutDoubleElement,
+  position: DoubleTurnoutPosition
 ): void {
   const values =
     doublePositionValues(
@@ -710,53 +613,8 @@ function sendDoubleTurnoutPosition(
   );
 }
 
-function sendThreeWayTurnoutPosition(
-  element:
-    TrackTurnoutThreeWayElement,
-  position: MultiTurnoutPosition
-): void {
-  const firstPhysical =
-    getPhysicalValueForLogicalState(
-      element.turnout1ClosedValue,
-      position.firstClosed
-    );
-
-  const secondPhysical =
-    getPhysicalValueForLogicalState(
-      element.turnout2ClosedValue,
-      position.secondClosed
-    );
-
-  element.turnout1Closed =
-    firstPhysical;
-
-  element.turnout2Closed =
-    secondPhysical;
-
-  sendTurnoutOutput(
-    String(element.outputMode),
-    element.turnout1Address,
-    firstPhysical,
-    {
-      closedValue:
-        element.turnout1ClosedValue,
-    }
-  );
-
-  sendTurnoutOutput(
-    String(element.outputMode),
-    element.turnout2Address,
-    secondPhysical,
-    {
-      closedValue:
-        element.turnout2ClosedValue,
-    }
-  );
-}
-
 function renderSingleExtendedEditor(
-  selectedElement:
-    SingleTurnoutElement,
+  selectedElement: SingleTurnoutElement,
   onChange: PropertyChangeHandler
 ) {
   const closedProperty =
@@ -773,16 +631,11 @@ function renderSingleExtendedEditor(
 
   return (
     <Stack gap="xs">
-      <Text
-        size="sm"
-        fw={500}
-      > {i18next.t("ui.turnoutPositions")} </Text>
+      <Text size="sm" fw={500}>
+        {i18next.t("ui.turnoutPositions")}
+      </Text>
 
-      <Group
-        justify="space-between"
-        align="flex-end"
-        wrap="nowrap"
-      >
+      <Group justify="space-between" align="flex-end" wrap="nowrap">
         <Box className="route-turnout-preview-button">
           <ElementPreview
             element={
@@ -824,11 +677,7 @@ function renderSingleExtendedEditor(
         />
       </Group>
 
-      <Group
-        justify="space-between"
-        align="flex-end"
-        wrap="nowrap"
-      >
+      <Group justify="space-between" align="flex-end" wrap="nowrap">
         <Box className="route-turnout-preview-button">
           <ElementPreview
             element={
@@ -874,26 +723,18 @@ function renderSingleExtendedEditor(
 }
 
 function renderSingleBasicEditor(
-  selectedElement:
-    SingleTurnoutElement,
+  selectedElement: SingleTurnoutElement,
   prop: IEditableProperty,
   propValue: boolean,
   onChange: PropertyChangeHandler
 ) {
   return (
     <Stack gap="xs">
-      <Text
-        size="sm"
-        fw={500}
-      >
+      <Text size="sm" fw={500}>
         {prop.label}
       </Text>
 
-      <Group
-        justify="space-between"
-        align="center"
-        wrap="nowrap"
-      >
+      <Group justify="space-between" align="center" wrap="nowrap">
         <Box className="route-turnout-preview-button">
           <ElementPreview
             element={
@@ -917,10 +758,7 @@ function renderSingleBasicEditor(
         <BitToggleElement
           value={propValue}
           onChange={value => {
-            onChange(
-              prop,
-              value
-            );
+            onChange(prop, value);
           }}
           onValueClick={value => {
             sendSingleTurnoutState(
@@ -932,11 +770,7 @@ function renderSingleBasicEditor(
         />
       </Group>
 
-      <Group
-        justify="space-between"
-        align="center"
-        wrap="nowrap"
-      >
+      <Group justify="space-between" align="center" wrap="nowrap">
         <Box className="route-turnout-preview-button">
           <ElementPreview
             element={
@@ -960,10 +794,7 @@ function renderSingleBasicEditor(
         <BitToggleElement
           value={!propValue}
           onChange={value => {
-            onChange(
-              prop,
-              !value
-            );
+            onChange(prop, !value);
           }}
           onValueClick={value => {
             sendSingleTurnoutState(
@@ -998,74 +829,74 @@ function threeWayStateProperty(
 }
 
 function threeWayPositionValues(
-  selectedElement:
-    TrackTurnoutThreeWayElement,
-  position: MultiTurnoutPosition
+  selectedElement: TrackTurnoutThreeWayElement,
+  position: ThreeWayTurnoutPosition
 ): {
   first: boolean;
   second: boolean;
   firstProperty: IEditableProperty;
   secondProperty: IEditableProperty;
 } {
-  if (position.label === "Left") {
-    return {
-      first:
-        selectedElement.leftMotor1Value,
-      second:
-        selectedElement.leftMotor2Value,
-      firstProperty:
-        threeWayStateProperty(
-          "Left motor 1",
-          "leftMotor1Value"
-        ),
-      secondProperty:
-        threeWayStateProperty(
-          "Left motor 2",
-          "leftMotor2Value"
-        ),
-    };
-  }
+  switch (position.id) {
+    case "left":
+      return {
+        first:
+          selectedElement.leftMotor1Value,
+        second:
+          selectedElement.leftMotor2Value,
+        firstProperty:
+          threeWayStateProperty(
+            "Left motor 1",
+            "leftMotor1Value"
+          ),
+        secondProperty:
+          threeWayStateProperty(
+            "Left motor 2",
+            "leftMotor2Value"
+          ),
+      };
 
-  if (position.label === "Right") {
-    return {
-      first:
-        selectedElement.rightMotor1Value,
-      second:
-        selectedElement.rightMotor2Value,
-      firstProperty:
-        threeWayStateProperty(
-          "Right motor 1",
-          "rightMotor1Value"
-        ),
-      secondProperty:
-        threeWayStateProperty(
-          "Right motor 2",
-          "rightMotor2Value"
-        ),
-    };
-  }
+    case "right":
+      return {
+        first:
+          selectedElement.rightMotor1Value,
+        second:
+          selectedElement.rightMotor2Value,
+        firstProperty:
+          threeWayStateProperty(
+            "Right motor 1",
+            "rightMotor1Value"
+          ),
+        secondProperty:
+          threeWayStateProperty(
+            "Right motor 2",
+            "rightMotor2Value"
+          ),
+      };
 
-  return {
-    first:
-      selectedElement.straightMotor1Value,
-    second:
-      selectedElement.straightMotor2Value,
-    firstProperty:
-      threeWayStateProperty(
-        "Straight motor 1",
-        "straightMotor1Value"
-      ),
-    secondProperty:
-      threeWayStateProperty(
-        "Straight motor 2",
-        "straightMotor2Value"
-      ),
-  };
+    case "straight":
+    default:
+      return {
+        first:
+          selectedElement.straightMotor1Value,
+        second:
+          selectedElement.straightMotor2Value,
+        firstProperty:
+          threeWayStateProperty(
+            "Straight motor 1",
+            "straightMotor1Value"
+          ),
+        secondProperty:
+          threeWayStateProperty(
+            "Straight motor 2",
+            "straightMotor2Value"
+          ),
+      };
+  }
 }
 
 function sendConfiguredThreeWayValues(
-  element:
-    TrackTurnoutThreeWayElement,
+  element: TrackTurnoutThreeWayElement,
   first: boolean,
   second: boolean
 ): void {
@@ -1092,14 +923,15 @@ function sendConfiguredThreeWayValues(
 
 function sendThreeWayTurnoutBitClick(
   element: TrackTurnoutThreeWayElement,
-  position: MultiTurnoutPosition,
+  position: ThreeWayTurnoutPosition,
   motor: 1 | 2,
   clickedValue: boolean
 ): void {
-  const current = threeWayPositionValues(
-    element,
-    position
-  );
+  const current =
+    threeWayPositionValues(
+      element,
+      position
+    );
 
   const first =
     motor === 1
@@ -1111,9 +943,6 @@ function sendThreeWayTurnoutBitClick(
       ? clickedValue
       : current.second;
 
-  // Explicit physical mapping:
-  // motor 1 -> turnout1Address
-  // motor 2 -> turnout2Address
   sendConfiguredThreeWayValues(
     element,
     first,
@@ -1122,9 +951,8 @@ function sendThreeWayTurnoutBitClick(
 }
 
 function sendConfiguredThreeWayPosition(
-  element:
-    TrackTurnoutThreeWayElement,
-  position: MultiTurnoutPosition
+  element: TrackTurnoutThreeWayElement,
+  position: ThreeWayTurnoutPosition
 ): void {
   const values =
     threeWayPositionValues(
@@ -1140,21 +968,18 @@ function sendConfiguredThreeWayPosition(
 }
 
 function renderThreeWayBasicEditor(
-  selectedElement:
-    TrackTurnoutThreeWayElement,
+  selectedElement: TrackTurnoutThreeWayElement,
   onChange: PropertyChangeHandler
 ) {
   return (
     <Stack gap="xs">
-      <Text
-        size="sm"
-        fw={500}
-      > {i18next.t("ui.threeWayTurnoutPositions")} </Text>
+      <Text size="sm" fw={500}>
+        {i18next.t("ui.threeWayTurnoutPositions")}
+      </Text>
 
-      <Text
-        size="xs"
-        c="dimmed"
-      > {i18next.t("ui.eachPositionStoresItsOwnTwoPhysicalOutputBitsChanging")} </Text>
+      <Text size="xs" c="dimmed">
+        {i18next.t("ui.eachPositionStoresItsOwnTwoPhysicalOutputBitsChanging")}
+      </Text>
 
       {THREE_WAY_TURNOUT_POSITIONS.map(
         position => {
@@ -1166,7 +991,7 @@ function renderThreeWayBasicEditor(
 
           return (
             <Group
-              key={position.label}
+              key={position.id}
               justify="space-between"
               align="center"
               wrap="nowrap"
@@ -1180,9 +1005,7 @@ function renderThreeWayBasicEditor(
                       position.secondClosed
                     )
                   }
-                  label={
-                    position.label
-                  }
+                  label={position.label}
                   width={54}
                   height={54}
                   onClick={() =>
@@ -1194,14 +1017,9 @@ function renderThreeWayBasicEditor(
                 />
               </Box>
 
-              <Group
-                gap="xs"
-                wrap="nowrap"
-              >
+              <Group gap="xs" wrap="nowrap">
                 <BitToggleElement
-                  value={
-                    values.first
-                  }
+                  value={values.first}
                   onChange={value => {
                     onChange(
                       values.firstProperty,
@@ -1219,9 +1037,7 @@ function renderThreeWayBasicEditor(
                 />
 
                 <BitToggleElement
-                  value={
-                    values.second
-                  }
+                  value={values.second}
                   onChange={value => {
                     onChange(
                       values.secondProperty,
@@ -1247,8 +1063,7 @@ function renderThreeWayBasicEditor(
 }
 
 function renderDoubleExtendedEditor(
-  selectedElement:
-    TrackTurnoutDoubleElement,
+  selectedElement: TrackTurnoutDoubleElement,
   onChange: PropertyChangeHandler
 ) {
   const t1Closed =
@@ -1277,10 +1092,9 @@ function renderDoubleExtendedEditor(
 
   return (
     <Stack gap="sm">
-      <Text
-        size="sm"
-        fw={500}
-      > {i18next.t("ui.extendedAccessoryAspects")} </Text>
+      <Text size="sm" fw={500}>
+        {i18next.t("ui.extendedAccessoryAspects")}
+      </Text>
 
       <SimpleGrid cols={2}>
         <NumberInput
@@ -1297,10 +1111,7 @@ function renderDoubleExtendedEditor(
             )
           }
           onChange={value =>
-            onChange(
-              t1Closed,
-              value
-            )
+            onChange(t1Closed, value)
           }
         />
 
@@ -1318,10 +1129,7 @@ function renderDoubleExtendedEditor(
             )
           }
           onChange={value =>
-            onChange(
-              t1Opened,
-              value
-            )
+            onChange(t1Opened, value)
           }
         />
 
@@ -1339,10 +1147,7 @@ function renderDoubleExtendedEditor(
             )
           }
           onChange={value =>
-            onChange(
-              t2Closed,
-              value
-            )
+            onChange(t2Closed, value)
           }
         />
 
@@ -1360,24 +1165,20 @@ function renderDoubleExtendedEditor(
             )
           }
           onChange={value =>
-            onChange(
-              t2Opened,
-              value
-            )
+            onChange(t2Opened, value)
           }
         />
       </SimpleGrid>
 
-      <Text
-        size="xs"
-        c="dimmed"
-      > {i18next.t("ui.testPositions")} </Text>
+      <Text size="xs" c="dimmed">
+        {i18next.t("ui.testPositions")}
+      </Text>
 
       <Group gap="xs">
         {DOUBLE_TURNOUT_POSITIONS.map(
           position => (
             <Box
-              key={position.label}
+              key={position.id}
               className="route-turnout-preview-button"
             >
               <ElementPreview
@@ -1388,9 +1189,7 @@ function renderDoubleExtendedEditor(
                     position.secondClosed
                   )
                 }
-                label={
-                  position.label
-                }
+                label={position.label}
                 width={42}
                 height={42}
                 onClick={() =>
@@ -1409,21 +1208,18 @@ function renderDoubleExtendedEditor(
 }
 
 function renderDoubleBasicEditor(
-  selectedElement:
-    TrackTurnoutDoubleElement,
+  selectedElement: TrackTurnoutDoubleElement,
   onChange: PropertyChangeHandler
 ) {
   return (
     <Stack gap="xs">
-      <Text
-        size="sm"
-        fw={500}
-      > {i18next.t("ui.doubleTurnoutPositions")} </Text>
+      <Text size="sm" fw={500}>
+        {i18next.t("ui.doubleTurnoutPositions")}
+      </Text>
 
-      <Text
-        size="xs"
-        c="dimmed"
-      > {i18next.t("ui.eachPreviewRowStoresItsOwnTwoPhysicalOutputBits")} </Text>
+      <Text size="xs" c="dimmed">
+        {i18next.t("ui.eachPreviewRowStoresItsOwnTwoPhysicalOutputBits")}
+      </Text>
 
       {DOUBLE_TURNOUT_POSITIONS.map(
         position => {
@@ -1435,7 +1231,7 @@ function renderDoubleBasicEditor(
 
           return (
             <Group
-              key={position.label}
+              key={position.id}
               justify="space-between"
               align="center"
               wrap="nowrap"
@@ -1449,9 +1245,7 @@ function renderDoubleBasicEditor(
                       position.secondClosed
                     )
                   }
-                  label={
-                    position.label
-                  }
+                  label={position.label}
                   width={46}
                   height={46}
                   onClick={() =>
@@ -1463,14 +1257,9 @@ function renderDoubleBasicEditor(
                 />
               </Box>
 
-              <Group
-                gap="xs"
-                wrap="nowrap"
-              >
+              <Group gap="xs" wrap="nowrap">
                 <BitToggleElement
-                  value={
-                    values.first
-                  }
+                  value={values.first}
                   onChange={value => {
                     onChange(
                       values.firstProperty,
@@ -1488,9 +1277,7 @@ function renderDoubleBasicEditor(
                 />
 
                 <BitToggleElement
-                  value={
-                    values.second
-                  }
+                  value={values.second}
                   onChange={value => {
                     onChange(
                       values.secondProperty,
@@ -1535,9 +1322,7 @@ export default function TurnoutBitPropertyEditor({
       Record<string, unknown>;
 
   const propValue =
-    Boolean(
-      values[prop.key]
-    );
+    Boolean(values[prop.key]);
 
   const mode =
     normalizeTurnoutOutputMode(
@@ -1581,8 +1366,7 @@ export default function TurnoutBitPropertyEditor({
       return null;
     }
 
-    return mode ===
-      "extended"
+    return mode === "extended"
       ? renderDoubleExtendedEditor(
           selectedElement,
           onChange
@@ -1604,28 +1388,21 @@ export default function TurnoutBitPropertyEditor({
         align="center"
         wrap="nowrap"
       >
-        <Text
-          size="sm"
-          fw={500}
-        >
+        <Text size="sm" fw={500}>
           {prop.label}
         </Text>
 
         <BitToggleElement
           value={propValue}
           onChange={value =>
-            onChange(
-              prop,
-              value
-            )
+            onChange(prop, value)
           }
         />
       </Group>
     );
   }
 
-  return mode ===
-    "extended"
+  return mode === "extended"
     ? renderSingleExtendedEditor(
         selectedElement,
         onChange

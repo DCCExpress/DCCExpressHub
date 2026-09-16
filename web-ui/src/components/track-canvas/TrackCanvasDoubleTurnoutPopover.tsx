@@ -23,7 +23,14 @@ import type {
   DoubleTurnoutPopoverState,
 } from "./TrackCanvas.types";
 
+type DoubleTurnoutPositionId =
+  | "oo"
+  | "oc"
+  | "co"
+  | "cc";
+
 type DoubleTurnoutPosition = {
+  id: DoubleTurnoutPositionId;
   label: string;
   firstClosed: boolean;
   secondClosed: boolean;
@@ -34,43 +41,57 @@ type DoubleTurnoutBits = {
   second: boolean;
 };
 
-const DOUBLE_TURNOUT_POSITIONS: DoubleTurnoutPosition[] = [
+/*
+ * The stable `id` / `position` fields are logic.
+ * Labels are presentation only and may be translated freely.
+ */
+const DOUBLE_TURNOUT_POSITIONS: readonly DoubleTurnoutPosition[] = [
   {
+    id: "oo",
     label: "O-O",
     firstClosed: false,
     secondClosed: false,
   },
   {
+    id: "oc",
     label: "O-C",
     firstClosed: false,
     secondClosed: true,
   },
   {
+    id: "co",
     label: "C-O",
     firstClosed: true,
     secondClosed: false,
   },
   {
+    id: "cc",
     label: "C-C",
     firstClosed: true,
     secondClosed: true,
   },
 ];
 
-const THREE_WAY_POSITIONS: Array<{
-  label: string;
+const THREE_WAY_POSITIONS: ReadonlyArray<{
+  readonly label: string;
   position: Exclude<ThreeWayTurnoutPosition, "invalid">;
 }> = [
   {
-    get label() { return i18next.t("ui.left"); },
+    get label() {
+      return i18next.t("ui.left");
+    },
     position: "left",
   },
   {
-    get label() { return i18next.t("ui.straight"); },
+    get label() {
+      return i18next.t("ui.straight");
+    },
     position: "straight",
   },
   {
-    get label() { return i18next.t("ui.right"); },
+    get label() {
+      return i18next.t("ui.right");
+    },
     position: "right",
   },
 ];
@@ -84,26 +105,26 @@ function getConfiguredBits(
   turnout: TrackTurnoutDoubleElement,
   position: DoubleTurnoutPosition
 ): DoubleTurnoutBits {
-  switch (position.label) {
-    case "O-C":
+  switch (position.id) {
+    case "oc":
       return {
         first: turnout.ocMotor1Value,
         second: turnout.ocMotor2Value,
       };
 
-    case "C-O":
+    case "co":
       return {
         first: turnout.coMotor1Value,
         second: turnout.coMotor2Value,
       };
 
-    case "C-C":
+    case "cc":
       return {
         first: turnout.ccMotor1Value,
         second: turnout.ccMotor2Value,
       };
 
-    case "O-O":
+    case "oo":
     default:
       return {
         first: turnout.ooMotor1Value,
@@ -191,9 +212,7 @@ function setDoubleTurnoutPosition(
     bits.second;
 
   sendTurnoutOutput(
-    String(
-      (turnout as any).outputMode
-    ),
+    String((turnout as any).outputMode),
     turnout.turnout1Address,
     bits.first,
     {
@@ -215,9 +234,7 @@ function setDoubleTurnoutPosition(
   );
 
   sendTurnoutOutput(
-    String(
-      (turnout as any).outputMode
-    ),
+    String((turnout as any).outputMode),
     turnout.turnout2Address,
     bits.second,
     {
@@ -483,9 +500,7 @@ export function TrackCanvasDoubleTurnoutPopover({
               : DOUBLE_TURNOUT_POSITIONS.map(
                   turnoutPosition => (
                     <Box
-                      key={
-                        turnoutPosition.label
-                      }
+                      key={turnoutPosition.id}
                       className="signal-aspect-button"
                       style={{
                         cursor: "pointer",
