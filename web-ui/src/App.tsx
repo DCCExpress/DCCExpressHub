@@ -1,4 +1,4 @@
-﻿import {
+﻿﻿import {
   ActionIcon,
   Alert,
   Badge,
@@ -46,6 +46,7 @@ import {
   IconTerminal2,
 } from "@tabler/icons-react";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import type { Loco, SignalLogicDocumentDto } from "@domain/types";
 
@@ -54,6 +55,7 @@ import { exportLocoImages, importLocoImages, type LocoImageBackup } from "@/api/
 import { loadSignalLogicRulesWs, saveSignalLogicRulesWs } from "@/api/signalLogicWsApi";
 import LocoDialog from "@/components/LocoDialog";
 import CommandCenterSettingsDialog from "@/components/CommandCenterSettingsDialog";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
 import LocoPanel from "@/layout/LocoPanel";
 import { getDefaultWsUrl } from "@/services/defaultWsUrl";
 import { wsApi } from "@/services/wsApi";
@@ -66,7 +68,6 @@ import DeviceConfigurationPage, {
   type DeviceConfigurationDocument,
 } from "./DeviceConfigurationPage";
 import { useCommandCenter } from "./context/CommandCenterContext";
-import LanguageSwitcher from "@/components/LanguageSwitcher";
 
 const LiteLayoutPage = lazy(() => import("./LiteLayoutPage"));
 const RuntimeLayoutOverlay = lazy(() => import("./RuntimeLayoutOverlay"));
@@ -123,10 +124,19 @@ function pageFromHash(): Page {
 }
 
 function AppHeader({ status, version }: { status: WsConnectionStatus; version: string }) {
-
+  const { t } = useTranslation();
   const commandCenter = useCommandCenter();
   const [commandCenterSettingsOpened, setCommandCenterSettingsOpened] =
     useState(false);
+
+  const translatedStatusKey =
+    status === "connected" ||
+    status === "connecting" ||
+    status === "reconnecting" ||
+    status === "error"
+      ? status
+      : "disconnected";
+
   return (
     <Group
       className="app-header"
@@ -149,7 +159,7 @@ function AppHeader({ status, version }: { status: WsConnectionStatus; version: s
             gap={6}
             wrap="wrap"
           >
-            <Text size="xs" c="dimmed">EX-CSB1 command station</Text>
+            <Text size="xs" c="dimmed">{t("homeHub.commandStation")}</Text>
             <Badge
               className="app-version-badge"
               size="xs"
@@ -173,7 +183,7 @@ function AppHeader({ status, version }: { status: WsConnectionStatus; version: s
           size="lg"
           className={status === "connected" ? "" : "lite-ws-alert"}
         >
-          {formatStatus(status)}
+          {t(`homeHub.status.${translatedStatusKey}`)}
         </Badge>
 
         <ActionIcon
@@ -181,8 +191,8 @@ function AppHeader({ status, version }: { status: WsConnectionStatus; version: s
           radius="xl"
           variant="light"
           color="cyan"
-          aria-label="Reload page"
-          title="Reload page"
+          aria-label={t("homeHub.reloadPage")}
+          title={t("homeHub.reloadPage")}
           onClick={() => window.location.reload()}
         >
           <IconRefresh size={20} />
@@ -196,7 +206,7 @@ function AppHeader({ status, version }: { status: WsConnectionStatus; version: s
         leftSection={<IconPower size={16} />}
         disabled={status !== "connected" || !commandCenter.alive}
         onClick={() => wsApi.setTrackPower(!commandCenter.powerInfo?.trackVoltageOn)}
-        title={commandCenter.powerInfo?.trackVoltageOn ? "Turn track power off" : "Turn track power on"}
+        title={commandCenter.powerInfo?.trackVoltageOn ? t("homeHub.powerOffTitle") : t("homeHub.powerOnTitle")}
       >
         POWER {commandCenter.powerInfo?.trackVoltageOn ? "ON" : "OFF"}
       </Button>
@@ -207,7 +217,7 @@ function AppHeader({ status, version }: { status: WsConnectionStatus; version: s
         color="blue"
         leftSection={<IconSettings size={16} />}
         onClick={() => setCommandCenterSettingsOpened(true)}
-        title="Configure EX-CSB1 connection"
+        title={t("homeHub.configureCsb1")}
       >
         CSB1
       </Button>
@@ -216,9 +226,7 @@ function AppHeader({ status, version }: { status: WsConnectionStatus; version: s
         opened={commandCenterSettingsOpened}
         onClose={() => setCommandCenterSettingsOpened(false)}
       />
-
     </Group>
-
   );
 }
 
@@ -249,15 +257,19 @@ function HomePage({
   onNavigate: (page: Page) => void;
   onOpenLocoEditor: () => void;
 }) {
+  const { t } = useTranslation();
+
   return (
     <Stack gap="md">
       <Card className="hero-card" radius={5} p="lg">
         <Stack gap="sm">
           <AppHeader status={status} version={version} />
-          <Text c="dimmed">
-            Control locomotives, operate the layout and configure the EX-CSB1.
-          </Text>
-           <LanguageSwitcher />
+          <Group justify="space-between" align="center" gap="sm" wrap="wrap">
+            <Text c="dimmed">
+              {t("homeHub.description")}
+            </Text>
+            <LanguageSwitcher />
+          </Group>
         </Stack>
       </Card>
 
@@ -266,9 +278,9 @@ function HomePage({
           <ThemeIcon size={48} radius="lg" color="teal" variant="light">
             <IconMap size={27} />
           </ThemeIcon>
-          <Title order={4} mt="md">Layout Panel</Title>
+          <Title order={4} mt="md">{t("homeHub.cards.layout.title")}</Title>
           <Text size="sm" c="dimmed" mt={4}>
-            Build the track plan and operate turnouts
+            {t("homeHub.cards.layout.description")}
           </Text>
         </Card>
 
@@ -276,9 +288,11 @@ function HomePage({
           <ThemeIcon size={48} radius="lg" color="cyan" variant="light">
             <IconTrain size={27} />
           </ThemeIcon>
-          <Title order={4} mt="md">Mobile controller</Title>
+          <Title order={4} mt="md">{t("homeHub.cards.mobile.title")}</Title>
           <Text size="sm" c="dimmed" mt={4}>
-            {locoCount > 0 ? `Drive ${locoCount} locomotive${locoCount === 1 ? "" : "s"} from your phone` : "Open mobile throttle and function controls"}
+            {locoCount > 0
+              ? t("homeHub.cards.mobile.withCount", { count: locoCount })
+              : t("homeHub.cards.mobile.empty")}
           </Text>
         </Card>
 
@@ -286,9 +300,9 @@ function HomePage({
           <ThemeIcon size={48} radius="lg" color="violet" variant="light">
             <IconEdit size={27} />
           </ThemeIcon>
-          <Title order={4} mt="md">Locomotive editor</Title>
+          <Title order={4} mt="md">{t("homeHub.cards.locoEditor.title")}</Title>
           <Text size="sm" c="dimmed" mt={4}>
-            Add locomotives and configure addresses, images and functions
+            {t("homeHub.cards.locoEditor.description")}
           </Text>
         </Card>
 
@@ -296,18 +310,19 @@ function HomePage({
           <ThemeIcon size={48} radius="lg" color="orange" variant="light">
             <IconTool size={27} />
           </ThemeIcon>
-          <Title order={4} mt="md">Decoder programming</Title>
+          <Title order={4} mt="md">{t("homeHub.cards.programming.title")}</Title>
           <Text size="sm" c="dimmed" mt={4}>
-            Program locomotive, accessory and DigiTools decoders
+            {t("homeHub.cards.programming.description")}
           </Text>
         </Card>
+
         <Card className="action-card" withBorder radius={5} p="lg" onClick={() => onNavigate("settings")}>
           <ThemeIcon size={48} radius="lg" color="indigo" variant="light">
             <IconRouter size={27} />
           </ThemeIcon>
-          <Title order={4} mt="md">Network settings</Title>
+          <Title order={4} mt="md">{t("homeHub.cards.network.title")}</Title>
           <Text size="sm" c="dimmed" mt={4}>
-            Join the EX-CSB1 to your local Wi-Fi network
+            {t("homeHub.cards.network.description")}
           </Text>
         </Card>
 
@@ -315,9 +330,9 @@ function HomePage({
           <ThemeIcon size={48} radius="lg" color="blue" variant="light">
             <IconCpu size={27} />
           </ThemeIcon>
-          <Title order={4} mt="md">Device configuration</Title>
+          <Title order={4} mt="md">{t("homeHub.cards.devices.title")}</Title>
           <Text size="sm" c="dimmed" mt={4}>
-            Configure external servo and input/output devices
+            {t("homeHub.cards.devices.description")}
           </Text>
         </Card>
 
@@ -345,7 +360,7 @@ function HomePage({
             order={4}
             mt="md"
           >
-            Gamepad
+            {t("homeHub.cards.gamepad.title")}
           </Title>
 
           <Text
@@ -353,11 +368,9 @@ function HomePage({
             c="dimmed"
             mt={4}
           >
-            Test Bluetooth and USB
-            game controllers
+            {t("homeHub.cards.gamepad.description")}
           </Text>
         </Card>
-
 
         <Card
           className="action-card"
@@ -383,7 +396,7 @@ function HomePage({
             order={4}
             mt="md"
           >
-            Console
+            {t("homeHub.cards.console.title")}
           </Title>
 
           <Text
@@ -391,8 +404,7 @@ function HomePage({
             c="dimmed"
             mt={4}
           >
-            Send raw DCC-EX commands
-            and inspect WebSocket traffic
+            {t("homeHub.cards.console.description")}
           </Text>
         </Card>
 
@@ -400,9 +412,9 @@ function HomePage({
           <ThemeIcon size={48} radius="lg" color="orange" variant="light">
             <IconFolder size={27} />
           </ThemeIcon>
-          <Title order={4} mt="md">Files</Title>
+          <Title order={4} mt="md">{t("homeHub.cards.files.title")}</Title>
           <Text size="sm" c="dimmed" mt={4}>
-            Browse, upload and delete files across the complete LittleFS filesystem
+            {t("homeHub.cards.files.description")}
           </Text>
         </Card>
 
@@ -410,13 +422,12 @@ function HomePage({
           <ThemeIcon size={48} radius="lg" color="green" variant="light">
             <IconDownload size={27} />
           </ThemeIcon>
-          <Title order={4} mt="md">Export / Import</Title>
+          <Title order={4} mt="md">{t("homeHub.cards.backup.title")}</Title>
           <Text size="sm" c="dimmed" mt={4}>
-            Back up or restore the layout, locomotives and images
+            {t("homeHub.cards.backup.description")}
           </Text>
         </Card>
       </SimpleGrid>
-
     </Stack>
   );
 }
@@ -1040,7 +1051,7 @@ function SettingsPage({ onBack, status }: { onBack: () => void; status: WsConnec
 
               <PasswordInput
                 label="Wi-Fi password"
-                placeholder={settings?.hasPassword ? "Leave blank to keep the saved password" : "8â€“63 characters"}
+                placeholder={settings?.hasPassword ? "Leave blank to keep the saved password" : "8–63 characters"}
                 description={settings?.hasPassword ? "The saved password is never sent back to the browser." : undefined}
                 value={password}
                 onChange={event => setPassword(event.currentTarget.value)}
@@ -1188,23 +1199,6 @@ export default function App() {
             locos={locos}
             open={driveLayoutOpen}
           />
-          {/* <Card withBorder radius="lg" p="sm">
-            <Group justify="space-between" align="center" wrap="nowrap">
-              <Group gap="xs" wrap="nowrap">
-                <ActionIcon variant="subtle" color="gray" size="lg" aria-label="Back to home" onClick={() => navigate("home")}>
-                  <IconArrowLeft size={21} />
-                </ActionIcon>
-                <Title order={3}>Mobile controller</Title>
-              </Group>
-              <Group gap="xs" wrap="nowrap">
-                {status !== "connected" && (
-                  <Badge color="red" variant="filled" className="lite-ws-alert">
-                    {formatStatus(status)}
-                  </Badge>
-                )}
-              </Group>
-            </Group>
-          </Card> */}
 
           <ActionIcon
             className="mobile-back-fab"
@@ -1219,7 +1213,7 @@ export default function App() {
             <IconArrowLeft size={24} />
           </ActionIcon>
           {loadState === "loading" && locos.length === 0 ? (
-            <Card withBorder radius="xl" p="xl"><Stack align="center"><Loader /><Text c="dimmed">Loading locomotivesâ€¦</Text></Stack></Card>
+            <Card withBorder radius="xl" p="xl"><Stack align="center"><Loader /><Text c="dimmed">Loading locomotives…</Text></Stack></Card>
           ) : (
             <Box className="mobile-loco-panel">
               <LocoPanel locos={locos} mobileViewport />
@@ -1253,29 +1247,25 @@ export default function App() {
     }
 
     if (page === "console") {
-  return (
-    <ConsolePage
-      onBack={() =>
-        navigate("home")
-      }
-    />
-  );
-}
+      return (
+        <ConsolePage
+          onBack={() =>
+            navigate("home")
+          }
+        />
+      );
+    }
 
     return <HomePage status={status} version={version} locoCount={locos.length} onNavigate={navigate} onOpenLocoEditor={() => setLocoEditorOpened(true)} />;
   };
 
   return (
-    // <Box className={`mobile-shell${page === "layout" ? " layout-shell" : ""}`}>
     <Box
       className={`mobile-shell${page === "layout" ? " layout-shell" : ""
         }${page === "drive" ? " drive-shell" : ""
         }${page === "device-config" ? " device-config-shell" : ""
         }`}
     >
-
-
-
       <Stack gap="md">
         <Box className="mobile-content">
           <Suspense

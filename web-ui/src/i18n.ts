@@ -44,13 +44,41 @@ const enTranslation = {
     thanksDescription:
       "DCCExpress stands on the shoulders of excellent open-source tools, modern web technologies, and a good dose of AI-assisted brainstorming.",
   },
+  homeHub: {
+    commandStation: "EX-CSB1 command station",
+    description: "Control locomotives, operate the layout and configure the EX-CSB1.",
+    reloadPage: "Reload page",
+    configureCsb1: "Configure EX-CSB1 connection",
+    powerOnTitle: "Turn track power on",
+    powerOffTitle: "Turn track power off",
+    status: {
+      connected: "Online",
+      connecting: "Connecting",
+      reconnecting: "Reconnecting",
+      error: "Connection error",
+      disconnected: "Offline",
+    },
+    cards: {
+      layout: { title: "Layout Panel", description: "Build the track plan and operate turnouts" },
+      mobile: {
+        title: "Mobile controller",
+        empty: "Open mobile throttle and function controls",
+        withCount_one: "Drive {{count}} locomotive from your phone",
+        withCount_other: "Drive {{count}} locomotives from your phone",
+      },
+      locoEditor: { title: "Locomotive editor", description: "Add locomotives and configure addresses, images and functions" },
+      programming: { title: "Decoder programming", description: "Program locomotive, accessory and DigiTools decoders" },
+      network: { title: "Network settings", description: "Join the EX-CSB1 to your local Wi-Fi network" },
+      devices: { title: "Device configuration", description: "Configure external servo and input/output devices" },
+      gamepad: { title: "Gamepad", description: "Test Bluetooth and USB game controllers" },
+      console: { title: "Console", description: "Send raw DCC-EX commands and inspect WebSocket traffic" },
+      files: { title: "Files", description: "Browse, upload and delete files across the complete LittleFS filesystem" },
+      backup: { title: "Export / Import", description: "Back up or restore the layout, locomotives and images" },
+    },
+  },
   locodialog: {
     ...en.locodialog,
-    tabs: {
-      general: "General",
-      functions: "Functions",
-      actions: "Actions",
-    },
+    tabs: { general: "General", functions: "Functions", actions: "Actions" },
     train_type: "Train type",
     occupancy_detection_position: "Occupancy detection position",
     last_run_at: "Last run / stopped at",
@@ -79,11 +107,7 @@ const enTranslation = {
   },
   settings: {
     ...en.settings,
-    languages: {
-      en: "English",
-      hu: "Magyar",
-      de: "Deutsch",
-    },
+    languages: { en: "English", hu: "Magyar", de: "Deutsch" },
   },
   ...signalLogicEn,
 };
@@ -95,13 +119,41 @@ const huTranslation = {
     thanksDescription:
       "A DCCExpress kiváló nyílt forráskódú eszközökre, modern webes technológiákra és egy jó adag AI-segített ötletelésre épül.",
   },
+  homeHub: {
+    commandStation: "EX-CSB1 központ",
+    description: "Mozdonyvezérlés, terepasztal-kezelés és az EX-CSB1 beállítása egy helyen.",
+    reloadPage: "Oldal újratöltése",
+    configureCsb1: "EX-CSB1 kapcsolat beállítása",
+    powerOnTitle: "Pályafeszültség bekapcsolása",
+    powerOffTitle: "Pályafeszültség kikapcsolása",
+    status: {
+      connected: "Online",
+      connecting: "Kapcsolódás",
+      reconnecting: "Újracsatlakozás",
+      error: "Kapcsolati hiba",
+      disconnected: "Offline",
+    },
+    cards: {
+      layout: { title: "Terepasztal", description: "Vágányhálózat szerkesztése, váltók és jelzők kezelése" },
+      mobile: {
+        title: "Mobil vezérlő",
+        empty: "Nyisd meg a mobil mozdonyvezérlőt és a funkciógombokat",
+        withCount_one: "{{count}} mozdony vezérlése telefonról",
+        withCount_other: "{{count}} mozdony vezérlése telefonról",
+      },
+      locoEditor: { title: "Mozdonyszerkesztő", description: "Mozdonyok, címek, képek és funkciók beállítása" },
+      programming: { title: "Dekóderprogramozás", description: "Mozdony-, kiegészítő- és DigiTools dekóderek programozása" },
+      network: { title: "Hálózati beállítások", description: "Az EX-CSB1 csatlakoztatása a helyi Wi-Fi hálózathoz" },
+      devices: { title: "Eszközkonfiguráció", description: "Külső szervó- és bemenet/kimenet eszközök beállítása" },
+      gamepad: { title: "Gamepad", description: "Bluetooth és USB játékvezérlők tesztelése" },
+      console: { title: "Konzol", description: "Nyers DCC-EX parancsok küldése és WebSocket forgalom figyelése" },
+      files: { title: "Fájlok", description: "A teljes LittleFS fájlrendszer böngészése, feltöltése és törlése" },
+      backup: { title: "Export / Import", description: "Terepasztal, mozdonyok és képek mentése vagy visszaállítása" },
+    },
+  },
   locodialog: {
     ...hu.locodialog,
-    tabs: {
-      general: "Általános",
-      functions: "Funkciók",
-      actions: "Műveletek",
-    },
+    tabs: { general: "Általános", functions: "Funkciók", actions: "Műveletek" },
     train_type: "Vonat típusa",
     occupancy_detection_position: "Foglaltság érzékelése",
     last_run_at: "Utolsó futás / megállás ideje",
@@ -130,11 +182,7 @@ const huTranslation = {
   },
   settings: {
     ...hu.settings,
-    languages: {
-      en: "English",
-      hu: "Magyar",
-      de: "Deutsch",
-    },
+    languages: { en: "English", hu: "Magyar", de: "Deutsch" },
   },
   ...signalLogicHu,
 };
@@ -146,13 +194,41 @@ const deTranslation = {
     thanksDescription:
       "DCCExpress baut auf hervorragenden Open-Source-Werkzeugen, modernen Webtechnologien und einer guten Portion KI-gestütztem Brainstorming auf.",
   },
+  homeHub: {
+    commandStation: "EX-CSB1 Zentrale",
+    description: "Lokomotiven steuern, die Anlage bedienen und die EX-CSB1 konfigurieren.",
+    reloadPage: "Seite neu laden",
+    configureCsb1: "EX-CSB1 Verbindung konfigurieren",
+    powerOnTitle: "Gleisspannung einschalten",
+    powerOffTitle: "Gleisspannung ausschalten",
+    status: {
+      connected: "Online",
+      connecting: "Verbindung wird hergestellt",
+      reconnecting: "Erneute Verbindung",
+      error: "Verbindungsfehler",
+      disconnected: "Offline",
+    },
+    cards: {
+      layout: { title: "Anlagensteuerung", description: "Gleisplan erstellen und Weichen sowie Signale bedienen" },
+      mobile: {
+        title: "Mobiler Regler",
+        empty: "Mobilen Fahrregler und Funktionstasten öffnen",
+        withCount_one: "{{count}} Lokomotive per Smartphone steuern",
+        withCount_other: "{{count}} Lokomotiven per Smartphone steuern",
+      },
+      locoEditor: { title: "Lokomotiven-Editor", description: "Lokomotiven, Adressen, Bilder und Funktionen konfigurieren" },
+      programming: { title: "Decoder-Programmierung", description: "Lok-, Zubehör- und DigiTools-Decoder programmieren" },
+      network: { title: "Netzwerkeinstellungen", description: "Die EX-CSB1 mit dem lokalen WLAN verbinden" },
+      devices: { title: "Gerätekonfiguration", description: "Externe Servo- und Ein-/Ausgabegeräte konfigurieren" },
+      gamepad: { title: "Gamepad", description: "Bluetooth- und USB-Gamecontroller testen" },
+      console: { title: "Konsole", description: "Direkte DCC-EX Befehle senden und WebSocket-Verkehr prüfen" },
+      files: { title: "Dateien", description: "Das vollständige LittleFS-Dateisystem durchsuchen, hochladen und löschen" },
+      backup: { title: "Export / Import", description: "Anlage, Lokomotiven und Bilder sichern oder wiederherstellen" },
+    },
+  },
   locodialog: {
     ...de.locodialog,
-    tabs: {
-      general: "Allgemein",
-      functions: "Funktionen",
-      actions: "Aktionen",
-    },
+    tabs: { general: "Allgemein", functions: "Funktionen", actions: "Aktionen" },
     train_type: "Zugtyp",
     occupancy_detection_position: "Belegterkennung",
     last_run_at: "Letzte Fahrt / Halt um",
@@ -181,11 +257,7 @@ const deTranslation = {
   },
   settings: {
     ...de.settings,
-    languages: {
-      en: "English",
-      hu: "Magyar",
-      de: "Deutsch",
-    },
+    languages: { en: "English", hu: "Magyar", de: "Deutsch" },
   },
   ...signalLogicDe,
 };
@@ -202,5 +274,7 @@ i18n.use(initReactI18next).init({
     escapeValue: false,
   },
 });
+
+document.documentElement.lang = savedLang;
 
 export default i18n;

@@ -1,7 +1,6 @@
 import {
   Group,
   SegmentedControl,
-  Text,
 } from "@mantine/core";
 import { useTranslation } from "react-i18next";
 
@@ -27,7 +26,6 @@ function normalizeLanguage(
 
 export default function LanguageSwitcher() {
   const {
-    t,
     i18n,
   } = useTranslation();
 
@@ -61,13 +59,6 @@ export default function LanguageSwitcher() {
       gap="xs"
       wrap="nowrap"
     >
-      {/* <Text
-        size="xs"
-        c="dimmed"
-      >
-        {t("settings.language")}
-      </Text> */}
-
       <SegmentedControl
         size="xs"
         value={currentLanguage}
