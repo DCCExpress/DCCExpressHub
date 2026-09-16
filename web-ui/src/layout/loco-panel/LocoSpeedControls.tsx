@@ -5,6 +5,7 @@ type LocoSpeedControlsProps = {
   maxSpeed: number;
   disabled?: boolean;
   onSpeedChange: (speed: number) => void;
+  onSpeedChangeEnd: (speed: number) => void;
   onSpeedPercentChange: (percent: number) => void;
 };
 
@@ -22,6 +23,7 @@ export default function LocoSpeedControls({
   maxSpeed,
   disabled = false,
   onSpeedChange,
+  onSpeedChangeEnd,
   onSpeedPercentChange,
 }: LocoSpeedControlsProps) {
   return (
@@ -32,6 +34,7 @@ export default function LocoSpeedControls({
           max={maxSpeed}
           value={speed}
           onChange={onSpeedChange}
+          onChangeEnd={onSpeedChangeEnd}
           label={null}
           disabled={disabled}
         />

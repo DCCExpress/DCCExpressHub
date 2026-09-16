@@ -26,6 +26,9 @@ type LocoPanelProps = {
 const SELECTED_LOCO_STORAGE_KEY =
   "dcc-express.loco-panel.selected-loco-id";
 
+const SPEED_SEND_THROTTLE_MS = 75;
+const SPEED_FEEDBACK_TIMEOUT_MS = 1000;
+
 function functionsMaskToRecord(mask: number): Record<number, boolean> {
   const result: Record<number, boolean> = {};
   const normalized = mask >>> 0;
@@ -56,6 +59,30 @@ export default function LocoPanel({
   const currentAddressRef =
     useRef<number | null>(null);
 
+  const currentDirectionRef =
+    useRef<Direction>("forward");
+
+  const aliveRef =
+    useRef(false);
+
+  const speedDraggingRef =
+    useRef(false);
+
+  const pendingSpeedRef =
+    useRef<number | null>(null);
+
+  const queuedSpeedRef =
+    useRef<number | null>(null);
+
+  const speedSendTimerRef =
+    useRef<number | null>(null);
+
+  const speedFeedbackTimerRef =
+    useRef<number | null>(null);
+
+  const lastSpeedSendAtRef =
+    useRef(0);
+
   const [pickerOpened, setPickerOpened] =
     useState(false);
 
@@ -79,12 +106,127 @@ export default function LocoPanel({
   const fitContainerRef = useRef<HTMLDivElement>(null);
   const fitContentRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    aliveRef.current = alive;
+  }, [alive]);
+
+  const clearSpeedTimers = useCallback(() => {
+    if (speedSendTimerRef.current !== null) {
+      window.clearTimeout(speedSendTimerRef.current);
+      speedSendTimerRef.current = null;
+    }
+
+    if (speedFeedbackTimerRef.current !== null) {
+      window.clearTimeout(speedFeedbackTimerRef.current);
+      speedFeedbackTimerRef.current = null;
+    }
+  }, []);
+
+  const clearSpeedControlState = useCallback(() => {
+    clearSpeedTimers();
+    speedDraggingRef.current = false;
+    pendingSpeedRef.current = null;
+    queuedSpeedRef.current = null;
+    lastSpeedSendAtRef.current = 0;
+  }, [clearSpeedTimers]);
+
   const clearRuntimeState = useCallback(() => {
+    clearSpeedControlState();
     setSpeed(0);
     setDirection("forward");
+    currentDirectionRef.current = "forward";
     setActiveFunctions({});
     setReservation(null);
+  }, [clearSpeedControlState]);
+
+  const armSpeedFeedbackFailSafe = useCallback(() => {
+    if (speedFeedbackTimerRef.current !== null) {
+      window.clearTimeout(speedFeedbackTimerRef.current);
+    }
+
+    speedFeedbackTimerRef.current = window.setTimeout(() => {
+      pendingSpeedRef.current = null;
+      speedFeedbackTimerRef.current = null;
+    }, SPEED_FEEDBACK_TIMEOUT_MS);
   }, []);
+
+  const sendSpeedCommand = useCallback(
+    (nextSpeed: number) => {
+      const address = currentAddressRef.current;
+
+      if (address === null || !aliveRef.current) {
+        return;
+      }
+
+      pendingSpeedRef.current = nextSpeed;
+      lastSpeedSendAtRef.current = performance.now();
+
+      wsApi.setLoco(
+        address,
+        nextSpeed,
+        currentDirectionRef.current
+      );
+
+      armSpeedFeedbackFailSafe();
+    },
+    [armSpeedFeedbackFailSafe]
+  );
+
+  const cancelQueuedSpeedSend = useCallback(() => {
+    queuedSpeedRef.current = null;
+
+    if (speedSendTimerRef.current !== null) {
+      window.clearTimeout(speedSendTimerRef.current);
+      speedSendTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleThrottledSpeedSend = useCallback(
+    (nextSpeed: number) => {
+      queuedSpeedRef.current = nextSpeed;
+
+      if (speedSendTimerRef.current !== null) {
+        return;
+      }
+
+      const elapsed =
+        performance.now() - lastSpeedSendAtRef.current;
+
+      const delay = Math.max(
+        0,
+        SPEED_SEND_THROTTLE_MS - elapsed
+      );
+
+      if (delay === 0) {
+        const queued = queuedSpeedRef.current;
+        queuedSpeedRef.current = null;
+
+        if (queued !== null) {
+          sendSpeedCommand(queued);
+        }
+
+        return;
+      }
+
+      speedSendTimerRef.current = window.setTimeout(() => {
+        speedSendTimerRef.current = null;
+
+        const queued = queuedSpeedRef.current;
+        queuedSpeedRef.current = null;
+
+        if (queued !== null) {
+          sendSpeedCommand(queued);
+        }
+      }, delay);
+    },
+    [sendSpeedCommand]
+  );
+
+  useEffect(() => {
+    return () => {
+      clearSpeedTimers();
+    };
+  }, [clearSpeedTimers]);
 
   const requestCurrentLocoState = useCallback(() => {
     const address = currentAddressRef.current;
@@ -200,7 +342,35 @@ export default function LocoPanel({
           return;
         }
 
-        setSpeed(loco.speed);
+        const pendingSpeed =
+          pendingSpeedRef.current;
+
+        if (!speedDraggingRef.current) {
+          if (
+            pendingSpeed === null ||
+            loco.speed === pendingSpeed
+          ) {
+            if (
+              pendingSpeed !== null &&
+              loco.speed === pendingSpeed
+            ) {
+              pendingSpeedRef.current = null;
+
+              if (
+                speedFeedbackTimerRef.current !== null
+              ) {
+                window.clearTimeout(
+                  speedFeedbackTimerRef.current
+                );
+                speedFeedbackTimerRef.current = null;
+              }
+            }
+
+            setSpeed(loco.speed);
+          }
+        }
+
+        currentDirectionRef.current = loco.direction;
         setDirection(loco.direction);
 
         setActiveFunctions(
@@ -248,13 +418,41 @@ export default function LocoPanel({
       return;
     }
 
+    speedDraggingRef.current = false;
+    cancelQueuedSpeedSend();
+
+    setSpeed(nextSpeed);
+    sendSpeedCommand(nextSpeed);
+  };
+
+  const handleSliderSpeedChange = (
+    nextSpeed: number
+  ) => {
+    if (!currentLoco || controlsDisabled) {
+      return;
+    }
+
+    speedDraggingRef.current = true;
+    setSpeed(nextSpeed);
+    scheduleThrottledSpeedSend(nextSpeed);
+  };
+
+  const handleSliderSpeedChangeEnd = (
+    nextSpeed: number
+  ) => {
+    if (!currentLoco || controlsDisabled) {
+      return;
+    }
+
+    speedDraggingRef.current = false;
+    cancelQueuedSpeedSend();
+
     setSpeed(nextSpeed);
 
-    wsApi.setLoco(
-      currentLoco.address,
-      nextSpeed,
-      direction
-    );
+    // Always send the final slider position immediately.
+    // This guarantees that the command station receives the exact
+    // value shown by the UI even if the last throttled update was older.
+    sendSpeedCommand(nextSpeed);
   };
 
   const setLocoSpeedByPercent = (
@@ -286,6 +484,7 @@ export default function LocoPanel({
       return;
     }
 
+    currentDirectionRef.current = "forward";
     setDirection("forward");
 
     wsApi.setLoco(
@@ -300,6 +499,7 @@ export default function LocoPanel({
       return;
     }
 
+    currentDirectionRef.current = "reverse";
     setDirection("reverse");
 
     wsApi.setLoco(
@@ -314,13 +514,7 @@ export default function LocoPanel({
       return;
     }
 
-    setSpeed(0);
-
-    wsApi.setLoco(
-      currentLoco.address,
-      0,
-      direction
-    );
+    setLocoSpeed(0);
   };
 
   const handleEmergencyToggle = () => {
@@ -581,7 +775,10 @@ export default function LocoPanel({
                 onOpenPicker={() =>
                   setPickerOpened(true)
                 }
-                onSpeedChange={setLocoSpeed}
+                onSpeedChange={handleSliderSpeedChange}
+                onSpeedChangeEnd={
+                  handleSliderSpeedChangeEnd
+                }
                 onSpeedPercentChange={
                   setLocoSpeedByPercent
                 }
@@ -641,7 +838,12 @@ export default function LocoPanel({
                     onOpenPicker={() =>
                       setPickerOpened(true)
                     }
-                    onSpeedChange={setLocoSpeed}
+                    onSpeedChange={
+                      handleSliderSpeedChange
+                    }
+                    onSpeedChangeEnd={
+                      handleSliderSpeedChangeEnd
+                    }
                     onSpeedPercentChange={
                       setLocoSpeedByPercent
                     }

@@ -20,6 +20,7 @@ type LocoControlCardProps = {
   controlsDisabled?: boolean;
   onOpenPicker: () => void;
   onSpeedChange: (speed: number) => void;
+  onSpeedChangeEnd: (speed: number) => void;
   onSpeedPercentChange: (percent: number) => void;
   onForward: () => void;
   onReverse: () => void;
@@ -37,6 +38,7 @@ export default function LocoControlCard({
   controlsDisabled = false,
   onOpenPicker,
   onSpeedChange,
+  onSpeedChangeEnd,
   onSpeedPercentChange,
   onForward,
   onReverse,
@@ -134,8 +136,6 @@ export default function LocoControlCard({
           </Title>
         </Badge>
 
-       
-
         {!alive && (
           <Badge color="red" variant="light">
             {t("common.offline")}
@@ -147,6 +147,7 @@ export default function LocoControlCard({
           maxSpeed={loco.maxSpeed || 100}
           disabled={controlsDisabled}
           onSpeedChange={onSpeedChange}
+          onSpeedChangeEnd={onSpeedChangeEnd}
           onSpeedPercentChange={
             onSpeedPercentChange
           }
