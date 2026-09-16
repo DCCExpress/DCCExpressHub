@@ -1,5 +1,7 @@
-import { useTranslation } from "react-i18next";
+import { showNotification } from "@mantine/notifications";
 import i18next from "i18next";
+import { useTranslation } from "react-i18next";
+
 import type { Loco } from "@domain/types";
 import type { BlockElement } from "../../models/editor/elements/BlockElement";
 import {
@@ -15,6 +17,16 @@ export type TrackCanvasBlockLocoPickerProps = {
   onClose: () => void;
 };
 
+function showDisconnectedNotification(): void {
+  showNotification({
+    color: "red",
+    title: "WebSocket",
+    message: i18next.t(
+      "ui.wsLost"
+    ),
+  });
+}
+
 export function TrackCanvasBlockLocoPicker({
   opened,
   locos,
@@ -22,13 +34,15 @@ export function TrackCanvasBlockLocoPicker({
   onClose,
 }: TrackCanvasBlockLocoPickerProps) {
   useTranslation();
-  const selectedLocoId = selectedBlock?.locoAddress
-    ? locos.find(
-        loco =>
-          loco.address ===
-          selectedBlock.locoAddress
-      )?.id || ""
-    : "";
+
+  const selectedLocoId =
+    selectedBlock?.locoAddress
+      ? locos.find(
+          loco =>
+            loco.address ===
+            selectedBlock.locoAddress
+        )?.id || ""
+      : "";
 
   return (
     <LocoPicker
@@ -38,8 +52,16 @@ export function TrackCanvasBlockLocoPicker({
       title={
         selectedBlock?.name &&
         selectedBlock.name !== "element"
-          ? i18next.t("ui.block", { value1: selectedBlock.name })
-          : i18next.t("ui.assignLocomotiveToBlock")
+          ? i18next.t(
+              "ui.block",
+              {
+                value1:
+                  selectedBlock.name,
+              }
+            )
+          : i18next.t(
+              "ui.assignLocomotiveToBlock"
+            )
       }
       onClose={onClose}
       onSelect={loco => {
@@ -53,8 +75,26 @@ export function TrackCanvasBlockLocoPicker({
           );
 
         /*
-         * A manual locomotive assignment replaces every temporary target
-         * state for this block.
+         * Do not destroy the local visual target state until the command is
+         * actually queued to the WebSocket. Previously the picker closed even
+         * when wsClient.send() returned false, which made a failed assignment
+         * look like a successful click.
+         */
+        const sent =
+          wsApi.setBlock(
+            blockId,
+            loco.id,
+            loco.address
+          );
+
+        if (!sent) {
+          showDisconnectedNotification();
+          return;
+        }
+
+        /*
+         * A manual locomotive assignment replaces every temporary target state
+         * for this block.
          */
         clearOptimisticBlockTargetLoco(
           blockId
@@ -63,13 +103,13 @@ export function TrackCanvasBlockLocoPicker({
         selectedBlock.runtimeTransitLocoAddress =
           0;
 
-        // WS compatibility boundary remains a decimal string. The layout model
-        // itself keeps a numeric uint16-style ID.
-        wsApi.setBlock(
-          blockId,
-          loco.id,
-          loco.address
-        );
+        /*
+         * The Hub's blockStateChanged broadcast is authoritative. Request a
+         * snapshot as well so a missed/delayed broadcast cannot leave the
+         * canvas stale. WebSocket frames are ordered, therefore getBlocks is
+         * processed after the setBlock command.
+         */
+        wsApi.getBlocks();
 
         onClose();
       }}
@@ -84,26 +124,20 @@ export function TrackCanvasBlockLocoPicker({
           );
 
         /*
-         * Manual "remove locomotive" means EMPTY THIS BLOCK.
-         *
-         * Do not send a resolved locoId here. The picker can be opened while
-         * the local locomotive list and Hub runtime snapshot are briefly out
-         * of sync, and then the resolved ID may be empty/stale.
-         *
-         * null tells the Hub to clear the block unconditionally. This also
-         * clears a target-loco marker if that is what remained in the central
-         * block runtime.
+         * null means EMPTY THIS BLOCK unconditionally. Do not depend on a
+         * possibly stale locally resolved locoId.
          */
-        wsApi.setBlockRemove(
-          blockId,
-          null
-        );
+        const sent =
+          wsApi.setBlockRemove(
+            blockId,
+            null
+          );
 
-        /*
-         * Also clear the browser-side target cache immediately. The Hub's
-         * following blockStateChanged broadcast remains authoritative and
-         * synchronizes every connected client.
-         */
+        if (!sent) {
+          showDisconnectedNotification();
+          return;
+        }
+
         clearOptimisticBlockTargetLoco(
           blockId
         );
@@ -113,6 +147,12 @@ export function TrackCanvasBlockLocoPicker({
 
         selectedBlock.runtimeTransitLocoAddress =
           0;
+
+        /*
+         * Ask the Hub for its final authoritative state. This also corrects
+         * the optimistic local clear if the Hub rejects the operation.
+         */
+        wsApi.getBlocks();
 
         onClose();
       }}

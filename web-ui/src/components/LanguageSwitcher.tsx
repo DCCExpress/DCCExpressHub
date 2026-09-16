@@ -41,16 +41,43 @@ export default function LanguageSwitcher() {
     const nextLanguage =
       normalizeLanguage(language);
 
+    if (
+      nextLanguage ===
+      currentLanguage
+    ) {
+      return;
+    }
+
+    /*
+     * Language switching is an application-boundary operation.
+     *
+     * Do not call i18n.changeLanguage() here. A live language change would
+     * re-run mounted React effects/callback dependencies that were never meant
+     * to reload layout/runtime data. A clean page reload preserves the selected
+     * language while rebuilding the application from one consistent state.
+     *
+     * This is intentionally conservative for the alpha firmware/UI.
+     */
     localStorage.setItem(
       "lang",
       nextLanguage
     );
 
-    document.documentElement.lang =
-      nextLanguage;
+    const url =
+      new URL(
+        window.location.href
+      );
 
-    void i18n.changeLanguage(
-      nextLanguage
+    /*
+     * A stale ?lang=... query parameter has priority in i18n.ts, so remove it
+     * before reloading. The persisted localStorage value becomes authoritative.
+     */
+    url.searchParams.delete(
+      "lang"
+    );
+
+    window.location.replace(
+      url.toString()
     );
   };
 
