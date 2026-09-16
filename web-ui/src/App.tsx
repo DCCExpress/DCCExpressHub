@@ -66,6 +66,7 @@ import DeviceConfigurationPage, {
   type DeviceConfigurationDocument,
 } from "./DeviceConfigurationPage";
 import { useCommandCenter } from "./context/CommandCenterContext";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
 
 const LiteLayoutPage = lazy(() => import("./LiteLayoutPage"));
 const RuntimeLayoutOverlay = lazy(() => import("./RuntimeLayoutOverlay"));
@@ -256,6 +257,7 @@ function HomePage({
           <Text c="dimmed">
             Control locomotives, operate the layout and configure the EX-CSB1.
           </Text>
+           <LanguageSwitcher />
         </Stack>
       </Card>
 
