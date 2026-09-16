@@ -148,20 +148,49 @@ test("layout and topology use the same railway classes and exclude buttons from 
 
 // SHA-256 hashes of recorded canvas calls captured before the hierarchy refactor.
 // Cover all 15 railway shapes, eight rotations and two occupancy/turnout states.
-const drawingBaseline = JSON.parse(await readFile(new URL("./fixtures/element-drawing.json", import.meta.url), "utf8"));
+const drawingBaseline = JSON.parse(
+  await readFile(
+    new URL("./fixtures/element-drawing.json", import.meta.url),
+    "utf8"
+  )
+);
+
 for (const [name, hashes] of Object.entries(drawingBaseline)) {
   test(`${name}: canvas output matches the pre-refactor baseline`, () => {
     const Class = classes.get(name);
     let index = 0;
+
     for (const rotation of [0, 45, 90, 135, 180, 225, 270, 315]) {
       const element = new Class(2, 3);
       element.rotation = rotation;
+
       for (const occupied of [false, true]) {
-        Object.assign(element, { occupied, turnoutClosed: occupied, turnout1Closed: occupied, turnout2Closed: occupied });
+        Object.assign(element, {
+          occupied,
+          turnoutClosed: occupied,
+          turnout1Closed: occupied,
+          turnout2Closed: occupied,
+        });
+
         const { ctx, calls } = recordingCanvas();
-        element.draw(ctx, { locos: [], showOccupancySensorAddress: true, showSensorAddress: true, showSignalAddress: true, showTurnoutAddress: true });
-        const hash = createHash("sha256").update(JSON.stringify(calls)).digest("hex");
-        assert.equal(hash, hashes[index++], `rotation=${rotation}, occupied=${occupied}`);
+
+        element.draw(ctx, {
+          locos: [],
+          showOccupancySensorAddress: true,
+          showSensorAddress: true,
+          showSignalAddress: true,
+          showTurnoutAddress: true,
+        });
+
+        const hash = createHash("sha256")
+          .update(JSON.stringify(calls))
+          .digest("hex");
+
+        assert.equal(
+          hash,
+          hashes[index++],
+          `rotation=${rotation}, occupied=${occupied}`
+        );
       }
     }
   });

@@ -216,7 +216,7 @@ export default function TrackCanvas({
   };
 
   const openDoubleTurnoutPopover = (
-    turnout: TrackTurnoutDoubleElement,
+    turnout: TrackTurnoutDoubleElement | TrackTurnoutThreeWayElement,
     clientX: number,
     clientY: number
   ) => {
@@ -233,7 +233,7 @@ export default function TrackCanvas({
   };
 
   const reopenDoubleTurnoutPopover = (
-    turnout: TrackTurnoutDoubleElement,
+    turnout: TrackTurnoutDoubleElement | TrackTurnoutThreeWayElement,
     clientX: number,
     clientY: number
   ) => {
