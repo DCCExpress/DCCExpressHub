@@ -11,6 +11,7 @@ import type { BaseElement } from "../../models/editor/core/BaseElement";
 import type { IEditableProperty } from "../../models/editor/elements/PropertyDescriptor";
 import AudioFilePropertyEditor from "./AudioFilePropertyEditor";
 import type { PropertyChangeHandler } from "./propertyPanelTypes";
+import { useTranslation } from "react-i18next";
 
 const DEFAULT_COLORS = [
   "#000000",
