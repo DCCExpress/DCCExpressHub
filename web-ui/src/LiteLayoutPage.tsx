@@ -34,6 +34,7 @@ import {
   IconTrain,
   IconTrash,
   IconUpload,
+  IconSeparator,
 } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { showNotification } from "@mantine/notifications";
@@ -845,6 +846,19 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
     "--lite-property-width": propertyPanelCollapsed ? "0px" : `${propertyPanelWidth}px`,
   } as CSSProperties;
 
+  const overloadedTracks =
+    ((dccExStatus as any)?.tracks ?? [])
+      .filter((track: any) => Boolean(track.overload));
+
+  const anyTrackOverload =
+    overloadedTracks.length > 0;
+
+  const overloadedTrackNames =
+    overloadedTracks
+      .map((track: any) => track.letter)
+      .join(", ");
+
+
   return (
     <Stack gap={6} className="lite-layout-page">
       <input
@@ -1069,15 +1083,38 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
             >
               {wsStatus === "connected" ? "WS" : wsStatus === "reconnecting" ? "WS RETRY" : "WS LOST"}
             </Badge>
+
+            <Divider orientation="vertical" />
+
             <Badge
               size="sm"
               variant="light"
               color={commandCenter.powerInfo?.emergencyStop ? "red" : "gray"}
-              onClick={() => commandCenter.powerInfo?.emergencyStop ? wsApi.powerOn() : wsApi.emergencyStop()}
-              className={`lite-status-action${commandCenter.powerInfo?.emergencyStop ? " blinkBadge" : ""}`}
+              onClick={() => wsApi.emergencyStop()}
+              className={`lite-status-action${commandCenter.powerInfo?.emergencyStop
+                  ? " blinkBadge"
+                  : ""
+                }`}
             >
               ESTOP
             </Badge>
+            <Divider orientation="vertical" />
+            <Badge
+              size="sm"
+              variant={anyTrackOverload ? "filled" : "light"}
+              color={anyTrackOverload ? "red" : "gray"}
+              className={anyTrackOverload ? "blinkBadge" : ""}
+              title={
+                anyTrackOverload
+                  ? `OVERLOAD: Track ${overloadedTrackNames}`
+                  : "No track overload"
+              }
+            >
+              OVERLOAD
+            </Badge>
+
+            <Divider orientation="vertical" />
+
             <Badge style={{ display: "none" }} size="sm" variant="light" color={commandCenter.locked ? "orange" : "gray"}>{commandCenter.locked ? "LOCK" : "FREE"}</Badge>
             <ActionIcon
               size="sm"
