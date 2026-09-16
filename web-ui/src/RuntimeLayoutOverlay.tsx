@@ -206,7 +206,7 @@ export default function RuntimeLayoutOverlay({ locos, open }: RuntimeLayoutOverl
           className={commandCenter.powerInfo?.emergencyStop ? "blinkBadge" : ""}
           aria-label={commandCenter.powerInfo?.emergencyStop ? "Clear emergency stop" : "Emergency stop"}
           title={commandCenter.powerInfo?.emergencyStop ? "Clear emergency stop" : "Emergency stop"}
-          onClick={() => commandCenter.powerInfo?.emergencyStop ? wsApi.powerOn() : wsApi.emergencyStop()}
+          onClick={() => wsApi.emergencyStop()}
         >
           <IconPlayerStop size={27} />
         </ActionIcon>

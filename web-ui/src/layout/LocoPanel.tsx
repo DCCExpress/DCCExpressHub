@@ -522,11 +522,6 @@ export default function LocoPanel({
       return;
     }
 
-    if (powerInfo.emergencyStop) {
-      wsApi.powerOn();
-      return;
-    }
-
     wsApi.emergencyStop();
   };
 
