@@ -12,6 +12,7 @@ import { AudioButtonElement } from "../models/editor/elements/AudioButtonElement
 import { BlockElement } from "../models/editor/elements/BlockElement";
 import { RouteButtonElement } from "../models/editor/elements/RouteButtonElement";
 import { TrackSignalElement } from "../models/editor/elements/TrackSignalElement";
+import { TrackLevelCrossingElement } from "../models/editor/elements/TrackLevelCrossingElement";
 import { EditorTool } from "../models/editor/types/EditorTypes";
 import { subscribeCanvasImageCache } from "../models/editor/rendering/ImageCache";
 import { useCommandCenter } from "../context/CommandCenterContext";
@@ -160,6 +161,24 @@ export default function TrackCanvas({
   const doubleTurnoutPopoverRef = useRef(doubleTurnoutPopover);
   const commandCenterRef = useRef(commandCenter);
   const pressedClickableRef = useRef<BaseElement | null>(null);
+
+  // Runtime popup taps are tracked from pointerdown to pointerup.
+  // This prevents a small finger movement from re-hit-testing another element
+  // and prevents the same tap from falling through into a newly opened popup.
+  const pendingRuntimePopupTapRef = useRef<{
+    pointerId: number;
+    element:
+      | TrackSignalElement
+      | TrackTurnoutDoubleElement
+      | TrackTurnoutThreeWayElement;
+    startX: number;
+    startY: number;
+    moved: boolean;
+  } | null>(null);
+
+  // Some mobile browsers still emit compatibility mouse events after touch.
+  // Ignore those briefly so a touch cannot also execute the desktop mouse path.
+  const suppressMouseUntilRef = useRef(0);
 
   const requestDraw = useCallback(() => {
     if (drawRafRef.current !== null) {
@@ -360,6 +379,32 @@ export default function TrackCanvas({
       invalidate();
     });
   }, [invalidate]);
+
+  // Level-crossing lamps use Date.now() to calculate their blink phase.
+  // The canvas itself is otherwise event-driven, so without a periodic redraw
+  // the mobile runtime view only appears to blink when some unrelated runtime
+  // event (for example sensorSnapshot) happens.
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const needsBlinkRedraw =
+        layoutRef.current
+          .getAllElements()
+          .some(
+            element =>
+              element instanceof TrackLevelCrossingElement &&
+              element.lightsEnabled &&
+              element.blinkingEnabled
+          );
+
+      if (needsBlinkRedraw) {
+        requestDraw();
+      }
+    }, 225);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [requestDraw]);
 
   useEffect(() => {
     invalidate();
@@ -636,6 +681,12 @@ export default function TrackCanvas({
     };
 
     const handleMouseDown = (ev: MouseEvent) => {
+      if (Date.now() < suppressMouseUntilRef.current) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        return;
+      }
+
       handleTrackCanvasMouseDown(ev, {
         canvas,
         layoutRef,
@@ -704,6 +755,12 @@ export default function TrackCanvas({
     };
 
     const handleMouseUp = (ev: MouseEvent) => {
+      if (Date.now() < suppressMouseUntilRef.current) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        return;
+      }
+
       if (!editModeRef.current && ev.button === 0) {
         const rect = canvas.getBoundingClientRect();
         const mouseX = ev.clientX - rect.left;
@@ -738,6 +795,15 @@ export default function TrackCanvas({
       if (ev.pointerType !== "touch") return;
 
       ev.preventDefault();
+      ev.stopPropagation();
+      suppressMouseUntilRef.current = Date.now() + 1000;
+
+      if (
+        pendingRuntimePopupTapRef.current &&
+        pendingRuntimePopupTapRef.current.pointerId !== ev.pointerId
+      ) {
+        pendingRuntimePopupTapRef.current = null;
+      }
 
       const currentLayout = layoutRef.current;
       const currentTool = toolRef.current;
@@ -793,9 +859,20 @@ export default function TrackCanvas({
             closeDoubleTurnoutPopover();
           }
 
-          // Mobile runtime popups are opened on pointerup, after the original
-          // tap has completely finished. Opening here on pointerdown lets the
-          // same tap fall through into the freshly mounted popup.
+          pendingRuntimePopupTapRef.current = {
+            pointerId: ev.pointerId,
+            element: hitElement,
+            startX: mouseX,
+            startY: mouseY,
+            moved: false,
+          };
+
+          try {
+            canvas.setPointerCapture(ev.pointerId);
+          } catch {
+            // ignore
+          }
+
           return;
         }
 
@@ -807,8 +884,20 @@ export default function TrackCanvas({
             closeSignalAspectPopover();
           }
 
-          // Open on pointerup so the tap that selected the turnout cannot also
-          // activate a button inside the popup that appears under the finger.
+          pendingRuntimePopupTapRef.current = {
+            pointerId: ev.pointerId,
+            element: hitElement,
+            startX: mouseX,
+            startY: mouseY,
+            moved: false,
+          };
+
+          try {
+            canvas.setPointerCapture(ev.pointerId);
+          } catch {
+            // ignore
+          }
+
           return;
         }
 
@@ -882,11 +971,30 @@ export default function TrackCanvas({
     const handlePointerMove = (ev: PointerEvent) => {
       if (ev.pointerType !== "touch") return;
 
+      suppressMouseUntilRef.current = Date.now() + 1000;
+
       const rect = canvas.getBoundingClientRect();
       const mouseX = ev.clientX - rect.left;
       const mouseY = ev.clientY - rect.top;
 
       touchPointsRef.current.set(ev.pointerId, { x: mouseX, y: mouseY });
+
+      const pendingPopupTap = pendingRuntimePopupTapRef.current;
+      if (
+        pendingPopupTap &&
+        pendingPopupTap.pointerId === ev.pointerId
+      ) {
+        const dx = mouseX - pendingPopupTap.startX;
+        const dy = mouseY - pendingPopupTap.startY;
+
+        if (Math.hypot(dx, dy) > 12) {
+          pendingPopupTap.moved = true;
+        }
+
+        ev.preventDefault();
+        ev.stopPropagation();
+        return;
+      }
 
       const currentLayout = layoutRef.current;
       const grid = screenToGrid(
@@ -953,6 +1061,103 @@ export default function TrackCanvas({
     const handlePointerUp = (ev: PointerEvent) => {
       if (ev.pointerType !== "touch") return;
 
+      ev.preventDefault();
+      ev.stopPropagation();
+      suppressMouseUntilRef.current = Date.now() + 1000;
+
+      const pendingPopupTap = pendingRuntimePopupTapRef.current;
+
+      if (
+        pendingPopupTap &&
+        pendingPopupTap.pointerId === ev.pointerId
+      ) {
+        pendingRuntimePopupTapRef.current = null;
+        touchPointsRef.current.delete(ev.pointerId);
+
+        pointerPanRef.current.activePointerId = null;
+        pointerPanRef.current.isTouchPanning = false;
+        panRef.current.isPanning = false;
+
+        try {
+          canvas.releasePointerCapture(ev.pointerId);
+        } catch {
+          // ignore
+        }
+
+        if (!pendingPopupTap.moved) {
+          const popupElement = pendingPopupTap.element;
+          const popupClientX = ev.clientX;
+          const popupClientY = ev.clientY;
+
+          // Wait until the browser has finished the complete tap/click
+          // compatibility sequence. The popup must not exist while that
+          // originating gesture is still being dispatched.
+          window.setTimeout(() => {
+            if (!mountedRef.current) {
+              return;
+            }
+
+            if (popupElement instanceof TrackSignalElement) {
+              if (doubleTurnoutPopoverRef.current.opened) {
+                closeDoubleTurnoutPopover();
+              }
+
+              if (signalAspectPopoverRef.current.opened) {
+                reopenSignalAspectPopover(
+                  popupElement,
+                  popupClientX,
+                  popupClientY
+                );
+              } else {
+                openSignalAspectPopover(
+                  popupElement,
+                  popupClientX,
+                  popupClientY
+                );
+              }
+
+              return;
+            }
+
+            if (signalAspectPopoverRef.current.opened) {
+              closeSignalAspectPopover();
+            }
+
+            const currentRect = canvas.getBoundingClientRect();
+            const turnoutBounds = popupElement.getBounds();
+
+            const turnoutCenterWorldX =
+              (
+                turnoutBounds.x +
+                turnoutBounds.width / 2
+              ) *
+              layoutRef.current.gridSize;
+
+            const turnoutCenterClientX =
+              currentRect.left +
+              viewRef.current.offsetX +
+              turnoutCenterWorldX *
+                viewRef.current.scale;
+
+            if (doubleTurnoutPopoverRef.current.opened) {
+              reopenDoubleTurnoutPopover(
+                popupElement,
+                turnoutCenterClientX,
+                popupClientY
+              );
+            } else {
+              openDoubleTurnoutPopover(
+                popupElement,
+                turnoutCenterClientX,
+                popupClientY
+              );
+            }
+          }, 50);
+        }
+
+        return;
+      }
+
       const rect = canvas.getBoundingClientRect();
 
       if (!editModeRef.current) {
@@ -965,63 +1170,7 @@ export default function TrackCanvas({
           layoutRef.current.gridSize
         );
         const hitElement = layoutRef.current.getElement(grid.x, grid.y);
-
-        if (hitElement instanceof TrackSignalElement) {
-          if (doubleTurnoutPopoverRef.current.opened) {
-            closeDoubleTurnoutPopover();
-          }
-
-          if (signalAspectPopoverRef.current.opened) {
-            reopenSignalAspectPopover(
-              hitElement,
-              ev.clientX,
-              ev.clientY
-            );
-          } else {
-            openSignalAspectPopover(
-              hitElement,
-              ev.clientX,
-              ev.clientY
-            );
-          }
-        } else if (
-          hitElement instanceof TrackTurnoutDoubleElement ||
-          hitElement instanceof TrackTurnoutThreeWayElement
-        ) {
-          if (signalAspectPopoverRef.current.opened) {
-            closeSignalAspectPopover();
-          }
-
-          const turnoutBounds = hitElement.getBounds();
-          const turnoutCenterWorldX =
-            (
-              turnoutBounds.x +
-              turnoutBounds.width / 2
-            ) *
-            layoutRef.current.gridSize;
-
-          const turnoutCenterClientX =
-            rect.left +
-            viewRef.current.offsetX +
-            turnoutCenterWorldX *
-              viewRef.current.scale;
-
-          if (doubleTurnoutPopoverRef.current.opened) {
-            reopenDoubleTurnoutPopover(
-              hitElement,
-              turnoutCenterClientX,
-              ev.clientY
-            );
-          } else {
-            openDoubleTurnoutPopover(
-              hitElement,
-              turnoutCenterClientX,
-              ev.clientY
-            );
-          }
-        } else {
-          handleClickableUp(hitElement, ev);
-        }
+        handleClickableUp(hitElement, ev);
       }
 
       touchPointsRef.current.delete(ev.pointerId);
@@ -1067,6 +1216,14 @@ export default function TrackCanvas({
 
     const handlePointerCancel = (ev: PointerEvent) => {
       if (ev.pointerType !== "touch") return;
+
+      suppressMouseUntilRef.current = Date.now() + 1000;
+
+      if (
+        pendingRuntimePopupTapRef.current?.pointerId === ev.pointerId
+      ) {
+        pendingRuntimePopupTapRef.current = null;
+      }
 
       if (pressedClickableRef.current) {
         handleClickableUp(pressedClickableRef.current, ev);

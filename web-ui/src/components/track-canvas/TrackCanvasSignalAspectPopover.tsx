@@ -35,6 +35,7 @@ export function TrackCanvasSignalAspectPopover({
       closeOnClickOutside
       closeOnEscape
       withinPortal
+      zIndex={2100}
       offset={18}
       transitionProps={{
         transition: "scale",
@@ -58,6 +59,9 @@ export function TrackCanvasSignalAspectPopover({
 
       <Popover.Dropdown
         p={4}
+        style={{
+          touchAction: "manipulation",
+        }}
         onPointerDown={event => {
           event.stopPropagation();
         }}
@@ -83,6 +87,9 @@ export function TrackCanvasSignalAspectPopover({
                   <Box
                     key={signalState.id}
                     className="signal-aspect-button"
+                    onPointerDown={event => {
+                      event.stopPropagation();
+                    }}
                     onClick={() => {
                       onClose();
                       signal.sendState(signalState);
