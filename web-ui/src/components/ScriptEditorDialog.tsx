@@ -41,7 +41,8 @@ import type {
   ClientScriptStatus,
 } from "../services/clientScriptRunner";
 
-import AppModal from "./AppModal";
+//import AppModal from "./AppModal";
+import AppModal from "@/components/common/AppModal";
 
 type ScriptEditorDialogProps = {
   opened: boolean;

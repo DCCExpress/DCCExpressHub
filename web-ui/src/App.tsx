@@ -587,7 +587,7 @@ function FilesPage({ onBack }: { onBack: () => void }) {
             </div>
             <Group gap="xs">
               <Button variant="light" leftSection={<IconRefresh size={17} />} disabled={busy} onClick={() => void loadFiles()}>{i18next.t("ui.refresh")}</Button>
-              <Button leftSection={<IconUpload size={17} />} loading={busy} onClick={() => inputRef.current?.click()}>{i18next.t("ui.upload")}</Button>
+              <Button leftSection={<IconUpload size={17} />} loading={busy} disabled={busy || currentPath === "/"} onClick={() => inputRef.current?.click()}>{i18next.t("ui.upload")}</Button>
               <input ref={inputRef} hidden type="file" multiple onChange={event => void uploadFiles(event.currentTarget.files)} />
             </Group>
           </Group>
