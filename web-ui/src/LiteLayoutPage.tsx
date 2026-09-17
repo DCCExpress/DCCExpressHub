@@ -37,6 +37,7 @@ import {
   IconTrash,
   IconUpload,
   IconSeparator,
+  IconBrandGithub,
 } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { showNotification } from "@mantine/notifications";
@@ -955,15 +956,15 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
             <Button size="xs" variant="light" color="teal" leftSection={<IconShieldCheck size={16} />} onClick={() => setIntegrityCheckOpened(true)} title={i18next.t("ui.checkAllProjectReferences")}> {i18next.t("ui.check")} </Button>
             <Button
               component="a"
-              href="https://github.com/DCCExpress/DCCExpressLite/wiki"
+              href="https://github.com/DCCExpress/DCCExpressHub"
               target="_blank"
               rel="noopener noreferrer"
               size="xs"
               variant="light"
               color="blue"
-              leftSection={<IconHelpCircle size={16} />}
-              title={i18next.t("ui.openTheOnlineDccexpressliteDocumentation")}
-            > {i18next.t("ui.help")} </Button>
+              leftSection={<IconBrandGithub  size={16} />}
+              title="GITHUB"
+            > GITHUB </Button>
             <ActionIcon variant={locoPanelCollapsed ? "light" : "filled"} onClick={() => setLocoPanelCollapsed(value => !value)} title={i18next.t("ui.toggleLocomotivePanel")}>
               <IconTrain size={19} />
             </ActionIcon>
