@@ -1,7 +1,14 @@
 import {
+  ActionIcon,
   Group,
   SegmentedControl,
+  useComputedColorScheme,
+  useMantineColorScheme,
 } from "@mantine/core";
+import {
+  IconMoon,
+  IconSun,
+} from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 
 type Language = "en" | "hu" | "de";
@@ -29,6 +36,18 @@ export default function LanguageSwitcher() {
     i18n,
   } = useTranslation();
 
+  const {
+    setColorScheme,
+  } = useMantineColorScheme();
+
+  const colorScheme =
+    useComputedColorScheme(
+      "dark",
+      {
+        getInitialValueInEffect: true,
+      }
+    );
+
   const currentLanguage =
     normalizeLanguage(
       i18n.resolvedLanguage ??
@@ -48,16 +67,6 @@ export default function LanguageSwitcher() {
       return;
     }
 
-    /*
-     * Language switching is an application-boundary operation.
-     *
-     * Do not call i18n.changeLanguage() here. A live language change would
-     * re-run mounted React effects/callback dependencies that were never meant
-     * to reload layout/runtime data. A clean page reload preserves the selected
-     * language while rebuilding the application from one consistent state.
-     *
-     * This is intentionally conservative for the alpha firmware/UI.
-     */
     localStorage.setItem(
       "lang",
       nextLanguage
@@ -68,10 +77,6 @@ export default function LanguageSwitcher() {
         window.location.href
       );
 
-    /*
-     * A stale ?lang=... query parameter has priority in i18n.ts, so remove it
-     * before reloading. The persisted localStorage value becomes authoritative.
-     */
     url.searchParams.delete(
       "lang"
     );
@@ -80,6 +85,19 @@ export default function LanguageSwitcher() {
       url.toString()
     );
   };
+
+  const toggleColorScheme = () => {
+    setColorScheme(
+      colorScheme === "dark"
+        ? "light"
+        : "dark"
+    );
+  };
+
+  const themeTitle =
+    colorScheme === "dark"
+      ? "Light theme"
+      : "Dark theme";
 
   return (
     <Group
@@ -105,6 +123,26 @@ export default function LanguageSwitcher() {
           },
         ]}
       />
+
+      {/* <ActionIcon
+        size="lg"
+        radius="md"
+        variant="light"
+        color={
+          colorScheme === "dark"
+            ? "yellow"
+            : "blue"
+        }
+        aria-label={themeTitle}
+        title={themeTitle}
+        onClick={toggleColorScheme}
+      >
+        {colorScheme === "dark" ? (
+          <IconSun size={18} />
+        ) : (
+          <IconMoon size={18} />
+        )}
+      </ActionIcon> */}
     </Group>
   );
 }
