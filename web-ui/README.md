@@ -1,4 +1,4 @@
-# DCCExpressLite web UI
+# DCCExpressHUB web UI
 
 This directory contains the complete web UI source embedded in the EX-CSB1 firmware. All application code lives under `src/`; it is self-contained and does not require the DCCExpressNext repository.
 
