@@ -33,7 +33,12 @@ test(
 
     assert.match(
       source,
-      /window\.location\.replace/
+      /window\.history\.replaceState/
+    );
+
+    assert.match(
+      source,
+      /window\.location\.reload/
     );
 
     assert.doesNotMatch(

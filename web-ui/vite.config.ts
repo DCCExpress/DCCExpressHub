@@ -11,9 +11,9 @@ export default defineConfig(({ mode }) => {
   const device = mockMode
     ? "http://127.0.0.1:3001"
     : (
-        process.env.DCCEXPRESS_DEVICE_URL?.trim() ||
-        "http://192.168.1.132"
-      );
+      process.env.DCCEXPRESS_DEVICE_URL?.trim() ||
+      "http://192.168.1.132"
+    );
 
   console.log(
     `[DCCExpressHub Vite] mode=${mode} backend=${device}`
@@ -38,58 +38,68 @@ export default defineConfig(({ mode }) => {
       proxy: mode === "demo"
         ? {}
         : {
-            "/api": {
-              target: device,
-              changeOrigin: true,
-              configure(proxy) {
-                proxy.on("proxyReq", (proxyReq, req) => {
-                  console.log(
-                    `[VITE PROXY] ${req.method} ${req.url} -> ${device}`
-                  );
-                });
-              }
-            },
-
-            ...(mockMode
-              ? {
-                  "/help": {
-                    target: device,
-                    changeOrigin: true
-                  }
-                }
-              : {}),
-
-            "/images": {
-              target: device,
-              changeOrigin: true
-            },
-
-            "/upload": {
-              target: device,
-              changeOrigin: true
-            },
-
-            "/delete": {
-              target: device,
-              changeOrigin: true
-            },
-
-            "/list": {
-              target: device,
-              changeOrigin: true
-            },
-
-            "/fsinfo": {
-              target: device,
-              changeOrigin: true
-            },
-
-            "/ws": {
-              target: device.replace(/^http/, "ws"),
-              ws: true,
-              changeOrigin: true
+          "/api": {
+            target: device,
+            changeOrigin: true,
+            configure(proxy) {
+              proxy.on("proxyReq", (proxyReq, req) => {
+                console.log(
+                  `[VITE PROXY] ${req.method} ${req.url} -> ${device}`
+                );
+              });
             }
-          }
+          },
+
+          ...(mockMode
+            ? {
+              "/help": {
+                target: device,
+                changeOrigin: true
+              }
+            }
+            : {}),
+
+          "/images": {
+            target: device,
+            changeOrigin: true
+          },
+
+          "/upload": {
+            target: device,
+            changeOrigin: true
+          },
+
+          "/delete": {
+            target: device,
+            changeOrigin: true
+          },
+
+          "/list": {
+            target: device,
+            changeOrigin: true
+          },
+
+          "/fsinfo": {
+            target: device,
+            changeOrigin: true
+          },
+
+          "/ws": {
+            target: device.replace(/^http/, "ws"),
+            ws: true,
+            changeOrigin: true
+          },
+
+            "/flash": {
+            target: device,
+            changeOrigin: true
+          },
+
+          "/sd": {
+            target: device,
+            changeOrigin: true
+          },
+        }
     },
 
     /*
