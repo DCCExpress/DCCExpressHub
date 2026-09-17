@@ -247,7 +247,6 @@ export default function TrackCanvas({
 
   const setRouteTurnoutsMarked = (rb: RouteButtonElement) => {
     const elems = layoutRef.current.getAllElements();
-
     for (const elem of elems) {
       const isRouteTurnout =
         isTurnoutElement(elem) ||
@@ -794,38 +793,22 @@ export default function TrackCanvas({
             closeDoubleTurnoutPopover();
           }
 
-          if (signalAspectPopoverRef.current.opened) {
-            reopenSignalAspectPopover(hitElement, ev.clientX, ev.clientY);
-          } else {
-            openSignalAspectPopover(hitElement, ev.clientX, ev.clientY);
-          }
-
-          try {
-            canvas.setPointerCapture(ev.pointerId);
-          } catch {
-            // ignore
-          }
-
+          // Mobile runtime popups are opened on pointerup, after the original
+          // tap has completely finished. Opening here on pointerdown lets the
+          // same tap fall through into the freshly mounted popup.
           return;
         }
 
-        if (hitElement instanceof TrackTurnoutDoubleElement) {
+        if (
+          hitElement instanceof TrackTurnoutDoubleElement ||
+          hitElement instanceof TrackTurnoutThreeWayElement
+        ) {
           if (signalAspectPopoverRef.current.opened) {
             closeSignalAspectPopover();
           }
 
-          if (doubleTurnoutPopoverRef.current.opened) {
-            reopenDoubleTurnoutPopover(hitElement, ev.clientX, ev.clientY);
-          } else {
-            openDoubleTurnoutPopover(hitElement, ev.clientX, ev.clientY);
-          }
-
-          try {
-            canvas.setPointerCapture(ev.pointerId);
-          } catch {
-            // ignore
-          }
-
+          // Open on pointerup so the tap that selected the turnout cannot also
+          // activate a button inside the popup that appears under the finger.
           return;
         }
 
@@ -982,7 +965,63 @@ export default function TrackCanvas({
           layoutRef.current.gridSize
         );
         const hitElement = layoutRef.current.getElement(grid.x, grid.y);
-        handleClickableUp(hitElement, ev);
+
+        if (hitElement instanceof TrackSignalElement) {
+          if (doubleTurnoutPopoverRef.current.opened) {
+            closeDoubleTurnoutPopover();
+          }
+
+          if (signalAspectPopoverRef.current.opened) {
+            reopenSignalAspectPopover(
+              hitElement,
+              ev.clientX,
+              ev.clientY
+            );
+          } else {
+            openSignalAspectPopover(
+              hitElement,
+              ev.clientX,
+              ev.clientY
+            );
+          }
+        } else if (
+          hitElement instanceof TrackTurnoutDoubleElement ||
+          hitElement instanceof TrackTurnoutThreeWayElement
+        ) {
+          if (signalAspectPopoverRef.current.opened) {
+            closeSignalAspectPopover();
+          }
+
+          const turnoutBounds = hitElement.getBounds();
+          const turnoutCenterWorldX =
+            (
+              turnoutBounds.x +
+              turnoutBounds.width / 2
+            ) *
+            layoutRef.current.gridSize;
+
+          const turnoutCenterClientX =
+            rect.left +
+            viewRef.current.offsetX +
+            turnoutCenterWorldX *
+              viewRef.current.scale;
+
+          if (doubleTurnoutPopoverRef.current.opened) {
+            reopenDoubleTurnoutPopover(
+              hitElement,
+              turnoutCenterClientX,
+              ev.clientY
+            );
+          } else {
+            openDoubleTurnoutPopover(
+              hitElement,
+              turnoutCenterClientX,
+              ev.clientY
+            );
+          }
+        } else {
+          handleClickableUp(hitElement, ev);
+        }
       }
 
       touchPointsRef.current.delete(ev.pointerId);
