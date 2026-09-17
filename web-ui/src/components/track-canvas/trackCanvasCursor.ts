@@ -44,6 +44,7 @@ import {
 import type {
   EditorTool,
 } from "../../models/editor/types/EditorTypes";
+import { TrackTurnoutThreeWayElement } from "@/models/editor/elements/TrackTurnoutThreeWayElement";
 
 export function isTrackCanvasPointerElement(
   element: BaseElement | null
@@ -52,6 +53,7 @@ export function isTrackCanvasPointerElement(
     element instanceof TrackTurnoutLeftElement ||
     element instanceof TrackTurnoutRightElement ||
     element instanceof TrackTurnoutTwoWayElement ||
+    element instanceof TrackTurnoutThreeWayElement ||
     element instanceof TrackTurnoutDoubleElement ||
     element instanceof TrackSignalElement ||
     element instanceof TrackSensorElement ||

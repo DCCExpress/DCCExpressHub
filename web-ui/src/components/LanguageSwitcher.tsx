@@ -1,20 +1,16 @@
 import {
-  ActionIcon,
   Group,
   SegmentedControl,
-  useComputedColorScheme,
-  useMantineColorScheme,
 } from "@mantine/core";
-import {
-  IconMoon,
-  IconSun,
-} from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 
-type Language = "en" | "hu" | "de";
+type Language =
+  | "en"
+  | "hu"
+  | "de";
 
 function normalizeLanguage(
-  language: string | undefined
+  language: string | null | undefined
 ): Language {
   const code =
     language
@@ -35,18 +31,6 @@ export default function LanguageSwitcher() {
   const {
     i18n,
   } = useTranslation();
-
-  const {
-    setColorScheme,
-  } = useMantineColorScheme();
-
-  const colorScheme =
-    useComputedColorScheme(
-      "dark",
-      {
-        getInitialValueInEffect: true,
-      }
-    );
 
   const currentLanguage =
     normalizeLanguage(
@@ -77,27 +61,24 @@ export default function LanguageSwitcher() {
         window.location.href
       );
 
-    url.searchParams.delete(
-      "lang"
-    );
+    if (
+      url.searchParams.has(
+        "lang"
+      )
+    ) {
+      url.searchParams.delete(
+        "lang"
+      );
 
-    window.location.replace(
-      url.toString()
-    );
+      window.history.replaceState(
+        null,
+        "",
+        url.toString()
+      );
+    }
+
+    window.location.reload();
   };
-
-  const toggleColorScheme = () => {
-    setColorScheme(
-      colorScheme === "dark"
-        ? "light"
-        : "dark"
-    );
-  };
-
-  const themeTitle =
-    colorScheme === "dark"
-      ? "Light theme"
-      : "Dark theme";
 
   return (
     <Group
@@ -123,26 +104,6 @@ export default function LanguageSwitcher() {
           },
         ]}
       />
-
-      {/* <ActionIcon
-        size="lg"
-        radius="md"
-        variant="light"
-        color={
-          colorScheme === "dark"
-            ? "yellow"
-            : "blue"
-        }
-        aria-label={themeTitle}
-        title={themeTitle}
-        onClick={toggleColorScheme}
-      >
-        {colorScheme === "dark" ? (
-          <IconSun size={18} />
-        ) : (
-          <IconMoon size={18} />
-        )}
-      </ActionIcon> */}
     </Group>
   );
 }
