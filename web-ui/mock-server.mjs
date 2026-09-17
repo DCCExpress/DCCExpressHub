@@ -297,8 +297,20 @@ function handleWsMessage(ws, message) {
       return;
 
     case "emergencyStop":
-      state.emergencyStop = true;
-      state.power = false;
+      // Match firmware DCC-EX PAUSE / safe RESUME semantics.
+      state.emergencyStop = !state.emergencyStop;
+
+      // Firmware issues ESTOPALL before RESUME, so mocked locomotives
+      // must not restart at their previous speeds.
+      if (!state.emergencyStop) {
+        for (const loco of state.locos.values()) {
+          if (loco.speed !== 0) {
+            loco.speed = 0;
+            broadcast("locoState", { loco });
+          }
+        }
+      }
+
       broadcast("powerInfo", powerInfo());
       broadcast("dccExStatus", dccStatus());
       return;

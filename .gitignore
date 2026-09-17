@@ -2,33 +2,51 @@
 .pio/
 .pioenvs/
 .piolibdeps/
+
+# IDE / editor
 .vscode/
-.vscode
+.idea/
+*.swp
+*.swo
 
 # Local secrets / machine config
 src/config.h
+include/config.h
 .env
 .env.*
 !.env.example
+!web-ui/.env.demo
 
 # Node / web UI
-web-ui/node_modules/
+node_modules/
 web-ui/dist/
+dist/
 
-# Mock runtime filesystem
+# Mock/runtime generated data
 web-ui/mock-fs/
-
-# OS / editor
-.DS_Store
-Thumbs.db
-*.swp
-*.swo
+data/
 
 # Logs / temp
 *.log
 *.tmp
 
-dist
-data/
-include/config.h
-src/config.h
+# Local backup / patch leftovers
+*.bak
+*.bak.*
+*.backup
+*.backup.*
+*.old
+*.orig
+*.rej
+*.save
+*~
+*.before-*
+*.after-*
+
+# Generated i18n audit output
+web-ui/tools/i18n-audit.json
+web-ui/tools/i18n-strings.txt
+
+# OS
+.DS_Store
+Thumbs.db
