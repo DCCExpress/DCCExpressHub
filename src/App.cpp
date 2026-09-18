@@ -272,6 +272,15 @@ void App::begin() {
     return;
   }
 
+  if (
+      !_commandCenter
+           .beginLocomotiveConfiguration(
+               LittleFS)
+  ) {
+    Logger::warn(
+        "Locomotive direction configuration could not be loaded");
+  }
+
   _runtime.begin(LittleFS);
 
   _stateStore.begin(
@@ -311,7 +320,12 @@ void App::begin() {
           _config,
           _wsProtocol,
           _s88I2c,
-          _signalAutomation));
+          _signalAutomation,
+          [this]() {
+            return
+                _commandCenter
+                    .reloadLocomotiveConfiguration();
+          }));
 
   _apiServer->begin();
 

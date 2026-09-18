@@ -6,6 +6,7 @@
 
 #include "ApiServer.h"
 #include "CompiledCommandCenter.h"
+#include "ConfiguredCommandCenter.h"
 #include "HubConfigStore.h"
 #include "HubDisplay.h"
 #include "LayoutRuntime.h"
@@ -23,7 +24,15 @@ public:
 private:
   HubConfigStore _config;
 
-  CompiledCommandCenter _commandCenter;
+  // Physical protocol driver selected at compile time (DCC-EX or Z21).
+  CompiledCommandCenter _physicalCommandCenter;
+
+  // Logical Hub-facing command center. Applies locomotive configuration
+  // such as invert direction before commands reach the physical driver,
+  // and maps physical feedback back to logical Hub direction.
+  ConfiguredCommandCenter _commandCenter{
+      static_cast<ICommandCenter&>(
+          _physicalCommandCenter)};
 
   LayoutRuntime _runtime;
   RuntimeStateStore _stateStore;

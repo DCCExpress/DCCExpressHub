@@ -4,6 +4,7 @@
 #include <ArduinoJson.h>
 #include <ESPAsyncWebServer.h>
 #include <LittleFS.h>
+#include <functional>
 
 #include "AutomationsEndpoint.h"
 #include "DeviceConfigEndpoint.h"
@@ -29,7 +30,8 @@ public:
       HubConfigStore& config,
       WsProtocol& wsProtocol,
       S88I2CMaster& s88,
-      SignalAutomationEngine& signalAutomation)
+      SignalAutomationEngine& signalAutomation,
+      std::function<bool()> onLocomotivesSaved = {})
       : _server(httpPort),
         _s88(s88),
         _automationsEndpoint(
@@ -47,7 +49,9 @@ public:
         _stateStore(stateStore),
         _config(config),
         _wsProtocol(wsProtocol),
-        _signalAutomation(signalAutomation) {}
+        _signalAutomation(signalAutomation),
+        _onLocomotivesSaved(
+            onLocomotivesSaved) {}
 
   void begin();
 
@@ -78,6 +82,9 @@ private:
   HubConfigStore& _config;
   WsProtocol& _wsProtocol;
   SignalAutomationEngine& _signalAutomation;
+
+  std::function<bool()>
+      _onLocomotivesSaved;
 
   FileStore _files{
       LittleFS};

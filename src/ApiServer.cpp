@@ -663,8 +663,26 @@ void ApiServer::handleLocosBody(
     return;
   }
 
+  if (
+      _onLocomotivesSaved &&
+      !_onLocomotivesSaved()
+  ) {
+    response["ok"] =
+        false;
+
+    response["message"] =
+        "Locomotive configuration committed but runtime reload failed";
+
+    sendJson(
+        request,
+        500,
+        response);
+
+    return;
+  }
+
   Logger::info(
-      "Locomotives saved: " +
+      "Locomotives saved and runtime configuration reloaded: " +
       String(total) +
       " bytes");
 
@@ -698,6 +716,7 @@ void ApiServer::handleSignalLogicBody(
     uint8_t* data,
     size_t len,
     size_t index,
+
     size_t total) {
   if (
       index == 0
@@ -1398,6 +1417,7 @@ void ApiServer::setupApi() {
             !request->hasParam(
                 "path")
         ) {
+
           request->send(
               400,
               "text/plain",
@@ -1748,6 +1768,7 @@ void ApiServer::setupApi() {
 
               break;
           }
+
         }
 
         JsonArray sensors =
