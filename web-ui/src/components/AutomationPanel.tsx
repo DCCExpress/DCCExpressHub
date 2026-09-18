@@ -37,8 +37,9 @@ import {
   IconTrashX,
 } from "@tabler/icons-react";
 
-import type {
-  AutomationScriptDefinition,
+import {
+  saveAutomationScripts,
+  type AutomationScriptDefinition,
 } from "../services/automationApi";
 
 import {
@@ -77,6 +78,9 @@ type ScriptCardProps = {
   onChange: (
     next: AutomationScriptDefinition
   ) => void;
+  onSave: (
+    next: AutomationScriptDefinition
+  ) => Promise<void>;
   onDelete: () => void;
 };
 
@@ -123,6 +127,7 @@ function stateColor(
 function ScriptCard({
   definition,
   onChange,
+  onSave,
   onDelete,
 }: ScriptCardProps) {
   useTranslation();
@@ -555,19 +560,43 @@ function ScriptCard({
             }
             onSave={
               value => {
-                onChange({
+                const next = {
                   ...definition,
                   script:
                     value,
-                });
+                };
 
-                showNotification({
-                  color: "teal",
-                  title:
-                    i18next.t("ui.automationScriptSaved"),
-                  message:
-                    i18next.t("ui.editorRemainsOpenSaveTheProjectToPersistItIn"),
-                });
+                // Update the currently displayed script immediately, then
+                // persist the entire automation document to the Hub. The
+                // editor Save button is a real save operation now; a separate
+                // project/layout save is not required for the script body.
+                onChange(
+                  next
+                );
+
+                void onSave(
+                  next
+                )
+                  .then(() => {
+                    showNotification({
+                      color: "teal",
+                      title:
+                        i18next.t("ui.automationScriptSaved"),
+                      message:
+                        definition.name,
+                    });
+                  })
+                  .catch(error => {
+                    showNotification({
+                      color: "red",
+                      title:
+                        i18next.t("ui.automationFailed"),
+                      message:
+                        error instanceof Error
+                          ? error.message
+                          : String(error),
+                    });
+                  });
               }
             }
             onRun={
@@ -594,17 +623,48 @@ export default function AutomationPanel({
   onScriptsChange,
 }: AutomationPanelProps) {
   useTranslation();
+
+  const nextScriptsWithUpdate = (
+    id: string,
+    next: AutomationScriptDefinition
+  ): AutomationScriptDefinition[] =>
+    scripts.map(
+      script =>
+        script.id === id
+          ? next
+          : script
+    );
+
   const updateScript = (
     id: string,
     next: AutomationScriptDefinition
   ): void => {
     onScriptsChange(
-      scripts.map(
-        script =>
-          script.id === id
-            ? next
-            : script
+      nextScriptsWithUpdate(
+        id,
+        next
       )
+    );
+  };
+
+  const saveScript = async (
+    id: string,
+    next: AutomationScriptDefinition
+  ): Promise<void> => {
+    const nextScripts =
+      nextScriptsWithUpdate(
+        id,
+        next
+      );
+
+    // Keep local state and persistent storage based on the exact same
+    // snapshot. This avoids saving the stale pre-editor scripts array.
+    onScriptsChange(
+      nextScripts
+    );
+
+    await saveAutomationScripts(
+      nextScripts
     );
   };
 
@@ -727,6 +787,13 @@ export default function AutomationPanel({
                     onChange={
                       next =>
                         updateScript(
+                          definition.id,
+                          next
+                        )
+                    }
+                    onSave={
+                      next =>
+                        saveScript(
                           definition.id,
                           next
                         )
