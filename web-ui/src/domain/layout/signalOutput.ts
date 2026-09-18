@@ -108,7 +108,7 @@ export function cloneSignalOutputConfiguration(
 }
 
 export function createDefaultSignalOutputConfiguration(
-  address = 1,
+  address = 0,
   lampCount = 2
 ): SignalOutputConfiguration {
   const safeLampCount = Math.max(1, Math.min(MAX_SIGNAL_LAMPS, Math.trunc(lampCount)));
@@ -134,7 +134,10 @@ export function createDefaultSignalOutputConfiguration(
 
   return {
     protocol: "dcc",
-    address: Math.max(1, Math.trunc(address)),
+    // 0 deliberately means: placed on the layout, but no physical output
+    // has been configured yet. Runtime/automation code must ignore it until
+    // the user assigns a real DCC address.
+    address: Math.max(0, Math.trunc(address)),
     outputCount: Math.max(1, safeLampCount),
     lampCount: safeLampCount,
     displayAsSingleLamp: false,

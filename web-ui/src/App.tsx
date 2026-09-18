@@ -1,5 +1,5 @@
 import i18next from "i18next";
-﻿import {
+import {
   ActionIcon,
   Alert,
   Badge,
@@ -26,7 +26,6 @@ import {
   IconDeviceFloppy,
   IconDownload,
   IconEdit,
-  IconExternalLink,
   IconFile,
   IconFolder,
   IconFolderOpen,
@@ -437,6 +436,7 @@ type DeviceFile = {
   path: string;
   type: "file" | "directory";
   size: number;
+  deleteAllowed?: boolean;
 };
 
 type DeviceDirectoryListing = {
@@ -455,7 +455,7 @@ function isPreviewableImage(file: DeviceFile): boolean {
 }
 
 function isViewableTextFile(file: DeviceFile): boolean {
-  return file.type === "file" && /\.(?:c|cc|conf|cpp|css|csv|h|hpp|htm|html|ini|ino|js|json|log|map|md|mjs|svg|toml|ts|tsx|txt|xml|yaml|yml)$/i.test(file.name);
+  return file.type === "file" && /\.(?:c|cc|conf|cpp|css|csv|h|hpp|htm|html|ini|ino|js|json|log|map|md|mjs|ndjson|svg|toml|ts|tsx|txt|xml|yaml|yml)$/i.test(file.name);
 }
 
 function FilesPage({ onBack }: { onBack: () => void }) {
@@ -467,6 +467,7 @@ function FilesPage({ onBack }: { onBack: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [textViewer, setTextViewer] = useState<{ name: string; content: string; loading: boolean } | null>(null);
+  const [deleteCandidate, setDeleteCandidate] = useState<DeviceFile | null>(null);
 
   const loadFiles = useCallback(async () => {
     setLoading(true);
@@ -510,15 +511,15 @@ function FilesPage({ onBack }: { onBack: () => void }) {
   };
 
   const deleteFile = async (file: DeviceFile) => {
-    const warning = file.type === "directory"
-      ? `Delete the empty directory ${file.path}?`
-      : `Delete ${file.path}?\n\nDeleting index.html or files under /assets can make the web interface unavailable.`;
-    if (!window.confirm(warning)) return;
     setBusy(true);
     setError(null);
     try {
-      const response = await fetch(`/delete?path=${encodeURIComponent(file.path)}`, { cache: "no-store" });
+      const response = await fetch(`/delete?path=${encodeURIComponent(file.path)}`, {
+        method: "DELETE",
+        cache: "no-store",
+      });
       if (!response.ok) throw new Error(i18next.t("ui.couldNotDeleteHttp", { value1: file.name, value2: response.status }));
+      setDeleteCandidate(null);
       await loadFiles();
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "Delete failed.");
@@ -541,10 +542,26 @@ function FilesPage({ onBack }: { onBack: () => void }) {
     }
   };
 
+  const openEntry = (file: DeviceFile): void => {
+    if (file.type === "directory") {
+      setCurrentPath(file.path);
+      return;
+    }
+
+    if (isViewableTextFile(file)) {
+      void openTextFile(file);
+      return;
+    }
+
+    window.open(file.path, "_blank", "noopener,noreferrer");
+  };
+
   const pathSegments = currentPath.split("/").filter(Boolean);
   const navigateToSegment = (index: number) => {
     setCurrentPath(index < 0 ? "/" : `/${pathSegments.slice(0, index + 1).join("/")}`);
   };
+
+  const deleteIsConfig = deleteCandidate?.path.startsWith("/flash/config/") === true;
 
   return (
     <Stack gap="lg">
@@ -568,6 +585,33 @@ function FilesPage({ onBack }: { onBack: () => void }) {
           </Box>
         )}
       </Modal>
+
+      <Modal
+        opened={deleteCandidate !== null}
+        onClose={() => { if (!busy) setDeleteCandidate(null); }}
+        title={deleteCandidate ? `Delete ${deleteCandidate.name}?` : "Delete?"}
+        centered
+        size="md"
+      >
+        <Stack gap="md">
+          <Text size="sm">{deleteCandidate?.path}</Text>
+          {deleteIsConfig && (
+            <Alert color="yellow" icon={<IconAlertTriangle size={18} />}>
+              This is Hub configuration. Deleting it removes the stored configuration. Restart the Hub afterwards so firmware runtime state is rebuilt.
+            </Alert>
+          )}
+          {deleteCandidate?.type === "directory" && (
+            <Alert color="blue">Only empty directories can be deleted.</Alert>
+          )}
+          <Group justify="flex-end">
+            <Button variant="default" disabled={busy} onClick={() => setDeleteCandidate(null)}>Cancel</Button>
+            <Button color="red" loading={busy} disabled={!deleteCandidate} onClick={() => { if (deleteCandidate) void deleteFile(deleteCandidate); }}>
+              Delete
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
       <Button variant="subtle" color="gray" leftSection={<IconArrowLeft size={18} />} onClick={onBack} className="back-button"> {i18next.t("ui.backToHome")} </Button>
       <PageTitle icon={<IconFolder size={24} />} title={i18next.t("ui.files")} subtitle={i18next.t("ui.browseTheCompleteLittlefsFilesystem")} />
       <Card withBorder radius="xl" p="lg">
@@ -598,58 +642,62 @@ function FilesPage({ onBack }: { onBack: () => void }) {
             <Text c="dimmed" ta="center" py="xl">{i18next.t("ui.thisDirectoryIsEmpty")}</Text>
           ) : (
             <Stack gap="xs">
-              {files.map(file => {
-                const href = file.path;
-                const textFile = isViewableTextFile(file);
-                return (
-                  <Card
-                    key={file.path}
-                    withBorder
-                    radius="md"
-                    p="sm"
-                    style={{ cursor: file.type === "directory" ? "pointer" : "default" }}
-                    onClick={() => { if (file.type === "directory") setCurrentPath(file.path); }}
-                  >
-                    <Group justify="space-between" wrap="nowrap">
-                      <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
-                        {file.type === "directory" ? (
-                          <IconFolderOpen size={22} />
-                        ) : isPreviewableImage(file) ? (
-                          <img
-                            src={href}
-                            alt=""
-                            loading="lazy"
-                            decoding="async"
-                            style={{ width: 80, height: 60, objectFit: "contain", flex: "0 0 auto" }}
-                          />
-                        ) : (
-                          <IconFile size={22} />
-                        )}
-                        <div style={{ minWidth: 0 }}>
+              {files.map(file => (
+                <Card key={file.path} withBorder radius="md" p="sm">
+                  <Group justify="space-between" wrap="nowrap">
+                    <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
+                      {file.type === "directory" ? (
+                        <IconFolderOpen size={22} />
+                      ) : isPreviewableImage(file) ? (
+                        <img
+                          src={file.path}
+                          alt=""
+                          loading="lazy"
+                          decoding="async"
+                          style={{ width: 80, height: 60, objectFit: "contain", flex: "0 0 auto" }}
+                        />
+                      ) : (
+                        <IconFile size={22} />
+                      )}
+                      <div style={{ minWidth: 0 }}>
+                        <button
+                          type="button"
+                          onClick={() => openEntry(file)}
+                          style={{
+                            display: "block",
+                            maxWidth: "100%",
+                            padding: 0,
+                            border: 0,
+                            background: "transparent",
+                            color: "inherit",
+                            cursor: "pointer",
+                            textAlign: "left",
+                            font: "inherit",
+                          }}
+                        >
                           <Text fw={600} truncate>{file.name}</Text>
-                          <Text size="xs" c="dimmed">{file.type === "directory" ? i18next.t("ui.directory2") : formatFileSize(file.size)}</Text>
-                        </div>
-                      </Group>
-                      <Group gap={6} wrap="nowrap">
-                        {file.type === "file" && (
-                          textFile ? (
-                            <ActionIcon variant="light" aria-label={i18next.t("ui.open", { value1: file.name })} onClick={event => { event.stopPropagation(); void openTextFile(file); }}>
-                              <IconExternalLink size={17} />
-                            </ActionIcon>
-                          ) : (
-                            <ActionIcon component="a" href={href} target="_blank" rel="noreferrer" variant="light" aria-label={i18next.t("ui.open", { value1: file.name })} onClick={event => event.stopPropagation()}>
-                              <IconExternalLink size={17} />
-                            </ActionIcon>
-                          )
-                        )}
-                        <ActionIcon color="red" variant="light" disabled={busy} aria-label={i18next.t("ui.delete", { value1: file.name })} onClick={event => { event.stopPropagation(); void deleteFile(file); }}>
+                        </button>
+                        <Text size="xs" c="dimmed">{file.type === "directory" ? i18next.t("ui.directory2") : formatFileSize(file.size)}</Text>
+                      </div>
+                    </Group>
+                    <Group gap={6} wrap="nowrap">
+                      {file.deleteAllowed === false ? (
+                        <Badge color="gray" variant="light" size="sm">Protected</Badge>
+                      ) : (
+                        <ActionIcon
+                          color="red"
+                          variant="light"
+                          disabled={busy}
+                          aria-label={i18next.t("ui.delete", { value1: file.name })}
+                          onClick={() => setDeleteCandidate(file)}
+                        >
                           <IconTrash size={17} />
                         </ActionIcon>
-                      </Group>
+                      )}
                     </Group>
-                  </Card>
-                );
-              })}
+                  </Group>
+                </Card>
+              ))}
             </Stack>
           )}
         </Stack>

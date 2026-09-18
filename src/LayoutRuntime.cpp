@@ -325,9 +325,12 @@ void LayoutRuntime::addElement(JsonObjectConst element) {
   if (
       id &&
       addressIsSensor &&
-      elementAddress > 0 &&
-      findSensor(elementAddress) == nullptr
+      elementAddress > 0
   ) {
+    // Multiple layout elements may deliberately represent the same physical
+    // occupancy detector. Keep one RuntimeSensor per layout element ID so
+    // signal-automation conditions remain stable by ID, while all entries
+    // sharing the same physical address mirror the same live S88 state.
     RuntimeSensor sensor;
     sensor.id = id;
     sensor.address = elementAddress;
@@ -706,9 +709,6 @@ bool LayoutRuntime::setTurnout(
     return false;
   }
 
-  // WS/output callers send the physical decoder value (0/1).
-  // Runtime state must remain semantic: closed=true means CLOSED,
-  // regardless of whether the configured decoder uses 0 or 1 for CLOSED.
   const bool logicalClosed =
       physicalValue ==
       item->closedValue;
@@ -727,9 +727,6 @@ bool LayoutRuntime::setTurnout(
       " logical=" +
       String(logicalClosed ? "CLOSED" : "THROWN"));
 
-  // A successful turnout command is itself a relevant runtime event.
-  // Even if the cached logical state already has the same value, dependent
-  // signal automation must re-evaluate all rules after the command.
   item->closed = logicalClosed;
 
   notify(
@@ -815,21 +812,67 @@ bool LayoutRuntime::setVPin(
 bool LayoutRuntime::setSensor(
     uint16_t address,
     bool on) {
-  auto* item =
-      findSensor(address);
+  bool found =
+      false;
 
-  if (!item) return false;
+  bool changed =
+      false;
 
-  if (item->on == on) {
-    return true;
+  for (
+      auto& item :
+      _sensors
+  ) {
+    if (
+        item.address !=
+        address
+    ) {
+      continue;
+    }
+
+    found =
+        true;
+
+    if (
+        item.on ==
+        on
+    ) {
+      continue;
+    }
+
+    item.on =
+        on;
+
+    changed =
+        true;
+
+    // Notify for every layout ID that represents this physical detector.
+    // SignalAutomationEngine conditions are ID-based, so duplicate visual
+    // references to the same S88 address must all receive the state change.
+    notify(
+        RuntimeChangeKind::Sensor,
+        item.id,
+        0);
   }
 
-  item->on = on;
+  if (!found) {
+    Logger::warn(
+        "LayoutRuntime: sensor address " +
+        String(address) +
+        " not found");
 
-  notify(
-      RuntimeChangeKind::Sensor,
-      item->id,
-      0);
+    return false;
+  }
+
+  if (changed) {
+    Logger::info(
+        "LayoutRuntime: sensor address " +
+        String(address) +
+        " -> " +
+        String(
+            on
+                ? "ON"
+                : "OFF"));
+  }
 
   return true;
 }
@@ -849,8 +892,6 @@ bool LayoutRuntime::setBlock(
   bool changed = false;
 
   if (!clearing) {
-    // The same locomotive can never be present in two blocks. Match by DCC
-    // address whenever available, and by logical loco id as a fallback.
     for (auto& block : _blocks) {
       if (block.id == blockId || !block.occupied()) {
         continue;
@@ -905,8 +946,6 @@ bool LayoutRuntime::removeBlock(
     return true;
   }
 
-  // If the caller supplied a loco id, do not accidentally remove another
-  // locomotive that has meanwhile been assigned to the block by another client.
   if (!locoId.isEmpty() &&
       block->locoId != locoId) {
     return false;

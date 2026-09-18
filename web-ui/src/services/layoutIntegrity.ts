@@ -8,7 +8,6 @@ import type { LayoutView } from "@/models/editor/core/LayoutView";
 import { isTurnoutElement } from "@/models/editor/core/LayoutView";
 import TrackTurnoutDoubleElement from "../models/editor/elements/TrackTurnoutDoubleElement";
 import { TrackTurnoutThreeWayElement } from "../models/editor/elements/TrackTurnoutThreeWayElement";
-import { TrackSensorElement } from "../models/editor/elements/TrackSensorElement";
 import { TrackSignalElement } from "../models/editor/elements/TrackSignalElement";
 
 export type IntegrityArea = "Layout" | "Route buttons" | "Automatic routes" | "Signal logic" | "Locomotives";
@@ -24,7 +23,7 @@ function elementLabel(data: { name?: string; id?: LayoutElementId }, fallback: s
   return name && name !== "element" ? `${name} (${id})` : `${fallback} (${id})`;
 }
 
-function isRouteButtonTurnoutElement(
+function isSignalLogicTurnoutElement(
   element: ReturnType<LayoutView["getAllElements"]>[number]
 ): boolean {
   return (
@@ -32,6 +31,53 @@ function isRouteButtonTurnoutElement(
     element instanceof TrackTurnoutDoubleElement ||
     element instanceof TrackTurnoutThreeWayElement
   );
+}
+
+function isSignalLogicSensorElement(
+  element: ReturnType<LayoutView["getAllElements"]>[number]
+): boolean {
+  const address =
+    Number(
+      (element as unknown as { address?: unknown }).address ??
+      0
+    );
+
+  if (
+    !Number.isInteger(address) ||
+    address <= 0 ||
+    element.type === ELEMENT_TYPES.TRACK_BLOCK
+  ) {
+    return false;
+  }
+
+  // Ordinary signal elements use `address` as a legacy signal-output alias,
+  // not as an occupancy input. Level crossings are intentionally both a
+  // signal-output element and a normal occupancy-bearing track element.
+  if (
+    element instanceof TrackSignalElement &&
+    element.type !== ELEMENT_TYPES.TRACK_LEVEL_CROSSING
+  ) {
+    return false;
+  }
+
+  // Turnouts may also have an occupancy address, but only when they have a
+  // canonical turnout-output configuration. This mirrors signalLogicWsApi.
+  if (isSignalLogicTurnoutElement(element)) {
+    const data =
+      element.toJSON() as {
+        turnoutAddress?: number;
+        turnout1Address?: number;
+        turnout2Address?: number;
+      };
+
+    return (
+      Number(data.turnoutAddress ?? 0) > 0 ||
+      Number(data.turnout1Address ?? 0) > 0 ||
+      Number(data.turnout2Address ?? 0) > 0
+    );
+  }
+
+  return String(element.type).startsWith("track");
 }
 
 export function inspectProjectIntegrity(
@@ -56,15 +102,19 @@ export function inspectProjectIntegrity(
   }
   for (const [id, count] of idCounts) if (count > 1) add("Layout", "error", `Element ID ${id} is used ${count} times.`);
 
-  // Signal logic currently uses the classic one-motor turnout shape/address.
-  const turnoutById = new Map(elements.filter(isTurnoutElement).map(element => [element.id, element]));
+  // Signal automation supports both classic one-motor and multi-motor
+  // turnouts. Integrity must validate the same turnout universe as the editor
+  // and compiler, otherwise valid 2/3-way turnout IDs become false orphans.
+  const turnoutById = new Map(
+    elements
+      .filter(isSignalLogicTurnoutElement)
+      .map(element => [element.id, element])
+  );
 
-  // Route buttons support both classic one-motor and multi-motor turnouts.
-  // Keep this separate from turnoutById so widening RouteButton validation does
-  // not change the signal-logic turnout/address contract.
+  // Route buttons support the same turnout family.
   const routeTurnoutById = new Map(
     elements
-      .filter(isRouteButtonTurnoutElement)
+      .filter(isSignalLogicTurnoutElement)
       .map(element => [element.id, element])
   );
 
@@ -123,22 +173,53 @@ export function inspectProjectIntegrity(
   if (signalDocument) {
     checked.set("Signal logic", signalDocument.groups.reduce(
       (total, group) => total + group.rules.reduce((sum, rule) => sum + rule.conditions.length, 0), 0));
+
+    const signalSensors =
+      elements
+        .filter(isSignalLogicSensorElement)
+        .map(element => ({
+          id: element.id,
+          address: Number(
+            (element as unknown as { address?: unknown }).address ??
+            0
+          ),
+        }));
+
     const signalIssues = validateSignalLogicDocument(
       signalDocument,
       elements.filter((element): element is TrackSignalElement => element instanceof TrackSignalElement)
         .map(signal => ({ id: signal.id, address: signal.address, aspect: signal.aspect })),
-      [...turnoutById.values()].map(turnout => ({ id: turnout.id, address: turnout.turnoutAddress })),
-      elements.filter((element): element is TrackSensorElement => element instanceof TrackSensorElement)
-        .map(sensor => ({ id: sensor.id, address: sensor.address }))
+      [...turnoutById.values()].map(turnout => {
+        const data =
+          turnout.toJSON() as {
+            turnoutAddress?: number;
+            turnout1Address?: number;
+          };
+
+        return {
+          id: turnout.id,
+          address:
+            Number(
+              data.turnoutAddress ??
+              data.turnout1Address ??
+              0
+            ),
+        };
+      }),
+      signalSensors
     );
+
     for (const issue of [...signalLoadIssues, ...signalIssues]) add("Signal logic", issue.level, issue.message);
 
     const signalIds = new Set(elements
       .filter((element): element is TrackSignalElement => element instanceof TrackSignalElement)
       .map(signal => signal.id));
-    const sensorIds = new Set(elements
-      .filter((element): element is TrackSensorElement => element instanceof TrackSensorElement)
-      .map(sensor => sensor.id));
+
+    const sensorIds = new Set(
+      elements
+        .filter(isSignalLogicSensorElement)
+        .map(sensor => sensor.id)
+    );
 
     for (const group of signalDocument.groups) {
       if (group.signalId !== INVALID_LAYOUT_ELEMENT_ID && !signalIds.has(group.signalId)) {

@@ -58,6 +58,21 @@ String jsonString(
   return result;
 }
 
+bool managedConfigurationPath(
+    StorageMedium medium,
+    const String& realPath) {
+  if (medium != StorageMedium::InternalFlash) {
+    return false;
+  }
+
+  return
+      realPath == "/config/layout.json" ||
+      realPath == "/config/locos.json" ||
+      realPath == "/config/signal-logic.ndjson" ||
+      realPath == "/config/automations.json" ||
+      realPath == "/config/device-config.json";
+}
+
 }
 
 FileManagementEndpoint::FileManagementEndpoint(
@@ -102,14 +117,17 @@ bool FileManagementEndpoint::protectedPath(
     return realPath == "/";
   }
 
+  // Configuration files are intentionally deletable from the File Manager.
+  // The web application itself and runtime state must never be removable.
   return
       realPath == "/" ||
-      realPath == "/config/layout.json" ||
-      realPath == "/config/locos.json" ||
-      realPath == "/config/signal-logic.ndjson" ||
-      realPath == "/config/automations.json" ||
-      realPath == "/config/device-config.json" ||
-      realPath == "/state/runtime-state.json";
+      realPath == "/config" ||
+      realPath == "/assets" ||
+      realPath.startsWith("/assets/") ||
+      realPath == "/index.html" ||
+      realPath == "/index.html.gz" ||
+      realPath == "/state" ||
+      realPath.startsWith("/state/");
 }
 
 String FileManagementEndpoint::joinPath(
@@ -411,6 +429,9 @@ void FileManagementEndpoint::handleUploadChunk(
         !safePath(
             _uploadFinalPath) ||
         protectedPath(
+            medium,
+            _uploadFinalPath) ||
+        managedConfigurationPath(
             medium,
             _uploadFinalPath)
     ) {
@@ -796,6 +817,8 @@ void FileManagementEndpoint::listPath(
         "directory";
     flash["size"] =
         0;
+    flash["deleteAllowed"] =
+        false;
 
     JsonObject sd =
         entries.add<JsonObject>();
@@ -810,6 +833,8 @@ void FileManagementEndpoint::listPath(
         "directory";
     sd["size"] =
         0;
+    sd["deleteAllowed"] =
+        false;
 
     String body;
     serializeJson(doc, body);
@@ -1048,6 +1073,10 @@ void FileManagementEndpoint::listPath(
                           : "file";
                   entry["size"] =
                       fileSize;
+                  entry["deleteAllowed"] =
+                      !protectedPath(
+                          state->medium,
+                          realItemPath);
 
                   String encoded;
                   serializeJson(

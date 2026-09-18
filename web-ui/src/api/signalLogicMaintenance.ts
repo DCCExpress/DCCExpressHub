@@ -56,6 +56,115 @@ async function saveRawSignalLogic(
   }
 }
 
+function parseObjectLine(
+  rawLine: string
+): Record<string, unknown> | null {
+  const line = rawLine.trim();
+
+  if (!line) {
+    return null;
+  }
+
+  try {
+    const parsed =
+      JSON.parse(line) as unknown;
+
+    return (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      !Array.isArray(parsed)
+    )
+      ? parsed as Record<string, unknown>
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function rawContainsSignalId(
+  content: string,
+  signalId: number
+): boolean {
+  return content
+    .split(/\r?\n/u)
+    .some(rawLine => {
+      const row =
+        parseObjectLine(rawLine);
+
+      return (
+        row?.kind === "signal" &&
+        Number(row.id) === signalId
+      );
+    });
+}
+
+function isMatchingCondition(
+  value: unknown,
+  referenceType: OrphanReferenceType,
+  elementId: number
+): boolean {
+  return (
+    Array.isArray(value) &&
+    value.length === 4 &&
+    value[0] === referenceType &&
+    Number(value[1]) === elementId
+  );
+}
+
+function countAutomationReferences(
+  content: string,
+  referenceType: OrphanReferenceType,
+  elementId: number
+): number {
+  let count = 0;
+
+  for (
+    const rawLine of content.split(/\r?\n/u)
+  ) {
+    const row =
+      parseObjectLine(rawLine);
+
+    if (
+      row?.kind !== "signal" ||
+      !Array.isArray(row.rules)
+    ) {
+      continue;
+    }
+
+    for (const rawRule of row.rules) {
+      if (
+        typeof rawRule !== "object" ||
+        rawRule === null ||
+        Array.isArray(rawRule)
+      ) {
+        continue;
+      }
+
+      const conditions =
+        (rawRule as Record<string, unknown>)
+          .conditions;
+
+      if (!Array.isArray(conditions)) {
+        continue;
+      }
+
+      for (const condition of conditions) {
+        if (
+          isMatchingCondition(
+            condition,
+            referenceType,
+            elementId
+          )
+        ) {
+          count += 1;
+        }
+      }
+    }
+  }
+
+  return count;
+}
+
 export async function deleteSignalAutomationById(
   signalId: number
 ): Promise<boolean> {
@@ -80,39 +189,10 @@ export async function deleteSignalAutomationById(
   let removed = false;
 
   for (
-    const rawLine of content.split(
-      /\r?\n/u
-    )
+    const rawLine of content.split(/\r?\n/u)
   ) {
-    const line =
-      rawLine.trim();
-
-    if (!line) {
-      continue;
-    }
-
-    let row:
-      | Record<string, unknown>
-      | null = null;
-
-    try {
-      const parsed =
-        JSON.parse(line) as unknown;
-
-      if (
-        typeof parsed === "object" &&
-        parsed !== null &&
-        !Array.isArray(parsed)
-      ) {
-        row =
-          parsed as Record<
-            string,
-            unknown
-          >;
-      }
-    } catch {
-      row = null;
-    }
+    const row =
+      parseObjectLine(rawLine);
 
     if (
       row?.kind === "signal" &&
@@ -122,8 +202,10 @@ export async function deleteSignalAutomationById(
       continue;
     }
 
-    // Preserve unrelated rows exactly as stored.
-    keptLines.push(rawLine);
+    if (rawLine.trim()) {
+      // Preserve unrelated rows exactly as stored.
+      keptLines.push(rawLine);
+    }
   }
 
   if (!removed) {
@@ -131,24 +213,28 @@ export async function deleteSignalAutomationById(
   }
 
   await saveRawSignalLogic(
-    keptLines.join("\n") +
-      "\n"
+    keptLines.length > 0
+      ? keptLines.join("\n") + "\n"
+      : ""
   );
+
+  // Do not trust an optimistic POST response. Read the physical rule file
+  // back through the dedicated endpoint and prove that the orphan is gone.
+  const verified =
+    await loadRawSignalLogic();
+
+  if (
+    rawContainsSignalId(
+      verified,
+      signalId
+    )
+  ) {
+    throw new Error(
+      `Signal automation ${signalId} is still present after cleanup.`
+    );
+  }
 
   return true;
-}
-
-function isMatchingCondition(
-  value: unknown,
-  referenceType: OrphanReferenceType,
-  elementId: number
-): boolean {
-  return (
-    Array.isArray(value) &&
-    value.length === 4 &&
-    value[0] === referenceType &&
-    Number(value[1]) === elementId
-  );
 }
 
 export async function deleteAutomationReference(
@@ -176,46 +262,19 @@ export async function deleteAutomationReference(
   let removedCount = 0;
 
   for (
-    const rawLine of content.split(
-      /\r?\n/u
-    )
+    const rawLine of content.split(/\r?\n/u)
   ) {
-    const line =
-      rawLine.trim();
-
-    if (!line) {
-      continue;
-    }
-
-    let parsed:
-      | Record<string, unknown>
-      | null = null;
-
-    try {
-      const value =
-        JSON.parse(line) as unknown;
-
-      if (
-        typeof value === "object" &&
-        value !== null &&
-        !Array.isArray(value)
-      ) {
-        parsed =
-          value as Record<
-            string,
-            unknown
-          >;
-      }
-    } catch {
-      parsed = null;
-    }
+    const parsed =
+      parseObjectLine(rawLine);
 
     if (
       parsed?.kind !== "signal" ||
       !Array.isArray(parsed.rules)
     ) {
-      // Keep non-signal, malformed and unrelated rows untouched.
-      outputLines.push(rawLine);
+      if (rawLine.trim()) {
+        // Keep non-signal, malformed and unrelated rows untouched.
+        outputLines.push(rawLine);
+      }
       continue;
     }
 
@@ -232,20 +291,13 @@ export async function deleteAutomationReference(
         }
 
         const rule = {
-          ...(rawRule as Record<
-            string,
-            unknown
-          >),
+          ...(rawRule as Record<string, unknown>),
         };
 
         const conditions =
           rule.conditions;
 
-        if (
-          !Array.isArray(
-            conditions
-          )
-        ) {
+        if (!Array.isArray(conditions)) {
           return rule;
         }
 
@@ -266,13 +318,10 @@ export async function deleteAutomationReference(
           nextConditions;
 
         const removed =
-          before -
-          nextConditions.length;
+          before - nextConditions.length;
 
         if (removed > 0) {
-          removedCount +=
-            removed;
-
+          removedCount += removed;
           rowChanged = true;
         }
 
@@ -280,7 +329,6 @@ export async function deleteAutomationReference(
       });
 
     if (!rowChanged) {
-      // Preserve byte-for-byte when this row is unaffected.
       outputLines.push(rawLine);
       continue;
     }
@@ -298,9 +346,25 @@ export async function deleteAutomationReference(
   }
 
   await saveRawSignalLogic(
-    outputLines.join("\n") +
-      "\n"
+    outputLines.length > 0
+      ? outputLines.join("\n") + "\n"
+      : ""
   );
+
+  const verified =
+    await loadRawSignalLogic();
+
+  if (
+    countAutomationReferences(
+      verified,
+      referenceType,
+      elementId
+    ) > 0
+  ) {
+    throw new Error(
+      `${referenceType} ID ${elementId} is still referenced after cleanup.`
+    );
+  }
 
   return removedCount;
 }

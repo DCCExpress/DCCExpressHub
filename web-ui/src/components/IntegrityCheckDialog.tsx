@@ -132,6 +132,36 @@ function cleanupActionForMessage(
 
   // The integrity service can also emit more contextual messages.
   match =
+    /^Signal rule group .+ references deleted signal (\d+)\.$/u.exec(
+      text
+    );
+
+  id =
+    validId(match?.[1]);
+
+  if (id !== null) {
+    return {
+      kind: "signal",
+      id,
+    };
+  }
+
+  match =
+    /^Referenced signal element was deleted or has the wrong type \((\d+)\)\.$/u.exec(
+      text
+    );
+
+  id =
+    validId(match?.[1]);
+
+  if (id !== null) {
+    return {
+      kind: "signal",
+      id,
+    };
+  }
+
+  match =
     /^Signal rule .+ references deleted sensor (\d+)\.$/u.exec(
       text
     );

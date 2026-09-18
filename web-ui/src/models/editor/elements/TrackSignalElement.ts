@@ -34,7 +34,7 @@ export type SignalLight = {
   color: string;
 };
 export class TrackSignalElement extends TrackElement {
-  signalOutput: SignalOutputConfiguration = createDefaultSignalOutputConfiguration(1, 2);
+  signalOutput: SignalOutputConfiguration = createDefaultSignalOutputConfiguration(0, 2);
   currentStateIndex = 0;
   private dccFeedbackOutputs: ReturnType<typeof resizeDccOutputs> | null = null;
   lightsAll = false;
@@ -265,7 +265,10 @@ export class TrackSignalElement extends TrackElement {
    * against the configured logical states.
    */
   setValue(address: number, active: boolean): void {
-    if (this.signalOutput.protocol !== "dcc") {
+    if (
+      this.signalOutput.address <= 0 ||
+      this.signalOutput.protocol !== "dcc"
+    ) {
       return;
     }
     if (address < this.signalOutput.address || address > this.lastAddress) {
@@ -289,7 +292,7 @@ export class TrackSignalElement extends TrackElement {
   override type: typeof ELEMENT_TYPES.TRACK_SIGNAL2 = ELEMENT_TYPES.TRACK_SIGNAL2;
   constructor(x: number, y: number) {
     super(x, y);
-    this.address = 1;
+    this.address = 0;
     this.rotation = 90;
     this.rotationStep = 45;
     this.layerName = "signals";
@@ -311,6 +314,12 @@ export class TrackSignalElement extends TrackElement {
     }
   }
   sendState(state: SignalOutputState): void {
+    // A freshly placed signal is valid layout data even before it is wired to
+    // a decoder. Address 0 is the explicit "unconfigured" sentinel.
+    if (this.signalOutput.address <= 0) {
+      return;
+    }
+
     if (this.signalOutput.protocol === "dccext") {
       wsApi.setSignalAspect(this.signalOutput.address, state.aspect);
       this.setCurrentStateById(state.id);
@@ -464,7 +473,7 @@ export class TrackSignalElement extends TrackElement {
       outputMode: "accessory",
       aspect: this.signalOutput.lampCount,
       addressLength: this.signalOutput.outputCount,
-      dispalyAsSingleLamp: this.signalOutput.displayAsSingleLamp,
+      displayAsSingleLamp: this.signalOutput.displayAsSingleLamp,
       valueGreen: this.valueGreen,
       valueRed: this.valueRed,
       valueYellow: this.valueYellow,
@@ -479,7 +488,7 @@ export class TrackSignalElement extends TrackElement {
     element.rotation = data.rotation;
     element.rotationStep = data.rotationStep;
     element.length = data.length;
-    element.address = data.address ?? 1;
+    element.address = data.address ?? 0;
     element.bg = data.bg;
     element.fg = data.fg;
     if (data.signalOutput) {
@@ -557,7 +566,7 @@ export class TrackSignalElement extends TrackElement {
         id: `legacy-${element.id}-${stateIndex}`,
         label: state.label,
         aspect: state.aspect,
-        lamps: Array.from({ length: lampCount }, (_, lampIndex) => ({
+       lamps: Array.from({ length: lampCount }, (_, lampIndex) => ({
           color: lampIndex === state.lampIndex ? state.color : "#868e96",
           active: lampIndex === state.lampIndex,
         })),
@@ -586,5 +595,4 @@ export class TrackSignalElement extends TrackElement {
   }
   protected override get hasOccupancySensorProperty(): boolean {
     return false;
-  }
-}
+  }}

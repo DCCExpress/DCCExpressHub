@@ -186,6 +186,13 @@ export default function SignalAspectPropertyEditor({
   };
 
   const openAutomation = async (): Promise<void> => {
+    if (signal.signalOutput.address <= 0) {
+      setAutomationError(
+        "Configure the signal output before creating automation."
+      );
+      return;
+    }
+
     setAutomationLoading(true);
     setAutomationError(null);
 
@@ -267,8 +274,9 @@ export default function SignalAspectPropertyEditor({
         )}
 
         <Text size="xs" c="dimmed">
-          {"Address "}
-          {signal.signalOutput.address}
+          {signal.signalOutput.address > 0
+            ? `Address ${signal.signalOutput.address}`
+            : "Output not configured"}
           {" · "}
           {signal.signalOutput.lampCount}
           {" lamps · "}
