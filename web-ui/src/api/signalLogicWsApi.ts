@@ -25,12 +25,30 @@ export type SignalLogicLoadResult = {
 };
 
 type CompiledConditionSource = "turnout" | "sensor";
-type CompiledCondition = [
-  source: CompiledConditionSource,
+type CompiledTurnoutCondition = [
+  source: "turnout",
   id: LayoutElementId,
   channel: 0 | 1,
   value: 0 | 1,
 ];
+
+type CompiledSensorCondition = [
+  source: "sensor",
+  address: number,
+  value: 0 | 1,
+];
+
+type LegacyIdSensorCondition = [
+  source: "sensor",
+  id: LayoutElementId,
+  channel: 0,
+  value: 0 | 1,
+];
+
+type CompiledCondition =
+  | CompiledTurnoutCondition
+  | CompiledSensorCondition
+  | LegacyIdSensorCondition;
 
 type CompiledRule = {
   name?: string;
@@ -700,21 +718,35 @@ function compileCondition(
     condition.type ===
     "sensor"
   ) {
-    const sensor =
-      elements.find(
-        element =>
-          element.id ===
-            condition.sensorId &&
-          isSensor(element)
+    const address =
+      Math.trunc(
+        Number(
+          condition.sensorAddress ??
+          0
+        )
       );
+
+    if (
+      !Number.isInteger(address) ||
+      address < 1 ||
+      address > 0xffff ||
+      !elements.some(
+        element =>
+          isSensor(element) &&
+          Number(
+            element.address
+          ) ===
+            address
+      )
+    ) {
+      throw new Error(
+        `Sensor address ${String(condition.sensorAddress ?? "?")} does not exist in the current layout.`
+      );
+    }
 
     return [
       "sensor",
-      requireLayoutId(
-        sensor,
-        `Sensor ${condition.sensorId}`
-      ),
-      0,
+      address,
       condition.active ? 1 : 0,
     ];
   }
@@ -896,15 +928,82 @@ function serializeCompiled(
 function parseNewCondition(
   value: unknown
 ): CompiledCondition | null {
-  if (
-    !Array.isArray(value) ||
-    value.length !== 4
-  ) {
+  if (!Array.isArray(value)) {
     return null;
   }
 
   const source =
     value[0];
+
+  if (
+    source === "sensor" &&
+    value.length === 3
+  ) {
+    const address =
+      Number(value[1]);
+
+    const raw =
+      Number(value[2]);
+
+    if (
+      !Number.isInteger(address) ||
+      address < 1 ||
+      address > 0xffff ||
+      (
+        raw !== 0 &&
+        raw !== 1
+      )
+    ) {
+      return null;
+    }
+
+    return [
+      "sensor",
+      address,
+      raw,
+    ];
+  }
+
+  if (
+    source === "sensor" &&
+    value.length === 4
+  ) {
+    const id =
+      Number(value[1]);
+
+    const channel =
+      Number(value[2]);
+
+    const raw =
+      Number(value[3]);
+
+    if (
+      !Number.isInteger(id) ||
+      id < 1 ||
+      id > 0xffff ||
+      channel !== 0 ||
+      (
+        raw !== 0 &&
+        raw !== 1
+      )
+    ) {
+      return null;
+    }
+
+    return [
+      "sensor",
+      id,
+      0,
+      raw,
+    ];
+  }
+
+  if (
+    source !== "turnout" ||
+    value.length !== 4
+  ) {
+    return null;
+  }
 
   const id =
     Number(value[1]);
@@ -916,10 +1015,6 @@ function parseNewCondition(
     Number(value[3]);
 
   if (
-    (
-      source !== "turnout" &&
-      source !== "sensor"
-    ) ||
     !Number.isInteger(id) ||
     id < 1 ||
     id > 0xffff ||
@@ -936,7 +1031,7 @@ function parseNewCondition(
   }
 
   return [
-    source,
+    "turnout",
     id,
     channel,
     raw,
@@ -1153,7 +1248,7 @@ function parseCompiled(
           [];
 
         const rawConditions =
-          Array.isArray(
+Array.isArray(
             rule.conditions
           )
             ? rule.conditions
@@ -1167,6 +1262,18 @@ function parseCompiled(
             parseNewCondition(
               rawCondition
             );
+
+          if (
+            Array.isArray(rawCondition) &&
+            rawCondition[0] === "sensor" &&
+            rawCondition.length === 4
+          ) {
+            // Previous builds persisted occupancy conditions by layout element
+            // ID. Mark them legacy so load rewrites them immediately to the
+            // physical sensor-address format.
+            containsLegacyRows =
+              true;
+          }
 
           if (
             parsedCondition
@@ -1386,6 +1493,65 @@ function parseCompiled(
 }
 
 
+function canonicalizeCompiledCondition(
+  condition: CompiledCondition,
+  elements: SerializedLayoutElementDto[]
+): CompiledTurnoutCondition | CompiledSensorCondition {
+  if (
+    condition[0] !==
+    "sensor"
+  ) {
+    return condition;
+  }
+
+  if (
+    condition.length === 3
+  ) {
+    return condition;
+  }
+
+  const legacyId =
+    condition[1];
+
+  const sensor =
+    elements.find(
+      element =>
+        element.id ===
+          legacyId &&
+        isSensor(element)
+    );
+
+  if (!sensor) {
+    throw new Error(
+      `Legacy sensor element ID ${legacyId} is missing in the current layout.`
+    );
+  }
+
+  const address =
+    Math.trunc(
+      Number(
+        sensor.address ??
+        0
+      )
+    );
+
+  if (
+    !Number.isInteger(address) ||
+    address < 1 ||
+    address > 0xffff
+  ) {
+    throw new Error(
+      `Legacy sensor element ID ${legacyId} has no valid occupancy address.`
+    );
+  }
+
+  return [
+    "sensor",
+    address,
+    condition[3],
+  ];
+}
+
 function migrateLegacyCompiledCondition(
   condition: LegacyCompiledCondition,
   elements: SerializedLayoutElementDto[]
@@ -1400,16 +1566,17 @@ function migrateLegacyCompiledCondition(
   if (
     source === "sensor"
   ) {
-    const match =
-      elements.find(
+    const exists =
+      elements.some(
         element =>
           isSensor(element) &&
           Number(
             element.address
-          ) === address
+          ) ===
+            address
       );
 
-    if (!match) {
+    if (!exists) {
       throw new Error(
         `Legacy sensor address ${address} is missing in the current layout.`
       );
@@ -1417,11 +1584,7 @@ function migrateLegacyCompiledCondition(
 
     return [
       "sensor",
-      requireLayoutId(
-        match,
-        `Sensor #${address}`
-      ),
-      0,
+      address,
       rawValue,
     ];
   }
@@ -1564,6 +1727,20 @@ function migrateParsedCompiled(
             signalConfig(
               resolved
             ).address,
+          rules:
+            rawSignal.rules.map(
+              rule => ({
+                ...rule,
+                conditions:
+                  rule.conditions.map(
+                    condition =>
+                      canonicalizeCompiledCondition(
+                        condition,
+                        elements
+                      )
+                  ),
+              })
+            ),
         };
       } else {
         const rebound =
@@ -1680,32 +1857,33 @@ function findStateByValue(
 }
 
 function decompileCondition(
-  condition: CompiledCondition,
+  condition: CompiledTurnoutCondition | CompiledSensorCondition,
   elements: SerializedLayoutElementDto[],
   id: string
 ): SignalLogicConditionDto {
-  const [
-    source,
-    elementId,
-    channel,
-    rawValue,
-  ] =
-    condition;
-
   if (
-    source === "sensor"
+    condition[0] ===
+    "sensor"
   ) {
+    const address =
+      condition[1];
+
+    const rawValue =
+      condition[2];
+
     const sensor =
       elements.find(
         element =>
-          element.id ===
-            elementId &&
-          isSensor(element)
+          isSensor(element) &&
+          Number(
+            element.address
+          ) ===
+            address
       );
 
     if (!sensor) {
       throw new Error(
-        `Sensor ID ${elementId} does not exist in the current layout.`
+        `Sensor address ${address} does not exist in the current layout.`
       );
     }
 
@@ -1713,18 +1891,25 @@ function decompileCondition(
       id,
       type: "sensor",
       sensorId:
-        elementId,
-      ...(typeof sensor.address ===
-      "number"
-        ? {
-            sensorAddress:
-              sensor.address,
-          }
-        : {}),
+        requireLayoutId(
+          sensor,
+          `Sensor #${address}`
+        ),
+      sensorAddress:
+        address,
       active:
-        rawValue !== 0,
+        rawValue !==
+        0,
     };
   }
+
+  const [
+    ,
+    elementId,
+    channel,
+    rawValue,
+  ] =
+    condition;
 
   const turnout =
     elements.find(
@@ -1753,7 +1938,7 @@ function decompileCondition(
     type: "turnout",
     turnoutId:
       elementId,
-  turnoutChannel:
+    turnoutChannel:
       channel,
     ...(typeof address ===
     "number"
@@ -1763,7 +1948,8 @@ function decompileCondition(
         }
       : {}),
     closed:
-      rawValue !== 0,
+      rawValue !==
+      0,
   };
 }
 
@@ -2074,7 +2260,7 @@ export async function loadSignalLogicRulesWs(): Promise<SignalLogicLoadResult> {
     );
 
     migrated.warnings.push(
-      "Legacy address-based signal automation was rewritten in the current key-based format."
+      "Legacy signal automation references were rewritten to the current physical-address format."
     );
   }
 

@@ -50,17 +50,12 @@ function isSignalLogicSensorElement(
     return false;
   }
 
-  // Ordinary signal elements use `address` as a legacy signal-output alias,
-  // not as an occupancy input. Level crossings are intentionally both a
-  // signal-output element and a normal occupancy-bearing track element.
   if (
-    element instanceof TrackSignalElement //&& element.type !== ELEMENT_TYPES.TRACK_LEVEL_CROSSING
+    element instanceof TrackSignalElement
   ) {
     return false;
   }
 
-  // Turnouts may also have an occupancy address, but only when they have a
-  // canonical turnout-output configuration. This mirrors signalLogicWsApi.
   if (isSignalLogicTurnoutElement(element)) {
     const data =
       element.toJSON() as {
@@ -101,16 +96,12 @@ export function inspectProjectIntegrity(
   }
   for (const [id, count] of idCounts) if (count > 1) add("Layout", "error", `Element ID ${id} is used ${count} times.`);
 
-  // Signal automation supports both classic one-motor and multi-motor
-  // turnouts. Integrity must validate the same turnout universe as the editor
-  // and compiler, otherwise valid 2/3-way turnout IDs become false orphans.
   const turnoutById = new Map(
     elements
       .filter(isSignalLogicTurnoutElement)
       .map(element => [element.id, element])
   );
 
-  // Route buttons support the same turnout family.
   const routeTurnoutById = new Map(
     elements
       .filter(isSignalLogicTurnoutElement)
@@ -214,10 +205,24 @@ export function inspectProjectIntegrity(
       .filter((element): element is TrackSignalElement => element instanceof TrackSignalElement)
       .map(signal => signal.id));
 
-    const sensorIds = new Set(
+    const sensorAddresses = new Set(
       elements
         .filter(isSignalLogicSensorElement)
-        .map(sensor => sensor.id)
+        .map(sensor =>
+          Number(
+            (
+              sensor as unknown as {
+                address?: unknown;
+              }
+            ).address ??
+            0
+          )
+        )
+        .filter(
+          address =>
+            Number.isInteger(address) &&
+            address > 0
+        )
     );
 
     for (const group of signalDocument.groups) {
@@ -229,8 +234,24 @@ export function inspectProjectIntegrity(
           if (condition.type === "turnout" && condition.turnoutId !== INVALID_LAYOUT_ELEMENT_ID && !turnoutById.has(condition.turnoutId)) {
             add("Signal logic", "error", `Signal rule ${rule.id} references deleted turnout ${condition.turnoutId}.`);
           }
-          if (condition.type === "sensor" && condition.sensorId !== INVALID_LAYOUT_ELEMENT_ID && !sensorIds.has(condition.sensorId)) {
-            add("Signal logic", "error", `Signal rule ${rule.id} references deleted sensor ${condition.sensorId}.`);
+          if (condition.type === "sensor") {
+            const address =
+              Number(
+                condition.sensorAddress ??
+                0
+              );
+
+            if (
+              !Number.isInteger(address) ||
+              address < 1 ||
+              !sensorAddresses.has(address)
+            ) {
+              add(
+                "Signal logic",
+                "error",
+                `Signal rule ${rule.id} references missing occupancy sensor address ${address || "?"}.`
+              );
+            }
           }
         }
       }

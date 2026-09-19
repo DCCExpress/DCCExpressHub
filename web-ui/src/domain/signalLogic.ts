@@ -153,7 +153,7 @@ export function normalizeSignalLogicDocument(input: unknown): SignalLogicDocumen
 
 function conditionSignature(condition: SignalLogicConditionDto): string {
   return condition.type === "sensor"
-    ? `sensor:${condition.sensorId}:${condition.active}`
+    ? `sensor:${condition.sensorAddress ?? 0}:${condition.active}`
     : `turnout:${condition.turnoutId}:${condition.turnoutChannel ?? 0}:${condition.closed}`;
 }
 
@@ -225,16 +225,29 @@ export function migrateSignalLogicReferences(
           }
         }
 
-        if (condition.type === "sensor" && condition.sensorId === INVALID_LAYOUT_ELEMENT_ID && (condition.sensorAddress ?? 0) > 0) {
-          const matches = knownSensors.filter(sensor => sensor.address === condition.sensorAddress);
-          if (matches.length === 1) {
-            condition.sensorId = matches[0]!.id;
-            delete condition.sensorAddress;
-            migratedReferences++;
-          } else {
-            issues.push({ level: "error", groupId: group.id, ruleId: rule.id, conditionId: condition.id, message: matches.length === 0
-              ? `Legacy sensor #${condition.sensorAddress} cannot be found on the layout.`
-              : `Legacy sensor #${condition.sensorAddress} is ambiguous.` });
+        if (condition.type === "sensor") {
+          const address = Number(condition.sensorAddress ?? 0);
+
+          if (
+            (!Number.isInteger(address) || address <= 0) &&
+            condition.sensorId !== INVALID_LAYOUT_ELEMENT_ID
+          ) {
+            const legacy = knownSensors.find(
+              sensor => sensor.id === condition.sensorId
+            );
+
+            if (legacy) {
+              condition.sensorAddress = legacy.address;
+              migratedReferences++;
+            } else {
+              issues.push({
+                level: "error",
+                groupId: group.id,
+                ruleId: rule.id,
+                conditionId: condition.id,
+                message: `Legacy sensor element ${condition.sensorId} cannot be mapped to an occupancy address.`,
+              });
+            }
           }
         }
       }
@@ -253,7 +266,9 @@ export function validateSignalLogicDocument(
   const issues: SignalLogicValidationIssue[] = [];
   const knownSignalById = new Map(knownSignals.map(signal => [signal.id, signal]));
   const knownTurnoutById = new Map(knownTurnouts.map(turnout => [turnout.id, turnout]));
-  const knownSensorById = new Map(knownSensors.map(sensor => [sensor.id, sensor]));
+  const knownSensorAddresses = new Set(
+    knownSensors.map(sensor => sensor.address)
+  );
   const usedSignalIds = new Set<LayoutElementId>();
 
   for (const group of document.groups) {
@@ -300,20 +315,40 @@ export function validateSignalLogicDocument(
 
       const conditionKeys = new Set<string>();
       for (const condition of rule.conditions) {
-        const elementId = condition.type === "sensor" ? condition.sensorId : condition.turnoutId;
         const key = condition.type === "turnout"
-          ? `${condition.type}:${elementId}:${condition.turnoutChannel ?? 0}`
-          : `${condition.type}:${elementId}`;
+          ? `${condition.type}:${condition.turnoutId}:${condition.turnoutChannel ?? 0}`
+          : `${condition.type}:${condition.sensorAddress ?? 0}`;
         if (conditionKeys.has(key)) {
           issues.push({ level: "warning", groupId: group.id, ruleId: rule.id, conditionId: condition.id, message: "The same input is used more than once in the same rule." });
         }
         conditionKeys.add(key);
 
         if (condition.type === "sensor") {
-          if (condition.sensorId === INVALID_LAYOUT_ELEMENT_ID) {
-            issues.push({ level: "error", groupId: group.id, ruleId: rule.id, conditionId: condition.id, message: "Sensor condition has no valid sensor element ID." });
-          } else if (knownSensors.length > 0 && !knownSensorById.has(condition.sensorId)) {
-            issues.push({ level: "error", groupId: group.id, ruleId: rule.id, conditionId: condition.id, message: `Referenced sensor was deleted (${condition.sensorId}).` });
+          const address = Number(condition.sensorAddress ?? 0);
+
+          if (
+            !Number.isInteger(address) ||
+            address < 1 ||
+            address > 0xffff
+          ) {
+            issues.push({
+              level: "error",
+              groupId: group.id,
+              ruleId: rule.id,
+              conditionId: condition.id,
+              message: "Sensor condition has no valid occupancy address.",
+            });
+          } else if (
+            knownSensors.length > 0 &&
+            !knownSensorAddresses.has(address)
+          ) {
+            issues.push({
+              level: "error",
+              groupId: group.id,
+              ruleId: rule.id,
+              conditionId: condition.id,
+              message: `Referenced occupancy sensor address ${address} does not exist in the layout.`,
+            });
           }
         } else if (condition.turnoutId === INVALID_LAYOUT_ELEMENT_ID) {
           issues.push({ level: "error", groupId: group.id, ruleId: rule.id, conditionId: condition.id, message: "Turnout condition has no valid turnout element ID." });

@@ -519,12 +519,13 @@ bool SignalAutomationEngine::parseSignal(
           condition.channel =
               0;
 
-          if (
-              !_runtime.findSensorById(
-                  condition.id)
-          ) {
+          RuntimeSensor* sensor =
+              _runtime.findSensorById(
+                  condition.id);
+
+          if (!sensor) {
             Logger::warn(
-                "SignalAutomation: sensor condition id=" +
+                "SignalAutomation: legacy sensor condition id=" +
                 String(condition.id) +
                 " not found; rule skipped");
 
@@ -533,6 +534,15 @@ bool SignalAutomationEngine::parseSignal(
 
             break;
           }
+
+          condition.address =
+              sensor->address;
+
+          Logger::warn(
+              "SignalAutomation: migrated legacy sensor element id=" +
+              String(condition.id) +
+              " to occupancy address=" +
+              String(condition.address));
         } else {
           validRule =
               false;
@@ -617,8 +627,9 @@ bool SignalAutomationEngine::parseSignal(
           condition.source =
               Condition::Source::Sensor;
 
-          condition.id =
-              sensor->id;
+          condition.address =
+              static_cast<uint16_t>(
+                  address);
 
           condition.channel =
               0;
@@ -961,13 +972,13 @@ bool SignalAutomationEngine::conditionMatches(
       Condition::Source::Sensor
   ) {
     const RuntimeSensor* sensor =
-        _runtime.findSensorById(
-            condition.id);
+        _runtime.findSensor(
+            condition.address);
 
     if (!sensor) {
       Logger::warn(
-          "SignalAutomation: sensor id=" +
-          String(condition.id) +
+          "SignalAutomation: sensor address=" +
+          String(condition.address) +
           " disappeared from runtime");
 
       return false;

@@ -49,6 +49,11 @@ private:
         Source::Turnout;
 
     uint16_t id = 0;
+
+    // Occupancy conditions are keyed by the physical S88/input address.
+    // The layout element ID is retained only for legacy rule migration.
+    uint16_t address = 0;
+
     uint8_t channel = 0;
     bool value = false;
   };
