@@ -97,6 +97,15 @@ let automationWorker:
 let visibilityLoggingInstalled =
   false;
 
+let browserLifecycleInstalled =
+  false;
+
+let browserTrackPowerOn =
+  false;
+
+let browserPowerTrackingInstalled =
+  false;
+
 let blockTrackingInstalled =
   false;
 
@@ -906,6 +915,134 @@ function installVisibilityLogging(): void {
   );
 }
 
+function installBrowserPowerTracking(): void {
+  if (
+    browserPowerTrackingInstalled
+  ) {
+    return;
+  }
+
+  browserPowerTrackingInstalled =
+    true;
+
+  wsClient.on(
+    "powerInfo",
+    payload => {
+      browserTrackPowerOn =
+        Boolean(
+          payload?.trackVoltageOn
+        );
+    }
+  );
+
+  wsClient.subscribeStatus(
+    status => {
+      if (
+        status ===
+        "connected"
+      ) {
+        return;
+      }
+
+      // If the connection is gone we cannot safely assume the track is off.
+      // Keep the last known power state so an active ON state still protects
+      // the user from accidentally closing/reloading the page.
+    }
+  );
+}
+
+function installBrowserLifecycleProtection(): void {
+  if (
+    typeof window === "undefined" ||
+    browserLifecycleInstalled
+  ) {
+    return;
+  }
+
+  browserLifecycleInstalled =
+    true;
+
+  window.addEventListener(
+    "beforeunload",
+    event => {
+      if (
+        !browserTrackPowerOn
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+
+      // Modern Chrome intentionally ignores custom beforeunload text and
+      // displays its own generic confirmation dialog.
+      event.returnValue = "";
+    }
+  );
+
+  window.addEventListener(
+    "pagehide",
+    () => {
+      if (
+        executions.size === 0
+      ) {
+        return;
+      }
+
+      // Safety first: if this browser client owns an active automation script
+      // and the page is really being left, request an immediate emergency stop.
+      //
+      // Do NOT rely on WebSocket here: Chrome may already be tearing the socket
+      // down by the time pagehide runs. sendBeacon()/keepalive HTTP is designed
+      // specifically for requests that must survive page unload.
+      let emergencyStopQueued =
+        false;
+
+      try {
+        emergencyStopQueued =
+          navigator.sendBeacon(
+            "/api/emergency-stop"
+          );
+      } catch {
+        emergencyStopQueued =
+          false;
+      }
+
+      if (
+        !emergencyStopQueued
+      ) {
+        void fetch(
+          "/api/emergency-stop",
+          {
+            method: "POST",
+            keepalive: true,
+            cache: "no-store",
+          }
+        ).catch(
+          () => {
+            // The page is unloading, so there is nowhere useful to surface
+            // this error. The Hub-side endpoint is the authoritative action.
+          }
+        );
+      }
+
+      const activeExecutionIds =
+        [
+          ...executions.keys(),
+        ];
+
+      for (
+        const executionId of
+        activeExecutionIds
+      ) {
+        abortClientScript(
+          executionId,
+          "Script aborted because the browser page was closed or left."
+        );
+      }
+    }
+  );
+}
+
 function postToWorker(
   message: MainToWorkerMessage
 ): void {
@@ -953,6 +1090,8 @@ function ensureWorker(): Worker {
   }
 
   installVisibilityLogging();
+  installBrowserPowerTracking();
+  installBrowserLifecycleProtection();
   installBlockTargetLocoRuntime();
   installBlockTracking();
   installSensorTracking();
@@ -2216,6 +2355,8 @@ export async function runClientScript(
 }
 
 
+installBrowserPowerTracking();
+installBrowserLifecycleProtection();
 installBlockTracking();
 installSensorTracking();
 installClientScriptLayoutAccessoryTracking(

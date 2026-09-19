@@ -176,8 +176,6 @@ bool SignalAutomationEngine::parseSignal(
                 rawAddress)
           : 0;
 
-  // Validate/rebind the target against the live layout runtime. The DCC
-  // address is the durable fallback when layout IDs have been migrated.
   RuntimeAccessory* target =
       signalId != 0
           ? _runtime.findAccessoryById(
@@ -333,6 +331,7 @@ bool SignalAutomationEngine::parseSignal(
     }
 
     static const char* const RULE_KEYS[] = {
+        "name",
         "value",
         "conditions"
     };
@@ -442,8 +441,6 @@ bool SignalAutomationEngine::parseSignal(
           rawCondition.size() ==
           4
       ) {
-        // Current ID-based format:
-        // [source, layoutId, channel, logicalValue]
         const long conditionId =
             rawCondition[1] |
             0L;
@@ -543,8 +540,6 @@ bool SignalAutomationEngine::parseSignal(
           break;
         }
       } else {
-        // Legacy/address-based format:
-        // [source, dccAddress, physicalValue]
         const long address =
             rawCondition[1] |
             0L;
@@ -666,9 +661,6 @@ bool SignalAutomationEngine::parseSignal(
                 rule));
   }
 
-  // Critical safety rule: an automation entry without a valid rule must not
-  // drive the signal to its default aspect. That would overwrite manual
-  // signal control (typically to STOP) even though no automation rule exists.
   if (signal.rules.empty()) {
     Logger::warn(
         "SignalAutomation: signal id " +

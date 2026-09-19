@@ -33,6 +33,7 @@ type CompiledCondition = [
 ];
 
 type CompiledRule = {
+  name?: string;
   value: number;
   conditions: CompiledCondition[];
 };
@@ -66,6 +67,7 @@ type LegacyCompiledCondition = [
 ];
 
 type LegacyCompiledRule = {
+  name?: string;
   value: number;
   conditions: LegacyCompiledCondition[];
 };
@@ -558,7 +560,7 @@ function normalizeDocumentReferences(
                   Number(
                     element.address
                   ) === address
-              );
+             );
 
             if (replacement) {
               const replacementId =
@@ -823,6 +825,7 @@ function compileDocument(
         rules:
           group.rules.map(
             rule => ({
+              name: rule.name ?? "",
               value:
                 stateValue(
                   config,
@@ -1171,7 +1174,7 @@ function parseCompiled(
             conditions.push(
               parsedCondition
             );
-          } else {
+       } else {
             warnings.push(
               `Signal ID ${id} contains an unsupported condition; skipped.`
             );
@@ -1179,6 +1182,7 @@ function parseCompiled(
         }
 
         rules.push({
+          ...(typeof rule.name === "string" ? { name: rule.name } : {}),
           value,
           conditions,
         });
@@ -1329,6 +1333,7 @@ function parseCompiled(
       }
 
       rules.push({
+        ...(typeof rule.name === "string" ? { name: rule.name } : {}),
         value:
           Math.trunc(
             Number(
@@ -1600,6 +1605,7 @@ function migrateParsedCompiled(
           rules:
             rawSignal.rules.map(
               rule => ({
+                ...(rule.name === undefined ? {} : { name: rule.name }),
                 value:
                   rule.value,
                 conditions:
@@ -1747,7 +1753,7 @@ function decompileCondition(
     type: "turnout",
     turnoutId:
       elementId,
-    turnoutChannel:
+  turnoutChannel:
       channel,
     ...(typeof address ===
     "number"
@@ -1815,11 +1821,14 @@ function decompileDocument(
               (
                 compiledRule,
                 ruleIndex
-              ) => {
+              ): DecompiledRule | null => {
                 try {
                   return {
                     id:
                       `compiled-rule-${compiledSignal.id}-${ruleIndex}`,
+                    name:
+                      compiledRule.name ??
+                      `R${ruleIndex + 1}`,
                     stateId:
                       findStateByValue(
                         config,
@@ -2137,11 +2146,11 @@ export async function saveSignalLogicRulesWs(
 
   const state:
     SignalLogicRuntimeStateDto = {
-    enabled:
-      normalized.document.enabled,
-    running:
-      normalized.document.enabled,
-  };
+      enabled:
+        normalized.document.enabled,
+      running:
+        normalized.document.enabled,
+    };
 
   publishRuntimeState(
     state

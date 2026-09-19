@@ -1,5 +1,280 @@
 #include "FileStore.h"
 
+#include "Logger.h"
+
+namespace {
+
+constexpr uint8_t FILE_OPERATION_RETRIES =
+    5;
+
+constexpr uint32_t FILE_OPERATION_RETRY_DELAY_MS =
+    5;
+
+bool isTransactionSidecarPath(
+    const String& path) {
+  return
+      path.endsWith(".tmp") ||
+      path.endsWith(".bak");
+}
+
+// Arduino-ESP32 FS::exists() internally tries to open the file and logs an
+// ERROR when a missing path is perfectly normal. Atomic save routinely probes
+// optional .tmp/.bak files, so use a directory scan instead and keep the serial
+// log clean.
+bool existsQuiet(
+    fs::FS& fs,
+    const String& path) {
+  if (
+      path.isEmpty() ||
+      !path.startsWith("/")
+  ) {
+    return false;
+  }
+
+  const int slash =
+      path.lastIndexOf('/');
+
+  const String parent =
+      slash <= 0
+          ? "/"
+          : path.substring(
+                0,
+                slash);
+
+  const String wanted =
+      path.substring(
+          slash + 1);
+
+  File dir =
+      fs.open(
+          parent,
+          "r");
+
+  if (
+      !dir ||
+      !dir.isDirectory()
+  ) {
+    if (dir) {
+      dir.close();
+    }
+
+    return false;
+  }
+
+  File item =
+      dir.openNextFile();
+
+  while (item) {
+    String name =
+        String(
+            item.name());
+
+    const int itemSlash =
+        name.lastIndexOf('/');
+
+    if (itemSlash >= 0) {
+      name =
+          name.substring(
+              itemSlash + 1);
+    }
+
+    const bool match =
+        name == wanted;
+
+    item.close();
+
+    if (match) {
+      dir.close();
+      return true;
+    }
+
+    item =
+        dir.openNextFile();
+  }
+
+  dir.close();
+
+  return false;
+}
+
+bool removeIfExists(
+    fs::FS& fs,
+    const String& path) {
+  if (
+      path.isEmpty() ||
+      !existsQuiet(
+          fs,
+          path)
+  ) {
+    return true;
+  }
+
+  for (
+      uint8_t attempt = 0;
+      attempt <
+          FILE_OPERATION_RETRIES;
+      ++attempt
+  ) {
+    if (
+        fs.remove(
+            path)
+    ) {
+      return true;
+    }
+
+    delay(
+        FILE_OPERATION_RETRY_DELAY_MS);
+  }
+
+  return
+      !existsQuiet(
+          fs,
+          path);
+}
+
+bool renameWithRetry(
+    fs::FS& fs,
+    const String& from,
+    const String& to) {
+  for (
+      uint8_t attempt = 0;
+      attempt <
+          FILE_OPERATION_RETRIES;
+      ++attempt
+  ) {
+    if (
+        fs.rename(
+            from,
+            to)
+    ) {
+      return true;
+    }
+
+    delay(
+        FILE_OPERATION_RETRY_DELAY_MS);
+  }
+
+  return false;
+}
+
+bool copyFile(
+    fs::FS& fs,
+    const String& sourcePath,
+    const String& targetPath) {
+  File source =
+      fs.open(
+          sourcePath,
+          "r");
+
+  if (!source) {
+    return false;
+  }
+
+  File target =
+      fs.open(
+          targetPath,
+          "w");
+
+  if (!target) {
+    source.close();
+    return false;
+  }
+
+  uint8_t buffer[512];
+
+  bool ok =
+      true;
+
+  while (
+      source.available()
+  ) {
+    const size_t read =
+        source.read(
+            buffer,
+            sizeof(buffer));
+
+    if (
+        read == 0
+    ) {
+      break;
+    }
+
+    const size_t written =
+        target.write(
+            buffer,
+            read);
+
+    if (
+        written != read
+    ) {
+      ok =
+          false;
+
+      break;
+    }
+  }
+
+  target.flush();
+
+  source.close();
+  target.close();
+
+  if (!ok) {
+    removeIfExists(
+        fs,
+        targetPath);
+
+    return false;
+  }
+
+  return true;
+}
+
+bool restoreBackup(
+    fs::FS& fs,
+    const String& backup,
+    const String& finalPath) {
+  if (
+      !existsQuiet(
+          fs,
+          backup)
+  ) {
+    return false;
+  }
+
+  removeIfExists(
+      fs,
+      finalPath);
+
+  if (
+      renameWithRetry(
+          fs,
+          backup,
+          finalPath)
+  ) {
+    return true;
+  }
+
+  // Fallback for filesystems where rename is temporarily unavailable:
+  // copy the already closed backup back to the final path.
+  if (
+      copyFile(
+          fs,
+          backup,
+          finalPath)
+  ) {
+    removeIfExists(
+        fs,
+        backup);
+
+    return true;
+  }
+
+  return false;
+}
+
+}
+
 File FileStore::openRead(
     const char* path) const {
   if (
@@ -9,8 +284,18 @@ File FileStore::openRead(
     return File();
   }
 
-  recover(
-      path);
+  const String value =
+      path;
+
+  // Transaction sidecars must never recursively spawn recovery sidecars such
+  // as ".tmp.tmp" or ".tmp.bak" when opened for validation.
+  if (
+      !isTransactionSidecarPath(
+          value)
+  ) {
+    recover(
+        path);
+  }
 
   return
       _fs.open(
@@ -54,7 +339,8 @@ bool FileStore::ensureParent(
           slash);
 
   if (
-      _fs.exists(
+      existsQuiet(
+          _fs,
           parent)
   ) {
     return true;
@@ -83,48 +369,59 @@ bool FileStore::recover(
           finalPath);
 
   const bool hasFinal =
-      _fs.exists(
-          finalPath);
+      existsQuiet(
+          _fs,
+          String(finalPath));
 
   const bool hasBackup =
-      _fs.exists(
+      existsQuiet(
+          _fs,
           backup);
 
   const bool hasTemp =
-      _fs.exists(
+      existsQuiet(
+          _fs,
           temp);
 
   // A committed final file is authoritative.
   // Any remaining backup/temp is stale debris from an interrupted cleanup.
   if (hasFinal) {
     if (hasBackup) {
-      _fs.remove(
+      removeIfExists(
+          _fs,
           backup);
     }
 
     if (hasTemp) {
-      _fs.remove(
+      removeIfExists(
+          _fs,
           temp);
     }
 
     return true;
   }
 
-  // If final disappeared after final -> backup but before temp -> final,
+  // If final disappeared after backup creation but before temp -> final,
   // restore the last known-good committed version.
   if (hasBackup) {
     if (
-        !_fs.rename(
+        !restoreBackup(
+            _fs,
             backup,
             finalPath)
     ) {
+      Logger::error(
+          "FileStore recovery failed for " +
+          String(finalPath));
+
       return false;
     }
 
     // The interrupted candidate must never replace the restored backup
     // without going through its normal validator/commit path.
     if (hasTemp) {
-      _fs.remove(
+      removeIfExists(
+          _fs,
           temp);
     }
 
@@ -134,7 +431,8 @@ bool FileStore::recover(
   // A lone temp file is an uncommitted candidate. We cannot assume it is
   // complete or valid after power loss, so discard it.
   if (hasTemp) {
-    _fs.remove(
+    removeIfExists(
+        _fs,
         temp);
   }
 
@@ -160,8 +458,17 @@ File FileStore::beginWrite(
       tempPath(
           finalPath);
 
-  _fs.remove(
-      temp);
+  if (
+      !removeIfExists(
+          _fs,
+          temp)
+  ) {
+    Logger::error(
+        "FileStore: could not remove stale temp file " +
+        temp);
+
+    return File();
+  }
 
   return
       _fs.open(
@@ -178,7 +485,8 @@ void FileStore::abort(
     return;
   }
 
-  _fs.remove(
+  removeIfExists(
+      _fs,
       tempPath(
           finalPath));
 }
@@ -192,6 +500,9 @@ bool FileStore::commit(
     return false;
   }
 
+  const String final =
+      finalPath;
+
   const String temp =
       tempPath(
           finalPath);
@@ -201,44 +512,118 @@ bool FileStore::commit(
           finalPath);
 
   if (
-      !_fs.exists(
+      !existsQuiet(
+          _fs,
           temp)
   ) {
+    Logger::error(
+        "FileStore commit failed: temp file missing: " +
+        temp);
+
     return false;
   }
 
-  _fs.remove(
-      backup);
-
-  const bool hadFinal =
-      _fs.exists(
-          finalPath);
-
+  // Never rename the live final file to create the backup.
+  // A pending HTTP file response may still have that file open on LittleFS.
+  // Copying it first lets us explicitly close both handles before replacement.
   if (
-      hadFinal &&
-      !_fs.rename(
-          finalPath,
+      !removeIfExists(
+          _fs,
           backup)
   ) {
+    Logger::error(
+        "FileStore commit failed: stale backup could not be removed: " +
+        backup);
+
     return false;
   }
 
+  const bool hadFinal =
+      existsQuiet(
+          _fs,
+          final);
+
+  if (hadFinal) {
+    if (
+        !copyFile(
+            _fs,
+            final,
+            backup)
+    ) {
+      Logger::error(
+          "FileStore commit failed: backup copy failed: " +
+          final +
+          " -> " +
+          backup);
+
+      return false;
+    }
+
+    // copyFile() has closed both source and destination handles here.
+    // Retry removal briefly because ESPAsyncWebServer/LittleFS may release
+    // a response file handle a few milliseconds after the request completes.
+    if (
+        !removeIfExists(
+            _fs,
+            final)
+    ) {
+      Logger::error(
+          "FileStore commit failed: final file is still busy: " +
+          final);
+
+      removeIfExists(
+          _fs,
+          backup);
+
+      return false;
+    }
+  }
+
   if (
-      !_fs.rename(
+      !renameWithRetry(
+          _fs,
           temp,
-          finalPath)
+          final)
   ) {
+    Logger::error(
+        "FileStore commit failed: temp rename failed: " +
+        temp +
+        " -> " +
+        final);
+
     if (hadFinal) {
-      _fs.rename(
-          backup,
-          finalPath);
+      if (
+          !restoreBackup(
+              _fs,
+              backup,
+              final)
+      ) {
+        Logger::error(
+            "FileStore CRITICAL: rollback failed for " +
+            final);
+      }
     }
 
     return false;
   }
 
-  _fs.remove(
-      backup);
+  if (
+      !removeIfExists(
+          _fs,
+          backup)
+  ) {
+    // The new final is already valid and committed. A leftover backup is
+    // harmless; recover() will remove it on the next access/restart.
+    Logger::warn(
+        "FileStore: committed " +
+        final +
+        " but stale backup remains: " +
+        backup);
+  }
+
+  Logger::info(
+      "FileStore committed: " +
+      final);
 
   return true;
 }
@@ -256,8 +641,9 @@ bool FileStore::exists(
       path);
 
   return
-      _fs.exists(
-          path);
+      existsQuiet(
+          _fs,
+          String(path));
 }
 
 bool FileStore::remove(
@@ -281,31 +667,37 @@ bool FileStore::remove(
       false;
 
   if (
-      _fs.exists(
-          path)
+      existsQuiet(
+          _fs,
+          String(path))
   ) {
     removed =
-        _fs.remove(
+        removeIfExists(
+            _fs,
             path) ||
         removed;
   }
 
   if (
-      _fs.exists(
+      existsQuiet(
+          _fs,
           temp)
   ) {
     removed =
-        _fs.remove(
+        removeIfExists(
+            _fs,
             temp) ||
         removed;
   }
 
   if (
-      _fs.exists(
+      existsQuiet(
+          _fs,
           backup)
   ) {
     removed =
-        _fs.remove(
+        removeIfExists(
+            _fs,
             backup) ||
         removed;
   }
@@ -455,6 +847,11 @@ bool AtomicFileUpload::finish() {
   if (_file) {
     _file.flush();
     _file.close();
+
+    // Explicitly clear the File wrapper after close so no stale filesystem
+    // handle can remain owned by AtomicFileUpload during commit().
+    _file =
+        File();
   }
 
   if (
@@ -503,6 +900,9 @@ bool AtomicFileUpload::commit() {
 void AtomicFileUpload::abort() {
   if (_file) {
     _file.close();
+
+    _file =
+        File();
   }
 
   if (

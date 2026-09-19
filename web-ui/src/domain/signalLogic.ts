@@ -32,6 +32,7 @@ export type SignalLogicConditionDto = SignalLogicTurnoutConditionDto | SignalLog
 
 export type SignalLogicRuleDto = {
   id: string;
+  name?: string;
   conditions: SignalLogicConditionDto[];
   stateId: string;
   aspect?: LegacySignalAspect;
@@ -67,7 +68,7 @@ export type SignalLogicValidationIssue = {
 export const DEFAULT_SIGNAL_LOGIC_DOCUMENT: SignalLogicDocumentDto = { version: 3, enabled: false, groups: [] };
 
 type RawCondition = { id?: unknown; type?: unknown; turnoutAddress?: unknown; turnoutId?: unknown; turnoutChannel?: unknown; closed?: unknown; sensorAddress?: unknown; sensorId?: unknown; active?: unknown };
-type RawRule = { id?: unknown; stateId?: unknown; aspect?: unknown; conditions?: unknown };
+type RawRule = { id?: unknown; name?: unknown; stateId?: unknown; aspect?: unknown; conditions?: unknown };
 type RawGroup = { id?: unknown; signalAddress?: unknown; signalId?: unknown; defaultStateId?: unknown; defaultAspect?: unknown; rules?: unknown };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -139,6 +140,7 @@ export function normalizeSignalLogicDocument(input: unknown): SignalLogicDocumen
           const aspect = isLegacySignalAspect(rule.aspect) ? rule.aspect : undefined;
           return {
             id: typeof rule.id === "string" && rule.id.length > 0 ? rule.id : `signal-rule-${groupIndex + 1}-${ruleIndex + 1}`,
+            name: typeof rule.name === "string" ? rule.name : `R${ruleIndex + 1}`,
             stateId: typeof rule.stateId === "string" ? rule.stateId : "",
             ...(aspect ? { aspect } : {}),
             conditions: conditions.map((condition, conditionIndex) => normalizeCondition(condition, groupIndex, ruleIndex, conditionIndex)),

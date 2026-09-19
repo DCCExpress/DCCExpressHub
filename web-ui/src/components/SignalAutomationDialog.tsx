@@ -11,6 +11,7 @@ import {
   ScrollArea,
   Select,
   Stack,
+  TextInput,
   Table,
   Text,
 } from "@mantine/core";
@@ -388,6 +389,24 @@ export default function SignalAutomationDialog({
           continue;
         }
 
+        const state = (
+          value: "oo" | "oc" | "co" | "cc",
+          label: string,
+          firstPhysical: boolean,
+          secondPhysical: boolean
+        ): TurnoutLogicalState => ({
+          value,
+          label,
+          // Double-turnout position names are based on the configurable
+          // PHYSICAL motor table. Automation conditions, however, are stored
+          // as semantic CLOSED/THROWN values. Convert both motor values with
+          // their configured Closed Value before saving/matching the rule.
+          first:
+            firstPhysical === turnout.turnout1ClosedValue,
+          second:
+            secondPhysical === turnout.turnout2ClosedValue,
+        });
+
         result.push({
           value: String(turnout.id),
           label: i18next.t("ui.doubleTurnout", { value1: turnout.turnout1Address, value2: turnout.turnout2Address, value3: optionalUserElementName(turnout.name) }),
@@ -396,34 +415,30 @@ export default function SignalAutomationDialog({
           address1: turnout.turnout1Address,
           address2: turnout.turnout2Address,
           states: [
-            // O/C here is LOGICAL turnout state, not the decoder bit.
-            // The TrackTurnoutDoubleElement stores a configurable physical
-            // output table, while SignalAutomationEngine matches the runtime's
-            // semantic `closed` flags.
-            {
-              value: "oo",
-              label: "O-O",
-              first: false,
-              second: false,
-            },
-            {
-              value: "oc",
-              label: "O-C",
-              first: false,
-              second: true,
-            },
-            {
-              value: "co",
-              label: "C-O",
-              first: true,
-              second: false,
-            },
-            {
-              value: "cc",
-              label: "C-C",
-              first: true,
-              second: true,
-            },
+            state(
+              "oo",
+              "O-O",
+              turnout.ooMotor1Value,
+              turnout.ooMotor2Value
+            ),
+            state(
+              "oc",
+              "O-C",
+              turnout.ocMotor1Value,
+              turnout.ocMotor2Value
+            ),
+            state(
+              "co",
+              "C-O",
+              turnout.coMotor1Value,
+              turnout.coMotor2Value
+            ),
+            state(
+              "cc",
+              "C-C",
+              turnout.ccMotor1Value,
+              turnout.ccMotor2Value
+            ),
           ],
         });
 
@@ -485,9 +500,10 @@ export default function SignalAutomationDialog({
 
       byAddress.set(element.address, {
         value: String(element.id),
-        label: i18next.t("ui.sensor", { value1: element.address, value2: element.name && element.name !== "element"
-            ? ` · ${element.name}`
-            : "" }),
+        label: i18next.t("ui.sensor", {
+          value1: element.address,
+          value2: optionalUserElementName(element.name),
+        }),
         id: element.id,
         address: element.address,
       });
@@ -965,6 +981,7 @@ export default function SignalAutomationDialog({
         ...current.rules,
         {
           id: generateId(),
+          name: `R${current.rules.length + 1}`,
           stateId:
             targetSignal?.states[0]?.id ?? "",
           conditions: firstSensor
@@ -1106,7 +1123,7 @@ export default function SignalAutomationDialog({
               offsetScrollbars
               scrollbarSize={8}
             >
-              <Box miw={980}>
+              <Box miw={1160}>
                 <Table
                   striped
                   highlightOnHover
@@ -1116,6 +1133,7 @@ export default function SignalAutomationDialog({
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th w={72}> {i18next.t("ui.rule")} </Table.Th>
+                  <Table.Th w={180}>Name</Table.Th>
                   <Table.Th w={210}> {i18next.t("ui.result")} </Table.Th>
                   <Table.Th> {i18next.t("ui.conditions")} </Table.Th>
                   <Table.Th w={60} />
@@ -1130,6 +1148,25 @@ export default function SignalAutomationDialog({
                         <Badge variant="light">
                           #{ruleIndex + 1}
                         </Badge>
+                      </Table.Td>
+
+                      <Table.Td>
+                        <TextInput
+                          size="xs"
+                          placeholder={`R${ruleIndex + 1}`}
+                          value={rule.name ?? ""}
+                          onChange={event => {
+                            const name = event.currentTarget.value;
+
+                            updateRule(
+                              rule.id,
+                              current => ({
+                                ...current,
+                                name,
+                              })
+                            );
+                          }}
+                        />
                       </Table.Td>
 
                       <Table.Td>
