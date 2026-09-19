@@ -218,7 +218,7 @@ function DccExProgrammingPage({ onBack, status }: Props) {
   const [pom, setPom] = useState(false);
 
   const [quickTestAddress, setQuickTestAddress] = useState<NumberValue>(3);
-  const [quickTestSpeed, setQuickTestSpeed] = useState<NumberValue>(10);
+  const [quickTestSpeed, setQuickTestSpeed] = useState<NumberValue>(5);
   const [quickTestDirection, setQuickTestDirection] =
     useState<"forward" | "reverse">("forward");
   const [quickTestFunctions, setQuickTestFunctions] =
@@ -330,6 +330,53 @@ function DccExProgrammingPage({ onBack, status }: Props) {
       }
 
       setBusy(false);
+    }
+  };
+
+  const sendTrackPower = (
+    target: "MAIN" | "PROG",
+    on: boolean,
+  ): void => {
+    const command = `<${on ? 1 : 0} ${target}>`;
+    const sent = wsApi.writeDccExDirectCommand(command);
+
+    if (!sent) {
+      setResult({
+        requestId: "local",
+        action: "readAddress",
+        ok: false,
+        message: `${target} power command could not be sent.`,
+      });
+
+      return;
+    }
+
+    setPowerInfo(current => {
+      if (!current) {
+        return current;
+      }
+
+      if (target === "MAIN") {
+        return {
+          ...current,
+          trackVoltageOn: on,
+          trackVoltageOff: !on,
+        };
+      }
+
+      return {
+        ...current,
+        programmingModeActive: on,
+        ...(on
+          ? {}
+          : {
+              programmingJoined: false,
+            }),
+      };
+    });
+
+    if (target === "PROG" && !on) {
+      setQuickTestMessage("");
     }
   };
 
@@ -555,7 +602,7 @@ function DccExProgrammingPage({ onBack, status }: Props) {
               <Text size="xs" c="dimmed" fw={700}>JOIN</Text>
               <Badge
                 mt={6}
-                color={disconnected ? "gray" : joined ? "blue" : "gray"}
+                color={disconnected ? "gray" : joined ? "lime" : "gray"}
                 variant={joined ? "filled" : "light"}
               >
                 {disconnected ? "UNKNOWN" : joined ? "ON" : "OFF"}
@@ -563,9 +610,84 @@ function DccExProgrammingPage({ onBack, status }: Props) {
             </Card>
           </SimpleGrid>
 
+          <Divider label="Track power" labelPosition="center" />
+
+          <SimpleGrid cols={{ base: 1, sm: 2 }}>
+            <Card withBorder radius="sm" p="sm">
+              <Stack gap="xs">
+                <Group justify="space-between">
+                  <Text fw={700} size="sm">MAIN POWER</Text>
+                  <Badge
+                    color={mainOn ? "teal" : "red"}
+                    variant="light"
+                  >
+                    {mainOn ? "ON" : "OFF"}
+                  </Badge>
+                </Group>
+
+                <SimpleGrid cols={2}>
+                  <Button
+                    color={mainOn ? "lime" : "dark"}
+                    variant="filled"
+                    disabled={busy || disconnected}
+                    onClick={() => sendTrackPower("MAIN", true)}
+                  >
+                    ON
+                  </Button>
+
+                  <Button
+                    color={!mainOn ? "red" : "dark"}
+                    variant="filled"
+                    disabled={busy || disconnected}
+                    onClick={() => sendTrackPower("MAIN", false)}
+                  >
+                    OFF
+                  </Button>
+                </SimpleGrid>
+              </Stack>
+            </Card>
+
+            <Card withBorder radius="sm" p="sm">
+              <Stack gap="xs">
+                <Group justify="space-between">
+                  <Text fw={700} size="sm">PROG POWER</Text>
+                  <Badge
+                    color={progOn ? "teal" : "red"}
+                    variant="light"
+                  >
+                    {progOn ? "ON" : "OFF"}
+                  </Badge>
+                </Group>
+
+                <SimpleGrid cols={2}>
+                  <Button
+                    color={progOn ? "lime" : "dark"}
+                    variant="filled"
+                    disabled={busy || disconnected}
+                    onClick={() => sendTrackPower("PROG", true)}
+                  >
+                    ON
+                  </Button>
+
+                  <Button
+                    color={!progOn ? "red" : "dark"}
+                    variant="filled"
+                    disabled={busy || disconnected}
+                    onClick={() => sendTrackPower("PROG", false)}
+                  >
+                    OFF
+                  </Button>
+                </SimpleGrid>
+              </Stack>
+            </Card>
+          </SimpleGrid>
+
+          <Divider label="Programming mode" labelPosition="center" />
+
           <SimpleGrid cols={{ base: 1, sm: 2 }}>
             <Button
-              color="blue"
+              color={joined ? "lime" : "dark"}
+              variant="filled"
               disabled={busy || disconnected}
               onClick={() => sendJoin(true)}
             >
@@ -573,8 +695,8 @@ function DccExProgrammingPage({ onBack, status }: Props) {
             </Button>
 
             <Button
-              variant="light"
-              color="orange"
+              color={!joined ? "blue" : "dark"}
+              variant="filled"
               disabled={busy || disconnected}
               onClick={() => sendJoin(false)}
             >
@@ -632,7 +754,8 @@ function DccExProgrammingPage({ onBack, status }: Props) {
 
               <SimpleGrid cols={{ base: 1, sm: 3 }}>
                 <Button
-                  color="violet"
+                  
+                  variant="filled"
                   disabled={quickTestDisabled}
                   onClick={() => sendQuickTestDirection("reverse")}
                 >
@@ -649,7 +772,8 @@ function DccExProgrammingPage({ onBack, status }: Props) {
                 </Button>
 
                 <Button
-                  color="teal"
+                  
+                  variant="filled"
                   disabled={quickTestDisabled}
                   onClick={() => sendQuickTestDirection("forward")}
                 >
@@ -665,8 +789,8 @@ function DccExProgrammingPage({ onBack, status }: Props) {
                   return (
                     <Button
                       key={functionNumber}
-                      color={active ? "yellow" : "gray"}
-                      variant={active ? "filled" : "light"}
+                      color={active ? "lime" : "red"}
+                      variant="filled"
                       disabled={quickTestDisabled}
                       onClick={() =>
                         toggleQuickTestFunction(functionNumber)
