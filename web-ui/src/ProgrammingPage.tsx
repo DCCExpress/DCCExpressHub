@@ -218,7 +218,7 @@ function DccExProgrammingPage({ onBack, status }: Props) {
   const [pom, setPom] = useState(false);
 
   const [quickTestAddress, setQuickTestAddress] = useState<NumberValue>(3);
-  const [quickTestSpeed, setQuickTestSpeed] = useState<NumberValue>(20);
+  const [quickTestSpeed, setQuickTestSpeed] = useState<NumberValue>(10);
   const [quickTestDirection, setQuickTestDirection] =
     useState<"forward" | "reverse">("forward");
   const [quickTestFunctions, setQuickTestFunctions] =
@@ -608,7 +608,8 @@ function DccExProgrammingPage({ onBack, status }: Props) {
 
               <SimpleGrid cols={{ base: 1, sm: 2 }}>
                 <NumberInput
-                  label="Locomotive address"
+                  label="Locomotive"
+                  description="address"
                   value={quickTestAddress}
                   onChange={setQuickTestAddress}
                   min={1}
@@ -631,11 +632,11 @@ function DccExProgrammingPage({ onBack, status }: Props) {
 
               <SimpleGrid cols={{ base: 1, sm: 3 }}>
                 <Button
-                  color="teal"
+                  color="violet"
                   disabled={quickTestDisabled}
-                  onClick={() => sendQuickTestDirection("forward")}
+                  onClick={() => sendQuickTestDirection("reverse")}
                 >
-                  FORWARD
+                  REVERSE
                 </Button>
 
                 <Button
@@ -648,11 +649,11 @@ function DccExProgrammingPage({ onBack, status }: Props) {
                 </Button>
 
                 <Button
-                  color="violet"
+                  color="teal"
                   disabled={quickTestDisabled}
-                  onClick={() => sendQuickTestDirection("reverse")}
+                  onClick={() => sendQuickTestDirection("forward")}
                 >
-                  REVERSE
+                  FORWARD
                 </Button>
               </SimpleGrid>
 
