@@ -13,6 +13,102 @@
 namespace
 {
 
+    enum class ProgrammingTrackTransition : uint8_t
+    {
+        None,
+        Programming,
+        Joined
+    };
+
+    ProgrammingTrackTransition programmingTrackTransition =
+        ProgrammingTrackTransition::None;
+
+    unsigned long programmingTrackTransitionExpiresAt =
+        0;
+
+    constexpr unsigned long
+        PROGRAMMING_TRACK_TRANSITION_GUARD_MS =
+            1000;
+
+    void beginProgrammingTrackTransition(
+        bool joined)
+    {
+        programmingTrackTransition =
+            joined
+                ? ProgrammingTrackTransition::Joined
+                : ProgrammingTrackTransition::Programming;
+
+        programmingTrackTransitionExpiresAt =
+            millis() +
+            PROGRAMMING_TRACK_TRANSITION_GUARD_MS;
+    }
+
+    bool programmingTrackTransitionIsActive()
+    {
+        if (
+            programmingTrackTransition ==
+            ProgrammingTrackTransition::None)
+        {
+            return false;
+        }
+
+        if (
+            static_cast<long>(
+                millis() -
+                programmingTrackTransitionExpiresAt) >= 0)
+        {
+            programmingTrackTransition =
+                ProgrammingTrackTransition::None;
+
+            return false;
+        }
+
+        return true;
+    }
+
+    bool shouldIgnoreProgrammingTrackFeedback(
+        const CommandCenterPowerFeedback &info)
+    {
+        if (
+            !programmingTrackTransitionIsActive())
+        {
+            return false;
+        }
+
+        if (
+            info.target !=
+                CommandCenterPowerTarget::Programming &&
+            info.target !=
+                CommandCenterPowerTarget::Joined)
+        {
+            return false;
+        }
+
+        const bool expectsJoined =
+            programmingTrackTransition ==
+            ProgrammingTrackTransition::Joined;
+
+        const bool confirmsExpectedMode =
+            info.on &&
+            ((expectsJoined &&
+              info.target ==
+                  CommandCenterPowerTarget::Joined) ||
+             (!expectsJoined &&
+              info.target ==
+                  CommandCenterPowerTarget::Programming));
+
+        if (
+            confirmsExpectedMode)
+        {
+            programmingTrackTransition =
+                ProgrammingTrackTransition::None;
+
+            return false;
+        }
+
+        return true;
+    }
+
     volatile uint32_t cpuIdleCounters[2] = {0, 0};
     uint32_t cpuIdleBaseline[2] = {1, 1};
     uint32_t cpuIdlePrevious[2] = {0, 0};
@@ -1945,6 +2041,16 @@ void WsProtocol::handleTripTelemetry(
 void WsProtocol::handlePowerFeedback(
     const CommandCenterPowerFeedback &info)
 {
+    if (
+        shouldIgnoreProgrammingTrackFeedback(
+            info))
+    {
+        Logger::info(
+            "Ignoring stale programming-track power feedback during mode transition");
+
+        return;
+    }
+
     const bool wasMainOn =
         _trackPower;
 
@@ -1964,9 +2070,9 @@ void WsProtocol::handlePowerFeedback(
         _programmingPower =
             info.on;
 
-        _programmingJoined =
-            false;
-
+        // Generic ALL power feedback only describes track power.
+        // It must not change JOIN/PROG routing mode. DCC-EX sends
+        // explicit JOIN or PROG feedback when that mode changes.
         for (
             uint8_t index = 0;
             index < MAX_DCC_TRACKS;
@@ -2395,6 +2501,9 @@ void WsProtocol::handleMessage(
 
             if (normalizedCommand == "<1 JOIN>")
             {
+                beginProgrammingTrackTransition(
+                    true);
+
                 _programmingJoined =
                     true;
 
@@ -2411,6 +2520,9 @@ void WsProtocol::handleMessage(
             }
             else if (normalizedCommand == "<1 PROG>")
             {
+                beginProgrammingTrackTransition(
+                    false);
+
                 _programmingJoined =
                     false;
 
@@ -2592,6 +2704,9 @@ void WsProtocol::handleMessage(
         {
             if (_programmingJoined)
             {
+                beginProgrammingTrackTransition(
+                    false);
+
                 _programmingJoined = false;
                 broadcastPowerInfo();
             }

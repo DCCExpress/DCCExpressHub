@@ -217,6 +217,18 @@ function DccExProgrammingPage({ onBack, status }: Props) {
   const [cvValue, setCvValue] = useState<NumberValue>(0);
   const [pom, setPom] = useState(false);
 
+  const [quickTestAddress, setQuickTestAddress] = useState<NumberValue>(3);
+  const [quickTestSpeed, setQuickTestSpeed] = useState<NumberValue>(20);
+  const [quickTestDirection, setQuickTestDirection] =
+    useState<"forward" | "reverse">("forward");
+  const [quickTestFunctions, setQuickTestFunctions] =
+    useState<Record<number, boolean>>({
+      0: false,
+      1: false,
+      2: false,
+    });
+  const [quickTestMessage, setQuickTestMessage] = useState("");
+
   const [accessoryCv, setAccessoryCv] = useState<NumberValue>(1);
   const [accessoryCvValue, setAccessoryCvValue] = useState<NumberValue>(0);
   const [accessoryAddress, setAccessoryAddress] = useState<NumberValue>(1);
@@ -246,6 +258,15 @@ function DccExProgrammingPage({ onBack, status }: Props) {
     if (confirmText && !window.confirm(confirmText)) {
       return;
     }
+
+    const restoreJoinAfterProgramming =
+      (powerInfo?.programmingJoined ?? false) &&
+      (
+        action === "readAddress" ||
+        action === "writeAddress" ||
+        action === "readCv" ||
+        action === "writeCv"
+      );
 
     setBusy(true);
     setResult(null);
@@ -290,6 +311,24 @@ function DccExProgrammingPage({ onBack, status }: Props) {
             : "Programming request failed.",
       });
     } finally {
+      if (restoreJoinAfterProgramming) {
+        const joinedAgain =
+          wsApi.writeDccExDirectCommand("<1 JOIN>");
+
+        if (joinedAgain) {
+          setPowerInfo(current =>
+            current
+              ? {
+                  ...current,
+                  programmingJoined: true,
+                  programmingModeActive: true,
+                  trackVoltageOn: true,
+                }
+              : current,
+          );
+        }
+      }
+
       setBusy(false);
     }
   };
@@ -312,8 +351,6 @@ function DccExProgrammingPage({ onBack, status }: Props) {
       return;
     }
 
-    // Optimistic UI update. The firmware broadcasts the authoritative
-    // powerInfo state immediately after the DCC-EX command is accepted.
     setPowerInfo(current =>
       current
         ? {
@@ -323,6 +360,110 @@ function DccExProgrammingPage({ onBack, status }: Props) {
             ...(joined ? { trackVoltageOn: true } : {}),
           }
         : current,
+    );
+
+    if (!joined) {
+      setQuickTestMessage("");
+    }
+  };
+
+  const sendQuickTestDirection = (
+    direction: "forward" | "reverse",
+  ): void => {
+    const address = numberValue(quickTestAddress);
+    const speed = numberValue(quickTestSpeed);
+
+    if (
+      !Number.isFinite(address) ||
+      address < 1 ||
+      address > 10239 ||
+      !Number.isFinite(speed) ||
+      speed < 0 ||
+      speed > 126
+    ) {
+      setQuickTestMessage("Invalid locomotive address or speed.");
+      return;
+    }
+
+    const sent = wsApi.setLoco(
+      address,
+      Math.trunc(speed),
+      direction,
+    );
+
+    if (!sent) {
+      setQuickTestMessage("Locomotive command could not be sent.");
+      return;
+    }
+
+    setQuickTestDirection(direction);
+    setQuickTestMessage(
+      `${direction === "forward" ? "Forward" : "Reverse"} · speed ${Math.trunc(speed)}`,
+    );
+  };
+
+  const stopQuickTest = (): void => {
+    const address = numberValue(quickTestAddress);
+
+    if (
+      !Number.isFinite(address) ||
+      address < 1 ||
+      address > 10239
+    ) {
+      setQuickTestMessage("Invalid locomotive address.");
+      return;
+    }
+
+    const sent = wsApi.setLoco(
+      address,
+      0,
+      quickTestDirection,
+    );
+
+    setQuickTestMessage(
+      sent
+        ? "STOP"
+        : "STOP command could not be sent.",
+    );
+  };
+
+  const toggleQuickTestFunction = (
+    functionNumber: 0 | 1 | 2,
+  ): void => {
+    const address = numberValue(quickTestAddress);
+
+    if (
+      !Number.isFinite(address) ||
+      address < 1 ||
+      address > 10239
+    ) {
+      setQuickTestMessage("Invalid locomotive address.");
+      return;
+    }
+
+    const next =
+      !(quickTestFunctions[functionNumber] ?? false);
+
+    const sent = wsApi.setLocoFunction(
+      address,
+      functionNumber,
+      next,
+    );
+
+    if (!sent) {
+      setQuickTestMessage(
+        `F${functionNumber} command could not be sent.`,
+      );
+      return;
+    }
+
+    setQuickTestFunctions(current => ({
+      ...current,
+      [functionNumber]: next,
+    }));
+
+    setQuickTestMessage(
+      `F${functionNumber} ${next ? "ON" : "OFF"}`,
     );
   };
 
@@ -337,6 +478,7 @@ function DccExProgrammingPage({ onBack, status }: Props) {
 
   const safeLocoValue = Number.isFinite(locoValue) ? locoValue : 0;
   const safeAccValue = Number.isFinite(accValue) ? accValue : 0;
+  const quickTestDisabled = busy || disconnected || !joined;
 
   return (
     <Stack gap="lg">
@@ -443,6 +585,107 @@ function DccExProgrammingPage({ onBack, status }: Props) {
           <Text size="xs" c="dimmed">
             JOIN sends MAIN DCC to the isolated programming output so speed, lights and sound functions can be tested. RETURN TO PROG sends &lt;1 PROG&gt; and restores normal service-mode programming.
           </Text>
+
+          <Divider label="Quick test" labelPosition="center" />
+
+          <Card withBorder radius="sm" p="md">
+            <Stack gap="sm">
+              <Group justify="space-between" align="center">
+                <div>
+                  <Text fw={700}>Locomotive quick test</Text>
+                  <Text size="xs" c="dimmed">
+                    Available only while the programming output is JOINED to MAIN.
+                  </Text>
+                </div>
+
+                <Badge
+                  color={joined ? "blue" : "gray"}
+                  variant={joined ? "filled" : "light"}
+                >
+                  {joined ? "READY" : "JOIN REQUIRED"}
+                </Badge>
+              </Group>
+
+              <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                <NumberInput
+                  label="Locomotive address"
+                  value={quickTestAddress}
+                  onChange={setQuickTestAddress}
+                  min={1}
+                  max={10239}
+                  allowDecimal={false}
+                  disabled={busy || disconnected}
+                />
+
+                <NumberInput
+                  label="Test speed"
+                  description="0-126"
+                  value={quickTestSpeed}
+                  onChange={setQuickTestSpeed}
+                  min={0}
+                  max={126}
+                  allowDecimal={false}
+                  disabled={busy || disconnected}
+                />
+              </SimpleGrid>
+
+              <SimpleGrid cols={{ base: 1, sm: 3 }}>
+                <Button
+                  color="teal"
+                  disabled={quickTestDisabled}
+                  onClick={() => sendQuickTestDirection("forward")}
+                >
+                  FORWARD
+                </Button>
+
+                <Button
+                  color="red"
+                  variant="light"
+                  disabled={quickTestDisabled}
+                  onClick={stopQuickTest}
+                >
+                  STOP
+                </Button>
+
+                <Button
+                  color="violet"
+                  disabled={quickTestDisabled}
+                  onClick={() => sendQuickTestDirection("reverse")}
+                >
+                  REVERSE
+                </Button>
+              </SimpleGrid>
+
+              <SimpleGrid cols={{ base: 1, sm: 3 }}>
+                {([0, 1, 2] as const).map(functionNumber => {
+                  const active =
+                    quickTestFunctions[functionNumber] ?? false;
+
+                  return (
+                    <Button
+                      key={functionNumber}
+                      color={active ? "yellow" : "gray"}
+                      variant={active ? "filled" : "light"}
+                      disabled={quickTestDisabled}
+                      onClick={() =>
+                        toggleQuickTestFunction(functionNumber)
+                      }
+                    >
+                      F{functionNumber} {active ? "ON" : "OFF"}
+                    </Button>
+                  );
+                })}
+              </SimpleGrid>
+
+              <div style={{ minHeight: 22 }}>
+                {quickTestMessage && (
+                  <Badge variant="light">
+                    {quickTestMessage}
+                  </Badge>
+                )}
+              </div>
+            </Stack>
+          </Card>
         </Stack>
       </Card>
 
