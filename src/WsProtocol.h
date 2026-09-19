@@ -132,6 +132,7 @@ private:
 
   bool _trackPower = false;
   bool _programmingPower = false;
+  bool _programmingJoined = false;
   bool _emergencyStop = false;
   bool _powerIncludesProgramming = true;
 
@@ -188,6 +189,33 @@ private:
   unsigned long _nextHubStatusAt = 0;
 
   uint8_t _wsClientCount = 0;
+
+  struct PendingProgrammingRequest {
+    bool active = false;
+    String requestId;
+    String action;
+    int expectedCv = -1;
+    unsigned long deadlineAt = 0;
+  };
+
+  static constexpr unsigned long
+      PROGRAMMING_TIMEOUT_MS = 24000;
+
+  PendingProgrammingRequest
+      _pendingProgramming;
+
+  void sendProgrammingResponse(
+      const String& requestId,
+      const String& action,
+      bool ok,
+      const String& message,
+      int value = -1,
+      const String& raw = "");
+
+  void clearPendingProgramming();
+
+  void handleProgrammingRawResponse(
+      const String& raw);
 
   void handleEvent(
       AsyncWebSocket* server,

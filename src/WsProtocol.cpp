@@ -334,6 +334,21 @@ void WsProtocol::loop()
         now);
 
     if (
+        _pendingProgramming.active &&
+        static_cast<long>(
+            now -
+            _pendingProgramming.deadlineAt) >= 0)
+    {
+        sendProgrammingResponse(
+            _pendingProgramming.requestId,
+            _pendingProgramming.action,
+            false,
+            "Programming request timed out.");
+
+        clearPendingProgramming();
+    }
+
+    if (
         _nextHubStatusAt == 0 ||
         static_cast<long>(
             now -
@@ -456,6 +471,9 @@ void WsProtocol::sendPowerInfo(
     data["programmingModeActive"] =
         _programmingPower;
 
+    data["programmingJoined"] =
+        _programmingJoined;
+
     send(
         client,
         "powerInfo",
@@ -480,6 +498,9 @@ void WsProtocol::broadcastPowerInfo()
 
     data["programmingModeActive"] =
         _programmingPower;
+
+    data["programmingJoined"] =
+        _programmingJoined;
 
     broadcast(
         "powerInfo",
@@ -1197,7 +1218,6 @@ void WsProtocol::pollLocoStateSync(
     }
 
     ++_locoSyncIndex;
-
     if (
         _locoSyncIndex >=
         _locoSyncCount)
@@ -1546,9 +1566,168 @@ void WsProtocol::broadcastRuntimeSnapshot()
     broadcastBlockStateSnapshot();
 }
 
+void WsProtocol::sendProgrammingResponse(
+    const String& requestId,
+    const String& action,
+    bool ok,
+    const String& message,
+    int value,
+    const String& raw)
+{
+    JsonDocument data;
+
+    data["requestId"] = requestId;
+    data["action"] = action;
+    data["ok"] = ok;
+    data["message"] = message;
+
+    if (value >= 0)
+    {
+        data["value"] = value;
+    }
+
+    if (!raw.isEmpty())
+    {
+        data["raw"] = raw;
+    }
+
+    broadcast(
+        "programmingResponse",
+        data);
+}
+
+void WsProtocol::clearPendingProgramming()
+{
+    _pendingProgramming = PendingProgrammingRequest{};
+}
+
+void WsProtocol::handleProgrammingRawResponse(
+    const String& raw)
+{
+    if (
+        !_pendingProgramming.active ||
+        !raw.endsWith(">") ||
+        raw.length() < 4)
+    {
+        return;
+    }
+
+    const bool isAddressOrWriteReply =
+        raw.startsWith("<r ");
+
+    const bool isCvReadReply =
+        raw.startsWith("<v ");
+
+    if (
+        !isAddressOrWriteReply &&
+        !isCvReadReply)
+    {
+        return;
+    }
+
+    if (
+        _pendingProgramming.action == "readCv" &&
+        !isCvReadReply)
+    {
+        return;
+    }
+
+    if (
+        (_pendingProgramming.action == "readAddress" ||
+         _pendingProgramming.action == "writeAddress" ||
+         _pendingProgramming.action == "writeCv") &&
+        !isAddressOrWriteReply)
+    {
+        return;
+    }
+
+    String body = raw.substring(3, raw.length() - 1);
+    body.trim();
+
+    char* end = nullptr;
+    const long first = strtol(body.c_str(), &end, 10);
+
+    if (end == body.c_str())
+    {
+        return;
+    }
+
+    while (*end == ' ' || *end == '\t')
+    {
+        ++end;
+    }
+
+    const bool hasSecond = *end != '\0';
+    long second = -1;
+
+    if (hasSecond)
+    {
+        char* secondEnd = nullptr;
+        second = strtol(end, &secondEnd, 10);
+
+        if (secondEnd == end)
+        {
+            return;
+        }
+    }
+
+    if (
+        _pendingProgramming.action == "readAddress" ||
+        _pendingProgramming.action == "writeAddress")
+    {
+        const bool ok = first >= 0;
+
+        sendProgrammingResponse(
+            _pendingProgramming.requestId,
+            _pendingProgramming.action,
+            ok,
+            ok
+                ? "Decoder address operation completed."
+                : "Decoder address operation failed.",
+            ok ? static_cast<int>(first) : -1,
+            raw);
+
+        clearPendingProgramming();
+        return;
+    }
+
+    if (
+        _pendingProgramming.action == "readCv" ||
+        _pendingProgramming.action == "writeCv")
+    {
+        if (!hasSecond)
+        {
+            return;
+        }
+
+        if (
+            _pendingProgramming.expectedCv > 0 &&
+            first != _pendingProgramming.expectedCv)
+        {
+            return;
+        }
+
+        const bool ok = second >= 0;
+
+        sendProgrammingResponse(
+            _pendingProgramming.requestId,
+            _pendingProgramming.action,
+            ok,
+            ok
+                ? "CV operation completed."
+                : "CV operation failed.",
+            ok ? static_cast<int>(second) : -1,
+            raw);
+
+        clearPendingProgramming();
+    }
+}
+
 void WsProtocol::broadcastRawInfo(
     const String &raw)
 {
+    handleProgrammingRawResponse(raw);
+
     JsonDocument data;
 
     data["raw"] =
@@ -1772,6 +1951,9 @@ void WsProtocol::handlePowerFeedback(
     const bool wasProgOn =
         _programmingPower;
 
+    const bool wasJoined =
+        _programmingJoined;
+
     switch (
         info.target)
     {
@@ -1781,6 +1963,9 @@ void WsProtocol::handlePowerFeedback(
 
         _programmingPower =
             info.on;
+
+        _programmingJoined =
+            false;
 
         for (
             uint8_t index = 0;
@@ -1813,6 +1998,9 @@ void WsProtocol::handlePowerFeedback(
         _programmingPower =
             info.on;
 
+        _programmingJoined =
+            false;
+
         break;
 
     case CommandCenterPowerTarget::Joined:
@@ -1820,6 +2008,9 @@ void WsProtocol::handlePowerFeedback(
             info.on;
 
         _programmingPower =
+            info.on;
+
+        _programmingJoined =
             info.on;
 
         break;
@@ -1859,7 +2050,9 @@ void WsProtocol::handlePowerFeedback(
         wasMainOn !=
             _trackPower ||
         wasProgOn !=
-            _programmingPower)
+            _programmingPower ||
+        wasJoined !=
+            _programmingJoined)
     {
         broadcastPowerInfo();
     }
@@ -1997,7 +2190,6 @@ void WsProtocol::handleEvent(
 
         return;
     }
-
     if (
         type !=
         WS_EVT_DATA)
@@ -2193,6 +2385,45 @@ void WsProtocol::handleMessage(
                 .sendRawCommand(
                     command);
 
+        if (ok)
+        {
+            String normalizedCommand =
+                command;
+
+            normalizedCommand.trim();
+            normalizedCommand.toUpperCase();
+
+            if (normalizedCommand == "<1 JOIN>")
+            {
+                _programmingJoined =
+                    true;
+
+                _trackPower =
+                    true;
+
+                _programmingPower =
+                    true;
+
+                broadcastPowerInfo();
+
+                Logger::info(
+                    "Programming track joined to MAIN");
+            }
+            else if (normalizedCommand == "<1 PROG>")
+            {
+                _programmingJoined =
+                    false;
+
+                _programmingPower =
+                    true;
+
+                broadcastPowerInfo();
+
+                Logger::info(
+                    "Programming track returned to PROG mode");
+            }
+        }
+
         JsonDocument out;
 
         out["response"] =
@@ -2204,6 +2435,203 @@ void WsProtocol::handleMessage(
             client,
             "dccExDirectCommandResponse",
             out.as<JsonVariantConst>());
+
+        return;
+    }
+
+    if (
+        strcmp(
+            type,
+            "programmingCommand") ==
+        0)
+    {
+        const String requestId = data["requestId"] | "";
+        const String action = data["action"] | "";
+
+        auto failProgramming =
+            [this, &requestId, &action](const String& message)
+        {
+            sendProgrammingResponse(
+                requestId,
+                action,
+                false,
+                message);
+        };
+
+        if (requestId.isEmpty() || action.isEmpty())
+        {
+            failProgramming("Invalid programming request.");
+            return;
+        }
+
+        if (!_commandCenter.connected())
+        {
+            failProgramming("Command center is not connected.");
+            return;
+        }
+
+        if (!_commandCenter.supportsRawCommand())
+        {
+            failProgramming("Decoder programming requires a DCC-EX command center.");
+            return;
+        }
+
+        if (_pendingProgramming.active)
+        {
+            failProgramming("Another decoder programming request is already running.");
+            return;
+        }
+
+        String command;
+        int expectedCv = -1;
+        bool waitForResponse = true;
+
+        if (action == "readAddress")
+        {
+            command = "<R>";
+        }
+        else if (action == "writeAddress")
+        {
+            const int address = data["address"] | 0;
+
+            if (address <= 0 || address > 10239)
+            {
+                failProgramming("Invalid locomotive address.");
+                return;
+            }
+
+            command = "<W " + String(address) + ">";
+        }
+        else if (action == "readCv")
+        {
+            const int cv = data["cv"] | 0;
+
+            if (cv <= 0 || cv > 1024)
+            {
+                failProgramming("Invalid CV number.");
+                return;
+            }
+
+            expectedCv = cv;
+            command = "<R " + String(cv) + ">";
+        }
+        else if (action == "writeCv")
+        {
+            const int cv = data["cv"] | 0;
+            const int value = data["value"] | -1;
+
+            if (cv <= 0 || cv > 1024 || value < 0 || value > 255)
+            {
+                failProgramming("Invalid CV number or value.");
+                return;
+            }
+
+            expectedCv = cv;
+            command = "<W " + String(cv) + " " + String(value) + ">";
+        }
+        else if (action == "pomWriteCv")
+        {
+            const int address = data["address"] | 0;
+            const int cv = data["cv"] | 0;
+            const int value = data["value"] | -1;
+
+            if (
+                address <= 0 || address > 10239 ||
+                cv <= 0 || cv > 1024 ||
+                value < 0 || value > 255)
+            {
+                failProgramming("Invalid POM address, CV or value.");
+                return;
+            }
+
+            command =
+                "<w " +
+                String(address) +
+                " " +
+                String(cv) +
+                " " +
+                String(value) +
+                ">";
+
+            waitForResponse = false;
+        }
+        else if (action == "accessoryLearn")
+        {
+            const int address = data["address"] | 0;
+            const bool active = data["active"] | false;
+
+            if (address <= 0 || address > 2044)
+            {
+                failProgramming("Invalid accessory address.");
+                return;
+            }
+
+            const bool sent =
+                _commandCenter.setAccessory(
+                    static_cast<uint16_t>(address),
+                    active);
+
+            sendProgrammingResponse(
+                requestId,
+                action,
+                sent,
+                sent
+                    ? "Accessory programming command sent."
+                    : "Accessory programming command could not be sent.",
+                address);
+
+            return;
+        }
+        else
+        {
+            failProgramming("Unsupported programming action.");
+            return;
+        }
+
+        if (waitForResponse)
+        {
+            if (_programmingJoined)
+            {
+                _programmingJoined = false;
+                broadcastPowerInfo();
+            }
+
+            _pendingProgramming.active = true;
+            _pendingProgramming.requestId = requestId;
+            _pendingProgramming.action = action;
+            _pendingProgramming.expectedCv = expectedCv;
+            _pendingProgramming.deadlineAt = millis() + PROGRAMMING_TIMEOUT_MS;
+        }
+
+        const bool sent = _commandCenter.sendRawCommand(command);
+
+        if (!sent)
+        {
+            if (waitForResponse)
+            {
+                clearPendingProgramming();
+            }
+
+            failProgramming("Programming command could not be sent.");
+            return;
+        }
+
+        Logger::info(
+            "Programming command sent: " +
+            action +
+            " " +
+            command);
+
+        if (!waitForResponse)
+        {
+            sendProgrammingResponse(
+                requestId,
+                action,
+                true,
+                "Programming command sent.",
+                data["value"] | -1,
+                command);
+        }
 
         return;
     }

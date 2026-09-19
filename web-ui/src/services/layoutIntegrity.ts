@@ -54,8 +54,7 @@ function isSignalLogicSensorElement(
   // not as an occupancy input. Level crossings are intentionally both a
   // signal-output element and a normal occupancy-bearing track element.
   if (
-    element instanceof TrackSignalElement &&
-    element.type !== ELEMENT_TYPES.TRACK_LEVEL_CROSSING
+    element instanceof TrackSignalElement //&& element.type !== ELEMENT_TYPES.TRACK_LEVEL_CROSSING
   ) {
     return false;
   }

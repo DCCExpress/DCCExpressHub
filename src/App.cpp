@@ -256,7 +256,33 @@ void App::updateDisplay() {
   _display.loop();
 }
 
+// void waveshareForceUsbMode()
+// {
+//     Wire.begin(8, 9, 400000);
+
+//     Wire.beginTransmission(0x24);
+//     Wire.write(0x01);
+//     Wire.endTransmission(true);
+
+//     delay(5);
+
+//     Wire.beginTransmission(0x38);
+//     Wire.write(0x5E);   // EXIO5 LOW = USB
+//     Wire.endTransmission(true);
+
+//     delay(20);
+// }
+
+
+
+
 void App::begin() {
+
+#if HUB_TARGET_WAVESHARE_S3_LCD7
+    waveshareForceUsbMode();
+#endif
+
+
   Logger::begin();
   Logger::info("DCCExpressHub booting");
 

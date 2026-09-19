@@ -39,10 +39,12 @@ import {
 } from "@/api/commandCenterInfo";
 import { CvHelpPanel } from "@/components/programming/CvHelpPanel";
 import { wsApi } from "@/services/wsApi";
+import { wsClient } from "@/services/wsClient";
 import type { WsConnectionStatus } from "@/services/wsClient";
 import type {
   ProgrammingCommandAction,
   ProgrammingResponsePayload,
+  WsPowerInfoPayload,
 } from "@domain/types";
 
 type Props = {
@@ -51,6 +53,10 @@ type Props = {
 };
 
 type NumberValue = string | number;
+
+type ProgrammingPowerInfo = WsPowerInfoPayload & {
+  programmingJoined?: boolean;
+};
 
 function numberValue(value: NumberValue): number {
   return typeof value === "number"
@@ -97,7 +103,6 @@ function BitEditor({
     </Group>
   );
 }
-
 
 function CvValueFormats({ value }: { value: number }) {
   const normalized = Number.isFinite(value)
@@ -204,6 +209,8 @@ function DccExProgrammingPage({ onBack, status }: Props) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] =
     useState<ProgrammingResponsePayload | null>(null);
+  const [powerInfo, setPowerInfo] =
+    useState<ProgrammingPowerInfo | null>(null);
 
   const [locoAddress, setLocoAddress] = useState<NumberValue>(3);
   const [cv, setCv] = useState<NumberValue>(1);
@@ -216,6 +223,14 @@ function DccExProgrammingPage({ onBack, status }: Props) {
 
   const [digiSwitchAddress, setDigiSwitchAddress] = useState<NumberValue>(1);
   const [digiSignalAddress, setDigiSignalAddress] = useState<NumberValue>(1);
+
+  useEffect(() => {
+    const unsubscribe = wsClient.on("powerInfo", payload => {
+      setPowerInfo(payload as ProgrammingPowerInfo);
+    });
+
+    return unsubscribe;
+  }, []);
 
   const run = async (
     action: ProgrammingCommandAction,
@@ -279,7 +294,42 @@ function DccExProgrammingPage({ onBack, status }: Props) {
     }
   };
 
+  const sendJoin = (joined: boolean): void => {
+    const command = joined
+      ? "<1 JOIN>"
+      : "<1 PROG>";
+
+    const sent = wsApi.writeDccExDirectCommand(command);
+
+    if (!sent) {
+      setResult({
+        requestId: "local",
+        action: "readAddress",
+        ok: false,
+        message: "DCC-EX command could not be sent.",
+      });
+
+      return;
+    }
+
+    // Optimistic UI update. The firmware broadcasts the authoritative
+    // powerInfo state immediately after the DCC-EX command is accepted.
+    setPowerInfo(current =>
+      current
+        ? {
+            ...current,
+            programmingJoined: joined,
+            programmingModeActive: true,
+            ...(joined ? { trackVoltageOn: true } : {}),
+          }
+        : current,
+    );
+  };
+
   const disconnected = status !== "connected";
+  const mainOn = powerInfo?.trackVoltageOn ?? false;
+  const progOn = powerInfo?.programmingModeActive ?? false;
+  const joined = powerInfo?.programmingJoined ?? false;
   const locoCv = numberValue(cv);
   const locoValue = numberValue(cvValue);
   const accCv = numberValue(accessoryCv);
@@ -316,6 +366,85 @@ function DccExProgrammingPage({ onBack, status }: Props) {
           <Text size="sm" c="dimmed"> {i18next.t("ui.locomotiveAccessoryAndDigitoolsSetup")} </Text>
         </div>
       </Group>
+
+      <Card withBorder radius={5} p="lg">
+        <Stack gap="md">
+          <Group justify="space-between" align="center">
+            <div>
+              <Title order={4}>Programming track power</Title>
+              <Text size="sm" c="dimmed">
+                Live DCC-EX MAIN / PROG / JOIN state
+              </Text>
+            </div>
+
+            <Badge
+              size="lg"
+              color={joined ? "blue" : "gray"}
+              variant={joined ? "filled" : "light"}
+            >
+              {joined ? "JOINED / TEST" : "SERVICE MODE"}
+            </Badge>
+          </Group>
+
+          <SimpleGrid cols={{ base: 1, sm: 3 }}>
+            <Card withBorder radius="sm" p="sm">
+              <Text size="xs" c="dimmed" fw={700}>MAIN</Text>
+              <Badge
+                mt={6}
+                color={disconnected ? "gray" : mainOn ? "teal" : "red"}
+                variant="filled"
+              >
+                {disconnected ? "UNKNOWN" : mainOn ? "ON" : "OFF"}
+              </Badge>
+            </Card>
+
+            <Card withBorder radius="sm" p="sm">
+              <Text size="xs" c="dimmed" fw={700}>PROG</Text>
+              <Badge
+                mt={6}
+                color={disconnected ? "gray" : progOn ? "teal" : "red"}
+                variant="filled"
+              >
+                {disconnected ? "UNKNOWN" : progOn ? "ON" : "OFF"}
+              </Badge>
+            </Card>
+
+            <Card withBorder radius="sm" p="sm">
+              <Text size="xs" c="dimmed" fw={700}>JOIN</Text>
+              <Badge
+                mt={6}
+                color={disconnected ? "gray" : joined ? "blue" : "gray"}
+                variant={joined ? "filled" : "light"}
+              >
+                {disconnected ? "UNKNOWN" : joined ? "ON" : "OFF"}
+              </Badge>
+            </Card>
+          </SimpleGrid>
+
+          <SimpleGrid cols={{ base: 1, sm: 2 }}>
+            <Button
+              color="blue"
+              disabled={busy || disconnected}
+              onClick={() => sendJoin(true)}
+            >
+              JOIN / TEST TRACK
+            </Button>
+
+            <Button
+              variant="light"
+              color="orange"
+              disabled={busy || disconnected}
+              onClick={() => sendJoin(false)}
+            >
+              RETURN TO PROG
+            </Button>
+          </SimpleGrid>
+
+          <Text size="xs" c="dimmed">
+            JOIN sends MAIN DCC to the isolated programming output so speed, lights and sound functions can be tested. RETURN TO PROG sends &lt;1 PROG&gt; and restores normal service-mode programming.
+          </Text>
+        </Stack>
+      </Card>
 
       {disconnected && (
         <Alert color="red" icon={<IconAlertTriangle size={18} />}> {i18next.t("ui.connectToTheDccExCommandCenterBeforeSendingProgramming")} </Alert>
