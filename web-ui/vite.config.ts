@@ -12,7 +12,7 @@ export default defineConfig(({ mode }) => {
     ? "http://127.0.0.1:3001"
     : (
       process.env.DCCEXPRESS_DEVICE_URL?.trim() ||
-      "http://192.168.1.132"
+      "http://192.168.1.212"
     );
 
   console.log(

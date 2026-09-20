@@ -46,8 +46,6 @@ const targetDefinitions = {
     fileTag: "M5Stack-Basic-DCCEX",
   },
 
-  // Experimental / future backend.
-  // Kept in source intentionally, but not built by the official release workflow.
   "m5stack-basic-z21": {
     id: "m5stack-basic",
     commandCenter: "z21",
@@ -62,13 +60,19 @@ const targetDefinitions = {
     fileTag: "ESP32-DevKit-DCCEX",
   },
 
-  // Experimental / future backend.
-  // Kept in source intentionally, but not built by the official release workflow.
   "esp32dev-z21": {
     id: "esp32-devkit",
     commandCenter: "z21",
     displayName: "ESP32 DevKit / Z21",
     fileTag: "ESP32-DevKit-Z21",
+  },
+
+  "sunton-8048s043-dccex": {
+    id: "sunton-8048s043",
+    commandCenter: "dcc-ex",
+    displayName: "Sunton ESP32-8048S043 / DCC-EX",
+    fileTag: "Sunton-ESP32-8048S043-DCCEX",
+    bootloaderAddress: 0x0000,
   },
 };
 

@@ -1,0 +1,92 @@
+diff --git a/web-ui/src/App.tsx b/web-ui/src/App.tsx
+--- a/web-ui/src/App.tsx
++++ b/web-ui/src/App.tsx
+@@
+ const ProgrammingPage = lazy(() => import("./ProgrammingPage"));
+ const GamepadPage = lazy(() => import("./GamepadPage"));
+ const ConsolePage = lazy(() => import("./ConsolePage"));
++const SandboxPage = lazy(() => import("./SandboxPage"));
+
+ type LoadState = "idle" | "loading" | "ready" | "error";
+-type Page = "home" | "drive" | "layout" | "programming" | "settings" | "device-config" | "gamepad" | "console" | "files" | "backup";
++type Page = "home" | "drive" | "layout" | "programming" | "settings" | "device-config" | "gamepad" | "console" | "sandbox" | "files" | "backup";
+@@
+ function pageFromHash(): Page {
+   const page = window.location.hash.replace("#", "");
+-  return page === "drive" || page === "layout" || page === "programming" || page === "settings" || page === "device-config" || page === "gamepad" || page === "console" || page === "files" || page === "backup" ? page : "home";
++  return page === "drive" || page === "layout" || page === "programming" || page === "settings" || page === "device-config" || page === "gamepad" || page === "console" || page === "sandbox" || page === "files" || page === "backup" ? page : "home";
+ }
+@@
+         <Card
+           className="action-card"
+           withBorder
+           radius={5}
+           p="lg"
+           onClick={() =>
+             onNavigate("console")
+           }
+         >
+@@
+           </Text>
+         </Card>
+
++        <Card
++          className="action-card"
++          withBorder
++          radius={5}
++          p="lg"
++          onClick={() =>
++            onNavigate("sandbox")
++          }
++        >
++          <ThemeIcon
++            size={48}
++            radius="lg"
++            color="violet"
++            variant="light"
++          >
++            <IconTerminal2
++              size={27}
++            />
++          </ThemeIcon>
++
++          <Title
++            order={4}
++            mt="md"
++          >
++            JavaScript Sandbox
++          </Title>
++
++          <Text
++            size="sm"
++            c="dimmed"
++            mt={4}
++          >
++            Edit, run, pause and debug QuickJS command-center scripts.
++          </Text>
++        </Card>
++
+         <Card className="action-card" withBorder radius={5} p="lg" onClick={() => onNavigate("files")}>
+@@
+     if (page === "console") {
+       return (
+         <ConsolePage
+           onBack={() =>
+             navigate("home")
+           }
+         />
+       );
+     }
+
++    if (page === "sandbox") {
++      return (
++        <SandboxPage
++          onBack={() =>
++            navigate("home")
++          }
++        />
++      );
++    }
++
+     return <HomePage status={status} version={version} locoCount={locos.length} onNavigate={navigate} onOpenLocoEditor={() => setLocoEditorOpened(true)} />;
+   };

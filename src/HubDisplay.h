@@ -14,6 +14,10 @@
 #define HUB_DISPLAY_WAVESHARE_S3_LCD7 0
 #endif
 
+#ifndef HUB_DISPLAY_SUNTON_8048S043
+#define HUB_DISPLAY_SUNTON_8048S043 0
+#endif
+
 #if HUB_USE_DISPLAY
   #if HUB_DISPLAY_M5STACK_BASIC
     #include "MiniIli9342Display.h"
@@ -21,6 +25,9 @@
   #elif HUB_DISPLAY_WAVESHARE_S3_LCD7
     #include "WaveshareS3Lcd7Display.h"
     using HubDisplayDevice = WaveshareS3Lcd7Display;
+  #elif HUB_DISPLAY_SUNTON_8048S043
+    #include "Sunton8048S043Display.h"
+    using HubDisplayDevice = Sunton8048S043Display;
   #else
     #error "HUB_USE_DISPLAY=1 requires a supported HUB_DISPLAY_* target"
   #endif

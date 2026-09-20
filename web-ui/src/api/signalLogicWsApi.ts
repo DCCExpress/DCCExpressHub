@@ -40,7 +40,7 @@ type CompiledSensorCondition = [
 
 type LegacyIdSensorCondition = [
   source: "sensor",
-  id: LayoutElementId,
+  //id: LayoutElementId,
   channel: 0,
   value: 0 | 1,
 ];
@@ -992,7 +992,7 @@ function parseNewCondition(
 
     return [
       "sensor",
-      id,
+      //id,
       0,
       raw,
     ];

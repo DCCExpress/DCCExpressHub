@@ -279,7 +279,7 @@ void App::updateDisplay() {
 void App::begin() {
 
 #if HUB_TARGET_WAVESHARE_S3_LCD7
-    waveshareForceUsbMode();
+    //waveshareForceUsbMode();
 #endif
 
 

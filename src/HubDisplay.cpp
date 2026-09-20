@@ -72,30 +72,37 @@ String formatBytesCompact(
 void HubDisplay::begin() {
 #if HUB_DISPLAY_M5STACK_BASIC
   constexpr uint8_t M5STACK_SD_CS_PIN = 4;
-  // IMPORTANT: TFT and microSD share the same SPI bus on M5Stack Basic.
-  // With a card inserted the SD CS pin must already be inactive before the
-  // display driver starts touching SPI, otherwise the card may drive MISO and
-  // interfere with TFT initialization.
-  pinMode(M5STACK_SD_CS_PIN, OUTPUT);
-  digitalWrite(M5STACK_SD_CS_PIN, HIGH);
 
-  Logger::info("M5Stack SD deselected before display init");
+  pinMode(
+      M5STACK_SD_CS_PIN,
+      OUTPUT);
+
+  digitalWrite(
+      M5STACK_SD_CS_PIN,
+      HIGH);
+
+  Logger::info(
+      "M5Stack SD deselected before display init");
 #endif
 
-  Logger::info("Display init starting");
+  Logger::info(
+      "Display init starting");
+
   _display.begin();
-  Logger::info("Display init complete");
+
+  Logger::info(
+      "Display init complete");
 
 #if HUB_DISPLAY_M5STACK_BASIC
   _display.configureForHub();
 
-  Logger::info("SD init starting");
+  Logger::info(
+      "SD init starting");
 
-  // Detect/mount the built-in M5Stack microSD only after the display has been
-  // initialized and released the shared SPI bus.
   StorageManager::instance().begin();
 
-  Logger::info("SD init complete");
+  Logger::info(
+      "SD init complete");
 #endif
 
   _display.setTextSize(
@@ -335,22 +342,22 @@ void HubDisplay::loop() {
     return;
   }
 
-#if HUB_DISPLAY_M5STACK_BASIC
+#if HUB_DISPLAY_M5STACK_BASIC || HUB_DISPLAY_SUNTON_8048S043
   switch (
       _display
           .takeButtonPress()
   ) {
-    case MiniIli9342Display::PhysicalButton::Power:
+    case HubDisplayDevice::PhysicalButton::Power:
       _powerToggleRequest =
           true;
       break;
 
-    case MiniIli9342Display::PhysicalButton::Emergency:
+    case HubDisplayDevice::PhysicalButton::Emergency:
       _emergencyStopRequest =
           true;
       break;
 
-    case MiniIli9342Display::PhysicalButton::Info:
+    case HubDisplayDevice::PhysicalButton::Info:
       _infoPage =
           !_infoPage;
 
@@ -361,7 +368,7 @@ void HubDisplay::loop() {
           true;
       break;
 
-    case MiniIli9342Display::PhysicalButton::None:
+    case HubDisplayDevice::PhysicalButton::None:
     default:
       break;
   }
@@ -431,25 +438,31 @@ void HubDisplay::redrawInfoPage() {
 
   _display.print(
       "Heap: ");
+
   _display.print(
       static_cast<uint32_t>(
           ESP.getFreeHeap() /
           1024U));
+
   _display.println(
       " KB");
 
   const uint64_t flashUsed =
       LittleFS.usedBytes();
+
   const uint64_t flashTotal =
       LittleFS.totalBytes();
 
   _display.print(
       "Flash: ");
+
   _display.print(
       formatBytesCompact(
           flashUsed));
+
   _display.print(
       "/");
+
   _display.println(
       formatBytesCompact(
           flashTotal));
@@ -485,18 +498,22 @@ void HubDisplay::redrawInfoPage() {
 
     _display.print(
         "Size: ");
+
     _display.println(
         formatBytesCompact(
             storage.sdCardSizeBytes()));
 
     _display.print(
         "Used: ");
+
     _display.print(
         formatBytesCompact(
             storage.usedBytes(
                 StorageMedium::SdCard)));
+
     _display.print(
         " Free: ");
+
     _display.println(
         formatBytesCompact(
             storage.freeBytes(
@@ -514,7 +531,7 @@ void HubDisplay::redraw() {
   _dirty =
       false;
 
-#if HUB_DISPLAY_M5STACK_BASIC
+#if HUB_DISPLAY_M5STACK_BASIC || HUB_DISPLAY_SUNTON_8048S043
   if (_infoPage) {
     redrawInfoPage();
     return;
@@ -527,8 +544,6 @@ void HubDisplay::redraw() {
       8,
       8);
 
-  // Keep the whole status area readable on the 320x240 M5Stack display.
-  // Shorter rows are preferable to tiny text.
   _display.setTextSize(
       2);
 
@@ -541,7 +556,6 @@ void HubDisplay::redraw() {
 
   _display.println();
 
-  // WEB
   _display.print(
       "WEB: ");
 
@@ -565,7 +579,6 @@ void HubDisplay::redraw() {
         HubDisplayDevice::BLACK);
   }
 
-  // Command center state.
   _display.print(
       "CC: ");
 
@@ -584,7 +597,6 @@ void HubDisplay::redraw() {
       HubDisplayDevice::WHITE,
       HubDisplayDevice::BLACK);
 
-  // Host gets its own row so the large text remains readable.
   if (_ccHost.length()) {
     _display.print(
         _ccHost);
@@ -600,7 +612,6 @@ void HubDisplay::redraw() {
         "-");
   }
 
-  // S88 I2C adapter state.
   _display.print(
       "S88: ");
 

@@ -46,7 +46,7 @@ import {
   installApiFetchTimeout,
 } from "@/services/apiFetchTimeout";
 
-import App from "./App";
+import SandboxEntry from "./SandboxEntry";
 import FirstRunWelcome from "@/components/FirstRunWelcome";
 import "./styles.css";
 import "./mobile-drive-split.css";
@@ -83,7 +83,7 @@ ReactDOM.createRoot(
       <CommandCenterProvider>
         <EditorSettingsProvider>
           <GamepadProvider>
-            <App />
+            <SandboxEntry />
             <FirstRunWelcome />
           </GamepadProvider>
         </EditorSettingsProvider>

@@ -11,7 +11,9 @@
 #include "FileManagementEndpoint.h"
 #include "FileStore.h"
 #include "HubConfigStore.h"
+#include "HubCapabilitiesEndpoint.h"
 #include "ICommandCenter.h"
+#include "JsSandboxEndpoint.h"
 #include "LayoutRuntime.h"
 #include "RuntimeStateStore.h"
 #include "S88I2CMaster.h"
@@ -43,6 +45,12 @@ public:
             _server),
         _fileManagementEndpoint(
             _server),
+        _hubCapabilitiesEndpoint(
+            _server),
+        _jsSandboxEndpoint(
+            _server,
+            commandCenter,
+            runtime),
         _ws(ws),
         _dcc(commandCenter),
         _runtime(runtime),
@@ -73,6 +81,8 @@ private:
   DeviceConfigEndpoint _deviceConfigEndpoint;
   ScriptInfoEndpoint _scriptInfoEndpoint;
   FileManagementEndpoint _fileManagementEndpoint;
+  HubCapabilitiesEndpoint _hubCapabilitiesEndpoint;
+  JsSandboxEndpoint _jsSandboxEndpoint;
 
   AsyncWebSocket& _ws;
 

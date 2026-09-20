@@ -3,7 +3,8 @@ param(
         "m5stack-basic-dccex",
         "m5stack-basic-z21",
         "esp32dev-dccex",
-        "esp32dev-z21"
+        "esp32dev-z21",
+        "sunton-8048s043-dccex"
     )]
     [string]$Environment = "m5stack-basic-dccex",
 
@@ -72,6 +73,13 @@ function Get-FirmwareTarget {
             return @{
                 DisplayName = "ESP32 DevKit / Z21"
                 FileTag = "ESP32-DevKit-Z21"
+            }
+        }
+
+        "sunton-8048s043-dccex" {
+            return @{
+                DisplayName = "Sunton ESP32-8048S043 / DCC-EX"
+                FileTag = "Sunton-ESP32-8048S043-DCCEX"
             }
         }
 
