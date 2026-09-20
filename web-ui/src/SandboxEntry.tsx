@@ -92,12 +92,10 @@ function SandboxHomeCard({
   onOpen: () => void;
 }) {
   const supported =
-    import.meta.env.DEV ||
     capabilities
       ?.javascriptAutomation === true;
 
   const loading =
-    !import.meta.env.DEV &&
     capabilities === null;
 
   return (
@@ -167,7 +165,7 @@ function SandboxHomeCard({
           ? "Checking firmware capability..."
           : supported
             ? "Edit, run and inspect QuickJS automation scripts."
-            : "This firmware does not include JavaScript automation."}
+            : "Not supported on this device. JavaScript Sandbox currently requires a supported ESP32-S3 build."}
       </Text>
     </Card>
   );
@@ -242,8 +240,8 @@ function UnsupportedSandbox({
             }
             title="Not supported by this firmware"
           >
-            This Hub firmware was built without JavaScript automation support.
-            The Sandbox cannot be opened on this device.
+            This device or firmware does not support JavaScript automation.
+            The Sandbox is currently available only on supported ESP32-S3 builds.
           </Alert>
         </Stack>
       </Box>
@@ -442,7 +440,6 @@ export default function SandboxEntry() {
   const openSandbox =
     () => {
       if (
-        !import.meta.env.DEV &&
         capabilities
           ?.javascriptAutomation !==
         true
@@ -479,19 +476,15 @@ export default function SandboxEntry() {
     };
 
   if (sandboxOpen) {
-    if (
-      !import.meta.env.DEV &&
-      capabilities === null
-    ) {
+    if (capabilities === null) {
       return (
         <CapabilityLoading />
       );
     }
 
     if (
-      !import.meta.env.DEV &&
       !capabilities
-        ?.javascriptAutomation
+        .javascriptAutomation
     ) {
       return (
         <UnsupportedSandbox
