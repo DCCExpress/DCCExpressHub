@@ -38,7 +38,8 @@ Current functionality includes:
 - turnouts, accessories, signals and signal logic,
 - occupancy / sensor integration,
 - decoder programming,
-- automation scripts,
+- browser-side frontend automation scripts,
+- QuickJS backend automation / JavaScript Sandbox on supported ESP32-S3 targets,
 - track power and emergency control,
 - EX-CSB1 / DCC-EX connection configuration,
 - raw command console and diagnostics,
@@ -62,10 +63,16 @@ Use desktop **Google Chrome** or **Microsoft Edge**. Firmware installation and s
 
 Official releases currently support:
 
-| Hub hardware | PlatformIO target | Display |
-|---|---|---|
-| **M5Stack Basic** | `m5stack-basic-dccex` | Built-in display |
-| **Generic ESP32 DevKit** | `esp32dev-dccex` | None |
+| Hub hardware | PlatformIO target | Display | Frontend automation scripts | Backend automation scripts |
+|---|---|---|---|---|
+| **M5Stack Basic** | `m5stack-basic-dccex` | Built-in display | ✅ Supported | ❌ Not supported |
+| **Generic ESP32 DevKit** | `esp32dev-dccex` | None | ✅ Supported | ❌ Not supported |
+| **Waveshare ESP32-S3 LCD 7"** | `waveshare-s3-lcd7-dccex` | Built-in 7" display | ✅ Supported | ✅ QuickJS |
+| **Sunton ESP32-8048S043** | `sunton-8048s043-dccex` | Built-in 4.3" display | ✅ Supported | ✅ QuickJS |
+
+**Frontend automation scripts** run in the browser and are available on every supported Hub target.
+
+**Backend automation scripts** run directly on the Hub firmware through the QuickJS-based JavaScript Sandbox. They currently require a supported **ESP32-S3** target.
 
 The web installer provides separate hardware and firmware-version selectors. Select the exact hardware before flashing.
 
@@ -254,6 +261,8 @@ Build the official DCC-EX targets:
 ```powershell
 .\build-merged.ps1 -Environment m5stack-basic-dccex
 .\build-merged.ps1 -Environment esp32dev-dccex
+.\build-merged.ps1 -Environment waveshare-s3-lcd7-dccex
+.\build-merged.ps1 -Environment sunton-8048s043-dccex
 ```
 
 Merged firmware is written to:
@@ -289,11 +298,13 @@ The release helper:
 
 The workflow refuses to publish if the Git tag and `VERSION` do not match.
 
-Official releases currently contain only:
+Official releases currently contain:
 
 ```text
 m5stack-basic-dccex
 esp32dev-dccex
+waveshare-s3-lcd7-dccex
+sunton-8048s043-dccex
 ```
 
 Z21 remains a future-development target and is not included in official releases.
