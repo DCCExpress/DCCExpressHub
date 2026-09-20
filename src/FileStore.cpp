@@ -4,11 +4,17 @@
 
 namespace {
 
+// LittleFS file handles owned by ESPAsyncWebServer can be released slightly
+// after the HTTP response has completed. Layout saves are infrequent, so it is
+// better to wait a few hundred milliseconds for a busy handle than to fail an
+// otherwise valid atomic save.
+//
+// 30 * 10 ms = ~300 ms worst case per remove/rename operation.
 constexpr uint8_t FILE_OPERATION_RETRIES =
-    5;
+    30;
 
 constexpr uint32_t FILE_OPERATION_RETRY_DELAY_MS =
-    5;
+    10;
 
 bool isTransactionSidecarPath(
     const String& path) {
@@ -560,15 +566,15 @@ bool FileStore::commit(
     }
 
     // copyFile() has closed both source and destination handles here.
-    // Retry removal briefly because ESPAsyncWebServer/LittleFS may release
-    // a response file handle a few milliseconds after the request completes.
+    // ESPAsyncWebServer may still own a read handle briefly after a GET.
+    // Give it enough time to release that handle before declaring failure.
     if (
         !removeIfExists(
             _fs,
             final)
     ) {
       Logger::error(
-          "FileStore commit failed: final file is still busy: " +
+          "FileStore commit failed: final file is still busy after retries: " +
           final);
 
       removeIfExists(
@@ -579,16 +585,50 @@ bool FileStore::commit(
     }
   }
 
-  if (
-      !renameWithRetry(
+  bool committed =
+      renameWithRetry(
           _fs,
           temp,
-          final)
-  ) {
-    Logger::error(
-        "FileStore commit failed: temp rename failed: " +
+          final);
+
+  if (!committed) {
+    // Some LittleFS/ESPAsyncWebServer combinations can still reject rename
+    // even after every file handle we own has been closed. The candidate is
+    // already complete and validated at this point, so fall back to copying it
+    // into the final location while retaining the previous .bak for rollback.
+    Logger::warn(
+        "FileStore: temp rename failed; trying copy fallback: " +
         temp +
         " -> " +
+        final);
+
+    committed =
+        copyFile(
+            _fs,
+            temp,
+            final);
+
+    if (committed) {
+      removeIfExists(
+          _fs,
+          temp);
+
+      Logger::warn(
+          "FileStore: commit completed through copy fallback: " +
+          final);
+    }
+  }
+
+  if (!committed) {
+    Logger::error(
+        "FileStore commit failed: temp rename/copy failed: " +
+        temp +
+        " -> " +
+        final);
+
+    // A partially-created candidate must not block rollback.
+    removeIfExists(
+        _fs,
         final);
 
     if (hadFinal) {
