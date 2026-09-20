@@ -53,6 +53,7 @@ import type { Loco, SignalLogicDocumentDto } from "@domain/types";
 import { getLocos } from "@/api/domainApi";
 import { exportLocoImages, importLocoImages, type LocoImageBackup } from "@/api/imageApi";
 import { loadSignalLogicRulesWs, saveSignalLogicRulesWs } from "@/api/signalLogicWsApi";
+import { loadSandboxSource, saveSandboxSource } from "@/api/sandboxApi";
 import LocoDialog from "@/components/LocoDialog";
 import CommandCenterSettingsDialog from "@/components/CommandCenterSettingsDialog";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
@@ -717,6 +718,10 @@ type LiteBackup = {
   images?: LocoImageBackup[];
   signalLogic?: SignalLogicDocumentDto;
   devices?: DeviceConfigurationDocument;
+  sandboxScript?: {
+    path: "/scripts/sandbox.js";
+    source: string;
+  };
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -736,7 +741,7 @@ function BackupPage({ onBack, onDataImported }: { onBack: () => void; onDataImpo
     try {
       const backup: LiteBackup = {
         format: "dcc-express-lite-backup",
-        version: 2,
+        version: 3,
         exportedAt: new Date().toISOString(),
       };
       const exported: string[] = [];
@@ -795,6 +800,18 @@ function BackupPage({ onBack, onDataImported }: { onBack: () => void; onDataImpo
             warnings.push(`HAL devices: ${errorMessage(error)}`);
           }
         })(),
+        (async () => {
+          try {
+            const source = await loadSandboxSource();
+            backup.sandboxScript = {
+              path: "/scripts/sandbox.js",
+              source,
+            };
+            exported.push("JavaScript Sandbox script");
+          } catch (error) {
+            warnings.push(`Sandbox script: ${errorMessage(error)}`);
+          }
+        })(),
       ]);
 
       if (exported.length === 0) throw new Error(i18next.t("ui.noBackupDataCouldBeRead", { value1: warnings.join("; ") }));
@@ -835,7 +852,21 @@ function BackupPage({ onBack, onDataImported }: { onBack: () => void; onDataImpo
         ? parsed.signalLogic as SignalLogicDocumentDto
         : null;
       const devices = isDeviceConfigurationDocument(parsed.devices) ? parsed.devices : null;
-      if (!hasLayout && locos === null && images === null && signalLogic === null && devices === null) {
+      const sandboxScript =
+        isRecord(parsed.sandboxScript) &&
+        parsed.sandboxScript.path === "/scripts/sandbox.js" &&
+        typeof parsed.sandboxScript.source === "string"
+          ? parsed.sandboxScript.source
+          : null;
+
+      if (
+        !hasLayout &&
+        locos === null &&
+        images === null &&
+        signalLogic === null &&
+        devices === null &&
+        sandboxScript === null
+      ) {
         throw new Error(i18next.t("ui.theFileContainsNoLayoutLocomotiveImageSignalLogicOr"));
       }
 
@@ -877,6 +908,15 @@ function BackupPage({ onBack, onDataImported }: { onBack: () => void; onDataImpo
           imported.push("signal logic");
         } catch (error) {
           warnings.push(`signal logic: ${errorMessage(error)}`);
+        }
+      }
+
+      if (sandboxScript !== null) {
+        try {
+          await saveSandboxSource(sandboxScript);
+          imported.push("JavaScript Sandbox script");
+        } catch (error) {
+          warnings.push(`Sandbox script: ${errorMessage(error)}`);
         }
       }
 
