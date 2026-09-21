@@ -79,198 +79,23 @@ PC / tablet / phone
 
 ### Windows Desktop
 
-The Windows version runs the Hub backend locally and displays the shared WebUI in WebView2.
+DCCExpressHub is also available as a native Windows Desktop application.
+
+Download the current Windows package from the GitHub Releases page:
 
 ```text
-DCCExpressHub Desktop
-        |
-        +-- WPF / WebView2
-        |       |
-        |       +-- React WebUI
-        |
-        +-- DCCExpressHub.Net (.NET 10)
-                |
-                +-- DCC-EX TCP / Serial
-                        |
-                        v
-                  Command station
+DCCExpressHub-<version>-win-x64.zip
 ```
 
-The Desktop implementation is currently a **Windows target**.
+Then:
 
-## Install, configure and recover the ESP32 Hub
+1. Extract the ZIP to a directory.
+2. Start `DCCExpressHub.Desktop.exe`.
+3. Configure the DCC-EX connection from the application.
 
-The recommended ESP32 installation method is the DCCExpressHub Web Installer:
+The Windows package contains the DCCExpressHub backend and the shared WebUI. It does **not** require a separate ESP32 Hub.
 
-https://dccexpress.github.io/DCCExpressHubWeb/installer/
-
-Use desktop **Google Chrome** or **Microsoft Edge**. Firmware installation and serial configuration use ESP Web Tools / Web Serial.
-
-### 1. Select the Hub hardware
-
-Official releases currently support:
-
-| Hub hardware | PlatformIO target | Display | Frontend automation scripts | Backend automation scripts |
-|---|---|---|---|---|
-| **M5Stack Basic** | `m5stack-basic-dccex` | Built-in display | Supported | Not supported |
-| **Generic ESP32 DevKit** | `esp32dev-dccex` | None | Supported | Not supported |
-| **Waveshare ESP32-S3 LCD 7"** | `waveshare-s3-lcd7-dccex` | Built-in 7" display | Supported | QuickJS |
-| **Sunton ESP32-8048S043** | `sunton-8048s043-dccex` | Built-in 4.3" display | Supported | QuickJS |
-
-**Frontend automation scripts** run in the browser and are available on every supported Hub target.
-
-**Backend automation scripts** run directly on the Hub firmware through the QuickJS-based JavaScript Sandbox. They currently require a supported **ESP32-S3** target.
-
-The web installer provides separate hardware and firmware-version selectors. Select the exact hardware before flashing.
-
-Official firmware releases are currently built for **DCC-EX only**.
-
-### 2. Install the firmware
-
-Connect the Hub by USB, select the desired published firmware release and press **Install firmware**.
-
-The installer flashes a complete merged image at:
-
-```text
-0x000000
-```
-
-A factory / merged installation may erase existing NVS configuration and stored layout data, so creating an **Export / Import** backup before major updates is recommended.
-
-Depending on the ESP32 board, Windows may require a **CH340/CH341** or **CP210x** USB-UART driver.
-
-For development or recovery, the installer can also flash a local merged `.bin` file.
-
-### 3. Configure the Hub
-
-After flashing, connect through the same web tool over USB serial at:
-
-```text
-115200 baud
-```
-
-Typical settings:
-
-```text
-Hub hostname:     dccexpresshub
-Browser URL:      http://dccexpresshub.local
-
-DCC-EX host:      dccex.local
-DCC-EX TCP port:  2560
-```
-
-An IPv4 address can be used instead of an mDNS hostname.
-
-The serial recovery path works even when saved Wi-Fi or command-station settings are incorrect.
-
-Once configured, open:
-
-```text
-http://dccexpresshub.local
-```
-
-On a fresh installation, use **Locomotive editor** and **Layout editor**, or restore a previous installation through **Export / Import**.
-
-### Serial recovery commands
-
-The ESP32 firmware accepts both the installer JSON protocol and human-readable commands:
-
-```text
-<STATUS?>                         Show Hub, Wi-Fi and command-station status
-<WIFI?>                           Show stored Wi-Fi configuration
-<WIFI "ssid" "password">          Save Wi-Fi credentials
-<DCCEX?>                          Show DCC-EX endpoint and connection state
-<DCCEX "dccex.local" 2560>        Set DCC-EX host and TCP port
-<RESTART>                         Restart the Hub
-<HELP?>                           Show available serial commands
-```
-
-Examples:
-
-```text
-<STATUS?>
-<DCCEX "192.168.1.143" 2560>
-<WIFI "MyWiFi" "MyPassword">
-<RESTART>
-```
-
-`<WIFI ...>` requires a restart. DCC-EX endpoint changes are applied immediately.
-
-Because `<WIFI?>` and `<STATUS?>` are intended for **physical USB recovery**, they may expose the stored Wi-Fi password. Treat physical serial access as trusted access.
-
-## Windows Desktop
-
-### Requirements
-
-- Windows
-- .NET 10 SDK
-- Node.js / npm when rebuilding the shared WebUI
-- Microsoft Edge WebView2 Runtime
-- Visual Studio 2026 is optional but recommended for development
-
-Desktop projects:
-
-```text
-desktop/
-├── DCCExpressHub.Desktop.slnx
-├── DCCExpressHub.Net/
-│   ├── DCCExpressHub.Net.csproj
-│   └── wwwroot/
-└── DCCExpressHub.Desktop/
-    └── DCCExpressHub.Desktop.csproj
-```
-
-### Build
-
-From the repository root:
-
-```powershell
-.\build-desktop.ps1
-```
-
-Release:
-
-```powershell
-.\build-desktop.ps1 -Configuration Release
-```
-
-Clean Release build:
-
-```powershell
-.\build-desktop.ps1 -Configuration Release -Clean
-```
-
-Force a fresh npm dependency restore:
-
-```powershell
-.\build-desktop.ps1 -Configuration Release -Clean -RestoreNode
-```
-
-The Desktop build keeps the shared WebUI and the .NET `wwwroot` synchronized:
-
-```text
-web-ui/
-   |
-   | npm run build
-   v
-web-ui/dist/
-   |
-   | clean + copy + verify
-   v
-desktop/DCCExpressHub.Net/wwwroot/
-   |
-   | dotnet build
-   v
-desktop/DCCExpressHub.Desktop/bin/<Configuration>/net10.0-windows/
-   |
-   └── backend/wwwroot/
-```
-
-`web-ui/dist/` is generated output and is ignored by Git.
-
-`desktop/DCCExpressHub.Net/wwwroot/` is the committed WebUI snapshot used by the .NET backend. `build-desktop.ps1` recreates it from the current `web-ui/dist/` and verifies the synchronized files before building the Desktop solution. This prevents stale Vite assets from surviving in `wwwroot`.
-
-The WPF shell starts and owns the local backend process. It also checks the PID information from a previous Desktop run so it does not blindly terminate unrelated `dotnet` processes.
+The published `win-x64` package is self-contained, so the user does not need to install the .NET SDK.
 
 Desktop keyboard shortcuts:
 
@@ -280,7 +105,7 @@ Desktop keyboard shortcuts:
 | **F11** | Toggle fullscreen |
 | **Esc** | Leave fullscreen |
 
-The advanced menu currently includes **View -> Server Log** for showing or hiding the local backend log panel.
+The advanced menu includes **View -> Server Log** for showing or hiding the local backend log panel.
 
 ## Command-station support
 
@@ -455,13 +280,33 @@ Merged firmware is written to:
 dist/firmware/
 ```
 
-### Windows Desktop build
+### Windows Desktop development build
 
 ```powershell
 .\build-desktop.ps1
 ```
 
+Release development build:
+
+```powershell
+.\build-desktop.ps1 -Configuration Release
+```
+
 The script rebuilds the shared WebUI, refreshes and verifies `desktop/DCCExpressHub.Net/wwwroot/`, and builds `desktop/DCCExpressHub.Desktop.slnx`.
+
+To create the distributable Windows release package:
+
+```powershell
+.\build-desktop.ps1 -Configuration Release -Clean -Publish
+```
+
+This creates a self-contained `win-x64` publish and packages it as:
+
+```text
+dist/desktop/DCCExpressHub-<VERSION>-win-x64.zip
+```
+
+The version is read from the repository-root `VERSION` file.
 
 ### WebUI development
 

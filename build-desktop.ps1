@@ -5,7 +5,9 @@ param(
 
     [switch]$Clean,
 
-    [switch]$RestoreNode
+    [switch]$RestoreNode,
+
+    [switch]$Publish
 )
 
 $ErrorActionPreference = "Stop"
@@ -24,6 +26,7 @@ Set-StrictMode -Version Latest
 #       DCCExpressHub.Desktop.csproj
 #
 $Root = $PSScriptRoot
+$VersionFile = Join-Path $Root "VERSION"
 $WebUi = Join-Path $Root "web-ui"
 $Dist = Join-Path $WebUi "dist"
 
@@ -55,6 +58,7 @@ function Require([string]$Path, [string]$Name) {
 }
 
 Require (Join-Path $WebUi "package.json") "WebUI package.json"
+Require $VersionFile "VERSION"
 Require $Solution "Desktop solution"
 Require $ServerProject "Server project"
 Require $DesktopProject "Desktop project"
@@ -186,6 +190,59 @@ $RuntimeIndex = Join-Path $DesktopOutput "backend\wwwroot\index.html"
 
 Require $RuntimeIndex "Desktop runtime WebUI"
 
+
+if ($Publish) {
+    Step "Publishing self-contained Windows x64 release"
+
+    $Version = (Get-Content $VersionFile -Raw).Trim()
+    if ([string]::IsNullOrWhiteSpace($Version)) {
+        throw "VERSION file is empty."
+    }
+
+    $PublishRoot = Join-Path $Root "dist\desktop"
+    $PublishDir = Join-Path $PublishRoot "win-x64"
+    $ZipPath = Join-Path $PublishRoot "DCCExpressHub-$Version-win-x64.zip"
+
+    if (Test-Path $PublishDir) {
+        Remove-Item $PublishDir -Recurse -Force
+    }
+    New-Item -ItemType Directory -Path $PublishDir -Force | Out-Null
+
+    # Publish the WPF shell self-contained.
+    & dotnet publish $DesktopProject `
+        -c $Configuration `
+        -r win-x64 `
+        --self-contained true `
+        --no-restore `
+        -o $PublishDir
+    CheckExit "dotnet publish"
+
+    # The Desktop project build target prepares backend/ for normal build output.
+    # Copy the already-built backend runtime into the publish package explicitly.
+    $BuiltBackend = Join-Path $DesktopOutput "backend"
+    Require $BuiltBackend "Built Desktop backend runtime"
+
+    $PublishedBackend = Join-Path $PublishDir "backend"
+    if (Test-Path $PublishedBackend) {
+        Remove-Item $PublishedBackend -Recurse -Force
+    }
+    Copy-Item $BuiltBackend $PublishedBackend -Recurse -Force
+
+    Require (Join-Path $PublishDir "DCCExpressHub.Desktop.exe") "Published Desktop executable"
+    Require (Join-Path $PublishedBackend "DCCExpressHub.Net.dll") "Published backend"
+    Require (Join-Path $PublishedBackend "wwwroot\index.html") "Published WebUI"
+
+    if (Test-Path $ZipPath) {
+        Remove-Item $ZipPath -Force
+    }
+
+    Step "Creating release ZIP"
+    Compress-Archive -Path (Join-Path $PublishDir "*") -DestinationPath $ZipPath -CompressionLevel Optimal
+
+    Require $ZipPath "Windows release ZIP"
+    Write-Host "Release ZIP  : $ZipPath" -ForegroundColor Green
+}
+
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Green
 Write-Host " DCCExpressHub Desktop build OK" -ForegroundColor Green
@@ -195,4 +252,7 @@ Write-Host "WebUI build  : web-ui\dist"
 Write-Host "Server UI    : desktop\DCCExpressHub.Net\wwwroot"
 Write-Host "Desktop out  : desktop\DCCExpressHub.Desktop\bin\$Configuration\net10.0-windows"
 Write-Host "Runtime UI   : ...\backend\wwwroot"
+if ($Publish) {
+    Write-Host "Release ZIP  : dist\desktop\DCCExpressHub-$Version-win-x64.zip"
+}
 Write-Host ""
