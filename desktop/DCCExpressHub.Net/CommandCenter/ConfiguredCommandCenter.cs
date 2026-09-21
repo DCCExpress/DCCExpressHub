@@ -26,6 +26,7 @@ public sealed class ConfiguredCommandCenter : ICommandCenter
         _inner.TripTelemetryChanged+=x=>TripTelemetryChanged?.Invoke(x);
         _inner.PowerFeedbackChanged+=x=>PowerFeedbackChanged?.Invoke(x);
         _inner.ConnectionChanged+=x=>ConnectionChanged?.Invoke(x);
+        _inner.SensorFeedbackChanged+=(address,on)=>SensorFeedbackChanged?.Invoke(address,on);
         _inner.LocoFeedbackChanged+=x=>LocoFeedbackChanged?.Invoke(x with { Forward=MapDirection(x.Address,x.Forward) });
     }
 
@@ -73,6 +74,7 @@ public sealed class ConfiguredCommandCenter : ICommandCenter
     public event Action<int[]>? TripTelemetryChanged;
     public event Action<PowerFeedback>? PowerFeedbackChanged;
     public event Action<LocoFeedback>? LocoFeedbackChanged;
+    public event Action<int, bool>? SensorFeedbackChanged;
     public event Action<bool>? ConnectionChanged;
 
     public Task<bool> SendRawAsync(string command,bool log=true,CancellationToken ct=default)=>_inner.SendRawAsync(command,log,ct);
@@ -89,4 +91,5 @@ public sealed class ConfiguredCommandCenter : ICommandCenter
     public Task<bool> RequestTrackConfigurationAsync(CancellationToken ct=default)=>_inner.RequestTrackConfigurationAsync(ct);
     public Task<bool> RequestCurrentTelemetryAsync(CancellationToken ct=default)=>_inner.RequestCurrentTelemetryAsync(ct);
     public Task<bool> RequestTripTelemetryAsync(CancellationToken ct=default)=>_inner.RequestTripTelemetryAsync(ct);
+    public Task<bool> RequestSensorSnapshotAsync(CancellationToken ct=default)=>_inner.RequestSensorSnapshotAsync(ct);
 }

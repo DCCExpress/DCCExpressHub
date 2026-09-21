@@ -21,7 +21,7 @@ public sealed class DccExCommandCenter : BackgroundService, ICommandCenter
     public event Action<string>? RawInfo; public event Action<StationInfo>? StationInfoChanged;
     public event Action<TrackInfo>? TrackConfigurationChanged; public event Action<int[]>? CurrentTelemetryChanged;
     public event Action<int[]>? TripTelemetryChanged; public event Action<PowerFeedback>? PowerFeedbackChanged;
-    public event Action<LocoFeedback>? LocoFeedbackChanged; public event Action<bool>? ConnectionChanged;
+    public event Action<LocoFeedback>? LocoFeedbackChanged; public event Action<int, bool>? SensorFeedbackChanged; public event Action<bool>? ConnectionChanged;
 
     public DccExCommandCenter(IDccExTransport transport,ILogger<DccExCommandCenter> log)
     {
@@ -34,6 +34,7 @@ public sealed class DccExCommandCenter : BackgroundService, ICommandCenter
         _protocol.TrackConfigurationChanged+=x=>TrackConfigurationChanged?.Invoke(x);
         _protocol.CurrentTelemetryChanged+=x=>CurrentTelemetryChanged?.Invoke(x);_protocol.TripTelemetryChanged+=x=>TripTelemetryChanged?.Invoke(x);
         _protocol.PowerFeedbackChanged+=x=>PowerFeedbackChanged?.Invoke(x);_protocol.LocoFeedbackChanged+=x=>LocoFeedbackChanged?.Invoke(x);
+        _protocol.SensorFeedbackChanged+=(address,on)=>SensorFeedbackChanged?.Invoke(address,on);
         _protocol.HeartbeatReply+=()=>{var was=_alive;_alive=true;_lastHeartbeat=DateTimeOffset.UtcNow;if(!was)ConnectionChanged?.Invoke(true);};
     }
 
@@ -93,8 +94,6 @@ public sealed class DccExCommandCenter : BackgroundService, ICommandCenter
     public Task<bool> SetProgrammingPowerAsync(bool on,CancellationToken ct=default)=>SendRawAsync(on?"<1 PROG>":"<0 PROG>",true,ct);
     public async Task<bool> EmergencyStopAsync(CancellationToken ct=default)
     {
-        // Firmware CompiledCommandCenter parity:
-        // inactive/unknown -> PAUSE; active -> ESTOPALL then RESUME.
         if(!_pauseKnown || !_paused)
         {
             if(!await SendRawAsync("<!P>",true,ct)) return false;
@@ -121,4 +120,5 @@ public sealed class DccExCommandCenter : BackgroundService, ICommandCenter
     public Task<bool> RequestTrackConfigurationAsync(CancellationToken ct=default)=>SendRawAsync("<=>",false,ct);
     public Task<bool> RequestCurrentTelemetryAsync(CancellationToken ct=default)=>SendRawAsync("<JI>",false,ct);
     public Task<bool> RequestTripTelemetryAsync(CancellationToken ct=default)=>SendRawAsync("<JG>",false,ct);
+    public Task<bool> RequestSensorSnapshotAsync(CancellationToken ct=default)=>SendRawAsync("<Q>",false,ct);
 }

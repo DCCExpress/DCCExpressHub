@@ -12,14 +12,15 @@
     <PackageReference Include="System.Management" Version="10.0.0" />
   </ItemGroup>
 
-  <Target Name="BuildBackend" BeforeTargets="Build">
+  <Target Name="BuildBackend" BeforeTargets="Build" Condition="'$(RuntimeIdentifier)' == ''">
     <MSBuild Projects="..\DCCExpressHub.Net\DCCExpressHub.Net.csproj"
              Targets="Build"
              Properties="Configuration=$(Configuration)" />
   </Target>
 
-  <Target Name="PrepareBackendRuntime" AfterTargets="Build">
-    <RemoveDir Directories="$(OutDir)backend" />
+  <Target Name="PrepareBackendRuntime" AfterTargets="Build" Condition="'$(RuntimeIdentifier)' == ''">
+    <!-- Never delete the whole backend directory during an ordinary VS build.
+         A running backend locks DCCExpressHub.Net.dll on Windows. -->
     <MakeDir Directories="$(OutDir)backend" />
 
     <ItemGroup>
@@ -28,11 +29,15 @@
     </ItemGroup>
 
     <Copy SourceFiles="@(BackendFiles)"
-          DestinationFiles="@(BackendFiles->'$(OutDir)backend\%(RecursiveDir)%(Filename)%(Extension)')" />
+          DestinationFiles="@(BackendFiles->'$(OutDir)backend\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true"
+          Retries="3"
+          RetryDelayMilliseconds="250" />
 
-    <!-- Explicit source wwwroot copy: guarantees the current React build is in runtime backend/wwwroot. -->
     <Copy SourceFiles="@(WebRootFiles)"
           DestinationFiles="@(WebRootFiles->'$(OutDir)backend\wwwroot\%(RecursiveDir)%(Filename)%(Extension)')"
-          SkipUnchangedFiles="false" />
+          SkipUnchangedFiles="true"
+          Retries="3"
+          RetryDelayMilliseconds="250" />
   </Target>
 </Project>

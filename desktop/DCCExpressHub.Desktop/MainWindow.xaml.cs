@@ -1,6 +1,10 @@
 using System.Diagnostics;
 using System.IO;
+using System.Net;
 using System.Net.Http;
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
+using System.Reflection;
 using System.Text.Json;
 using System.Windows;
 
@@ -8,7 +12,9 @@ namespace DCCExpressHub.Desktop;
 
 public partial class MainWindow : Window
 {
+    private const int HubPort = 5127;
     private const string HubUrl = "http://127.0.0.1:5127";
+    private const string HubListenUrl = "http://0.0.0.0:5127";
     private const string PidFileName = "dccexpresshub-backend.pid";
 
     private Process? _backend;
@@ -36,6 +42,8 @@ public partial class MainWindow : Window
             if (!createdNew)
                 throw new InvalidOperationException("A DCCExpressHub Desktop már fut.");
 
+            UpdateWindowTitle();
+
             StartupText.Text = "Korábbi backend ellenőrzése…";
             KillStaleBackend();
 
@@ -54,6 +62,94 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             StartupText.Text = "Indítási hiba: " + ex.Message;
+        }
+    }
+
+    private void UpdateWindowTitle()
+    {
+        var version = GetHubVersion();
+        var lanIp = GetLanIpv4Address();
+
+        Title = lanIp is null
+            ? $"DCCExpressHub v{version} — local only: 127.0.0.1:{HubPort}"
+            : $"DCCExpressHub v{version} — {lanIp}:{HubPort}";
+    }
+
+    private static string GetHubVersion()
+    {
+        // Development: find the repository VERSION file by walking upwards
+        // from the executable directory.
+        try
+        {
+            var dir = new DirectoryInfo(AppContext.BaseDirectory);
+            while (dir is not null)
+            {
+                var versionFile = Path.Combine(dir.FullName, "VERSION");
+                if (File.Exists(versionFile))
+                {
+                    var value = File.ReadAllText(versionFile).Trim();
+                    if (!string.IsNullOrWhiteSpace(value))
+                        return value;
+                }
+                dir = dir.Parent;
+            }
+        }
+        catch { }
+
+        // Packaged builds can fall back to assembly informational version.
+        var informational = Assembly.GetExecutingAssembly()
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+            .InformationalVersion;
+
+        if (!string.IsNullOrWhiteSpace(informational))
+        {
+            var plus = informational.IndexOf('+');
+            return plus >= 0 ? informational[..plus] : informational;
+        }
+
+        return Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "unknown";
+    }
+
+    private static string? GetLanIpv4Address()
+    {
+        try
+        {
+            // Prefer an active physical LAN/Wi-Fi adapter with a default gateway.
+            foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
+            {
+                if (nic.OperationalStatus != OperationalStatus.Up ||
+                    nic.NetworkInterfaceType == NetworkInterfaceType.Loopback ||
+                    nic.NetworkInterfaceType == NetworkInterfaceType.Tunnel)
+                    continue;
+
+                var properties = nic.GetIPProperties();
+                if (!properties.GatewayAddresses.Any(g =>
+                        g.Address.AddressFamily == AddressFamily.InterNetwork &&
+                        !IPAddress.Any.Equals(g.Address)))
+                    continue;
+
+                var address = properties.UnicastAddresses
+                    .Select(x => x.Address)
+                    .FirstOrDefault(x =>
+                        x.AddressFamily == AddressFamily.InterNetwork &&
+                        !IPAddress.IsLoopback(x) &&
+                        !x.ToString().StartsWith("169.254.", StringComparison.Ordinal));
+
+                if (address is not null)
+                    return address.ToString();
+            }
+
+            // Fallback for unusual network setups without a visible gateway.
+            return Dns.GetHostEntry(Dns.GetHostName()).AddressList
+                .FirstOrDefault(x =>
+                    x.AddressFamily == AddressFamily.InterNetwork &&
+                    !IPAddress.IsLoopback(x) &&
+                    !x.ToString().StartsWith("169.254.", StringComparison.Ordinal))
+                ?.ToString();
+        }
+        catch
+        {
+            return null;
         }
     }
 
@@ -136,7 +232,9 @@ public partial class MainWindow : Window
             RedirectStandardError = true
         };
 
-        psi.Environment["DCCEXPRESS_DESKTOP_URL"] = HubUrl;
+        // Kestrel listens on all IPv4 interfaces so phones/tablets on the LAN
+        // can open http://<PC-LAN-IP>:5127. The embedded WebView still uses localhost.
+        psi.Environment["DCCEXPRESS_DESKTOP_URL"] = HubListenUrl;
         psi.Environment["ASPNETCORE_ENVIRONMENT"] = "Production";
         psi.Environment["ASPNETCORE_CONTENTROOT"] = backendDir;
 

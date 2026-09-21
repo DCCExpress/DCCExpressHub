@@ -1,1372 +1,163 @@
 #include "SignalAutomationEngine.h"
-
 #include "FileStore.h"
 #include "Logger.h"
 
 namespace {
-
-bool valueFitsSignal(
-    bool extended,
-    uint8_t outputs,
-    int32_t value) {
-  if (extended) {
-    return
-        value >= 0 &&
-        value <= 255;
-  }
-
-  if (
-      value < 0 ||
-      value > 65535
-  ) {
-    return false;
-  }
-
-  const uint32_t mask =
-      outputs >= 16
-          ? 0xffffUL
-          : (
-                (1UL << outputs) -
-                1UL
-            );
-
-  return
-      static_cast<uint32_t>(
-          value) <=
-      mask;
+bool fits(bool ext,uint8_t outputs,int32_t value){
+  if(ext)return value>=0&&value<=255;
+  if(value<0||value>65535)return false;
+  uint32_t mask=outputs>=16?0xffffUL:(1UL<<outputs)-1UL;
+  return static_cast<uint32_t>(value)<=mask;
+}
 }
 
-bool keyAllowed(
-    const char* key,
-    const char* const* allowed,
-    size_t count) {
-  if (!key) {
-    return false;
-  }
+SignalAutomationEngine::SignalAutomationEngine(ICommandCenter& cc,LayoutRuntime& runtime,AsyncWebSocket& ws)
+:_commandCenter(cc),_runtime(runtime),_ws(ws){}
 
-  for (
-      size_t index = 0;
-      index < count;
-      ++index
-  ) {
-    if (
-        strcmp(
-            key,
-            allowed[index]) ==
-        0
-    ) {
-      return true;
-    }
-  }
-
-  return false;
+bool SignalAutomationEngine::begin(fs::FS& fs,const char* path){
+  _fs=&fs;_path=path;
+  _runtime.onChange([this](RuntimeChangeKind k,uint16_t id,uint8_t ch){handleRuntimeChange(k,id,ch);});
+  bool ok=reload();if(ok)evaluate();return ok;
 }
 
-void warnUnknownKeys(
-    JsonObjectConst object,
-    const char* const* allowed,
-    size_t count,
-    const String& context) {
-  for (
-      JsonPairConst pair :
-      object
-  ) {
-    const char* key =
-        pair.key().c_str();
+bool SignalAutomationEngine::parseSignal(JsonObjectConst row,std::vector<SignalRuleSet>& signals) const{
+  long rawAddress=row["address"]|0L;
+  if(rawAddress<=0||rawAddress>0xffff)return false;
+  uint16_t address=static_cast<uint16_t>(rawAddress);
+  if(!_runtime.findAccessory(RuntimeAccessoryKind::Signal,address))return false;
 
-    if (
-        !keyAllowed(
-            key,
-            allowed,
-            count)
-    ) {
-      Logger::warn(
-          "SignalAutomation: " +
-          context +
-          " unknown field \"" +
-          String(key) +
-          "\" ignored");
+  const char* mode=row["mode"]|"";
+  bool ext=strcmp(mode,"extended")==0;
+  if(!ext&&strcmp(mode,"basic")!=0)return false;
+  int out=row["outputs"]|1;out=constrain(out,1,16);
+  long def=row["default"]|0L;if(!fits(ext,(uint8_t)out,def))return false;
+  JsonArrayConst rawRules=row["rules"].as<JsonArrayConst>();if(rawRules.isNull())return false;
+
+  SignalRuleSet signal;signal.address=address;signal.extended=ext;signal.outputs=(uint8_t)out;signal.defaultValue=def;
+
+  for(JsonVariantConst rv:rawRules){
+    JsonObjectConst rr=rv.as<JsonObjectConst>();if(rr.isNull())continue;
+    long value=rr["value"]|0L;if(!fits(ext,signal.outputs,value))continue;
+    JsonArrayConst cs=rr["conditions"].as<JsonArrayConst>();if(cs.isNull()||cs.size()==0)continue;
+    Rule rule;rule.value=value;bool valid=true;
+
+    for(JsonVariantConst cv:cs){
+      JsonArrayConst c=cv.as<JsonArrayConst>();if(c.isNull()){valid=false;break;}
+      const char* source=c[0]|"";
+      Condition cond;
+
+      if(c.size()==3){
+        long addr=c[1]|0L;int physical=c[2]|-1;
+        if(addr<=0||addr>0xffff||(physical!=0&&physical!=1)){valid=false;break;}
+        if(strcmp(source,"turnout")==0){
+          RuntimeAccessory* t=_runtime.findAccessory(RuntimeAccessoryKind::Turnout,(uint16_t)addr);
+          if(!t){valid=false;break;}
+          cond.source=Condition::Source::Turnout;cond.address=(uint16_t)addr;
+          cond.value=(physical!=0)==t->closedValue;
+        }else if(strcmp(source,"sensor")==0){
+          if(!_runtime.findSensor((uint16_t)addr)){valid=false;break;}
+          cond.source=Condition::Source::Sensor;cond.address=(uint16_t)addr;cond.value=physical!=0;
+        }else{valid=false;break;}
+      }else if(c.size()==4){
+        // Legacy ID row: resolve once to a physical address. Runtime matching is address-only.
+        long id=c[1]|0L;int ch=c[2]|0;int v=c[3]|-1;
+        if(id<=0||id>0xffff||ch<0||ch>1||(v!=0&&v!=1)){valid=false;break;}
+        if(strcmp(source,"turnout")==0){
+          RuntimeAccessory* t=_runtime.findAccessoryById(RuntimeAccessoryKind::Turnout,(uint16_t)id,(uint8_t)ch);
+          if(!t){valid=false;break;}
+          cond.source=Condition::Source::Turnout;cond.address=t->address;cond.value=v!=0;
+        }else if(strcmp(source,"sensor")==0){
+          RuntimeSensor* s=_runtime.findSensorById((uint16_t)id);
+          if(!s){valid=false;break;}
+          cond.source=Condition::Source::Sensor;cond.address=s->address;cond.value=v!=0;
+        }else{valid=false;break;}
+      }else{valid=false;break;}
+      rule.conditions.push_back(cond);
     }
+    if(valid&&rule.conditions.size()==cs.size())signal.rules.push_back(std::move(rule));
   }
+
+  if(signal.rules.empty())return false;
+  for(auto& existing:signals)if(existing.address==signal.address){existing=std::move(signal);return true;}
+  signals.push_back(std::move(signal));return true;
 }
 
+bool SignalAutomationEngine::parseFile(const char* path,bool& enabled,std::vector<SignalRuleSet>& signals) const{
+  if(!_fs||!path||!*path)return false;
+  FileStore store(*_fs);File file=store.openRead(path);if(!file)return false;
+  enabled=false;signals.clear();
+  while(file.available()){
+    String line=file.readStringUntil('\n');line.trim();if(line.isEmpty())continue;
+    JsonDocument doc;if(deserializeJson(doc,line)||!doc.is<JsonObject>())continue;
+    JsonObjectConst o=doc.as<JsonObjectConst>();const char* kind=o["kind"]|"";
+    if(strcmp(kind,"meta")==0){enabled=o["enabled"]|false;continue;}
+    if(strcmp(kind,"signal")==0)parseSignal(o,signals);
+  }
+  file.close();return true;
 }
 
-SignalAutomationEngine::SignalAutomationEngine(
-    ICommandCenter& commandCenter,
-    LayoutRuntime& runtime,
-    AsyncWebSocket& ws)
-    : _commandCenter(commandCenter),
-      _runtime(runtime),
-      _ws(ws) {}
-
-bool SignalAutomationEngine::begin(
-    fs::FS& fs,
-    const char* path) {
-  _fs =
-      &fs;
-
-  _path =
-      path;
-
-  _runtime.onChange(
-      [this](
-          RuntimeChangeKind kind,
-          uint16_t id,
-          uint8_t channel) {
-        handleRuntimeChange(
-            kind,
-            id,
-            channel);
-      });
-
-  const bool loaded =
-      reload();
-
-  if (loaded) {
-    evaluate();
-  }
-
-  return loaded;
+bool SignalAutomationEngine::validateFile(const char* path){
+  bool e=false;std::vector<SignalRuleSet>s;return parseFile(path,e,s);
 }
 
-bool SignalAutomationEngine::parseSignal(
-    JsonObjectConst row,
-    std::vector<SignalRuleSet>& signals) const {
-  static const char* const SIGNAL_KEYS[] = {
-      "kind",
-      "id",
-      "address",
-      "mode",
-      "outputs",
-      "default",
-      "rules"
-  };
-
-  warnUnknownKeys(
-      row,
-      SIGNAL_KEYS,
-      sizeof(SIGNAL_KEYS) /
-          sizeof(SIGNAL_KEYS[0]),
-      "signal");
-
-  const long rawId =
-      row["id"] |
-      0L;
-
-  const long rawAddress =
-      row["address"] |
-      0L;
-
-  uint16_t signalId =
-      (
-          rawId > 0 &&
-          rawId <= 0xffff
-      )
-          ? static_cast<uint16_t>(
-                rawId)
-          : 0;
-
-  const uint16_t signalAddress =
-      (
-          rawAddress > 0 &&
-          rawAddress <= 0xffff
-      )
-          ? static_cast<uint16_t>(
-                rawAddress)
-          : 0;
-
-  RuntimeAccessory* target =
-      signalId != 0
-          ? _runtime.findAccessoryById(
-                RuntimeAccessoryKind::Signal,
-                signalId,
-                0)
-          : nullptr;
-
-  if (
-      target &&
-      signalAddress != 0 &&
-      target->address !=
-          signalAddress
-  ) {
-    target =
-        nullptr;
-  }
-
-  if (
-      !target &&
-      signalAddress != 0
-  ) {
-    target =
-        _runtime.findAccessory(
-            RuntimeAccessoryKind::Signal,
-            signalAddress);
-
-    if (target) {
-      signalId =
-          target->id;
-    }
-  }
-
-  if (signalId == 0) {
-    Logger::warn(
-        "SignalAutomation: signal row has no usable id/address and was skipped");
-
-    return false;
-  }
-
-  const char* mode =
-      row["mode"] |
-      "";
-
-  const bool extended =
-      strcmp(
-          mode,
-          "extended") ==
-      0;
-
-  if (
-      !extended &&
-      strcmp(
-          mode,
-          "basic") !=
-          0
-  ) {
-    Logger::warn(
-        "SignalAutomation: signal id " +
-        String(signalId) +
-        " has unsupported mode \"" +
-        String(mode) +
-        "\" and was skipped");
-
-    return false;
-  }
-
-  int outputs =
-      row["outputs"] |
-      1;
-
-  outputs =
-      constrain(
-          outputs,
-          1,
-          16);
-
-  const long defaultValue =
-      row["default"] |
-      0L;
-
-  if (
-      !valueFitsSignal(
-          extended,
-          static_cast<uint8_t>(
-              outputs),
-          defaultValue)
-  ) {
-    Logger::warn(
-        "SignalAutomation: signal id " +
-        String(signalId) +
-        " has invalid default value " +
-        String(defaultValue) +
-        " and was skipped");
-
-    return false;
-  }
-
-  const JsonArrayConst rawRules =
-      row["rules"]
-          .as<JsonArrayConst>();
-
-  if (rawRules.isNull()) {
-    Logger::warn(
-        "SignalAutomation: signal id " +
-        String(signalId) +
-        " has no rules array and was skipped");
-
-    return false;
-  }
-
-  SignalRuleSet signal;
-
-  signal.signalId =
-      signalId;
-
-  signal.signalAddress =
-      signalAddress;
-
-  signal.extended =
-      extended;
-
-  signal.outputs =
-      static_cast<uint8_t>(
-          outputs);
-
-  signal.defaultValue =
-      static_cast<int32_t>(
-          defaultValue);
-
-  size_t ruleIndex =
-      0;
-
-  for (
-      JsonVariantConst rawRuleVariant :
-      rawRules
-  ) {
-    ++ruleIndex;
-
-    const JsonObjectConst rawRule =
-        rawRuleVariant
-            .as<JsonObjectConst>();
-
-    if (rawRule.isNull()) {
-      Logger::warn(
-          "SignalAutomation: signal id " +
-          String(signalId) +
-          " rule " +
-          String(ruleIndex) +
-          " is not an object and was skipped");
-
-      continue;
-    }
-
-    static const char* const RULE_KEYS[] = {
-        "name",
-        "value",
-        "conditions"
-    };
-
-    warnUnknownKeys(
-        rawRule,
-        RULE_KEYS,
-        sizeof(RULE_KEYS) /
-            sizeof(RULE_KEYS[0]),
-        "signal id " +
-            String(signalId) +
-            " rule " +
-            String(ruleIndex));
-
-    const long rawValue =
-        rawRule["value"] |
-        0L;
-
-    if (
-        !valueFitsSignal(
-            signal.extended,
-            signal.outputs,
-            rawValue)
-    ) {
-      Logger::warn(
-          "SignalAutomation: signal id " +
-          String(signalId) +
-          " rule " +
-          String(ruleIndex) +
-          " has invalid value and was skipped");
-
-      continue;
-    }
-
-    const JsonArrayConst rawConditions =
-        rawRule["conditions"]
-            .as<JsonArrayConst>();
-
-    if (
-        rawConditions.isNull() ||
-        rawConditions.size() ==
-            0
-    ) {
-      Logger::warn(
-          "SignalAutomation: signal id " +
-          String(signalId) +
-          " rule " +
-          String(ruleIndex) +
-          " has no conditions and was skipped");
-
-      continue;
-    }
-
-    Rule rule;
-
-    rule.value =
-        static_cast<int32_t>(
-            rawValue);
-
-    bool validRule =
-        true;
-
-    size_t conditionIndex =
-        0;
-
-    for (
-        JsonVariantConst rawConditionVariant :
-        rawConditions
-    ) {
-      ++conditionIndex;
-
-      const JsonArrayConst rawCondition =
-          rawConditionVariant
-              .as<JsonArrayConst>();
-
-      if (
-          rawCondition.isNull() ||
-          (
-              rawCondition.size() !=
-                  4 &&
-              rawCondition.size() !=
-                  3
-          )
-      ) {
-        Logger::warn(
-            "SignalAutomation: signal id " +
-            String(signalId) +
-            " rule " +
-            String(ruleIndex) +
-            " condition " +
-            String(conditionIndex) +
-            " has invalid shape; rule skipped");
-
-        validRule =
-            false;
-
-        break;
-      }
-
-      const char* source =
-          rawCondition[0] |
-          "";
-
-      Condition condition;
-
-      if (
-          rawCondition.size() ==
-          4
-      ) {
-        const long conditionId =
-            rawCondition[1] |
-            0L;
-
-        const int channel =
-            rawCondition[2] |
-            0;
-
-        const int value =
-            rawCondition[3] |
-            -1;
-
-        if (
-            conditionId <= 0 ||
-            conditionId > 0xffff ||
-            channel < 0 ||
-            channel > 1 ||
-            (
-                value != 0 &&
-                value != 1
-            )
-        ) {
-          validRule =
-              false;
-
-          break;
-        }
-
-        condition.id =
-            static_cast<uint16_t>(
-                conditionId);
-
-        condition.channel =
-            static_cast<uint8_t>(
-                channel);
-
-        condition.value =
-            value != 0;
-
-        if (
-            strcmp(
-                source,
-                "turnout") ==
-            0
-        ) {
-          condition.source =
-              Condition::Source::Turnout;
-
-          if (
-              !_runtime.findAccessoryById(
-                  RuntimeAccessoryKind::Turnout,
-                  condition.id,
-                  condition.channel)
-          ) {
-            Logger::warn(
-                "SignalAutomation: turnout condition id=" +
-                String(condition.id) +
-                " ch=" +
-                String(condition.channel) +
-                " not found; rule skipped");
-
-            validRule =
-                false;
-
-            break;
-          }
-        } else if (
-            strcmp(
-                source,
-                "sensor") ==
-            0
-        ) {
-          condition.source =
-              Condition::Source::Sensor;
-
-          condition.channel =
-              0;
-
-          RuntimeSensor* sensor =
-              _runtime.findSensorById(
-                  condition.id);
-
-          if (!sensor) {
-            Logger::warn(
-                "SignalAutomation: legacy sensor condition id=" +
-                String(condition.id) +
-                " not found; rule skipped");
-
-            validRule =
-                false;
-
-            break;
-          }
-
-          condition.address =
-              sensor->address;
-
-          Logger::warn(
-              "SignalAutomation: migrated legacy sensor element id=" +
-              String(condition.id) +
-              " to occupancy address=" +
-              String(condition.address));
-        } else {
-          validRule =
-              false;
-
-          break;
-        }
-      } else {
-        const long address =
-            rawCondition[1] |
-            0L;
-
-        const int physical =
-            rawCondition[2] |
-            -1;
-
-        if (
-            address <= 0 ||
-            address > 0xffff ||
-            (
-                physical != 0 &&
-                physical != 1
-            )
-        ) {
-          validRule =
-              false;
-
-          break;
-        }
-
-        if (
-            strcmp(
-                source,
-                "turnout") ==
-            0
-        ) {
-          RuntimeAccessory* turnout =
-              _runtime.findAccessory(
-                  RuntimeAccessoryKind::Turnout,
-                  static_cast<uint16_t>(
-                      address));
-
-          if (!turnout) {
-            validRule =
-                false;
-
-            break;
-          }
-
-          condition.source =
-              Condition::Source::Turnout;
-
-          condition.id =
-              turnout->id;
-
-          condition.channel =
-              turnout->channel;
-
-          condition.value =
-              (
-                  physical !=
-                  0
-              ) ==
-              turnout->closedValue;
-        } else if (
-            strcmp(
-                source,
-                "sensor") ==
-            0
-        ) {
-          RuntimeSensor* sensor =
-              _runtime.findSensor(
-                  static_cast<uint16_t>(
-                      address));
-
-          if (!sensor) {
-            validRule =
-                false;
-
-            break;
-          }
-
-          condition.source =
-              Condition::Source::Sensor;
-
-          condition.address =
-              static_cast<uint16_t>(
-                  address);
-
-          condition.channel =
-              0;
-
-          condition.value =
-              physical !=
-              0;
-        } else {
-          validRule =
-              false;
-
-          break;
-        }
-      }
-
-      rule.conditions
-          .push_back(
-              std::move(
-                  condition));
-    }
-
-    if (
-        !validRule ||
-        rule.conditions.size() !=
-            rawConditions.size()
-    ) {
-      Logger::warn(
-          "SignalAutomation: signal id " +
-          String(signalId) +
-          " rule " +
-          String(ruleIndex) +
-          " could not be resolved and was skipped");
-
-      continue;
-    }
-
-    signal.rules
-        .push_back(
-            std::move(
-                rule));
-  }
-
-  if (signal.rules.empty()) {
-    Logger::warn(
-        "SignalAutomation: signal id " +
-        String(signal.signalId) +
-        " has zero valid rules; automation for this signal is disabled");
-
-    return false;
-  }
-
-  Logger::info(
-      "SignalAutomation: signal id=" +
-      String(signal.signalId) +
-      " address=" +
-      String(signal.signalAddress) +
-      " rules=" +
-      String(signal.rules.size()));
-
-  for (
-      auto& existing :
-      signals
-  ) {
-    if (
-        existing.signalId ==
-        signal.signalId
-    ) {
-      Logger::warn(
-          "SignalAutomation: duplicate signal id " +
-          String(signal.signalId) +
-          "; later definition wins");
-
-      existing =
-          std::move(
-              signal);
-
-      return true;
-    }
-  }
-
-  signals.push_back(
-      std::move(
-          signal));
-
+bool SignalAutomationEngine::reload(){
+  if(!_fs)return false;
+  FileStore store(*_fs);
+  if(!store.exists(_path.c_str())){_enabled=false;_signals.clear();return true;}
+  bool e=false;std::vector<SignalRuleSet>s;
+  if(!parseFile(_path.c_str(),e,s))return false;
+  _enabled=e;_signals=std::move(s);
+  Logger::info("SignalAutomation: address-authoritative, loaded "+String(_signals.size())+" signal(s)");
   return true;
 }
 
-bool SignalAutomationEngine::parseFile(
-    const char* path,
-    bool& enabled,
-    std::vector<SignalRuleSet>& signals) const {
-  if (
-      !_fs ||
-      !path ||
-      !*path
-  ) {
-    return false;
+bool SignalAutomationEngine::conditionMatches(const Condition& c) const{
+  if(c.source==Condition::Source::Sensor){
+    const RuntimeSensor* s=_runtime.findSensor(c.address);return s&&s->on==c.value;
   }
-
-  FileStore files(
-      *_fs);
-
-  File file =
-      files.openRead(
-          path);
-
-  if (!file) {
-    return false;
-  }
-
-  bool parsedEnabled =
-      false;
-
-  bool recognizedAny =
-      false;
-
-  std::vector<SignalRuleSet>
-      parsedSignals;
-
-  size_t lineNumber =
-      0;
-
-  while (
-      file.available()
-  ) {
-    ++lineNumber;
-
-    String line =
-        file.readStringUntil(
-            '\n');
-
-    line.trim();
-
-    if (
-        line.isEmpty()
-    ) {
-      continue;
-    }
-
-    JsonDocument row;
-
-    const DeserializationError error =
-        deserializeJson(
-            row,
-            line);
-
-    if (
-        error ||
-        !row.is<JsonObject>()
-    ) {
-      Logger::warn(
-          "SignalAutomation: line " +
-          String(
-              lineNumber) +
-          " is not valid JSON object and was skipped");
-
-      continue;
-    }
-
-    const JsonObjectConst object =
-        row.as<JsonObjectConst>();
-
-    const char* kind =
-        object["kind"] |
-        "";
-
-    if (
-        strcmp(
-            kind,
-            "meta") ==
-        0
-    ) {
-      static const char* const META_KEYS[] = {
-          "kind",
-          "enabled",
-          "version"
-      };
-
-      warnUnknownKeys(
-          object,
-          META_KEYS,
-          sizeof(META_KEYS) /
-              sizeof(META_KEYS[0]),
-          "meta");
-
-      if (
-          !object["version"]
-               .isNull()
-      ) {
-        Logger::warn(
-            "SignalAutomation: legacy meta version field ignored");
-      }
-
-      parsedEnabled =
-          object["enabled"] |
-          false;
-
-      recognizedAny =
-          true;
-
-      continue;
-    }
-
-    if (
-        strcmp(
-            kind,
-            "signal") ==
-        0
-    ) {
-      if (
-          parseSignal(
-              object,
-              parsedSignals)
-      ) {
-        recognizedAny =
-            true;
-      }
-
-      continue;
-    }
-
-    Logger::warn(
-        "SignalAutomation: line " +
-        String(
-            lineNumber) +
-        " has unknown kind \"" +
-        String(kind) +
-        "\" and was skipped");
-  }
-
-  file.close();
-
-  if (!recognizedAny) {
-    Logger::warn(
-        "SignalAutomation: no recognized rows found; automation remains disabled");
-  }
-
-  enabled =
-      parsedEnabled;
-
-  signals =
-      std::move(
-          parsedSignals);
-
-  return true;
+  const RuntimeAccessory* t=_runtime.findAccessory(RuntimeAccessoryKind::Turnout,c.address);
+  return t&&t->closed==c.value;
 }
 
-bool SignalAutomationEngine::validateFile(
-    const char* path) {
-  bool enabled =
-      false;
-
-  std::vector<SignalRuleSet>
-      signals;
-
-  return
-      parseFile(
-          path,
-          enabled,
-          signals);
+int32_t SignalAutomationEngine::desiredValue(const SignalRuleSet& s) const{
+  for(const auto& r:s.rules){
+    bool ok=true;for(const auto& c:r.conditions)if(!conditionMatches(c)){ok=false;break;}
+    if(ok)return r.value;
+  }
+  return s.defaultValue;
 }
 
-bool SignalAutomationEngine::reload() {
-  if (!_fs) {
-    return false;
-  }
-
-  FileStore files(
-      *_fs);
-
-  if (
-      !files.exists(
-          _path.c_str())
-  ) {
-    _enabled =
-        false;
-
-    _signals.clear();
-
-    Logger::info(
-        "SignalAutomation: no rule file");
-
-    return true;
-  }
-
-  bool parsedEnabled =
-      false;
-
-  std::vector<SignalRuleSet>
-      parsedSignals;
-
-  if (
-      !parseFile(
-          _path.c_str(),
-          parsedEnabled,
-          parsedSignals)
-  ) {
-    Logger::error(
-        "SignalAutomation: rule file could not be opened");
-
-    return false;
-  }
-
-  _enabled =
-      parsedEnabled;
-
-  _signals =
-      std::move(
-          parsedSignals);
-
-  size_t totalRules =
-      0;
-
-  for (
-      const auto& signal :
-      _signals
-  ) {
-    totalRules +=
-        signal.rules.size();
-  }
-
-  Logger::info(
-      "SignalAutomation: loaded " +
-      String(_signals.size()) +
-      " signal(s), " +
-      String(totalRules) +
-      " rule(s); enabled=" +
-      String(
-          _enabled
-              ? "true"
-              : "false"));
-
-  return true;
+void SignalAutomationEngine::broadcastExtended(uint16_t address,int16_t aspect){
+  JsonDocument d;d["type"]="signalAspectChanged";d["data"]["address"]=address;d["data"]["aspect"]=aspect;
+  String body;serializeJson(d,body);_ws.textAll(body);
 }
-
-bool SignalAutomationEngine::conditionMatches(
-    const Condition& condition) const {
-  if (
-      condition.source ==
-      Condition::Source::Sensor
-  ) {
-    const RuntimeSensor* sensor =
-        _runtime.findSensor(
-            condition.address);
-
-    if (!sensor) {
-      Logger::warn(
-          "SignalAutomation: sensor address=" +
-          String(condition.address) +
-          " disappeared from runtime");
-
-      return false;
-    }
-
-    return
-        sensor->on ==
-        condition.value;
-  }
-
-  const RuntimeAccessory* turnout =
-      _runtime.findAccessoryById(
-          RuntimeAccessoryKind::Turnout,
-          condition.id,
-          condition.channel);
-
-  if (!turnout) {
-    Logger::warn(
-        "SignalAutomation: turnout id=" +
-        String(condition.id) +
-        " ch=" +
-        String(condition.channel) +
-        " disappeared from runtime");
-
-    return false;
-  }
-
-  return
-      turnout->closed ==
-      condition.value;
-}
-
-int32_t SignalAutomationEngine::desiredValue(
-    const SignalRuleSet& signal) const {
-  for (
-      const auto& rule :
-      signal.rules
-  ) {
-    bool matches =
-        true;
-
-    for (
-        const auto& condition :
-        rule.conditions
-    ) {
-      if (
-          !conditionMatches(
-              condition)
-      ) {
-        matches =
-            false;
-
-        break;
-      }
-    }
-
-    if (matches) {
-      return
-          rule.value;
-    }
-  }
-
-  return
-      signal.defaultValue;
-}
-
-void SignalAutomationEngine::broadcastExtended(
-    uint16_t address,
-    int16_t aspect) {
-  JsonDocument data;
-
-  data["address"] =
-      address;
-
-  data["aspect"] =
-      aspect;
-
-  JsonDocument message;
-
-  message["type"] =
-      "signalAspectChanged";
-
-  message["data"].set(
-      data.as<JsonVariantConst>());
-
-  String body;
-
-  serializeJson(
-      message,
-      body);
-
-  _ws.textAll(
-      body);
-}
-
-void SignalAutomationEngine::broadcastBasic(
-    uint16_t address,
-    uint8_t outputs,
-    uint16_t bits) {
-  for (
-      uint8_t index = 0;
-      index < outputs;
-      ++index
-  ) {
-    const bool active =
-        (
-            (
-                bits >>
-                index
-            ) &
-            1U
-        ) !=
-        0;
-
-    JsonDocument data;
-
-    data["address"] =
-        address +
-        index;
-
-    data["active"] =
-        active;
-
-    JsonDocument message;
-
-    message["type"] =
-        "accessoryChanged";
-
-    message["data"].set(
-        data.as<JsonVariantConst>());
-
-    String body;
-
-    serializeJson(
-        message,
-        body);
-
-    _ws.textAll(
-        body);
+void SignalAutomationEngine::broadcastBasic(uint16_t address,uint8_t outputs,uint16_t bits){
+  for(uint8_t i=0;i<outputs;i++){
+    JsonDocument d;d["type"]="accessoryChanged";d["data"]["address"]=address+i;d["data"]["active"]=((bits>>i)&1U)!=0;
+    String body;serializeJson(d,body);_ws.textAll(body);
   }
 }
 
-void SignalAutomationEngine::applySignal(
-    SignalRuleSet& signal,
-    int32_t value) {
-  RuntimeAccessory* target =
-      _runtime.findAccessoryById(
-          RuntimeAccessoryKind::Signal,
-          signal.signalId,
-          0);
-
-  if (
-      target &&
-      signal.signalAddress != 0 &&
-      target->address !=
-          signal.signalAddress
-  ) {
-    Logger::warn(
-        "SignalAutomation: signal id " +
-        String(signal.signalId) +
-        " resolved to wrong address " +
-        String(target->address) +
-        "; expected " +
-        String(signal.signalAddress) +
-        ", rebinding by address");
-
-    target =
-        nullptr;
+void SignalAutomationEngine::applySignal(SignalRuleSet& s,int32_t value){
+  RuntimeAccessory* target=_runtime.findAccessory(RuntimeAccessoryKind::Signal,s.address);
+  if(!target){Logger::warn("SignalAutomation: signal address "+String(s.address)+" not found");return;}
+  if(s.hasAppliedValue&&s.appliedValue==value)return;
+  if(s.extended){
+    if(value<0||value>255||!_commandCenter.setSignalAspect(s.address,(int16_t)value))return;
+    _runtime.setSignal(s.address,(int)value);broadcastExtended(s.address,(int16_t)value);
+  }else{
+    if(value<0||value>65535)return;uint16_t bits=(uint16_t)value;
+    for(uint8_t i=0;i<s.outputs;i++)if(!_commandCenter.setAccessory(s.address+i,((bits>>i)&1U)!=0))return;
+    _runtime.setSignal(s.address,(int)value);broadcastBasic(s.address,s.outputs,bits);
   }
-
-  if (
-      !target &&
-      signal.signalAddress != 0
-  ) {
-    target =
-        _runtime.findAccessory(
-            RuntimeAccessoryKind::Signal,
-            signal.signalAddress);
-
-    if (target) {
-      Logger::warn(
-          "SignalAutomation: apply target rebound by address " +
-          String(signal.signalAddress) +
-          " from rule id " +
-          String(signal.signalId) +
-          " to runtime id " +
-          String(target->id));
-
-      signal.signalId =
-          target->id;
-    }
-  }
-
-  if (!target) {
-    Logger::warn(
-        "SignalAutomation: target not found id=" +
-        String(signal.signalId) +
-        " address=" +
-        String(signal.signalAddress));
-
-    return;
-  }
-
-  if (
-      signal.hasAppliedValue &&
-      signal.appliedValue ==
-          value
-  ) {
-    return;
-  }
-
-  if (signal.extended) {
-    if (
-        value < 0 ||
-        value > 255
-    ) {
-      Logger::warn(
-          "SignalAutomation: invalid extended value " +
-          String(value) +
-          " for signal address " +
-          String(target->address));
-
-      return;
-    }
-
-    Logger::info(
-        "SignalAutomation: applying extended signal id=" +
-        String(signal.signalId) +
-        " address=" +
-        String(target->address) +
-        " aspect=" +
-        String(value));
-
-    if (
-        !_commandCenter
-             .setSignalAspect(
-                 target->address,
-                 static_cast<int16_t>(
-                     value))
-    ) {
-      Logger::warn(
-          "SignalAutomation: command-center rejected extended signal address " +
-          String(target->address) +
-          " aspect=" +
-          String(value));
-
-      return;
-    }
-
-    _runtime.setSignal(
-        target->address,
-        static_cast<int>(
-            value));
-
-    broadcastExtended(
-        target->address,
-        static_cast<int16_t>(
-            value));
-
-    Logger::info(
-        "SignalAutomation: extended signal address " +
-        String(
-            target->address) +
-        " aspect=" +
-        String(
-            value));
-  } else {
-    if (
-        value < 0 ||
-        value > 65535
-    ) {
-      return;
-    }
-
-    const uint16_t bits =
-        static_cast<uint16_t>(
-            value);
-
-    Logger::info(
-        "SignalAutomation: applying basic signal id=" +
-        String(signal.signalId) +
-        " address=" +
-        String(target->address) +
-        " outputs=" +
-        String(signal.outputs) +
-        " bits=" +
-        String(bits));
-
-    for (
-        uint8_t index = 0;
-        index < signal.outputs;
-        ++index
-    ) {
-      const bool active =
-          (
-              (
-                  bits >>
-                  index
-              ) &
-              1U
-          ) !=
-          0;
-
-      if (
-          !_commandCenter
-               .setAccessory(
-                   target->address +
-                       index,
-                   active)
-      ) {
-        Logger::warn(
-            "SignalAutomation: command-center rejected basic output address " +
-            String(
-                target->address +
-                index) +
-            " active=" +
-            String(
-                active
-                    ? 1
-                    : 0));
-
-        return;
-      }
-    }
-
-    _runtime.setSignal(
-        target->address,
-        static_cast<int>(
-            value));
-
-    broadcastBasic(
-        target->address,
-        signal.outputs,
-        bits);
-
-    Logger::info(
-        "SignalAutomation: basic signal id " +
-        String(
-            signal.signalId) +
-        " value=" +
-        String(
-            value));
-  }
-
-  signal.appliedValue =
-      value;
-
-  signal.hasAppliedValue =
-      true;
+  s.appliedValue=value;s.hasAppliedValue=true;
 }
 
-void SignalAutomationEngine::evaluate() {
-  if (
-      _evaluating ||
-      !_enabled
-  ) {
-    return;
-  }
-
-  _evaluating =
-      true;
-
-  for (
-      auto& signal :
-      _signals
-  ) {
-    applySignal(
-        signal,
-        desiredValue(
-            signal));
-  }
-
-  _evaluating =
-      false;
+void SignalAutomationEngine::evaluate(){
+  if(_evaluating||!_enabled)return;_evaluating=true;
+  for(auto& s:_signals)applySignal(s,desiredValue(s));
+  _evaluating=false;
 }
-
-void SignalAutomationEngine::handleRuntimeChange(
-    RuntimeChangeKind kind,
-    uint16_t,
-    uint8_t) {
-  if (
-      kind !=
-          RuntimeChangeKind::Turnout &&
-      kind !=
-          RuntimeChangeKind::Sensor
-  ) {
-    return;
-  }
-
-  evaluate();
+void SignalAutomationEngine::handleRuntimeChange(RuntimeChangeKind kind,uint16_t,uint8_t){
+  if(kind==RuntimeChangeKind::Turnout||kind==RuntimeChangeKind::Sensor)evaluate();
 }

@@ -21,7 +21,7 @@ public sealed class RuntimeSensor { public ushort Id{get;set;} public ushort Add
 public sealed class RuntimeBlock
 {
     public const string TargetLocoPrefix="__dcc_target_loco__:";
-    public ushort Id{get;set;} public string LocoId{get;set;}=""; public ushort LocoAddress{get;set;}
+    public ushort Id{get;set;} public string LocoId{get;set;}="" ; public ushort LocoAddress{get;set;}
     public bool TargetOnly => LocoAddress==0 && LocoId.StartsWith(TargetLocoPrefix,StringComparison.Ordinal);
     public bool Occupied => LocoAddress>0 || (LocoId.Length>0&&!TargetOnly);
     public bool HasRuntimeState => Occupied||TargetOnly;
@@ -36,6 +36,11 @@ public sealed class LayoutRuntime
     List<RuntimeAccessory> _accessories=[];
     List<RuntimeSensor> _sensors=[];
     List<RuntimeBlock> _blocks=[];
+
+    // Physical sensor state is authoritative by address, not by a particular
+    // layout element. This survives layout rebuilds/address edits and also
+    // remembers DCC-EX Q/q feedback for addresses that are not currently used.
+    readonly Dictionary<ushort,bool> _sensorStates=new();
 
     public event Action<string,object>? Changed;
     public int AccessoryCount {get{lock(_gate)return _accessories.Count;}}
@@ -61,7 +66,6 @@ public sealed class LayoutRuntime
         }).ToArray();
     }
 
-
     public LayoutRuntime(IWebHostEnvironment env){_env=env;Rebuild();}
 
     static bool TurnoutType(string t)=>t is "trackturnout" or "trackturnoutleft" or "trackturnoutright" or "trackturnoutdouble" or "trackturnouttwoway" or "trackturnouttreeway";
@@ -70,9 +74,6 @@ public sealed class LayoutRuntime
     static bool B(JsonElement e,string n,bool d=false)=>e.TryGetProperty(n,out var x)?x.ValueKind==JsonValueKind.True?true:x.ValueKind==JsonValueKind.False?false:d:d;
     static string S(JsonElement e,string n,string d="")=>e.TryGetProperty(n,out var x)&&x.ValueKind==JsonValueKind.String?x.GetString()??d:d;
 
-    // Bit-for-bit algorithmic equivalent of firmware/browser migrateSerializedLayoutIds:
-    // reserve first unique persisted numeric IDs globally; then retain first occurrence,
-    // assigning lowest free uint16 IDs to string/missing/duplicate IDs in persisted order.
     static Dictionary<(int layer,int element),ushort> MigrateIds(JsonElement root,out int migrated)
     {
         migrated=0; var reserved=new HashSet<ushort>(); var seen=new HashSet<ushort>();
@@ -132,7 +133,18 @@ public sealed class LayoutRuntime
                 }
             }
             Restore(na,ns,nb,oldA,oldS,oldB);
-            lock(_gate){_accessories=na;_sensors=ns;_blocks=nb;}
+
+            // Address-based physical state wins after a rebuild. Therefore an
+            // element whose address was just edited immediately receives the
+            // latest known DCC-EX state without waiting for another edge.
+            lock(_gate)
+            {
+                foreach(var x in ns)
+                    if(_sensorStates.TryGetValue(x.Address,out var on))
+                        x.On=on;
+                _accessories=na;_sensors=ns;_blocks=nb;
+            }
+
             if(migrated>0)Console.WriteLine($"LayoutRuntime: migrated {migrated} legacy/duplicate element ID(s) in RAM");
             Console.WriteLine($"LayoutRuntime rebuilt: {na.Count} accessories, {ns.Count} sensors, {nb.Count} blocks");
             foreach(var a in na.Where(x=>x.Kind is RuntimeAccessoryKind.Turnout or RuntimeAccessoryKind.Signal))
@@ -200,10 +212,34 @@ public sealed class LayoutRuntime
     public bool SetSignal(ushort address,int aspect){ushort id;lock(_gate){var x=_accessories.FirstOrDefault(x=>x.Kind==RuntimeAccessoryKind.Signal&&x.Address==address);if(x==null)return false;if(x.Aspect==aspect)return true;x.Aspect=aspect;id=x.Id;}Changed?.Invoke("signalAspectChanged",new{address,aspect});return true;}
     public bool SetAccessory(ushort address,bool active){lock(_gate){var x=_accessories.FirstOrDefault(x=>x.Kind==RuntimeAccessoryKind.Accessory&&x.Address==address);if(x==null)return false;if(x.Active==active)return true;x.Active=active;}Changed?.Invoke("accessoryChanged",new{address,active});return true;}
     public bool SetVPin(ushort address,bool active){lock(_gate){var x=_accessories.FirstOrDefault(x=>x.Kind==RuntimeAccessoryKind.VPin&&x.Address==address);if(x==null)return false;if(x.Active==active)return true;x.Active=active;}Changed?.Invoke("vpinChanged",new{vpin=address,active});return true;}
+
     public bool SetSensor(ushort address,bool on)
     {
-        List<ushort> changed=[];lock(_gate){var xs=_sensors.Where(x=>x.Address==address).ToList();if(xs.Count==0){Console.WriteLine($"LayoutRuntime: sensor address {address} not found");return false;}foreach(var x in xs)if(x.On!=on){x.On=on;changed.Add(x.Id);}}
-        foreach(var _ in changed)Changed?.Invoke("sensorChanged",new{address,on});if(changed.Count>0)Console.WriteLine($"LayoutRuntime: sensor address {address} -> {(on?"ON":"OFF")}");return true;
+        List<ushort> changed=[];
+        bool found;
+        lock(_gate)
+        {
+            // Always cache physical feedback, even if the current layout does
+            // not contain this address yet.
+            _sensorStates[address]=on;
+
+            var xs=_sensors.Where(x=>x.Address==address).ToList();
+            found=xs.Count>0;
+            foreach(var x in xs)
+                if(x.On!=on){x.On=on;changed.Add(x.Id);}
+        }
+
+        foreach(var _ in changed)
+            Changed?.Invoke("sensorChanged",new{address,on});
+
+        if(changed.Count>0)
+            Console.WriteLine($"LayoutRuntime: sensor address {address} -> {(on?"ON":"OFF")}");
+        else if(!found)
+            Console.WriteLine($"LayoutRuntime: sensor address {address} cached -> {(on?"ON":"OFF")} (not used by current layout)");
+
+        // The physical state was accepted and cached even when no layout
+        // element currently uses the address.
+        return true;
     }
 
     public bool SetBlock(ushort id,string locoId,ushort locoAddress)

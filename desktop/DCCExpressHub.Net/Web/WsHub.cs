@@ -333,8 +333,21 @@ public sealed class WsHub
     private Task SendPower(WebSocket ws)=>Send(ws,"powerInfo",new{emergencyStop=_state.EmergencyStop,trackVoltageOn=_state.TrackPower,trackVoltageOff=!_state.TrackPower,shortCircuit=false,programmingModeActive=_state.ProgrammingPower,programmingJoined=_state.ProgrammingJoined});
     public async Task Broadcast(string type,object data){foreach(var kv in _clients.ToArray()){try{await Send(kv.Value,type,data);}catch{_clients.TryRemove(kv.Key,out _);}}}
     private static async Task Send(WebSocket ws,string type,object data){if(ws.State!=WebSocketState.Open)return;var bytes=JsonSerializer.SerializeToUtf8Bytes(new{type,data},Json);await ws.SendAsync(bytes,WebSocketMessageType.Text,true,CancellationToken.None);}
-    private static int I(JsonElement d,string n)=>d.ValueKind==JsonValueKind.Object&&d.TryGetProperty(n,out var x)&&x.TryGetInt32(out var v)?v:0;
-    private static int IOr(JsonElement d,string n,int fallback)=>d.ValueKind==JsonValueKind.Object&&d.TryGetProperty(n,out var x)&&x.TryGetInt32(out var v)?v:fallback;
+    private static int I(JsonElement d,string n)
+    {
+        if(d.ValueKind!=JsonValueKind.Object||!d.TryGetProperty(n,out var x))return 0;
+        if(x.ValueKind==JsonValueKind.Number&&x.TryGetInt32(out var number))return number;
+        if(x.ValueKind==JsonValueKind.String&&int.TryParse(x.GetString(),out var textNumber))return textNumber;
+        return 0;
+    }
+
+    private static int IOr(JsonElement d,string n,int fallback)
+    {
+        if(d.ValueKind!=JsonValueKind.Object||!d.TryGetProperty(n,out var x))return fallback;
+        if(x.ValueKind==JsonValueKind.Number&&x.TryGetInt32(out var number))return number;
+        if(x.ValueKind==JsonValueKind.String&&int.TryParse(x.GetString(),out var textNumber))return textNumber;
+        return fallback;
+    }
     private static bool B(JsonElement d,string n)=>d.ValueKind==JsonValueKind.Object&&d.TryGetProperty(n,out var x)&&x.ValueKind==JsonValueKind.True;
     private static string S(JsonElement d,string n)=>d.ValueKind==JsonValueKind.Object&&d.TryGetProperty(n,out var x)?x.GetString()??"":"";
 }

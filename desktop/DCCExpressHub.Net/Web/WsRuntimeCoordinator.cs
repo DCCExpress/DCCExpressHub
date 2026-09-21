@@ -7,20 +7,28 @@ public sealed class WsRuntimeCoordinator : BackgroundService
 {
     readonly ICommandCenter _cc;
     readonly WsHub _ws;
+    readonly LayoutRuntime _runtime;
     readonly IWebHostEnvironment _env;
     readonly ILogger<WsRuntimeCoordinator> _log;
     volatile bool _connected;
     volatile bool _connectionChanged;
     readonly Queue<int> _locoSync=new();
 
-    public WsRuntimeCoordinator(ICommandCenter cc,WsHub ws,IWebHostEnvironment env,ILogger<WsRuntimeCoordinator> log)
+    public WsRuntimeCoordinator(ICommandCenter cc,WsHub ws,LayoutRuntime runtime,IWebHostEnvironment env,ILogger<WsRuntimeCoordinator> log)
     {
-        _cc=cc;_ws=ws;_env=env;_log=log;
+        _cc=cc;_ws=ws;_runtime=runtime;_env=env;_log=log;
         _connected=cc.Connected;
         cc.ConnectionChanged+=OnConnectionChanged;
+        cc.SensorFeedbackChanged+=OnSensorFeedbackChanged;
     }
 
     void OnConnectionChanged(bool connected){_connected=connected;_connectionChanged=true;}
+
+    void OnSensorFeedbackChanged(int address,bool on)
+    {
+        if(address is >0 and <=65535)
+            _runtime.SetSensor((ushort)address,on);
+    }
 
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
@@ -69,8 +77,9 @@ public sealed class WsRuntimeCoordinator : BackgroundService
     {
         await _cc.RequestTrackConfigurationAsync(ct);
         await _cc.RequestTripTelemetryAsync(ct);
+        await _cc.RequestSensorSnapshotAsync(ct);
         LoadConfiguredLocos();
-        _log.LogInformation("Command center bootstrap: track/trip requested, {Count} loco state request(s) queued",_locoSync.Count);
+        _log.LogInformation("Command center bootstrap: track/trip/sensor snapshot requested, {Count} loco state request(s) queued",_locoSync.Count);
     }
 
     void LoadConfiguredLocos()

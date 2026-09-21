@@ -12,6 +12,7 @@ public sealed class DccExProtocol
     public event Action<int[]>? TripTelemetryChanged;
     public event Action<PowerFeedback>? PowerFeedbackChanged;
     public event Action<LocoFeedback>? LocoFeedbackChanged;
+    public event Action<int, bool>? SensorFeedbackChanged;
     public event Action? HeartbeatReply;
 
     private StationInfo _station = new();
@@ -64,6 +65,15 @@ public sealed class DccExProtocol
             if(target=="MAIN") name="Main"; else if(target=="PROG") name="Programming"; else if(target=="JOIN") name="Joined";
             else if(target.Length==1 && target[0]>='A' && target[0]<='H'){name="Track";idx=target[0]-'A';}
             PowerFeedbackChanged?.Invoke(new(pm.Groups[1].Value=="1",name,idx)); return;
+        }
+
+        var sm=Regex.Match(frame, @"^<([Qq])\s+(\d+)>");
+        if(sm.Success)
+        {
+            int address=int.Parse(sm.Groups[2].Value,CultureInfo.InvariantCulture);
+            if(address is >0 and <=65535)
+                SensorFeedbackChanged?.Invoke(address,sm.Groups[1].Value=="Q");
+            return;
         }
 
         var lm=Regex.Match(frame, @"^<l\s+(\d+)\s+(-?\d+)\s+(\d+)\s+(\d+)>");

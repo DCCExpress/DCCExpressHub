@@ -16,6 +16,7 @@ public interface ICommandCenter
     event Action<int[]>? TripTelemetryChanged;
     event Action<PowerFeedback>? PowerFeedbackChanged;
     event Action<LocoFeedback>? LocoFeedbackChanged;
+    event Action<int, bool>? SensorFeedbackChanged;
     event Action<bool>? ConnectionChanged;
 
     Task<bool> SendRawAsync(string command, bool log=true, CancellationToken ct=default);
@@ -32,4 +33,5 @@ public interface ICommandCenter
     Task<bool> RequestTrackConfigurationAsync(CancellationToken ct=default);
     Task<bool> RequestCurrentTelemetryAsync(CancellationToken ct=default);
     Task<bool> RequestTripTelemetryAsync(CancellationToken ct=default);
+    Task<bool> RequestSensorSnapshotAsync(CancellationToken ct=default);
 }
