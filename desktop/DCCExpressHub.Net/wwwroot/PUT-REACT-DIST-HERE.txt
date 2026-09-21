@@ -1,1 +1,0 @@
-Copy the contents of web-ui/dist here (index.html, assets/, etc.).

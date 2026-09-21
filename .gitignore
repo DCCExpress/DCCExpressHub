@@ -6,7 +6,7 @@
 .pio/
 .pioenvs/
 .piolibdeps/
-
+-de
 # IDE / editor
 .vscode/
 .idea/
