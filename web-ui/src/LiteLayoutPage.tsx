@@ -275,6 +275,43 @@ function createSignalPreview(): TrackSignalElement {
   return new TrackSignalElement(0, 0);
 }
 
+async function readHttpErrorMessage(
+  response: Response,
+  fallback: string
+): Promise<string> {
+  const fallbackWithStatus =
+    `${fallback} (HTTP ${response.status})`;
+
+  try {
+    const body =
+      (await response.text()).trim();
+
+    if (!body) {
+      return fallbackWithStatus;
+    }
+
+    try {
+      const parsed =
+        JSON.parse(body) as {
+          message?: unknown;
+        };
+
+      if (
+        typeof parsed.message === "string" &&
+        parsed.message.trim()
+      ) {
+        return parsed.message.trim();
+      }
+    } catch {
+      // Plain-text backend response; show it as-is.
+    }
+
+    return body;
+  } catch {
+    return fallbackWithStatus;
+  }
+}
+
 const PICKER_ITEMS: PickerItem[] = [
   { type: ELEMENT_TYPES.TRACK_STRAIGHT, get label() { return i18next.t("ui.straight"); }, preview: new TrackStraightElement(0, 0) },
   { type: ELEMENT_TYPES.TRACK_END, get label() { return i18next.t("ui.trackEnd"); }, preview: new TrackEndElement(0, 0) },
@@ -402,7 +439,7 @@ function LitePropertyPanel({
                 selectedElement={selectedElement}
                 onChange={onChange}
               />
-            ) : (
+                        ) : (
               <BasicPropertyEditor
                 prop={property}
                 selectedElement={selectedElement}
@@ -739,7 +776,12 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
       );
 
       if (!layoutResponse.ok) {
-        throw new Error(i18next.t("ui.theLayoutCouldNotBeSavedToTheExCsb1"));
+        throw new Error(
+          await readHttpErrorMessage(
+            layoutResponse,
+            i18next.t("ui.theLayoutCouldNotBeSavedToTheExCsb1")
+          )
+        );
       }
 
       await saveAutomationScripts(automationScripts);
@@ -796,7 +838,12 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
         );
 
         if (!layoutResponse.ok) {
-          throw new Error(i18next.t("ui.importedLayoutCouldNotBeSavedToTheHub"));
+          throw new Error(
+            await readHttpErrorMessage(
+              layoutResponse,
+              i18next.t("ui.importedLayoutCouldNotBeSavedToTheHub")
+            )
+          );
         }
 
         await saveAutomationScripts(imported.automationScripts);

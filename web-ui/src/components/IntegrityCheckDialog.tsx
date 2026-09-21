@@ -28,7 +28,6 @@ import {
   loadSignalLogicRulesWs,
 } from "@/api/signalLogicWsApi";
 import {
-  deleteAutomationReference,
   deleteSignalAutomationById,
 } from "@/api/signalLogicMaintenance";
 import AppModal from "@/components/common/AppModal";
@@ -50,19 +49,10 @@ type IntegrityCheckDialogProps = {
   locos: Loco[];
 };
 
-type CleanupAction =
-  | {
-      kind: "signal";
-      id: number;
-    }
-  | {
-      kind: "sensor";
-      id: number;
-    }
-  | {
-      kind: "turnout";
-      id: number;
-    };
+type CleanupAction = {
+  kind: "signal";
+  id: number;
+};
 
 function validId(
   raw: string | undefined
@@ -100,37 +90,7 @@ function cleanupActionForMessage(
     };
   }
 
-  match =
-    /^Sensor ID (\d+) does not exist in the current layout\.$/u.exec(
-      text
-    );
-
-  id =
-    validId(match?.[1]);
-
-  if (id !== null) {
-    return {
-      kind: "sensor",
-      id,
-    };
-  }
-
-  match =
-    /^Turnout ID (\d+) does not exist in the current layout\.$/u.exec(
-      text
-    );
-
-  id =
-    validId(match?.[1]);
-
-  if (id !== null) {
-    return {
-      kind: "turnout",
-      id,
-    };
-  }
-
-  // The integrity service can also emit more contextual messages.
+  // The integrity service can also emit more contextual signal messages.
   match =
     /^Signal rule group .+ references deleted signal (\d+)\.$/u.exec(
       text
@@ -161,36 +121,10 @@ function cleanupActionForMessage(
     };
   }
 
-  match =
-    /^Signal rule .+ references deleted sensor (\d+)\.$/u.exec(
-      text
-    );
-
-  id =
-    validId(match?.[1]);
-
-  if (id !== null) {
-    return {
-      kind: "sensor",
-      id,
-    };
-  }
-
-  match =
-    /^Signal rule .+ references deleted turnout (\d+)\.$/u.exec(
-      text
-    );
-
-  id =
-    validId(match?.[1]);
-
-  if (id !== null) {
-    return {
-      kind: "turnout",
-      id,
-    };
-  }
-
+  // Sensor/turnout references are intentionally NOT offered as automatic
+  // cleanup actions. Removing a condition can leave an empty rule behind and
+  // silently change the meaning of signal automation. Those references must
+  // be reviewed in the Signal Logic editor instead.
   return null;
 }
 
@@ -198,19 +132,6 @@ function actionKey(
   action: CleanupAction
 ): string {
   return `${action.kind}:${action.id}`;
-}
-
-function actionLabel(
-  action: CleanupAction
-): string {
-  switch (action.kind) {
-    case "signal":
-      return "Delete";
-    case "sensor":
-      return "Remove sensor ref";
-    case "turnout":
-      return "Remove turnout ref";
-  }
 }
 
 export default function IntegrityCheckDialog({
@@ -301,14 +222,10 @@ export default function IntegrityCheckDialog({
         action: CleanupAction
       ) => {
         const description =
-          action.kind === "signal"
-            ? `Delete orphan signal automation for Signal ID ${action.id}?`
-            : `Remove all orphan ${action.kind} references to ${action.kind} ID ${action.id} from signal automation?`;
+          `Delete orphan signal automation for Signal ID ${action.id}?`;
 
         const detail =
-          action.kind === "signal"
-            ? "Only the matching signal automation entry will be removed. No layout element will be deleted."
-            : "Only matching conditions will be removed. Signal groups, rules and layout elements will remain.";
+          "Only the matching signal automation entry will be removed. No layout element will be deleted.";
 
         if (
           !window.confirm(
@@ -325,32 +242,15 @@ export default function IntegrityCheckDialog({
         setLoadError(null);
 
         try {
-          if (
-            action.kind ===
-            "signal"
-          ) {
-            const removed =
-              await deleteSignalAutomationById(
-                action.id
-              );
+          const removed =
+            await deleteSignalAutomationById(
+              action.id
+            );
 
-            if (!removed) {
-              setLoadError(
-                `Signal automation ${action.id} was not found.`
-              );
-            }
-          } else {
-            const removed =
-              await deleteAutomationReference(
-                action.kind,
-                action.id
-              );
-
-            if (removed === 0) {
-              setLoadError(
-                `No ${action.kind} reference to ID ${action.id} was found in signal automation.`
-              );
-            }
+          if (!removed) {
+            setLoadError(
+              `Signal automation ${action.id} was not found.`
+            );
           }
 
           await runCheck();
@@ -378,6 +278,13 @@ export default function IntegrityCheckDialog({
       issue =>
         issue.level === "warning"
     ).length ?? 0;
+
+  const hasSignalReferenceIssues =
+    report?.issues.some(
+      issue =>
+        issue.area === "Signal logic" &&
+        /sensor|turnout/iu.test(issue.message)
+    ) ?? false;
 
   return (
     <AppModal
@@ -474,6 +381,15 @@ export default function IntegrityCheckDialog({
             </Alert>
           )}
 
+        {hasSignalReferenceIssues && (
+          <Alert
+            color="blue"
+            variant="light"
+          >
+            Sensor and turnout references are never removed automatically. Review those conditions in Signal Logic so cleanup cannot leave an empty rule behind.
+          </Alert>
+        )}
+
         <ScrollArea.Autosize
           mah="62dvh"
           offsetScrollbars
@@ -522,7 +438,8 @@ export default function IntegrityCheckDialog({
                           variant="light"
                           color="gray"
                         >
-                          {area.checked} {i18next.t("ui.checked")} </Badge>
+                          {area.summary ?? `${area.checked} ${i18next.t("ui.checked")}`}
+                        </Badge>
 
                         {areaErrors >
                           0 && (
@@ -647,9 +564,7 @@ export default function IntegrityCheckDialog({
                                       )
                                     }
                                   >
-                                    {actionLabel(
-                                      action
-                                    )}
+                                    Delete
                                   </Button>
                                 )}
                               </Group>

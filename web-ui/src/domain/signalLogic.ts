@@ -299,13 +299,13 @@ export function validateSignalLogicDocument(
     }
 
     if (group.rules.length === 0) {
-      issues.push({ level: "warning", groupId: group.id, message: `Signal #${signal?.address ?? "?"} has no rules and will always use its default state.` });
+      issues.push({ level: "error", groupId: group.id, message: `Signal #${signal?.address ?? "?"} has no rules. The firmware will disable automation for this signal.` });
     }
 
     const signatures = new Set<string>();
     for (const rule of group.rules) {
       if (rule.conditions.length === 0) {
-        issues.push({ level: "warning", groupId: group.id, ruleId: rule.id, message: "Rule has no conditions and will always match." });
+        issues.push({ level: "error", groupId: group.id, ruleId: rule.id, message: "Rule has no conditions. The firmware will ignore this rule." });
       }
       const signature = rule.conditions.map(conditionSignature).sort().join("|");
       if (signature && signatures.has(signature)) {

@@ -12,7 +12,7 @@ import { TrackSignalElement } from "../models/editor/elements/TrackSignalElement
 
 export type IntegrityArea = "Layout" | "Route buttons" | "Automatic routes" | "Signal logic" | "Locomotives";
 export type IntegrityIssue = { level: "error" | "warning"; area: IntegrityArea; message: string };
-export type IntegrityAreaResult = { area: IntegrityArea; checked: number; issues: IntegrityIssue[] };
+export type IntegrityAreaResult = { area: IntegrityArea; checked: number; summary?: string; issues: IntegrityIssue[] };
 export type IntegrityReport = { areas: IntegrityAreaResult[]; issues: IntegrityIssue[] };
 
 const AREAS: IntegrityArea[] = ["Layout", "Route buttons", "Automatic routes", "Signal logic", "Locomotives"];
@@ -83,6 +83,7 @@ export function inspectProjectIntegrity(
   const elements = layout.getAllElements();
   const issues: IntegrityIssue[] = [];
   const checked = new Map<IntegrityArea, number>(AREAS.map(area => [area, 0]));
+  const summaries = new Map<IntegrityArea, string>();
   const add = (area: IntegrityArea, level: IntegrityIssue["level"], message: string) => issues.push({ area, level, message });
 
   checked.set("Layout", elements.length);
@@ -161,8 +162,27 @@ export function inspectProjectIntegrity(
   }
 
   if (signalDocument) {
-    checked.set("Signal logic", signalDocument.groups.reduce(
-      (total, group) => total + group.rules.reduce((sum, rule) => sum + rule.conditions.length, 0), 0));
+    const signalGroupCount = signalDocument.groups.length;
+    const signalRuleCount = signalDocument.groups.reduce(
+      (total, group) => total + group.rules.length,
+      0
+    );
+    const signalConditionCount = signalDocument.groups.reduce(
+      (total, group) => total + group.rules.reduce(
+        (sum, rule) => sum + rule.conditions.length,
+        0
+      ),
+      0
+    );
+
+    checked.set(
+      "Signal logic",
+      signalGroupCount + signalRuleCount + signalConditionCount
+    );
+    summaries.set(
+      "Signal logic",
+      `${signalGroupCount} groups · ${signalRuleCount} rules · ${signalConditionCount} conditions`
+    );
 
     const signalSensors =
       elements
@@ -281,7 +301,12 @@ export function inspectProjectIntegrity(
   const uniqueIssues = issues.filter((issue, index, all) =>
     all.findIndex(candidate => candidate.area === issue.area && candidate.level === issue.level && candidate.message === issue.message) === index);
   return {
-    areas: AREAS.map(area => ({ area, checked: checked.get(area) ?? 0, issues: uniqueIssues.filter(issue => issue.area === area) })),
+    areas: AREAS.map(area => ({
+      area,
+      checked: checked.get(area) ?? 0,
+      ...(summaries.has(area) ? { summary: summaries.get(area)! } : {}),
+      issues: uniqueIssues.filter(issue => issue.area === area),
+    })),
     issues: uniqueIssues,
   };
 }

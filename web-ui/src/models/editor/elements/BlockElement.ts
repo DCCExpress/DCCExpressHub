@@ -90,8 +90,29 @@ export class BlockElement extends TrackElement {
     const blockY = this.posTop + 10;
     const blockW = this.width - 10;
     const blockH = this.height - 20;
-    const occupied = this.locoAddress > 0;
-    const inTransit = !occupied && this.runtimeTransitLocoAddress > 0;
+
+    const hasAssignedLoco =
+      this.locoAddress > 0;
+
+    const sensorOccupied =
+      this.isSensorAddressOccupied(
+        this.sensorAddress
+      );
+
+    // A block is physically/operationally occupied when either the Hub
+    // runtime already has a locomotive assigned to it or its dedicated
+    // occupancy sensor is active.
+    const occupied =
+      hasAssignedLoco ||
+      sensorOccupied;
+
+    // Target-loco/transit coloring remains lower priority than real
+    // occupancy. If neither a real loco nor the occupancy sensor marks the
+    // block occupied, the existing amber target state is preserved.
+    const inTransit =
+      !occupied &&
+      this.runtimeTransitLocoAddress > 0;
+
     const bg = occupied
       ? options?.darkMode
         ? "#7f1d1d"
@@ -104,7 +125,15 @@ export class BlockElement extends TrackElement {
           ? "#888888"
           : "#f0f0f0";
     const fg = "black";
-    const displayLocoAddress = occupied ? this.locoAddress : this.runtimeTransitLocoAddress;
+
+    // Keep showing the target locomotive while it is heading to this block.
+    // If the occupancy sensor turns ON before the Hub moves the runtime loco
+    // assignment, the block turns red but the target locomotive stays visible.
+    const displayLocoAddress =
+      hasAssignedLoco
+        ? this.locoAddress
+        : this.runtimeTransitLocoAddress;
+
     const showBlockName = options?.showBlockNames === true && this.name.trim().length > 0;
     const blockNameHeight = showBlockName ? 9 : 0;
     ctx.fillStyle = bg;

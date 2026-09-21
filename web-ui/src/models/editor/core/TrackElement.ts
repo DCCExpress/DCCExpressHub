@@ -90,14 +90,25 @@ export abstract class TrackElement extends BaseElement {
       length: this.length,
     };
   }
-  isTrackOccupied(): boolean {
-    const occupancyAddress = normalizeOccupancyAddress(this.address);
 
-    const sensorOccupied =
-      occupancyAddress > 0 && occupancyByAddress.get(occupancyAddress) === true;
+  protected isSensorAddressOccupied(address: unknown): boolean {
+    const normalizedAddress =
+      normalizeOccupancyAddress(address);
 
-    return sensorOccupied || this.occupied === true || this.state === TrackStates.occupied;
+    return (
+      normalizedAddress > 0 &&
+      occupancyByAddress.get(normalizedAddress) === true
+    );
   }
+
+  isTrackOccupied(): boolean {
+    return (
+      this.isSensorAddressOccupied(this.address) ||
+      this.occupied === true ||
+      this.state === TrackStates.occupied
+    );
+  }
+
   getStateColor(isRoute = this.isRoute): string {
     const occupied = this.isTrackOccupied();
 
