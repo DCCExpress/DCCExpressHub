@@ -213,7 +213,6 @@ if ($Publish) {
         -c $Configuration `
         -r win-x64 `
         --self-contained true `
-        --no-restore `
         -o $PublishDir
     CheckExit "dotnet publish"
 
