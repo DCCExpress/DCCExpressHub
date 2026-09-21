@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3537.50" />
+    <PackageReference Include="System.Management" Version="10.0.0" />
+  </ItemGroup>
+
+  <Target Name="BuildBackend" BeforeTargets="Build">
+    <MSBuild Projects="..\DCCExpressHub.Net\DCCExpressHub.Net.csproj"
+             Targets="Build"
+             Properties="Configuration=$(Configuration)" />
+  </Target>
+
+  <Target Name="PrepareBackendRuntime" AfterTargets="Build">
+    <RemoveDir Directories="$(OutDir)backend" />
+    <MakeDir Directories="$(OutDir)backend" />
+
+    <ItemGroup>
+      <BackendFiles Include="..\DCCExpressHub.Net\bin\$(Configuration)\net10.0\**\*" />
+      <WebRootFiles Include="..\DCCExpressHub.Net\wwwroot\**\*" />
+    </ItemGroup>
+
+    <Copy SourceFiles="@(BackendFiles)"
+          DestinationFiles="@(BackendFiles->'$(OutDir)backend\%(RecursiveDir)%(Filename)%(Extension)')" />
+
+    <!-- Explicit source wwwroot copy: guarantees the current React build is in runtime backend/wwwroot. -->
+    <Copy SourceFiles="@(WebRootFiles)"
+          DestinationFiles="@(WebRootFiles->'$(OutDir)backend\wwwroot\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="false" />
+  </Target>
+</Project>

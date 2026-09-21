@@ -1,3 +1,7 @@
+# ============================================================
+# DCCExpressHub
+# ============================================================
+
 # PlatformIO
 .pio/
 .pioenvs/
@@ -6,8 +10,13 @@
 # IDE / editor
 .vscode/
 .idea/
+.vs/
 *.swp
 *.swo
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
 
 # Local secrets / machine config
 src/config.h
@@ -19,16 +28,43 @@ include/config.h
 
 # Node / web UI
 node_modules/
+**/node_modules/
 web-ui/dist/
 dist/
+
+# .NET / WPF build output
+**/bin/
+**/obj/
+
+# .NET publish output
+**/publish/
+**/artifacts/
+
+# NuGet
+*.nupkg
+*.snupkg
+packages/
+
+# Test / coverage output
+TestResults/
+**/TestResults/
+coverage/
+**/coverage/
+*.coverage
+*.coveragexml
 
 # Mock/runtime generated data
 web-ui/mock-fs/
 data/
+**/data/
+
+# Runtime / process files
+*.pid
 
 # Logs / temp
 *.log
 *.tmp
+*.temp
 
 # Local backup / patch leftovers
 *.bak
@@ -47,6 +83,22 @@ data/
 web-ui/tools/i18n-audit.json
 web-ui/tools/i18n-strings.txt
 
+# PlatformIO / firmware build artifacts
+*.elf
+*.hex
+*.map
+
+# Visual Studio generated files
+*.VC.db
+*.VC.VC.opendb
+*.opendb
+*.dbmdl
+Generated\ Files/
+
+# JetBrains / Rider
+*.sln.iml
+
 # OS
 .DS_Store
 Thumbs.db
+Desktop.ini
