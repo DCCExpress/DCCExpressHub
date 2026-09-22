@@ -35,30 +35,51 @@ public sealed class SignalAutomationEngine
     readonly LayoutRuntime _runtime;
     readonly IWebHostEnvironment _env;
     readonly SemaphoreSlim _evalGate = new(1, 1);
+
     List<SignalRuleSet> _signals = [];
     volatile bool _enabled;
 
-    string PathName => Path.Combine(_env.ContentRootPath, "data", "config", "signal-logic.ndjson");
+    string PathName =>
+        Path.Combine(
+            _env.ContentRootPath,
+            "data",
+            "config",
+            "signal-logic.ndjson");
+
     public bool Enabled => _enabled;
     public int SignalCount => _signals.Count;
 
-    public SignalAutomationEngine(ICommandCenter cc, LayoutRuntime runtime, IWebHostEnvironment env)
+    public SignalAutomationEngine(
+        ICommandCenter cc,
+        LayoutRuntime runtime,
+        IWebHostEnvironment env)
     {
         _cc = cc;
         _runtime = runtime;
         _env = env;
+
         _runtime.Changed += RuntimeChanged;
+
         Reload();
         _ = EvaluateAsync();
     }
 
     void RuntimeChanged(string type, object _)
     {
-        if (type is "turnoutChanged" or "sensorChanged" or "accessoryChanged" or "signalAspectChanged")
+        if (type is
+            "turnoutChanged" or
+            "sensorChanged" or
+            "accessoryChanged" or
+            "signalAspectChanged")
+        {
             _ = EvaluateAsync();
+        }
     }
 
-    static bool Fits(bool extended, byte outputs, int value)
+    static bool Fits(
+        bool extended,
+        byte outputs,
+        int value)
     {
         if (extended)
             return value is >= 0 and <= 255;
@@ -66,11 +87,16 @@ public sealed class SignalAutomationEngine
         if (value < 0 || value > 65535)
             return false;
 
-        uint mask = outputs >= 16 ? 0xffffu : (1u << outputs) - 1u;
+        uint mask =
+            outputs >= 16
+                ? 0xffffu
+                : (1u << outputs) - 1u;
+
         return (uint)value <= mask;
     }
 
-    public bool Validate(string text) => Parse(text, out _, out _);
+    public bool Validate(string text) =>
+        Parse(text, out _, out _);
 
     public bool Reload()
     {
@@ -83,25 +109,35 @@ public sealed class SignalAutomationEngine
 
         try
         {
-            if (!Parse(File.ReadAllText(PathName), out var enabled, out var signals))
+            if (!Parse(
+                File.ReadAllText(PathName),
+                out var enabled,
+                out var signals))
+            {
                 return false;
+            }
 
             _enabled = enabled;
             _signals = signals;
 
             Console.WriteLine(
-                $"SignalAutomation: physical-runtime model, loaded {_signals.Count} signal(s), enabled={_enabled}");
+                $"SignalAutomation: loaded {_signals.Count} signal(s), enabled={_enabled}");
 
             return true;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"SignalAutomation reload failed: {ex.Message}");
+            Console.WriteLine(
+                $"SignalAutomation reload failed: {ex.Message}");
+
             return false;
         }
     }
 
-    bool Parse(string text, out bool enabled, out List<SignalRuleSet> signals)
+    bool Parse(
+        string text,
+        out bool enabled,
+        out List<SignalRuleSet> signals)
     {
         enabled = false;
         signals = [];
@@ -109,33 +145,53 @@ public sealed class SignalAutomationEngine
         foreach (var raw in text.Split('\n'))
         {
             var line = raw.Trim();
+
             if (line.Length == 0)
                 continue;
 
             JsonDocument doc;
-            try { doc = JsonDocument.Parse(line); }
-            catch { continue; }
+
+            try
+            {
+                doc = JsonDocument.Parse(line);
+            }
+            catch
+            {
+                continue;
+            }
 
             using (doc)
             {
                 var o = doc.RootElement;
+
                 if (o.ValueKind != JsonValueKind.Object)
                     continue;
 
-                var kind = o.TryGetProperty("kind", out var k) && k.ValueKind == JsonValueKind.String
-                    ? k.GetString()
-                    : "";
+                var kind =
+                    o.TryGetProperty("kind", out var k) &&
+                    k.ValueKind == JsonValueKind.String
+                        ? k.GetString()
+                        : "";
 
                 if (kind == "meta")
                 {
-                    enabled = o.TryGetProperty("enabled", out var e) && e.ValueKind == JsonValueKind.True;
+                    enabled =
+                        o.TryGetProperty("enabled", out var e) &&
+                        e.ValueKind == JsonValueKind.True;
+
                     continue;
                 }
 
-                if (kind != "signal" || !ParseSignal(o, out var sig))
+                if (kind != "signal" ||
+                    !ParseSignal(o, out var sig))
+                {
                     continue;
+                }
 
-                var ix = signals.FindIndex(x => x.Address == sig.Address);
+                var ix =
+                    signals.FindIndex(
+                        x => x.Address == sig.Address);
+
                 if (ix >= 0)
                     signals[ix] = sig;
                 else
@@ -146,40 +202,74 @@ public sealed class SignalAutomationEngine
         return true;
     }
 
-    bool ParseSignal(JsonElement row, out SignalRuleSet signal)
+    bool ParseSignal(
+        JsonElement row,
+        out SignalRuleSet signal)
     {
         signal = new();
 
-        int address = GetInt(row, "address");
+        int address =
+            GetInt(row, "address");
+
         if (address is <= 0 or > 65535)
             return false;
 
-        var target = _runtime.FindAccessory(RuntimeAccessoryKind.Signal, (ushort)address);
+        var target =
+            _runtime.FindAccessory(
+                RuntimeAccessoryKind.Signal,
+                (ushort)address);
+
         if (target is null)
             return false;
 
-        var mode = GetString(row, "mode");
-        bool extended = mode == "extended";
-        if (!extended && mode != "basic")
+        var mode =
+            GetString(row, "mode");
+
+        bool extended =
+            mode == "extended";
+
+        if (!extended &&
+            mode != "basic")
+        {
             return false;
+        }
 
         if (extended != target.SignalExtended)
             return false;
 
-        byte outputs = extended
-            ? (byte)1
-            : target.SignalOutputCount;
+        byte outputs =
+            extended
+                ? (byte)1
+                : target.SignalOutputCount;
 
-        int configuredOutputs = GetInt(row, "outputs", outputs);
-        if (!extended && configuredOutputs != outputs)
-            return false;
+        int configuredOutputs =
+            GetInt(
+                row,
+                "outputs",
+                outputs);
 
-        int def = GetInt(row, "default");
-        if (!Fits(extended, outputs, def))
+        if (!extended &&
+            configuredOutputs != outputs)
+        {
             return false;
+        }
 
-        if (!row.TryGetProperty("rules", out var rules) || rules.ValueKind != JsonValueKind.Array)
+        int def =
+            GetInt(row, "default");
+
+        if (!Fits(
+            extended,
+            outputs,
+            def))
+        {
             return false;
+        }
+
+        if (!row.TryGetProperty("rules", out var rules) ||
+            rules.ValueKind != JsonValueKind.Array)
+        {
+            return false;
+        }
 
         signal = new()
         {
@@ -194,16 +284,30 @@ public sealed class SignalAutomationEngine
             if (rr.ValueKind != JsonValueKind.Object)
                 continue;
 
-            int value = GetInt(rr, "value");
-            if (!Fits(extended, outputs, value))
+            int value =
+                GetInt(rr, "value");
+
+            if (!Fits(
+                extended,
+                outputs,
+                value))
+            {
                 continue;
+            }
 
             if (!rr.TryGetProperty("conditions", out var cs) ||
                 cs.ValueKind != JsonValueKind.Array ||
                 cs.GetArrayLength() == 0)
+            {
                 continue;
+            }
 
-            var rule = new Rule { Value = value };
+            var rule =
+                new Rule
+                {
+                    Value = value
+                };
+
             bool valid = true;
 
             foreach (var c in cs.EnumerateArray())
@@ -214,20 +318,27 @@ public sealed class SignalAutomationEngine
                     break;
                 }
 
-                var a = c.EnumerateArray().ToArray();
-                string source = a.Length > 0 && a[0].ValueKind == JsonValueKind.String
-                    ? a[0].GetString() ?? ""
-                    : "";
+                var a =
+                    c.EnumerateArray().ToArray();
 
-                // Canonical physical-address rows:
-                // ["turnout", address, logicalClosed]
-                // ["sensor", address, value]
+                string source =
+                    a.Length > 0 &&
+                    a[0].ValueKind == JsonValueKind.String
+                        ? a[0].GetString() ?? ""
+                        : "";
+
                 if (a.Length == 3)
                 {
-                    int addr = AsInt(a[1]);
-                    int valueBit = AsInt(a[2]);
+                    int addr =
+                        AsInt(a[1]);
 
-                    if (addr <= 0 || addr > 65535 || (valueBit != 0 && valueBit != 1))
+                    int valueBit =
+                        AsInt(a[2]);
+
+                    if (addr <= 0 ||
+                        addr > 65535 ||
+                        (valueBit != 0 &&
+                         valueBit != 1))
                     {
                         valid = false;
                         break;
@@ -235,33 +346,34 @@ public sealed class SignalAutomationEngine
 
                     if (source == "turnout")
                     {
-                        if (_runtime.FindAccessory(RuntimeAccessoryKind.Turnout, (ushort)addr) is null)
+                        if (_runtime.FindAccessory(
+                                RuntimeAccessoryKind.Turnout,
+                                (ushort)addr) is null)
                         {
                             valid = false;
                             break;
                         }
 
-                        rule.Conditions.Add(new()
-                        {
-                            Source = Source.Turnout,
-                            Address = (ushort)addr,
-                            Value = valueBit != 0
-                        });
+                        rule.Conditions.Add(
+                            new()
+                            {
+                                Source = Source.Turnout,
+                                Address = (ushort)addr,
+                                Value = valueBit != 0
+                            });
                     }
                     else if (source == "sensor")
                     {
-                        // IMPORTANT:
-                        // Sensor state is authoritative by physical address and
-                        // comes from DCC-EX Q/q feedback. It is intentionally
-                        // independent from layout topology. Therefore a sensor
-                        // condition must NOT require FindSensor(address) to
-                        // succeed during rule parsing.
-                        rule.Conditions.Add(new()
-                        {
-                            Source = Source.Sensor,
-                            Address = (ushort)addr,
-                            Value = valueBit != 0
-                        });
+                        // Physical sensor conditions are address based.
+                        // They are valid even if no layout element currently
+                        // owns the same address.
+                        rule.Conditions.Add(
+                            new()
+                            {
+                                Source = Source.Sensor,
+                                Address = (ushort)addr,
+                                Value = valueBit != 0
+                            });
                     }
                     else
                     {
@@ -272,16 +384,23 @@ public sealed class SignalAutomationEngine
                     continue;
                 }
 
-                // Legacy ID rows are resolved through the layout once.
                 if (a.Length == 4)
                 {
-                    int legacyId = AsInt(a[1]);
-                    int channel = AsInt(a[2]);
-                    int valueBit = AsInt(a[3]);
+                    int legacyId =
+                        AsInt(a[1]);
 
-                    if (legacyId <= 0 || legacyId > 65535 ||
-                        channel < 0 || channel > 1 ||
-                        (valueBit != 0 && valueBit != 1))
+                    int channel =
+                        AsInt(a[2]);
+
+                    int valueBit =
+                        AsInt(a[3]);
+
+                    if (legacyId <= 0 ||
+                        legacyId > 65535 ||
+                        channel < 0 ||
+                        channel > 1 ||
+                        (valueBit != 0 &&
+                         valueBit != 1))
                     {
                         valid = false;
                         break;
@@ -289,10 +408,11 @@ public sealed class SignalAutomationEngine
 
                     if (source == "turnout")
                     {
-                        var t = _runtime.FindAccessoryById(
-                            RuntimeAccessoryKind.Turnout,
-                            (ushort)legacyId,
-                            (byte)channel);
+                        var t =
+                            _runtime.FindAccessoryById(
+                                RuntimeAccessoryKind.Turnout,
+                                (ushort)legacyId,
+                                (byte)channel);
 
                         if (t is null)
                         {
@@ -300,28 +420,33 @@ public sealed class SignalAutomationEngine
                             break;
                         }
 
-                        rule.Conditions.Add(new()
-                        {
-                            Source = Source.Turnout,
-                            Address = t.Address,
-                            Value = valueBit != 0
-                        });
+                        rule.Conditions.Add(
+                            new()
+                            {
+                                Source = Source.Turnout,
+                                Address = t.Address,
+                                Value = valueBit != 0
+                            });
                     }
                     else if (source == "sensor")
                     {
-                        var s = _runtime.FindSensorById((ushort)legacyId);
+                        var s =
+                            _runtime.FindSensorById(
+                                (ushort)legacyId);
+
                         if (s is null)
                         {
                             valid = false;
                             break;
                         }
 
-                        rule.Conditions.Add(new()
-                        {
-                            Source = Source.Sensor,
-                            Address = s.Address,
-                            Value = valueBit != 0
-                        });
+                        rule.Conditions.Add(
+                            new()
+                            {
+                                Source = Source.Sensor,
+                                Address = s.Address,
+                                Value = valueBit != 0
+                            });
                     }
                     else
                     {
@@ -336,26 +461,59 @@ public sealed class SignalAutomationEngine
                 break;
             }
 
-            if (valid && rule.Conditions.Count == cs.GetArrayLength())
+            if (valid &&
+                rule.Conditions.Count ==
+                cs.GetArrayLength())
+            {
                 signal.Rules.Add(rule);
+            }
         }
 
         return signal.Rules.Count > 0;
     }
 
-    bool Matches(Condition c)
+    bool Matches(
+        Condition c)
     {
         if (c.Source == Source.Sensor)
-            return _runtime.TryGetSensorState(c.Address, out var on) && on == c.Value;
+        {
+            var known =
+                _runtime.TryGetSensorState(
+                    c.Address,
+                    out var on);
 
-        return _runtime.TryGetTurnoutClosed(c.Address, out var closed) && closed == c.Value;
+            Console.WriteLine(
+                known
+                    ? $"SignalAutomation: sensor {c.Address}={(on ? 1 : 0)}, expected={(c.Value ? 1 : 0)}"
+                    : $"SignalAutomation: sensor {c.Address}=UNKNOWN, expected={(c.Value ? 1 : 0)}");
+
+            return known &&
+                   on == c.Value;
+        }
+
+        return
+            _runtime.TryGetTurnoutClosed(
+                c.Address,
+                out var closed) &&
+            closed == c.Value;
     }
 
-    int Desired(SignalRuleSet s)
+    int Desired(
+        SignalRuleSet s)
     {
         foreach (var r in s.Rules)
+        {
             if (r.Conditions.All(Matches))
+            {
+                Console.WriteLine(
+                    $"SignalAutomation: target {s.Address} matched -> {r.Value}");
+
                 return r.Value;
+            }
+        }
+
+        Console.WriteLine(
+            $"SignalAutomation: target {s.Address} default -> {s.DefaultValue}");
 
         return s.DefaultValue;
     }
@@ -365,8 +523,6 @@ public sealed class SignalAutomationEngine
         if (!_enabled)
             return;
 
-        // Never drop a runtime change while an earlier asynchronous DCC
-        // command/evaluation is still in progress.
         await _evalGate.WaitAsync();
 
         try
@@ -375,7 +531,11 @@ public sealed class SignalAutomationEngine
                 return;
 
             foreach (var s in _signals)
-                await ApplyAsync(s, Desired(s));
+            {
+                await ApplyAsync(
+                    s,
+                    Desired(s));
+            }
         }
         finally
         {
@@ -383,62 +543,101 @@ public sealed class SignalAutomationEngine
         }
     }
 
-    async Task ApplyAsync(SignalRuleSet s, int value)
+    async Task ApplyAsync(
+        SignalRuleSet s,
+        int value)
     {
-        var target = _runtime.FindAccessory(RuntimeAccessoryKind.Signal, s.Address);
+        var target =
+            _runtime.FindAccessory(
+                RuntimeAccessoryKind.Signal,
+                s.Address);
+
         if (target is null)
         {
-            Console.WriteLine($"SignalAutomation: target address {s.Address} not found");
+            Console.WriteLine(
+                $"SignalAutomation: target address {s.Address} not found");
+
             return;
         }
 
-        if (s.HasAppliedValue && s.AppliedValue == value)
+        if (s.HasAppliedValue &&
+            s.AppliedValue == value)
+        {
             return;
+        }
 
         if (s.Extended)
         {
-            if (!await _cc.SetSignalAspectAsync(s.Address, value))
+            if (!await _cc.SetSignalAspectAsync(
+                    s.Address,
+                    value))
             {
                 Console.WriteLine(
-                    $"SignalAutomation: failed to send extended signal {s.Address} aspect {value}");
+                    $"SignalAutomation: FAILED <A {s.Address} {value}>");
+
                 return;
             }
 
-            _runtime.SetSignal(s.Address, value);
-
             Console.WriteLine(
-                $"SignalAutomation: extended signal {s.Address} -> aspect {value}");
+                $"SignalAutomation: TX <A {s.Address} {value}>");
+
+            _runtime.SetSignal(
+                s.Address,
+                value);
         }
         else
         {
-            for (byte i = 0; i < s.Outputs; i++)
+            for (byte i = 0;
+                 i < s.Outputs;
+                 i++)
             {
-                bool active = ((value >> i) & 1) != 0;
-                var address = (ushort)(s.Address + i);
+                bool active =
+                    ((value >> i) & 1) != 0;
 
-                if (!await _cc.SetAccessoryAsync(address, active))
+                var address =
+                    (ushort)(s.Address + i);
+
+                if (!await _cc.SetAccessoryAsync(
+                        address,
+                        active))
                 {
                     Console.WriteLine(
-                        $"SignalAutomation: failed to send basic accessory {address} = {active}");
+                        $"SignalAutomation: FAILED <a {address} {(active ? 1 : 0)}>");
+
                     return;
                 }
 
-                _runtime.SetAccessory(address, active);
+                _runtime.SetAccessory(
+                    address,
+                    active);
             }
-
-            Console.WriteLine(
-                $"SignalAutomation: basic signal {s.Address} -> value {value}");
         }
 
         s.AppliedValue = value;
         s.HasAppliedValue = true;
     }
 
-    static int GetInt(JsonElement e, string n, int d = 0) =>
-        e.TryGetProperty(n, out var x) && x.TryGetInt32(out var v) ? v : d;
+    static int GetInt(
+        JsonElement e,
+        string n,
+        int d = 0) =>
+        e.TryGetProperty(n, out var x) &&
+        x.TryGetInt32(out var v)
+            ? v
+            : d;
 
-    static string GetString(JsonElement e, string n, string d = "") =>
-        e.TryGetProperty(n, out var x) && x.ValueKind == JsonValueKind.String ? x.GetString() ?? d : d;
+    static string GetString(
+        JsonElement e,
+        string n,
+        string d = "") =>
+        e.TryGetProperty(n, out var x) &&
+        x.ValueKind == JsonValueKind.String
+            ? x.GetString() ?? d
+            : d;
 
-    static int AsInt(JsonElement e) => e.TryGetInt32(out var v) ? v : int.MinValue;
+    static int AsInt(
+        JsonElement e) =>
+        e.TryGetInt32(out var v)
+            ? v
+            : int.MinValue;
 }
