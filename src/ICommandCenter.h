@@ -57,6 +57,11 @@ struct CommandCenterLocoFeedback {
   uint32_t functionsMask = 0;
 };
 
+struct CommandCenterSensorFeedback {
+  uint16_t address = 0;
+  bool on = false;
+};
+
 class ICommandCenter {
 public:
   using RawInfoCallback =
@@ -91,6 +96,11 @@ public:
       std::function<
           void(
               const CommandCenterLocoFeedback&)>;
+
+  using SensorFeedbackCallback =
+      std::function<
+          void(
+              const CommandCenterSensorFeedback&)>;
 
   virtual ~ICommandCenter() = default;
 
@@ -135,6 +145,13 @@ public:
   virtual void onLocoFeedback(
       LocoFeedbackCallback callback) = 0;
 
+  // Generic physical sensor feedback. Implementations that do not expose
+  // sensor feedback can keep the default no-op implementation.
+  virtual void onSensorFeedback(
+      SensorFeedbackCallback callback) {
+    (void)callback;
+  }
+
   virtual bool setTrackPower(
       bool on,
       bool includeProgramming = true) = 0;
@@ -142,15 +159,8 @@ public:
   virtual bool setProgrammingPower(
       bool on) = 0;
 
-  // Emergency control is intentionally a single toggle operation at the
-  // Hub boundary. Concrete command-center wrappers may implement this as a
-  // latched pause/resume pair (DCC-EX) or as a non-latched emergency stop
-  // with a local release state (Z21).
   virtual bool emergencyStop() = 0;
 
-  // Some command centers can expose an authoritative latched emergency/pause
-  // state. Generic callers should only trust emergencyPaused() when this
-  // returns true.
   virtual bool emergencyPauseStateKnown() const {
     return false;
   }
@@ -198,6 +208,13 @@ public:
   virtual bool requestTripTelemetry(
       bool logCommand = false) = 0;
 
+  // Optional command-center snapshot of all known physical sensor states.
+  virtual bool requestSensorSnapshot(
+      bool logCommand = false) {
+    (void)logCommand;
+    return false;
+  }
+
   virtual bool supportsRawCommand() const {
     return false;
   }
@@ -210,8 +227,6 @@ public:
     return false;
   }
 
-  // Compatibility shim for existing DCC-EX-specific recovery/config paths.
-  // Generic code should use domain methods or sendRawCommand().
   virtual bool sendCommand(
       String command,
       bool logCommand = true) {

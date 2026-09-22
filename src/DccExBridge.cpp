@@ -357,6 +357,13 @@ bool DccExBridge::requestTripTelemetry(
       logCommand);
 }
 
+bool DccExBridge::requestSensorSnapshot(
+    bool logCommand) {
+  return sendCommand(
+      "<Q>",
+      logCommand);
+}
+
 bool DccExBridge::sendRawCommand(
     String command,
     bool logCommand) {
@@ -559,9 +566,9 @@ void DccExBridge::processFrame(
 
       fields[
           fieldCount++] =
-          body.substring(
-              start,
-              slash);
+            body.substring(
+                start,
+                slash);
 
       start =
           slash +
@@ -822,6 +829,56 @@ void DccExBridge::processFrame(
 
   if (
       frame.startsWith(
+          "<Q ") ||
+      frame.startsWith(
+          "<q ")
+  ) {
+    unsigned int addressValue =
+        0;
+
+    const char marker =
+        frame.charAt(1);
+
+    const int parsed =
+        sscanf(
+            frame.c_str(),
+            "<%*c %u>",
+            &addressValue);
+
+    if (
+        parsed != 1 ||
+        addressValue == 0 ||
+        addressValue > 65535
+    ) {
+      Logger::warn(
+          "Ignoring malformed DCC-EX sensor feedback: " +
+          frame);
+
+      return;
+    }
+
+    if (
+        _sensorFeedbackCallback
+    ) {
+      CommandCenterSensorFeedback event;
+
+      event.address =
+          static_cast<uint16_t>(
+              addressValue);
+
+      event.on =
+          marker ==
+          'Q';
+
+      _sensorFeedbackCallback(
+          event);
+    }
+
+    return;
+  }
+
+  if (
+      frame.startsWith(
           "<l ")
   ) {
     unsigned int addressValue =
@@ -1000,10 +1057,10 @@ void DccExBridge::loop() {
         millis();
 
     if (
-        _nextReconnectAt == 0 ||
-        static_cast<long>(
-            now -
-            _nextReconnectAt) >= 0
+      _nextReconnectAt == 0 ||
+      static_cast<long>(
+          now -
+          _nextReconnectAt) >= 0
     ) {
       ensureConnected();
     }

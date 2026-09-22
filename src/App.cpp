@@ -21,7 +21,6 @@ bool parseIp(
   return out.fromString(text);
 }
 
-
 void sendWsJson(
     AsyncWebSocket& ws,
     JsonDocument& document) {
@@ -29,34 +28,45 @@ void sendWsJson(
 
   serializeJson(document, body);
 
-
   ws.textAll(body);
 }
 
 }  // namespace
 
-void App::broadcastS88SensorChanged(
+void App::publishSensorChanged(
     uint16_t address,
-    bool occupied) {
-  _runtime.setSensor(address, occupied);
+    bool on) {
+  if (address == 0) {
+    return;
+  }
 
+  _runtime.setSensor(
+      address,
+      on);
 
   JsonDocument message;
-  message["type"] = "sensorChanged";
+  message["type"] =
+      "sensorChanged";
 
   JsonObject data =
-      message["data"].to<JsonObject>();
+      message["data"]
+          .to<JsonObject>();
 
-  data["address"] = address;
-  data["on"] = occupied;
+  data["address"] =
+      address;
 
-  sendWsJson(_ws, message);
+  data["on"] =
+      on;
+
+  sendWsJson(
+      _ws,
+      message);
 
   Logger::info(
-      "S88 WS sensorChanged: address=" +
+      "Sensor runtime: address=" +
       String(address) +
       " on=" +
-      String(occupied ? "true" : "false"));
+      String(on ? "true" : "false"));
 }
 
 void App::broadcastS88Snapshot() {
@@ -148,7 +158,6 @@ void App::connectWifi() {
 
   WiFi.mode(WIFI_STA);
 
-
   WiFi.setHostname(network.hostname.c_str());
 
   if (!network.dhcp) {
@@ -210,11 +219,11 @@ void App::connectWifi() {
     const String ip = WiFi.localIP().toString();
 
     Logger::info(
-        "Wi-Fi connected: " +
-        ip +
-        " RSSI=" +
-        String(WiFi.RSSI()) +
-        "dBm");
+      "Wi-Fi connected: " +
+      ip +
+      " RSSI=" +
+      String(WiFi.RSSI()) +
+      "dBm");
 
     if (MDNS.begin(network.hostname.c_str())) {
       Logger::info(
@@ -239,7 +248,14 @@ void App::updateDisplay() {
       _commandCenter.connected();
 
   if (connected != _lastCommandCenterConnected) {
-    _lastCommandCenterConnected = connected;
+    _lastCommandCenterConnected =
+        connected;
+
+    if (connected) {
+      _commandCenter
+          .requestSensorSnapshot(
+              false);
+    }
 
     _display.showCommandCenter(
         _commandCenter.host(),
@@ -256,33 +272,7 @@ void App::updateDisplay() {
   _display.loop();
 }
 
-// void waveshareForceUsbMode()
-// {
-//     Wire.begin(8, 9, 400000);
-
-//     Wire.beginTransmission(0x24);
-//     Wire.write(0x01);
-//     Wire.endTransmission(true);
-
-//     delay(5);
-
-//     Wire.beginTransmission(0x38);
-//     Wire.write(0x5E);   // EXIO5 LOW = USB
-//     Wire.endTransmission(true);
-
-//     delay(20);
-// }
-
-
-
-
 void App::begin() {
-
-#if HUB_TARGET_WAVESHARE_S3_LCD7
-    //waveshareForceUsbMode();
-#endif
-
-
   Logger::begin();
   Logger::info("DCCExpressHub booting");
 
@@ -315,12 +305,20 @@ void App::begin() {
 
   _stateStore.load();
 
+  // Every physical sensor source ends up in the same runtime state.
+  _commandCenter.onSensorFeedback(
+      [this](
+          const CommandCenterSensorFeedback& feedback) {
+        publishSensorChanged(
+            feedback.address,
+            feedback.on);
+      });
 
   _s88I2c.onSensorChange(
       [this](
           uint16_t address,
           bool occupied) {
-        broadcastS88SensorChanged(
+        publishSensorChanged(
             address,
             occupied);
       });
@@ -332,7 +330,6 @@ void App::begin() {
         _s88I2c.slaveAddress(),
         _s88I2c.ready());
   }
-
 
   connectWifi();
 
@@ -381,6 +378,14 @@ void App::begin() {
       String(_signalAutomation.enabled() ? "true" : "false") +
       " ruleSets=" +
       String(_signalAutomation.signalCount()));
+
+  // If the command center was already online before automation came up,
+  // refresh its authoritative physical sensor state now.
+  if (_lastCommandCenterConnected) {
+    _commandCenter
+        .requestSensorSnapshot(
+            false);
+  }
 
   updateDisplay();
 }

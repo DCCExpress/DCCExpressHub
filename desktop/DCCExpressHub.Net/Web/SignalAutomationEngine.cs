@@ -22,6 +22,7 @@ public sealed class SignalAutomationEngine
 
     sealed class SignalRuleSet
     {
+        public ushort Id;
         public ushort Address;
         public bool Extended = true;
         public byte Outputs = 1;
@@ -188,9 +189,12 @@ public sealed class SignalAutomationEngine
                     continue;
                 }
 
-                var ix =
-                    signals.FindIndex(
-                        x => x.Address == sig.Address);
+                // Current compiled rows have a stable layout ID. Keep different
+                // semantic signals separate even if they happen to share a DCC
+                // address. Legacy rows without an ID still de-duplicate by address.
+                var ix = sig.Id > 0
+                    ? signals.FindIndex(x => x.Id == sig.Id)
+                    : signals.FindIndex(x => x.Id == 0 && x.Address == sig.Address);
 
                 if (ix >= 0)
                     signals[ix] = sig;
@@ -208,19 +212,42 @@ public sealed class SignalAutomationEngine
     {
         signal = new();
 
-        int address =
+        int persistedAddress =
             GetInt(row, "address");
 
-        if (address is <= 0 or > 65535)
+        if (persistedAddress is <= 0 or > 65535)
             return false;
 
-        var target =
+        int persistedId =
+            GetInt(row, "id");
+
+        RuntimeAccessory? target = null;
+
+        // New format: bind the automation to the exact layout element.
+        // This is essential for level crossings because TrackElement.address
+        // is the occupancy sensor address while signalOutput.address is the
+        // physical signal/accessory output.
+        if (persistedId is > 0 and <= 65535)
+        {
+            target =
+                _runtime.FindAccessoryById(
+                    RuntimeAccessoryKind.Signal,
+                    (ushort)persistedId);
+        }
+
+        // Legacy compiled rows did not contain an ID.
+        target ??=
             _runtime.FindAccessory(
                 RuntimeAccessoryKind.Signal,
-                (ushort)address);
+                (ushort)persistedAddress);
 
         if (target is null)
+        {
+            Console.WriteLine(
+                $"SignalAutomation: target not found id={persistedId} address={persistedAddress}");
+
             return false;
+        }
 
         var mode =
             GetString(row, "mode");
@@ -235,7 +262,12 @@ public sealed class SignalAutomationEngine
         }
 
         if (extended != target.SignalExtended)
+        {
+            Console.WriteLine(
+                $"SignalAutomation: target protocol mismatch id={target.Id} address={target.Address} rule={mode}");
+
             return false;
+        }
 
         byte outputs =
             extended
@@ -273,7 +305,10 @@ public sealed class SignalAutomationEngine
 
         signal = new()
         {
-            Address = (ushort)address,
+            Id = target.Id,
+            // Runtime topology is authoritative. Do not use TrackElement.address
+            // or a stale persisted alias as the physical output address.
+            Address = target.Address,
             Extended = extended,
             Outputs = outputs,
             DefaultValue = def
@@ -364,9 +399,8 @@ public sealed class SignalAutomationEngine
                     }
                     else if (source == "sensor")
                     {
-                        // Physical sensor conditions are address based.
-                        // They are valid even if no layout element currently
-                        // owns the same address.
+                        // Sensor = physical address + state. The source of that
+                        // state is irrelevant to automation.
                         rule.Conditions.Add(
                             new()
                             {
@@ -477,18 +511,11 @@ public sealed class SignalAutomationEngine
     {
         if (c.Source == Source.Sensor)
         {
-            var known =
+            return
                 _runtime.TryGetSensorState(
                     c.Address,
-                    out var on);
-
-            Console.WriteLine(
-                known
-                    ? $"SignalAutomation: sensor {c.Address}={(on ? 1 : 0)}, expected={(c.Value ? 1 : 0)}"
-                    : $"SignalAutomation: sensor {c.Address}=UNKNOWN, expected={(c.Value ? 1 : 0)}");
-
-            return known &&
-                   on == c.Value;
+                    out var on) &&
+                on == c.Value;
         }
 
         return
@@ -504,16 +531,8 @@ public sealed class SignalAutomationEngine
         foreach (var r in s.Rules)
         {
             if (r.Conditions.All(Matches))
-            {
-                Console.WriteLine(
-                    $"SignalAutomation: target {s.Address} matched -> {r.Value}");
-
                 return r.Value;
-            }
         }
-
-        Console.WriteLine(
-            $"SignalAutomation: target {s.Address} default -> {s.DefaultValue}");
 
         return s.DefaultValue;
     }
@@ -547,7 +566,17 @@ public sealed class SignalAutomationEngine
         SignalRuleSet s,
         int value)
     {
-        var target =
+        RuntimeAccessory? target = null;
+
+        if (s.Id > 0)
+        {
+            target =
+                _runtime.FindAccessoryById(
+                    RuntimeAccessoryKind.Signal,
+                    s.Id);
+        }
+
+        target ??=
             _runtime.FindAccessory(
                 RuntimeAccessoryKind.Signal,
                 s.Address);
@@ -555,13 +584,26 @@ public sealed class SignalAutomationEngine
         if (target is null)
         {
             Console.WriteLine(
-                $"SignalAutomation: target address {s.Address} not found");
+                $"SignalAutomation: target id={s.Id} address={s.Address} not found");
 
             return;
         }
 
+        // Follow current topology if the same stable element was edited.
+        s.Address = target.Address;
+
+        bool runtimeAlreadyMatches =
+            _runtime.TryGetSignalValue(
+                s.Address,
+                out var runtimeValue) &&
+            runtimeValue == value;
+
+        // Do not suppress a command merely because we sent the same value once.
+        // A topology rebuild or external/manual command may have changed the
+        // authoritative output since then.
         if (s.HasAppliedValue &&
-            s.AppliedValue == value)
+            s.AppliedValue == value &&
+            runtimeAlreadyMatches)
         {
             return;
         }

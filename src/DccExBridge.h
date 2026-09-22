@@ -80,6 +80,12 @@ public:
         std::move(callback);
   }
 
+  void onSensorFeedback(
+      SensorFeedbackCallback callback) override {
+    _sensorFeedbackCallback =
+        std::move(callback);
+  }
+
   bool setTrackPower(
       bool on,
       bool includeProgramming = true) override;
@@ -128,6 +134,9 @@ public:
   bool requestTripTelemetry(
       bool logCommand = false) override;
 
+  bool requestSensorSnapshot(
+      bool logCommand = false) override;
+
   bool supportsRawCommand() const override {
     return true;
   }
@@ -136,7 +145,6 @@ public:
       String command,
       bool logCommand = true) override;
 
-  // Backward compatibility for existing DCC-EX-specific code.
   bool sendCommand(
       String command,
       bool logCommand = true) override;
@@ -170,6 +178,9 @@ private:
 
   LocoFeedbackCallback
       _locoFeedbackCallback;
+
+  SensorFeedbackCallback
+      _sensorFeedbackCallback;
 
   CommandCenterStationInfo
       _stationInfo;

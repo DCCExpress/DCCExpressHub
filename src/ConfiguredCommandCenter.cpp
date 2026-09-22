@@ -275,6 +275,13 @@ void ConfiguredCommandCenter::onLocoFeedback(
       });
 }
 
+void ConfiguredCommandCenter::onSensorFeedback(
+    SensorFeedbackCallback callback) {
+  _inner.onSensorFeedback(
+      std::move(
+          callback));
+}
+
 bool ConfiguredCommandCenter::setTrackPower(
     bool on,
     bool includeProgramming) {
@@ -399,6 +406,13 @@ bool ConfiguredCommandCenter::requestTripTelemetry(
           logCommand);
 }
 
+bool ConfiguredCommandCenter::requestSensorSnapshot(
+    bool logCommand) {
+  return
+      _inner.requestSensorSnapshot(
+          logCommand);
+}
+
 bool ConfiguredCommandCenter::supportsRawCommand() const {
   return
       _inner.supportsRawCommand();
@@ -407,9 +421,6 @@ bool ConfiguredCommandCenter::supportsRawCommand() const {
 bool ConfiguredCommandCenter::sendRawCommand(
     String command,
     bool logCommand) {
-  // Raw commands intentionally bypass logical locomotive configuration.
-  // They are an expert/diagnostic escape hatch to the physical command
-  // station protocol.
   return
       _inner.sendRawCommand(
           std::move(command),

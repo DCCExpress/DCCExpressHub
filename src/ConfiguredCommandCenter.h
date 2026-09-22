@@ -6,21 +6,6 @@
 
 #include "ICommandCenter.h"
 
-/*
- * Adds locomotive-level logical configuration on top of the physical
- * command-center driver.
- *
- * The wrapped ICommandCenter continues to speak physical command-station
- * direction. Callers of this class speak logical locomotive direction.
- *
- * For a locomotive configured with invert=true:
- *
- *   logical forward  -> physical reverse
- *   logical reverse  -> physical forward
- *
- * Feedback is translated back the same way before it is exposed to the rest
- * of the Hub.
- */
 class ConfiguredCommandCenter final
     : public ICommandCenter {
 public:
@@ -79,6 +64,9 @@ public:
   void onLocoFeedback(
       LocoFeedbackCallback callback) override;
 
+  void onSensorFeedback(
+      SensorFeedbackCallback callback) override;
+
   bool setTrackPower(
       bool on,
       bool includeProgramming = true) override;
@@ -131,6 +119,9 @@ public:
   bool requestTripTelemetry(
       bool logCommand = false) override;
 
+  bool requestSensorSnapshot(
+      bool logCommand = false) override;
+
   bool supportsRawCommand() const override;
 
   bool sendRawCommand(
@@ -149,7 +140,6 @@ private:
   String _locosPath =
       "/config/locos.json";
 
-  // Only inverted addresses are stored. Missing address = normal direction.
   std::vector<uint16_t>
       _invertedLocoAddresses;
 

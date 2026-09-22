@@ -24,12 +24,8 @@ public:
 private:
   HubConfigStore _config;
 
-  // Physical protocol driver selected at compile time (DCC-EX or Z21).
   CompiledCommandCenter _physicalCommandCenter;
 
-  // Logical Hub-facing command center. Applies locomotive configuration
-  // such as invert direction before commands reach the physical driver,
-  // and maps physical feedback back to logical Hub direction.
   ConfiguredCommandCenter _commandCenter{
       static_cast<ICommandCenter&>(
           _physicalCommandCenter)};
@@ -71,9 +67,9 @@ private:
   void loadConfiguration();
   void updateDisplay();
 
-  void broadcastS88SensorChanged(
+  void publishSensorChanged(
       uint16_t address,
-      bool occupied);
+      bool on);
 
   void broadcastS88Snapshot();
   void updateS88WebSocket();

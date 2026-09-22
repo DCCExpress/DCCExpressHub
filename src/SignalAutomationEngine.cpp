@@ -32,7 +32,6 @@ bool SignalAutomationEngine::parseSignal(JsonObjectConst row,std::vector<SignalR
   bool ext=strcmp(mode,"extended")==0;
   if(!ext&&strcmp(mode,"basic")!=0)return false;
 
-  // Automation protocol must match the current layout topology.
   if(ext!=target->signalExtended)return false;
 
   int out=ext?1:target->signalOutputCount;
@@ -72,7 +71,8 @@ bool SignalAutomationEngine::parseSignal(JsonObjectConst row,std::vector<SignalR
           cond.address=(uint16_t)addr;
           cond.value=logical!=0;
         }else if(strcmp(source,"sensor")==0){
-          if(!_runtime.findSensor((uint16_t)addr)){valid=false;break;}
+          // Canonical sensor conditions are physical-address based.
+          // They do not depend on layout membership or sensor source.
           cond.source=Condition::Source::Sensor;
           cond.address=(uint16_t)addr;
           cond.value=logical!=0;

@@ -46,18 +46,16 @@ public sealed class WsRuntimeCoordinator : BackgroundService
         if(address is <=0 or >65535)
             return;
 
-        _runtime.SetSensor((ushort)address,on);
+        // This is the single authoritative sensor input path on Windows.
+        // Q/q, simulated input or any future sensor adapter ends here.
+        _runtime.SetSensor(
+            (ushort)address,
+            on);
 
         _log.LogInformation(
-            "Sensor feedback: {Address} = {State}",
+            "Sensor {Address} = {State}",
             address,
             on ? 1 : 0);
-
-        // Explicitly schedule automation evaluation from authoritative physical
-        // sensor feedback. LayoutRuntime.Changed also triggers evaluation, but
-        // keeping this direct path guarantees sensor-driven signal/level-crossing
-        // automation cannot be lost if another runtime consumer changes later.
-        _ = _signalAutomation.EvaluateAsync();
     }
 
     protected override async Task ExecuteAsync(CancellationToken ct)
@@ -116,12 +114,20 @@ public sealed class WsRuntimeCoordinator : BackgroundService
     {
         await _cc.RequestTrackConfigurationAsync(ct);
         await _cc.RequestTripTelemetryAsync(ct);
+
+        // Re-apply the safe/current automation result immediately after the
+        // command center becomes writable. The engine may have evaluated while
+        // the TCP connection was still offline.
+        await _signalAutomation.EvaluateAsync();
+
+        // Then replace unknown sensor states from DCC-EX. Every returned Q/q
+        // enters LayoutRuntime.SetSensor(), which triggers another evaluation.
         await _cc.RequestSensorSnapshotAsync(ct);
 
         LoadConfiguredLocos();
 
         _log.LogInformation(
-            "Command center bootstrap: track/trip/sensor snapshot requested, {Count} loco state request(s) queued",
+            "Command center bootstrap: automation evaluated, sensor snapshot requested, {Count} loco state request(s) queued",
             _locoSync.Count);
     }
 
