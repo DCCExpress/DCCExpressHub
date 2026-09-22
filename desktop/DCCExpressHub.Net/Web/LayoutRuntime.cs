@@ -1073,8 +1073,31 @@ public sealed class LayoutRuntime
         {
             var items = new List<RuntimeSnapshotItem>();
 
-            // Physical state first: Debug and client runtime consume exactly
-            // the same authoritative maps.
+            items.Add(new(
+                "runtimePhysicalSnapshot",
+                new
+                {
+                    basicAccessories = _basicAccessoryStates
+                        .OrderBy(x => x.Key)
+                        .Select(x => new
+                        {
+                            address = x.Key,
+                            active = x.Value
+                        })
+                        .ToArray(),
+
+                    extendedAccessories = _extendedAccessoryStates
+                        .OrderBy(x => x.Key)
+                        .Select(x => new
+                        {
+                            address = x.Key,
+                            aspect = x.Value
+                        })
+                        .ToArray()
+                }));
+
+            // Physical incremental state follows the authoritative replacement
+            // snapshot for backward-compatible live consumers.
             foreach (var state in _basicAccessoryStates.OrderBy(x => x.Key))
                 items.Add(new("accessoryChanged", new { address = state.Key, active = state.Value }));
 

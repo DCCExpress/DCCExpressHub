@@ -216,6 +216,71 @@ export function useRuntimeDebugState(
 
     const unsubscribeMessages =
       wsClient.subscribeMessages(message => {
+        const untypedMessage =
+          message as unknown as {
+            type: string;
+            data?: unknown;
+          };
+
+        if (untypedMessage.type === "runtimePhysicalSnapshot") {
+          const snapshot = objectValue(untypedMessage.data);
+
+          const nextBasic: BasicAccessoryDebugState = new Map();
+          const nextExtended: ExtendedAccessoryDebugState = new Map();
+          const now = Date.now();
+
+          const rawBasic =
+            Array.isArray(snapshot?.basicAccessories)
+              ? snapshot.basicAccessories
+              : [];
+
+          for (const rawItem of rawBasic) {
+            const item = objectValue(rawItem);
+            if (!item) continue;
+
+            const address = integerValue(item.address);
+            if (address <= 0 || address > 65535) continue;
+
+            nextBasic.set(address, {
+              value: Boolean(item.active),
+              updatedAt: now,
+            });
+          }
+
+          const rawExtended =
+            Array.isArray(snapshot?.extendedAccessories)
+              ? snapshot.extendedAccessories
+              : [];
+
+          for (const rawItem of rawExtended) {
+            const item = objectValue(rawItem);
+            if (!item) continue;
+
+            const address = integerValue(item.address);
+            const aspect = integerValue(item.aspect, -1);
+
+            if (
+              address <= 0 ||
+              address > 65535 ||
+              aspect < 0 ||
+              aspect > 255
+            ) {
+              continue;
+            }
+
+            nextExtended.set(address, {
+              value: aspect,
+              updatedAt: now,
+            });
+          }
+
+          setBasicAccessories(nextBasic);
+          setExtendedAccessories(nextExtended);
+          setTurnouts(new Map());
+
+          return;
+        }
+
         if (message.type !== "rawInfo") {
           return;
         }
