@@ -4,6 +4,20 @@ using DCCExpressHub.Net.Web;
 using Microsoft.Extensions.FileProviders;
 
 var builder = WebApplication.CreateBuilder(args);
+
+//var webUiDist = Path.GetFullPath(
+//    Path.Combine(
+//        builder.Environment.ContentRootPath,
+//        "..",
+//        "..",
+//        "web-ui",
+//        "dist"));
+
+//builder.Environment.WebRootPath = webUiDist;
+
+Console.WriteLine(
+    $"Web UI root: {builder.Environment.WebRootPath}");
+
 var desktopUrl = Environment.GetEnvironmentVariable("DCCEXPRESS_DESKTOP_URL");
 if (!string.IsNullOrWhiteSpace(desktopUrl))
     builder.WebHost.UseUrls(desktopUrl);
@@ -52,7 +66,10 @@ app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSecond
 
 app.Map("/ws", async ctx =>
 {
-    if (!ctx.WebSockets.IsWebSocketRequest) { ctx.Response.StatusCode = 400; return; }
+    if (!ctx.WebSockets.IsWebSocketRequest)
+    {
+        ctx.Response.StatusCode = 400; return;
+    }
     await ctx.RequestServices.GetRequiredService<WsHub>().Accept(ctx);
 });
 
@@ -65,23 +82,50 @@ app.MapGet("/api/command-center-config", (CommandCenterConfigStore store, IComma
 
 app.MapPost("/api/command-center-config", async (HttpRequest req, CommandCenterConfigStore store, DccExCommandCenter physical, WsHub ws, CancellationToken ct) =>
 {
-    if (!req.HasFormContentType) return Results.Json(new { ok = false, message = "Missing host or port" }, statusCode: 400);
+    if (!req.HasFormContentType)
+    {
+        return Results.Json(new { ok = false, message = "Missing host or port" }, statusCode: 400);
+    }
+
     var form = await req.ReadFormAsync(ct);
-    var host = form["host"].ToString().Trim(); var portText = form["port"].ToString().Trim();
+    var host = form["host"].ToString().Trim();
+    var portText = form["port"].ToString().Trim();
     static bool ValidHost(string h) => h.Length is > 0 and <= 253 && !h.Any(c => c <= 32 || c is '/' or '\\' or ':' or '<' or '>');
+
     if (!ValidHost(host)) return Results.Json(new { ok = false, message = "Invalid host" }, statusCode: 400);
-    if (!int.TryParse(portText, out var port) || port is < 1 or > 65535) return Results.Json(new { ok = false, message = "Port must be between 1 and 65535" }, statusCode: 400);
+
+    if (!int.TryParse(portText, out var port) || port is < 1 or > 65535)
+    {
+        return Results.Json(new { ok = false, message = "Port must be between 1 and 65535" }, statusCode: 400);
+    }
+
     bool powerProg = store.Current.PowerIncludesProgramming;
     if (form.TryGetValue("powerIncludesProgramming", out var pv))
     {
         var v = pv.ToString().Trim().ToLowerInvariant();
-        if (v is "true" or "1" or "yes" or "on") powerProg = true;
-        else if (v is "false" or "0" or "no" or "off") powerProg = false;
-        else return Results.Json(new { ok = false, message = "Invalid powerIncludesProgramming" }, statusCode: 400);
+        if (v is "true" or "1" or "yes" or "on")
+        {
+            powerProg = true;
+        }
+        else if (v is "false" or "0" or "no" or "off")
+        {
+            powerProg = false;
+        }
+        else
+        {
+            return Results.Json(new { ok = false, message = "Invalid powerIncludesProgramming" }, statusCode: 400);
+        }
     }
+
     var next = new CommandCenterSettings(host, port, powerProg);
-    if (!await store.SaveAsync(next)) return Results.Json(new { ok = false, message = "Command center configuration could not be saved" }, statusCode: 500);
-    if (!physical.SetEndpoint(host, port)) return Results.Json(new { ok = false, message = "Runtime endpoint change is unavailable" }, statusCode: 500);
+
+    if (!await store.SaveAsync(next)) { 
+        return Results.Json(new { ok = false, message = "Command center configuration could not be saved" }, statusCode: 500); 
+    }
+    if (!physical.SetEndpoint(host, port))
+    {
+        return Results.Json(new { ok = false, message = "Runtime endpoint change is unavailable" }, statusCode: 500);
+    }
     await ws.BroadcastStatus();
     await ws.BroadcastRuntimeSnapshot();
     return Results.Json(new { ok = true, host, port, powerIncludesProgramming = powerProg, connected = physical.Connected });
@@ -173,6 +217,7 @@ app.MapGet("/api/locos", async (IWebHostEnvironment env) =>
     var p = DataFile(env, "locos.json");
     return Results.Text(File.Exists(p) ? await File.ReadAllTextAsync(p) : "[]", "application/json");
 });
+
 app.MapPost("/api/locos", async (HttpRequest req, IWebHostEnvironment env, ConfiguredCommandCenter configuredCc) =>
 {
     using var sr = new StreamReader(req.Body);
@@ -198,11 +243,13 @@ app.MapPost("/api/locos", async (HttpRequest req, IWebHostEnvironment env, Confi
 
     return Results.Json(new { ok = true, bytes = System.Text.Encoding.UTF8.GetByteCount(body) });
 });
+
 app.MapGet("/api/layout", async (IWebHostEnvironment env) =>
 {
     var p = DataFile(env, "layout.json");
     return Results.Text(File.Exists(p) ? await File.ReadAllTextAsync(p) : "{}", "application/json");
 });
+
 app.MapPost("/api/layout", async (HttpRequest req, IWebHostEnvironment env, LayoutRuntime runtime, SignalAutomationEngine automation, WsHub ws, ICommandCenter cc) =>
 {
     var finalPath = DataFile(env, "layout.json");
@@ -420,6 +467,7 @@ app.MapGet("/api/signal-logic", async (IWebHostEnvironment env) =>
     if (!File.Exists(path)) return Results.Text("Not found", "text/plain", statusCode: 404);
     return Results.Text(await File.ReadAllTextAsync(path), "application/x-ndjson", System.Text.Encoding.UTF8);
 });
+
 app.MapPost("/api/signal-logic", async (HttpRequest req, IWebHostEnvironment env, SignalAutomationEngine automation) =>
 {
     var final = Path.Combine(env.ContentRootPath, "data", "config", "signal-logic.ndjson");
@@ -718,6 +766,7 @@ async Task<IResult> DeletePath(string? path, HubFileStorage files)
     return Results.Json(new { ok = false, message = "Path not found" }, statusCode: 404);
 }
 app.MapDelete("/delete", DeletePath);
+
 app.MapGet("/delete", DeletePath);
 
 // Expose the native equivalent of LittleFS. Old Hub URLs such as /images/x.jpg

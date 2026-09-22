@@ -12,7 +12,7 @@ export default defineConfig(({ mode }) => {
     ? "http://127.0.0.1:3001"
     : (
       process.env.DCCEXPRESS_DEVICE_URL?.trim() ||
-      "http://192.168.1.132"
+      "http://127.0.0.1:8080"
     );
 
   console.log(
@@ -32,7 +32,7 @@ export default defineConfig(({ mode }) => {
 
     server: {
       host: "0.0.0.0",
-      port: 5174,
+      port: 5173,
       strictPort: true,
 
       proxy: mode === "demo"

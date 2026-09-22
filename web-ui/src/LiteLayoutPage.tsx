@@ -38,6 +38,7 @@ import {
   IconUpload,
   IconSeparator,
   IconBrandGithub,
+  IconBug,
 } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { showNotification } from "@mantine/notifications";
@@ -94,7 +95,7 @@ import {
   type AutomationScriptDefinition,
 } from "@/services/automationApi";
 import "@/styles/propertypanel.css";
-
+import DebugDialog from "@/components/debug/DebugDialog";
 type LiteLayoutPageProps = {
   version: string;
   locos: Loco[];
@@ -439,7 +440,7 @@ function LitePropertyPanel({
                 selectedElement={selectedElement}
                 onChange={onChange}
               />
-                        ) : (
+            ) : (
               <BasicPropertyEditor
                 prop={property}
                 selectedElement={selectedElement}
@@ -484,6 +485,7 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
   const [rightPanelMode, setRightPanelMode] = useState<RightPanelMode>(readStoredRightPanelMode);
   const resizeRef = useRef<{ side: "left" | "right"; startX: number; startWidth: number } | null>(null);
   const temperatureCriticalRef = useRef(false);
+  const [debugOpened, setDebugOpened] = useState(false);
 
   const invalidate = useCallback(() => setInvalidateCounter(value => value + 1), []);
 
@@ -544,7 +546,7 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
     } finally {
       setLoading(false);
     }
-  }, [i18next.resolvedLanguage, ]);
+  }, [i18next.resolvedLanguage,]);
 
   useEffect(() => {
     void loadLayout();
@@ -867,7 +869,7 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
         }
       }
     },
-    [i18next.resolvedLanguage, ]
+    [i18next.resolvedLanguage,]
   );
 
   useLayoutPageShortcuts({
@@ -1001,6 +1003,9 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
             <Button size="xs" variant="light" color="violet" leftSection={<IconTrain size={16} />} onClick={onOpenLocoEditor} title={i18next.t("ui.editLocomotives")}> {i18next.t("ui.locos")} </Button>
             <Button size="xs" variant="light" color="yellow" leftSection={<IconTrafficLights size={16} />} onClick={() => setSignalLogicOpened(true)} title={i18next.t("ui.automaticSignalAspects")}> {i18next.t("ui.signals2")} </Button>
             <Button size="xs" variant="light" color="teal" leftSection={<IconShieldCheck size={16} />} onClick={() => setIntegrityCheckOpened(true)} title={i18next.t("ui.checkAllProjectReferences")}> {i18next.t("ui.check")} </Button>
+            <Button variant="light" leftSection={<IconBug size={16} />} onClick={() => setDebugOpened(true)}>
+              Debug
+            </Button>
             <Button
               component="a"
               href="https://github.com/DCCExpress/DCCExpressHub"
@@ -1009,7 +1014,7 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
               size="xs"
               variant="light"
               color="blue"
-              leftSection={<IconBrandGithub  size={16} />}
+              leftSection={<IconBrandGithub size={16} />}
               title="GITHUB"
             > GITHUB </Button>
             <ActionIcon variant={locoPanelCollapsed ? "light" : "filled"} onClick={() => setLocoPanelCollapsed(value => !value)} title={i18next.t("ui.toggleLocomotivePanel")}>
@@ -1135,8 +1140,8 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
               color={commandCenter.powerInfo?.emergencyStop ? "red" : "gray"}
               onClick={() => wsApi.emergencyStop()}
               className={`lite-status-action${commandCenter.powerInfo?.emergencyStop
-                  ? " blinkBadge"
-                  : ""
+                ? " blinkBadge"
+                : ""
                 }`}
             > {i18next.t("ui.estop")} </Badge>
             <Divider orientation="vertical" />
@@ -1231,6 +1236,11 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
         onClose={() => setIntegrityCheckOpened(false)}
         layout={layout}
         locos={locos}
+      />
+
+      <DebugDialog
+        opened={debugOpened}
+        onClose={() => setDebugOpened(false)}
       />
 
       <FullscreenLoader visible={canvasBusy} text={canvasBusyText} />
