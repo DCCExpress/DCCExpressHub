@@ -1,0 +1,11 @@
+[
+  {
+    "Name": "Desktop",
+    "Projects": [
+      {
+        "Path": "DCCExpressHub.Desktop\\DCCExpressHub.Desktop.csproj",
+        "Action": "Start"
+      }
+    ]
+  }
+]

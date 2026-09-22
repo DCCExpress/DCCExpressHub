@@ -2,11 +2,11 @@
   "profiles": {
     "DCCExpressHub.Net": {
       "commandName": "Project",
-      "launchBrowser": true,
+      "launchBrowser": false,
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       },
-      "applicationUrl": "https://localhost:63553;http://localhost:63554"
+      "applicationUrl": "http://127.0.0.1:8080"
     }
   }
 }

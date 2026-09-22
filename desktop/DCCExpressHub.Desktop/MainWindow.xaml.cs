@@ -12,9 +12,9 @@ namespace DCCExpressHub.Desktop;
 
 public partial class MainWindow : Window
 {
-    private const int HubPort = 5127;
-    private const string HubUrl = "http://127.0.0.1:5127";
-    private const string HubListenUrl = "http://0.0.0.0:5127";
+    private const int HubPort = 8080;
+    private const string HubUrl = "http://127.0.0.1:8080";
+    private const string HubListenUrl = "http://0.0.0.0:8080";
     private const string PidFileName = "dccexpresshub-backend.pid";
 
     private Process? _backend;
@@ -37,7 +37,6 @@ public partial class MainWindow : Window
     {
         try
         {
-            // Only one Desktop launcher owns the backend.
             _singleInstanceMutex = new Mutex(true, @"Local\DCCExpressHub.Desktop", out bool createdNew);
             if (!createdNew)
                 throw new InvalidOperationException("A DCCExpressHub Desktop már fut.");
@@ -77,8 +76,6 @@ public partial class MainWindow : Window
 
     private static string GetHubVersion()
     {
-        // Development: find the repository VERSION file by walking upwards
-        // from the executable directory.
         try
         {
             var dir = new DirectoryInfo(AppContext.BaseDirectory);
@@ -96,7 +93,6 @@ public partial class MainWindow : Window
         }
         catch { }
 
-        // Packaged builds can fall back to assembly informational version.
         var informational = Assembly.GetExecutingAssembly()
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
             .InformationalVersion;
@@ -114,7 +110,6 @@ public partial class MainWindow : Window
     {
         try
         {
-            // Prefer an active physical LAN/Wi-Fi adapter with a default gateway.
             foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
             {
                 if (nic.OperationalStatus != OperationalStatus.Up ||
@@ -139,7 +134,6 @@ public partial class MainWindow : Window
                     return address.ToString();
             }
 
-            // Fallback for unusual network setups without a visible gateway.
             return Dns.GetHostEntry(Dns.GetHostName()).AddressList
                 .FirstOrDefault(x =>
                     x.AddressFamily == AddressFamily.InterNetwork &&
@@ -160,8 +154,6 @@ public partial class MainWindow : Window
 
     private void KillStaleBackend()
     {
-        // We only kill a PID previously created and recorded by this Desktop app.
-        // Never kill arbitrary dotnet.exe processes.
         if (!File.Exists(PidFilePath))
             return;
 
@@ -180,7 +172,6 @@ public partial class MainWindow : Window
         }
         catch (ArgumentException)
         {
-            // PID no longer exists.
         }
         catch (InvalidOperationException)
         {
@@ -195,7 +186,6 @@ public partial class MainWindow : Window
     {
         try
         {
-            // A PID can be reused. Validate command line before killing it.
             using var searcher = new System.Management.ManagementObjectSearcher(
                 $"SELECT CommandLine FROM Win32_Process WHERE ProcessId = {process.Id}");
             foreach (System.Management.ManagementObject obj in searcher.Get())
@@ -232,8 +222,6 @@ public partial class MainWindow : Window
             RedirectStandardError = true
         };
 
-        // Kestrel listens on all IPv4 interfaces so phones/tablets on the LAN
-        // can open http://<PC-LAN-IP>:5127. The embedded WebView still uses localhost.
         psi.Environment["DCCEXPRESS_DESKTOP_URL"] = HubListenUrl;
         psi.Environment["ASPNETCORE_ENVIRONMENT"] = "Production";
         psi.Environment["ASPNETCORE_CONTENTROOT"] = backendDir;
@@ -273,7 +261,6 @@ public partial class MainWindow : Window
 
             try
             {
-                // Root is guaranteed by the frontend runtime and is enough to prove Kestrel is listening.
                 using var response = await _http.GetAsync(HubUrl + "/");
                 if (response.IsSuccessStatusCode)
                     return;
@@ -296,7 +283,6 @@ public partial class MainWindow : Window
 
     private void Window_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        // F10: hidden advanced menu. This gives us room for more diagnostic/admin tools later.
         if (e.Key == System.Windows.Input.Key.F10)
         {
             MainMenu.Visibility = MainMenu.Visibility == Visibility.Visible
@@ -306,7 +292,6 @@ public partial class MainWindow : Window
             return;
         }
 
-        // F11: browser-style fullscreen toggle.
         if (e.Key == System.Windows.Input.Key.F11)
         {
             ToggleFullscreen();
@@ -314,7 +299,6 @@ public partial class MainWindow : Window
             return;
         }
 
-        // Escape leaves fullscreen, but does not otherwise interfere with the WebUI.
         if (e.Key == System.Windows.Input.Key.Escape && _isFullscreen)
         {
             ExitFullscreen();
@@ -335,7 +319,6 @@ public partial class MainWindow : Window
         _previousResizeMode = ResizeMode;
         _previousBounds = new Rect(Left, Top, Width, Height);
 
-        // Collapse the advanced menu in fullscreen. F10 can still show it if needed.
         MainMenu.Visibility = Visibility.Collapsed;
 
         WindowStyle = WindowStyle.None;

@@ -88,10 +88,15 @@ public sealed class SignalAutomationEngine
 
             _enabled = enabled;
             _signals = signals;
+
+            Console.WriteLine(
+                $"SignalAutomation: physical-runtime model, loaded {_signals.Count} signal(s), enabled={_enabled}");
+
             return true;
         }
-        catch
+        catch (Exception ex)
         {
+            Console.WriteLine($"SignalAutomation reload failed: {ex.Message}");
             return false;
         }
     }
@@ -158,7 +163,6 @@ public sealed class SignalAutomationEngine
         if (!extended && mode != "basic")
             return false;
 
-        // Automation definition must agree with current layout topology.
         if (extended != target.SignalExtended)
             return false;
 
@@ -215,7 +219,9 @@ public sealed class SignalAutomationEngine
                     ? a[0].GetString() ?? ""
                     : "";
 
-                // v4: ["turnout", address, logicalClosed], ["sensor", address, value]
+                // Canonical physical-address rows:
+                // ["turnout", address, logicalClosed]
+                // ["sensor", address, value]
                 if (a.Length == 3)
                 {
                     int addr = AsInt(a[1]);
@@ -244,12 +250,12 @@ public sealed class SignalAutomationEngine
                     }
                     else if (source == "sensor")
                     {
-                        if (_runtime.FindSensor((ushort)addr) is null)
-                        {
-                            valid = false;
-                            break;
-                        }
-
+                        // IMPORTANT:
+                        // Sensor state is authoritative by physical address and
+                        // comes from DCC-EX Q/q feedback. It is intentionally
+                        // independent from layout topology. Therefore a sensor
+                        // condition must NOT require FindSensor(address) to
+                        // succeed during rule parsing.
                         rule.Conditions.Add(new()
                         {
                             Source = Source.Sensor,
@@ -266,7 +272,7 @@ public sealed class SignalAutomationEngine
                     continue;
                 }
 
-                // Legacy ID rows are resolved to address once. Runtime identity is address-only.
+                // Legacy ID rows are resolved through the layout once.
                 if (a.Length == 4)
                 {
                     int legacyId = AsInt(a[1]);
@@ -359,11 +365,15 @@ public sealed class SignalAutomationEngine
         if (!_enabled)
             return;
 
-        if (!await _evalGate.WaitAsync(0))
-            return;
+        // Never drop a runtime change while an earlier asynchronous DCC
+        // command/evaluation is still in progress.
+        await _evalGate.WaitAsync();
 
         try
         {
+            if (!_enabled)
+                return;
+
             foreach (var s in _signals)
                 await ApplyAsync(s, Desired(s));
         }
@@ -388,9 +398,16 @@ public sealed class SignalAutomationEngine
         if (s.Extended)
         {
             if (!await _cc.SetSignalAspectAsync(s.Address, value))
+            {
+                Console.WriteLine(
+                    $"SignalAutomation: failed to send extended signal {s.Address} aspect {value}");
                 return;
+            }
 
             _runtime.SetSignal(s.Address, value);
+
+            Console.WriteLine(
+                $"SignalAutomation: extended signal {s.Address} -> aspect {value}");
         }
         else
         {
@@ -400,10 +417,17 @@ public sealed class SignalAutomationEngine
                 var address = (ushort)(s.Address + i);
 
                 if (!await _cc.SetAccessoryAsync(address, active))
+                {
+                    Console.WriteLine(
+                        $"SignalAutomation: failed to send basic accessory {address} = {active}");
                     return;
+                }
 
                 _runtime.SetAccessory(address, active);
             }
+
+            Console.WriteLine(
+                $"SignalAutomation: basic signal {s.Address} -> value {value}");
         }
 
         s.AppliedValue = value;
