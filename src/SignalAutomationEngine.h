@@ -26,6 +26,7 @@ private:
   };
   struct Rule { int32_t value=0; std::vector<Condition> conditions; };
   struct SignalRuleSet {
+    uint16_t id=0;
     uint16_t address=0;
     bool extended=true;
     uint8_t outputs=1;

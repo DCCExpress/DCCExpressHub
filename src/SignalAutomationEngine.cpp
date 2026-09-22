@@ -21,18 +21,47 @@ bool SignalAutomationEngine::begin(fs::FS& fs,const char* path){
 }
 
 bool SignalAutomationEngine::parseSignal(JsonObjectConst row,std::vector<SignalRuleSet>& signals) const{
-  long rawAddress=row["address"]|0L;
-  if(rawAddress<=0||rawAddress>0xffff)return false;
-  uint16_t address=static_cast<uint16_t>(rawAddress);
+  long persistedAddress=row["address"]|0L;
+  if(persistedAddress<=0||persistedAddress>0xffff)return false;
 
-  const RuntimeAccessory* target=_runtime.findAccessory(RuntimeAccessoryKind::Signal,address);
-  if(!target)return false;
+  long persistedId=row["id"]|0L;
+  const RuntimeAccessory* target=nullptr;
+
+  if(persistedId>0&&persistedId<=0xffff){
+    target=_runtime.findAccessoryById(
+        RuntimeAccessoryKind::Signal,
+        static_cast<uint16_t>(persistedId));
+  }
+
+  if(!target){
+    target=_runtime.findAccessory(
+        RuntimeAccessoryKind::Signal,
+        static_cast<uint16_t>(persistedAddress));
+  }
+
+  if(!target){
+    Logger::warn(
+        "SignalAutomation: target not found id="+
+        String(persistedId)+
+        " address="+
+        String(persistedAddress));
+    return false;
+  }
 
   const char* mode=row["mode"]|"";
   bool ext=strcmp(mode,"extended")==0;
   if(!ext&&strcmp(mode,"basic")!=0)return false;
 
-  if(ext!=target->signalExtended)return false;
+  if(ext!=target->signalExtended){
+    Logger::warn(
+        "SignalAutomation: target protocol mismatch id="+
+        String(target->id)+
+        " address="+
+        String(target->address)+
+        " rule="+
+        String(mode));
+    return false;
+  }
 
   int out=ext?1:target->signalOutputCount;
   int persistedOut=row["outputs"]|out;
@@ -45,7 +74,8 @@ bool SignalAutomationEngine::parseSignal(JsonObjectConst row,std::vector<SignalR
   if(rawRules.isNull())return false;
 
   SignalRuleSet signal;
-  signal.address=address;
+  signal.id=target->id;
+  signal.address=target->address;
   signal.extended=ext;
   signal.outputs=(uint8_t)out;
   signal.defaultValue=def;
@@ -71,8 +101,8 @@ bool SignalAutomationEngine::parseSignal(JsonObjectConst row,std::vector<SignalR
           cond.address=(uint16_t)addr;
           cond.value=logical!=0;
         }else if(strcmp(source,"sensor")==0){
-          // Canonical sensor conditions are physical-address based.
-          // They do not depend on layout membership or sensor source.
+          // Sensor state is authoritative by physical address. Q/q feedback,
+          // simulation or any future source all end up in the same runtime map.
           cond.source=Condition::Source::Sensor;
           cond.address=(uint16_t)addr;
           cond.value=logical!=0;
@@ -103,7 +133,19 @@ bool SignalAutomationEngine::parseSignal(JsonObjectConst row,std::vector<SignalR
   }
 
   if(signal.rules.empty())return false;
-  for(auto& existing:signals)if(existing.address==signal.address){existing=std::move(signal);return true;}
+
+  for(auto& existing:signals){
+    const bool sameTarget=
+        signal.id>0
+            ? existing.id==signal.id
+            : existing.id==0&&existing.address==signal.address;
+
+    if(sameTarget){
+      existing=std::move(signal);
+      return true;
+    }
+  }
+
   signals.push_back(std::move(signal));
   return true;
 }
@@ -131,11 +173,28 @@ bool SignalAutomationEngine::validateFile(const char* path){
 bool SignalAutomationEngine::reload(){
   if(!_fs)return false;
   FileStore store(*_fs);
-  if(!store.exists(_path.c_str())){_enabled=false;_signals.clear();return true;}
+
+  if(!store.exists(_path.c_str())){
+    _enabled=false;
+    _signals.clear();
+
+    // A layout commit can introduce or remap sensor addresses even when no
+    // automation file exists. Refresh Q/q state so LayoutRuntime stays
+    // authoritative by physical sensor address.
+    _commandCenter.requestSensorSnapshot(false);
+    return true;
+  }
+
   bool e=false;std::vector<SignalRuleSet>s;
   if(!parseFile(_path.c_str(),e,s))return false;
   _enabled=e;_signals=std::move(s);
+
   Logger::info("SignalAutomation: physical-runtime model, loaded "+String(_signals.size())+" signal(s)");
+
+  // reload() is used after layout and signal-logic commits. The topology may
+  // now refer to sensor addresses that were not part of the previous runtime.
+  // Request the authoritative DCC-EX Q/q snapshot immediately.
+  _commandCenter.requestSensorSnapshot(false);
   return true;
 }
 
@@ -171,9 +230,43 @@ void SignalAutomationEngine::broadcastBasic(uint16_t address,uint8_t outputs,uin
 }
 
 void SignalAutomationEngine::applySignal(SignalRuleSet& s,int32_t value){
-  const RuntimeAccessory* target=_runtime.findAccessory(RuntimeAccessoryKind::Signal,s.address);
-  if(!target){Logger::warn("SignalAutomation: signal address "+String(s.address)+" not found");return;}
-  if(s.hasAppliedValue&&s.appliedValue==value)return;
+  const RuntimeAccessory* target=nullptr;
+
+  if(s.id>0){
+    target=_runtime.findAccessoryById(
+        RuntimeAccessoryKind::Signal,
+        s.id);
+  }
+
+  if(!target){
+    target=_runtime.findAccessory(
+        RuntimeAccessoryKind::Signal,
+        s.address);
+  }
+
+  if(!target){
+    Logger::warn(
+        "SignalAutomation: target id="+
+        String(s.id)+
+        " address="+
+        String(s.address)+
+        " not found");
+    return;
+  }
+
+  // The layout topology is authoritative. This is especially important for
+  // level crossings where TrackElement.address is the occupancy sensor while
+  // signalOutput.address is the physical accessory output.
+  s.id=target->id;
+  s.address=target->address;
+  s.outputs=s.extended?1:target->signalOutputCount;
+
+  int16_t runtimeValue=0;
+  const bool runtimeAlreadyMatches=
+      _runtime.getSignalValue(s.address,runtimeValue)&&
+      runtimeValue==value;
+
+  if(s.hasAppliedValue&&s.appliedValue==value&&runtimeAlreadyMatches)return;
 
   if(s.extended){
     if(value<0||value>255||!_commandCenter.setSignalAspect(s.address,(int16_t)value))return;

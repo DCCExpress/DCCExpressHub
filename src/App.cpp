@@ -183,6 +183,14 @@ void App::updateDisplay() {
         connected;
 
     if (connected) {
+      // Re-apply the safe/current automation result as soon as the command
+      // center becomes writable again. A previous evaluation may have
+      // happened while the physical connection was offline.
+      _signalAutomation.evaluate();
+
+      // Then refresh the authoritative physical sensor state. Every Q/q
+      // response enters LayoutRuntime::setSensor() and triggers another
+      // automation evaluation when the state changed.
       _commandCenter
           .requestSensorSnapshot(
               false);
