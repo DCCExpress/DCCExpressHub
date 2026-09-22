@@ -6,9 +6,7 @@ import {
   Text,
 } from "@mantine/core";
 
-import type {
-  CSSProperties,
-} from "react";
+import type { CSSProperties } from "react";
 
 import {
   IconBug,
@@ -38,14 +36,8 @@ const panelStyle: CSSProperties = {
   overflow: "hidden",
 };
 
-export default function DebugDialog({
-  opened,
-  onClose,
-}: Props) {
-  const runtime=
-    useRuntimeDebugState(
-      opened
-    );
+export default function DebugDialog({ opened, onClose }: Props) {
+  const runtime = useRuntimeDebugState(opened);
 
   return (
     <AppModal
@@ -53,10 +45,8 @@ export default function DebugDialog({
       onClose={onClose}
       title={
         <Group gap="xs">
-          <IconBug size={20}/>
-          <Text fw={700}>
-            Runtime Debug
-          </Text>
+          <IconBug size={20} />
+          <Text fw={700}>Runtime Debug</Text>
         </Group>
       }
       size="xl"
@@ -72,46 +62,19 @@ export default function DebugDialog({
         },
       }}
     >
-      <Group
-        justify="space-between"
-        mb="md"
-        style={{
-          flexShrink: 0,
-        }}
-      >
+      <Group justify="space-between" mb="md" style={{ flexShrink: 0 }}>
         <Group gap="xs">
-          <Text
-            size="sm"
-            c="dimmed"
-          >
-            WebSocket
-          </Text>
-
-          <Badge
-            color={
-              runtime.connected
-                ? "green"
-                : "red"
-            }
-            variant="light"
-          >
-            {runtime.connected
-              ? "CONNECTED"
-              : "DISCONNECTED"}
+          <Text size="sm" c="dimmed">WebSocket</Text>
+          <Badge color={runtime.connected ? "green" : "red"} variant="light">
+            {runtime.connected ? "CONNECTED" : "DISCONNECTED"}
           </Badge>
         </Group>
 
         <Button
           variant="light"
-          leftSection={
-            <IconRefresh size={16}/>
-          }
-          disabled={
-            !runtime.connected
-          }
-          onClick={
-            runtime.refresh
-          }
+          leftSection={<IconRefresh size={16} />}
+          disabled={!runtime.connected}
+          onClick={runtime.refresh}
         >
           Refresh snapshot
         </Button>
@@ -127,107 +90,46 @@ export default function DebugDialog({
           flexDirection: "column",
         }}
       >
-        <Tabs.List
-          mb="md"
-          style={{
-            flexShrink: 0,
-          }}
-        >
-          <Tabs.Tab
-            value="sensors"
-            leftSection={
-              <IconRoute size={16}/>
-            }
-          >
-            Sensors ({
-              runtime.sensors.size
-            })
+        <Tabs.List mb="md" style={{ flexShrink: 0 }}>
+          <Tabs.Tab value="sensors" leftSection={<IconRoute size={16} />}>
+            Sensors ({runtime.sensors.size})
           </Tabs.Tab>
 
-          <Tabs.Tab
-            value="turnouts"
-            leftSection={
-              <IconSwitch3 size={16}/>
-            }
-          >
-            Turnouts ({
-              runtime.turnouts.size
-            })
+          <Tabs.Tab value="turnouts" leftSection={<IconSwitch3 size={16} />}>
+            Turnouts ({runtime.turnouts.size})
           </Tabs.Tab>
 
-          <Tabs.Tab
-            value="basic-accessories"
-            leftSection={
-              <IconToggleLeft size={16}/>
-            }
-          >
-            Basic ({
-              runtime.basicAccessories.size
-            })
+          <Tabs.Tab value="basic-accessories" leftSection={<IconToggleLeft size={16} />}>
+            Basic ({runtime.basicAccessories.size})
           </Tabs.Tab>
 
-          <Tabs.Tab
-            value="extended-accessories"
-            leftSection={
-              <IconTrafficLights size={16}/>
-            }
-          >
-            Extended ({
-              runtime.extendedAccessories.size
-            })
+          <Tabs.Tab value="extended-accessories" leftSection={<IconTrafficLights size={16} />}>
+            Extended ({runtime.extendedAccessories.size})
           </Tabs.Tab>
         </Tabs.List>
 
-        <Tabs.Panel
-          value="sensors"
-          style={panelStyle}
-        >
-          <SensorDebugTab
-            sensors={
-              runtime.sensors
-            }
-          />
+        <Tabs.Panel value="sensors" style={panelStyle}>
+          <SensorDebugTab sensors={runtime.sensors} />
         </Tabs.Panel>
 
-        <Tabs.Panel
-          value="turnouts"
-          style={panelStyle}
-        >
+        <Tabs.Panel value="turnouts" style={panelStyle}>
           <TurnoutDebugTab
-            turnouts={
-              runtime.turnouts
-            }
-            connected={
-              runtime.connected
-            }
+            turnouts={runtime.turnouts}
+            connected={runtime.connected}
           />
         </Tabs.Panel>
 
-        <Tabs.Panel
-          value="basic-accessories"
-          style={panelStyle}
-        >
+        <Tabs.Panel value="basic-accessories" style={panelStyle}>
           <BasicAccessoryDebugTab
-            accessories={
-              runtime.basicAccessories
-            }
-            connected={
-              runtime.connected
-            }
+            accessories={runtime.basicAccessories}
+            connected={runtime.connected}
           />
         </Tabs.Panel>
 
-        <Tabs.Panel
-          value="extended-accessories"
-          style={panelStyle}
-        >
+        <Tabs.Panel value="extended-accessories" style={panelStyle}>
           <ExtendedAccessoryDebugTab
-            accessories={
-              runtime.extendedAccessories
-            }
-            connected={
-              runtime.connected
-            }
+            accessories={runtime.extendedAccessories}
+            connected={runtime.connected}
           />
         </Tabs.Panel>
       </Tabs>

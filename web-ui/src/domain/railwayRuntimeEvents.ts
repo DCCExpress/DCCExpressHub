@@ -15,20 +15,10 @@ export type LocoStateChangedPayload = {
 
 export type TurnoutChangedPayload = {
   address: number;
-
-  /**
-   * Physical DCC accessory value.
-   * Kept as `closed` for wire compatibility with the existing protocol.
-   */
   closed: boolean;
-
-  outputMode?: "accessory" | "extended";
-
-  /**
-   * Current extended accessory aspect when outputMode === "extended".
-   */
+  logicalClosed?: boolean | null;
+  outputMode?: "accessory" | "extended" | "vpin";
   aspect?: number | null;
-
   closedAspect?: number;
   openedAspect?: number;
 };
@@ -48,13 +38,23 @@ export type SignalAspectChangedPayload = {
   aspect: number;
 };
 
+export type RuntimePhysicalSnapshotPayload = {
+  basicAccessories: Array<{
+    address: number;
+    active: boolean;
+  }>;
+  extendedAccessories: Array<{
+    address: number;
+    aspect: number;
+  }>;
+};
+
 export type SensorChangedPayload = {
   address: number;
   on: boolean;
 };
 
 export type SensorSnapshotPayload = {
-  /** Tuples are [baseAddress, activeBits, knownBits], covering 16 addresses. */
   groups: Array<[number, number, number]>;
 };
 

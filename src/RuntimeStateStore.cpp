@@ -7,385 +7,166 @@
 bool RuntimeStateStore::begin(
     fs::FS& fs,
     LayoutRuntime& runtime) {
-  _fs =
-      &fs;
+  _fs = &fs;
+  _runtime = &runtime;
 
-  _runtime =
-      &runtime;
-
-  FileStore files(
-      fs);
-
-  return
-      files.ensureParent(
-          "/state/runtime-state.json");
+  FileStore files(fs);
+  return files.ensureParent("/state/runtime-state.json");
 }
 
-bool RuntimeStateStore::load(
-    const char* path) {
-  if (
-      !_fs ||
-      !_runtime
-  ) {
-    return false;
-  }
+bool RuntimeStateStore::load(const char* path) {
+  if (!_fs || !_runtime) return false;
 
-  FileStore files(
-      *_fs);
-
-  File file =
-      files.openRead(
-          path);
+  FileStore files(*_fs);
+  File file = files.openRead(path);
 
   if (!file) {
-    Logger::info(
-        "No saved runtime state; defaults remain active");
+    Logger::info("No saved runtime state; defaults remain active");
     return true;
   }
 
   JsonDocument doc;
-
-  const DeserializationError error =
-      deserializeJson(
-          doc,
-          file);
-
+  const DeserializationError error = deserializeJson(doc, file);
   file.close();
 
   if (error) {
-    Logger::warn(
-        String(
-            "Runtime state parse failed: ") +
-        error.c_str());
-
+    Logger::warn(String("Runtime state parse failed: ") + error.c_str());
     return false;
   }
 
-  JsonObjectConst accessories =
-      doc["accessories"];
+  // v3: authoritative physical runtime state only.
+  JsonObjectConst basic = doc["basicAccessories"];
+  for (JsonPairConst pair : basic) {
+    const uint16_t address = static_cast<uint16_t>(atoi(pair.key().c_str()));
+    if (!address) continue;
+    _runtime->setAccessory(address, pair.value().as<bool>());
+  }
 
-  for (
-      JsonPairConst pair :
-      accessories
-  ) {
-    JsonObjectConst value =
-        pair.value()
-            .as<JsonObjectConst>();
+  JsonObjectConst extended = doc["extendedAccessories"];
+  for (JsonPairConst pair : extended) {
+    const uint16_t address = static_cast<uint16_t>(atoi(pair.key().c_str()));
+    const int aspect = pair.value().as<int>();
+    if (!address || aspect < 0 || aspect > 255) continue;
+    _runtime->setSignal(address, aspect);
+  }
 
-    const char* key =
-        pair.key().c_str();
+  JsonObjectConst vpins = doc["vpins"];
+  for (JsonPairConst pair : vpins) {
+    const uint16_t address = static_cast<uint16_t>(atoi(pair.key().c_str()));
+    if (!address) continue;
+    _runtime->setVPin(address, pair.value().as<bool>());
+  }
 
-    if (
-        strncmp(
-            key,
-            "turnout:",
-            8) ==
-        0
-    ) {
-      const uint16_t address =
-          static_cast<uint16_t>(
-              atoi(
-                  key +
-                  8));
+  // Read-only migration from old semantic v2 storage. Values are accepted
+  // only when they map to the CURRENT layout topology, so protocol changes do
+  // not leak stale state across Basic <-> Extended.
+  JsonObjectConst legacy = doc["accessories"];
+  for (JsonPairConst pair : legacy) {
+    JsonObjectConst value = pair.value().as<JsonObjectConst>();
+    const char* key = pair.key().c_str();
 
-      const bool logicalClosed =
-          value["closed"] |
-          false;
-
-      RuntimeAccessory* turnout =
-          _runtime->findAccessory(
-              RuntimeAccessoryKind::Turnout,
-              address);
-
-      if (!turnout) {
-        Logger::warn(
-            "Runtime state: turnout address " +
-            String(address) +
-            " not found during restore");
-
-        continue;
+    if (strncmp(key, "accessory:", 10) == 0) {
+      _runtime->setAccessory(
+          static_cast<uint16_t>(atoi(key + 10)),
+          value["active"] | false);
+    } else if (strncmp(key, "signal:", 7) == 0) {
+      if (!value["aspect"].isNull()) {
+        const int aspect = value["aspect"].as<int>();
+        if (aspect >= 0 && aspect <= 255) {
+          _runtime->setSignal(
+              static_cast<uint16_t>(atoi(key + 7)),
+              aspect);
+        }
       }
+    } else if (strncmp(key, "vpin:", 5) == 0) {
+      _runtime->setVPin(
+          static_cast<uint16_t>(atoi(key + 5)),
+          value["active"] | false);
+    } else if (strncmp(key, "turnout:", 8) == 0) {
+      const uint16_t address = static_cast<uint16_t>(atoi(key + 8));
+      RuntimeAccessory* turnout =
+          _runtime->findAccessory(RuntimeAccessoryKind::Turnout, address);
 
-      // LayoutRuntime::setTurnout() consumes the PHYSICAL decoder value.
-      // runtime-state.json stores the LOGICAL CLOSED/THROWN state.
+      if (!turnout || turnout->turnoutExtended) continue;
+
+      const bool logicalClosed = value["closed"] | false;
       const bool physicalValue =
           logicalClosed
               ? turnout->closedValue
               : !turnout->closedValue;
 
-      _runtime->setTurnout(
-          address,
-          physicalValue);
-    } else if (
-        strncmp(
-            key,
-            "signal:",
-            7) ==
-        0
-    ) {
-      if (
-          !value["aspect"]
-               .isNull()
-      ) {
-        _runtime->setSignal(
-            atoi(
-                key +
-                7),
-            value["aspect"]
-                .as<int>());
-      }
-    } else if (
-        strncmp(
-            key,
-            "accessory:",
-            10) ==
-        0
-    ) {
-      _runtime->setAccessory(
-          atoi(
-              key +
-              10),
-          value["active"] |
-              false);
-    } else if (
-        strncmp(
-            key,
-            "vpin:",
-            5) ==
-        0
-    ) {
-      _runtime->setVPin(
-          atoi(
-              key +
-              5),
-          value["active"] |
-              false);
+      _runtime->setTurnout(address, physicalValue);
     }
   }
 
-  JsonObjectConst sensors =
-      doc["sensors"];
+  // Sensor state is intentionally never restored. DCC-EX <Q> is authoritative.
 
-  for (
-      JsonPairConst pair :
-      sensors
-  ) {
-    _runtime->setSensor(
-        atoi(
-            pair.key()
-                .c_str()),
-        pair.value()["on"] |
-            false);
-  }
+  JsonObjectConst blocks = doc["blocks"];
+  for (JsonPairConst pair : blocks) {
+    const long blockIdValue = atol(pair.key().c_str());
+    if (blockIdValue <= 0 || blockIdValue > 0xffff) continue;
 
-  JsonObjectConst blocks =
-      doc["blocks"];
+    JsonObjectConst value = pair.value().as<JsonObjectConst>();
 
-  for (
-      JsonPairConst pair :
-      blocks
-  ) {
-    const long blockIdValue =
-        atol(
-            pair.key()
-                .c_str());
+    const String locoId = value["locoId"].isNull()
+        ? String()
+        : String(value["locoId"].as<const char*>());
 
-    if (
-        blockIdValue <= 0 ||
-        blockIdValue >
-            0xffff
-    ) {
-      continue;
-    }
-
-    JsonObjectConst value =
-        pair.value()
-            .as<JsonObjectConst>();
-
-    const String locoId =
-        value["locoId"]
-            .isNull()
-            ? String()
-            : String(
-                  value["locoId"]
-                      .as<const char*>());
-
-    const long locoAddressValue =
-        value["locoAddress"] |
-        0L;
-
+    const long locoAddressValue = value["locoAddress"] | 0L;
     const uint16_t locoAddress =
-        locoAddressValue > 0 &&
-        locoAddressValue <= 10239
-            ? static_cast<uint16_t>(
-                  locoAddressValue)
+        locoAddressValue > 0 && locoAddressValue <= 10239
+            ? static_cast<uint16_t>(locoAddressValue)
             : 0;
 
     _runtime->setBlock(
-        static_cast<uint16_t>(
-            blockIdValue),
+        static_cast<uint16_t>(blockIdValue),
         locoId,
         locoAddress);
   }
 
-  Logger::info(
-      "Runtime state restored");
-
+  Logger::info("Physical runtime state restored");
   return true;
 }
 
-bool RuntimeStateStore::save(
-    const char* path) {
-  if (
-      !_fs ||
-      !_runtime
-  ) {
-    return false;
-  }
+bool RuntimeStateStore::save(const char* path) {
+  if (!_fs || !_runtime) return false;
 
   JsonDocument doc;
+  doc["version"] = 3;
+  doc["savedAtMs"] = millis();
 
-  doc["version"] =
-      2;
-
-  doc["savedAtMs"] =
-      millis();
-
-  JsonObject accessories =
-      doc["accessories"]
-          .to<JsonObject>();
-
-  for (
-      const auto& item :
-      _runtime->accessories()
-  ) {
-    String key;
-
-    switch (
-        item.kind
-    ) {
-      case RuntimeAccessoryKind::Turnout:
-        key =
-            "turnout:" +
-            String(
-                item.address);
-
-        accessories[key]["closed"] =
-            item.closed;
-
-        break;
-
-      case RuntimeAccessoryKind::Signal:
-        key =
-            "signal:" +
-            String(
-                item.address);
-
-        if (
-            item.aspect >=
-            0
-        ) {
-          accessories[key]["aspect"] =
-              item.aspect;
-        } else {
-          accessories[key]["aspect"] =
-              nullptr;
-        }
-
-        break;
-
-      case RuntimeAccessoryKind::Accessory:
-        key =
-            "accessory:" +
-            String(
-                item.address);
-
-        accessories[key]["active"] =
-            item.active;
-
-        break;
-
-      case RuntimeAccessoryKind::VPin:
-        key =
-            "vpin:" +
-            String(
-                item.address);
-
-        accessories[key]["active"] =
-            item.active;
-
-        break;
-    }
+  JsonObject basic = doc["basicAccessories"].to<JsonObject>();
+  for (const auto& item : _runtime->basicAccessories()) {
+    basic[String(item.address)] = item.active;
   }
 
-  JsonObject sensors =
-      doc["sensors"]
-          .to<JsonObject>();
-
-  for (
-      const auto& sensor :
-      _runtime->sensors()
-  ) {
-    sensors[
-        String(
-            sensor.address)]["on"] =
-        sensor.on;
+  JsonObject extended = doc["extendedAccessories"].to<JsonObject>();
+  for (const auto& item : _runtime->extendedAccessories()) {
+    extended[String(item.address)] = item.aspect;
   }
 
-  JsonObject blocks =
-      doc["blocks"]
-          .to<JsonObject>();
-
-  for (
-      const auto& block :
-      _runtime->blocks()
-  ) {
-    if (!block.occupied()) {
-      continue;
-    }
-
-    JsonObject state =
-        blocks[
-            String(
-                block.id)]
-            .to<JsonObject>();
-
-    if (
-        block.locoId
-            .isEmpty()
-    ) {
-      state["locoId"] =
-          nullptr;
-    } else {
-      state["locoId"] =
-          block.locoId;
-    }
-
-    if (
-        block.locoAddress >
-        0
-    ) {
-      state["locoAddress"] =
-          block.locoAddress;
-    }
+  JsonObject vpins = doc["vpins"].to<JsonObject>();
+  for (const auto& item : _runtime->vpinStates()) {
+    vpins[String(item.address)] = item.active;
   }
 
-  FileStore files(
-      *_fs);
+  JsonObject blocks = doc["blocks"].to<JsonObject>();
+  for (const auto& block : _runtime->blocks()) {
+    if (!block.occupied()) continue;
 
-  if (
-      !files.saveJson(
-          path,
-          doc)
-  ) {
-    Logger::error(
-        "Runtime state atomic save failed");
+    JsonObject state = blocks[String(block.id)].to<JsonObject>();
+    if (block.locoId.isEmpty()) state["locoId"] = nullptr;
+    else state["locoId"] = block.locoId;
 
+    if (block.locoAddress > 0) state["locoAddress"] = block.locoAddress;
+  }
+
+  FileStore files(*_fs);
+  if (!files.saveJson(path, doc)) {
+    Logger::error("Runtime state atomic save failed");
     return false;
   }
 
-  Logger::info(
-      "Runtime state saved on POWER OFF");
-
+  Logger::info("Physical runtime state saved on POWER OFF");
   return true;
 }

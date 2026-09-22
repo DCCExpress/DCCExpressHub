@@ -4,80 +4,86 @@ namespace DCCExpressHub.Net.Web;
 
 public enum RuntimeAccessoryKind { Turnout, Signal, Accessory, VPin }
 
+// IMPORTANT: RuntimeAccessory is topology/binding metadata only.
+// Authoritative physical state lives in address-keyed maps in LayoutRuntime.
 public sealed class RuntimeAccessory
 {
-    public ushort Id {get;set;}
-    public RuntimeAccessoryKind Kind {get;set;}
-    public ushort Address {get;set;}
-    public byte Channel {get;set;}
-    public bool Closed {get;set;}
-    public bool ClosedValue {get;set;}
-    public int Aspect {get;set;}=-1;
-    public bool SignalExtended {get;set;}=true;
-    public byte SignalOutputCount {get;set;}=1;
-    public bool Active {get;set;}
+    public ushort Id { get; set; }
+    public RuntimeAccessoryKind Kind { get; set; }
+    public ushort Address { get; set; }
+    public byte Channel { get; set; }
 
-    public bool TurnoutExtended {get;set;}
-    public int TurnoutClosedAspect {get;set;}=0;
-    public int TurnoutOpenedAspect {get;set;}=1;
+    // Turnout binding metadata.
+    public bool ClosedValue { get; set; }
+    public bool TurnoutExtended { get; set; }
+    public bool TurnoutVPin { get; set; }
+    public int TurnoutClosedAspect { get; set; } = 0;
+    public int TurnoutOpenedAspect { get; set; } = 1;
+
+    // Signal binding metadata.
+    public bool SignalExtended { get; set; } = true;
+    public byte SignalOutputCount { get; set; } = 1;
 }
 
+// Layout reference only. Sensor state is authoritative in _sensorStates and
+// is learned from DCC-EX Q/q feedback, independently from layout membership.
 public sealed class RuntimeSensor
 {
-    public ushort Id {get;set;}
-    public ushort Address {get;set;}
-    public bool On {get;set;}
+    public ushort Id { get; set; }
+    public ushort Address { get; set; }
 }
 
 public sealed class RuntimeBlock
 {
-    public const string TargetLocoPrefix="__dcc_target_loco__:";
+    public const string TargetLocoPrefix = "__dcc_target_loco__:";
 
-    public ushort Id{get;set;}
-    public string LocoId{get;set;}="";
-    public ushort LocoAddress{get;set;}
+    public ushort Id { get; set; }
+    public string LocoId { get; set; } = "";
+    public ushort LocoAddress { get; set; }
 
     public bool TargetOnly =>
-        LocoAddress==0 &&
-        LocoId.StartsWith(
-            TargetLocoPrefix,
-            StringComparison.Ordinal);
+        LocoAddress == 0 &&
+        LocoId.StartsWith(TargetLocoPrefix, StringComparison.Ordinal);
 
     public bool Occupied =>
-        LocoAddress>0 ||
-        (LocoId.Length>0&&!TargetOnly);
+        LocoAddress > 0 ||
+        (LocoId.Length > 0 && !TargetOnly);
 
-    public bool HasRuntimeState =>
-        Occupied||TargetOnly;
+    public bool HasRuntimeState => Occupied || TargetOnly;
 }
 
-public sealed record RuntimeSnapshotItem(
-    string Type,
-    object Data);
+public sealed record RuntimeSnapshotItem(string Type, object Data);
 
 public sealed class LayoutRuntime
 {
-    readonly object _gate=new();
+    readonly object _gate = new();
     readonly IWebHostEnvironment _env;
 
-    List<RuntimeAccessory> _accessories=[];
-    List<RuntimeSensor> _sensors=[];
-    List<RuntimeBlock> _blocks=[];
+    // Semantic/layout bindings. These never own authoritative physical state.
+    List<RuntimeAccessory> _accessories = [];
+    List<RuntimeSensor> _sensors = [];
+    List<RuntimeBlock> _blocks = [];
 
-    readonly Dictionary<ushort,bool>
-        _sensorStates=new();
+    // Authoritative physical runtime state.
+    // Sensors are NOT reconciled to the layout. They come from <Q> / Q/q.
+    readonly Dictionary<ushort, bool> _sensorStates = new();
 
-    readonly Dictionary<ushort,bool>
-        _basicAccessoryStates=new();
+    // Basic/extended endpoints ARE reconciled to the current layout topology.
+    Dictionary<ushort, bool> _basicAccessoryStates = new();
+    Dictionary<ushort, byte> _extendedAccessoryStates = new();
 
-    public event Action<string,object>? Changed;
+    // Kept for existing VPIN turnout/output support. VPIN is HAL state rather
+    // than DCC accessory state, so it is intentionally outside Basic/Extended.
+    Dictionary<ushort, bool> _vpinStates = new();
+
+    public event Action<string, object>? Changed;
 
     public int AccessoryCount
     {
         get
         {
-            lock(_gate)
-                return _accessories.Count;
+            lock (_gate)
+                return _basicAccessoryStates.Count + _extendedAccessoryStates.Count;
         }
     }
 
@@ -85,8 +91,8 @@ public sealed class LayoutRuntime
     {
         get
         {
-            lock(_gate)
-                return _sensors.Count;
+            lock (_gate)
+                return _sensorStates.Count;
         }
     }
 
@@ -94,76 +100,19 @@ public sealed class LayoutRuntime
     {
         get
         {
-            lock(_gate)
+            lock (_gate)
                 return _blocks.Count;
         }
     }
 
-    public RuntimeAccessory[] AccessoriesForPersistence()
+    public LayoutRuntime(IWebHostEnvironment env)
     {
-        lock(_gate)
-        {
-            return _accessories
-                .Select(x => new RuntimeAccessory
-                {
-                    Id=x.Id,
-                    Kind=x.Kind,
-                    Address=x.Address,
-                    Channel=x.Channel,
-                    Closed=x.Closed,
-                    ClosedValue=x.ClosedValue,
-                    Aspect=x.Aspect,
-                    SignalExtended=x.SignalExtended,
-                    SignalOutputCount=x.SignalOutputCount,
-                    Active=x.Active,
-                    TurnoutExtended=x.TurnoutExtended,
-                    TurnoutClosedAspect=x.TurnoutClosedAspect,
-                    TurnoutOpenedAspect=x.TurnoutOpenedAspect
-                })
-                .ToArray();
-        }
-    }
-
-    public RuntimeSensor[] SensorsForPersistence()
-    {
-        lock(_gate)
-        {
-            return _sensors
-                .Select(x => new RuntimeSensor
-                {
-                    Id=x.Id,
-                    Address=x.Address,
-                    On=x.On
-                })
-                .ToArray();
-        }
-    }
-
-    public RuntimeBlock[] BlocksForPersistence()
-    {
-        lock(_gate)
-        {
-            return _blocks
-                .Select(x => new RuntimeBlock
-                {
-                    Id=x.Id,
-                    LocoId=x.LocoId,
-                    LocoAddress=x.LocoAddress
-                })
-                .ToArray();
-        }
-    }
-
-    public LayoutRuntime(
-        IWebHostEnvironment env)
-    {
-        _env=env;
+        _env = env;
         Rebuild();
     }
 
     static bool TurnoutType(string t) =>
-        t is
-            "trackturnout" or
+        t is "trackturnout" or
             "trackturnoutleft" or
             "trackturnoutright" or
             "trackturnoutdouble" or
@@ -171,165 +120,83 @@ public sealed class LayoutRuntime
             "trackturnouttreeway";
 
     static bool SignalType(string t) =>
-        t is
-            "tracksignal" or
+        t is "tracksignal" or
             "tracksignal2" or
             "tracksignal3" or
             "tracksignal4" or
             "tracklevelcrossing";
 
-    static int I(
-        JsonElement e,
-        string n,
-        int d=0) =>
-        e.TryGetProperty(n,out var x) &&
-        x.TryGetInt32(out var v)
-            ? v
-            : d;
+    static int I(JsonElement e, string n, int d = 0) =>
+        e.TryGetProperty(n, out var x) && x.TryGetInt32(out var v) ? v : d;
 
-    static bool B(
-        JsonElement e,
-        string n,
-        bool d=false) =>
-        e.TryGetProperty(n,out var x)
-            ? x.ValueKind==JsonValueKind.True
+    static bool B(JsonElement e, string n, bool d = false) =>
+        e.TryGetProperty(n, out var x)
+            ? x.ValueKind == JsonValueKind.True
                 ? true
-                : x.ValueKind==JsonValueKind.False
+                : x.ValueKind == JsonValueKind.False
                     ? false
                     : d
             : d;
 
-    static string S(
-        JsonElement e,
-        string n,
-        string d="") =>
-        e.TryGetProperty(n,out var x) &&
-        x.ValueKind==JsonValueKind.String
-            ? x.GetString()??d
+    static string S(JsonElement e, string n, string d = "") =>
+        e.TryGetProperty(n, out var x) && x.ValueKind == JsonValueKind.String
+            ? x.GetString() ?? d
             : d;
 
-    static Dictionary<(int layer,int element),ushort>
-        MigrateIds(
-            JsonElement root,
-            out int migrated)
+    static Dictionary<(int layer, int element), ushort> MigrateIds(JsonElement root, out int migrated)
     {
-        migrated=0;
+        migrated = 0;
+        var reserved = new HashSet<ushort>();
+        var seen = new HashSet<ushort>();
+        var map = new Dictionary<(int, int), ushort>();
 
-        var reserved=
-            new HashSet<ushort>();
-
-        var seen=
-            new HashSet<ushort>();
-
-        var map=
-            new Dictionary<(int,int),ushort>();
-
-        if(
-            !root.TryGetProperty(
-                "layers",
-                out var layers) ||
-            layers.ValueKind!=
-                JsonValueKind.Array)
-        {
+        if (!root.TryGetProperty("layers", out var layers) || layers.ValueKind != JsonValueKind.Array)
             return map;
-        }
 
-        foreach(
-            var layer in
-            layers.EnumerateArray())
+        foreach (var layer in layers.EnumerateArray())
         {
-            if(
-                !layer.TryGetProperty(
-                    "elements",
-                    out var es) ||
-                es.ValueKind!=
-                    JsonValueKind.Array)
-            {
+            if (!layer.TryGetProperty("elements", out var es) || es.ValueKind != JsonValueKind.Array)
                 continue;
-            }
 
-            foreach(
-                var e in
-                es.EnumerateArray())
-            {
-                if(
-                    ReadPersistedNumericId(
-                        e,
-                        out var id))
-                {
+            foreach (var e in es.EnumerateArray())
+                if (ReadPersistedNumericId(e, out var id))
                     reserved.Add(id);
-                }
-            }
         }
 
-        var used=
-            new HashSet<ushort>(
-                reserved);
+        var used = new HashSet<ushort>(reserved);
+        ushort next = 1;
+        int li = 0;
 
-        ushort next=1;
-        int li=0;
-
-        foreach(
-            var layer in
-            layers.EnumerateArray())
+        foreach (var layer in layers.EnumerateArray())
         {
-            int ei=0;
+            int ei = 0;
 
-            if(
-                layer.TryGetProperty(
-                    "elements",
-                    out var es) &&
-                es.ValueKind==
-                    JsonValueKind.Array)
+            if (layer.TryGetProperty("elements", out var es) && es.ValueKind == JsonValueKind.Array)
             {
-                foreach(
-                    var e in
-                    es.EnumerateArray())
+                foreach (var e in es.EnumerateArray())
                 {
-                    bool numeric=
-                        ReadPersistedNumericId(
-                            e,
-                            out var persisted);
-
+                    bool numeric = ReadPersistedNumericId(e, out var persisted);
                     ushort runtime;
 
-                    if(
-                        numeric &&
-                        seen.Add(
-                            persisted))
+                    if (numeric && seen.Add(persisted))
                     {
-                        runtime=
-                            persisted;
+                        runtime = persisted;
                     }
                     else
                     {
-                        runtime=
-                            NextFree(
-                                used,
-                                next);
-
-                        if(runtime==0)
+                        runtime = NextFree(used, next);
+                        if (runtime == 0)
                         {
                             ei++;
                             continue;
                         }
 
-                        used.Add(
-                            runtime);
-
-                        next=
-                            runtime==
-                                ushort.MaxValue
-                                ? (ushort)1
-                                : (ushort)(
-                                    runtime+1);
-
+                        used.Add(runtime);
+                        next = runtime == ushort.MaxValue ? (ushort)1 : (ushort)(runtime + 1);
                         migrated++;
                     }
 
-                    map[(li,ei)]=
-                        runtime;
-
+                    map[(li, ei)] = runtime;
                     ei++;
                 }
             }
@@ -340,56 +207,33 @@ public sealed class LayoutRuntime
         return map;
     }
 
-    static bool ReadPersistedNumericId(
-        JsonElement e,
-        out ushort id)
+    static bool ReadPersistedNumericId(JsonElement e, out ushort id)
     {
-        id=0;
+        id = 0;
 
-        if(
-            !e.TryGetProperty(
-                "id",
-                out var x) ||
-            x.ValueKind!=
-                JsonValueKind.Number ||
-            !x.TryGetInt32(
-                out var v) ||
-            v<=0 ||
-            v>65535)
-        {
+        if (!e.TryGetProperty("id", out var x) ||
+            x.ValueKind != JsonValueKind.Number ||
+            !x.TryGetInt32(out var v) ||
+            v <= 0 ||
+            v > 65535)
             return false;
-        }
 
-        id=(ushort)v;
+        id = (ushort)v;
         return true;
     }
 
-    static ushort NextFree(
-        HashSet<ushort> used,
-        ushort start)
+    static ushort NextFree(HashSet<ushort> used, ushort start)
     {
-        uint c=
-            start>0
-                ? (uint)start
-                : 1u;
+        uint c = start > 0 ? (uint)start : 1u;
 
-        for(
-            uint a=0;
-            a<65535;
-            a++)
+        for (uint a = 0; a < 65535; a++)
         {
-            if(c>65535)
-                c=1;
+            if (c > 65535)
+                c = 1;
 
-            var id=
-                (ushort)c;
-
-            if(
-                !used.Contains(
-                    id))
-            {
+            var id = (ushort)c;
+            if (!used.Contains(id))
                 return id;
-            }
 
             c++;
         }
@@ -397,104 +241,111 @@ public sealed class LayoutRuntime
         return 0;
     }
 
+    static void AddRange(HashSet<ushort> target, int start, int length)
+    {
+        if (start <= 0 || start > 65535)
+            return;
+
+        int safeLength = Math.Clamp(length, 1, 16);
+
+        for (int i = 0; i < safeLength; i++)
+        {
+            int address = start + i;
+            if (address > 65535)
+                break;
+
+            target.Add((ushort)address);
+        }
+    }
+
+    static Dictionary<ushort, T> Reconcile<T>(
+        Dictionary<ushort, T> previous,
+        IEnumerable<ushort> topology,
+        T defaultValue)
+    {
+        var next = new Dictionary<ushort, T>();
+
+        foreach (var address in topology.OrderBy(x => x))
+        {
+            next[address] = previous.TryGetValue(address, out var old)
+                ? old
+                : defaultValue;
+        }
+
+        return next;
+    }
+
     public bool Rebuild()
     {
-        var path=
-            Path.Combine(
-                _env.ContentRootPath,
-                "data",
-                "config",
-                "layout.json");
+        var path = Path.Combine(_env.ContentRootPath, "data", "config", "layout.json");
 
-        if(
-            !File.Exists(
-                path))
+        if (!File.Exists(path))
         {
-            lock(_gate)
+            lock (_gate)
             {
-                _accessories=[];
-                _sensors=[];
-                _blocks=[];
+                _accessories = [];
+                _sensors = [];
+                _blocks = [];
+                _basicAccessoryStates.Clear();
+                _extendedAccessoryStates.Clear();
+                _vpinStates.Clear();
             }
 
-            Console.WriteLine(
-                $"LayoutRuntime: no layout at {path}");
-
+            Console.WriteLine($"LayoutRuntime: no layout at {path}");
             return true;
         }
 
         try
         {
-            using var doc=
-                JsonDocument.Parse(
-                    File.ReadAllText(
-                        path));
+            using var doc = JsonDocument.Parse(File.ReadAllText(path));
+            var root = doc.RootElement;
+            var ids = MigrateIds(root, out var migrated);
 
-            var root=
-                doc.RootElement;
+            List<RuntimeAccessory> oldBindings;
+            List<RuntimeBlock> oldBlocks;
+            Dictionary<ushort, bool> oldBasic;
+            Dictionary<ushort, byte> oldExtended;
+            Dictionary<ushort, bool> oldVpins;
 
-            var ids=
-                MigrateIds(
-                    root,
-                    out var migrated);
-
-            List<RuntimeAccessory> oldA;
-            List<RuntimeSensor> oldS;
-            List<RuntimeBlock> oldB;
-
-            lock(_gate)
+            lock (_gate)
             {
-                oldA=_accessories;
-                oldS=_sensors;
-                oldB=_blocks;
+                oldBindings = _accessories;
+                oldBlocks = _blocks;
+                oldBasic = new(_basicAccessoryStates);
+                oldExtended = new(_extendedAccessoryStates);
+                oldVpins = new(_vpinStates);
             }
 
-            var na=
-                new List<RuntimeAccessory>();
+            var bindings = new List<RuntimeAccessory>();
+            var sensors = new List<RuntimeSensor>();
+            var blocks = new List<RuntimeBlock>();
+            var basicTopology = new HashSet<ushort>();
+            var extendedTopology = new HashSet<ushort>();
+            var vpinTopology = new HashSet<ushort>();
 
-            var ns=
-                new List<RuntimeSensor>();
-
-            var nb=
-                new List<RuntimeBlock>();
-
-            if(
-                root.TryGetProperty(
-                    "layers",
-                    out var layers) &&
-                layers.ValueKind==
-                    JsonValueKind.Array)
+            if (root.TryGetProperty("layers", out var layers) && layers.ValueKind == JsonValueKind.Array)
             {
-                int li=0;
+                int li = 0;
 
-                foreach(
-                    var layer in
-                    layers.EnumerateArray())
+                foreach (var layer in layers.EnumerateArray())
                 {
-                    int ei=0;
+                    int ei = 0;
 
-                    if(
-                        layer.TryGetProperty(
-                            "elements",
-                            out var es) &&
-                        es.ValueKind==
-                            JsonValueKind.Array)
+                    if (layer.TryGetProperty("elements", out var es) && es.ValueKind == JsonValueKind.Array)
                     {
-                        foreach(
-                            var e in
-                            es.EnumerateArray())
+                        foreach (var e in es.EnumerateArray())
                         {
-                            if(
-                                ids.TryGetValue(
-                                    (li,ei),
-                                    out var id))
+                            if (ids.TryGetValue((li, ei), out var id))
                             {
                                 AddElement(
                                     e,
                                     id,
-                                    na,
-                                    ns,
-                                    nb);
+                                    bindings,
+                                    sensors,
+                                    blocks,
+                                    basicTopology,
+                                    extendedTopology,
+                                    vpinTopology);
                             }
 
                             ei++;
@@ -505,127 +356,47 @@ public sealed class LayoutRuntime
                 }
             }
 
-            Restore(
-                na,
-                ns,
-                nb,
-                oldA,
-                oldS,
-                oldB);
-
-            lock(_gate)
+            // Blocks are semantic runtime and keep state by stable layout ID.
+            foreach (var block in blocks)
             {
-                foreach(
-                    var x in ns)
-                {
-                    if(
-                        _sensorStates
-                            .TryGetValue(
-                                x.Address,
-                                out var on))
-                    {
-                        x.On=on;
-                    }
-                }
+                var old = oldBlocks.FirstOrDefault(x => x.Id == block.Id);
+                if (old is null)
+                    continue;
 
-                foreach(
-                    var x in
-                    na.Where(
-                        x =>
-                            x.Kind==
-                            RuntimeAccessoryKind.Accessory))
-                {
-                    if(
-                        _basicAccessoryStates
-                            .TryGetValue(
-                                x.Address,
-                                out var active))
-                    {
-                        x.Active=
-                            active;
-                    }
-                }
-
-                foreach(
-                    var signal in
-                    na.Where(
-                        x =>
-                            x.Kind==
-                                RuntimeAccessoryKind.Signal &&
-                            !x.SignalExtended))
-                {
-                    int value=0;
-                    bool known=false;
-
-                    for(
-                        int i=0;
-                        i<
-                        signal.SignalOutputCount;
-                        i++)
-                    {
-                        var outputAddress=
-                            (ushort)(
-                                signal.Address+i);
-
-                        if(
-                            !_basicAccessoryStates
-                                .TryGetValue(
-                                    outputAddress,
-                                    out var active))
-                        {
-                            continue;
-                        }
-
-                        known=true;
-
-                        if(active)
-                        {
-                            value|=
-                                1<<i;
-                        }
-                    }
-
-                    if(known)
-                    {
-                        signal.Aspect=
-                            value;
-                    }
-                }
-
-                _accessories=na;
-                _sensors=ns;
-                _blocks=nb;
+                block.LocoId = old.LocoId;
+                block.LocoAddress = old.LocoAddress;
             }
 
-            if(migrated>0)
+            lock (_gate)
             {
-                Console.WriteLine(
-                    $"LayoutRuntime: migrated {migrated} legacy/duplicate element ID(s) in RAM");
+                _accessories = bindings;
+                _sensors = sensors;
+                _blocks = blocks;
+
+                // This is the key rule: layout topology owns DCC output existence.
+                // Removed endpoints disappear. Protocol changes do not carry state
+                // across Basic <-> Extended because they live in different maps.
+                _basicAccessoryStates = Reconcile(oldBasic, basicTopology, false);
+                _extendedAccessoryStates = Reconcile(oldExtended, extendedTopology, (byte)0);
+                _vpinStates = Reconcile(oldVpins, vpinTopology, false);
             }
+
+            if (migrated > 0)
+                Console.WriteLine($"LayoutRuntime: migrated {migrated} legacy/duplicate element ID(s) in RAM");
 
             Console.WriteLine(
-                $"LayoutRuntime rebuilt: {na.Count} accessories, {ns.Count} sensors, {nb.Count} blocks");
-
-            foreach(
-                var a in
-                na.Where(
-                    x =>
-                        x.Kind is
-                            RuntimeAccessoryKind.Turnout or
-                            RuntimeAccessoryKind.Signal))
-            {
-                Console.WriteLine(
-                    $"LayoutRuntime: {a.Kind} id={a.Id} ch={a.Channel} address={a.Address} closedValue={a.ClosedValue} turnoutExtended={a.TurnoutExtended} signalExtended={a.SignalExtended} aspect={a.Aspect}");
-            }
+                $"LayoutRuntime rebuilt: " +
+                $"{_basicAccessoryStates.Count} basic, " +
+                $"{_extendedAccessoryStates.Count} extended, " +
+                $"{_sensorStates.Count} sensor state(s), " +
+                $"{bindings.Count} binding(s), " +
+                $"{blocks.Count} block(s)");
 
             return true;
         }
-        catch(Exception ex)
+        catch (Exception ex)
         {
-            Console.WriteLine(
-                "LayoutRuntime parse failed: "+
-                ex.Message);
-
+            Console.WriteLine("LayoutRuntime parse failed: " + ex.Message);
             return false;
         }
     }
@@ -633,1359 +404,719 @@ public sealed class LayoutRuntime
     static void AddElement(
         JsonElement e,
         ushort id,
-        List<RuntimeAccessory> a,
-        List<RuntimeSensor> s,
-        List<RuntimeBlock> b)
+        List<RuntimeAccessory> bindings,
+        List<RuntimeSensor> sensors,
+        List<RuntimeBlock> blocks,
+        HashSet<ushort> basicTopology,
+        HashSet<ushort> extendedTopology,
+        HashSet<ushort> vpinTopology)
     {
-        var type=
-            S(e,"type");
+        var type = S(e, "type");
+        int elementAddress = I(e, "address");
+        bool addressIsSensor = false;
 
-        int elementAddress=
-            I(e,"address");
-
-        bool addressIsSensor=
-            false;
-
-        if(
-            type is
-                "trackstraight" or
-                "trackdirection" or
-                "trackend" or
-                "trackcorner" or
-                "trackcurve" or
-                "trackcrossing" or
-                "tracklevelcrossing" or
-                "tracksensor")
+        if (type is "trackstraight" or "trackdirection" or "trackend" or
+            "trackcorner" or "trackcurve" or "trackcrossing" or
+            "tracklevelcrossing" or "tracksensor")
         {
-            addressIsSensor=
-                true;
+            addressIsSensor = true;
         }
-        else if(
-            TurnoutType(
-                type))
+        else if (TurnoutType(type))
         {
-            bool dual=
-                type is
-                    "trackturnoutdouble" or
-                    "trackturnouttreeway";
-
-            addressIsSensor=
-                dual
-                    ? I(e,"turnout1Address")>0 ||
-                      I(e,"turnout2Address")>0
-                    : I(e,"turnoutAddress")>0;
+            bool dual = type is "trackturnoutdouble" or "trackturnouttreeway";
+            addressIsSensor = dual
+                ? I(e, "turnout1Address") > 0 || I(e, "turnout2Address") > 0
+                : I(e, "turnoutAddress") > 0;
         }
-        else if(
-            SignalType(
-                type))
+        else if (SignalType(type))
         {
-            addressIsSensor=
-                false;
+            addressIsSensor = false;
         }
 
-        if(
-            addressIsSensor &&
-            elementAddress>0 &&
-            elementAddress<=65535)
+        if (addressIsSensor && elementAddress is > 0 and <= 65535)
+            sensors.Add(new RuntimeSensor { Id = id, Address = (ushort)elementAddress });
+
+        if (type == "trackblock")
         {
-            s.Add(
-                new()
+            blocks.Add(new RuntimeBlock { Id = id });
+            return;
+        }
+
+        if (TurnoutType(type))
+        {
+            string mode = S(e, "outputMode", "accessory");
+            bool extended = mode == "extended";
+            bool vpin = mode == "vpin";
+            bool dual = type is "trackturnoutdouble" or "trackturnouttreeway";
+
+            void AddTurnout(
+                int address,
+                byte channel,
+                bool closedValue,
+                int closedAspect,
+                int openedAspect)
+            {
+                if (address is <= 0 or > 65535)
+                    return;
+
+                var a = (ushort)address;
+
+                bindings.Add(new RuntimeAccessory
                 {
-                    Id=id,
-                    Address=
-                        (ushort)
-                        elementAddress
+                    Id = id,
+                    Kind = RuntimeAccessoryKind.Turnout,
+                    Address = a,
+                    Channel = channel,
+                    ClosedValue = closedValue,
+                    TurnoutExtended = extended,
+                    TurnoutVPin = vpin,
+                    TurnoutClosedAspect = Math.Clamp(closedAspect, 0, 255),
+                    TurnoutOpenedAspect = Math.Clamp(openedAspect, 0, 255)
                 });
-        }
 
-        if(type=="trackblock")
-        {
-            b.Add(
-                new()
-                {
-                    Id=id
-                });
+                if (extended)
+                    extendedTopology.Add(a);
+                else if (vpin)
+                    vpinTopology.Add(a);
+                else
+                    basicTopology.Add(a);
+            }
+
+            if (dual)
+            {
+                AddTurnout(
+                    I(e, "turnout1Address"),
+                    0,
+                    B(e, "turnout1ClosedValue"),
+                    I(e, "turnout1ClosedAspect", 0),
+                    I(e, "turnout1OpenedAspect", 1));
+
+                AddTurnout(
+                    I(e, "turnout2Address"),
+                    1,
+                    B(e, "turnout2ClosedValue"),
+                    I(e, "turnout2ClosedAspect", 0),
+                    I(e, "turnout2OpenedAspect", 1));
+            }
+            else
+            {
+                int address = I(e, "turnoutAddress");
+                if (address == 0)
+                    address = I(e, "address");
+
+                AddTurnout(
+                    address,
+                    0,
+                    B(e, "turnoutClosedValue"),
+                    I(e, "turnoutClosedAspect", 0),
+                    I(e, "turnoutOpenedAspect", 1));
+            }
 
             return;
         }
 
-        if(
-            TurnoutType(
-                type))
+        if (SignalType(type))
         {
-            bool extended=
-                S(
-                    e,
-                    "outputMode",
-                    "accessory")==
-                "extended";
+            JsonElement so = default;
+            bool has = e.TryGetProperty("signalOutput", out so) && so.ValueKind == JsonValueKind.Object;
+            bool crossing = type == "tracklevelcrossing";
 
-            bool dual=
-                type is
-                    "trackturnoutdouble" or
-                    "trackturnouttreeway";
-
-            if(dual)
-            {
-                int a1=
-                    I(
-                        e,
-                        "turnout1Address");
-
-                int a2=
-                    I(
-                        e,
-                        "turnout2Address");
-
-                if(
-                    a1 is
-                        >0 and <=65535)
-                {
-                    a.Add(
-                        new()
-                        {
-                            Id=id,
-                            Kind=
-                                RuntimeAccessoryKind.Turnout,
-                            Address=
-                                (ushort)a1,
-                            Channel=0,
-                            ClosedValue=
-                                B(
-                                    e,
-                                    "turnout1ClosedValue"),
-                            TurnoutExtended=
-                                extended,
-                            TurnoutClosedAspect=
-                                Math.Clamp(
-                                    I(
-                                        e,
-                                        "turnout1ClosedAspect",
-                                        0),
-                                    0,
-                                    255),
-                            TurnoutOpenedAspect=
-                                Math.Clamp(
-                                    I(
-                                        e,
-                                        "turnout1OpenedAspect",
-                                        1),
-                                    0,
-                                    255)
-                        });
-                }
-
-                if(
-                    a2 is
-                        >0 and <=65535)
-                {
-                    a.Add(
-                        new()
-                        {
-                            Id=id,
-                            Kind=
-                                RuntimeAccessoryKind.Turnout,
-                            Address=
-                                (ushort)a2,
-                            Channel=1,
-                            ClosedValue=
-                                B(
-                                    e,
-                                    "turnout2ClosedValue"),
-                            TurnoutExtended=
-                                extended,
-                            TurnoutClosedAspect=
-                                Math.Clamp(
-                                    I(
-                                        e,
-                                        "turnout2ClosedAspect",
-                                        0),
-                                    0,
-                                    255),
-                            TurnoutOpenedAspect=
-                                Math.Clamp(
-                                    I(
-                                        e,
-                                        "turnout2OpenedAspect",
-                                        1),
-                                    0,
-                                    255)
-                        });
-                }
-
+            int address = has ? I(so, "address") : 0;
+            if (address == 0 && crossing)
+                address = I(e, "basicAccessoryAddress");
+            if (address == 0 && !crossing)
+                address = I(e, "address");
+            if (address is <= 0 or > 65535)
                 return;
-            }
 
-            int addr=
-                I(
-                    e,
-                    "turnoutAddress");
+            string protocol = has
+                ? S(so, "protocol", crossing ? "dcc" : "dccext")
+                : crossing ? "dcc" : "dccext";
 
-            if(addr==0)
+            int outputCount = has
+                ? I(so, "outputCount", 1)
+                : Math.Clamp(I(e, "addressLength", 1), 1, 16);
+
+            bool extended = protocol == "dccext";
+
+            bindings.Add(new RuntimeAccessory
             {
-                addr=
-                    I(
-                        e,
-                        "address");
-            }
+                Id = id,
+                Kind = RuntimeAccessoryKind.Signal,
+                Address = (ushort)address,
+                SignalExtended = extended,
+                SignalOutputCount = (byte)Math.Clamp(outputCount, 1, 16)
+            });
 
-            if(
-                addr<=0 ||
-                addr>65535)
-            {
+            if (extended)
+                extendedTopology.Add((ushort)address);
+            else
+                AddRange(basicTopology, address, outputCount);
+
+            return;
+        }
+
+        if (type == "button")
+        {
+            int address = I(e, "address");
+            if (address is <= 0 or > 65535)
                 return;
-            }
 
-            a.Add(
-                new()
+            string mode = S(e, "outputMode", "accessory");
+
+            if (mode == "extended")
+            {
+                extendedTopology.Add((ushort)address);
+                bindings.Add(new RuntimeAccessory
                 {
-                    Id=id,
-                    Kind=
-                        RuntimeAccessoryKind.Turnout,
-                    Address=
-                        (ushort)addr,
-                    ClosedValue=
-                        B(
-                            e,
-                            "turnoutClosedValue"),
-                    TurnoutExtended=
-                        extended,
-                    TurnoutClosedAspect=
-                        Math.Clamp(
-                            I(
-                                e,
-                                "turnoutClosedAspect",
-                                0),
-                            0,
-                            255),
-                    TurnoutOpenedAspect=
-                        Math.Clamp(
-                            I(
-                                e,
-                                "turnoutOpenedAspect",
-                                1),
-                            0,
-                            255)
+                    Id = id,
+                    Kind = RuntimeAccessoryKind.Signal,
+                    Address = (ushort)address,
+                    SignalExtended = true,
+                    SignalOutputCount = 1
                 });
-
-            return;
-        }
-
-        if(
-            SignalType(
-                type))
-        {
-            JsonElement so=
-                default;
-
-            bool has=
-                e.TryGetProperty(
-                    "signalOutput",
-                    out so) &&
-                so.ValueKind==
-                    JsonValueKind.Object;
-
-            int addr=
-                has
-                    ? I(
-                        so,
-                        "address")
-                    : 0;
-
-            bool crossing=
-                type==
-                "tracklevelcrossing";
-
-            if(
-                addr==0 &&
-                crossing)
-            {
-                addr=
-                    I(
-                        e,
-                        "basicAccessoryAddress");
             }
-
-            if(
-                addr==0 &&
-                !crossing)
+            else
             {
-                addr=
-                    I(
-                        e,
-                        "address");
-            }
-
-            if(
-                addr<=0 ||
-                addr>65535)
-            {
-                return;
-            }
-
-            string protocol=
-                has
-                    ? S(
-                        so,
-                        "protocol",
-                        crossing
-                            ? "dcc"
-                            : "dccext")
-                    : crossing
-                        ? "dcc"
-                        : "dccext";
-
-            int outputs=
-                has
-                    ? I(
-                        so,
-                        "outputCount",
-                        1)
-                    : 1;
-
-            a.Add(
-                new()
+                basicTopology.Add((ushort)address);
+                bindings.Add(new RuntimeAccessory
                 {
-                    Id=id,
-                    Kind=
-                        RuntimeAccessoryKind.Signal,
-                    Address=
-                        (ushort)addr,
-                    Aspect=-1,
-                    SignalExtended=
-                        protocol==
-                        "dccext",
-                    SignalOutputCount=
-                        (byte)
-                        Math.Clamp(
-                            outputs,
-                            1,
-                            16)
+                    Id = id,
+                    Kind = RuntimeAccessoryKind.Accessory,
+                    Address = (ushort)address
                 });
-
-            return;
-        }
-
-        if(type=="button")
-        {
-            int addr=
-                I(
-                    e,
-                    "address");
-
-            if(
-                addr<=0 ||
-                addr>65535)
-            {
-                return;
-            }
-
-            var mode=
-                S(
-                    e,
-                    "outputMode",
-                    "accessory");
-
-            a.Add(
-                mode=="extended"
-                    ? new()
-                    {
-                        Id=id,
-                        Kind=
-                            RuntimeAccessoryKind.Signal,
-                        Address=
-                            (ushort)addr,
-                        Aspect=-1,
-                        SignalExtended=true
-                    }
-                    : new()
-                    {
-                        Id=id,
-                        Kind=
-                            RuntimeAccessoryKind.Accessory,
-                        Address=
-                            (ushort)addr
-                    });
-
-            return;
-        }
-    }
-
-    static void Restore(
-        List<RuntimeAccessory> a,
-        List<RuntimeSensor> s,
-        List<RuntimeBlock> b,
-        List<RuntimeAccessory> oa,
-        List<RuntimeSensor> os,
-        List<RuntimeBlock> ob)
-    {
-        foreach(
-            var x in a)
-        {
-            var o=
-                oa.FirstOrDefault(
-                    y =>
-                        y.Kind==x.Kind &&
-                        y.Address==x.Address);
-
-            if(o!=null)
-            {
-                x.Closed=
-                    o.Closed;
-
-                x.Aspect=
-                    o.Aspect;
-
-                x.Active=
-                    o.Active;
-            }
-        }
-
-        foreach(
-            var x in s)
-        {
-            var o=
-                os.FirstOrDefault(
-                    y =>
-                        y.Address==
-                        x.Address);
-
-            if(o!=null)
-            {
-                x.On=
-                    o.On;
-            }
-        }
-
-        foreach(
-            var x in b)
-        {
-            var o=
-                ob.FirstOrDefault(
-                    y =>
-                        y.Id==
-                        x.Id);
-
-            if(o!=null)
-            {
-                x.LocoId=
-                    o.LocoId;
-
-                x.LocoAddress=
-                    o.LocoAddress;
             }
         }
     }
 
-    public RuntimeAccessory?
-        FindAccessoryById(
-            RuntimeAccessoryKind kind,
-            ushort id,
-            byte channel=0)
+    public RuntimeAccessory? FindAccessoryById(RuntimeAccessoryKind kind, ushort id, byte channel = 0)
     {
-        lock(_gate)
-        {
-            return _accessories
-                .FirstOrDefault(
-                    x =>
-                        x.Kind==kind &&
-                        x.Id==id &&
-                        x.Channel==channel);
-        }
+        lock (_gate)
+            return _accessories.FirstOrDefault(x => x.Kind == kind && x.Id == id && x.Channel == channel);
     }
 
-    public RuntimeAccessory?
-        FindAccessory(
-            RuntimeAccessoryKind kind,
-            ushort address)
+    public RuntimeAccessory? FindAccessory(RuntimeAccessoryKind kind, ushort address)
     {
-        lock(_gate)
-        {
-            return _accessories
-                .FirstOrDefault(
-                    x =>
-                        x.Kind==kind &&
-                        x.Address==address);
-        }
+        lock (_gate)
+            return _accessories.FirstOrDefault(x => x.Kind == kind && x.Address == address);
     }
 
-    public RuntimeSensor?
-        FindSensorById(
-            ushort id)
+    public RuntimeSensor? FindSensorById(ushort id)
     {
-        lock(_gate)
-        {
-            return _sensors
-                .FirstOrDefault(
-                    x =>
-                        x.Id==id);
-        }
+        lock (_gate)
+            return _sensors.FirstOrDefault(x => x.Id == id);
     }
 
-    public RuntimeSensor?
-        FindSensor(
-            ushort address)
+    public RuntimeSensor? FindSensor(ushort address)
     {
-        lock(_gate)
-        {
-            return _sensors
-                .FirstOrDefault(
-                    x =>
-                        x.Address==
-                        address);
-        }
+        lock (_gate)
+            return _sensors.FirstOrDefault(x => x.Address == address);
     }
 
-    public bool SetTurnout(
-        ushort address,
-        bool physicalValue)
+    public bool TryGetSensorState(ushort address, out bool on)
     {
-        RuntimeAccessory? turnout;
-        bool logical;
+        lock (_gate)
+            return _sensorStates.TryGetValue(address, out on);
+    }
 
-        lock(_gate)
+    public bool TryGetBasicAccessoryState(ushort address, out bool active)
+    {
+        lock (_gate)
+            return _basicAccessoryStates.TryGetValue(address, out active);
+    }
+
+    public bool TryGetExtendedAccessoryState(ushort address, out byte aspect)
+    {
+        lock (_gate)
+            return _extendedAccessoryStates.TryGetValue(address, out aspect);
+    }
+
+    public bool TryGetVPinState(ushort address, out bool active)
+    {
+        lock (_gate)
+            return _vpinStates.TryGetValue(address, out active);
+    }
+
+    public bool TryGetTurnoutClosed(ushort address, out bool closed)
+    {
+        lock (_gate)
         {
-            turnout=
-                _accessories
-                    .FirstOrDefault(
-                        x =>
-                            x.Kind==
-                                RuntimeAccessoryKind.Turnout &&
-                            x.Address==
-                                address);
+            var turnout = _accessories.FirstOrDefault(x =>
+                x.Kind == RuntimeAccessoryKind.Turnout &&
+                x.Address == address);
 
-            if(turnout==null)
+            if (turnout is null)
             {
-                Console.WriteLine(
-                    $"LayoutRuntime: turnout address {address} not found");
-
+                closed = false;
                 return false;
             }
 
-            logical=
-                physicalValue==
-                turnout.ClosedValue;
-
-            turnout.Closed=
-                logical;
-        }
-
-        EmitTurnoutChanged(
-            turnout,
-            physicalValue);
-
-        Console.WriteLine(
-            $"LayoutRuntime: turnout id={turnout.Id} ch={turnout.Channel} address={address} physical={(physicalValue?1:0)} logical={(logical?"CLOSED":"THROWN")} mode={(turnout.TurnoutExtended?"extended":"accessory")} aspect={turnout.Aspect}");
-
-        return true;
-    }
-
-    void EmitTurnoutChanged(
-        RuntimeAccessory turnout,
-        bool physicalValue)
-    {
-        Changed?.Invoke(
-            "turnoutChanged",
-            new
+            if (turnout.TurnoutExtended)
             {
-                address=
-                    turnout.Address,
-
-                closed=
-                    physicalValue,
-
-                outputMode=
-                    turnout.TurnoutExtended
-                        ? "extended"
-                        : "accessory",
-
-                aspect=
-                    turnout.Aspect>=0
-                        ? (int?)
-                            turnout.Aspect
-                        : null,
-
-                closedAspect=
-                    turnout.TurnoutClosedAspect,
-
-                openedAspect=
-                    turnout.TurnoutOpenedAspect
-            });
-    }
-
-    public bool SetSignal(
-        ushort address,
-        int aspect)
-    {
-        RuntimeAccessory? signal;
-        RuntimeAccessory? turnout=null;
-
-        List<(ushort Address,bool Active)>
-            basicChanges=[];
-
-        bool signalExtended=false;
-        bool signalChanged=false;
-
-        lock(_gate)
-        {
-            signal=
-                _accessories
-                    .FirstOrDefault(
-                        x =>
-                            x.Kind==
-                                RuntimeAccessoryKind.Signal &&
-                            x.Address==
-                                address);
-
-            if(signal!=null)
-            {
-                signalExtended=
-                    signal.SignalExtended;
-
-                signalChanged=
-                    signal.Aspect!=
-                    aspect;
-
-                signal.Aspect=
-                    aspect;
-
-                if(!signalExtended)
+                if (!_extendedAccessoryStates.TryGetValue(address, out var aspect))
                 {
-                    for(
-                        int i=0;
-                        i<
-                        signal.SignalOutputCount;
-                        i++)
-                    {
-                        var outputAddress=
-                            (ushort)(
-                                signal.Address+i);
-
-                        var active=
-                            ((aspect>>i)&1)!=0;
-
-                        if(
-                            _basicAccessoryStates
-                                .TryGetValue(
-                                    outputAddress,
-                                    out var old) &&
-                            old==active)
-                        {
-                            continue;
-                        }
-
-                        _basicAccessoryStates[
-                            outputAddress]=
-                            active;
-
-                        basicChanges.Add(
-                            (
-                                outputAddress,
-                                active
-                            ));
-                    }
+                    closed = false;
+                    return false;
                 }
-            }
 
-            turnout=
-                _accessories
-                    .FirstOrDefault(
-                        x =>
-                            x.Kind==
-                                RuntimeAccessoryKind.Turnout &&
-                            x.Address==
-                                address &&
-                            x.TurnoutExtended);
-
-            if(turnout!=null)
-            {
-                turnout.Aspect=
-                    aspect;
-            }
-        }
-
-        if(signal!=null)
-        {
-            if(signalExtended)
-            {
-                if(signalChanged)
+                if (aspect == turnout.TurnoutClosedAspect)
                 {
-                    Changed?.Invoke(
-                        "signalAspectChanged",
-                        new
-                        {
-                            address,
-                            aspect
-                        });
+                    closed = true;
+                    return true;
+                }
+
+                if (aspect == turnout.TurnoutOpenedAspect)
+                {
+                    closed = false;
+                    return true;
+                }
+
+                closed = false;
+                return false;
+            }
+
+            bool physical;
+            if (turnout.TurnoutVPin)
+            {
+                if (!_vpinStates.TryGetValue(address, out physical))
+                {
+                    closed = false;
+                    return false;
                 }
             }
             else
             {
-                foreach(
-                    var change in
-                    basicChanges)
+                if (!_basicAccessoryStates.TryGetValue(address, out physical))
                 {
-                    Changed?.Invoke(
-                        "accessoryChanged",
-                        new
-                        {
-                            address=
-                                change.Address,
-                            active=
-                                change.Active
-                        });
+                    closed = false;
+                    return false;
                 }
             }
+
+            closed = physical == turnout.ClosedValue;
+            return true;
         }
-
-        if(turnout!=null)
-        {
-            var physicalValue=
-                turnout.Closed
-                    ? turnout.ClosedValue
-                    : !turnout.ClosedValue;
-
-            EmitTurnoutChanged(
-                turnout,
-                physicalValue);
-        }
-
-        return
-            signal!=null ||
-            turnout!=null;
     }
 
-    public bool SetAccessory(
-        ushort address,
-        bool active)
+    public bool TryGetSignalValue(ushort address, out int value)
     {
-        bool valid=false;
-        bool changed=false;
-
-        lock(_gate)
+        lock (_gate)
         {
-            var standalone=
-                _accessories
-                    .FirstOrDefault(
-                        x =>
-                            x.Kind==
-                                RuntimeAccessoryKind.Accessory &&
-                            x.Address==
-                                address);
+            var signal = _accessories.FirstOrDefault(x =>
+                x.Kind == RuntimeAccessoryKind.Signal &&
+                x.Address == address);
 
-            if(standalone!=null)
+            if (signal is null)
             {
-                valid=true;
-                standalone.Active=
-                    active;
-            }
-
-            var basicSignals=
-                _accessories
-                    .Where(
-                        x =>
-                            x.Kind==
-                                RuntimeAccessoryKind.Signal &&
-                            !x.SignalExtended &&
-                            address>=
-                                x.Address &&
-                            address<
-                                x.Address+
-                                x.SignalOutputCount)
-                    .ToList();
-
-            if(
-                basicSignals.Count>0)
-            {
-                valid=true;
-            }
-
-            if(!valid)
-            {
+                value = 0;
                 return false;
             }
 
-            if(
-                !_basicAccessoryStates
-                    .TryGetValue(
-                        address,
-                        out var old) ||
-                old!=active)
+            if (signal.SignalExtended)
             {
-                _basicAccessoryStates[
-                    address]=
-                    active;
-
-                changed=true;
-            }
-
-            foreach(
-                var signal in
-                basicSignals)
-            {
-                int value=0;
-
-                for(
-                    int i=0;
-                    i<
-                    signal.SignalOutputCount;
-                    i++)
+                if (_extendedAccessoryStates.TryGetValue(address, out var aspect))
                 {
-                    var outputAddress=
-                        (ushort)(
-                            signal.Address+i);
-
-                    if(
-                        _basicAccessoryStates
-                            .TryGetValue(
-                                outputAddress,
-                                out var outputActive) &&
-                        outputActive)
-                    {
-                        value|=
-                            1<<i;
-                    }
+                    value = aspect;
+                    return true;
                 }
 
-                signal.Aspect=
-                    value;
-            }
-        }
-
-        if(changed)
-        {
-            Changed?.Invoke(
-                "accessoryChanged",
-                new
-                {
-                    address,
-                    active
-                });
-        }
-
-        return true;
-    }
-
-    public bool SetVPin(
-        ushort address,
-        bool active)
-    {
-        lock(_gate)
-        {
-            var x=
-                _accessories
-                    .FirstOrDefault(
-                        x =>
-                            x.Kind==
-                                RuntimeAccessoryKind.VPin &&
-                            x.Address==
-                                address);
-
-            if(x==null)
-            {
+                value = 0;
                 return false;
             }
 
-            if(
-                x.Active==
-                active)
+            int bits = 0;
+
+            for (int i = 0; i < signal.SignalOutputCount; i++)
             {
-                return true;
+                var outputAddress = (ushort)(signal.Address + i);
+
+                if (!_basicAccessoryStates.TryGetValue(outputAddress, out var active))
+                {
+                    value = 0;
+                    return false;
+                }
+
+                if (active)
+                    bits |= 1 << i;
             }
 
-            x.Active=
-                active;
+            value = bits;
+            return true;
+        }
+    }
+
+    public IReadOnlyDictionary<ushort, bool> BasicAccessoryStatesForPersistence()
+    {
+        lock (_gate)
+            return new Dictionary<ushort, bool>(_basicAccessoryStates);
+    }
+
+    public IReadOnlyDictionary<ushort, byte> ExtendedAccessoryStatesForPersistence()
+    {
+        lock (_gate)
+            return new Dictionary<ushort, byte>(_extendedAccessoryStates);
+    }
+
+    public IReadOnlyDictionary<ushort, bool> VPinStatesForPersistence()
+    {
+        lock (_gate)
+            return new Dictionary<ushort, bool>(_vpinStates);
+    }
+
+    public RuntimeBlock[] BlocksForPersistence()
+    {
+        lock (_gate)
+            return _blocks.Select(x => new RuntimeBlock
+            {
+                Id = x.Id,
+                LocoId = x.LocoId,
+                LocoAddress = x.LocoAddress
+            }).ToArray();
+    }
+
+    void EmitTurnoutDerivedEventsForAddress(ushort address)
+    {
+        RuntimeAccessory[] turnouts;
+
+        lock (_gate)
+        {
+            turnouts = _accessories
+                .Where(x => x.Kind == RuntimeAccessoryKind.Turnout && x.Address == address)
+                .ToArray();
         }
 
-        Changed?.Invoke(
-            "vpinChanged",
-            new
+        foreach (var turnout in turnouts)
+        {
+            bool logicalKnown = TryGetTurnoutClosed(address, out var logicalClosed);
+            bool physicalValue = logicalKnown
+                ? logicalClosed ? turnout.ClosedValue : !turnout.ClosedValue
+                : false;
+
+            byte? aspect = null;
+            if (turnout.TurnoutExtended && TryGetExtendedAccessoryState(address, out var ext))
+                aspect = ext;
+
+            Changed?.Invoke("turnoutChanged", new
             {
-                vpin=
-                    address,
-                active
+                address,
+                closed = physicalValue,
+                logicalClosed = logicalKnown ? logicalClosed : (bool?)null,
+                outputMode = turnout.TurnoutExtended
+                    ? "extended"
+                    : turnout.TurnoutVPin
+                        ? "vpin"
+                        : "accessory",
+                aspect,
+                closedAspect = turnout.TurnoutClosedAspect,
+                openedAspect = turnout.TurnoutOpenedAspect
             });
-
-        return true;
+        }
     }
 
-    public bool SetSensor(
-        ushort address,
-        bool on)
+    public bool SetTurnout(ushort address, bool physicalValue)
     {
-        List<ushort> changed=[];
-        bool found;
+        RuntimeAccessory? turnout;
 
-        lock(_gate)
+        lock (_gate)
         {
-            _sensorStates[
-                address]=
-                on;
-
-            var xs=
-                _sensors
-                    .Where(
-                        x =>
-                            x.Address==
-                            address)
-                    .ToList();
-
-            found=
-                xs.Count>0;
-
-            foreach(
-                var x in xs)
-            {
-                if(
-                    x.On!=
-                    on)
-                {
-                    x.On=
-                        on;
-
-                    changed.Add(
-                        x.Id);
-                }
-            }
+            turnout = _accessories.FirstOrDefault(x =>
+                x.Kind == RuntimeAccessoryKind.Turnout &&
+                x.Address == address);
         }
 
-        foreach(
-            var _ in changed)
+        if (turnout is null)
         {
-            Changed?.Invoke(
-                "sensorChanged",
-                new
-                {
-                    address,
-                    on
-                });
+            Console.WriteLine($"LayoutRuntime: turnout address {address} not found");
+            return false;
         }
 
-        if(
-            changed.Count>0)
+        if (turnout.TurnoutExtended)
         {
-            Console.WriteLine(
-                $"LayoutRuntime: sensor address {address} -> {(on?"ON":"OFF")}");
-        }
-        else if(!found)
-        {
-            Console.WriteLine(
-                $"LayoutRuntime: sensor address {address} cached -> {(on?"ON":"OFF")} (not used by current layout)");
+            // Extended turnout physical state is represented by its aspect, not
+            // a second bool state. The caller should use SetSignal/SetExtended.
+            EmitTurnoutDerivedEventsForAddress(address);
+            return true;
         }
 
-        return true;
+        if (turnout.TurnoutVPin)
+            return SetVPin(address, physicalValue);
+
+        return SetAccessory(address, physicalValue);
     }
 
-    public bool SetBlock(
-        ushort id,
-        string locoId,
-        ushort locoAddress)
+    public bool SetSignal(ushort address, int aspect)
     {
-        bool changed=false;
+        if (aspect is < 0 or > 255)
+            return false;
 
-        lock(_gate)
+        bool changed;
+
+        lock (_gate)
         {
-            var t=
-                _blocks
-                    .FirstOrDefault(
-                        x =>
-                            x.Id==
-                            id);
-
-            if(t==null)
-            {
-                return false;
-            }
-
-            bool clearing=
-                string.IsNullOrEmpty(
-                    locoId) &&
-                locoAddress==0;
-
-            if(!clearing)
-            {
-                foreach(
-                    var x in
-                    _blocks)
-                {
-                    if(
-                        x.Id!=id &&
-                        x.Occupied &&
-                        (
-                            (
-                                locoAddress>0 &&
-                                x.LocoAddress==
-                                    locoAddress
-                            ) ||
-                            (
-                                !string.IsNullOrEmpty(
-                                    locoId) &&
-                                x.LocoId==
-                                    locoId
-                            )
-                        ))
-                    {
-                        x.LocoId="";
-                        x.LocoAddress=0;
-                        changed=true;
-                    }
-                }
-            }
-
-            if(clearing)
-            {
-                if(
-                    t.HasRuntimeState)
-                {
-                    t.LocoId="";
-                    t.LocoAddress=0;
-                    changed=true;
-                }
-            }
-            else if(
-                t.LocoId!=
-                    locoId ||
-                t.LocoAddress!=
-                    locoAddress)
-            {
-                t.LocoId=
-                    locoId;
-
-                t.LocoAddress=
-                    locoAddress;
-
-                changed=true;
-            }
-        }
-
-        if(changed)
-        {
-            Changed?.Invoke(
-                "blockStateChanged",
-                BlockSnapshot());
-        }
-
-        return true;
-    }
-
-    public bool RemoveBlock(
-        ushort id,
-        string locoId="")
-    {
-        lock(_gate)
-        {
-            var b=
-                _blocks
-                    .FirstOrDefault(
-                        x =>
-                            x.Id==
-                            id);
-
-            if(b==null)
+            if (!_extendedAccessoryStates.ContainsKey(address))
                 return false;
 
-            if(
-                !b.HasRuntimeState)
+            changed = _extendedAccessoryStates[address] != (byte)aspect;
+            _extendedAccessoryStates[address] = (byte)aspect;
+        }
+
+        if (changed)
+            Changed?.Invoke("signalAspectChanged", new { address, aspect });
+
+        EmitTurnoutDerivedEventsForAddress(address);
+        return true;
+    }
+
+    public bool SetAccessory(ushort address, bool active)
+    {
+        bool changed;
+
+        lock (_gate)
+        {
+            if (!_basicAccessoryStates.ContainsKey(address))
+                return false;
+
+            changed = _basicAccessoryStates[address] != active;
+            _basicAccessoryStates[address] = active;
+        }
+
+        if (changed)
+            Changed?.Invoke("accessoryChanged", new { address, active });
+
+        EmitTurnoutDerivedEventsForAddress(address);
+        return true;
+    }
+
+    public bool SetVPin(ushort address, bool active)
+    {
+        bool changed;
+
+        lock (_gate)
+        {
+            if (!_vpinStates.ContainsKey(address))
+                return false;
+
+            changed = _vpinStates[address] != active;
+            _vpinStates[address] = active;
+        }
+
+        if (changed)
+            Changed?.Invoke("vpinChanged", new { vpin = address, active });
+
+        EmitTurnoutDerivedEventsForAddress(address);
+        return true;
+    }
+
+    public bool SetSensor(ushort address, bool on)
+    {
+        bool changed;
+
+        lock (_gate)
+        {
+            changed = !_sensorStates.TryGetValue(address, out var old) || old != on;
+            _sensorStates[address] = on;
+        }
+
+        if (changed)
+            Changed?.Invoke("sensorChanged", new { address, on });
+
+        return true;
+    }
+
+    public bool SetBlock(ushort id, string locoId, ushort locoAddress)
+    {
+        bool changed = false;
+
+        lock (_gate)
+        {
+            var target = _blocks.FirstOrDefault(x => x.Id == id);
+            if (target is null)
+                return false;
+
+            bool clearing = string.IsNullOrEmpty(locoId) && locoAddress == 0;
+
+            if (!clearing)
+            {
+                foreach (var block in _blocks)
+                {
+                    if (block.Id == id || !block.Occupied)
+                        continue;
+
+                    bool sameAddress = locoAddress > 0 && block.LocoAddress == locoAddress;
+                    bool sameId = !string.IsNullOrEmpty(locoId) && block.LocoId == locoId;
+
+                    if (!sameAddress && !sameId)
+                        continue;
+
+                    block.LocoId = "";
+                    block.LocoAddress = 0;
+                    changed = true;
+                }
+            }
+
+            if (clearing)
+            {
+                if (target.HasRuntimeState)
+                {
+                    target.LocoId = "";
+                    target.LocoAddress = 0;
+                    changed = true;
+                }
+            }
+            else if (target.LocoId != locoId || target.LocoAddress != locoAddress)
+            {
+                target.LocoId = locoId;
+                target.LocoAddress = locoAddress;
+                changed = true;
+            }
+        }
+
+        if (changed)
+            Changed?.Invoke("blockStateChanged", BlockSnapshot());
+
+        return true;
+    }
+
+    public bool RemoveBlock(ushort id, string locoId = "")
+    {
+        lock (_gate)
+        {
+            var block = _blocks.FirstOrDefault(x => x.Id == id);
+            if (block is null)
+                return false;
+
+            if (!block.HasRuntimeState)
                 return true;
 
-            if(
-                locoId.Length>0 &&
-                b.LocoId!=locoId)
+            if (locoId.Length > 0 && block.LocoId != locoId)
                 return false;
 
-            b.LocoId="";
-            b.LocoAddress=0;
+            block.LocoId = "";
+            block.LocoAddress = 0;
         }
 
-        Changed?.Invoke(
-            "blockStateChanged",
-            BlockSnapshot());
-
+        Changed?.Invoke("blockStateChanged", BlockSnapshot());
         return true;
     }
 
     public bool ClearBlocks()
     {
-        bool changed=false;
+        bool changed = false;
 
-        lock(_gate)
+        lock (_gate)
         {
-            foreach(
-                var b in
-                _blocks)
+            foreach (var block in _blocks)
             {
-                if(
-                    b.HasRuntimeState)
-                {
-                    b.LocoId="";
-                    b.LocoAddress=0;
-                    changed=true;
-                }
+                if (!block.HasRuntimeState)
+                    continue;
+
+                block.LocoId = "";
+                block.LocoAddress = 0;
+                changed = true;
             }
         }
 
-        if(changed)
-        {
-            Changed?.Invoke(
-                "blockStateChanged",
-                BlockSnapshot());
-        }
+        if (changed)
+            Changed?.Invoke("blockStateChanged", BlockSnapshot());
 
         return true;
     }
 
     public object BlockSnapshot()
     {
-        lock(_gate)
+        lock (_gate)
         {
-            return _blocks
-                .ToDictionary(
-                    x =>
-                        x.Id.ToString(),
-                    x =>
-                        (object)new
-                        {
-                            locoId=
-                                x.LocoId,
-                            locoAddress=
-                                x.LocoAddress
-                        });
+            return _blocks.ToDictionary(
+                x => x.Id.ToString(),
+                x => (object)new
+                {
+                    locoId = x.LocoId,
+                    locoAddress = x.LocoAddress
+                });
         }
     }
 
     public object SensorSnapshot()
     {
-        lock(_gate)
+        lock (_gate)
         {
-            var groups=
-                _sensors
-                    .GroupBy(
-                        x =>
-                            (x.Address/16)*16)
-                    .OrderBy(
-                        g =>
-                            g.Key)
-                    .Select(
-                        g =>
-                        {
-                            int active=0;
-                            int known=0;
+            var groups = _sensorStates
+                .GroupBy(x => (x.Key / 16) * 16)
+                .OrderBy(g => g.Key)
+                .Select(g =>
+                {
+                    int active = 0;
+                    int known = 0;
 
-                            foreach(
-                                var s in g)
-                            {
-                                int bit=
-                                    s.Address-
-                                    g.Key;
+                    foreach (var state in g)
+                    {
+                        int bit = state.Key - g.Key;
+                        if (bit is < 0 or >= 16)
+                            continue;
 
-                                if(
-                                    bit is
-                                        >=0 and <16)
-                                {
-                                    known|=
-                                        1<<bit;
+                        known |= 1 << bit;
+                        if (state.Value)
+                            active |= 1 << bit;
+                    }
 
-                                    if(s.On)
-                                    {
-                                        active|=
-                                            1<<bit;
-                                    }
-                                }
-                            }
+                    return new[] { g.Key, active, known };
+                })
+                .ToArray();
 
-                            return new[]
-                            {
-                                g.Key,
-                                active,
-                                known
-                            };
-                        })
-                    .ToArray();
-
-            return new
-            {
-                groups
-            };
+            return new { groups };
         }
     }
 
-    public IReadOnlyList<RuntimeSnapshotItem>
-        RuntimeSnapshot()
+    public IReadOnlyList<RuntimeSnapshotItem> RuntimeSnapshot()
     {
-        lock(_gate)
+        lock (_gate)
         {
-            var items=
-                new List<RuntimeSnapshotItem>();
+            var items = new List<RuntimeSnapshotItem>();
 
-            foreach(
-                var x in
-                _accessories
-                    .Where(
-                        x =>
-                            x.Kind==
-                            RuntimeAccessoryKind.Turnout))
+            // Physical state first: Debug and client runtime consume exactly
+            // the same authoritative maps.
+            foreach (var state in _basicAccessoryStates.OrderBy(x => x.Key))
+                items.Add(new("accessoryChanged", new { address = state.Key, active = state.Value }));
+
+            foreach (var state in _extendedAccessoryStates.OrderBy(x => x.Key))
+                items.Add(new("signalAspectChanged", new { address = state.Key, aspect = state.Value }));
+
+            foreach (var state in _vpinStates.OrderBy(x => x.Key))
+                items.Add(new("vpinChanged", new { vpin = state.Key, active = state.Value }));
+
+            foreach (var state in _sensorStates.OrderBy(x => x.Key))
+                items.Add(new("sensorChanged", new { address = state.Key, on = state.Value }));
+
+            // Semantic turnout rows are derived from topology + physical state.
+            foreach (var turnout in _accessories.Where(x => x.Kind == RuntimeAccessoryKind.Turnout))
             {
-                var physicalValue=
-                    x.Closed
-                        ? x.ClosedValue
-                        : !x.ClosedValue;
+                bool logicalKnown = TryGetTurnoutClosed(turnout.Address, out var logicalClosed);
+                bool physicalValue = logicalKnown
+                    ? logicalClosed ? turnout.ClosedValue : !turnout.ClosedValue
+                    : false;
 
-                items.Add(
-                    new(
-                        "turnoutChanged",
-                        new
-                        {
-                            address=
-                                x.Address,
+                byte? aspect = null;
+                if (turnout.TurnoutExtended && _extendedAccessoryStates.TryGetValue(turnout.Address, out var ext))
+                    aspect = ext;
 
-                            closed=
-                                physicalValue,
-
-                            outputMode=
-                                x.TurnoutExtended
-                                    ? "extended"
-                                    : "accessory",
-
-                            aspect=
-                                x.Aspect>=0
-                                    ? (int?)
-                                        x.Aspect
-                                    : null,
-
-                            closedAspect=
-                                x.TurnoutClosedAspect,
-
-                            openedAspect=
-                                x.TurnoutOpenedAspect
-                        }));
-            }
-
-            foreach(
-                var x in
-                _accessories
-                    .Where(
-                        x =>
-                            x.Kind==
-                                RuntimeAccessoryKind.Signal &&
-                            x.SignalExtended))
-            {
-                items.Add(
-                    new(
-                        "signalAspectChanged",
-                        new
-                        {
-                            address=
-                                x.Address,
-                            aspect=
-                                x.Aspect
-                        }));
-            }
-
-            foreach(
-                var x in
-                _accessories
-                    .Where(
-                        x =>
-                            x.Kind==
-                            RuntimeAccessoryKind.Accessory))
-            {
-                var active=
-                    _basicAccessoryStates
-                        .TryGetValue(
-                            x.Address,
-                            out var state)
-                        ? state
-                        : x.Active;
-
-                items.Add(
-                    new(
-                        "accessoryChanged",
-                        new
-                        {
-                            address=
-                                x.Address,
-                            active
-                        }));
-            }
-
-            foreach(
-                var signal in
-                _accessories
-                    .Where(
-                        x =>
-                            x.Kind==
-                                RuntimeAccessoryKind.Signal &&
-                            !x.SignalExtended))
-            {
-                for(
-                    int i=0;
-                    i<
-                    signal.SignalOutputCount;
-                    i++)
+                items.Add(new("turnoutChanged", new
                 {
-                    var outputAddress=
-                        (ushort)(
-                            signal.Address+i);
-
-                    bool active;
-
-                    if(
-                        _basicAccessoryStates
-                            .TryGetValue(
-                                outputAddress,
-                                out var state))
-                    {
-                        active=
-                            state;
-                    }
-                    else if(
-                        signal.Aspect>=0)
-                    {
-                        active=
-                            ((signal.Aspect>>i)&1)!=0;
-                    }
-                    else
-                    {
-                        continue;
-                    }
-
-                    items.Add(
-                        new(
-                            "accessoryChanged",
-                            new
-                            {
-                                address=
-                                    outputAddress,
-                                active
-                            }));
-                }
+                    address = turnout.Address,
+                    closed = physicalValue,
+                    logicalClosed = logicalKnown ? logicalClosed : (bool?)null,
+                    outputMode = turnout.TurnoutExtended
+                        ? "extended"
+                        : turnout.TurnoutVPin
+                            ? "vpin"
+                            : "accessory",
+                    aspect,
+                    closedAspect = turnout.TurnoutClosedAspect,
+                    openedAspect = turnout.TurnoutOpenedAspect
+                }));
             }
 
-            foreach(
-                var x in
-                _sensors)
-            {
-                items.Add(
-                    new(
-                        "sensorChanged",
-                        new
-                        {
-                            address=
-                                x.Address,
-                            on=
-                                x.On
-                        }));
-            }
-
-            items.Add(
-                new(
-                    "sensorSnapshot",
-                    SensorSnapshot()));
-
-            items.Add(
-                new(
-                    "blockStateChanged",
-                    BlockSnapshot()));
+            items.Add(new("sensorSnapshot", SensorSnapshot()));
+            items.Add(new("blockStateChanged", BlockSnapshot()));
 
             return items;
         }

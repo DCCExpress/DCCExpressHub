@@ -24,16 +24,32 @@ bool SignalAutomationEngine::parseSignal(JsonObjectConst row,std::vector<SignalR
   long rawAddress=row["address"]|0L;
   if(rawAddress<=0||rawAddress>0xffff)return false;
   uint16_t address=static_cast<uint16_t>(rawAddress);
-  if(!_runtime.findAccessory(RuntimeAccessoryKind::Signal,address))return false;
+
+  const RuntimeAccessory* target=_runtime.findAccessory(RuntimeAccessoryKind::Signal,address);
+  if(!target)return false;
 
   const char* mode=row["mode"]|"";
   bool ext=strcmp(mode,"extended")==0;
   if(!ext&&strcmp(mode,"basic")!=0)return false;
-  int out=row["outputs"]|1;out=constrain(out,1,16);
-  long def=row["default"]|0L;if(!fits(ext,(uint8_t)out,def))return false;
-  JsonArrayConst rawRules=row["rules"].as<JsonArrayConst>();if(rawRules.isNull())return false;
 
-  SignalRuleSet signal;signal.address=address;signal.extended=ext;signal.outputs=(uint8_t)out;signal.defaultValue=def;
+  // Automation protocol must match the current layout topology.
+  if(ext!=target->signalExtended)return false;
+
+  int out=ext?1:target->signalOutputCount;
+  int persistedOut=row["outputs"]|out;
+  if(!ext&&persistedOut!=out)return false;
+
+  long def=row["default"]|0L;
+  if(!fits(ext,(uint8_t)out,def))return false;
+
+  JsonArrayConst rawRules=row["rules"].as<JsonArrayConst>();
+  if(rawRules.isNull())return false;
+
+  SignalRuleSet signal;
+  signal.address=address;
+  signal.extended=ext;
+  signal.outputs=(uint8_t)out;
+  signal.defaultValue=def;
 
   for(JsonVariantConst rv:rawRules){
     JsonObjectConst rr=rv.as<JsonObjectConst>();if(rr.isNull())continue;
@@ -47,45 +63,56 @@ bool SignalAutomationEngine::parseSignal(JsonObjectConst row,std::vector<SignalR
       Condition cond;
 
       if(c.size()==3){
-        long addr=c[1]|0L;int physical=c[2]|-1;
-        if(addr<=0||addr>0xffff||(physical!=0&&physical!=1)){valid=false;break;}
+        long addr=c[1]|0L;int logical=c[2]|-1;
+        if(addr<=0||addr>0xffff||(logical!=0&&logical!=1)){valid=false;break;}
+
         if(strcmp(source,"turnout")==0){
-          RuntimeAccessory* t=_runtime.findAccessory(RuntimeAccessoryKind::Turnout,(uint16_t)addr);
-          if(!t){valid=false;break;}
-          cond.source=Condition::Source::Turnout;cond.address=(uint16_t)addr;
-          cond.value=(physical!=0)==t->closedValue;
+          if(!_runtime.findAccessory(RuntimeAccessoryKind::Turnout,(uint16_t)addr)){valid=false;break;}
+          cond.source=Condition::Source::Turnout;
+          cond.address=(uint16_t)addr;
+          cond.value=logical!=0;
         }else if(strcmp(source,"sensor")==0){
           if(!_runtime.findSensor((uint16_t)addr)){valid=false;break;}
-          cond.source=Condition::Source::Sensor;cond.address=(uint16_t)addr;cond.value=physical!=0;
+          cond.source=Condition::Source::Sensor;
+          cond.address=(uint16_t)addr;
+          cond.value=logical!=0;
         }else{valid=false;break;}
       }else if(c.size()==4){
-        // Legacy ID row: resolve once to a physical address. Runtime matching is address-only.
         long id=c[1]|0L;int ch=c[2]|0;int v=c[3]|-1;
         if(id<=0||id>0xffff||ch<0||ch>1||(v!=0&&v!=1)){valid=false;break;}
+
         if(strcmp(source,"turnout")==0){
           RuntimeAccessory* t=_runtime.findAccessoryById(RuntimeAccessoryKind::Turnout,(uint16_t)id,(uint8_t)ch);
           if(!t){valid=false;break;}
-          cond.source=Condition::Source::Turnout;cond.address=t->address;cond.value=v!=0;
+          cond.source=Condition::Source::Turnout;
+          cond.address=t->address;
+          cond.value=v!=0;
         }else if(strcmp(source,"sensor")==0){
           RuntimeSensor* s=_runtime.findSensorById((uint16_t)id);
           if(!s){valid=false;break;}
-          cond.source=Condition::Source::Sensor;cond.address=s->address;cond.value=v!=0;
+          cond.source=Condition::Source::Sensor;
+          cond.address=s->address;
+          cond.value=v!=0;
         }else{valid=false;break;}
       }else{valid=false;break;}
+
       rule.conditions.push_back(cond);
     }
+
     if(valid&&rule.conditions.size()==cs.size())signal.rules.push_back(std::move(rule));
   }
 
   if(signal.rules.empty())return false;
   for(auto& existing:signals)if(existing.address==signal.address){existing=std::move(signal);return true;}
-  signals.push_back(std::move(signal));return true;
+  signals.push_back(std::move(signal));
+  return true;
 }
 
 bool SignalAutomationEngine::parseFile(const char* path,bool& enabled,std::vector<SignalRuleSet>& signals) const{
   if(!_fs||!path||!*path)return false;
   FileStore store(*_fs);File file=store.openRead(path);if(!file)return false;
   enabled=false;signals.clear();
+
   while(file.available()){
     String line=file.readStringUntil('\n');line.trim();if(line.isEmpty())continue;
     JsonDocument doc;if(deserializeJson(doc,line)||!doc.is<JsonObject>())continue;
@@ -93,6 +120,7 @@ bool SignalAutomationEngine::parseFile(const char* path,bool& enabled,std::vecto
     if(strcmp(kind,"meta")==0){enabled=o["enabled"]|false;continue;}
     if(strcmp(kind,"signal")==0)parseSignal(o,signals);
   }
+
   file.close();return true;
 }
 
@@ -107,21 +135,24 @@ bool SignalAutomationEngine::reload(){
   bool e=false;std::vector<SignalRuleSet>s;
   if(!parseFile(_path.c_str(),e,s))return false;
   _enabled=e;_signals=std::move(s);
-  Logger::info("SignalAutomation: address-authoritative, loaded "+String(_signals.size())+" signal(s)");
+  Logger::info("SignalAutomation: physical-runtime model, loaded "+String(_signals.size())+" signal(s)");
   return true;
 }
 
 bool SignalAutomationEngine::conditionMatches(const Condition& c) const{
   if(c.source==Condition::Source::Sensor){
-    const RuntimeSensor* s=_runtime.findSensor(c.address);return s&&s->on==c.value;
+    bool on=false;
+    return _runtime.getSensorState(c.address,on)&&on==c.value;
   }
-  const RuntimeAccessory* t=_runtime.findAccessory(RuntimeAccessoryKind::Turnout,c.address);
-  return t&&t->closed==c.value;
+
+  bool closed=false;
+  return _runtime.getTurnoutClosed(c.address,closed)&&closed==c.value;
 }
 
 int32_t SignalAutomationEngine::desiredValue(const SignalRuleSet& s) const{
   for(const auto& r:s.rules){
-    bool ok=true;for(const auto& c:r.conditions)if(!conditionMatches(c)){ok=false;break;}
+    bool ok=true;
+    for(const auto& c:r.conditions)if(!conditionMatches(c)){ok=false;break;}
     if(ok)return r.value;
   }
   return s.defaultValue;
@@ -131,6 +162,7 @@ void SignalAutomationEngine::broadcastExtended(uint16_t address,int16_t aspect){
   JsonDocument d;d["type"]="signalAspectChanged";d["data"]["address"]=address;d["data"]["aspect"]=aspect;
   String body;serializeJson(d,body);_ws.textAll(body);
 }
+
 void SignalAutomationEngine::broadcastBasic(uint16_t address,uint8_t outputs,uint16_t bits){
   for(uint8_t i=0;i<outputs;i++){
     JsonDocument d;d["type"]="accessoryChanged";d["data"]["address"]=address+i;d["data"]["active"]=((bits>>i)&1U)!=0;
@@ -139,25 +171,42 @@ void SignalAutomationEngine::broadcastBasic(uint16_t address,uint8_t outputs,uin
 }
 
 void SignalAutomationEngine::applySignal(SignalRuleSet& s,int32_t value){
-  RuntimeAccessory* target=_runtime.findAccessory(RuntimeAccessoryKind::Signal,s.address);
+  const RuntimeAccessory* target=_runtime.findAccessory(RuntimeAccessoryKind::Signal,s.address);
   if(!target){Logger::warn("SignalAutomation: signal address "+String(s.address)+" not found");return;}
   if(s.hasAppliedValue&&s.appliedValue==value)return;
+
   if(s.extended){
     if(value<0||value>255||!_commandCenter.setSignalAspect(s.address,(int16_t)value))return;
-    _runtime.setSignal(s.address,(int)value);broadcastExtended(s.address,(int16_t)value);
+    _runtime.setSignal(s.address,(int16_t)value);
+    broadcastExtended(s.address,(int16_t)value);
   }else{
-    if(value<0||value>65535)return;uint16_t bits=(uint16_t)value;
-    for(uint8_t i=0;i<s.outputs;i++)if(!_commandCenter.setAccessory(s.address+i,((bits>>i)&1U)!=0))return;
-    _runtime.setSignal(s.address,(int)value);broadcastBasic(s.address,s.outputs,bits);
+    if(value<0||value>65535)return;
+    uint16_t bits=(uint16_t)value;
+
+    for(uint8_t i=0;i<s.outputs;i++){
+      bool active=((bits>>i)&1U)!=0;
+      uint16_t outputAddress=s.address+i;
+      if(!_commandCenter.setAccessory(outputAddress,active))return;
+      _runtime.setAccessory(outputAddress,active);
+    }
+
+    broadcastBasic(s.address,s.outputs,bits);
   }
-  s.appliedValue=value;s.hasAppliedValue=true;
+
+  s.appliedValue=value;
+  s.hasAppliedValue=true;
 }
 
 void SignalAutomationEngine::evaluate(){
-  if(_evaluating||!_enabled)return;_evaluating=true;
+  if(_evaluating||!_enabled)return;
+  _evaluating=true;
   for(auto& s:_signals)applySignal(s,desiredValue(s));
   _evaluating=false;
 }
+
 void SignalAutomationEngine::handleRuntimeChange(RuntimeChangeKind kind,uint16_t,uint8_t){
-  if(kind==RuntimeChangeKind::Turnout||kind==RuntimeChangeKind::Sensor)evaluate();
+  if(kind==RuntimeChangeKind::Turnout||kind==RuntimeChangeKind::Sensor||
+     kind==RuntimeChangeKind::Accessory||kind==RuntimeChangeKind::Signal){
+    evaluate();
+  }
 }
