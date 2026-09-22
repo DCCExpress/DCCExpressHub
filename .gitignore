@@ -53,8 +53,7 @@ coverage/
 *.coverage
 *.coveragexml
 
-# Mock/runtime generated data
-web-ui/mock-fs/
+# Runtime generated data
 data/
 **/data/
 

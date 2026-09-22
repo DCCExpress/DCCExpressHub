@@ -42,18 +42,6 @@ type ExplicitPayloadMessageListener<TData> =
 
 const WS_DEBUG = false;
 
-/*
- * WebSocket heartbeat
- *
- * A lightweight application-level heartbeat is sent periodically.
- * A heartbeat saját UUID-t használ, ezért a válaszát
- * nem továbbítjuk a normál alkalmazás-listenerekhez.
- *
- * Fontos:
- * Nem kizárólag a heartbeat válasz számít életjelnek.
- * BÁRMELY érvényes bejövő WS üzenet bizonyítja,
- * hogy a kapcsolat működik.
- */
 const HEARTBEAT_INTERVAL_MS = 5000;
 const HEARTBEAT_TIMEOUT_MS = 15000;
 
@@ -72,6 +60,25 @@ class WsClient {
 
     private typedListeners =
         new Map<string, Set<AnyTypedMessageListener>>();
+
+    /*
+     * Sticky locomotive runtime cache.
+     *
+     * The backend sends locoState messages immediately after a WebSocket
+     * connection is accepted. During a full browser refresh those messages
+     * can arrive before the LocoPanel has mounted and registered its typed
+     * listener.
+     *
+     * WebSocket messages are transient by nature, therefore without this cache
+     * an authoritative desktop snapshot can be received correctly and still be
+     * lost by the UI.
+     *
+     * Cache the latest state by DCC address at the transport boundary. A newly
+     * registered locoState listener receives the current cached states once,
+     * then continues to receive normal live events.
+     */
+    private readonly latestLocoStates =
+        new Map<number, ServerWsPayloadMap["locoState"]>();
 
     private reconnectTimer: number | null = null;
     private heartbeatTimer: number | null = null;
@@ -122,10 +129,6 @@ class WsClient {
         this.socket = socket;
 
         socket.onopen = () => {
-            /*
-             * Lehet, hogy közben már egy másik socket lett az aktív.
-             * Ilyenkor ezt az eseményt ignoráljuk.
-             */
             if (this.socket !== socket) {
                 return;
             }
@@ -146,33 +149,41 @@ class WsClient {
                 return;
             }
 
-            /*
-             * Bármilyen bejövő WS üzenet azt jelenti,
-             * hogy a szerver él és a kapcsolat kétirányú.
-             */
             this.lastMessageAt = Date.now();
 
             try {
                 const message =
                     JSON.parse(event.data) as TypedServerWsMessage;
 
-                /*
-                 * A heartbeat saját belső forgalom.
-                 *
-                 * Nem küldjük tovább:
-                 * - ConsolePanelnek
-                 * - subscribeMessages listenereknek
-                 * - typed listenereknek
-                 *
-                 * Így a <#> heartbeat teljesen láthatatlan
-                 * marad az alkalmazás többi része számára.
-                 */
                 if (message.type === "heartbeatAck") {
                     if (WS_DEBUG) {
                         console.debug("[WS] heartbeat response");
                     }
 
                     return;
+                }
+
+                /*
+                 * Capture loco state BEFORE notifying any UI listener.
+                 *
+                 * This is deliberately owned by WsClient rather than a panel:
+                 * panels may mount/unmount, two throttle panels may exist at
+                 * once, and the server snapshot may arrive before either one
+                 * subscribes.
+                 */
+                if (message.type === "locoState") {
+                    const address =
+                        message.data.loco?.address;
+
+                    if (
+                        Number.isInteger(address) &&
+                        address > 0
+                    ) {
+                        this.latestLocoStates.set(
+                            address,
+                            message.data
+                        );
+                    }
                 }
 
                 this.messageListeners.forEach(listener =>
@@ -200,11 +211,6 @@ class WsClient {
         };
 
         socket.onclose = event => {
-            /*
-             * Ha már nem ez az aktív socket,
-             * akkor egy korábbi kapcsolat későn érkező
-             * close eventjéről van szó.
-             */
             if (this.socket !== socket) {
                 return;
             }
@@ -232,13 +238,6 @@ class WsClient {
                 );
             }
 
-            /*
-             * Nem várunk arra, hogy a böngésző valamikor
-             * később close eseményt küldjön.
-             *
-             * Az error már elég ok arra, hogy ezt a
-             * kapcsolatot halottnak tekintsük.
-             */
             this.handleConnectionLost(socket);
         };
     }
@@ -254,10 +253,6 @@ class WsClient {
         this.socket = null;
 
         if (socket) {
-            /*
-             * Megakadályozzuk, hogy a close esemény
-             * automatikus reconnectet indítson.
-             */
             socket.onopen = null;
             socket.onmessage = null;
             socket.onclose = null;
@@ -296,11 +291,6 @@ class WsClient {
                 message
             );
 
-            /*
-             * Ha a státusz még connected volt, de maga
-             * a socket már nem OPEN, akkor azonnal javítjuk
-             * a státuszt és reconnectelünk.
-             */
             if (
                 this.status === "connected" &&
                 !this.manuallyClosed
@@ -395,6 +385,27 @@ class WsClient {
             listeners
         );
 
+        /*
+         * locoState is sticky.
+         *
+         * Replay the authoritative states already received during WebSocket
+         * startup so a panel created after the server snapshot cannot start
+         * with speed/direction/functions reset to defaults.
+         */
+        if (type === "locoState") {
+            for (const data of this.latestLocoStates.values()) {
+                const raw = {
+                    type: "locoState",
+                    data,
+                } as TypedServerWsMessage;
+
+                listener(
+                    data as ServerWsPayloadMap[ServerWsMessageType],
+                    raw
+                );
+            }
+        }
+
         return () => {
             const current =
                 this.typedListeners.get(type);
@@ -434,16 +445,9 @@ class WsClient {
         );
     }
 
-    /*
-     * Heartbeat indul közvetlenül a WS kapcsolat
-     * sikeres megnyitása után.
-     */
     private startHeartbeat() {
         this.stopHeartbeat();
 
-        /*
-         * Már az elején küldünk egy heartbeatet.
-         */
         this.sendHeartbeat();
 
         this.heartbeatTimer =
@@ -460,10 +464,6 @@ class WsClient {
                 const elapsed =
                     Date.now() - this.lastMessageAt;
 
-                /*
-                 * Ha ennyi ideje SEMMILYEN válasz nem érkezett,
-                 * akkor a kapcsolatot halottnak tekintjük.
-                 */
                 if (
                     elapsed >= HEARTBEAT_TIMEOUT_MS
                 ) {
@@ -492,15 +492,6 @@ class WsClient {
         }
     }
 
-    /*
-     * Szándékosan NEM a public send()-et használjuk.
-     *
-     * Így:
-     * - nem jelenik meg outgoing console eventként
-     * - nem zavarja az alkalmazás normál WS forgalmát
-     *
-     * The dedicated heartbeat command does not enter the DCC-EX parser.
-     */
     private sendHeartbeat() {
         const socket = this.socket;
 
@@ -538,22 +529,9 @@ class WsClient {
         }
     }
 
-    /*
-     * Központi kapcsolatvesztés-kezelés.
-     *
-     * Ezt hívja:
-     * - onclose
-     * - onerror
-     * - heartbeat timeout
-     * - send() failure
-     */
     private handleConnectionLost(
         socket: WebSocket
     ) {
-        /*
-         * Egy régi socket eseménye ne tudja
-         * az új kapcsolatot lelőni.
-         */
         if (this.socket !== socket) {
             return;
         }
@@ -562,10 +540,6 @@ class WsClient {
 
         this.socket = null;
 
-        /*
-         * Leszedjük a callbackeket, hogy a close()
-         * ne generáljon még egyszer reconnect logikát.
-         */
         socket.onopen = null;
         socket.onmessage = null;
         socket.onclose = null;
@@ -596,9 +570,6 @@ class WsClient {
             return;
         }
 
-        /*
-         * Egyszerre csak egy reconnect timer lehet.
-         */
         if (this.reconnectTimer !== null) {
             return;
         }

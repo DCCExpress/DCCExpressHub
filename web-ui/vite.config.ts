@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, type ProxyOptions } from "vite";
 import react from "@vitejs/plugin-react";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -6,119 +6,82 @@ import { fileURLToPath } from "node:url";
 const root = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig(({ mode }) => {
-  const mockMode = mode === "mock";
+  const device =
+    process.env.DCCEXPRESS_DEVICE_URL?.trim() ||
+    "http://127.0.0.1:8080";
 
-  const device = mockMode
-    ? "http://127.0.0.1:3001"
-    : (
-      process.env.DCCEXPRESS_DEVICE_URL?.trim() ||
-      "http://127.0.0.1:8080"
-    );
+  const proxy: Record<string, string | ProxyOptions> =
+    mode === "demo"
+      ? {}
+      : {
+          "/api": {
+            target: device,
+            changeOrigin: true,
+          },
 
-  console.log(
-    `[DCCExpressHub Vite] mode=${mode} backend=${device}`
-  );
+          "/images": {
+            target: device,
+            changeOrigin: true,
+          },
+
+          "/upload": {
+            target: device,
+            changeOrigin: true,
+          },
+
+          "/delete": {
+            target: device,
+            changeOrigin: true,
+          },
+
+          "/list": {
+            target: device,
+            changeOrigin: true,
+          },
+
+          "/fsinfo": {
+            target: device,
+            changeOrigin: true,
+          },
+
+          "/ws": {
+            target: device.replace(/^http/, "ws"),
+            ws: true,
+            changeOrigin: true,
+          },
+
+          "/flash": {
+            target: device,
+            changeOrigin: true,
+          },
+
+          "/sd": {
+            target: device,
+            changeOrigin: true,
+          },
+        };
 
   return {
-    base: mode === "demo" ? "./" : "/",
-    plugins: [react()],
+    base: "/",
+
+    plugins: [
+      react(),
+    ],
 
     resolve: {
       alias: {
         "@": resolve(root, "src"),
-        "@domain": resolve(root, "src/domain")
-      }
+        "@domain": resolve(root, "src/domain"),
+      },
     },
 
     server: {
       host: "0.0.0.0",
       port: 5173,
       strictPort: true,
-
-      proxy: mode === "demo"
-        ? {}
-        : {
-          "/api": {
-            target: device,
-            changeOrigin: true,
-            configure(proxy) {
-              proxy.on("proxyReq", (proxyReq, req) => {
-                console.log(
-                  `[VITE PROXY] ${req.method} ${req.url} -> ${device}`
-                );
-              });
-            }
-          },
-
-          ...(mockMode
-            ? {
-              "/help": {
-                target: device,
-                changeOrigin: true
-              }
-            }
-            : {}),
-
-          "/images": {
-            target: device,
-            changeOrigin: true
-          },
-
-          "/upload": {
-            target: device,
-            changeOrigin: true
-          },
-
-          "/delete": {
-            target: device,
-            changeOrigin: true
-          },
-
-          "/list": {
-            target: device,
-            changeOrigin: true
-          },
-
-          "/fsinfo": {
-            target: device,
-            changeOrigin: true
-          },
-
-          "/ws": {
-            target: device.replace(/^http/, "ws"),
-            ws: true,
-            changeOrigin: true
-          },
-
-            "/flash": {
-            target: device,
-            changeOrigin: true
-          },
-
-          "/sd": {
-            target: device,
-            changeOrigin: true
-          },
-        }
+      proxy,
     },
 
-    /*
-     * The ESP32 PlatformIO mklittlefs tool used by this project has a
-     * 31-character LittleFS filename-component limit (LFS_NAME_MAX=32,
-     * including the terminating NUL in affected builds).
-     *
-     * Vite's default Worker output uses the source entry name:
-     *
-     *   clientScriptWorker-ByESKuoJ.js
-     *
-     * After prepare-littlefs.mjs gzip compression this becomes:
-     *
-     *   clientScriptWorker-ByESKuoJ.js.gz
-     *
-     * which is too long for mklittlefs.
-     *
-     * Keep worker entry/chunk filenames deliberately short.
-     */
     worker: {
       format: "es",
 
@@ -126,9 +89,9 @@ export default defineConfig(({ mode }) => {
         output: {
           entryFileNames: "assets/w-[hash].js",
           chunkFileNames: "assets/wc-[hash].js",
-          assetFileNames: "assets/wa-[hash][extname]"
-        }
-      }
+          assetFileNames: "assets/wa-[hash][extname]",
+        },
+      },
     },
 
     build: {
@@ -140,12 +103,15 @@ export default defineConfig(({ mode }) => {
         output: {
           entryFileNames: "assets/app-v2.js",
           chunkFileNames: "assets/c-[hash].js",
+
           assetFileNames: assetInfo =>
-            assetInfo.names.some(name => name.endsWith(".css"))
+            assetInfo.names.some(name =>
+              name.endsWith(".css")
+            )
               ? "assets/index-v2.css"
-              : "assets/[name][extname]"
-        }
-      }
-    }
+              : "assets/[name][extname]",
+        },
+      },
+    },
   };
 });

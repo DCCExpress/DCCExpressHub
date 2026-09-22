@@ -21,6 +21,7 @@ public sealed class WsHub
     private sealed record PendingProgramming(string RequestId, string Action, int ExpectedCv, long Token);
     private long _programmingToken;
     private const int ProgrammingTimeoutMs = 24000;
+    private static readonly TimeSpan WebSocketSendTimeout = TimeSpan.FromSeconds(2);
     public int ClientCount => Clients.Count;
 
     public WsHub(ICommandCenter cc, HubState state, LayoutRuntime runtime, RuntimeStateStore stateStore, CommandCenterConfigStore ccConfig, ILogger<WsHub> log)
@@ -168,37 +169,63 @@ public sealed class WsHub
                 case "setLocoFunction":
                     {
                         int a = I(data, "locoAddress"), fn = I(data, "functionNumber");
-                        if (fn is < 0 or > 28) return; // firmware MAX_LOCO_FUNCTION
+                        if (fn is < 0 or > 28) return;
                         bool on = B(data, "active");
                         ok = await CommandCenter.SetLocoFunctionAsync(a, fn, on, ct);
-                        if (ok) { var old = HubState.Locos.GetValueOrDefault(a, new(a, 0, true, 0)); uint bit = 1u << fn; var l = old with { FunctionsMask = on ? old.FunctionsMask | bit : old.FunctionsMask & ~bit }; HubState.Locos[a] = l; await BroadcastLoco(l); }
-                        break;
-                    }
-                case "setTurnout": {
-                        var a = (ushort)I(data, "address"); 
-                        var v = B(data, "closed"); 
-                        ok = await CommandCenter.SetTurnoutAsync(a, v, ct);
                         if (ok)
                         {
-                            LayoutRuntime.SetTurnout(a, v);
+                            var old = HubState.Locos.GetValueOrDefault(a, new(a, 0, true, 0));
+                            uint bit = 1u << fn;
+                            var l = old with { FunctionsMask = on ? old.FunctionsMask | bit : old.FunctionsMask & ~bit };
+                            HubState.Locos[a] = l;
+                            await BroadcastLoco(l);
                         }
+                        break;
+                    }
+                case "setTurnout":
+                    {
+                        var a = (ushort)I(data, "address");
+                        var v = B(data, "closed");
+                        ok = await CommandCenter.SetTurnoutAsync(a, v, ct);
+                        if (ok) LayoutRuntime.SetTurnout(a, v);
                         break;
                     }
                 case "setSignalAspect":
                     {
-                        var a = (ushort)I(data, "address"); var v = I(data, "aspect");
+                        var a = (ushort)I(data, "address");
+                        var v = I(data, "aspect");
                         ok = await CommandCenter.SetSignalAspectAsync(a, v, ct);
                         if (ok)
                         {
                             LayoutRuntime.SetSignal(a, v);
-                            if (data.TryGetProperty("turnoutPhysicalValue", out var tp) && tp.ValueKind is JsonValueKind.True or JsonValueKind.False)
+                            if (data.TryGetProperty("turnoutPhysicalValue", out var tp) &&
+                                tp.ValueKind is JsonValueKind.True or JsonValueKind.False)
                                 LayoutRuntime.SetTurnout(a, tp.GetBoolean());
                         }
                         break;
                     }
-                case "setBasicAccessory": { var a = (ushort)I(data, "address"); var v = B(data, "active"); ok = await CommandCenter.SetAccessoryAsync(a, v, ct); if (ok) LayoutRuntime.SetAccessory(a, v); break; }
-                case "setVpin": { var a = (ushort)I(data, "vpin"); var v = B(data, "active"); ok = await CommandCenter.SetVPinAsync(a, v, ct); if (ok) LayoutRuntime.SetVPin(a, v); break; }
-                case "setSensor": { var a = (ushort)I(data, "address"); LayoutRuntime.SetSensor(a, B(data, "on")); break; }
+                case "setBasicAccessory":
+                    {
+                        var a = (ushort)I(data, "address");
+                        var v = B(data, "active");
+                        ok = await CommandCenter.SetAccessoryAsync(a, v, ct);
+                        if (ok) LayoutRuntime.SetAccessory(a, v);
+                        break;
+                    }
+                case "setVpin":
+                    {
+                        var a = (ushort)I(data, "vpin");
+                        var v = B(data, "active");
+                        ok = await CommandCenter.SetVPinAsync(a, v, ct);
+                        if (ok) LayoutRuntime.SetVPin(a, v);
+                        break;
+                    }
+                case "setSensor":
+                    {
+                        var a = (ushort)I(data, "address");
+                        LayoutRuntime.SetSensor(a, B(data, "on"));
+                        break;
+                    }
                 case "setBlock":
                     {
                         var idValue = I(data, "blockId");
@@ -215,16 +242,30 @@ public sealed class WsHub
                         var idValue = I(data, "blockId");
                         var id = idValue is > 0 and <= 65535 ? (ushort)idValue : (ushort)0;
                         var lid = S(data, "locoId");
-                        if (id == 0 || !LayoutRuntime.RemoveBlock(id, lid)) await Send(ws, "error", new { message = "invalid_block_remove" });
+                        if (id == 0 || !LayoutRuntime.RemoveBlock(id, lid))
+                            await Send(ws, "error", new { message = "invalid_block_remove" });
                         break;
                     }
-                case "setBlocksReset": LayoutRuntime.ClearBlocks(); break;
-                case "getBlocks": await Send(ws, "blockStateChanged", LayoutRuntime.BlockSnapshot()); return;
-                case "getLayoutRuntimeSnapshot": foreach (var item in LayoutRuntime.RuntimeSnapshot()) await Send(ws, item.Type, item.Data); return;
-                case "programmingCommand": await Programming(data, ct); return;
-                default: await Send(ws, "ack", new { ok = true, message = "Not implemented yet: " + type }); return;
+                case "setBlocksReset":
+                    LayoutRuntime.ClearBlocks();
+                    break;
+                case "getBlocks":
+                    await Send(ws, "blockStateChanged", LayoutRuntime.BlockSnapshot());
+                    return;
+                case "getLayoutRuntimeSnapshot":
+                    foreach (var item in LayoutRuntime.RuntimeSnapshot())
+                        await Send(ws, item.Type, item.Data);
+                    return;
+                case "programmingCommand":
+                    await Programming(data, ct);
+                    return;
+                default:
+                    await Send(ws, "ack", new { ok = true, message = "Not implemented yet: " + type });
+                    return;
             }
-            if (!ok) await Send(ws, "error", new { message = "command_center_send_failed", operation = type });
+
+            if (!ok)
+                await Send(ws, "error", new { message = "command_center_send_failed", operation = type });
         }
     }
 
@@ -268,15 +309,20 @@ public sealed class WsHub
             int address = I(d, "address");
             if (address <= 0 || address > 2044) { await Fail("Invalid accessory address."); return; }
             bool sent = await CommandCenter.SetAccessoryAsync(address, B(d, "active"), ct);
-            await SendProgrammingResponse(id, action, sent, sent ? "Accessory programming command sent." : "Accessory programming command could not be sent.", address);
+            await SendProgrammingResponse(id, action, sent,
+                sent ? "Accessory programming command sent." : "Accessory programming command could not be sent.",
+                address);
             return;
         }
-        else { await Fail("Unsupported programming action."); return; }
+        else
+        {
+            await Fail("Unsupported programming action.");
+            return;
+        }
 
         long token = 0;
         if (wait)
         {
-            // Firmware returns the programming output to PROG semantics before a service-mode request.
             if (HubState.ProgrammingJoined) { HubState.ProgrammingJoined = false; await BroadcastPower(); }
             lock (_programmingGate)
             {
@@ -294,11 +340,13 @@ public sealed class WsHub
         }
 
         Logger.LogInformation("Programming command sent: {Action} {Command}", action, cmd);
+
         if (!wait)
         {
             await SendProgrammingResponse(id, action, true, "Programming command sent.", IOr(d, "value", -1), cmd);
             return;
         }
+
         _ = ProgrammingTimeout(token);
     }
 
@@ -309,39 +357,54 @@ public sealed class WsHub
         lock (_programmingGate)
         {
             if (_pendingProgramming?.Token != token) return;
-            p = _pendingProgramming; _pendingProgramming = null;
+            p = _pendingProgramming;
+            _pendingProgramming = null;
         }
-        if (p != null) await SendProgrammingResponse(p.RequestId, p.Action, false, "Programming command timed out.");
+
+        if (p != null)
+            await SendProgrammingResponse(p.RequestId, p.Action, false, "Programming command timed out.");
     }
 
     private void ClearPendingProgramming(long token)
     {
-        lock (_programmingGate) if (_pendingProgramming?.Token == token) _pendingProgramming = null;
+        lock (_programmingGate)
+            if (_pendingProgramming?.Token == token)
+                _pendingProgramming = null;
     }
 
     private void HandleProgrammingRawResponse(string raw)
     {
         PendingProgramming? p;
         lock (_programmingGate) p = _pendingProgramming;
+
         if (p == null || raw.Length < 4 || !raw.EndsWith('>')) return;
+
         bool isR = raw.StartsWith("<r ", StringComparison.Ordinal);
         bool isV = raw.StartsWith("<v ", StringComparison.Ordinal);
+
         if (!isR && !isV) return;
         if (p.Action == "readCv" && !isV) return;
         if ((p.Action == "readAddress" || p.Action == "writeAddress" || p.Action == "writeCv") && !isR) return;
 
         var body = raw.Substring(3, raw.Length - 4).Trim();
         var parts = body.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+
         if (parts.Length < 1 || !long.TryParse(parts[0], out var first)) return;
-        long second = -1; bool hasSecond = parts.Length > 1 && long.TryParse(parts[1], out second);
+
+        long second = -1;
+        bool hasSecond = parts.Length > 1 && long.TryParse(parts[1], out second);
 
         if (p.Action is "readAddress" or "writeAddress")
         {
             bool ok = first >= 0;
             ClearPendingProgramming(p.Token);
-            _ = SendProgrammingResponse(p.RequestId, p.Action, ok,
+            _ = SendProgrammingResponse(
+                p.RequestId,
+                p.Action,
+                ok,
                 ok ? "Decoder address operation completed." : "Decoder address operation failed.",
-                ok ? (int)first : -1, raw);
+                ok ? (int)first : -1,
+                raw);
             return;
         }
 
@@ -349,15 +412,27 @@ public sealed class WsHub
         {
             if (!hasSecond) return;
             if (p.ExpectedCv >= 0 && first != p.ExpectedCv) return;
+
             bool ok = second >= 0;
             ClearPendingProgramming(p.Token);
-            _ = SendProgrammingResponse(p.RequestId, p.Action, ok,
+
+            _ = SendProgrammingResponse(
+                p.RequestId,
+                p.Action,
+                ok,
                 ok ? "CV operation completed." : "CV operation failed.",
-                ok ? (int)second : -1, raw);
+                ok ? (int)second : -1,
+                raw);
         }
     }
 
-    private Task SendProgrammingResponse(string requestId, string action, bool ok, string message, int value = -1, string raw = "")
+    private Task SendProgrammingResponse(
+        string requestId,
+        string action,
+        bool ok,
+        string message,
+        int value = -1,
+        string raw = "")
     {
         if (value >= 0 && raw.Length > 0) return Broadcast("programmingResponse", new { requestId, action, ok, message, value, raw });
         if (value >= 0) return Broadcast("programmingResponse", new { requestId, action, ok, message, value });
@@ -365,30 +440,150 @@ public sealed class WsHub
         return Broadcast("programmingResponse", new { requestId, action, ok, message });
     }
 
-    public async Task BroadcastRuntimeSnapshot()
+    public Task BroadcastRuntimeSnapshot()
     {
-        var x = CommandCenterConfigStore.Current;
-        await Broadcast("commandCenterInfo", new { alive = CommandCenter.Connected, power = HubState.TrackPower, type = CommandCenter.Type, name = CommandCenter.Name, ip = x.Host, port = x.Port, connectionString = $"{x.Host}:{x.Port}" });
-        await BroadcastPower();
-        await BroadcastStatus();
-        foreach (var item in LayoutRuntime.RuntimeSnapshot()) await Broadcast(item.Type, item.Data);
+        // IMPORTANT:
+        // Layout/config HTTP handlers may call this and await it. WS delivery must
+        // never be able to hold an HTTP save request open.
+        _ = BroadcastRuntimeSnapshotCore();
+        return Task.CompletedTask;
     }
-    public Task BroadcastStatus() => Broadcast("dccExStatus", Status());
-    private object Status() => new { version = HubState.Station.Version, processor = HubState.Station.Processor, hardware = HubState.Station.Hardware, build = HubState.Station.Build, host = CommandCenter.Endpoint, port = 0, alive = CommandCenter.Connected, maxLocos = HubState.Station.MaxLocos, trackVoltageOn = HubState.TrackPower, mainCurrentMa = HubState.Tracks.GetValueOrDefault(0)?.CurrentMa ?? 0, progCurrentMa = HubState.Tracks.GetValueOrDefault(1)?.CurrentMa ?? 0, tracks = HubState.Tracks.OrderBy(x => x.Key).Select(x => new { letter = ((char)('A' + x.Key)).ToString(), mode = x.Value.Mode, currentMa = x.Value.CurrentMa, overload = x.Value.Overload, tripMa = x.Value.TripMa }), hub = new { platform = Environment.OSVersion.Platform.ToString(), framework = Environment.Version.ToString(), wsClients = ClientCount } };
-    public Task BroadcastPowerState() => BroadcastPower();
-    private Task BroadcastPower() => Broadcast("powerInfo", new { emergencyStop = HubState.EmergencyStop, trackVoltageOn = HubState.TrackPower, trackVoltageOff = !HubState.TrackPower, shortCircuit = false, programmingModeActive = HubState.ProgrammingPower, programmingJoined = HubState.ProgrammingJoined });
-    private Task BroadcastLoco(LocoFeedback l) => Broadcast("locoState", new { loco = new { address = l.Address, speed = l.Speed, direction = l.Forward ? "forward" : "reverse", functionsMask = l.FunctionsMask } });
 
-    private async Task SendSnapshot(WebSocket ws) { await SendCommandCenterInfo(ws); await SendPower(ws); await Send(ws, "dccExStatus", Status()); foreach (var l in HubState.Locos.Values) await Send(ws, "locoState", new { loco = new { address = l.Address, speed = l.Speed, direction = l.Forward ? "forward" : "reverse", functionsMask = l.FunctionsMask } }); foreach (var item in LayoutRuntime.RuntimeSnapshot()) await Send(ws, item.Type, item.Data); }
+    private async Task BroadcastRuntimeSnapshotCore()
+    {
+        try
+        {
+            var x = CommandCenterConfigStore.Current;
+
+            await Broadcast("commandCenterInfo", new
+            {
+                alive = CommandCenter.Connected,
+                power = HubState.TrackPower,
+                type = CommandCenter.Type,
+                name = CommandCenter.Name,
+                ip = x.Host,
+                port = x.Port,
+                connectionString = $"{x.Host}:{x.Port}"
+            });
+
+            await BroadcastPower();
+            await BroadcastStatus();
+
+            foreach (var item in LayoutRuntime.RuntimeSnapshot())
+                await Broadcast(item.Type, item.Data);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Runtime snapshot broadcast failed");
+        }
+    }
+
+    public Task BroadcastStatus() => Broadcast("dccExStatus", Status());
+
+    private object Status() => new
+    {
+        version = HubState.Station.Version,
+        processor = HubState.Station.Processor,
+        hardware = HubState.Station.Hardware,
+        build = HubState.Station.Build,
+        host = CommandCenter.Endpoint,
+        port = 0,
+        alive = CommandCenter.Connected,
+        maxLocos = HubState.Station.MaxLocos,
+        trackVoltageOn = HubState.TrackPower,
+        mainCurrentMa = HubState.Tracks.GetValueOrDefault(0)?.CurrentMa ?? 0,
+        progCurrentMa = HubState.Tracks.GetValueOrDefault(1)?.CurrentMa ?? 0,
+        tracks = HubState.Tracks.OrderBy(x => x.Key).Select(x => new
+        {
+            letter = ((char)('A' + x.Key)).ToString(),
+            mode = x.Value.Mode,
+            currentMa = x.Value.CurrentMa,
+            overload = x.Value.Overload,
+            tripMa = x.Value.TripMa
+        }),
+        hub = new
+        {
+            platform = Environment.OSVersion.Platform.ToString(),
+            framework = Environment.Version.ToString(),
+            wsClients = ClientCount
+        }
+    };
+
+    public Task BroadcastPowerState() => BroadcastPower();
+
+    private Task BroadcastPower() => Broadcast("powerInfo", new
+    {
+        emergencyStop = HubState.EmergencyStop,
+        trackVoltageOn = HubState.TrackPower,
+        trackVoltageOff = !HubState.TrackPower,
+        shortCircuit = false,
+        programmingModeActive = HubState.ProgrammingPower,
+        programmingJoined = HubState.ProgrammingJoined
+    });
+
+    private Task BroadcastLoco(LocoFeedback l) => Broadcast("locoState", new
+    {
+        loco = new
+        {
+            address = l.Address,
+            speed = l.Speed,
+            direction = l.Forward ? "forward" : "reverse",
+            functionsMask = l.FunctionsMask
+        }
+    });
+
+    private async Task SendSnapshot(WebSocket ws)
+    {
+        await SendCommandCenterInfo(ws);
+        await SendPower(ws);
+        await Send(ws, "dccExStatus", Status());
+
+        foreach (var l in HubState.Locos.Values)
+        {
+            await Send(ws, "locoState", new
+            {
+                loco = new
+                {
+                    address = l.Address,
+                    speed = l.Speed,
+                    direction = l.Forward ? "forward" : "reverse",
+                    functionsMask = l.FunctionsMask
+                }
+            });
+        }
+
+        foreach (var item in LayoutRuntime.RuntimeSnapshot())
+            await Send(ws, item.Type, item.Data);
+    }
+
     private Task SendCommandCenterInfo(WebSocket ws)
     {
         var x = CommandCenterConfigStore.Current;
-        return Send(ws, "commandCenterInfo", new { alive = CommandCenter.Connected, power = HubState.TrackPower, type = CommandCenter.Type, name = CommandCenter.Name, ip = x.Host, port = x.Port, connectionString = $"{x.Host}:{x.Port}" });
+        return Send(ws, "commandCenterInfo", new
+        {
+            alive = CommandCenter.Connected,
+            power = HubState.TrackPower,
+            type = CommandCenter.Type,
+            name = CommandCenter.Name,
+            ip = x.Host,
+            port = x.Port,
+            connectionString = $"{x.Host}:{x.Port}"
+        });
     }
+
     private Task SendPower(WebSocket ws)
     {
-        return Send(ws, "powerInfo", new { emergencyStop = HubState.EmergencyStop, trackVoltageOn = HubState.TrackPower, trackVoltageOff = !HubState.TrackPower, shortCircuit = false, programmingModeActive = HubState.ProgrammingPower, programmingJoined = HubState.ProgrammingJoined });
+        return Send(ws, "powerInfo", new
+        {
+            emergencyStop = HubState.EmergencyStop,
+            trackVoltageOn = HubState.TrackPower,
+            trackVoltageOff = !HubState.TrackPower,
+            shortCircuit = false,
+            programmingModeActive = HubState.ProgrammingPower,
+            programmingJoined = HubState.ProgrammingJoined
+        });
     }
+
     public async Task Broadcast(string type, object data)
     {
         foreach (var kv in Clients.ToArray())
@@ -397,21 +592,47 @@ public sealed class WsHub
             {
                 await Send(kv.Value, type, data);
             }
+            catch (OperationCanceledException)
+            {
+                Clients.TryRemove(kv.Key, out _);
+                TryAbort(kv.Value);
+            }
             catch
             {
                 Clients.TryRemove(kv.Key, out _);
+                TryAbort(kv.Value);
             }
         }
     }
+
     private static async Task Send(WebSocket ws, string type, object data)
     {
         if (ws.State != WebSocketState.Open)
-        {
             return;
-        }
+
         var bytes = JsonSerializer.SerializeToUtf8Bytes(new { type, data }, Json);
-        await ws.SendAsync(bytes, WebSocketMessageType.Text, true, CancellationToken.None);
+
+        using var timeout = new CancellationTokenSource(WebSocketSendTimeout);
+
+        await ws.SendAsync(
+            bytes,
+            WebSocketMessageType.Text,
+            true,
+            timeout.Token);
     }
+
+    private static void TryAbort(WebSocket ws)
+    {
+        try
+        {
+            ws.Abort();
+        }
+        catch
+        {
+            // Nothing else to do for a dead client.
+        }
+    }
+
     private static int I(JsonElement d, string n)
     {
         if (d.ValueKind != JsonValueKind.Object || !d.TryGetProperty(n, out var x)) return 0;
@@ -427,6 +648,15 @@ public sealed class WsHub
         if (x.ValueKind == JsonValueKind.String && int.TryParse(x.GetString(), out var textNumber)) return textNumber;
         return fallback;
     }
-    private static bool B(JsonElement d, string n) => d.ValueKind == JsonValueKind.Object && d.TryGetProperty(n, out var x) && x.ValueKind == JsonValueKind.True;
-    private static string S(JsonElement d, string n) => d.ValueKind == JsonValueKind.Object && d.TryGetProperty(n, out var x) ? x.GetString() ?? "" : "";
+
+    private static bool B(JsonElement d, string n) =>
+        d.ValueKind == JsonValueKind.Object &&
+        d.TryGetProperty(n, out var x) &&
+        x.ValueKind == JsonValueKind.True;
+
+    private static string S(JsonElement d, string n) =>
+        d.ValueKind == JsonValueKind.Object &&
+        d.TryGetProperty(n, out var x)
+            ? x.GetString() ?? ""
+            : "";
 }
