@@ -6,7 +6,6 @@
 #include <WiFi.h>
 
 #include "Logger.h"
-#include "S88I2CConfig.h"
 
 namespace {
 
@@ -69,65 +68,6 @@ void App::publishSensorChanged(
       String(on ? "true" : "false"));
 }
 
-void App::broadcastS88Snapshot() {
-  if (
-      !_s88I2c.enabled() ||
-      !_s88I2c.dataFresh()
-  ) {
-    return;
-  }
-
-  JsonDocument message;
-  message["type"] = "sensorSnapshot";
-
-  JsonObject data =
-      message["data"].to<JsonObject>();
-
-  JsonArray groups =
-      data["groups"].to<JsonArray>();
-
-  for (
-      uint8_t groupIndex = 0;
-      groupIndex < _s88I2c.snapshotGroupCount();
-      ++groupIndex
-  ) {
-    JsonArray group = groups.add<JsonArray>();
-
-    group.add(
-        static_cast<uint16_t>(
-            _s88I2c.baseSensorAddress() +
-            static_cast<uint16_t>(groupIndex) * 16U));
-
-    group.add(
-        _s88I2c.activeBitsForSnapshotGroup(groupIndex));
-
-    group.add(
-        _s88I2c.knownBitsForSnapshotGroup(groupIndex));
-  }
-
-  sendWsJson(_ws, message);
-}
-
-void App::updateS88WebSocket() {
-  if (
-      !_s88I2c.enabled() ||
-      !_s88I2c.dataFresh()
-  ) {
-    return;
-  }
-
-  const unsigned long now = millis();
-
-  if (
-      now - _lastS88WsSnapshotAt <
-      S88_WS_SNAPSHOT_INTERVAL_MS
-  ) {
-    return;
-  }
-
-  _lastS88WsSnapshotAt = now;
-  broadcastS88Snapshot();
-}
 
 void App::loadConfiguration() {
   _config.begin();
@@ -202,15 +142,6 @@ void App::connectWifi() {
   ) {
     _serialConfigurator.loop();
 
-    _s88I2c.loop();
-    updateS88WebSocket();
-
-    if (_s88I2c.enabled()) {
-      _display.showS88Status(
-          _s88I2c.slaveAddress(),
-          _s88I2c.ready());
-    }
-
     _display.loop();
     delay(25);
   }
@@ -263,12 +194,6 @@ void App::updateDisplay() {
         connected);
   }
 
-  if (_s88I2c.enabled()) {
-    _display.showS88Status(
-        _s88I2c.slaveAddress(),
-        _s88I2c.ready());
-  }
-
   _display.loop();
 }
 
@@ -314,22 +239,6 @@ void App::begin() {
             feedback.on);
       });
 
-  _s88I2c.onSensorChange(
-      [this](
-          uint16_t address,
-          bool occupied) {
-        publishSensorChanged(
-            address,
-            occupied);
-      });
-
-  _s88I2c.begin(LittleFS);
-
-  if (_s88I2c.enabled()) {
-    _display.showS88Status(
-        _s88I2c.slaveAddress(),
-        _s88I2c.ready());
-  }
 
   connectWifi();
 
@@ -342,7 +251,6 @@ void App::begin() {
           _stateStore,
           _config,
           _wsProtocol,
-          _s88I2c,
           _signalAutomation,
           [this]() {
             return
@@ -392,9 +300,6 @@ void App::begin() {
 
 void App::loop() {
   _serialConfigurator.loop();
-
-  _s88I2c.loop();
-  updateS88WebSocket();
 
   _commandCenter.loop();
   _wsProtocol.loop();

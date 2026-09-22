@@ -9,19 +9,6 @@
 
 namespace {
 
-String formatI2CAddress(
-    uint8_t address) {
-  char buffer[5];
-
-  snprintf(
-      buffer,
-      sizeof(buffer),
-      "0x%02X",
-      address);
-
-  return String(buffer);
-}
-
 String formatBytesCompact(
     uint64_t bytes) {
   constexpr uint64_t KB = 1024ULL;
@@ -138,15 +125,6 @@ void HubDisplay::showBoot() {
   _ccConnected =
       false;
 
-  _s88Address =
-      0;
-
-  _s88Connected =
-      false;
-
-  _s88StatusKnown =
-      false;
-
   _infoPage =
       false;
 
@@ -240,34 +218,6 @@ void HubDisplay::showCommandCenter(
 
   _ccConnected =
       connected;
-
-  _dirty =
-      true;
-}
-
-void HubDisplay::showS88Status(
-    uint8_t address,
-    bool connected) {
-  if (!_initialized) {
-    return;
-  }
-
-  if (
-      _s88StatusKnown &&
-      _s88Address == address &&
-      _s88Connected == connected
-  ) {
-    return;
-  }
-
-  _s88Address =
-      address;
-
-  _s88Connected =
-      connected;
-
-  _s88StatusKnown =
-      true;
 
   _dirty =
       true;
@@ -612,36 +562,6 @@ void HubDisplay::redraw() {
         "-");
   }
 
-  _display.print(
-      "S88: ");
-
-  if (_s88StatusKnown) {
-    _display.print(
-        formatI2CAddress(
-            _s88Address));
-
-    _display.print(
-        " ");
-
-    _display.setTextColor(
-        _s88Connected
-            ? HubDisplayDevice::LIME
-            : HubDisplayDevice::RED,
-        HubDisplayDevice::BLACK);
-
-    _display.println(
-        _s88Connected
-            ? "OK"
-            : "NOK");
-
-    _display.setTextColor(
-        HubDisplayDevice::WHITE,
-        HubDisplayDevice::BLACK);
-  } else {
-    _display.println(
-        "-");
-  }
-
   redrawControlButtons();
 }
 
@@ -663,10 +583,6 @@ void HubDisplay::showWifiFailed() {}
 void HubDisplay::showCommandCenter(
     const String&,
     uint16_t,
-    bool) {}
-
-void HubDisplay::showS88Status(
-    uint8_t,
     bool) {}
 
 void HubDisplay::showEmergencyStopActive(

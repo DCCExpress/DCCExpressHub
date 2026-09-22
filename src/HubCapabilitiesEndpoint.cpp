@@ -68,10 +68,6 @@ void HubCapabilitiesEndpoint::
             HubCapabilities::
                 gamepad();
 
-        document["s88"] =
-            HubCapabilities::
-                s88();
-
         document["programmingTrack"] =
             HubCapabilities::
                 programmingTrack();

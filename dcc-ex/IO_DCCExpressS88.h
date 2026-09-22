@@ -64,7 +64,8 @@ private:
     return c;
   }
 
-  void fail(const __FlashStringHelper *message) {
+  //void fail(const __FlashStringHelper *message) {
+  void fail(const char *message) {    
     DIAG(F("DCCExpressS88 I2C:%s %S"), _I2CAddress.toString(), message);
     _deviceState = DEVSTATE_FAILED;
   }

@@ -3,10 +3,8 @@
 #include "Logger.h"
 
 DeviceConfigEndpoint::DeviceConfigEndpoint(
-    AsyncWebServer& server,
-    S88I2CMaster& s88)
-    : _server(server),
-      _s88(s88) {
+    AsyncWebServer& server)
+    : _server(server) {
   setupRoutes();
 }
 
@@ -88,9 +86,6 @@ bool DeviceConfigEndpoint::verifyTemp(
       document["devices"]
           .as<JsonArrayConst>();
 
-  uint16_t s88Count =
-      0;
-
   for (
       size_t index = 0;
       index <
@@ -132,10 +127,6 @@ bool DeviceConfigEndpoint::verifyTemp(
     const String typeText =
         String(type);
 
-    const bool isS88 =
-        typeText ==
-        "s88adapter";
-
     const bool isPca =
         typeText ==
         "pca9685";
@@ -158,10 +149,7 @@ bool DeviceConfigEndpoint::verifyTemp(
         isPcf8 ||
         isPcf16;
 
-    if (
-        !isS88 &&
-        !isLegacy
-    ) {
+    if (!isLegacy) {
       error =
           "Unsupported device type: " +
           typeText;
@@ -181,81 +169,65 @@ bool DeviceConfigEndpoint::verifyTemp(
       return false;
     }
 
-    if (isS88) {
-      ++s88Count;
+    if (
+        !device["firstVpin"].is<int>() ||
+        !device["pinCount"].is<int>()
+    ) {
+      error =
+          "HAL device requires firstVpin and pinCount";
+      return false;
+    }
 
-      if (
-          s88Count > 1
-      ) {
-        error =
-            "Only one S88 adapter is currently supported";
-        return false;
-      }
+    const int firstVpin =
+        device["firstVpin"]
+            .as<int>();
 
-      // The adapter owns its S88 byte count. The Hub persists only the
-      // adapter I2C address (plus the generic enabled flag). Old files may
-      // still contain baseAddress/groupCount/byteCount; they are ignored.
-    } else {
-      if (
-          !device["firstVpin"].is<int>() ||
-          !device["pinCount"].is<int>()
-      ) {
-        error =
-            "HAL device requires firstVpin and pinCount";
-        return false;
-      }
+    const int pinCount =
+        device["pinCount"]
+            .as<int>();
 
-      const int firstVpin =
-          device["firstVpin"]
-              .as<int>();
+    const int expectedPinCount =
+        isPcf8
+            ? 8
+            : 16;
 
-      const int pinCount =
-          device["pinCount"]
-              .as<int>();
+    if (
+        firstVpin < 40 ||
+        firstVpin > 32767 ||
+        pinCount !=
+            expectedPinCount ||
+        firstVpin +
+                pinCount -
+                1 >
+            32767
+    ) {
+      error =
+          "HAL device VPIN range or pin count is invalid";
+      return false;
+    }
 
-      const int expectedPinCount =
-          isPcf8
-              ? 8
-              : 16;
+    if (
+        isPca &&
+        (
+            address < 0x40 ||
+            address > 0x7d
+        )
+    ) {
+      error =
+          "PCA9685 I2C address must be between 0x40 and 0x7D";
+      return false;
+    }
 
-      if (
-          firstVpin < 40 ||
-          firstVpin > 32767 ||
-          pinCount !=
-              expectedPinCount ||
-          firstVpin +
-                  pinCount -
-                  1 >
-              32767
-      ) {
-        error =
-            "HAL device VPIN range or pin count is invalid";
-        return false;
-      }
-
-      if (
-          isPca &&
-          (
-              address < 0x40 ||
-              address > 0x7d
-          )
-      ) {
-        error =
-            "PCA9685 I2C address must be between 0x40 and 0x7D";
-        return false;
-      }
-
-      if (
-          !isPca &&
-          (
-              address < 0x20 ||
-              address > 0x27
-          )
-      ) {
-        error =
-            "Configured digital I2C expander address must be between 0x20 and 0x27";
-        return false;
-      }
+    if (
+        !isPca &&
+        (
+            address < 0x20 ||
+            address > 0x27
+        )
+    ) {
+      error =
+          "Configured digital I2C expander address must be between 0x20 and 0x27";
+      return false;
     }
 
     // Pairwise validation keeps the persisted file safe even if the browser
@@ -326,19 +298,6 @@ bool DeviceConfigEndpoint::verifyTemp(
           previous["firstVpin"].is<int>() &&
           previous["pinCount"].is<int>()
       ) {
-        const int firstVpin =
-            device["firstVpin"]
-                .as<int>();
-
-        const int pinCount =
-            device["pinCount"]
-                .as<int>();
-
-        const int lastVpin =
-            firstVpin +
-            pinCount -
-            1;
-
         const int previousFirst =
             previous["firstVpin"]
                 .as<int>();
@@ -352,7 +311,9 @@ bool DeviceConfigEndpoint::verifyTemp(
         if (
             firstVpin <=
                 previousLast &&
-            lastVpin >=
+            firstVpin +
+                    pinCount -
+                    1 >=
                 previousFirst
         ) {
           error =
@@ -364,134 +325,6 @@ bool DeviceConfigEndpoint::verifyTemp(
   }
 
   return true;
-}
-
-void DeviceConfigEndpoint::sendS88Status(
-    AsyncWebServerRequest* request) {
-  JsonDocument document;
-
-  document["enabled"] =
-      _s88.enabled();
-
-  document["online"] =
-      _s88.slavePresent();
-
-  document["snapshotKnown"] =
-      _s88.snapshotKnown();
-
-  document["dataFresh"] =
-      _s88.dataFresh();
-
-  document["ready"] =
-      _s88.ready();
-
-  document["adapterInfoKnown"] =
-      _s88.adapterInfoKnown();
-
-  document["protocolVersion"] =
-      _s88.protocolVersion();
-
-  document["firmwareVersion"] =
-      _s88.firmwareVersion();
-
-  document["firmwareMajor"] =
-      _s88.firmwareMajor();
-
-  document["firmwareMinor"] =
-      _s88.firmwareMinor();
-
-  document["firmwarePatch"] =
-      _s88.firmwarePatch();
-
-  document["maxByteCount"] =
-      _s88.adapterMaxByteCount();
-
-  document["capabilities"] =
-      _s88.adapterCapabilities();
-
-  document["address"] =
-      _s88.slaveAddress();
-
-  char addressHex[5];
-
-  snprintf(
-      addressHex,
-      sizeof(addressHex),
-      "0x%02X",
-      _s88.slaveAddress());
-
-  document["addressHex"] =
-      addressHex;
-
-  document["baseAddress"] =
-      _s88.baseSensorAddress();
-
-  document["groupCount"] =
-      _s88.groupCount();
-
-  document["byteCount"] =
-      _s88.byteCount();
-
-  document["sensorCount"] =
-      _s88.sensorCount();
-
-  JsonArray groups =
-      document["groups"]
-          .to<JsonArray>();
-
-  for (
-      uint8_t groupIndex = 0;
-      groupIndex <
-          _s88.groupCount();
-      ++groupIndex
-  ) {
-    JsonObject group =
-        groups.add<JsonObject>();
-
-    group["index"] =
-        static_cast<uint8_t>(
-            groupIndex +
-            1);
-
-    group["baseAddress"] =
-        static_cast<uint16_t>(
-            _s88.baseSensorAddress() +
-            static_cast<uint16_t>(
-                groupIndex) *
-                S88I2CMaster::BITS_PER_BYTE);
-
-    const uint8_t snapshotGroup =
-        static_cast<uint8_t>(
-            groupIndex /
-            2U);
-
-    const uint8_t shift =
-        static_cast<uint8_t>(
-            (
-                groupIndex %
-                2U
-            ) *
-            8U);
-
-    group["activeBits"] =
-        static_cast<uint8_t>(
-            (
-                _s88.activeBitsForSnapshotGroup(
-                    snapshotGroup) >>
-                shift
-            ) &
-            0xffU);
-
-    group["knownBits"] =
-        _s88.dataFresh()
-            ? 0xffU
-            : 0U;
-  }
-
-  sendJson(
-      request,
-      200,
-      document);
 }
 
 void DeviceConfigEndpoint::handleBody(
@@ -585,10 +418,6 @@ void DeviceConfigEndpoint::handleBody(
     return;
   }
 
-  const bool s88Applied =
-      _s88.reloadConfiguration(
-          LittleFS);
-
   Logger::info(
       "Device configuration saved: " +
       String(total) +
@@ -600,16 +429,8 @@ void DeviceConfigEndpoint::handleBody(
   response["bytes"] =
       total;
 
-  response["s88Applied"] =
-      s88Applied;
-
-  response["s88Online"] =
-      _s88.slavePresent();
-
   response["message"] =
-      s88Applied
-          ? "Device configuration saved; S88 I2C address applied live"
-          : "Device configuration saved; S88 runtime fell back to defaults";
+      "Device configuration saved";
 
   sendJson(
       request,
@@ -675,14 +496,5 @@ void DeviceConfigEndpoint::setupRoutes() {
             len,
             index,
             total);
-      });
-
-  _server.on(
-      "/api/s88-status",
-      HTTP_GET,
-      [this](
-          AsyncWebServerRequest* request) {
-        sendS88Status(
-            request);
       });
 }

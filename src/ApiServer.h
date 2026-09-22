@@ -16,7 +16,6 @@
 #include "JsSandboxEndpoint.h"
 #include "LayoutRuntime.h"
 #include "RuntimeStateStore.h"
-#include "S88I2CMaster.h"
 #include "ScriptInfoEndpoint.h"
 #include "SignalAutomationEngine.h"
 #include "WsProtocol.h"
@@ -31,16 +30,13 @@ public:
       RuntimeStateStore& stateStore,
       HubConfigStore& config,
       WsProtocol& wsProtocol,
-      S88I2CMaster& s88,
       SignalAutomationEngine& signalAutomation,
       std::function<bool()> onLocomotivesSaved = {})
       : _server(httpPort),
-        _s88(s88),
         _automationsEndpoint(
             _server),
         _deviceConfigEndpoint(
-            _server,
-            _s88),
+            _server),
         _scriptInfoEndpoint(
             _server),
         _fileManagementEndpoint(
@@ -74,8 +70,6 @@ private:
       "/config/signal-logic.ndjson";
 
   AsyncWebServer _server;
-
-  S88I2CMaster& _s88;
 
   AutomationsEndpoint _automationsEndpoint;
   DeviceConfigEndpoint _deviceConfigEndpoint;

@@ -6,13 +6,11 @@
 #include <LittleFS.h>
 
 #include "FileStore.h"
-#include "S88I2CMaster.h"
 
 class DeviceConfigEndpoint {
 public:
-  DeviceConfigEndpoint(
-      AsyncWebServer& server,
-      S88I2CMaster& s88);
+  explicit DeviceConfigEndpoint(
+      AsyncWebServer& server);
 
 private:
   static constexpr const char* FINAL_PATH =
@@ -22,7 +20,6 @@ private:
       256 * 1024;
 
   AsyncWebServer& _server;
-  S88I2CMaster& _s88;
 
   FileStore _files{LittleFS};
   AtomicFileUpload _upload;
@@ -38,9 +35,6 @@ private:
 
   bool verifyTemp(
       String& error);
-
-  void sendS88Status(
-      AsyncWebServerRequest* request);
 
   static void sendJson(
       AsyncWebServerRequest* request,

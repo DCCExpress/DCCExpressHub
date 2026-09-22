@@ -28,10 +28,6 @@ public:
     return true;
   }
 
-  static constexpr bool s88() {
-    return true;
-  }
-
   static bool programmingTrack() {
     return
         CommandCenterCapabilities::
