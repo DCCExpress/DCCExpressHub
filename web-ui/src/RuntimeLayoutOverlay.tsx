@@ -108,19 +108,44 @@ export default function RuntimeLayoutOverlay({ locos, open }: RuntimeLayoutOverl
     invalidate();
   }), [layout, invalidate]);
 
+  // useEffect(() => wsClient.on("accessoryChanged", data => {
+  //   for (const element of layout.getAllElements()) {
+  //     if (element instanceof TrackSignalElement && element.outputMode === "accessory" && element.address <= data.address && element.lastAddress >= data.address) {
+  //       element.setValue(data.address, data.active);
+  //     } else if (element instanceof ButtonElement && element.outputMode === "accessory" && element.address === data.address) {
+  //       element.on = data.active === element.activeValue;
+  //     } else if (element instanceof TrackLevelCrossingElement && element.basicAccessoryAddress === data.address) {
+  //       element.barrierClosed = data.active === element.basicAccessoryClosedValue;
+  //     }
+  //   }
+  //   invalidate();
+  // }), [layout, invalidate]);
+
   useEffect(() => wsClient.on("accessoryChanged", data => {
     for (const element of layout.getAllElements()) {
-      if (element instanceof TrackSignalElement && element.outputMode === "accessory" && element.address <= data.address && element.lastAddress >= data.address) {
-        element.setValue(data.address, data.active);
-      } else if (element instanceof ButtonElement && element.outputMode === "accessory" && element.address === data.address) {
-        element.on = data.active === element.activeValue;
-      } else if (element instanceof TrackLevelCrossingElement && element.basicAccessoryAddress === data.address) {
-        element.barrierClosed = data.active === element.basicAccessoryClosedValue;
+      if (
+        element instanceof TrackSignalElement &&
+        element.signalOutput.protocol === "dcc" &&
+        element.signalOutput.address <= data.address &&
+        element.lastAddress >= data.address
+      ) {
+        element.setValue(
+          data.address,
+          data.active
+        );
+      } else if (
+        element instanceof ButtonElement &&
+        element.outputMode === "accessory" &&
+        element.address === data.address
+      ) {
+        element.on =
+          data.active ===
+          element.activeValue;
       }
     }
+
     invalidate();
   }), [layout, invalidate]);
-
   // useEffect(() => wsClient.on("vpinChanged", data => {
   //   for (const element of layout.getAllElements()) {
   //     if (isTurnoutElement(element) && element.outputMode === "vpin" && element.turnoutAddress === data.vpin) {

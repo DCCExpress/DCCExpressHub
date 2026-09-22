@@ -698,13 +698,21 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
         element.signalOutput.address <= data.address &&
         element.lastAddress >= data.address
       ) {
-        element.setValue(data.address, data.active);
-      } else if (element instanceof ButtonElement && element.outputMode === "accessory" && element.address === data.address) {
-        element.on = data.active === element.activeValue;
-      } else if (element instanceof TrackLevelCrossingElement && element.basicAccessoryAddress === data.address) {
-        element.barrierClosed = data.active === element.basicAccessoryClosedValue;
+        element.setValue(
+          data.address,
+          data.active
+        );
+      } else if (
+        element instanceof ButtonElement &&
+        element.outputMode === "accessory" &&
+        element.address === data.address
+      ) {
+        element.on =
+          data.active ===
+          element.activeValue;
       }
     }
+
     invalidate();
   }), [layout, invalidate]);
 
