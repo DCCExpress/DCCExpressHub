@@ -15,12 +15,14 @@ import {
   IconRefresh,
   IconRoute,
   IconSwitch3,
+  IconToggleLeft,
   IconTrafficLights,
 } from "@tabler/icons-react";
 
 import AppModal from "@/components/common/AppModal";
 
-import AccessoryDebugTab from "./AccessoryDebugTab";
+import BasicAccessoryDebugTab from "./BasicAccessoryDebugTab";
+import ExtendedAccessoryDebugTab from "./ExtendedAccessoryDebugTab";
 import SensorDebugTab from "./SensorDebugTab";
 import TurnoutDebugTab from "./TurnoutDebugTab";
 import { useRuntimeDebugState } from "./useRuntimeDebugState";
@@ -40,8 +42,10 @@ export default function DebugDialog({
   opened,
   onClose,
 }: Props) {
-  const runtime =
-    useRuntimeDebugState(opened);
+  const runtime=
+    useRuntimeDebugState(
+      opened
+    );
 
   return (
     <AppModal
@@ -49,7 +53,7 @@ export default function DebugDialog({
       onClose={onClose}
       title={
         <Group gap="xs">
-          <IconBug size={20} />
+          <IconBug size={20}/>
           <Text fw={700}>
             Runtime Debug
           </Text>
@@ -100,7 +104,7 @@ export default function DebugDialog({
         <Button
           variant="light"
           leftSection={
-            <IconRefresh size={16} />
+            <IconRefresh size={16}/>
           }
           disabled={
             !runtime.connected
@@ -132,7 +136,7 @@ export default function DebugDialog({
           <Tabs.Tab
             value="sensors"
             leftSection={
-              <IconRoute size={16} />
+              <IconRoute size={16}/>
             }
           >
             Sensors ({
@@ -143,7 +147,7 @@ export default function DebugDialog({
           <Tabs.Tab
             value="turnouts"
             leftSection={
-              <IconSwitch3 size={16} />
+              <IconSwitch3 size={16}/>
             }
           >
             Turnouts ({
@@ -152,13 +156,23 @@ export default function DebugDialog({
           </Tabs.Tab>
 
           <Tabs.Tab
-            value="accessories"
+            value="basic-accessories"
             leftSection={
-              <IconTrafficLights size={16} />
+              <IconToggleLeft size={16}/>
             }
           >
-            Accessories ({
-              runtime.basicAccessories.size +
+            Basic ({
+              runtime.basicAccessories.size
+            })
+          </Tabs.Tab>
+
+          <Tabs.Tab
+            value="extended-accessories"
+            leftSection={
+              <IconTrafficLights size={16}/>
+            }
+          >
+            Extended ({
               runtime.extendedAccessories.size
             })
           </Tabs.Tab>
@@ -183,19 +197,36 @@ export default function DebugDialog({
             turnouts={
               runtime.turnouts
             }
+            connected={
+              runtime.connected
+            }
           />
         </Tabs.Panel>
 
         <Tabs.Panel
-          value="accessories"
+          value="basic-accessories"
           style={panelStyle}
         >
-          <AccessoryDebugTab
-            basicAccessories={
+          <BasicAccessoryDebugTab
+            accessories={
               runtime.basicAccessories
             }
-            extendedAccessories={
+            connected={
+              runtime.connected
+            }
+          />
+        </Tabs.Panel>
+
+        <Tabs.Panel
+          value="extended-accessories"
+          style={panelStyle}
+        >
+          <ExtendedAccessoryDebugTab
+            accessories={
               runtime.extendedAccessories
+            }
+            connected={
+              runtime.connected
             }
           />
         </Tabs.Panel>

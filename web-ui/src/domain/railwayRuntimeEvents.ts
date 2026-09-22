@@ -1,16 +1,9 @@
-
 import type {
   BlockState,
   LocoReservation,
   LocoState,
 } from "./domainTypes.js";
 
-/**
- * Szerver -> kliens vasúti runtime event payloadok.
- *
- * Ezek az élő állapotfrissítések a command center,
- * a szimulátor és a kliens közös contractjai.
- */
 export type LocoReservationChangedPayload = {
   locoAddress: number;
   reservation: LocoReservation | null;
@@ -22,7 +15,22 @@ export type LocoStateChangedPayload = {
 
 export type TurnoutChangedPayload = {
   address: number;
+
+  /**
+   * Physical DCC accessory value.
+   * Kept as `closed` for wire compatibility with the existing protocol.
+   */
   closed: boolean;
+
+  outputMode?: "accessory" | "extended";
+
+  /**
+   * Current extended accessory aspect when outputMode === "extended".
+   */
+  aspect?: number | null;
+
+  closedAspect?: number;
+  openedAspect?: number;
 };
 
 export type AccessoryChangedPayload = {
