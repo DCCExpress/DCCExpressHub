@@ -1,4 +1,3 @@
-
 /**
  * Szerver -> kliens power állapot payload.
  * Ez a WS contract része, nem azonos a belső CommandCenter PowerInfo típussal.
@@ -47,9 +46,11 @@ export type CommandCenterInfoPayload = {
   power?: boolean;
   type?: string;
   name?: string;
+  transport?: "tcp" | "serial" | string;
   ip?: string;
   port?: number;
   serialPort?: string;
+  baudRate?: number;
   connectionString?: string;
 };
 
@@ -80,6 +81,15 @@ export type DccExStatusPayload = {
   minimumFreeHeapBytes?: number;
   largestFreeHeapBlockBytes?: number;
   resetReason?: string;
+
+  // Native Windows backend connection state. Optional so the same contract
+  // remains compatible with embedded firmware payloads.
+  alive?: boolean;
+  transport?: "tcp" | "serial" | string;
+  host?: string;
+  port?: number;
+  serialPort?: string;
+  baudRate?: number;
 };
 
 export type CommandCenterLockChangedPayload = {

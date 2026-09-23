@@ -27,8 +27,14 @@ import {
 
 type CommandCenterType =
   | "dcc-ex"
+  | "dcc-ex-tcp"
+  | "dcc-ex-serial"
   | "z21"
   | string;
+
+type CommandCenterTransport =
+  | "tcp"
+  | "serial";
 
 type CommandCenterCapabilities = {
   trackPower: boolean;
@@ -49,16 +55,25 @@ type CommandCenterInfoDto = {
   ok: boolean;
   type: CommandCenterType;
   name: string;
+  transport?: string;
   defaultPort: number;
+  defaultBaudRate?: number;
   connected: boolean;
+  host?: string;
+  port?: number;
+  serialPort?: string;
+  baudRate?: number;
   capabilities: CommandCenterCapabilities;
   message?: string;
 };
 
 type CommandCenterConfigDto = {
   ok: boolean;
+  transport?: string;
   host: string;
   port: number;
+  serialPort?: string;
+  baudRate?: number;
   powerIncludesProgramming: boolean;
   connected: boolean;
   message?: string;
@@ -67,8 +82,7 @@ type CommandCenterConfigDto = {
 type CommandCenterTestDto = {
   ok: boolean;
 
-  // Legacy backend field names. For Z21 these mean transport/session
-  // reachability even though the transport is UDP rather than TCP.
+  // Kept for compatibility with the existing TCP/Z21 probe endpoint.
   tcpConnected: boolean;
   dccExAlive: boolean;
 
@@ -81,6 +95,17 @@ type Props = {
   opened: boolean;
   onClose: () => void;
 };
+
+type Endpoint =
+  | {
+      transport: "tcp";
+      host: string;
+      port: number;
+    }
+  | {
+      transport: "serial";
+      serialPort: string;
+    };
 
 function formBody(
   values: Record<string, string>,
@@ -100,6 +125,20 @@ function formBody(
   return body;
 }
 
+function normalizeTransport(
+  value: string | null | undefined,
+  type: CommandCenterType | null | undefined,
+): CommandCenterTransport {
+  if (
+    value?.toLowerCase() === "serial" ||
+    type === "dcc-ex-serial"
+  ) {
+    return "serial";
+  }
+
+  return "tcp";
+}
+
 export default function CommandCenterSettingsDialog(
   props: Props,
 ) {
@@ -114,10 +153,18 @@ export default function CommandCenterSettingsDialog(
       null,
     );
 
+  const [transport, setTransport] =
+    useState<CommandCenterTransport>(
+      "tcp",
+    );
+
   const [host, setHost] =
     useState("");
 
   const [port, setPort] =
+    useState("");
+
+  const [serialPort, setSerialPort] =
     useState("");
 
   const [
@@ -152,14 +199,20 @@ export default function CommandCenterSettingsDialog(
     info?.type ===
     "z21";
 
+  const isSerial =
+    transport ===
+    "serial";
+
   const commandCenterName =
     info?.name ??
     "Command center";
 
   const transportLabel =
-    isZ21
-      ? "Z21 UDP port"
-      : "DCC-EX TCP port";
+    isSerial
+      ? "COM port"
+      : isZ21
+        ? "Z21 UDP port"
+        : "DCC-EX TCP port";
 
   const defaultPortPlaceholder =
     String(
@@ -170,6 +223,11 @@ export default function CommandCenterSettingsDialog(
             : 2560
         ),
     );
+
+  const serialBaudRate =
+    info?.defaultBaudRate ??
+    info?.baudRate ??
+    115200;
 
   const loadConfig =
     useCallback(
@@ -220,18 +278,35 @@ export default function CommandCenterSettingsDialog(
             await configResponse.json() as
               CommandCenterConfigDto;
 
+          const loadedTransport =
+            normalizeTransport(
+              config.transport ??
+                loadedInfo.transport,
+              loadedInfo.type,
+            );
+
           setInfo(
             loadedInfo,
           );
 
+          setTransport(
+            loadedTransport,
+          );
+
           setHost(
-            config.host,
+            config.host ?? "",
           );
 
           setPort(
-            String(
-              config.port,
-            ),
+            config.port > 0
+              ? String(config.port)
+              : "",
+          );
+
+          setSerialPort(
+            config.serialPort ??
+              loadedInfo.serialPort ??
+              "",
           );
 
           setPowerIncludesProgramming(
@@ -272,11 +347,27 @@ export default function CommandCenterSettingsDialog(
   );
 
   function validatedEndpoint():
-    | {
-        host: string;
-        port: number;
+    Endpoint | null {
+    if (isSerial) {
+      const cleanSerialPort =
+        serialPort.trim();
+
+      if (!cleanSerialPort) {
+        setError(
+          "COM port is required.",
+        );
+
+        return null;
       }
-    | null {
+
+      return {
+        transport:
+          "serial",
+        serialPort:
+          cleanSerialPort,
+      };
+    }
+
     const cleanHost =
       host.trim();
 
@@ -306,6 +397,8 @@ export default function CommandCenterSettingsDialog(
     }
 
     return {
+      transport:
+        "tcp",
       host:
         cleanHost,
       port:
@@ -335,6 +428,60 @@ export default function CommandCenterSettingsDialog(
     setTestResult(null);
 
     try {
+      if (
+        endpoint.transport ===
+        "serial"
+      ) {
+        /*
+         * The backend owns the COM port, therefore the browser must not try
+         * to open the same port a second time. Read the authoritative live
+         * command-station state instead.
+         */
+        const response =
+          await fetch(
+            "/api/command-center-config",
+            {
+              cache:
+                "no-store",
+            },
+          );
+
+        const config =
+          await response.json() as
+            CommandCenterConfigDto;
+
+        const target =
+          config.serialPort ||
+          endpoint.serialPort;
+
+        setConnected(
+          Boolean(
+            config.connected,
+          ),
+        );
+
+        setTestResult({
+          ok:
+            Boolean(
+              config.connected,
+            ),
+          tcpConnected:
+            Boolean(
+              config.connected,
+            ),
+          dccExAlive:
+            Boolean(
+              config.connected,
+            ),
+          message:
+            config.connected
+              ? `DCC-EX connected on ${target} @ ${config.baudRate || serialBaudRate} baud.`
+              : `DCC-EX is not connected on ${target} @ ${config.baudRate || serialBaudRate} baud.`,
+        });
+
+        return;
+      }
+
       const response =
         await fetch(
           "/api/command-center-test",
@@ -414,6 +561,34 @@ export default function CommandCenterSettingsDialog(
           ? powerIncludesProgramming
           : false;
 
+      const values:
+        Record<string, string> =
+        endpoint.transport ===
+        "serial"
+          ? {
+              serialPort:
+                endpoint.serialPort,
+
+              powerIncludesProgramming:
+                effectivePowerIncludesProgramming
+                  ? "true"
+                  : "false",
+            }
+          : {
+              host:
+                endpoint.host,
+
+              port:
+                String(
+                  endpoint.port,
+                ),
+
+              powerIncludesProgramming:
+                effectivePowerIncludesProgramming
+                  ? "true"
+                  : "false",
+            };
+
       const response =
         await fetch(
           "/api/command-center-config",
@@ -427,20 +602,9 @@ export default function CommandCenterSettingsDialog(
             },
 
             body:
-              formBody({
-                host:
-                  endpoint.host,
-
-                port:
-                  String(
-                    endpoint.port,
-                  ),
-
-                powerIncludesProgramming:
-                  effectivePowerIncludesProgramming
-                    ? "true"
-                    : "false",
-              }),
+              formBody(
+                values,
+              ),
           },
         );
 
@@ -462,6 +626,16 @@ export default function CommandCenterSettingsDialog(
         result.connected,
       );
 
+      if (
+        endpoint.transport ===
+        "serial"
+      ) {
+        setSerialPort(
+          result.serialPort ??
+            endpoint.serialPort,
+        );
+      }
+
       showNotification({
         color:
           "green",
@@ -470,7 +644,10 @@ export default function CommandCenterSettingsDialog(
           i18next.t("ui.settingsSaved", { value1: commandCenterName }),
 
         message:
-          `${endpoint.host}:${endpoint.port}`,
+          endpoint.transport ===
+          "serial"
+            ? `${result.serialPort ?? endpoint.serialPort} @ ${result.baudRate || serialBaudRate} baud`
+            : `${endpoint.host}:${endpoint.port}`,
       });
 
       onClose();
@@ -495,27 +672,37 @@ export default function CommandCenterSettingsDialog(
           "Connection test";
 
         let message =
-          isZ21
-            ? "Press TEST to verify the Z21 UDP session."
-            : "Press TEST to verify TCP connectivity and the DCC-EX <#> reply.";
+          isSerial
+            ? "Press TEST to read the backend's live DCC-EX Serial connection state."
+            : isZ21
+              ? "Press TEST to verify the Z21 UDP session."
+              : "Press TEST to verify TCP connectivity and the DCC-EX <#> reply.";
 
         let reply =
-          "Reply: —";
+          isSerial
+            ? `Target: ${serialPort.trim() || "—"} @ ${serialBaudRate} baud`
+            : "Reply: —";
 
         let elapsed =
-          "Elapsed: —";
+          isSerial
+            ? "The backend owns the COM port."
+            : "Elapsed: —";
 
         if (testing) {
           title =
             `Testing ${commandCenterName} connection...`;
 
           message =
-            `Checking ${host.trim() || "host"}:${port || "port"}`;
+            isSerial
+              ? `Checking ${serialPort.trim() || "COM port"} @ ${serialBaudRate} baud`
+              : `Checking ${host.trim() || "host"}:${port || "port"}`;
 
           reply =
-            isZ21
-              ? "Waiting for Z21 system-state reply..."
-              : "Waiting for DCC-EX reply...";
+            isSerial
+              ? "Reading backend command-station status..."
+              : isZ21
+                ? "Waiting for Z21 system-state reply..."
+                : "Waiting for DCC-EX reply...";
         } else if (testResult) {
           if (testResult.dccExAlive) {
             color =
@@ -528,13 +715,15 @@ export default function CommandCenterSettingsDialog(
               "red";
 
             title =
-              isZ21
-                ? "Z21 connection failed"
-                : (
-                  testResult.tcpConnected
-                    ? "TCP connected, but no DCC-EX reply"
-                    : "DCC-EX connection failed"
-                );
+              isSerial
+                ? "DCC-EX Serial connection failed"
+                : isZ21
+                  ? "Z21 connection failed"
+                  : (
+                    testResult.tcpConnected
+                      ? "TCP connected, but no DCC-EX reply"
+                      : "DCC-EX connection failed"
+                  );
           }
 
           message =
@@ -542,25 +731,31 @@ export default function CommandCenterSettingsDialog(
             (
               testResult.dccExAlive
                 ? (
-                  isZ21
-                    ? "The configured endpoint answered the Z21 system-state query."
-                    : "The configured endpoint answered the DCC-EX <#> query."
+                  isSerial
+                    ? "The backend reports the DCC-EX Serial connection online."
+                    : isZ21
+                      ? "The configured endpoint answered the Z21 system-state query."
+                      : "The configured endpoint answered the DCC-EX <#> query."
                 )
                 : (
-                  isZ21
-                    ? "No valid Z21 system-state reply was received."
-                    : "No valid DCC-EX <#> reply was received."
+                  isSerial
+                    ? "The backend reports the DCC-EX Serial connection offline."
+                    : isZ21
+                      ? "No valid Z21 system-state reply was received."
+                      : "No valid DCC-EX <#> reply was received."
                 )
             );
 
-          reply =
-            `Reply: ${testResult.reply ?? "—"}`;
+          if (!isSerial) {
+            reply =
+              `Reply: ${testResult.reply ?? "—"}`;
 
-          elapsed =
-            testResult.elapsedMs ===
-            undefined
-              ? "Elapsed: —"
-              : `Elapsed: ${testResult.elapsedMs} ms`;
+            elapsed =
+              testResult.elapsedMs ===
+              undefined
+                ? "Elapsed: —"
+                : `Elapsed: ${testResult.elapsedMs} ms`;
+          }
         }
 
         return {
@@ -574,8 +769,11 @@ export default function CommandCenterSettingsDialog(
       [
         commandCenterName,
         host,
+        isSerial,
         isZ21,
         port,
+        serialBaudRate,
+        serialPort,
         testResult,
         testing,
       ],
@@ -663,46 +861,69 @@ export default function CommandCenterSettingsDialog(
           </Badge>
         </Group>
 
-        <TextInput
-          label={i18next.t("ui.ipAddressHostname")}
-          placeholder={
-            isZ21
-              ? "192.168.0.111"
-              : "192.168.1.143"
-          }
-          value={host}
-          onChange={
-            event =>
-              setHost(
-                event.currentTarget.value,
-              )
-          }
-          disabled={
-            loading ||
-            saving ||
-            testing
-          }
-        />
+        {
+          isSerial ? (
+            <TextInput
+              label={transportLabel}
+              placeholder="COM3"
+              value={serialPort}
+              onChange={
+                event =>
+                  setSerialPort(
+                    event.currentTarget.value,
+                  )
+              }
+              disabled={
+                loading ||
+                saving ||
+                testing
+              }
+            />
+          ) : (
+            <>
+              <TextInput
+                label={i18next.t("ui.ipAddressHostname")}
+                placeholder={
+                  isZ21
+                    ? "192.168.0.111"
+                    : "192.168.1.143"
+                }
+                value={host}
+                onChange={
+                  event =>
+                    setHost(
+                      event.currentTarget.value,
+                    )
+                }
+                disabled={
+                  loading ||
+                  saving ||
+                  testing
+                }
+              />
 
-        <TextInput
-          label={transportLabel}
-          placeholder={
-            defaultPortPlaceholder
-          }
-          value={port}
-          inputMode="numeric"
-          onChange={
-            event =>
-              setPort(
-                event.currentTarget.value,
-              )
-          }
-          disabled={
-            loading ||
-            saving ||
-            testing
-          }
-        />
+              <TextInput
+                label={transportLabel}
+                placeholder={
+                  defaultPortPlaceholder
+                }
+                value={port}
+                inputMode="numeric"
+                onChange={
+                  event =>
+                    setPort(
+                      event.currentTarget.value,
+                    )
+                }
+                disabled={
+                  loading ||
+                  saving ||
+                  testing
+                }
+              />
+            </>
+          )
+        }
 
         {
           info?.capabilities

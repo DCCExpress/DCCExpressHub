@@ -112,8 +112,13 @@ public sealed class SerialDccExTransport : IDccExTransport
 {
     public const int BaudRate = 115200;
 
+    private const int ReadTimeoutMs = 250;
+    private const int WriteTimeoutMs = 2000;
+    private const int OpenStabilizationMs = 1200;
+
     private SerialPort? _port;
     private string _name;
+    private volatile bool _ready;
 
     public SerialDccExTransport(IConfiguration cfg)
         : this(
@@ -127,8 +132,22 @@ public sealed class SerialDccExTransport : IDccExTransport
         _name = name;
     }
 
-    public bool IsConnected =>
-        _port?.IsOpen == true;
+    public bool IsConnected
+    {
+        get
+        {
+            try
+            {
+                return
+                    _ready &&
+                    _port?.IsOpen == true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+    }
 
     public string Endpoint =>
         $"{_name}@{BaudRate}";
@@ -151,66 +170,224 @@ public sealed class SerialDccExTransport : IDccExTransport
         return true;
     }
 
-    public Task ConnectAsync(
+    public async Task ConnectAsync(
+        CancellationToken ct)
+    {
+        await DisconnectAsync();
+        ct.ThrowIfCancellationRequested();
+
+        var port =
+            new SerialPort(
+                _name,
+                BaudRate,
+                Parity.None,
+                8,
+                StopBits.One)
+            {
+                Handshake = Handshake.None,
+                ReadTimeout = ReadTimeoutMs,
+                WriteTimeout = WriteTimeoutMs,
+
+                // Do not intentionally assert modem control lines.
+                // Many Arduino-class command stations reset when these lines
+                // transition while the COM port is opened.
+                DtrEnable = false,
+                RtsEnable = false
+            };
+
+        try
+        {
+            port.Open();
+
+            if (!port.IsOpen)
+            {
+                throw new IOException(
+                    $"Serial port {_name} did not open.");
+            }
+
+            _port = port;
+
+            // Give USB CDC / Arduino-class command stations time to settle after
+            // opening the port before DCC-EX traffic starts.
+            await Task.Delay(
+                OpenStabilizationMs,
+                ct);
+
+            ct.ThrowIfCancellationRequested();
+
+            if (!port.IsOpen)
+            {
+                throw new IOException(
+                    $"Serial port {_name} closed during startup.");
+            }
+
+            // Drop boot/reset noise before the first DCC-EX request.
+            try
+            {
+                port.DiscardInBuffer();
+                port.DiscardOutBuffer();
+            }
+            catch
+            {
+                // A driver may not support purging. The parser can still ignore
+                // non-DCC-EX text, so this is not fatal.
+            }
+
+            _ready = true;
+        }
+        catch
+        {
+            _ready = false;
+
+            try
+            {
+                port.Close();
+                port.Dispose();
+            }
+            catch
+            {
+            }
+
+            if (ReferenceEquals(
+                    _port,
+                    port))
+            {
+                _port = null;
+            }
+
+            throw;
+        }
+    }
+
+    public Task<int> ReadAsync(
+        Memory<byte> buffer,
+        CancellationToken ct)
+    {
+        if (buffer.Length == 0)
+            return Task.FromResult(0);
+
+        /*
+         * Use SerialPort.Read instead of BaseStream.ReadAsync.
+         *
+         * SerialPort has its own receive buffer. Mixing SerialPort state with
+         * BaseStream async I/O can produce awkward buffer/cancellation behaviour
+         * on Windows USB serial drivers. A short synchronous read timeout gives
+         * us one dedicated blocking reader that can still observe cancellation
+         * and port closure.
+         */
+        return Task.Run(
+            () =>
+            {
+                var temp =
+                    new byte[
+                        buffer.Length];
+
+                while (true)
+                {
+                    ct.ThrowIfCancellationRequested();
+
+                    var port =
+                        _port;
+
+                    if (
+                        !_ready ||
+                        port is null ||
+                        !port.IsOpen)
+                    {
+                        return 0;
+                    }
+
+                    try
+                    {
+                        var count =
+                            port.Read(
+                                temp,
+                                0,
+                                temp.Length);
+
+                        if (count <= 0)
+                            continue;
+
+                        temp.AsMemory(
+                                0,
+                                count)
+                            .CopyTo(
+                                buffer);
+
+                        return count;
+                    }
+                    catch (TimeoutException)
+                    {
+                        // Normal idle serial port. Re-check cancellation and
+                        // IsOpen on the next pass.
+                    }
+                }
+            },
+            CancellationToken.None);
+    }
+
+    public Task WriteAsync(
+        ReadOnlyMemory<byte> data,
         CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
 
+        var port =
+            _port;
+
+        if (
+            !_ready ||
+            port is null ||
+            !port.IsOpen)
+        {
+            throw new IOException(
+                $"Serial port {_name} is not open.");
+        }
+
+        var bytes =
+            data.ToArray();
+
         try
         {
-            _port?.Dispose();
+            // DCC-EX commands are tiny. SerialPort.Write is deliberate here:
+            // no BaseStream and no FlushAsync are needed for a serial device.
+            port.Write(
+                bytes,
+                0,
+                bytes.Length);
+
+            return Task.CompletedTask;
         }
-        catch
+        catch (Exception ex)
+            when (
+                ex is InvalidOperationException or
+                IOException or
+                UnauthorizedAccessException or
+                TimeoutException)
         {
+            throw new IOException(
+                $"Serial write failed on {_name}.",
+                ex);
         }
-
-        _port = new SerialPort(
-            _name,
-            BaudRate,
-            Parity.None,
-            8,
-            StopBits.One)
-        {
-            Handshake = Handshake.None,
-            ReadTimeout = -1,
-            WriteTimeout = 2000
-        };
-
-        _port.Open();
-
-        return Task.CompletedTask;
-    }
-
-    public async Task<int> ReadAsync(
-        Memory<byte> buffer,
-        CancellationToken ct) =>
-        await _port!.BaseStream.ReadAsync(
-            buffer,
-            ct);
-
-    public async Task WriteAsync(
-        ReadOnlyMemory<byte> data,
-        CancellationToken ct)
-    {
-        await _port!.BaseStream.WriteAsync(
-            data,
-            ct);
-
-        await _port.BaseStream.FlushAsync(ct);
     }
 
     public Task DisconnectAsync()
     {
+        _ready = false;
+
+        var port =
+            _port;
+
+        _port = null;
+
         try
         {
-            _port?.Close();
-            _port?.Dispose();
+            port?.Close();
+            port?.Dispose();
         }
         catch
         {
         }
-
-        _port = null;
 
         return Task.CompletedTask;
     }

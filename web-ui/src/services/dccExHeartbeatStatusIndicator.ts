@@ -9,14 +9,12 @@ let wsStatus:
   WsConnectionStatus =
   "disconnected";
 
-let commandCenterIp:
+let commandCenterTarget:
   string | null =
   null;
 
-let dccExAlive = false;
-let lastDccExHeartbeatAt = 0;
+let commandCenterAlive = false;
 
-const DCC_EX_TIMEOUT_MS = 3000;
 const PAINT_INTERVAL_MS = 500;
 
 function formatWsStatus(
@@ -153,16 +151,44 @@ function ensureBadge(
   return badge;
 }
 
-function isDccExOnline():
+function isCommandCenterOnline():
   boolean {
   return (
     wsStatus === "connected" &&
-    dccExAlive &&
-    lastDccExHeartbeatAt > 0 &&
-    Date.now() -
-      lastDccExHeartbeatAt <
-      DCC_EX_TIMEOUT_MS
+    commandCenterAlive
   );
+}
+
+function formatCommandCenterTarget(
+  data: {
+    ip?: string;
+    port?: number;
+    serialPort?: string;
+    connectionString?: string;
+  }
+): string | null {
+  const connectionString =
+    data.connectionString?.trim();
+
+  if (connectionString) {
+    return connectionString;
+  }
+
+  const serialPort =
+    data.serialPort?.trim();
+
+  if (serialPort) {
+    return serialPort;
+  }
+
+  const ip =
+    data.ip?.trim();
+
+  if (!ip) {
+    return null;
+  }
+
+  return `${ip}:${data.port ?? 2560}`;
 }
 
 function paintHome(): void {
@@ -201,25 +227,25 @@ function paintHome(): void {
       "home-dccex"
     );
 
-  const dccOnline =
-    isDccExOnline();
+  const commandCenterOnline =
+    isCommandCenterOnline();
 
   dccBadge.textContent =
-    `DCC-EX: ${commandCenterIp ?? "?"}`;
+    `DCC-EX: ${commandCenterTarget ?? "?"}`;
 
   dccBadge.title =
-    dccOnline
-      ? "DCC-EX heartbeat OK"
-      : "No DCC-EX heartbeat response";
+    commandCenterOnline
+      ? "Command station connected"
+      : "Command station disconnected";
 
   styleBadge(
     dccBadge,
-    dccOnline
+    commandCenterOnline
   );
 
   dccBadge.classList.toggle(
     "lite-ws-alert",
-    !dccOnline
+    !commandCenterOnline
   );
 
   if (
@@ -313,25 +339,25 @@ function paintLayoutStatusBar():
       "layout-dccex"
     );
 
-  const dccOnline =
-    isDccExOnline();
+  const commandCenterOnline =
+    isCommandCenterOnline();
 
   dccBadge.textContent =
-    `DCC-EX: ${commandCenterIp ?? "?"}`;
+    `DCC-EX: ${commandCenterTarget ?? "?"}`;
 
   dccBadge.title =
-    dccOnline
-      ? "DCC-EX heartbeat OK"
-      : "No DCC-EX heartbeat response";
+    commandCenterOnline
+      ? "Command station connected"
+      : "Command station disconnected";
 
   styleBadge(
     dccBadge,
-    dccOnline
+    commandCenterOnline
   );
 
   dccBadge.classList.toggle(
     "lite-ws-alert",
-    !dccOnline
+    !commandCenterOnline
   );
 
   // Layout status order:
@@ -347,38 +373,9 @@ function paintLayoutStatusBar():
   }
 }
 
-function checkHeartbeatTimeout():
-  void {
-  if (
-    wsStatus !== "connected" ||
-    lastDccExHeartbeatAt === 0
-  ) {
-    dccExAlive = false;
-    return;
-  }
-
-  if (
-    Date.now() -
-      lastDccExHeartbeatAt >=
-    DCC_EX_TIMEOUT_MS
-  ) {
-    dccExAlive = false;
-  }
-}
-
 function paint(): void {
-  checkHeartbeatTimeout();
   paintHome();
   paintLayoutStatusBar();
-}
-
-function isDccExHeartbeatReply(
-  raw: string
-): boolean {
-  return /^<#\s+\d+\s*>$/u
-    .test(
-      raw.trim()
-    );
 }
 
 export function
@@ -399,49 +396,37 @@ installDccExHeartbeatStatusIndicator():
         status !==
         "connected"
       ) {
-        dccExAlive = false;
-        lastDccExHeartbeatAt = 0;
+        commandCenterAlive = false;
       }
 
       paint();
     }
   );
 
+  // The backend is the single source of truth for command-station connectivity.
+  // Windows: CommandCenter.Connected
+  // ESP32:   _commandCenter.connected()
+  //
+  // This event is sent on initial runtime sync and on every WebSocket heartbeat,
+  // so the frontend does not inspect raw DCC-EX heartbeat frames itself.
   wsClient.on(
     "commandCenterInfo",
     data => {
-      commandCenterIp =
-        data.ip ??
-        null;
+      commandCenterAlive =
+        data.alive;
 
-      if (!data.alive) {
-        dccExAlive = false;
-      }
-
-      paint();
-    }
-  );
-
-  wsClient.on(
-    "rawInfo",
-    data => {
-      if (
-        !isDccExHeartbeatReply(
-          data.raw
-        )
-      ) {
-        return;
-      }
-
-      lastDccExHeartbeatAt =
-        Date.now();
-
-      dccExAlive = true;
+      commandCenterTarget =
+        formatCommandCenterTarget(
+          data
+        );
 
       paint();
     }
   );
 
+  // Kept only because the header/layout badges can be mounted after this
+  // service is installed. The timer repaints existing state; it does not
+  // calculate connection state or implement a heartbeat timeout.
   window.setInterval(
     paint,
     PAINT_INTERVAL_MS

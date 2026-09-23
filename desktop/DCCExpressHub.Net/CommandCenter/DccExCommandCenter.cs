@@ -13,13 +13,18 @@ namespace DCCExpressHub.Net.CommandCenter
         private DateTimeOffset _lastHeartbeat = DateTimeOffset.MinValue;
         private volatile bool _paused;
         private volatile bool _pauseKnown;
+        private volatile bool _publishedConnected;
+
+        private bool IsSerial =>
+            _transport is SerialDccExTransport;
 
         public bool Connected =>
-            _transport.IsConnected &&
-            _alive;
+            IsSerial
+                ? _transport.IsConnected
+                : _transport.IsConnected && _alive;
 
         public string Type =>
-            _transport is SerialDccExTransport
+            IsSerial
                 ? "dcc-ex-serial"
                 : "dcc-ex-tcp";
 
@@ -61,15 +66,12 @@ namespace DCCExpressHub.Net.CommandCenter
             if (!accepted)
                 return false;
 
-            var wasAlive = _alive;
-
             _alive = false;
             _pauseKnown = false;
             _lastHeartbeat =
                 DateTimeOffset.MinValue;
 
-            if (wasAlive)
-                ConnectionChanged?.Invoke(false);
+            PublishConnectionState();
 
             return true;
         }
@@ -133,15 +135,36 @@ namespace DCCExpressHub.Net.CommandCenter
 
             _protocol.HeartbeatReply += () =>
             {
-                var wasAlive = _alive;
-
-                _alive = true;
                 _lastHeartbeat =
                     DateTimeOffset.UtcNow;
 
-                if (!wasAlive)
-                    ConnectionChanged?.Invoke(true);
+                // TCP uses the DCC-EX heartbeat as its liveness proof.
+                // Serial liveness is the COM transport itself.
+                if (!IsSerial)
+                {
+                    _alive = true;
+                    PublishConnectionState();
+                }
             };
+        }
+
+        private void PublishConnectionState()
+        {
+            var connected =
+                Connected;
+
+            if (
+                _publishedConnected ==
+                connected)
+            {
+                return;
+            }
+
+            _publishedConnected =
+                connected;
+
+            ConnectionChanged?.Invoke(
+                connected);
         }
 
         protected override async Task ExecuteAsync(
@@ -158,6 +181,7 @@ namespace DCCExpressHub.Net.CommandCenter
                     if (!_transport.IsConnected)
                     {
                         _alive = false;
+                        PublishConnectionState();
 
                         await _transport.ConnectAsync(
                             stoppingToken);
@@ -168,19 +192,23 @@ namespace DCCExpressHub.Net.CommandCenter
                             _transport.Endpoint);
 
                         _pauseKnown = false;
-
-                        // Reset the watchdog on every reconnect. This matters
-                        // especially for USB serial devices that need a moment
-                        // after the COM port is opened.
                         _lastHeartbeat =
                             DateTimeOffset.UtcNow;
 
-                        // Station information + heartbeat. The sensor snapshot
-                        // is requested later by WsRuntimeCoordinator with <Q>
-                        // after the heartbeat marks the command center alive.
+                        /*
+                         * Do the first DCC-EX request before announcing a new
+                         * Serial connection. That prevents WsRuntimeCoordinator
+                         * from racing a full bootstrap burst against the very
+                         * first write after opening the USB COM port.
+                         */
                         await WriteCoreAsync(
                             "<s><#>",
                             stoppingToken);
+
+                        if (IsSerial)
+                        {
+                            PublishConnectionState();
+                        }
                     }
 
                     using var heartbeat =
@@ -209,27 +237,37 @@ namespace DCCExpressHub.Net.CommandCenter
 
                         if (done == tickTask)
                         {
-                            await WriteCoreAsync(
-                                "<#>",
-                                stoppingToken);
-
-                            var age =
-                                DateTimeOffset.UtcNow -
-                                _lastHeartbeat;
-
-                            if (_alive &&
-                                age > TimeSpan.FromSeconds(3))
+                            if (!IsSerial)
                             {
-                                _alive = false;
-                                ConnectionChanged?.Invoke(false);
+                                await WriteCoreAsync(
+                                    "<#>",
+                                    stoppingToken);
+
+                                var age =
+                                    DateTimeOffset.UtcNow -
+                                    _lastHeartbeat;
+
+                                if (
+                                    _alive &&
+                                    age >
+                                    TimeSpan.FromSeconds(3))
+                                {
+                                    _alive = false;
+                                    PublishConnectionState();
+                                }
+
+                                if (
+                                    age >
+                                    TimeSpan.FromSeconds(6))
+                                {
+                                    throw new IOException(
+                                        "heartbeat timeout");
+                                }
                             }
 
-                            if (age > TimeSpan.FromSeconds(6))
-                            {
-                                throw new IOException(
-                                    "heartbeat timeout");
-                            }
-
+                            // Serial deliberately does not send a periodic
+                            // heartbeat here. Its liveness is the COM port and
+                            // normal runtime traffic already exercises it.
                             tickTask =
                                 heartbeat
                                     .WaitForNextTickAsync(
@@ -300,6 +338,12 @@ namespace DCCExpressHub.Net.CommandCenter
                                 buffer,
                                 stoppingToken);
                     }
+
+                    if (!_transport.IsConnected)
+                    {
+                        _alive = false;
+                        PublishConnectionState();
+                    }
                 }
                 catch (OperationCanceledException)
                     when (stoppingToken.IsCancellationRequested)
@@ -308,12 +352,6 @@ namespace DCCExpressHub.Net.CommandCenter
                 }
                 catch (Exception ex)
                 {
-                    if (_alive)
-                    {
-                        _alive = false;
-                        ConnectionChanged?.Invoke(false);
-                    }
-
                     _log.LogWarning(
                         ex,
                         "DCC-EX disconnected {Type} {Endpoint}",
@@ -322,11 +360,20 @@ namespace DCCExpressHub.Net.CommandCenter
 
                     await _transport.DisconnectAsync();
 
+                    _alive = false;
+                    _pauseKnown = false;
+                    PublishConnectionState();
+
                     await Task.Delay(
                         3000,
                         stoppingToken);
                 }
             }
+
+            await _transport.DisconnectAsync();
+
+            _alive = false;
+            PublishConnectionState();
         }
 
         private async Task WriteCoreAsync(
@@ -381,8 +428,15 @@ namespace DCCExpressHub.Net.CommandCenter
 
                 return true;
             }
-            catch
+            catch (Exception ex)
             {
+                _log.LogWarning(
+                    ex,
+                    "DCC-EX TX failed {Type} {Endpoint} {Command}",
+                    Type,
+                    _transport.Endpoint,
+                    command);
+
                 return false;
             }
         }
