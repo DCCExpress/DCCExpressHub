@@ -9,6 +9,7 @@ import { isTurnoutElement } from "@/models/editor/core/LayoutView";
 import TrackTurnoutDoubleElement from "../models/editor/elements/TrackTurnoutDoubleElement";
 import { TrackTurnoutThreeWayElement } from "../models/editor/elements/TrackTurnoutThreeWayElement";
 import { TrackSignalElement } from "../models/editor/elements/TrackSignalElement";
+import { TrackLevelCrossingElement } from "../models/editor/elements/TrackLevelCrossingElement";
 
 export type IntegrityArea = "Layout" | "Route buttons" | "Automatic routes" | "Signal logic" | "Locomotives";
 export type IntegrityIssue = { level: "error" | "warning"; area: IntegrityArea; message: string };
@@ -96,6 +97,90 @@ export function inspectProjectIntegrity(
     idCounts.set(element.id, (idCounts.get(element.id) ?? 0) + 1);
   }
   for (const [id, count] of idCounts) if (count > 1) add("Layout", "error", `Element ID ${id} is used ${count} times.`);
+
+  // Output addresses are optional while editing a layout, but elements without
+  // them cannot participate in routes or signal automation. Report these as
+  // warnings instead of errors so an unfinished layout remains valid.
+  for (const element of elements) {
+    if (
+      element instanceof TrackTurnoutDoubleElement ||
+      element instanceof TrackTurnoutThreeWayElement
+    ) {
+      const data = element.toJSON() as {
+        id?: LayoutElementId;
+        name?: string;
+        turnout1Address?: number;
+        turnout2Address?: number;
+      };
+
+      const label = elementLabel(
+        data,
+        element instanceof TrackTurnoutThreeWayElement
+          ? "Three-way turnout"
+          : "Double turnout"
+      );
+
+      if (Number(data.turnout1Address ?? 0) <= 0) {
+        add(
+          "Layout",
+          "warning",
+          `${label} has no output address configured for motor 1.`
+        );
+      }
+
+      if (Number(data.turnout2Address ?? 0) <= 0) {
+        add(
+          "Layout",
+          "warning",
+          `${label} has no output address configured for motor 2.`
+        );
+      }
+
+      continue;
+    }
+
+    if (isTurnoutElement(element)) {
+      const data = element.toJSON() as {
+        id?: LayoutElementId;
+        name?: string;
+        turnoutAddress?: number;
+      };
+
+      if (Number(data.turnoutAddress ?? 0) <= 0) {
+        add(
+          "Layout",
+          "warning",
+          `${elementLabel(data, "Turnout")} has no output address configured.`
+        );
+      }
+
+      continue;
+    }
+
+    if (element instanceof TrackSignalElement) {
+      const data = element.toJSON() as {
+        id?: LayoutElementId;
+        name?: string;
+        signalOutput?: {
+          address?: number;
+        };
+      };
+
+      const isLevelCrossing =
+        element instanceof TrackLevelCrossingElement;
+
+      if (Number(data.signalOutput?.address ?? 0) <= 0) {
+        add(
+          "Layout",
+          "warning",
+          `${elementLabel(
+            data,
+            isLevelCrossing ? "Level crossing" : "Signal"
+          )} has no signal output address configured.`
+        );
+      }
+    }
+  }
 
   const turnoutById = new Map(
     elements

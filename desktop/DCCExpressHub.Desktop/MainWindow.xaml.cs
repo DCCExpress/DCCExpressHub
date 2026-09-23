@@ -12,19 +12,29 @@ namespace DCCExpressHub.Desktop;
 
 public partial class MainWindow : Window
 {
-    private const int HubPort = 8080;
-    private const string HubUrl = "http://127.0.0.1:8080";
-    private const string HubListenUrl = "http://0.0.0.0:8080";
     private const string PidFileName = "dccexpresshub-backend.pid";
 
     private Process? _backend;
     private readonly HttpClient _http = new() { Timeout = TimeSpan.FromMilliseconds(500) };
     private Mutex? _singleInstanceMutex;
+    private DesktopSettings _settings = DesktopSettingsStore.Load();
     private bool _isFullscreen;
     private WindowStyle _previousWindowStyle;
     private WindowState _previousWindowState;
     private ResizeMode _previousResizeMode;
     private Rect _previousBounds;
+
+    private int HubPort => _settings.HttpPort;
+    private string HubUrl => $"http://127.0.0.1:{HubPort}";
+    private string HubListenUrl =>
+        _settings.RunMode == "server"
+            ? $"http://0.0.0.0:{HubPort}"
+            : $"http://127.0.0.1:{HubPort}";
+
+    private string L(string key) =>
+        DesktopLocalization.T(
+            _settings.Language,
+            key);
 
     public MainWindow()
     {
@@ -39,19 +49,43 @@ public partial class MainWindow : Window
         {
             _singleInstanceMutex = new Mutex(true, @"Local\DCCExpressHub.Desktop", out bool createdNew);
             if (!createdNew)
-                throw new InvalidOperationException("A DCCExpressHub Desktop már fut.");
+                throw new InvalidOperationException(L("alreadyRunning"));
+
+            var firstLauncherRun = !DesktopSettingsStore.Exists;
+
+            StartupText.Text = L("startupSettings");
+
+            var settingsWindow =
+                new StartupSettingsWindow(
+                    _settings,
+                    GetHubVersion())
+                {
+                    Owner = this
+                };
+
+            if (settingsWindow.ShowDialog() != true)
+            {
+                Close();
+                return;
+            }
+
+            _settings = settingsWindow.Settings;
+            DesktopSettingsStore.Save(_settings);
 
             UpdateWindowTitle();
 
-            StartupText.Text = "Korábbi backend ellenőrzése…";
+            StartupText.Text = L("checkingBackend");
             KillStaleBackend();
 
-            StartupText.Text = "Backend indítása…";
+            StartupText.Text = L("preparingWorkspace");
+            PrepareWorkspace(firstLauncherRun);
+
+            StartupText.Text = L("startingBackend");
             StartBackend();
 
             await WaitForBackendAsync(TimeSpan.FromSeconds(20));
 
-            StartupText.Text = "WebUI betöltése…";
+            StartupText.Text = L("loadingWebUi");
             await Browser.EnsureCoreWebView2Async();
             Browser.CoreWebView2.Settings.AreDevToolsEnabled = true;
             Browser.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
@@ -60,18 +94,229 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            StartupText.Text = "Indítási hiba: " + ex.Message;
+            StartupText.Text = L("startupError") + ex.Message;
+        }
+    }
+
+    private void PrepareWorkspace(bool migrateLegacyData)
+    {
+        var workspace =
+            Path.GetFullPath(
+                _settings.WorkspaceDirectory);
+
+        Directory.CreateDirectory(workspace);
+
+        var dataRoot =
+            Path.Combine(
+                workspace,
+                "data");
+
+        Directory.CreateDirectory(
+            Path.Combine(
+                dataRoot,
+                "config"));
+
+        Directory.CreateDirectory(
+            Path.Combine(
+                dataRoot,
+                "images"));
+
+        Directory.CreateDirectory(
+            Path.Combine(
+                dataRoot,
+                "state"));
+
+        if (migrateLegacyData)
+            TryMigrateLegacyData(dataRoot);
+
+        var backendDir =
+            Path.Combine(
+                AppContext.BaseDirectory,
+                "backend");
+
+        var sourceWebRoot =
+            Path.Combine(
+                backendDir,
+                "wwwroot");
+
+        if (!Directory.Exists(sourceWebRoot))
+        {
+            throw new DirectoryNotFoundException(
+                L("backendWebUiNotFound") + $" {sourceWebRoot}");
+        }
+
+        // The workspace contains persistent user data only.
+        // Built/static WebUI files stay with the application under backend/wwwroot.
+        if (_settings.Protocol == "tcp")
+            PersistTcpCommandCenterInstance(dataRoot);
+    }
+
+    private void TryMigrateLegacyData(string targetDataRoot)
+    {
+        try
+        {
+            var targetLayout =
+                Path.Combine(
+                    targetDataRoot,
+                    "config",
+                    "layout.json");
+
+            if (File.Exists(targetLayout))
+                return;
+
+            var legacyData =
+                Path.Combine(
+                    AppContext.BaseDirectory,
+                    "backend",
+                    "data");
+
+            if (!Directory.Exists(legacyData))
+                return;
+
+            if (!Directory.EnumerateFiles(
+                    legacyData,
+                    "*",
+                    SearchOption.AllDirectories)
+                .Any())
+            {
+                return;
+            }
+
+            CopyDirectoryMissingOnly(
+                legacyData,
+                targetDataRoot);
+
+            AppendServerLog(
+                "INFO",
+                L("legacyDataMigrated") + $"{legacyData} -> {targetDataRoot}");
+        }
+        catch (Exception ex)
+        {
+            AppendServerLog(
+                "WARN",
+                L("legacyDataMigrationFailed") +
+                ex.Message);
+        }
+    }
+
+    private void PersistTcpCommandCenterInstance(
+        string dataRoot)
+    {
+        var path =
+            Path.Combine(
+                dataRoot,
+                "config",
+                "command-center.json");
+
+        bool powerIncludesProgramming =
+            true;
+
+        try
+        {
+            if (File.Exists(path))
+            {
+                using var document =
+                    JsonDocument.Parse(
+                        File.ReadAllText(path));
+
+                if (document.RootElement.TryGetProperty(
+                        "PowerIncludesProgramming",
+                        out var value) &&
+                    value.ValueKind is
+                        JsonValueKind.True or
+                        JsonValueKind.False)
+                {
+                    powerIncludesProgramming =
+                        value.GetBoolean();
+                }
+                else if (document.RootElement.TryGetProperty(
+                             "powerIncludesProgramming",
+                             out value) &&
+                         value.ValueKind is
+                             JsonValueKind.True or
+                             JsonValueKind.False)
+                {
+                    powerIncludesProgramming =
+                        value.GetBoolean();
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        var payload =
+            new
+            {
+                Host = _settings.TcpHost,
+                Port = _settings.TcpPort,
+                PowerIncludesProgramming =
+                    powerIncludesProgramming
+            };
+
+        var temp =
+            path + ".tmp";
+
+        File.WriteAllText(
+            temp,
+            JsonSerializer.Serialize(
+                payload,
+                new JsonSerializerOptions
+                {
+                    WriteIndented = true
+                }));
+
+        File.Move(
+            temp,
+            path,
+            true);
+    }
+
+    private static void CopyDirectoryMissingOnly(
+        string source,
+        string destination)
+    {
+        Directory.CreateDirectory(destination);
+
+        foreach (var file in Directory.GetFiles(source))
+        {
+            var target =
+                Path.Combine(
+                    destination,
+                    Path.GetFileName(file));
+
+            if (!File.Exists(target))
+                File.Copy(file, target);
+        }
+
+        foreach (var directory in Directory.GetDirectories(source))
+        {
+            CopyDirectoryMissingOnly(
+                directory,
+                Path.Combine(
+                    destination,
+                    Path.GetFileName(directory)));
         }
     }
 
     private void UpdateWindowTitle()
     {
         var version = GetHubVersion();
-        var lanIp = GetLanIpv4Address();
 
-        Title = lanIp is null
-            ? $"DCCExpressHub v{version} — local only: 127.0.0.1:{HubPort}"
-            : $"DCCExpressHub v{version} — {lanIp}:{HubPort}";
+        if (_settings.RunMode != "server")
+        {
+            Title =
+                $"DCCExpressHub v{version} — local: 127.0.0.1:{HubPort}";
+            return;
+        }
+
+        var lanIp =
+            GetLanIpv4Address();
+
+        Title =
+            lanIp is null
+                ? $"DCCExpressHub v{version} — server: 0.0.0.0:{HubPort}"
+                : $"DCCExpressHub v{version} — server: {lanIp}:{HubPort}";
     }
 
     private static string GetHubVersion()
@@ -202,17 +447,32 @@ public partial class MainWindow : Window
     {
         var backendDir = Path.Combine(AppContext.BaseDirectory, "backend");
         var dll = Path.Combine(backendDir, "DCCExpressHub.Net.dll");
-        var index = Path.Combine(backendDir, "wwwroot", "index.html");
+        var workspace =
+            Path.GetFullPath(
+                _settings.WorkspaceDirectory);
+
+        var webRoot =
+            Path.Combine(
+                backendDir,
+                "wwwroot");
+
+        var index =
+            Path.Combine(
+                webRoot,
+                "index.html");
 
         if (!File.Exists(dll))
-            throw new FileNotFoundException("A backend nem található.", dll);
+            throw new FileNotFoundException(L("backendNotFound"), dll);
 
         if (!File.Exists(index))
             throw new FileNotFoundException(
-                "A React UI nincs a runtime backend/wwwroot könyvtárban. " +
-                "Másold/buildeld a frontend dist tartalmát a DCCExpressHub.Net/wwwroot könyvtárba.",
+                L("backendWebUiNotFound"),
                 index);
 
+        // The backend binary remains in bin/backend, but ASP.NET's content root
+        // is the persistent user-selected workspace. Existing backend code
+        // therefore continues to use ContentRootPath/data, except that it is no
+        // longer under bin/ and cannot disappear on Clean/Rebuild.
         var psi = new ProcessStartInfo("dotnet", $"\"{dll}\"")
         {
             WorkingDirectory = backendDir,
@@ -223,8 +483,28 @@ public partial class MainWindow : Window
         };
 
         psi.Environment["DCCEXPRESS_DESKTOP_URL"] = HubListenUrl;
+        psi.Environment["ASPNETCORE_URLS"] = HubListenUrl;
+        psi.Environment["Urls"] = HubListenUrl;
         psi.Environment["ASPNETCORE_ENVIRONMENT"] = "Production";
-        psi.Environment["ASPNETCORE_CONTENTROOT"] = backendDir;
+        psi.Environment["ASPNETCORE_CONTENTROOT"] = workspace;
+        psi.Environment["ASPNETCORE_WEBROOT"] = webRoot;
+
+        psi.Environment["DccEx__Transport"] =
+            _settings.Protocol == "serial"
+                ? "Serial"
+                : "Tcp";
+
+        psi.Environment["DccEx__Host"] =
+            _settings.TcpHost;
+
+        psi.Environment["DccEx__Port"] =
+            _settings.TcpPort.ToString();
+
+        psi.Environment["DccEx__SerialPort"] =
+            _settings.SerialPort;
+
+        psi.Environment["DccEx__BaudRate"] =
+            _settings.SerialBaudRate.ToString();
 
         _backend = new Process { StartInfo = psi, EnableRaisingEvents = true };
         _backend.OutputDataReceived += (_, a) =>
@@ -241,7 +521,7 @@ public partial class MainWindow : Window
         };
 
         if (!_backend.Start())
-            throw new InvalidOperationException("A backend nem indítható.");
+            throw new InvalidOperationException(L("backendStartFailed"));
 
         Directory.CreateDirectory(Path.GetDirectoryName(PidFilePath)!);
         File.WriteAllText(PidFilePath, _backend.Id.ToString());
@@ -257,7 +537,7 @@ public partial class MainWindow : Window
         while (DateTime.UtcNow < until)
         {
             if (_backend?.HasExited == true)
-                throw new InvalidOperationException($"A backend leállt. ExitCode={_backend.ExitCode}");
+                throw new InvalidOperationException(L("backendExited") + _backend.ExitCode);
 
             try
             {
@@ -270,7 +550,7 @@ public partial class MainWindow : Window
             await Task.Delay(200);
         }
 
-        throw new TimeoutException("A backend 20 másodpercen belül nem indult el.");
+        throw new TimeoutException(L("backendTimeout"));
     }
 
     private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)

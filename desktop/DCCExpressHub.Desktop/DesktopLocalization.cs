@@ -1,0 +1,203 @@
+namespace DCCExpressHub.Desktop;
+
+public static class DesktopLocalization
+{
+    public static string NormalizeLanguage(string? language) =>
+        language?.Trim().ToLowerInvariant() switch
+        {
+            "hu" => "hu",
+            "de" => "de",
+            _ => "en"
+        };
+
+    public static string T(string? language, string key)
+    {
+        var lang = NormalizeLanguage(language);
+
+        if (Texts.TryGetValue(lang, out var localized) &&
+            localized.TryGetValue(key, out var value))
+        {
+            return value;
+        }
+
+        if (Texts["en"].TryGetValue(key, out var fallback))
+            return fallback;
+
+        return key;
+    }
+
+    private static readonly Dictionary<string, IReadOnlyDictionary<string, string>> Texts =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["en"] = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["windowTitle"] = "DCCExpressHub settings",
+                ["subtitle"] = "Desktop startup settings",
+                ["language"] = "Language",
+                ["connectionTitle"] = "DCC-EX connection",
+                ["connectionDescription"] = "Choose how the desktop backend connects to the command station.",
+                ["protocol"] = "Protocol",
+                ["choose"] = "Choose…",
+                ["tcpHost"] = "IP / host",
+                ["port"] = "Port",
+                ["serialPort"] = "COM port",
+                ["refresh"] = "Refresh",
+                ["testConnection"] = "Test connection",
+                ["webServerTitle"] = "Web server",
+                ["webServerDescription"] = "In Local mode the Hub is available only on this computer. In Server mode it is also available on the LAN.",
+                ["localMode"] = "Local (127.0.0.1)",
+                ["serverMode"] = "Server (0.0.0.0)",
+                ["httpPort"] = "HTTP port",
+                ["workspaceTitle"] = "Workspace",
+                ["workspaceDescription"] = "This is a persistent location independent of builds. Layouts, locomotives, automations and your own files remain in its data folder.",
+                ["browse"] = "Browse…",
+                ["footerHint"] = "Settings are remembered, but this window is shown on every startup.",
+                ["cancel"] = "Cancel",
+                ["okStart"] = "OK · Start backend",
+                ["folderDialogTitle"] = "Select DCCExpressHub workspace",
+
+                ["validationChooseProtocol"] = "Choose a DCC-EX protocol.",
+                ["validationHttpPort"] = "The HTTP port must be a number between 1 and 65535.",
+                ["validationTcpHost"] = "Enter a valid DCC-EX IP address or host name.",
+                ["validationTcpPort"] = "The DCC-EX TCP port must be a number between 1 and 65535.",
+                ["validationSerialPort"] = "Select or enter a COM port.",
+                ["validationWorkspace"] = "Choose a workspace directory.",
+                ["validationWorkspaceInBuild"] = "The workspace cannot be inside the program's bin/build directory. Choose a persistent location such as Documents or AppData.",
+                ["validationWorkspaceInvalid"] = "The workspace cannot be used: ",
+                ["testing"] = "Testing…",
+                ["failed"] = "Failed: ",
+                ["tcpNoHeartbeat"] = "TCP connection succeeded, but no DCC-EX <# …> heartbeat reply was received.",
+                ["serialNoHeartbeat"] = "The COM port opened, but no DCC-EX <# …> heartbeat reply was received.",
+                ["dccReachable"] = "DCC-EX reachable · ",
+
+                ["alreadyRunning"] = "DCCExpressHub Desktop is already running.",
+                ["startupSettings"] = "Startup settings…",
+                ["checkingBackend"] = "Checking previous backend…",
+                ["preparingWorkspace"] = "Preparing workspace…",
+                ["startingBackend"] = "Starting backend…",
+                ["loadingWebUi"] = "Loading WebUI…",
+                ["startupError"] = "Startup error: ",
+                ["backendNotFound"] = "Backend not found.",
+                ["backendWebUiNotFound"] = "Backend WebUI not found.",
+                ["backendStartFailed"] = "Backend could not be started.",
+                ["backendExited"] = "Backend stopped. ExitCode=",
+                ["backendTimeout"] = "Backend did not start within 20 seconds.",
+                ["legacyDataMigrated"] = "Legacy desktop data migrated: ",
+                ["legacyDataMigrationFailed"] = "Legacy desktop data migration failed: "
+            },
+
+            ["hu"] = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["windowTitle"] = "DCCExpressHub beállítások",
+                ["subtitle"] = "Desktop indítási beállítások",
+                ["language"] = "Nyelv",
+                ["connectionTitle"] = "DCC-EX kapcsolat",
+                ["connectionDescription"] = "Válaszd ki, hogyan kapcsolódjon a desktop backend a command stationhöz.",
+                ["protocol"] = "Protokoll",
+                ["choose"] = "Válassz…",
+                ["tcpHost"] = "IP / host",
+                ["port"] = "Port",
+                ["serialPort"] = "COM port",
+                ["refresh"] = "Frissítés",
+                ["testConnection"] = "Kapcsolat tesztelése",
+                ["webServerTitle"] = "Web szerver",
+                ["webServerDescription"] = "Local módban csak ezen a gépen érhető el. Server módban a LAN-ról is elérhető.",
+                ["localMode"] = "Local (127.0.0.1)",
+                ["serverMode"] = "Server (0.0.0.0)",
+                ["httpPort"] = "HTTP port",
+                ["workspaceTitle"] = "Munkakönyvtár",
+                ["workspaceDescription"] = "Ez buildtől független, tartós hely. A pálya, mozdonyok, automatizálások és saját fájlok a kiválasztott mappa data könyvtárában maradnak.",
+                ["browse"] = "Tallózás…",
+                ["footerHint"] = "A beállításokat a program megjegyzi, de ez az ablak minden indításkor megjelenik.",
+                ["cancel"] = "Mégse",
+                ["okStart"] = "OK · Backend indítása",
+                ["folderDialogTitle"] = "DCCExpressHub munkakönyvtár kiválasztása",
+
+                ["validationChooseProtocol"] = "Válassz DCC-EX protokollt.",
+                ["validationHttpPort"] = "A HTTP port 1 és 65535 közötti szám legyen.",
+                ["validationTcpHost"] = "Adj meg érvényes DCC-EX IP címet vagy hostnevet.",
+                ["validationTcpPort"] = "A DCC-EX TCP port 1 és 65535 közötti szám legyen.",
+                ["validationSerialPort"] = "Válassz vagy írj be egy COM portot.",
+                ["validationWorkspace"] = "Válassz munkakönyvtárat.",
+                ["validationWorkspaceInBuild"] = "A munkakönyvtár nem lehet a program bin/build könyvtárában. Válassz tartós mappát, például a Dokumentumok vagy AppData alatt.",
+                ["validationWorkspaceInvalid"] = "A munkakönyvtár nem használható: ",
+                ["testing"] = "Tesztelés…",
+                ["failed"] = "Sikertelen: ",
+                ["tcpNoHeartbeat"] = "TCP kapcsolat létrejött, de nem érkezett DCC-EX <# …> heartbeat válasz.",
+                ["serialNoHeartbeat"] = "A COM port megnyílt, de nem érkezett DCC-EX <# …> heartbeat válasz.",
+                ["dccReachable"] = "DCC-EX elérhető · ",
+
+                ["alreadyRunning"] = "A DCCExpressHub Desktop már fut.",
+                ["startupSettings"] = "Indítási beállítások…",
+                ["checkingBackend"] = "Korábbi backend ellenőrzése…",
+                ["preparingWorkspace"] = "Munkakönyvtár előkészítése…",
+                ["startingBackend"] = "Backend indítása…",
+                ["loadingWebUi"] = "WebUI betöltése…",
+                ["startupError"] = "Indítási hiba: ",
+                ["backendNotFound"] = "A backend nem található.",
+                ["backendWebUiNotFound"] = "A backend WebUI nem található.",
+                ["backendStartFailed"] = "A backend nem indítható.",
+                ["backendExited"] = "A backend leállt. ExitCode=",
+                ["backendTimeout"] = "A backend 20 másodpercen belül nem indult el.",
+                ["legacyDataMigrated"] = "Korábbi desktop data átemelve: ",
+                ["legacyDataMigrationFailed"] = "Korábbi desktop data migráció sikertelen: "
+            },
+
+            ["de"] = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["windowTitle"] = "DCCExpressHub Einstellungen",
+                ["subtitle"] = "Desktop-Starteinstellungen",
+                ["language"] = "Sprache",
+                ["connectionTitle"] = "DCC-EX-Verbindung",
+                ["connectionDescription"] = "Wähle aus, wie das Desktop-Backend mit der Command Station verbunden wird.",
+                ["protocol"] = "Protokoll",
+                ["choose"] = "Auswählen…",
+                ["tcpHost"] = "IP / Host",
+                ["port"] = "Port",
+                ["serialPort"] = "COM-Port",
+                ["refresh"] = "Aktualisieren",
+                ["testConnection"] = "Verbindung testen",
+                ["webServerTitle"] = "Webserver",
+                ["webServerDescription"] = "Im lokalen Modus ist der Hub nur auf diesem Computer erreichbar. Im Servermodus ist er auch im LAN erreichbar.",
+                ["localMode"] = "Lokal (127.0.0.1)",
+                ["serverMode"] = "Server (0.0.0.0)",
+                ["httpPort"] = "HTTP-Port",
+                ["workspaceTitle"] = "Arbeitsverzeichnis",
+                ["workspaceDescription"] = "Dies ist ein dauerhafter, build-unabhängiger Speicherort. Gleisplan, Lokomotiven, Automatisierungen und eigene Dateien bleiben im data-Ordner erhalten.",
+                ["browse"] = "Durchsuchen…",
+                ["footerHint"] = "Die Einstellungen werden gespeichert, dieses Fenster wird jedoch bei jedem Start angezeigt.",
+                ["cancel"] = "Abbrechen",
+                ["okStart"] = "OK · Backend starten",
+                ["folderDialogTitle"] = "DCCExpressHub-Arbeitsverzeichnis auswählen",
+
+                ["validationChooseProtocol"] = "Wähle ein DCC-EX-Protokoll.",
+                ["validationHttpPort"] = "Der HTTP-Port muss eine Zahl zwischen 1 und 65535 sein.",
+                ["validationTcpHost"] = "Gib eine gültige DCC-EX-IP-Adresse oder einen Hostnamen ein.",
+                ["validationTcpPort"] = "Der DCC-EX-TCP-Port muss eine Zahl zwischen 1 und 65535 sein.",
+                ["validationSerialPort"] = "Wähle einen COM-Port aus oder gib ihn ein.",
+                ["validationWorkspace"] = "Wähle ein Arbeitsverzeichnis.",
+                ["validationWorkspaceInBuild"] = "Das Arbeitsverzeichnis darf nicht im bin/build-Verzeichnis des Programms liegen. Wähle einen dauerhaften Speicherort, z. B. Dokumente oder AppData.",
+                ["validationWorkspaceInvalid"] = "Das Arbeitsverzeichnis kann nicht verwendet werden: ",
+                ["testing"] = "Verbindung wird getestet…",
+                ["failed"] = "Fehlgeschlagen: ",
+                ["tcpNoHeartbeat"] = "Die TCP-Verbindung wurde hergestellt, aber es wurde keine DCC-EX-Heartbeat-Antwort <# …> empfangen.",
+                ["serialNoHeartbeat"] = "Der COM-Port wurde geöffnet, aber es wurde keine DCC-EX-Heartbeat-Antwort <# …> empfangen.",
+                ["dccReachable"] = "DCC-EX erreichbar · ",
+
+                ["alreadyRunning"] = "DCCExpressHub Desktop läuft bereits.",
+                ["startupSettings"] = "Starteinstellungen…",
+                ["checkingBackend"] = "Vorheriges Backend wird geprüft…",
+                ["preparingWorkspace"] = "Arbeitsverzeichnis wird vorbereitet…",
+                ["startingBackend"] = "Backend wird gestartet…",
+                ["loadingWebUi"] = "WebUI wird geladen…",
+                ["startupError"] = "Startfehler: ",
+                ["backendNotFound"] = "Backend wurde nicht gefunden.",
+                ["backendWebUiNotFound"] = "Backend-WebUI wurde nicht gefunden.",
+                ["backendStartFailed"] = "Backend konnte nicht gestartet werden.",
+                ["backendExited"] = "Backend wurde beendet. ExitCode=",
+                ["backendTimeout"] = "Backend wurde nicht innerhalb von 20 Sekunden gestartet.",
+                ["legacyDataMigrated"] = "Alte Desktop-Daten migriert: ",
+                ["legacyDataMigrationFailed"] = "Migration der alten Desktop-Daten fehlgeschlagen: "
+            }
+        };
+}
