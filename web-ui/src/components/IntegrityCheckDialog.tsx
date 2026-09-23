@@ -49,9 +49,9 @@ export default function IntegrityCheckDialog({opened,onClose,layout,locos}:Props
           :warnings>0?i18next.t("ui.noBrokenReferencesWarningSFound",{value1:warnings})
           :i18next.t("ui.integrityCheckPassedEveryCheckedReferenceIsValid")}
       </Alert>}
-      <Alert color="blue" variant="light">
+      {/* <Alert color="blue" variant="light">
         Signal Logic cleanup is non-destructive: a missing/recreated layout ID is not a reason to delete physical signal, turnout or sensor automation.
-      </Alert>
+      </Alert> */}
       <ScrollArea.Autosize mah="62dvh" offsetScrollbars><Stack gap="xs" pr="xs">
         {report?.areas.map(area=><Card key={area.area} withBorder p="sm">
           <Group justify="space-between" mb={area.issues.length?"xs":0}>

@@ -211,7 +211,7 @@ function AppHeader({ status, version }: { status: WsConnectionStatus; version: s
       > {i18next.t("ui.power")} {commandCenter.powerInfo?.trackVoltageOn ? i18next.t("ui.on") : i18next.t("ui.off")}
       </Button>
 
-      <Button
+      {/* <Button
         size="xs"
         variant="light"
         color="blue"
@@ -220,7 +220,7 @@ function AppHeader({ status, version }: { status: WsConnectionStatus; version: s
         title={t("homeHub.configureCsb1")}
       >
         CSB1
-      </Button>
+      </Button> */}
 
       <CommandCenterSettingsDialog
         opened={commandCenterSettingsOpened}
@@ -296,7 +296,7 @@ function HomePage({
           </Text>
         </Card>
 
-        <Card className="action-card" withBorder radius={5} p="lg" onClick={onOpenLocoEditor}>
+        {/* <Card className="action-card" withBorder radius={5} p="lg" onClick={onOpenLocoEditor}>
           <ThemeIcon size={48} radius="lg" color="violet" variant="light">
             <IconEdit size={27} />
           </ThemeIcon>
@@ -304,7 +304,7 @@ function HomePage({
           <Text size="sm" c="dimmed" mt={4}>
             {t("homeHub.cards.locoEditor.description")}
           </Text>
-        </Card>
+        </Card> */}
 
         <Card className="action-card" withBorder radius={5} p="lg" onClick={() => onNavigate("programming")}>
           <ThemeIcon size={48} radius="lg" color="orange" variant="light">
@@ -316,7 +316,7 @@ function HomePage({
           </Text>
         </Card>
 
-        <Card className="action-card" withBorder radius={5} p="lg" onClick={() => onNavigate("settings")}>
+        {/* <Card className="action-card" withBorder radius={5} p="lg" onClick={() => onNavigate("settings")}>
           <ThemeIcon size={48} radius="lg" color="indigo" variant="light">
             <IconRouter size={27} />
           </ThemeIcon>
@@ -324,9 +324,9 @@ function HomePage({
           <Text size="sm" c="dimmed" mt={4}>
             {t("homeHub.cards.network.description")}
           </Text>
-        </Card>
+        </Card> */}
 
-        <Card className="action-card" withBorder radius={5} p="lg" onClick={() => onNavigate("device-config")}>
+        {/* <Card className="action-card" withBorder radius={5} p="lg" onClick={() => onNavigate("device-config")}>
           <ThemeIcon size={48} radius="lg" color="blue" variant="light">
             <IconCpu size={27} />
           </ThemeIcon>
@@ -334,7 +334,7 @@ function HomePage({
           <Text size="sm" c="dimmed" mt={4}>
             {t("homeHub.cards.devices.description")}
           </Text>
-        </Card>
+        </Card> */}
 
         <Card
           className="action-card"

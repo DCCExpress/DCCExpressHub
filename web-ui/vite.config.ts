@@ -8,7 +8,7 @@ const root = dirname(fileURLToPath(import.meta.url));
 export default defineConfig(({ mode }) => {
   const device =
     process.env.DCCEXPRESS_DEVICE_URL?.trim() ||
-    "http://127.0.0.1:8080";
+    "http://127.0.0.1:5174";
 
   const proxy: Record<string, string | ProxyOptions> =
     mode === "demo"
@@ -75,6 +75,8 @@ export default defineConfig(({ mode }) => {
       },
     },
 
+    // Vite stays on its own fixed development port. The native desktop backend
+    // uses 5174 by default, so the two servers never compete for the same port.
     server: {
       host: "0.0.0.0",
       port: 5173,

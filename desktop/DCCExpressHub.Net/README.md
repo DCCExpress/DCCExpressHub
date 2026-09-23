@@ -14,7 +14,7 @@ Cross-platform Windows/Linux backend for the existing DCCExpressHub React UI.
     dotnet restore
     dotnet run
 
-7. Open `http://localhost:8080`.
+7. Open `http://localhost:5174`.
 
 ## Implemented DCC-EX parity
 
@@ -46,7 +46,6 @@ Cross-platform Windows/Linux backend for the existing DCCExpressHub React UI.
 The ESP32 firmware contains much more than DCC-EX transport: LayoutRuntime, blocks, S88, JS sandbox/automation, file manager, signal automation and device configuration. This first .NET backend focuses on the requested DCC-EX communication + the UI transport contract. Unknown WS commands return the same style `ack` instead of crashing.
 
 One known parity gap in this first build is the firmware's full correlated decoder-programming reply state machine (`<r ...>` / `<v ...>` timeout/correlation). Commands are sent and raw replies are exposed; the complete correlator should be ported next.
-
 
 ## LittleFS compatibility layer
 

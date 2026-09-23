@@ -20,13 +20,26 @@
        <RowDefinition x:Name="LogRow" Height="0"/>
      </Grid.RowDefinitions>
 
-            <wv2:WebView2 x:Name="Browser" Grid.Row="0" DefaultBackgroundColor="#111827"/>
+     <wv2:WebView2 x:Name="Browser"
+                   Grid.Row="0"
+                   DefaultBackgroundColor="#111827"/>
 
-     <Border Grid.Row="1" BorderThickness="0,1,0,0" BorderBrush="#444" Background="#111827">
+     <Border Grid.Row="1"
+             BorderThickness="0,1,0,0"
+             BorderBrush="#444"
+             Background="#111827">
        <DockPanel>
-         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="8,5">
-           <TextBlock Text="DCCExpressHub server log" Foreground="White" FontWeight="SemiBold" VerticalAlignment="Center"/>
-           <Button Content="Clear" Margin="12,0,0,0" Padding="10,2" Click="ClearLog_Click"/>
+         <StackPanel DockPanel.Dock="Top"
+                     Orientation="Horizontal"
+                     Margin="8,5">
+           <TextBlock Text="DCCExpressHub server log"
+                      Foreground="White"
+                      FontWeight="SemiBold"
+                      VerticalAlignment="Center"/>
+           <Button Content="Clear"
+                   Margin="12,0,0,0"
+                   Padding="10,2"
+                   Click="ClearLog_Click"/>
          </StackPanel>
          <TextBox x:Name="ServerLogText"
                   IsReadOnly="True"
@@ -42,10 +55,37 @@
        </DockPanel>
      </Border>
 
-     <Border x:Name="StartupOverlay" Grid.RowSpan="2" Background="#EE111827">
-       <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-         <TextBlock Text="DCCExpressHub" Foreground="White" FontSize="32" FontWeight="SemiBold" HorizontalAlignment="Center"/>
-         <TextBlock x:Name="StartupText" Text="Backend indítása…" Foreground="#FFD1D5DB" FontSize="16" Margin="0,14,0,0" HorizontalAlignment="Center"/>
+     <Border x:Name="StartupOverlay"
+             Grid.RowSpan="2"
+             Background="#EE111827">
+       <StackPanel HorizontalAlignment="Center"
+                   VerticalAlignment="Center">
+         <TextBlock Text="DCCExpressHub"
+                    Foreground="White"
+                    FontSize="32"
+                    FontWeight="SemiBold"
+                    HorizontalAlignment="Center"/>
+         <TextBlock x:Name="StartupText"
+                    Text="Starting backend…"
+                    Foreground="#FFD1D5DB"
+                    FontSize="16"
+                    Margin="0,14,0,0"
+                    TextAlignment="Center"
+                    MaxWidth="720"
+                    TextWrapping="Wrap"
+                    HorizontalAlignment="Center"/>
+         <Button x:Name="RestartBackendButton"
+                 Content="Restart backend"
+                 Visibility="Collapsed"
+                 Margin="0,20,0,0"
+                 Padding="18,8"
+                 MinWidth="160"
+                 HorizontalAlignment="Center"
+                 Background="#0369A1"
+                 Foreground="White"
+                 BorderBrush="#38BDF8"
+                 BorderThickness="1"
+                 Click="RestartBackendButton_Click"/>
        </StackPanel>
      </Border>
    </Grid>

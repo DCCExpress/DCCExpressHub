@@ -83,7 +83,20 @@ public static class DesktopLocalization
                 ["backendExited"] = "Backend stopped. ExitCode=",
                 ["backendTimeout"] = "Backend did not start within 20 seconds.",
                 ["legacyDataMigrated"] = "Legacy desktop data migrated: ",
-                ["legacyDataMigrationFailed"] = "Legacy desktop data migration failed: "
+                ["legacyDataMigrationFailed"] = "Legacy desktop data migration failed: ",
+                ["httpPortInUseTitle"] = "HTTP port is already in use",
+                ["httpPortInUse"] = "HTTP port {0} is already in use. Choose another port in the startup settings.",
+                ["webView2RuntimeMissingTitle"] = "WebView2 Runtime is missing",
+                ["webView2RuntimeMissing"] = "Microsoft Edge WebView2 Runtime is not installed or cannot be found. Install the WebView2 Runtime, then start DCCExpressHub again.",
+                ["webView2InitializationFailed"] = "WebView2 initialization failed.",
+                ["backendCrashed"] = "Backend stopped unexpectedly. ExitCode={0}",
+                ["restartBackend"] = "Restart backend",
+                ["restartingBackend"] = "Restarting backend…",
+                ["backendRestartFailed"] = "Backend restart failed: ",
+                ["closeConfirmTitle"] = "Exit DCCExpressHub?",
+                ["closeConfirmMessage"] = "Are you sure you want to exit?\n\nMake sure you saved all changes. It is recommended to switch track power OFF before closing.\n\nYes = Power OFF, then exit\nNo = Exit without changing track power\nCancel = Return to DCCExpressHub",
+                ["powerOffFailedTitle"] = "Track power could not be switched off",
+                ["powerOffFailedMessage"] = "The Power OFF command could not be sent or confirmed by the backend.\n\nExit anyway?",
             },
 
             ["hu"] = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -140,7 +153,20 @@ public static class DesktopLocalization
                 ["backendExited"] = "A backend leállt. ExitCode=",
                 ["backendTimeout"] = "A backend 20 másodpercen belül nem indult el.",
                 ["legacyDataMigrated"] = "Korábbi desktop data átemelve: ",
-                ["legacyDataMigrationFailed"] = "Korábbi desktop data migráció sikertelen: "
+                ["legacyDataMigrationFailed"] = "Korábbi desktop data migráció sikertelen: ",
+                ["httpPortInUseTitle"] = "A HTTP port már foglalt",
+                ["httpPortInUse"] = "A(z) {0} HTTP port már használatban van. Válassz másik portot az indítási beállításokban.",
+                ["webView2RuntimeMissingTitle"] = "Hiányzik a WebView2 Runtime",
+                ["webView2RuntimeMissing"] = "A Microsoft Edge WebView2 Runtime nincs telepítve vagy nem található. Telepítsd a WebView2 Runtime-ot, majd indítsd újra a DCCExpressHubot.",
+                ["webView2InitializationFailed"] = "A WebView2 inicializálása sikertelen.",
+                ["backendCrashed"] = "A backend váratlanul leállt. ExitCode={0}",
+                ["restartBackend"] = "Backend újraindítása",
+                ["restartingBackend"] = "Backend újraindítása…",
+                ["backendRestartFailed"] = "A backend újraindítása sikertelen: ",
+                ["closeConfirmTitle"] = "Kilépés a DCCExpressHubból?",
+                ["closeConfirmMessage"] = "Biztosan ki akarsz lépni?\n\nEllenőrizd, hogy minden módosítást elmentettél. Kilépés előtt ajánlott a pályafeszültséget kikapcsolni.\n\nIgen = Power OFF, majd kilépés\nNem = Kilépés a pályafeszültség módosítása nélkül\nMégse = Vissza a DCCExpressHubhoz",
+                ["powerOffFailedTitle"] = "A pályafeszültséget nem sikerült kikapcsolni",
+                ["powerOffFailedMessage"] = "A Power OFF parancsot nem sikerült elküldeni vagy a backend nem tudta végrehajtani.\n\nÍgy is kilépsz?",
             },
 
             ["de"] = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -197,7 +223,20 @@ public static class DesktopLocalization
                 ["backendExited"] = "Backend wurde beendet. ExitCode=",
                 ["backendTimeout"] = "Backend wurde nicht innerhalb von 20 Sekunden gestartet.",
                 ["legacyDataMigrated"] = "Alte Desktop-Daten migriert: ",
-                ["legacyDataMigrationFailed"] = "Migration der alten Desktop-Daten fehlgeschlagen: "
+                ["legacyDataMigrationFailed"] = "Migration der alten Desktop-Daten fehlgeschlagen: ",
+                ["httpPortInUseTitle"] = "HTTP-Port wird bereits verwendet",
+                ["httpPortInUse"] = "HTTP-Port {0} wird bereits verwendet. Wähle in den Starteinstellungen einen anderen Port.",
+                ["webView2RuntimeMissingTitle"] = "WebView2 Runtime fehlt",
+                ["webView2RuntimeMissing"] = "Microsoft Edge WebView2 Runtime ist nicht installiert oder wurde nicht gefunden. Installiere die WebView2 Runtime und starte DCCExpressHub erneut.",
+                ["webView2InitializationFailed"] = "Die WebView2-Initialisierung ist fehlgeschlagen.",
+                ["backendCrashed"] = "Das Backend wurde unerwartet beendet. ExitCode={0}",
+                ["restartBackend"] = "Backend neu starten",
+                ["restartingBackend"] = "Backend wird neu gestartet…",
+                ["backendRestartFailed"] = "Backend-Neustart fehlgeschlagen: ",
+                ["closeConfirmTitle"] = "DCCExpressHub beenden?",
+                ["closeConfirmMessage"] = "Möchtest du DCCExpressHub wirklich beenden?\n\nStelle sicher, dass alle Änderungen gespeichert sind. Es wird empfohlen, vor dem Beenden die Gleisspannung auszuschalten.\n\nJa = Power OFF, dann beenden\nNein = Beenden ohne Änderung der Gleisspannung\nAbbrechen = Zurück zu DCCExpressHub",
+                ["powerOffFailedTitle"] = "Gleisspannung konnte nicht ausgeschaltet werden",
+                ["powerOffFailedMessage"] = "Der Power-OFF-Befehl konnte nicht gesendet oder vom Backend ausgeführt werden.\n\nTrotzdem beenden?",
             }
         };
 }

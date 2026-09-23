@@ -7,6 +7,7 @@ using System.Net.Sockets;
 using System.Reflection;
 using System.Text.Json;
 using System.Windows;
+using Microsoft.Web.WebView2.Core;
 
 namespace DCCExpressHub.Desktop;
 
@@ -23,6 +24,12 @@ public partial class MainWindow : Window
     private WindowState _previousWindowState;
     private ResizeMode _previousResizeMode;
     private Rect _previousBounds;
+    private bool _isClosing;
+    private bool _backendExpectedStop;
+    private bool _restartInProgress;
+    private bool _closeApproved;
+    private bool _closeDialogActive;
+    private string? _backendShutdownToken;
 
     private int HubPort => _settings.HttpPort;
     private string HubUrl => $"http://127.0.0.1:{HubPort}";
@@ -36,6 +43,9 @@ public partial class MainWindow : Window
             _settings.Language,
             key);
 
+    private System.Windows.Controls.Button? RestartButton =>
+        FindName("RestartBackendButton") as System.Windows.Controls.Button;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -47,54 +57,180 @@ public partial class MainWindow : Window
     {
         try
         {
-            _singleInstanceMutex = new Mutex(true, @"Local\DCCExpressHub.Desktop", out bool createdNew);
+            _singleInstanceMutex =
+                new Mutex(
+                    true,
+                    @"Local\DCCExpressHub.Desktop",
+                    out bool createdNew);
+
             if (!createdNew)
-                throw new InvalidOperationException(L("alreadyRunning"));
-
-            var firstLauncherRun = !DesktopSettingsStore.Exists;
-
-            StartupText.Text = L("startupSettings");
-
-            var settingsWindow =
-                new StartupSettingsWindow(
-                    _settings,
-                    GetHubVersion())
-                {
-                    Owner = this
-                };
-
-            if (settingsWindow.ShowDialog() != true)
             {
+                throw new InvalidOperationException(
+                    L("alreadyRunning"));
+            }
+
+            var firstLauncherRun =
+                !DesktopSettingsStore.Exists;
+
+            // Kill an orphan from the previous launcher session before the
+            // settings dialog checks whether the selected HTTP port is free.
+            StartupText.Text =
+                L("checkingBackend");
+
+            KillStaleBackend();
+
+            while (true)
+            {
+                StartupText.Text =
+                    L("startupSettings");
+
+                var settingsWindow =
+                    new StartupSettingsWindow(
+                        _settings,
+                        GetHubVersion())
+                    {
+                        Owner = this
+                    };
+
+                if (settingsWindow.ShowDialog() != true)
+                {
+                    Close();
+                    return;
+                }
+
+                _settings =
+                    settingsWindow.Settings;
+
+                DesktopSettingsStore.Save(
+                    _settings);
+
+                UpdateWindowTitle();
+
+                if (IsHubPortAvailable(
+                        out var portError))
+                {
+                    break;
+                }
+
+                MessageBox.Show(
+                    this,
+                    portError,
+                    L("httpPortInUseTitle"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
+
+            StartupText.Text =
+                L("preparingWorkspace");
+
+            PrepareWorkspace(
+                firstLauncherRun);
+
+            if (!IsWebView2RuntimeAvailable())
+            {
+                MessageBox.Show(
+                    this,
+                    L("webView2RuntimeMissing"),
+                    L("webView2RuntimeMissingTitle"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+
                 Close();
                 return;
             }
 
-            _settings = settingsWindow.Settings;
-            DesktopSettingsStore.Save(_settings);
+            StartupText.Text =
+                L("startingBackend");
 
-            UpdateWindowTitle();
-
-            StartupText.Text = L("checkingBackend");
-            KillStaleBackend();
-
-            StartupText.Text = L("preparingWorkspace");
-            PrepareWorkspace(firstLauncherRun);
-
-            StartupText.Text = L("startingBackend");
             StartBackend();
 
-            await WaitForBackendAsync(TimeSpan.FromSeconds(20));
+            await WaitForBackendAsync(
+                TimeSpan.FromSeconds(20));
 
-            StartupText.Text = L("loadingWebUi");
+            StartupText.Text =
+                L("loadingWebUi");
+
             await Browser.EnsureCoreWebView2Async();
-            Browser.CoreWebView2.Settings.AreDevToolsEnabled = true;
-            Browser.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
+
+            var coreWebView = Browser.CoreWebView2
+                ?? throw new InvalidOperationException(L("webView2InitializationFailed"));
+
+            coreWebView.Settings.AreDevToolsEnabled = true;
+            coreWebView.Settings.AreDefaultContextMenusEnabled = true;
             Browser.Source = new Uri(HubUrl + "/");
-            StartupOverlay.Visibility = Visibility.Collapsed;
+
+            if (FindName("RestartBackendButton") is System.Windows.Controls.Button restartButton)
+                restartButton.Visibility = Visibility.Collapsed;
+
+            StartupOverlay.Visibility =
+                Visibility.Collapsed;
         }
         catch (Exception ex)
         {
-            StartupText.Text = L("startupError") + ex.Message;
+            StartupText.Text =
+                L("startupError") +
+                ex.Message;
+        }
+    }
+
+    private bool IsHubPortAvailable(
+        out string error)
+    {
+        error = "";
+        TcpListener? listener = null;
+
+        try
+        {
+            var address =
+                _settings.RunMode == "server"
+                    ? IPAddress.Any
+                    : IPAddress.Loopback;
+
+            listener =
+                new TcpListener(
+                    address,
+                    HubPort);
+
+            listener.Server.ExclusiveAddressUse = true;
+            listener.Start();
+
+            return true;
+        }
+        catch (SocketException)
+        {
+            error =
+                string.Format(
+                    L("httpPortInUse"),
+                    HubPort);
+
+            return false;
+        }
+        finally
+        {
+            try
+            {
+                listener?.Stop();
+            }
+            catch
+            {
+            }
+        }
+    }
+
+    private static bool IsWebView2RuntimeAvailable()
+    {
+        try
+        {
+            var version =
+                CoreWebView2Environment
+                    .GetAvailableBrowserVersionString();
+
+            return !string.IsNullOrWhiteSpace(
+                version);
+        }
+        catch (WebView2RuntimeNotFoundException)
+        {
+            return false;
         }
     }
 
@@ -433,20 +569,44 @@ public partial class MainWindow : Window
         {
             using var searcher = new System.Management.ManagementObjectSearcher(
                 $"SELECT CommandLine FROM Win32_Process WHERE ProcessId = {process.Id}");
+
             foreach (System.Management.ManagementObject obj in searcher.Get())
             {
                 var commandLine = obj["CommandLine"]?.ToString() ?? "";
-                return commandLine.Contains("DCCExpressHub.Net.dll", StringComparison.OrdinalIgnoreCase);
+
+                return
+                    commandLine.Contains(
+                        "DCCExpressHub.Net.exe",
+                        StringComparison.OrdinalIgnoreCase) ||
+                    commandLine.Contains(
+                        "DCCExpressHub.Net.dll",
+                        StringComparison.OrdinalIgnoreCase);
             }
         }
-        catch { }
+        catch
+        {
+        }
+
         return false;
     }
 
     private void StartBackend()
     {
-        var backendDir = Path.Combine(AppContext.BaseDirectory, "backend");
-        var dll = Path.Combine(backendDir, "DCCExpressHub.Net.dll");
+        var backendDir =
+            Path.Combine(
+                AppContext.BaseDirectory,
+                "backend");
+
+        var exe =
+            Path.Combine(
+                backendDir,
+                "DCCExpressHub.Net.exe");
+
+        var dll =
+            Path.Combine(
+                backendDir,
+                "DCCExpressHub.Net.dll");
+
         var workspace =
             Path.GetFullPath(
                 _settings.WorkspaceDirectory);
@@ -461,26 +621,49 @@ public partial class MainWindow : Window
                 webRoot,
                 "index.html");
 
-        if (!File.Exists(dll))
-            throw new FileNotFoundException(L("backendNotFound"), dll);
+        if (!File.Exists(exe) &&
+            !File.Exists(dll))
+        {
+            throw new FileNotFoundException(
+                L("backendNotFound"),
+                exe);
+        }
 
         if (!File.Exists(index))
+        {
             throw new FileNotFoundException(
                 L("backendWebUiNotFound"),
                 index);
+        }
 
-        // The backend binary remains in bin/backend, but ASP.NET's content root
-        // is the persistent user-selected workspace. Existing backend code
-        // therefore continues to use ContentRootPath/data, except that it is no
-        // longer under bin/ and cannot disappear on Clean/Rebuild.
-        var psi = new ProcessStartInfo("dotnet", $"\"{dll}\"")
+        ProcessStartInfo psi;
+
+        if (File.Exists(exe))
         {
-            WorkingDirectory = backendDir,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true
-        };
+            // Published release: self-contained single-file backend.
+            psi = new ProcessStartInfo(exe)
+            {
+                WorkingDirectory = backendDir,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+        }
+        else
+        {
+            // Normal Visual Studio/debug build: framework-dependent DLL.
+            psi = new ProcessStartInfo(
+                "dotnet",
+                $"\"{dll}\"")
+            {
+                WorkingDirectory = backendDir,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+        }
 
         psi.Environment["DCCEXPRESS_DESKTOP_URL"] = HubListenUrl;
         psi.Environment["ASPNETCORE_URLS"] = HubListenUrl;
@@ -488,6 +671,12 @@ public partial class MainWindow : Window
         psi.Environment["ASPNETCORE_ENVIRONMENT"] = "Production";
         psi.Environment["ASPNETCORE_CONTENTROOT"] = workspace;
         psi.Environment["ASPNETCORE_WEBROOT"] = webRoot;
+
+        _backendShutdownToken =
+            Guid.NewGuid().ToString("N");
+
+        psi.Environment["DCCEXPRESS_DESKTOP_SHUTDOWN_TOKEN"] =
+            _backendShutdownToken;
 
         psi.Environment["DccEx__Transport"] =
             _settings.Protocol == "serial"
@@ -506,13 +695,24 @@ public partial class MainWindow : Window
         psi.Environment["DccEx__BaudRate"] =
             _settings.SerialBaudRate.ToString();
 
-        _backend = new Process { StartInfo = psi, EnableRaisingEvents = true };
+        _backendExpectedStop = false;
+
+        _backend = new Process
+        {
+            StartInfo = psi,
+            EnableRaisingEvents = true
+        };
+
+        _backend.Exited +=
+            Backend_Exited;
+
         _backend.OutputDataReceived += (_, a) =>
         {
             if (a.Data == null) return;
             Debug.WriteLine("[Hub] " + a.Data);
             AppendServerLog("OUT", a.Data);
         };
+
         _backend.ErrorDataReceived += (_, a) =>
         {
             if (a.Data == null) return;
@@ -523,11 +723,142 @@ public partial class MainWindow : Window
         if (!_backend.Start())
             throw new InvalidOperationException(L("backendStartFailed"));
 
-        Directory.CreateDirectory(Path.GetDirectoryName(PidFilePath)!);
-        File.WriteAllText(PidFilePath, _backend.Id.ToString());
+        Directory.CreateDirectory(
+            Path.GetDirectoryName(PidFilePath)!);
+
+        File.WriteAllText(
+            PidFilePath,
+            _backend.Id.ToString());
 
         _backend.BeginOutputReadLine();
         _backend.BeginErrorReadLine();
+    }
+
+    private void Backend_Exited(
+        object? sender,
+        EventArgs e)
+    {
+        if (_isClosing ||
+            _backendExpectedStop)
+        {
+            return;
+        }
+
+        int exitCode = -1;
+
+        try
+        {
+            if (sender is Process process)
+                exitCode = process.ExitCode;
+        }
+        catch
+        {
+        }
+
+        TryDeletePidFile();
+
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (_isClosing)
+                return;
+
+            StartupText.Text =
+                string.Format(
+                    L("backendCrashed"),
+                    exitCode);
+
+            if (RestartButton is { } restartButton)
+            {
+                restartButton.Content = L("restartBackend");
+                restartButton.IsEnabled = true;
+                restartButton.Visibility = Visibility.Visible;
+            }
+
+            StartupOverlay.Visibility =
+                Visibility.Visible;
+        });
+    }
+
+    private async void RestartBackendButton_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        if (_restartInProgress ||
+            _isClosing)
+        {
+            return;
+        }
+
+        _restartInProgress = true;
+
+        var restartButton = RestartButton;
+        if (restartButton is not null)
+            restartButton.IsEnabled = false;
+
+        StartupText.Text = L("restartingBackend");
+
+        try
+        {
+            _backendExpectedStop = true;
+
+            try
+            {
+                _backend?.Dispose();
+            }
+            catch
+            {
+            }
+
+            _backend = null;
+            _backendShutdownToken = null;
+            TryDeletePidFile();
+
+            if (!IsHubPortAvailable(
+                    out var portError))
+            {
+                throw new InvalidOperationException(
+                    portError);
+            }
+
+            StartBackend();
+
+            await WaitForBackendAsync(
+                TimeSpan.FromSeconds(20));
+
+            if (Browser.CoreWebView2 is null)
+                await Browser.EnsureCoreWebView2Async();
+
+            var coreWebView = Browser.CoreWebView2
+                ?? throw new InvalidOperationException(L("webView2InitializationFailed"));
+
+            coreWebView.Settings.AreDevToolsEnabled = true;
+            coreWebView.Settings.AreDefaultContextMenusEnabled = true;
+            Browser.Source = new Uri(HubUrl + "/");
+
+            if (restartButton is not null)
+                restartButton.Visibility = Visibility.Collapsed;
+
+            StartupOverlay.Visibility =
+                Visibility.Collapsed;
+        }
+        catch (Exception ex)
+        {
+            StartupText.Text =
+                L("backendRestartFailed") +
+                ex.Message;
+
+            if (restartButton is not null)
+            {
+                restartButton.Content = L("restartBackend");
+                restartButton.Visibility = Visibility.Visible;
+            }
+        }
+        finally
+        {
+            if (restartButton is not null)
+                restartButton.IsEnabled = true;
+            _restartInProgress = false;
+        }
     }
 
     private async Task WaitForBackendAsync(TimeSpan timeout)
@@ -553,12 +884,140 @@ public partial class MainWindow : Window
         throw new TimeoutException(L("backendTimeout"));
     }
 
-    private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
+    private async void OnClosing(
+        object? sender,
+        System.ComponentModel.CancelEventArgs e)
     {
+        if (_closeApproved)
+        {
+            FinalizeClose();
+            return;
+        }
+
+        // Closing is asynchronous because "Yes" first requests track power OFF.
+        // Cancel this close attempt and call Close() again only after the user's
+        // choice has been handled.
+        e.Cancel = true;
+
+        if (_closeDialogActive)
+            return;
+
+        _closeDialogActive = true;
+
+        try
+        {
+            var choice =
+                MessageBox.Show(
+                    this,
+                    L("closeConfirmMessage"),
+                    L("closeConfirmTitle"),
+                    MessageBoxButton.YesNoCancel,
+                    MessageBoxImage.Warning,
+                    MessageBoxResult.Cancel);
+
+            if (choice == MessageBoxResult.Cancel)
+                return;
+
+            if (choice == MessageBoxResult.Yes)
+            {
+                var powerOffOk =
+                    await RequestTrackPowerOffAsync();
+
+                if (!powerOffOk)
+                {
+                    var exitAnyway =
+                        MessageBox.Show(
+                            this,
+                            L("powerOffFailedMessage"),
+                            L("powerOffFailedTitle"),
+                            MessageBoxButton.YesNo,
+                            MessageBoxImage.Warning,
+                            MessageBoxResult.No);
+
+                    if (exitAnyway != MessageBoxResult.Yes)
+                        return;
+                }
+                else
+                {
+                    // Give DCC-EX feedback / runtime state persistence a brief
+                    // opportunity to complete before the backend is stopped.
+                    await Task.Delay(300);
+                }
+            }
+
+            _isClosing = true;
+            StopBackend();
+
+            _closeApproved = true;
+            Close();
+        }
+        finally
+        {
+            if (!_closeApproved)
+            {
+                _isClosing = false;
+                _closeDialogActive = false;
+            }
+        }
+    }
+
+    private void FinalizeClose()
+    {
+        _isClosing = true;
+
+        // StopBackend() is normally already completed by the first close pass.
+        // Keep this call idempotent so programmatic shutdown is safe as well.
         StopBackend();
-        try { _singleInstanceMutex?.ReleaseMutex(); } catch { }
+
+        try
+        {
+            _singleInstanceMutex?.ReleaseMutex();
+        }
+        catch
+        {
+        }
+
         _singleInstanceMutex?.Dispose();
+        _singleInstanceMutex = null;
+
         _http.Dispose();
+    }
+
+    private async Task<bool> RequestTrackPowerOffAsync()
+    {
+        if (string.IsNullOrWhiteSpace(
+                _backendShutdownToken))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var client =
+                new HttpClient
+                {
+                    Timeout =
+                        TimeSpan.FromSeconds(3)
+                };
+
+            using var request =
+                new HttpRequestMessage(
+                    HttpMethod.Post,
+                    HubUrl + "/__desktop/power-off");
+
+            request.Headers.TryAddWithoutValidation(
+                "X-DCCExpressHub-Shutdown-Token",
+                _backendShutdownToken);
+
+            using var response =
+                await client.SendAsync(request);
+
+            return response.IsSuccessStatusCode;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private void Window_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
@@ -650,21 +1109,87 @@ public partial class MainWindow : Window
 
     private void StopBackend()
     {
+        var process =
+            _backend;
+
+        _backendExpectedStop = true;
+
         try
         {
-            if (_backend is { HasExited: false })
+            if (process is { HasExited: false })
             {
-                _backend.Kill(entireProcessTree: true);
-                _backend.WaitForExit(5000);
+                bool graceful = false;
+
+                try
+                {
+                    graceful =
+                        RequestGracefulBackendShutdownAsync()
+                            .GetAwaiter()
+                            .GetResult();
+                }
+                catch
+                {
+                }
+
+                if (!graceful ||
+                    !process.WaitForExit(5000))
+                {
+                    process.Kill(
+                        entireProcessTree: true);
+
+                    process.WaitForExit(5000);
+                }
             }
         }
-        catch { }
+        catch
+        {
+        }
         finally
         {
-            _backend?.Dispose();
+            try
+            {
+                process?.Dispose();
+            }
+            catch
+            {
+            }
+
             _backend = null;
+            _backendShutdownToken = null;
             TryDeletePidFile();
         }
+    }
+
+    private async Task<bool> RequestGracefulBackendShutdownAsync()
+    {
+        if (string.IsNullOrWhiteSpace(
+                _backendShutdownToken))
+        {
+            return false;
+        }
+
+        using var client =
+            new HttpClient
+            {
+                Timeout =
+                    TimeSpan.FromSeconds(2)
+            };
+
+        using var request =
+            new HttpRequestMessage(
+                HttpMethod.Post,
+                HubUrl + "/__desktop/shutdown");
+
+        request.Headers.TryAddWithoutValidation(
+            "X-DCCExpressHub-Shutdown-Token",
+            _backendShutdownToken);
+
+        using var response =
+            await client
+                .SendAsync(request)
+                .ConfigureAwait(false);
+
+        return response.IsSuccessStatusCode;
     }
 
     private void TryDeletePidFile()

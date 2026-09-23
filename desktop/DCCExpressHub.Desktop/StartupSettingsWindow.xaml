@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="DCCExpressHub settings"
         Width="780"
-        Height="760"
+        Height="800"
         MinWidth="720"
         MinHeight="680"
         ResizeMode="CanResize"
