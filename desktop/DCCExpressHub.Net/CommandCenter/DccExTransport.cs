@@ -110,30 +110,28 @@ public sealed class TcpDccExTransport : IDccExTransport
 
 public sealed class SerialDccExTransport : IDccExTransport
 {
+    public const int BaudRate = 115200;
+
     private SerialPort? _port;
     private string _name;
-    private int _baud;
 
     public SerialDccExTransport(IConfiguration cfg)
         : this(
-            cfg["DccEx:SerialPort"] ?? "COM3",
-            cfg.GetValue("DccEx:BaudRate", 115200))
+            cfg["DccEx:SerialPort"] ?? "COM3")
     {
     }
 
     public SerialDccExTransport(
-        string name,
-        int baud)
+        string name)
     {
         _name = name;
-        _baud = baud;
     }
 
     public bool IsConnected =>
         _port?.IsOpen == true;
 
     public string Endpoint =>
-        $"{_name}@{_baud}";
+        $"{_name}@{BaudRate}";
 
     public bool SetEndpoint(
         string name,
@@ -142,13 +140,12 @@ public sealed class SerialDccExTransport : IDccExTransport
         name = name.Trim();
 
         if (name.Length == 0 ||
-            baud <= 0)
+            baud != BaudRate)
         {
             return false;
         }
 
         _name = name;
-        _baud = baud;
         _ = DisconnectAsync();
 
         return true;
@@ -169,7 +166,7 @@ public sealed class SerialDccExTransport : IDccExTransport
 
         _port = new SerialPort(
             _name,
-            _baud,
+            BaudRate,
             Parity.None,
             8,
             StopBits.One)

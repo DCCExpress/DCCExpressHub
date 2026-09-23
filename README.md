@@ -232,12 +232,12 @@ PC / tablet / phone
 
 Current DCC-EX firmware targets:
 
-| Hub hardware | PlatformIO target | Display support | Frontend automation | Backend automation | Published by current release workflow |
-|---|---|---|---|---|---|
-| **M5Stack Basic** | `m5stack-basic-dccex` | ✅ Built-in display | ✅ Supported | ❌ Not supported | ✅ Yes |
-| **Generic ESP32 DevKit** | `esp32dev-dccex` | ❌ None | ✅ Supported | ❌ Not supported | ✅ Yes |
-| **Waveshare ESP32-S3 LCD 7"** | `waveshare-s3-lcd7-dccex` | ✅ Built-in 7" display | ✅ Supported | ✅ Supported | ❌ Source target only |
-| **Sunton ESP32-8048S043** | `sunton-8048s043-dccex` | ✅ Built-in 4.3" display | ✅ Supported | ✅ Supported | ❌ Source target only |
+| Hub hardware | PlatformIO target | Display support | Frontend automation | Backend automation 
+|---|---|---|---|---|
+| **M5Stack Basic** | `m5stack-basic-dccex` | ✅ Built-in display | ✅ Supported | ❌ Not supported |
+| **Generic ESP32 DevKit** | `esp32dev-dccex` | ❌ None | ✅ Supported | ❌ Not supported |
+| **Waveshare ESP32-S3 LCD 7"** | `waveshare-s3-lcd7-dccex` | ✅ Built-in 7" display | ✅ Supported | ✅ Supported |
+| **Sunton ESP32-8048S043** | `sunton-8048s043-dccex` | ✅ Built-in 4.3" display | ✅ Supported | ✅ Supported |
 
 **Frontend automation scripts** run in the browser and are available on all current Hub targets.
 

@@ -1026,13 +1026,36 @@ public sealed class LayoutRuntime
     {
         lock (_gate)
         {
-            return _blocks.ToDictionary(
-                x => x.Id.ToString(),
-                x => (object)new
+            var snapshot =
+                new Dictionary<string, object>();
+
+            foreach (var block in _blocks)
+            {
+                var state =
+                    new Dictionary<string, object?>
+                    {
+                        ["blockId"] =
+                            block.Id.ToString(),
+
+                        ["locoId"] =
+                            string.IsNullOrEmpty(
+                                block.LocoId)
+                                ? null
+                                : block.LocoId
+                    };
+
+                if (block.LocoAddress > 0)
                 {
-                    locoId = x.LocoId,
-                    locoAddress = x.LocoAddress
-                });
+                    state["locoAddress"] =
+                        block.LocoAddress;
+                }
+
+                snapshot[
+                    block.Id.ToString()] =
+                    state;
+            }
+
+            return snapshot;
         }
     }
 

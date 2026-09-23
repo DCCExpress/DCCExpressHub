@@ -73,8 +73,11 @@ type HubTelemetry = {
 type ExtendedDccExStatus = DccExStatusPayload & {
   processor?: string;
   build?: string;
+  transport?: "tcp" | "serial" | string;
   host?: string;
   port?: number;
+  serialPort?: string;
+  baudRate?: number;
   alive?: boolean;
   maxLocos?: number;
   tracks?: DccTrackTelemetry[];
@@ -304,9 +307,14 @@ export default function SystemInfoPanel({
     Boolean(telemetry?.alive);
 
   const target =
-    telemetry?.host
-      ? `${telemetry.host}:${telemetry.port ?? 2560}`
-      : "—";
+    telemetry?.transport === "serial" ||
+    Boolean(telemetry?.serialPort)
+      ? telemetry?.serialPort
+        ? `${telemetry.serialPort} @ ${telemetry.baudRate ?? 115200} baud`
+        : "—"
+      : telemetry?.host
+        ? `${telemetry.host}:${telemetry.port ?? 2560}`
+        : "—";
 
   const dccVersion =
     telemetry?.version

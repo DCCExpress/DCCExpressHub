@@ -146,6 +146,16 @@ public sealed class RuntimeStateStore
                         locoAddress = (ushort)n;
                     }
 
+                    // Target-only markers are temporary script reservations.
+                    // Never resurrect one from an older runtime-state.json.
+                    if (locoAddress == 0 &&
+                        locoId.StartsWith(
+                            RuntimeBlock.TargetLocoPrefix,
+                            StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
                     _runtime.SetBlock(blockId, locoId, locoAddress);
                 }
             }
@@ -176,7 +186,9 @@ public sealed class RuntimeStateStore
             var blocks = new Dictionary<string, object>();
             foreach (var block in _runtime.BlocksForPersistence())
             {
-                if (string.IsNullOrEmpty(block.LocoId) && block.LocoAddress == 0)
+                // Match ESP32 semantics: only real occupancy is persisted.
+                // Target-only automation markers are ephemeral.
+                if (!block.Occupied)
                     continue;
 
                 blocks[block.Id.ToString()] = new

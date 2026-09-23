@@ -5,11 +5,12 @@ namespace DCCExpressHub.Net.Web;
 
 public sealed class CommandCenterSettings
 {
+    public const int DccExSerialBaudRate = 115200;
+
     public string Transport { get; init; } = "tcp";
     public string TcpHost { get; init; } = "127.0.0.1";
     public int TcpPort { get; init; } = 2560;
     public string SerialPort { get; init; } = "COM3";
-    public int BaudRate { get; init; } = 115200;
     public bool PowerIncludesProgramming { get; init; } = true;
 
     [JsonIgnore]
@@ -19,26 +20,13 @@ public sealed class CommandCenterSettings
             "serial",
             StringComparison.OrdinalIgnoreCase);
 
-    // Compatibility aliases used by the existing Program.cs.
-    // TCP    -> Host/Port = host/tcp-port
-    // Serial -> Host/Port = COM-port/baud-rate
-    [JsonIgnore]
-    public string Host =>
-        IsSerial
-            ? SerialPort
-            : TcpHost;
-
-    [JsonIgnore]
-    public int Port =>
-        IsSerial
-            ? BaudRate
-            : TcpPort;
-
     public CommandCenterSettings()
     {
     }
 
-    // Compatibility constructor used by the existing HTTP endpoint.
+    // Legacy compatibility constructor.
+    // Old serial configs stored COMx in Host and baud in Port. The baud value
+    // is intentionally ignored: DCC-EX USB/serial uses 115200.
     public CommandCenterSettings(
         string host,
         int port,
@@ -51,10 +39,6 @@ public sealed class CommandCenterSettings
         {
             Transport = "serial";
             SerialPort = host.Trim();
-            BaudRate =
-                port > 0
-                    ? port
-                    : 115200;
         }
         else
         {
@@ -157,7 +141,6 @@ public sealed class CommandCenterConfigStore
                 TcpHost = configured.TcpHost,
                 TcpPort = configured.TcpPort,
                 SerialPort = configured.SerialPort,
-                BaudRate = configured.BaudRate,
                 PowerIncludesProgramming =
                     persistedPower ??
                     configured.PowerIncludesProgramming
@@ -311,11 +294,6 @@ public sealed class CommandCenterConfigStore
                     _configuration["DccEx:SerialPort"] ??
                     "COM3",
 
-                BaudRate =
-                    _configuration.GetValue(
-                        "DccEx:BaudRate",
-                        115200),
-
                 PowerIncludesProgramming = true
             };
 
@@ -389,9 +367,6 @@ public sealed class CommandCenterConfigStore
         var tcpPort =
             value.TcpPort;
 
-        var baud =
-            value.BaudRate;
-
         if (tcpHost.Length == 0)
             tcpHost = "127.0.0.1";
 
@@ -400,9 +375,6 @@ public sealed class CommandCenterConfigStore
 
         if (serialPort.Length == 0)
             serialPort = "COM3";
-
-        if (baud <= 0)
-            baud = 115200;
 
         if (isSerial &&
             !CommandCenterSettings
@@ -422,7 +394,6 @@ public sealed class CommandCenterConfigStore
             TcpHost = tcpHost,
             TcpPort = tcpPort,
             SerialPort = serialPort,
-            BaudRate = baud,
 
             PowerIncludesProgramming =
                 value.PowerIncludesProgramming

@@ -449,22 +449,34 @@ public sealed class WsHub
         return Task.CompletedTask;
     }
 
+    private object CommandCenterInfo()
+    {
+        var x = CommandCenterConfigStore.Current;
+
+        return new
+        {
+            alive = CommandCenter.Connected,
+            power = HubState.TrackPower,
+            type = CommandCenter.Type,
+            name = CommandCenter.Name,
+            transport = x.Transport,
+            ip = x.IsSerial ? "" : x.TcpHost,
+            port = x.IsSerial ? 0 : x.TcpPort,
+            serialPort = x.IsSerial ? x.SerialPort : "",
+            baudRate = x.IsSerial ? CommandCenterSettings.DccExSerialBaudRate : 0,
+            connectionString = x.IsSerial
+                ? $"{x.SerialPort} @ {CommandCenterSettings.DccExSerialBaudRate} baud"
+                : $"{x.TcpHost}:{x.TcpPort}"
+        };
+    }
+
     private async Task BroadcastRuntimeSnapshotCore()
     {
         try
         {
-            var x = CommandCenterConfigStore.Current;
-
-            await Broadcast("commandCenterInfo", new
-            {
-                alive = CommandCenter.Connected,
-                power = HubState.TrackPower,
-                type = CommandCenter.Type,
-                name = CommandCenter.Name,
-                ip = x.Host,
-                port = x.Port,
-                connectionString = $"{x.Host}:{x.Port}"
-            });
+            await Broadcast(
+                "commandCenterInfo",
+                CommandCenterInfo());
 
             await BroadcastPower();
             await BroadcastStatus();
@@ -480,34 +492,45 @@ public sealed class WsHub
 
     public Task BroadcastStatus() => Broadcast("dccExStatus", Status());
 
-    private object Status() => new
+    private object Status()
     {
-        version = HubState.Station.Version,
-        processor = HubState.Station.Processor,
-        hardware = HubState.Station.Hardware,
-        build = HubState.Station.Build,
-        host = CommandCenter.Endpoint,
-        port = 0,
-        alive = CommandCenter.Connected,
-        maxLocos = HubState.Station.MaxLocos,
-        trackVoltageOn = HubState.TrackPower,
-        mainCurrentMa = HubState.Tracks.GetValueOrDefault(0)?.CurrentMa ?? 0,
-        progCurrentMa = HubState.Tracks.GetValueOrDefault(1)?.CurrentMa ?? 0,
-        tracks = HubState.Tracks.OrderBy(x => x.Key).Select(x => new
+        var x =
+            CommandCenterConfigStore.Current;
+
+        return new
         {
-            letter = ((char)('A' + x.Key)).ToString(),
-            mode = x.Value.Mode,
-            currentMa = x.Value.CurrentMa,
-            overload = x.Value.Overload,
-            tripMa = x.Value.TripMa
-        }),
-        hub = new
-        {
-            platform = Environment.OSVersion.Platform.ToString(),
-            framework = Environment.Version.ToString(),
-            wsClients = ClientCount
-        }
-    };
+            version = HubState.Station.Version,
+            processor = HubState.Station.Processor,
+            hardware = HubState.Station.Hardware,
+            build = HubState.Station.Build,
+            transport = x.Transport,
+            host = x.IsSerial ? "" : x.TcpHost,
+            port = x.IsSerial ? 0 : x.TcpPort,
+            serialPort = x.IsSerial ? x.SerialPort : "",
+            baudRate = x.IsSerial
+                ? CommandCenterSettings.DccExSerialBaudRate
+                : 0,
+            alive = CommandCenter.Connected,
+            maxLocos = HubState.Station.MaxLocos,
+            trackVoltageOn = HubState.TrackPower,
+            mainCurrentMa = HubState.Tracks.GetValueOrDefault(0)?.CurrentMa ?? 0,
+            progCurrentMa = HubState.Tracks.GetValueOrDefault(1)?.CurrentMa ?? 0,
+            tracks = HubState.Tracks.OrderBy(track => track.Key).Select(track => new
+            {
+                letter = ((char)('A' + track.Key)).ToString(),
+                mode = track.Value.Mode,
+                currentMa = track.Value.CurrentMa,
+                overload = track.Value.Overload,
+                tripMa = track.Value.TripMa
+            }),
+            hub = new
+            {
+                platform = Environment.OSVersion.Platform.ToString(),
+                framework = Environment.Version.ToString(),
+                wsClients = ClientCount
+            }
+        };
+    }
 
     public Task BroadcastPowerState() => BroadcastPower();
 
@@ -558,17 +581,10 @@ public sealed class WsHub
 
     private Task SendCommandCenterInfo(WebSocket ws)
     {
-        var x = CommandCenterConfigStore.Current;
-        return Send(ws, "commandCenterInfo", new
-        {
-            alive = CommandCenter.Connected,
-            power = HubState.TrackPower,
-            type = CommandCenter.Type,
-            name = CommandCenter.Name,
-            ip = x.Host,
-            port = x.Port,
-            connectionString = $"{x.Host}:{x.Port}"
-        });
+        return Send(
+            ws,
+            "commandCenterInfo",
+            CommandCenterInfo());
     }
 
     private Task SendPower(WebSocket ws)

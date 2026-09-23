@@ -44,7 +44,13 @@ builder.Services.AddHostedService<WsRuntimeCoordinator>();
 var app = builder.Build();
 var ccConfigStore = app.Services.GetRequiredService<CommandCenterConfigStore>();
 var persistedCc = ccConfigStore.Current;
-app.Services.GetRequiredService<DccExCommandCenter>().SetEndpoint(persistedCc.Host, persistedCc.Port);
+app.Services.GetRequiredService<DccExCommandCenter>().SetEndpoint(
+    persistedCc.IsSerial
+        ? persistedCc.SerialPort
+        : persistedCc.TcpHost,
+    persistedCc.IsSerial
+        ? CommandCenterSettings.DccExSerialBaudRate
+        : persistedCc.TcpPort);
 var configuredCommandCenter = app.Services.GetRequiredService<ConfiguredCommandCenter>();
 configuredCommandCenter.ReloadLocomotiveConfiguration();
 var runtimeStateStore = app.Services.GetRequiredService<RuntimeStateStore>();
@@ -77,29 +83,30 @@ app.Map("/ws", async ctx =>
 app.MapGet("/api/command-center-config", (CommandCenterConfigStore store, ICommandCenter cc) =>
 {
     var x = store.Current;
-    return Results.Json(new { ok = true, host = x.Host, port = x.Port, powerIncludesProgramming = x.PowerIncludesProgramming, connected = cc.Connected });
+    return Results.Json(new
+    {
+        ok = true,
+        transport = x.Transport,
+        host = x.IsSerial ? "" : x.TcpHost,
+        port = x.IsSerial ? 0 : x.TcpPort,
+        serialPort = x.IsSerial ? x.SerialPort : "",
+        baudRate = x.IsSerial ? CommandCenterSettings.DccExSerialBaudRate : 0,
+        powerIncludesProgramming = x.PowerIncludesProgramming,
+        connected = cc.Connected
+    });
 });
 
 app.MapPost("/api/command-center-config", async (HttpRequest req, CommandCenterConfigStore store, DccExCommandCenter physical, WsHub ws, CancellationToken ct) =>
 {
     if (!req.HasFormContentType)
     {
-        return Results.Json(new { ok = false, message = "Missing host or port" }, statusCode: 400);
+        return Results.Json(new { ok = false, message = "Missing command-center settings" }, statusCode: 400);
     }
 
     var form = await req.ReadFormAsync(ct);
-    var host = form["host"].ToString().Trim();
-    var portText = form["port"].ToString().Trim();
-    static bool ValidHost(string h) => h.Length is > 0 and <= 253 && !h.Any(c => c <= 32 || c is '/' or '\\' or ':' or '<' or '>');
+    var current = store.Current;
 
-    if (!ValidHost(host)) return Results.Json(new { ok = false, message = "Invalid host" }, statusCode: 400);
-
-    if (!int.TryParse(portText, out var port) || port is < 1 or > 65535)
-    {
-        return Results.Json(new { ok = false, message = "Port must be between 1 and 65535" }, statusCode: 400);
-    }
-
-    bool powerProg = store.Current.PowerIncludesProgramming;
+    bool powerProg = current.PowerIncludesProgramming;
     if (form.TryGetValue("powerIncludesProgramming", out var pv))
     {
         var v = pv.ToString().Trim().ToLowerInvariant();
@@ -117,18 +124,125 @@ app.MapPost("/api/command-center-config", async (HttpRequest req, CommandCenterC
         }
     }
 
-    var next = new CommandCenterSettings(host, port, powerProg);
+    CommandCenterSettings next;
+    string endpoint;
+    int endpointValue;
 
-    if (!await store.SaveAsync(next)) { 
-        return Results.Json(new { ok = false, message = "Command center configuration could not be saved" }, statusCode: 500); 
-    }
-    if (!physical.SetEndpoint(host, port))
+    if (current.IsSerial)
     {
-        return Results.Json(new { ok = false, message = "Runtime endpoint change is unavailable" }, statusCode: 500);
+        var serialPort =
+            form["serialPort"]
+                .ToString()
+                .Trim();
+
+        // Backward-compatible input for an older client that still sends the
+        // COM name in the old host field. The old port field is never baud.
+        if (serialPort.Length == 0)
+        {
+            serialPort =
+                form["host"]
+                    .ToString()
+                    .Trim();
+        }
+
+        if (!CommandCenterSettings.LooksLikeWindowsSerialPort(serialPort))
+        {
+            return Results.Json(
+                new { ok = false, message = "Invalid serial COM port" },
+                statusCode: 400);
+        }
+
+        next = new CommandCenterSettings
+        {
+            Transport = "serial",
+            TcpHost = current.TcpHost,
+            TcpPort = current.TcpPort,
+            SerialPort = serialPort,
+            PowerIncludesProgramming = powerProg
+        };
+
+        endpoint = serialPort;
+        endpointValue =
+            CommandCenterSettings.DccExSerialBaudRate;
     }
+    else
+    {
+        var host =
+            form["host"]
+                .ToString()
+                .Trim();
+
+        var portText =
+            form["port"]
+                .ToString()
+                .Trim();
+
+        static bool ValidHost(string h) =>
+            h.Length is > 0 and <= 253 &&
+            !h.Any(c =>
+                c <= 32 ||
+                c is '/' or '\\' or ':' or '<' or '>');
+
+        if (!ValidHost(host))
+        {
+            return Results.Json(
+                new { ok = false, message = "Invalid host" },
+                statusCode: 400);
+        }
+
+        if (!int.TryParse(portText, out var port) ||
+            port is < 1 or > 65535)
+        {
+            return Results.Json(
+                new { ok = false, message = "Port must be between 1 and 65535" },
+                statusCode: 400);
+        }
+
+        next = new CommandCenterSettings
+        {
+            Transport = "tcp",
+            TcpHost = host,
+            TcpPort = port,
+            SerialPort = current.SerialPort,
+            PowerIncludesProgramming = powerProg
+        };
+
+        endpoint = host;
+        endpointValue = port;
+    }
+
+    if (!await store.SaveAsync(next))
+    {
+        return Results.Json(
+            new { ok = false, message = "Command center configuration could not be saved" },
+            statusCode: 500);
+    }
+
+    if (!physical.SetEndpoint(
+            endpoint,
+            endpointValue))
+    {
+        return Results.Json(
+            new { ok = false, message = "Runtime endpoint change is unavailable" },
+            statusCode: 500);
+    }
+
     await ws.BroadcastStatus();
     await ws.BroadcastRuntimeSnapshot();
-    return Results.Json(new { ok = true, host, port, powerIncludesProgramming = powerProg, connected = physical.Connected });
+
+    var saved = store.Current;
+
+    return Results.Json(new
+    {
+        ok = true,
+        transport = saved.Transport,
+        host = saved.IsSerial ? "" : saved.TcpHost,
+        port = saved.IsSerial ? 0 : saved.TcpPort,
+        serialPort = saved.IsSerial ? saved.SerialPort : "",
+        baudRate = saved.IsSerial ? CommandCenterSettings.DccExSerialBaudRate : 0,
+        powerIncludesProgramming = saved.PowerIncludesProgramming,
+        connected = physical.Connected
+    });
 });
 
 app.MapPost("/api/command-center-test", async (HttpRequest req, CancellationToken ct) =>
@@ -176,10 +290,14 @@ app.MapGet("/api/command-center-info", (ICommandCenter cc, CommandCenterConfigSt
         ok = true,
         type = cc.Type,
         name = cc.Name,
+        transport = x.Transport,
         defaultPort = 2560,
+        defaultBaudRate = CommandCenterSettings.DccExSerialBaudRate,
         connected = cc.Connected,
-        host = x.Host,
-        port = x.Port,
+        host = x.IsSerial ? "" : x.TcpHost,
+        port = x.IsSerial ? 0 : x.TcpPort,
+        serialPort = x.IsSerial ? x.SerialPort : "",
+        baudRate = x.IsSerial ? CommandCenterSettings.DccExSerialBaudRate : 0,
         capabilities = new
         {
             trackPower = true,
@@ -503,8 +621,8 @@ app.MapGet("/api/runtime", (LayoutRuntime runtime) => Results.Json(new
 app.MapGet("/api/status", (ICommandCenter cc, LayoutRuntime runtime, CommandCenterConfigStore ccStore, IConfiguration cfg) =>
 {
     var x = ccStore.Current;
-    var urls = cfg["Urls"] ?? "http://0.0.0.0:8080";
-    int httpPort = 8080;
+    var urls = cfg["Urls"] ?? "http://0.0.0.0:5174";
+    int httpPort = 5174;
     var lastColon = urls.LastIndexOf(':');
     if (lastColon >= 0) int.TryParse(urls[(lastColon + 1)..].TrimEnd('/'), out httpPort);
     return Results.Json(new
@@ -516,8 +634,11 @@ app.MapGet("/api/status", (ICommandCenter cc, LayoutRuntime runtime, CommandCent
         deviceIp = "",
         rssi = 0,
         csbConnected = cc.Connected,
-        csbHost = x.Host,
-        csbPort = x.Port,
+        csbTransport = x.Transport,
+        csbHost = x.IsSerial ? "" : x.TcpHost,
+        csbPort = x.IsSerial ? 0 : x.TcpPort,
+        csbSerialPort = x.IsSerial ? x.SerialPort : "",
+        csbBaudRate = x.IsSerial ? CommandCenterSettings.DccExSerialBaudRate : 0,
         hubHostname = Environment.MachineName,
         hubHttpPort = httpPort,
         hubDhcp = true,
