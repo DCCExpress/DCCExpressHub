@@ -13,6 +13,14 @@
     <PackageReference Include="System.Management" Version="10.0.0" />
   </ItemGroup>
 
+  <!-- Startup settings now live inside MainWindow. Keep the legacy files in the
+       repository temporarily, but exclude them from the build so there is only
+       one authoritative implementation. -->
+  <ItemGroup>
+    <Page Remove="StartupSettingsWindow.xaml" />
+    <Compile Remove="StartupSettingsWindow.xaml.cs" />
+  </ItemGroup>
+
   <Target Name="BuildBackend" BeforeTargets="Build" Condition="'$(RuntimeIdentifier)' == ''">
     <MSBuild Projects="..\DCCExpressHub.Net\DCCExpressHub.Net.csproj"
              Targets="Build"

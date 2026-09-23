@@ -4,127 +4,476 @@ namespace DCCExpressHub.Net.Web;
 
 public sealed class HubFileStorage
 {
-    private readonly string _root;
-    private readonly FileExtensionContentTypeProvider _contentTypes = new();
+    private readonly string _workspaceRoot;
+    private readonly string _flashRoot;
+    private readonly string _sdRoot;
 
-    public HubFileStorage(IWebHostEnvironment env)
+    private readonly FileExtensionContentTypeProvider _contentTypes =
+        new();
+
+    public HubFileStorage(
+        IWebHostEnvironment env)
     {
-        _root = Path.GetFullPath(Path.Combine(env.ContentRootPath, "data"));
-        Directory.CreateDirectory(_root);
-        Directory.CreateDirectory(Path.Combine(_root, "config"));
-        Directory.CreateDirectory(Path.Combine(_root, "images"));
-        Directory.CreateDirectory(Path.Combine(_root, "state"));
+        _workspaceRoot =
+            Path.GetFullPath(
+                env.ContentRootPath)
+                .TrimEnd(
+                    Path.DirectorySeparatorChar,
+                    Path.AltDirectorySeparatorChar);
+
+        _flashRoot =
+            Path.GetFullPath(
+                Path.Combine(
+                    _workspaceRoot,
+                    "data"));
+
+        _sdRoot =
+            Path.GetFullPath(
+                Path.Combine(
+                    _workspaceRoot,
+                    "sd"));
+
+        Directory.CreateDirectory(
+            _flashRoot);
+
+        Directory.CreateDirectory(
+            Path.Combine(
+                _flashRoot,
+                "config"));
+
+        Directory.CreateDirectory(
+            Path.Combine(
+                _flashRoot,
+                "images"));
+
+        Directory.CreateDirectory(
+            Path.Combine(
+                _flashRoot,
+                "state"));
+
+        // Native Windows SD-card emulation.
+        //
+        // Firmware virtual paths stay identical:
+        //   /sd/audio/horn.mp3
+        //
+        // while the actual files live here:
+        //   <workspace>/sd/audio/horn.mp3
+        Directory.CreateDirectory(
+            _sdRoot);
+
+        Directory.CreateDirectory(
+            Path.Combine(
+                _sdRoot,
+                "audio"));
     }
 
-    public string Root => _root;
+    /*
+     * Program.cs uses Root only as the security boundary for multipart upload
+     * targets and to resolve the containing drive for capacity information.
+     *
+     * Return the workspace root rather than the flash root so both emulated
+     * storage volumes are valid upload targets:
+     *
+     *   <workspace>/data  -> /flash
+     *   <workspace>/sd    -> /sd
+     */
+    public string Root =>
+        _workspaceRoot;
 
-    public string? Resolve(string? virtualPath, bool allowRoot = true)
+    public string FlashRoot =>
+        _flashRoot;
+
+    public string SdRoot =>
+        _sdRoot;
+
+    public string? Resolve(
+        string? virtualPath,
+        bool allowRoot = true)
     {
-        var path = string.IsNullOrWhiteSpace(virtualPath) ? "/" : virtualPath.Trim();
-        path = path.Replace('\\', '/');
-        if (!path.StartsWith('/')) path = "/" + path;
-        if (path.Contains("..", StringComparison.Ordinal)) return null;
+        var path =
+            string.IsNullOrWhiteSpace(
+                virtualPath)
+                ? "/"
+                : virtualPath.Trim();
+
+        path =
+            path.Replace(
+                '\\',
+                '/');
+
+        if (!path.StartsWith('/'))
+            path = "/" + path;
+
+        if (path.Contains(
+                "..",
+                StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        // Native firmware-compatible SD namespace.
+        if (path.Equals(
+                "/sd",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return allowRoot
+                ? _sdRoot
+                : null;
+        }
+
+        if (path.StartsWith(
+                "/sd/",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            var relative =
+                path[4..];
+
+            return ResolveUnderRoot(
+                _sdRoot,
+                relative,
+                allowRoot);
+        }
 
         // Firmware compatibility:
-        // /flash/foo -> internal LittleFS /foo
-        // /foo       -> old callers also address internal LittleFS /foo
-        if (path.Equals("/flash", StringComparison.OrdinalIgnoreCase))
-            path = "/";
-        else if (path.StartsWith("/flash/", StringComparison.OrdinalIgnoreCase))
-            path = path[6..];
+        //
+        //   /flash/foo -> internal LittleFS /foo
+        //   /foo       -> legacy callers also address internal LittleFS /foo
+        if (path.Equals(
+                "/flash",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return allowRoot
+                ? _flashRoot
+                : null;
+        }
 
-        // .NET backend has no SD card yet.
-        if (path.Equals("/sd", StringComparison.OrdinalIgnoreCase) ||
-            path.StartsWith("/sd/", StringComparison.OrdinalIgnoreCase))
-            return null;
+        if (path.StartsWith(
+                "/flash/",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            path =
+                path[6..];
+        }
 
-        var relative = path.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
-        var full = Path.GetFullPath(Path.Combine(_root, relative));
-        if (!full.StartsWith(_root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) &&
-            !string.Equals(full, _root, StringComparison.OrdinalIgnoreCase))
+        var flashRelative =
+            path.TrimStart('/');
+
+        return ResolveUnderRoot(
+            _flashRoot,
+            flashRelative,
+            allowRoot);
+    }
+
+    private static string? ResolveUnderRoot(
+        string root,
+        string relativePath,
+        bool allowRoot)
+    {
+        var relative =
+            relativePath
+                .Replace(
+                    '/',
+                    Path.DirectorySeparatorChar)
+                .TrimStart(
+                    Path.DirectorySeparatorChar,
+                    Path.AltDirectorySeparatorChar);
+
+        var full =
+            Path.GetFullPath(
+                Path.Combine(
+                    root,
+                    relative));
+
+        if (!IsPathInsideOrEqual(
+                full,
+                root))
+        {
             return null;
-        if (!allowRoot && string.Equals(full, _root, StringComparison.OrdinalIgnoreCase))
+        }
+
+        if (!allowRoot &&
+            string.Equals(
+                full,
+                root,
+                StringComparison.OrdinalIgnoreCase))
+        {
             return null;
+        }
+
         return full;
     }
 
-    public static string ToVirtualPath(string relativePath)
-        => "/" + relativePath.Replace('\\', '/').TrimStart('/');
-
-    public object List(string? virtualPath)
+    private static bool IsPathInsideOrEqual(
+        string full,
+        string root)
     {
-        var requested = string.IsNullOrWhiteSpace(virtualPath) ? "/" : virtualPath!.Trim();
+        if (string.Equals(
+                full,
+                root,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
 
-        // Match the current firmware File Manager virtual root.
+        return
+            full.StartsWith(
+                root +
+                Path.DirectorySeparatorChar,
+                StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static string ToVirtualPath(
+        string relativePath) =>
+        "/" +
+        relativePath
+            .Replace(
+                '\\',
+                '/')
+            .TrimStart('/');
+
+    public object List(
+        string? virtualPath)
+    {
+        var requested =
+            string.IsNullOrWhiteSpace(
+                virtualPath)
+                ? "/"
+                : virtualPath!
+                    .Trim()
+                    .Replace(
+                        '\\',
+                        '/');
+
+        if (!requested.StartsWith('/'))
+            requested = "/" + requested;
+
+        // Match the firmware File Manager virtual root.
         if (requested == "/")
         {
             return new
             {
                 path = "/",
-                entries = new object[]
-                {
-                    new { name="Internal Flash", path="/flash", type="directory", size=0L, deleteAllowed=false },
-                    new { name="SD Card (not present)", path="/sd", type="directory", size=0L, deleteAllowed=false }
-                }
+
+                entries =
+                    new object[]
+                    {
+                        new
+                        {
+                            name = "Internal Flash",
+                            path = "/flash",
+                            type = "directory",
+                            size = 0L,
+                            deleteAllowed = false
+                        },
+
+                        new
+                        {
+                            name = "SD Card (emulated)",
+                            path = "/sd",
+                            type = "directory",
+                            size = 0L,
+                            deleteAllowed = false
+                        }
+                    }
             };
         }
 
-        if (requested.Equals("/sd", StringComparison.OrdinalIgnoreCase) ||
-            requested.StartsWith("/sd/", StringComparison.OrdinalIgnoreCase))
+        var isSd =
+            requested.Equals(
+                "/sd",
+                StringComparison.OrdinalIgnoreCase) ||
+            requested.StartsWith(
+                "/sd/",
+                StringComparison.OrdinalIgnoreCase);
+
+        var isFlashPrefix =
+            requested.Equals(
+                "/flash",
+                StringComparison.OrdinalIgnoreCase) ||
+            requested.StartsWith(
+                "/flash/",
+                StringComparison.OrdinalIgnoreCase);
+
+        var full =
+            Resolve(
+                requested);
+
+        if (full is null ||
+            !Directory.Exists(full))
         {
-            return new { path=requested, available=false, message="SD card is not available", entries=Array.Empty<object>() };
+            throw new DirectoryNotFoundException(
+                requested);
         }
 
-        var full = Resolve(requested);
-        if (full is null || !Directory.Exists(full))
-            throw new DirectoryNotFoundException(requested);
+        var root =
+            isSd
+                ? _sdRoot
+                : _flashRoot;
 
-        var entries = Directory.EnumerateFileSystemEntries(full)
-            .Select(p =>
-            {
-                var isDir = Directory.Exists(p);
-                var name = Path.GetFileName(p);
-                var rel = Path.GetRelativePath(_root, p);
-                var oldVirtual = ToVirtualPath(rel);
-                var responsePath = requested.StartsWith("/flash", StringComparison.OrdinalIgnoreCase)
-                    ? "/flash" + oldVirtual
-                    : oldVirtual;
-                long size = isDir ? 0 : new FileInfo(p).Length;
-                return (object)new
-                {
-                    name,
-                    path = responsePath,
-                    type = isDir ? "directory" : "file",
-                    size,
-                    deleteAllowed = !IsProtected(p)
-                };
-            })
-            .OrderBy(x => ((dynamic)x).type == "directory" ? 0 : 1)
-            .ThenBy(x => ((dynamic)x).name)
-            .ToArray();
+        var entries =
+            Directory
+                .EnumerateFileSystemEntries(
+                    full)
+                .Select(
+                    physicalPath =>
+                    {
+                        var isDirectory =
+                            Directory.Exists(
+                                physicalPath);
 
-        return new { path=requested, entries };
+                        var name =
+                            Path.GetFileName(
+                                physicalPath);
+
+                        var relative =
+                            Path.GetRelativePath(
+                                root,
+                                physicalPath);
+
+                        var relativeVirtual =
+                            ToVirtualPath(
+                                relative);
+
+                        string responsePath;
+
+                        if (isSd)
+                        {
+                            responsePath =
+                                "/sd" +
+                                relativeVirtual;
+                        }
+                        else if (isFlashPrefix)
+                        {
+                            responsePath =
+                                "/flash" +
+                                relativeVirtual;
+                        }
+                        else
+                        {
+                            responsePath =
+                                relativeVirtual;
+                        }
+
+                        long size =
+                            isDirectory
+                                ? 0
+                                : new FileInfo(
+                                    physicalPath)
+                                    .Length;
+
+                        return (object)new
+                        {
+                            name,
+                            path = responsePath,
+                            type =
+                                isDirectory
+                                    ? "directory"
+                                    : "file",
+                            size,
+
+                            deleteAllowed =
+                                !IsProtected(
+                                    physicalPath)
+                        };
+                    })
+                .OrderBy(
+                    item =>
+                        ((dynamic)item).type ==
+                        "directory"
+                            ? 0
+                            : 1)
+                .ThenBy(
+                    item =>
+                        ((dynamic)item).name)
+                .ToArray();
+
+        return new
+        {
+            path = requested,
+            available = true,
+            entries
+        };
     }
 
-    public bool IsProtected(string full)
+    public bool IsProtected(
+        string full)
     {
-        var rel = Path.GetRelativePath(_root, full).Replace('\\','/');
-        return rel.Equals(".", StringComparison.OrdinalIgnoreCase)
-            || rel.Equals("assets", StringComparison.OrdinalIgnoreCase)
-            || rel.StartsWith("assets/", StringComparison.OrdinalIgnoreCase)
-            || rel.Equals("index.html", StringComparison.OrdinalIgnoreCase)
-            || rel.Equals("state", StringComparison.OrdinalIgnoreCase)
-            || rel.StartsWith("state/", StringComparison.OrdinalIgnoreCase);
+        // Only internal flash has protected Hub runtime files.
+        // The emulated SD is user storage and is intentionally writable.
+        if (!IsPathInsideOrEqual(
+                Path.GetFullPath(full),
+                _flashRoot))
+        {
+            return false;
+        }
+
+        var relative =
+            Path.GetRelativePath(
+                    _flashRoot,
+                    full)
+                .Replace(
+                    '\\',
+                    '/');
+
+        return
+            relative.Equals(
+                ".",
+                StringComparison.OrdinalIgnoreCase) ||
+
+            relative.Equals(
+                "assets",
+                StringComparison.OrdinalIgnoreCase) ||
+
+            relative.StartsWith(
+                "assets/",
+                StringComparison.OrdinalIgnoreCase) ||
+
+            relative.Equals(
+                "index.html",
+                StringComparison.OrdinalIgnoreCase) ||
+
+            relative.Equals(
+                "state",
+                StringComparison.OrdinalIgnoreCase) ||
+
+            relative.StartsWith(
+                "state/",
+                StringComparison.OrdinalIgnoreCase);
     }
 
-    public bool IsManagedConfig(string full)
+    public bool IsManagedConfig(
+        string full)
     {
-        var rel = Path.GetRelativePath(_root, full).Replace('\\','/');
-        return rel is "config/layout.json" or "config/locos.json" or
-               "config/signal-logic.ndjson" or "config/automations.json" or
-               "config/device-config.json";
+        if (!IsPathInsideOrEqual(
+                Path.GetFullPath(full),
+                _flashRoot))
+        {
+            return false;
+        }
+
+        var relative =
+            Path.GetRelativePath(
+                    _flashRoot,
+                    full)
+                .Replace(
+                    '\\',
+                    '/');
+
+        return
+            relative is
+                "config/layout.json" or
+                "config/locos.json" or
+                "config/signal-logic.ndjson" or
+                "config/automations.json" or
+                "config/device-config.json";
     }
 
-    public string ContentType(string path)
-        => _contentTypes.TryGetContentType(path, out var ct) ? ct : "application/octet-stream";
+    public string ContentType(
+        string path) =>
+        _contentTypes
+            .TryGetContentType(
+                path,
+                out var contentType)
+            ? contentType
+            : "application/octet-stream";
 }

@@ -1,13 +1,18 @@
 using System.Diagnostics;
 using System.IO;
+using System.IO.Ports;
 using System.Net;
 using System.Net.Http;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Reflection;
+using System.Text;
 using System.Text.Json;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
 using Microsoft.Web.WebView2.Core;
+using Microsoft.Win32;
 
 namespace DCCExpressHub.Desktop;
 
@@ -31,6 +36,27 @@ public partial class MainWindow : Window
     private bool _closeDialogActive;
     private string? _backendShutdownToken;
 
+    private bool _initializingSetup;
+    private bool _setupBusy;
+    private bool _firstLauncherRun;
+    private TaskCompletionSource<CloseChoice>? _confirmTcs;
+    private ConfirmMode _confirmMode;
+    private bool _browserHiddenForConfirm;
+
+    private enum ConfirmMode
+    {
+        Exit,
+        PowerOffFailed
+    }
+
+    private enum CloseChoice
+    {
+        Cancel,
+        PowerOffAndExit,
+        ExitWithoutPowerOff,
+        ExitAnyway
+    }
+
     private int HubPort => _settings.HttpPort;
     private string HubUrl => $"http://127.0.0.1:{HubPort}";
     private string HubListenUrl =>
@@ -53,7 +79,9 @@ public partial class MainWindow : Window
         Closing += OnClosing;
     }
 
-    private async void OnLoaded(object sender, RoutedEventArgs e)
+    private void OnLoaded(
+        object sender,
+        RoutedEventArgs e)
     {
         try
         {
@@ -69,74 +97,966 @@ public partial class MainWindow : Window
                     L("alreadyRunning"));
             }
 
-            var firstLauncherRun =
+            _firstLauncherRun =
                 !DesktopSettingsStore.Exists;
 
-            // Kill an orphan from the previous launcher session before the
-            // settings dialog checks whether the selected HTTP port is free.
+            Browser.Visibility =
+                Visibility.Collapsed;
+
+            StartupOverlay.Visibility =
+                Visibility.Visible;
+
             StartupText.Text =
                 L("checkingBackend");
 
             KillStaleBackend();
 
-            while (true)
-            {
-                StartupText.Text =
-                    L("startupSettings");
+            InitializeSetupPanel();
 
-                var settingsWindow =
-                    new StartupSettingsWindow(
-                        _settings,
-                        GetHubVersion())
+            StartupOverlay.Visibility =
+                Visibility.Collapsed;
+
+            SetupPanel.Visibility =
+                Visibility.Visible;
+        }
+        catch (Exception ex)
+        {
+            SetupPanel.Visibility =
+                Visibility.Collapsed;
+
+            Browser.Visibility =
+                Visibility.Collapsed;
+
+            StartupText.Text =
+                L("startupError") +
+                ex.Message;
+
+            StartupOverlay.Visibility =
+                Visibility.Visible;
+        }
+    }
+
+    private void InitializeSetupPanel()
+    {
+        _initializingSetup = true;
+
+        _settings.Language =
+            DesktopLocalization.NormalizeLanguage(
+                _settings.Language);
+
+        VersionText.Text =
+            $"v{GetHubVersion()}";
+
+        TcpHostText.Text =
+            _settings.TcpHost;
+
+        TcpPortText.Text =
+            _settings.TcpPort.ToString();
+
+        HttpPortText.Text =
+            _settings.HttpPort.ToString();
+
+        WorkspaceText.Text =
+            _settings.WorkspaceDirectory;
+
+        LocalModeRadio.IsChecked =
+            _settings.RunMode != "server";
+
+        ServerModeRadio.IsChecked =
+            _settings.RunMode == "server";
+
+        RefreshSerialPorts(
+            _settings.SerialPort);
+
+        SelectLanguage(
+            _settings.Language);
+
+        SelectProtocol(
+            _settings.Protocol);
+
+        _initializingSetup = false;
+
+        ApplySetupLanguage();
+        UpdateProtocolPanels();
+        ValidationText.Text = "";
+        HideTestResult();
+    }
+
+    private string SelectedProtocol =>
+        (ProtocolCombo.SelectedItem as ComboBoxItem)?
+            .Tag?
+            .ToString() ?? "";
+
+    private string SelectedLanguage =>
+        DesktopLocalization.NormalizeLanguage(
+            (LanguageCombo.SelectedItem as ComboBoxItem)?
+                .Tag?
+                .ToString());
+
+    private void SelectLanguage(
+        string language)
+    {
+        var normalized =
+            DesktopLocalization.NormalizeLanguage(
+                language);
+
+        foreach (var item in
+                 LanguageCombo.Items.OfType<ComboBoxItem>())
+        {
+            if (string.Equals(
+                    item.Tag?.ToString() ?? "",
+                    normalized,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                LanguageCombo.SelectedItem =
+                    item;
+                return;
+            }
+        }
+
+        LanguageCombo.SelectedIndex = 0;
+    }
+
+    private void LanguageCombo_SelectionChanged(
+        object sender,
+        SelectionChangedEventArgs e)
+    {
+        if (_initializingSetup)
+            return;
+
+        _settings.Language =
+            SelectedLanguage;
+
+        ApplySetupLanguage();
+
+        ValidationText.Text = "";
+        HideTestResult();
+    }
+
+    private void ApplySetupLanguage()
+    {
+        SubtitleText.Text =
+            L("subtitle");
+
+        LanguageLabelText.Text =
+            L("language");
+
+        ConnectionTitleText.Text =
+            L("connectionTitle");
+
+        ConnectionDescriptionText.Text =
+            L("connectionDescription");
+
+        ProtocolLabelText.Text =
+            L("protocol");
+
+        ProtocolChooseItem.Content =
+            L("choose");
+
+        TcpHostLabelText.Text =
+            L("tcpHost");
+
+        TcpPortLabelText.Text =
+            L("port");
+
+        SerialPortLabelText.Text =
+            L("serialPort");
+
+        RefreshSerialButton.Content =
+            L("refresh");
+
+        TestButton.Content =
+            L("testConnection");
+
+        WebServerTitleText.Text =
+            L("webServerTitle");
+
+        WebServerDescriptionText.Text =
+            L("webServerDescription");
+
+        LocalModeRadio.Content =
+            L("localMode");
+
+        ServerModeRadio.Content =
+            L("serverMode");
+
+        HttpPortLabelText.Text =
+            L("httpPort");
+
+        WorkspaceTitleText.Text =
+            L("workspaceTitle");
+
+        WorkspaceDescriptionText.Text =
+            L("workspaceDescription");
+
+        BrowseWorkspaceButton.Content =
+            L("browse");
+
+        FooterHintText.Text =
+            L("footerHint");
+
+        SetupCancelButton.Content =
+            L("cancel");
+
+        StartBackendButton.Content =
+            L("okStart");
+
+        if (_confirmMode == ConfirmMode.Exit &&
+            ConfirmOverlay.Visibility == Visibility.Visible)
+        {
+            ConfigureExitConfirm();
+        }
+        else if (_confirmMode == ConfirmMode.PowerOffFailed &&
+                 ConfirmOverlay.Visibility == Visibility.Visible)
+        {
+            ConfigurePowerOffFailedConfirm();
+        }
+    }
+
+    private void SelectProtocol(
+        string protocol)
+    {
+        foreach (var item in
+                 ProtocolCombo.Items.OfType<ComboBoxItem>())
+        {
+            if (string.Equals(
+                    item.Tag?.ToString() ?? "",
+                    protocol,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                ProtocolCombo.SelectedItem =
+                    item;
+                return;
+            }
+        }
+
+        ProtocolCombo.SelectedIndex = 0;
+    }
+
+    private void ProtocolCombo_SelectionChanged(
+        object sender,
+        SelectionChangedEventArgs e)
+    {
+        UpdateProtocolPanels();
+        HideTestResult();
+    }
+
+    private void UpdateProtocolPanels()
+    {
+        var protocol =
+            SelectedProtocol;
+
+        TcpPanel.Visibility =
+            protocol == "tcp"
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+
+        SerialPanel.Visibility =
+            protocol == "serial"
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+
+        TestButton.IsEnabled =
+            !_setupBusy &&
+            protocol is "tcp" or "serial";
+    }
+
+    private void RefreshSerialButton_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        RefreshSerialPorts(
+            SerialPortCombo.Text);
+    }
+
+    private void RefreshSerialPorts(
+        string? preferred)
+    {
+        var selected =
+            string.IsNullOrWhiteSpace(
+                preferred)
+                ? SerialPortCombo.Text
+                : preferred;
+
+        var ports =
+            SerialPort
+                .GetPortNames()
+                .OrderBy(
+                    port => port,
+                    StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+        SerialPortCombo.Items.Clear();
+
+        foreach (var port in ports)
+            SerialPortCombo.Items.Add(port);
+
+        if (!string.IsNullOrWhiteSpace(
+                selected))
+        {
+            SerialPortCombo.Text =
+                selected;
+        }
+        else if (ports.Length > 0)
+        {
+            SerialPortCombo.SelectedIndex = 0;
+        }
+    }
+
+    private void BrowseWorkspaceButton_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        var dialog =
+            new OpenFolderDialog
+            {
+                Title = L("folderDialogTitle"),
+                Multiselect = false
+            };
+
+        try
+        {
+            var current =
+                Path.GetFullPath(
+                    Environment
+                        .ExpandEnvironmentVariables(
+                            WorkspaceText.Text.Trim()));
+
+            if (Directory.Exists(current))
+                dialog.InitialDirectory = current;
+        }
+        catch
+        {
+        }
+
+        if (dialog.ShowDialog(this) == true)
+        {
+            WorkspaceText.Text =
+                dialog.FolderName;
+        }
+    }
+
+    private async void TestButton_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        if (_setupBusy)
+            return;
+
+        if (!TryReadSettings(
+                out var testSettings,
+                out var error,
+                validateWorkspace: false))
+        {
+            ShowValidation(error);
+            return;
+        }
+
+        ValidationText.Text = "";
+        TestButton.IsEnabled = false;
+
+        ShowTestResult(
+            L("testing"),
+            success: null);
+
+        try
+        {
+            TestResult result =
+                testSettings.Protocol == "tcp"
+                    ? await TestTcpAsync(
+                        testSettings)
+                    : await TestSerialAsync(
+                        testSettings);
+
+            ShowTestResult(
+                result.Message,
+                result.Ok);
+        }
+        catch (Exception ex)
+        {
+            ShowTestResult(
+                L("failed") +
+                ex.Message,
+                false);
+        }
+        finally
+        {
+            TestButton.IsEnabled =
+                !_setupBusy &&
+                SelectedProtocol is
+                    "tcp" or
+                    "serial";
+        }
+    }
+
+    private async Task<TestResult> TestTcpAsync(
+        DesktopSettings settings)
+    {
+        using var timeout =
+            new CancellationTokenSource(
+                TimeSpan.FromSeconds(3));
+
+        using var client =
+            new TcpClient
+            {
+                NoDelay = true
+            };
+
+        await client.ConnectAsync(
+            settings.TcpHost,
+            settings.TcpPort,
+            timeout.Token);
+
+        using var stream =
+            client.GetStream();
+
+        await stream.WriteAsync(
+            Encoding.ASCII.GetBytes("<#>"),
+            timeout.Token);
+
+        var reply =
+            await ReadHeartbeatAsync(
+                stream,
+                timeout.Token);
+
+        return reply is null
+            ? new TestResult(
+                false,
+                L("tcpNoHeartbeat"))
+            : new TestResult(
+                true,
+                L("dccReachable") + reply);
+    }
+
+    private static async Task<string?> ReadHeartbeatAsync(
+        Stream stream,
+        CancellationToken ct)
+    {
+        var buffer = new byte[512];
+        var frame = new StringBuilder();
+        bool inside = false;
+
+        while (!ct.IsCancellationRequested)
+        {
+            int count =
+                await stream.ReadAsync(
+                    buffer,
+                    ct);
+
+            if (count <= 0)
+                return null;
+
+            for (int i = 0;
+                 i < count;
+                 i++)
+            {
+                var c =
+                    (char)buffer[i];
+
+                if (!inside)
+                {
+                    if (c == '<')
                     {
-                        Owner = this
+                        inside = true;
+                        frame.Clear();
+                        frame.Append(c);
+                    }
+
+                    continue;
+                }
+
+                if (c == '<')
+                {
+                    frame.Clear();
+                    frame.Append(c);
+                    continue;
+                }
+
+                frame.Append(c);
+
+                if (c != '>')
+                    continue;
+
+                inside = false;
+
+                var reply =
+                    frame.ToString();
+
+                frame.Clear();
+
+                if (reply.StartsWith(
+                        "<#",
+                        StringComparison.Ordinal))
+                {
+                    return reply;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private Task<TestResult> TestSerialAsync(
+        DesktopSettings settings)
+    {
+        var language =
+            _settings.Language;
+
+        return Task.Run(
+            () =>
+            {
+                using var port =
+                    new SerialPort(
+                        settings.SerialPort,
+                        115200,
+                        Parity.None,
+                        8,
+                        StopBits.One)
+                    {
+                        Handshake = Handshake.None,
+                        ReadTimeout = 250,
+                        WriteTimeout = 2000,
+                        DtrEnable = false,
+                        RtsEnable = false
                     };
 
-                if (settingsWindow.ShowDialog() != true)
+                port.Open();
+
+                // Keep the startup test aligned with the backend's stable
+                // Serial transport: allow USB CDC / Arduino-class boards to
+                // settle after opening before the first DCC-EX command.
+                Thread.Sleep(1200);
+
+                try
                 {
-                    Close();
-                    return;
+                    port.DiscardInBuffer();
+                    port.DiscardOutBuffer();
+                }
+                catch
+                {
                 }
 
-                _settings =
-                    settingsWindow.Settings;
+                port.Write("<#>");
 
-                DesktopSettingsStore.Save(
-                    _settings);
+                var deadline =
+                    DateTime.UtcNow
+                        .AddSeconds(3);
 
-                UpdateWindowTitle();
+                var frame =
+                    new StringBuilder();
 
-                if (IsHubPortAvailable(
-                        out var portError))
+                bool inside = false;
+
+                while (DateTime.UtcNow < deadline)
                 {
-                    break;
+                    try
+                    {
+                        int value =
+                            port.ReadByte();
+
+                        if (value < 0)
+                            continue;
+
+                        char c =
+                            (char)value;
+
+                        if (!inside)
+                        {
+                            if (c == '<')
+                            {
+                                inside = true;
+                                frame.Clear();
+                                frame.Append(c);
+                            }
+
+                            continue;
+                        }
+
+                        if (c == '<')
+                        {
+                            frame.Clear();
+                            frame.Append(c);
+                            continue;
+                        }
+
+                        frame.Append(c);
+
+                        if (c != '>')
+                            continue;
+
+                        inside = false;
+
+                        var reply =
+                            frame.ToString();
+
+                        frame.Clear();
+
+                        if (reply.StartsWith(
+                                "<#",
+                                StringComparison.Ordinal))
+                        {
+                            return new TestResult(
+                                true,
+                                DesktopLocalization.T(
+                                    language,
+                                    "dccReachable") +
+                                reply);
+                        }
+                    }
+                    catch (TimeoutException)
+                    {
+                    }
                 }
 
-                MessageBox.Show(
-                    this,
-                    portError,
-                    L("httpPortInUseTitle"),
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
+                return new TestResult(
+                    false,
+                    DesktopLocalization.T(
+                        language,
+                        "serialNoHeartbeat"));
+            });
+    }
+
+    private bool TryReadSettings(
+        out DesktopSettings settings,
+        out string error,
+        bool validateWorkspace)
+    {
+        settings =
+            _settings.Clone();
+
+        settings.Language =
+            SelectedLanguage;
+
+        error = "";
+
+        var protocol =
+            SelectedProtocol;
+
+        if (protocol is not
+            ("tcp" or "serial"))
+        {
+            error =
+                L("validationChooseProtocol");
+            return false;
+        }
+
+        if (!int.TryParse(
+                HttpPortText.Text.Trim(),
+                out var httpPort) ||
+            httpPort is < 1 or > 65535)
+        {
+            error =
+                L("validationHttpPort");
+            return false;
+        }
+
+        settings.Protocol = protocol;
+        settings.HttpPort = httpPort;
+        settings.RunMode =
+            ServerModeRadio.IsChecked == true
+                ? "server"
+                : "local";
+
+        if (protocol == "tcp")
+        {
+            var host =
+                TcpHostText.Text.Trim();
+
+            if (host.Length == 0 ||
+                host.Any(char.IsWhiteSpace))
+            {
+                error =
+                    L("validationTcpHost");
+                return false;
             }
 
+            if (!int.TryParse(
+                    TcpPortText.Text.Trim(),
+                    out var port) ||
+                port is < 1 or > 65535)
+            {
+                error =
+                    L("validationTcpPort");
+                return false;
+            }
+
+            settings.TcpHost = host;
+            settings.TcpPort = port;
+        }
+        else
+        {
+            var serialPort =
+                SerialPortCombo.Text.Trim();
+
+            if (serialPort.Length == 0)
+            {
+                error =
+                    L("validationSerialPort");
+                return false;
+            }
+
+            settings.SerialPort =
+                serialPort;
+
+            settings.SerialBaudRate =
+                115200;
+        }
+
+        if (validateWorkspace)
+        {
+            var workspace =
+                WorkspaceText.Text.Trim();
+
+            if (workspace.Length == 0)
+            {
+                error =
+                    L("validationWorkspace");
+                return false;
+            }
+
+            try
+            {
+                workspace =
+                    Path.GetFullPath(
+                        Environment
+                            .ExpandEnvironmentVariables(
+                                workspace));
+
+                var appBase =
+                    Path.GetFullPath(
+                        AppContext.BaseDirectory)
+                        .TrimEnd(
+                            Path.DirectorySeparatorChar,
+                            Path.AltDirectorySeparatorChar);
+
+                var normalizedWorkspace =
+                    workspace.TrimEnd(
+                        Path.DirectorySeparatorChar,
+                        Path.AltDirectorySeparatorChar);
+
+                if (
+                    string.Equals(
+                        normalizedWorkspace,
+                        appBase,
+                        StringComparison.OrdinalIgnoreCase) ||
+                    normalizedWorkspace.StartsWith(
+                        appBase +
+                        Path.DirectorySeparatorChar,
+                        StringComparison.OrdinalIgnoreCase)
+                )
+                {
+                    error =
+                        L("validationWorkspaceInBuild");
+                    return false;
+                }
+
+                Directory.CreateDirectory(
+                    workspace);
+            }
+            catch (Exception ex)
+            {
+                error =
+                    L("validationWorkspaceInvalid") +
+                    ex.Message;
+                return false;
+            }
+
+            settings.WorkspaceDirectory =
+                workspace;
+        }
+
+        return true;
+    }
+
+    private void ShowValidation(
+        string message)
+    {
+        ValidationText.Text =
+            message;
+    }
+
+    private void HideTestResult()
+    {
+        TestStatusBorder.Visibility =
+            Visibility.Collapsed;
+    }
+
+    private void ShowTestResult(
+        string message,
+        bool? success)
+    {
+        TestStatusText.Text =
+            message;
+
+        if (success == true)
+        {
+            TestStatusBorder.Background =
+                new SolidColorBrush(
+                    Color.FromRgb(
+                        20,
+                        83,
+                        45));
+
+            TestStatusBorder.BorderBrush =
+                new SolidColorBrush(
+                    Color.FromRgb(
+                        34,
+                        197,
+                        94));
+
+            TestStatusText.Foreground =
+                new SolidColorBrush(
+                    Color.FromRgb(
+                        187,
+                        247,
+                        208));
+        }
+        else if (success == false)
+        {
+            TestStatusBorder.Background =
+                new SolidColorBrush(
+                    Color.FromRgb(
+                        76,
+                        29,
+                        35));
+
+            TestStatusBorder.BorderBrush =
+                new SolidColorBrush(
+                    Color.FromRgb(
+                        244,
+                        63,
+                        94));
+
+            TestStatusText.Foreground =
+                new SolidColorBrush(
+                    Color.FromRgb(
+                        254,
+                        205,
+                        211));
+        }
+        else
+        {
+            TestStatusBorder.Background =
+                new SolidColorBrush(
+                    Color.FromRgb(
+                        16,
+                        36,
+                        58));
+
+            TestStatusBorder.BorderBrush =
+                new SolidColorBrush(
+                    Color.FromRgb(
+                        40,
+                        81,
+                        114));
+
+            TestStatusText.Foreground =
+                new SolidColorBrush(
+                    Color.FromRgb(
+                        186,
+                        230,
+                        253));
+        }
+
+        TestStatusBorder.Visibility =
+            Visibility.Visible;
+    }
+
+    private void SetSetupBusy(
+        bool busy)
+    {
+        _setupBusy = busy;
+
+        ProtocolCombo.IsEnabled = !busy;
+        LanguageCombo.IsEnabled = !busy;
+        TcpHostText.IsEnabled = !busy;
+        TcpPortText.IsEnabled = !busy;
+        SerialPortCombo.IsEnabled = !busy;
+        RefreshSerialButton.IsEnabled = !busy;
+        LocalModeRadio.IsEnabled = !busy;
+        ServerModeRadio.IsEnabled = !busy;
+        HttpPortText.IsEnabled = !busy;
+        WorkspaceText.IsEnabled = !busy;
+        BrowseWorkspaceButton.IsEnabled = !busy;
+        SetupCancelButton.IsEnabled = !busy;
+        StartBackendButton.IsEnabled = !busy;
+
+        UpdateProtocolPanels();
+    }
+
+    private void SetupCancelButton_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        if (_setupBusy)
+            return;
+
+        Close();
+    }
+
+    private async void StartBackendButton_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        if (_setupBusy ||
+            _isClosing)
+        {
+            return;
+        }
+
+        if (!TryReadSettings(
+                out var next,
+                out var error,
+                validateWorkspace: true))
+        {
+            ShowValidation(error);
+            return;
+        }
+
+        next.Language =
+            SelectedLanguage;
+
+        _settings = next;
+
+        DesktopSettingsStore.Save(
+            _settings);
+
+        UpdateWindowTitle();
+
+        if (!IsHubPortAvailable(
+                out var portError))
+        {
+            ShowValidation(
+                portError);
+            return;
+        }
+
+        SetSetupBusy(true);
+        ValidationText.Text = "";
+
+        SetupPanel.Visibility =
+            Visibility.Collapsed;
+
+        Browser.Visibility =
+            Visibility.Collapsed;
+
+        StartupOverlay.Visibility =
+            Visibility.Visible;
+
+        try
+        {
             StartupText.Text =
                 L("preparingWorkspace");
 
             PrepareWorkspace(
-                firstLauncherRun);
+                _firstLauncherRun);
+
+            _firstLauncherRun = false;
 
             if (!IsWebView2RuntimeAvailable())
             {
-                MessageBox.Show(
-                    this,
-                    L("webView2RuntimeMissing"),
-                    L("webView2RuntimeMissingTitle"),
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
-
-                Close();
-                return;
+                throw new InvalidOperationException(
+                    L("webView2RuntimeMissing"));
             }
 
             StartupText.Text =
@@ -150,28 +1070,62 @@ public partial class MainWindow : Window
             StartupText.Text =
                 L("loadingWebUi");
 
-            await Browser.EnsureCoreWebView2Async();
+            await Browser
+                .EnsureCoreWebView2Async();
 
-            var coreWebView = Browser.CoreWebView2
-                ?? throw new InvalidOperationException(L("webView2InitializationFailed"));
+            var coreWebView =
+                Browser.CoreWebView2
+                ?? throw new InvalidOperationException(
+                    L("webView2InitializationFailed"));
 
-            coreWebView.Settings.AreDevToolsEnabled = true;
-            coreWebView.Settings.AreDefaultContextMenusEnabled = true;
-            Browser.Source = new Uri(HubUrl + "/");
+            coreWebView.Settings
+                .AreDevToolsEnabled = true;
 
-            if (FindName("RestartBackendButton") is System.Windows.Controls.Button restartButton)
-                restartButton.Visibility = Visibility.Collapsed;
+            coreWebView.Settings
+                .AreDefaultContextMenusEnabled = true;
+
+            Browser.Source =
+                new Uri(
+                    HubUrl + "/");
+
+            RestartBackendButton.Visibility =
+                Visibility.Collapsed;
 
             StartupOverlay.Visibility =
                 Visibility.Collapsed;
+
+            SetupPanel.Visibility =
+                Visibility.Collapsed;
+
+            Browser.Visibility =
+                Visibility.Visible;
         }
         catch (Exception ex)
         {
-            StartupText.Text =
+            StopBackend();
+
+            Browser.Visibility =
+                Visibility.Collapsed;
+
+            StartupOverlay.Visibility =
+                Visibility.Collapsed;
+
+            SetupPanel.Visibility =
+                Visibility.Visible;
+
+            ShowValidation(
                 L("startupError") +
-                ex.Message;
+                ex.Message);
+        }
+        finally
+        {
+            SetSetupBusy(false);
         }
     }
+
+    private readonly record struct TestResult(
+        bool Ok,
+        string Message);
 
     private bool IsHubPortAvailable(
         out string error)
@@ -774,6 +1728,9 @@ public partial class MainWindow : Window
                 restartButton.Visibility = Visibility.Visible;
             }
 
+            Browser.Visibility =
+                Visibility.Collapsed;
+
             StartupOverlay.Visibility =
                 Visibility.Visible;
         });
@@ -840,9 +1797,15 @@ public partial class MainWindow : Window
 
             StartupOverlay.Visibility =
                 Visibility.Collapsed;
+
+            Browser.Visibility =
+                Visibility.Visible;
         }
         catch (Exception ex)
         {
+            Browser.Visibility =
+                Visibility.Collapsed;
+
             StartupText.Text =
                 L("backendRestartFailed") +
                 ex.Message;
@@ -894,9 +1857,16 @@ public partial class MainWindow : Window
             return;
         }
 
-        // Closing is asynchronous because "Yes" first requests track power OFF.
-        // Cancel this close attempt and call Close() again only after the user's
-        // choice has been handled.
+        // If no backend is running there is nothing that needs a power-off
+        // decision. This also makes Cancel on the startup panel a clean exit.
+        if (_backend is null ||
+            _backend.HasExited)
+        {
+            _closeApproved = true;
+            FinalizeClose();
+            return;
+        }
+
         e.Cancel = true;
 
         if (_closeDialogActive)
@@ -907,40 +1877,26 @@ public partial class MainWindow : Window
         try
         {
             var choice =
-                MessageBox.Show(
-                    this,
-                    L("closeConfirmMessage"),
-                    L("closeConfirmTitle"),
-                    MessageBoxButton.YesNoCancel,
-                    MessageBoxImage.Warning,
-                    MessageBoxResult.Cancel);
+                await ShowCloseConfirmAsync();
 
-            if (choice == MessageBoxResult.Cancel)
+            if (choice == CloseChoice.Cancel)
                 return;
 
-            if (choice == MessageBoxResult.Yes)
+            if (choice == CloseChoice.PowerOffAndExit)
             {
                 var powerOffOk =
                     await RequestTrackPowerOffAsync();
 
                 if (!powerOffOk)
                 {
-                    var exitAnyway =
-                        MessageBox.Show(
-                            this,
-                            L("powerOffFailedMessage"),
-                            L("powerOffFailedTitle"),
-                            MessageBoxButton.YesNo,
-                            MessageBoxImage.Warning,
-                            MessageBoxResult.No);
+                    var failedChoice =
+                        await ShowPowerOffFailedConfirmAsync();
 
-                    if (exitAnyway != MessageBoxResult.Yes)
+                    if (failedChoice != CloseChoice.ExitAnyway)
                         return;
                 }
                 else
                 {
-                    // Give DCC-EX feedback / runtime state persistence a brief
-                    // opportunity to complete before the backend is stopped.
                     await Task.Delay(300);
                 }
             }
@@ -957,8 +1913,163 @@ public partial class MainWindow : Window
             {
                 _isClosing = false;
                 _closeDialogActive = false;
+                HideConfirmOverlay();
             }
         }
+    }
+
+    private Task<CloseChoice> ShowCloseConfirmAsync()
+    {
+        _confirmMode =
+            ConfirmMode.Exit;
+
+        ConfigureExitConfirm();
+        return ShowConfirmOverlayAsync();
+    }
+
+    private Task<CloseChoice> ShowPowerOffFailedConfirmAsync()
+    {
+        _confirmMode =
+            ConfirmMode.PowerOffFailed;
+
+        ConfigurePowerOffFailedConfirm();
+        return ShowConfirmOverlayAsync();
+    }
+
+    private void ConfigureExitConfirm()
+    {
+        ConfirmTitleText.Text =
+            L("closeConfirmTitle");
+
+        ConfirmMessageText.Text =
+            L("closeConfirmMessage");
+
+        ConfirmPrimaryButton.Content =
+            L("closePowerOffExit");
+
+        ConfirmSecondaryButton.Content =
+            L("closeExitWithoutPowerOff");
+
+        ConfirmSecondaryButton.Visibility =
+            Visibility.Visible;
+
+        ConfirmCancelButton.Content =
+            L("closeCancel");
+    }
+
+    private void ConfigurePowerOffFailedConfirm()
+    {
+        ConfirmTitleText.Text =
+            L("powerOffFailedTitle");
+
+        ConfirmMessageText.Text =
+            L("powerOffFailedMessage");
+
+        ConfirmPrimaryButton.Content =
+            L("exitAnyway");
+
+        ConfirmSecondaryButton.Visibility =
+            Visibility.Collapsed;
+
+        ConfirmCancelButton.Content =
+            L("closeCancel");
+    }
+
+    private Task<CloseChoice> ShowConfirmOverlayAsync()
+    {
+        _confirmTcs =
+            new TaskCompletionSource<CloseChoice>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+
+        _browserHiddenForConfirm =
+            Browser.Visibility ==
+            Visibility.Visible;
+
+        if (_browserHiddenForConfirm)
+        {
+            Browser.Visibility =
+                Visibility.Collapsed;
+        }
+
+        ConfirmOverlay.Visibility =
+            Visibility.Visible;
+
+        ConfirmCancelButton.Focus();
+
+        return _confirmTcs.Task;
+    }
+
+    private void HideConfirmOverlay()
+    {
+        ConfirmOverlay.Visibility =
+            Visibility.Collapsed;
+
+        _confirmTcs = null;
+
+        if (_browserHiddenForConfirm &&
+            !_isClosing)
+        {
+            Browser.Visibility =
+                Visibility.Visible;
+        }
+
+        _browserHiddenForConfirm = false;
+    }
+
+    private void ResolveConfirm(
+        CloseChoice choice)
+    {
+        var completion =
+            _confirmTcs;
+
+        if (completion is null)
+            return;
+
+        ConfirmOverlay.Visibility =
+            Visibility.Collapsed;
+
+        _confirmTcs = null;
+
+        if (_browserHiddenForConfirm &&
+            !_isClosing)
+        {
+            Browser.Visibility =
+                Visibility.Visible;
+        }
+
+        _browserHiddenForConfirm = false;
+
+        completion.TrySetResult(
+            choice);
+    }
+
+    private void ConfirmPrimaryButton_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        ResolveConfirm(
+            _confirmMode == ConfirmMode.PowerOffFailed
+                ? CloseChoice.ExitAnyway
+                : CloseChoice.PowerOffAndExit);
+    }
+
+    private void ConfirmSecondaryButton_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        if (_confirmMode == ConfirmMode.Exit)
+        {
+            ResolveConfirm(
+                CloseChoice.ExitWithoutPowerOff);
+        }
+    }
+
+    private void ConfirmCancelButton_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        ResolveConfirm(
+            CloseChoice.Cancel);
     }
 
     private void FinalizeClose()
@@ -1022,6 +2133,14 @@ public partial class MainWindow : Window
 
     private void Window_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
+        if (e.Key == System.Windows.Input.Key.Escape &&
+            ConfirmOverlay.Visibility == Visibility.Visible)
+        {
+            ResolveConfirm(CloseChoice.Cancel);
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key == System.Windows.Input.Key.F10)
         {
             MainMenu.Visibility = MainMenu.Visibility == Visibility.Visible

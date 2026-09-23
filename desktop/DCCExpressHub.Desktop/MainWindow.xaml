@@ -4,6 +4,232 @@
  xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
  Title="DCCExpressHub" Width="1400" Height="900" MinWidth="900" MinHeight="600"
  WindowStartupLocation="CenterScreen" PreviewKeyDown="Window_PreviewKeyDown" WindowState="Normal">
+
+ <Window.Resources>
+   <SolidColorBrush x:Key="PanelBrush" Color="#172033"/>
+   <SolidColorBrush x:Key="PanelBorderBrush" Color="#334155"/>
+   <SolidColorBrush x:Key="TextBrush" Color="#F8FAFC"/>
+   <SolidColorBrush x:Key="MutedTextBrush" Color="#94A3B8"/>
+
+   <Style TargetType="TextBox">
+     <Setter Property="Background" Value="#0B1220"/>
+     <Setter Property="Foreground" Value="#E2E8F0"/>
+     <Setter Property="BorderBrush" Value="#334155"/>
+     <Setter Property="BorderThickness" Value="1"/>
+     <Setter Property="Padding" Value="9,7"/>
+     <Setter Property="FontSize" Value="14"/>
+   </Style>
+
+   <Style TargetType="ComboBoxItem">
+     <Setter Property="Foreground" Value="#E2E8F0"/>
+     <Setter Property="Background" Value="#0B1220"/>
+     <Setter Property="Padding" Value="10,7"/>
+     <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+     <Setter Property="Template">
+       <Setter.Value>
+         <ControlTemplate TargetType="ComboBoxItem">
+           <Border x:Name="ItemBorder"
+                   Background="{TemplateBinding Background}"
+                   Padding="{TemplateBinding Padding}">
+             <ContentPresenter/>
+           </Border>
+           <ControlTemplate.Triggers>
+             <Trigger Property="IsHighlighted" Value="True">
+               <Setter TargetName="ItemBorder" Property="Background" Value="#1E3A5F"/>
+             </Trigger>
+             <Trigger Property="IsSelected" Value="True">
+               <Setter TargetName="ItemBorder" Property="Background" Value="#075985"/>
+               <Setter Property="Foreground" Value="White"/>
+             </Trigger>
+             <Trigger Property="IsEnabled" Value="False">
+               <Setter Property="Foreground" Value="#64748B"/>
+             </Trigger>
+           </ControlTemplate.Triggers>
+         </ControlTemplate>
+       </Setter.Value>
+     </Setter>
+   </Style>
+
+   <Style TargetType="ComboBox">
+     <Setter Property="Foreground" Value="#E2E8F0"/>
+     <Setter Property="Background" Value="#0B1220"/>
+     <Setter Property="BorderBrush" Value="#334155"/>
+     <Setter Property="BorderThickness" Value="1"/>
+     <Setter Property="Padding" Value="10,7"/>
+     <Setter Property="FontSize" Value="14"/>
+     <Setter Property="MinHeight" Value="36"/>
+     <Setter Property="SnapsToDevicePixels" Value="True"/>
+     <Setter Property="Template">
+       <Setter.Value>
+         <ControlTemplate TargetType="ComboBox">
+           <Grid>
+             <Border x:Name="OuterBorder"
+                     Background="{TemplateBinding Background}"
+                     BorderBrush="{TemplateBinding BorderBrush}"
+                     BorderThickness="{TemplateBinding BorderThickness}"
+                     CornerRadius="5"/>
+
+             <Grid Margin="1">
+               <Grid.ColumnDefinitions>
+                 <ColumnDefinition Width="*"/>
+                 <ColumnDefinition Width="34"/>
+               </Grid.ColumnDefinitions>
+
+               <ContentPresenter x:Name="SelectionPresenter"
+                                 Grid.Column="0"
+                                 Margin="{TemplateBinding Padding}"
+                                 VerticalAlignment="Center"
+                                 HorizontalAlignment="Left"
+                                 Content="{TemplateBinding SelectionBoxItem}"
+                                 ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                 ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
+                                 TextElement.Foreground="{TemplateBinding Foreground}"
+                                 IsHitTestVisible="False"/>
+
+               <TextBox x:Name="PART_EditableTextBox"
+                        Grid.Column="0"
+                        Margin="5,2,0,2"
+                        Padding="5,4"
+                        VerticalContentAlignment="Center"
+                        Background="Transparent"
+                        Foreground="{TemplateBinding Foreground}"
+                        BorderThickness="0"
+                        Visibility="Collapsed"/>
+
+               <Border Grid.Column="1"
+                       BorderBrush="#334155"
+                       BorderThickness="1,0,0,0"
+                       Background="#111827">
+                 <Path Width="10"
+                       Height="6"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Fill="#CBD5E1"
+                       Data="M 0 0 L 5 5 L 10 0 Z"/>
+               </Border>
+             </Grid>
+
+             <ToggleButton x:Name="DropDownToggle"
+                           Background="Transparent"
+                           BorderThickness="0"
+                           Focusable="False"
+                           ClickMode="Press"
+                           IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
+               <ToggleButton.Template>
+                 <ControlTemplate TargetType="ToggleButton">
+                   <Border Background="Transparent"/>
+                 </ControlTemplate>
+               </ToggleButton.Template>
+             </ToggleButton>
+
+             <Popup x:Name="PART_Popup"
+                    Placement="Bottom"
+                    IsOpen="{TemplateBinding IsDropDownOpen}"
+                    AllowsTransparency="True"
+                    Focusable="False"
+                    PopupAnimation="Fade">
+               <Border Background="#0B1220"
+                       BorderBrush="#334155"
+                       BorderThickness="1"
+                       CornerRadius="5"
+                       MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}">
+                 <ScrollViewer MaxHeight="320"
+                               CanContentScroll="True">
+                   <ItemsPresenter/>
+                 </ScrollViewer>
+               </Border>
+             </Popup>
+           </Grid>
+
+           <ControlTemplate.Triggers>
+             <Trigger Property="IsEditable" Value="True">
+               <Setter TargetName="SelectionPresenter" Property="Visibility" Value="Collapsed"/>
+               <Setter TargetName="PART_EditableTextBox" Property="Visibility" Value="Visible"/>
+             </Trigger>
+             <Trigger Property="IsMouseOver" Value="True">
+               <Setter TargetName="OuterBorder" Property="BorderBrush" Value="#38BDF8"/>
+             </Trigger>
+             <Trigger Property="IsKeyboardFocusWithin" Value="True">
+               <Setter TargetName="OuterBorder" Property="BorderBrush" Value="#38BDF8"/>
+             </Trigger>
+             <Trigger Property="IsEnabled" Value="False">
+               <Setter TargetName="OuterBorder" Property="Background" Value="#111827"/>
+               <Setter Property="Foreground" Value="#64748B"/>
+               <Setter Property="Opacity" Value="0.72"/>
+             </Trigger>
+           </ControlTemplate.Triggers>
+         </ControlTemplate>
+       </Setter.Value>
+     </Setter>
+   </Style>
+
+   <Style TargetType="Button">
+     <Setter Property="Background" Value="#172033"/>
+     <Setter Property="Foreground" Value="#E2E8F0"/>
+     <Setter Property="BorderBrush" Value="#475569"/>
+     <Setter Property="BorderThickness" Value="1"/>
+     <Setter Property="Padding" Value="13,7"/>
+     <Setter Property="MinHeight" Value="34"/>
+     <Setter Property="Cursor" Value="Hand"/>
+     <Setter Property="SnapsToDevicePixels" Value="True"/>
+     <Setter Property="Template">
+       <Setter.Value>
+         <ControlTemplate TargetType="Button">
+           <Border x:Name="ButtonBorder"
+                   Background="{TemplateBinding Background}"
+                   BorderBrush="{TemplateBinding BorderBrush}"
+                   BorderThickness="{TemplateBinding BorderThickness}"
+                   CornerRadius="6"
+                   Padding="{TemplateBinding Padding}">
+             <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                               VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                               RecognizesAccessKey="True"/>
+           </Border>
+           <ControlTemplate.Triggers>
+             <Trigger Property="IsMouseOver" Value="True">
+               <Setter TargetName="ButtonBorder" Property="Background" Value="#1E293B"/>
+               <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="#64748B"/>
+             </Trigger>
+             <Trigger Property="IsPressed" Value="True">
+               <Setter TargetName="ButtonBorder" Property="Background" Value="#0F172A"/>
+               <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="#38BDF8"/>
+             </Trigger>
+             <Trigger Property="IsKeyboardFocused" Value="True">
+               <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="#38BDF8"/>
+             </Trigger>
+             <Trigger Property="IsEnabled" Value="False">
+               <Setter TargetName="ButtonBorder" Property="Background" Value="#111827"/>
+               <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="#334155"/>
+               <Setter Property="Foreground" Value="#64748B"/>
+               <Setter Property="Opacity" Value="0.70"/>
+               <Setter Property="Cursor" Value="Arrow"/>
+             </Trigger>
+           </ControlTemplate.Triggers>
+         </ControlTemplate>
+       </Setter.Value>
+     </Setter>
+   </Style>
+
+   <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+     <Setter Property="Background" Value="#0369A1"/>
+     <Setter Property="Foreground" Value="White"/>
+     <Setter Property="BorderBrush" Value="#38BDF8"/>
+   </Style>
+
+   <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+     <Setter Property="Background" Value="#991B1B"/>
+     <Setter Property="Foreground" Value="White"/>
+     <Setter Property="BorderBrush" Value="#F87171"/>
+   </Style>
+
+   <Style TargetType="RadioButton">
+     <Setter Property="Foreground" Value="#E2E8F0"/>
+     <Setter Property="FontSize" Value="14"/>
+     <Setter Property="Margin" Value="0,2,20,2"/>
+     <Setter Property="VerticalAlignment" Value="Center"/>
+   </Style>
+ </Window.Resources>
+
  <DockPanel>
    <Menu x:Name="MainMenu" DockPanel.Dock="Top" Visibility="Collapsed">
      <MenuItem Header="_View">
@@ -22,6 +248,7 @@
 
      <wv2:WebView2 x:Name="Browser"
                    Grid.Row="0"
+                   Visibility="Collapsed"
                    DefaultBackgroundColor="#111827"/>
 
      <Border Grid.Row="1"
@@ -55,38 +282,346 @@
        </DockPanel>
      </Border>
 
+     <!-- Startup/settings are part of MainWindow. The WebView is shown only
+          after the backend and WebUI are ready. -->
+     <Border x:Name="SetupPanel"
+             Grid.RowSpan="2"
+             Background="#111827">
+       <Grid>
+         <Grid.RowDefinitions>
+           <RowDefinition Height="Auto"/>
+           <RowDefinition Height="*"/>
+           <RowDefinition Height="Auto"/>
+         </Grid.RowDefinitions>
+
+         <Border Grid.Row="0"
+                 Background="#0B1220"
+                 BorderBrush="#334155"
+                 BorderThickness="0,0,0,1"
+                 Padding="24,18">
+           <Grid>
+             <Grid.ColumnDefinitions>
+               <ColumnDefinition Width="*"/>
+               <ColumnDefinition Width="Auto"/>
+             </Grid.ColumnDefinitions>
+
+             <StackPanel>
+               <StackPanel Orientation="Horizontal">
+                 <TextBlock Text="DCCEXPRESSHUB"
+                            Foreground="#F8FAFC"
+                            FontWeight="Bold"
+                            FontSize="25"/>
+                 <Border Background="#17324A"
+                         BorderBrush="#1D4F73"
+                         BorderThickness="1"
+                         CornerRadius="12"
+                         Padding="9,3"
+                         Margin="12,2,0,0">
+                   <TextBlock x:Name="VersionText"
+                              Foreground="#7DD3FC"
+                              FontSize="12"
+                              FontWeight="SemiBold"/>
+                 </Border>
+               </StackPanel>
+               <TextBlock x:Name="SubtitleText"
+                          Foreground="#94A3B8"
+                          FontSize="13"
+                          Margin="0,5,0,0"/>
+             </StackPanel>
+
+             <StackPanel Grid.Column="1"
+                         Orientation="Horizontal"
+                         VerticalAlignment="Center">
+               <TextBlock x:Name="LanguageLabelText"
+                          Foreground="#94A3B8"
+                          VerticalAlignment="Center"
+                          Margin="0,0,8,0"/>
+               <ComboBox x:Name="LanguageCombo"
+                         Width="128"
+                         SelectionChanged="LanguageCombo_SelectionChanged">
+                 <ComboBoxItem Content="English" Tag="en"/>
+                 <ComboBoxItem Content="Magyar" Tag="hu"/>
+                 <ComboBoxItem Content="Deutsch" Tag="de"/>
+               </ComboBox>
+             </StackPanel>
+           </Grid>
+         </Border>
+
+         <ScrollViewer Grid.Row="1"
+                       VerticalScrollBarVisibility="Auto"
+                       HorizontalScrollBarVisibility="Disabled"
+                       Padding="24,18,24,12">
+           <StackPanel MaxWidth="820" HorizontalAlignment="Center">
+             <Border Background="{StaticResource PanelBrush}"
+                     BorderBrush="{StaticResource PanelBorderBrush}"
+                     BorderThickness="1"
+                     CornerRadius="10"
+                     Padding="18"
+                     Margin="0,0,0,14">
+               <StackPanel>
+                 <TextBlock x:Name="ConnectionTitleText"
+                            Foreground="{StaticResource TextBrush}"
+                            FontWeight="SemiBold"
+                            FontSize="16"/>
+                 <TextBlock x:Name="ConnectionDescriptionText"
+                            Foreground="{StaticResource MutedTextBrush}"
+                            Margin="0,3,0,13"
+                            TextWrapping="Wrap"
+                            FontSize="12"/>
+
+                 <TextBlock x:Name="ProtocolLabelText"
+                            Foreground="#CBD5E1"
+                            Margin="0,0,0,5"/>
+                 <ComboBox x:Name="ProtocolCombo"
+                           SelectionChanged="ProtocolCombo_SelectionChanged">
+                   <ComboBoxItem x:Name="ProtocolChooseItem" Tag=""/>
+                   <ComboBoxItem Content="DCC-EX TCP" Tag="tcp"/>
+                   <ComboBoxItem Content="DCC-EX Serial" Tag="serial"/>
+                 </ComboBox>
+
+                 <Grid x:Name="TcpPanel" Margin="0,12,0,0" Visibility="Collapsed">
+                   <Grid.ColumnDefinitions>
+                     <ColumnDefinition Width="*"/>
+                     <ColumnDefinition Width="130"/>
+                   </Grid.ColumnDefinitions>
+                   <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                     <TextBlock x:Name="TcpHostLabelText"
+                                Foreground="#CBD5E1"
+                                Margin="0,0,0,5"/>
+                     <TextBox x:Name="TcpHostText"/>
+                   </StackPanel>
+                   <StackPanel Grid.Column="1">
+                     <TextBlock x:Name="TcpPortLabelText"
+                                Foreground="#CBD5E1"
+                                Margin="0,0,0,5"/>
+                     <TextBox x:Name="TcpPortText"/>
+                   </StackPanel>
+                 </Grid>
+
+                 <Grid x:Name="SerialPanel" Margin="0,12,0,0" Visibility="Collapsed">
+                   <Grid.ColumnDefinitions>
+                     <ColumnDefinition Width="*"/>
+                     <ColumnDefinition Width="Auto"/>
+                   </Grid.ColumnDefinitions>
+                   <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                     <TextBlock x:Name="SerialPortLabelText"
+                                Foreground="#CBD5E1"
+                                Margin="0,0,0,5"/>
+                     <ComboBox x:Name="SerialPortCombo"
+                               IsEditable="True"
+                               IsTextSearchEnabled="True"/>
+                   </StackPanel>
+                   <Button x:Name="RefreshSerialButton"
+                           Grid.Column="1"
+                           VerticalAlignment="Bottom"
+                           Click="RefreshSerialButton_Click"/>
+                 </Grid>
+
+                 <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                   <Button x:Name="TestButton"
+                           Click="TestButton_Click"/>
+                   <Border x:Name="TestStatusBorder"
+                           Visibility="Collapsed"
+                           Background="#10243A"
+                           BorderBrush="#285172"
+                           BorderThickness="1"
+                           CornerRadius="6"
+                           Padding="10,7"
+                           Margin="10,0,0,0">
+                     <TextBlock x:Name="TestStatusText"
+                                Foreground="#BAE6FD"
+                                VerticalAlignment="Center"
+                                TextWrapping="Wrap"/>
+                   </Border>
+                 </StackPanel>
+               </StackPanel>
+             </Border>
+
+             <Border Background="{StaticResource PanelBrush}"
+                     BorderBrush="{StaticResource PanelBorderBrush}"
+                     BorderThickness="1"
+                     CornerRadius="10"
+                     Padding="18"
+                     Margin="0,0,0,14">
+               <StackPanel>
+                 <TextBlock x:Name="WebServerTitleText"
+                            Foreground="{StaticResource TextBrush}"
+                            FontWeight="SemiBold"
+                            FontSize="16"/>
+                 <TextBlock x:Name="WebServerDescriptionText"
+                            Foreground="{StaticResource MutedTextBrush}"
+                            Margin="0,3,0,13"
+                            TextWrapping="Wrap"
+                            FontSize="12"/>
+
+                 <StackPanel Orientation="Horizontal">
+                   <RadioButton x:Name="LocalModeRadio" GroupName="RunMode"/>
+                   <RadioButton x:Name="ServerModeRadio" GroupName="RunMode"/>
+                 </StackPanel>
+
+                 <Grid Margin="0,12,0,0">
+                   <Grid.ColumnDefinitions>
+                     <ColumnDefinition Width="140"/>
+                     <ColumnDefinition Width="*"/>
+                   </Grid.ColumnDefinitions>
+                   <TextBlock x:Name="HttpPortLabelText"
+                              Grid.Column="0"
+                              Foreground="#CBD5E1"
+                              VerticalAlignment="Center"/>
+                   <TextBox Grid.Column="1" x:Name="HttpPortText"/>
+                 </Grid>
+               </StackPanel>
+             </Border>
+
+             <Border Background="{StaticResource PanelBrush}"
+                     BorderBrush="{StaticResource PanelBorderBrush}"
+                     BorderThickness="1"
+                     CornerRadius="10"
+                     Padding="18">
+               <StackPanel>
+                 <TextBlock x:Name="WorkspaceTitleText"
+                            Foreground="{StaticResource TextBrush}"
+                            FontWeight="SemiBold"
+                            FontSize="16"/>
+                 <TextBlock x:Name="WorkspaceDescriptionText"
+                            Foreground="{StaticResource MutedTextBrush}"
+                            TextWrapping="Wrap"
+                            Margin="0,3,0,13"
+                            FontSize="12"/>
+
+                 <Grid>
+                   <Grid.ColumnDefinitions>
+                     <ColumnDefinition Width="*"/>
+                     <ColumnDefinition Width="Auto"/>
+                   </Grid.ColumnDefinitions>
+                   <TextBox Grid.Column="0"
+                            x:Name="WorkspaceText"
+                            Margin="0,0,10,0"/>
+                   <Button x:Name="BrowseWorkspaceButton"
+                           Grid.Column="1"
+                           Click="BrowseWorkspaceButton_Click"/>
+                 </Grid>
+               </StackPanel>
+             </Border>
+
+             <TextBlock x:Name="ValidationText"
+                        Foreground="#FDA4AF"
+                        TextWrapping="Wrap"
+                        Margin="2,12,2,0"/>
+           </StackPanel>
+         </ScrollViewer>
+
+         <Border Grid.Row="2"
+                 Background="#0B1220"
+                 BorderBrush="#334155"
+                 BorderThickness="0,1,0,0"
+                 Padding="24,14">
+           <Grid MaxWidth="820" HorizontalAlignment="Center">
+             <Grid.ColumnDefinitions>
+               <ColumnDefinition Width="*"/>
+               <ColumnDefinition Width="Auto"/>
+               <ColumnDefinition Width="Auto"/>
+             </Grid.ColumnDefinitions>
+
+             <TextBlock x:Name="FooterHintText"
+                        Grid.Column="0"
+                        Foreground="#64748B"
+                        FontSize="11"
+                        VerticalAlignment="Center"
+                        TextWrapping="Wrap"/>
+
+             <Button x:Name="SetupCancelButton"
+                     Grid.Column="1"
+                     Margin="12,0,8,0"
+                     Click="SetupCancelButton_Click"/>
+
+             <Button x:Name="StartBackendButton"
+                     Grid.Column="2"
+                     Style="{StaticResource PrimaryButton}"
+                     Click="StartBackendButton_Click"/>
+           </Grid>
+         </Border>
+       </Grid>
+     </Border>
+
+     <!-- Generic startup/restart progress overlay. -->
      <Border x:Name="StartupOverlay"
              Grid.RowSpan="2"
-             Background="#EE111827">
-       <StackPanel HorizontalAlignment="Center"
-                   VerticalAlignment="Center">
-         <TextBlock Text="DCCExpressHub"
-                    Foreground="White"
-                    FontSize="32"
-                    FontWeight="SemiBold"
-                    HorizontalAlignment="Center"/>
-         <TextBlock x:Name="StartupText"
-                    Text="Starting backend…"
-                    Foreground="#FFD1D5DB"
-                    FontSize="16"
-                    Margin="0,14,0,0"
-                    TextAlignment="Center"
-                    MaxWidth="720"
-                    TextWrapping="Wrap"
-                    HorizontalAlignment="Center"/>
-         <Button x:Name="RestartBackendButton"
-                 Content="Restart backend"
-                 Visibility="Collapsed"
-                 Margin="0,20,0,0"
-                 Padding="18,8"
-                 MinWidth="160"
-                 HorizontalAlignment="Center"
-                 Background="#0369A1"
-                 Foreground="White"
-                 BorderBrush="#38BDF8"
-                 BorderThickness="1"
-                 Click="RestartBackendButton_Click"/>
-       </StackPanel>
+             Visibility="Collapsed"
+             Background="#F2111827">
+       <Border Width="520"
+               MaxWidth="720"
+               Padding="28"
+               Background="#172033"
+               BorderBrush="#334155"
+               BorderThickness="1"
+               CornerRadius="12"
+               HorizontalAlignment="Center"
+               VerticalAlignment="Center">
+         <StackPanel>
+           <TextBlock Text="DCCExpressHub"
+                      Foreground="White"
+                      FontSize="30"
+                      FontWeight="SemiBold"
+                      HorizontalAlignment="Center"/>
+           <TextBlock x:Name="StartupText"
+                      Foreground="#D1D5DB"
+                      FontSize="15"
+                      Margin="0,14,0,0"
+                      TextAlignment="Center"
+                      TextWrapping="Wrap"/>
+           <Button x:Name="RestartBackendButton"
+                   Visibility="Collapsed"
+                   Margin="0,20,0,0"
+                   MinWidth="160"
+                   HorizontalAlignment="Center"
+                   Style="{StaticResource PrimaryButton}"
+                   Click="RestartBackendButton_Click"/>
+         </StackPanel>
+       </Border>
+     </Border>
+
+     <!-- Custom modal dialog. Browser is temporarily collapsed while this is
+          visible so WPF/WebView2 airspace cannot place WebView above it. -->
+     <Border x:Name="ConfirmOverlay"
+             Grid.RowSpan="2"
+             Visibility="Collapsed"
+             Background="#B3000000">
+       <Border Width="560"
+               MaxWidth="760"
+               Padding="26"
+               Background="#172033"
+               BorderBrush="#475569"
+               BorderThickness="1"
+               CornerRadius="14"
+               HorizontalAlignment="Center"
+               VerticalAlignment="Center">
+         <StackPanel>
+           <TextBlock x:Name="ConfirmTitleText"
+                      Foreground="#F8FAFC"
+                      FontSize="21"
+                      FontWeight="SemiBold"
+                      TextWrapping="Wrap"/>
+           <TextBlock x:Name="ConfirmMessageText"
+                      Foreground="#CBD5E1"
+                      FontSize="14"
+                      Margin="0,12,0,22"
+                      TextWrapping="Wrap"
+                      LineHeight="21"/>
+
+           <WrapPanel HorizontalAlignment="Right">
+             <Button x:Name="ConfirmCancelButton"
+                     Margin="0,0,8,0"
+                     Click="ConfirmCancelButton_Click"/>
+             <Button x:Name="ConfirmSecondaryButton"
+                     Margin="0,0,8,0"
+                     Click="ConfirmSecondaryButton_Click"/>
+             <Button x:Name="ConfirmPrimaryButton"
+                     Style="{StaticResource DangerButton}"
+                     Click="ConfirmPrimaryButton_Click"/>
+           </WrapPanel>
+         </StackPanel>
+       </Border>
      </Border>
    </Grid>
  </DockPanel>
