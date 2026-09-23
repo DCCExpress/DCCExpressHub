@@ -1,11 +1,11 @@
 # DCCExpressHub
 
-DCCExpressHub is a web-based control and integration layer for **DCC-EX** model railway command stations.
+DCCExpressHub is a control and integration application for **DCC-EX** model railway command stations.
 
-The project currently has two runtime targets:
+It can run in two ways:
 
-- **ESP32 Hub firmware** — a standalone embedded Hub that serves the WebUI from LittleFS and connects to DCC-EX over the local network.
-- **Windows Desktop** — a native .NET 10 backend with a WPF + WebView2 shell using the same React WebUI.
+- **Windows Desktop** — run DCCExpressHub directly on a Windows PC.
+- **ESP32 Hub** — run DCCExpressHub on a supported ESP32 device and control the layout from a PC, tablet or phone.
 
 > **DCCExpressHub is not a command station.**
 >
@@ -14,25 +14,24 @@ The project currently has two runtime targets:
 ![DCCExpressHub screenshot](doc/images/Screenshot%202026-09-05%20110304.png)
 
 ```text
-                         shared React WebUI
-                                |
-                  +-------------+-------------+
-                  |                           |
-                  v                           v
-          ESP32 Hub firmware           Windows Desktop
-          LittleFS / HTTP / WS        .NET 10 + WPF/WebView2
-                  |                           |
-                  +-------------+-------------+
-                                |
-                         DCC-EX protocol
-                                |
-                                v
-                         Command station
-                                |
-                               DCC
-                                |
-                                v
-                       Model railway layout
+                    DCCExpressHub
+                         |
+              +----------+----------+
+              |                     |
+              v                     v
+       Windows Desktop          ESP32 Hub
+              |                     |
+              +----------+----------+
+                         |
+                      DCC-EX
+                         |
+                         v
+                  Command station
+                         |
+                        DCC
+                         |
+                         v
+                Model railway layout
 ```
 
 ## Features
@@ -40,30 +39,182 @@ The project currently has two runtime targets:
 Current functionality includes:
 
 - locomotive control, locomotive editor and function control,
-- responsive PC, tablet and mobile WebUI,
-- browser-based layout editor and runtime layout operation,
+- responsive control interface for PC, tablet and mobile,
+- layout editor and runtime layout operation,
 - turnouts, accessories, signals and signal logic,
 - occupancy / sensor integration,
 - decoder programming,
-- browser-side frontend automation scripts,
-- QuickJS backend automation / JavaScript Sandbox on supported ESP32-S3 targets,
+- automation scripts,
 - track power and emergency control,
 - DCC-EX connection configuration,
 - raw command console and diagnostics,
 - gamepad support,
 - external device configuration,
-- LittleFS file browser on embedded targets,
+- file management on supported embedded targets,
 - SD-card storage and audio playback on M5Stack Basic,
-- complete Export / Import backup,
+- Export / Import backup,
 - browser-based ESP32 firmware installation,
 - USB serial configuration and recovery for ESP32 targets,
-- Windows Desktop runtime with local .NET backend and integrated server log.
+- Windows Desktop application with integrated server log.
 
-## Runtime targets
+# Windows Desktop
 
-### ESP32 Hub
+DCCExpressHub can run directly on a Windows PC without a separate ESP32 Hub.
 
-The embedded version is a self-contained Hub. It serves the WebUI directly and communicates with the DCC-EX command station.
+## Download and install
+
+Download the Windows package from the official GitHub Releases page:
+
+https://github.com/DCCExpress/DCCExpressHub/releases
+
+The Windows release package is named:
+
+```text
+DCCExpressHub-<version>-win-x64.zip
+```
+
+### 1. Download the ZIP
+
+Download the `win-x64` ZIP from the release you want to use.
+
+### 2. Unblock the downloaded ZIP if Windows marked it as an Internet download
+
+Windows may attach an Internet security mark to downloaded ZIP files. It is best to remove this **before extracting the archive**.
+
+1. Right-click the downloaded ZIP.
+2. Select **Properties**.
+3. On the **General** tab, look for **Unblock** near the bottom of the window.
+4. Enable **Unblock**.
+5. Click **Apply** and **OK**.
+
+If the **Unblock** option is not shown, no action is required.
+
+If you already extracted the ZIP and Windows blocks the application, you can check the properties of `DCCExpressHub.Desktop.exe` and unblock it there.
+
+### 3. Extract the ZIP
+
+Extract the complete ZIP to a normal writable directory, for example:
+
+```text
+C:\DCCExpressHub
+```
+
+or:
+
+```text
+C:\Users\<your-name>\Documents\DCCExpressHub
+```
+
+Do not run the application directly from inside the ZIP archive.
+
+### 4. Start DCCExpressHub
+
+Run:
+
+```text
+DCCExpressHub.Desktop.exe
+```
+
+The startup window lets you configure:
+
+- DCC-EX connection type:
+  - TCP
+  - Serial / USB COM port
+- DCC-EX address or COM port,
+- Local or Server mode,
+- Hub HTTP port,
+- persistent workspace directory.
+
+The default Desktop Hub HTTP port is:
+
+```text
+5174
+```
+
+### 5. Windows SmartScreen
+
+DCCExpressHub releases may not yet be digitally signed.
+
+Because of this, Microsoft Defender SmartScreen may warn about an unknown publisher.
+
+If this happens, first make sure the ZIP was downloaded from the official DCCExpressHub GitHub Releases page. You can then use **More info -> Run anyway** to start the application.
+
+## Local and Server mode
+
+### Local mode
+
+```text
+127.0.0.1:5174
+```
+
+The Hub is available only on the Windows PC running DCCExpressHub.
+
+This is the recommended mode when the Desktop application is the only control interface you need.
+
+### Server mode
+
+In Server mode DCCExpressHub also listens on the local network.
+
+This allows other devices such as tablets, phones or notebooks to open the Hub using the Windows PC's LAN IP address.
+
+Example:
+
+```text
+http://192.168.1.100:5174
+```
+
+Use Server mode only on a trusted local network.
+
+## Windows requirements
+
+The published Windows package is **self-contained**. You do not need to install the .NET SDK or .NET Runtime separately.
+
+DCCExpressHub Desktop uses the **Microsoft Edge WebView2 Runtime** for its embedded browser interface. On most current Windows systems this is already installed together with Microsoft Edge.
+
+If WebView2 Runtime is missing, DCCExpressHub displays a startup error instead of silently failing.
+
+## Persistent workspace
+
+User data is stored outside the application directory in a persistent workspace.
+
+The default workspace is under:
+
+```text
+%LOCALAPPDATA%\DCCExpressHub\workspace
+```
+
+The workspace contains persistent data such as:
+
+```text
+data\
+├── config\
+├── images\
+└── state\
+```
+
+This means you can replace or update the application files without deleting the layout and configuration stored in the workspace.
+
+## Closing DCCExpressHub
+
+When closing the Desktop application, DCCExpressHub asks for confirmation and reminds you to save your changes.
+
+The exit dialog can also switch **track power OFF** before shutting down the backend.
+
+## Desktop keyboard shortcuts
+
+| Key | Function |
+|---|---|
+| **F10** | Show / hide the advanced menu |
+| **F11** | Toggle fullscreen |
+| **Esc** | Leave fullscreen |
+
+The advanced menu includes **View -> Server Log** for showing or hiding the backend log panel.
+
+# ESP32 Hub
+
+The embedded version runs DCCExpressHub directly on a supported ESP32 device.
+
+The ESP32 Hub serves the control interface itself and communicates with the DCC-EX command station over the local network.
 
 ```text
 PC / tablet / phone
@@ -72,48 +223,131 @@ PC / tablet / phone
         v
  DCCExpressHub ESP32
         |
-        | DCC-EX native TCP protocol
+        | DCC-EX
         v
  Command station
 ```
 
-### Windows Desktop
+## Supported ESP32 targets
 
-DCCExpressHub is also available as a native Windows Desktop application.
+Current DCC-EX firmware targets:
 
-Download the current Windows package from the GitHub Releases page:
+| Hub hardware | PlatformIO target | Display support | Frontend automation | Backend automation | Published by current release workflow |
+|---|---|---|---|---|---|
+| **M5Stack Basic** | `m5stack-basic-dccex` | ✅ Built-in display | ✅ Supported | ❌ Not supported | ✅ Yes |
+| **Generic ESP32 DevKit** | `esp32dev-dccex` | ❌ None | ✅ Supported | ❌ Not supported | ✅ Yes |
+| **Waveshare ESP32-S3 LCD 7"** | `waveshare-s3-lcd7-dccex` | ✅ Built-in 7" display | ✅ Supported | ✅ Supported | ❌ Source target only |
+| **Sunton ESP32-8048S043** | `sunton-8048s043-dccex` | ✅ Built-in 4.3" display | ✅ Supported | ✅ Supported | ❌ Source target only |
+
+**Frontend automation scripts** run in the browser and are available on all current Hub targets.
+
+**Backend automation scripts** run directly on the Hub firmware through the QuickJS-based JavaScript Sandbox. They currently require the ESP32-S3 targets built with `HUB_JS_SANDBOX`.
+
+The current GitHub release workflow publishes merged firmware for:
 
 ```text
-DCCExpressHub-<version>-win-x64.zip
+m5stack-basic-dccex
+esp32dev-dccex
 ```
 
-Then:
+The Waveshare and Sunton targets are currently available in the source tree and can be built manually.
 
-1. Extract the ZIP to a directory.
-2. Start `DCCExpressHub.Desktop.exe`.
-3. Configure the DCC-EX connection from the application.
+## Install, configure and recover
 
-The Windows package contains the DCCExpressHub backend and the shared WebUI. It does **not** require a separate ESP32 Hub.
+The recommended installation method is the DCCExpressHub Web Installer:
 
-The published `win-x64` package is self-contained, so the user does not need to install the .NET SDK.
+https://dccexpress.github.io/DCCExpressHubWeb/installer/
 
-Desktop keyboard shortcuts:
+Use desktop **Google Chrome** or **Microsoft Edge**. Firmware installation and serial configuration use ESP Web Tools / Web Serial.
 
-| Key | Function |
-|---|---|
-| **F10** | Show / hide the advanced menu |
-| **F11** | Toggle fullscreen |
-| **Esc** | Leave fullscreen |
+### 1. Select the Hub hardware
 
-The advanced menu includes **View -> Server Log** for showing or hiding the local backend log panel.
+Select the exact hardware target supported by the installer or by the firmware file you are flashing.
 
-## Command-station support
+Official release assets are currently built for **DCC-EX**.
 
-DCCExpressHub is designed first and foremost for **DCC-EX / EX-CSB1**. DCC-EX is the current priority, reference implementation and officially supported command-station backend.
+### 2. Install the firmware
+
+Connect the Hub by USB, select the desired firmware release and press **Install firmware**.
+
+The installer flashes a complete merged image at:
+
+```text
+0x000000
+```
+
+A factory / merged installation may erase existing NVS configuration and stored layout data. Creating an **Export / Import** backup before major updates is recommended.
+
+Depending on the ESP32 board, Windows may require a **CH340/CH341** or **CP210x** USB-UART driver.
+
+For development or recovery, the installer can also flash a local merged `.bin` file.
+
+### 3. Configure the Hub
+
+After flashing, connect through the same web tool over USB serial at:
+
+```text
+115200 baud
+```
+
+Typical settings:
+
+```text
+Hub hostname:     dccexpresshub
+Browser URL:      http://dccexpresshub.local
+
+DCC-EX host:      dccex.local
+DCC-EX TCP port:  2560
+```
+
+An IPv4 address can be used instead of an mDNS hostname.
+
+The serial recovery path works even when saved Wi-Fi or command-station settings are incorrect.
+
+Once configured, open:
+
+```text
+http://dccexpresshub.local
+```
+
+On a fresh installation, use **Locomotive editor** and **Layout editor**, or restore a previous installation through **Export / Import**.
+
+## Serial recovery commands
+
+The firmware accepts both the installer JSON protocol and human-readable commands:
+
+```text
+<STATUS?>                         Show Hub, Wi-Fi and command-station status
+<WIFI?>                           Show stored Wi-Fi configuration
+<WIFI "ssid" "password">          Save Wi-Fi credentials
+<DCCEX?>                          Show DCC-EX endpoint and connection state
+<DCCEX "dccex.local" 2560>        Set DCC-EX host and TCP port
+<RESTART>                         Restart the Hub
+<HELP?>                           Show available serial commands
+```
+
+Examples:
+
+```text
+<STATUS?>
+<DCCEX "192.168.1.143" 2560>
+<WIFI "MyWiFi" "MyPassword">
+<RESTART>
+```
+
+`<WIFI ...>` requires a restart. DCC-EX endpoint changes are applied immediately.
+
+Because `<WIFI?>` and `<STATUS?>` are intended for **physical USB recovery**, they may expose the stored Wi-Fi password. Treat physical serial access as trusted access.
+
+# Command-station support
+
+DCCExpressHub is designed first and foremost for **DCC-EX / EX-CSB1**.
+
+DCC-EX is the current priority, reference implementation and officially supported command-station backend.
 
 **Roco/Fleischmann Z21 LAN support is planned for a future release.** Experimental Z21 implementation remains in the source tree, but Z21 is not currently an officially supported target and no Z21 firmware is published in DCCExpressHub releases.
 
-## S88 / s88-N feedback
+# S88 / s88-N feedback
 
 DCCExpressHub can use S88 / s88-N occupancy feedback with the companion **DCCExpress-S88Adapter** project.
 
@@ -125,11 +359,11 @@ https://github.com/DCCExpress/DCCExpress-S88Adapter
 
 There are currently two integration paths in the repository.
 
-### Hub-side adapter integration
+## Hub-side adapter integration
 
 The ESP32 Hub contains S88 adapter/device configuration support and can read supported adapter data over I2C on configured hardware.
 
-### DCC-EX HAL integration
+## DCC-EX HAL integration
 
 The repository also contains a DCC-EX HAL driver under:
 
@@ -163,7 +397,7 @@ S88 input 32 -> VPIN 1032
 
 See `dcc-ex/README.md` for the integration details.
 
-## M5Stack SD card and audio
+# M5Stack SD card and audio
 
 The **M5Stack Basic** can use its built-in microSD slot for larger user files such as locomotive sounds and announcements.
 
@@ -191,7 +425,7 @@ SD Card
     ├── horn.mp3
     ├── station.mp3
     ├── crossing.mp3
-    └── mav_szignal.mp3
+    └── mav_signal.mp3
 ```
 
 MP3 is recommended. The browser performs audio decoding; the ESP32 streams the file from the SD card.
@@ -207,7 +441,7 @@ Files / File Manager
 Virtual Hub paths look like:
 
 ```text
-/sd/audio/mav_szignal.mp3
+/sd/audio/mav_signal.mp3
 ```
 
 To use a sound on the layout:
@@ -221,17 +455,50 @@ To use a sound on the layout:
 
 Large audio files should be stored on SD rather than LittleFS.
 
-## PC, tablet and mobile use
+# PC, tablet and mobile use
 
-The shared WebUI works from a desktop PC, notebook, tablet or phone using a modern browser when it is served by an ESP32 Hub.
+DCCExpressHub can be controlled from a desktop PC, notebook, tablet or phone using a modern browser when either:
 
-For a permanently mounted Android tablet, a fullscreen / kiosk browser such as **Fully Kiosk Browser** is useful. On iPhone/iPad, Safari works normally and Guided Access can be used for a dedicated control device.
+- an ESP32 Hub is running, or
+- Windows Desktop is running in **Server mode**.
 
-On Windows, the native Desktop target provides an integrated alternative to running the Hub on a separate ESP32.
+For a permanently mounted Android tablet, a fullscreen / kiosk browser such as **Fully Kiosk Browser** is useful.
 
-## Build and development
+On iPhone/iPad, Safari works normally and Guided Access can be used for a dedicated control device.
 
-### Requirements
+# Build and development
+
+The sections below are intended for contributors and developers. Normal Windows Desktop users do not need Node.js, the .NET SDK, PlatformIO or the source repository.
+
+## Architecture
+
+The project currently has two runtime targets sharing the same frontend:
+
+```text
+                         React WebUI
+                  TypeScript + Mantine + Vite
+                                |
+                  +-------------+-------------+
+                  |                           |
+                  v                           v
+             ESP32 Hub                 Windows Desktop
+        LittleFS / HTTP / WS        ASP.NET Core backend
+                                          +
+                                      WPF/WebView2
+                  |                           |
+                  +-------------+-------------+
+                                |
+                         DCC-EX protocol
+```
+
+Repository implementation:
+
+- **Frontend:** React + Mantine + TypeScript + Vite
+- **ESP32 backend:** Arduino / PlatformIO
+- **Windows backend:** .NET 10 / ASP.NET Core
+- **Windows shell:** WPF + Microsoft WebView2
+
+## Development requirements
 
 For ESP32 development:
 
@@ -253,7 +520,7 @@ git clone https://github.com/DCCExpress/DCCExpressHub.git
 cd DCCExpressHub
 ```
 
-### ESP32 WebUI / LittleFS build
+## ESP32 WebUI / LittleFS build
 
 Build the shared WebUI and prepare the ESP32 LittleFS data:
 
@@ -261,9 +528,15 @@ Build the shared WebUI and prepare the ESP32 LittleFS data:
 .\build-web.ps1
 ```
 
-This builds `web-ui/dist/` and then prepares the firmware `data/` directory.
+This builds:
 
-### ESP32 merged firmware
+```text
+web-ui\dist
+```
+
+and then prepares the firmware `data/` directory.
+
+## ESP32 merged firmware
 
 Build an official DCC-EX target:
 
@@ -277,38 +550,55 @@ Build an official DCC-EX target:
 Merged firmware is written to:
 
 ```text
-dist/firmware/
+dist\firmware
 ```
 
-### Windows Desktop development build
+## Windows Desktop development build
+
+Normal development build:
 
 ```powershell
 .\build-desktop.ps1
 ```
 
-Release development build:
+Explicit Release build:
 
 ```powershell
 .\build-desktop.ps1 -Configuration Release
 ```
 
-The script rebuilds the shared WebUI, refreshes and verifies `desktop/DCCExpressHub.Net/wwwroot/`, and builds `desktop/DCCExpressHub.Desktop.slnx`.
+The script:
 
-To create the distributable Windows release package:
+- builds the frontend,
+- refreshes `desktop\DCCExpressHub.Net\wwwroot`,
+- verifies the generated frontend files,
+- builds the Windows Desktop solution.
+
+## Windows release package
+
+Create a clean Windows release package with:
 
 ```powershell
-.\build-desktop.ps1 -Configuration Release -Clean -Publish
+.\build-desktop.ps1 -Clean -Publish
 ```
 
-This creates a self-contained `win-x64` publish and packages it as:
+`-Publish` uses the release publishing flow and creates a self-contained Windows x64 package:
 
 ```text
-dist/desktop/DCCExpressHub-<VERSION>-win-x64.zip
+dist\desktop\DCCExpressHub-<VERSION>-win-x64.zip
 ```
 
-The version is read from the repository-root `VERSION` file.
+The package contains the Desktop shell, backend and frontend runtime files needed by DCCExpressHub.
 
-### WebUI development
+The release publish uses single-file executables where possible and removes development-only symbols and WebView2 XML API documentation from the distributable ZIP.
+
+The package version is read from the repository-root:
+
+```text
+VERSION
+```
+
+## WebUI development
 
 The frontend is **React + Mantine + TypeScript + Vite** and is shared by the embedded and Windows targets.
 
@@ -321,28 +611,33 @@ $env:DCCEXPRESS_DEVICE_URL="http://dccexpresshub.local"
 npm run dev
 ```
 
-Open:
+The Vite development server uses:
 
 ```text
-http://localhost:5174
+http://localhost:5173
 ```
 
-Development without hardware:
+The Windows Desktop Hub uses port `5174` by default, so the Vite development server and Desktop backend do not collide.
+
+To develop against Windows Desktop instead:
 
 ```powershell
-# Terminal 1
-cd web-ui
-npm run mock
-
-# Terminal 2
-npm run dev:mock
+$env:DCCEXPRESS_DEVICE_URL="http://127.0.0.1:5174"
+npm run dev
 ```
 
-The mock backend is useful for UI, editor, API and WebSocket development without repeatedly flashing an ESP32.
+For frontend work without physical hardware, the repository provides a demo mode:
 
-## Versioning and ESP32 releases
+```powershell
+cd web-ui
+npm run dev:demo
+```
 
-The repository-root `VERSION` file is the single source of truth for the current firmware release flow.
+Demo mode prepares its demo seed data and starts Vite without proxying requests to a physical Hub.
+
+# Versioning and releases
+
+The repository-root `VERSION` file is the single source of truth for the project release version.
 
 Example:
 
@@ -367,18 +662,23 @@ The release helper:
 
 The workflow refuses to publish if the Git tag and `VERSION` do not match.
 
-Official firmware releases currently contain:
+The current GitHub release workflow publishes merged firmware for:
 
 ```text
 m5stack-basic-dccex
 esp32dev-dccex
+```
+
+Additional DCC-EX source targets currently available in `platformio.ini` include:
+
+```text
 waveshare-s3-lcd7-dccex
 sunton-8048s043-dccex
 ```
 
-Z21 remains a future-development target and is not included in official releases.
+Z21 remains a future-development target and is not included in official release assets.
 
-## Repository structure
+# Repository structure
 
 ```text
 DCCExpressHub/
@@ -393,23 +693,31 @@ DCCExpressHub/
 ├── data/                        prepared ESP32 LittleFS content
 ├── tools/firmware/              merged firmware tools
 ├── platformio.ini               ESP32 hardware / command-station targets
-├── VERSION                      firmware release version source
+├── VERSION                      release version source
 ├── release.ps1                  firmware release helper
 ├── build-web.ps1                WebUI + ESP32 LittleFS preparation
-├── build-desktop.ps1            Windows Desktop + wwwroot build
+├── build-desktop.ps1            Windows Desktop build / publish
 ├── build-merged.ps1
 └── build-all-merged.ps1
 ```
 
-The ESP32 firmware remains at the repository root (`src/`, `include/`, `platformio.ini`). The native Windows implementation lives under `desktop/`. Both targets share `web-ui/`.
+The ESP32 firmware remains at the repository root (`src/`, `include/`, `platformio.ini`).
 
-## Project status and links
+The native Windows implementation lives under `desktop/`.
+
+Both targets share `web-ui/`.
+
+# Project status and links
 
 DCCExpressHub is under active **alpha development**. Interfaces, hardware support, Desktop support and command-station backends may change while the project evolves.
 
 Project website:
 
 https://dccexpress.github.io/DCCExpressHubWeb/
+
+GitHub Releases:
+
+https://github.com/DCCExpress/DCCExpressHub/releases
 
 ESP32 Web Installer:
 
@@ -427,6 +735,6 @@ S88 adapter:
 
 https://github.com/DCCExpress/DCCExpress-S88Adapter
 
-## License
+# License
 
 See the repository license for the current project licensing terms.
