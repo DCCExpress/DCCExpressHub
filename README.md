@@ -11,7 +11,7 @@ It can run in two ways:
 >
 > The connected DCC-EX command station still generates the DCC signal. DCCExpressHub provides the user interface, configuration, automation and integration layer around it.
 
-![DCCExpressHub screenshot](doc/images/Screenshot%202026-09-05%20110304.png)
+![DCCExpressHub screenshot](doc/images/Screenshot_2026-09-23_182817.png)
 
 ```text
                     DCCExpressHub

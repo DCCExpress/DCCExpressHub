@@ -4,6 +4,14 @@ export type AutomationScriptDefinition = {
   id: string;
   name: string;
   script: string;
+
+  /**
+   * When true, Start All may start this script.
+   *
+   * Resume All / Stop All / Abort All intentionally ignore this flag.
+   * Missing values from older automation files normalize to true.
+   */
+  startWithAll?: boolean;
 };
 
 export type AutomationStoragePayload = {
@@ -63,6 +71,11 @@ export function normalizeAutomationScripts(
       id,
       name,
       script,
+
+      // Backward compatibility: scripts created before this field existed
+      // participate in Start All by default.
+      startWithAll:
+        candidate.startWithAll !== false,
     });
   }
 

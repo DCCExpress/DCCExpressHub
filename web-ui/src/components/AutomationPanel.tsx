@@ -28,11 +28,13 @@ import {
 } from "@mantine/notifications";
 
 import {
+  IconAlertTriangle,
   IconCode,
   IconInfoCircle,
   IconPlus,
   IconPlayerPause,
   IconPlayerPlay,
+  IconPlayerPlayFilled,
   IconTrash,
   IconTrashX,
 } from "@tabler/icons-react";
@@ -57,6 +59,18 @@ import {
   subscribeClientScriptState,
   type ClientScriptState,
 } from "../services/clientScriptRunner";
+
+import {
+  wsApi,
+} from "../services/wsApi";
+
+import {
+  useCommandCenter,
+} from "../context/CommandCenterContext";
+
+import {
+  automationPanelText,
+} from "./automation-panel-i18n";
 
 const ScriptEditorDialog =
   lazy(
@@ -83,6 +97,9 @@ type ScriptCardProps = {
   ) => Promise<void>;
   onDelete: () => void;
 };
+
+type AutomationRuntimeStateMap =
+  Record<string, ClientScriptState>;
 
 function createAutomationId(): string {
   if (
@@ -131,6 +148,7 @@ function ScriptCard({
   onDelete,
 }: ScriptCardProps) {
   useTranslation();
+
   const [
     opened,
     setOpened,
@@ -258,7 +276,13 @@ function ScriptCard({
           title:
             i18next.t("ui.automationStopped"),
           message:
-            i18next.t("ui.isPausedAtTheCurrentNextAwaitDelayCheckpoint", { value1: definition.name }),
+            i18next.t(
+              "ui.isPausedAtTheCurrentNextAwaitDelayCheckpoint",
+              {
+                value1:
+                  definition.name,
+              }
+            ),
         });
       }
     };
@@ -295,6 +319,42 @@ function ScriptCard({
             definition.name,
         });
       }
+    };
+
+  const toggleStartWithAll =
+    (): void => {
+      const next = {
+        ...definition,
+        startWithAll:
+          definition.startWithAll ===
+          false,
+      };
+
+      onChange(
+        next
+      );
+
+      // Persist the operational Start All membership immediately.
+      void onSave(
+        next
+      ).catch(
+        error => {
+          showNotification({
+            color:
+              "red",
+            title:
+              automationPanelText(
+                "settingSaveFailed"
+              ),
+            message:
+              error instanceof Error
+                ? error.message
+                : String(
+                    error
+                  ),
+          });
+        }
+      );
     };
 
   const idle =
@@ -340,20 +400,94 @@ function ScriptCard({
                   {scriptState.status.toUpperCase()}
                 </Badge>
 
+                <Tooltip
+                  label={
+                    `${automationPanelText(
+                      "startWithAll"
+                    )} — ${automationPanelText(
+                      "startWithAllDescription"
+                    )}`
+                  }
+                  withArrow
+                >
+                  <Button
+                    size="compact-xs"
+                    variant="filled"
+                    onClick={
+                      toggleStartWithAll
+                    }
+                    aria-label={
+                      automationPanelText(
+                        "startWithAll"
+                      )
+                    }
+                    aria-pressed={
+                      definition.startWithAll !==
+                      false
+                    }
+                    style={{
+                      minWidth: 24,
+                      width: 24,
+                      height: 22,
+                      padding: 0,
+                      background:
+                        definition.startWithAll !==
+                        false
+                          ? "#84cc16"
+                          : "#2f3540",
+                      color:
+                        definition.startWithAll !==
+                        false
+                          ? "#142000"
+                          : "#cbd5e1",
+                      border:
+                        definition.startWithAll !==
+                        false
+                          ? "1px solid #a3e635"
+                          : "1px solid #475569",
+                    }}
+                  >
+                    {
+                      definition.startWithAll !==
+                      false
+                        ? (
+                          <IconPlayerPlayFilled
+                            size={13}
+                          />
+                        )
+                        : (
+                          <IconPlayerPlay
+                            size={13}
+                          />
+                        )
+                    }
+                  </Button>
+                </Tooltip>
+
                 <Text
                   size="xs"
                   c="dimmed"
                 >
                   {
                     definition.script.trim()
-                      ? i18next.t("ui.lines", { value1: definition.script.split("\n").length })
-                      : i18next.t("ui.emptyScript")
+                      ? i18next.t(
+                          "ui.lines",
+                          {
+                            value1:
+                              definition.script.split("\n").length,
+                          }
+                        )
+                      : i18next.t(
+                          "ui.emptyScript"
+                        )
                   }
                 </Text>
               </Group>
 
               <TextInput
-                label={i18next.t("ui.name")}
+                label={
+                  i18next.t("ui.name")
+                }
                 value={
                   definition.name
                 }
@@ -367,10 +501,17 @@ function ScriptCard({
                   }
                 }
               />
+
             </Stack>
 
             <Group gap={5}>
-              <Tooltip label={i18next.t("ui.editScript")}>
+              <Tooltip
+                label={
+                  i18next.t(
+                    "ui.editScript"
+                  )
+                }
+              >
                 <ActionIcon
                   variant="light"
                   color="violet"
@@ -380,7 +521,11 @@ function ScriptCard({
                         true
                       )
                   }
-                  aria-label={i18next.t("ui.editScript")}
+                  aria-label={
+                    i18next.t(
+                      "ui.editScript"
+                    )
+                  }
                 >
                   <IconCode
                     size={17}
@@ -391,8 +536,12 @@ function ScriptCard({
               <Tooltip
                 label={
                   idle
-                    ? i18next.t("ui.deleteScript")
-                    : i18next.t("ui.stopOrAbortTheScriptBeforeDeletingIt")
+                    ? i18next.t(
+                        "ui.deleteScript"
+                      )
+                    : i18next.t(
+                        "ui.stopOrAbortTheScriptBeforeDeletingIt"
+                      )
                 }
               >
                 <ActionIcon
@@ -402,7 +551,11 @@ function ScriptCard({
                   onClick={
                     onDelete
                   }
-                  aria-label={i18next.t("ui.deleteScript")}
+                  aria-label={
+                    i18next.t(
+                      "ui.deleteScript"
+                    )
+                  }
                 >
                   <IconTrash
                     size={17}
@@ -465,7 +618,9 @@ function ScriptCard({
                   );
                 }
               }
-            > {i18next.t("ui.start")} </Button>
+            >
+              {i18next.t("ui.start")}
+            </Button>
 
             <Button
               size="xs"
@@ -482,7 +637,9 @@ function ScriptCard({
               onClick={
                 pause
               }
-            > {i18next.t("ui.stop")} </Button>
+            >
+              {i18next.t("ui.stop")}
+            </Button>
 
             <Button
               size="xs"
@@ -499,7 +656,9 @@ function ScriptCard({
               onClick={
                 resume
               }
-            > {i18next.t("ui.resume")} </Button>
+            >
+              {i18next.t("ui.resume")}
+            </Button>
 
             <Button
               size="xs"
@@ -516,14 +675,20 @@ function ScriptCard({
               onClick={
                 abort
               }
-            > {i18next.t("ui.abort")} </Button>
+            >
+              {i18next.t("ui.abort")}
+            </Button>
           </Group>
 
           {paused && (
             <Text
               size="xs"
               c="yellow"
-            > {i18next.t("ui.pausedResumeContinuesTheSameAsyncExecution")} </Text>
+            >
+              {i18next.t(
+                "ui.pausedResumeContinuesTheSameAsyncExecution"
+              )}
+            </Text>
           )}
         </Stack>
       </Card>
@@ -544,7 +709,14 @@ function ScriptCard({
               opened
             }
             title={
-              i18next.t("ui.automation", { value1: definition.name || "Unnamed script" })
+              i18next.t(
+                "ui.automation",
+                {
+                  value1:
+                    definition.name ||
+                    "Unnamed script",
+                }
+              )
             }
             value={
               definition.script
@@ -581,7 +753,9 @@ function ScriptCard({
                     showNotification({
                       color: "teal",
                       title:
-                        i18next.t("ui.automationScriptSaved"),
+                        i18next.t(
+                          "ui.automationScriptSaved"
+                        ),
                       message:
                         definition.name,
                     });
@@ -590,7 +764,9 @@ function ScriptCard({
                     showNotification({
                       color: "red",
                       title:
-                        i18next.t("ui.automationFailed"),
+                        i18next.t(
+                          "ui.automationFailed"
+                        ),
                       message:
                         error instanceof Error
                           ? error.message
@@ -623,6 +799,442 @@ export default function AutomationPanel({
   onScriptsChange,
 }: AutomationPanelProps) {
   useTranslation();
+
+  const commandCenter =
+    useCommandCenter();
+
+  const [
+    runtimeStates,
+    setRuntimeStates,
+  ] =
+    useState<AutomationRuntimeStateMap>(
+      {}
+    );
+
+  /*
+   * Subscribe to the same authoritative client-script runtime state used by
+   * the individual cards. The global control card therefore cannot drift from
+   * the per-script START/STOP/RESUME/ABORT controls.
+   *
+   * Only the script ID set matters here. Renaming/editing a script must not
+   * tear down all runtime subscriptions.
+   */
+  const scriptIdSignature =
+    scripts
+      .map(
+        script =>
+          script.id
+      )
+      .join("\u001f");
+
+  useEffect(
+    () => {
+      const definitions =
+        scripts.map(
+          script => ({
+            id:
+              script.id,
+            executionId:
+              executionId(
+                script.id
+              ),
+          })
+        );
+
+      const activeIds =
+        new Set(
+          definitions.map(
+            item =>
+              item.id
+          )
+        );
+
+      setRuntimeStates(
+        previous => {
+          const next:
+            AutomationRuntimeStateMap = {};
+
+          for (
+            const id of
+            activeIds
+          ) {
+            next[id] =
+              previous[id] ??
+              getClientScriptState(
+                executionId(
+                  id
+                )
+              );
+          }
+
+          return next;
+        }
+      );
+
+      const unsubscribe =
+        definitions.map(
+          item =>
+            subscribeClientScriptState(
+              item.executionId,
+              state => {
+                setRuntimeStates(
+                  previous => ({
+                    ...previous,
+                    [item.id]:
+                      state,
+                  })
+                );
+              }
+            )
+        );
+
+      return () => {
+        for (
+          const dispose of
+          unsubscribe
+        ) {
+          dispose();
+        }
+      };
+    },
+    [
+      scriptIdSignature,
+    ]
+  );
+
+  const runningCount =
+    scripts.reduce(
+      (
+        count,
+        script
+      ) =>
+        runtimeStates[
+          script.id
+        ]?.status ===
+        "running"
+          ? count + 1
+          : count,
+      0
+    );
+
+  const pausedCount =
+    scripts.reduce(
+      (
+        count,
+        script
+      ) =>
+        runtimeStates[
+          script.id
+        ]?.status ===
+        "paused"
+          ? count + 1
+          : count,
+      0
+    );
+
+  const activeCount =
+    runningCount +
+    pausedCount;
+
+
+  const startableCount =
+    scripts.reduce(
+      (
+        count,
+        script
+      ) => {
+        const status =
+          runtimeStates[
+            script.id
+          ]?.status ??
+          "idle";
+
+        return (
+          script.startWithAll !==
+            false &&
+          status ===
+            "idle" &&
+          Boolean(
+            script.script.trim()
+          )
+            ? count + 1
+            : count
+        );
+      },
+      0
+    );
+
+  const startAll =
+    (): void => {
+      let started = 0;
+
+      for (
+        const definition of
+        scripts
+      ) {
+        const id =
+          executionId(
+            definition.id
+          );
+
+        const state =
+          getClientScriptState(
+            id
+          );
+
+        if (
+          definition.startWithAll ===
+            false ||
+          state.status !==
+            "idle" ||
+          !definition.script.trim()
+        ) {
+          continue;
+        }
+
+        started += 1;
+
+        void runClientScript(
+          definition.script,
+          {
+            id,
+            name:
+              definition.name,
+            type:
+              "automation",
+          }
+        ).catch(
+          error => {
+            // Abort All intentionally rejects active execution promises.
+            // That is a normal global-control outcome, not a start failure.
+            if (
+              error instanceof
+              ScriptAbortError
+            ) {
+              return;
+            }
+
+            showNotification({
+              color:
+                "red",
+              title:
+                i18next.t(
+                  "ui.automationFailed"
+                ),
+              message:
+                `${definition.name}: ${
+                  error instanceof Error
+                    ? error.message
+                    : String(
+                        error
+                      )
+                }`,
+            });
+          }
+        );
+      }
+
+      showNotification({
+        color:
+          started > 0
+            ? "green"
+            : "gray",
+        title:
+          automationPanelText(
+            "startAll"
+          ),
+        message:
+          started > 0
+            ? automationPanelText(
+                "startAllStarted",
+                {
+                  count:
+                    started,
+                }
+              )
+            : automationPanelText(
+                "noStartableScripts"
+              ),
+      });
+    };
+
+  const resumeAll =
+    (): void => {
+      let resumed = 0;
+
+      // Deliberately ignore startWithAll here.
+      // Resume All means every currently paused automation.
+      for (
+        const definition of
+        scripts
+      ) {
+        if (
+          resumeClientScript(
+            executionId(
+              definition.id
+            )
+          )
+        ) {
+          resumed += 1;
+        }
+      }
+
+      showNotification({
+        color:
+          resumed > 0
+            ? "cyan"
+            : "gray",
+        title:
+          automationPanelText(
+            "resumeAll"
+          ),
+        message:
+          resumed > 0
+            ? automationPanelText(
+                "resumeAllResumed",
+                {
+                  count:
+                    resumed,
+                }
+              )
+            : automationPanelText(
+                "noPausedScripts"
+              ),
+      });
+    };
+
+  const stopAll =
+    (): void => {
+      let stopped = 0;
+
+      // Deliberately ignore startWithAll here.
+      // Stop All is a global safety/control operation.
+      for (
+        const definition of
+        scripts
+      ) {
+        if (
+          pauseClientScript(
+            executionId(
+              definition.id
+            )
+          )
+        ) {
+          stopped += 1;
+        }
+      }
+
+      showNotification({
+        color:
+          stopped > 0
+            ? "yellow"
+            : "gray",
+        title:
+          automationPanelText(
+            "stopAll"
+          ),
+        message:
+          stopped > 0
+            ? automationPanelText(
+                "stopAllPaused",
+                {
+                  count:
+                    stopped,
+                }
+              )
+            : automationPanelText(
+                "noRunningScripts"
+              ),
+      });
+    };
+
+  const abortAll =
+    (): void => {
+      let aborted = 0;
+
+      for (
+        const definition of
+        scripts
+      ) {
+        if (
+          abortClientScript(
+            executionId(
+              definition.id
+            ),
+            "All automation scripts aborted by user."
+          )
+        ) {
+          aborted += 1;
+        }
+      }
+
+      /*
+       * DCCExpressHub's emergencyStop command is a safe toggle at the backend.
+       * Never send it when E-STOP is already active, otherwise Abort All could
+       * accidentally resume the command station.
+       *
+       * Also do not guess when powerInfo is unknown; aborting browser scripts
+       * is still valid, but an unknown toggle is not.
+       */
+      const emergencyKnownOff =
+        commandCenter.powerInfo
+          ?.emergencyStop ===
+        false;
+
+      const emergencyAlreadyOn =
+        commandCenter.powerInfo
+          ?.emergencyStop ===
+        true;
+
+      const emergencySent =
+        emergencyKnownOff
+          ? wsApi.emergencyStop()
+          : false;
+
+      let emergencyMessage =
+        automationPanelText(
+          "estopUnknown"
+        );
+
+      if (
+        emergencyAlreadyOn
+      ) {
+        emergencyMessage =
+          automationPanelText(
+            "estopAlreadyActive"
+          );
+      } else if (
+        emergencySent
+      ) {
+        emergencyMessage =
+          automationPanelText(
+            "estopRequested"
+          );
+      } else if (
+        emergencyKnownOff
+      ) {
+        emergencyMessage =
+          automationPanelText(
+            "estopSendFailed"
+          );
+      }
+
+      showNotification({
+        color: "red",
+        title:
+          automationPanelText(
+            "abortAll"
+          ),
+        message:
+          `${automationPanelText(
+            "abortAllAborted",
+            {
+              count:
+                aborted,
+            }
+          )} ${emergencyMessage}`,
+      });
+    };
 
   const nextScriptsWithUpdate = (
     id: string,
@@ -681,9 +1293,13 @@ export default function AutomationPanel({
     showNotification({
       color: "red",
       title:
-        i18next.t("ui.automationDeleted"),
+        i18next.t(
+          "ui.automationDeleted"
+        ),
       message:
-        i18next.t("ui.saveTheProjectToPersistTheDeletionInTheHub"),
+        i18next.t(
+          "ui.saveTheProjectToPersistTheDeletionInTheHub"
+        ),
     });
   };
 
@@ -697,6 +1313,8 @@ export default function AutomationPanel({
             `Automation ${scripts.length + 1}`,
           script:
             "",
+          startWithAll:
+            true,
         };
 
       onScriptsChange([
@@ -719,7 +1337,11 @@ export default function AutomationPanel({
           wrap="nowrap"
         >
           <div>
-            <Text fw={700}> {i18next.t("ui.automationScripts")} </Text>
+            <Text fw={700}>
+              {i18next.t(
+                "ui.automationScripts"
+              )}
+            </Text>
 
             <Text
               size="xs"
@@ -739,8 +1361,161 @@ export default function AutomationPanel({
             onClick={
               createScript
             }
-          > {i18next.t("ui.newScript")} </Button>
+          >
+            {i18next.t(
+              "ui.newScript"
+            )}
+          </Button>
         </Group>
+
+        <Card
+          withBorder
+          p="sm"
+        >
+          <Stack gap="sm">
+            <Group
+              justify="space-between"
+              align="center"
+              wrap="wrap"
+            >
+              <Stack gap={4}>
+                <Text
+                  fw={700}
+                  size="sm"
+                >
+                  {automationPanelText(
+                    "controlTitle"
+                  )}
+                </Text>
+
+                <Group gap={6}>
+                  <Badge
+                    size="sm"
+                    variant="light"
+                    color={
+                      runningCount > 0
+                        ? "green"
+                        : "gray"
+                    }
+                  >
+                    {automationPanelText(
+                      "running"
+                    )}: {runningCount}
+                  </Badge>
+
+                  <Badge
+                    size="sm"
+                    variant="light"
+                    color={
+                      pausedCount > 0
+                        ? "yellow"
+                        : "gray"
+                    }
+                  >
+                    {automationPanelText(
+                      "paused"
+                    )}: {pausedCount}
+                  </Badge>
+                </Group>
+              </Stack>
+
+              <Group gap="xs">
+                <Button
+                  size="xs"
+                  variant="light"
+                  color="green"
+                  leftSection={
+                    <IconPlayerPlay
+                      size={15}
+                    />
+                  }
+                  disabled={
+                    startableCount === 0
+                  }
+                  onClick={
+                    startAll
+                  }
+                >
+                  {automationPanelText(
+                    "startAll"
+                  )}
+                </Button>
+
+                <Button
+                  size="xs"
+                  variant="light"
+                  color="cyan"
+                  leftSection={
+                    <IconPlayerPlay
+                      size={15}
+                    />
+                  }
+                  disabled={
+                    pausedCount === 0
+                  }
+                  onClick={
+                    resumeAll
+                  }
+                >
+                  {automationPanelText(
+                    "resumeAll"
+                  )}
+                </Button>
+
+                <Button
+                  size="xs"
+                  variant="light"
+                  color="yellow"
+                  leftSection={
+                    <IconPlayerPause
+                      size={15}
+                    />
+                  }
+                  disabled={
+                    runningCount === 0
+                  }
+                  onClick={
+                    stopAll
+                  }
+                >
+                  {automationPanelText(
+                    "stopAll"
+                  )}
+                </Button>
+
+                <Button
+                  size="xs"
+                  variant="filled"
+                  color="red"
+                  leftSection={
+                    <IconAlertTriangle
+                      size={15}
+                    />
+                  }
+                  disabled={
+                    activeCount === 0
+                  }
+                  onClick={
+                    abortAll
+                  }
+                >
+                  {automationPanelText(
+                    "abortAll"
+                  )}
+                </Button>
+              </Group>
+            </Group>
+
+            <Text
+              size="xs"
+              c="dimmed"
+            >
+              {automationPanelText(
+                "controlDescription"
+              )}
+            </Text>
+          </Stack>
+        </Card>
 
         {
           scripts.length === 0
@@ -753,13 +1528,21 @@ export default function AutomationPanel({
                   gap="xs"
                   align="center"
                 >
-                  <Text fw={700}> {i18next.t("ui.noAutomationScripts")} </Text>
+                  <Text fw={700}>
+                    {i18next.t(
+                      "ui.noAutomationScripts"
+                    )}
+                  </Text>
 
                   <Text
                     size="sm"
                     c="dimmed"
                     ta="center"
-                  > {i18next.t("ui.createAScriptGiveItANameThenEditAnd")} </Text>
+                  >
+                    {i18next.t(
+                      "ui.createAScriptGiveItANameThenEditAnd"
+                    )}
+                  </Text>
 
                   <Button
                     size="xs"
@@ -771,7 +1554,11 @@ export default function AutomationPanel({
                     onClick={
                       createScript
                     }
-                  > {i18next.t("ui.newScript")} </Button>
+                  >
+                    {i18next.t(
+                      "ui.newScript"
+                    )}
+                  </Button>
                 </Stack>
               </Card>
             )
@@ -812,7 +1599,11 @@ export default function AutomationPanel({
         <Text
           size="xs"
           c="dimmed"
-        > {i18next.t("ui.scriptsAreStoredSeparatelyFromTheLayoutInConfigAutomations")} </Text>
+        >
+          {i18next.t(
+            "ui.scriptsAreStoredSeparatelyFromTheLayoutInConfigAutomations"
+          )}
+        </Text>
       </Stack>
     </ScrollArea>
   );
