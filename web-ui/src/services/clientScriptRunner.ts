@@ -11,6 +11,11 @@ import {
 } from "./audioManager";
 
 import {
+  buildClientScriptSwitchManFinally,
+  buildClientScriptSwitchManPrelude,
+} from "./clientScriptSwitchManPrelude";
+
+import {
   applyClientScriptLayoutAccessoryCatalog,
   executeClientScriptLayoutAccessoryCommand,
   installClientScriptLayoutAccessoryTracking,
@@ -1299,6 +1304,25 @@ export function getClientScriptState(
   );
 }
 
+export type ActiveClientScriptExecution = {
+  id: ClientScriptExecutionId;
+  name: string;
+  status: "running" | "paused";
+};
+
+export function getActiveClientScriptExecutions(): ActiveClientScriptExecution[] {
+  return [...executions.entries()].map(
+    ([id, execution]) => ({
+      id,
+      name:
+        execution.element.name ||
+        String(id),
+      status:
+        execution.status,
+    })
+  );
+}
+
 export function subscribeClientScriptState(
   elementId: ClientScriptExecutionId,
   listener: StateListener
@@ -1759,7 +1783,9 @@ function executeScriptAudioCommand(
 }
 
 function scriptWithRuntimeHelpers(
-  script: string
+  script: string,
+  switchManOwnerId: string,
+  switchManOwnerName: string
 ): string {
   const prefix =
     JSON.stringify(
@@ -1786,7 +1812,17 @@ function scriptWithRuntimeHelpers(
       AUTOMATION_RUN_MODE_CHANNEL
     );
 
+  const switchManPrelude =
+    buildClientScriptSwitchManPrelude(
+      switchManOwnerId,
+      switchManOwnerName
+    );
+
+  const switchManFinally =
+    buildClientScriptSwitchManFinally();
+
   return `
+${switchManPrelude}
 let __dccExpressAutomationFinishing = ${initialFinishing};
 
 const __dccExpressAutomationModeChannel =
@@ -1983,6 +2019,7 @@ const setRoute = async (
 try {
 ${script}
 } finally {
+${switchManFinally}
   __dccExpressAutomationModeChannel?.close();
 }
 `;
@@ -2969,7 +3006,10 @@ export async function runClientScript(
             element.id,
           script:
             scriptWithRuntimeHelpers(
-              script
+              script,
+              infoOwnerId,
+              element.name ||
+                String(element.id)
             ),
           element: {
             ...element,

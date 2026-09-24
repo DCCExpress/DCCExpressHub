@@ -13,6 +13,7 @@ public sealed class WsHub
     private readonly CommandCenterConfigStore CommandCenterConfigStore;
     readonly LayoutRuntime LayoutRuntime;
     readonly RuntimeStateStore RuntimeStateStore;
+    readonly SwitchManManager SwitchMan = new();
     private readonly ILogger<WsHub> Logger;
     private readonly FastClockRuntime FastClock = new();
     private readonly ConcurrentDictionary<Guid, WebSocket> Clients = new();
@@ -32,7 +33,9 @@ public sealed class WsHub
         LayoutRuntime = runtime;
         RuntimeStateStore = stateStore;
         CommandCenterConfigStore = ccConfig;
-        LayoutRuntime.Changed += (type, data) => _ = Broadcast(type, data); Logger = log;
+        LayoutRuntime.Changed += (type, data) => _ = Broadcast(type, data);
+        SwitchMan.Changed += snapshot => _ = Broadcast("switchManChanged", new { locks = snapshot ?? SwitchMan.Snapshot() });
+        Logger = log;
 
         cc.RawInfo += raw =>
         {
@@ -123,6 +126,9 @@ public sealed class WsHub
                 case "fastClockCommand":
                     await HandleFastClockCommand(ws, data);
                     return;
+                case "switchManCommand":
+                    await HandleSwitchManCommand(ws, data, ct);
+                    return;
                 case "setTrackPower":
                     ok = await CommandCenter.SetTrackPowerAsync(B(data, "on"), CommandCenterConfigStore.Current.PowerIncludesProgramming, ct);
                     break;
@@ -198,21 +204,55 @@ public sealed class WsHub
                     {
                         var a = (ushort)I(data, "address");
                         var v = B(data, "closed");
-                        ok = await CommandCenter.SetTurnoutAsync(a, v, ct);
-                        if (ok) LayoutRuntime.SetTurnout(a, v);
+                        var turnout = LayoutRuntime.FindAccessory(RuntimeAccessoryKind.Turnout, a);
+                        string? leaseOwner = null;
+
+                        if (turnout is not null && !turnout.TurnoutExtended && !turnout.TurnoutVPin)
+                        {
+                            var lease = await AcquireManualTurnoutOperation(ws, a, ct);
+                            if (!lease.Ok) return;
+                            leaseOwner = lease.OwnerId;
+                        }
+
+                        try
+                        {
+                            ok = await CommandCenter.SetTurnoutAsync(a, v, ct);
+                            if (ok) LayoutRuntime.SetTurnout(a, v);
+                        }
+                        finally
+                        {
+                            if (leaseOwner is not null)
+                                SwitchMan.ReleaseOwned(new[] { a }, leaseOwner);
+                        }
                         break;
                     }
                 case "setSignalAspect":
                     {
                         var a = (ushort)I(data, "address");
                         var v = I(data, "aspect");
-                        ok = await CommandCenter.SetSignalAspectAsync(a, v, ct);
-                        if (ok)
+                        string? leaseOwner = null;
+                        var turnout = LayoutRuntime.FindAccessory(RuntimeAccessoryKind.Turnout, a);
+                        if (turnout?.TurnoutExtended == true)
                         {
-                            LayoutRuntime.SetSignal(a, v);
-                            if (data.TryGetProperty("turnoutPhysicalValue", out var tp) &&
-                                tp.ValueKind is JsonValueKind.True or JsonValueKind.False)
-                                LayoutRuntime.SetTurnout(a, tp.GetBoolean());
+                            var lease = await AcquireManualTurnoutOperation(ws, a, ct);
+                            if (!lease.Ok) return;
+                            leaseOwner = lease.OwnerId;
+                        }
+                        try
+                        {
+                            ok = await CommandCenter.SetSignalAspectAsync(a, v, ct);
+                            if (ok)
+                            {
+                                LayoutRuntime.SetSignal(a, v);
+                                if (data.TryGetProperty("turnoutPhysicalValue", out var tp) &&
+                                    tp.ValueKind is JsonValueKind.True or JsonValueKind.False)
+                                    LayoutRuntime.SetTurnout(a, tp.GetBoolean());
+                            }
+                        }
+                        finally
+                        {
+                            if (leaseOwner is not null)
+                                SwitchMan.ReleaseOwned(new[] { a }, leaseOwner);
                         }
                         break;
                     }
@@ -220,16 +260,48 @@ public sealed class WsHub
                     {
                         var a = (ushort)I(data, "address");
                         var v = B(data, "active");
-                        ok = await CommandCenter.SetAccessoryAsync(a, v, ct);
-                        if (ok) LayoutRuntime.SetAccessory(a, v);
+                        string? leaseOwner = null;
+                        var turnout = LayoutRuntime.FindAccessory(RuntimeAccessoryKind.Turnout, a);
+                        if (turnout is not null && !turnout.TurnoutExtended && !turnout.TurnoutVPin)
+                        {
+                            var lease = await AcquireManualTurnoutOperation(ws, a, ct);
+                            if (!lease.Ok) return;
+                            leaseOwner = lease.OwnerId;
+                        }
+                        try
+                        {
+                            ok = await CommandCenter.SetAccessoryAsync(a, v, ct);
+                            if (ok) LayoutRuntime.SetAccessory(a, v);
+                        }
+                        finally
+                        {
+                            if (leaseOwner is not null)
+                                SwitchMan.ReleaseOwned(new[] { a }, leaseOwner);
+                        }
                         break;
                     }
                 case "setVpin":
                     {
                         var a = (ushort)I(data, "vpin");
                         var v = B(data, "active");
-                        ok = await CommandCenter.SetVPinAsync(a, v, ct);
-                        if (ok) LayoutRuntime.SetVPin(a, v);
+                        string? leaseOwner = null;
+                        var turnout = LayoutRuntime.FindAccessory(RuntimeAccessoryKind.Turnout, a);
+                        if (turnout?.TurnoutVPin == true)
+                        {
+                            var lease = await AcquireManualTurnoutOperation(ws, a, ct);
+                            if (!lease.Ok) return;
+                            leaseOwner = lease.OwnerId;
+                        }
+                        try
+                        {
+                            ok = await CommandCenter.SetVPinAsync(a, v, ct);
+                            if (ok) LayoutRuntime.SetVPin(a, v);
+                        }
+                        finally
+                        {
+                            if (leaseOwner is not null)
+                                SwitchMan.ReleaseOwned(new[] { a }, leaseOwner);
+                        }
                         break;
                     }
                 case "setSensor":
@@ -278,6 +350,229 @@ public sealed class WsHub
 
             if (!ok)
                 await Send(ws, "error", new { message = "command_center_send_failed", operation = type });
+        }
+    }
+
+    private async Task<(bool Ok, string? OwnerId)> AcquireManualTurnoutOperation(
+        WebSocket ws,
+        ushort address,
+        CancellationToken ct)
+    {
+        if (address is < 1 or > 2048)
+        {
+            await Send(ws, "error", new { message = "turnout_address_out_of_range", address });
+            return (false, null);
+        }
+
+        var ownerId = "manual:" + Guid.NewGuid().ToString("N");
+        var result = await SwitchMan.AcquireAsync(
+            new[] { address },
+            ownerId,
+            "Manual/UI",
+            0,
+            ct);
+
+        if (result.Ok)
+            return (true, ownerId);
+
+        var blockingLock = result.Conflicts.FirstOrDefault();
+        await Send(ws, "error", new
+        {
+            message = "turnout_locked",
+            address,
+            ownerId = blockingLock?.OwnerId,
+            ownerName = blockingLock?.OwnerName
+        });
+
+        return (false, null);
+    }
+
+    private async Task HandleSwitchManCommand(WebSocket ws, JsonElement data, CancellationToken ct)
+    {
+        var requestId = S(data, "requestId");
+        var action = S(data, "action");
+        var ownerId = S(data, "ownerId");
+        var ownerName = S(data, "ownerName");
+
+        async Task Reply(bool ok, string? message = null, object? extra = null)
+        {
+            await Send(ws, "switchManResponse", new
+            {
+                requestId,
+                action,
+                ok,
+                message,
+                extra
+            });
+        }
+
+        ushort[] ReadAddresses()
+        {
+            if (data.ValueKind != JsonValueKind.Object ||
+                !data.TryGetProperty("addresses", out var raw) ||
+                raw.ValueKind != JsonValueKind.Array)
+                return Array.Empty<ushort>();
+
+            return raw.EnumerateArray()
+                .Select(x => x.TryGetInt32(out var n) && n is >= 1 and <= 2048 ? (ushort)n : (ushort)0)
+                .Where(x => x != 0)
+                .Distinct()
+                .OrderBy(x => x)
+                .ToArray();
+        }
+
+        switch (action)
+        {
+            case "snapshot":
+                await Reply(true, extra: new { locks = SwitchMan.Snapshot() });
+                return;
+
+            case "acquire":
+                {
+                    var addresses = ReadAddresses();
+                    if (addresses.Length == 0 ||
+                        addresses.Any(address => LayoutRuntime.FindAccessory(RuntimeAccessoryKind.Turnout, address) is null))
+                    {
+                        await Reply(false, "invalid_turnout_addresses");
+                        return;
+                    }
+
+                    var timeoutMs = Math.Clamp(IOr(data, "timeoutMs", 0), 0, 600000);
+                    SwitchManAcquireResult result;
+
+                    try
+                    {
+                        result = await SwitchMan.AcquireAsync(
+                            addresses,
+                            ownerId,
+                            ownerName,
+                            timeoutMs,
+                            ct);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        return;
+                    }
+
+                    await Reply(result.Ok, result.Error, new
+                    {
+                        locks = result.Locks,
+                        conflicts = result.Conflicts
+                    });
+                    return;
+                }
+
+            case "release":
+                {
+                    if (string.IsNullOrWhiteSpace(ownerId))
+                    {
+                        await Reply(false, "invalid_owner");
+                        return;
+                    }
+
+                    var addresses = ReadAddresses();
+                    var released = SwitchMan.ReleaseOwned(
+                        addresses.Length == 0 ? null : addresses,
+                        ownerId);
+
+                    await Reply(true, extra: new
+                    {
+                        released,
+                        locks = SwitchMan.Snapshot()
+                    });
+                    return;
+                }
+
+            case "forceReleaseAll":
+                {
+                    var released = SwitchMan.ForceReleaseAll();
+                    await Reply(true, extra: new
+                    {
+                        released,
+                        locks = SwitchMan.Snapshot()
+                    });
+                    return;
+                }
+
+            case "set":
+                {
+                    var rawAddress = I(data, "address");
+                    if (rawAddress is < 1 or > 2048)
+                    {
+                        await Reply(false, "invalid_turnout_address");
+                        return;
+                    }
+
+                    var address = (ushort)rawAddress;
+                    var turnout = LayoutRuntime.FindAccessory(RuntimeAccessoryKind.Turnout, address);
+
+                    if (turnout is null)
+                    {
+                        await Reply(false, "turnout_not_found");
+                        return;
+                    }
+
+                    if (string.IsNullOrWhiteSpace(ownerId))
+                    {
+                        await Reply(false, "invalid_owner");
+                        return;
+                    }
+
+                    if (!SwitchMan.IsOwnedBy(address, ownerId))
+                    {
+                        SwitchMan.IsLocked(address, out var blockingLock);
+                        await Reply(false, "turnout_lock_required", new
+                        {
+                            address,
+                            lockInfo = blockingLock
+                        });
+                        return;
+                    }
+
+                    var logicalClosed = B(data, "closed");
+                    var physicalValue = logicalClosed
+                        ? turnout.ClosedValue
+                        : !turnout.ClosedValue;
+
+                    bool ok;
+
+                    if (turnout.TurnoutExtended)
+                    {
+                        var aspect = logicalClosed
+                            ? turnout.TurnoutClosedAspect
+                            : turnout.TurnoutOpenedAspect;
+
+                        ok = await CommandCenter.SetSignalAspectAsync(address, aspect, ct);
+                        if (ok)
+                            LayoutRuntime.SetSignal(address, aspect);
+                    }
+                    else if (turnout.TurnoutVPin)
+                    {
+                        ok = await CommandCenter.SetVPinAsync(address, physicalValue, ct);
+                        if (ok)
+                            LayoutRuntime.SetVPin(address, physicalValue);
+                    }
+                    else
+                    {
+                        ok = await CommandCenter.SetTurnoutAsync(address, physicalValue, ct);
+                        if (ok)
+                            LayoutRuntime.SetTurnout(address, physicalValue);
+                    }
+
+                    await Reply(
+                        ok,
+                        ok ? null : "turnout_command_failed",
+                        new
+                        {
+                            address,
+                            closed = logicalClosed
+                        });
+                    return;
+                }
+
+            default:
+                await Reply(false, "unknown_switchman_action");
+                return;
         }
     }
 
@@ -665,6 +960,8 @@ public sealed class WsHub
 
         foreach (var item in LayoutRuntime.RuntimeSnapshot())
             await Send(ws, item.Type, item.Data);
+
+        await Send(ws, "switchManChanged", new { locks = SwitchMan.Snapshot() });
     }
 
     private Task SendCommandCenterInfo(WebSocket ws)

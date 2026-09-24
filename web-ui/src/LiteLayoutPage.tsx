@@ -39,6 +39,7 @@ import {
   IconSeparator,
   IconBrandGithub,
   IconBug,
+  IconLockOpen,
 } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { showNotification } from "@mantine/notifications";
@@ -89,6 +90,7 @@ import ElementPreview from "@/models/editor/rendering/ElementPreviewRenderer";
 import type { EditorTool } from "@/models/editor/types/EditorTypes";
 import { wsApi } from "@/services/wsApi";
 import { wsClient, type WsConnectionStatus } from "@/services/wsClient";
+import { getActiveClientScriptExecutions } from "@/services/clientScriptRunner";
 import {
   createAutomationId,
   createAutomationPayload,
@@ -518,6 +520,102 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
 
   const invalidate = useCallback(() => setInvalidateCounter(value => value + 1), []);
 
+  const forceReleaseAllSwitchManLocks = useCallback(async (): Promise<void> => {
+    const activeScripts =
+      getActiveClientScriptExecutions();
+
+    if (activeScripts.length > 0) {
+      showNotification({
+        color: "orange",
+        title: "Előbb állítsd le a scripteket",
+        message: `Még fut vagy szünetel: ${activeScripts.map(script => script.name).join(", ")}.`,
+      });
+      return;
+    }
+
+    if (!window.confirm(
+      "Minden váltózár feloldása? Ez a megmaradt/orphaned váltózárakat is kényszerítve feloldja."
+    )) {
+      return;
+    }
+
+    const requestId =
+      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `switchman-unlock-${Date.now()}`;
+
+    try {
+      const released = await new Promise<number>((resolve, reject) => {
+        let settled = false;
+        const finish = (callback: () => void) => {
+          if (settled) return;
+          settled = true;
+          window.clearTimeout(timer);
+          unsubscribe();
+          callback();
+        };
+
+        const unsubscribe = wsClient.subscribeMessages(message => {
+          const raw = message as unknown as {
+            type?: string;
+            data?: {
+              requestId?: string;
+              action?: string;
+              ok?: boolean;
+              message?: string | null;
+              extra?: { released?: number } | null;
+            };
+          };
+
+          if (
+            raw.type !== "switchManResponse" ||
+            raw.data?.requestId !== requestId ||
+            raw.data?.action !== "forceReleaseAll"
+          ) {
+            return;
+          }
+
+          if (!raw.data.ok) {
+            finish(() => reject(new Error(raw.data?.message || "A váltózárak feloldása sikertelen.")));
+            return;
+          }
+
+          finish(() => resolve(Number(raw.data?.extra?.released ?? 0)));
+        });
+
+        const timer = window.setTimeout(() => {
+          finish(() => reject(new Error("A váltózár-feloldási kérés túllépte az időkorlátot.")));
+        }, 5000);
+
+        const sent = wsClient.send({
+          type: "switchManCommand",
+          data: {
+            requestId,
+            action: "forceReleaseAll",
+          },
+        });
+
+        if (!sent) {
+          finish(() => reject(new Error("Nincs WebSocket kapcsolat a backendhez.")));
+        }
+      });
+
+      showNotification({
+        color: "green",
+        title: "Váltózárak feloldva",
+        message: released > 0
+          ? `${released} váltózár feloldva.`
+          : "Nem volt aktív váltózár.",
+      });
+    } catch (unlockError) {
+      showNotification({
+        color: "red",
+        title: "Váltózár-feloldás sikertelen",
+        message: unlockError instanceof Error ? unlockError.message : String(unlockError),
+      });
+    }
+  }, []);
+
   // Level-crossing lamps are a visual animation. The canvas normally redraws
   // only after UI/runtime events, so request a lightweight redraw while at
   // least one level crossing has blinking enabled.
@@ -631,6 +729,25 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
         title: i18next.t("ui.invalidTurnoutAddress"),
         message: i18next.t("ui.useALinearDccAccessoryAddressBetween1And2048"),
       });
+    } else if (data.message === "turnout_locked") {
+      const lockInfo = data as typeof data & {
+        address?: number;
+        ownerName?: string | null;
+      };
+
+      showNotification({
+        color: "orange",
+        title: "Váltó zárolva",
+        message: `A(z) ${lockInfo.address ?? "?"}. váltó nem állítható${
+          lockInfo.ownerName ? ` – foglalja: ${lockInfo.ownerName}` : ""
+        }.`,
+      });
+
+      // A RouteButton currently updates its local element optimistically after
+      // the WebSocket send. If the backend rejects the physical command because
+      // SwitchMan owns the turnout, immediately re-apply the authoritative
+      // runtime state so the canvas cannot keep showing the rejected position.
+      wsApi.getLayoutRuntimeSnapshot();
     }
   }), []);
 
@@ -1146,10 +1263,26 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
                   </Tabs.List>
 
                   <Tabs.Panel value="automation" className="lite-info-tab-panel">
-                    <AutomationPanel
-                      scripts={automationScripts}
-                      onScriptsChange={setAutomationScripts}
-                    />
+                    <Stack h="100%" gap="xs">
+                      <Group justify="flex-end">
+                        <Button
+                          size="xs"
+                          variant="light"
+                          color="red"
+                          leftSection={<IconLockOpen size={15} />}
+                          onClick={() => void forceReleaseAllSwitchManLocks()}
+                        >
+                          Összes váltózár feloldása
+                        </Button>
+                      </Group>
+
+                      <div style={{ flex: 1, minHeight: 0 }}>
+                        <AutomationPanel
+                          scripts={automationScripts}
+                          onScriptsChange={setAutomationScripts}
+                        />
+                      </div>
+                    </Stack>
                   </Tabs.Panel>
 
                   <Tabs.Panel value="timetable" className="lite-info-tab-panel">

@@ -90,6 +90,26 @@ const SCRIPT_HELP_ITEMS: ScriptHelpItem[] = [
     insert: "while (isRunning()) {\n  await runSequence();\n}",
   },
   {
+    syntax: "await switchMan([turnouts], async sw => { ... })",
+    description:
+      "Waits until every requested turnout is free, atomically locks the complete group, runs the callback, then automatically releases the group when the callback finishes or throws.",
+    insert:
+      "await switchMan([10, 11], async sw => {\n  setInfo(\"Váltókörzet beállítása\");\n\n  await sw.setTurnout(10, true);\n  await sw.setTurnout(11, false);\n\n  dcc.setLoco(18, 30, \"forward\");\n  await dcc.waitForSensor(33, true);\n});",
+  },
+  {
+    syntax: "await switchMan([turnouts], async sw => { ... }, timeoutMs)",
+    description:
+      "Like switchMan(...), but throws when the complete turnout group cannot be acquired within timeoutMs.",
+    insert:
+      "await switchMan([10, 11], async sw => {\n  await sw.setTurnout(10, true);\n  await sw.setTurnout(11, false);\n  await dcc.waitForSensor(33, true);\n}, 30000);",
+  },
+  {
+    syntax: "await sw.setTurnout(address, closed)",
+    description:
+      "Sets a turnout owned by the current SwitchMan section. Use this inside switchMan(...) instead of dcc.setTurnout(...).",
+    insert: "await sw.setTurnout(10, true);",
+  },
+  {
     syntax: "await setRoute(name)",
     description:
       "Sets the named RouteButton with the default 250 ms delay between route turnout steps.",
