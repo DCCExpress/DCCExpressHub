@@ -61,6 +61,8 @@ import TurnoutBitPropertyEditor from "@/layout/property-panel/TurnoutBitProperty
 import RouteTurnoutSelectionPropertyEditor from "@/layout/property-panel/RouteTurnoutSelectionPropertyEditor";
 import LocoPanel from "@/layout/LocoPanel";
 import AutomationPanel from "@/components/AutomationPanel";
+import TimetableDialog from "@/components/TimetableDialog";
+import TimetablePanel from "@/components/TimetablePanel";
 import type { BaseElement } from "./models/editor/core/BaseElement";
 import { isTurnoutElement, LayoutView } from "@/models/editor/core/LayoutView";
 import { TrackCornerElement } from "./models/editor/elements/TrackCornerElement";
@@ -494,6 +496,8 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
   const resizeRef = useRef<{ side: "left" | "right"; startX: number; startWidth: number } | null>(null);
   const temperatureCriticalRef = useRef(false);
   const [debugOpened, setDebugOpened] = useState(false);
+  const [timetableOpened, setTimetableOpened] = useState(false);
+  const [timetableRevision, setTimetableRevision] = useState(0);
 
   const invalidate = useCallback(() => setInvalidateCounter(value => value + 1), []);
 
@@ -1105,6 +1109,7 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
                 <Tabs defaultValue="automation" className="lite-runtime-tabs">
                   <Tabs.List grow mb="sm">
                     <Tabs.Tab value="automation">{i18next.t("ui.automation2")}</Tabs.Tab>
+                    <Tabs.Tab value="timetable">Menetrend</Tabs.Tab>
                     <Tabs.Tab value="info">{i18next.t("ui.info")}</Tabs.Tab>
                     <Tabs.Tab value="log">{i18next.t("ui.log")}</Tabs.Tab>
                   </Tabs.List>
@@ -1113,6 +1118,14 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
                     <AutomationPanel
                       scripts={automationScripts}
                       onScriptsChange={setAutomationScripts}
+                    />
+                  </Tabs.Panel>
+
+                  <Tabs.Panel value="timetable" className="lite-info-tab-panel">
+                    <TimetablePanel
+                      scripts={automationScripts}
+                      timetableRevision={timetableRevision}
+                      onOpenTimetable={() => setTimetableOpened(true)}
                     />
                   </Tabs.Panel>
 
@@ -1257,6 +1270,13 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
       <DebugDialog
         opened={debugOpened}
         onClose={() => setDebugOpened(false)}
+      />
+
+      <TimetableDialog
+        opened={timetableOpened}
+        onClose={() => setTimetableOpened(false)}
+        onSaved={() => setTimetableRevision(value => value + 1)}
+        scripts={automationScripts}
       />
 
       <FullscreenLoader visible={canvasBusy} text={canvasBusyText} />

@@ -14,9 +14,18 @@ export type AutomationScriptDefinition = {
   startWithAll?: boolean;
 };
 
+export type TimetableEntryDefinition = {
+  id: string;
+  enabled: boolean;
+  scriptId: string;
+  /** Two-field railway cron: MINUTE HOUR. Example: */
+  cron: string;
+};
+
 export type AutomationStoragePayload = {
   version: typeof AUTOMATION_STORAGE_VERSION;
   scripts: AutomationScriptDefinition[];
+  timetable?: TimetableEntryDefinition[];
 };
 
 export function createAutomationId(): string {
@@ -28,6 +37,17 @@ export function createAutomationId(): string {
   }
 
   return `automation-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export function createTimetableEntryId(): string {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
+    return crypto.randomUUID();
+  }
+
+  return `timetable-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 export function normalizeAutomationScripts(
@@ -82,16 +102,73 @@ export function normalizeAutomationScripts(
   return result;
 }
 
+export function normalizeTimetableEntries(
+  raw: unknown
+): TimetableEntryDefinition[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+
+  const result: TimetableEntryDefinition[] = [];
+  const usedIds = new Set<string>();
+
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+
+    const candidate =
+      item as Record<string, unknown>;
+
+    let id =
+      typeof candidate.id === "string" && candidate.id.trim()
+        ? candidate.id.trim()
+        : createTimetableEntryId();
+
+    while (usedIds.has(id)) {
+      id = createTimetableEntryId();
+    }
+
+    usedIds.add(id);
+
+    result.push({
+      id,
+      enabled:
+        candidate.enabled !== false,
+      scriptId:
+        typeof candidate.scriptId === "string"
+          ? candidate.scriptId.trim()
+          : "",
+      cron:
+        typeof candidate.cron === "string" && candidate.cron.trim()
+          ? candidate.cron.trim()
+          : "0 *",
+    });
+  }
+
+  return result;
+}
+
 export function createAutomationPayload(
-  scripts: AutomationScriptDefinition[]
+  scripts: AutomationScriptDefinition[],
+  timetable?: TimetableEntryDefinition[]
 ): AutomationStoragePayload {
   return {
     version: AUTOMATION_STORAGE_VERSION,
     scripts: normalizeAutomationScripts(scripts),
+    ...(timetable === undefined
+      ? {}
+      : {
+          timetable:
+            normalizeTimetableEntries(timetable),
+        }),
   };
 }
 
-export async function loadAutomationScripts(): Promise<AutomationScriptDefinition[]> {
+type LoadedAutomationStorage = {
+  scripts: AutomationScriptDefinition[];
+  timetable: TimetableEntryDefinition[];
+};
+
+async function loadAutomationStorage(): Promise<LoadedAutomationStorage> {
   const response =
     await fetch(
       "/api/automations",
@@ -133,13 +210,20 @@ export async function loadAutomationScripts(): Promise<AutomationScriptDefinitio
     );
   }
 
-  return normalizeAutomationScripts(
-    payload.scripts
-  );
+  return {
+    scripts:
+      normalizeAutomationScripts(
+        payload.scripts
+      ),
+    timetable:
+      normalizeTimetableEntries(
+        payload.timetable
+      ),
+  };
 }
 
-export async function saveAutomationScripts(
-  scripts: AutomationScriptDefinition[]
+async function saveAutomationStorage(
+  payload: AutomationStoragePayload
 ): Promise<void> {
   const response =
     await fetch(
@@ -151,9 +235,7 @@ export async function saveAutomationScripts(
             "application/json",
         },
         body: JSON.stringify(
-          createAutomationPayload(
-            scripts
-          )
+          payload
         ),
       }
     );
@@ -183,4 +265,50 @@ export async function saveAutomationScripts(
       message
     );
   }
+}
+
+export async function loadAutomationScripts(): Promise<AutomationScriptDefinition[]> {
+  return (
+    await loadAutomationStorage()
+  ).scripts;
+}
+
+export async function saveAutomationScripts(
+  scripts: AutomationScriptDefinition[]
+): Promise<void> {
+  // Preserve timetable rows while the script editor updates the shared
+  // automations.json document.
+  const current =
+    await loadAutomationStorage();
+
+  await saveAutomationStorage(
+    createAutomationPayload(
+      scripts,
+      current.timetable
+    )
+  );
+}
+
+export async function loadAutomationTimetable(): Promise<TimetableEntryDefinition[]> {
+  return (
+    await loadAutomationStorage()
+  ).timetable;
+}
+
+export async function saveAutomationTimetable(
+  timetable: TimetableEntryDefinition[]
+): Promise<void> {
+  // Timetable and scripts intentionally share one persistent document. That
+  // keeps the selected script IDs and their schedules atomic from the user's
+  // point of view while remaining backward compatible with both native
+  // backends, which already preserve additional root properties.
+  const current =
+    await loadAutomationStorage();
+
+  await saveAutomationStorage(
+    createAutomationPayload(
+      current.scripts,
+      timetable
+    )
+  );
 }
