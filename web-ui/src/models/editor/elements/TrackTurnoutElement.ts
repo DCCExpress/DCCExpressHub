@@ -16,33 +16,42 @@ import {
 } from "../turnout/turnoutAccessoryHelpers";
 import type { DrawOptions } from "../types/EditorTypes";
 import type { IEditableProperty } from "./PropertyDescriptor";
+
 export abstract class TrackTurnoutElement extends TrackElement {
   outputMode: TurnoutOutputModeDto = "accessory";
   turnoutAddress: number = 0;
   turnoutClosedValue: boolean = false;
   turnoutClosed: boolean = false;
+
   constructor(x: number, y: number) {
     super(x, y);
     this.rotationStep = 45;
   }
+
   get isClosed(): boolean {
     return this.turnoutClosed === this.turnoutClosedValue;
   }
+
   abstract getConnections(): {
     entry: Point;
     straight: Point;
     div: Point;
   };
+
   turnoutLockedColor: string | CanvasGradient | CanvasPattern = "red";
   turnoutUnLockedColor: string | CanvasGradient | CanvasPattern = "white";
+
   abstract drawTurnout(ctx: CanvasRenderingContext2D, closed: boolean): void;
+
   override draw(ctx: CanvasRenderingContext2D, options?: DrawOptions): void {
     if (!this.visible) {
       return;
     }
+
     this.beginDraw(ctx, options);
     this.drawTurnout(ctx, this.isClosed);
     this.endDraw(ctx);
+
     this.beginDraw(ctx, options);
     drawTurnoutLockIndicator(
       ctx,
@@ -50,6 +59,7 @@ export abstract class TrackTurnoutElement extends TrackElement {
       this.centerY,
       this.locked
     );
+
     if (options?.showTurnoutAddress) {
       drawTextWithRoundedBackground(
         ctx,
@@ -58,6 +68,7 @@ export abstract class TrackTurnoutElement extends TrackElement {
         "T#" + this.turnoutAddress.toString(),
       );
     }
+
     if (options?.showOccupancySensorAddress) {
       drawTextWithRoundedBackground(
         ctx,
@@ -66,24 +77,42 @@ export abstract class TrackTurnoutElement extends TrackElement {
         "S#" + this.address.toString(),
       );
     }
+
     this.drawSectionInfo(ctx, options);
     this.endDraw(ctx);
     this.drawSelection(ctx);
   }
+
   toggle(): void {
-    if (this.locked || !this.enabled) return;
+    if (!this.enabled) return;
 
     const nextPhysicalValue = !this.turnoutClosed;
-    this.turnoutClosed = nextPhysicalValue;
+
+    /*
+     * SwitchMan lock:
+     *
+     * Keep sending the attempted operation to the backend so the initiating
+     * client receives the authoritative "turnout_locked" notification.
+     *
+     * Do NOT optimistically change the canvas state while locked. Otherwise
+     * the turnout visibly flips and then jumps back when the backend rejects
+     * the command and the runtime snapshot is reapplied.
+     */
+    if (!this.locked) {
+      this.turnoutClosed = nextPhysicalValue;
+    }
+
     sendTurnoutOutput(String(this.outputMode), this.turnoutAddress, nextPhysicalValue, {
       closedValue: this.turnoutClosedValue,
       closedAspect: getTurnoutClosedAspect(this),
       openedAspect: getTurnoutOpenedAspect(this),
     });
   }
+
   override mouseDown(_ev: MouseEvent): void {
     this.toggle();
   }
+
   override getEditableProperties(): IEditableProperty[] {
     return [
       ...super.getEditableProperties(),
