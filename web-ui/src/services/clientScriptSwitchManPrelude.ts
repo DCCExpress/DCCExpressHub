@@ -58,6 +58,84 @@ const __dccSwitchManNormalizeAddresses = value => {
   return result;
 };
 
+const __dccSwitchManNormalizeOptions = value => {
+  if (value === null || value === undefined) {
+    return {
+      timeoutMs: null,
+      onBlocked: null,
+    };
+  }
+
+  // Backward-compatible form:
+  // switchMan(addresses, callback, 30000)
+  if (typeof value !== "object" || Array.isArray(value)) {
+    return {
+      timeoutMs: Math.max(
+        0,
+        Math.min(600000, Number(value) || 0)
+      ),
+      onBlocked: null,
+    };
+  }
+
+  const rawTimeout = value.timeoutMs;
+  const timeoutMs =
+    rawTimeout === null || rawTimeout === undefined
+      ? null
+      : Math.max(
+          0,
+          Math.min(600000, Number(rawTimeout) || 0)
+        );
+
+  const onBlocked =
+    value.onBlocked === null || value.onBlocked === undefined
+      ? null
+      : value.onBlocked;
+
+  if (onBlocked !== null && typeof onBlocked !== "function") {
+    throw new Error(
+      "switchMan: options.onBlocked must be a function."
+    );
+  }
+
+  return {
+    timeoutMs,
+    onBlocked,
+  };
+};
+
+const __dccSwitchManNormalizeSetDelay = value => {
+  if (value === null || value === undefined) {
+    return 0;
+  }
+
+  const delayMs = Number(value);
+
+  if (
+    !Number.isFinite(delayMs) ||
+    delayMs < 0 ||
+    delayMs > 600000
+  ) {
+    throw new Error(
+      "sw.setTurnout: delayMs must be a number between 0 and 600000."
+    );
+  }
+
+  return delayMs;
+};
+
+const __dccSwitchManSafeConflicts = conflicts =>
+  Object.freeze(
+    conflicts.map(item =>
+      Object.freeze({
+        address: Number(item && item.address) || 0,
+        ownerId: String(item && item.ownerId || ""),
+        ownerName: String(item && item.ownerName || ""),
+        acquiredAtMs: Number(item && item.acquiredAtMs) || 0,
+      })
+    )
+  );
+
 const __dccSwitchManRejectPending = error => {
   for (const pending of __dccSwitchManPending.values()) {
     clearTimeout(pending.timer);
@@ -251,24 +329,22 @@ const __dccSwitchManRequest = async (
 const switchMan = async (
   addresses,
   callback,
-  timeoutMs = null
+  optionsOrTimeout = null
 ) => {
   if (typeof callback !== "function") {
     throw new Error(
-      "switchMan(addresses, callback, timeoutMs?): callback must be a function."
+      "switchMan(addresses, callback, optionsOrTimeout?): callback must be a function."
     );
   }
 
   const normalized =
     __dccSwitchManNormalizeAddresses(addresses);
 
-  const timeout =
-    timeoutMs === null || timeoutMs === undefined
-      ? null
-      : Math.max(
-          0,
-          Math.min(600000, Number(timeoutMs) || 0)
-        );
+  const options =
+    __dccSwitchManNormalizeOptions(optionsOrTimeout);
+
+  const timeout = options.timeoutMs;
+  const onBlocked = options.onBlocked;
 
   const deadline =
     timeout === null
@@ -281,6 +357,7 @@ const switchMan = async (
     (++__dccSwitchManScopeSequence);
 
   let acquired = false;
+  let onBlockedCalled = false;
 
   setInfo(
     "Váltókörzetre vár: " + normalized.join(", ")
@@ -306,21 +383,6 @@ const switchMan = async (
         error.code !== "turnout_locked"
       ) {
         throw error;
-      }
-
-      if (
-        timeout !== null &&
-        (
-          timeout === 0 ||
-          (deadline !== null && Date.now() >= deadline)
-        )
-      ) {
-        const timeoutError = new Error(
-          "switchMan timeout: " + normalized.join(", ")
-        );
-
-        timeoutError.code = "switchman_timeout";
-        throw timeoutError;
       }
 
       const conflicts =
@@ -356,6 +418,29 @@ const switchMan = async (
         );
       }
 
+      if (!onBlockedCalled && onBlocked) {
+        onBlockedCalled = true;
+
+        await onBlocked(
+          __dccSwitchManSafeConflicts(conflicts)
+        );
+      }
+
+      if (
+        timeout !== null &&
+        (
+          timeout === 0 ||
+          (deadline !== null && Date.now() >= deadline)
+        )
+      ) {
+        const timeoutError = new Error(
+          "switchMan timeout: " + normalized.join(", ")
+        );
+
+        timeoutError.code = "switchman_timeout";
+        throw timeoutError;
+      }
+
       const remaining =
         deadline === null
           ? 250
@@ -379,7 +464,7 @@ const switchMan = async (
   const sw = Object.freeze({
     addresses: Object.freeze([...normalized]),
 
-    async setTurnout(address, closed) {
+    async setTurnout(address, closed, delayMs = 0) {
       const normalizedAddress =
         __dccSwitchManNormalizeAddresses(address)[0];
 
@@ -388,6 +473,9 @@ const switchMan = async (
           "SwitchMan scope does not own turnout " + normalizedAddress + "."
         );
       }
+
+      const waitAfterMs =
+        __dccSwitchManNormalizeSetDelay(delayMs);
 
       await delay(0);
 
@@ -401,7 +489,7 @@ const switchMan = async (
         15000
       );
 
-      await delay(0);
+      await delay(waitAfterMs);
 
       return response.extra || {
         address: normalizedAddress,
@@ -454,7 +542,7 @@ const switchMan = async (
 // Proxy invariants require those properties to be returned byte-for-byte.
 // Backend SwitchMan locking remains authoritative: a normal dcc.setTurnout()
 // cannot move a turnout that is currently leased by a switchMan scope.
-// Inside the scope use await sw.setTurnout(address, closed).
+// Inside the scope use await sw.setTurnout(address, closed, delayMs?).
 `;
 }
 
