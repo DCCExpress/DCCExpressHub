@@ -4,6 +4,7 @@
 #include <ArduinoJson.h>
 #include <ESPAsyncWebServer.h>
 
+#include "FastClockRuntime.h"
 #include "ICommandCenter.h"
 #include "LayoutRuntime.h"
 #include "RuntimeStateStore.h"
@@ -129,6 +130,7 @@ private:
   ICommandCenter& _commandCenter;
   LayoutRuntime& _runtime;
   RuntimeStateStore& _stateStore;
+  FastClockRuntime _fastClock;
 
   bool _trackPower = false;
   bool _programmingPower = false;

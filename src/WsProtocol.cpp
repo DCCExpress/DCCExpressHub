@@ -12,6 +12,22 @@
 
 namespace
 {
+    void appendFastClockSnapshot(
+        JsonObject out,
+        const FastClockSnapshot &snapshot)
+    {
+        out["timeMs"] =
+            snapshot.timeMs;
+
+        out["running"] =
+            snapshot.running;
+
+        out["speed"] =
+            snapshot.speed;
+
+        out["serverNowMs"] =
+            snapshot.serverNowMs;
+    }
 
     enum class ProgrammingTrackTransition : uint8_t
     {
@@ -1451,6 +1467,22 @@ void WsProtocol::sendRuntimeSnapshot(
     sendDccExStatus(
         client);
 
+    {
+        const FastClockSnapshot snapshot =
+            _fastClock.snapshot();
+
+        JsonDocument data;
+
+        appendFastClockSnapshot(
+            data.to<JsonObject>(),
+            snapshot);
+
+        send(
+            client,
+            "fastClockChanged",
+            data.as<JsonVariantConst>());
+    }
+
     for (
         const auto &item :
         _runtime.accessories())
@@ -1573,6 +1605,21 @@ void WsProtocol::broadcastRuntimeSnapshot()
 
     broadcastPowerInfo();
     broadcastDccExStatus();
+
+    {
+        const FastClockSnapshot snapshot =
+            _fastClock.snapshot();
+
+        JsonDocument data;
+
+        appendFastClockSnapshot(
+            data.to<JsonObject>(),
+            snapshot);
+
+        broadcast(
+            "fastClockChanged",
+            data);
+    }
 
     for (
         const auto &item :
@@ -2410,6 +2457,136 @@ void WsProtocol::handleMessage(
 
         sendPowerInfo(
             client);
+
+        return;
+    }
+
+    if (
+        strcmp(
+            type,
+            "fastClockCommand") ==
+        0)
+    {
+        const String requestId =
+            data["requestId"] |
+            "";
+
+        const String action =
+            data["action"] |
+            "";
+
+        FastClockSnapshot snapshot;
+        bool hasSnapshot =
+            true;
+        bool changed =
+            false;
+        bool ok =
+            true;
+
+        if (
+            action ==
+            "snapshot")
+        {
+            snapshot =
+                _fastClock.snapshot();
+        }
+        else if (
+            action ==
+            "run")
+        {
+            snapshot =
+                _fastClock.run();
+
+            changed =
+                true;
+        }
+        else if (
+            action ==
+            "pause")
+        {
+            snapshot =
+                _fastClock.pause();
+
+            changed =
+                true;
+        }
+        else if (
+            action ==
+            "reset")
+        {
+            snapshot =
+                _fastClock.reset();
+
+            changed =
+                true;
+        }
+        else if (
+            action ==
+            "setSpeed")
+        {
+            const double speed =
+                data["speed"] |
+                1.0;
+
+            snapshot =
+                _fastClock.setSpeed(
+                    speed);
+
+            changed =
+                true;
+        }
+        else
+        {
+            hasSnapshot =
+                false;
+
+            ok =
+                false;
+        }
+
+        if (
+            changed)
+        {
+            JsonDocument changedData;
+
+            appendFastClockSnapshot(
+                changedData.to<JsonObject>(),
+                snapshot);
+
+            broadcast(
+                "fastClockChanged",
+                changedData);
+        }
+
+        JsonDocument response;
+
+        response["requestId"] =
+            requestId;
+
+        response["action"] =
+            action;
+
+        response["ok"] =
+            ok;
+
+        if (
+            hasSnapshot)
+        {
+            appendFastClockSnapshot(
+                response["snapshot"]
+                    .to<JsonObject>(),
+                snapshot);
+        }
+        else
+        {
+            response["message"] =
+                "Unknown fast clock command action.";
+        }
+
+        send(
+            client,
+            "fastClockResponse",
+            response.as<JsonVariantConst>());
 
         return;
     }

@@ -14,6 +14,7 @@ public sealed class WsHub
     readonly LayoutRuntime LayoutRuntime;
     readonly RuntimeStateStore RuntimeStateStore;
     private readonly ILogger<WsHub> Logger;
+    private readonly FastClockRuntime FastClock = new();
     private readonly ConcurrentDictionary<Guid, WebSocket> Clients = new();
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     private readonly object _programmingGate = new();
@@ -118,6 +119,9 @@ public sealed class WsHub
                     await Send(ws, "heartbeatAck", new { });
                     await SendCommandCenterInfo(ws);
                     await SendPower(ws);
+                    return;
+                case "fastClockCommand":
+                    await HandleFastClockCommand(ws, data);
                     return;
                 case "setTrackPower":
                     ok = await CommandCenter.SetTrackPowerAsync(B(data, "on"), CommandCenterConfigStore.Current.PowerIncludesProgramming, ct);
@@ -275,6 +279,75 @@ public sealed class WsHub
             if (!ok)
                 await Send(ws, "error", new { message = "command_center_send_failed", operation = type });
         }
+    }
+
+    private async Task HandleFastClockCommand(WebSocket ws, JsonElement data)
+    {
+        var requestId = S(data, "requestId");
+        var action = S(data, "action");
+
+        FastClockSnapshot snapshot;
+        var changed = false;
+
+        switch (action)
+        {
+            case "snapshot":
+                snapshot = FastClock.GetSnapshot();
+                break;
+
+            case "run":
+                snapshot = FastClock.Run();
+                changed = true;
+                break;
+
+            case "pause":
+                snapshot = FastClock.Pause();
+                changed = true;
+                break;
+
+            case "reset":
+                snapshot = FastClock.Reset();
+                changed = true;
+                break;
+
+            case "setSpeed":
+                snapshot = FastClock.SetSpeed(
+                    D(
+                        data,
+                        "speed",
+                        1d));
+                changed = true;
+                break;
+
+            default:
+                await Send(
+                    ws,
+                    "fastClockResponse",
+                    new
+                    {
+                        requestId,
+                        action,
+                        ok = false,
+                        message = "Unknown fast clock command action."
+                    });
+                return;
+        }
+
+        if (changed)
+            await Broadcast(
+                "fastClockChanged",
+                snapshot);
+
+        await Send(
+            ws,
+            "fastClockResponse",
+            new
+            {
+                requestId,
+                action,
+                ok = true,
+                snapshot
+            });
     }
 
     private async Task Programming(JsonElement d, CancellationToken ct)
@@ -488,6 +561,9 @@ public sealed class WsHub
 
             await BroadcastPower();
             await BroadcastStatus();
+            await Broadcast(
+                "fastClockChanged",
+                FastClock.GetSnapshot());
 
             foreach (var item in LayoutRuntime.RuntimeSnapshot())
                 await Broadcast(item.Type, item.Data);
@@ -568,6 +644,10 @@ public sealed class WsHub
         await SendCommandCenterInfo(ws);
         await SendPower(ws);
         await Send(ws, "dccExStatus", Status());
+        await Send(
+            ws,
+            "fastClockChanged",
+            FastClock.GetSnapshot());
 
         foreach (var l in HubState.Locos.Values)
         {
@@ -670,6 +750,17 @@ public sealed class WsHub
         if (d.ValueKind != JsonValueKind.Object || !d.TryGetProperty(n, out var x)) return fallback;
         if (x.ValueKind == JsonValueKind.Number && x.TryGetInt32(out var number)) return number;
         if (x.ValueKind == JsonValueKind.String && int.TryParse(x.GetString(), out var textNumber)) return textNumber;
+        return fallback;
+    }
+
+    private static double D(JsonElement d, string n, double fallback)
+    {
+        if (d.ValueKind != JsonValueKind.Object || !d.TryGetProperty(n, out var x))
+            return fallback;
+
+        if (x.ValueKind == JsonValueKind.Number && x.TryGetDouble(out var number))
+            return number;
+
         return fallback;
     }
 

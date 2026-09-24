@@ -80,6 +80,7 @@ import { TrackTurnoutLeftElement } from "./models/editor/elements/TrackTurnoutLe
 import { TrackTurnoutRightElement } from "./models/editor/elements/TrackTurnoutRightElement";
 import { TrackTurnoutTwoWayElement } from "./models/editor/elements/TrackTurnoutTwoWayElement";
 import { TrackTurnoutThreeWayElement } from "./models/editor/elements/TrackTurnoutThreeWayElement";
+import { ClockElement } from "./models/editor/elements/ClockElement";
 import { LabelElement } from "./models/editor/elements/LabelElement";
 import { RouteButtonElement } from "./models/editor/elements/RouteButtonElement";
 import ElementPreview from "@/models/editor/rendering/ElementPreviewRenderer";
@@ -272,6 +273,12 @@ function parseImportedProject(raw: unknown): {
   };
 }
 
+function createClockPreview(): ClockElement {
+  const clock = new ClockElement(0, 0);
+  clock.scale = 0.35;
+  return clock;
+}
+
 function createSignalPreview(): TrackSignalElement {
   return new TrackSignalElement(0, 0);
 }
@@ -331,6 +338,7 @@ const PICKER_ITEMS: PickerItem[] = [
   { type: ELEMENT_TYPES.BUTTON, get label() { return i18next.t("ui.outputButton"); }, preview: new ButtonElement(0, 0) },
   { type: ELEMENT_TYPES.BUTTON_ROUTE, get label() { return i18next.t("ui.route"); }, preview: new RouteButtonElement(0, 0) },
   { type: ELEMENT_TYPES.BUTTON_AUDIO, get label() { return i18next.t("ui.audioButton"); }, preview: new AudioButtonElement(0, 0) },
+  { type: ELEMENT_TYPES.CLOCK, get label() { return i18next.t("fastClock.title"); }, preview: createClockPreview() },
   { type: ELEMENT_TYPES.LABEL, get label() { return i18next.t("ui.label"); }, preview: new LabelElement(0, 0) },
 ];
 
