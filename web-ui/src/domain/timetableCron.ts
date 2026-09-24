@@ -174,13 +174,14 @@ export function timetableCronMatches(
 
 /**
  * Expands a two-field railway cron into concrete HH:MM occurrences in a rolling
- * FastClock window. The current partially elapsed minute is intentionally not
- * returned; the first candidate is the next FastClock minute.
+ * FastClock window. By default the current FastClock minute is included so the
+ * UI can keep the active timetable row visible/highlighted.
  */
 export function enumerateTimetableCronOccurrences(
   cron: string,
   fastClockTimeMs: number,
-  windowMinutes = 60
+  windowMinutes = 60,
+  includeCurrentMinute = true
 ): TimetableCronOccurrence[] {
   const parsed = parseTimetableCron(cron);
 
@@ -191,7 +192,8 @@ export function enumerateTimetableCronOccurrences(
   const dayMs = MINUTES_PER_DAY * MINUTE_MS;
   const normalizedMs = ((fastClockTimeMs % dayMs) + dayMs) % dayMs;
   const currentMinuteOfDay = Math.floor(normalizedMs / MINUTE_MS);
-  const firstAbsoluteMinute = currentMinuteOfDay + 1;
+  const firstAbsoluteMinute =
+    currentMinuteOfDay + (includeCurrentMinute ? 0 : 1);
   const result: TimetableCronOccurrence[] = [];
 
   for (let offset = 0; offset < windowMinutes; offset += 1) {

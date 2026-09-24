@@ -5,6 +5,7 @@ import {
   Badge,
   Button,
   Card,
+  Divider,
   Group,
   Loader,
   NumberInput,
@@ -19,6 +20,7 @@ import {
   IconDeviceFloppy,
   IconPlayerPause,
   IconPlayerPlay,
+  IconPlayerStop,
   IconRefresh,
 } from "@tabler/icons-react";
 
@@ -40,6 +42,15 @@ import {
   fastClockStore,
   type FastClockViewState,
 } from "@/services/fastClockStore";
+import {
+  getAutomationFinishing,
+  subscribeAutomationFinishing,
+} from "@/services/clientScriptRunner";
+import {
+  timetableScheduler,
+  type TimetableActiveRun,
+  type TimetableSchedulerState,
+} from "@/services/timetableScheduler";
 
 type TimetablePanelProps = {
   scripts: AutomationScriptDefinition[];
@@ -54,6 +65,8 @@ type ExpandedTimetableRow = {
   dayOffset: number;
   scriptName: string;
   scriptMissing: boolean;
+  isCurrent: boolean;
+  activeRun: TimetableActiveRun | null;
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -98,8 +111,19 @@ export default function TimetablePanel({
   const [timetable, setTimetable] = useState<TimetableEntryDefinition[]>([]);
   const [timetableLoading, setTimetableLoading] = useState(true);
   const [timetableError, setTimetableError] = useState<string | null>(null);
+  const [schedulerState, setSchedulerState] = useState<TimetableSchedulerState>(
+    () => timetableScheduler.getState()
+  );
+  const [automationFinishing, setAutomationFinishingState] = useState(
+    () => getAutomationFinishing()
+  );
 
   useEffect(() => fastClockStore.subscribe(setClockState), []);
+  useEffect(() => timetableScheduler.subscribe(setSchedulerState), []);
+  useEffect(
+    () => subscribeAutomationFinishing(setAutomationFinishingState),
+    []
+  );
 
   useEffect(() => {
     if (clockState.snapshot) {
@@ -139,6 +163,10 @@ export default function TimetablePanel({
     };
   }, [timetableRevision]);
 
+  useEffect(() => {
+    timetableScheduler.configure(scripts, timetable);
+  }, [scripts, timetable]);
+
   const snapshot = clockState.snapshot;
 
   const formattedTime = useMemo(
@@ -162,6 +190,7 @@ export default function TimetablePanel({
     );
 
     const rows: ExpandedTimetableRow[] = [];
+    const representedRunIds = new Set<string>();
 
     for (const entry of timetable) {
       if (!entry.enabled) {
@@ -176,6 +205,19 @@ export default function TimetablePanel({
       );
 
       for (const occurrence of occurrences) {
+        const activeRun =
+          occurrence.dayOffset === 0
+            ? schedulerState.activeRuns.find(
+                run =>
+                  run.timetableEntryId === entry.id &&
+                  run.scheduledMinuteOfDay === occurrence.minuteOfDay
+              ) ?? null
+            : null;
+
+        if (activeRun) {
+          representedRunIds.add(activeRun.id);
+        }
+
         rows.push({
           key: `${entry.id}:${occurrence.absoluteMinute}`,
           time: formatTimetableTime(
@@ -186,8 +228,40 @@ export default function TimetablePanel({
           dayOffset: occurrence.dayOffset,
           scriptName: script?.name ?? "Hiányzó script",
           scriptMissing: !script,
+          isCurrent:
+            occurrence.dayOffset === 0 &&
+            occurrence.absoluteMinute === fastClockMinute,
+          activeRun,
         });
       }
+    }
+
+    // A timetable window normally starts at the current minute, so a run that
+    // started earlier would disappear from the list while it is still active.
+    // Keep that concrete departure visible until its script actually finishes.
+    for (const activeRun of schedulerState.activeRuns) {
+      if (representedRunIds.has(activeRun.id)) {
+        continue;
+      }
+
+      let absoluteMinute = activeRun.scheduledMinuteOfDay;
+
+      if (absoluteMinute > fastClockMinute) {
+        // The run belongs to the previous FastClock day (midnight wrap).
+        absoluteMinute -= 24 * 60;
+      }
+
+      rows.push({
+        key: `active:${activeRun.id}`,
+        time: activeRun.scheduledTime,
+        absoluteMinute,
+        dayOffset: 0,
+        scriptName: activeRun.scriptName,
+        scriptMissing: false,
+        isCurrent:
+          activeRun.scheduledMinuteOfDay === fastClockMinute,
+        activeRun,
+      });
     }
 
     rows.sort((left, right) => {
@@ -195,15 +269,30 @@ export default function TimetablePanel({
         return left.absoluteMinute - right.absoluteMinute;
       }
 
+      if (left.activeRun && !right.activeRun) {
+        return -1;
+      }
+
+      if (!left.activeRun && right.activeRun) {
+        return 1;
+      }
+
       return left.scriptName.localeCompare(right.scriptName);
     });
 
     return rows;
-  }, [fastClockMinute, timetable, scripts, snapshot !== null]);
+  }, [
+    fastClockMinute,
+    timetable,
+    scripts,
+    schedulerState.activeRuns,
+    snapshot !== null,
+  ]);
 
   const executeClockCommand = async (
     operation: () => Promise<NonNullable<FastClockViewState["snapshot"]>>,
-    fallbackMessage: string
+    fallbackMessage: string,
+    rebaseSchedulerAfter = false
   ): Promise<void> => {
     if (busy) return;
 
@@ -213,6 +302,10 @@ export default function TimetablePanel({
       const next = await operation();
       fastClockStore.applyServerSnapshot(next);
       setSpeedInput(next.speed);
+
+      if (rebaseSchedulerAfter) {
+        timetableScheduler.rebase();
+      }
     } catch (error) {
       showNotification({
         color: "red",
@@ -333,7 +426,8 @@ export default function TimetablePanel({
                 onClick={() => {
                   void executeClockCommand(
                     resetFastClock,
-                    "A FastClock nem állítható alaphelyzetbe."
+                    "A FastClock nem állítható alaphelyzetbe.",
+                    true
                   );
                 }}
               >
@@ -375,13 +469,21 @@ export default function TimetablePanel({
               <div>
                 <Text fw={700}>Menetrend</Text>
                 <Text size="xs" c="dimmed">
-                  Következő {TIMETABLE_WINDOW_MINUTES} FastClock perc · csak az engedélyezett sorok
+                  Következő {TIMETABLE_WINDOW_MINUTES} FastClock perc · a futó indulások addig maradnak, amíg a script be nem fejeződik
                 </Text>
               </div>
 
-              <Badge variant="light" color="blue">
-                {expandedRows.length} indulás
-              </Badge>
+              <Group gap={6} wrap="wrap">
+                <Badge variant="light" color="blue">
+                  {expandedRows.length} sor
+                </Badge>
+
+                {schedulerState.activeRuns.length > 0 && (
+                  <Badge variant="filled" color="green">
+                    {schedulerState.activeRuns.length} fut
+                  </Badge>
+                )}
+              </Group>
             </Group>
 
             {timetableError && (
@@ -418,7 +520,22 @@ export default function TimetablePanel({
 
                 <Table.Tbody>
                   {expandedRows.map(row => (
-                    <Table.Tr key={row.key}>
+                    <Table.Tr
+                      key={row.key}
+                      style={
+                        row.activeRun
+                          ? {
+                              backgroundColor:
+                                "var(--mantine-color-green-light)",
+                            }
+                          : row.isCurrent
+                            ? {
+                                backgroundColor:
+                                  "var(--mantine-color-blue-light)",
+                              }
+                            : {}
+                      }
+                    >
                       <Table.Td>
                         <Group gap={5} wrap="nowrap">
                           <Text
@@ -429,6 +546,12 @@ export default function TimetablePanel({
                             {row.time}
                           </Text>
 
+                          {row.isCurrent && (
+                            <Badge size="xs" variant="filled" color="blue">
+                              MOST
+                            </Badge>
+                          )}
+
                           {row.dayOffset > 0 && (
                             <Badge size="xs" variant="light" color="gray">
                               +1 nap
@@ -438,15 +561,53 @@ export default function TimetablePanel({
                       </Table.Td>
 
                       <Table.Td>
-                        <Text
-                          size="sm"
-                          {...(row.scriptMissing
-                            ? { c: "red" as const }
-                            : {})}
-                          fw={row.scriptMissing ? 700 : 500}
-                        >
-                          {row.scriptName}
-                        </Text>
+                        <Stack gap={2}>
+                          <Group gap={6} wrap="wrap">
+                            <Text
+                              size="sm"
+                              {...(row.scriptMissing
+                                ? { c: "red" as const }
+                                : {})}
+                              fw={
+                                row.activeRun || row.isCurrent || row.scriptMissing
+                                  ? 700
+                                  : 500
+                              }
+                            >
+                              {row.scriptName}
+                            </Text>
+
+                            {row.activeRun && (
+                              <Badge
+                                size="xs"
+                                variant="filled"
+                                color={
+                                  row.activeRun.status === "paused"
+                                    ? "yellow"
+                                    : row.activeRun.status === "launching"
+                                      ? "blue"
+                                      : "green"
+                                }
+                              >
+                                {row.activeRun.status === "paused"
+                                  ? "PAUSED"
+                                  : row.activeRun.status === "launching"
+                                    ? "INDUL"
+                                    : "FUT"}
+                              </Badge>
+                            )}
+                          </Group>
+
+                          {row.activeRun && (
+                            <Text
+                              size="xs"
+                              c="dimmed"
+                              style={{ whiteSpace: "pre-wrap" }}
+                            >
+                              {row.activeRun.message || "Script fut..."}
+                            </Text>
+                          )}
+                        </Stack>
                       </Table.Td>
                     </Table.Tr>
                   ))}
@@ -454,7 +615,68 @@ export default function TimetablePanel({
               </Table>
             )}
 
+            <Divider />
+
+            <Group justify="space-between" align="center" wrap="wrap">
+              <Group gap="xs" wrap="wrap">
+                <Badge
+                  size="sm"
+                  variant={schedulerState.running ? "filled" : "light"}
+                  color={schedulerState.running ? "green" : "gray"}
+                >
+                  {schedulerState.running
+                    ? "MENETREND AKTÍV"
+                    : "MENETREND LEÁLLÍTVA"}
+                </Badge>
+
+                {automationFinishing && (
+                  <Badge size="sm" variant="light" color="orange">
+                    FINISHING · új indítás tiltva
+                  </Badge>
+                )}
+              </Group>
+
+              {schedulerState.lastTriggeredAt &&
+                schedulerState.lastTriggeredScriptName && (
+                  <Text size="xs" c="dimmed">
+                    Utolsó indítás: {schedulerState.lastTriggeredAt} ·{" "}
+                    {schedulerState.lastTriggeredScriptName}
+                  </Text>
+                )}
+            </Group>
+
+            <Group grow gap="xs">
+              <Button
+                color="green"
+                variant="light"
+                leftSection={<IconPlayerPlay size={16} />}
+                disabled={
+                  schedulerState.running ||
+                  !clockState.connected ||
+                  !snapshot ||
+                  timetableLoading ||
+                  timetable.length === 0
+                }
+                onClick={() => timetableScheduler.start()}
+              >
+                Menetrend Start
+              </Button>
+
+              <Button
+                color="red"
+                variant="light"
+                leftSection={<IconPlayerStop size={16} />}
+                disabled={!schedulerState.running}
+                onClick={() => timetableScheduler.stop()}
+              >
+                Menetrend Stop
+              </Button>
+            </Group>
+
+            <Divider />
+
             <Button
+              variant="default"
               leftSection={<IconCalendarTime size={17} />}
               onClick={onOpenTimetable}
             >

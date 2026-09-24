@@ -349,9 +349,11 @@ const PROPERTY_WIDTH_KEY = "dcc-express-lite.layout.propertyPanelWidth";
 const LOCO_COLLAPSED_KEY = "dcc-express-lite.layout.locoPanelCollapsed";
 const PROPERTY_COLLAPSED_KEY = "dcc-express-lite.layout.propertyPanelCollapsed";
 const RIGHT_PANEL_MODE_KEY = "dcc-express-lite.layout.rightPanelMode";
+const RUNTIME_TAB_SESSION_KEY = "dcc-express-lite.layout.runtimeTab";
 const RIGHT_LOCO_STORAGE_KEY = "dcc-express-lite.loco-panel.right.selected-loco-id";
 
 type RightPanelMode = "property" | "loco";
+type RuntimeTab = "automation" | "timetable" | "info" | "log";
 
 function readStoredNumber(key: string, fallback: number): number {
   const value = Number(localStorage.getItem(key));
@@ -364,6 +366,20 @@ function readStoredBoolean(key: string): boolean {
 
 function readStoredRightPanelMode(): RightPanelMode {
   return localStorage.getItem(RIGHT_PANEL_MODE_KEY) === "loco" ? "loco" : "property";
+}
+
+function readStoredRuntimeTab(): RuntimeTab {
+  const value = sessionStorage.getItem(RUNTIME_TAB_SESSION_KEY);
+
+  if (
+    value === "timetable" ||
+    value === "info" ||
+    value === "log"
+  ) {
+    return value;
+  }
+
+  return "automation";
 }
 
 function updateProperty(element: BaseElement, property: IEditableProperty, rawValue: unknown): void {
@@ -493,6 +509,7 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
   const [locoPanelCollapsed, setLocoPanelCollapsed] = useState(() => readStoredBoolean(LOCO_COLLAPSED_KEY));
   const [propertyPanelCollapsed, setPropertyPanelCollapsed] = useState(() => readStoredBoolean(PROPERTY_COLLAPSED_KEY));
   const [rightPanelMode, setRightPanelMode] = useState<RightPanelMode>(readStoredRightPanelMode);
+  const [runtimeTab, setRuntimeTab] = useState<RuntimeTab>(readStoredRuntimeTab);
   const resizeRef = useRef<{ side: "left" | "right"; startX: number; startWidth: number } | null>(null);
   const temperatureCriticalRef = useRef(false);
   const [debugOpened, setDebugOpened] = useState(false);
@@ -1106,7 +1123,21 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
                   />
                 </>
               ) : (
-                <Tabs defaultValue="automation" className="lite-runtime-tabs">
+                <Tabs
+                  value={runtimeTab}
+                  onChange={value => {
+                    const nextTab: RuntimeTab =
+                      value === "timetable" ||
+                      value === "info" ||
+                      value === "log"
+                        ? value
+                        : "automation";
+
+                    setRuntimeTab(nextTab);
+                    sessionStorage.setItem(RUNTIME_TAB_SESSION_KEY, nextTab);
+                  }}
+                  className="lite-runtime-tabs"
+                >
                   <Tabs.List grow mb="sm">
                     <Tabs.Tab value="automation">{i18next.t("ui.automation2")}</Tabs.Tab>
                     <Tabs.Tab value="timetable">Menetrend</Tabs.Tab>
