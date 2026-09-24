@@ -357,6 +357,74 @@ const RIGHT_LOCO_STORAGE_KEY = "dcc-express-lite.loco-panel.right.selected-loco-
 type RightPanelMode = "property" | "loco";
 type RuntimeTab = "automation" | "timetable" | "info" | "log";
 
+type SwitchManLockSnapshotItem = {
+  address?: unknown;
+};
+
+function switchManTurnoutAddresses(element: BaseElement): number[] {
+  if (isTurnoutElement(element)) {
+    return Number.isInteger(element.turnoutAddress) && element.turnoutAddress > 0
+      ? [element.turnoutAddress]
+      : [];
+  }
+
+  if (
+    element instanceof TrackTurnoutDoubleElement ||
+    element instanceof TrackTurnoutThreeWayElement
+  ) {
+    return [element.turnout1Address, element.turnout2Address]
+      .filter(address => Number.isInteger(address) && address > 0);
+  }
+
+  return [];
+}
+
+function isSwitchManTurnoutElement(element: BaseElement): boolean {
+  return switchManTurnoutAddresses(element).length > 0;
+}
+
+function applySwitchManLocksToLayout(
+  layout: LayoutView,
+  rawLocks: unknown
+): boolean {
+  const lockedAddresses = new Set<number>();
+
+  if (Array.isArray(rawLocks)) {
+    for (const rawLock of rawLocks) {
+      const address = Number(
+        (rawLock as SwitchManLockSnapshotItem | null)?.address
+      );
+
+      if (
+        Number.isInteger(address) &&
+        address >= 1 &&
+        address <= 2048
+      ) {
+        lockedAddresses.add(address);
+      }
+    }
+  }
+
+  let changed = false;
+
+  for (const element of layout.getAllElements()) {
+    const addresses = switchManTurnoutAddresses(element);
+
+    if (addresses.length === 0) {
+      continue;
+    }
+
+    const nextLocked = addresses.some(address => lockedAddresses.has(address));
+
+    if (element.locked !== nextLocked) {
+      element.locked = nextLocked;
+      changed = true;
+    }
+  }
+
+  return changed;
+}
+
 function readStoredNumber(key: string, fallback: number): number {
   const value = Number(localStorage.getItem(key));
   return Number.isFinite(value) && value >= 240 && value <= 640 ? value : fallback;
@@ -616,9 +684,9 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
     }
   }, []);
 
-  // Level-crossing lamps are a visual animation. The canvas normally redraws
-  // only after UI/runtime events, so request a lightweight redraw while at
-  // least one level crossing has blinking enabled.
+  // Level-crossing lamps and SwitchMan turnout locks are visual animations.
+  // The canvas normally redraws only after UI/runtime events, so use the same
+  // lightweight animation tick for both instead of creating another timer.
   useEffect(() => {
     const timer = window.setInterval(() => {
       const needsBlinkRedraw =
@@ -626,9 +694,15 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
           .getAllElements()
           .some(
             element =>
-              element instanceof TrackLevelCrossingElement &&
-              element.lightsEnabled &&
-              element.blinkingEnabled
+              (
+                element instanceof TrackLevelCrossingElement &&
+                element.lightsEnabled &&
+                element.blinkingEnabled
+              ) ||
+              (
+                isSwitchManTurnoutElement(element) &&
+                element.locked
+              )
           );
 
       if (needsBlinkRedraw) {
@@ -637,6 +711,73 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
     }, 225);
 
     return () => window.clearInterval(timer);
+  }, [layout, invalidate]);
+
+  // Mirror the backend-authoritative SwitchMan lock snapshot onto the layout
+  // turnout elements. The backend broadcasts switchManChanged on every acquire
+  // and release; we also explicitly request one snapshot when this LayoutView
+  // instance becomes active so a lock acquired before page mount is not missed.
+  useEffect(() => {
+    let disposed = false;
+
+    const applyLocks = (locks: unknown): void => {
+      if (disposed) return;
+
+      if (applySwitchManLocksToLayout(layout, locks)) {
+        invalidate();
+      }
+    };
+
+    const unsubscribeMessages =
+      wsClient.subscribeMessages(message => {
+        const raw = message as unknown as {
+          type?: string;
+          data?: {
+            action?: string;
+            extra?: { locks?: unknown } | null;
+            locks?: unknown;
+          };
+        };
+
+        if (raw.type === "switchManChanged") {
+          applyLocks(raw.data?.locks);
+          return;
+        }
+
+        if (
+          raw.type === "switchManResponse" &&
+          raw.data?.action === "snapshot"
+        ) {
+          applyLocks(raw.data?.extra?.locks);
+        }
+      });
+
+    const unsubscribeStatus =
+      wsClient.subscribeStatus(status => {
+        if (status !== "connected") {
+          return;
+        }
+
+        const requestId =
+          typeof crypto !== "undefined" &&
+          typeof crypto.randomUUID === "function"
+            ? crypto.randomUUID()
+            : `switchman-snapshot-${Date.now()}`;
+
+        wsClient.send({
+          type: "switchManCommand",
+          data: {
+            requestId,
+            action: "snapshot",
+          },
+        });
+      });
+
+    return () => {
+      disposed = true;
+      unsubscribeMessages();
+      unsubscribeStatus();
+    };
   }, [layout, invalidate]);
 
   const setBusy = useCallback((busy: boolean, text?: string) => {

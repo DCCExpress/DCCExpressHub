@@ -1,5 +1,6 @@
 import type { RotationStepDto } from "@domain/layout/layoutDto";
 import { TrackElement } from "../core/TrackElement";
+import { drawTurnoutLockIndicator } from "../turnout/turnoutLockIndicator";
 import type { DrawOptions } from "../types/EditorTypes";
 
 /** Shared motor feedback and draw lifecycle for double and three-way turnouts. */
@@ -24,6 +25,12 @@ export abstract class TrackMultiMotorTurnoutElement extends TrackElement {
     this.endDraw(ctx);
 
     this.beginDraw(ctx);
+    drawTurnoutLockIndicator(
+      ctx,
+      this.centerX,
+      this.centerY,
+      this.locked
+    );
     if (options?.showTurnoutAddress) this.drawAddressLabels(ctx);
     this.drawSectionInfo(ctx, options);
     this.endDraw(ctx);

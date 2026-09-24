@@ -7,6 +7,7 @@ import { Point } from "../../../domain/Rect";
 import { drawTextWithRoundedBackground } from "../../../graphics";
 import { TURNOUT_OUTPUT_MODE_OPTIONS, sendTurnoutOutput } from "../../../services/layoutOutput";
 import { TrackElement } from "../core/TrackElement";
+import { drawTurnoutLockIndicator } from "../turnout/turnoutLockIndicator";
 import {
   getTurnoutClosedAspect,
   getTurnoutOpenedAspect,
@@ -43,6 +44,12 @@ export abstract class TrackTurnoutElement extends TrackElement {
     this.drawTurnout(ctx, this.isClosed);
     this.endDraw(ctx);
     this.beginDraw(ctx, options);
+    drawTurnoutLockIndicator(
+      ctx,
+      this.centerX,
+      this.centerY,
+      this.locked
+    );
     if (options?.showTurnoutAddress) {
       drawTextWithRoundedBackground(
         ctx,
@@ -64,6 +71,8 @@ export abstract class TrackTurnoutElement extends TrackElement {
     this.drawSelection(ctx);
   }
   toggle(): void {
+    if (this.locked || !this.enabled) return;
+
     const nextPhysicalValue = !this.turnoutClosed;
     this.turnoutClosed = nextPhysicalValue;
     sendTurnoutOutput(String(this.outputMode), this.turnoutAddress, nextPhysicalValue, {
