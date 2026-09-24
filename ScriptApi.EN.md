@@ -1,0 +1,913 @@
+# DCCExpressHub – Automation Script API
+
+## 1. Basics
+
+DCCExpressHub automation scripts run as asynchronous JavaScript. This allows waiting operations to use `await` while keeping the UI responsive and preserving Pause / Resume / Abort behavior.
+
+### Custom async function
+
+```js
+async function runTrain() {
+  dcc.setLoco(18, 30, "forward");
+  await delay(1000);
+  dcc.setLoco(18, 0, "forward");
+}
+
+await runTrain();
+```
+
+### `await delay(ms)`
+
+Non-blocking delay.
+
+```js
+await delay(1000);
+```
+
+### `await Promise.all([...])`
+
+Runs multiple asynchronous operations in parallel and waits until all of them complete.
+
+```js
+await Promise.all([
+  task1(),
+  task2(),
+]);
+```
+
+### `setInfo(message)`
+
+Displays a temporary status message on the running automation card.
+
+```js
+setInfo("Locomotive is departing for block B1");
+```
+
+Clear the message:
+
+```js
+setInfo("");
+```
+
+### `log(value, ...)`
+
+Writes values to the browser console together with the automation name.
+
+```js
+log("P101 reached the next point", 33);
+```
+
+### `element`
+
+Read-only safe context of the automation element that is running the script.
+
+```js
+log(element.id, element.name);
+```
+
+---
+
+## 2. Automation Control – Running / Finishing
+
+### `isRunning()`
+
+Returns `true` while Automation Control is in normal running mode.
+
+Typical loop:
+
+```js
+while (isRunning()) {
+  await runSequence();
+}
+```
+
+If Finishing mode is enabled while `runSequence()` is already running, the current sequence may complete, but another cycle will not start.
+
+### `isFinishing()`
+
+Returns `true` while the global Finishing mode is active.
+
+```js
+if (isFinishing()) {
+  return;
+}
+```
+
+### Recommended cyclic script
+
+```js
+async function runSequence() {
+  setInfo("A -> B");
+  dcc.setLoco(18, 30, "forward");
+  await dcc.waitForSensor(33, true);
+
+  setInfo("B -> A");
+  dcc.setLoco(18, 30, "reverse");
+  await dcc.waitForSensor(20, true);
+}
+
+while (isRunning()) {
+  await runSequence();
+}
+
+dcc.setLoco(18, 0, "forward");
+setInfo("Finished");
+```
+
+---
+
+# 3. SwitchMan – turnout section locking
+
+`switchMan()` reserves a group of turnouts **atomically, using all-or-none locking**.
+
+```text
+1. request the complete turnout group
+2. if any turnout is busy -> wait
+3. when every turnout is free -> lock all of them at once
+4. run the callback
+5. automatically release the reservation when the callback finishes
+```
+
+When the callback completes normally, throws an exception, or is cooperatively aborted, the `finally` path attempts to release the reservation.
+
+## 3.1 Simple SwitchMan example
+
+```js
+await switchMan([10, 11], async sw => {
+  setInfo("Setting turnout section");
+
+  await sw.setTurnout(10, true);
+  await sw.setTurnout(11, false);
+
+  setInfo("Departing");
+  dcc.setLoco(18, 30, "forward");
+
+  await dcc.waitForSensor(33, true);
+});
+```
+
+After the callback finishes, turnouts `10` and `11` are automatically released.
+
+## 3.2 `sw.setTurnout(address, closed)`
+
+Only a turnout owned by the current SwitchMan scope can be operated.
+
+```js
+await sw.setTurnout(10, true);
+```
+
+Logical `closed` state:
+
+```js
+true   // CLOSED
+false  // THROWN
+```
+
+This throws an error if the scope owns only `[10, 11]`:
+
+```js
+await sw.setTurnout(25, true);
+```
+
+## 3.3 Two consecutive turnout sections
+
+```js
+await switchMan([10, 11], async sw => {
+  await sw.setTurnout(10, true);
+  await sw.setTurnout(11, false);
+
+  dcc.setLoco(18, 30, "forward");
+  await dcc.waitForSensor(33, true);
+});
+
+await dcc.waitForSensor(40, true);
+
+await switchMan([20, 21, 22], async sw => {
+  await sw.setTurnout(20, false);
+  await sw.setTurnout(21, true);
+  await sw.setTurnout(22, true);
+
+  await dcc.waitForSensor(55, true);
+});
+
+dcc.setLoco(18, 0, "forward");
+```
+
+## 3.4 Two scripts competing for the same turnout
+
+P101:
+
+```js
+await switchMan([10, 11], async sw => {
+  // ...
+});
+```
+
+P202:
+
+```js
+await switchMan([11, 12], async sw => {
+  // ...
+});
+```
+
+If P101 owns `[10, 11]`, P202 waits. When P101 releases its section, P202 may atomically acquire `[11, 12]`.
+
+While waiting, the script information may show for example:
+
+```text
+Waiting for turnout section: 11 (P101)
+```
+
+> The current runtime may display this message in Hungarian depending on the implementation/UI language. The behavior is the same.
+
+## 3.5 Timeout
+
+By default, SwitchMan waits **indefinitely**.
+
+```js
+await switchMan([10, 11], async sw => {
+  await sw.setTurnout(10, true);
+  await sw.setTurnout(11, false);
+}, 30000);
+```
+
+This waits for at most 30 seconds.
+
+```js
+await switchMan([10, 11], async sw => {
+  // ...
+}, 0);
+```
+
+`0` means immediate timeout if the entire turnout group is not currently available.
+
+The maximum accepted timeout is currently `600000 ms` (10 minutes).
+
+## 3.6 Finishing + SwitchMan
+
+```js
+async function runCycle() {
+  await switchMan([10, 11], async sw => {
+    await sw.setTurnout(10, true);
+    await sw.setTurnout(11, false);
+
+    dcc.setLoco(18, 30, "forward");
+    await dcc.waitForSensor(33, true);
+  });
+
+  await switchMan([20, 21], async sw => {
+    await sw.setTurnout(20, false);
+    await sw.setTurnout(21, true);
+
+    await dcc.waitForSensor(55, true);
+  });
+}
+
+while (isRunning()) {
+  await runCycle();
+}
+
+dcc.setLoco(18, 0, "forward");
+```
+
+When Finishing mode is enabled, an already-started cycle may complete, but a new cycle will not begin.
+
+## 3.7 Important SwitchMan rules
+
+- Reservation of the complete turnout group is atomic.
+- Nested overlapping SwitchMan scopes inside the same script are not allowed.
+- For example, starting `[11, 12]` inside an active `[10, 11]` scope throws an error because the script would otherwise wait on its own lock.
+- Inside a SwitchMan callback, use `await sw.setTurnout(...)` for turnouts owned by that scope.
+- Normal `dcc.setTurnout(...)` does not inherit the ownership of the SwitchMan scope.
+- The backend lock is the final authoritative protection.
+- The flashing red turnout indicator in the WebUI is only a visual representation; the real lock lives in the backend.
+
+---
+
+# 4. RouteButton
+
+### `await setRoute(name)`
+
+Executes a RouteButton by name. The default delay between route turnout steps is 250 ms.
+
+```js
+await setRoute("Entrance 1");
+```
+
+### `await setRoute(name, delayMs)`
+
+Uses a custom delay between route steps.
+
+```js
+await setRoute("Entrance 1", 100);
+```
+
+> When operating turnouts already reserved by SwitchMan, prefer `sw.setTurnout()` from inside the SwitchMan scope. A normal route command may be rejected by the backend if it attempts to operate a locked turnout.
+
+---
+
+# 5. Locomotives and power
+
+## `dcc.setLoco(address, speed, direction)`
+
+Sets locomotive speed and direction.
+
+- address: `1..10239`
+- speed: `0..126`
+- direction: `"forward"` or `"reverse"`
+
+```js
+dcc.setLoco(18, 30, "forward");
+```
+
+Stop:
+
+```js
+dcc.setLoco(18, 0, "forward");
+```
+
+## `dcc.setLocoFunction(address, function, active)`
+
+Controls functions F0–F28.
+
+```js
+dcc.setLocoFunction(18, 0, true);
+dcc.setLocoFunction(18, 2, false);
+```
+
+## `dcc.setPower(on)`
+
+Main track power.
+
+```js
+dcc.setPower(true);
+dcc.setPower(false);
+```
+
+## `dcc.setProgrammingPower(on)`
+
+Programming track power.
+
+```js
+dcc.setProgrammingPower(true);
+```
+
+## `dcc.emergencyStop()`
+
+Sends an immediate emergency stop.
+
+```js
+dcc.emergencyStop();
+```
+
+---
+
+# 6. Sensors
+
+From the script API point of view, a sensor is a unified sensor. It does not matter whether the state comes from S88, `<Q>`, or another backend source.
+
+## `dcc.getSensor(address)`
+
+Returns the locally cached sensor state.
+
+```js
+const occupied = dcc.getSensor(33);
+
+if (occupied) {
+  log("Sensor 33 is occupied");
+}
+```
+
+## `dcc.setSensor(address, on)`
+
+Sets a sensor runtime state through the Hub API.
+
+```js
+dcc.setSensor(33, true);
+```
+
+## `dcc.waitForSensor(address, on, timeoutMs?)`
+
+Event-driven wait for a sensor state.
+
+Without timeout, it waits indefinitely:
+
+```js
+await dcc.waitForSensor(33, true);
+```
+
+10-second timeout:
+
+```js
+await dcc.waitForSensor(33, true, 10000);
+```
+
+Wait until the section becomes clear:
+
+```js
+await dcc.waitForSensor(33, false);
+```
+
+The supplied wait timeout is currently `1..600000 ms`.
+
+---
+
+# 7. Turnouts
+
+The normal turnout API uses the logical turnout configuration defined in the Layout.
+
+## `dcc.getTurnout(address)`
+
+Returns the current logical turnout state.
+
+```js
+const closed = dcc.getTurnout(20);
+```
+
+## `dcc.isClosed(address)`
+
+```js
+if (dcc.isClosed(20)) {
+  log("CLOSED");
+}
+```
+
+## `dcc.isThrown(address)`
+
+```js
+if (dcc.isThrown(20)) {
+  log("THROWN");
+}
+```
+
+## `dcc.setTurnout(address, closed)`
+
+```js
+dcc.setTurnout(20, true);   // CLOSED
+dcc.setTurnout(20, false);  // THROWN
+```
+
+## `dcc.setClosed(address)`
+
+```js
+dcc.setClosed(20);
+```
+
+## `dcc.setThrown(address)`
+
+```js
+dcc.setThrown(20);
+```
+
+## `dcc.waitForTurnout(address, closed, timeoutMs?)`
+
+```js
+await dcc.waitForTurnout(20, true);
+```
+
+With timeout:
+
+```js
+await dcc.waitForTurnout(20, true, 10000);
+```
+
+## `dcc.waitForClosed(address, timeoutMs?)`
+
+```js
+await dcc.waitForClosed(20);
+```
+
+## `dcc.waitForThrown(address, timeoutMs?)`
+
+```js
+await dcc.waitForThrown(20);
+```
+
+---
+
+# 8. Signals
+
+The high-level signal API uses logical signal states configured in the Layout.
+
+## `dcc.getSignalState(address)`
+
+```js
+const state = dcc.getSignalState(100);
+log(state);
+```
+
+## `dcc.isSignalState(address, stateName)`
+
+```js
+if (dcc.isSignalState(100, "Slow")) {
+  log("Signal is showing Slow");
+}
+```
+
+## Color-state checks
+
+```js
+dcc.isRed(100);
+dcc.isGreen(100);
+dcc.isYellow(100);
+dcc.isWhite(100);
+```
+
+## `dcc.setSignalState(address, stateName)`
+
+```js
+dcc.setSignalState(100, "Slow");
+```
+
+## Color-state setters
+
+```js
+dcc.setRed(100);
+dcc.setGreen(100);
+dcc.setYellow(100);
+dcc.setWhite(100);
+```
+
+## `dcc.waitForSignalState(address, stateName, timeoutMs?)`
+
+```js
+await dcc.waitForSignalState(100, "Slow");
+```
+
+With timeout:
+
+```js
+await dcc.waitForSignalState(100, "Slow", 10000);
+```
+
+## Color-state waits
+
+```js
+await dcc.waitForRed(100);
+await dcc.waitForGreen(100);
+await dcc.waitForYellow(100);
+await dcc.waitForWhite(100);
+```
+
+Each may receive an optional `timeoutMs` argument.
+
+## `dcc.setSignalAspect(address, aspect)`
+
+Low-level explicit DCC extended signal aspect.
+
+- signal address: `1..2048`
+- aspect: `0..255`
+
+```js
+dcc.setSignalAspect(100, 16);
+```
+
+If the Layout contains a configured logical signal state, new scripts should generally prefer `setSignalState()` / `setRed()` / `setGreen()` and similar helpers.
+
+---
+
+# 9. Blocks
+
+A block can be addressed by name or by numeric Layout ID.
+
+## `dcc.getBlock(blockName)`
+
+Returns the DCC locomotive address currently assigned to the block, or `0`.
+
+```js
+const loco = dcc.getBlock("A1");
+
+if (loco === 18) {
+  log("Locomotive 18 is in A1");
+}
+```
+
+## `dcc.setBlock(blockName, locoAddress)`
+
+```js
+dcc.setBlock("A2", 18);
+```
+
+## `dcc.clearBlock(blockName)`
+
+```js
+dcc.clearBlock("A2");
+```
+
+## `dcc.resetBlocks()`
+
+Clears all runtime block-to-locomotive assignments.
+
+```js
+dcc.resetBlocks();
+```
+
+## `dcc.getBlockTargetLoco(blockName)`
+
+Returns the locomotive address currently marked as heading toward the block, or `0`.
+
+```js
+const target = dcc.getBlockTargetLoco("A2");
+```
+
+## `dcc.setBlockTargetLoco(blockName, locoAddress)`
+
+```js
+dcc.setBlockTargetLoco("A2", 18);
+```
+
+## `dcc.clearBlockTargetLoco(blockName)`
+
+```js
+dcc.clearBlockTargetLoco("A2");
+```
+
+---
+
+# 10. Other DCC / output operations
+
+## `dcc.setAccessory(address, active)`
+
+Low-level basic DCC accessory setter.
+
+```js
+dcc.setAccessory(100, true);
+```
+
+## `dcc.sendRaw("<DCC-EX command>")`
+
+Sends a raw DCC-EX command.
+
+```js
+dcc.sendRaw("<s>");
+```
+
+For new scripts, prefer a higher-level `dcc.*` API whenever one exists.
+
+---
+
+# 11. Audio playback
+
+## `playAudio(name)`
+
+Plays an MP3 file from the SD card audio directory.
+
+Pass only the base filename, without path or `.mp3` extension:
+
+```js
+playAudio("mav_szignal");
+```
+
+---
+
+# 12. Complete simple train movement example
+
+```js
+setInfo("P101 ready to depart");
+
+await switchMan([10, 11], async sw => {
+  setInfo("Setting P101 turnout section");
+
+  await sw.setTurnout(10, true);
+  await sw.setTurnout(11, false);
+
+  dcc.setGreen(100);
+
+  dcc.setBlockTargetLoco("B2", 18);
+
+  setInfo("P101 departing");
+  dcc.setLoco(18, 30, "forward");
+
+  await dcc.waitForSensor(33, true, 30000);
+
+  dcc.setLoco(18, 0, "forward");
+  dcc.setRed(100);
+
+  dcc.clearBlockTargetLoco("B2");
+  dcc.setBlock("B2", 18);
+
+  setInfo("P101 arrived in B2");
+});
+```
+
+---
+
+# 13. Complete cyclic train movement with Finishing support
+
+```js
+async function AtoB() {
+  await switchMan([10, 11], async sw => {
+    setInfo("A -> B turnout section");
+
+    await sw.setTurnout(10, true);
+    await sw.setTurnout(11, false);
+
+    dcc.setLoco(18, 30, "forward");
+
+    await dcc.waitForSensor(33, true);
+    dcc.setLoco(18, 0, "forward");
+  });
+}
+
+async function BtoA() {
+  await switchMan([20, 21], async sw => {
+    setInfo("B -> A turnout section");
+
+    await sw.setTurnout(20, false);
+    await sw.setTurnout(21, true);
+
+    dcc.setLoco(18, 30, "reverse");
+
+    await dcc.waitForSensor(20, true);
+    dcc.setLoco(18, 0, "reverse");
+  });
+}
+
+while (isRunning()) {
+  await AtoB();
+
+  if (isFinishing()) {
+    break;
+  }
+
+  await BtoA();
+}
+
+setInfo("P101 finished");
+```
+
+---
+
+# 14. Recommended Quick Help API – short list
+
+## JavaScript / runtime
+
+```text
+async function name()
+await delay(ms)
+await Promise.all([...])
+isFinishing()
+isRunning()
+log(value, ...)
+setInfo(message)
+playAudio(name)
+```
+
+## SwitchMan
+
+```text
+await switchMan([turnouts], async sw => { ... })
+await switchMan([turnouts], async sw => { ... }, timeoutMs)
+await sw.setTurnout(address, closed)
+```
+
+## Route
+
+```text
+await setRoute(name)
+await setRoute(name, delayMs)
+```
+
+## Blocks
+
+```text
+dcc.clearBlock(blockName)
+dcc.clearBlockTargetLoco(blockName)
+dcc.getBlock(blockName)
+dcc.getBlockTargetLoco(blockName)
+dcc.resetBlocks()
+dcc.setBlock(blockName, locoAddress)
+dcc.setBlockTargetLoco(blockName, locoAddress)
+```
+
+## Sensors
+
+```text
+dcc.getSensor(address)
+dcc.setSensor(address, on)
+dcc.waitForSensor(address, on, timeoutMs?)
+```
+
+## Turnouts
+
+```text
+dcc.getTurnout(address)
+dcc.isClosed(address)
+dcc.isThrown(address)
+dcc.setClosed(address)
+dcc.setThrown(address)
+dcc.setTurnout(address, closed)
+dcc.waitForClosed(address, timeoutMs?)
+dcc.waitForThrown(address, timeoutMs?)
+dcc.waitForTurnout(address, closed, timeoutMs?)
+```
+
+## Signals
+
+```text
+dcc.getSignalState(address)
+dcc.isGreen(address)
+dcc.isRed(address)
+dcc.isSignalState(address, stateName)
+dcc.isWhite(address)
+dcc.isYellow(address)
+dcc.setGreen(address)
+dcc.setRed(address)
+dcc.setSignalAspect(address, aspect)
+dcc.setSignalState(address, stateName)
+dcc.setWhite(address)
+dcc.setYellow(address)
+dcc.waitForGreen(address, timeoutMs?)
+dcc.waitForRed(address, timeoutMs?)
+dcc.waitForSignalState(address, stateName, timeoutMs?)
+dcc.waitForWhite(address, timeoutMs?)
+dcc.waitForYellow(address, timeoutMs?)
+```
+
+## Power / locomotive / low level
+
+```text
+dcc.emergencyStop()
+dcc.sendRaw("<DCC-EX command>")
+dcc.setAccessory(address, active)
+dcc.setLoco(address, speed, "forward|reverse")
+dcc.setLocoFunction(address, function, active)
+dcc.setPower(on)
+dcc.setProgrammingPower(on)
+```
+
+---
+
+# 15. Advanced / compatibility API still present in the runtime
+
+These APIs genuinely exist in the worker runtime, but they are **not part of the recommended Quick Help API**.
+
+## `dcc.setTurnoutRaw(address, closed)`
+
+Low-level turnout command that does not use the Layout logical turnout configuration.
+
+```js
+dcc.setTurnoutRaw(20, true);
+```
+
+For new scripts, normally prefer:
+
+```js
+dcc.setTurnout(20, true);
+```
+
+or, inside a SwitchMan scope:
+
+```js
+await sw.setTurnout(20, true);
+```
+
+## `dcc.block(blockId, locoId, locoAddress?)`
+
+Lower-level block assignment API. For normal automation scripts, prefer `setBlock()` / `clearBlock()`.
+
+---
+
+# 16. Legacy aliases
+
+The following aliases are still available for runtime compatibility:
+
+```text
+dcc.power(on)
+dcc.programmingPower(on)
+dcc.loco(address, speed, direction)
+dcc.locoFunction(address, function, active)
+dcc.turnout(address, closed)
+dcc.sensor(address, on)
+dcc.accessory(address, active)
+dcc.signal(address, aspect)
+dcc.raw(command)
+```
+
+For new scripts, use the explicit API names instead:
+
+```text
+dcc.setPower(...)
+dcc.setProgrammingPower(...)
+dcc.setLoco(...)
+dcc.setLocoFunction(...)
+dcc.setTurnout(...)
+dcc.setSensor(...)
+dcc.setAccessory(...)
+dcc.setSignalAspect(...)
+dcc.sendRaw(...)
+```
+
+---
+
+# 17. Short rules
+
+1. Use `await` when waiting for sensor, turnout, or signal state changes.
+2. Omitting the timeout from `waitFor*()` generally means waiting indefinitely.
+3. Use `switchMan()` for conflict-safe turnout section reservation.
+4. Inside a SwitchMan scope, operate reserved turnouts with `await sw.setTurnout()`.
+5. For cyclic automations, control the outer loop with `isRunning()` / `isFinishing()`.
+6. Prefer high-level logical APIs over raw DCC commands whenever possible.
+7. S88 / `<Q>` / other sensor sources all use the same script sensor API.
+8. Emergency stop is directly available as `dcc.emergencyStop()`.
