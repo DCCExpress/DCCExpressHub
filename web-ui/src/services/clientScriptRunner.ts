@@ -91,6 +91,162 @@ const SCRIPT_AUDIO_COMMAND_PREFIX =
 const SCRIPT_AUDIO_MAX_NAME_LENGTH =
   120;
 
+const AUTOMATION_RUN_MODE_CHANNEL =
+  "dcc-express-automation-run-mode-v1";
+
+type AutomationFinishingListener =
+  (finishing: boolean) => void;
+
+type AutomationRunModeMessage =
+  | {
+      type: "automationRunMode";
+      finishing: boolean;
+    }
+  | {
+      type: "automationRunModeRequest";
+    };
+
+let automationFinishing =
+  false;
+
+const automationFinishingListeners =
+  new Set<AutomationFinishingListener>();
+
+let automationRunModeChannel:
+  BroadcastChannel | null = null;
+
+function notifyAutomationFinishingListeners(): void {
+  for (
+    const listener of
+    automationFinishingListeners
+  ) {
+    listener(
+      automationFinishing
+    );
+  }
+}
+
+function applyAutomationFinishing(
+  finishing: boolean
+): void {
+  const next =
+    Boolean(finishing);
+
+  if (
+    automationFinishing ===
+    next
+  ) {
+    return;
+  }
+
+  automationFinishing =
+    next;
+
+  notifyAutomationFinishingListeners();
+}
+
+function ensureAutomationRunModeChannel(): BroadcastChannel | null {
+  if (
+    automationRunModeChannel
+  ) {
+    return automationRunModeChannel;
+  }
+
+  if (
+    typeof BroadcastChannel ===
+    "undefined"
+  ) {
+    return null;
+  }
+
+  automationRunModeChannel =
+    new BroadcastChannel(
+      AUTOMATION_RUN_MODE_CHANNEL
+    );
+
+  automationRunModeChannel.onmessage =
+    event => {
+      const message =
+        event.data as
+          AutomationRunModeMessage |
+          null;
+
+      if (!message) {
+        return;
+      }
+
+      if (
+        message.type ===
+        "automationRunModeRequest"
+      ) {
+        automationRunModeChannel?.postMessage({
+          type:
+            "automationRunMode",
+          finishing:
+            automationFinishing,
+        } satisfies AutomationRunModeMessage);
+
+        return;
+      }
+
+      if (
+        message.type ===
+        "automationRunMode"
+      ) {
+        applyAutomationFinishing(
+          message.finishing
+        );
+      }
+    };
+
+  return automationRunModeChannel;
+}
+
+export function getAutomationFinishing(): boolean {
+  return automationFinishing;
+}
+
+export function setAutomationFinishing(
+  finishing: boolean
+): void {
+  const next =
+    Boolean(finishing);
+
+  applyAutomationFinishing(
+    next
+  );
+
+  const channel =
+    ensureAutomationRunModeChannel();
+
+  channel?.postMessage({
+    type:
+      "automationRunMode",
+    finishing:
+      next,
+  } satisfies AutomationRunModeMessage);
+}
+
+export function subscribeAutomationFinishing(
+  listener: AutomationFinishingListener
+): () => void {
+  ensureAutomationRunModeChannel();
+
+  automationFinishingListeners.add(
+    listener
+  );
+
+  listener(
+    automationFinishing
+  );
+
+  return () => {
+    automationFinishingListeners.delete(
+      listener
+    );
+  };
+}
+
 let automationWorker:
   Worker | null = null;
 
@@ -1620,7 +1776,48 @@ function scriptWithRuntimeHelpers(
       scriptRouteCatalog
     );
 
+  const initialFinishing =
+    automationFinishing
+      ? "true"
+      : "false";
+
+  const runModeChannel =
+    JSON.stringify(
+      AUTOMATION_RUN_MODE_CHANNEL
+    );
+
   return `
+let __dccExpressAutomationFinishing = ${initialFinishing};
+
+const __dccExpressAutomationModeChannel =
+  typeof BroadcastChannel !== "undefined"
+    ? new BroadcastChannel(${runModeChannel})
+    : null;
+
+if (__dccExpressAutomationModeChannel) {
+  __dccExpressAutomationModeChannel.onmessage = event => {
+    const message = event.data;
+
+    if (
+      message &&
+      message.type === "automationRunMode"
+    ) {
+      __dccExpressAutomationFinishing =
+        Boolean(message.finishing);
+    }
+  };
+
+  __dccExpressAutomationModeChannel.postMessage({
+    type: "automationRunModeRequest",
+  });
+}
+
+const isFinishing = () =>
+  __dccExpressAutomationFinishing;
+
+const isRunning = () =>
+  !__dccExpressAutomationFinishing;
+
 const playAudio = (name) => {
   const value = String(name ?? "").trim();
 
@@ -1783,7 +1980,11 @@ const setRoute = async (
   }
 };
 
+try {
 ${script}
+} finally {
+  __dccExpressAutomationModeChannel?.close();
+}
 `;
 }
 

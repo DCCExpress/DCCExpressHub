@@ -18,6 +18,7 @@ import {
   Loader,
   ScrollArea,
   Stack,
+  Switch,
   Text,
   TextInput,
   Tooltip,
@@ -51,11 +52,14 @@ import {
 
 import {
   abortClientScript,
+  getAutomationFinishing,
   getClientScriptState,
   pauseClientScript,
   resumeClientScript,
   runClientScript,
   ScriptAbortError,
+  setAutomationFinishing,
+  subscribeAutomationFinishing,
   subscribeClientScriptState,
   type ClientScriptState,
 } from "../services/clientScriptRunner";
@@ -804,6 +808,23 @@ export default function AutomationPanel({
     useCommandCenter();
 
   const [
+    finishing,
+    setFinishingState,
+  ] =
+    useState<boolean>(
+      () =>
+        getAutomationFinishing()
+    );
+
+  useEffect(
+    () =>
+      subscribeAutomationFinishing(
+        setFinishingState
+      ),
+    []
+  );
+
+  const [
     runtimeStates,
     setRuntimeStates,
   ] =
@@ -1416,6 +1437,34 @@ export default function AutomationPanel({
                       "paused"
                     )}: {pausedCount}
                   </Badge>
+
+                  <Tooltip
+                    label={
+                      automationPanelText(
+                        "finishingDescription"
+                      )
+                    }
+                    withArrow
+                  >
+                    <Switch
+                      size="sm"
+                      color="orange"
+                      checked={
+                        finishing
+                      }
+                      label={
+                        automationPanelText(
+                          "finishing"
+                        )
+                      }
+                      onChange={
+                        event =>
+                          setAutomationFinishing(
+                            event.currentTarget.checked
+                          )
+                      }
+                    />
+                  </Tooltip>
                 </Group>
               </Stack>
 

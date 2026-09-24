@@ -4,6 +4,8 @@ export type AutomationPanelTextKey =
   | "controlTitle"
   | "running"
   | "paused"
+  | "finishing"
+  | "finishingDescription"
   | "startWithAll"
   | "startWithAllDescription"
   | "startAll"
@@ -42,6 +44,10 @@ const translations:
         "Running",
       paused:
         "Paused",
+      finishing:
+        "Finishing",
+      finishingDescription:
+        "Let active scripts finish their current sequence, but allow scripts to detect that no new sequence should be started.",
       startWithAll:
         "Start with All",
       startWithAllDescription:
@@ -55,7 +61,7 @@ const translations:
       abortAll:
         "Abort All",
       controlDescription:
-        "Start All starts only enabled idle scripts. Resume All resumes every paused script. Stop All pauses every running script. Abort All aborts every active script and requests Emergency Stop when safe.",
+        "Start All starts only enabled idle scripts. Resume All resumes every paused script. Stop All pauses every running script. Finishing lets scripts complete their current sequence without starting another one when they use isRunning()/isFinishing(). Abort All aborts every active script and requests Emergency Stop when safe.",
       noStartableScripts:
         "No enabled idle scripts can be started.",
       noPausedScripts:
@@ -89,6 +95,10 @@ const translations:
         "Fut",
       paused:
         "Szünetel",
+      finishing:
+        "Finishing",
+      finishingDescription:
+        "A futó szkriptek befejezhetik az aktuális szekvenciát, de a szkript érzékeli, hogy új szekvenciát már ne indítson.",
       startWithAll:
         "Start with All",
       startWithAllDescription:
@@ -102,7 +112,7 @@ const translations:
       abortAll:
         "Abort All",
       controlDescription:
-        "A Start All csak az engedélyezett, álló szkripteket indítja. A Resume All minden szünetelő szkriptet folytat. A Stop All minden futó szkriptet megállít, az Abort All pedig minden aktív szkriptet megszakít és biztonságosan E-STOP-ot kér.",
+        "A Start All csak az engedélyezett, álló szkripteket indítja. A Resume All minden szünetelő szkriptet folytat. A Stop All minden futó szkriptet megállít. Finishing módban az isRunning()/isFinishing() használatával az aktuális szekvencia még befejeződik, de új már nem indul. Az Abort All minden aktív szkriptet megszakít és biztonságosan E-STOP-ot kér.",
       noStartableScripts:
         "Nincs elindítható, engedélyezett szkript.",
       noPausedScripts:
@@ -136,6 +146,10 @@ const translations:
         "Läuft",
       paused:
         "Pausiert",
+      finishing:
+        "Finishing",
+      finishingDescription:
+        "Laufende Skripte dürfen ihre aktuelle Sequenz beenden; Skripte können erkennen, dass keine neue Sequenz mehr gestartet werden soll.",
       startWithAll:
         "Start with All",
       startWithAllDescription:
@@ -149,7 +163,7 @@ const translations:
       abortAll:
         "Abort All",
       controlDescription:
-        "Start All startet nur aktivierte, wartende Skripte. Resume All setzt alle pausierten Skripte fort. Stop All pausiert alle laufenden Skripte. Abort All bricht alle aktiven Skripte ab und fordert bei sicherem Zustand einen Notstopp an.",
+        "Start All startet nur aktivierte, wartende Skripte. Resume All setzt alle pausierten Skripte fort. Stop All pausiert alle laufenden Skripte. Im Finishing-Modus kann mit isRunning()/isFinishing() die aktuelle Sequenz beendet werden, ohne eine neue zu starten. Abort All bricht alle aktiven Skripte ab und fordert bei sicherem Zustand einen Notstopp an.",
       noStartableScripts:
         "Keine aktivierten wartenden Skripte können gestartet werden.",
       noPausedScripts:

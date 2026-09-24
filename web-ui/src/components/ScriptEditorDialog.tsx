@@ -80,6 +80,16 @@ const SCRIPT_HELP_ITEMS: ScriptHelpItem[] = [
     insert: "await Promise.all([\n  task1(),\n  task2(),\n]);",
   },
   {
+    syntax: "isFinishing()",
+    description: "Returns true when the global Automation Control Finishing mode is active.",
+    insert: "if (isFinishing()) {\n  return;\n}",
+  },
+  {
+    syntax: "isRunning()",
+    description: "Returns true while global automation mode is normal. Use it around a sequence loop so Finishing completes the current sequence without starting another one.",
+    insert: "while (isRunning()) {\n  await runSequence();\n}",
+  },
+  {
     syntax: "await setRoute(name)",
     description:
       "Sets the named RouteButton with the default 250 ms delay between route turnout steps.",
