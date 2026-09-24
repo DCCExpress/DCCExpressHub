@@ -79,6 +79,18 @@ const SCRIPT_HELP_ITEMS: ScriptHelpItem[] = [
     get description() { return i18next.t("ui.runsMultipleAsynchronousTasksInParallelAndWaitsForAll"); },
     insert: "await Promise.all([\n  task1(),\n  task2(),\n]);",
   },
+  {
+    syntax: "await setRoute(name)",
+    description:
+      "Sets the named RouteButton with the default 250 ms delay between route turnout steps.",
+    insert: 'await setRoute("Bejárat 1");',
+  },
+  {
+    syntax: "await setRoute(name, delayMs)",
+    description:
+      "Sets the named RouteButton and waits delayMs between route turnout steps.",
+    insert: 'await setRoute("Bejárat 1", 100);',
+  },
 
   // Blocks
   {

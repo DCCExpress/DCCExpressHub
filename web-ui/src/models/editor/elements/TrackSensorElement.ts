@@ -25,7 +25,14 @@ export class TrackSensorElement extends TrackElement {
   override draw(ctx: CanvasRenderingContext2D, options?: DrawOptions): void {
     if (!this.visible) return;
     this.beginDraw(ctx, options);
-    ctx.fillStyle = this.on ? this.colorOn : "gray";
+
+    // Use the same central occupancy cache as blocks and normal track elements.
+    // This makes a SensorElement immediately reflect the current sensor state
+    // when its address is assigned/changed, without waiting for another
+    // sensorChanged WebSocket event.
+    const active = this.isSensorAddressOccupied(this.address);
+
+    ctx.fillStyle = active ? this.colorOn : "gray";
     ctx.beginPath();
     ctx.arc(this.centerX, this.centerY, this.radius, 0, Math.PI * 2);
     ctx.fill();

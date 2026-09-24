@@ -136,14 +136,46 @@ type LayoutBlockCatalogItem = {
   name: string;
 };
 
+type ScriptRouteTurnoutReference = {
+  turnoutId?: number | string;
+  closed?: boolean;
+  secondClosed?: boolean;
+};
+
+type LayoutScriptCatalogElement = {
+  id?: number | string;
+  type?: string;
+  name?: string;
+  label?: string;
+  turnoutAddress?: number;
+  turnoutClosedValue?: boolean;
+  turnout1Address?: number;
+  turnout2Address?: number;
+  turnout1ClosedValue?: boolean;
+  turnout2ClosedValue?: boolean;
+  routeTurnouts?: ScriptRouteTurnoutReference[];
+};
+
 type LayoutForBlockCatalog = {
   layers?: Array<{
-    elements?: Array<{
-      id?: number | string;
-      type?: string;
-      name?: string;
-    }>;
+    elements?: LayoutScriptCatalogElement[];
   }>;
+};
+
+type ScriptRouteOutput = {
+  address: number;
+  closed: boolean;
+};
+
+type ScriptRouteStep = {
+  outputs: ScriptRouteOutput[];
+};
+
+type ScriptRouteCatalogItem = {
+  name: string;
+  label: string;
+  steps: ScriptRouteStep[];
+  error: string | null;
 };
 
 let blockCatalogReady =
@@ -152,8 +184,280 @@ let blockCatalogReady =
 let blockCatalog:
   LayoutBlockCatalogItem[] = [];
 
+let scriptRouteCatalog:
+  ScriptRouteCatalogItem[] = [];
+
 let blockCatalogLoadPromise:
   Promise<void> | null = null;
+
+function scriptLayoutId(
+  value: unknown
+): string | null {
+  const numeric =
+    Number(value);
+
+  if (
+    !Number.isInteger(
+      numeric
+    ) ||
+    numeric < 1 ||
+    numeric > 65535
+  ) {
+    return null;
+  }
+
+  return String(
+    numeric
+  );
+}
+
+function scriptTurnoutAddress(
+  value: unknown
+): number | null {
+  const numeric =
+    Number(value);
+
+  if (
+    !Number.isInteger(
+      numeric
+    ) ||
+    numeric < 1 ||
+    numeric > 2048
+  ) {
+    return null;
+  }
+
+  return numeric;
+}
+
+function buildScriptRouteCatalog(
+  layout: LayoutForBlockCatalog
+): ScriptRouteCatalogItem[] {
+  const allElements:
+    LayoutScriptCatalogElement[] =
+    [];
+
+  const elementsById =
+    new Map<
+      string,
+      LayoutScriptCatalogElement
+    >();
+
+  for (
+    const layer of
+    layout.layers ?? []
+  ) {
+    for (
+      const element of
+      layer.elements ?? []
+    ) {
+      allElements.push(
+        element
+      );
+
+      const id =
+        scriptLayoutId(
+          element.id
+        );
+
+      if (id) {
+        elementsById.set(
+          id,
+          element
+        );
+      }
+    }
+  }
+
+  const routes:
+    ScriptRouteCatalogItem[] =
+    [];
+
+  for (
+    const routeElement of
+    allElements
+  ) {
+    if (
+      routeElement.type !==
+      "routebutton"
+    ) {
+      continue;
+    }
+
+    const name =
+      String(
+        routeElement.name ??
+        ""
+      ).trim();
+
+    const label =
+      String(
+        routeElement.label ??
+        ""
+      ).trim();
+
+    const references =
+      Array.isArray(
+        routeElement.routeTurnouts
+      )
+        ? routeElement.routeTurnouts
+        : [];
+
+    const steps:
+      ScriptRouteStep[] =
+      [];
+
+    let routeError:
+      string | null =
+      null;
+
+    if (
+      references.length ===
+      0
+    ) {
+      routeError =
+        "The route contains no configured turnouts.";
+    }
+
+    for (
+      let index = 0;
+      index <
+        references.length &&
+      routeError === null;
+      ++index
+    ) {
+      const reference =
+        references[index]!;
+
+      const turnoutId =
+        scriptLayoutId(
+          reference.turnoutId
+        );
+
+      const turnout =
+        turnoutId
+          ? elementsById.get(
+              turnoutId
+            )
+          : undefined;
+
+      if (!turnout) {
+        routeError =
+          `Route turnout #${index + 1} references a missing layout element.`;
+
+        break;
+      }
+
+      const firstPhysical =
+        Boolean(
+          reference.closed
+        );
+
+      const simpleAddress =
+        scriptTurnoutAddress(
+          turnout.turnoutAddress
+        );
+
+      if (
+        simpleAddress !==
+        null
+      ) {
+        const closedValue =
+          Boolean(
+            turnout.turnoutClosedValue ??
+            false
+          );
+
+        steps.push({
+          outputs: [
+            {
+              address:
+                simpleAddress,
+              closed:
+                firstPhysical ===
+                closedValue,
+            },
+          ],
+        });
+
+        continue;
+      }
+
+      const firstAddress =
+        scriptTurnoutAddress(
+          turnout.turnout1Address
+        );
+
+      const secondAddress =
+        scriptTurnoutAddress(
+          turnout.turnout2Address
+        );
+
+      if (
+        firstAddress ===
+          null ||
+        secondAddress ===
+          null
+      ) {
+        routeError =
+          `Route turnout #${index + 1} has no valid turnout output address.`;
+
+        break;
+      }
+
+      if (
+        typeof reference.secondClosed !==
+        "boolean"
+      ) {
+        routeError =
+          `Route turnout #${index + 1} is a two-motor turnout but its second motor state is missing. Re-save the RouteButton configuration.`;
+
+        break;
+      }
+
+      const firstClosedValue =
+        Boolean(
+          turnout.turnout1ClosedValue ??
+          false
+        );
+
+      const secondClosedValue =
+        Boolean(
+          turnout.turnout2ClosedValue ??
+          false
+        );
+
+      steps.push({
+        outputs: [
+          {
+            address:
+              firstAddress,
+            closed:
+              firstPhysical ===
+              firstClosedValue,
+          },
+          {
+            address:
+              secondAddress,
+            closed:
+              reference.secondClosed ===
+              secondClosedValue,
+          },
+        ],
+      });
+    }
+
+    routes.push({
+      name,
+      label,
+      steps,
+      error:
+        routeError,
+    });
+  }
+
+  return routes;
+}
 
 function sendBlockCatalogToWorker(): void {
   if (!automationWorker) {
@@ -266,6 +570,11 @@ async function refreshBlockCatalog(): Promise<void> {
 
       blockCatalog =
         next;
+
+      scriptRouteCatalog =
+        buildScriptRouteCatalog(
+          layout
+        );
 
       blockCatalogReady =
         true;
@@ -1293,7 +1602,7 @@ function executeScriptAudioCommand(
   return null;
 }
 
-function scriptWithAudioHelper(
+function scriptWithRuntimeHelpers(
   script: string
 ): string {
   const prefix =
@@ -1304,6 +1613,11 @@ function scriptWithAudioHelper(
   const maxLength =
     String(
       SCRIPT_AUDIO_MAX_NAME_LENGTH
+    );
+
+  const routes =
+    JSON.stringify(
+      scriptRouteCatalog
     );
 
   return `
@@ -1323,6 +1637,150 @@ const playAudio = (name) => {
   }
 
   dcc.sendRaw(${prefix} + value);
+};
+
+const __dccExpressRoutes = ${routes};
+
+const __findDccExpressRoute = (name) => {
+  const value =
+    String(name ?? "").trim();
+
+  if (!value) {
+    throw new Error(
+      "setRoute(name, delayMs?): route name is required."
+    );
+  }
+
+  let matches =
+    __dccExpressRoutes.filter(
+      route =>
+        route.name === value
+    );
+
+  if (
+    matches.length === 0
+  ) {
+    matches =
+      __dccExpressRoutes.filter(
+        route =>
+          route.label === value
+      );
+  }
+
+  if (
+    matches.length === 0
+  ) {
+    const folded =
+      value.toLocaleLowerCase();
+
+    matches =
+      __dccExpressRoutes.filter(
+        route =>
+          String(
+            route.name ?? ""
+          )
+            .toLocaleLowerCase() ===
+          folded
+      );
+
+    if (
+      matches.length === 0
+    ) {
+      matches =
+        __dccExpressRoutes.filter(
+          route =>
+            String(
+              route.label ?? ""
+            )
+              .toLocaleLowerCase() ===
+            folded
+        );
+    }
+  }
+
+  if (
+    matches.length === 0
+  ) {
+    throw new Error(
+      'Route "' + value + '" was not found in the current layout.'
+    );
+  }
+
+  if (
+    matches.length !== 1
+  ) {
+    throw new Error(
+      'Route name "' + value + '" is ambiguous. Use the exact RouteButton name.'
+    );
+  }
+
+  return matches[0];
+};
+
+const setRoute = async (
+  name,
+  delayMs = 250
+) => {
+  const route =
+    __findDccExpressRoute(
+      name
+    );
+
+  if (route.error) {
+    throw new Error(
+      'Route "' +
+      (route.name || route.label || String(name)) +
+      '" cannot be executed: ' +
+      route.error
+    );
+  }
+
+  const numericDelay =
+    Number(delayMs);
+
+  if (
+    !Number.isInteger(
+      numericDelay
+    ) ||
+    numericDelay < 0 ||
+    numericDelay > 600000
+  ) {
+    throw new Error(
+      "setRoute delayMs must be an integer between 0 and 600000."
+    );
+  }
+
+  for (
+    let stepIndex = 0;
+    stepIndex <
+      route.steps.length;
+    ++stepIndex
+  ) {
+    const step =
+      route.steps[
+        stepIndex
+      ];
+
+    for (
+      const output of
+      step.outputs
+    ) {
+      dcc.setTurnout(
+        output.address,
+        output.closed
+      );
+    }
+
+    if (
+      numericDelay > 0 &&
+      stepIndex + 1 <
+        route.steps.length
+    ) {
+      await delay(
+        numericDelay
+      );
+    }
+  }
 };
 
 ${script}
@@ -2309,7 +2767,7 @@ export async function runClientScript(
           executionId:
             element.id,
           script:
-            scriptWithAudioHelper(
+            scriptWithRuntimeHelpers(
               script
             ),
           element: {
