@@ -9,6 +9,7 @@ export type AutomationFlowNodeKind =
   | "setSensor"
   | "setTurnout"
   | "setAccessory"
+  | "locoFunction"
   | "horn"
   | "delay"
   | "log";
@@ -57,6 +58,15 @@ export type AutomationFlowNodeData = Record<string, unknown> & {
     | "manual"
     | "interval";
   intervalMs?: number;
+
+  triggerPayloadType?:
+    | "json"
+    | "string"
+    | "number"
+    | "boolean"
+    | "null"
+    | "timestamp";
+  triggerPayloadValue?: string;
 };
 
 export type AutomationFlowNode = {
@@ -96,6 +106,7 @@ const NODE_KINDS =
     "setSensor",
     "setTurnout",
     "setAccessory",
+    "locoFunction",
     "horn",
     "delay",
     "log",
@@ -445,6 +456,24 @@ function normalizeNodeData(
           )
         )
       ),
+    triggerPayloadType:
+      candidate.triggerPayloadType ===
+        "string" ||
+      candidate.triggerPayloadType ===
+        "number" ||
+      candidate.triggerPayloadType ===
+        "boolean" ||
+      candidate.triggerPayloadType ===
+        "null" ||
+      candidate.triggerPayloadType ===
+        "timestamp"
+        ? candidate.triggerPayloadType
+        : "json",
+    triggerPayloadValue:
+      typeof candidate.triggerPayloadValue ===
+        "string"
+        ? candidate.triggerPayloadValue
+        : "{}",
   };
 }
 
@@ -844,6 +873,41 @@ function generateStatement(
     case "setAccessory":
       return `dcc.setAccessory(${Math.max(1, Math.min(2048, Math.round(data.accessoryAddress ?? 1)))}, ${data.accessoryActive !== false ? "true" : "false"});`;
 
+    case "locoFunction": {
+      const fn =
+        Math.max(
+          0,
+          Math.min(
+            68,
+            Math.round(
+              data.functionNumber ??
+              2
+            )
+          )
+        );
+
+      const pulse =
+        Math.max(
+          1,
+          Math.round(
+            data.pulseMs ??
+            700
+          )
+        );
+
+      return [
+        "{",
+        "  const locoAddress = Number(payload && typeof payload === \"object\" ? payload.locoAddress : NaN);",
+        "  if (!Number.isInteger(locoAddress) || locoAddress < 1 || locoAddress > 10239) {",
+        '    throw new Error("Loco Function requires payload.locoAddress (1..10239).");',
+        "  }",
+        `  dcc.setLocoFunction(locoAddress, ${fn}, true);`,
+        `  await delay(${pulse});`,
+        `  dcc.setLocoFunction(locoAddress, ${fn}, false);`,
+        "}",
+      ].join("\n");
+    }
+
     case "horn": {
       const fn =
         Math.max(
@@ -877,7 +941,7 @@ function generateStatement(
       return `await delay(${Math.max(0, Math.round(data.delayMs ?? 500))});`;
 
     case "log":
-      return `log(${jsString(data.message || "")});`;
+      return `log(${jsString(data.message || "")}, payload);`;
 
     default:
       return "";
@@ -892,6 +956,93 @@ export type GeneratedAutomationFlowScript = {
 export type GenerateAutomationFlowPageScriptOptions = {
   testRun?: boolean;
 };
+
+function triggerPayloadSource(
+  trigger:
+    AutomationFlowNode |
+    undefined,
+  warnings: string[]
+): string {
+  if (!trigger) {
+    return "null";
+  }
+
+  const type =
+    trigger.data.triggerPayloadType ??
+    "json";
+
+  const raw =
+    trigger.data.triggerPayloadValue ??
+    "{}";
+
+  if (type === "null") {
+    return "null";
+  }
+
+  if (type === "timestamp") {
+    return "Date.now()";
+  }
+
+  if (type === "string") {
+    return jsString(
+      raw
+    );
+  }
+
+  if (type === "number") {
+    const numeric =
+      Number(raw);
+
+    if (
+      !Number.isFinite(
+        numeric
+      )
+    ) {
+      warnings.push(
+        "Trigger payload is not a valid number. Using 0."
+      );
+      return "0";
+    }
+
+    return String(
+      numeric
+    );
+  }
+
+  if (type === "boolean") {
+    return raw.trim().toLocaleLowerCase() ===
+      "false"
+      ? "false"
+      : "true";
+  }
+
+  try {
+    return JSON.stringify(
+      JSON.parse(
+        raw
+      )
+    );
+  } catch {
+    warnings.push(
+      "Trigger JSON payload is invalid. Using null."
+    );
+    return "null";
+  }
+}
+
+function withPayload(
+  code: string,
+  trigger:
+    AutomationFlowNode |
+    undefined,
+  warnings: string[]
+): string {
+  return [
+    `let payload = ${triggerPayloadSource(trigger, warnings)};`,
+    "",
+    code,
+  ].join("\n");
+}
 
 function wrapWithTrigger(
   code: string,
@@ -1222,7 +1373,11 @@ export function generateAutomationFlowPageScript(
     return {
       code:
         wrapWithTrigger(
-          code,
+          withPayload(
+            code,
+            trigger,
+            warnings
+          ),
           trigger,
           pageId,
           options.testRun ===
@@ -1439,7 +1594,11 @@ export function generateAutomationFlowPageScript(
   return {
     code:
       wrapWithTrigger(
-        code,
+        withPayload(
+          code,
+          trigger,
+          warnings
+        ),
         trigger,
         pageId,
         options.testRun ===
