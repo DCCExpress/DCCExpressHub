@@ -923,5 +923,18 @@
   "flowTurnoutAddress": "Váltó címe",
   "flowTurnoutState": "Váltó állása",
   "flowAccessoryAddress": "Accessory címe",
-  "flowAccessoryState": "Accessory állapota"
+  "flowAccessoryState": "Accessory állapota",
+  "flowLog": "Log",
+  "flowTest": "TESZT",
+  "flowStop": "STOP",
+  "flowRuntimeLogDescription": "A flow teszt futási és log(...) üzenetei.",
+  "flowClearLog": "Log törlése",
+  "flowNoLogMessages": "Még nincs log üzenet.",
+  "flowGroupTrigger": "Indítás",
+  "flowNodeTrigger": "Trigger",
+  "flowTriggerMode": "Trigger mód",
+  "flowTriggerManual": "Kézi",
+  "flowTriggerInterval": "Időzített",
+  "flowIntervalMs": "Intervallum (ms)",
+  "flowIntervalDescription": "1000 ms = 1 másodperc, 60000 ms = 1 perc"
 }
