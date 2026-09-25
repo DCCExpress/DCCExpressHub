@@ -28,12 +28,12 @@ import {
 } from "@mantine/notifications";
 
 import {
-  IconCode,
+  IconEdit,
   IconPlayerPause,
   IconPlayerPlay,
   IconPlayerPlayFilled,
+  IconPlayerStop,
   IconTrash,
-  IconTrashX,
 } from "@tabler/icons-react";
 
 import {
@@ -309,6 +309,197 @@ function ScriptRow({
     <>
       <Table.Tr>
         <Table.Td>
+          <Group
+            gap={4}
+            wrap="nowrap"
+          >
+            <Tooltip
+              withArrow
+              label={
+                paused
+                  ? i18next.t(
+                      "ui.resume"
+                    )
+                  : i18next.t(
+                      "ui.start"
+                    )
+              }
+            >
+              <ActionIcon
+                size="sm"
+                variant="light"
+                color="green"
+                disabled={
+                  running ||
+                  !definition.script.trim()
+                }
+                onClick={
+                  () => {
+                    if (paused) {
+                      resumeClientScript(
+                        id
+                      );
+                      return;
+                    }
+
+                    void run(
+                      definition.script
+                    ).catch(
+                      () =>
+                        undefined
+                    );
+                  }
+                }
+                aria-label={
+                  paused
+                    ? i18next.t(
+                        "ui.resume"
+                      )
+                    : i18next.t(
+                        "ui.start"
+                      )
+                }
+              >
+                <IconPlayerPlay
+                  size={15}
+                />
+              </ActionIcon>
+            </Tooltip>
+
+            <Tooltip
+              withArrow
+              label={
+                i18next.t(
+                  "ui.stop"
+                )
+              }
+            >
+              <ActionIcon
+                size="sm"
+                variant="light"
+                color="yellow"
+                disabled={
+                  !running
+                }
+                onClick={
+                  () =>
+                    pauseClientScript(
+                      id
+                    )
+                }
+                aria-label={
+                  i18next.t(
+                    "ui.stop"
+                  )
+                }
+              >
+                <IconPlayerPause
+                  size={15}
+                />
+              </ActionIcon>
+            </Tooltip>
+
+            <Tooltip
+              withArrow
+              label={
+                i18next.t(
+                  "ui.abort"
+                )
+              }
+            >
+              <ActionIcon
+                size="sm"
+                variant="light"
+                color="red"
+                disabled={
+                  idle
+                }
+                onClick={
+                  () =>
+                    abortClientScript(
+                      id
+                    )
+                }
+                aria-label={
+                  i18next.t(
+                    "ui.abort"
+                  )
+                }
+              >
+                <IconPlayerStop
+                  size={15}
+                />
+              </ActionIcon>
+            </Tooltip>
+
+            <Tooltip
+              withArrow
+              label={
+                i18next.t(
+                  "ui.editScript"
+                )
+              }
+            >
+              <ActionIcon
+                size="sm"
+                variant="light"
+                color="violet"
+                onClick={
+                  () =>
+                    setEditorOpened(
+                      true
+                    )
+                }
+                aria-label={
+                  i18next.t(
+                    "ui.editScript"
+                  )
+                }
+              >
+                <IconEdit
+                  size={15}
+                />
+              </ActionIcon>
+            </Tooltip>
+
+            <Tooltip
+              withArrow
+              label={
+                idle
+                  ? i18next.t(
+                      "ui.deleteScript"
+                    )
+                  : i18next.t(
+                      "ui.stopOrAbortTheScriptBeforeDeletingIt"
+                    )
+              }
+            >
+              <ActionIcon
+                size="sm"
+                variant="light"
+                color="red"
+                disabled={
+                  !idle
+                }
+                onClick={
+                  () =>
+                    setDeleteConfirmOpened(
+                      true
+                    )
+                }
+                aria-label={
+                  i18next.t(
+                    "ui.deleteScript"
+                  )
+                }
+              >
+                <IconTrash
+                  size={15}
+                />
+              </ActionIcon>
+            </Tooltip>
+          </Group>
+        </Table.Td>        <Table.Td>
           <Badge
             size="sm"
             variant="light"
@@ -429,162 +620,7 @@ function ScriptRow({
           </Text>
         </Table.Td>
 
-        <Table.Td>
-          <Group
-            gap={5}
-            wrap="nowrap"
-            justify="flex-end"
-          >
-            <Button
-              size="compact-xs"
-              variant="light"
-              color="green"
-              leftSection={
-                <IconPlayerPlay
-                  size={13}
-                />
-              }
-              disabled={
-                running ||
-                !definition.script.trim()
-              }
-              onClick={
-                () => {
-                  if (paused) {
-                    resumeClientScript(
-                      id
-                    );
-                    return;
-                  }
 
-                  void run(
-                    definition.script
-                  ).catch(
-                    () =>
-                      undefined
-                  );
-                }
-              }
-            >
-              {
-                paused
-                  ? i18next.t(
-                      "ui.resume"
-                    )
-                  : i18next.t(
-                      "ui.start"
-                    )
-              }
-            </Button>
-
-            <Button
-              size="compact-xs"
-              variant="light"
-              color="yellow"
-              leftSection={
-                <IconPlayerPause
-                  size={13}
-                />
-              }
-              disabled={
-                !running
-              }
-              onClick={
-                () =>
-                  pauseClientScript(
-                    id
-                  )
-              }
-            >
-              {
-                i18next.t(
-                  "ui.stop"
-                )
-              }
-            </Button>
-
-            <Button
-              size="compact-xs"
-              variant="light"
-              color="red"
-              leftSection={
-                <IconTrashX
-                  size={13}
-                />
-              }
-              disabled={
-                idle
-              }
-              onClick={
-                () =>
-                  abortClientScript(
-                    id
-                  )
-              }
-            >
-              {
-                i18next.t(
-                  "ui.abort"
-                )
-              }
-            </Button>
-
-            <Tooltip
-              label={
-                i18next.t(
-                  "ui.editScript"
-                )
-              }
-            >
-              <ActionIcon
-                size="sm"
-                variant="light"
-                color="violet"
-                onClick={
-                  () =>
-                    setEditorOpened(
-                      true
-                    )
-                }
-              >
-                <IconCode
-                  size={15}
-                />
-              </ActionIcon>
-            </Tooltip>
-
-            <Tooltip
-              label={
-                idle
-                  ? i18next.t(
-                      "ui.deleteScript"
-                    )
-                  : i18next.t(
-                      "ui.stopOrAbortTheScriptBeforeDeletingIt"
-                    )
-              }
-            >
-              <ActionIcon
-                size="sm"
-                variant="light"
-                color="red"
-                disabled={
-                  !idle
-                }
-                onClick={
-                  () =>
-                    setDeleteConfirmOpened(
-                      true
-                    )
-                }
-              >
-                <IconTrash
-                  size={15}
-                />
-              </ActionIcon>
-            </Tooltip>
-          </Group>
-        </Table.Td>
       </Table.Tr>
 
       <Modal
@@ -1422,6 +1458,11 @@ export default function AutomationScriptsTable({
         >
           <Table.Thead>
             <Table.Tr>
+              <Table.Th
+                w={168}
+              >
+                {i18next.t("ui.automationActions", { defaultValue: "Controls" })}
+              </Table.Th>
               <Table.Th>
                 {i18next.t("ui.automationStatus", { defaultValue: "Status" })}
               </Table.Th>
@@ -1442,11 +1483,6 @@ export default function AutomationScriptsTable({
               </Table.Th>
               <Table.Th>
                 {i18next.t("ui.info", { defaultValue: "Info" })}
-              </Table.Th>
-              <Table.Th
-                ta="right"
-              >
-                {i18next.t("ui.automationActions", { defaultValue: "Actions" })}
               </Table.Th>
             </Table.Tr>
           </Table.Thead>
