@@ -191,13 +191,23 @@ function summary(
       );
 
     case "setTurnout":
+      if (
+        data.turnoutLabel
+      ) {
+        return (
+          `${data.turnoutLabel} · ` +
+          (
+            data.turnoutStateLabel ||
+            data.turnoutStateKey ||
+            "State"
+          )
+        );
+      }
+
       return (
-        `#${data.turnoutAddress ?? 1} = ` +
-        (
-          data.turnoutClosed !== false
-            ? "CLOSED"
-            : "THROWN"
-        )
+        data.turnoutAddress
+          ? `#${data.turnoutAddress} · ${data.turnoutClosed !== false ? "Closed" : "Thrown"}`
+          : "Select turnout"
       );
 
     case "setAccessory":
