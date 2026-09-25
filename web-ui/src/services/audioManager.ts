@@ -1,6 +1,7 @@
 class AudioManager {
   private activeAudios: Map<string, HTMLAudioElement> = new Map();
   private audioTimeouts: Map<string, number> = new Map();
+  private audioStopCallbacks: Map<string, () => void> = new Map();
   private readonly maxAudioDuration = 600000;
 
   private storageUrl(virtualPath: string): string {
@@ -55,6 +56,7 @@ class AudioManager {
     options?: {
       onEnded?: () => void;
       onError?: (error: unknown) => void;
+      onStopped?: () => void;
     }
   ) {
     const candidates = this.normalizeFileName(fileName);
@@ -72,6 +74,7 @@ class AudioManager {
     const cleanup = () => {
       if (activeUrl) {
         this.activeAudios.delete(activeUrl);
+        this.audioStopCallbacks.delete(activeUrl);
         this.clearAudioTimeout(activeUrl);
       }
     };
@@ -126,6 +129,16 @@ class AudioManager {
 
       this.activeAudios.set(url, audio);
 
+      this.audioStopCallbacks.set(
+        url,
+        () => {
+          if (finished) return;
+          finished = true;
+          cleanup();
+          options?.onStopped?.();
+        }
+      );
+
       const timeoutId = window.setTimeout(() => {
         if (audio) {
           audio.pause();
@@ -160,20 +173,32 @@ class AudioManager {
 
       if (!audio) continue;
 
+      const onStopped =
+        this.audioStopCallbacks.get(url);
+
       audio.pause();
       audio.currentTime = 0;
+
       this.activeAudios.delete(url);
+      this.audioStopCallbacks.delete(url);
       this.clearAudioTimeout(url);
+
+      onStopped?.();
     }
   }
 
   stopAll() {
-    for (const audio of this.activeAudios.values()) {
-      audio.pause();
-      audio.currentTime = 0;
+    for (
+      const url of
+      [
+        ...this.activeAudios.keys(),
+      ]
+    ) {
+      this.stop(url);
     }
 
     this.activeAudios.clear();
+    this.audioStopCallbacks.clear();
 
     for (const timeoutId of this.audioTimeouts.values()) {
       clearTimeout(timeoutId);
