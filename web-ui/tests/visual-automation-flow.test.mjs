@@ -558,7 +558,7 @@ test("loco function consumes payload.locoAddress and preserves payload", () => {
   );
 });
 
-test("play audio node generates the existing playAudio script helper", () => {
+test("play audio node supports blocking and non-blocking playback", () => {
   const domain =
     read(
       "src/domain/automationFlow.ts"
@@ -579,6 +579,21 @@ test("play audio node generates the existing playAudio script helper", () => {
       "src/components/automation/AutomationFlowNode.tsx"
     );
 
+  const runner =
+    read(
+      "src/services/clientScriptRunner.ts"
+    );
+
+  const worker =
+    read(
+      "src/services/clientScriptWorker.ts"
+    );
+
+  const protocol =
+    read(
+      "src/services/clientScriptWorkerProtocol.ts"
+    );
+
   assert.match(
     domain,
     /\| "playAudio"/
@@ -586,7 +601,12 @@ test("play audio node generates the existing playAudio script helper", () => {
 
   assert.match(
     domain,
-    /case "playAudio"/
+    /audioWaitForEnd\?: boolean/
+  );
+
+  assert.match(
+    domain,
+    /await playAudio\(\$\{jsString\(audioName\)\}\)/
   );
 
   assert.match(
@@ -596,17 +616,47 @@ test("play audio node generates the existing playAudio script helper", () => {
 
   assert.match(
     palette,
-    /kind: "playAudio"/
+    /audioWaitForEnd: false/
   );
 
   assert.match(
     properties,
-    /flowAudioNameDescription/
+    /flowWaitForAudioEnd/
   );
 
   assert.match(
     node,
-    /playAudio: \{/
+    /audioWaitForEnd/
+  );
+
+  assert.match(
+    runner,
+    /return dcc\.playAudio\(value\)/
+  );
+
+  assert.match(
+    runner,
+    /handleScriptAudioPlayback/
+  );
+
+  assert.match(
+    worker,
+    /requestAudioPlayback/
+  );
+
+  assert.match(
+    worker,
+    /message\.type ===\s*"audioResult"/
+  );
+
+  assert.match(
+    protocol,
+    /type: "audio"/
+  );
+
+  assert.match(
+    protocol,
+    /type: "audioResult"/
   );
 });
 
