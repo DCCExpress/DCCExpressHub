@@ -154,7 +154,7 @@ test("visual flow generator emits the existing smartDispatcher API", () => {
 test("node palette is grouped into persistent collapsible categories", () => {
   const editor =
     read(
-      "src/components/automation/AutomationFlowDialog.tsx"
+      "src/components/automation/AutomationFlowPalette.tsx"
     );
 
   const collapsible =
@@ -169,7 +169,7 @@ test("node palette is grouped into persistent collapsible categories", () => {
 
   assert.match(
     editor,
-    /PALETTE_GROUPS/
+    /const GROUPS/
   );
 
   assert.match(
@@ -331,5 +331,102 @@ test("flow editor is split into palette, properties, log and inspector component
   assert.doesNotMatch(
     dialog,
     /const renderNodeProperties/
+  );
+});
+
+
+test("trigger injects a typed payload and downstream nodes share it", () => {
+  const domain =
+    read(
+      "src/domain/automationFlow.ts"
+    );
+
+  const payloadEditor =
+    read(
+      "src/components/automation/AutomationFlowPayloadEditor.tsx"
+    );
+
+  assert.match(
+    domain,
+    /triggerPayloadType/
+  );
+
+  assert.match(
+    domain,
+    /triggerPayloadValue/
+  );
+
+  assert.match(
+    domain,
+    /let payload =/
+  );
+
+  assert.match(
+    domain,
+    /JSON\.parse/
+  );
+
+  assert.match(
+    payloadEditor,
+    /value:\s*"json"/
+  );
+
+  assert.match(
+    payloadEditor,
+    /JSON value passed to every downstream node/
+  );
+});
+
+test("loco function consumes payload.locoAddress and preserves payload", () => {
+  const domain =
+    read(
+      "src/domain/automationFlow.ts"
+    );
+
+  const palette =
+    read(
+      "src/components/automation/AutomationFlowPalette.tsx"
+    );
+
+  const properties =
+    read(
+      "src/components/automation/AutomationFlowPropertiesPanel.tsx"
+    );
+
+  assert.match(
+    domain,
+    /case "locoFunction"/
+  );
+
+  assert.match(
+    domain,
+    /payload\.locoAddress/
+  );
+
+  assert.match(
+    domain,
+    /dcc\.setLocoFunction\(locoAddress/
+  );
+
+  assert.match(
+    palette,
+    /kind: "locoFunction"/
+  );
+
+  assert.match(
+    properties,
+    /Uses payload\.locoAddress/
+  );
+});
+
+test("log node writes the current payload to the runtime log", () => {
+  const domain =
+    read(
+      "src/domain/automationFlow.ts"
+    );
+
+  assert.match(
+    domain,
+    /log\([^\n]*payload\)/
   );
 });
