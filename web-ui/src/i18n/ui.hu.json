@@ -990,5 +990,12 @@
   "flowSensorActive": "ON / aktív",
   "flowSensorInactive": "OFF / inaktív",
   "flowSensorTriggerDescription": "RUN módban a flow folyamatosan figyeli a szenzort. Egyszer fut le, amikor a szenzor a kiválasztott állapotba vált, majd csak az ellenkező állapot után élesedik újra.",
-  "flowSensorTriggerLabel": "Szenzor {{address}} → {{state}}"
+  "flowSensorTriggerLabel": "Szenzor {{address}} → {{state}}",
+  "flowNodeSensorInput": "Szenzor input",
+  "flowSensorInputDescription": "Ha a flow futtatás engedélyezve van, minden illeszkedő sensorChanged esemény egyszer elindítja az innen kapcsolt ágat.",
+  "flowTriggerManualEditorOnly": "Manuális · csak editor",
+  "flowNoInputNodes": "Nincs input node",
+  "flowRunFlows": "Flow-k futtatása",
+  "flowRuntimeEnabledDescription": "Az engedélyezett page-ek aktívak. A szenzor- és interval inputok elindíthatják a hozzájuk kapcsolt ágakat.",
+  "flowRuntimeDisabledDescription": "A flow runtime ki van kapcsolva. Az editor Manual/Test inject továbbra is használható."
 }
