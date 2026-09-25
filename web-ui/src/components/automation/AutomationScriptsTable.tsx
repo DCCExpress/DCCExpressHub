@@ -883,6 +883,8 @@ export default function AutomationScriptsTable({
 
   const startAll =
     (): void => {
+      let started = 0;
+
       for (
         const definition of
         scripts
@@ -900,6 +902,8 @@ export default function AutomationScriptsTable({
         ) {
           continue;
         }
+
+        started += 1;
 
         void runClientScript(
           definition.script,
@@ -939,48 +943,135 @@ export default function AutomationScriptsTable({
           }
         );
       }
+
+      showNotification({
+        color:
+          started > 0
+            ? "green"
+            : "gray",
+        title:
+          automationPanelText(
+            "startAll"
+          ),
+        message:
+          started > 0
+            ? automationPanelText(
+                "startAllStarted",
+                {
+                  count:
+                    started,
+                }
+              )
+            : automationPanelText(
+                "noStartableScripts"
+              ),
+      });
     };
 
   const resumeAll =
     (): void => {
+      let resumed = 0;
+
       for (
         const script of
         scripts
       ) {
-        resumeClientScript(
-          executionId(
-            script.id
+        if (
+          resumeClientScript(
+            executionId(
+              script.id
+            )
           )
-        );
+        ) {
+          resumed += 1;
+        }
       }
+
+      showNotification({
+        color:
+          resumed > 0
+            ? "cyan"
+            : "gray",
+        title:
+          automationPanelText(
+            "resumeAll"
+          ),
+        message:
+          resumed > 0
+            ? automationPanelText(
+                "resumeAllResumed",
+                {
+                  count:
+                    resumed,
+                }
+              )
+            : automationPanelText(
+                "noPausedScripts"
+              ),
+      });
     };
 
   const stopAll =
     (): void => {
+      let stopped = 0;
+
       for (
         const script of
         scripts
       ) {
-        pauseClientScript(
-          executionId(
-            script.id
+        if (
+          pauseClientScript(
+            executionId(
+              script.id
+            )
           )
-        );
+        ) {
+          stopped += 1;
+        }
       }
+
+      showNotification({
+        color:
+          stopped > 0
+            ? "yellow"
+            : "gray",
+        title:
+          automationPanelText(
+            "stopAll"
+          ),
+        message:
+          stopped > 0
+            ? automationPanelText(
+                "stopAllPaused",
+                {
+                  count:
+                    stopped,
+                }
+              )
+            : automationPanelText(
+                "noRunningScripts"
+              ),
+      });
     };
 
   const abortAll =
     (): void => {
+      let aborted = 0;
+
       for (
         const script of
         scripts
       ) {
-        abortClientScript(
-          executionId(
-            script.id
-          ),
-          "All automation scripts aborted by user."
-        );
+        if (
+          abortClientScript(
+            executionId(
+              script.id
+            ),
+            "All automation scripts aborted by user."
+          )
+        ) {
+          aborted += 1;
+        }
       }
 
       const emergencyKnownOff =
@@ -988,11 +1079,60 @@ export default function AutomationScriptsTable({
           ?.emergencyStop ===
         false;
 
+      const emergencyAlreadyOn =
+        commandCenter.powerInfo
+          ?.emergencyStop ===
+        true;
+
+      const emergencySent =
+        emergencyKnownOff
+          ? wsApi.emergencyStop()
+          : false;
+
+      let emergencyMessage =
+        automationPanelText(
+          "estopUnknown"
+        );
+
       if (
+        emergencyAlreadyOn
+      ) {
+        emergencyMessage =
+          automationPanelText(
+            "estopAlreadyActive"
+          );
+      } else if (
+        emergencySent
+      ) {
+        emergencyMessage =
+          automationPanelText(
+            "estopRequested"
+          );
+      } else if (
         emergencyKnownOff
       ) {
-        wsApi.emergencyStop();
+        emergencyMessage =
+          automationPanelText(
+            "estopSendFailed"
+          );
       }
+
+      showNotification({
+        color:
+          "red",
+        title:
+          automationPanelText(
+            "abortAll"
+          ),
+        message:
+          `${automationPanelText(
+            "abortAllAborted",
+            {
+              count:
+                aborted,
+            }
+          )} ${emergencyMessage}`,
+      });
     };
 
   return (
