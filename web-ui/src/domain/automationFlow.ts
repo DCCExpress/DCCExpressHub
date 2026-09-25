@@ -51,6 +51,7 @@ export type AutomationFlowNodeData = Record<string, unknown> & {
   turnoutAddress?: number;
   turnoutClosed?: boolean;
   turnoutElementId?: number;
+  turnoutLabel?: string;
   turnoutStateKey?: string;
   turnoutStateLabel?: string;
   turnoutCommands?: AutomationFlowTurnoutCommand[];
@@ -449,6 +450,11 @@ function normalizeNodeData(
           )
         )
       ),
+    turnoutLabel:
+      typeof candidate.turnoutLabel ===
+        "string"
+        ? candidate.turnoutLabel
+        : "",
     turnoutStateKey:
       typeof candidate.turnoutStateKey ===
         "string"
