@@ -909,5 +909,19 @@
   "flowPulseMs": "Impuls (ms)",
   "flowDelayMs": "Verzögerung (ms)",
   "flowMessage": "Nachricht",
-  "flowAddRouteBlock": "Fahrwegblock hinzufügen"
+  "flowAddRouteBlock": "Fahrwegblock hinzufügen",
+  "flowGroupRailway": "Bahn / Fahrt",
+  "flowGroupSensors": "Sensoren",
+  "flowGroupDcc": "DCC / Ausgänge",
+  "flowGroupUtility": "Hilfen",
+  "flowExpandCategory": "Kategorie öffnen",
+  "flowCollapseCategory": "Kategorie schließen",
+  "flowNodeSetSensor": "Sensor setzen",
+  "flowNodeSetTurnout": "Weiche stellen",
+  "flowNodeSetAccessory": "Accessory setzen",
+  "flowStateToSet": "Zu setzender Zustand",
+  "flowTurnoutAddress": "Weichenadresse",
+  "flowTurnoutState": "Weichenstellung",
+  "flowAccessoryAddress": "Accessory-Adresse",
+  "flowAccessoryState": "Accessory-Zustand"
 }
