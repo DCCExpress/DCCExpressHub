@@ -174,7 +174,18 @@ function summary(
         data.triggerMode ===
         "interval"
           ? `Every ${data.intervalMs ?? 60000} ms`
-          : "Manual";
+          : data.triggerMode ===
+            "sensor"
+            ? (
+                `Sensor #${data.sensorAddress ?? 1} → ` +
+                (
+                  data.sensorState !==
+                  false
+                    ? "ON"
+                    : "OFF"
+                )
+              )
+            : "Manual";
 
       const payloadType =
         (
