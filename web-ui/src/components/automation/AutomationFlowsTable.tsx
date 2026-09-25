@@ -107,7 +107,7 @@ function triggerLabel(
     );
 
   if (!trigger) {
-    return "Manual";
+    return i18next.t("ui.flowTriggerManual", { defaultValue: "Manual" });
   }
 
   if (
@@ -123,7 +123,7 @@ function triggerLabel(
         60000 ===
       0
     ) {
-      return `Every ${ms / 60000} min`;
+      return i18next.t("ui.flowEveryMinutes", { defaultValue: "Every {{count}} min", count: ms / 60000 });
     }
 
     if (
@@ -131,13 +131,13 @@ function triggerLabel(
         1000 ===
       0
     ) {
-      return `Every ${ms / 1000} sec`;
+      return i18next.t("ui.flowEverySeconds", { defaultValue: "Every {{count}} sec", count: ms / 1000 });
     }
 
-    return `Every ${ms} ms`;
+    return i18next.t("ui.flowEveryMilliseconds", { defaultValue: "Every {{count}} ms", count: ms });
   }
 
-  return "Manual";
+  return i18next.t("ui.flowTriggerManual", { defaultValue: "Manual" });
 }
 
 function FlowRow({
@@ -611,7 +611,7 @@ export default function AutomationFlowsTable({
           <Table.Thead>
             <Table.Tr>
               <Table.Th>
-                Status
+                {i18next.t("ui.automationStatus", { defaultValue: "Status" })}
               </Table.Th>
               <Table.Th>
                 {
@@ -621,18 +621,18 @@ export default function AutomationFlowsTable({
                 }
               </Table.Th>
               <Table.Th>
-                Enabled
+                {i18next.t("ui.enabled", { defaultValue: "Enabled" })}
               </Table.Th>
               <Table.Th>
-                Nodes
+                {i18next.t("ui.flowNodes", { defaultValue: "Nodes" })}
               </Table.Th>
               <Table.Th>
-                Trigger
+                {i18next.t("ui.flowNodeTrigger", { defaultValue: "Trigger" })}
               </Table.Th>
               <Table.Th
                 ta="right"
               >
-                Actions
+                {i18next.t("ui.automationActions", { defaultValue: "Actions" })}
               </Table.Th>
             </Table.Tr>
           </Table.Thead>
