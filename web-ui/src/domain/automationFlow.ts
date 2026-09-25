@@ -5,6 +5,9 @@ export type AutomationFlowNodeKind =
   | "setSpeed"
   | "waitForBlock"
   | "waitForSensor"
+  | "setSensor"
+  | "setTurnout"
+  | "setAccessory"
   | "horn"
   | "delay"
   | "log";
@@ -37,6 +40,13 @@ export type AutomationFlowNodeData = Record<string, unknown> & {
   blockName?: string;
   sensorAddress?: number;
   sensorState?: boolean;
+
+  turnoutAddress?: number;
+  turnoutClosed?: boolean;
+
+  accessoryAddress?: number;
+  accessoryActive?: boolean;
+
   functionNumber?: number;
   pulseMs?: number;
   delayMs?: number;
@@ -76,6 +86,9 @@ const NODE_KINDS =
     "setSpeed",
     "waitForBlock",
     "waitForSensor",
+    "setSensor",
+    "setTurnout",
+    "setAccessory",
     "horn",
     "delay",
     "log",
@@ -331,6 +344,38 @@ function normalizeNodeData(
       ),
     sensorState:
       candidate.sensorState !==
+      false,
+    turnoutAddress:
+      Math.max(
+        0,
+        Math.min(
+          2048,
+          Math.round(
+            finiteNumber(
+              candidate.turnoutAddress,
+              1
+            )
+          )
+        )
+      ),
+    turnoutClosed:
+      candidate.turnoutClosed !==
+      false,
+    accessoryAddress:
+      Math.max(
+        0,
+        Math.min(
+          2048,
+          Math.round(
+            finiteNumber(
+              candidate.accessoryAddress,
+              1
+            )
+          )
+        )
+      ),
+    accessoryActive:
+      candidate.accessoryActive !==
       false,
     functionNumber:
       Math.max(
@@ -764,6 +809,15 @@ function generateStatement(
 
     case "waitForSensor":
       return `await dcc.waitForSensor(${Math.max(0, Math.round(data.sensorAddress ?? 0))}, ${data.sensorState !== false ? "true" : "false"});`;
+
+    case "setSensor":
+      return `dcc.setSensor(${Math.max(1, Math.min(65535, Math.round(data.sensorAddress ?? 1)))}, ${data.sensorState !== false ? "true" : "false"});`;
+
+    case "setTurnout":
+      return `dcc.setTurnout(${Math.max(1, Math.min(2048, Math.round(data.turnoutAddress ?? 1)))}, ${data.turnoutClosed !== false ? "true" : "false"});`;
+
+    case "setAccessory":
+      return `dcc.setAccessory(${Math.max(1, Math.min(2048, Math.round(data.accessoryAddress ?? 1)))}, ${data.accessoryActive !== false ? "true" : "false"});`;
 
     case "horn": {
       const fn =
