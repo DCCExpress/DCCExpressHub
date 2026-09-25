@@ -730,7 +730,7 @@ const __dccSmartTryBlockLease = async block => {
 };
 
 const __dccSmartTryTurnoutLease =
-  async (states, setDelayMs) => {
+  async (states, setDelayMs, beforeChange) => {
     if (states.length === 0) {
       return Object.freeze({
         acquired: true,
@@ -793,6 +793,19 @@ const __dccSmartTryTurnoutLease =
       };
 
     try {
+      const needsChange =
+        states.some(
+          state =>
+            dcc.getTurnout(state.address) !== state.closed
+        );
+
+      if (
+        needsChange &&
+        typeof beforeChange === "function"
+      ) {
+        beforeChange();
+      }
+
       for (
         let index = 0;
         index < states.length;
@@ -1163,7 +1176,11 @@ const __dccSmartTryReserve =
       const turnoutLease =
         await __dccSmartTryTurnoutLease(
           transition.turnoutStates,
-          state.options.setDelayMs
+          state.options.setDelayMs,
+          () => {
+            state.motionAuthorized = false;
+            __dccSmartApplySpeed(state);
+          }
         );
 
       if (!turnoutLease.acquired) {
