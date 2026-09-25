@@ -908,5 +908,6 @@
   "flowFunctionNumber": "Funktionsnummer",
   "flowPulseMs": "Impuls (ms)",
   "flowDelayMs": "Verzögerung (ms)",
-  "flowMessage": "Nachricht"
+  "flowMessage": "Nachricht",
+  "flowAddRouteBlock": "Fahrwegblock hinzufügen"
 }
