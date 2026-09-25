@@ -1002,5 +1002,6 @@
   "flowAudioName": "Audio name",
   "flowAudioNameDescription": "Base MP3 filename in /sd/audio, without path or .mp3 extension.",
   "flowWaitForAudioEnd": "Wait for audio to finish",
-  "flowWaitForAudioEndDescription": "When enabled, the next node runs only after audio playback ends."
+  "flowWaitForAudioEndDescription": "When enabled, the next node runs only after audio playback ends.",
+  "waitsUntilAudioPlaybackFinishes": "Waits until audio playback finishes before continuing the script."
 }
