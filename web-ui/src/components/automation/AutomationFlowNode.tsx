@@ -371,7 +371,7 @@ export default function AutomationFlowNode({
         <Handle
           type="target"
           position={
-            Position.Left
+            Position.Top
           }
           className="automation-flow-handle"
         />
@@ -490,7 +490,7 @@ export default function AutomationFlowNode({
       <Handle
         type="source"
         position={
-          Position.Right
+          Position.Bottom
         }
         className="automation-flow-handle"
       />
