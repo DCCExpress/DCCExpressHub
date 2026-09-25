@@ -1379,8 +1379,12 @@ function wrapWithTrigger(
   if (
     !trigger ||
     testRun ||
-    trigger.data.triggerMode ===
-      "manual"
+    (
+      trigger.data.triggerMode !==
+        "interval" &&
+      trigger.data.triggerMode !==
+        "sensor"
+    )
   ) {
     return code;
   }
