@@ -34,6 +34,7 @@ import CollapsiblePanelCard from "../common/CollapsiblePanelCard";
 type PaletteGroup =
   | "trigger"
   | "railway"
+  | "locoBlocks"
   | "sensors"
   | "dcc"
   | "utility";
@@ -65,6 +66,12 @@ const GROUPS: Array<{
     labelKey: "ui.flowGroupRailway",
     fallback: "Railway / Movement",
     color: "violet",
+  },
+  {
+    id: "locoBlocks",
+    labelKey: "ui.flowGroupLocoBlocks",
+    fallback: "Locomotive / Blocks",
+    color: "blue",
   },
   {
     id: "sensors",
@@ -121,8 +128,64 @@ const ITEMS: PaletteItem[] = [
     color: "cyan",
   },
   {
+    kind: "setLoco",
+    group: "locoBlocks",
+    icon: <IconBolt size={16} />,
+    labelKey: "ui.flowNodeSetLoco",
+    fallback: "Set Loco",
+    color: "blue",
+  },
+  {
+    kind: "getBlock",
+    group: "locoBlocks",
+    icon: <IconGitBranch size={16} />,
+    labelKey: "ui.flowNodeGetBlock",
+    fallback: "Get Block",
+    color: "cyan",
+  },
+  {
+    kind: "setBlock",
+    group: "locoBlocks",
+    icon: <IconGitBranch size={16} />,
+    labelKey: "ui.flowNodeSetBlock",
+    fallback: "Set Block",
+    color: "cyan",
+  },
+  {
+    kind: "clearBlock",
+    group: "locoBlocks",
+    icon: <IconGitBranch size={16} />,
+    labelKey: "ui.flowNodeClearBlock",
+    fallback: "Clear Block",
+    color: "gray",
+  },
+  {
+    kind: "getBlockTargetLoco",
+    group: "locoBlocks",
+    icon: <IconRoute size={16} />,
+    labelKey: "ui.flowNodeGetTarget",
+    fallback: "Get Target",
+    color: "indigo",
+  },
+  {
+    kind: "setBlockTargetLoco",
+    group: "locoBlocks",
+    icon: <IconRoute size={16} />,
+    labelKey: "ui.flowNodeSetTarget",
+    fallback: "Set Target",
+    color: "indigo",
+  },
+  {
+    kind: "clearBlockTargetLoco",
+    group: "locoBlocks",
+    icon: <IconRoute size={16} />,
+    labelKey: "ui.flowNodeClearTarget",
+    fallback: "Clear Target",
+    color: "gray",
+  },
+  {
     kind: "locoFunction",
-    group: "railway",
+    group: "locoBlocks",
     icon: <IconVolume size={16} />,
     labelKey: "ui.flowNodeLocoFunction",
     fallback: "Loco Function",
@@ -282,6 +345,27 @@ export function createDefaultAutomationNodeData(
         ...base,
         accessoryAddress: 1,
         accessoryActive: true,
+      };
+
+    case "setLoco":
+      return {
+        ...base,
+        speed: 20,
+        locoDirection:
+          "forward",
+      };
+
+    case "getBlock":
+    case "setBlock":
+    case "clearBlock":
+    case "getBlockTargetLoco":
+    case "setBlockTargetLoco":
+    case "clearBlockTargetLoco":
+      return {
+        ...base,
+        blockElementId: 0,
+        blockLabel: "",
+        blockName: "",
       };
 
     case "locoFunction":
