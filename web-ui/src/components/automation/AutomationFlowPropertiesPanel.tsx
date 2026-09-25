@@ -28,6 +28,8 @@ import type {
   AutomationFlowNodeData,
 } from "../../domain/automationFlow";
 
+import AutomationFlowPayloadEditor from "./AutomationFlowPayloadEditor";
+
 type Props = {
   node: AutomationFlowNode | null;
   onChange: (
@@ -226,6 +228,20 @@ export default function AutomationFlowPropertiesPanel({
               }
             />
           )}
+
+          <AutomationFlowPayloadEditor
+            type={
+              data.triggerPayloadType ??
+              "json"
+            }
+            value={
+              data.triggerPayloadValue ??
+              "{}"
+            }
+            onChange={
+              onChange
+            }
+          />
         </>
       )}
 
@@ -782,6 +798,79 @@ export default function AutomationFlowPropertiesPanel({
                   accessoryActive:
                     value !==
                     "false",
+                })
+            }
+          />
+        </>
+      )}
+
+      {data.kind ===
+        "locoFunction" && (
+        <>
+          <Alert
+            color="blue"
+            py="xs"
+          >
+            {
+              t(
+                "ui.flowLocoFunctionPayloadHint",
+                "Uses payload.locoAddress as the locomotive address and passes payload on unchanged."
+              )
+            }
+          </Alert>
+
+          <NumberInput
+            label={
+              t(
+                "ui.flowFunctionNumber",
+                "Function number"
+              )
+            }
+            value={
+              data.functionNumber ??
+              2
+            }
+            min={0}
+            max={68}
+            onChange={
+              value =>
+                onChange({
+                  functionNumber:
+                    Number(
+                      value
+                    ) ||
+                    0,
+                })
+            }
+          />
+
+          <NumberInput
+            label={
+              t(
+                "ui.flowPulseMs",
+                "Pulse (ms)"
+              )
+            }
+            description={
+              t(
+                "ui.flowLocoFunctionPulseDescription",
+                "Function ON, wait this long, then OFF."
+              )
+            }
+            value={
+              data.pulseMs ??
+              700
+            }
+            min={1}
+            max={600000}
+            onChange={
+              value =>
+                onChange({
+                  pulseMs:
+                    Number(
+                      value
+                    ) ||
+                    1,
                 })
             }
           />
