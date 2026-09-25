@@ -78,6 +78,7 @@ export type AutomationFlowNodeData = Record<string, unknown> & {
   pulseMs?: number;
   delayMs?: number;
   audioName?: string;
+  audioWaitForEnd?: boolean;
   message?: string;
 
   triggerMode?:
@@ -586,6 +587,9 @@ function normalizeNodeData(
         "string"
         ? candidate.audioName.trim()
         : "",
+    audioWaitForEnd:
+      candidate.audioWaitForEnd ===
+      true,
     message:
       typeof candidate.message === "string"
         ? candidate.message
@@ -1311,7 +1315,12 @@ function generateStatement(
         return 'throw new Error("Play Audio requires an audio name.");';
       }
 
-      return `playAudio(${jsString(audioName)});`;
+      return (
+        data.audioWaitForEnd ===
+        true
+          ? `await playAudio(${jsString(audioName)});`
+          : `playAudio(${jsString(audioName)});`
+      );
     }
 
     case "log":
