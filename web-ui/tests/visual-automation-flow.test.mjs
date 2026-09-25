@@ -1105,7 +1105,7 @@ test("automation script deletion requires confirmation", () => {
 });
 
 
-test("automation script runtime controls are compact icon buttons in the first column", () => {
+test("automation script rows group name status all controls and info into one card-like cell", () => {
   const scripts =
     read(
       "src/components/automation/AutomationScriptsTable.tsx"
@@ -1113,7 +1113,13 @@ test("automation script runtime controls are compact icon buttons in the first c
 
   const rowStart =
     scripts.indexOf(
-      "<Table.Tr>"
+      '<Stack\n            gap={7}'
+    );
+
+  const name =
+    scripts.indexOf(
+      "<TextInput",
+      rowStart
     );
 
   const status =
@@ -1122,16 +1128,36 @@ test("automation script runtime controls are compact icon buttons in the first c
       rowStart
     );
 
+  const allControl =
+    scripts.indexOf(
+      "startWithAllDescription",
+      rowStart
+    );
+
   const play =
     scripts.indexOf(
       "<IconPlayerPlay",
+      allControl
+    );
+
+  const infoBadge =
+    scripts.indexOf(
+      'info\n                  ? "blue"',
       rowStart
     );
 
   assert.ok(
     rowStart >= 0 &&
-    play > rowStart &&
-    status > play
+    name > rowStart &&
+    status > name &&
+    allControl > status &&
+    play > allControl &&
+    infoBadge > play
+  );
+
+  assert.match(
+    scripts,
+    /<Divider\s+orientation="vertical"/
   );
 
   assert.match(
@@ -1155,13 +1181,12 @@ test("automation script runtime controls are compact icon buttons in the first c
   );
 
   assert.doesNotMatch(
-    scripts.slice(
-      rowStart,
-      scripts.indexOf(
-        "</Table.Tr>",
-        rowStart
-      )
-    ),
-    /size="compact-xs"/
+    scripts,
+    /definition\.script\.split\("\\n"\)\.length/
+  );
+
+  assert.doesNotMatch(
+    scripts,
+    /automationScriptColumn/
   );
 });
