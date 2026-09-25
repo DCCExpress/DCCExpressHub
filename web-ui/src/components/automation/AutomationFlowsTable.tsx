@@ -53,6 +53,12 @@ type Props = {
     document:
       AutomationFlowDocument
   ) => void;
+  runtimeEnabled:
+    boolean;
+  onRuntimeEnabledChange: (
+    enabled:
+      boolean
+  ) => void;
   onOpenEditor: (
     pageId:
       string
@@ -686,6 +692,8 @@ function FlowCard({
 export default function AutomationFlowsTable({
   document,
   onDocumentChange,
+  runtimeEnabled,
+  onRuntimeEnabledChange,
   onOpenEditor,
 }: Props) {
   const [
@@ -736,19 +744,14 @@ export default function AutomationFlowsTable({
       enabled:
         boolean
     ): void => {
-      const next = {
-        ...document,
-        enabled,
-      };
-
       if (!enabled) {
         abortAllAutomationFlowExecutions(
           "Visual flows globally disabled."
         );
       }
 
-      persistDocument(
-        next
+      onRuntimeEnabledChange(
+        enabled
       );
     };
 
@@ -922,7 +925,7 @@ export default function AutomationFlowsTable({
             size="sm"
             color="green"
             checked={
-              document.enabled
+              runtimeEnabled
             }
             label={
               i18next.t(
@@ -976,7 +979,7 @@ export default function AutomationFlowsTable({
         c="dimmed"
       >
         {
-          document.enabled
+          runtimeEnabled
             ? i18next.t(
                 "ui.flowRuntimeEnabledDescription",
                 {
