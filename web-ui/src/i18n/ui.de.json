@@ -1002,5 +1002,6 @@
   "flowAudioName": "Audioname",
   "flowAudioNameDescription": "Basisname der MP3-Datei in /sd/audio, ohne Pfad und ohne .mp3-Endung.",
   "flowWaitForAudioEnd": "Auf Audioende warten",
-  "flowWaitForAudioEndDescription": "Wenn aktiviert, läuft der nächste Node erst nach dem Ende der Wiedergabe weiter."
+  "flowWaitForAudioEndDescription": "Wenn aktiviert, läuft der nächste Node erst nach dem Ende der Wiedergabe weiter.",
+  "waitsUntilAudioPlaybackFinishes": "Wartet bis zum Ende der Audiowiedergabe und setzt das Skript erst danach fort."
 }
