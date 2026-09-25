@@ -100,6 +100,10 @@ import AutomationFlowPalette, {
 import {
   useAutomationFlowExecution,
 } from "./useAutomationFlowExecution";
+import {
+  AUTOMATION_FLOW_INJECT_EVENT,
+  type AutomationFlowInjectEventDetail,
+} from "./automationFlowEvents";
 
 type AutomationFlowDialogProps = {
   opened: boolean;
@@ -337,6 +341,70 @@ export default function AutomationFlowDialog({
       generated,
       generatedTest,
     });
+
+  useEffect(
+    () => {
+      if (!opened) {
+        return;
+      }
+
+      const handleInject =
+        (
+          event: Event
+        ): void => {
+          const detail =
+            (
+              event as CustomEvent<
+                AutomationFlowInjectEventDetail
+              >
+            ).detail;
+
+          if (
+            !detail ||
+            detail.pageId !==
+              activePageId ||
+            flowExecution.execution
+          ) {
+            return;
+          }
+
+          const injected =
+            generateAutomationFlowPageScript(
+              document,
+              activePageId,
+              {
+                testRun:
+                  true,
+                triggerNodeId:
+                  detail.triggerNodeId,
+              }
+            );
+
+          void flowExecution.inject(
+            injected.code
+          );
+        };
+
+      window.addEventListener(
+        AUTOMATION_FLOW_INJECT_EVENT,
+        handleInject
+      );
+
+      return () => {
+        window.removeEventListener(
+          AUTOMATION_FLOW_INJECT_EVENT,
+          handleInject
+        );
+      };
+    },
+    [
+      opened,
+      document,
+      activePageId,
+      flowExecution.execution,
+      flowExecution.inject,
+    ]
+  );
 
   const load =
     useCallback(
