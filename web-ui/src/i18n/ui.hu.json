@@ -909,5 +909,19 @@
   "flowPulseMs": "Impulzus (ms)",
   "flowDelayMs": "Késleltetés (ms)",
   "flowMessage": "Üzenet",
-  "flowAddRouteBlock": "Útvonalblokk hozzáadása"
+  "flowAddRouteBlock": "Útvonalblokk hozzáadása",
+  "flowGroupRailway": "Vasút / Menet",
+  "flowGroupSensors": "Szenzorok",
+  "flowGroupDcc": "DCC / Kimenetek",
+  "flowGroupUtility": "Segéd",
+  "flowExpandCategory": "Kategória kinyitása",
+  "flowCollapseCategory": "Kategória bezárása",
+  "flowNodeSetSensor": "Szenzor állítása",
+  "flowNodeSetTurnout": "Váltó állítása",
+  "flowNodeSetAccessory": "Accessory állítása",
+  "flowStateToSet": "Beállítandó állapot",
+  "flowTurnoutAddress": "Váltó címe",
+  "flowTurnoutState": "Váltó állása",
+  "flowAccessoryAddress": "Accessory címe",
+  "flowAccessoryState": "Accessory állapota"
 }
