@@ -874,5 +874,8 @@
   "turnoutLocksReleasedCount": "{{value1}} turnout locks released.",
   "noActiveTurnoutLocks": "There were no active turnout locks.",
   "releaseAllTurnoutLocksFailed": "Turnout-lock release failed",
-  "releaseAllTurnoutLocks": "Release all turnout locks"
+  "releaseAllTurnoutLocks": "Release all turnout locks",
+  "turnoutLocked": "Turnout locked",
+  "turnoutLockedByOwner": "Turnout {{value1}} cannot be changed – reserved by: {{value2}}.",
+  "turnoutLockedMessage": "Turnout {{value1}} cannot be changed."
 }

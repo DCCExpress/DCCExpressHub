@@ -539,7 +539,7 @@ export default function RoutesDialog({
                       </Table.Th>
 
                       <Table.Th>
-                        {t("ui.segment")}lánc
+                        {t("ui.segmentChain")}
                       </Table.Th>
 
                       <Table.Th>

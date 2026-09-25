@@ -874,5 +874,8 @@
   "turnoutLocksReleasedCount": "{{value1}} Weichensperren gelöst.",
   "noActiveTurnoutLocks": "Es waren keine aktiven Weichensperren vorhanden.",
   "releaseAllTurnoutLocksFailed": "Lösen der Weichensperren fehlgeschlagen",
-  "releaseAllTurnoutLocks": "Alle Weichensperren lösen"
+  "releaseAllTurnoutLocks": "Alle Weichensperren lösen",
+  "turnoutLocked": "Weiche gesperrt",
+  "turnoutLockedByOwner": "Weiche {{value1}} kann nicht gestellt werden – reserviert von: {{value2}}.",
+  "turnoutLockedMessage": "Weiche {{value1}} kann nicht gestellt werden."
 }

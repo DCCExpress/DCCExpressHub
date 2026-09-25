@@ -934,10 +934,19 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
 
       showNotification({
         color: "orange",
-        title: "Váltó zárolva",
-        message: `A(z) ${lockInfo.address ?? "?"}. váltó nem állítható${
-          lockInfo.ownerName ? ` – foglalja: ${lockInfo.ownerName}` : ""
-        }.`,
+        title: i18next.t("ui.turnoutLocked"),
+        message: lockInfo.ownerName
+          ? i18next.t(
+              "ui.turnoutLockedByOwner",
+              {
+                value1: lockInfo.address ?? "?",
+                value2: lockInfo.ownerName,
+              }
+            )
+          : i18next.t(
+              "ui.turnoutLockedMessage",
+              { value1: lockInfo.address ?? "?" }
+            ),
       });
 
       // A RouteButton currently updates its local element optimistically after

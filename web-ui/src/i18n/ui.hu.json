@@ -874,5 +874,8 @@
   "turnoutLocksReleasedCount": "{{value1}} váltózár feloldva.",
   "noActiveTurnoutLocks": "Nem volt aktív váltózár.",
   "releaseAllTurnoutLocksFailed": "Váltózár-feloldás sikertelen",
-  "releaseAllTurnoutLocks": "Összes váltózár feloldása"
+  "releaseAllTurnoutLocks": "Összes váltózár feloldása",
+  "turnoutLocked": "Váltó zárolva",
+  "turnoutLockedByOwner": "A(z) {{value1}}. váltó nem állítható – foglalja: {{value2}}.",
+  "turnoutLockedMessage": "A(z) {{value1}}. váltó nem állítható."
 }
