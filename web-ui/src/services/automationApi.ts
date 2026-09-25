@@ -1,3 +1,8 @@
+import {
+  normalizeAutomationFlowDocument,
+  type AutomationFlowDocument,
+} from "../domain/automationFlow";
+
 export const AUTOMATION_STORAGE_VERSION = 1;
 
 export type AutomationScriptDefinition = {
@@ -26,6 +31,7 @@ export type AutomationStoragePayload = {
   version: typeof AUTOMATION_STORAGE_VERSION;
   scripts: AutomationScriptDefinition[];
   timetable?: TimetableEntryDefinition[];
+  visualFlow?: AutomationFlowDocument;
 };
 
 export function createAutomationId(): string {
@@ -149,7 +155,8 @@ export function normalizeTimetableEntries(
 
 export function createAutomationPayload(
   scripts: AutomationScriptDefinition[],
-  timetable?: TimetableEntryDefinition[]
+  timetable?: TimetableEntryDefinition[],
+  visualFlow?: AutomationFlowDocument
 ): AutomationStoragePayload {
   return {
     version: AUTOMATION_STORAGE_VERSION,
@@ -160,12 +167,21 @@ export function createAutomationPayload(
           timetable:
             normalizeTimetableEntries(timetable),
         }),
+    ...(visualFlow === undefined
+      ? {}
+      : {
+          visualFlow:
+            normalizeAutomationFlowDocument(
+              visualFlow
+            ),
+        }),
   };
 }
 
 type LoadedAutomationStorage = {
   scripts: AutomationScriptDefinition[];
   timetable: TimetableEntryDefinition[];
+  visualFlow: AutomationFlowDocument;
 };
 
 async function loadAutomationStorage(): Promise<LoadedAutomationStorage> {
@@ -218,6 +234,10 @@ async function loadAutomationStorage(): Promise<LoadedAutomationStorage> {
     timetable:
       normalizeTimetableEntries(
         payload.timetable
+      ),
+    visualFlow:
+      normalizeAutomationFlowDocument(
+        payload.visualFlow
       ),
   };
 }
@@ -284,7 +304,8 @@ export async function saveAutomationScripts(
   await saveAutomationStorage(
     createAutomationPayload(
       scripts,
-      current.timetable
+      current.timetable,
+      current.visualFlow
     )
   );
 }
@@ -308,7 +329,29 @@ export async function saveAutomationTimetable(
   await saveAutomationStorage(
     createAutomationPayload(
       current.scripts,
-      timetable
+      timetable,
+      current.visualFlow
+    )
+  );
+}
+
+export async function loadAutomationFlow(): Promise<AutomationFlowDocument> {
+  return (
+    await loadAutomationStorage()
+  ).visualFlow;
+}
+
+export async function saveAutomationFlow(
+  visualFlow: AutomationFlowDocument
+): Promise<void> {
+  const current =
+    await loadAutomationStorage();
+
+  await saveAutomationStorage(
+    createAutomationPayload(
+      current.scripts,
+      current.timetable,
+      visualFlow
     )
   );
 }
