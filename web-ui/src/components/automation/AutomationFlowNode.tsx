@@ -63,6 +63,24 @@ const NODE_META:
       title:
         "Wait sensor",
     },
+    setSensor: {
+      icon: "🧪",
+      color: "teal",
+      title:
+        "Set sensor",
+    },
+    setTurnout: {
+      icon: "↪",
+      color: "grape",
+      title:
+        "Set turnout",
+    },
+    setAccessory: {
+      icon: "⚡",
+      color: "yellow",
+      title:
+        "Set accessory",
+    },
     horn: {
       icon: "📣",
       color: "orange",
@@ -117,6 +135,36 @@ function summary(
         (
           data.sensorState !==
           false
+            ? "ON"
+            : "OFF"
+        )
+      );
+
+    case "setSensor":
+      return (
+        `#${data.sensorAddress ?? 1} = ` +
+        (
+          data.sensorState !== false
+            ? "ON"
+            : "OFF"
+        )
+      );
+
+    case "setTurnout":
+      return (
+        `#${data.turnoutAddress ?? 1} = ` +
+        (
+          data.turnoutClosed !== false
+            ? "CLOSED"
+            : "THROWN"
+        )
+      );
+
+    case "setAccessory":
+      return (
+        `#${data.accessoryAddress ?? 1} = ` +
+        (
+          data.accessoryActive !== false
             ? "ON"
             : "OFF"
         )
