@@ -1011,33 +1011,87 @@ test("new flow nodes are placed top to bottom by default", () => {
 });
 
 
-test("saved flow controls are compact icon buttons in the first table column", () => {
+test("saved flows use reorderable cards with grouped controls and trigger badge", () => {
   const flows =
     read(
       "src/components/automation/AutomationFlowsTable.tsx"
     );
 
-  const rowStart =
+  const cardStart =
     flows.indexOf(
-      "return (\n    <Table.Tr>"
+      "<Card\n      withBorder"
     );
 
-  const statusBadge =
+  const name =
+    flows.indexOf(
+      "page.name",
+      cardStart
+    );
+
+  const status =
     flows.indexOf(
       "state.status.toUpperCase()",
-      rowStart
+      cardStart
     );
 
-  const firstPlay =
+  const enabled =
     flows.indexOf(
-      "<IconPlayerPlay",
-      rowStart
+      "page.enabled",
+      cardStart
+    );
+
+  const trigger =
+    flows.indexOf(
+      "triggerLabel(",
+      cardStart
     );
 
   assert.ok(
-    rowStart >= 0 &&
-    firstPlay > rowStart &&
-    statusBadge > firstPlay
+    cardStart >= 0 &&
+    name > cardStart &&
+    status > name &&
+    enabled > status &&
+    trigger > enabled
+  );
+
+  assert.match(
+    flows,
+    /draggable/
+  );
+
+  assert.match(
+    flows,
+    /IconGripVertical/
+  );
+
+  assert.match(
+    flows,
+    /IconArrowUp/
+  );
+
+  assert.match(
+    flows,
+    /IconArrowDown/
+  );
+
+  assert.match(
+    flows,
+    /moveDraggedPageToIndex/
+  );
+
+  assert.match(
+    flows,
+    /persistPageOrder/
+  );
+
+  assert.match(
+    flows,
+    /saveAutomationFlow/
+  );
+
+  assert.match(
+    flows,
+    /<Divider\s+orientation="vertical"/
   );
 
   assert.match(
@@ -1056,14 +1110,13 @@ test("saved flow controls are compact icon buttons in the first table column", (
   );
 
   assert.doesNotMatch(
-    flows.slice(
-      rowStart,
-      flows.indexOf(
-        "</Table.Tr>",
-        rowStart
-      )
-    ),
-    /size="compact-xs"/
+    flows,
+    /<Table/
+  );
+
+  assert.doesNotMatch(
+    flows,
+    /nodeCount/
   );
 });
 
