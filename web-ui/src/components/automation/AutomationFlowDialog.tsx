@@ -91,23 +91,66 @@ import {
 import {
   automationFlowNodeTypes,
 } from "./AutomationFlowNode";
+import CollapsiblePanelCard from "../common/CollapsiblePanelCard";
 
 type AutomationFlowDialogProps = {
   opened: boolean;
   onClose: () => void;
 };
 
+type PaletteGroup =
+  | "railway"
+  | "sensors"
+  | "dcc"
+  | "utility";
+
 type PaletteItem = {
   kind: AutomationFlowNodeKind;
-  icon: React.ReactNode;
+  group: PaletteGroup;
+  icon: ReactNode;
   labelKey: string;
   fallback: string;
   color: string;
 };
 
+const PALETTE_GROUPS: Array<{
+  id: PaletteGroup;
+  labelKey: string;
+  fallback: string;
+  color: string;
+  defaultCollapsed?: boolean;
+}> = [
+  {
+    id: "railway",
+    labelKey: "ui.flowGroupRailway",
+    fallback: "Railway",
+    color: "violet",
+  },
+  {
+    id: "sensors",
+    labelKey: "ui.flowGroupSensors",
+    fallback: "Sensors",
+    color: "teal",
+  },
+  {
+    id: "dcc",
+    labelKey: "ui.flowGroupDcc",
+    fallback: "DCC / Outputs",
+    color: "orange",
+  },
+  {
+    id: "utility",
+    labelKey: "ui.flowGroupUtility",
+    fallback: "Utility",
+    color: "gray",
+    defaultCollapsed: true,
+  },
+];
+
 const PALETTE: PaletteItem[] = [
   {
     kind: "smartDispatcher",
+    group: "railway",
     icon: <IconRoute size={16} />,
     labelKey: "ui.flowNodeSmartDispatcher",
     fallback: "SmartDispatcher",
@@ -115,6 +158,7 @@ const PALETTE: PaletteItem[] = [
   },
   {
     kind: "setSpeed",
+    group: "railway",
     icon: <IconBolt size={16} />,
     labelKey: "ui.flowNodeSetSpeed",
     fallback: "Set speed",
@@ -122,6 +166,7 @@ const PALETTE: PaletteItem[] = [
   },
   {
     kind: "waitForBlock",
+    group: "railway",
     icon: <IconGitBranch size={16} />,
     labelKey: "ui.flowNodeWaitBlock",
     fallback: "Wait block",
@@ -129,13 +174,39 @@ const PALETTE: PaletteItem[] = [
   },
   {
     kind: "waitForSensor",
+    group: "sensors",
     icon: <IconAntenna size={16} />,
     labelKey: "ui.flowNodeWaitSensor",
     fallback: "Wait sensor",
     color: "teal",
   },
   {
+    kind: "setSensor",
+    group: "sensors",
+    icon: <IconAntenna size={16} />,
+    labelKey: "ui.flowNodeSetSensor",
+    fallback: "Set sensor",
+    color: "teal",
+  },
+  {
+    kind: "setTurnout",
+    group: "dcc",
+    icon: <IconGitBranch size={16} />,
+    labelKey: "ui.flowNodeSetTurnout",
+    fallback: "Set turnout",
+    color: "grape",
+  },
+  {
+    kind: "setAccessory",
+    group: "dcc",
+    icon: <IconBolt size={16} />,
+    labelKey: "ui.flowNodeSetAccessory",
+    fallback: "Set accessory",
+    color: "yellow",
+  },
+  {
     kind: "horn",
+    group: "railway",
     icon: <IconVolume size={16} />,
     labelKey: "ui.flowNodeHorn",
     fallback: "Horn",
@@ -143,6 +214,7 @@ const PALETTE: PaletteItem[] = [
   },
   {
     kind: "delay",
+    group: "utility",
     icon: <IconClock size={16} />,
     labelKey: "ui.flowNodeDelay",
     fallback: "Delay",
@@ -150,6 +222,7 @@ const PALETTE: PaletteItem[] = [
   },
   {
     kind: "log",
+    group: "utility",
     icon: <IconNote size={16} />,
     labelKey: "ui.flowNodeLog",
     fallback: "Log",
@@ -222,6 +295,27 @@ function defaultNodeData(
         ...base,
         sensorAddress: 1,
         sensorState: true,
+      };
+
+    case "setSensor":
+      return {
+        ...base,
+        sensorAddress: 1,
+        sensorState: true,
+      };
+
+    case "setTurnout":
+      return {
+        ...base,
+        turnoutAddress: 1,
+        turnoutClosed: true,
+      };
+
+    case "setAccessory":
+      return {
+        ...base,
+        accessoryAddress: 1,
+        accessoryActive: true,
       };
 
     case "horn":
@@ -1552,6 +1646,195 @@ export default function AutomationFlowDialog({
           )}
 
           {data.kind ===
+            "setSensor" && (
+            <>
+              <NumberInput
+                label={
+                  t(
+                    "ui.sensorAddress",
+                    "Sensor address"
+                  )
+                }
+                value={
+                  data.sensorAddress ??
+                  1
+                }
+                min={1}
+                max={65535}
+                onChange={
+                  value =>
+                    updateSelectedNode({
+                      sensorAddress:
+                        Number(
+                          value
+                        ) ||
+                        1,
+                    })
+                }
+              />
+
+              <Select
+                label={
+                  t(
+                    "ui.flowStateToSet",
+                    "State to set"
+                  )
+                }
+                value={
+                  data.sensorState !== false
+                    ? "true"
+                    : "false"
+                }
+                data={[
+                  {
+                    value: "true",
+                    label: "ON / true",
+                  },
+                  {
+                    value: "false",
+                    label: "OFF / false",
+                  },
+                ]}
+                allowDeselect={false}
+                onChange={
+                  value =>
+                    updateSelectedNode({
+                      sensorState:
+                        value !==
+                        "false",
+                    })
+                }
+              />
+            </>
+          )}
+
+          {data.kind ===
+            "setTurnout" && (
+            <>
+              <NumberInput
+                label={
+                  t(
+                    "ui.flowTurnoutAddress",
+                    "Turnout address"
+                  )
+                }
+                value={
+                  data.turnoutAddress ??
+                  1
+                }
+                min={1}
+                max={2048}
+                onChange={
+                  value =>
+                    updateSelectedNode({
+                      turnoutAddress:
+                        Number(
+                          value
+                        ) ||
+                        1,
+                    })
+                }
+              />
+
+              <Select
+                label={
+                  t(
+                    "ui.flowTurnoutState",
+                    "Turnout state"
+                  )
+                }
+                value={
+                  data.turnoutClosed !== false
+                    ? "closed"
+                    : "thrown"
+                }
+                data={[
+                  {
+                    value: "closed",
+                    label: "CLOSED",
+                  },
+                  {
+                    value: "thrown",
+                    label: "THROWN",
+                  },
+                ]}
+                allowDeselect={false}
+                onChange={
+                  value =>
+                    updateSelectedNode({
+                      turnoutClosed:
+                        value !==
+                        "thrown",
+                    })
+                }
+              />
+            </>
+          )}
+
+          {data.kind ===
+            "setAccessory" && (
+            <>
+              <NumberInput
+                label={
+                  t(
+                    "ui.flowAccessoryAddress",
+                    "Accessory address"
+                  )
+                }
+                value={
+                  data.accessoryAddress ??
+                  1
+                }
+                min={1}
+                max={2048}
+                onChange={
+                  value =>
+                    updateSelectedNode({
+                      accessoryAddress:
+                        Number(
+                          value
+                        ) ||
+                        1,
+                    })
+                }
+              />
+
+              <Select
+                label={
+                  t(
+                    "ui.flowAccessoryState",
+                    "Accessory state"
+                  )
+                }
+                value={
+                  data.accessoryActive !== false
+                    ? "true"
+                    : "false"
+                }
+                data={[
+                  {
+                    value: "true",
+                    label: "ON / active",
+                  },
+                  {
+                    value: "false",
+                    label: "OFF / inactive",
+                  },
+                ]}
+                allowDeselect={false}
+                onChange={
+                  value =>
+                    updateSelectedNode({
+                      accessoryActive:
+                        value !==
+                        "false",
+                    })
+                }
+              />
+            </>
+          )}
+
+          {data.kind ===
             "horn" && (
             <>
               <NumberInput
@@ -1932,36 +2215,106 @@ export default function AutomationFlowDialog({
                     gap="xs"
                     pr={4}
                   >
-                    {PALETTE.map(
-                      item => (
-                        <Button
-                          key={
-                            item.kind
-                          }
-                          size="xs"
-                          variant="light"
-                          color={
-                            item.color
-                          }
-                          leftSection={
-                            item.icon
-                          }
-                          className="automation-flow-palette-button"
-                          onClick={
-                            () =>
-                              addNode(
-                                item.kind
+                    {PALETTE_GROUPS.map(
+                      group => {
+                        const items =
+                          PALETTE.filter(
+                            item =>
+                              item.group ===
+                              group.id
+                          );
+
+                        return (
+                          <CollapsiblePanelCard
+                            key={
+                              group.id
+                            }
+                            title={
+                              <Group
+                                gap="xs"
+                                wrap="nowrap"
+                              >
+                                <Text
+                                  size="sm"
+                                  fw={700}
+                                >
+                                  {
+                                    t(
+                                      group.labelKey,
+                                      group.fallback
+                                    )
+                                  }
+                                </Text>
+
+                                <Badge
+                                  size="xs"
+                                  variant="light"
+                                  color={
+                                    group.color
+                                  }
+                                >
+                                  {
+                                    items.length
+                                  }
+                                </Badge>
+                              </Group>
+                            }
+                            collapsedStorageKey={
+                              `dcc-express-flow-palette-${group.id}-collapsed`
+                            }
+                            expandTooltip={
+                              t(
+                                "ui.flowExpandCategory",
+                                "Expand category"
                               )
-                          }
-                        >
-                          {
-                            t(
-                              item.labelKey,
-                              item.fallback
-                            )
-                          }
-                        </Button>
-                      )
+                            }
+                            collapseTooltip={
+                              t(
+                                "ui.flowCollapseCategory",
+                                "Collapse category"
+                              )
+                            }
+                            defaultCollapsed={
+                              group.defaultCollapsed ===
+                              true
+                            }
+                          >
+                            <Stack gap={6}>
+                              {items.map(
+                                item => (
+                                  <Button
+                                    key={
+                                      item.kind
+                                    }
+                                    size="xs"
+                                    variant="light"
+                                    color={
+                                      item.color
+                                    }
+                                    leftSection={
+                                      item.icon
+                                    }
+                                    className="automation-flow-palette-button"
+                                    onClick={
+                                      () =>
+                                        addNode(
+                                          item.kind
+                                        )
+                                    }
+                                  >
+                                    {
+                                      t(
+                                        item.labelKey,
+                                        item.fallback
+                                      )
+                                    }
+                                  </Button>
+                                )
+                              )}
+                            </Stack>
+                          </CollapsiblePanelCard>
+                        );
+                      }
                     )}
                   </Stack>
                 </ScrollArea>
