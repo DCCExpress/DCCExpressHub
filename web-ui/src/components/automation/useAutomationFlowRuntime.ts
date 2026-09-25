@@ -174,12 +174,6 @@ function runInputBranch(
   input:
     AutomationFlowNode
 ): void {
-  if (
-    !document.enabled
-  ) {
-    return;
-  }
-
   const page =
     document.pages.find(
       candidate =>
@@ -262,11 +256,13 @@ function runInputBranch(
 
 function runtimeConfigSignature(
   document:
-    AutomationFlowDocument
+    AutomationFlowDocument,
+  runtimeEnabled:
+    boolean
 ): string {
   return JSON.stringify({
     enabled:
-      document.enabled,
+      runtimeEnabled,
     pages:
       document.pages.map(
         page => ({
@@ -308,19 +304,30 @@ function runtimeConfigSignature(
 
 export function useAutomationFlowRuntime(
   document:
-    AutomationFlowDocument
+    AutomationFlowDocument,
+  runtimeEnabled:
+    boolean
 ): void {
   const documentRef =
     useRef(
       document
     );
 
+  const runtimeEnabledRef =
+    useRef(
+      runtimeEnabled
+    );
+
   documentRef.current =
     document;
 
+  runtimeEnabledRef.current =
+    runtimeEnabled;
+
   const signature =
     runtimeConfigSignature(
-      document
+      document,
+      runtimeEnabled
     );
 
   useEffect(
@@ -329,7 +336,7 @@ export function useAutomationFlowRuntime(
         documentRef.current;
 
       if (
-        !current.enabled
+        !runtimeEnabledRef.current
       ) {
         abortAllAutomationFlowExecutions(
           "Visual flows globally disabled."
@@ -365,7 +372,7 @@ export function useAutomationFlowRuntime(
             documentRef.current;
 
           if (
-            !current.enabled
+            !runtimeEnabledRef.current
           ) {
             return;
           }
@@ -439,7 +446,7 @@ export function useAutomationFlowRuntime(
         documentRef.current;
 
       if (
-        !current.enabled
+        !runtimeEnabledRef.current
       ) {
         return;
       }
@@ -517,7 +524,7 @@ export function useAutomationFlowRuntime(
                   );
 
                 if (
-                  !latest.enabled ||
+                  !runtimeEnabledRef.current ||
                   !latestPage?.enabled ||
                   !latestInput
                 ) {
