@@ -40,6 +40,7 @@ import {
   IconBrandGithub,
   IconBug,
   IconLockOpen,
+  IconRoute,
 } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { showNotification } from "@mantine/notifications";
@@ -62,8 +63,16 @@ import TurnoutBitPropertyEditor from "@/layout/property-panel/TurnoutBitProperty
 import RouteTurnoutSelectionPropertyEditor from "@/layout/property-panel/RouteTurnoutSelectionPropertyEditor";
 import LocoPanel from "@/layout/LocoPanel";
 import AutomationPanel from "@/components/AutomationPanel";
+import PathsPanel from "@/components/PathsPanel";
 import TimetableDialog from "@/components/TimetableDialog";
 import TimetablePanel from "@/components/TimetablePanel";
+import RoutesDialog from "@/components/RoutesDialog";
+import { restorePersistedTopologyMetadata } from "@/services/layoutTopologyPersistence";
+import {
+  attachClientRouteTopologyToLayoutJson,
+  ensureClientRouteGraph,
+  hydrateClientRouteGraphCache,
+} from "@/services/clientRouteGraphCache";
 import type { BaseElement } from "./models/editor/core/BaseElement";
 import { isTurnoutElement, LayoutView } from "@/models/editor/core/LayoutView";
 import { TrackCornerElement } from "./models/editor/elements/TrackCornerElement";
@@ -78,6 +87,7 @@ import { TrackSensorElement } from "./models/editor/elements/TrackSensorElement"
 import { TrackSignalElement } from "./models/editor/elements/TrackSignalElement";
 import type { IEditableProperty } from "@/models/editor/elements/PropertyDescriptor";
 import { TrackStraightElement } from "./models/editor/elements/TrackStraightElement";
+import { TrackDirectionElement } from "./models/editor/elements/TrackDirectionElement";
 import TrackTurnoutDoubleElement from "./models/editor/elements/TrackTurnoutDoubleElement";
 import { TrackTurnoutLeftElement } from "./models/editor/elements/TrackTurnoutLeftElement";
 import { TrackTurnoutRightElement } from "./models/editor/elements/TrackTurnoutRightElement";
@@ -224,6 +234,15 @@ function serializeLayoutOnly(layout: LayoutView): string {
   delete plainLayout.automationScript;
   delete plainLayout.automationScripts;
 
+  /*
+   * Save/export the authoritative client-generated route topology only when
+   * its fingerprint and revisions match the current layout.
+   */
+  attachClientRouteTopologyToLayoutJson(
+    layout,
+    plainLayout
+  );
+
   return JSON.stringify(plainLayout);
 }
 
@@ -325,6 +344,7 @@ async function readHttpErrorMessage(
 }
 
 const PICKER_ITEMS: PickerItem[] = [
+  { type: ELEMENT_TYPES.TRACK_DIRECTION, label: "Irány", preview: new TrackDirectionElement(0, 0) },
   { type: ELEMENT_TYPES.TRACK_STRAIGHT, get label() { return i18next.t("ui.straight"); }, preview: new TrackStraightElement(0, 0) },
   { type: ELEMENT_TYPES.TRACK_END, get label() { return i18next.t("ui.trackEnd"); }, preview: new TrackEndElement(0, 0) },
   { type: ELEMENT_TYPES.TRACK_CORNER, get label() { return i18next.t("ui.corner"); }, preview: new TrackCornerElement(0, 0) },
@@ -355,7 +375,7 @@ const RUNTIME_TAB_SESSION_KEY = "dcc-express-lite.layout.runtimeTab";
 const RIGHT_LOCO_STORAGE_KEY = "dcc-express-lite.loco-panel.right.selected-loco-id";
 
 type RightPanelMode = "property" | "loco";
-type RuntimeTab = "automation" | "timetable" | "info" | "log";
+type RuntimeTab = "paths" | "automation" | "timetable" | "info" | "log";
 
 type SwitchManLockSnapshotItem = {
   address?: unknown;
@@ -442,6 +462,7 @@ function readStoredRuntimeTab(): RuntimeTab {
   const value = sessionStorage.getItem(RUNTIME_TAB_SESSION_KEY);
 
   if (
+    value === "paths" ||
     value === "timetable" ||
     value === "info" ||
     value === "log"
@@ -584,6 +605,7 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
   const temperatureCriticalRef = useRef(false);
   const [debugOpened, setDebugOpened] = useState(false);
   const [timetableOpened, setTimetableOpened] = useState(false);
+  const [routesOpened, setRoutesOpened] = useState(false);
   const [timetableRevision, setTimetableRevision] = useState(0);
 
   const invalidate = useCallback(() => setInvalidateCounter(value => value + 1), []);
@@ -801,6 +823,17 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
 
       const prepared = prepareLayoutForLoad(await layoutResponse.json());
       const nextLayout = LayoutView.fromJSON(prepared.layoutData);
+
+      restorePersistedTopologyMetadata(
+        nextLayout,
+        prepared.layoutData
+      );
+
+      hydrateClientRouteGraphCache(
+        nextLayout,
+        prepared.layoutData
+      );
+
       nextLayout.checkRoutes();
       setLayout(nextLayout);
       setAutomationScripts(
@@ -827,8 +860,21 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
   }, [editMode, selectedElement]);
 
   useEffect(() => {
-    if (editMode) layout.resetRoutes();
-    else layout.checkRoutes();
+    /*
+     * Frontend route graph / segmentation is now authoritative.
+     *
+     * Do NOT call layout.resetRoutes() when entering edit mode: resetRoutes()
+     * clears TrackElement.section, which made the generated S1/S2/... labels
+     * disappear exactly when Layout Visibility -> Show segments was enabled.
+     *
+     * Route highlighting can still be recalculated in view mode, while the
+     * generated section + travelDirection metadata stays attached to the
+     * physical layout elements until the next graph generation.
+     */
+    if (!editMode) {
+      layout.checkRoutes();
+    }
+
     invalidate();
   }, [editMode, layout, invalidate]);
 
@@ -1063,6 +1109,21 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
     setError(null);
 
     try {
+      /*
+       * SAVE is the authoritative graph-build point.
+       *
+       * The fingerprint cache makes this effectively free when only
+       * non-topological editor properties changed.
+       */
+      const ensuredRouteGraph =
+        ensureClientRouteGraph(
+          layout
+        );
+
+      if (ensuredRouteGraph.rebuilt) {
+        invalidate();
+      }
+
       const layoutResponse = await fetch(
         "/api/layout",
         {
@@ -1093,26 +1154,50 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
     } finally {
       setSaving(false);
     }
-  }, [i18next.resolvedLanguage, layout, automationScripts]);
+  }, [i18next.resolvedLanguage, layout, automationScripts, invalidate]);
 
   const exportLayout = useCallback(() => {
-    const project = createProjectExport(layout, automationScripts);
-    const json = JSON.stringify(project, null, 2);
-    const blob = new Blob([json], { type: "application/json;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const now = new Date();
-    const pad = (value: number) => String(value).padStart(2, "0");
-    const stamp =
-      `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-` +
-      `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `dccexpress-project-${stamp}.json`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 0);
-  }, [layout, automationScripts]);
+    try {
+      const ensuredRouteGraph =
+        ensureClientRouteGraph(
+          layout
+        );
+
+      if (ensuredRouteGraph.rebuilt) {
+        invalidate();
+      }
+
+      const project = createProjectExport(layout, automationScripts);
+      const json = JSON.stringify(project, null, 2);
+      const blob = new Blob([json], { type: "application/json;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const now = new Date();
+      const pad = (value: number) => String(value).padStart(2, "0");
+      const stamp =
+        `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-` +
+        `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `dccexpress-project-${stamp}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    } catch (exportError) {
+      const message =
+        exportError instanceof Error
+          ? exportError.message
+          : String(exportError);
+
+      setError(message);
+
+      showNotification({
+        color: "red",
+        title: "Export sikertelen",
+        message,
+      });
+    }
+  }, [layout, automationScripts, invalidate]);
 
   const importProject = useCallback(
     async (file: File): Promise<void> => {
@@ -1123,6 +1208,21 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
         const parsed = JSON.parse(await file.text()) as unknown;
         const imported = parseImportedProject(parsed);
         const nextLayout = LayoutView.fromJSON(imported.layoutData);
+
+        restorePersistedTopologyMetadata(
+          nextLayout,
+          imported.layoutData
+        );
+
+        hydrateClientRouteGraphCache(
+          nextLayout,
+          imported.layoutData
+        );
+
+        ensureClientRouteGraph(
+          nextLayout
+        );
+
         nextLayout.checkRoutes();
 
         const layoutResponse = await fetch(
@@ -1385,6 +1485,7 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
                   value={runtimeTab}
                   onChange={value => {
                     const nextTab: RuntimeTab =
+                      value === "paths" ||
                       value === "timetable" ||
                       value === "info" ||
                       value === "log"
@@ -1397,24 +1498,44 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
                   className="lite-runtime-tabs"
                 >
                   <Tabs.List grow mb="sm">
+                    <Tabs.Tab value="paths">Paths</Tabs.Tab>
                     <Tabs.Tab value="automation">{i18next.t("ui.automation2")}</Tabs.Tab>
                     <Tabs.Tab value="timetable">Menetrend</Tabs.Tab>
                     <Tabs.Tab value="info">{i18next.t("ui.info")}</Tabs.Tab>
                     <Tabs.Tab value="log">{i18next.t("ui.log")}</Tabs.Tab>
                   </Tabs.List>
 
+                  <Tabs.Panel value="paths" className="lite-info-tab-panel">
+                    <PathsPanel
+                      layout={layout}
+                      invalidate={invalidate}
+                    />
+                  </Tabs.Panel>
+
                   <Tabs.Panel value="automation" className="lite-info-tab-panel">
                     <Stack h="100%" gap="xs">
                       <Group justify="flex-end">
-                        <Button
-                          size="xs"
-                          variant="light"
-                          color="red"
-                          leftSection={<IconLockOpen size={15} />}
-                          onClick={() => void forceReleaseAllSwitchManLocks()}
-                        >
-                          Összes váltózár feloldása
-                        </Button>
+                        <Group gap="xs">
+                          <Button
+                            size="xs"
+                            variant="light"
+                            color="blue"
+                            leftSection={<IconRoute size={15} />}
+                            onClick={() => setRoutesOpened(true)}
+                          >
+                            Útvonalak
+                          </Button>
+
+                          <Button
+                            size="xs"
+                            variant="light"
+                            color="red"
+                            leftSection={<IconLockOpen size={15} />}
+                            onClick={() => void forceReleaseAllSwitchManLocks()}
+                          >
+                            Összes váltózár feloldása
+                          </Button>
+                        </Group>
                       </Group>
 
                       <div style={{ flex: 1, minHeight: 0 }}>
@@ -1575,6 +1696,13 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
       <DebugDialog
         opened={debugOpened}
         onClose={() => setDebugOpened(false)}
+      />
+
+      <RoutesDialog
+        opened={routesOpened}
+        onClose={() => setRoutesOpened(false)}
+        layout={layout}
+        onGenerated={invalidate}
       />
 
       <TimetableDialog

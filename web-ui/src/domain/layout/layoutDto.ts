@@ -64,6 +64,8 @@ export type SerializedLayoutElementDto = {
   trackName?: string;
   address?: number;
   length?: number;
+  section?: number;
+  travelDirection?: "unknown" | "forward" | "reverse";
 
   turnoutAddress?: number;
   turnoutClosedValue?: boolean;
@@ -158,6 +160,10 @@ export interface BaseElementDto {
 export interface TrackElementDto extends BaseElementDto {
   address: number;
   length: number;
+  /** Persisted physical segment number. 0 means not assigned / turnout boundary. */
+  section?: number;
+  /** Persisted travel direction derived from TrackDirection. */
+  travelDirection?: "unknown" | "forward" | "reverse";
 }
 
 export interface TrackStraightElementDto extends TrackElementDto {
@@ -199,9 +205,6 @@ export type OutputCommandModeDto =
   | "accessory"
   | "vpin";
 
-/**
- * Output mode used by generic layout buttons.
- */
 export type ButtonOutputModeDto =
   | "accessory"
   | "extended";
@@ -341,10 +344,6 @@ export interface LabelElementDto extends BaseElementDto {
   offsetX: number;
 }
 
-/**
- * `tracksignal2` is the generic signal type going forward.
- * `tracksignal3` / `tracksignal4` are accepted only for legacy layout loading.
- */
 export interface TrackSignalElementDto extends TrackElementDto {
   type:
     | "tracksignal2"

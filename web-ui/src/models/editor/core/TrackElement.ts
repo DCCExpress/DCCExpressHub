@@ -88,6 +88,8 @@ export abstract class TrackElement extends BaseElement {
       ...super.toJSON(),
       address: this.address,
       length: this.length,
+      section: this.section,
+      travelDirection: this.travelDirection,
     };
   }
 
