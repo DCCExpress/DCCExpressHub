@@ -101,6 +101,9 @@ import {
   useAutomationFlowExecution,
 } from "./useAutomationFlowExecution";
 import {
+  useAutomationFlowPanelSizes,
+} from "./useAutomationFlowPanelSizes";
+import {
   AUTOMATION_FLOW_INJECT_EVENT,
   type AutomationFlowInjectEventDetail,
 } from "./automationFlowEvents";
@@ -348,6 +351,9 @@ export default function AutomationFlowDialog({
       generated,
       generatedTest,
     });
+
+  const panelSizes =
+    useAutomationFlowPanelSizes();
 
   useEffect(
     () => {
@@ -1372,7 +1378,12 @@ export default function AutomationFlowDialog({
             </Tabs.List>
           </Tabs>
 
-          <div className="automation-flow-workspace">
+          <div
+            className="automation-flow-workspace"
+            style={
+              panelSizes.workspaceStyle
+            }
+          >
             <Card
               withBorder
               p="sm"
@@ -1384,6 +1395,37 @@ export default function AutomationFlowDialog({
                 }
               />
             </Card>
+
+            <div
+              className="automation-flow-splitter automation-flow-splitter-left"
+              role="separator"
+              aria-orientation="vertical"
+              aria-label={
+                t(
+                  "ui.flowResizeNodePanel",
+                  "Resize node panel"
+                )
+              }
+              title={
+                `${Math.round(panelSizes.leftWidth)} px · ${t(
+                  "ui.flowDoubleClickReset",
+                  "Double-click to reset"
+                )}`
+              }
+              onPointerDown={
+                event =>
+                  panelSizes.beginResize(
+                    "left",
+                    event
+                  )
+              }
+              onDoubleClick={
+                () =>
+                  panelSizes.resetWidth(
+                    "left"
+                  )
+              }
+            />
 
             <div className="automation-flow-canvas">
               {activePage && (
@@ -1479,6 +1521,37 @@ export default function AutomationFlowDialog({
                 </ReactFlow>
               )}
             </div>
+
+            <div
+              className="automation-flow-splitter automation-flow-splitter-right"
+              role="separator"
+              aria-orientation="vertical"
+              aria-label={
+                t(
+                  "ui.flowResizeInspectorPanel",
+                  "Resize properties panel"
+                )
+              }
+              title={
+                `${Math.round(panelSizes.rightWidth)} px · ${t(
+                  "ui.flowDoubleClickReset",
+                  "Double-click to reset"
+                )}`
+              }
+              onPointerDown={
+                event =>
+                  panelSizes.beginResize(
+                    "right",
+                    event
+                  )
+              }
+              onDoubleClick={
+                () =>
+                  panelSizes.resetWidth(
+                    "right"
+                  )
+              }
+            />
 
             <Card
               withBorder
