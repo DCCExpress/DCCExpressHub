@@ -979,5 +979,8 @@
   "flowSavedFlows": "Saved flows",
   "flowEveryMinutes": "Every {{count}} min",
   "flowEverySeconds": "Every {{count}} sec",
-  "flowEveryMilliseconds": "Every {{count}} ms"
+  "flowEveryMilliseconds": "Every {{count}} ms",
+  "flowResizeNodePanel": "Resize node panel",
+  "flowResizeInspectorPanel": "Resize Properties/Log panel",
+  "flowDoubleClickReset": "Double-click to reset"
 }
