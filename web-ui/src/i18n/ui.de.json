@@ -984,5 +984,11 @@
   "flowResizeInspectorPanel": "Properties/Log-Bereich skalieren",
   "flowDoubleClickReset": "Doppelklick: Standardgröße",
   "deleteScriptConfirmTitle": "Skript löschen?",
-  "deleteScriptConfirmMessage": "Möchtest du „{{name}}“ wirklich dauerhaft löschen? Dieser Vorgang kann nicht rückgängig gemacht werden."
+  "deleteScriptConfirmMessage": "Möchtest du „{{name}}“ wirklich dauerhaft löschen? Dieser Vorgang kann nicht rückgängig gemacht werden.",
+  "flowTriggerSensor": "Sensor",
+  "flowSensorTriggerState": "Triggerzustand",
+  "flowSensorActive": "EIN / aktiv",
+  "flowSensorInactive": "AUS / inaktiv",
+  "flowSensorTriggerDescription": "Im RUN-Modus überwacht der Flow den Sensor fortlaufend. Er läuft einmal, wenn der Sensor in den ausgewählten Zustand wechselt, und wird erst nach dem Gegenstatus erneut scharf.",
+  "flowSensorTriggerLabel": "Sensor {{address}} → {{state}}"
 }
