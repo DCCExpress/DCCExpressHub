@@ -97,6 +97,48 @@ const NODE_META:
       title:
         "Set accessory",
     },
+    setLoco: {
+      icon: "🚂",
+      color: "blue",
+      title:
+        "Set Loco",
+    },
+    getBlock: {
+      icon: "🧱",
+      color: "cyan",
+      title:
+        "Get Block",
+    },
+    setBlock: {
+      icon: "🧱",
+      color: "cyan",
+      title:
+        "Set Block",
+    },
+    clearBlock: {
+      icon: "🧱",
+      color: "gray",
+      title:
+        "Clear Block",
+    },
+    getBlockTargetLoco: {
+      icon: "🎯",
+      color: "indigo",
+      title:
+        "Get Target",
+    },
+    setBlockTargetLoco: {
+      icon: "🎯",
+      color: "indigo",
+      title:
+        "Set Target",
+    },
+    clearBlockTargetLoco: {
+      icon: "🎯",
+      color: "gray",
+      title:
+        "Clear Target",
+    },
     locoFunction: {
       icon: "ƒ",
       color: "pink",
@@ -218,6 +260,42 @@ function summary(
             ? "ON"
             : "OFF"
         )
+      );
+
+    case "setLoco":
+      return (
+        `payload.locoAddress · ${data.speed ?? 20} · ` +
+        `${data.locoDirection === "reverse" ? "reverse" : "forward"}`
+      );
+
+    case "getBlock":
+      return (
+        `${data.blockLabel || data.blockName || "Select block"} → payload.locoAddress`
+      );
+
+    case "setBlock":
+      return (
+        `${data.blockLabel || data.blockName || "Select block"} ← payload.locoAddress`
+      );
+
+    case "clearBlock":
+      return (
+        `${data.blockLabel || data.blockName || "Select block"} · clear`
+      );
+
+    case "getBlockTargetLoco":
+      return (
+        `${data.blockLabel || data.blockName || "Select block"} target → payload.locoAddress`
+      );
+
+    case "setBlockTargetLoco":
+      return (
+        `${data.blockLabel || data.blockName || "Select block"} target ← payload.locoAddress`
+      );
+
+    case "clearBlockTargetLoco":
+      return (
+        `${data.blockLabel || data.blockName || "Select block"} · clear target`
       );
 
     case "locoFunction":
