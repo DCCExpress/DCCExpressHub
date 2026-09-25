@@ -214,3 +214,122 @@ test("basic DCC command nodes generate script API calls", () => {
     /case "setAccessory":[\s\S]*dcc\.setAccessory/
   );
 });
+
+
+test("flow inspector has Properties and Log tabs", () => {
+  const inspector =
+    read(
+      "src/components/automation/AutomationFlowInspector.tsx"
+    );
+
+  assert.match(
+    inspector,
+    /value="properties"/
+  );
+
+  assert.match(
+    inspector,
+    /value="log"/
+  );
+
+  assert.match(
+    inspector,
+    /AutomationFlowLogPanel/
+  );
+});
+
+test("flow runtime log subscribes to real client script log messages", () => {
+  const runner =
+    read(
+      "src/services/clientScriptRunner.ts"
+    );
+
+  const hook =
+    read(
+      "src/components/automation/useAutomationFlowExecution.ts"
+    );
+
+  assert.match(
+    runner,
+    /export function subscribeClientScriptLog/
+  );
+
+  assert.match(
+    runner,
+    /emitLog\([\s\S]*message\.values/
+  );
+
+  assert.match(
+    hook,
+    /subscribeClientScriptLog/
+  );
+});
+
+test("trigger supports manual test and interval run generation", () => {
+  const domain =
+    read(
+      "src/domain/automationFlow.ts"
+    );
+
+  const palette =
+    read(
+      "src/components/automation/AutomationFlowPalette.tsx"
+    );
+
+  const dialog =
+    read(
+      "src/components/automation/AutomationFlowDialog.tsx"
+    );
+
+  assert.match(
+    domain,
+    /triggerMode/
+  );
+
+  assert.match(
+    domain,
+    /wrapWithTrigger/
+  );
+
+  assert.match(
+    domain,
+    /startTask/
+  );
+
+  assert.match(
+    palette,
+    /kind: "trigger"/
+  );
+
+  assert.match(
+    dialog,
+    /flowExecution\.runTest/
+  );
+
+  assert.match(
+    dialog,
+    /flowExecution\.run\(\)/
+  );
+});
+
+test("flow editor is split into palette, properties, log and inspector components", () => {
+  const dialog =
+    read(
+      "src/components/automation/AutomationFlowDialog.tsx"
+    );
+
+  assert.match(
+    dialog,
+    /AutomationFlowPalette/
+  );
+
+  assert.match(
+    dialog,
+    /AutomationFlowInspector/
+  );
+
+  assert.doesNotMatch(
+    dialog,
+    /const renderNodeProperties/
+  );
+});
