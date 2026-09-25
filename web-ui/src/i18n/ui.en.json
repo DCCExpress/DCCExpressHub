@@ -937,5 +937,17 @@
   "flowTriggerInterval": "Interval",
   "flowIntervalMs": "Interval (ms)",
   "flowIntervalDescription": "1000 ms = 1 second, 60000 ms = 1 minute",
-  "flowRun": "RUN"
+  "flowRun": "RUN",
+  "flowNodeLocoFunction": "Loco Function",
+  "flowLocoFunctionPayloadHint": "Uses payload.locoAddress as the locomotive address and passes payload on unchanged.",
+  "flowLocoFunctionPulseDescription": "Function ON, wait this long, then OFF.",
+  "flowPayloadType": "Payload type",
+  "flowPayloadString": "String",
+  "flowPayloadNumber": "Number",
+  "flowPayloadBoolean": "Boolean",
+  "flowPayloadTimestamp": "Timestamp",
+  "flowPayloadJsonDescription": "JSON value passed to every downstream node.",
+  "flowPayloadPassThrough": "This payload is passed unchanged to the next node.",
+  "flowPayloadTimestampDescription": "payload will be Date.now() for each trigger.",
+  "flowPayloadNullDescription": "payload will be null."
 }
