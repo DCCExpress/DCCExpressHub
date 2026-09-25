@@ -270,7 +270,7 @@ test("flow runtime log subscribes to real client script log messages", () => {
   );
 });
 
-test("trigger supports manual test and interval run generation", () => {
+test("trigger supports manual interval and sensor run generation", () => {
   const domain =
     read(
       "src/domain/automationFlow.ts"
@@ -316,6 +316,79 @@ test("trigger supports manual test and interval run generation", () => {
     /flowExecution\.run\(\)/
   );
 });
+
+test("sensor trigger is edge based and rearms before the next run", () => {
+  const domain =
+    read(
+      "src/domain/automationFlow.ts"
+    );
+
+  const properties =
+    read(
+      "src/components/automation/AutomationFlowPropertiesPanel.tsx"
+    );
+
+  const cards =
+    read(
+      "src/components/automation/AutomationFlowsTable.tsx"
+    );
+
+  const node =
+    read(
+      "src/components/automation/AutomationFlowNode.tsx"
+    );
+
+  assert.match(
+    domain,
+    /\| "sensor";/
+  );
+
+  assert.match(
+    domain,
+    /trigger\.data\.triggerMode ===\s*"sensor"/
+  );
+
+  assert.match(
+    domain,
+    /await dcc\.waitForSensor\(\$\{address\}, \$\{resetSource\}\)/
+  );
+
+  assert.match(
+    domain,
+    /await dcc\.waitForSensor\(\$\{address\}, \$\{targetSource\}\)/
+  );
+
+  assert.match(
+    domain,
+    /startTask/
+  );
+
+  assert.match(
+    properties,
+    /flowTriggerSensor/
+  );
+
+  assert.match(
+    properties,
+    /flowSensorTriggerState/
+  );
+
+  assert.match(
+    properties,
+    /sensorAddress/
+  );
+
+  assert.match(
+    cards,
+    /flowSensorTriggerLabel/
+  );
+
+  assert.match(
+    node,
+    /Sensor #/
+  );
+});
+
 
 test("flow editor is split into palette, properties, log and inspector components", () => {
   const dialog =
