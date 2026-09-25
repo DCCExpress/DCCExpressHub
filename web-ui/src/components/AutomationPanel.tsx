@@ -29,6 +29,12 @@ type AutomationPanelProps = {
     flows:
       AutomationFlowDocument
   ) => void;
+  flowRuntimeEnabled:
+    boolean;
+  onFlowRuntimeEnabledChange: (
+    enabled:
+      boolean
+  ) => void;
   onOpenFlowEditor: (
     pageId:
       string
@@ -40,6 +46,8 @@ export default function AutomationPanel({
   onScriptsChange,
   flows,
   onFlowsChange,
+  flowRuntimeEnabled,
+  onFlowRuntimeEnabledChange,
   onOpenFlowEditor,
 }: AutomationPanelProps) {
   return (
@@ -115,6 +123,12 @@ export default function AutomationPanel({
             }
             onDocumentChange={
               onFlowsChange
+            }
+            runtimeEnabled={
+              flowRuntimeEnabled
+            }
+            onRuntimeEnabledChange={
+              onFlowRuntimeEnabledChange
             }
             onOpenEditor={
               onOpenFlowEditor
