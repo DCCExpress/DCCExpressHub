@@ -97,7 +97,9 @@ import AutomationFlowInspector from "./AutomationFlowInspector";
 import type {
   AutomationFlowLogLine,
 } from "./AutomationFlowLogPanel";
-import CollapsiblePanelCard from "../common/CollapsiblePanelCard";
+import AutomationFlowPalette, {
+  createDefaultAutomationNodeData,
+} from "./AutomationFlowPalette";
 
 import {
   abortClientScript,
@@ -109,138 +111,6 @@ type AutomationFlowDialogProps = {
   opened: boolean;
   onClose: () => void;
 };
-
-type PaletteGroup =
-  | "railway"
-  | "sensors"
-  | "dcc"
-  | "utility";
-
-type PaletteItem = {
-  kind: AutomationFlowNodeKind;
-  group: PaletteGroup;
-  icon: ReactNode;
-  labelKey: string;
-  fallback: string;
-  color: string;
-};
-
-const PALETTE_GROUPS: Array<{
-  id: PaletteGroup;
-  labelKey: string;
-  fallback: string;
-  color: string;
-  defaultCollapsed?: boolean;
-}> = [
-  {
-    id: "railway",
-    labelKey: "ui.flowGroupRailway",
-    fallback: "Railway",
-    color: "violet",
-  },
-  {
-    id: "sensors",
-    labelKey: "ui.flowGroupSensors",
-    fallback: "Sensors",
-    color: "teal",
-  },
-  {
-    id: "dcc",
-    labelKey: "ui.flowGroupDcc",
-    fallback: "DCC / Outputs",
-    color: "orange",
-  },
-  {
-    id: "utility",
-    labelKey: "ui.flowGroupUtility",
-    fallback: "Utility",
-    color: "gray",
-    defaultCollapsed: true,
-  },
-];
-
-const PALETTE: PaletteItem[] = [
-  {
-    kind: "smartDispatcher",
-    group: "railway",
-    icon: <IconRoute size={16} />,
-    labelKey: "ui.flowNodeSmartDispatcher",
-    fallback: "SmartDispatcher",
-    color: "violet",
-  },
-  {
-    kind: "setSpeed",
-    group: "railway",
-    icon: <IconBolt size={16} />,
-    labelKey: "ui.flowNodeSetSpeed",
-    fallback: "Set speed",
-    color: "blue",
-  },
-  {
-    kind: "waitForBlock",
-    group: "railway",
-    icon: <IconGitBranch size={16} />,
-    labelKey: "ui.flowNodeWaitBlock",
-    fallback: "Wait block",
-    color: "cyan",
-  },
-  {
-    kind: "waitForSensor",
-    group: "sensors",
-    icon: <IconAntenna size={16} />,
-    labelKey: "ui.flowNodeWaitSensor",
-    fallback: "Wait sensor",
-    color: "teal",
-  },
-  {
-    kind: "setSensor",
-    group: "sensors",
-    icon: <IconAntenna size={16} />,
-    labelKey: "ui.flowNodeSetSensor",
-    fallback: "Set sensor",
-    color: "teal",
-  },
-  {
-    kind: "setTurnout",
-    group: "dcc",
-    icon: <IconGitBranch size={16} />,
-    labelKey: "ui.flowNodeSetTurnout",
-    fallback: "Set turnout",
-    color: "grape",
-  },
-  {
-    kind: "setAccessory",
-    group: "dcc",
-    icon: <IconBolt size={16} />,
-    labelKey: "ui.flowNodeSetAccessory",
-    fallback: "Set accessory",
-    color: "yellow",
-  },
-  {
-    kind: "horn",
-    group: "railway",
-    icon: <IconVolume size={16} />,
-    labelKey: "ui.flowNodeHorn",
-    fallback: "Horn",
-    color: "orange",
-  },
-  {
-    kind: "delay",
-    group: "utility",
-    icon: <IconClock size={16} />,
-    labelKey: "ui.flowNodeDelay",
-    fallback: "Delay",
-    color: "gray",
-  },
-  {
-    kind: "log",
-    group: "utility",
-    icon: <IconNote size={16} />,
-    labelKey: "ui.flowNodeLog",
-    fallback: "Log",
-    color: "lime",
-  },
-];
 
 function t(
   key: string,
@@ -284,105 +154,6 @@ function flowLogValue(
   return String(
     value
   );
-}
-
-function defaultNodeData(
-  kind: AutomationFlowNodeKind,
-  pageId: string
-): AutomationFlowNodeData {
-  const item =
-    PALETTE.find(
-      entry =>
-        entry.kind === kind
-    );
-
-  const label =
-    item
-      ? t(
-          item.labelKey,
-          item.fallback
-        )
-      : kind;
-
-  const base: AutomationFlowNodeData = {
-    kind,
-    label,
-    pageId,
-  };
-
-  switch (kind) {
-    case "smartDispatcher":
-      return {
-        ...base,
-        route: [
-          "A1",
-          "B1",
-        ],
-        arrivalRules: [],
-      };
-
-    case "setSpeed":
-      return {
-        ...base,
-        speed: 20,
-      };
-
-    case "waitForBlock":
-      return {
-        ...base,
-        blockName: "B1",
-      };
-
-    case "waitForSensor":
-      return {
-        ...base,
-        sensorAddress: 1,
-        sensorState: true,
-      };
-
-    case "setSensor":
-      return {
-        ...base,
-        sensorAddress: 1,
-        sensorState: true,
-      };
-
-    case "setTurnout":
-      return {
-        ...base,
-        turnoutAddress: 1,
-        turnoutClosed: true,
-      };
-
-    case "setAccessory":
-      return {
-        ...base,
-        accessoryAddress: 1,
-        accessoryActive: true,
-      };
-
-    case "horn":
-      return {
-        ...base,
-        functionNumber: 2,
-        pulseMs: 700,
-      };
-
-    case "delay":
-      return {
-        ...base,
-        delayMs: 500,
-      };
-
-    case "log":
-      return {
-        ...base,
-        message: "",
-      };
-
-    default:
-      return base;
-  }
 }
 
 function mergePageNodes(
@@ -588,6 +359,23 @@ export default function AutomationFlowDialog({
         generateAutomationFlowPageScript(
           document,
           activePageId
+        ),
+      [
+        document,
+        activePageId,
+      ]
+    );
+
+  const generatedTest =
+    useMemo(
+      () =>
+        generateAutomationFlowPageScript(
+          document,
+          activePageId,
+          {
+            testRun:
+              true,
+          }
         ),
       [
         document,
@@ -892,7 +680,7 @@ export default function AutomationFlowDialog({
                 125,
           },
           data:
-            defaultNodeData(
+            createDefaultAutomationNodeData(
               kind,
               activePage.id
             ),
@@ -1269,7 +1057,7 @@ export default function AutomationFlowDialog({
 
       try {
         await runClientScript(
-          generated.code,
+          generatedTest.code,
           {
             id:
               executionId,
@@ -1629,147 +1417,11 @@ export default function AutomationFlowDialog({
               p="sm"
               className="automation-flow-sidebar"
             >
-              <Stack
-                gap="xs"
-                h="100%"
-              >
-                <Text
-                  fw={700}
-                  size="sm"
-                >
-                  {
-                    t(
-                      "ui.flowNodes",
-                      "Nodes"
-                    )
-                  }
-                </Text>
-
-                <Text
-                  size="xs"
-                  c="dimmed"
-                >
-                  {
-                    t(
-                      "ui.flowNodesDescription",
-                      "Add nodes, then connect them from left to right."
-                    )
-                  }
-                </Text>
-
-                <ScrollArea
-                  style={{
-                    flex: 1,
-                  }}
-                >
-                  <Stack
-                    gap="xs"
-                    pr={4}
-                  >
-                    {PALETTE_GROUPS.map(
-                      group => {
-                        const items =
-                          PALETTE.filter(
-                            item =>
-                              item.group ===
-                              group.id
-                          );
-
-                        return (
-                          <CollapsiblePanelCard
-                            key={
-                              group.id
-                            }
-                            title={
-                              <Group
-                                gap="xs"
-                                wrap="nowrap"
-                              >
-                                <Text
-                                  size="sm"
-                                  fw={700}
-                                >
-                                  {
-                                    t(
-                                      group.labelKey,
-                                      group.fallback
-                                    )
-                                  }
-                                </Text>
-
-                                <Badge
-                                  size="xs"
-                                  variant="light"
-                                  color={
-                                    group.color
-                                  }
-                                >
-                                  {
-                                    items.length
-                                  }
-                                </Badge>
-                              </Group>
-                            }
-                            collapsedStorageKey={
-                              `dcc-express-flow-palette-${group.id}-collapsed`
-                            }
-                            expandTooltip={
-                              t(
-                                "ui.flowExpandCategory",
-                                "Expand category"
-                              )
-                            }
-                            collapseTooltip={
-                              t(
-                                "ui.flowCollapseCategory",
-                                "Collapse category"
-                              )
-                            }
-                            defaultCollapsed={
-                              group.defaultCollapsed ===
-                              true
-                            }
-                          >
-                            <Stack gap={6}>
-                              {items.map(
-                                item => (
-                                  <Button
-                                    key={
-                                      item.kind
-                                    }
-                                    size="xs"
-                                    variant="light"
-                                    color={
-                                      item.color
-                                    }
-                                    leftSection={
-                                      item.icon
-                                    }
-                                    className="automation-flow-palette-button"
-                                    onClick={
-                                      () =>
-                                        addNode(
-                                          item.kind
-                                        )
-                                    }
-                                  >
-                                    {
-                                      t(
-                                        item.labelKey,
-                                        item.fallback
-                                      )
-                                    }
-                                  </Button>
-                                )
-                              )}
-                            </Stack>
-                          </CollapsiblePanelCard>
-                        );
-                      }
-                    )}
-                  </Stack>
-                </ScrollArea>
-              </Stack>
+              <AutomationFlowPalette
+                onAdd={
+                  addNode
+                }
+              />
             </Card>
 
             <div className="automation-flow-canvas">
