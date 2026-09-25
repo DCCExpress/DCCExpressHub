@@ -270,7 +270,7 @@ test("flow runtime log subscribes to real client script log messages", () => {
   );
 });
 
-test("trigger supports manual interval and sensor run generation", () => {
+test("trigger supports manual editor inject and interval mode", () => {
   const domain =
     read(
       "src/domain/automationFlow.ts"
@@ -317,10 +317,15 @@ test("trigger supports manual interval and sensor run generation", () => {
   );
 });
 
-test("sensor trigger is edge based and rearms before the next run", () => {
+test("sensor nodes are event inputs and the runtime scans enabled pages", () => {
   const domain =
     read(
       "src/domain/automationFlow.ts"
+    );
+
+  const palette =
+    read(
+      "src/components/automation/AutomationFlowPalette.tsx"
     );
 
   const properties =
@@ -328,67 +333,123 @@ test("sensor trigger is edge based and rearms before the next run", () => {
       "src/components/automation/AutomationFlowPropertiesPanel.tsx"
     );
 
+  const runtime =
+    read(
+      "src/components/automation/useAutomationFlowRuntime.ts"
+    );
+
+  const layoutPage =
+    read(
+      "src/LiteLayoutPage.tsx"
+    );
+
+  assert.match(
+    domain,
+    /\| "sensorInput"/
+  );
+
+  assert.match(
+    domain,
+    /inputNodeId\?: string/
+  );
+
+  assert.match(
+    domain,
+    /requestedKind ===[\s\S]*"trigger"[\s\S]*candidate\.triggerMode ===[\s\S]*"sensor"[\s\S]*"sensorInput"/
+  );
+
+  assert.match(
+    domain,
+    /node\.data\.kind ===[\s\S]*"waitForSensor"[\s\S]*node\.data\.kind =[\s\S]*"sensorInput"/
+  );
+
+  assert.match(
+    palette,
+    /kind: "sensorInput"/
+  );
+
+  assert.match(
+    properties,
+    /flowSensorInputDescription/
+  );
+
+  assert.match(
+    runtime,
+    /wsClient\.on\([\s\S]*"sensorChanged"/
+  );
+
+  assert.match(
+    runtime,
+    /node\.data\.kind ===[\s\S]*"sensorInput"/
+  );
+
+  assert.match(
+    runtime,
+    /node\.data\.triggerMode ===[\s\S]*"interval"/
+  );
+
+  assert.match(
+    runtime,
+    /generateAutomationFlowPageScript\([\s\S]*inputNodeId/
+  );
+
+  assert.match(
+    layoutPage,
+    /useAutomationFlowRuntime\([\s\S]*automationFlow/
+  );
+});
+
+test("flow runtime global and page disable abort active flow executions", () => {
+  const domain =
+    read(
+      "src/domain/automationFlow.ts"
+    );
+
+  const runtime =
+    read(
+      "src/components/automation/useAutomationFlowRuntime.ts"
+    );
+
   const cards =
     read(
       "src/components/automation/AutomationFlowsTable.tsx"
     );
 
-  const node =
-    read(
-      "src/components/automation/AutomationFlowNode.tsx"
-    );
-
   assert.match(
     domain,
-    /\| "sensor";/
+    /enabled: boolean/
   );
 
   assert.match(
     domain,
-    /trigger\.data\.triggerMode ===\s*"sensor"/
+    /enabled: false/
   );
 
   assert.match(
-    domain,
-    /await dcc\.waitForSensor\(\$\{address\}, \$\{resetSource\}\)/
+    runtime,
+    /abortAllAutomationFlowExecutions/
   );
 
   assert.match(
-    domain,
-    /await dcc\.waitForSensor\(\$\{address\}, \$\{targetSource\}\)/
-  );
-
-  assert.match(
-    domain,
-    /startTask/
-  );
-
-  assert.match(
-    properties,
-    /flowTriggerSensor/
-  );
-
-  assert.match(
-    properties,
-    /flowSensorTriggerState/
-  );
-
-  assert.match(
-    properties,
-    /sensorAddress/
+    runtime,
+    /abortAutomationFlowPageExecutions/
   );
 
   assert.match(
     cards,
-    /flowSensorTriggerLabel/
+    /flowRunFlows/
   );
 
   assert.match(
-    node,
-    /Sensor #/
+    cards,
+    /abortAllAutomationFlowExecutions/
+  );
+
+  assert.match(
+    cards,
+    /abortAutomationFlowPageExecutions/
   );
 });
-
 
 test("flow editor is split into palette, properties, log and inspector components", () => {
   const dialog =
@@ -1084,48 +1145,11 @@ test("new flow nodes are placed top to bottom by default", () => {
 });
 
 
-test("saved flows use reorderable cards with grouped controls and trigger badge", () => {
+test("saved flows use reorderable enable-only runtime cards", () => {
   const flows =
     read(
       "src/components/automation/AutomationFlowsTable.tsx"
     );
-
-  const cardStart =
-    flows.indexOf(
-      "<Card\n      withBorder"
-    );
-
-  const name =
-    flows.indexOf(
-      "page.name",
-      cardStart
-    );
-
-  const status =
-    flows.indexOf(
-      "state.status.toUpperCase()",
-      cardStart
-    );
-
-  const enabled =
-    flows.indexOf(
-      "page.enabled",
-      cardStart
-    );
-
-  const trigger =
-    flows.indexOf(
-      "triggerLabel(",
-      cardStart
-    );
-
-  assert.ok(
-    cardStart >= 0 &&
-    name > cardStart &&
-    status > name &&
-    enabled > status &&
-    trigger > enabled
-  );
 
   assert.match(
     flows,
@@ -1154,27 +1178,27 @@ test("saved flows use reorderable cards with grouped controls and trigger badge"
 
   assert.match(
     flows,
-    /persistPageOrder/
-  );
-
-  assert.match(
-    flows,
     /saveAutomationFlow/
   );
 
   assert.match(
     flows,
-    /<Divider\s+orientation="vertical"/
+    /checked=\{[\s\S]*document\.enabled/
   );
 
   assert.match(
     flows,
-    /<IconPlayerPause/
+    /checked=\{[\s\S]*page\.enabled/
   );
 
   assert.match(
     flows,
-    /<IconPlayerStop/
+    /flowTriggerManualEditorOnly/
+  );
+
+  assert.match(
+    flows,
+    /flowSensorTriggerLabel/
   );
 
   assert.match(
@@ -1184,15 +1208,24 @@ test("saved flows use reorderable cards with grouped controls and trigger badge"
 
   assert.doesNotMatch(
     flows,
-    /<Table/
+    /IconPlayerPlay/
   );
 
   assert.doesNotMatch(
     flows,
-    /nodeCount/
+    /IconPlayerPause/
+  );
+
+  assert.doesNotMatch(
+    flows,
+    /IconPlayerStop/
+  );
+
+  assert.doesNotMatch(
+    flows,
+    /<Table/
   );
 });
-
 
 test("automation script deletion requires confirmation", () => {
   const scripts =
