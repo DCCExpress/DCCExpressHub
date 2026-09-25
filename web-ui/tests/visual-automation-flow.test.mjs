@@ -742,3 +742,127 @@ test("set loco uses payload locoAddress with configured speed and direction", ()
     /locoDirection/
   );
 });
+
+
+test("automation runtime is split into Scripts and Flows tabs", () => {
+  const panel =
+    read(
+      "src/components/AutomationPanel.tsx"
+    );
+
+  assert.match(
+    panel,
+    /value="scripts"/
+  );
+
+  assert.match(
+    panel,
+    /value="flows"/
+  );
+
+  assert.match(
+    panel,
+    /AutomationScriptsTable/
+  );
+
+  assert.match(
+    panel,
+    /AutomationFlowsTable/
+  );
+});
+
+test("automation scripts are rendered in a runtime table instead of cards", () => {
+  const scripts =
+    read(
+      "src/components/automation/AutomationScriptsTable.tsx"
+    );
+
+  assert.match(
+    scripts,
+    /<Table/
+  );
+
+  assert.match(
+    scripts,
+    /pauseClientScript/
+  );
+
+  assert.match(
+    scripts,
+    /abortClientScript/
+  );
+
+  assert.match(
+    scripts,
+    /setAutomationFinishing/
+  );
+
+  assert.match(
+    scripts,
+    /wsApi\.emergencyStop/
+  );
+});
+
+test("saved flows have start stop abort and edit runtime actions", () => {
+  const flows =
+    read(
+      "src/components/automation/AutomationFlowsTable.tsx"
+    );
+
+  assert.match(
+    flows,
+    /visual-flow-run:/
+  );
+
+  assert.match(
+    flows,
+    /runClientScript/
+  );
+
+  assert.match(
+    flows,
+    /pauseClientScript/
+  );
+
+  assert.match(
+    flows,
+    /abortClientScript/
+  );
+
+  assert.match(
+    flows,
+    /onOpenEditor/
+  );
+
+  assert.match(
+    flows,
+    /generateAutomationFlowPageScript/
+  );
+});
+
+test("layout page keeps saved flows synchronized with the flow editor", () => {
+  const page =
+    read(
+      "src/LiteLayoutPage.tsx"
+    );
+
+  assert.match(
+    page,
+    /const \[automationFlow, setAutomationFlow\]/
+  );
+
+  assert.match(
+    page,
+    /flows=\{automationFlow\}/
+  );
+
+  assert.match(
+    page,
+    /initialPageId=\{automationFlowPageId\}/
+  );
+
+  assert.match(
+    page,
+    /onSaved=\{setAutomationFlow\}/
+  );
+});
