@@ -990,5 +990,12 @@
   "flowSensorActive": "EIN / aktiv",
   "flowSensorInactive": "AUS / inaktiv",
   "flowSensorTriggerDescription": "Im RUN-Modus überwacht der Flow den Sensor fortlaufend. Er läuft einmal, wenn der Sensor in den ausgewählten Zustand wechselt, und wird erst nach dem Gegenstatus erneut scharf.",
-  "flowSensorTriggerLabel": "Sensor {{address}} → {{state}}"
+  "flowSensorTriggerLabel": "Sensor {{address}} → {{state}}",
+  "flowNodeSensorInput": "Sensor-Eingang",
+  "flowSensorInputDescription": "Wenn die Flow-Laufzeit aktiviert ist, startet jedes passende sensorChanged-Ereignis den verbundenen Zweig einmal.",
+  "flowTriggerManualEditorOnly": "Manuell · nur Editor",
+  "flowNoInputNodes": "Keine Eingangs-Nodes",
+  "flowRunFlows": "Flows ausführen",
+  "flowRuntimeEnabledDescription": "Aktivierte Seiten sind live. Sensor- und Intervall-Eingänge können ihre verbundenen Zweige starten.",
+  "flowRuntimeDisabledDescription": "Die Flow-Laufzeit ist deaktiviert. Manuelle/Test-Injektionen im Editor bleiben verfügbar."
 }
