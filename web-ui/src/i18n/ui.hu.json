@@ -949,5 +949,9 @@
   "flowPayloadJsonDescription": "JSON érték, amely minden következő node-hoz továbbmegy.",
   "flowPayloadPassThrough": "Ez a payload változatlanul továbbmegy a következő node-hoz.",
   "flowPayloadTimestampDescription": "A payload minden triggereléskor Date.now() lesz.",
-  "flowPayloadNullDescription": "A payload értéke null lesz."
+  "flowPayloadNullDescription": "A payload értéke null lesz.",
+  "flowTurnout": "Váltó",
+  "flowSelectTurnout": "Válassz váltót",
+  "flowLoadingTurnouts": "Váltók betöltése...",
+  "flowNoConfiguredTurnouts": "Nincs konfigurált váltó a pályatervben."
 }
