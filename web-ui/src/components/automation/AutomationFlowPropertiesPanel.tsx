@@ -142,6 +142,94 @@ export default function AutomationFlowPropertiesPanel({
       />
 
       {data.kind ===
+        "trigger" && (
+        <>
+          <Select
+            label={
+              t(
+                "ui.flowTriggerMode",
+                "Trigger mode"
+              )
+            }
+            value={
+              data.triggerMode ===
+              "interval"
+                ? "interval"
+                : "manual"
+            }
+            data={[
+              {
+                value:
+                  "manual",
+                label:
+                  t(
+                    "ui.flowTriggerManual",
+                    "Manual"
+                  ),
+              },
+              {
+                value:
+                  "interval",
+                label:
+                  t(
+                    "ui.flowTriggerInterval",
+                    "Interval"
+                  ),
+              },
+            ]}
+            allowDeselect={
+              false
+            }
+            onChange={
+              value =>
+                onChange({
+                  triggerMode:
+                    value ===
+                    "interval"
+                      ? "interval"
+                      : "manual",
+                })
+            }
+          />
+
+          {data.triggerMode ===
+            "interval" && (
+            <NumberInput
+              label={
+                t(
+                  "ui.flowIntervalMs",
+                  "Interval (ms)"
+                )
+              }
+              description={
+                t(
+                  "ui.flowIntervalDescription",
+                  "1000 ms = 1 second, 60000 ms = 1 minute"
+                )
+              }
+              value={
+                data.intervalMs ??
+                60000
+              }
+              min={1000}
+              max={86400000}
+              step={1000}
+              onChange={
+                value =>
+                  onChange({
+                    intervalMs:
+                      Number(
+                        value
+                      ) ||
+                      60000,
+                  })
+              }
+            />
+          )}
+        </>
+      )}
+
+      {data.kind ===
         "smartDispatcher" && (
         <>
           <Stack gap="xs">
