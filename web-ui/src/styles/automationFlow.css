@@ -14,8 +14,13 @@
   flex: 1 1 0;
   min-height: 0;
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr) 340px;
-  gap: 10px;
+  grid-template-columns:
+    var(--automation-flow-left-width, 220px)
+    10px
+    minmax(0, 1fr)
+    10px
+    var(--automation-flow-right-width, 340px);
+  gap: 0;
 }
 
 .automation-flow-sidebar,
@@ -23,6 +28,46 @@
   min-height: 0;
   overflow: hidden;
 }
+
+.automation-flow-splitter {
+  position: relative;
+  min-width: 10px;
+  cursor: col-resize;
+  touch-action: none;
+  user-select: none;
+  z-index: 5;
+}
+
+.automation-flow-splitter::before {
+  content: "";
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: 50%;
+  width: 2px;
+  border-radius: 999px;
+  transform: translateX(-50%);
+  background: var(--mantine-color-default-border);
+  opacity: 0.65;
+  transition:
+    width 120ms ease,
+    opacity 120ms ease,
+    background 120ms ease;
+}
+
+.automation-flow-splitter:hover::before,
+body.automation-flow-panel-resizing .automation-flow-splitter::before {
+  width: 4px;
+  opacity: 1;
+  background: var(--mantine-color-violet-6);
+}
+
+body.automation-flow-panel-resizing,
+body.automation-flow-panel-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
 
 .automation-flow-canvas {
   height: 100%;
@@ -92,10 +137,14 @@
 
 @media (max-width: 1050px) {
   .automation-flow-workspace {
-    grid-template-columns: 190px minmax(0, 1fr);
+    grid-template-columns:
+      var(--automation-flow-left-width, 190px)
+      10px
+      minmax(0, 1fr);
   }
 
-  .automation-flow-properties {
+  .automation-flow-properties,
+  .automation-flow-splitter-right {
     display: none;
   }
 }
