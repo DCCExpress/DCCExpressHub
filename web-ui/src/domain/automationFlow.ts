@@ -1611,6 +1611,26 @@ export function generateAutomationFlowPageScript(
         )[0]?.target
       : undefined;
 
+  if (
+    requestedInput &&
+    !triggerNextId
+  ) {
+    return {
+      code:
+        "// The selected input node is not connected.",
+      warnings: [
+        "The selected input node has no outgoing connection.",
+      ],
+    };
+  }
+
+  const selectedRootNode =
+    triggerNextId
+      ? nodeById.get(
+          triggerNextId
+        )
+      : undefined;
+
   const smartNodes =
     pageNodes.filter(
       node =>
@@ -1618,8 +1638,15 @@ export function generateAutomationFlowPageScript(
         "smartDispatcher"
     );
 
+  const useSmartGenerator =
+    selectedRootNode
+      ? selectedRootNode.data.kind ===
+        "smartDispatcher"
+      : smartNodes.length >
+        0;
+
   if (
-    smartNodes.length === 0
+    !useSmartGenerator
   ) {
     if (
       pageNodes.length === 0
@@ -1816,12 +1843,9 @@ export function generateAutomationFlowPageScript(
 
   const root =
     (
-      triggerNextId
-        ? smartNodes.find(
-            node =>
-              node.id ===
-              triggerNextId
-          )
+      selectedRootNode?.data.kind ===
+        "smartDispatcher"
+        ? selectedRootNode
         : undefined
     ) ??
     smartNodes[0]!;
