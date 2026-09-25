@@ -584,6 +584,10 @@ export default function AutomationFlowDialog({
       setSelectedNodeId(
         null
       );
+
+      setSelectedEdgeId(
+        null
+      );
     };
 
   const addPage =
@@ -722,6 +726,10 @@ export default function AutomationFlowDialog({
       );
 
       setSelectedNodeId(
+        null
+      );
+
+      setSelectedEdgeId(
         null
       );
     };
@@ -1678,6 +1686,8 @@ export default function AutomationFlowDialog({
                   defaultEdgeOptions={{
                     type:
                       "smoothstep",
+                    interactionWidth:
+                      24,
                     markerEnd: {
                       type:
                         MarkerType.ArrowClosed,
