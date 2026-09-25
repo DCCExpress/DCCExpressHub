@@ -488,3 +488,129 @@ test("trigger node play button injects that specific trigger once", () => {
     /"inject"/
   );
 });
+
+
+test("turnout node uses the layout-backed turnout selector", () => {
+  const properties =
+    read(
+      "src/components/automation/AutomationFlowPropertiesPanel.tsx"
+    );
+
+  const editor =
+    read(
+      "src/components/automation/AutomationFlowTurnoutEditor.tsx"
+    );
+
+  const catalog =
+    read(
+      "src/services/automationTurnoutCatalog.ts"
+    );
+
+  assert.match(
+    properties,
+    /AutomationFlowTurnoutEditor/
+  );
+
+  assert.match(
+    editor,
+    /loadAutomationTurnoutCatalog/
+  );
+
+  assert.match(
+    editor,
+    /searchable/
+  );
+
+  assert.match(
+    catalog,
+    /\/api\/layout/
+  );
+
+  assert.match(
+    catalog,
+    /label:[\s\S]*addressLabel/
+  );
+});
+
+test("turnout catalog exposes semantic simple, double and three-way states", () => {
+  const catalog =
+    read(
+      "src/services/automationTurnoutCatalog.ts"
+    );
+
+  for (
+    const state of [
+      '"closed"',
+      '"thrown"',
+      '"oo"',
+      '"oc"',
+      '"co"',
+      '"cc"',
+      '"left"',
+      '"straight"',
+      '"right"',
+    ]
+  ) {
+    assert.match(
+      catalog,
+      new RegExp(state)
+    );
+  }
+
+  assert.match(
+    catalog,
+    /ooMotor1Value/
+  );
+
+  assert.match(
+    catalog,
+    /ccMotor2Value/
+  );
+
+  assert.match(
+    catalog,
+    /leftMotor1Value/
+  );
+
+  assert.match(
+    catalog,
+    /rightMotor2Value/
+  );
+
+  assert.match(
+    catalog,
+    /semanticClosed/
+  );
+});
+
+test("turnout flow generation uses stored semantic commands and rejects an unconfigured new node", () => {
+  const domain =
+    read(
+      "src/domain/automationFlow.ts"
+    );
+
+  const palette =
+    read(
+      "src/components/automation/AutomationFlowPalette.tsx"
+    );
+
+  assert.match(
+    domain,
+    /turnoutCommands/
+  );
+
+  assert.match(
+    domain,
+    /configured\.map/
+  );
+
+  assert.match(
+    domain,
+    /Set Turnout node has no configured turnout/
+  );
+
+  assert.match(
+    palette,
+    /turnoutAddress: 0/
+  );
+});
