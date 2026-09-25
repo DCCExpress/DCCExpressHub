@@ -769,6 +769,15 @@ await setRoute(name)
 await setRoute(name, delayMs)
 ```
 
+## Dispatcher / Task Manager
+
+```text
+await dispatcher([blocks], async (loco, dir) => { ... }, options?)
+startTask(name, taskFunction)
+isTaskRunning(name)
+getTaskState(name)
+```
+
 ## Blocks
 
 ```text
@@ -911,3 +920,305 @@ dcc.sendRaw(...)
 6. Prefer high-level logical APIs over raw DCC commands whenever possible.
 7. S88 / `<Q>` / other sensor sources all use the same script sensor API.
 8. Emergency stop is directly available as `dcc.emergencyStop()`.
+9. Before using Dispatcher, generate the route graph and save it together with the Layout.
+10. For repeated concurrent Dispatcher attempts, use the single-flight `startTask()` Task Manager.
+
+
+---
+
+# 18. Dispatcher – graph-based route and block reservation
+
+`dispatcher()` selects exactly one physical route from the saved Layout route graph, reserves the affected blocks, configures and locks required turnouts through SwitchMan when necessary, and then delegates the actual train movement to the script callback.
+
+## 18.1 Basic usage
+
+```js
+const result = await dispatcher(
+  ["A1", "B1", "C1"],
+  async (loco, dir) => {
+    dcc.setLoco(loco, 20, dir);
+    await dcc.waitForSensor(1020, true);
+    dcc.setLoco(loco, 0, dir);
+  }
+);
+```
+
+Callback parameters:
+
+- `loco`: DCC locomotive address assigned to the source block;
+- `dir`: `"forward"` or `"reverse"` direction resolved from the route graph.
+
+Possible Dispatcher result statuses:
+
+```text
+completed
+empty
+blocked
+```
+
+## 18.2 The block list is a checkpoint list
+
+The supplied blocks do not have to contain every physical block on the route.
+
+If the full route is:
+
+```text
+A1 -> B2 -> C3 -> D4
+```
+
+this is also valid:
+
+```js
+await dispatcher(["A1", "B2", "D4"], async (loco, dir) => {
+  // ...
+});
+```
+
+Checkpoints must appear in the same order as in the complete route. The first and last blocks are always the requested route endpoints.
+
+No matching route:
+
+```text
+dispatcher_route_not_found
+```
+
+More than one matching physical route:
+
+```text
+dispatcher_route_ambiguous
+```
+
+Dispatcher deliberately does not auto-select between alternatives. Add enough intermediate checkpoint blocks to reduce the match set to exactly one route.
+
+## 18.3 Block reservation rules
+
+The source block:
+
+- may be physically occupied because the train starts there;
+- provides the locomotive address through its actual block assignment;
+- must not already contain a target-locomotive marker.
+
+Every route block after the source must simultaneously satisfy:
+
+```text
+actual loco == 0
+target loco == 0
+occupancy sensor == false
+```
+
+Before movement begins, Dispatcher writes target-locomotive markers to every downstream route block and performs a second safety check to ensure the state did not change during reservation.
+
+Overlapping Dispatcher routes are serialized with Web Locks. Overlapping active Dispatcher routes inside the same script are not allowed.
+
+## 18.4 Turnouts
+
+When the selected route requires turnout changes, Dispatcher automatically uses SwitchMan.
+
+The turnout states stored in the route graph are applied and the SwitchMan scope remains held for the complete Dispatcher callback.
+
+If the turnout section is currently locked, that Dispatcher attempt returns `blocked`, allowing the Task Manager / scheduler to retry later.
+
+## 18.5 Successful commit and rollback
+
+When the callback completes successfully:
+
+1. actual + target state is cleared from every route block before the destination;
+2. the destination target marker is cleared;
+3. the destination actual block assignment is set to the Dispatcher locomotive.
+
+If the callback throws or is aborted, Dispatcher **does not pretend the train arrived**. It only removes target markers created by that Dispatcher attempt.
+
+## 18.6 Options
+
+```js
+await dispatcher(
+  ["A1", "B1", "C1"],
+  async (loco, dir) => {
+    // ...
+  },
+  {
+    timeoutMs: 30000,
+    setDelayMs: 250,
+    blockPollMs: 250,
+
+    onEmpty: async dir => {
+      log("A1 is empty", dir);
+    },
+
+    onBlocked: async (loco, dir, conflicts) => {
+      log("Route blocked", loco, dir, conflicts);
+    },
+  }
+);
+```
+
+- `timeoutMs`: timeout for waiting on block locks; omitted means no explicit Dispatcher timeout, maximum `600000 ms`;
+- `setDelayMs`: delay between turnout operations, default `250 ms`;
+- `blockPollMs`: block-lock retry interval, default `250 ms`, range `25..5000 ms`;
+- `onEmpty(dir)`: called when the source block contains no locomotive;
+- `onBlocked(loco, dir, conflicts)`: called for block or turnout conflicts.
+
+If `onEmpty` is omitted, an empty source block throws `dispatcher_empty_source`.
+
+---
+
+# 19. Task Manager – concurrent single-flight tasks
+
+`startTask()` lets an automation scheduler run independent async tasks concurrently without starting the same named task more than once at the same time.
+
+## 19.1 `startTask(name, taskFunction)`
+
+```js
+startTask("A1_TO_C1", A1toC1);
+```
+
+The call returns immediately while the task continues in the background.
+
+Only one instance of the same task name can run at a time. If it is already running:
+
+```text
+started = false
+reason = "already-running"
+```
+
+While Finishing mode is active, new tasks are not started:
+
+```text
+started = false
+reason = "finishing"
+```
+
+Already running tasks are still allowed to finish their current work.
+
+## 19.2 `isTaskRunning(name)`
+
+```js
+if (isTaskRunning("A1_TO_C1")) {
+  log("A1_TO_C1 is still running");
+}
+```
+
+## 19.3 `getTaskState(name)`
+
+```js
+const state = getTaskState("A1_TO_C1");
+log(state);
+```
+
+The state includes:
+
+```text
+name
+running
+status
+runCount
+startedAt
+finishedAt
+lastResult
+lastError
+```
+
+Task Manager records and logs background task errors so they do not become unhandled Promise rejections.
+
+---
+
+# 20. Complete Dispatcher + Task Manager example
+
+```js
+const SENSOR_A1 = 1001;
+const SENSOR_B1 = 1006;
+const SENSOR_B2 = 1007;
+const SENSOR_C1 = 1020;
+
+const SPEED = 20;
+const HORN_FUNCTION = 2;
+
+async function horn(loco) {
+  dcc.setLocoFunction(loco, HORN_FUNCTION, true);
+  await delay(700);
+  dcc.setLocoFunction(loco, HORN_FUNCTION, false);
+}
+
+async function A1toC1() {
+  await dispatcher(
+    ["A1", "B1", "C1"],
+
+    async (loco, dir) => {
+      setInfo(`Loco ${loco}: A1 -> B1 -> C1`);
+
+      dcc.setLoco(loco, SPEED, dir);
+
+      await dcc.waitForSensor(SENSOR_B1, true);
+
+      log(`Loco ${loco}: B1`);
+
+      await horn(loco);
+
+      dcc.setLoco(loco, 25, dir);
+
+      await dcc.waitForSensor(SENSOR_C1, true);
+
+      log(`Loco ${loco}: C1`);
+
+      dcc.setLoco(loco, 0, dir);
+    },
+
+    {
+      onEmpty: async () => {
+        log("A1 -> C1: no locomotive in A1");
+      },
+
+      onBlocked: async (loco, dir, conflicts) => {
+        log("A1 -> C1: blocked", loco, conflicts);
+      }
+    }
+  );
+}
+
+async function C1toA1() {
+  await dispatcher(
+    ["C1", "B2", "A1"],
+
+    async (loco, dir) => {
+      setInfo(`Loco ${loco}: C1 -> B2 -> A1`);
+
+      dcc.setLoco(loco, SPEED, dir);
+
+      await dcc.waitForSensor(SENSOR_B2, true);
+
+      log(`Loco ${loco}: B2`);
+
+      await horn(loco);
+
+      dcc.setLoco(loco, 25, dir);
+
+      await dcc.waitForSensor(SENSOR_A1, true);
+
+      log(`Loco ${loco}: A1`);
+
+      dcc.setLoco(loco, 0, dir);
+    },
+
+    {
+      onEmpty: async () => {
+        log("C1 -> A1: no locomotive in C1");
+      },
+
+      onBlocked: async (loco, dir, conflicts) => {
+        log("C1 -> A1: blocked", loco, conflicts);
+      }
+    }
+  );
+}
+
+while (isRunning()) {
+  startTask("A1_TO_C1", A1toC1);
+  startTask("C1_TO_A1", C1toA1);
+
+  await delay(500);
+}
+
+setInfo("Finishing - no new dispatcher");
+```
+
+This scheduler attempts to start both routes every 500 ms. Because `startTask()` is single-flight by task name, the same route cannot start again while its previous instance is still running. If a Dispatcher attempt quickly finishes with `empty` or `blocked`, a later scheduler cycle can retry it.
