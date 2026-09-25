@@ -890,12 +890,21 @@ app.MapDelete("/delete", DeletePath);
 
 app.MapGet("/delete", DeletePath);
 
-// Expose the native equivalent of LittleFS. Old Hub URLs such as /images/x.jpg
-// continue to work, and the current file manager's /flash/* prefix works too.
+// Expose the native equivalents of the firmware storage namespaces.
+// Keep the same virtual URLs on Windows and ESP32:
+//   /flash/* -> <content-root>/data/*
+//   /sd/*    -> <content-root>/sd/*
+// Old Hub URLs such as /images/x.jpg continue to work as well.
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(dataRoot),
     RequestPath = "/flash",
+    ServeUnknownFileTypes = true
+});
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(Path.Combine(app.Environment.ContentRootPath, "sd")),
+    RequestPath = "/sd",
     ServeUnknownFileTypes = true
 });
 app.UseStaticFiles(new StaticFileOptions
