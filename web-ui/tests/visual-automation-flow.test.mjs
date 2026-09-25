@@ -149,3 +149,68 @@ test("visual flow generator emits the existing smartDispatcher API", () => {
     /arrivedWhen/
   );
 });
+
+
+test("node palette is grouped into persistent collapsible categories", () => {
+  const editor =
+    read(
+      "src/components/automation/AutomationFlowDialog.tsx"
+    );
+
+  const collapsible =
+    read(
+      "src/components/common/CollapsiblePanelCard.tsx"
+    );
+
+  const hook =
+    read(
+      "src/hooks/usePersistentCollapsedState.ts"
+    );
+
+  assert.match(
+    editor,
+    /PALETTE_GROUPS/
+  );
+
+  assert.match(
+    editor,
+    /<CollapsiblePanelCard/
+  );
+
+  assert.match(
+    editor,
+    /dcc-express-flow-palette-/
+  );
+
+  assert.match(
+    collapsible,
+    /<Collapse/
+  );
+
+  assert.match(
+    hook,
+    /localStorage\.setItem/
+  );
+});
+
+test("basic DCC command nodes generate script API calls", () => {
+  const source =
+    read(
+      "src/domain/automationFlow.ts"
+    );
+
+  assert.match(
+    source,
+    /case "setSensor":[\s\S]*dcc\.setSensor/
+  );
+
+  assert.match(
+    source,
+    /case "setTurnout":[\s\S]*dcc\.setTurnout/
+  );
+
+  assert.match(
+    source,
+    /case "setAccessory":[\s\S]*dcc\.setAccessory/
+  );
+});
