@@ -108,6 +108,11 @@ import {
 type AutomationFlowDialogProps = {
   opened: boolean;
   onClose: () => void;
+  initialPageId?: string | null;
+  onSaved?: (
+    document:
+      AutomationFlowDocument
+  ) => void;
 };
 
 function t(
@@ -206,6 +211,8 @@ function pageViewport(
 export default function AutomationFlowDialog({
   opened,
   onClose,
+  initialPageId,
+  onSaved,
 }: AutomationFlowDialogProps) {
   const [
     document,
@@ -417,9 +424,21 @@ export default function AutomationFlowDialog({
               await loadAutomationFlow()
             );
 
-          setDocument(
-            loaded
-          );
+          const requestedPage =
+            initialPageId &&
+            loaded.pages.some(
+              page =>
+                page.id ===
+                initialPageId
+            )
+              ? initialPageId
+              : loaded.activePageId;
+
+          setDocument({
+            ...loaded,
+            activePageId:
+              requestedPage,
+          });
 
           setSelectedNodeId(
             null
@@ -443,7 +462,9 @@ export default function AutomationFlowDialog({
           );
         }
       },
-      []
+      [
+        initialPageId,
+      ]
     );
 
   useEffect(
@@ -475,6 +496,10 @@ export default function AutomationFlowDialog({
         );
 
         setDocument(
+          normalized
+        );
+
+        onSaved?.(
           normalized
         );
 
