@@ -482,7 +482,9 @@ function FlowRow({
             </ActionIcon>
           </Tooltip>
         </Group>
-      </Table.Td>      <Table.Td>
+      </Table.Td>
+
+      <Table.Td>
         <Badge
           size="sm"
           variant="light"
@@ -646,7 +648,7 @@ export default function AutomationFlowsTable({
           <Table.Thead>
             <Table.Tr>
               <Table.Th
-                w={150}
+                w={136}
               >
                 {i18next.t("ui.automationActions", { defaultValue: "Controls" })}
               </Table.Th>
