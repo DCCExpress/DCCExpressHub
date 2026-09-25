@@ -953,5 +953,21 @@
   "flowTurnout": "Weiche",
   "flowSelectTurnout": "Weiche auswählen",
   "flowLoadingTurnouts": "Weichen werden geladen...",
-  "flowNoConfiguredTurnouts": "Im Gleisplan wurden keine konfigurierten Weichen gefunden."
+  "flowNoConfiguredTurnouts": "Im Gleisplan wurden keine konfigurierten Weichen gefunden.",
+  "flowGroupLocoBlocks": "Lok / Blöcke",
+  "flowNodeSetLoco": "Lok setzen",
+  "flowNodeGetBlock": "Block lesen",
+  "flowNodeSetBlock": "Block setzen",
+  "flowNodeClearBlock": "Block löschen",
+  "flowNodeGetTarget": "Ziel lesen",
+  "flowNodeSetTarget": "Ziel setzen",
+  "flowNodeClearTarget": "Ziel löschen",
+  "flowSetLocoPayloadHint": "Verwendet payload.locoAddress als Lokadresse und gibt den Payload unverändert weiter.",
+  "flowDirection": "Richtung",
+  "flowBlock": "Block",
+  "flowSelectBlock": "Block auswählen",
+  "flowLoadingBlocks": "Blöcke werden geladen...",
+  "flowNoConfiguredBlocks": "Im Gleisplan wurden keine Blöcke gefunden.",
+  "flowBlockGetterPayloadHint": "Schreibt die Lokadresse in payload.locoAddress und gibt den Payload weiter.",
+  "flowBlockSetterPayloadHint": "Verwendet payload.locoAddress als Lokadresse."
 }
