@@ -652,11 +652,21 @@ dcc.sendRaw("<s>");
 
 Az SD kártya audio könyvtárából játszik le MP3-at.
 
-Csak az alap fájlnév kell, útvonal és `.mp3` kiterjesztés nélkül:
+Csak az alap fájlnév kell, útvonal és `.mp3` kiterjesztés nélkül.
+
+Nem blokkoló lejátszás — a script azonnal továbbfut:
 
 ```js
 playAudio("mav_szignal");
 ```
+
+A `playAudio()` Promise-t ad vissza, ezért `await`-tel megvárható a lejátszás vége:
+
+```js
+await playAudio("mav_szignal");
+```
+
+Az awaitelt hívás a hang befejezésekor folytatódik. Ha az execution közben Abortot kap, a hozzá tartozó aktív audio is leáll.
 
 ---
 
@@ -751,6 +761,7 @@ isRunning()
 log(value, ...)
 setInfo(message)
 playAudio(name)
+await playAudio(name)
 ```
 
 ## SwitchMan
