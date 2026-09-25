@@ -649,25 +649,23 @@ For new scripts, prefer a higher-level `dcc.*` API whenever one exists.
 
 # 11. Audio playback
 
-## `playAudio(name)`
+## `playAudio(source)`
 
-Plays an MP3 file from the SD card audio directory.
-
-Pass only the base filename, without path or `.mp3` extension.
+Plays an audio file from the emulated SD card. The Flow editor file picker stores the full virtual path, for example `/sd/audio/mav_szignal.mp3`.
 
 Non-blocking playback — the script continues immediately:
 
 ```js
-playAudio("mav_szignal");
+playAudio("/sd/audio/mav_szignal.mp3");
 ```
 
 `playAudio()` returns a Promise, so playback completion can be awaited:
 
 ```js
-await playAudio("mav_szignal");
+await playAudio("/sd/audio/mav_szignal.mp3");
 ```
 
-The awaited call continues when playback ends. If the execution is aborted while waiting, its active audio playback is stopped as well.
+The legacy short form remains compatible: `playAudio("mav_szignal")` resolves to `/sd/audio/mav_szignal.mp3`. The awaited call continues when playback ends. If the execution is aborted while waiting, its active audio playback is stopped as well.
 
 ---
 
@@ -761,8 +759,8 @@ isFinishing()
 isRunning()
 log(value, ...)
 setInfo(message)
-playAudio(name)
-await playAudio(name)
+playAudio(source)
+await playAudio(source)
 ```
 
 ## SwitchMan

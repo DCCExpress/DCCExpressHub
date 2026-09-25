@@ -338,13 +338,25 @@ function summary(
         `${data.delayMs ?? 500} ms`
       );
 
-    case "playAudio":
+    case "playAudio": {
+      const source =
+        String(
+          data.audioName ??
+          ""
+        ).trim();
+
+      const displaySource =
+        source
+          ? (
+              source.startsWith("/") ||
+              source.includes(".")
+                ? source
+                : `/sd/audio/${source}.mp3`
+            )
+          : "Select audio";
+
       return (
-        (
-          data.audioName
-            ? `/sd/audio/${data.audioName}.mp3`
-            : "Select audio"
-        ) +
+        displaySource +
         (
           data.audioWaitForEnd ===
           true
@@ -352,6 +364,7 @@ function summary(
             : " · continue"
         )
       );
+    }
 
     case "log":
       return (

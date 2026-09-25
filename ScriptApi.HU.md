@@ -648,25 +648,23 @@ dcc.sendRaw("<s>");
 
 # 11. Hang lejátszás
 
-## `playAudio(name)`
+## `playAudio(source)`
 
-Az SD kártya audio könyvtárából játszik le MP3-at.
-
-Csak az alap fájlnév kell, útvonal és `.mp3` kiterjesztés nélkül.
+Az emulált SD kártyáról játszik le hangfájlt. A Flow editor fájlválasztója teljes virtuális útvonalat ad, például `/sd/audio/mav_szignal.mp3`.
 
 Nem blokkoló lejátszás — a script azonnal továbbfut:
 
 ```js
-playAudio("mav_szignal");
+playAudio("/sd/audio/mav_szignal.mp3");
 ```
 
 A `playAudio()` Promise-t ad vissza, ezért `await`-tel megvárható a lejátszás vége:
 
 ```js
-await playAudio("mav_szignal");
+await playAudio("/sd/audio/mav_szignal.mp3");
 ```
 
-Az awaitelt hívás a hang befejezésekor folytatódik. Ha az execution közben Abortot kap, a hozzá tartozó aktív audio is leáll.
+A régi rövid forma továbbra is kompatibilis: a `playAudio("mav_szignal")` hívás a `/sd/audio/mav_szignal.mp3` fájlt játssza le. Az awaitelt hívás a hang befejezésekor folytatódik. Ha az execution közben Abortot kap, a hozzá tartozó aktív audio is leáll.
 
 ---
 
@@ -760,8 +758,8 @@ isFinishing()
 isRunning()
 log(value, ...)
 setInfo(message)
-playAudio(name)
-await playAudio(name)
+playAudio(source)
+await playAudio(source)
 ```
 
 ## SwitchMan

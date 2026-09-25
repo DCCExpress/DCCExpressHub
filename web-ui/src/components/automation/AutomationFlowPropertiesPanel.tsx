@@ -32,6 +32,8 @@ import type {
 import AutomationFlowPayloadEditor from "./AutomationFlowPayloadEditor";
 import AutomationFlowTurnoutEditor from "./AutomationFlowTurnoutEditor";
 import AutomationFlowBlockEditor from "./AutomationFlowBlockEditor";
+import { AudioFileInput } from "../../layout/property-panel/AudioFilePropertyEditor";
+import { audioManager } from "../../services/audioManager";
 
 type Props = {
   node: AutomationFlowNode | null;
@@ -1079,31 +1081,45 @@ export default function AutomationFlowPropertiesPanel({
       {data.kind ===
         "playAudio" && (
         <>
-          <TextInput
+          <AudioFileInput
             label={
               t(
-                "ui.flowAudioName",
-                "Audio name"
+                "ui.audioFile",
+                "Audio file"
               )
             }
             description={
               t(
-                "ui.flowAudioNameDescription",
-                "Base MP3 filename in /sd/audio, without path or .mp3 extension."
+                "ui.flowAudioFileDescription",
+                "Choose an audio file from the Hub emulated SD card."
               )
             }
-            placeholder="station"
             value={
-              data.audioName ??
-              ""
+              String(
+                data.audioName ??
+                ""
+              )
             }
             onChange={
-              event =>
+              audioName =>
                 onChange({
-                  audioName:
-                    event.currentTarget
-                      .value,
+                  audioName,
                 })
+            }
+            onTest={
+              () => {
+                const source =
+                  String(
+                    data.audioName ??
+                    ""
+                  ).trim();
+
+                if (source) {
+                  audioManager.play(
+                    source
+                  );
+                }
+              }
             }
           />
 
@@ -1133,17 +1149,6 @@ export default function AutomationFlowPropertiesPanel({
                 })
             }
           />
-
-          <Text
-            size="xs"
-            c="dimmed"
-          >
-            {
-              data.audioName
-                ? `/sd/audio/${data.audioName}.mp3`
-                : "/sd/audio/<name>.mp3"
-            }
-          </Text>
         </>
       )}
 

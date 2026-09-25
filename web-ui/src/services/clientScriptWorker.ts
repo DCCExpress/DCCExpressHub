@@ -60,8 +60,11 @@ const audioRequestWaiters =
 let audioRequestSequence =
   0;
 
-const SCRIPT_AUDIO_MAX_NAME_LENGTH =
-  120;
+const SCRIPT_AUDIO_MAX_SOURCE_LENGTH =
+  240;
+
+const SCRIPT_AUDIO_EXTENSIONS =
+  /\.(?:mp3|wav|ogg|flac|m4a|aac)$/i;
 
 const blockAddresses =
   new Map<string, number>();
@@ -1268,25 +1271,59 @@ function optimisticallySetBlock(
   return normalizedBlockId;
 }
 
-function validateAudioName(
-  rawName: unknown
+function validateAudioSource(
+  rawSource: unknown
 ): string {
   const value =
     String(
-      rawName ??
+      rawSource ??
       ""
     ).trim();
+
+  const hasUnsafeSegment =
+    value
+      .split("/")
+      .some(
+        segment =>
+          segment === ".."
+      );
+
+  const isSdPath =
+    value.startsWith(
+      "/sd/"
+    );
+
+  const isLegacyBaseName =
+    !value.includes("/");
 
   if (
     !value ||
     value.length >
-      SCRIPT_AUDIO_MAX_NAME_LENGTH ||
-    value.includes("/") ||
+      SCRIPT_AUDIO_MAX_SOURCE_LENGTH ||
     value.includes("\\") ||
-    value.includes(".")
+    value.includes("\0") ||
+    hasUnsafeSegment ||
+    (
+      isSdPath &&
+      !SCRIPT_AUDIO_EXTENSIONS.test(
+        value
+      )
+    ) ||
+    (
+      !isSdPath &&
+      (
+        !isLegacyBaseName ||
+        (
+          value.includes(".") &&
+          !SCRIPT_AUDIO_EXTENSIONS.test(
+            value
+          )
+        )
+      )
+    )
   ) {
     throw new Error(
-      "playAudio(name): use only the base MP3 filename from /sd/audio, without path or extension."
+      "playAudio(source): use an audio file from /sd or a legacy base filename."
     );
   }
 
@@ -1298,16 +1335,16 @@ function requestAudioPlayback(
     ClientScriptWorkerExecutionId,
   execution:
     WorkerExecution,
-  rawName:
+  rawSource:
     unknown
 ): Promise<boolean> {
   assertNotAborted(
     execution
   );
 
-  const name =
-    validateAudioName(
-      rawName
+  const source =
+    validateAudioSource(
+      rawSource
     );
 
   audioRequestSequence +=
@@ -1376,7 +1413,8 @@ function requestAudioPlayback(
           "audio",
         executionId,
         requestId,
-        name,
+        name:
+          source,
       });
     }
   );
@@ -2217,14 +2255,14 @@ function createDccApi(
     },
 
     playAudio(
-      name: string
+      source: string
     ): Promise<boolean> {
       check();
 
       return requestAudioPlayback(
         executionId,
         execution,
-        name
+        source
       );
     },
 

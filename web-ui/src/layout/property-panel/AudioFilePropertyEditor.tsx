@@ -43,6 +43,15 @@ type StorageListing = {
   entries: StorageEntry[];
 };
 
+type AudioFileInputProps = {
+  label: string;
+  value: string;
+  readonly?: boolean;
+  description?: string;
+  onChange: (value: string) => void;
+  onTest?: () => void;
+};
+
 type AudioFilePropertyEditorProps = {
   prop: IEditableProperty;
   selectedElement: BaseElement;
@@ -72,13 +81,16 @@ function parentPath(path: string): string {
   return normalized.slice(0, slash);
 }
 
-export default function AudioFilePropertyEditor({
-  prop,
-  selectedElement,
+export function AudioFileInput({
+  label,
+  value,
+  readonly = false,
+  description,
   onChange,
-}: AudioFilePropertyEditorProps) {
+  onTest,
+}: AudioFileInputProps) {
   useTranslation();
-  const value = String((selectedElement as any)[prop.key] ?? "");
+
   const [opened, setOpened] = useState(false);
   const [currentPath, setCurrentPath] = useState(DEFAULT_AUDIO_PATH);
   const [entries, setEntries] = useState<StorageEntry[]>([]);
@@ -129,14 +141,19 @@ export default function AudioFilePropertyEditor({
     } finally {
       setLoading(false);
     }
-  }, [i18next.resolvedLanguage, ]);
+  }, [i18next.resolvedLanguage]);
 
   useEffect(() => {
     if (!opened) return;
 
-    setCurrentPath(DEFAULT_AUDIO_PATH);
-    void loadDirectory(DEFAULT_AUDIO_PATH, true);
-  }, [opened, loadDirectory]);
+    const startPath =
+      value.startsWith("/sd/")
+        ? parentPath(value)
+        : DEFAULT_AUDIO_PATH;
+
+    setCurrentPath(startPath);
+    void loadDirectory(startPath, startPath === DEFAULT_AUDIO_PATH);
+  }, [opened, value, loadDirectory]);
 
   const selectedName = useMemo(() => {
     if (!value) return "No audio file selected";
@@ -145,7 +162,7 @@ export default function AudioFilePropertyEditor({
   }, [value]);
 
   const chooseFile = (entry: StorageEntry) => {
-    onChange(prop, entry.path);
+    onChange(entry.path);
     setOpened(false);
   };
 
@@ -153,18 +170,19 @@ export default function AudioFilePropertyEditor({
     <>
       <Stack gap={6}>
         <TextInput
-          label={prop.label}
+          label={label}
+          description={description}
           value={value}
           placeholder="/sd/audio/horn.mp3"
-          readOnly={prop.readonly === true}
-          onChange={event => onChange(prop, event.currentTarget.value)}
+          readOnly={readonly}
+          onChange={event => onChange(event.currentTarget.value)}
           rightSection={
             <Group gap={2} wrap="nowrap">
               <ActionIcon
                 size="sm"
                 variant="subtle"
                 title={i18next.t("ui.chooseAudioFromHubSdCard")}
-                disabled={prop.readonly === true}
+                disabled={readonly}
                 onClick={event => {
                   event.preventDefault();
                   event.stopPropagation();
@@ -178,11 +196,11 @@ export default function AudioFilePropertyEditor({
                 size="sm"
                 variant="subtle"
                 title={i18next.t("ui.testAudio")}
-                disabled={!value}
+                disabled={!value || !onTest}
                 onClick={event => {
                   event.preventDefault();
                   event.stopPropagation();
-                  prop.callback?.();
+                  onTest?.();
                 }}
               >
                 <IconPlayerPlayFilled size={16} />
@@ -192,7 +210,9 @@ export default function AudioFilePropertyEditor({
           rightSectionWidth={68}
         />
 
-        <Text size="xs" c="dimmed"> {i18next.t("ui.selected")} {selectedName}{i18next.t("ui.thePickerReadsAudioFilesDirectlyFromTheHubSd")} </Text>
+        <Text size="xs" c="dimmed">
+          {i18next.t("ui.selected")} {selectedName}{i18next.t("ui.thePickerReadsAudioFilesDirectlyFromTheHubSd")}
+        </Text>
       </Stack>
 
       <Modal
@@ -245,7 +265,9 @@ export default function AudioFilePropertyEditor({
             {loading ? (
               <Group justify="center" py="xl"><Loader /></Group>
             ) : entries.length === 0 ? (
-              <Text c="dimmed" ta="center" py="xl"> {i18next.t("ui.noSupportedAudioFilesOrFoldersFoundHere")} </Text>
+              <Text c="dimmed" ta="center" py="xl">
+                {i18next.t("ui.noSupportedAudioFilesOrFoldersFoundHere")}
+              </Text>
             ) : (
               <Stack gap={6}>
                 {entries.map(entry => (
@@ -297,11 +319,33 @@ export default function AudioFilePropertyEditor({
                 setCurrentPath(SD_ROOT);
                 void loadDirectory(SD_ROOT);
               }}
-            > {i18next.t("ui.sdRoot")} </Button>
-            <Button variant="default" onClick={() => setOpened(false)}>{i18next.t("ui.cancel")}</Button>
+            >
+              {i18next.t("ui.sdRoot")}
+            </Button>
+            <Button variant="default" onClick={() => setOpened(false)}>
+              {i18next.t("ui.cancel")}
+            </Button>
           </Group>
         </Stack>
       </Modal>
     </>
+  );
+}
+
+export default function AudioFilePropertyEditor({
+  prop,
+  selectedElement,
+  onChange,
+}: AudioFilePropertyEditorProps) {
+  const value = String((selectedElement as any)[prop.key] ?? "");
+
+  return (
+    <AudioFileInput
+      label={prop.label}
+      value={value}
+      readonly={prop.readonly === true}
+      onChange={nextValue => onChange(prop, nextValue)}
+      onTest={prop.callback ? () => prop.callback?.() : undefined}
+    />
   );
 }

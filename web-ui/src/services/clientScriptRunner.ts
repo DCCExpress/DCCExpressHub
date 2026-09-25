@@ -209,8 +209,11 @@ const lastErrors =
 const SCRIPT_AUDIO_COMMAND_PREFIX =
   "__DCCEXPRESS_PLAY_AUDIO__:";
 
-const SCRIPT_AUDIO_MAX_NAME_LENGTH =
-  120;
+const SCRIPT_AUDIO_MAX_SOURCE_LENGTH =
+  240;
+
+const SCRIPT_AUDIO_EXTENSIONS =
+  /\.(?:mp3|wav|ogg|flac|m4a|aac)$/i;
 
 const AUTOMATION_RUN_MODE_CHANNEL =
   "dcc-express-automation-run-mode-v1";
@@ -1919,40 +1922,87 @@ function stringArg(
   );
 }
 
-function validateScriptAudioName(
-  rawName: string
+function resolveScriptAudioSource(
+  rawSource: string
 ): string {
-  const name =
-    rawName.trim();
+  const source =
+    rawSource.trim();
+
+  const hasUnsafeSegment =
+    source
+      .split("/")
+      .some(
+        segment =>
+          segment === ".."
+      );
 
   if (
-    !name ||
-    name.length >
-      SCRIPT_AUDIO_MAX_NAME_LENGTH ||
-    name.includes("/") ||
-    name.includes("\\") ||
-    name.includes(".")
+    !source ||
+    source.length >
+      SCRIPT_AUDIO_MAX_SOURCE_LENGTH ||
+    source.includes("\\") ||
+    source.includes("\0") ||
+    hasUnsafeSegment
   ) {
     throw new Error(
-      "playAudio(name): use only the base MP3 filename from /sd/audio, without path or extension."
+      "playAudio(source): use an audio file from /sd or a legacy base filename."
     );
   }
 
-  return name;
+  if (
+    source.startsWith(
+      "/sd/"
+    )
+  ) {
+    if (
+      !SCRIPT_AUDIO_EXTENSIONS.test(
+        source
+      )
+    ) {
+      throw new Error(
+        "playAudio(source): unsupported audio file extension."
+      );
+    }
+
+    return source;
+  }
+
+  if (
+    source.includes("/")
+  ) {
+    throw new Error(
+      "playAudio(source): absolute audio paths must start with /sd/."
+    );
+  }
+
+  if (
+    source.includes(".")
+  ) {
+    if (
+      !SCRIPT_AUDIO_EXTENSIONS.test(
+        source
+      )
+    ) {
+      throw new Error(
+        "playAudio(source): unsupported audio file extension."
+      );
+    }
+
+    return `/sd/audio/${source}`;
+  }
+
+  return `/sd/audio/${source}.mp3`;
 }
 
 function executeScriptAudioCommand(
   command: string
 ): string | null {
-  const name =
-    validateScriptAudioName(
+  const virtualPath =
+    resolveScriptAudioSource(
       command.slice(
         SCRIPT_AUDIO_COMMAND_PREFIX.length
       )
     );
-
-  const virtualPath =
-    `/sd/audio/${name}.mp3`;
 
   audioManager.play(
     virtualPath,
@@ -1960,7 +2010,7 @@ function executeScriptAudioCommand(
       onError:
         error => {
           console.error(
-            `[Automation Audio] playAudio("${name}") failed:`,
+            `[Automation Audio] playAudio("${virtualPath}") failed:`,
             error
           );
         },
@@ -2024,12 +2074,12 @@ function handleScriptAudioPlayback(
     return;
   }
 
-  let name:
+  let virtualPath:
     string;
 
   try {
-    name =
-      validateScriptAudioName(
+    virtualPath =
+      resolveScriptAudioSource(
         message.name
       );
   } catch (
@@ -2054,9 +2104,6 @@ function handleScriptAudioPlayback(
 
     return;
   }
-
-  const virtualPath =
-    `/sd/audio/${name}.mp3`;
 
   rememberScriptAudioRequest(
     message.executionId,
@@ -2099,7 +2146,7 @@ function handleScriptAudioPlayback(
       errorText
     ) {
       console.error(
-        `[Automation Audio] playAudio("${name}") failed:`,
+        `[Automation Audio] playAudio("${virtualPath}") failed:`,
         error
       );
     }
@@ -2148,11 +2195,6 @@ function scriptWithRuntimeHelpers(
   switchManOwnerId: string,
   switchManOwnerName: string
 ): string {
-  const maxLength =
-    String(
-      SCRIPT_AUDIO_MAX_NAME_LENGTH
-    );
-
   const routes =
     JSON.stringify(
       scriptRouteCatalog
@@ -2214,23 +2256,8 @@ const isFinishing = () =>
 const isRunning = () =>
   !__dccExpressAutomationFinishing;
 
-const playAudio = (name) => {
-  const value = String(name ?? "").trim();
-
-  if (
-    !value ||
-    value.length > ${maxLength} ||
-    value.includes("/") ||
-    value.includes("\\\\") ||
-    value.includes(".")
-  ) {
-    throw new Error(
-      "playAudio(name): use only the base MP3 filename from /sd/audio, without path or extension."
-    );
-  }
-
-  return dcc.playAudio(value);
-};
+const playAudio = (source) =>
+  dcc.playAudio(source);
 
 const __dccExpressRoutes = ${routes};
 
