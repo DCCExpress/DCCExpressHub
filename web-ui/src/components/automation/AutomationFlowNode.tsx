@@ -215,11 +215,15 @@ export default function AutomationFlowNode({
       data.kind
     ];
 
-  const isRoot =
+  const isWide =
     data.kind ===
       "smartDispatcher" ||
     data.kind ===
       "trigger";
+
+  const hasTarget =
+    data.kind !==
+    "trigger";
 
   return (
     <Card
@@ -227,7 +231,7 @@ export default function AutomationFlowNode({
       p="sm"
       radius="md"
       className={
-        isRoot
+        isWide
           ? "automation-flow-node automation-flow-node-smart"
           : "automation-flow-node"
       }
@@ -242,7 +246,7 @@ export default function AutomationFlowNode({
             : undefined,
       }}
     >
-      {!isRoot && (
+      {hasTarget && (
         <Handle
           type="target"
           position={
@@ -286,7 +290,7 @@ export default function AutomationFlowNode({
             }
           >
             {
-              isRoot
+              isWide
                 ? "FLOW"
                 : data.kind
             }
@@ -301,7 +305,8 @@ export default function AutomationFlowNode({
           {summary(data)}
         </Text>
 
-        {isRoot &&
+        {data.kind ===
+          "smartDispatcher" &&
           (
             data.arrivalRules?.length ??
             0
