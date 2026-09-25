@@ -955,6 +955,7 @@ export type GeneratedAutomationFlowScript = {
 
 export type GenerateAutomationFlowPageScriptOptions = {
   testRun?: boolean;
+  triggerNodeId?: string;
 };
 
 function triggerPayloadSource(
@@ -1187,7 +1188,26 @@ export function generateAutomationFlowPageScript(
     );
   }
 
+  const requestedTrigger =
+    options.triggerNodeId
+      ? triggerNodes.find(
+          node =>
+            node.id ===
+            options.triggerNodeId
+        )
+      : undefined;
+
+  if (
+    options.triggerNodeId &&
+    !requestedTrigger
+  ) {
+    warnings.push(
+      "Requested Trigger node was not found. Using the first Trigger node."
+    );
+  }
+
   const trigger =
+    requestedTrigger ??
     triggerNodes[0];
 
   const triggerNextId =
