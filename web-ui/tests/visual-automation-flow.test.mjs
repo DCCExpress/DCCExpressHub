@@ -658,6 +658,44 @@ test("play audio node supports blocking and non-blocking playback", () => {
     protocol,
     /type: "audioResult"/
   );
+
+  const audioManager =
+    read(
+      "src/services/audioManager.ts"
+    );
+
+  assert.match(
+    audioManager,
+    /onStopped\?: \(\) => void/
+  );
+
+  assert.match(
+    audioManager,
+    /audioStopCallbacks/
+  );
+
+  const abortStart =
+    runner.indexOf(
+      "export function abortClientScript"
+    );
+
+  const abortPost =
+    runner.indexOf(
+      'type: "abort"',
+      abortStart
+    );
+
+  const audioStop =
+    runner.indexOf(
+      "stopScriptAudioRequests(",
+      abortStart
+    );
+
+  assert.ok(
+    abortStart >= 0 &&
+    abortPost > abortStart &&
+    audioStop > abortPost
+  );
 });
 
 test("log node writes the current payload to the runtime log", () => {
