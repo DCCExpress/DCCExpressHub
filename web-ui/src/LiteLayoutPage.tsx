@@ -41,7 +41,6 @@ import {
   IconBug,
   IconLockOpen,
   IconRoute,
-  IconGitBranch,
 } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { showNotification } from "@mantine/notifications";
@@ -596,6 +595,11 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
   const commandCenter = useCommandCenter();
   const [layout, setLayout] = useState(() => new LayoutView());
   const [automationScripts, setAutomationScripts] = useState<AutomationScriptDefinition[]>([]);
+  const [automationFlow, setAutomationFlow] =
+    useState<AutomationFlowDocument>(
+      () =>
+        createEmptyAutomationFlowDocument()
+    );
   const importFileRef = useRef<HTMLInputElement | null>(null);
   const [selectedElement, setSelectedElement] = useState<BaseElement | null>(null);
   const [tool, setTool] = useState<EditorTool>({ mode: "cursor", elementType: "general" });
@@ -627,6 +631,10 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
   const [timetableOpened, setTimetableOpened] = useState(false);
   const [routesOpened, setRoutesOpened] = useState(false);
   const [automationFlowOpened, setAutomationFlowOpened] = useState(false);
+  const [automationFlowPageId, setAutomationFlowPageId] =
+    useState<string | null>(
+      null
+    );
   const [timetableRevision, setTimetableRevision] = useState(0);
 
   const invalidate = useCallback(() => setInvalidateCounter(value => value + 1), []);
@@ -843,9 +851,14 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
     setError(null);
 
     try {
-      const [layoutResponse, storedAutomations] = await Promise.all([
+      const [
+        layoutResponse,
+        storedAutomations,
+        storedFlow,
+      ] = await Promise.all([
         fetch("/api/layout", { cache: "no-store" }),
         loadAutomationScripts(),
+        loadAutomationFlow(),
       ]);
 
       if (!layoutResponse.ok) {
@@ -872,6 +885,13 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
           ? storedAutomations
           : prepared.legacyAutomationScripts
       );
+
+      setAutomationFlow(
+        normalizeAutomationFlowDocument(
+          storedFlow
+        )
+      );
+
       setSelectedElement(null);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : String(loadError));
@@ -1295,6 +1315,9 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
         await saveAutomationFlow(imported.visualFlow);
         setLayout(nextLayout);
         setAutomationScripts(imported.automationScripts);
+        setAutomationFlow(
+          imported.visualFlow
+        );
         setSelectedElement(null);
 
         showNotification({
@@ -1578,18 +1601,6 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
                           <Button
                             size="xs"
                             variant="light"
-                            color="violet"
-                            leftSection={<IconGitBranch size={15} />}
-                            onClick={() => setAutomationFlowOpened(true)}
-                          >
-                            {i18next.t("ui.visualAutomation", {
-                              defaultValue: "Flow editor",
-                            })}
-                          </Button>
-
-                          <Button
-                            size="xs"
-                            variant="light"
                             color="red"
                             leftSection={<IconLockOpen size={15} />}
                             onClick={() => void forceReleaseAllSwitchManLocks()}
@@ -1603,6 +1614,12 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
                         <AutomationPanel
                           scripts={automationScripts}
                           onScriptsChange={setAutomationScripts}
+                          flows={automationFlow}
+                          onFlowsChange={setAutomationFlow}
+                          onOpenFlowEditor={pageId => {
+                            setAutomationFlowPageId(pageId);
+                            setAutomationFlowOpened(true);
+                          }}
                         />
                       </div>
                     </Stack>
@@ -1768,7 +1785,12 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
 
       <AutomationFlowDialog
         opened={automationFlowOpened}
-        onClose={() => setAutomationFlowOpened(false)}
+        initialPageId={automationFlowPageId}
+        onSaved={setAutomationFlow}
+        onClose={() => {
+          setAutomationFlowOpened(false);
+          setAutomationFlowPageId(null);
+        }}
       />
 
       <TimetableDialog
