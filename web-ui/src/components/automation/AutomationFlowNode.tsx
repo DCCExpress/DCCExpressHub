@@ -87,6 +87,12 @@ const NODE_META:
       title:
         "Set accessory",
     },
+    locoFunction: {
+      icon: "ƒ",
+      color: "pink",
+      title:
+        "Loco Function",
+    },
     horn: {
       icon: "📣",
       color: "orange",
@@ -111,13 +117,23 @@ function summary(
   data: AutomationFlowNodeData
 ): string {
   switch (data.kind) {
-    case "trigger":
-      return (
+    case "trigger": {
+      const mode =
         data.triggerMode ===
         "interval"
           ? `Every ${data.intervalMs ?? 60000} ms`
-          : "Manual"
+          : "Manual";
+
+      const payloadType =
+        (
+          data.triggerPayloadType ??
+          "json"
+        ).toUpperCase();
+
+      return (
+        `${mode} · ${payloadType} payload`
       );
+    }
 
     case "smartDispatcher": {
       const route =
@@ -182,6 +198,12 @@ function summary(
             ? "ON"
             : "OFF"
         )
+      );
+
+    case "locoFunction":
+      return (
+        `payload.locoAddress · F${data.functionNumber ?? 2} · ` +
+        `${data.pulseMs ?? 700} ms`
       );
 
     case "horn":
