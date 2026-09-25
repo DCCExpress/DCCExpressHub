@@ -1,6 +1,7 @@
 import {
   lazy,
   Suspense,
+  type DragEvent,
   useEffect,
   useState,
 } from "react";
@@ -11,6 +12,7 @@ import {
   ActionIcon,
   Badge,
   Button,
+  Card,
   Divider,
   Group,
   Loader,
@@ -18,10 +20,10 @@ import {
   ScrollArea,
   Stack,
   Switch,
-  Table,
   Text,
   TextInput,
   Tooltip,
+  useComputedColorScheme,
 } from "@mantine/core";
 
 import {
@@ -29,7 +31,10 @@ import {
 } from "@mantine/notifications";
 
 import {
+  IconArrowDown,
+  IconArrowUp,
   IconEdit,
+  IconGripVertical,
   IconPlayerPause,
   IconPlayerPlay,
   IconPlayerPlayFilled,
@@ -90,9 +95,15 @@ type Props = {
   ) => void;
 };
 
-type RowProps = {
+type CardProps = {
   definition:
     AutomationScriptDefinition;
+  scriptIndex:
+    number;
+  scriptCount:
+    number;
+  draggedScriptId:
+    string | null;
   onChange: (
     next:
       AutomationScriptDefinition
@@ -102,6 +113,27 @@ type RowProps = {
       AutomationScriptDefinition
   ) => Promise<void>;
   onDelete: () => void;
+  onDragStart: (
+    event:
+      DragEvent<HTMLDivElement>,
+    scriptId:
+      string
+  ) => void;
+  onDragEnd: () => void;
+  onDragOverScript: (
+    event:
+      DragEvent<HTMLDivElement>,
+    scriptId:
+      string,
+    scriptIndex:
+      number
+  ) => void;
+  onMoveByOffset: (
+    scriptId:
+      string,
+    offset:
+      number
+  ) => void;
 };
 
 function executionId(
@@ -131,16 +163,83 @@ function statusColor(
   return "gray";
 }
 
-function ScriptRow({
+function moveScript(
+  scripts:
+    AutomationScriptDefinition[],
+  fromIndex:
+    number,
+  toIndex:
+    number
+): AutomationScriptDefinition[] {
+  if (
+    fromIndex < 0 ||
+    fromIndex >= scripts.length ||
+    toIndex < 0 ||
+    toIndex >= scripts.length ||
+    fromIndex ===
+    toIndex
+  ) {
+    return scripts;
+  }
+
+  const next =
+    [...scripts];
+
+  const [
+    moved,
+  ] =
+    next.splice(
+      fromIndex,
+      1
+    );
+
+  if (!moved) {
+    return scripts;
+  }
+
+  next.splice(
+    toIndex,
+    0,
+    moved
+  );
+
+  return next;
+}
+
+function ScriptCard({
   definition,
+  scriptIndex,
+  scriptCount,
+  draggedScriptId,
   onChange,
   onSave,
   onDelete,
-}: RowProps) {
+  onDragStart,
+  onDragEnd,
+  onDragOverScript,
+  onMoveByOffset,
+}: CardProps) {
   const id =
     executionId(
       definition.id
     );
+
+  const computedColorScheme =
+    useComputedColorScheme(
+      "light"
+    );
+
+  const cardBackground =
+    computedColorScheme ===
+    "dark"
+      ? "var(--mantine-color-dark-5)"
+      : "var(--mantine-color-blue-0)";
+
+  const cardBorderColor =
+    computedColorScheme ===
+    "dark"
+      ? "var(--mantine-color-dark-3)"
+      : "var(--mantine-color-blue-2)";
 
   const [
     state,
@@ -308,37 +407,183 @@ function ScriptRow({
 
   return (
     <>
-      <Table.Tr>
-        <Table.Td>
-          <Stack
-            gap={7}
+      <Card
+        withBorder
+        p="sm"
+        draggable
+        onDragStart={
+          event =>
+            onDragStart(
+              event,
+              definition.id
+            )
+        }
+        onDragEnd={
+          onDragEnd
+        }
+        onDragOver={
+          event =>
+            onDragOverScript(
+              event,
+              definition.id,
+              scriptIndex
+            )
+        }
+        style={{
+          backgroundColor:
+            cardBackground,
+          borderColor:
+            cardBorderColor,
+          opacity:
+            draggedScriptId ===
+            definition.id
+              ? 0.35
+              : 1,
+          transition:
+            "opacity 120ms ease, transform 120ms ease, background-color 120ms ease, border-color 120ms ease",
+        }}
+      >
+        <Stack
+          gap={7}
+        >
+          <Group
+            justify="space-between"
+            wrap="nowrap"
           >
-            <TextInput
-              size="sm"
-              variant="unstyled"
-              fw={700}
-              value={
-                definition.name
-              }
-              onChange={
-                event =>
-                  onChange({
-                    ...definition,
-                    name:
-                      event.currentTarget
-                        .value,
-                  })
-              }
-              onBlur={
-                () =>
-                  void onSave(
-                    definition
-                  ).catch(
-                    () =>
-                      undefined
+            <Group
+              gap="xs"
+              wrap="nowrap"
+              style={{
+                flex: 1,
+                minWidth: 0,
+              }}
+            >
+              <ActionIcon
+                variant="subtle"
+                color="gray"
+                style={{
+                  cursor: "grab",
+                  touchAction: "none",
+                }}
+                aria-label={
+                  i18next.t(
+                    "ui.reorder",
+                    {
+                      defaultValue:
+                        "Reorder",
+                    }
                   )
-              }
-            />
+                }
+              >
+                <IconGripVertical
+                  size={18}
+                />
+              </ActionIcon>
+
+              <TextInput
+                size="sm"
+                variant="unstyled"
+                fw={700}
+                value={
+                  definition.name
+                }
+                style={{
+                  flex: 1,
+                }}
+                onChange={
+                  event =>
+                    onChange({
+                      ...definition,
+                      name:
+                        event.currentTarget
+                          .value,
+                    })
+                }
+                onBlur={
+                  () =>
+                    void onSave(
+                      definition
+                    ).catch(
+                      () =>
+                        undefined
+                    )
+                }
+              />
+            </Group>
+
+            <Group
+              gap={4}
+              wrap="nowrap"
+            >
+              <Tooltip
+                withArrow
+                label={
+                  i18next.t(
+                    "ui.moveUp",
+                    {
+                      defaultValue:
+                        "Move up",
+                    }
+                  )
+                }
+              >
+                <ActionIcon
+                  size="sm"
+                  color="gray"
+                  variant="light"
+                  disabled={
+                    scriptIndex ===
+                    0
+                  }
+                  onClick={
+                    () =>
+                      onMoveByOffset(
+                        definition.id,
+                        -1
+                      )
+                  }
+                >
+                  <IconArrowUp
+                    size={15}
+                  />
+                </ActionIcon>
+              </Tooltip>
+
+              <Tooltip
+                withArrow
+                label={
+                  i18next.t(
+                    "ui.moveDown",
+                    {
+                      defaultValue:
+                        "Move down",
+                    }
+                  )
+                }
+              >
+                <ActionIcon
+                  size="sm"
+                  color="gray"
+                  variant="light"
+                  disabled={
+                    scriptIndex >=
+                    scriptCount - 1
+                  }
+                  onClick={
+                    () =>
+                      onMoveByOffset(
+                        definition.id,
+                        1
+                      )
+                  }
+                >
+                  <IconArrowDown
+                    size={15}
+                  />
+                </ActionIcon>
+              </Tooltip>
+            </Group>
+          </Group>
 
             <Group
               gap={6}
@@ -626,9 +871,8 @@ function ScriptRow({
                 "—"
               }
             </Badge>
-          </Stack>
-        </Table.Td>
-      </Table.Tr>
+        </Stack>
+      </Card>
 
       <Modal
         opened={
@@ -812,6 +1056,14 @@ export default function AutomationScriptsTable({
 }: Props) {
   const commandCenter =
     useCommandCenter();
+
+  const [
+    draggedScriptId,
+    setDraggedScriptId,
+  ] =
+    useState<string | null>(
+      null
+    );
 
   const [
     finishing,
@@ -998,6 +1250,134 @@ export default function AutomationScriptsTable({
 
       void saveAutomationScripts(
         next
+      );
+    };
+
+  const persistScriptOrder =
+    (
+      next:
+        AutomationScriptDefinition[]
+    ): void => {
+      onScriptsChange(
+        next
+      );
+
+      void saveAutomationScripts(
+        next
+      );
+    };
+
+  const moveScriptByOffset =
+    (
+      scriptId:
+        string,
+      offset:
+        number
+    ): void => {
+      const fromIndex =
+        scripts.findIndex(
+          script =>
+            script.id ===
+            scriptId
+        );
+
+      const toIndex =
+        Math.max(
+          0,
+          Math.min(
+            fromIndex +
+              offset,
+            scripts.length -
+              1
+          )
+        );
+
+      const next =
+        moveScript(
+          scripts,
+          fromIndex,
+          toIndex
+        );
+
+      if (
+        next !==
+        scripts
+      ) {
+        persistScriptOrder(
+          next
+        );
+      }
+    };
+
+  const moveDraggedScriptToIndex =
+    (
+      targetIndex:
+        number
+    ): void => {
+      if (
+        !draggedScriptId
+      ) {
+        return;
+      }
+
+      const fromIndex =
+        scripts.findIndex(
+          script =>
+            script.id ===
+            draggedScriptId
+        );
+
+      const boundedTargetIndex =
+        Math.max(
+          0,
+          Math.min(
+            targetIndex,
+            scripts.length -
+              1
+          )
+        );
+
+      const next =
+        moveScript(
+          scripts,
+          fromIndex,
+          boundedTargetIndex
+        );
+
+      if (
+        next !==
+        scripts
+      ) {
+        persistScriptOrder(
+          next
+        );
+      }
+    };
+
+  const handleScriptDragStart =
+    (
+      event:
+        DragEvent<HTMLDivElement>,
+      scriptId:
+        string
+    ): void => {
+      setDraggedScriptId(
+        scriptId
+      );
+
+      event.dataTransfer.effectAllowed =
+        "move";
+
+      event.dataTransfer.setData(
+        "text/plain",
+        scriptId
+      );
+    };
+
+  const clearScriptDragState =
+    (): void => {
+      setDraggedScriptId(
+        null
       );
     };
 
@@ -1455,66 +1835,131 @@ export default function AutomationScriptsTable({
         }}
         type="always"
       >
-        <Table
-          striped
-          highlightOnHover
-          withTableBorder
-          verticalSpacing="sm"
-          horizontalSpacing="md"
+        <Stack
+          gap="sm"
         >
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>
-                {
-                  i18next.t(
-                    "ui.automationScriptsTab",
-                    {
-                      defaultValue:
-                        "Scripts",
-                    }
-                  )
-                }
-              </Table.Th>
-            </Table.Tr>
-          </Table.Thead>
+          {
+            scripts.map(
+              (
+                definition,
+                scriptIndex
+              ) => (
+                <ScriptCard
+                  key={
+                    definition.id
+                  }
+                  definition={
+                    definition
+                  }
+                  scriptIndex={
+                    scriptIndex
+                  }
+                  scriptCount={
+                    scripts.length
+                  }
+                  draggedScriptId={
+                    draggedScriptId
+                  }
+                  onChange={
+                    next =>
+                      updateScript(
+                        definition.id,
+                        next
+                      )
+                  }
+                  onSave={
+                    next =>
+                      saveScript(
+                        definition.id,
+                        next
+                      )
+                  }
+                  onDelete={
+                    () =>
+                      deleteScript(
+                        definition.id
+                      )
+                  }
+                  onDragStart={
+                    handleScriptDragStart
+                  }
+                  onDragEnd={
+                    clearScriptDragState
+                  }
+                  onDragOverScript={
+                    (
+                      event,
+                      scriptId,
+                      targetIndex
+                    ) => {
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect =
+                        "move";
 
-          <Table.Tbody>
-            {
-              scripts.map(
-                definition => (
-                  <ScriptRow
-                    key={
-                      definition.id
+                      if (
+                        draggedScriptId &&
+                        draggedScriptId !==
+                        scriptId
+                      ) {
+                        moveDraggedScriptToIndex(
+                          targetIndex
+                        );
+                      }
                     }
-                    definition={
-                      definition
-                    }
-                    onChange={
-                      next =>
-                        updateScript(
-                          definition.id,
-                          next
-                        )
-                    }
-                    onSave={
-                      next =>
-                        saveScript(
-                          definition.id,
-                          next
-                        )
-                    }
-                    onDelete={
-                      () =>
-                        deleteScript(
-                          definition.id
-                        )
-                    }
-                  />
-                )
+                  }
+                  onMoveByOffset={
+                    moveScriptByOffset
+                  }
+                />
               )
-            }
-          </Table.Tbody>
-        </Table>
+            )
+          }
+
+          {
+            draggedScriptId &&
+            scripts.length >
+              0 && (
+              <Card
+                withBorder
+                p="sm"
+                onDragOver={
+                  event => {
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect =
+                      "move";
+
+                    moveDraggedScriptToIndex(
+                      scripts.length -
+                        1
+                    );
+                  }
+                }
+                style={{
+                  borderStyle:
+                    "dashed",
+                  opacity:
+                    0.45,
+                }}
+              >
+                <Text
+                  size="sm"
+                  c="dimmed"
+                  ta="center"
+                >
+                  {
+                    i18next.t(
+                      "ui.moveToEnd",
+                      {
+                        defaultValue:
+                          "Move to end",
+                      }
+                    )
+                  }
+                </Text>
+              </Card>
+            )
+          }
+        </Stack>
 
         {scripts.length ===
           0 && (
