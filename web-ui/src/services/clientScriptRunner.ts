@@ -1872,6 +1872,155 @@ function executeScriptAudioCommand(
   return null;
 }
 
+function handleScriptAudioPlayback(
+  message:
+    Extract<
+      WorkerToMainMessage,
+      {
+        type: "audio";
+      }
+    >
+): void {
+  const execution =
+    executions.get(
+      message.executionId
+    );
+
+  const reply = (
+    ok:
+      boolean,
+    error?:
+      string
+  ) => {
+    postToWorker({
+      type:
+        "audioResult",
+      executionId:
+        message.executionId,
+      requestId:
+        message.requestId,
+      ok,
+      ...(
+        error
+          ? {
+              error,
+            }
+          : {}
+      ),
+    });
+  };
+
+  if (
+    !execution ||
+    execution.aborted
+  ) {
+    reply(
+      false,
+      "Script execution is no longer active."
+    );
+
+    return;
+  }
+
+  let name:
+    string;
+
+  try {
+    name =
+      validateScriptAudioName(
+        message.name
+      );
+  } catch (
+    error
+  ) {
+    const messageText =
+      error instanceof Error
+        ? error.message
+        : String(
+            error
+          );
+
+    console.error(
+      "[Automation Audio]",
+      messageText
+    );
+
+    reply(
+      false,
+      messageText
+    );
+
+    return;
+  }
+
+  const virtualPath =
+    `/sd/audio/${name}.mp3`;
+
+  let settled =
+    false;
+
+  const finish = (
+    ok:
+      boolean,
+    error?:
+      unknown
+  ) => {
+    if (settled) {
+      return;
+    }
+
+    settled =
+      true;
+
+    const errorText =
+      error == null
+        ? undefined
+        : error instanceof Error
+          ? error.message
+          : String(
+              error
+            );
+
+    if (
+      !ok &&
+      errorText
+    ) {
+      console.error(
+        `[Automation Audio] playAudio("${name}") failed:`,
+        error
+      );
+    }
+
+    reply(
+      ok,
+      errorText
+    );
+  };
+
+  audioManager.play(
+    virtualPath,
+    {
+      onEnded:
+        () => {
+          finish(
+            true
+          );
+        },
+      onError:
+        error => {
+          finish(
+            false,
+            error
+          );
+        },
+    }
+  );
+
+  console.info(
+    `[Automation Audio] ${virtualPath}`
+  );
+}
+
 function scriptWithRuntimeHelpers(
   script: string,
   switchManOwnerId: string,
@@ -1963,7 +2112,7 @@ const playAudio = (name) => {
     );
   }
 
-  dcc.sendRaw(${prefix} + value);
+  return dcc.playAudio(value);
 };
 
 const __dccExpressRoutes = ${routes};
@@ -2716,6 +2865,17 @@ function finishExecution(
 function handleWorkerMessage(
   message: WorkerToMainMessage
 ): void {
+  if (
+    message.type ===
+    "audio"
+  ) {
+    handleScriptAudioPlayback(
+      message
+    );
+
+    return;
+  }
+
   const execution =
     executions.get(
       message.executionId
