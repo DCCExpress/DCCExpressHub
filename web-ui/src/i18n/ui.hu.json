@@ -937,5 +937,17 @@
   "flowTriggerInterval": "Időzített",
   "flowIntervalMs": "Intervallum (ms)",
   "flowIntervalDescription": "1000 ms = 1 másodperc, 60000 ms = 1 perc",
-  "flowRun": "FUTTATÁS"
+  "flowRun": "FUTTATÁS",
+  "flowNodeLocoFunction": "Mozdony funkció",
+  "flowLocoFunctionPayloadHint": "A mozdonycímet a payload.locoAddress mezőből veszi, a payloadot változatlanul továbbadja.",
+  "flowLocoFunctionPulseDescription": "Funkció BE, vár ennyit, majd KI.",
+  "flowPayloadType": "Payload típusa",
+  "flowPayloadString": "Szöveg",
+  "flowPayloadNumber": "Szám",
+  "flowPayloadBoolean": "Logikai",
+  "flowPayloadTimestamp": "Időbélyeg",
+  "flowPayloadJsonDescription": "JSON érték, amely minden következő node-hoz továbbmegy.",
+  "flowPayloadPassThrough": "Ez a payload változatlanul továbbmegy a következő node-hoz.",
+  "flowPayloadTimestampDescription": "A payload minden triggereléskor Date.now() lesz.",
+  "flowPayloadNullDescription": "A payload értéke null lesz."
 }
