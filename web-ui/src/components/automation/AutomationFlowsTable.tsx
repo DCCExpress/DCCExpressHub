@@ -12,6 +12,7 @@ import {
   Button,
   Group,
   ScrollArea,
+  Stack,
   Switch,
   Table,
   Text,
