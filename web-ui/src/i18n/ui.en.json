@@ -908,5 +908,6 @@
   "flowFunctionNumber": "Function number",
   "flowPulseMs": "Pulse (ms)",
   "flowDelayMs": "Delay (ms)",
-  "flowMessage": "Message"
+  "flowMessage": "Message",
+  "flowAddRouteBlock": "Add route block"
 }
