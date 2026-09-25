@@ -92,6 +92,11 @@ test("visual flow editor supports pages, enabled state and SmartDispatcher nodes
       "src/components/automation/AutomationFlowDialog.tsx"
     );
 
+  const palette =
+    read(
+      "src/components/automation/AutomationFlowPalette.tsx"
+    );
+
   assert.match(
     editor,
     /const addPage/
@@ -108,7 +113,7 @@ test("visual flow editor supports pages, enabled state and SmartDispatcher nodes
   );
 
   assert.match(
-    editor,
+    palette,
     /kind: "smartDispatcher"/
   );
 
