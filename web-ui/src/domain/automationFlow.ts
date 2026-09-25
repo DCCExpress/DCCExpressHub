@@ -80,8 +80,7 @@ export type AutomationFlowNodeData = Record<string, unknown> & {
 
   triggerMode?:
     | "manual"
-    | "interval"
-    | "sensor";
+    | "interval";
   intervalMs?: number;
 
   triggerPayloadType?:
