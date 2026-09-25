@@ -950,12 +950,138 @@ export function generateAutomationFlowPageScript(
   if (
     smartNodes.length === 0
   ) {
+    if (
+      pageNodes.length === 0
+    ) {
+      return {
+        code:
+          "// Add nodes to generate a runnable script.",
+        warnings: [
+          "This page has no nodes.",
+        ],
+      };
+    }
+
+    const roots =
+      pageNodes.filter(
+        node =>
+          (
+            incoming.get(
+              node.id
+            ) ??
+            []
+          ).length ===
+          0
+      );
+
+    if (
+      roots.length === 0
+    ) {
+      return {
+        code:
+          "// The flow has no start node.",
+        warnings: [
+          "No start node found. Break the cycle or remove an incoming connection.",
+        ],
+      };
+    }
+
+    if (
+      roots.length > 1
+    ) {
+      warnings.push(
+        "Multiple start nodes found. The current linear generator follows only the first one."
+      );
+    }
+
+    const statements:
+      string[] = [];
+
+    const visited =
+      new Set<string>();
+
+    let current:
+      AutomationFlowNode |
+      undefined =
+      roots[0];
+
+    while (current) {
+      if (
+        visited.has(
+          current.id
+        )
+      ) {
+        warnings.push(
+          "A cycle was detected. Generation stopped before the loop."
+        );
+        break;
+      }
+
+      visited.add(
+        current.id
+      );
+
+      if (
+        current.data.kind ===
+          "setSpeed" ||
+        current.data.kind ===
+          "waitForBlock" ||
+        current.data.kind ===
+          "horn"
+      ) {
+        warnings.push(
+          `Node "${current.data.label}" requires SmartDispatcher context and was skipped.`
+        );
+      } else {
+        const statement =
+          generateStatement(
+            current.data
+          );
+
+        if (statement) {
+          statements.push(
+            statement
+          );
+        }
+      }
+
+      const nextEdges =
+        outgoing.get(
+          current.id
+        ) ??
+        [];
+
+      if (
+        nextEdges.length ===
+        0
+      ) {
+        break;
+      }
+
+      if (
+        nextEdges.length >
+        1
+      ) {
+        warnings.push(
+          `Node ${current.id} has multiple outputs. The current linear generator follows only the first one.`
+        );
+      }
+
+      current =
+        nodeById.get(
+          nextEdges[0]!.target
+        );
+    }
+
     return {
       code:
-        "// Add a SmartDispatcher node to generate a runnable script.",
-      warnings: [
-        "No SmartDispatcher node on this page.",
-      ],
+        statements.length >
+        0
+          ? statements.join(
+              "\n\n"
+            )
+          : "// No runnable statements on this page.",
+      warnings,
     };
   }
 
