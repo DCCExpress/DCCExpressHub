@@ -400,9 +400,9 @@ test("sensor nodes are event inputs and the runtime scans enabled pages", () => 
 });
 
 test("flow runtime global and page disable abort active flow executions", () => {
-  const domain =
+  const layoutPage =
     read(
-      "src/domain/automationFlow.ts"
+      "src/LiteLayoutPage.tsx"
     );
 
   const runtime =
@@ -416,13 +416,13 @@ test("flow runtime global and page disable abort active flow executions", () => 
     );
 
   assert.match(
-    domain,
-    /enabled: boolean/
+    layoutPage,
+    /flowRuntimeEnabled/
   );
 
   assert.match(
-    domain,
-    /enabled: false/
+    layoutPage,
+    /useAutomationFlowRuntime\([\s\S]*automationFlow,[\s\S]*flowRuntimeEnabled/
   );
 
   assert.match(
@@ -1183,7 +1183,7 @@ test("saved flows use reorderable enable-only runtime cards", () => {
 
   assert.match(
     flows,
-    /checked=\{[\s\S]*document\.enabled/
+    /checked=\{[\s\S]*runtimeEnabled/
   );
 
   assert.match(
