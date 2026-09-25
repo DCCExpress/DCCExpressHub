@@ -271,7 +271,7 @@
   "setsLocomotiveFunctionF0F28OnOrOff": "Sets locomotive function F0-F28 ON or OFF.",
   "setsMainTrackPowerOnOrOff": "Sets MAIN track power ON or OFF.",
   "setsProgrammingTrackPowerOnOrOff": "Sets programming-track power ON or OFF.",
-  "playsSdAudioNameMp3FromTheSdCardUse": "Plays /sd/audio/<name>.mp3 from the SD card. Use only the base filename, without a path or .mp3 extension.",
+  "playsSdAudioNameMp3FromTheSdCardUse": "Plays /sd/audio/<name>.mp3 from the SD card. Use only the base filename, without a path or .mp3 extension. Without await the script continues immediately; await playAudio(name) waits until playback ends.",
   "writesValuesToTheBrowserConsoleWithTheAutomationName": "Writes values to the browser console with the automation name prefix.",
   "showsATemporaryMessageOnTheRunningAutomationCardA": "Shows a temporary message on the running automation card. A later call replaces it.",
   "quickCommandHelp": "Quick command help",
@@ -1000,5 +1000,7 @@
   "flowRuntimeDisabledDescription": "Flow runtime is disabled. Editor Manual/Test injects are still available.",
   "flowNodePlayAudio": "Play Audio",
   "flowAudioName": "Audio name",
-  "flowAudioNameDescription": "Base MP3 filename in /sd/audio, without path or .mp3 extension."
+  "flowAudioNameDescription": "Base MP3 filename in /sd/audio, without path or .mp3 extension.",
+  "flowWaitForAudioEnd": "Wait for audio to finish",
+  "flowWaitForAudioEndDescription": "When enabled, the next node runs only after audio playback ends."
 }
