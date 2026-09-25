@@ -1002,5 +1002,6 @@
   "flowAudioName": "Hang neve",
   "flowAudioNameDescription": "Az /sd/audio mappában lévő MP3 alapneve, útvonal és .mp3 kiterjesztés nélkül.",
   "flowWaitForAudioEnd": "Várja meg a hang végét",
-  "flowWaitForAudioEndDescription": "Bekapcsolva a következő node csak a lejátszás befejezése után fut tovább."
+  "flowWaitForAudioEndDescription": "Bekapcsolva a következő node csak a lejátszás befejezése után fut tovább.",
+  "waitsUntilAudioPlaybackFinishes": "Megvárja az audio lejátszás végét, és csak utána folytatja a scriptet."
 }
