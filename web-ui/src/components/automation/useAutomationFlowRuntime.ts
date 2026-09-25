@@ -264,14 +264,24 @@ function runtimeConfigSignature(
     enabled:
       runtimeEnabled,
     pages:
-      document.pages.map(
-        page => ({
-          id:
-            page.id,
-          enabled:
-            page.enabled,
-        })
-      ),
+      document.pages
+        .map(
+          page => ({
+            id:
+              page.id,
+            enabled:
+              page.enabled,
+          })
+        )
+        .sort(
+          (
+            left,
+            right
+          ) =>
+            left.id.localeCompare(
+              right.id
+            )
+        ),
     inputs:
       document.nodes
         .filter(
@@ -298,6 +308,15 @@ function runtimeConfigSignature(
             sensorState:
               node.data.sensorState,
           })
+        )
+        .sort(
+          (
+            left,
+            right
+          ) =>
+            left.id.localeCompare(
+              right.id
+            )
         ),
   });
 }
