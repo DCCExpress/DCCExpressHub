@@ -2,7 +2,6 @@ import {
   lazy,
   Suspense,
   useEffect,
-  useMemo,
   useState,
 } from "react";
 
@@ -1014,7 +1013,7 @@ export default function AutomationScriptsTable({
                 : "gray"
             }
           >
-            Running: {
+            {i18next.t("ui.running", { defaultValue: "Running" })}: {
               runningCount
             }
           </Badge>
@@ -1027,7 +1026,7 @@ export default function AutomationScriptsTable({
                 : "gray"
             }
           >
-            Paused: {
+            {i18next.t("ui.paused", { defaultValue: "Paused" })}: {
               pausedCount
             }
           </Badge>
@@ -1175,12 +1174,12 @@ export default function AutomationScriptsTable({
           <Table.Thead>
             <Table.Tr>
               <Table.Th>
-                Status
+                {i18next.t("ui.automationStatus", { defaultValue: "Status" })}
               </Table.Th>
               <Table.Th
                 w={54}
               >
-                All
+                {i18next.t("ui.automationStartAllColumn", { defaultValue: "All" })}
               </Table.Th>
               <Table.Th>
                 {
@@ -1190,15 +1189,15 @@ export default function AutomationScriptsTable({
                 }
               </Table.Th>
               <Table.Th>
-                Script
+                {i18next.t("ui.automationScriptColumn", { defaultValue: "Script" })}
               </Table.Th>
               <Table.Th>
-                Info
+                {i18next.t("ui.info", { defaultValue: "Info" })}
               </Table.Th>
               <Table.Th
                 ta="right"
               >
-                Actions
+                {i18next.t("ui.automationActions", { defaultValue: "Actions" })}
               </Table.Th>
             </Table.Tr>
           </Table.Thead>
