@@ -137,6 +137,75 @@ export default function AutomationFlowTurnoutEditor({
 
   useEffect(
     () => {
+      if (!selected) {
+        return;
+      }
+
+      const state =
+        selected.states.find(
+          option =>
+            option.value ===
+            data.turnoutStateKey
+        ) ??
+        selected.states[0];
+
+      if (!state) {
+        return;
+      }
+
+      const currentCommands =
+        JSON.stringify(
+          data.turnoutCommands ??
+          []
+        );
+
+      const nextCommands =
+        JSON.stringify(
+          state.commands
+        );
+
+      if (
+        data.turnoutLabel ===
+          selected.label &&
+        data.turnoutStateKey ===
+          state.value &&
+        data.turnoutStateLabel ===
+          state.label &&
+        currentCommands ===
+          nextCommands
+      ) {
+        return;
+      }
+
+      onChange({
+        turnoutElementId:
+          selected.id,
+        turnoutLabel:
+          selected.label,
+        turnoutStateKey:
+          state.value,
+        turnoutStateLabel:
+          state.label,
+        turnoutCommands:
+          state.commands.map(
+            command => ({
+              ...command,
+            })
+          ),
+      });
+    },
+    [
+      selected,
+      data.turnoutCommands,
+      data.turnoutLabel,
+      data.turnoutStateKey,
+      data.turnoutStateLabel,
+      onChange,
+    ]
+  );
+
+  useEffect(
+    () => {
       if (
         catalog.length ===
           0 ||
