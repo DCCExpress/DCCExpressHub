@@ -106,11 +106,19 @@ import { getActiveClientScriptExecutions } from "@/services/clientScriptRunner";
 import {
   createAutomationId,
   createAutomationPayload,
+  loadAutomationFlow,
   loadAutomationScripts,
   normalizeAutomationScripts,
+  saveAutomationFlow,
   saveAutomationScripts,
   type AutomationScriptDefinition,
+  type AutomationStoragePayload,
 } from "@/services/automationApi";
+import {
+  createEmptyAutomationFlowDocument,
+  normalizeAutomationFlowDocument,
+  type AutomationFlowDocument,
+} from "@/domain/automationFlow";
 import "@/styles/propertypanel.css";
 import DebugDialog from "@/components/debug/DebugDialog";
 type LiteLayoutPageProps = {
@@ -155,10 +163,7 @@ type DccExpressProjectExport = {
   version: 1;
   exportedAt: string;
   layout: unknown;
-  automations: {
-    version: 1;
-    scripts: AutomationScriptDefinition[];
-  };
+  automations: AutomationStoragePayload;
 };
 
 function prepareLayoutForLoad(raw: unknown): {
@@ -250,20 +255,27 @@ function serializeLayoutOnly(layout: LayoutView): string {
 
 function createProjectExport(
   layout: LayoutView,
-  automationScripts: AutomationScriptDefinition[]
+  automationScripts: AutomationScriptDefinition[],
+  visualFlow: AutomationFlowDocument
 ): DccExpressProjectExport {
   return {
     format: "dccexpress-project",
     version: 1,
     exportedAt: new Date().toISOString(),
     layout: JSON.parse(serializeLayoutOnly(layout)),
-    automations: createAutomationPayload(automationScripts),
+    automations:
+      createAutomationPayload(
+        automationScripts,
+        undefined,
+        visualFlow
+      ),
   };
 }
 
 function parseImportedProject(raw: unknown): {
   layoutData: unknown;
   automationScripts: AutomationScriptDefinition[];
+  visualFlow: AutomationFlowDocument;
 } {
   if (raw && typeof raw === "object") {
     const candidate = raw as Record<string, unknown>;
@@ -286,6 +298,10 @@ function parseImportedProject(raw: unknown): {
           importedScripts.length > 0
             ? importedScripts
             : prepared.legacyAutomationScripts,
+        visualFlow:
+          normalizeAutomationFlowDocument(
+            automations.visualFlow
+          ),
       };
     }
   }
@@ -295,6 +311,8 @@ function parseImportedProject(raw: unknown): {
   return {
     layoutData: prepared.layoutData,
     automationScripts: prepared.legacyAutomationScripts,
+    visualFlow:
+      createEmptyAutomationFlowDocument(),
   };
 }
 
@@ -1178,7 +1196,7 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
     }
   }, [i18next.resolvedLanguage, layout, automationScripts, invalidate]);
 
-  const exportLayout = useCallback(() => {
+  const exportLayout = useCallback(async () => {
     try {
       const ensuredRouteGraph =
         ensureClientRouteGraph(
@@ -1189,7 +1207,15 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
         invalidate();
       }
 
-      const project = createProjectExport(layout, automationScripts);
+      const visualFlow =
+        await loadAutomationFlow();
+
+      const project =
+        createProjectExport(
+          layout,
+          automationScripts,
+          visualFlow
+        );
       const json = JSON.stringify(project, null, 2);
       const blob = new Blob([json], { type: "application/json;charset=utf-8" });
       const url = URL.createObjectURL(blob);
@@ -1266,6 +1292,7 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
         }
 
         await saveAutomationScripts(imported.automationScripts);
+        await saveAutomationFlow(imported.visualFlow);
         setLayout(nextLayout);
         setAutomationScripts(imported.automationScripts);
         setSelectedElement(null);
