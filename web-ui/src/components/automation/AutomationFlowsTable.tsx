@@ -28,7 +28,7 @@ import {
   IconGitBranch,
   IconPlayerPause,
   IconPlayerPlay,
-  IconTrashX,
+  IconPlayerStop,
 } from "@tabler/icons-react";
 
 import {
@@ -331,6 +331,158 @@ function FlowRow({
   return (
     <Table.Tr>
       <Table.Td>
+        <Group
+          gap={4}
+          wrap="nowrap"
+        >
+          <Tooltip
+            withArrow
+            label={
+              paused
+                ? i18next.t(
+                    "ui.resume"
+                  )
+                : i18next.t(
+                    "ui.start"
+                  )
+            }
+          >
+            <ActionIcon
+              size="sm"
+              variant="light"
+              color="green"
+              disabled={
+                running ||
+                generated.code
+                  .trim()
+                  .startsWith(
+                    "//"
+                  )
+              }
+              onClick={
+                start
+              }
+              aria-label={
+                paused
+                  ? i18next.t(
+                      "ui.resume"
+                    )
+                  : i18next.t(
+                      "ui.start"
+                    )
+              }
+            >
+              <IconPlayerPlay
+                size={15}
+              />
+            </ActionIcon>
+          </Tooltip>
+
+          <Tooltip
+            withArrow
+            label={
+              i18next.t(
+                "ui.stop"
+              )
+            }
+          >
+            <ActionIcon
+              size="sm"
+              variant="light"
+              color="yellow"
+              disabled={
+                !running
+              }
+              onClick={
+                () =>
+                  pauseClientScript(
+                    id
+                  )
+              }
+              aria-label={
+                i18next.t(
+                  "ui.stop"
+                )
+              }
+            >
+              <IconPlayerPause
+                size={15}
+              />
+            </ActionIcon>
+          </Tooltip>
+
+          <Tooltip
+            withArrow
+            label={
+              i18next.t(
+                "ui.abort"
+              )
+            }
+          >
+            <ActionIcon
+              size="sm"
+              variant="light"
+              color="red"
+              disabled={
+                idle
+              }
+              onClick={
+                () =>
+                  abortClientScript(
+                    id
+                  )
+              }
+              aria-label={
+                i18next.t(
+                  "ui.abort"
+                )
+              }
+            >
+              <IconPlayerStop
+                size={15}
+              />
+            </ActionIcon>
+          </Tooltip>
+
+          <Tooltip
+            withArrow
+            label={
+              i18next.t(
+                "ui.edit",
+                {
+                  defaultValue:
+                    "Edit",
+                }
+              )
+            }
+          >
+            <ActionIcon
+              size="sm"
+              variant="light"
+              color="violet"
+              onClick={
+                () =>
+                  onOpenEditor(
+                    page.id
+                  )
+              }
+              aria-label={
+                i18next.t(
+                  "ui.edit",
+                  {
+                    defaultValue:
+                      "Edit",
+                  }
+                )
+              }
+            >
+              <IconEdit
+                size={15}
+              />
+            </ActionIcon>
+          </Tooltip>
+        </Group>
+      </Table.Td>      <Table.Td>
         <Badge
           size="sm"
           variant="light"
@@ -399,125 +551,7 @@ function FlowRow({
         </Badge>
       </Table.Td>
 
-      <Table.Td>
-        <Group
-          gap={5}
-          wrap="nowrap"
-          justify="flex-end"
-        >
-          <Button
-            size="compact-xs"
-            variant="light"
-            color="green"
-            leftSection={
-              <IconPlayerPlay
-                size={13}
-              />
-            }
-            disabled={
-              running ||
-              generated.code
-                .trim()
-                .startsWith(
-                  "//"
-                )
-            }
-            onClick={
-              start
-            }
-          >
-            {
-              paused
-                ? i18next.t(
-                    "ui.resume"
-                  )
-                : i18next.t(
-                    "ui.start"
-                  )
-            }
-          </Button>
 
-          <Button
-            size="compact-xs"
-            variant="light"
-            color="yellow"
-            leftSection={
-              <IconPlayerPause
-                size={13}
-              />
-            }
-            disabled={
-              !running
-            }
-            onClick={
-              () =>
-                pauseClientScript(
-                  id
-                )
-            }
-          >
-            {
-              i18next.t(
-                "ui.stop"
-              )
-            }
-          </Button>
-
-          <Button
-            size="compact-xs"
-            variant="light"
-            color="red"
-            leftSection={
-              <IconTrashX
-                size={13}
-              />
-            }
-            disabled={
-              idle
-            }
-            onClick={
-              () =>
-                abortClientScript(
-                  id
-                )
-            }
-          >
-            {
-              i18next.t(
-                "ui.abort"
-              )
-            }
-          </Button>
-
-          <Tooltip
-            label={
-              i18next.t(
-                "ui.edit",
-                {
-                  defaultValue:
-                    "Edit",
-                }
-              )
-            }
-          >
-            <ActionIcon
-              size="sm"
-              variant="light"
-              color="violet"
-              onClick={
-                () =>
-                  onOpenEditor(
-                    page.id
-                  )
-              }
-            >
-              <IconEdit
-                size={15}
-              />
-            </ActionIcon>
-          </Tooltip>
-        </Group>
-      </Table.Td>
     </Table.Tr>
   );
 }
@@ -611,6 +645,11 @@ export default function AutomationFlowsTable({
         >
           <Table.Thead>
             <Table.Tr>
+              <Table.Th
+                w={150}
+              >
+                {i18next.t("ui.automationActions", { defaultValue: "Controls" })}
+              </Table.Th>
               <Table.Th>
                 {i18next.t("ui.automationStatus", { defaultValue: "Status" })}
               </Table.Th>
@@ -629,11 +668,6 @@ export default function AutomationFlowsTable({
               </Table.Th>
               <Table.Th>
                 {i18next.t("ui.flowNodeTrigger", { defaultValue: "Trigger" })}
-              </Table.Th>
-              <Table.Th
-                ta="right"
-              >
-                {i18next.t("ui.automationActions", { defaultValue: "Actions" })}
               </Table.Th>
             </Table.Tr>
           </Table.Thead>
