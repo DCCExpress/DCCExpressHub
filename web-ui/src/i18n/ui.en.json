@@ -984,5 +984,11 @@
   "flowResizeInspectorPanel": "Resize Properties/Log panel",
   "flowDoubleClickReset": "Double-click to reset",
   "deleteScriptConfirmTitle": "Delete script?",
-  "deleteScriptConfirmMessage": "Are you sure you want to permanently delete “{{name}}”? This cannot be undone."
+  "deleteScriptConfirmMessage": "Are you sure you want to permanently delete “{{name}}”? This cannot be undone.",
+  "flowTriggerSensor": "Sensor",
+  "flowSensorTriggerState": "Trigger state",
+  "flowSensorActive": "ON / active",
+  "flowSensorInactive": "OFF / inactive",
+  "flowSensorTriggerDescription": "In RUN mode the flow continuously watches the sensor. It runs once when the sensor changes to the selected state, then rearms only after the sensor returns to the opposite state.",
+  "flowSensorTriggerLabel": "Sensor {{address}} → {{state}}"
 }
