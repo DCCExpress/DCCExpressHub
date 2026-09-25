@@ -1,4 +1,5 @@
 import {
+  type DragEvent,
   useEffect,
   useMemo,
   useState,
@@ -10,13 +11,15 @@ import {
   ActionIcon,
   Badge,
   Button,
+  Card,
+  Divider,
   Group,
   ScrollArea,
   Stack,
   Switch,
-  Table,
   Text,
   Tooltip,
+  useComputedColorScheme,
 } from "@mantine/core";
 
 import {
@@ -24,8 +27,11 @@ import {
 } from "@mantine/notifications";
 
 import {
+  IconArrowDown,
+  IconArrowUp,
   IconEdit,
   IconGitBranch,
+  IconGripVertical,
   IconPlayerPause,
   IconPlayerPlay,
   IconPlayerStop,
@@ -92,6 +98,49 @@ function statusColor(
   return "gray";
 }
 
+function moveFlowPage(
+  pages:
+    AutomationFlowPage[],
+  fromIndex:
+    number,
+  toIndex:
+    number
+): AutomationFlowPage[] {
+  if (
+    fromIndex < 0 ||
+    fromIndex >= pages.length ||
+    toIndex < 0 ||
+    toIndex >= pages.length ||
+    fromIndex ===
+    toIndex
+  ) {
+    return pages;
+  }
+
+  const next =
+    [...pages];
+
+  const [
+    moved,
+  ] =
+    next.splice(
+      fromIndex,
+      1
+    );
+
+  if (!moved) {
+    return pages;
+  }
+
+  next.splice(
+    toIndex,
+    0,
+    moved
+  );
+
+  return next;
+}
+
 function triggerLabel(
   document:
     AutomationFlowDocument,
@@ -141,14 +190,27 @@ function triggerLabel(
   return i18next.t("ui.flowTriggerManual", { defaultValue: "Manual" });
 }
 
-function FlowRow({
+function FlowCard({
   page,
+  pageIndex,
+  pageCount,
+  draggedPageId,
   document,
   onDocumentChange,
   onOpenEditor,
+  onDragStart,
+  onDragEnd,
+  onDragOverPage,
+  onMoveByOffset,
 }: {
   page:
     AutomationFlowPage;
+  pageIndex:
+    number;
+  pageCount:
+    number;
+  draggedPageId:
+    string | null;
   document:
     AutomationFlowDocument;
   onDocumentChange: (
@@ -159,11 +221,49 @@ function FlowRow({
     pageId:
       string
   ) => void;
+  onDragStart: (
+    event:
+      DragEvent<HTMLDivElement>,
+    pageId:
+      string
+  ) => void;
+  onDragEnd: () => void;
+  onDragOverPage: (
+    event:
+      DragEvent<HTMLDivElement>,
+    pageId:
+      string,
+    pageIndex:
+      number
+  ) => void;
+  onMoveByOffset: (
+    pageId:
+      string,
+    offset:
+      number
+  ) => void;
 }) {
   const id =
     executionId(
       page.id
     );
+
+  const computedColorScheme =
+    useComputedColorScheme(
+      "light"
+    );
+
+  const cardBackground =
+    computedColorScheme ===
+    "dark"
+      ? "var(--mantine-color-dark-5)"
+      : "var(--mantine-color-blue-0)";
+
+  const cardBorderColor =
+    computedColorScheme ===
+    "dark"
+      ? "var(--mantine-color-dark-3)"
+      : "var(--mantine-color-blue-2)";
 
   const [
     state,
@@ -201,13 +301,6 @@ function FlowRow({
         page.id,
       ]
     );
-
-  const nodeCount =
-    document.nodes.filter(
-      node =>
-        node.data.pageId ===
-        page.id
-    ).length;
 
   const idle =
     state.status ===
@@ -329,12 +422,226 @@ function FlowRow({
     };
 
   return (
-    <Table.Tr>
-      <Table.Td>
+    <Card
+      withBorder
+      p="sm"
+      draggable
+      onDragStart={
+        event =>
+          onDragStart(
+            event,
+            page.id
+          )
+      }
+      onDragEnd={
+        onDragEnd
+      }
+      onDragOver={
+        event =>
+          onDragOverPage(
+            event,
+            page.id,
+            pageIndex
+          )
+      }
+      style={{
+        backgroundColor:
+          cardBackground,
+        borderColor:
+          cardBorderColor,
+        opacity:
+          draggedPageId ===
+          page.id
+            ? 0.35
+            : 1,
+        transition:
+          "opacity 120ms ease, transform 120ms ease, background-color 120ms ease, border-color 120ms ease",
+      }}
+    >
+      <Stack gap={7}>
         <Group
-          gap={4}
+          justify="space-between"
           wrap="nowrap"
         >
+          <Group
+            gap="xs"
+            wrap="nowrap"
+            style={{
+              flex: 1,
+              minWidth: 0,
+            }}
+          >
+            <ActionIcon
+              variant="subtle"
+              color="gray"
+              style={{
+                cursor: "grab",
+                touchAction: "none",
+              }}
+              aria-label={
+                i18next.t(
+                  "ui.reorder",
+                  {
+                    defaultValue:
+                      "Reorder",
+                  }
+                )
+              }
+            >
+              <IconGripVertical
+                size={18}
+              />
+            </ActionIcon>
+
+            <Text
+              fw={700}
+              size="sm"
+              truncate
+            >
+              {
+                page.name
+              }
+            </Text>
+          </Group>
+
+          <Group
+            gap={4}
+            wrap="nowrap"
+          >
+            <Tooltip
+              withArrow
+              label={
+                i18next.t(
+                  "ui.moveUp",
+                  {
+                    defaultValue:
+                      "Move up",
+                  }
+                )
+              }
+            >
+              <ActionIcon
+                size="sm"
+                color="gray"
+                variant="light"
+                disabled={
+                  pageIndex ===
+                  0
+                }
+                onClick={
+                  () =>
+                    onMoveByOffset(
+                      page.id,
+                      -1
+                    )
+                }
+              >
+                <IconArrowUp
+                  size={15}
+                />
+              </ActionIcon>
+            </Tooltip>
+
+            <Tooltip
+              withArrow
+              label={
+                i18next.t(
+                  "ui.moveDown",
+                  {
+                    defaultValue:
+                      "Move down",
+                  }
+                )
+              }
+            >
+              <ActionIcon
+                size="sm"
+                color="gray"
+                variant="light"
+                disabled={
+                  pageIndex >=
+                  pageCount - 1
+                }
+                onClick={
+                  () =>
+                    onMoveByOffset(
+                      page.id,
+                      1
+                    )
+                }
+              >
+                <IconArrowDown
+                  size={15}
+                />
+              </ActionIcon>
+            </Tooltip>
+          </Group>
+        </Group>
+
+        <Group
+          gap={6}
+          wrap="nowrap"
+        >
+          <Badge
+            size="sm"
+            variant="light"
+            color={
+              statusColor(
+                state
+              )
+            }
+          >
+            {
+              state.status.toUpperCase()
+            }
+          </Badge>
+
+          <Divider
+            orientation="vertical"
+            h={22}
+          />
+
+          <Tooltip
+            withArrow
+            label={
+              i18next.t(
+                "ui.enabled",
+                {
+                  defaultValue:
+                    "Enabled",
+                }
+              )
+            }
+          >
+            <Switch
+              size="xs"
+              checked={
+                page.enabled
+              }
+              onChange={
+                event =>
+                  toggleEnabled(
+                    event.currentTarget
+                      .checked
+                  )
+              }
+              aria-label={
+                i18next.t(
+                  "ui.enabled",
+                  {
+                    defaultValue:
+                      "Enabled",
+                  }
+                )
+              }
+            />
+          </Tooltip>
+
+          <Divider
+            orientation="vertical"
+            h={22}
+          />
+
           <Tooltip
             withArrow
             label={
@@ -482,67 +789,16 @@ function FlowRow({
             </ActionIcon>
           </Tooltip>
         </Group>
-      </Table.Td>
 
-      <Table.Td>
-        <Badge
-          size="sm"
-          variant="light"
-          color={
-            statusColor(
-              state
-            )
-          }
-        >
-          {
-            state.status.toUpperCase()
-          }
-        </Badge>
-      </Table.Td>
-
-      <Table.Td>
-        <Text
-          fw={600}
-          size="sm"
-        >
-          {
-            page.name
-          }
-        </Text>
-      </Table.Td>
-
-      <Table.Td>
-        <Switch
-          size="xs"
-          checked={
-            page.enabled
-          }
-          onChange={
-            event =>
-              toggleEnabled(
-                event.currentTarget
-                  .checked
-              )
-          }
-        />
-      </Table.Td>
-
-      <Table.Td>
-        <Text
-          size="xs"
-          c="dimmed"
-        >
-          {
-            nodeCount
-          }
-        </Text>
-      </Table.Td>
-
-      <Table.Td>
         <Badge
           size="sm"
           variant="outline"
           color="violet"
+          radius="sm"
+          style={{
+            alignSelf:
+              "flex-start",
+          }}
         >
           {
             triggerLabel(
@@ -551,10 +807,8 @@ function FlowRow({
             )
           }
         </Badge>
-      </Table.Td>
-
-
-    </Table.Tr>
+      </Stack>
+    </Card>
   );
 }
 
@@ -563,6 +817,147 @@ export default function AutomationFlowsTable({
   onDocumentChange,
   onOpenEditor,
 }: Props) {
+  const [
+    draggedPageId,
+    setDraggedPageId,
+  ] =
+    useState<string | null>(
+      null
+    );
+
+  const persistPageOrder =
+    (
+      pages:
+        AutomationFlowPage[]
+    ): void => {
+      const next = {
+        ...document,
+        pages,
+      };
+
+      onDocumentChange(
+        next
+      );
+
+      void saveAutomationFlow(
+        next
+      );
+    };
+
+  const movePageByOffset =
+    (
+      pageId:
+        string,
+      offset:
+        number
+    ): void => {
+      const fromIndex =
+        document.pages.findIndex(
+          page =>
+            page.id ===
+            pageId
+        );
+
+      const toIndex =
+        Math.max(
+          0,
+          Math.min(
+            fromIndex +
+              offset,
+            document.pages.length -
+              1
+          )
+        );
+
+      const next =
+        moveFlowPage(
+          document.pages,
+          fromIndex,
+          toIndex
+        );
+
+      if (
+        next !==
+        document.pages
+      ) {
+        persistPageOrder(
+          next
+        );
+      }
+    };
+
+  const moveDraggedPageToIndex =
+    (
+      targetIndex:
+        number
+    ): void => {
+      if (
+        !draggedPageId
+      ) {
+        return;
+      }
+
+      const fromIndex =
+        document.pages.findIndex(
+          page =>
+            page.id ===
+            draggedPageId
+        );
+
+      const boundedTargetIndex =
+        Math.max(
+          0,
+          Math.min(
+            targetIndex,
+            document.pages.length -
+              1
+          )
+        );
+
+      const next =
+        moveFlowPage(
+          document.pages,
+          fromIndex,
+          boundedTargetIndex
+        );
+
+      if (
+        next !==
+        document.pages
+      ) {
+        persistPageOrder(
+          next
+        );
+      }
+    };
+
+  const handlePageDragStart =
+    (
+      event:
+        DragEvent<HTMLDivElement>,
+      pageId:
+        string
+    ): void => {
+      setDraggedPageId(
+        pageId
+      );
+
+      event.dataTransfer.effectAllowed =
+        "move";
+
+      event.dataTransfer.setData(
+        "text/plain",
+        pageId
+      );
+    };
+
+  const clearPageDragState =
+    (): void => {
+      setDraggedPageId(
+        null
+      );
+    };
+
   return (
     <Stack
       gap="sm"
@@ -637,69 +1032,120 @@ export default function AutomationFlowsTable({
         }}
         type="always"
       >
-        <Table
-          striped
-          highlightOnHover
-          withTableBorder
-          withColumnBorders
-          verticalSpacing="xs"
-          horizontalSpacing="sm"
+        <Stack
+          gap="sm"
         >
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th
-                w={136}
-              >
-                {i18next.t("ui.automationActions", { defaultValue: "Controls" })}
-              </Table.Th>
-              <Table.Th>
-                {i18next.t("ui.automationStatus", { defaultValue: "Status" })}
-              </Table.Th>
-              <Table.Th>
-                {
-                  i18next.t(
-                    "ui.name"
-                  )
-                }
-              </Table.Th>
-              <Table.Th>
-                {i18next.t("ui.enabled", { defaultValue: "Enabled" })}
-              </Table.Th>
-              <Table.Th>
-                {i18next.t("ui.flowNodes", { defaultValue: "Nodes" })}
-              </Table.Th>
-              <Table.Th>
-                {i18next.t("ui.flowNodeTrigger", { defaultValue: "Trigger" })}
-              </Table.Th>
-            </Table.Tr>
-          </Table.Thead>
+          {
+            document.pages.map(
+              (
+                page,
+                pageIndex
+              ) => (
+                <FlowCard
+                  key={
+                    page.id
+                  }
+                  page={
+                    page
+                  }
+                  pageIndex={
+                    pageIndex
+                  }
+                  pageCount={
+                    document.pages.length
+                  }
+                  draggedPageId={
+                    draggedPageId
+                  }
+                  document={
+                    document
+                  }
+                  onDocumentChange={
+                    onDocumentChange
+                  }
+                  onOpenEditor={
+                    onOpenEditor
+                  }
+                  onDragStart={
+                    handlePageDragStart
+                  }
+                  onDragEnd={
+                    clearPageDragState
+                  }
+                  onDragOverPage={
+                    (
+                      event,
+                      pageId,
+                      targetIndex
+                    ) => {
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect =
+                        "move";
 
-          <Table.Tbody>
-            {
-              document.pages.map(
-                page => (
-                  <FlowRow
-                    key={
-                      page.id
+                      if (
+                        draggedPageId &&
+                        draggedPageId !==
+                        pageId
+                      ) {
+                        moveDraggedPageToIndex(
+                          targetIndex
+                        );
+                      }
                     }
-                    page={
-                      page
-                    }
-                    document={
-                      document
-                    }
-                    onDocumentChange={
-                      onDocumentChange
-                    }
-                    onOpenEditor={
-                      onOpenEditor
-                    }
-                  />
-                )
+                  }
+                  onMoveByOffset={
+                    movePageByOffset
+                  }
+                />
               )
-            }
-          </Table.Tbody>
-        </Table>
+            )
+          }
+
+          {
+            draggedPageId &&
+            document.pages.length >
+              0 && (
+              <Card
+                withBorder
+                p="sm"
+                onDragOver={
+                  event => {
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect =
+                      "move";
+
+                    moveDraggedPageToIndex(
+                      document.pages.length -
+                        1
+                    );
+                  }
+                }
+                style={{
+                  borderStyle:
+                    "dashed",
+                  opacity:
+                    0.45,
+                }}
+              >
+                <Text
+                  size="sm"
+                  c="dimmed"
+                  ta="center"
+                >
+                  {
+                    i18next.t(
+                      "ui.moveToEnd",
+                      {
+                        defaultValue:
+                          "Move to end",
+                      }
+                    )
+                  }
+                </Text>
+              </Card>
+            )
+          }
+        </Stack>
       </ScrollArea>
     </Stack>
   );
