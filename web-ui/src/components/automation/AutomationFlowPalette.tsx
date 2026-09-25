@@ -121,6 +121,14 @@ const ITEMS: PaletteItem[] = [
     color: "cyan",
   },
   {
+    kind: "locoFunction",
+    group: "railway",
+    icon: <IconVolume size={16} />,
+    labelKey: "ui.flowNodeLocoFunction",
+    fallback: "Loco Function",
+    color: "pink",
+  },
+  {
     kind: "horn",
     group: "railway",
     icon: <IconVolume size={16} />,
@@ -221,6 +229,10 @@ export function createDefaultAutomationNodeData(
           "manual",
         intervalMs:
           60000,
+        triggerPayloadType:
+          "json",
+        triggerPayloadValue:
+          '{\n  "locoAddress": 18\n}',
       };
 
     case "smartDispatcher":
@@ -265,6 +277,13 @@ export function createDefaultAutomationNodeData(
         ...base,
         accessoryAddress: 1,
         accessoryActive: true,
+      };
+
+    case "locoFunction":
+      return {
+        ...base,
+        functionNumber: 2,
+        pulseMs: 700,
       };
 
     case "horn":
