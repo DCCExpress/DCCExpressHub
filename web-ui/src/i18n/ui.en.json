@@ -969,5 +969,15 @@
   "flowLoadingBlocks": "Loading blocks...",
   "flowNoConfiguredBlocks": "No blocks were found in the layout.",
   "flowBlockGetterPayloadHint": "Writes the locomotive address to payload.locoAddress and passes the payload onward.",
-  "flowBlockSetterPayloadHint": "Uses payload.locoAddress as the locomotive address."
+  "flowBlockSetterPayloadHint": "Uses payload.locoAddress as the locomotive address.",
+  "automationScriptsTab": "Scripts",
+  "automationFlowsTab": "Flows",
+  "automationStatus": "Status",
+  "automationStartAllColumn": "All",
+  "automationScriptColumn": "Script",
+  "automationActions": "Actions",
+  "flowSavedFlows": "Saved flows",
+  "flowEveryMinutes": "Every {{count}} min",
+  "flowEverySeconds": "Every {{count}} sec",
+  "flowEveryMilliseconds": "Every {{count}} ms"
 }
