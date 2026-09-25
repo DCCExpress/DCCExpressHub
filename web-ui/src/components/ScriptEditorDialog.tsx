@@ -352,6 +352,11 @@ const SCRIPT_HELP_ITEMS: ScriptHelpItem[] = [
     insert: 'playAudio("mav_szignal");',
   },
   {
+    syntax: "await playAudio(name)",
+    get description() { return i18next.t("ui.waitsUntilAudioPlaybackFinishes"); },
+    insert: 'await playAudio("mav_szignal");',
+  },
+  {
     syntax: "log(value, ...)",
     get description() { return i18next.t("ui.writesValuesToTheBrowserConsoleWithTheAutomationName"); },
     insert: 'log("Automation reached this point");',
