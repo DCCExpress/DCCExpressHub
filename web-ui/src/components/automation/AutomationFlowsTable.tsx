@@ -162,6 +162,51 @@ function triggerLabel(
 
   if (
     trigger.data.triggerMode ===
+    "sensor"
+  ) {
+    const address =
+      Math.max(
+        1,
+        Math.min(
+          65535,
+          Math.round(
+            trigger.data.sensorAddress ??
+            1
+          )
+        )
+      );
+
+    const state =
+      trigger.data.sensorState !==
+      false
+        ? i18next.t(
+            "ui.flowSensorActive",
+            {
+              defaultValue:
+                "ON",
+            }
+          )
+        : i18next.t(
+            "ui.flowSensorInactive",
+            {
+              defaultValue:
+                "OFF",
+            }
+          );
+
+    return i18next.t(
+      "ui.flowSensorTriggerLabel",
+      {
+        defaultValue:
+          "Sensor {{address}} → {{state}}",
+        address,
+        state,
+      }
+    );
+  }
+
+  if (
+    trigger.data.triggerMode ===
     "interval"
   ) {
     const ms =
