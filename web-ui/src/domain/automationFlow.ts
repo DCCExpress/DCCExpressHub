@@ -1,6 +1,7 @@
 export const AUTOMATION_FLOW_VERSION = 1 as const;
 
 export type AutomationFlowNodeKind =
+  | "trigger"
   | "smartDispatcher"
   | "setSpeed"
   | "waitForBlock"
@@ -51,6 +52,11 @@ export type AutomationFlowNodeData = Record<string, unknown> & {
   pulseMs?: number;
   delayMs?: number;
   message?: string;
+
+  triggerMode?:
+    | "manual"
+    | "interval";
+  intervalMs?: number;
 };
 
 export type AutomationFlowNode = {
@@ -82,6 +88,7 @@ export type AutomationFlowDocument = {
 
 const NODE_KINDS =
   new Set<AutomationFlowNodeKind>([
+    "trigger",
     "smartDispatcher",
     "setSpeed",
     "waitForBlock",
@@ -420,6 +427,24 @@ function normalizeNodeData(
       typeof candidate.message === "string"
         ? candidate.message
         : "",
+    triggerMode:
+      candidate.triggerMode ===
+        "interval"
+        ? "interval"
+        : "manual",
+    intervalMs:
+      Math.max(
+        1000,
+        Math.min(
+          86400000,
+          Math.round(
+            finiteNumber(
+              candidate.intervalMs,
+              60000
+            )
+          )
+        )
+      ),
   };
 }
 
@@ -864,9 +889,65 @@ export type GeneratedAutomationFlowScript = {
   warnings: string[];
 };
 
+export type GenerateAutomationFlowPageScriptOptions = {
+  testRun?: boolean;
+};
+
+function wrapWithTrigger(
+  code: string,
+  trigger:
+    AutomationFlowNode |
+    undefined,
+  pageId: string,
+  testRun: boolean
+): string {
+  if (
+    !trigger ||
+    trigger.data.triggerMode !==
+      "interval" ||
+    testRun
+  ) {
+    return code;
+  }
+
+  const intervalMs =
+    Math.max(
+      1000,
+      Math.min(
+        86400000,
+        Math.round(
+          trigger.data.intervalMs ??
+          60000
+        )
+      )
+    );
+
+  const taskName =
+    "FLOW_" +
+    pageId.replace(
+      /[^a-zA-Z0-9_-]/g,
+      "_"
+    );
+
+  return [
+    "while (isRunning()) {",
+    `  startTask(${jsString(taskName)}, async () => {`,
+    indent(
+      code,
+      4
+    ),
+    "  });",
+    "",
+    `  await delay(${intervalMs});`,
+    "}",
+  ].join("\n");
+}
+
 export function generateAutomationFlowPageScript(
   document: AutomationFlowDocument,
-  pageId: string
+  pageId: string,
+  options:
+    GenerateAutomationFlowPageScriptOptions = {}
 ): GeneratedAutomationFlowScript {
   const warnings:
     string[] = [];
@@ -940,6 +1021,34 @@ export function generateAutomationFlowPageScript(
     );
   }
 
+  const triggerNodes =
+    pageNodes.filter(
+      node =>
+        node.data.kind ===
+        "trigger"
+    );
+
+  if (
+    triggerNodes.length > 1
+  ) {
+    warnings.push(
+      "Only the first Trigger node is used."
+    );
+  }
+
+  const trigger =
+    triggerNodes[0];
+
+  const triggerNextId =
+    trigger
+      ? (
+          outgoing.get(
+            trigger.id
+          ) ??
+          []
+        )[0]?.target
+      : undefined;
+
   const smartNodes =
     pageNodes.filter(
       node =>
@@ -965,14 +1074,43 @@ export function generateAutomationFlowPageScript(
     const roots =
       pageNodes.filter(
         node =>
+          node.data.kind !==
+            "trigger" &&
           (
             incoming.get(
               node.id
             ) ??
             []
+          ).filter(
+            edge =>
+              nodeById.get(
+                edge.source
+              )?.data.kind !==
+                "trigger"
           ).length ===
           0
       );
+
+    if (
+      triggerNextId
+    ) {
+      const triggeredRoot =
+        nodeById.get(
+          triggerNextId
+        );
+
+      if (
+        triggeredRoot &&
+        triggeredRoot.data.kind !==
+          "smartDispatcher"
+      ) {
+        roots.splice(
+          0,
+          roots.length,
+          triggeredRoot
+        );
+      }
+    }
 
     if (
       roots.length === 0
@@ -1073,14 +1211,23 @@ export function generateAutomationFlowPageScript(
         );
     }
 
+    const code =
+      statements.length >
+      0
+        ? statements.join(
+            "\n\n"
+          )
+        : "// No runnable statements on this page.";
+
     return {
       code:
-        statements.length >
-        0
-          ? statements.join(
-              "\n\n"
-            )
-          : "// No runnable statements on this page.",
+        wrapWithTrigger(
+          code,
+          trigger,
+          pageId,
+          options.testRun ===
+            true
+        ),
       warnings,
     };
   }
@@ -1094,6 +1241,15 @@ export function generateAutomationFlowPageScript(
   }
 
   const root =
+    (
+      triggerNextId
+        ? smartNodes.find(
+            node =>
+              node.id ===
+              triggerNextId
+          )
+        : undefined
+    ) ??
     smartNodes[0]!;
 
   const route =
@@ -1267,8 +1423,8 @@ export function generateAutomationFlowPageScript(
           .join("\n\n")
       : "    // Connect movement/action nodes here.";
 
-  return {
-    code: [
+  const code =
+    [
       "await smartDispatcher(",
       "  [",
       routeSource ||
@@ -1278,7 +1434,17 @@ export function generateAutomationFlowPageScript(
       body,
       "  }",
       ");",
-    ].join("\n"),
+    ].join("\n");
+
+  return {
+    code:
+      wrapWithTrigger(
+        code,
+        trigger,
+        pageId,
+        options.testRun ===
+          true
+      ),
     warnings,
   };
 }
