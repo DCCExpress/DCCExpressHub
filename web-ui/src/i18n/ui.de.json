@@ -949,5 +949,9 @@
   "flowPayloadJsonDescription": "JSON-Wert, der an alle nachfolgenden Nodes weitergegeben wird.",
   "flowPayloadPassThrough": "Dieser Payload wird unverändert an den nächsten Node weitergegeben.",
   "flowPayloadTimestampDescription": "payload wird bei jedem Trigger zu Date.now().",
-  "flowPayloadNullDescription": "payload ist null."
+  "flowPayloadNullDescription": "payload ist null.",
+  "flowTurnout": "Weiche",
+  "flowSelectTurnout": "Weiche auswählen",
+  "flowLoadingTurnouts": "Weichen werden geladen...",
+  "flowNoConfiguredTurnouts": "Im Gleisplan wurden keine konfigurierten Weichen gefunden."
 }
