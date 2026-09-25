@@ -979,5 +979,8 @@
   "flowSavedFlows": "Gespeicherte Flows",
   "flowEveryMinutes": "Alle {{count}} Min.",
   "flowEverySeconds": "Alle {{count}} Sek.",
-  "flowEveryMilliseconds": "Alle {{count}} ms"
+  "flowEveryMilliseconds": "Alle {{count}} ms",
+  "flowResizeNodePanel": "Node-Bereich skalieren",
+  "flowResizeInspectorPanel": "Properties/Log-Bereich skalieren",
+  "flowDoubleClickReset": "Doppelklick: Standardgröße"
 }
