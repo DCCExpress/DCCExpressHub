@@ -2042,6 +2042,9 @@ export default function AutomationFlowDialog({
                   ]}
                   minZoom={0.2}
                   maxZoom={2.5}
+                  proOptions={{
+                    hideAttribution: true,
+                  }}
                 >
                   <Background
                     variant={
@@ -2054,6 +2057,7 @@ export default function AutomationFlowDialog({
                   <MiniMap
                     pannable
                     zoomable
+                    maskColor="rgba(0, 0, 0, 0.55)"
                   />
                 </ReactFlow>
               )}
