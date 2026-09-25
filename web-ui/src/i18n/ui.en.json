@@ -990,5 +990,12 @@
   "flowSensorActive": "ON / active",
   "flowSensorInactive": "OFF / inactive",
   "flowSensorTriggerDescription": "In RUN mode the flow continuously watches the sensor. It runs once when the sensor changes to the selected state, then rearms only after the sensor returns to the opposite state.",
-  "flowSensorTriggerLabel": "Sensor {{address}} → {{state}}"
+  "flowSensorTriggerLabel": "Sensor {{address}} → {{state}}",
+  "flowNodeSensorInput": "Sensor input",
+  "flowSensorInputDescription": "When flow runtime is enabled, every matching sensorChanged event runs the connected branch once.",
+  "flowTriggerManualEditorOnly": "Manual · editor only",
+  "flowNoInputNodes": "No input nodes",
+  "flowRunFlows": "Run flows",
+  "flowRuntimeEnabledDescription": "Enabled pages are live. Sensor and interval inputs can start their connected branches.",
+  "flowRuntimeDisabledDescription": "Flow runtime is disabled. Editor Manual/Test injects are still available."
 }
