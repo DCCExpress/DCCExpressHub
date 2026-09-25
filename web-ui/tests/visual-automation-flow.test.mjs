@@ -934,3 +934,78 @@ test("flow editor side panels are resizable and persisted", () => {
     /automation-flow-panel-resizing/
   );
 });
+
+
+test("flow edges are selectable deletable and use vertical handles", () => {
+  const dialog =
+    read(
+      "src/components/automation/AutomationFlowDialog.tsx"
+    );
+
+  const node =
+    read(
+      "src/components/automation/AutomationFlowNode.tsx"
+    );
+
+  const css =
+    read(
+      "src/styles/automationFlow.css"
+    );
+
+  assert.match(
+    dialog,
+    /selectedEdgeId/
+  );
+
+  assert.match(
+    dialog,
+    /onEdgeClick/
+  );
+
+  assert.match(
+    dialog,
+    /onEdgeDoubleClick/
+  );
+
+  assert.match(
+    dialog,
+    /event\.key !==\s*"Delete"/
+  );
+
+  assert.match(
+    dialog,
+    /interactionWidth:\s*24/
+  );
+
+  assert.match(
+    node,
+    /Position\.Top/
+  );
+
+  assert.match(
+    node,
+    /Position\.Bottom/
+  );
+
+  assert.match(
+    css,
+    /react-flow__edge\.selected/
+  );
+});
+
+test("new flow nodes are placed top to bottom by default", () => {
+  const dialog =
+    read(
+      "src/components/automation/AutomationFlowDialog.tsx"
+    );
+
+  assert.match(
+    dialog,
+    /x:\s*120/
+  );
+
+  assert.match(
+    dialog,
+    /index \*\s*120/
+  );
+});
