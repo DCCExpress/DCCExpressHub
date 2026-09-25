@@ -271,7 +271,7 @@
   "setsLocomotiveFunctionF0F28OnOrOff": "Schaltet eine Lokfunktion F0–F28 ein oder aus.",
   "setsMainTrackPowerOnOrOff": "Schaltet die MAIN-Gleisspannung ein oder aus.",
   "setsProgrammingTrackPowerOnOrOff": "Schaltet die Programmiergleisspannung ein oder aus.",
-  "playsSdAudioNameMp3FromTheSdCardUse": "Spielt /sd/audio/<name>.mp3 von der SD-Karte ab. Nur den Basisdateinamen ohne Pfad oder .mp3-Erweiterung angeben.",
+  "playsSdAudioNameMp3FromTheSdCardUse": "Spielt /sd/audio/<name>.mp3 von der SD-Karte ab. Nur den Basisdateinamen ohne Pfad und ohne .mp3-Endung angeben. Ohne await läuft das Skript sofort weiter; await playAudio(name) wartet bis zum Ende der Wiedergabe.",
   "writesValuesToTheBrowserConsoleWithTheAutomationName": "Schreibt Werte mit dem Automatisierungsnamen als Präfix in die Browserkonsole.",
   "showsATemporaryMessageOnTheRunningAutomationCardA": "Zeigt eine vorübergehende Nachricht auf der Karte der laufenden Automatisierung an. Ein späterer Aufruf ersetzt sie.",
   "quickCommandHelp": "Schnellbefehlshilfe",
@@ -1000,5 +1000,7 @@
   "flowRuntimeDisabledDescription": "Die Flow-Laufzeit ist deaktiviert. Manuelle/Test-Injektionen im Editor bleiben verfügbar.",
   "flowNodePlayAudio": "Audio abspielen",
   "flowAudioName": "Audioname",
-  "flowAudioNameDescription": "Basisname der MP3-Datei in /sd/audio, ohne Pfad und ohne .mp3-Endung."
+  "flowAudioNameDescription": "Basisname der MP3-Datei in /sd/audio, ohne Pfad und ohne .mp3-Endung.",
+  "flowWaitForAudioEnd": "Auf Audioende warten",
+  "flowWaitForAudioEndDescription": "Wenn aktiviert, läuft der nächste Node erst nach dem Ende der Wiedergabe weiter."
 }
