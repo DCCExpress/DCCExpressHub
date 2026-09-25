@@ -163,6 +163,12 @@ const NODE_META:
       title:
         "Delay",
     },
+    playAudio: {
+      icon: "🔊",
+      color: "grape",
+      title:
+        "Play Audio",
+    },
     log: {
       icon: "📝",
       color: "lime",
@@ -330,6 +336,13 @@ function summary(
     case "delay":
       return (
         `${data.delayMs ?? 500} ms`
+      );
+
+    case "playAudio":
+      return (
+        data.audioName
+          ? `/sd/audio/${data.audioName}.mp3`
+          : "Select audio"
       );
 
     case "log":
