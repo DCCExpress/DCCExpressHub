@@ -1115,8 +1115,14 @@ export default function AutomationFlowPropertiesPanel({
                   ).trim();
 
                 if (source) {
+                  const testSource =
+                    source.startsWith("/") ||
+                    source.includes(".")
+                      ? source
+                      : `${source}.mp3`;
+
                   audioManager.play(
-                    source
+                    testSource
                   );
                 }
               }
