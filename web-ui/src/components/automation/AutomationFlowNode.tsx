@@ -11,6 +11,7 @@ import {
   Position,
   type Node,
   type NodeProps,
+  type NodeTypes,
 } from "@xyflow/react";
 
 import type {
@@ -272,7 +273,10 @@ export default function AutomationFlowNode({
   );
 }
 
-export const automationFlowNodeTypes = {
+export const automationFlowNodeTypes: NodeTypes = {
+  // React Flow's NodeTypes registry deliberately erases the concrete node-data
+  // generic. Keep the component strongly typed above and erase it only at the
+  // registry boundary, matching the upstream/Next editor pattern.
   automationNode:
-    AutomationFlowNode,
+    AutomationFlowNode as never,
 };
