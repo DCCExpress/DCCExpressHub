@@ -16,6 +16,10 @@ import {
 } from "./clientScriptSwitchManPrelude";
 
 import {
+  buildClientScriptSmartDispatcherPrelude,
+} from "./clientScriptSmartDispatcherPrelude";
+
+import {
   applyClientScriptLayoutAccessoryCatalog,
   executeClientScriptLayoutAccessoryCommand,
   installClientScriptLayoutAccessoryTracking,
@@ -1818,11 +1822,15 @@ function scriptWithRuntimeHelpers(
       switchManOwnerName
     );
 
+  const smartDispatcherPrelude =
+    buildClientScriptSmartDispatcherPrelude();
+
   const switchManFinally =
     buildClientScriptSwitchManFinally();
 
   return `
 ${switchManPrelude}
+${smartDispatcherPrelude}
 let __dccExpressAutomationFinishing = ${initialFinishing};
 
 const __dccExpressAutomationModeChannel =
