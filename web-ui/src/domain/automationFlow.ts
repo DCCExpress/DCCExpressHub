@@ -2,6 +2,7 @@ export const AUTOMATION_FLOW_VERSION = 1 as const;
 
 export type AutomationFlowNodeKind =
   | "trigger"
+  | "sensorInput"
   | "smartDispatcher"
   | "setSpeed"
   | "waitForBlock"
@@ -114,6 +115,7 @@ export type AutomationFlowEdge = {
 
 export type AutomationFlowDocument = {
   version: typeof AUTOMATION_FLOW_VERSION;
+  enabled: boolean;
   pages: AutomationFlowPage[];
   activePageId: string;
   nodes: AutomationFlowNode[];
@@ -123,6 +125,7 @@ export type AutomationFlowDocument = {
 const NODE_KINDS =
   new Set<AutomationFlowNodeKind>([
     "trigger",
+    "sensorInput",
     "smartDispatcher",
     "setSpeed",
     "waitForBlock",
@@ -181,6 +184,7 @@ export function createEmptyAutomationFlowDocument(): AutomationFlowDocument {
   return {
     version:
       AUTOMATION_FLOW_VERSION,
+    enabled: false,
     pages: [
       page,
     ],
@@ -372,10 +376,19 @@ function normalizeNodeData(
   const candidate =
     raw as Record<string, unknown>;
 
-  const kind =
+  const requestedKind =
     String(
       candidate.kind ?? ""
     ) as AutomationFlowNodeKind;
+
+  const kind:
+    AutomationFlowNodeKind =
+    requestedKind ===
+      "trigger" &&
+    candidate.triggerMode ===
+      "sensor"
+      ? "sensorInput"
+      : requestedKind;
 
   if (
     !NODE_KINDS.has(
@@ -574,10 +587,8 @@ function normalizeNodeData(
         : "",
     triggerMode:
       candidate.triggerMode ===
-        "interval" ||
-      candidate.triggerMode ===
-        "sensor"
-        ? candidate.triggerMode
+        "interval"
+        ? "interval"
         : "manual",
     intervalMs:
       Math.max(
@@ -938,6 +949,27 @@ export function normalizeAutomationFlowDocument(
     });
   }
 
+  const incomingNodeIds =
+    new Set(
+      edges.map(
+        edge =>
+          edge.target
+      )
+    );
+
+  for (const node of nodes) {
+    if (
+      node.data.kind ===
+        "waitForSensor" &&
+      !incomingNodeIds.has(
+        node.id
+      )
+    ) {
+      node.data.kind =
+        "sensorInput";
+    }
+  }
+
   const requestedActive =
     typeof candidate.activePageId ===
     "string"
@@ -947,6 +979,9 @@ export function normalizeAutomationFlowDocument(
   return {
     version:
       AUTOMATION_FLOW_VERSION,
+    enabled:
+      candidate.enabled ===
+      true,
     pages,
     activePageId:
       pageIds.has(
@@ -1279,6 +1314,7 @@ export type GeneratedAutomationFlowScript = {
 export type GenerateAutomationFlowPageScriptOptions = {
   testRun?: boolean;
   triggerNodeId?: string;
+  inputNodeId?: string;
 };
 
 function triggerPayloadSource(
@@ -1289,6 +1325,28 @@ function triggerPayloadSource(
 ): string {
   if (!trigger) {
     return "null";
+  }
+
+  if (
+    trigger.data.kind ===
+      "sensorInput"
+  ) {
+    return JSON.stringify({
+      sensorAddress:
+        Math.max(
+          1,
+          Math.min(
+            65535,
+            Math.round(
+              trigger.data.sensorAddress ??
+              1
+            )
+          )
+        ),
+      sensorState:
+        trigger.data.sensorState !==
+        false,
+    });
   }
 
   const type =
@@ -1379,12 +1437,10 @@ function wrapWithTrigger(
   if (
     !trigger ||
     testRun ||
-    (
-      trigger.data.triggerMode !==
-        "interval" &&
-      trigger.data.triggerMode !==
-        "sensor"
-    )
+    trigger.data.kind !==
+      "trigger" ||
+    trigger.data.triggerMode !==
+      "interval"
   ) {
     return code;
   }
@@ -1395,53 +1451,6 @@ function wrapWithTrigger(
       /[^a-zA-Z0-9_-]/g,
       "_"
     );
-
-  if (
-    trigger.data.triggerMode ===
-      "sensor"
-  ) {
-    const address =
-      Math.max(
-        1,
-        Math.min(
-          65535,
-          Math.round(
-            trigger.data.sensorAddress ??
-            1
-          )
-        )
-      );
-
-    const target =
-      trigger.data.sensorState !==
-      false;
-
-    const targetSource =
-      target
-        ? "true"
-        : "false";
-
-    const resetSource =
-      target
-        ? "false"
-        : "true";
-
-    return [
-      "while (isRunning()) {",
-      `  await dcc.waitForSensor(${address}, ${resetSource});`,
-      "  if (!isRunning()) break;",
-      `  await dcc.waitForSensor(${address}, ${targetSource});`,
-      "  if (!isRunning()) break;",
-      "",
-      `  startTask(${jsString(taskName)}, async () => {`,
-      indent(
-        code,
-        4
-      ),
-      "  });",
-      "}",
-    ].join("\n");
-  }
 
   const intervalMs =
     Math.max(
@@ -1547,42 +1556,50 @@ export function generateAutomationFlowPageScript(
     );
   }
 
-  const triggerNodes =
+  const inputNodes =
     pageNodes.filter(
       node =>
         node.data.kind ===
-        "trigger"
+          "trigger" ||
+        node.data.kind ===
+          "sensorInput"
     );
 
-  if (
-    triggerNodes.length > 1
-  ) {
-    warnings.push(
-      "Only the first Trigger node is used."
-    );
-  }
+  const requestedInputId =
+    options.inputNodeId ??
+    options.triggerNodeId;
 
-  const requestedTrigger =
-    options.triggerNodeId
-      ? triggerNodes.find(
+  const requestedInput =
+    requestedInputId
+      ? inputNodes.find(
           node =>
             node.id ===
-            options.triggerNodeId
+            requestedInputId
         )
       : undefined;
 
   if (
-    options.triggerNodeId &&
-    !requestedTrigger
+    requestedInputId &&
+    !requestedInput
   ) {
     warnings.push(
-      "Requested Trigger node was not found. Using the first Trigger node."
+      "Requested input node was not found. Using the first input node."
+    );
+  }
+
+  if (
+    inputNodes.length >
+      1 &&
+    !requestedInput
+  ) {
+    warnings.push(
+      "Multiple input nodes found. Preview generation follows only the first input; runtime handles each input independently."
     );
   }
 
   const trigger =
-    requestedTrigger ??
-    triggerNodes[0];
+    requestedInput ??
+    inputNodes[0];
 
   const triggerNextId =
     trigger
@@ -1621,6 +1638,8 @@ export function generateAutomationFlowPageScript(
         node =>
           node.data.kind !==
             "trigger" &&
+          node.data.kind !==
+            "sensorInput" &&
           (
             incoming.get(
               node.id
@@ -1628,10 +1647,16 @@ export function generateAutomationFlowPageScript(
             []
           ).filter(
             edge =>
-              nodeById.get(
-                edge.source
-              )?.data.kind !==
-                "trigger"
+              (
+                nodeById.get(
+                  edge.source
+                )?.data.kind !==
+                  "trigger" &&
+                nodeById.get(
+                  edge.source
+                )?.data.kind !==
+                  "sensorInput"
+              )
           ).length ===
           0
       );
