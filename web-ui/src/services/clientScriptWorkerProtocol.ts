@@ -117,6 +117,13 @@ export type MainToWorkerMessage =
       reason: string;
     }
   | {
+      type: "audioResult";
+      executionId: ClientScriptWorkerExecutionId;
+      requestId: number;
+      ok: boolean;
+      error?: string;
+    }
+  | {
       type: "commandError";
       executionId: ClientScriptWorkerExecutionId;
       message: string;
@@ -128,6 +135,12 @@ export type WorkerToMainMessage =
       executionId: ClientScriptWorkerExecutionId;
       method: ClientScriptWorkerDccMethod;
       args: unknown[];
+    }
+  | {
+      type: "audio";
+      executionId: ClientScriptWorkerExecutionId;
+      requestId: number;
+      name: string;
     }
   | {
       type: "info";
