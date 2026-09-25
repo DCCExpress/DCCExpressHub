@@ -25,7 +25,7 @@ export type AutomationFlowPage = {
   viewportZoom?: number;
 };
 
-export type AutomationFlowNodeData = {
+export type AutomationFlowNodeData = Record<string, unknown> & {
   kind: AutomationFlowNodeKind;
   label: string;
   pageId: string;
