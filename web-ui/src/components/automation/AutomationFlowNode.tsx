@@ -55,6 +55,12 @@ const NODE_META:
       title:
         "Trigger",
     },
+    sensorInput: {
+      icon: "📡",
+      color: "green",
+      title:
+        "Sensor input",
+    },
     smartDispatcher: {
       icon: "🚂",
       color: "violet",
@@ -174,18 +180,7 @@ function summary(
         data.triggerMode ===
         "interval"
           ? `Every ${data.intervalMs ?? 60000} ms`
-          : data.triggerMode ===
-            "sensor"
-            ? (
-                `Sensor #${data.sensorAddress ?? 1} → ` +
-                (
-                  data.sensorState !==
-                  false
-                    ? "ON"
-                    : "OFF"
-                )
-              )
-            : "Manual";
+          : "Manual";
 
       const payloadType =
         (
@@ -197,6 +192,17 @@ function summary(
         `${mode} · ${payloadType} payload`
       );
     }
+
+    case "sensorInput":
+      return (
+        `#${data.sensorAddress ?? 1} → ` +
+        (
+          data.sensorState !==
+          false
+            ? "ON"
+            : "OFF"
+        )
+      );
 
     case "smartDispatcher": {
       const route =
@@ -351,11 +357,15 @@ export default function AutomationFlowNode({
     data.kind ===
       "smartDispatcher" ||
     data.kind ===
-      "trigger";
+      "trigger" ||
+    data.kind ===
+      "sensorInput";
 
   const hasTarget =
     data.kind !==
-    "trigger";
+      "trigger" &&
+    data.kind !==
+      "sensorInput";
 
   return (
     <Card
