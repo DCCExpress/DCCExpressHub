@@ -204,10 +204,13 @@ export default function AutomationFlowPayloadEditor({
             autosize
             minRows={5}
             maxRows={14}
-            error={
-              error ??
-              undefined
-            }
+            {...(
+              error
+                ? {
+                    error,
+                  }
+                : {}
+            )}
             styles={{
               input: {
                 fontFamily:
