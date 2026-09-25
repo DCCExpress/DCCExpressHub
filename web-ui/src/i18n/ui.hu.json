@@ -982,5 +982,7 @@
   "flowEveryMilliseconds": "Minden {{count}} ms",
   "flowResizeNodePanel": "Node panel átméretezése",
   "flowResizeInspectorPanel": "Properties/Log panel átméretezése",
-  "flowDoubleClickReset": "Dupla kattintás: alapméret"
+  "flowDoubleClickReset": "Dupla kattintás: alapméret",
+  "deleteScriptConfirmTitle": "Script törlése?",
+  "deleteScriptConfirmMessage": "Biztosan végleg törlöd ezt a scriptet: „{{name}}”? Ez a művelet nem vonható vissza."
 }
