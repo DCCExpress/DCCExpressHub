@@ -982,5 +982,7 @@
   "flowEveryMilliseconds": "Alle {{count}} ms",
   "flowResizeNodePanel": "Node-Bereich skalieren",
   "flowResizeInspectorPanel": "Properties/Log-Bereich skalieren",
-  "flowDoubleClickReset": "Doppelklick: Standardgröße"
+  "flowDoubleClickReset": "Doppelklick: Standardgröße",
+  "deleteScriptConfirmTitle": "Skript löschen?",
+  "deleteScriptConfirmMessage": "Möchtest du „{{name}}“ wirklich dauerhaft löschen? Dieser Vorgang kann nicht rückgängig gemacht werden."
 }
