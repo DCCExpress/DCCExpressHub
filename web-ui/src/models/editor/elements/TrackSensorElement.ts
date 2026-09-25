@@ -32,7 +32,7 @@ export class TrackSensorElement extends TrackElement {
     // sensorChanged WebSocket event.
     const active = this.isSensorAddressOccupied(this.address);
 
-    ctx.fillStyle = active ? this.colorOn : "gray";
+    ctx.fillStyle = this.on ? this.colorOn : "gray";
     ctx.beginPath();
     ctx.arc(this.centerX, this.centerY, this.radius, 0, Math.PI * 2);
     ctx.fill();
