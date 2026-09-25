@@ -1,0 +1,813 @@
+import {
+  ActionIcon,
+  Badge,
+  Button,
+  Card,
+  Divider,
+  Group,
+  NumberInput,
+  Select,
+  Stack,
+  Switch,
+  Text,
+  Textarea,
+  TextInput,
+  Tooltip,
+} from "@mantine/core";
+
+import {
+  IconPlus,
+  IconTrash,
+} from "@tabler/icons-react";
+
+import i18next from "i18next";
+
+import type {
+  AutomationArrivalRule,
+  AutomationFlowNode,
+  AutomationFlowNodeData,
+} from "../../domain/automationFlow";
+
+type Props = {
+  node: AutomationFlowNode | null;
+  onChange: (
+    patch:
+      Partial<AutomationFlowNodeData>
+  ) => void;
+  onDelete: () => void;
+  onAddArrivalRule: () => void;
+  onChangeArrivalRule: (
+    id: string,
+    patch:
+      Partial<AutomationArrivalRule>
+  ) => void;
+  onDeleteArrivalRule: (
+    id: string
+  ) => void;
+};
+
+function t(
+  key: string,
+  fallback: string
+): string {
+  return i18next.t(
+    key,
+    {
+      defaultValue:
+        fallback,
+    }
+  );
+}
+
+export default function AutomationFlowPropertiesPanel({
+  node,
+  onChange,
+  onDelete,
+  onAddArrivalRule,
+  onChangeArrivalRule,
+  onDeleteArrivalRule,
+}: Props) {
+  if (!node) {
+    return (
+      <Text
+        size="sm"
+        c="dimmed"
+      >
+        {
+          t(
+            "ui.flowNoNodeSelected",
+            "Select a node to edit its properties."
+          )
+        }
+      </Text>
+    );
+  }
+
+  const data =
+    node.data;
+
+  return (
+    <Stack gap="sm">
+      <Group
+        justify="space-between"
+        wrap="nowrap"
+      >
+        <Badge
+          variant="light"
+          color="violet"
+        >
+          {data.kind}
+        </Badge>
+
+        <Tooltip
+          label={
+            t(
+              "ui.delete",
+              "Delete"
+            )
+          }
+        >
+          <ActionIcon
+            color="red"
+            variant="light"
+            onClick={
+              onDelete
+            }
+          >
+            <IconTrash
+              size={16}
+            />
+          </ActionIcon>
+        </Tooltip>
+      </Group>
+
+      <TextInput
+        label={
+          t(
+            "ui.name",
+            "Name"
+          )
+        }
+        value={
+          data.label
+        }
+        onChange={
+          event =>
+            onChange({
+              label:
+                event.currentTarget
+                  .value,
+            })
+        }
+      />
+
+      {data.kind ===
+        "smartDispatcher" && (
+        <>
+          <Stack gap="xs">
+            <Text
+              size="sm"
+              fw={500}
+            >
+              {
+                t(
+                  "ui.flowRouteBlocks",
+                  "Route blocks"
+                )
+              }
+            </Text>
+
+            <Text
+              size="xs"
+              c="dimmed"
+            >
+              {
+                t(
+                  "ui.flowRouteBlocksDescription",
+                  "Example: A1 → B1 → C1"
+                )
+              }
+            </Text>
+
+            {(
+              data.route ??
+              []
+            ).map(
+              (
+                block,
+                index
+              ) => (
+                <Group
+                  key={
+                    `${node.id}-route-${index}`
+                  }
+                  gap="xs"
+                  wrap="nowrap"
+                >
+                  <TextInput
+                    size="xs"
+                    label={
+                      `#${index + 1}`
+                    }
+                    value={
+                      block
+                    }
+                    onChange={
+                      event => {
+                        const route = [
+                          ...(
+                            data.route ??
+                            []
+                          ),
+                        ];
+
+                        route[index] =
+                          event.currentTarget
+                            .value;
+
+                        onChange({
+                          route,
+                        });
+                      }
+                    }
+                    style={{
+                      flex: 1,
+                    }}
+                  />
+
+                  <ActionIcon
+                    mt={22}
+                    color="red"
+                    variant="subtle"
+                    disabled={
+                      (
+                        data.route
+                          ?.length ??
+                        0
+                      ) <= 2
+                    }
+                    onClick={
+                      () =>
+                        onChange({
+                          route:
+                            (
+                              data.route ??
+                              []
+                            ).filter(
+                              (
+                                _,
+                                routeIndex
+                              ) =>
+                                routeIndex !==
+                                index
+                            ),
+                        })
+                    }
+                  >
+                    <IconTrash
+                      size={15}
+                    />
+                  </ActionIcon>
+                </Group>
+              )
+            )}
+
+            <Button
+              size="xs"
+              variant="light"
+              leftSection={
+                <IconPlus
+                  size={14}
+                />
+              }
+              onClick={
+                () =>
+                  onChange({
+                    route: [
+                      ...(
+                        data.route ??
+                        []
+                      ),
+                      "",
+                    ],
+                  })
+              }
+            >
+              {
+                t(
+                  "ui.flowAddRouteBlock",
+                  "Add route block"
+                )
+              }
+            </Button>
+          </Stack>
+
+          <Divider
+            label={
+              t(
+                "ui.flowArrivalConditions",
+                "Arrival conditions"
+              )
+            }
+            labelPosition="left"
+          />
+
+          <Stack gap="xs">
+            {(
+              data.arrivalRules ??
+              []
+            ).map(
+              rule => (
+                <Card
+                  key={
+                    rule.id
+                  }
+                  withBorder
+                  p="xs"
+                >
+                  <Stack gap="xs">
+                    <Group
+                      align="flex-end"
+                      wrap="nowrap"
+                    >
+                      <TextInput
+                        label={
+                          t(
+                            "ui.block2",
+                            "Block"
+                          )
+                        }
+                        value={
+                          rule.block
+                        }
+                        onChange={
+                          event =>
+                            onChangeArrivalRule(
+                              rule.id,
+                              {
+                                block:
+                                  event.currentTarget
+                                    .value,
+                              }
+                            )
+                        }
+                        style={{
+                          flex: 1,
+                        }}
+                      />
+
+                      <NumberInput
+                        label={
+                          t(
+                            "ui.sensorAddress",
+                            "Sensor address"
+                          )
+                        }
+                        value={
+                          rule.sensor
+                        }
+                        min={1}
+                        max={65535}
+                        onChange={
+                          value =>
+                            onChangeArrivalRule(
+                              rule.id,
+                              {
+                                sensor:
+                                  Number(
+                                    value
+                                  ) ||
+                                  1,
+                              }
+                            )
+                        }
+                        w={120}
+                      />
+
+                      <ActionIcon
+                        color="red"
+                        variant="subtle"
+                        onClick={
+                          () =>
+                            onDeleteArrivalRule(
+                              rule.id
+                            )
+                        }
+                      >
+                        <IconTrash
+                          size={15}
+                        />
+                      </ActionIcon>
+                    </Group>
+
+                    <Switch
+                      size="sm"
+                      checked={
+                        rule.state
+                      }
+                      label={
+                        rule.state
+                          ? "ON / true"
+                          : "OFF / false"
+                      }
+                      onChange={
+                        event =>
+                          onChangeArrivalRule(
+                            rule.id,
+                            {
+                              state:
+                                event.currentTarget
+                                  .checked,
+                            }
+                          )
+                      }
+                    />
+                  </Stack>
+                </Card>
+              )
+            )}
+
+            <Button
+              size="xs"
+              variant="light"
+              leftSection={
+                <IconPlus
+                  size={14}
+                />
+              }
+              onClick={
+                onAddArrivalRule
+              }
+            >
+              {
+                t(
+                  "ui.flowAddArrivalCondition",
+                  "Add arrival condition"
+                )
+              }
+            </Button>
+          </Stack>
+        </>
+      )}
+
+      {data.kind ===
+        "setSpeed" && (
+        <NumberInput
+          label={
+            t(
+              "ui.speedLabel",
+              "Speed"
+            )
+          }
+          value={
+            data.speed ??
+            20
+          }
+          min={0}
+          max={126}
+          onChange={
+            value =>
+              onChange({
+                speed:
+                  Number(
+                    value
+                  ) ||
+                  0,
+              })
+          }
+        />
+      )}
+
+      {data.kind ===
+        "waitForBlock" && (
+        <TextInput
+          label={
+            t(
+              "ui.block2",
+              "Block"
+            )
+          }
+          value={
+            data.blockName ??
+            ""
+          }
+          onChange={
+            event =>
+              onChange({
+                blockName:
+                  event.currentTarget
+                    .value,
+              })
+          }
+        />
+      )}
+
+      {(data.kind ===
+        "waitForSensor" ||
+        data.kind ===
+          "setSensor") && (
+        <>
+          <NumberInput
+            label={
+              t(
+                "ui.sensorAddress",
+                "Sensor address"
+              )
+            }
+            value={
+              data.sensorAddress ??
+              1
+            }
+            min={1}
+            max={65535}
+            onChange={
+              value =>
+                onChange({
+                  sensorAddress:
+                    Number(
+                      value
+                    ) ||
+                    1,
+                })
+            }
+          />
+
+          <Select
+            label={
+              data.kind ===
+              "waitForSensor"
+                ? t(
+                    "ui.flowExpectedState",
+                    "Expected state"
+                  )
+                : t(
+                    "ui.flowStateToSet",
+                    "State to set"
+                  )
+            }
+            value={
+              data.sensorState !==
+              false
+                ? "true"
+                : "false"
+            }
+            data={[
+              {
+                value:
+                  "true",
+                label:
+                  "ON / true",
+              },
+              {
+                value:
+                  "false",
+                label:
+                  "OFF / false",
+              },
+            ]}
+            allowDeselect={
+              false
+            }
+            onChange={
+              value =>
+                onChange({
+                  sensorState:
+                    value !==
+                    "false",
+                })
+            }
+          />
+        </>
+      )}
+
+      {data.kind ===
+        "setTurnout" && (
+        <>
+          <NumberInput
+            label={
+              t(
+                "ui.flowTurnoutAddress",
+                "Turnout address"
+              )
+            }
+            value={
+              data.turnoutAddress ??
+              1
+            }
+            min={1}
+            max={2048}
+            onChange={
+              value =>
+                onChange({
+                  turnoutAddress:
+                    Number(
+                      value
+                    ) ||
+                    1,
+                })
+            }
+          />
+
+          <Select
+            label={
+              t(
+                "ui.flowTurnoutState",
+                "Turnout state"
+              )
+            }
+            value={
+              data.turnoutClosed !==
+              false
+                ? "closed"
+                : "thrown"
+            }
+            data={[
+              {
+                value:
+                  "closed",
+                label:
+                  "CLOSED",
+              },
+              {
+                value:
+                  "thrown",
+                label:
+                  "THROWN",
+              },
+            ]}
+            allowDeselect={
+              false
+            }
+            onChange={
+              value =>
+                onChange({
+                  turnoutClosed:
+                    value !==
+                    "thrown",
+                })
+            }
+          />
+        </>
+      )}
+
+      {data.kind ===
+        "setAccessory" && (
+        <>
+          <NumberInput
+            label={
+              t(
+                "ui.flowAccessoryAddress",
+                "Accessory address"
+              )
+            }
+            value={
+              data.accessoryAddress ??
+              1
+            }
+            min={1}
+            max={2048}
+            onChange={
+              value =>
+                onChange({
+                  accessoryAddress:
+                    Number(
+                      value
+                    ) ||
+                    1,
+                })
+            }
+          />
+
+          <Select
+            label={
+              t(
+                "ui.flowAccessoryState",
+                "Accessory state"
+              )
+            }
+            value={
+              data.accessoryActive !==
+              false
+                ? "true"
+                : "false"
+            }
+            data={[
+              {
+                value:
+                  "true",
+                label:
+                  "ON / active",
+              },
+              {
+                value:
+                  "false",
+                label:
+                  "OFF / inactive",
+              },
+            ]}
+            allowDeselect={
+              false
+            }
+            onChange={
+              value =>
+                onChange({
+                  accessoryActive:
+                    value !==
+                    "false",
+                })
+            }
+          />
+        </>
+      )}
+
+      {data.kind ===
+        "horn" && (
+        <>
+          <NumberInput
+            label={
+              t(
+                "ui.flowFunctionNumber",
+                "Function number"
+              )
+            }
+            value={
+              data.functionNumber ??
+              2
+            }
+            min={0}
+            max={68}
+            onChange={
+              value =>
+                onChange({
+                  functionNumber:
+                    Number(
+                      value
+                    ) ||
+                    0,
+                })
+            }
+          />
+
+          <NumberInput
+            label={
+              t(
+                "ui.flowPulseMs",
+                "Pulse (ms)"
+              )
+            }
+            value={
+              data.pulseMs ??
+              700
+            }
+            min={1}
+            max={600000}
+            onChange={
+              value =>
+                onChange({
+                  pulseMs:
+                    Number(
+                      value
+                    ) ||
+                    1,
+                })
+            }
+          />
+        </>
+      )}
+
+      {data.kind ===
+        "delay" && (
+        <NumberInput
+          label={
+            t(
+              "ui.flowDelayMs",
+              "Delay (ms)"
+            )
+          }
+          value={
+            data.delayMs ??
+            500
+          }
+          min={0}
+          max={600000}
+          onChange={
+            value =>
+              onChange({
+                delayMs:
+                  Number(
+                    value
+                  ) ||
+                  0,
+              })
+          }
+        />
+      )}
+
+      {data.kind ===
+        "log" && (
+        <Textarea
+          label={
+            t(
+              "ui.flowMessage",
+              "Message"
+            )
+          }
+          value={
+            data.message ??
+            ""
+          }
+          minRows={3}
+          autosize
+          onChange={
+            event =>
+              onChange({
+                message:
+                  event.currentTarget
+                    .value,
+              })
+          }
+        />
+      )}
+    </Stack>
+  );
+}
