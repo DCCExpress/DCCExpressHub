@@ -89,6 +89,19 @@ body.automation-flow-panel-resizing * {
   height: 100%;
 }
 
+.automation-flow-canvas .react-flow__edge {
+  cursor: pointer;
+}
+
+.automation-flow-canvas .react-flow__edge.selected .react-flow__edge-path {
+  stroke: var(--mantine-color-violet-5);
+  stroke-width: 3;
+}
+
+.automation-flow-canvas .react-flow__edge.selected .react-flow__edge-interaction {
+  stroke-width: 28;
+}
+
 .automation-flow-node {
   width: 188px;
   min-height: 64px;
