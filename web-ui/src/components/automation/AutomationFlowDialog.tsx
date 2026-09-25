@@ -94,18 +94,12 @@ import {
   automationFlowNodeTypes,
 } from "./AutomationFlowNode";
 import AutomationFlowInspector from "./AutomationFlowInspector";
-import type {
-  AutomationFlowLogLine,
-} from "./AutomationFlowLogPanel";
 import AutomationFlowPalette, {
   createDefaultAutomationNodeData,
 } from "./AutomationFlowPalette";
-
 import {
-  abortClientScript,
-  runClientScript,
-  subscribeClientScriptLog,
-} from "../../services/clientScriptRunner";
+  useAutomationFlowExecution,
+} from "./useAutomationFlowExecution";
 
 type AutomationFlowDialogProps = {
   opened: boolean;
@@ -122,37 +116,6 @@ function t(
       defaultValue:
         fallback,
     }
-  );
-}
-
-function flowLogValue(
-  value: unknown
-): string {
-  if (
-    typeof value ===
-    "string"
-  ) {
-    return value;
-  }
-
-  try {
-    const serialized =
-      JSON.stringify(
-        value
-      );
-
-    if (
-      serialized !==
-      undefined
-    ) {
-      return serialized;
-    }
-  } catch {
-    // Fall through to String().
-  }
-
-  return String(
-    value
   );
 }
 
@@ -269,22 +232,6 @@ export default function AutomationFlowDialog({
   ] =
     useState(false);
 
-  const [
-    testingExecutionId,
-    setTestingExecutionId,
-  ] =
-    useState<string | null>(
-      null
-    );
-
-  const [
-    flowLogs,
-    setFlowLogs,
-  ] =
-    useState<
-      AutomationFlowLogLine[]
-    >([]);
-
   const activePage =
     document.pages.find(
       page =>
@@ -382,6 +329,14 @@ export default function AutomationFlowDialog({
         activePageId,
       ]
     );
+
+  const flowExecution =
+    useAutomationFlowExecution({
+      page:
+        activePage,
+      generated,
+      generatedTest,
+    });
 
   const load =
     useCallback(
@@ -990,127 +945,6 @@ export default function AutomationFlowDialog({
       });
     };
 
-  const appendFlowLog =
-    (
-      level:
-        AutomationFlowLogLine["level"],
-      message: string,
-      timestamp =
-        Date.now()
-    ): void => {
-      setFlowLogs(
-        current => [
-          ...current.slice(
-            -499
-          ),
-          {
-            id:
-              createAutomationFlowId(
-                "flow-log"
-              ),
-            timestamp,
-            level,
-            message,
-          },
-        ]
-      );
-    };
-
-  const runTest =
-    async (): Promise<void> => {
-      if (
-        !activePage ||
-        testingExecutionId
-      ) {
-        return;
-      }
-
-      const executionId =
-        `visual-flow-test:${activePage.id}`;
-
-      setTestingExecutionId(
-        executionId
-      );
-
-      appendFlowLog(
-        "info",
-        `TEST started: ${activePage.name}`
-      );
-
-      const unsubscribeLog =
-        subscribeClientScriptLog(
-          executionId,
-          entry => {
-            appendFlowLog(
-              "log",
-              entry.values
-                .map(
-                  flowLogValue
-                )
-                .join(
-                  " "
-                ),
-              entry.timestamp
-            );
-          }
-        );
-
-      try {
-        await runClientScript(
-          generatedTest.code,
-          {
-            id:
-              executionId,
-            name:
-              `Flow Test: ${activePage.name}`,
-            type:
-              "visual-flow-test",
-          }
-        );
-
-        appendFlowLog(
-          "info",
-          "TEST completed."
-        );
-      } catch (error) {
-        appendFlowLog(
-          "error",
-          error instanceof Error
-            ? error.message
-            : String(error)
-        );
-      } finally {
-        unsubscribeLog();
-
-        setTestingExecutionId(
-          current =>
-            current ===
-            executionId
-              ? null
-              : current
-        );
-      }
-    };
-
-  const stopTest =
-    (): void => {
-      if (
-        !testingExecutionId
-      ) {
-        return;
-      }
-
-      abortClientScript(
-        testingExecutionId,
-        "Visual flow test stopped by user."
-      );
-
-      appendFlowLog(
-        "info",
-        "TEST stop requested."
-      );
-    };
-
   const updateViewport =
     (
       viewport:
@@ -1224,26 +1058,60 @@ export default function AutomationFlowDialog({
                   />
                 }
                 loading={
-                  testingExecutionId !==
-                  null
+                  flowExecution.execution?.mode ===
+                  "test"
                 }
                 disabled={
                   !activePage ||
-                  generated.code.trim().startsWith(
+                  generatedTest.code.trim().startsWith(
                     "//"
                   ) ||
-                  testingExecutionId !==
+                  flowExecution.execution !==
                   null
                 }
                 onClick={
                   () =>
-                    void runTest()
+                    void flowExecution.runTest()
                 }
               >
                 {
                   t(
                     "ui.flowTest",
                     "TEST"
+                  )
+                }
+              </Button>
+
+              <Button
+                size="xs"
+                variant="light"
+                color="blue"
+                leftSection={
+                  <IconPlayerPlay
+                    size={15}
+                  />
+                }
+                loading={
+                  flowExecution.execution?.mode ===
+                  "run"
+                }
+                disabled={
+                  !activePage ||
+                  generated.code.trim().startsWith(
+                    "//"
+                  ) ||
+                  flowExecution.execution !==
+                  null
+                }
+                onClick={
+                  () =>
+                    void flowExecution.run()
+                }
+              >
+                {
+                  t(
+                    "ui.flowRun",
+                    "RUN"
                   )
                 }
               </Button>
@@ -1258,11 +1126,11 @@ export default function AutomationFlowDialog({
                   />
                 }
                 disabled={
-                  testingExecutionId ===
+                  flowExecution.execution ===
                   null
                 }
                 onClick={
-                  stopTest
+                  flowExecution.stop
                 }
               >
                 {
@@ -1532,13 +1400,10 @@ export default function AutomationFlowDialog({
                   generated
                 }
                 logs={
-                  flowLogs
+                  flowExecution.logs
                 }
                 onClearLogs={
-                  () =>
-                    setFlowLogs(
-                      []
-                    )
+                  flowExecution.clearLogs
                 }
                 onChangeNode={
                   updateSelectedNode
