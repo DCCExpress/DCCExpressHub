@@ -68,6 +68,7 @@ import TimetableDialog from "@/components/TimetableDialog";
 import TimetablePanel from "@/components/TimetablePanel";
 import RoutesDialog from "@/components/RoutesDialog";
 import AutomationFlowDialog from "@/components/automation/AutomationFlowDialog";
+import { useAutomationFlowRuntime } from "@/components/automation/useAutomationFlowRuntime";
 import { restorePersistedTopologyMetadata } from "@/services/layoutTopologyPersistence";
 import {
   attachClientRouteTopologyToLayoutJson,
@@ -600,6 +601,10 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
       () =>
         createEmptyAutomationFlowDocument()
     );
+
+  useAutomationFlowRuntime(
+    automationFlow
+  );
   const importFileRef = useRef<HTMLInputElement | null>(null);
   const [selectedElement, setSelectedElement] = useState<BaseElement | null>(null);
   const [tool, setTool] = useState<EditorTool>({ mode: "cursor", elementType: "general" });
