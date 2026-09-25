@@ -200,6 +200,14 @@ const ITEMS: PaletteItem[] = [
     color: "orange",
   },
   {
+    kind: "sensorInput",
+    group: "sensors",
+    icon: <IconAntenna size={16} />,
+    labelKey: "ui.flowNodeSensorInput",
+    fallback: "Sensor input",
+    color: "green",
+  },
+  {
     kind: "waitForSensor",
     group: "sensors",
     icon: <IconAntenna size={16} />,
@@ -292,10 +300,6 @@ export function createDefaultAutomationNodeData(
           "manual",
         intervalMs:
           60000,
-        sensorAddress:
-          1,
-        sensorState:
-          true,
         triggerPayloadType:
           "json",
         triggerPayloadValue:
@@ -322,6 +326,13 @@ export function createDefaultAutomationNodeData(
       return {
         ...base,
         blockName: "B1",
+      };
+
+    case "sensorInput":
+      return {
+        ...base,
+        sensorAddress: 1,
+        sensorState: true,
       };
 
     case "waitForSensor":
