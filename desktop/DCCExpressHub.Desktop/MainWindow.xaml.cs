@@ -15,6 +15,7 @@ using Microsoft.Web.WebView2.Core;
 using Microsoft.Win32;
 using System.Runtime.InteropServices;
 using System.Windows.Interop;
+using System.Windows.Threading;
 
 
 
@@ -1953,8 +1954,10 @@ namespace DCCExpressHub.Desktop
                     }
                 }
 
-                _isClosing = true;
-                StopBackend();
+                await ShowShutdownOverlayAsync();
+
+                await Task.Run(
+                    StopBackend);
 
                 _closeApproved = true;
                 Close();
@@ -1968,6 +1971,41 @@ namespace DCCExpressHub.Desktop
                     HideConfirmOverlay();
                 }
             }
+        }
+
+        private async Task ShowShutdownOverlayAsync()
+        {
+            _isClosing = true;
+
+            ConfirmOverlay.Visibility =
+                Visibility.Collapsed;
+
+            _confirmTcs = null;
+            _browserHiddenForConfirm = false;
+
+            Browser.Visibility =
+                Visibility.Collapsed;
+
+            SetupPanel.Visibility =
+                Visibility.Collapsed;
+
+            if (RestartButton is { } restartButton)
+            {
+                restartButton.Visibility =
+                    Visibility.Collapsed;
+            }
+
+            StartupText.Text =
+                L("shuttingDown");
+
+            StartupOverlay.Visibility =
+                Visibility.Visible;
+
+            // Let WPF paint the shutdown state before backend termination can
+            // spend several seconds waiting for a graceful process exit.
+            await Dispatcher.InvokeAsync(
+                () => { },
+                DispatcherPriority.Render);
         }
 
         private Task<CloseChoice> ShowCloseConfirmAsync()
