@@ -1107,6 +1107,33 @@ export default function AutomationFlowPropertiesPanel({
             }
           />
 
+          <Switch
+            label={
+              t(
+                "ui.flowWaitForAudioEnd",
+                "Wait for audio to finish"
+              )
+            }
+            description={
+              t(
+                "ui.flowWaitForAudioEndDescription",
+                "When enabled, the next node runs only after audio playback ends."
+              )
+            }
+            checked={
+              data.audioWaitForEnd ===
+              true
+            }
+            onChange={
+              event =>
+                onChange({
+                  audioWaitForEnd:
+                    event.currentTarget
+                      .checked,
+                })
+            }
+          />
+
           <Text
             size="xs"
             c="dimmed"
