@@ -435,3 +435,56 @@ test("log node writes the current payload to the runtime log", () => {
     /log\([^\n]*payload\)/
   );
 });
+
+
+test("trigger node play button injects that specific trigger once", () => {
+  const node =
+    read(
+      "src/components/automation/AutomationFlowNode.tsx"
+    );
+
+  const dialog =
+    read(
+      "src/components/automation/AutomationFlowDialog.tsx"
+    );
+
+  const domain =
+    read(
+      "src/domain/automationFlow.ts"
+    );
+
+  const execution =
+    read(
+      "src/components/automation/useAutomationFlowExecution.ts"
+    );
+
+  assert.match(
+    node,
+    /IconPlayerPlay/
+  );
+
+  assert.match(
+    node,
+    /dispatchAutomationFlowInject/
+  );
+
+  assert.match(
+    dialog,
+    /AUTOMATION_FLOW_INJECT_EVENT/
+  );
+
+  assert.match(
+    dialog,
+    /triggerNodeId:\s*detail\.triggerNodeId/
+  );
+
+  assert.match(
+    domain,
+    /triggerNodeId\?: string/
+  );
+
+  assert.match(
+    execution,
+    /"inject"/
+  );
+});
