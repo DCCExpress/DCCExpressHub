@@ -64,9 +64,11 @@ _ = app.Services.GetRequiredService<SignalAutomationEngine>();
 
 
 var dataRoot = Path.Combine(app.Environment.ContentRootPath, "data");
+var sdRoot = Path.Combine(app.Environment.ContentRootPath, "sd");
 Directory.CreateDirectory(Path.Combine(dataRoot, "config"));
 Directory.CreateDirectory(Path.Combine(dataRoot, "images"));
 Directory.CreateDirectory(Path.Combine(dataRoot, "state"));
+Directory.CreateDirectory(Path.Combine(sdRoot, "audio"));
 
 app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(30) });
 
@@ -903,7 +905,7 @@ app.UseStaticFiles(new StaticFileOptions
 });
 app.UseStaticFiles(new StaticFileOptions
 {
-    FileProvider = new PhysicalFileProvider(Path.Combine(app.Environment.ContentRootPath, "sd")),
+    FileProvider = new PhysicalFileProvider(sdRoot),
     RequestPath = "/sd",
     ServeUnknownFileTypes = true
 });
