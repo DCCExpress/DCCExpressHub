@@ -292,6 +292,10 @@ export function createDefaultAutomationNodeData(
           "manual",
         intervalMs:
           60000,
+        sensorAddress:
+          1,
+        sensorState:
+          true,
         triggerPayloadType:
           "json",
         triggerPayloadValue:
