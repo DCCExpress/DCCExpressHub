@@ -160,10 +160,7 @@ export default function AutomationFlowPropertiesPanel({
               data.triggerMode ===
               "interval"
                 ? "interval"
-                : data.triggerMode ===
-                  "sensor"
-                  ? "sensor"
-                  : "manual"
+                : "manual"
             }
             data={[
               {
@@ -184,15 +181,6 @@ export default function AutomationFlowPropertiesPanel({
                     "Interval"
                   ),
               },
-              {
-                value:
-                  "sensor",
-                label:
-                  t(
-                    "ui.flowTriggerSensor",
-                    "Sensor"
-                  ),
-              },
             ]}
             allowDeselect={
               false
@@ -204,28 +192,7 @@ export default function AutomationFlowPropertiesPanel({
                     value ===
                     "interval"
                       ? "interval"
-                      : value ===
-                        "sensor"
-                        ? "sensor"
-                        : "manual",
-                  ...(
-                    value ===
-                    "sensor"
-                      ? {
-                          sensorAddress:
-                            Math.max(
-                              1,
-                              Number(
-                                data.sensorAddress
-                              ) ||
-                              1
-                            ),
-                          sensorState:
-                            data.sensorState !==
-                            false,
-                        }
-                      : {}
-                  ),
+                      : "manual",
                 })
             }
           />
@@ -263,94 +230,6 @@ export default function AutomationFlowPropertiesPanel({
                   })
               }
             />
-          )}
-
-          {data.triggerMode ===
-            "sensor" && (
-            <>
-              <NumberInput
-                label={
-                  t(
-                    "ui.sensorAddress",
-                    "Sensor address"
-                  )
-                }
-                value={
-                  data.sensorAddress ??
-                  1
-                }
-                min={1}
-                max={65535}
-                onChange={
-                  value =>
-                    onChange({
-                      sensorAddress:
-                        Number(
-                          value
-                        ) ||
-                        1,
-                    })
-                }
-              />
-
-              <Select
-                label={
-                  t(
-                    "ui.flowSensorTriggerState",
-                    "Trigger state"
-                  )
-                }
-                value={
-                  data.sensorState !==
-                  false
-                    ? "true"
-                    : "false"
-                }
-                data={[
-                  {
-                    value:
-                      "true",
-                    label:
-                      t(
-                        "ui.flowSensorActive",
-                        "ON / active"
-                      ),
-                  },
-                  {
-                    value:
-                      "false",
-                    label:
-                      t(
-                        "ui.flowSensorInactive",
-                        "OFF / inactive"
-                      ),
-                  },
-                ]}
-                allowDeselect={
-                  false
-                }
-                onChange={
-                  value =>
-                    onChange({
-                      sensorState:
-                        value !==
-                        "false",
-                    })
-                }
-              />
-
-              <Text
-                size="xs"
-                c="dimmed"
-              >
-                {
-                  t(
-                    "ui.flowSensorTriggerDescription",
-                    "RUN watches the sensor continuously. The flow runs once when the sensor changes to the selected state, then rearms after it returns to the opposite state."
-                  )
-                }
-              </Text>
-            </>
           )}
 
           <AutomationFlowPayloadEditor
@@ -711,7 +590,9 @@ export default function AutomationFlowPropertiesPanel({
       )}
 
       {(data.kind ===
-        "waitForSensor" ||
+        "sensorInput" ||
+        data.kind ===
+          "waitForSensor" ||
         data.kind ===
           "setSensor") && (
         <>
@@ -743,15 +624,21 @@ export default function AutomationFlowPropertiesPanel({
           <Select
             label={
               data.kind ===
-              "waitForSensor"
+              "sensorInput"
                 ? t(
-                    "ui.flowExpectedState",
-                    "Expected state"
+                    "ui.flowSensorTriggerState",
+                    "Trigger state"
                   )
-                : t(
-                    "ui.flowStateToSet",
-                    "State to set"
-                  )
+                : data.kind ===
+                  "waitForSensor"
+                  ? t(
+                      "ui.flowExpectedState",
+                      "Expected state"
+                    )
+                  : t(
+                      "ui.flowStateToSet",
+                      "State to set"
+                    )
             }
             value={
               data.sensorState !==
@@ -785,6 +672,21 @@ export default function AutomationFlowPropertiesPanel({
                 })
             }
           />
+
+          {data.kind ===
+            "sensorInput" && (
+            <Text
+              size="xs"
+              c="dimmed"
+            >
+              {
+                t(
+                  "ui.flowSensorInputDescription",
+                  "When flows are enabled, every matching sensorChanged event injects this branch once."
+                )
+              }
+            </Text>
+          )}
         </>
       )}
 
