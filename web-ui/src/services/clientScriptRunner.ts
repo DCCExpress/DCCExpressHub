@@ -88,6 +88,104 @@ type ExecutionControl = {
 const executions =
   new Map<ClientScriptExecutionId, ExecutionControl>();
 
+const scriptAudioRequests =
+  new Map<
+    ClientScriptExecutionId,
+    Map<number, string>
+  >();
+
+function rememberScriptAudioRequest(
+  executionId:
+    ClientScriptExecutionId,
+  requestId:
+    number,
+  virtualPath:
+    string
+): void {
+  let requests =
+    scriptAudioRequests.get(
+      executionId
+    );
+
+  if (!requests) {
+    requests =
+      new Map<number, string>();
+
+    scriptAudioRequests.set(
+      executionId,
+      requests
+    );
+  }
+
+  requests.set(
+    requestId,
+    virtualPath
+  );
+}
+
+function forgetScriptAudioRequest(
+  executionId:
+    ClientScriptExecutionId,
+  requestId:
+    number
+): void {
+  const requests =
+    scriptAudioRequests.get(
+      executionId
+    );
+
+  if (!requests) {
+    return;
+  }
+
+  requests.delete(
+    requestId
+  );
+
+  if (
+    requests.size ===
+    0
+  ) {
+    scriptAudioRequests.delete(
+      executionId
+    );
+  }
+}
+
+function stopScriptAudioRequests(
+  executionId:
+    ClientScriptExecutionId
+): void {
+  const requests =
+    scriptAudioRequests.get(
+      executionId
+    );
+
+  if (!requests) {
+    return;
+  }
+
+  const paths =
+    [
+      ...new Set(
+        requests.values()
+      ),
+    ];
+
+  scriptAudioRequests.delete(
+    executionId
+  );
+
+  for (
+    const path of
+    paths
+  ) {
+    audioManager.stop(
+      path
+    );
+  }
+}
+
 const listeners =
   new Map<ClientScriptExecutionId, Set<StateListener>>();
 
@@ -1651,6 +1749,10 @@ function failAllExecutions(
       error.message
     );
 
+    stopScriptAudioRequests(
+      elementId
+    );
+
     execution.reject(
       error
     );
@@ -1956,6 +2058,12 @@ function handleScriptAudioPlayback(
   const virtualPath =
     `/sd/audio/${name}.mp3`;
 
+  rememberScriptAudioRequest(
+    message.executionId,
+    message.requestId,
+    virtualPath
+  );
+
   let settled =
     false;
 
@@ -1971,6 +2079,11 @@ function handleScriptAudioPlayback(
 
     settled =
       true;
+
+    forgetScriptAudioRequest(
+      message.executionId,
+      message.requestId
+    );
 
     const errorText =
       error == null
@@ -2011,6 +2124,15 @@ function handleScriptAudioPlayback(
           finish(
             false,
             error
+          );
+        },
+      onStopped:
+        () => {
+          finish(
+            false,
+            new Error(
+              "Audio playback stopped."
+            )
           );
         },
     }
@@ -3161,6 +3283,10 @@ export function abortClientScript(
   );
 
   clearTargetsOwnedByExecution(
+    elementId
+  );
+
+  stopScriptAudioRequests(
     elementId
   );
 
