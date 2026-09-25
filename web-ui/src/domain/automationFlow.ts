@@ -114,7 +114,6 @@ export type AutomationFlowEdge = {
 
 export type AutomationFlowDocument = {
   version: typeof AUTOMATION_FLOW_VERSION;
-  enabled: boolean;
   pages: AutomationFlowPage[];
   activePageId: string;
   nodes: AutomationFlowNode[];
@@ -183,7 +182,6 @@ export function createEmptyAutomationFlowDocument(): AutomationFlowDocument {
   return {
     version:
       AUTOMATION_FLOW_VERSION,
-    enabled: false,
     pages: [
       page,
     ],
@@ -978,9 +976,6 @@ export function normalizeAutomationFlowDocument(
   return {
     version:
       AUTOMATION_FLOW_VERSION,
-    enabled:
-      candidate.enabled ===
-      true,
     pages,
     activePageId:
       pageIds.has(
