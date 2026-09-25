@@ -614,3 +614,131 @@ test("turnout flow generation uses stored semantic commands and rejects an uncon
     /turnoutAddress: 0/
   );
 });
+
+
+test("locomotive and block nodes are grouped separately", () => {
+  const palette =
+    read(
+      "src/components/automation/AutomationFlowPalette.tsx"
+    );
+
+  assert.match(
+    palette,
+    /id: "locoBlocks"/
+  );
+
+  for (
+    const kind of [
+      "setLoco",
+      "getBlock",
+      "setBlock",
+      "clearBlock",
+      "getBlockTargetLoco",
+      "setBlockTargetLoco",
+      "clearBlockTargetLoco",
+    ]
+  ) {
+    assert.match(
+      palette,
+      new RegExp(
+        `kind: "${kind}"`
+      )
+    );
+  }
+});
+
+test("block flow nodes use the layout block catalog", () => {
+  const editor =
+    read(
+      "src/components/automation/AutomationFlowBlockEditor.tsx"
+    );
+
+  const catalog =
+    read(
+      "src/services/automationBlockCatalog.ts"
+    );
+
+  assert.match(
+    editor,
+    /loadAutomationBlockCatalog/
+  );
+
+  assert.match(
+    editor,
+    /searchable/
+  );
+
+  assert.match(
+    catalog,
+    /"trackblock"/
+  );
+
+  assert.match(
+    catalog,
+    /\/api\/layout/
+  );
+});
+
+test("get block nodes write payload locoAddress and setters consume it", () => {
+  const domain =
+    read(
+      "src/domain/automationFlow.ts"
+    );
+
+  assert.match(
+    domain,
+    /case "getBlock":[\s\S]*payload\.locoAddress = dcc\.getBlock/
+  );
+
+  assert.match(
+    domain,
+    /case "getBlockTargetLoco":[\s\S]*payload\.locoAddress = dcc\.getBlockTargetLoco/
+  );
+
+  assert.match(
+    domain,
+    /case "setBlock":[\s\S]*dcc\.setBlock/
+  );
+
+  assert.match(
+    domain,
+    /case "setBlockTargetLoco":[\s\S]*dcc\.setBlockTargetLoco/
+  );
+
+  assert.match(
+    domain,
+    /payloadLocoAddressGuard/
+  );
+});
+
+test("set loco uses payload locoAddress with configured speed and direction", () => {
+  const domain =
+    read(
+      "src/domain/automationFlow.ts"
+    );
+
+  const properties =
+    read(
+      "src/components/automation/AutomationFlowPropertiesPanel.tsx"
+    );
+
+  assert.match(
+    domain,
+    /case "setLoco"/
+  );
+
+  assert.match(
+    domain,
+    /dcc\.setLoco\(locoAddress/
+  );
+
+  assert.match(
+    properties,
+    /flowSetLocoPayloadHint/
+  );
+
+  assert.match(
+    properties,
+    /locoDirection/
+  );
+});
