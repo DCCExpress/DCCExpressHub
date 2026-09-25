@@ -43,11 +43,14 @@ import {
 
 import {
   abortClientScript,
+  getAutomationFinishing,
   getClientScriptState,
   pauseClientScript,
   resumeClientScript,
   runClientScript,
   ScriptAbortError,
+  setAutomationFinishing,
+  subscribeAutomationFinishing,
   subscribeClientScriptState,
   type ClientScriptState,
 } from "../../services/clientScriptRunner";
@@ -60,6 +63,14 @@ import {
 import {
   automationPanelText,
 } from "../automation-panel-i18n";
+
+import {
+  useCommandCenter,
+} from "../../context/CommandCenterContext";
+
+import {
+  wsApi,
+} from "../../services/wsApi";
 
 const ScriptEditorDialog =
   lazy(
@@ -648,6 +659,26 @@ export default function AutomationScriptsTable({
   scripts,
   onScriptsChange,
 }: Props) {
+  const commandCenter =
+    useCommandCenter();
+
+  const [
+    finishing,
+    setFinishingState,
+  ] =
+    useState(
+      () =>
+        getAutomationFinishing()
+    );
+
+  useEffect(
+    () =>
+      subscribeAutomationFinishing(
+        setFinishingState
+      ),
+    []
+  );
+
   const [
     runtimeStates,
     setRuntimeStates,
@@ -952,6 +983,17 @@ export default function AutomationScriptsTable({
           "All automation scripts aborted by user."
         );
       }
+
+      const emergencyKnownOff =
+        commandCenter.powerInfo
+          ?.emergencyStop ===
+        false;
+
+      if (
+        emergencyKnownOff
+      ) {
+        wsApi.emergencyStop();
+      }
     };
 
   return (
@@ -990,20 +1032,34 @@ export default function AutomationScriptsTable({
             }
           </Badge>
 
-          <Switch
-            size="sm"
-            color="orange"
+          <Tooltip
+            withArrow
             label={
               automationPanelText(
-                "finishing"
+                "finishingDescription"
               )
             }
-            checked={false}
-            style={{
-              display:
-                "none",
-            }}
-          />
+          >
+            <Switch
+              size="sm"
+              color="orange"
+              label={
+                automationPanelText(
+                  "finishing"
+                )
+              }
+              checked={
+                finishing
+              }
+              onChange={
+                event =>
+                  setAutomationFinishing(
+                    event.currentTarget
+                      .checked
+                  )
+              }
+            />
+          </Tooltip>
         </Group>
 
         <Group gap="xs">
