@@ -1103,3 +1103,65 @@ test("automation script deletion requires confirmation", () => {
     /setDeleteConfirmOpened\(\s*true\s*\)/
   );
 });
+
+
+test("automation script runtime controls are compact icon buttons in the first column", () => {
+  const scripts =
+    read(
+      "src/components/automation/AutomationScriptsTable.tsx"
+    );
+
+  const rowStart =
+    scripts.indexOf(
+      "<Table.Tr>"
+    );
+
+  const status =
+    scripts.indexOf(
+      "state.status.toUpperCase()",
+      rowStart
+    );
+
+  const play =
+    scripts.indexOf(
+      "<IconPlayerPlay",
+      rowStart
+    );
+
+  assert.ok(
+    rowStart >= 0 &&
+    play > rowStart &&
+    status > play
+  );
+
+  assert.match(
+    scripts,
+    /<IconPlayerPause/
+  );
+
+  assert.match(
+    scripts,
+    /<IconPlayerStop/
+  );
+
+  assert.match(
+    scripts,
+    /<IconEdit/
+  );
+
+  assert.match(
+    scripts,
+    /<IconTrash/
+  );
+
+  assert.doesNotMatch(
+    scripts.slice(
+      rowStart,
+      scripts.indexOf(
+        "</Table.Tr>",
+        rowStart
+      )
+    ),
+    /size="compact-xs"/
+  );
+});
