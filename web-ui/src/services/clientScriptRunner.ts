@@ -2026,11 +2026,6 @@ function scriptWithRuntimeHelpers(
   switchManOwnerId: string,
   switchManOwnerName: string
 ): string {
-  const prefix =
-    JSON.stringify(
-      SCRIPT_AUDIO_COMMAND_PREFIX
-    );
-
   const maxLength =
     String(
       SCRIPT_AUDIO_MAX_NAME_LENGTH
