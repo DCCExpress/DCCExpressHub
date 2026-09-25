@@ -997,5 +997,8 @@
   "flowNoInputNodes": "Keine Eingangs-Nodes",
   "flowRunFlows": "Flows ausführen",
   "flowRuntimeEnabledDescription": "Aktivierte Seiten sind live. Sensor- und Intervall-Eingänge können ihre verbundenen Zweige starten.",
-  "flowRuntimeDisabledDescription": "Die Flow-Laufzeit ist deaktiviert. Manuelle/Test-Injektionen im Editor bleiben verfügbar."
+  "flowRuntimeDisabledDescription": "Die Flow-Laufzeit ist deaktiviert. Manuelle/Test-Injektionen im Editor bleiben verfügbar.",
+  "flowNodePlayAudio": "Audio abspielen",
+  "flowAudioName": "Audioname",
+  "flowAudioNameDescription": "Basisname der MP3-Datei in /sd/audio, ohne Pfad und ohne .mp3-Endung."
 }
