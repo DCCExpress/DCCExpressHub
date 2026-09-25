@@ -866,3 +866,71 @@ test("layout page keeps saved flows synchronized with the flow editor", () => {
     /onSaved=\{setAutomationFlow\}/
   );
 });
+
+
+test("flow editor side panels are resizable and persisted", () => {
+  const dialog =
+    read(
+      "src/components/automation/AutomationFlowDialog.tsx"
+    );
+
+  const sizing =
+    read(
+      "src/components/automation/useAutomationFlowPanelSizes.ts"
+    );
+
+  const css =
+    read(
+      "src/styles/automationFlow.css"
+    );
+
+  assert.match(
+    dialog,
+    /automation-flow-splitter-left/
+  );
+
+  assert.match(
+    dialog,
+    /automation-flow-splitter-right/
+  );
+
+  assert.match(
+    dialog,
+    /panelSizes\.beginResize/
+  );
+
+  assert.match(
+    sizing,
+    /dcc-express-flow\.left-panel-width/
+  );
+
+  assert.match(
+    sizing,
+    /dcc-express-flow\.right-panel-width/
+  );
+
+  assert.match(
+    sizing,
+    /localStorage\.setItem/
+  );
+
+  assert.match(
+    sizing,
+    /resetWidth/
+  );
+
+  assert.match(
+    css,
+    /--automation-flow-left-width/
+  );
+
+  assert.match(
+    css,
+    /--automation-flow-right-width/
+  );
+
+  assert.match(
+    css,
+    /automation-flow-panel-resizing/
+  );
+});
