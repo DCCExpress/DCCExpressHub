@@ -975,7 +975,20 @@ function generateStatement(
           .join("\n");
       }
 
-      return `dcc.setTurnout(${Math.max(1, Math.min(2048, Math.round(data.turnoutAddress ?? 1)))}, ${data.turnoutClosed !== false ? "true" : "false"});`;
+      const legacyAddress =
+        Math.round(
+          data.turnoutAddress ??
+          0
+        );
+
+      if (
+        legacyAddress >= 1 &&
+        legacyAddress <= 2048
+      ) {
+        return `dcc.setTurnout(${legacyAddress}, ${data.turnoutClosed !== false ? "true" : "false"});`;
+      }
+
+      return 'throw new Error("Set Turnout node has no configured turnout.");';
     }
 
     case "setAccessory":
