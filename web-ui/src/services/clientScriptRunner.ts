@@ -3286,16 +3286,16 @@ export function abortClientScript(
     elementId
   );
 
-  stopScriptAudioRequests(
-    elementId
-  );
-
   postToWorker({
     type: "abort",
     executionId:
       elementId,
     reason,
   });
+
+  stopScriptAudioRequests(
+    elementId
+  );
 
   emitState(
     elementId
