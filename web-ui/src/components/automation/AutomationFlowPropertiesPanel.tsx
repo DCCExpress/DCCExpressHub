@@ -832,7 +832,7 @@ export default function AutomationFlowPropertiesPanel({
               2
             }
             min={0}
-            max={68}
+            max={28}
             onChange={
               value =>
                 onChange({
@@ -893,7 +893,7 @@ export default function AutomationFlowPropertiesPanel({
               2
             }
             min={0}
-            max={68}
+            max={28}
             onChange={
               value =>
                 onChange({
