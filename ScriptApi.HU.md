@@ -768,6 +768,15 @@ await setRoute(name)
 await setRoute(name, delayMs)
 ```
 
+## Dispatcher / Task Manager
+
+```text
+await dispatcher([blocks], async (loco, dir) => { ... }, options?)
+startTask(name, taskFunction)
+isTaskRunning(name)
+getTaskState(name)
+```
+
 ## Blocks
 
 ```text
@@ -912,3 +921,305 @@ dcc.sendRaw(...)
 6. Ha van magas szintű logikai API, azt részesítsd előnyben a raw DCC parancsokkal szemben.
 7. Az S88 / `<Q>` / egyéb érzékelőforrás a script számára ugyanaz a szenzor API.
 8. Az emergency stop közvetlenül elérhető: `dcc.emergencyStop()`.
+9. Dispatcher használat előtt a route gráfot generálni és a Layouttal együtt menteni kell.
+10. Ismétlődő, párhuzamos Dispatcher próbálkozásokhoz használd a `startTask()` single-flight Task Managert.
+
+
+---
+
+# 18. Dispatcher – gráf alapú útvonal- és blokkfoglalás
+
+A `dispatcher()` a Layout mentett route gráfjából választ ki pontosan egy fizikai útvonalat, lefoglalja az érintett blokkokat, szükség esetén SwitchMan segítségével beállítja és zárolja a váltókat, majd a tényleges vonatmozgást a script callbackjére bízza.
+
+## 18.1 Alap használat
+
+```js
+const result = await dispatcher(
+  ["A1", "B1", "C1"],
+  async (loco, dir) => {
+    dcc.setLoco(loco, 20, dir);
+    await dcc.waitForSensor(1020, true);
+    dcc.setLoco(loco, 0, dir);
+  }
+);
+```
+
+A callback paraméterei:
+
+- `loco`: a kiinduló blokkban lévő mozdony DCC címe;
+- `dir`: a gráfból meghatározott `"forward"` vagy `"reverse"` menetirány.
+
+Lehetséges eredmény státuszok:
+
+```text
+completed
+empty
+blocked
+```
+
+## 18.2 A blokklista checkpoint-lista
+
+A megadott blokkoknak nem kell a teljes fizikai blokkútvonalat tartalmazniuk.
+
+Ha a teljes útvonal:
+
+```text
+A1 -> B2 -> C3 -> D4
+```
+
+akkor ez is érvényes:
+
+```js
+await dispatcher(["A1", "B2", "D4"], async (loco, dir) => {
+  // ...
+});
+```
+
+A checkpointoknak sorrendben kell szerepelniük a teljes útvonalban. Az első és utolsó blokk mindig a kért útvonal kezdő- és végpontja.
+
+Ha nincs találat:
+
+```text
+dispatcher_route_not_found
+```
+
+Ha több fizikai útvonal is illeszkedik:
+
+```text
+dispatcher_route_ambiguous
+```
+
+A Dispatcher ilyenkor szándékosan nem választ önkényesen. Adj meg további köztes checkpoint blokkot, amíg pontosan egy útvonal marad.
+
+## 18.3 Blokkfoglalási szabályok
+
+A kiinduló blokk:
+
+- tartalmazhat foglaltságot, hiszen ott áll az induló vonat;
+- tényleges mozdony-hozzárendeléséből kapja a Dispatcher a `loco` címet;
+- nem tartalmazhat másik target loco jelölést.
+
+A kiinduló blokk után minden útvonalblokk csak akkor szabad, ha egyszerre:
+
+```text
+actual loco == 0
+target loco == 0
+occupancy sensor == false
+```
+
+A Dispatcher indulás előtt minden következő blokkra beállítja a mozdony target jelölését, majd újra ellenőrzi, hogy a foglalás közben nem változott-e az állapot.
+
+Az egymást átfedő Dispatcher útvonalak blokkzárolása Web Locks segítségével történik. Ugyanazon scriptben egymást átfedő aktív Dispatcher útvonalak nem engedélyezettek.
+
+## 18.4 Váltók
+
+Ha az útvonal váltóállításokat igényel, a Dispatcher automatikusan SwitchMan foglalást használ.
+
+A gráfban tárolt váltóállásokat beállítja, majd a teljes Dispatcher callback futása alatt megtartja a SwitchMan scope-ot.
+
+Ha a váltókörzet pillanatnyilag foglalt, az adott Dispatcher-próbálkozás `blocked` státusszal visszatér, így a Task Manager / scheduler később újra próbálhatja.
+
+## 18.5 Sikeres commit és rollback
+
+Ha a callback sikeresen befejeződik:
+
+1. a célblokk előtti útvonalblokkok actual + target állapota törlődik;
+2. a célblokk target jelölése törlődik;
+3. a célblokk actual mozdony-hozzárendelése a Dispatcher mozdonyára áll.
+
+Ha a callback hibával vagy Aborttal megszakad, a Dispatcher **nem állítja azt, hogy a vonat megérkezett**. Csak a saját maga által létrehozott target jelöléseket oldja fel.
+
+## 18.6 Opciók
+
+```js
+await dispatcher(
+  ["A1", "B1", "C1"],
+  async (loco, dir) => {
+    // ...
+  },
+  {
+    timeoutMs: 30000,
+    setDelayMs: 250,
+    blockPollMs: 250,
+
+    onEmpty: async dir => {
+      log("A1 üres", dir);
+    },
+
+    onBlocked: async (loco, dir, conflicts) => {
+      log("Útvonal blokkolt", loco, dir, conflicts);
+    },
+  }
+);
+```
+
+- `timeoutMs`: blokk-lock várakozás timeoutja; elhagyva nincs explicit Dispatcher timeout, maximum `600000 ms`;
+- `setDelayMs`: váltóállítások közötti késleltetés, alapból `250 ms`;
+- `blockPollMs`: blokk-lock újrapróbálási idő, alapból `250 ms`, tartománya `25..5000 ms`;
+- `onEmpty(dir)`: akkor fut, ha a kiinduló blokkban nincs mozdony;
+- `onBlocked(loco, dir, conflicts)`: blokk- vagy váltókonfliktus esetén fut.
+
+Ha `onEmpty` nincs megadva, az üres kiinduló blokk `dispatcher_empty_source` hibát dob.
+
+---
+
+# 19. Task Manager – párhuzamos single-flight feladatok
+
+A `startTask()` arra való, hogy egy automation scheduler több független async feladatot tudjon párhuzamosan futtatni anélkül, hogy ugyanazt a feladatot egyszerre többször elindítaná.
+
+## 19.1 `startTask(name, taskFunction)`
+
+```js
+startTask("A1_TO_C1", A1toC1);
+```
+
+A hívás azonnal visszatér; a feladat háttérben fut tovább.
+
+Ugyanazzal a névvel egyszerre csak egy példány futhat. Ha már fut:
+
+```text
+started = false
+reason = "already-running"
+```
+
+Finishing módban új feladat nem indul:
+
+```text
+started = false
+reason = "finishing"
+```
+
+A már futó feladatok befejezhetik az aktuális menetüket.
+
+## 19.2 `isTaskRunning(name)`
+
+```js
+if (isTaskRunning("A1_TO_C1")) {
+  log("A1_TO_C1 még fut");
+}
+```
+
+## 19.3 `getTaskState(name)`
+
+```js
+const state = getTaskState("A1_TO_C1");
+log(state);
+```
+
+A state többek között tartalmazza:
+
+```text
+name
+running
+status
+runCount
+startedAt
+finishedAt
+lastResult
+lastError
+```
+
+A Task Manager a háttérfeladat hibáját eltárolja és logolja, így abból nem lesz kezeletlen Promise rejection.
+
+---
+
+# 20. Komplett Dispatcher + Task Manager példa
+
+```js
+const SENSOR_A1 = 1001;
+const SENSOR_B1 = 1006;
+const SENSOR_B2 = 1007;
+const SENSOR_C1 = 1020;
+
+const SPEED = 20;
+const HORN_FUNCTION = 2;
+
+async function horn(loco) {
+  dcc.setLocoFunction(loco, HORN_FUNCTION, true);
+  await delay(700);
+  dcc.setLocoFunction(loco, HORN_FUNCTION, false);
+}
+
+async function A1toC1() {
+  await dispatcher(
+    ["A1", "B1", "C1"],
+
+    async (loco, dir) => {
+      setInfo(`Loco ${loco}: A1 -> B1 -> C1`);
+
+      dcc.setLoco(loco, SPEED, dir);
+
+      await dcc.waitForSensor(SENSOR_B1, true);
+
+      log(`Loco ${loco}: B1`);
+
+      await horn(loco);
+
+      dcc.setLoco(loco, 25, dir);
+
+      await dcc.waitForSensor(SENSOR_C1, true);
+
+      log(`Loco ${loco}: C1`);
+
+      dcc.setLoco(loco, 0, dir);
+    },
+
+    {
+      onEmpty: async () => {
+        log("A1 -> C1: nincs mozdony A1-ben");
+      },
+
+      onBlocked: async (loco, dir, conflicts) => {
+        log("A1 -> C1: blokkolt", loco, conflicts);
+      }
+    }
+  );
+}
+
+async function C1toA1() {
+  await dispatcher(
+    ["C1", "B2", "A1"],
+
+    async (loco, dir) => {
+      setInfo(`Loco ${loco}: C1 -> B2 -> A1`);
+
+      dcc.setLoco(loco, SPEED, dir);
+
+      await dcc.waitForSensor(SENSOR_B2, true);
+
+      log(`Loco ${loco}: B2`);
+
+      await horn(loco);
+
+      dcc.setLoco(loco, 25, dir);
+
+      await dcc.waitForSensor(SENSOR_A1, true);
+
+      log(`Loco ${loco}: A1`);
+
+      dcc.setLoco(loco, 0, dir);
+    },
+
+    {
+      onEmpty: async () => {
+        log("C1 -> A1: nincs mozdony C1-ben");
+      },
+
+      onBlocked: async (loco, dir, conflicts) => {
+        log("C1 -> A1: blokkolt", loco, conflicts);
+      }
+    }
+  );
+}
+
+while (isRunning()) {
+  startTask("A1_TO_C1", A1toC1);
+  startTask("C1_TO_A1", C1toA1);
+
+  await delay(500);
+}
+
+setInfo("Finishing - nincs új dispatcher");
+```
+
+A scheduler 500 ms-onként megpróbálja elindítani mindkét menetet. A `startTask()` miatt ugyanaz a menet nem indul el újra, amíg az előző példánya fut. Ha egy Dispatcher próbálkozás `empty` vagy `blocked` státusszal gyorsan befejeződik, egy későbbi scheduler kör újra próbálhatja.
