@@ -558,6 +558,58 @@ test("loco function consumes payload.locoAddress and preserves payload", () => {
   );
 });
 
+test("play audio node generates the existing playAudio script helper", () => {
+  const domain =
+    read(
+      "src/domain/automationFlow.ts"
+    );
+
+  const palette =
+    read(
+      "src/components/automation/AutomationFlowPalette.tsx"
+    );
+
+  const properties =
+    read(
+      "src/components/automation/AutomationFlowPropertiesPanel.tsx"
+    );
+
+  const node =
+    read(
+      "src/components/automation/AutomationFlowNode.tsx"
+    );
+
+  assert.match(
+    domain,
+    /\| "playAudio"/
+  );
+
+  assert.match(
+    domain,
+    /case "playAudio"/
+  );
+
+  assert.match(
+    domain,
+    /playAudio\(\$\{jsString\(audioName\)\}\)/
+  );
+
+  assert.match(
+    palette,
+    /kind: "playAudio"/
+  );
+
+  assert.match(
+    properties,
+    /flowAudioNameDescription/
+  );
+
+  assert.match(
+    node,
+    /playAudio: \{/
+  );
+});
+
 test("log node writes the current payload to the runtime log", () => {
   const domain =
     read(
