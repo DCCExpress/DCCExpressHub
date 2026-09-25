@@ -331,6 +331,16 @@ export function useAutomationFlowRuntime(
     );
 
   useEffect(
+    () =>
+      () => {
+        abortAllAutomationFlowExecutions(
+          "Visual flow runtime was unloaded."
+        );
+      },
+    []
+  );
+
+  useEffect(
     () => {
       const current =
         documentRef.current;
@@ -354,6 +364,37 @@ export function useAutomationFlowRuntime(
           abortAutomationFlowPageExecutions(
             page.id,
             "Visual flow page disabled."
+          );
+        }
+      }
+
+      for (
+        const execution of
+        getActiveClientScriptExecutions()
+      ) {
+        if (
+          !isAnyFlowExecution(
+            execution.id
+          )
+        ) {
+          continue;
+        }
+
+        const belongsToKnownPage =
+          current.pages.some(
+            page =>
+              belongsToFlowPage(
+                execution.id,
+                page.id
+              )
+          );
+
+        if (
+          !belongsToKnownPage
+        ) {
+          abortClientScript(
+            execution.id,
+            "Visual flow page was removed."
           );
         }
       }
