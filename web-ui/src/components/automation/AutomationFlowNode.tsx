@@ -39,6 +39,12 @@ const NODE_META:
       title: string;
     }
   > = {
+    trigger: {
+      icon: "▶",
+      color: "green",
+      title:
+        "Trigger",
+    },
     smartDispatcher: {
       icon: "🚂",
       color: "violet",
@@ -105,6 +111,14 @@ function summary(
   data: AutomationFlowNodeData
 ): string {
   switch (data.kind) {
+    case "trigger":
+      return (
+        data.triggerMode ===
+        "interval"
+          ? `Every ${data.intervalMs ?? 60000} ms`
+          : "Manual"
+      );
+
     case "smartDispatcher": {
       const route =
         Array.isArray(
@@ -203,7 +217,9 @@ export default function AutomationFlowNode({
 
   const isRoot =
     data.kind ===
-    "smartDispatcher";
+      "smartDispatcher" ||
+    data.kind ===
+      "trigger";
 
   return (
     <Card
