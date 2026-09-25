@@ -9,7 +9,14 @@ export type AutomationFlowNodeKind =
   | "setSensor"
   | "setTurnout"
   | "setAccessory"
+  | "setLoco"
   | "locoFunction"
+  | "getBlock"
+  | "setBlock"
+  | "clearBlock"
+  | "getBlockTargetLoco"
+  | "setBlockTargetLoco"
+  | "clearBlockTargetLoco"
   | "horn"
   | "delay"
   | "log";
@@ -44,6 +51,12 @@ export type AutomationFlowNodeData = Record<string, unknown> & {
   arrivalRules?: AutomationArrivalRule[];
 
   speed?: number;
+  locoDirection?:
+    | "forward"
+    | "reverse";
+
+  blockElementId?: number;
+  blockLabel?: string;
   blockName?: string;
   sensorAddress?: number;
   sensorState?: boolean;
@@ -116,7 +129,14 @@ const NODE_KINDS =
     "setSensor",
     "setTurnout",
     "setAccessory",
+    "setLoco",
     "locoFunction",
+    "getBlock",
+    "setBlock",
+    "clearBlock",
+    "getBlockTargetLoco",
+    "setBlockTargetLoco",
+    "clearBlockTargetLoco",
     "horn",
     "delay",
     "log",
@@ -401,6 +421,29 @@ function normalizeNodeData(
           )
         )
       ),
+    locoDirection:
+      candidate.locoDirection ===
+        "reverse"
+        ? "reverse"
+        : "forward",
+    blockElementId:
+      Math.max(
+        0,
+        Math.min(
+          65535,
+          Math.round(
+            finiteNumber(
+              candidate.blockElementId,
+              0
+            )
+          )
+        )
+      ),
+    blockLabel:
+      typeof candidate.blockLabel ===
+        "string"
+        ? candidate.blockLabel
+        : "",
     blockName:
       typeof candidate.blockName === "string"
         ? candidate.blockName.trim()
@@ -941,6 +984,54 @@ function indent(
     .join("\n");
 }
 
+function blockReferenceSource(
+  data: AutomationFlowNodeData
+): string | null {
+  const id =
+    Math.round(
+      data.blockElementId ??
+      0
+    );
+
+  if (
+    id >= 1 &&
+    id <= 65535
+  ) {
+    return String(
+      id
+    );
+  }
+
+  const name =
+    String(
+      data.blockName ??
+      ""
+    ).trim();
+
+  return name
+    ? jsString(
+        name
+      )
+    : null;
+}
+
+function payloadLocoAddressGuard(
+  statement: string
+): string {
+  return [
+    "{",
+    "  const locoAddress = Number(payload && typeof payload === \"object\" ? payload.locoAddress : NaN);",
+    "  if (!Number.isInteger(locoAddress) || locoAddress < 1 || locoAddress > 10239) {",
+    '    throw new Error("This node requires payload.locoAddress (1..10239).");',
+    "  }",
+    indent(
+      statement,
+      2
+    ),
+    "}",
+  ].join("\n");
+}
+
 function generateStatement(
   data: AutomationFlowNodeData
 ): string {
@@ -993,6 +1084,114 @@ function generateStatement(
 
     case "setAccessory":
       return `dcc.setAccessory(${Math.max(1, Math.min(2048, Math.round(data.accessoryAddress ?? 1)))}, ${data.accessoryActive !== false ? "true" : "false"});`;
+
+    case "setLoco": {
+      const speed =
+        Math.max(
+          0,
+          Math.min(
+            126,
+            Math.round(
+              data.speed ??
+              20
+            )
+          )
+        );
+
+      const direction =
+        data.locoDirection ===
+        "reverse"
+          ? "reverse"
+          : "forward";
+
+      return payloadLocoAddressGuard(
+        `dcc.setLoco(locoAddress, ${speed}, ${jsString(direction)});`
+      );
+    }
+
+    case "getBlock": {
+      const block =
+        blockReferenceSource(
+          data
+        );
+
+      if (!block) {
+        return 'throw new Error("Get Block node has no configured block.");';
+      }
+
+      return [
+        'if (!payload || typeof payload !== "object" || Array.isArray(payload)) { payload = {}; }',
+        `payload.locoAddress = dcc.getBlock(${block});`,
+      ].join("\n");
+    }
+
+    case "setBlock": {
+      const block =
+        blockReferenceSource(
+          data
+        );
+
+      if (!block) {
+        return 'throw new Error("Set Block node has no configured block.");';
+      }
+
+      return payloadLocoAddressGuard(
+        `dcc.setBlock(${block}, locoAddress);`
+      );
+    }
+
+    case "clearBlock": {
+      const block =
+        blockReferenceSource(
+          data
+        );
+
+      return block
+        ? `dcc.clearBlock(${block});`
+        : 'throw new Error("Clear Block node has no configured block.");';
+    }
+
+    case "getBlockTargetLoco": {
+      const block =
+        blockReferenceSource(
+          data
+        );
+
+      if (!block) {
+        return 'throw new Error("Get Target node has no configured block.");';
+      }
+
+      return [
+        'if (!payload || typeof payload !== "object" || Array.isArray(payload)) { payload = {}; }',
+        `payload.locoAddress = dcc.getBlockTargetLoco(${block});`,
+      ].join("\n");
+    }
+
+    case "setBlockTargetLoco": {
+      const block =
+        blockReferenceSource(
+          data
+        );
+
+      if (!block) {
+        return 'throw new Error("Set Target node has no configured block.");';
+      }
+
+      return payloadLocoAddressGuard(
+        `dcc.setBlockTargetLoco(${block}, locoAddress);`
+      );
+    }
+
+    case "clearBlockTargetLoco": {
+      const block =
+        blockReferenceSource(
+          data
+        );
+
+      return block
+        ? `dcc.clearBlockTargetLoco(${block});`
+        : 'throw new Error("Clear Target node has no configured block.");';
+    }
 
     case "locoFunction": {
       const fn =
