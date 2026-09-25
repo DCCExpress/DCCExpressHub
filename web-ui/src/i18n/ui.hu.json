@@ -979,5 +979,8 @@
   "flowSavedFlows": "Mentett flow-k",
   "flowEveryMinutes": "Minden {{count}} perc",
   "flowEverySeconds": "Minden {{count}} mp",
-  "flowEveryMilliseconds": "Minden {{count}} ms"
+  "flowEveryMilliseconds": "Minden {{count}} ms",
+  "flowResizeNodePanel": "Node panel átméretezése",
+  "flowResizeInspectorPanel": "Properties/Log panel átméretezése",
+  "flowDoubleClickReset": "Dupla kattintás: alapméret"
 }
