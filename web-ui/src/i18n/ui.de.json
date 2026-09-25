@@ -936,5 +936,6 @@
   "flowTriggerManual": "Manuell",
   "flowTriggerInterval": "Intervall",
   "flowIntervalMs": "Intervall (ms)",
-  "flowIntervalDescription": "1000 ms = 1 Sekunde, 60000 ms = 1 Minute"
+  "flowIntervalDescription": "1000 ms = 1 Sekunde, 60000 ms = 1 Minute",
+  "flowRun": "START"
 }
