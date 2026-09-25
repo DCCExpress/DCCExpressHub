@@ -46,51 +46,21 @@ namespace DCCExpressHub.Desktop
                     Visibility.Visible;
             }
 
+            Width = Math.Max(
+                1,
+                owner.ActualWidth);
+
+            Height = Math.Max(
+                1,
+                owner.ActualHeight);
+
             Loaded += (_, _) =>
             {
-                FitToOwner();
                 CancelButton.Focus();
-            };
-
-            owner.LocationChanged +=
-                OwnerBoundsChanged;
-
-            owner.SizeChanged +=
-                OwnerBoundsChanged;
-
-            Closed += (_, _) =>
-            {
-                owner.LocationChanged -=
-                    OwnerBoundsChanged;
-
-                owner.SizeChanged -=
-                    OwnerBoundsChanged;
             };
 
             PreviewKeyDown +=
                 DesktopConfirmWindow_PreviewKeyDown;
-        }
-
-        private void OwnerBoundsChanged(
-            object? sender,
-            EventArgs e)
-        {
-            FitToOwner();
-        }
-
-        private void FitToOwner()
-        {
-            if (Owner is null)
-                return;
-
-            Left = Owner.Left;
-            Top = Owner.Top;
-            Width = Math.Max(
-                1,
-                Owner.ActualWidth);
-            Height = Math.Max(
-                1,
-                Owner.ActualHeight);
         }
 
         private void DesktopConfirmWindow_PreviewKeyDown(
