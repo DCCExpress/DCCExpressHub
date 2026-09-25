@@ -1077,6 +1077,50 @@ export default function AutomationFlowPropertiesPanel({
       )}
 
       {data.kind ===
+        "playAudio" && (
+        <>
+          <TextInput
+            label={
+              t(
+                "ui.flowAudioName",
+                "Audio name"
+              )
+            }
+            description={
+              t(
+                "ui.flowAudioNameDescription",
+                "Base MP3 filename in /sd/audio, without path or .mp3 extension."
+              )
+            }
+            placeholder="station"
+            value={
+              data.audioName ??
+              ""
+            }
+            onChange={
+              event =>
+                onChange({
+                  audioName:
+                    event.currentTarget
+                      .value,
+                })
+            }
+          />
+
+          <Text
+            size="xs"
+            c="dimmed"
+          >
+            {
+              data.audioName
+                ? `/sd/audio/${data.audioName}.mp3`
+                : "/sd/audio/<name>.mp3"
+            }
+          </Text>
+        </>
+      )}
+
+      {data.kind ===
         "log" && (
         <Textarea
           label={
