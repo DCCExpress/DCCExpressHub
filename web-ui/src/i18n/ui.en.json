@@ -982,5 +982,7 @@
   "flowEveryMilliseconds": "Every {{count}} ms",
   "flowResizeNodePanel": "Resize node panel",
   "flowResizeInspectorPanel": "Resize Properties/Log panel",
-  "flowDoubleClickReset": "Double-click to reset"
+  "flowDoubleClickReset": "Double-click to reset",
+  "deleteScriptConfirmTitle": "Delete script?",
+  "deleteScriptConfirmMessage": "Are you sure you want to permanently delete “{{name}}”? This cannot be undone."
 }
