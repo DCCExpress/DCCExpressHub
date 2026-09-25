@@ -949,5 +949,9 @@
   "flowPayloadJsonDescription": "JSON value passed to every downstream node.",
   "flowPayloadPassThrough": "This payload is passed unchanged to the next node.",
   "flowPayloadTimestampDescription": "payload will be Date.now() for each trigger.",
-  "flowPayloadNullDescription": "payload will be null."
+  "flowPayloadNullDescription": "payload will be null.",
+  "flowTurnout": "Turnout",
+  "flowSelectTurnout": "Select turnout",
+  "flowLoadingTurnouts": "Loading turnouts...",
+  "flowNoConfiguredTurnouts": "No configured turnouts were found in the layout."
 }
