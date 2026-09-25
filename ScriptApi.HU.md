@@ -772,6 +772,7 @@ await setRoute(name, delayMs)
 
 ```text
 await dispatcher([blocks], async (loco, dir) => { ... }, options?)
+await smartDispatcher([blocks], async (loco, dir, run) => { ... }, options?)
 startTask(name, taskFunction)
 isTaskRunning(name)
 getTaskState(name)
@@ -1223,3 +1224,220 @@ setInfo("Finishing - nincs új dispatcher");
 ```
 
 A scheduler 500 ms-onként megpróbálja elindítani mindkét menetet. A `startTask()` miatt ugyanaz a menet nem indul el újra, amíg az előző példánya fut. Ha egy Dispatcher próbálkozás `empty` vagy `blocked` státusszal gyorsan befejeződik, egy későbbi scheduler kör újra próbálhatja.
+
+
+---
+
+# 21. SmartDispatcher – gördülő blokkfoglalás
+
+A \`smartDispatcher()\` a stabil \`dispatcher()\` mellett külön implementáció. A normál Dispatcher továbbra is a teljes útvonalat foglalja le előre; a SmartDispatcher ezzel szemben mindig csak a **jelenlegi és a következő blokkot** tartja.
+
+A SmartDispatcher automatikusan:
+
+- ellenőrzi a következő blokk \`actual\`, \`target\` és occupancy állapotát;
+- Web Lockkal lefoglalja a következő blokkot;
+- beállítja a következő blokk \`target loco\` jelölését;
+- csak az aktuális blokkátmenethez szükséges váltókat foglalja és állítja;
+- clearance hiányában megállítja a mozdonyt;
+- clearance megjelenésekor visszaállítja a script által kért sebességet;
+- biztos megérkezés után felszabadítja az előző blokkot és az előző átmenet váltózárait;
+- a célblokkba érkezéskor automatikusan megállítja a mozdonyt.
+
+## 21.1 Alap használat
+
+\`\`\`js
+await smartDispatcher(
+  ["A1", "B1", "C1"],
+
+  async (loco, dir, run) => {
+    run.setSpeed(20);
+
+    await run.waitForBlock("B1");
+
+    await horn(loco);
+
+    run.setSpeed(25);
+
+    await run.waitForBlock("C1");
+  }
+);
+\`\`\`
+
+A SmartDispatcher alatt a normál menethez a \`run.setSpeed()\` használata javasolt a közvetlen \`dcc.setLoco()\` helyett. A SmartDispatcher csak így tudja eltárolni a kívánt sebességet és clearance után automatikusan visszaállítani.
+
+## 21.2 arrivedWhen – biztos blokkba érkezés
+
+Egy blokkhoz explicit szenzorfeltételek adhatók meg:
+
+\`\`\`js
+await smartDispatcher(
+  [
+    "A1",
+
+    {
+      block: "B1",
+      arrivedWhen: [
+        { sensor: 1000, state: true },
+        { sensor: 999, state: false }
+      ]
+    },
+
+    {
+      block: "C1",
+      arrivedWhen: [
+        { sensor: 1010, state: true },
+        { sensor: 1000, state: false }
+      ]
+    }
+  ],
+
+  async (loco, dir, run) => {
+    run.setSpeed(20);
+
+    await run.waitForBlock("B1");
+
+    await horn(loco);
+
+    await run.waitForBlock("C1");
+  }
+);
+\`\`\`
+
+A példában B1 akkor számít biztosan elfoglaltnak, amikor:
+
+\`\`\`text
+sensor 1000 == true
+sensor  999 == false
+\`\`\`
+
+Ez azt jelenti, hogy a vonat már érzékelhető B1-ben, és az előző szakaszt teljesen elhagyta. Csak ekkor szabadítja fel a SmartDispatcher az előző blokkot.
+
+Ha egy blokkhoz nincs explicit \`arrivedWhen\`, az alapértelmezett feltétel:
+
+\`\`\`text
+aktuális blokk occupancy sensor == true
+előző blokk occupancy sensor    == false
+\`\`\`
+
+Ha két egymást követő blokk ugyanazt az occupancy szenzort használja, explicit \`arrivedWhen\` szükséges.
+
+## 21.3 Clearance és automatikus megállás
+
+A SmartDispatcher a háttérben automatikusan próbálja megszerezni a következő blokkot.
+
+A következő blokk csak akkor használható, ha:
+
+\`\`\`text
+actual loco == 0
+target loco == 0
+occupancy   == false
+block Web Lock megszerezhető
+szükséges váltózárak megszerezhetők
+szükséges váltóállások beállíthatók
+\`\`\`
+
+Ha ez nem teljesül, a mozdony fizikai sebessége:
+
+\`\`\`text
+0
+\`\`\`
+
+de a \`run.setSpeed()\` által kért sebesség megmarad.
+
+Például:
+
+\`\`\`js
+run.setSpeed(30);
+\`\`\`
+
+Ha a következő blokk foglalt:
+
+\`\`\`text
+desired speed  = 30
+physical speed = 0
+\`\`\`
+
+Amikor a blokk szabaddá válik és a váltók is lefoglalhatók:
+
+\`\`\`text
+desired speed  = 30
+physical speed = 30
+\`\`\`
+
+Ehhez a scriptnek nem kell külön újraindító logikát írnia.
+
+## 21.4 waitForBlock és waitForClearance
+
+\`\`\`js
+await run.waitForBlock("B1");
+\`\`\`
+
+Azt jelenti, hogy a B1 blokkhoz tartozó \`arrivedWhen\` feltételek már teljesültek, tehát a vonat biztosan megérkezett a blokkba.
+
+\`\`\`js
+await run.waitForClearance("C1");
+\`\`\`
+
+Azt jelenti, hogy C1 már le van foglalva a vonat számára és a hozzá vezető váltók is rendelkezésre állnak.
+
+A \`waitForClearance()\` **nem szükséges a SmartDispatcher működéséhez**. A clearance kezelése automatikus; ez a függvény akkor hasznos, ha a scriptednek külön meg kell várnia vagy tudnia kell, hogy már szabad az út.
+
+## 21.5 Tetszőleges pályamenti szenzorok
+
+A SmartDispatcher blokkkezelése mellett a normál szenzor API továbbra is használható:
+
+\`\`\`js
+await run.waitForBlock("B1");
+
+await dcc.waitForSensor(1234, true);
+
+await horn(loco);
+\`\`\`
+
+Így a blokkoktól független tetszőleges ponton lehet például kürtölni, lassítani vagy más műveletet végezni.
+
+## 21.6 run API
+
+\`\`\`text
+run.setSpeed(speed)
+run.stop()
+await run.waitForBlock(blockName)
+await run.waitForClearance(blockName)
+run.getCurrentBlock()
+run.getNextBlock()
+run.getRoute()
+run.getDesiredSpeed()
+\`\`\`
+
+A sebességtartomány \`0..126\`.
+
+## 21.7 Opciók
+
+\`\`\`js
+await smartDispatcher(
+  ["A1", "B1", "C1"],
+  async (loco, dir, run) => {
+    run.setSpeed(20);
+    await run.waitForBlock("C1");
+  },
+  {
+    setDelayMs: 250,
+    blockPollMs: 100,
+
+    onEmpty: async dir => {
+      log("A1 üres", dir);
+    },
+
+    onBlocked: async (loco, dir, conflicts) => {
+      log("SmartDispatcher vár", loco, conflicts);
+    }
+  }
+);
+\`\`\`
+
+- \`setDelayMs\`: egymást követő váltóállítások közötti késleltetés;
+- \`blockPollMs\`: a blokk- és érkezési feltételek ellenőrzési periódusa, \`25..5000 ms\`;
+- \`onEmpty(dir)\`: üres induló blokk;
+- \`onBlocked(loco, dir, conflicts)\`: akkor fut, amikor az adott következő blokkra első alkalommal várni kell.
+
+A SmartDispatcher a célblokkba történő biztos megérkezéskor automatikusan \`0\` sebességre állítja a mozdonyt.
