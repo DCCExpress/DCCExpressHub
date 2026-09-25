@@ -13,6 +13,7 @@ import {
   Button,
   Group,
   Loader,
+  Modal,
   ScrollArea,
   Stack,
   Switch,
@@ -170,6 +171,12 @@ function ScriptRow({
   const [
     editorOpened,
     setEditorOpened,
+  ] =
+    useState(false);
+
+  const [
+    deleteConfirmOpened,
+    setDeleteConfirmOpened,
   ] =
     useState(false);
 
@@ -565,7 +572,10 @@ function ScriptRow({
                   !idle
                 }
                 onClick={
-                  onDelete
+                  () =>
+                    setDeleteConfirmOpened(
+                      true
+                    )
                 }
               >
                 <IconTrash
@@ -576,6 +586,105 @@ function ScriptRow({
           </Group>
         </Table.Td>
       </Table.Tr>
+
+      <Modal
+        opened={
+          deleteConfirmOpened
+        }
+        onClose={
+          () =>
+            setDeleteConfirmOpened(
+              false
+            )
+        }
+        title={
+          i18next.t(
+            "ui.deleteScriptConfirmTitle",
+            {
+              defaultValue:
+                "Delete script?",
+            }
+          )
+        }
+        centered
+      >
+        <Stack gap="md">
+          <Text
+            size="sm"
+          >
+            {
+              i18next.t(
+                "ui.deleteScriptConfirmMessage",
+                {
+                  defaultValue:
+                    "Are you sure you want to permanently delete '{{name}}'? This cannot be undone.",
+                  name:
+                    definition.name ||
+                    i18next.t(
+                      "ui.unnamedScript",
+                      {
+                        defaultValue:
+                          "Unnamed script",
+                      }
+                    ),
+                }
+              )
+            }
+          </Text>
+
+          <Group
+            justify="flex-end"
+            gap="xs"
+          >
+            <Button
+              variant="default"
+              onClick={
+                () =>
+                  setDeleteConfirmOpened(
+                    false
+                  )
+              }
+            >
+              {
+                i18next.t(
+                  "ui.cancel",
+                  {
+                    defaultValue:
+                      "Cancel",
+                  }
+                )
+              }
+            </Button>
+
+            <Button
+              color="red"
+              leftSection={
+                <IconTrash
+                  size={15}
+                />
+              }
+              onClick={
+                () => {
+                  setDeleteConfirmOpened(
+                    false
+                  );
+                  onDelete();
+                }
+              }
+            >
+              {
+                i18next.t(
+                  "ui.delete",
+                  {
+                    defaultValue:
+                      "Delete",
+                  }
+                )
+              }
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
 
       {editorOpened && (
         <Suspense
