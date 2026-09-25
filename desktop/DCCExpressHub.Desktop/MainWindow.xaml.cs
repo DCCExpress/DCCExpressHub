@@ -56,16 +56,6 @@ namespace DCCExpressHub.Desktop
         private bool _initializingSetup;
         private bool _setupBusy;
         private bool _firstLauncherRun;
-        private TaskCompletionSource<CloseChoice>? _confirmTcs;
-        private ConfirmMode _confirmMode;
-        private bool _browserHiddenForConfirm;
-
-        private enum ConfirmMode
-        {
-            Exit,
-            PowerOffFailed
-        }
-
         private enum CloseChoice
         {
             Cancel,
@@ -354,16 +344,6 @@ namespace DCCExpressHub.Desktop
             StartBackendButton.Content =
                 L("okStart");
 
-            if (_confirmMode == ConfirmMode.Exit &&
-                ConfirmOverlay.Visibility == Visibility.Visible)
-            {
-                ConfigureExitConfirm();
-            }
-            else if (_confirmMode == ConfirmMode.PowerOffFailed &&
-                     ConfirmOverlay.Visibility == Visibility.Visible)
-            {
-                ConfigurePowerOffFailedConfirm();
-            }
         }
 
         private void SelectProtocol(
@@ -1968,7 +1948,6 @@ namespace DCCExpressHub.Desktop
                 {
                     _isClosing = false;
                     _closeDialogActive = false;
-                    HideConfirmOverlay();
                 }
             }
         }
@@ -1976,12 +1955,6 @@ namespace DCCExpressHub.Desktop
         private async Task ShowShutdownOverlayAsync()
         {
             _isClosing = true;
-
-            ConfirmOverlay.Visibility =
-                Visibility.Collapsed;
-
-            _confirmTcs = null;
-            _browserHiddenForConfirm = false;
 
             Browser.Visibility =
                 Visibility.Collapsed;
@@ -2010,156 +1983,49 @@ namespace DCCExpressHub.Desktop
 
         private Task<CloseChoice> ShowCloseConfirmAsync()
         {
-            _confirmMode =
-                ConfirmMode.Exit;
+            var dialog =
+                new DesktopConfirmWindow(
+                    this,
+                    L("closeConfirmTitle"),
+                    L("closeConfirmMessage"),
+                    L("closePowerOffExit"),
+                    L("closeCancel"),
+                    L("closeExitWithoutPowerOff"));
 
-            ConfigureExitConfirm();
-            return ShowConfirmOverlayAsync();
+            dialog.ShowDialog();
+
+            var result =
+                dialog.Result switch
+                {
+                    DesktopConfirmResult.Primary =>
+                        CloseChoice.PowerOffAndExit,
+                    DesktopConfirmResult.Secondary =>
+                        CloseChoice.ExitWithoutPowerOff,
+                    _ =>
+                        CloseChoice.Cancel
+                };
+
+            return Task.FromResult(
+                result);
         }
 
         private Task<CloseChoice> ShowPowerOffFailedConfirmAsync()
         {
-            _confirmMode =
-                ConfirmMode.PowerOffFailed;
+            var dialog =
+                new DesktopConfirmWindow(
+                    this,
+                    L("powerOffFailedTitle"),
+                    L("powerOffFailedMessage"),
+                    L("exitAnyway"),
+                    L("closeCancel"));
 
-            ConfigurePowerOffFailedConfirm();
-            return ShowConfirmOverlayAsync();
-        }
+            dialog.ShowDialog();
 
-        private void ConfigureExitConfirm()
-        {
-            ConfirmTitleText.Text =
-                L("closeConfirmTitle");
-
-            ConfirmMessageText.Text =
-                L("closeConfirmMessage");
-
-            ConfirmPrimaryButton.Content =
-                L("closePowerOffExit");
-
-            ConfirmSecondaryButton.Content =
-                L("closeExitWithoutPowerOff");
-
-            ConfirmSecondaryButton.Visibility =
-                Visibility.Visible;
-
-            ConfirmCancelButton.Content =
-                L("closeCancel");
-        }
-
-        private void ConfigurePowerOffFailedConfirm()
-        {
-            ConfirmTitleText.Text =
-                L("powerOffFailedTitle");
-
-            ConfirmMessageText.Text =
-                L("powerOffFailedMessage");
-
-            ConfirmPrimaryButton.Content =
-                L("exitAnyway");
-
-            ConfirmSecondaryButton.Visibility =
-                Visibility.Collapsed;
-
-            ConfirmCancelButton.Content =
-                L("closeCancel");
-        }
-
-        private Task<CloseChoice> ShowConfirmOverlayAsync()
-        {
-            _confirmTcs =
-                new TaskCompletionSource<CloseChoice>(
-                    TaskCreationOptions.RunContinuationsAsynchronously);
-
-            _browserHiddenForConfirm =
-                Browser.Visibility ==
-                Visibility.Visible;
-
-            if (_browserHiddenForConfirm)
-            {
-                Browser.Visibility =
-                    Visibility.Collapsed;
-            }
-
-            ConfirmOverlay.Visibility =
-                Visibility.Visible;
-
-            ConfirmCancelButton.Focus();
-
-            return _confirmTcs.Task;
-        }
-
-        private void HideConfirmOverlay()
-        {
-            ConfirmOverlay.Visibility =
-                Visibility.Collapsed;
-
-            _confirmTcs = null;
-
-            if (_browserHiddenForConfirm &&
-                !_isClosing)
-            {
-                Browser.Visibility =
-                    Visibility.Visible;
-            }
-
-            _browserHiddenForConfirm = false;
-        }
-
-        private void ResolveConfirm(
-            CloseChoice choice)
-        {
-            var completion =
-                _confirmTcs;
-
-            if (completion is null)
-                return;
-
-            ConfirmOverlay.Visibility =
-                Visibility.Collapsed;
-
-            _confirmTcs = null;
-
-            if (_browserHiddenForConfirm &&
-                !_isClosing)
-            {
-                Browser.Visibility =
-                    Visibility.Visible;
-            }
-
-            _browserHiddenForConfirm = false;
-
-            completion.TrySetResult(
-                choice);
-        }
-
-        private void ConfirmPrimaryButton_Click(
-            object sender,
-            RoutedEventArgs e)
-        {
-            ResolveConfirm(
-                _confirmMode == ConfirmMode.PowerOffFailed
+            return Task.FromResult(
+                dialog.Result ==
+                DesktopConfirmResult.Primary
                     ? CloseChoice.ExitAnyway
-                    : CloseChoice.PowerOffAndExit);
-        }
-
-        private void ConfirmSecondaryButton_Click(
-            object sender,
-            RoutedEventArgs e)
-        {
-            if (_confirmMode == ConfirmMode.Exit)
-            {
-                ResolveConfirm(
-                    CloseChoice.ExitWithoutPowerOff);
-            }
-        }
-
-        private void ConfirmCancelButton_Click(
-            object sender,
-            RoutedEventArgs e)
-        {
-            ResolveConfirm(
-                CloseChoice.Cancel);
+                    : CloseChoice.Cancel);
         }
 
         private void FinalizeClose()
@@ -2223,14 +2089,6 @@ namespace DCCExpressHub.Desktop
 
         private void Window_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
         {
-            if (e.Key == System.Windows.Input.Key.Escape &&
-                ConfirmOverlay.Visibility == Visibility.Visible)
-            {
-                ResolveConfirm(CloseChoice.Cancel);
-                e.Handled = true;
-                return;
-            }
-
             if (e.Key == System.Windows.Input.Key.F10)
             {
                 MainMenu.Visibility = MainMenu.Visibility == Visibility.Visible
