@@ -908,5 +908,6 @@
   "flowFunctionNumber": "Funkciószám",
   "flowPulseMs": "Impulzus (ms)",
   "flowDelayMs": "Késleltetés (ms)",
-  "flowMessage": "Üzenet"
+  "flowMessage": "Üzenet",
+  "flowAddRouteBlock": "Útvonalblokk hozzáadása"
 }
