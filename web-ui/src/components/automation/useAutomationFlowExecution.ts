@@ -20,6 +20,7 @@ import type {
 
 export type AutomationFlowExecutionMode =
   | "test"
+  | "inject"
   | "run";
 
 type Args = {
@@ -117,7 +118,8 @@ export function useAutomationFlowExecution({
   const start =
     async (
       mode:
-        AutomationFlowExecutionMode
+        AutomationFlowExecutionMode,
+      scriptOverride?: string
     ): Promise<void> => {
       if (
         !page ||
@@ -130,19 +132,31 @@ export function useAutomationFlowExecution({
         `visual-flow-${mode}:${page.id}`;
 
       const script =
-        mode ===
-        "test"
-          ? generatedTest.code
-          : generated.code;
+        scriptOverride ??
+        (
+          mode ===
+            "run"
+            ? generated.code
+            : generatedTest.code
+        );
 
       setExecution({
         id,
         mode,
       });
 
+      const actionLabel =
+        mode ===
+        "run"
+          ? "RUN"
+          : mode ===
+            "inject"
+            ? "INJECT"
+            : "TEST";
+
       appendLog(
         "info",
-        `${mode === "test" ? "TEST" : "RUN"} started: ${page.name}`
+        `${actionLabel} started: ${page.name}`
       );
 
       const unsubscribeLog =
@@ -169,7 +183,7 @@ export function useAutomationFlowExecution({
           {
             id,
             name:
-              `Flow ${mode === "test" ? "Test" : "Run"}: ${page.name}`,
+              `Flow ${actionLabel}: ${page.name}`,
             type:
               "visual-flow",
           }
@@ -177,7 +191,7 @@ export function useAutomationFlowExecution({
 
         appendLog(
           "info",
-          `${mode === "test" ? "TEST" : "RUN"} completed.`
+          `${actionLabel} completed.`
         );
       } catch (error) {
         appendLog(
@@ -225,6 +239,14 @@ export function useAutomationFlowExecution({
     runTest:
       () =>
         start("test"),
+    inject:
+      (
+        script: string
+      ) =>
+        start(
+          "inject",
+          script
+        ),
     run:
       () =>
         start("run"),
