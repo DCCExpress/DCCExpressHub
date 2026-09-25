@@ -653,11 +653,21 @@ For new scripts, prefer a higher-level `dcc.*` API whenever one exists.
 
 Plays an MP3 file from the SD card audio directory.
 
-Pass only the base filename, without path or `.mp3` extension:
+Pass only the base filename, without path or `.mp3` extension.
+
+Non-blocking playback — the script continues immediately:
 
 ```js
 playAudio("mav_szignal");
 ```
+
+`playAudio()` returns a Promise, so playback completion can be awaited:
+
+```js
+await playAudio("mav_szignal");
+```
+
+The awaited call continues when playback ends. If the execution is aborted while waiting, its active audio playback is stopped as well.
 
 ---
 
@@ -752,6 +762,7 @@ isRunning()
 log(value, ...)
 setInfo(message)
 playAudio(name)
+await playAudio(name)
 ```
 
 ## SwitchMan
