@@ -91,6 +91,20 @@ const executions =
 const listeners =
   new Map<ClientScriptExecutionId, Set<StateListener>>();
 
+export type ClientScriptLogEntry = {
+  timestamp: number;
+  values: unknown[];
+};
+
+type LogListener =
+  (entry: ClientScriptLogEntry) => void;
+
+const logListeners =
+  new Map<
+    ClientScriptExecutionId,
+    Set<LogListener>
+  >();
+
 const lastErrors =
   new Map<ClientScriptExecutionId, string | null>();
 
@@ -1325,6 +1339,78 @@ export function getActiveClientScriptExecutions(): ActiveClientScriptExecution[]
         execution.status,
     })
   );
+}
+
+export function subscribeClientScriptLog(
+  elementId: ClientScriptExecutionId,
+  listener: LogListener
+): () => void {
+  let set =
+    logListeners.get(
+      elementId
+    );
+
+  if (!set) {
+    set =
+      new Set<LogListener>();
+
+    logListeners.set(
+      elementId,
+      set
+    );
+  }
+
+  set.add(
+    listener
+  );
+
+  return () => {
+    const current =
+      logListeners.get(
+        elementId
+      );
+
+    if (!current) {
+      return;
+    }
+
+    current.delete(
+      listener
+    );
+
+    if (
+      current.size === 0
+    ) {
+      logListeners.delete(
+        elementId
+      );
+    }
+  };
+}
+
+function emitLog(
+  elementId: ClientScriptExecutionId,
+  values: unknown[]
+): void {
+  const entry:
+    ClientScriptLogEntry = {
+      timestamp:
+        Date.now(),
+      values: [
+        ...values,
+      ],
+    };
+
+  for (
+    const listener of
+    logListeners.get(
+      elementId
+    ) ?? []
+  ) {
+    listener(
+      entry
+    );
+  }
 }
 
 export function subscribeClientScriptState(
@@ -2683,6 +2769,11 @@ function handleWorkerMessage(
     console.log(
       `[ScriptButton ${execution.element.name || execution.element.id}]`,
       ...message.values
+    );
+
+    emitLog(
+      message.executionId,
+      message.values
     );
 
     return;
