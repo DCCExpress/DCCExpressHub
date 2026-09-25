@@ -1066,3 +1066,40 @@ test("saved flow controls are compact icon buttons in the first table column", (
     /size="compact-xs"/
   );
 });
+
+
+test("automation script deletion requires confirmation", () => {
+  const scripts =
+    read(
+      "src/components/automation/AutomationScriptsTable.tsx"
+    );
+
+  assert.match(
+    scripts,
+    /deleteConfirmOpened/
+  );
+
+  assert.match(
+    scripts,
+    /deleteScriptConfirmTitle/
+  );
+
+  assert.match(
+    scripts,
+    /deleteScriptConfirmMessage/
+  );
+
+  const deleteButton =
+    scripts.indexOf(
+      'color="red"'
+    );
+
+  assert.ok(
+    deleteButton >= 0
+  );
+
+  assert.match(
+    scripts,
+    /setDeleteConfirmOpened\(\s*true\s*\)/
+  );
+});
