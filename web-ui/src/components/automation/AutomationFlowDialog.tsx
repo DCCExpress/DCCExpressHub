@@ -248,38 +248,6 @@ function defaultNodeData(
   }
 }
 
-function parseRouteText(
-  value: string
-): string[] {
-  const seen =
-    new Set<string>();
-
-  return value
-    .split(
-      /(?:->|→|,|;|\n)+/
-    )
-    .map(
-      item =>
-        item.trim()
-    )
-    .filter(Boolean)
-    .filter(
-      item => {
-        const key =
-          item.toLocaleLowerCase();
-
-        if (
-          seen.has(key)
-        ) {
-          return false;
-        }
-
-        seen.add(key);
-        return true;
-      }
-    );
-}
-
 function mergePageNodes(
   document: AutomationFlowDocument,
   pageId: string,
@@ -1175,38 +1143,143 @@ export default function AutomationFlowDialog({
           {data.kind ===
             "smartDispatcher" && (
             <>
-              <TextInput
-                label={
-                  t(
-                    "ui.flowRouteBlocks",
-                    "Route blocks"
-                  )
-                }
-                description={
-                  t(
-                    "ui.flowRouteBlocksDescription",
-                    "Example: A1 → B1 → C1"
-                  )
-                }
-                value={
+              <Stack gap="xs">
+                <Text
+                  size="sm"
+                  fw={500}
+                >
+                  {
+                    t(
+                      "ui.flowRouteBlocks",
+                      "Route blocks"
+                    )
+                  }
+                </Text>
+
+                <Text
+                  size="xs"
+                  c="dimmed"
+                >
+                  {
+                    t(
+                      "ui.flowRouteBlocksDescription",
+                      "Example: A1 → B1 → C1"
+                    )
+                  }
+                </Text>
+
+                {(
+                  data.route ??
+                  []
+                ).map(
                   (
-                    data.route ??
-                    []
-                  ).join(
-                    " → "
+                    block,
+                    index
+                  ) => (
+                    <Group
+                      key={
+                        `${selectedNode.id}-route-${index}`
+                      }
+                      gap="xs"
+                      wrap="nowrap"
+                    >
+                      <TextInput
+                        size="xs"
+                        label={
+                          `#${index + 1}`
+                        }
+                        value={
+                          block
+                        }
+                        onChange={
+                          event => {
+                            const route = [
+                              ...(
+                                data.route ??
+                                []
+                              ),
+                            ];
+
+                            route[index] =
+                              event.currentTarget
+                                .value;
+
+                            updateSelectedNode({
+                              route,
+                            });
+                          }
+                        }
+                        style={{
+                          flex: 1,
+                        }}
+                      />
+
+                      <ActionIcon
+                        mt={22}
+                        color="red"
+                        variant="subtle"
+                        disabled={
+                          (
+                            data.route
+                              ?.length ??
+                            0
+                          ) <= 2
+                        }
+                        onClick={
+                          () =>
+                            updateSelectedNode({
+                              route:
+                                (
+                                  data.route ??
+                                  []
+                                ).filter(
+                                  (
+                                    _,
+                                    routeIndex
+                                  ) =>
+                                    routeIndex !==
+                                    index
+                                ),
+                            })
+                        }
+                      >
+                        <IconTrash
+                          size={15}
+                        />
+                      </ActionIcon>
+                    </Group>
                   )
-                }
-                onChange={
-                  event =>
-                    updateSelectedNode({
-                      route:
-                        parseRouteText(
-                          event.currentTarget
-                            .value
-                        ),
-                    })
-                }
-              />
+                )}
+
+                <Button
+                  size="xs"
+                  variant="light"
+                  leftSection={
+                    <IconPlus
+                      size={14}
+                    />
+                  }
+                  onClick={
+                    () =>
+                      updateSelectedNode({
+                        route: [
+                          ...(
+                            data.route ??
+                            []
+                          ),
+                          "",
+                        ],
+                      })
+                  }
+                >
+                  {
+                    t(
+                      "ui.flowAddRouteBlock",
+                      "Add route block"
+                    )
+                  }
+                </Button>
+              </Stack>
 
               <Divider
                 label={
