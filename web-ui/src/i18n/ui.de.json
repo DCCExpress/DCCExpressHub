@@ -923,5 +923,18 @@
   "flowTurnoutAddress": "Weichenadresse",
   "flowTurnoutState": "Weichenstellung",
   "flowAccessoryAddress": "Accessory-Adresse",
-  "flowAccessoryState": "Accessory-Zustand"
+  "flowAccessoryState": "Accessory-Zustand",
+  "flowLog": "Log",
+  "flowTest": "TEST",
+  "flowStop": "STOP",
+  "flowRuntimeLogDescription": "Laufzeit- und log(...)-Meldungen aus Flow-Tests.",
+  "flowClearLog": "Log löschen",
+  "flowNoLogMessages": "Noch keine Log-Meldungen.",
+  "flowGroupTrigger": "Trigger",
+  "flowNodeTrigger": "Trigger",
+  "flowTriggerMode": "Trigger-Modus",
+  "flowTriggerManual": "Manuell",
+  "flowTriggerInterval": "Intervall",
+  "flowIntervalMs": "Intervall (ms)",
+  "flowIntervalDescription": "1000 ms = 1 Sekunde, 60000 ms = 1 Minute"
 }
