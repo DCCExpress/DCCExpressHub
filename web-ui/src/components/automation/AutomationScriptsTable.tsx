@@ -11,6 +11,7 @@ import {
   ActionIcon,
   Badge,
   Button,
+  Divider,
   Group,
   Loader,
   Modal,
@@ -309,48 +310,115 @@ function ScriptRow({
     <>
       <Table.Tr>
         <Table.Td>
-          <Group
-            gap={4}
-            wrap="nowrap"
+          <Stack
+            gap={7}
           >
-            <Tooltip
-              withArrow
-              label={
-                paused
-                  ? i18next.t(
-                      "ui.resume"
-                    )
-                  : i18next.t(
-                      "ui.start"
-                    )
+            <TextInput
+              size="sm"
+              variant="unstyled"
+              fw={700}
+              value={
+                definition.name
               }
+              onChange={
+                event =>
+                  onChange({
+                    ...definition,
+                    name:
+                      event.currentTarget
+                        .value,
+                  })
+              }
+              onBlur={
+                () =>
+                  void onSave(
+                    definition
+                  ).catch(
+                    () =>
+                      undefined
+                  )
+              }
+            />
+
+            <Group
+              gap={6}
+              wrap="nowrap"
             >
-              <ActionIcon
+              <Badge
                 size="sm"
                 variant="light"
-                color="green"
-                disabled={
-                  running ||
-                  !definition.script.trim()
+                color={
+                  statusColor(
+                    state
+                  )
                 }
-                onClick={
-                  () => {
-                    if (paused) {
-                      resumeClientScript(
-                        id
-                      );
-                      return;
-                    }
+              >
+                {
+                  state.status.toUpperCase()
+                }
+              </Badge>
 
-                    void run(
-                      definition.script
-                    ).catch(
-                      () =>
-                        undefined
-                    );
-                  }
+              <Divider
+                orientation="vertical"
+                h={22}
+              />
+
+              <Tooltip
+                withArrow
+                label={
+                  automationPanelText(
+                    "startWithAllDescription"
+                  )
                 }
-                aria-label={
+              >
+                <ActionIcon
+                  size="sm"
+                  variant={
+                    definition.startWithAll !==
+                    false
+                      ? "filled"
+                      : "light"
+                  }
+                  color={
+                    definition.startWithAll !==
+                    false
+                      ? "lime"
+                      : "gray"
+                  }
+                  onClick={
+                    toggleStartWithAll
+                  }
+                  aria-label={
+                    automationPanelText(
+                      "startWithAllDescription"
+                    )
+                  }
+                >
+                  {
+                    definition.startWithAll !==
+                    false
+                      ? (
+                        <IconPlayerPlayFilled
+                          size={14}
+                        />
+                      )
+                      : (
+                        <IconPlayerPlay
+                          size={14}
+                        />
+                      )
+                  }
+                </ActionIcon>
+              </Tooltip>
+
+              <Divider
+                orientation="vertical"
+                h={22}
+              />
+
+              <Tooltip
+                withArrow
+                label={
                   paused
                     ? i18next.t(
                         "ui.resume"
@@ -360,267 +428,206 @@ function ScriptRow({
                       )
                 }
               >
-                <IconPlayerPlay
-                  size={15}
-                />
-              </ActionIcon>
-            </Tooltip>
+                <ActionIcon
+                  size="sm"
+                  variant="light"
+                  color="green"
+                  disabled={
+                    running ||
+                    !definition.script.trim()
+                  }
+                  onClick={
+                    () => {
+                      if (paused) {
+                        resumeClientScript(
+                          id
+                        );
+                        return;
+                      }
 
-            <Tooltip
-              withArrow
-              label={
-                i18next.t(
-                  "ui.stop"
-                )
-              }
-            >
-              <ActionIcon
-                size="sm"
-                variant="light"
-                color="yellow"
-                disabled={
-                  !running
-                }
-                onClick={
-                  () =>
-                    pauseClientScript(
-                      id
-                    )
-                }
-                aria-label={
+                      void run(
+                        definition.script
+                      ).catch(
+                        () =>
+                          undefined
+                      );
+                    }
+                  }
+                  aria-label={
+                    paused
+                      ? i18next.t(
+                          "ui.resume"
+                        )
+                      : i18next.t(
+                          "ui.start"
+                        )
+                  }
+                >
+                  <IconPlayerPlay
+                    size={15}
+                  />
+                </ActionIcon>
+              </Tooltip>
+
+              <Tooltip
+                withArrow
+                label={
                   i18next.t(
                     "ui.stop"
                   )
                 }
               >
-                <IconPlayerPause
-                  size={15}
-                />
-              </ActionIcon>
-            </Tooltip>
-
-            <Tooltip
-              withArrow
-              label={
-                i18next.t(
-                  "ui.abort"
-                )
-              }
-            >
-              <ActionIcon
-                size="sm"
-                variant="light"
-                color="red"
-                disabled={
-                  idle
-                }
-                onClick={
-                  () =>
-                    abortClientScript(
-                      id
+                <ActionIcon
+                  size="sm"
+                  variant="light"
+                  color="yellow"
+                  disabled={
+                    !running
+                  }
+                  onClick={
+                    () =>
+                      pauseClientScript(
+                        id
+                      )
+                  }
+                  aria-label={
+                    i18next.t(
+                      "ui.stop"
                     )
-                }
-                aria-label={
+                  }
+                >
+                  <IconPlayerPause
+                    size={15}
+                  />
+                </ActionIcon>
+              </Tooltip>
+
+              <Tooltip
+                withArrow
+                label={
                   i18next.t(
                     "ui.abort"
                   )
                 }
               >
-                <IconPlayerStop
-                  size={15}
-                />
-              </ActionIcon>
-            </Tooltip>
-
-            <Tooltip
-              withArrow
-              label={
-                i18next.t(
-                  "ui.editScript"
-                )
-              }
-            >
-              <ActionIcon
-                size="sm"
-                variant="light"
-                color="violet"
-                onClick={
-                  () =>
-                    setEditorOpened(
-                      true
+                <ActionIcon
+                  size="sm"
+                  variant="light"
+                  color="red"
+                  disabled={
+                    idle
+                  }
+                  onClick={
+                    () =>
+                      abortClientScript(
+                        id
+                      )
+                  }
+                  aria-label={
+                    i18next.t(
+                      "ui.abort"
                     )
-                }
-                aria-label={
+                  }
+                >
+                  <IconPlayerStop
+                    size={15}
+                  />
+                </ActionIcon>
+              </Tooltip>
+
+              <Tooltip
+                withArrow
+                label={
                   i18next.t(
                     "ui.editScript"
                   )
                 }
               >
-                <IconEdit
-                  size={15}
-                />
-              </ActionIcon>
-            </Tooltip>
+                <ActionIcon
+                  size="sm"
+                  variant="light"
+                  color="violet"
+                  onClick={
+                    () =>
+                      setEditorOpened(
+                        true
+                      )
+                  }
+                  aria-label={
+                    i18next.t(
+                      "ui.editScript"
+                    )
+                  }
+                >
+                  <IconEdit
+                    size={15}
+                  />
+                </ActionIcon>
+              </Tooltip>
 
-            <Tooltip
-              withArrow
-              label={
-                idle
-                  ? i18next.t(
-                      "ui.deleteScript"
-                    )
-                  : i18next.t(
-                      "ui.stopOrAbortTheScriptBeforeDeletingIt"
-                    )
-              }
-            >
-              <ActionIcon
-                size="sm"
-                variant="light"
-                color="red"
-                disabled={
-                  !idle
-                }
-                onClick={
-                  () =>
-                    setDeleteConfirmOpened(
-                      true
-                    )
-                }
-                aria-label={
-                  i18next.t(
-                    "ui.deleteScript"
-                  )
+              <Tooltip
+                withArrow
+                label={
+                  idle
+                    ? i18next.t(
+                        "ui.deleteScript"
+                      )
+                    : i18next.t(
+                        "ui.stopOrAbortTheScriptBeforeDeletingIt"
+                      )
                 }
               >
-                <IconTrash
-                  size={15}
-                />
-              </ActionIcon>
-            </Tooltip>
-          </Group>
-        </Table.Td>        <Table.Td>
-          <Badge
-            size="sm"
-            variant="light"
-            color={
-              statusColor(
-                state
-              )
-            }
-          >
-            {
-              state.status.toUpperCase()
-            }
-          </Badge>
-        </Table.Td>
+                <ActionIcon
+                  size="sm"
+                  variant="light"
+                  color="red"
+                  disabled={
+                    !idle
+                  }
+                  onClick={
+                    () =>
+                      setDeleteConfirmOpened(
+                        true
+                      )
+                  }
+                  aria-label={
+                    i18next.t(
+                      "ui.deleteScript"
+                    )
+                  }
+                >
+                  <IconTrash
+                    size={15}
+                  />
+                </ActionIcon>
+              </Tooltip>
+            </Group>
 
-        <Table.Td>
-          <Tooltip
-            withArrow
-            label={
-              automationPanelText(
-                "startWithAllDescription"
-              )
-            }
-          >
-            <ActionIcon
+            <Badge
               size="sm"
-              variant={
-                definition.startWithAll !==
-                false
-                  ? "filled"
-                  : "light"
-              }
+              variant="light"
               color={
-                definition.startWithAll !==
-                false
-                  ? "lime"
+                info
+                  ? "blue"
                   : "gray"
               }
-              onClick={
-                toggleStartWithAll
-              }
+              radius="sm"
+              style={{
+                alignSelf:
+                  "flex-start",
+                maxWidth:
+                  "100%",
+                textTransform:
+                  "none",
+              }}
             >
               {
-                definition.startWithAll !==
-                false
-                  ? (
-                    <IconPlayerPlayFilled
-                      size={14}
-                    />
-                  )
-                  : (
-                    <IconPlayerPlay
-                      size={14}
-                    />
-                  )
+                info ||
+                "—"
               }
-            </ActionIcon>
-          </Tooltip>
+            </Badge>
+          </Stack>
         </Table.Td>
-
-        <Table.Td>
-          <TextInput
-            size="xs"
-            value={
-              definition.name
-            }
-            onChange={
-              event =>
-                onChange({
-                  ...definition,
-                  name:
-                    event.currentTarget
-                      .value,
-                })
-            }
-            onBlur={
-              () =>
-                void onSave(
-                  definition
-                ).catch(
-                  () =>
-                    undefined
-                )
-            }
-          />
-        </Table.Td>
-
-        <Table.Td>
-          <Text
-            size="xs"
-            c="dimmed"
-          >
-            {
-              definition.script.trim()
-                ? `${definition.script.split("\n").length} lines`
-                : i18next.t(
-                    "ui.emptyScript"
-                  )
-            }
-          </Text>
-        </Table.Td>
-
-        <Table.Td>
-          <Text
-            size="xs"
-            c={
-              info
-                ? "blue"
-                : "dimmed"
-            }
-            truncate
-            maw={280}
-          >
-            {
-              info ||
-              "—"
-            }
-          </Text>
-        </Table.Td>
-
-
       </Table.Tr>
 
       <Modal
@@ -1452,37 +1459,21 @@ export default function AutomationScriptsTable({
           striped
           highlightOnHover
           withTableBorder
-          withColumnBorders
-          verticalSpacing="xs"
-          horizontalSpacing="sm"
+          verticalSpacing="sm"
+          horizontalSpacing="md"
         >
           <Table.Thead>
             <Table.Tr>
-              <Table.Th
-                w={168}
-              >
-                {i18next.t("ui.automationActions", { defaultValue: "Controls" })}
-              </Table.Th>
-              <Table.Th>
-                {i18next.t("ui.automationStatus", { defaultValue: "Status" })}
-              </Table.Th>
-              <Table.Th
-                w={54}
-              >
-                {i18next.t("ui.automationStartAllColumn", { defaultValue: "All" })}
-              </Table.Th>
               <Table.Th>
                 {
                   i18next.t(
-                    "ui.name"
+                    "ui.automationScriptsTab",
+                    {
+                      defaultValue:
+                        "Scripts",
+                    }
                   )
                 }
-              </Table.Th>
-              <Table.Th>
-                {i18next.t("ui.automationScriptColumn", { defaultValue: "Script" })}
-              </Table.Th>
-              <Table.Th>
-                {i18next.t("ui.info", { defaultValue: "Info" })}
               </Table.Th>
             </Table.Tr>
           </Table.Thead>
