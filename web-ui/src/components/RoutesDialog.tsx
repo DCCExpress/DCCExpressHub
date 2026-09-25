@@ -43,6 +43,10 @@ import {
   showNotification,
 } from "@mantine/notifications";
 
+import {
+  useTranslation,
+} from "react-i18next";
+
 type RoutesDialogProps = {
   opened: boolean;
   onClose: () => void;
@@ -74,6 +78,8 @@ export default function RoutesDialog({
   layout,
   onGenerated,
 }: RoutesDialogProps) {
+  const { t } = useTranslation();
+
   const [
     result,
     setResult,
@@ -107,6 +113,11 @@ export default function RoutesDialog({
     ""
   );
 
+  const [
+    revisionRebuilt,
+    setRevisionRebuilt,
+  ] = useState(false);
+
   const generate =
     useCallback(
       (
@@ -129,7 +140,10 @@ export default function RoutesDialog({
           );
 
           setRevisionText(
-            `T${ensured.topologyRevision} / G${ensured.graphRevision}${ensured.rebuilt ? " · újraépítve" : " · cache"}`
+            `T${ensured.topologyRevision} / G${ensured.graphRevision} · ${ensured.rebuilt ? t("ui.rebuilt") : t("ui.cached")}`
+          );
+          setRevisionRebuilt(
+            ensured.rebuilt
           );
 
           if (ensured.rebuilt) {
@@ -138,6 +152,7 @@ export default function RoutesDialog({
         } catch (buildError) {
           setResult(null);
           setRevisionText("");
+          setRevisionRebuilt(false);
 
           setError(
             buildError instanceof Error
@@ -151,6 +166,7 @@ export default function RoutesDialog({
       [
         layout,
         onGenerated,
+        t,
       ]
     );
 
@@ -167,9 +183,11 @@ export default function RoutesDialog({
         if (turnoutStates.length === 0) {
           showNotification({
             color: "blue",
-            title: "Útvonalteszt",
-            message:
-              `${label}: ehhez a kapcsolathoz nem kell váltót állítani.`,
+            title: t("ui.routeTest"),
+            message: t(
+              "ui.routeTestNoTurnoutRequired",
+              { value1: label }
+            ),
           });
 
           return;
@@ -187,14 +205,19 @@ export default function RoutesDialog({
 
           showNotification({
             color: "green",
-            title: "Útvonalteszt sikeres",
-            message:
-              `${label}: ${sent} váltóparancs elküldve.`,
+            title: t("ui.routeTestSucceeded"),
+            message: t(
+              "ui.routeTestCommandsSent",
+              {
+                value1: label,
+                value2: sent,
+              }
+            ),
           });
         } catch (testError) {
           showNotification({
             color: "red",
-            title: "Útvonalteszt sikertelen",
+            title: t("ui.routeTestFailed"),
             message:
               testError instanceof Error
                 ? testError.message
@@ -204,7 +227,10 @@ export default function RoutesDialog({
           setTestingKey(null);
         }
       },
-      [layout]
+      [
+        layout,
+        t,
+      ]
     );
 
   useEffect(() => {
@@ -235,7 +261,7 @@ export default function RoutesDialog({
         <Group gap="xs">
           <IconRoute size={19} />
           <Text fw={700}>
-            Útvonalak
+            {t("ui.routes")}
           </Text>
         </Group>
       }
@@ -246,22 +272,22 @@ export default function RoutesDialog({
         <Group justify="space-between">
           <Group gap="xs">
             <Badge variant="light">
-              {nodes.length} szegmens
+              {t("ui.segmentsCount", { value1: nodes.length })}
             </Badge>
 
             <Badge variant="light">
-              {edges.length} gráfél
+              {t("ui.graphEdgesCount", { value1: edges.length })}
             </Badge>
 
             <Badge variant="light">
-              {routes.length} blokkútvonal
+              {t("ui.blockRoutesCount", { value1: routes.length })}
             </Badge>
 
             {revisionText && (
               <Badge
                 variant="outline"
                 color={
-                  revisionText.includes("újraépítve")
+                  revisionRebuilt
                     ? "teal"
                     : "gray"
                 }
@@ -282,14 +308,14 @@ export default function RoutesDialog({
               generate(true)
             }
           >
-            Újragenerálás
+            {t("ui.regenerate")}
           </Button>
         </Group>
 
         {error && (
           <Alert
             color="red"
-            title="Gráf generálási hiba"
+            title={t("ui.graphGenerationError")}
           >
             {error}
           </Alert>
@@ -302,15 +328,15 @@ export default function RoutesDialog({
           >
             <Tabs.List>
               <Tabs.Tab value="graph">
-                Gráf
+                {t("ui.graph")}
               </Tabs.Tab>
 
               <Tabs.Tab value="segments">
-                Szegmensek
+                {t("ui.segments")}
               </Tabs.Tab>
 
               <Tabs.Tab value="routes">
-                Útvonalhálózat
+                {t("ui.routeNetwork")}
               </Tabs.Tab>
             </Tabs.List>
 
@@ -328,25 +354,25 @@ export default function RoutesDialog({
                   <Table.Thead>
                     <Table.Tr>
                       <Table.Th>
-                        Innen
+                        {t("ui.from")}
                       </Table.Th>
 
                       <Table.Th>
-                        Ide
+                        {t("ui.to")}
                       </Table.Th>
 
                       <Table.Th>
-                        Váltóállások
+                        {t("ui.turnoutPositions")}
                       </Table.Th>
 
                       <Table.Th>
-                        Menetirány
+                        {t("ui.direction")}
                       </Table.Th>
 
                       <Table.Th
                         style={{ width: 100 }}
                       >
-                        Teszt
+                        {t("ui.test")}
                       </Table.Th>
                     </Table.Tr>
                   </Table.Thead>
@@ -372,7 +398,11 @@ export default function RoutesDialog({
                           </Table.Td>
 
                           <Table.Td>
-                            {edge.locoDirection}
+                            {edge.locoDirection === "forward"
+                              ? t("ui.forward")
+                              : edge.locoDirection === "reverse"
+                                ? t("ui.reverse")
+                                : t("ui.unknown")}
                           </Table.Td>
 
                           <Table.Td>
@@ -398,7 +428,7 @@ export default function RoutesDialog({
                                 )
                               }
                             >
-                              Teszt
+                              {t("ui.test")}
                             </Button>
                           </Table.Td>
                         </Table.Tr>
@@ -423,27 +453,27 @@ export default function RoutesDialog({
                   <Table.Thead>
                     <Table.Tr>
                       <Table.Th>
-                        Szegmens
+                        {t("ui.segment")}
                       </Table.Th>
 
                       <Table.Th>
-                        Hálózat
+                        {t("ui.network")}
                       </Table.Th>
 
                       <Table.Th>
-                        Sín elemek
+                        {t("ui.trackElements")}
                       </Table.Th>
 
                       <Table.Th>
-                        Blokkok
+                        {t("ui.blocks")}
                       </Table.Th>
 
                       <Table.Th>
-                        Érzékelők
+                        {t("ui.detectors")}
                       </Table.Th>
 
                       <Table.Th>
-                        Jelzők
+                        {t("ui.signals")}
                       </Table.Th>
                     </Table.Tr>
                   </Table.Thead>
@@ -501,29 +531,29 @@ export default function RoutesDialog({
                   <Table.Thead>
                     <Table.Tr>
                       <Table.Th>
-                        Innen
+                        {t("ui.from")}
                       </Table.Th>
 
                       <Table.Th>
-                        Ide
+                        {t("ui.to")}
                       </Table.Th>
 
                       <Table.Th>
-                        Szegmenslánc
+                        {t("ui.segment")}lánc
                       </Table.Th>
 
                       <Table.Th>
-                        Váltóállások
+                        {t("ui.turnoutPositions")}
                       </Table.Th>
 
                       <Table.Th>
-                        Menetirány
+                        {t("ui.direction")}
                       </Table.Th>
 
                       <Table.Th
                         style={{ width: 100 }}
                       >
-                        Teszt
+                        {t("ui.test")}
                       </Table.Th>
                     </Table.Tr>
                   </Table.Thead>
@@ -555,7 +585,11 @@ export default function RoutesDialog({
                           </Table.Td>
 
                           <Table.Td>
-                            {route.solution.locoDirection}
+                            {route.solution.locoDirection === "forward"
+                              ? t("ui.forward")
+                              : route.solution.locoDirection === "reverse"
+                                ? t("ui.reverse")
+                                : t("ui.unknown")}
                           </Table.Td>
 
                           <Table.Td>
@@ -581,7 +615,7 @@ export default function RoutesDialog({
                                 )
                               }
                             >
-                              Teszt
+                              {t("ui.test")}
                             </Button>
                           </Table.Td>
                         </Table.Tr>

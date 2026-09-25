@@ -20,6 +20,10 @@ import {
   showNotification,
 } from "@mantine/notifications";
 
+import {
+  useTranslation,
+} from "react-i18next";
+
 import type {
   LayoutView,
 } from "@/models/editor/core/LayoutView";
@@ -59,6 +63,8 @@ export default function PathsPanel({
   layout,
   invalidate,
 }: PathsPanelProps) {
+  const { t } = useTranslation();
+
   const [
     generating,
     setGenerating,
@@ -108,9 +114,11 @@ export default function PathsPanel({
 
       showNotification({
         color: "green",
-        title: "Paths",
-        message:
-          `${ensured.result.routes.length} útvonal generálva.`,
+        title: t("ui.paths"),
+        message: t(
+          "ui.pathsGenerated",
+          { value1: ensured.result.routes.length }
+        ),
       });
     } catch (buildError) {
       const message =
@@ -122,7 +130,7 @@ export default function PathsPanel({
 
       showNotification({
         color: "red",
-        title: "Paths generálás sikertelen",
+        title: t("ui.pathsGenerationFailed"),
         message,
       });
     } finally {
@@ -155,9 +163,15 @@ export default function PathsPanel({
 
         showNotification({
           color: "green",
-          title: "Path beállítva",
-          message:
-            `${fromName} → ${toName}: ${sent} váltóparancs.`,
+          title: t("ui.pathSet"),
+          message: t(
+            "ui.pathSetMessage",
+            {
+              value1: fromName,
+              value2: toName,
+              value3: sent,
+            }
+          ),
         });
       } catch (setErrorValue) {
         const message =
@@ -169,7 +183,7 @@ export default function PathsPanel({
 
         showNotification({
           color: "red",
-          title: "Path beállítás sikertelen",
+          title: t("ui.pathSetFailed"),
           message,
         });
       } finally {
@@ -190,7 +204,7 @@ export default function PathsPanel({
           size="sm"
           c="dimmed"
         >
-          Gyors blokkútvonal teszt
+          {t("ui.quickBlockRouteTest")}
         </Text>
 
         <Button
@@ -205,14 +219,14 @@ export default function PathsPanel({
           }
           onClick={generate}
         >
-          Generálás
+          {t("ui.generate")}
         </Button>
       </Group>
 
       {error && (
         <Alert
           color="red"
-          title="Hiba"
+          title={t("ui.error")}
         >
           {error}
         </Alert>
@@ -225,8 +239,7 @@ export default function PathsPanel({
           ta="center"
           py="md"
         >
-          Nincs friss útvonalhálózat. Nyomd meg a Generálás gombot,
-          vagy mentsd el a layoutot.
+          {t("ui.noFreshRouteNetwork")}
         </Text>
       ) : (
         <ScrollArea
@@ -245,7 +258,7 @@ export default function PathsPanel({
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>
-                  Path
+                  {t("ui.path")}
                 </Table.Th>
 
                 <Table.Th
@@ -254,7 +267,7 @@ export default function PathsPanel({
                     width: 64,
                   }}
                 >
-                  Irány
+                  {t("ui.direction")}
                 </Table.Th>
 
                 <Table.Th
@@ -332,7 +345,7 @@ export default function PathsPanel({
                             )
                           }
                         >
-                          SET
+                          {t("ui.setPath")}
                         </Button>
                       </Table.Td>
                     </Table.Tr>

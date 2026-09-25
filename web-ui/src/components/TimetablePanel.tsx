@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import {
   Alert,
@@ -101,6 +102,8 @@ export default function TimetablePanel({
   onOpenTimetable,
   timetableRevision = 0,
 }: TimetablePanelProps) {
+  const { t } = useTranslation();
+
   const [clockState, setClockState] = useState<FastClockViewState>(
     () => fastClockStore.getViewState()
   );
@@ -226,7 +229,7 @@ export default function TimetablePanel({
           ),
           absoluteMinute: occurrence.absoluteMinute,
           dayOffset: occurrence.dayOffset,
-          scriptName: script?.name ?? "Hiányzó script",
+          scriptName: script?.name ?? t("ui.missingScript"),
           scriptMissing: !script,
           isCurrent:
             occurrence.dayOffset === 0 &&
@@ -287,6 +290,7 @@ export default function TimetablePanel({
     scripts,
     schedulerState.activeRuns,
     snapshot !== null,
+    t,
   ]);
 
   const executeClockCommand = async (
@@ -309,7 +313,7 @@ export default function TimetablePanel({
     } catch (error) {
       showNotification({
         color: "red",
-        title: "FastClock hiba",
+        title: t("ui.fastClockError"),
         message:
           error instanceof Error
             ? error.message
@@ -325,7 +329,7 @@ export default function TimetablePanel({
 
     void executeClockCommand(
       () => setFastClockSpeed(speed),
-      "A FastClock sebességét nem sikerült beállítani."
+      t("ui.fastClockSpeedSetFailed")
     );
   };
 
@@ -343,7 +347,7 @@ export default function TimetablePanel({
               <div>
                 <Text fw={700}>FastClock</Text>
                 <Text size="xs" c="dimmed">
-                  A menetrend időalapja
+                  {t("ui.timetableTimeBase")}
                 </Text>
               </div>
 
@@ -353,7 +357,7 @@ export default function TimetablePanel({
                   variant="light"
                   color={clockState.connected ? "green" : "red"}
                 >
-                  {clockState.connected ? "ONLINE" : "OFFLINE"}
+                  {clockState.connected ? t("ui.online") : t("ui.offline")}
                 </Badge>
 
                 <Badge
@@ -361,7 +365,7 @@ export default function TimetablePanel({
                   variant="light"
                   color={snapshot?.running ? "green" : "gray"}
                 >
-                  {snapshot?.running ? "RUNNING" : "PAUSED"}
+                  {snapshot?.running ? t("ui.running") : t("ui.pausedShort")}
                 </Badge>
               </Group>
             </Group>
@@ -381,7 +385,7 @@ export default function TimetablePanel({
             </Text>
 
             <Text size="sm" c="dimmed" ta="center">
-              Sebesség: {snapshot?.speed ?? speedInput}×
+              {t("ui.speedValue", { value1: snapshot?.speed ?? speedInput })}
             </Text>
 
             <Group grow gap="xs">
@@ -394,11 +398,11 @@ export default function TimetablePanel({
                 onClick={() => {
                   void executeClockCommand(
                     runFastClock,
-                    "A FastClock nem indítható."
+                    t("ui.fastClockStartFailed")
                   );
                 }}
               >
-                Start
+                {t("ui.start")}
               </Button>
 
               <Button
@@ -410,11 +414,11 @@ export default function TimetablePanel({
                 onClick={() => {
                   void executeClockCommand(
                     pauseFastClock,
-                    "A FastClock nem állítható meg."
+                    t("ui.fastClockPauseFailed")
                   );
                 }}
               >
-                Pause
+                {t("ui.pause")}
               </Button>
 
               <Button
@@ -426,19 +430,19 @@ export default function TimetablePanel({
                 onClick={() => {
                   void executeClockCommand(
                     resetFastClock,
-                    "A FastClock nem állítható alaphelyzetbe.",
+                    t("ui.fastClockResetFailed"),
                     true
                   );
                 }}
               >
-                Reset
+                {t("ui.reset")}
               </Button>
             </Group>
 
             <Group align="flex-end" wrap="nowrap">
               <NumberInput
-                label="Sebesség"
-                description="1× = valós idő"
+                label={t("ui.speedLabel")}
+                description={t("ui.realTimeSpeedDescription")}
                 min={1}
                 max={100}
                 step={1}
@@ -457,7 +461,7 @@ export default function TimetablePanel({
                 disabled={busy || !clockState.connected}
                 onClick={applySpeed}
               >
-                Beállítás
+                {t("ui.apply")}
               </Button>
             </Group>
           </Stack>
@@ -467,20 +471,20 @@ export default function TimetablePanel({
           <Stack gap="sm">
             <Group justify="space-between" align="flex-start" wrap="wrap">
               <div>
-                <Text fw={700}>Menetrend</Text>
+                <Text fw={700}>{t("ui.timetable")}</Text>
                 <Text size="xs" c="dimmed">
-                  Következő {TIMETABLE_WINDOW_MINUTES} FastClock perc · a futó indulások addig maradnak, amíg a script be nem fejeződik
+                  {t("ui.timetableWindowDescription", { value1: TIMETABLE_WINDOW_MINUTES })}
                 </Text>
               </div>
 
               <Group gap={6} wrap="wrap">
                 <Badge variant="light" color="blue">
-                  {expandedRows.length} sor
+                  {t("ui.rowsCount", { value1: expandedRows.length })}
                 </Badge>
 
                 {schedulerState.activeRuns.length > 0 && (
                   <Badge variant="filled" color="green">
-                    {schedulerState.activeRuns.length} fut
+                    {t("ui.activeRunsCount", { value1: schedulerState.activeRuns.length })}
                   </Badge>
                 )}
               </Group>
@@ -498,11 +502,11 @@ export default function TimetablePanel({
               </Group>
             ) : !snapshot ? (
               <Text size="sm" c="dimmed" ta="center" py="sm">
-                A FastClock állapota még nem érhető el.
+                {t("ui.fastClockStateUnavailable")}
               </Text>
             ) : expandedRows.length === 0 ? (
               <Text size="sm" c="dimmed" ta="center" py="sm">
-                Nincs indulás a következő {TIMETABLE_WINDOW_MINUTES} FastClock percben.
+                {t("ui.noDeparturesNextMinutes", { value1: TIMETABLE_WINDOW_MINUTES })}
               </Text>
             ) : (
               <Table
@@ -513,8 +517,8 @@ export default function TimetablePanel({
               >
                 <Table.Thead>
                   <Table.Tr>
-                    <Table.Th w={82}>Idő</Table.Th>
-                    <Table.Th>Script</Table.Th>
+                    <Table.Th w={82}>{t("ui.timeColumn")}</Table.Th>
+                    <Table.Th>{t("ui.scriptColumn")}</Table.Th>
                   </Table.Tr>
                 </Table.Thead>
 
@@ -548,13 +552,13 @@ export default function TimetablePanel({
 
                           {row.isCurrent && (
                             <Badge size="xs" variant="filled" color="blue">
-                              MOST
+                              {t("ui.now")}
                             </Badge>
                           )}
 
                           {row.dayOffset > 0 && (
                             <Badge size="xs" variant="light" color="gray">
-                              +1 nap
+                              {t("ui.nextDay")}
                             </Badge>
                           )}
                         </Group>
@@ -590,10 +594,10 @@ export default function TimetablePanel({
                                 }
                               >
                                 {row.activeRun.status === "paused"
-                                  ? "PAUSED"
+                                  ? t("ui.pausedShort")
                                   : row.activeRun.status === "launching"
-                                    ? "INDUL"
-                                    : "FUT"}
+                                    ? t("ui.launchingShort")
+                                    : t("ui.runningShort")}
                               </Badge>
                             )}
                           </Group>
@@ -604,7 +608,7 @@ export default function TimetablePanel({
                               c="dimmed"
                               style={{ whiteSpace: "pre-wrap" }}
                             >
-                              {row.activeRun.message || "Script fut..."}
+                              {row.activeRun.message || t("ui.scriptRunning")}
                             </Text>
                           )}
                         </Stack>
@@ -625,13 +629,13 @@ export default function TimetablePanel({
                   color={schedulerState.running ? "green" : "gray"}
                 >
                   {schedulerState.running
-                    ? "MENETREND AKTÍV"
-                    : "MENETREND LEÁLLÍTVA"}
+                    ? t("ui.timetableActive")
+                    : t("ui.timetableStopped")}
                 </Badge>
 
                 {automationFinishing && (
                   <Badge size="sm" variant="light" color="orange">
-                    FINISHING · új indítás tiltva
+                    {t("ui.finishingNoNewStarts")}
                   </Badge>
                 )}
               </Group>
@@ -639,7 +643,7 @@ export default function TimetablePanel({
               {schedulerState.lastTriggeredAt &&
                 schedulerState.lastTriggeredScriptName && (
                   <Text size="xs" c="dimmed">
-                    Utolsó indítás: {schedulerState.lastTriggeredAt} ·{" "}
+                    {t("ui.lastStart")} {schedulerState.lastTriggeredAt} ·{" "}
                     {schedulerState.lastTriggeredScriptName}
                   </Text>
                 )}
@@ -659,7 +663,7 @@ export default function TimetablePanel({
                 }
                 onClick={() => timetableScheduler.start()}
               >
-                Menetrend Start
+                {t("ui.timetableStart")}
               </Button>
 
               <Button
@@ -669,7 +673,7 @@ export default function TimetablePanel({
                 disabled={!schedulerState.running}
                 onClick={() => timetableScheduler.stop()}
               >
-                Menetrend Stop
+                {t("ui.timetableStop")}
               </Button>
             </Group>
 
@@ -680,7 +684,7 @@ export default function TimetablePanel({
               leftSection={<IconCalendarTime size={17} />}
               onClick={onOpenTimetable}
             >
-              Menetrend szerkesztése
+              {t("ui.editTimetable")}
             </Button>
           </Stack>
         </Card>

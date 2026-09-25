@@ -344,7 +344,7 @@ async function readHttpErrorMessage(
 }
 
 const PICKER_ITEMS: PickerItem[] = [
-  { type: ELEMENT_TYPES.TRACK_DIRECTION, label: "Irány", preview: new TrackDirectionElement(0, 0) },
+  { type: ELEMENT_TYPES.TRACK_DIRECTION, get label() { return i18next.t("ui.direction"); }, preview: new TrackDirectionElement(0, 0) },
   { type: ELEMENT_TYPES.TRACK_STRAIGHT, get label() { return i18next.t("ui.straight"); }, preview: new TrackStraightElement(0, 0) },
   { type: ELEMENT_TYPES.TRACK_END, get label() { return i18next.t("ui.trackEnd"); }, preview: new TrackEndElement(0, 0) },
   { type: ELEMENT_TYPES.TRACK_CORNER, get label() { return i18next.t("ui.corner"); }, preview: new TrackCornerElement(0, 0) },
@@ -617,14 +617,21 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
     if (activeScripts.length > 0) {
       showNotification({
         color: "orange",
-        title: "Előbb állítsd le a scripteket",
-        message: `Még fut vagy szünetel: ${activeScripts.map(script => script.name).join(", ")}.`,
+        title: i18next.t("ui.stopScriptsFirst"),
+        message: i18next.t(
+          "ui.scriptsStillRunningOrPaused",
+          {
+            value1: activeScripts
+              .map(script => script.name)
+              .join(", "),
+          }
+        ),
       });
       return;
     }
 
     if (!window.confirm(
-      "Minden váltózár feloldása? Ez a megmaradt/orphaned váltózárakat is kényszerítve feloldja."
+      i18next.t("ui.forceReleaseAllTurnoutLocksConfirm")
     )) {
       return;
     }
@@ -666,7 +673,7 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
           }
 
           if (!raw.data.ok) {
-            finish(() => reject(new Error(raw.data?.message || "A váltózárak feloldása sikertelen.")));
+            finish(() => reject(new Error(raw.data?.message || i18next.t("ui.turnoutLockReleaseFailed"))));
             return;
           }
 
@@ -674,7 +681,7 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
         });
 
         const timer = window.setTimeout(() => {
-          finish(() => reject(new Error("A váltózár-feloldási kérés túllépte az időkorlátot.")));
+          finish(() => reject(new Error(i18next.t("ui.turnoutLockReleaseTimeout"))));
         }, 5000);
 
         const sent = wsClient.send({
@@ -686,21 +693,24 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
         });
 
         if (!sent) {
-          finish(() => reject(new Error("Nincs WebSocket kapcsolat a backendhez.")));
+          finish(() => reject(new Error(i18next.t("ui.noWebSocketConnection"))));
         }
       });
 
       showNotification({
         color: "green",
-        title: "Váltózárak feloldva",
+        title: i18next.t("ui.turnoutLocksReleased"),
         message: released > 0
-          ? `${released} váltózár feloldva.`
-          : "Nem volt aktív váltózár.",
+          ? i18next.t(
+              "ui.turnoutLocksReleasedCount",
+              { value1: released }
+            )
+          : i18next.t("ui.noActiveTurnoutLocks"),
       });
     } catch (unlockError) {
       showNotification({
         color: "red",
-        title: "Váltózár-feloldás sikertelen",
+        title: i18next.t("ui.releaseAllTurnoutLocksFailed"),
         message: unlockError instanceof Error ? unlockError.message : String(unlockError),
       });
     }
@@ -1498,9 +1508,9 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
                   className="lite-runtime-tabs"
                 >
                   <Tabs.List grow mb="sm">
-                    <Tabs.Tab value="paths">Paths</Tabs.Tab>
+                    <Tabs.Tab value="paths">{i18next.t("ui.paths")}</Tabs.Tab>
                     <Tabs.Tab value="automation">{i18next.t("ui.automation2")}</Tabs.Tab>
-                    <Tabs.Tab value="timetable">Menetrend</Tabs.Tab>
+                    <Tabs.Tab value="timetable">{i18next.t("ui.timetable")}</Tabs.Tab>
                     <Tabs.Tab value="info">{i18next.t("ui.info")}</Tabs.Tab>
                     <Tabs.Tab value="log">{i18next.t("ui.log")}</Tabs.Tab>
                   </Tabs.List>
@@ -1523,7 +1533,7 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
                             leftSection={<IconRoute size={15} />}
                             onClick={() => setRoutesOpened(true)}
                           >
-                            Útvonalak
+                            {i18next.t("ui.routes")}
                           </Button>
 
                           <Button
@@ -1533,7 +1543,7 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
                             leftSection={<IconLockOpen size={15} />}
                             onClick={() => void forceReleaseAllSwitchManLocks()}
                           >
-                            Összes váltózár feloldása
+                            {i18next.t("ui.releaseAllTurnoutLocks")}
                           </Button>
                         </Group>
                       </Group>
