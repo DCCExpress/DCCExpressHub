@@ -345,7 +345,15 @@ export default function AudioFilePropertyEditor({
       value={value}
       readonly={prop.readonly === true}
       onChange={nextValue => onChange(prop, nextValue)}
-      onTest={prop.callback ? () => prop.callback?.() : undefined}
+      {...(
+        prop.callback
+          ? {
+              onTest: () => {
+                prop.callback?.();
+              },
+            }
+          : {}
+      )}
     />
   );
 }
