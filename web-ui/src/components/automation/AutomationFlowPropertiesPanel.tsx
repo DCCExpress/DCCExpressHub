@@ -31,6 +31,7 @@ import type {
 
 import AutomationFlowPayloadEditor from "./AutomationFlowPayloadEditor";
 import AutomationFlowTurnoutEditor from "./AutomationFlowTurnoutEditor";
+import AutomationFlowBlockEditor from "./AutomationFlowBlockEditor";
 
 type Props = {
   node: AutomationFlowNode | null;
@@ -745,6 +746,154 @@ export default function AutomationFlowPropertiesPanel({
                 })
             }
           />
+        </>
+      )}
+
+      {data.kind ===
+        "setLoco" && (
+        <>
+          <Alert
+            color="blue"
+            py="xs"
+          >
+            {
+              t(
+                "ui.flowSetLocoPayloadHint",
+                "Uses payload.locoAddress as the locomotive address and passes payload on unchanged."
+              )
+            }
+          </Alert>
+
+          <NumberInput
+            label={
+              t(
+                "ui.speedLabel",
+                "Speed"
+              )
+            }
+            value={
+              data.speed ??
+              20
+            }
+            min={0}
+            max={126}
+            onChange={
+              value =>
+                onChange({
+                  speed:
+                    Number(
+                      value
+                    ) ||
+                    0,
+                })
+            }
+          />
+
+          <Select
+            label={
+              t(
+                "ui.flowDirection",
+                "Direction"
+              )
+            }
+            value={
+              data.locoDirection ===
+              "reverse"
+                ? "reverse"
+                : "forward"
+            }
+            data={[
+              {
+                value:
+                  "forward",
+                label:
+                  t(
+                    "ui.forward",
+                    "Forward"
+                  ),
+              },
+              {
+                value:
+                  "reverse",
+                label:
+                  t(
+                    "ui.reverse",
+                    "Reverse"
+                  ),
+              },
+            ]}
+            allowDeselect={
+              false
+            }
+            onChange={
+              value =>
+                onChange({
+                  locoDirection:
+                    value ===
+                    "reverse"
+                      ? "reverse"
+                      : "forward",
+                })
+            }
+          />
+        </>
+      )}
+
+      {(data.kind ===
+          "getBlock" ||
+        data.kind ===
+          "setBlock" ||
+        data.kind ===
+          "clearBlock" ||
+        data.kind ===
+          "getBlockTargetLoco" ||
+        data.kind ===
+          "setBlockTargetLoco" ||
+        data.kind ===
+          "clearBlockTargetLoco") && (
+        <>
+          <AutomationFlowBlockEditor
+            data={
+              data
+            }
+            onChange={
+              onChange
+            }
+          />
+
+          {(data.kind ===
+              "getBlock" ||
+            data.kind ===
+              "getBlockTargetLoco") && (
+            <Alert
+              color="teal"
+              py="xs"
+            >
+              {
+                t(
+                  "ui.flowBlockGetterPayloadHint",
+                  "Writes the locomotive address to payload.locoAddress and passes the payload onward."
+                )
+              }
+            </Alert>
+          )}
+
+          {(data.kind ===
+              "setBlock" ||
+            data.kind ===
+              "setBlockTargetLoco") && (
+            <Alert
+              color="blue"
+              py="xs"
+            >
+              {
+                t(
+                  "ui.flowBlockSetterPayloadHint",
+                  "Uses payload.locoAddress as the locomotive address."
+                )
+              }
+            </Alert>
+          )}
         </>
       )}
 
