@@ -399,7 +399,7 @@ function normalizeNodeData(
       Math.max(
         0,
         Math.min(
-          68,
+          28,
           Math.round(
             finiteNumber(
               candidate.functionNumber,
