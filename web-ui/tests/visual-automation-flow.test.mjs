@@ -1105,54 +1105,82 @@ test("automation script deletion requires confirmation", () => {
 });
 
 
-test("automation script rows group name status all controls and info into one card-like cell", () => {
+test("automation scripts use reorderable cards with grouped runtime controls", () => {
   const scripts =
     read(
       "src/components/automation/AutomationScriptsTable.tsx"
     );
 
-  const rowStart =
+  const cardStart =
     scripts.indexOf(
-      '<Stack\n            gap={7}'
+      "<Card\n        withBorder"
     );
 
   const name =
     scripts.indexOf(
       "<TextInput",
-      rowStart
+      cardStart
     );
 
   const status =
     scripts.indexOf(
       "state.status.toUpperCase()",
-      rowStart
+      cardStart
     );
 
   const allControl =
     scripts.indexOf(
       "startWithAllDescription",
-      rowStart
-    );
-
-  const play =
-    scripts.indexOf(
-      "<IconPlayerPlay",
-      allControl
+      cardStart
     );
 
   const infoBadge =
     scripts.indexOf(
       'info\n                  ? "blue"',
-      rowStart
+      cardStart
     );
 
   assert.ok(
-    rowStart >= 0 &&
-    name > rowStart &&
+    cardStart >= 0 &&
+    name > cardStart &&
     status > name &&
     allControl > status &&
-    play > allControl &&
-    infoBadge > play
+    infoBadge > allControl
+  );
+
+  assert.match(
+    scripts,
+    /draggable/
+  );
+
+  assert.match(
+    scripts,
+    /IconGripVertical/
+  );
+
+  assert.match(
+    scripts,
+    /IconArrowUp/
+  );
+
+  assert.match(
+    scripts,
+    /IconArrowDown/
+  );
+
+  assert.match(
+    scripts,
+    /moveDraggedScriptToIndex/
+  );
+
+  assert.match(
+    scripts,
+    /persistScriptOrder/
+  );
+
+  assert.match(
+    scripts,
+    /saveAutomationScripts/
   );
 
   assert.match(
@@ -1160,33 +1188,13 @@ test("automation script rows group name status all controls and info into one ca
     /<Divider\s+orientation="vertical"/
   );
 
-  assert.match(
+  assert.doesNotMatch(
     scripts,
-    /<IconPlayerPause/
-  );
-
-  assert.match(
-    scripts,
-    /<IconPlayerStop/
-  );
-
-  assert.match(
-    scripts,
-    /<IconEdit/
-  );
-
-  assert.match(
-    scripts,
-    /<IconTrash/
+    /<Table/
   );
 
   assert.doesNotMatch(
     scripts,
     /definition\.script\.split\("\\n"\)\.length/
-  );
-
-  assert.doesNotMatch(
-    scripts,
-    /automationScriptColumn/
   );
 });
