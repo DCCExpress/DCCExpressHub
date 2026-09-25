@@ -271,7 +271,7 @@
   "setsLocomotiveFunctionF0F28OnOrOff": "Be- vagy kikapcsolja a mozdony F0–F28 funkcióját.",
   "setsMainTrackPowerOnOrOff": "Be- vagy kikapcsolja a MAIN vágány feszültségét.",
   "setsProgrammingTrackPowerOnOrOff": "Be- vagy kikapcsolja a programozóvágány feszültségét.",
-  "playsSdAudioNameMp3FromTheSdCardUse": "Lejátssza az SD-kártya /sd/audio/<name>.mp3 fájlját. Csak az alap fájlnevet add meg, útvonal és .mp3 kiterjesztés nélkül.",
+  "playsSdAudioNameMp3FromTheSdCardUse": "Lejátssza az SD-kártya /sd/audio/<name>.mp3 fájlját. Csak az alap fájlnevet add meg, útvonal és .mp3 kiterjesztés nélkül. Await nélkül azonnal továbbfut, await playAudio(name) esetén megvárja a lejátszás végét.",
   "writesValuesToTheBrowserConsoleWithTheAutomationName": "Értékeket ír a böngésző konzoljára az automatizálás nevével előtagként.",
   "showsATemporaryMessageOnTheRunningAutomationCardA": "Ideiglenes üzenetet jelenít meg a futó automatizálás kártyáján. Egy későbbi hívás lecseréli.",
   "quickCommandHelp": "Gyorsparancs-súgó",
@@ -1000,5 +1000,7 @@
   "flowRuntimeDisabledDescription": "A flow runtime ki van kapcsolva. Az editor Manual/Test inject továbbra is használható.",
   "flowNodePlayAudio": "Hang lejátszása",
   "flowAudioName": "Hang neve",
-  "flowAudioNameDescription": "Az /sd/audio mappában lévő MP3 alapneve, útvonal és .mp3 kiterjesztés nélkül."
+  "flowAudioNameDescription": "Az /sd/audio mappában lévő MP3 alapneve, útvonal és .mp3 kiterjesztés nélkül.",
+  "flowWaitForAudioEnd": "Várja meg a hang végét",
+  "flowWaitForAudioEndDescription": "Bekapcsolva a következő node csak a lejátszás befejezése után fut tovább."
 }
