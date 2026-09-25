@@ -268,8 +268,13 @@ export function createDefaultAutomationNodeData(
     case "setTurnout":
       return {
         ...base,
-        turnoutAddress: 1,
+        turnoutAddress: 0,
         turnoutClosed: true,
+        turnoutElementId: 0,
+        turnoutLabel: "",
+        turnoutStateKey: "",
+        turnoutStateLabel: "",
+        turnoutCommands: [],
       };
 
     case "setAccessory":
