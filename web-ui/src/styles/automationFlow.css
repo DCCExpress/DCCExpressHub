@@ -98,3 +98,43 @@
     display: none;
   }
 }
+
+
+/* Keep React Flow chrome visually consistent with the Hub instead of the
+ * library's bright defaults. */
+.automation-flow-canvas .react-flow__controls {
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.automation-flow-canvas .react-flow__controls-button {
+  background: rgba(24, 24, 28, 0.94);
+  color: rgba(255, 255, 255, 0.82);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.automation-flow-canvas .react-flow__controls-button:hover {
+  background: rgba(45, 45, 52, 0.98);
+}
+
+.automation-flow-canvas .react-flow__controls-button svg {
+  fill: currentColor;
+}
+
+.automation-flow-canvas .react-flow__minimap {
+  background: rgba(18, 18, 22, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.automation-flow-canvas .react-flow__minimap-node {
+  fill: rgba(121, 80, 242, 0.72);
+  stroke: rgba(255, 255, 255, 0.12);
+}
+
+.automation-flow-canvas .react-flow__panel {
+  color: rgba(255, 255, 255, 0.82);
+}
