@@ -30,6 +30,7 @@ import type {
 } from "../../domain/automationFlow";
 
 import AutomationFlowPayloadEditor from "./AutomationFlowPayloadEditor";
+import AutomationFlowTurnoutEditor from "./AutomationFlowTurnoutEditor";
 
 type Props = {
   node: AutomationFlowNode | null;
@@ -667,72 +668,14 @@ export default function AutomationFlowPropertiesPanel({
 
       {data.kind ===
         "setTurnout" && (
-        <>
-          <NumberInput
-            label={
-              t(
-                "ui.flowTurnoutAddress",
-                "Turnout address"
-              )
-            }
-            value={
-              data.turnoutAddress ??
-              1
-            }
-            min={1}
-            max={2048}
-            onChange={
-              value =>
-                onChange({
-                  turnoutAddress:
-                    Number(
-                      value
-                    ) ||
-                    1,
-                })
-            }
-          />
-
-          <Select
-            label={
-              t(
-                "ui.flowTurnoutState",
-                "Turnout state"
-              )
-            }
-            value={
-              data.turnoutClosed !==
-              false
-                ? "closed"
-                : "thrown"
-            }
-            data={[
-              {
-                value:
-                  "closed",
-                label:
-                  "CLOSED",
-              },
-              {
-                value:
-                  "thrown",
-                label:
-                  "THROWN",
-              },
-            ]}
-            allowDeselect={
-              false
-            }
-            onChange={
-              value =>
-                onChange({
-                  turnoutClosed:
-                    value !==
-                    "thrown",
-                })
-            }
-          />
-        </>
+        <AutomationFlowTurnoutEditor
+          data={
+            data
+          }
+          onChange={
+            onChange
+          }
+        />
       )}
 
       {data.kind ===
