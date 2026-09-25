@@ -997,5 +997,8 @@
   "flowNoInputNodes": "Nincs input node",
   "flowRunFlows": "Flow-k futtatása",
   "flowRuntimeEnabledDescription": "Az engedélyezett page-ek aktívak. A szenzor- és interval inputok elindíthatják a hozzájuk kapcsolt ágakat.",
-  "flowRuntimeDisabledDescription": "A flow runtime ki van kapcsolva. Az editor Manual/Test inject továbbra is használható."
+  "flowRuntimeDisabledDescription": "A flow runtime ki van kapcsolva. Az editor Manual/Test inject továbbra is használható.",
+  "flowNodePlayAudio": "Hang lejátszása",
+  "flowAudioName": "Hang neve",
+  "flowAudioNameDescription": "Az /sd/audio mappában lévő MP3 alapneve, útvonal és .mp3 kiterjesztés nélkül."
 }
