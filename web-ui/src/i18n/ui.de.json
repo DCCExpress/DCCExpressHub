@@ -969,5 +969,15 @@
   "flowLoadingBlocks": "Blöcke werden geladen...",
   "flowNoConfiguredBlocks": "Im Gleisplan wurden keine Blöcke gefunden.",
   "flowBlockGetterPayloadHint": "Schreibt die Lokadresse in payload.locoAddress und gibt den Payload weiter.",
-  "flowBlockSetterPayloadHint": "Verwendet payload.locoAddress als Lokadresse."
+  "flowBlockSetterPayloadHint": "Verwendet payload.locoAddress als Lokadresse.",
+  "automationScriptsTab": "Skripte",
+  "automationFlowsTab": "Flows",
+  "automationStatus": "Status",
+  "automationStartAllColumn": "Alle",
+  "automationScriptColumn": "Skript",
+  "automationActions": "Aktionen",
+  "flowSavedFlows": "Gespeicherte Flows",
+  "flowEveryMinutes": "Alle {{count}} Min.",
+  "flowEverySeconds": "Alle {{count}} Sek.",
+  "flowEveryMilliseconds": "Alle {{count}} ms"
 }
