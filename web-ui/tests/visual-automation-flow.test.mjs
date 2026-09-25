@@ -1009,3 +1009,60 @@ test("new flow nodes are placed top to bottom by default", () => {
     /index \*\s*120/
   );
 });
+
+
+test("saved flow controls are compact icon buttons in the first table column", () => {
+  const flows =
+    read(
+      "src/components/automation/AutomationFlowsTable.tsx"
+    );
+
+  const rowStart =
+    flows.indexOf(
+      "return (\n    <Table.Tr>"
+    );
+
+  const statusBadge =
+    flows.indexOf(
+      "state.status.toUpperCase()",
+      rowStart
+    );
+
+  const firstPlay =
+    flows.indexOf(
+      "<IconPlayerPlay",
+      rowStart
+    );
+
+  assert.ok(
+    rowStart >= 0 &&
+    firstPlay > rowStart &&
+    statusBadge > firstPlay
+  );
+
+  assert.match(
+    flows,
+    /<IconPlayerPause/
+  );
+
+  assert.match(
+    flows,
+    /<IconPlayerStop/
+  );
+
+  assert.match(
+    flows,
+    /<IconEdit/
+  );
+
+  assert.doesNotMatch(
+    flows.slice(
+      rowStart,
+      flows.indexOf(
+        "</Table.Tr>",
+        rowStart
+      )
+    ),
+    /size="compact-xs"/
+  );
+});
