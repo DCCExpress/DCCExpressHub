@@ -909,5 +909,19 @@
   "flowPulseMs": "Pulse (ms)",
   "flowDelayMs": "Delay (ms)",
   "flowMessage": "Message",
-  "flowAddRouteBlock": "Add route block"
+  "flowAddRouteBlock": "Add route block",
+  "flowGroupRailway": "Railway / Movement",
+  "flowGroupSensors": "Sensors",
+  "flowGroupDcc": "DCC / Outputs",
+  "flowGroupUtility": "Utility",
+  "flowExpandCategory": "Expand category",
+  "flowCollapseCategory": "Collapse category",
+  "flowNodeSetSensor": "Set sensor",
+  "flowNodeSetTurnout": "Set turnout",
+  "flowNodeSetAccessory": "Set accessory",
+  "flowStateToSet": "State to set",
+  "flowTurnoutAddress": "Turnout address",
+  "flowTurnoutState": "Turnout state",
+  "flowAccessoryAddress": "Accessory address",
+  "flowAccessoryState": "Accessory state"
 }
