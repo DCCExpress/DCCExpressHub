@@ -14,6 +14,11 @@ export type AutomationFlowNodeKind =
   | "delay"
   | "log";
 
+export type AutomationFlowTurnoutCommand = {
+  address: number;
+  closed: boolean;
+};
+
 export type AutomationArrivalRule = {
   id: string;
   block: string;
@@ -45,6 +50,10 @@ export type AutomationFlowNodeData = Record<string, unknown> & {
 
   turnoutAddress?: number;
   turnoutClosed?: boolean;
+  turnoutElementId?: number;
+  turnoutStateKey?: string;
+  turnoutStateLabel?: string;
+  turnoutCommands?: AutomationFlowTurnoutCommand[];
 
   accessoryAddress?: number;
   accessoryActive?: boolean;
@@ -279,6 +288,54 @@ function normalizeArrivalRules(
   return result;
 }
 
+function normalizeTurnoutCommands(
+  value: unknown
+): AutomationFlowTurnoutCommand[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const result:
+    AutomationFlowTurnoutCommand[] =
+    [];
+
+  for (const raw of value) {
+    if (
+      !raw ||
+      typeof raw !== "object"
+    ) {
+      continue;
+    }
+
+    const candidate =
+      raw as Record<string, unknown>;
+
+    const address =
+      Math.round(
+        finiteNumber(
+          candidate.address,
+          0
+        )
+      );
+
+    if (
+      address < 1 ||
+      address > 32767
+    ) {
+      continue;
+    }
+
+    result.push({
+      address,
+      closed:
+        candidate.closed !==
+        false,
+    });
+  }
+
+  return result;
+}
+
 function normalizeNodeData(
   raw: unknown,
   fallbackPageId: string
@@ -379,6 +436,33 @@ function normalizeNodeData(
     turnoutClosed:
       candidate.turnoutClosed !==
       false,
+    turnoutElementId:
+      Math.max(
+        0,
+        Math.min(
+          65535,
+          Math.round(
+            finiteNumber(
+              candidate.turnoutElementId,
+              0
+            )
+          )
+        )
+      ),
+    turnoutStateKey:
+      typeof candidate.turnoutStateKey ===
+        "string"
+        ? candidate.turnoutStateKey
+        : "",
+    turnoutStateLabel:
+      typeof candidate.turnoutStateLabel ===
+        "string"
+        ? candidate.turnoutStateLabel
+        : "",
+    turnoutCommands:
+      normalizeTurnoutCommands(
+        candidate.turnoutCommands
+      ),
     accessoryAddress:
       Math.max(
         0,
@@ -867,8 +951,26 @@ function generateStatement(
     case "setSensor":
       return `dcc.setSensor(${Math.max(1, Math.min(65535, Math.round(data.sensorAddress ?? 1)))}, ${data.sensorState !== false ? "true" : "false"});`;
 
-    case "setTurnout":
+    case "setTurnout": {
+      const configured =
+        normalizeTurnoutCommands(
+          data.turnoutCommands
+        );
+
+      if (
+        configured.length >
+        0
+      ) {
+        return configured
+          .map(
+            command =>
+              `dcc.setTurnout(${command.address}, ${command.closed ? "true" : "false"});`
+          )
+          .join("\n");
+      }
+
       return `dcc.setTurnout(${Math.max(1, Math.min(2048, Math.round(data.turnoutAddress ?? 1)))}, ${data.turnoutClosed !== false ? "true" : "false"});`;
+    }
 
     case "setAccessory":
       return `dcc.setAccessory(${Math.max(1, Math.min(2048, Math.round(data.accessoryAddress ?? 1)))}, ${data.accessoryActive !== false ? "true" : "false"});`;
