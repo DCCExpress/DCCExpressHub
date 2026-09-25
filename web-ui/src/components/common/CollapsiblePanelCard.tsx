@@ -70,7 +70,7 @@ export default function CollapsiblePanelCard({
         />
 
         <Collapse
-          in={!collapsed}
+          expanded={!collapsed}
         >
           <Stack
             gap={bodyGap}
