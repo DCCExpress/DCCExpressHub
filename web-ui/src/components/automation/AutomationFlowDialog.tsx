@@ -235,6 +235,14 @@ export default function AutomationFlowDialog({
     );
 
   const [
+    selectedEdgeId,
+    setSelectedEdgeId,
+  ] =
+    useState<string | null>(
+      null
+    );
+
+  const [
     loading,
     setLoading,
   ] =
@@ -301,6 +309,23 @@ export default function AutomationFlowDialog({
       [
         document.edges,
         activeNodeIds,
+      ]
+    );
+
+  const displayEdges =
+    useMemo(
+      () =>
+        activeEdges.map(
+          edge => ({
+            ...edge,
+            selected:
+              edge.id ===
+              selectedEdgeId,
+          })
+        ),
+      [
+        activeEdges,
+        selectedEdgeId,
       ]
     );
 
@@ -447,6 +472,10 @@ export default function AutomationFlowDialog({
           });
 
           setSelectedNodeId(
+            null
+          );
+
+          setSelectedEdgeId(
             null
           );
         } catch (error) {
@@ -719,19 +748,11 @@ export default function AutomationFlowDialog({
             "automationNode",
           position: {
             x:
-              80 +
-              (
-                index %
-                3
-              ) *
-                250,
+              120,
             y:
               70 +
-              Math.floor(
-                index /
-                3
-              ) *
-                125,
+              index *
+                120,
           },
           data:
             createDefaultAutomationNodeData(
@@ -752,6 +773,10 @@ export default function AutomationFlowDialog({
 
       setSelectedNodeId(
         node.id
+      );
+
+      setSelectedEdgeId(
+        null
       );
     };
 
@@ -838,6 +863,9 @@ export default function AutomationFlowDialog({
             next
           )
       );
+      setSelectedEdgeId(
+        null
+      );
     };
 
   const onNodesDelete =
@@ -879,7 +907,130 @@ export default function AutomationFlowDialog({
           null
         );
       }
+
+      if (
+        selectedEdgeId
+      ) {
+        const edge =
+          activeEdges.find(
+            item =>
+              item.id ===
+              selectedEdgeId
+          );
+
+        if (
+          edge &&
+          (
+            deleted.has(
+              edge.source
+            ) ||
+            deleted.has(
+              edge.target
+            )
+          )
+        ) {
+          setSelectedEdgeId(
+            null
+          );
+        }
+      }
     };
+
+  const deleteEdgeById =
+    (
+      edgeId:
+        string
+    ): void => {
+      setDocument(
+        current => ({
+          ...current,
+          edges:
+            current.edges.filter(
+              edge =>
+                edge.id !==
+                edgeId
+            ),
+        })
+      );
+
+      setSelectedEdgeId(
+        current =>
+          current ===
+          edgeId
+            ? null
+            : current
+      );
+    };
+
+  useEffect(
+    () => {
+      if (
+        !opened ||
+        !selectedEdgeId
+      ) {
+        return;
+      }
+
+      const handleDeleteKey =
+        (
+          event:
+            KeyboardEvent
+        ): void => {
+          if (
+            event.key !==
+              "Delete" &&
+            event.key !==
+              "Backspace"
+          ) {
+            return;
+          }
+
+          const target =
+            event.target as
+              HTMLElement |
+              null;
+
+          if (
+            target &&
+            (
+              target.tagName ===
+                "INPUT" ||
+              target.tagName ===
+                "TEXTAREA" ||
+              target.tagName ===
+                "SELECT" ||
+              target.isContentEditable
+            )
+          ) {
+            return;
+          }
+
+          event.preventDefault();
+
+          deleteEdgeById(
+            selectedEdgeId
+          );
+        };
+
+      window.addEventListener(
+        "keydown",
+        handleDeleteKey,
+        true
+      );
+
+      return () => {
+        window.removeEventListener(
+          "keydown",
+          handleDeleteKey,
+          true
+        );
+      };
+    },
+    [
+      opened,
+      selectedEdgeId,
+    ]
+  );
 
   const updateSelectedNode =
     (
@@ -1437,7 +1588,7 @@ export default function AutomationFlowDialog({
                     activeNodes as Node[]
                   }
                   edges={
-                    activeEdges as Edge[]
+                    displayEdges as Edge[]
                   }
                   nodeTypes={
                     automationFlowNodeTypes
@@ -1458,16 +1609,53 @@ export default function AutomationFlowDialog({
                     (
                       _,
                       node
-                    ) =>
+                    ) => {
                       setSelectedNodeId(
                         node.id
-                      )
+                      );
+
+                      setSelectedEdgeId(
+                        null
+                      );
+                    }
                   }
-                  onPaneClick={
-                    () =>
+                  onEdgeClick={
+                    (
+                      _,
+                      edge
+                    ) => {
                       setSelectedNodeId(
                         null
-                      )
+                      );
+
+                      setSelectedEdgeId(
+                        edge.id
+                      );
+                    }
+                  }
+                  onEdgeDoubleClick={
+                    (
+                      event,
+                      edge
+                    ) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+
+                      deleteEdgeById(
+                        edge.id
+                      );
+                    }
+                  }
+                  onPaneClick={
+                    () => {
+                      setSelectedNodeId(
+                        null
+                      );
+
+                      setSelectedEdgeId(
+                        null
+                      );
+                    }
                   }
                   onMoveEnd={
                     (
