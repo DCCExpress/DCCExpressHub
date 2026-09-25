@@ -138,3 +138,40 @@
 .automation-flow-canvas .react-flow__panel {
   color: rgba(255, 255, 255, 0.82);
 }
+
+
+.automation-flow-inspector-tabs {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.automation-flow-inspector-tabs > .mantine-Tabs-list {
+  flex: 0 0 auto;
+}
+
+.automation-flow-inspector-panel {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.automation-flow-log-line {
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.automation-flow-log-info {
+  border-left: 2px solid var(--mantine-color-blue-5);
+}
+
+.automation-flow-log-log {
+  border-left: 2px solid var(--mantine-color-gray-5);
+}
+
+.automation-flow-log-error {
+  border-left: 2px solid var(--mantine-color-red-6);
+  background: rgba(250, 82, 82, 0.07);
+}
