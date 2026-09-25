@@ -41,6 +41,28 @@ const AsyncFunction =
 const executions =
   new Map<ClientScriptWorkerExecutionId, WorkerExecution>();
 
+type AudioRequestWaiter = {
+  executionId:
+    ClientScriptWorkerExecutionId;
+  resolve: (
+    ok:
+      boolean
+  ) => void;
+  onAbort: (
+    error:
+      WorkerScriptAbortError
+  ) => void;
+};
+
+const audioRequestWaiters =
+  new Map<number, AudioRequestWaiter>();
+
+let audioRequestSequence =
+  0;
+
+const SCRIPT_AUDIO_MAX_NAME_LENGTH =
+  120;
+
 const blockAddresses =
   new Map<string, number>();
 
@@ -1246,6 +1268,148 @@ function optimisticallySetBlock(
   return normalizedBlockId;
 }
 
+function validateAudioName(
+  rawName: unknown
+): string {
+  const value =
+    String(
+      rawName ??
+      ""
+    ).trim();
+
+  if (
+    !value ||
+    value.length >
+      SCRIPT_AUDIO_MAX_NAME_LENGTH ||
+    value.includes("/") ||
+    value.includes("\\") ||
+    value.includes(".")
+  ) {
+    throw new Error(
+      "playAudio(name): use only the base MP3 filename from /sd/audio, without path or extension."
+    );
+  }
+
+  return value;
+}
+
+function requestAudioPlayback(
+  executionId:
+    ClientScriptWorkerExecutionId,
+  execution:
+    WorkerExecution,
+  rawName:
+    unknown
+): Promise<boolean> {
+  assertNotAborted(
+    execution
+  );
+
+  const name =
+    validateAudioName(
+      rawName
+    );
+
+  audioRequestSequence +=
+    1;
+
+  const requestId =
+    audioRequestSequence;
+
+  return new Promise<boolean>(
+    resolve => {
+      let settled =
+        false;
+
+      const cleanup = () => {
+        audioRequestWaiters.delete(
+          requestId
+        );
+
+        execution.abortWaiters.delete(
+          onAbort
+        );
+      };
+
+      const finish = (
+        ok:
+          boolean
+      ) => {
+        if (settled) {
+          return;
+        }
+
+        settled =
+          true;
+
+        cleanup();
+        resolve(
+          ok
+        );
+      };
+
+      const onAbort = (
+        _error:
+          WorkerScriptAbortError
+      ) => {
+        finish(
+          false
+        );
+      };
+
+      audioRequestWaiters.set(
+        requestId,
+        {
+          executionId,
+          resolve:
+            finish,
+          onAbort,
+        }
+      );
+
+      execution.abortWaiters.add(
+        onAbort
+      );
+
+      post({
+        type:
+          "audio",
+        executionId,
+        requestId,
+        name,
+      });
+    }
+  );
+}
+
+function resolveAudioPlayback(
+  executionId:
+    ClientScriptWorkerExecutionId,
+  requestId:
+    number,
+  ok:
+    boolean
+): void {
+  const waiter =
+    audioRequestWaiters.get(
+      requestId
+    );
+
+  if (
+    !waiter ||
+    waiter.executionId !==
+      executionId
+  ) {
+    return;
+  }
+
+  waiter.resolve(
+    Boolean(
+      ok
+    )
+  );
+}
+
 function sendDcc(
   executionId: ClientScriptWorkerExecutionId,
   method: ClientScriptWorkerDccMethod,
@@ -2052,6 +2216,18 @@ function createDccApi(
       );
     },
 
+    playAudio(
+      name: string
+    ): Promise<boolean> {
+      check();
+
+      return requestAudioPlayback(
+        executionId,
+        execution,
+        name
+      );
+    },
+
     sendRaw(
       command: string
     ): void {
@@ -2774,6 +2950,19 @@ workerScope.addEventListener(
         message.executionId,
         message.script,
         message.element
+      );
+
+      return;
+    }
+
+    if (
+      message.type ===
+      "audioResult"
+    ) {
+      resolveAudioPlayback(
+        message.executionId,
+        message.requestId,
+        message.ok
       );
 
       return;
