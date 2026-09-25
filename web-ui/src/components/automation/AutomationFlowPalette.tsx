@@ -248,6 +248,14 @@ const ITEMS: PaletteItem[] = [
     color: "gray",
   },
   {
+    kind: "playAudio",
+    group: "utility",
+    icon: <IconVolume size={16} />,
+    labelKey: "ui.flowNodePlayAudio",
+    fallback: "Play Audio",
+    color: "grape",
+  },
+  {
     kind: "log",
     group: "utility",
     icon: <IconNote size={16} />,
@@ -401,6 +409,12 @@ export function createDefaultAutomationNodeData(
       return {
         ...base,
         delayMs: 500,
+      };
+
+    case "playAudio":
+      return {
+        ...base,
+        audioName: "",
       };
 
     case "log":
