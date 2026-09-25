@@ -415,6 +415,7 @@ export function createDefaultAutomationNodeData(
       return {
         ...base,
         audioName: "",
+        audioWaitForEnd: false,
       };
 
     case "log":
