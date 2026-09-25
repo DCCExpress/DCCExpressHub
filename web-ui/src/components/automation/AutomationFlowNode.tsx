@@ -9,6 +9,7 @@ import {
 import {
   Handle,
   Position,
+  type Node,
   type NodeProps,
 } from "@xyflow/react";
 
@@ -17,11 +18,16 @@ import type {
   AutomationFlowNodeKind,
 } from "../../domain/automationFlow";
 
+type AutomationReactFlowNode =
+  Node<
+    AutomationFlowNodeData,
+    "automationNode"
+  >;
+
 type AutomationNodeProps =
-  NodeProps & {
-    data:
-      AutomationFlowNodeData;
-  };
+  NodeProps<
+    AutomationReactFlowNode
+  >;
 
 const NODE_META:
   Record<
