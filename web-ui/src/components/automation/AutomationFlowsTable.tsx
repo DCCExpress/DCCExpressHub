@@ -1,7 +1,5 @@
 import {
   type DragEvent,
-  useEffect,
-  useMemo,
   useState,
 } from "react";
 
@@ -12,7 +10,6 @@ import {
   Badge,
   Button,
   Card,
-  Divider,
   Group,
   ScrollArea,
   Stack,
@@ -32,14 +29,11 @@ import {
   IconEdit,
   IconGitBranch,
   IconGripVertical,
-  IconPlayerPause,
-  IconPlayerPlay,
-  IconPlayerStop,
 } from "@tabler/icons-react";
 
 import {
-  generateAutomationFlowPageScript,
   type AutomationFlowDocument,
+  type AutomationFlowNode,
   type AutomationFlowPage,
 } from "../../domain/automationFlow";
 
@@ -48,15 +42,9 @@ import {
 } from "../../services/automationApi";
 
 import {
-  abortClientScript,
-  getClientScriptState,
-  pauseClientScript,
-  resumeClientScript,
-  runClientScript,
-  ScriptAbortError,
-  subscribeClientScriptState,
-  type ClientScriptState,
-} from "../../services/clientScriptRunner";
+  abortAllAutomationFlowExecutions,
+  abortAutomationFlowPageExecutions,
+} from "./useAutomationFlowRuntime";
 
 type Props = {
   document:
@@ -71,31 +59,156 @@ type Props = {
   ) => void;
 };
 
-function executionId(
-  pageId: string
+function intervalLabel(
+  ms: number
 ): string {
-  return `visual-flow-run:${pageId}`;
+  if (
+    ms %
+      60000 ===
+    0
+  ) {
+    return i18next.t(
+      "ui.flowEveryMinutes",
+      {
+        defaultValue:
+          "Every {{count}} min",
+        count:
+          ms /
+          60000,
+      }
+    );
+  }
+
+  if (
+    ms %
+      1000 ===
+    0
+  ) {
+    return i18next.t(
+      "ui.flowEverySeconds",
+      {
+        defaultValue:
+          "Every {{count}} sec",
+        count:
+          ms /
+          1000,
+      }
+    );
+  }
+
+  return i18next.t(
+    "ui.flowEveryMilliseconds",
+    {
+      defaultValue:
+        "Every {{count}} ms",
+      count:
+        ms,
+    }
+  );
 }
 
-function statusColor(
-  state:
-    ClientScriptState
-): string {
+function inputLabel(
+  node:
+    AutomationFlowNode
+): {
+  label: string;
+  color: string;
+} | null {
   if (
-    state.status ===
-    "running"
+    node.data.kind ===
+    "sensorInput"
   ) {
-    return "green";
+    const address =
+      Math.max(
+        1,
+        Math.min(
+          65535,
+          Math.round(
+            node.data.sensorAddress ??
+            1
+          )
+        )
+      );
+
+    const state =
+      node.data.sensorState !==
+      false
+        ? i18next.t(
+            "ui.flowSensorActive",
+            {
+              defaultValue:
+                "ON",
+            }
+          )
+        : i18next.t(
+            "ui.flowSensorInactive",
+            {
+              defaultValue:
+                "OFF",
+            }
+          );
+
+    return {
+      label:
+        i18next.t(
+          "ui.flowSensorTriggerLabel",
+          {
+            defaultValue:
+              "Sensor {{address}} → {{state}}",
+            address,
+            state,
+          }
+        ),
+      color:
+        "teal",
+    };
   }
 
   if (
-    state.status ===
-    "paused"
+    node.data.kind !==
+    "trigger"
   ) {
-    return "yellow";
+    return null;
   }
 
-  return "gray";
+  if (
+    node.data.triggerMode ===
+    "interval"
+  ) {
+    const ms =
+      Math.max(
+        1000,
+        Math.min(
+          86400000,
+          Math.round(
+            node.data.intervalMs ??
+            60000
+          )
+        )
+      );
+
+    return {
+      label:
+        intervalLabel(
+          ms
+        ),
+      color:
+        "violet",
+    };
+  }
+
+  return {
+    label:
+      i18next.t(
+        "ui.flowTriggerManualEditorOnly",
+        {
+          defaultValue:
+            "Manual · editor only",
+        }
+      ),
+    color:
+      "gray",
+  };
 }
 
 function moveFlowPage(
@@ -139,100 +252,6 @@ function moveFlowPage(
   );
 
   return next;
-}
-
-function triggerLabel(
-  document:
-    AutomationFlowDocument,
-  pageId:
-    string
-): string {
-  const trigger =
-    document.nodes.find(
-      node =>
-        node.data.pageId ===
-          pageId &&
-        node.data.kind ===
-          "trigger"
-    );
-
-  if (!trigger) {
-    return i18next.t("ui.flowTriggerManual", { defaultValue: "Manual" });
-  }
-
-  if (
-    trigger.data.triggerMode ===
-    "sensor"
-  ) {
-    const address =
-      Math.max(
-        1,
-        Math.min(
-          65535,
-          Math.round(
-            trigger.data.sensorAddress ??
-            1
-          )
-        )
-      );
-
-    const state =
-      trigger.data.sensorState !==
-      false
-        ? i18next.t(
-            "ui.flowSensorActive",
-            {
-              defaultValue:
-                "ON",
-            }
-          )
-        : i18next.t(
-            "ui.flowSensorInactive",
-            {
-              defaultValue:
-                "OFF",
-            }
-          );
-
-    return i18next.t(
-      "ui.flowSensorTriggerLabel",
-      {
-        defaultValue:
-          "Sensor {{address}} → {{state}}",
-        address,
-        state,
-      }
-    );
-  }
-
-  if (
-    trigger.data.triggerMode ===
-    "interval"
-  ) {
-    const ms =
-      trigger.data.intervalMs ??
-      60000;
-
-    if (
-      ms %
-        60000 ===
-      0
-    ) {
-      return i18next.t("ui.flowEveryMinutes", { defaultValue: "Every {{count}} min", count: ms / 60000 });
-    }
-
-    if (
-      ms %
-        1000 ===
-      0
-    ) {
-      return i18next.t("ui.flowEverySeconds", { defaultValue: "Every {{count}} sec", count: ms / 1000 });
-    }
-
-    return i18next.t("ui.flowEveryMilliseconds", { defaultValue: "Every {{count}} ms", count: ms });
-  }
-
-  return i18next.t("ui.flowTriggerManual", { defaultValue: "Manual" });
 }
 
 function FlowCard({
@@ -288,11 +307,6 @@ function FlowCard({
       number
   ) => void;
 }) {
-  const id =
-    executionId(
-      page.id
-    );
-
   const computedColorScheme =
     useComputedColorScheme(
       "light"
@@ -310,113 +324,28 @@ function FlowCard({
       ? "var(--mantine-color-dark-3)"
       : "var(--mantine-color-blue-2)";
 
-  const [
-    state,
-    setState,
-  ] =
-    useState<
-      ClientScriptState
-    >(
-      () =>
-        getClientScriptState(
-          id
-        )
-    );
-
-  useEffect(
-    () =>
-      subscribeClientScriptState(
-        id,
-        setState
-      ),
-    [
-      id,
-    ]
-  );
-
-  const generated =
-    useMemo(
-      () =>
-        generateAutomationFlowPageScript(
-          document,
+  const inputs =
+    document.nodes
+      .filter(
+        node =>
+          node.data.pageId ===
           page.id
-        ),
-      [
-        document,
-        page.id,
-      ]
-    );
-
-  const idle =
-    state.status ===
-    "idle";
-
-  const running =
-    state.status ===
-    "running";
-
-  const paused =
-    state.status ===
-    "paused";
-
-  const start =
-    (): void => {
-      if (paused) {
-        resumeClientScript(
-          id
-        );
-        return;
-      }
-
-      if (
-        !idle ||
-        !generated.code.trim() ||
-        generated.code
-          .trim()
-          .startsWith(
-            "//"
-          )
-      ) {
-        return;
-      }
-
-      void runClientScript(
-        generated.code,
-        {
-          id,
-          name:
-            `Flow: ${page.name}`,
-          type:
-            "visual-flow",
-        }
-      ).catch(
-        error => {
-          if (
-            error instanceof
-            ScriptAbortError
-          ) {
-            return;
-          }
-
-          showNotification({
-            color:
-              "red",
-            title:
-              i18next.t(
-                "ui.automationFailed"
-              ),
-            message:
-              error instanceof Error
-                ? error.message
-                : String(
-                    error
-                  ),
-          });
-        }
+      )
+      .map(
+        inputLabel
+      )
+      .filter(
+        (
+          item
+        ): item is {
+          label: string;
+          color: string;
+        } =>
+          item !==
+          null
       );
-    };
 
-  const toggleEnabled =
+  const saveEnabled =
     (
       enabled:
         boolean
@@ -435,6 +364,13 @@ function FlowCard({
                 : current
           ),
       };
+
+      if (!enabled) {
+        abortAutomationFlowPageExecutions(
+          page.id,
+          "Visual flow page disabled."
+        );
+      }
 
       onDocumentChange(
         next
@@ -498,12 +434,14 @@ function FlowCard({
           draggedPageId ===
           page.id
             ? 0.35
-            : 1,
+            : page.enabled
+              ? 1
+              : 0.6,
         transition:
           "opacity 120ms ease, transform 120ms ease, background-color 120ms ease, border-color 120ms ease",
       }}
     >
-      <Stack gap={7}>
+      <Stack gap={8}>
         <Group
           justify="space-between"
           wrap="nowrap"
@@ -520,8 +458,10 @@ function FlowCard({
               variant="subtle"
               color="gray"
               style={{
-                cursor: "grab",
-                touchAction: "none",
+                cursor:
+                  "grab",
+                touchAction:
+                  "none",
               }}
               aria-label={
                 i18next.t(
@@ -624,30 +564,15 @@ function FlowCard({
         </Group>
 
         <Group
-          gap={6}
+          justify="space-between"
           wrap="nowrap"
         >
-          <Badge
+          <Switch
             size="sm"
-            variant="light"
-            color={
-              statusColor(
-                state
-              )
+            color="green"
+            checked={
+              page.enabled
             }
-          >
-            {
-              state.status.toUpperCase()
-            }
-          </Badge>
-
-          <Divider
-            orientation="vertical"
-            h={22}
-          />
-
-          <Tooltip
-            withArrow
             label={
               i18next.t(
                 "ui.enabled",
@@ -657,144 +582,14 @@ function FlowCard({
                 }
               )
             }
-          >
-            <Switch
-              size="xs"
-              checked={
-                page.enabled
-              }
-              onChange={
-                event =>
-                  toggleEnabled(
-                    event.currentTarget
-                      .checked
-                  )
-              }
-              aria-label={
-                i18next.t(
-                  "ui.enabled",
-                  {
-                    defaultValue:
-                      "Enabled",
-                  }
+            onChange={
+              event =>
+                saveEnabled(
+                  event.currentTarget
+                    .checked
                 )
-              }
-            />
-          </Tooltip>
-
-          <Divider
-            orientation="vertical"
-            h={22}
+            }
           />
-
-          <Tooltip
-            withArrow
-            label={
-              paused
-                ? i18next.t(
-                    "ui.resume"
-                  )
-                : i18next.t(
-                    "ui.start"
-                  )
-            }
-          >
-            <ActionIcon
-              size="sm"
-              variant="light"
-              color="green"
-              disabled={
-                running ||
-                generated.code
-                  .trim()
-                  .startsWith(
-                    "//"
-                  )
-              }
-              onClick={
-                start
-              }
-              aria-label={
-                paused
-                  ? i18next.t(
-                      "ui.resume"
-                    )
-                  : i18next.t(
-                      "ui.start"
-                    )
-              }
-            >
-              <IconPlayerPlay
-                size={15}
-              />
-            </ActionIcon>
-          </Tooltip>
-
-          <Tooltip
-            withArrow
-            label={
-              i18next.t(
-                "ui.stop"
-              )
-            }
-          >
-            <ActionIcon
-              size="sm"
-              variant="light"
-              color="yellow"
-              disabled={
-                !running
-              }
-              onClick={
-                () =>
-                  pauseClientScript(
-                    id
-                  )
-              }
-              aria-label={
-                i18next.t(
-                  "ui.stop"
-                )
-              }
-            >
-              <IconPlayerPause
-                size={15}
-              />
-            </ActionIcon>
-          </Tooltip>
-
-          <Tooltip
-            withArrow
-            label={
-              i18next.t(
-                "ui.abort"
-              )
-            }
-          >
-            <ActionIcon
-              size="sm"
-              variant="light"
-              color="red"
-              disabled={
-                idle
-              }
-              onClick={
-                () =>
-                  abortClientScript(
-                    id
-                  )
-              }
-              aria-label={
-                i18next.t(
-                  "ui.abort"
-                )
-              }
-            >
-              <IconPlayerStop
-                size={15}
-              />
-            </ActionIcon>
-          </Tooltip>
 
           <Tooltip
             withArrow
@@ -835,23 +630,54 @@ function FlowCard({
           </Tooltip>
         </Group>
 
-        <Badge
-          size="sm"
-          variant="outline"
-          color="violet"
-          radius="sm"
-          style={{
-            alignSelf:
-              "flex-start",
-          }}
+        <Group
+          gap={5}
+          wrap="wrap"
         >
           {
-            triggerLabel(
-              document,
-              page.id
-            )
+            inputs.length >
+              0
+              ? inputs.map(
+                  (
+                    input,
+                    index
+                  ) => (
+                    <Badge
+                      key={
+                        `${input.label}-${index}`
+                      }
+                      size="sm"
+                      variant="light"
+                      color={
+                        input.color
+                      }
+                      radius="sm"
+                    >
+                      {
+                        input.label
+                      }
+                    </Badge>
+                  )
+                )
+              : (
+                <Badge
+                  size="sm"
+                  variant="light"
+                  color="orange"
+                >
+                  {
+                    i18next.t(
+                      "ui.flowNoInputNodes",
+                      {
+                        defaultValue:
+                          "No input nodes",
+                      }
+                    )
+                  }
+                </Badge>
+              )
           }
-        </Badge>
+        </Group>
       </Stack>
     </Card>
   );
@@ -870,23 +696,71 @@ export default function AutomationFlowsTable({
       null
     );
 
-  const persistPageOrder =
+  const persistDocument =
     (
-      pages:
-        AutomationFlowPage[]
+      next:
+        AutomationFlowDocument
     ): void => {
-      const next = {
-        ...document,
-        pages,
-      };
-
       onDocumentChange(
         next
       );
 
       void saveAutomationFlow(
         next
+      ).catch(
+        error => {
+          showNotification({
+            color:
+              "red",
+            title:
+              i18next.t(
+                "ui.flowSaveFailed",
+                {
+                  defaultValue:
+                    "Flow save failed",
+                }
+              ),
+            message:
+              error instanceof Error
+                ? error.message
+                : String(
+                    error
+                  ),
+          });
+        }
       );
+    };
+
+  const setGlobalEnabled =
+    (
+      enabled:
+        boolean
+    ): void => {
+      const next = {
+        ...document,
+        enabled,
+      };
+
+      if (!enabled) {
+        abortAllAutomationFlowExecutions(
+          "Visual flows globally disabled."
+        );
+      }
+
+      persistDocument(
+        next
+      );
+    };
+
+  const persistPageOrder =
+    (
+      pages:
+        AutomationFlowPage[]
+    ): void => {
+      persistDocument({
+        ...document,
+        pages,
+      });
     };
 
   const movePageByOffset =
@@ -1011,6 +885,7 @@ export default function AutomationFlowsTable({
       <Group
         justify="space-between"
         align="center"
+        wrap="wrap"
       >
         <Group gap="xs">
           <IconGitBranch
@@ -1042,33 +917,82 @@ export default function AutomationFlowsTable({
           </Badge>
         </Group>
 
-        <Button
-          size="xs"
-          variant="light"
-          color="violet"
-          leftSection={
-            <IconGitBranch
-              size={14}
-            />
-          }
-          onClick={
-            () =>
-              onOpenEditor(
-                document.activePageId
+        <Group gap="md">
+          <Switch
+            size="sm"
+            color="green"
+            checked={
+              document.enabled
+            }
+            label={
+              i18next.t(
+                "ui.flowRunFlows",
+                {
+                  defaultValue:
+                    "Run flows",
+                }
               )
-          }
-        >
-          {
-            i18next.t(
-              "ui.visualAutomation",
-              {
-                defaultValue:
-                  "Flow editor",
-              }
-            )
-          }
-        </Button>
+            }
+            onChange={
+              event =>
+                setGlobalEnabled(
+                  event.currentTarget
+                    .checked
+                )
+            }
+          />
+
+          <Button
+            size="xs"
+            variant="light"
+            color="violet"
+            leftSection={
+              <IconGitBranch
+                size={14}
+              />
+            }
+            onClick={
+              () =>
+                onOpenEditor(
+                  document.activePageId
+                )
+            }
+          >
+            {
+              i18next.t(
+                "ui.visualAutomation",
+                {
+                  defaultValue:
+                    "Flow editor",
+                }
+              )
+            }
+          </Button>
+        </Group>
       </Group>
+
+      <Text
+        size="xs"
+        c="dimmed"
+      >
+        {
+          document.enabled
+            ? i18next.t(
+                "ui.flowRuntimeEnabledDescription",
+                {
+                  defaultValue:
+                    "Enabled pages are live. Sensor and interval inputs can start their connected branches."
+                }
+              )
+            : i18next.t(
+                "ui.flowRuntimeDisabledDescription",
+                {
+                  defaultValue:
+                    "Flow runtime is disabled. Editor Manual/Test injects are still available."
+                }
+              )
+        }
+      </Text>
 
       <ScrollArea
         style={{
