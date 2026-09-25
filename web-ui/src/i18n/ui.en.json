@@ -953,5 +953,21 @@
   "flowTurnout": "Turnout",
   "flowSelectTurnout": "Select turnout",
   "flowLoadingTurnouts": "Loading turnouts...",
-  "flowNoConfiguredTurnouts": "No configured turnouts were found in the layout."
+  "flowNoConfiguredTurnouts": "No configured turnouts were found in the layout.",
+  "flowGroupLocoBlocks": "Locomotive / Blocks",
+  "flowNodeSetLoco": "Set Loco",
+  "flowNodeGetBlock": "Get Block",
+  "flowNodeSetBlock": "Set Block",
+  "flowNodeClearBlock": "Clear Block",
+  "flowNodeGetTarget": "Get Target",
+  "flowNodeSetTarget": "Set Target",
+  "flowNodeClearTarget": "Clear Target",
+  "flowSetLocoPayloadHint": "Uses payload.locoAddress as the locomotive address and passes payload on unchanged.",
+  "flowDirection": "Direction",
+  "flowBlock": "Block",
+  "flowSelectBlock": "Select block",
+  "flowLoadingBlocks": "Loading blocks...",
+  "flowNoConfiguredBlocks": "No blocks were found in the layout.",
+  "flowBlockGetterPayloadHint": "Writes the locomotive address to payload.locoAddress and passes the payload onward.",
+  "flowBlockSetterPayloadHint": "Uses payload.locoAddress as the locomotive address."
 }
