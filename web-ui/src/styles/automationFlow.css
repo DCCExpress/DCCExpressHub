@@ -1,0 +1,89 @@
+.automation-flow-dialog-body {
+  height: calc(100dvh - 68px);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.automation-flow-workspace {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr) 340px;
+  gap: 10px;
+}
+
+.automation-flow-sidebar,
+.automation-flow-properties {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.automation-flow-canvas {
+  min-height: 0;
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-md);
+  overflow: hidden;
+  background:
+    radial-gradient(
+      circle at 20% 10%,
+      rgba(121, 80, 242, 0.08),
+      transparent 28%
+    ),
+    var(--mantine-color-body);
+}
+
+.automation-flow-node {
+  width: 188px;
+  min-height: 64px;
+  background: var(--mantine-color-body);
+}
+
+.automation-flow-node-smart {
+  width: 260px;
+  border-width: 2px;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(121, 80, 242, 0.12),
+      rgba(34, 139, 230, 0.06)
+    ),
+    var(--mantine-color-body);
+}
+
+.automation-flow-handle {
+  width: 10px;
+  height: 10px;
+  background: var(--mantine-color-violet-6);
+  border: 2px solid var(--mantine-color-body);
+}
+
+.automation-flow-palette-button {
+  justify-content: flex-start;
+}
+
+.automation-flow-page-tabs {
+  flex: 1;
+  min-width: 0;
+}
+
+.automation-flow-generated-code {
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+  font-size: 12px;
+}
+
+@media (max-width: 1050px) {
+  .automation-flow-workspace {
+    grid-template-columns: 190px minmax(0, 1fr);
+  }
+
+  .automation-flow-properties {
+    display: none;
+  }
+}
