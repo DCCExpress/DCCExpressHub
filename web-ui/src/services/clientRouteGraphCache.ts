@@ -8,6 +8,8 @@ import type {
 } from "@domain/railway/routeGraphDto";
 
 import type {
+  GraphNode,
+  SectionBlock,
   TurnoutStateRequirement,
 } from "@domain/railway/graph";
 
@@ -29,11 +31,26 @@ const ROUTE_TOPOLOGY_VERSION = 1;
 const ROUTE_TOPOLOGY_FIELD =
   "routeTopology";
 
+type PersistedRouteBlockEntry = {
+  id: number;
+  name: string;
+};
+
 type PersistedRouteTableEntry = {
   fromBlockId: number;
   fromBlockName: string;
   toBlockId: number;
   toBlockName: string;
+  /**
+   * Ordered route blocks including source and destination.
+   *
+   * Example:
+   *   A1 -> C1 through B1
+   *   [A1, B1, C1]
+   *
+   * Dispatcher uses every entry after index 0 as a protected/target block.
+   */
+  blockPath: PersistedRouteBlockEntry[];
   nodes: string[];
   turnoutStates: TurnoutStateRequirement[];
   locoDirection:
@@ -344,33 +361,426 @@ function graphToDto(
   };
 }
 
+const MAX_ROUTE_VARIANTS_PER_BLOCK_PAIR = 128;
+const MAX_PERSISTED_ROUTE_TABLE_ENTRIES = 10000;
+
+function mergeRouteDirection(
+  current: "unknown" | "forward" | "reverse",
+  next: "unknown" | "forward" | "reverse"
+): "unknown" | "forward" | "reverse" | null {
+  if (current === "unknown") {
+    return next;
+  }
+
+  if (next === "unknown") {
+    return current;
+  }
+
+  return current === next
+    ? current
+    : null;
+}
+
+function mergeRouteTurnoutRequirements(
+  current: Map<number, boolean>,
+  edgeRequirements: TurnoutStateRequirement[]
+): Map<number, boolean> | null {
+  const merged =
+    new Map(current);
+
+  for (const requirement of edgeRequirements) {
+    const existing =
+      merged.get(
+        requirement.address
+      );
+
+    if (
+      existing !== undefined &&
+      existing !== requirement.closed
+    ) {
+      return null;
+    }
+
+    merged.set(
+      requirement.address,
+      requirement.closed
+    );
+  }
+
+  return merged;
+}
+
+function turnoutRequirementsToArray(
+  requirements: Map<number, boolean>
+): TurnoutStateRequirement[] {
+  return [
+    ...requirements.entries(),
+  ]
+    .sort(
+      ([a], [b]) =>
+        a - b
+    )
+    .map(
+      ([address, closed]) => ({
+        address,
+        closed,
+      })
+    );
+}
+
+function buildPersistedBlockPath(
+  nodes: GraphNode[],
+  fromBlock: SectionBlock,
+  toBlock: SectionBlock
+): PersistedRouteBlockEntry[] {
+  const result:
+    PersistedRouteBlockEntry[] = [];
+
+  const seen =
+    new Set<number>();
+
+  const push = (
+    block: SectionBlock
+  ) => {
+    if (
+      seen.has(
+        block.id
+      )
+    ) {
+      return;
+    }
+
+    seen.add(
+      block.id
+    );
+
+    result.push({
+      id:
+        block.id,
+      name:
+        block.name,
+    });
+  };
+
+  push(
+    fromBlock
+  );
+
+  for (const node of nodes) {
+    for (const block of node.blocks) {
+      if (
+        block.id === fromBlock.id ||
+        block.id === toBlock.id
+      ) {
+        continue;
+      }
+
+      push(
+        block
+      );
+    }
+  }
+
+  push(
+    toBlock
+  );
+
+  return result;
+}
+
+function enumerateRouteVariantsForBlockPair(
+  graph: ClientRouteGraphBuildResult["graph"],
+  fromBlock: SectionBlock,
+  toBlock: SectionBlock
+): PersistedRouteTableEntry[] {
+  const fromNode =
+    graph.nodes.find(
+      node =>
+        node.blocks.some(
+          block =>
+            block.id === fromBlock.id
+        )
+    );
+
+  const toNode =
+    graph.nodes.find(
+      node =>
+        node.blocks.some(
+          block =>
+            block.id === toBlock.id
+        )
+    );
+
+  if (
+    !fromNode ||
+    !toNode
+  ) {
+    return [];
+  }
+
+  if (
+    fromNode === toNode
+  ) {
+    return [{
+      fromBlockId:
+        fromBlock.id,
+      fromBlockName:
+        fromBlock.name,
+      toBlockId:
+        toBlock.id,
+      toBlockName:
+        toBlock.name,
+      blockPath:
+        buildPersistedBlockPath(
+          [fromNode],
+          fromBlock,
+          toBlock
+        ),
+      nodes: [
+        fromNode.name,
+      ],
+      turnoutStates: [],
+      locoDirection:
+        "unknown",
+    }];
+  }
+
+  const result:
+    PersistedRouteTableEntry[] = [];
+
+  const seenVariants =
+    new Set<string>();
+
+  type SearchState = {
+    node: GraphNode;
+    nodes: GraphNode[];
+    visited: Set<GraphNode>;
+    turnoutRequirements:
+      Map<number, boolean>;
+    locoDirection:
+      | "unknown"
+      | "forward"
+      | "reverse";
+  };
+
+  const stack:
+    SearchState[] = [{
+      node:
+        fromNode,
+      nodes: [
+        fromNode,
+      ],
+      visited:
+        new Set([
+          fromNode,
+        ]),
+      turnoutRequirements:
+        new Map(),
+      locoDirection:
+        "unknown",
+    }];
+
+  while (
+    stack.length > 0
+  ) {
+    const current =
+      stack.pop()!;
+
+    const outgoing =
+      graph.edges.filter(
+        edge =>
+          edge.from === current.node
+      );
+
+    for (const edge of outgoing) {
+      if (
+        current.visited.has(
+          edge.to
+        )
+      ) {
+        continue;
+      }
+
+      const turnoutRequirements =
+        mergeRouteTurnoutRequirements(
+          current.turnoutRequirements,
+          edge.turnoutStates
+        );
+
+      if (!turnoutRequirements) {
+        continue;
+      }
+
+      const locoDirection =
+        mergeRouteDirection(
+          current.locoDirection,
+          edge.locoDirection
+        );
+
+      /*
+       * A complete route may never require forward on one part and reverse on
+       * another. This is also the block-to-block direction consistency gate
+       * used by Dispatcher checkpoint routes.
+       */
+      if (!locoDirection) {
+        continue;
+      }
+
+      const nodes = [
+        ...current.nodes,
+        edge.to,
+      ];
+
+      if (
+        edge.to === toNode
+      ) {
+        const turnoutStates =
+          turnoutRequirementsToArray(
+            turnoutRequirements
+          );
+
+        const blockPath =
+          buildPersistedBlockPath(
+            nodes,
+            fromBlock,
+            toBlock
+          );
+
+        const variantKey =
+          JSON.stringify({
+            nodes:
+              nodes.map(
+                node =>
+                  node.name
+              ),
+            blockPath:
+              blockPath.map(
+                block =>
+                  block.id
+              ),
+            turnoutStates,
+            locoDirection,
+          });
+
+        if (
+          seenVariants.has(
+            variantKey
+          )
+        ) {
+          continue;
+        }
+
+        seenVariants.add(
+          variantKey
+        );
+
+        result.push({
+          fromBlockId:
+            fromBlock.id,
+          fromBlockName:
+            fromBlock.name,
+          toBlockId:
+            toBlock.id,
+          toBlockName:
+            toBlock.name,
+          blockPath,
+          nodes:
+            nodes.map(
+              node =>
+                node.name
+            ),
+          turnoutStates,
+          locoDirection,
+        });
+
+        if (
+          result.length >
+            MAX_ROUTE_VARIANTS_PER_BLOCK_PAIR
+        ) {
+          throw new Error(
+            `Too many route variants between blocks "${fromBlock.name}" and "${toBlock.name}". ` +
+            `Limit is ${MAX_ROUTE_VARIANTS_PER_BLOCK_PAIR}. Add topology constraints before saving.`
+          );
+        }
+
+        continue;
+      }
+
+      const visited =
+        new Set(
+          current.visited
+        );
+
+      visited.add(
+        edge.to
+      );
+
+      stack.push({
+        node:
+          edge.to,
+        nodes,
+        visited,
+        turnoutRequirements,
+        locoDirection,
+      });
+    }
+  }
+
+  return result;
+}
+
 function routeTableFromResult(
   result: ClientRouteGraphBuildResult
 ): PersistedRouteTableEntry[] {
-  return result.routes.map(
-    route => ({
-      fromBlockId:
-        route.fromBlock.id,
-      fromBlockName:
-        route.fromBlock.name,
-      toBlockId:
-        route.toBlock.id,
-      toBlockName:
-        route.toBlock.name,
-      nodes:
-        route.solution.nodes.map(
-          node =>
-            node.name
-        ),
-      turnoutStates:
-        route.solution.turnoutStates.map(
-          state => ({
-            ...state,
-          })
-        ),
-      locoDirection:
-        route.solution.locoDirection,
-    })
+  const blocks =
+    result.graph.nodes.flatMap(
+      node =>
+        node.blocks
+    );
+
+  const table:
+    PersistedRouteTableEntry[] = [];
+
+  for (const fromBlock of blocks) {
+    for (const toBlock of blocks) {
+      if (
+        fromBlock.id ===
+          toBlock.id
+      ) {
+        continue;
+      }
+
+      const variants =
+        enumerateRouteVariantsForBlockPair(
+          result.graph,
+          fromBlock,
+          toBlock
+        );
+
+      table.push(
+        ...variants
+      );
+
+      if (
+        table.length >
+          MAX_PERSISTED_ROUTE_TABLE_ENTRIES
+      ) {
+        throw new Error(
+          `Generated route table is too large (${table.length} entries). ` +
+          `Limit is ${MAX_PERSISTED_ROUTE_TABLE_ENTRIES}.`
+        );
+      }
+    }
+  }
+
+  return table.sort(
+    (a, b) =>
+      a.fromBlockId - b.fromBlockId ||
+      a.toBlockId - b.toBlockId ||
+      a.blockPath.length - b.blockPath.length ||
+      a.nodes.join("|").localeCompare(
+        b.nodes.join("|")
+      )
   );
 }
 

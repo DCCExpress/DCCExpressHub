@@ -22,7 +22,21 @@ type LocoPickerProps = {
   selectedLocoId?: string | undefined;
   title?: string | undefined;
   onClose: () => void;
-  onRemoveLoco?: (loco: Loco) => void;
+
+  /**
+   * `loco` can be undefined when the caller deliberately enables Remove for
+   * non-selection state, e.g. a block that contains only a target locomotive.
+   */
+  onRemoveLoco?: (loco?: Loco) => void;
+
+  /**
+   * Optional explicit Remove-button state.
+   *
+   * If omitted, the historical behavior is preserved:
+   * Remove is enabled only when selectedLocoId resolves to a locomotive.
+   */
+  removeEnabled?: boolean | undefined;
+
   onRemoveAllLoco?: () => void;
   onSelect: (loco: Loco) => void;
 };
@@ -35,6 +49,7 @@ export default function LocoPicker({
   onClose,
   onSelect,
   onRemoveLoco,
+  removeEnabled,
   onRemoveAllLoco,
 }: LocoPickerProps) {
   const { t } = useTranslation();
@@ -45,6 +60,10 @@ export default function LocoPicker({
           loco => loco.id === selectedLocoId
         )
       : undefined;
+
+  const canRemove =
+    removeEnabled ??
+    Boolean(selectedLoco);
 
   return (
     <Modal
@@ -107,9 +126,9 @@ export default function LocoPicker({
                 variant="light"
                 color="red"
                 leftSection={<IconTrash size={14} />}
-                disabled={!selectedLoco}
+                disabled={!canRemove}
                 onClick={() => {
-                  if (!selectedLoco) return;
+                  if (!canRemove) return;
                   onRemoveLoco(selectedLoco);
                 }}
               >
