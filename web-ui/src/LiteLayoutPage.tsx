@@ -41,6 +41,7 @@ import {
   IconBug,
   IconLockOpen,
   IconRoute,
+  IconGitBranch,
 } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { showNotification } from "@mantine/notifications";
@@ -67,6 +68,7 @@ import PathsPanel from "@/components/PathsPanel";
 import TimetableDialog from "@/components/TimetableDialog";
 import TimetablePanel from "@/components/TimetablePanel";
 import RoutesDialog from "@/components/RoutesDialog";
+import AutomationFlowDialog from "@/components/automation/AutomationFlowDialog";
 import { restorePersistedTopologyMetadata } from "@/services/layoutTopologyPersistence";
 import {
   attachClientRouteTopologyToLayoutJson,
@@ -606,6 +608,7 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
   const [debugOpened, setDebugOpened] = useState(false);
   const [timetableOpened, setTimetableOpened] = useState(false);
   const [routesOpened, setRoutesOpened] = useState(false);
+  const [automationFlowOpened, setAutomationFlowOpened] = useState(false);
   const [timetableRevision, setTimetableRevision] = useState(0);
 
   const invalidate = useCallback(() => setInvalidateCounter(value => value + 1), []);
@@ -1548,6 +1551,18 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
                           <Button
                             size="xs"
                             variant="light"
+                            color="violet"
+                            leftSection={<IconGitBranch size={15} />}
+                            onClick={() => setAutomationFlowOpened(true)}
+                          >
+                            {i18next.t("ui.visualAutomation", {
+                              defaultValue: "Flow editor",
+                            })}
+                          </Button>
+
+                          <Button
+                            size="xs"
+                            variant="light"
                             color="red"
                             leftSection={<IconLockOpen size={15} />}
                             onClick={() => void forceReleaseAllSwitchManLocks()}
@@ -1722,6 +1737,11 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
         onClose={() => setRoutesOpened(false)}
         layout={layout}
         onGenerated={invalidate}
+      />
+
+      <AutomationFlowDialog
+        opened={automationFlowOpened}
+        onClose={() => setAutomationFlowOpened(false)}
       />
 
       <TimetableDialog
