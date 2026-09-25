@@ -953,5 +953,21 @@
   "flowTurnout": "Váltó",
   "flowSelectTurnout": "Válassz váltót",
   "flowLoadingTurnouts": "Váltók betöltése...",
-  "flowNoConfiguredTurnouts": "Nincs konfigurált váltó a pályatervben."
+  "flowNoConfiguredTurnouts": "Nincs konfigurált váltó a pályatervben.",
+  "flowGroupLocoBlocks": "Mozdony / Blokkok",
+  "flowNodeSetLoco": "Mozdony állítása",
+  "flowNodeGetBlock": "Blokk lekérése",
+  "flowNodeSetBlock": "Blokk beállítása",
+  "flowNodeClearBlock": "Blokk törlése",
+  "flowNodeGetTarget": "Target lekérése",
+  "flowNodeSetTarget": "Target beállítása",
+  "flowNodeClearTarget": "Target törlése",
+  "flowSetLocoPayloadHint": "A mozdonycímet a payload.locoAddress mezőből veszi, a payloadot változatlanul továbbadja.",
+  "flowDirection": "Irány",
+  "flowBlock": "Blokk",
+  "flowSelectBlock": "Válassz blokkot",
+  "flowLoadingBlocks": "Blokkok betöltése...",
+  "flowNoConfiguredBlocks": "Nem található blokk a pályatervben.",
+  "flowBlockGetterPayloadHint": "A talált mozdonycímet a payload.locoAddress mezőbe írja, majd továbbadja a payloadot.",
+  "flowBlockSetterPayloadHint": "A mozdonycímet a payload.locoAddress mezőből veszi."
 }
