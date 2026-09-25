@@ -79,7 +79,8 @@ export type AutomationFlowNodeData = Record<string, unknown> & {
 
   triggerMode?:
     | "manual"
-    | "interval";
+    | "interval"
+    | "sensor";
   intervalMs?: number;
 
   triggerPayloadType?:
@@ -573,8 +574,10 @@ function normalizeNodeData(
         : "",
     triggerMode:
       candidate.triggerMode ===
-        "interval"
-        ? "interval"
+        "interval" ||
+      candidate.triggerMode ===
+        "sensor"
+        ? candidate.triggerMode
         : "manual",
     intervalMs:
       Math.max(
@@ -1375,11 +1378,65 @@ function wrapWithTrigger(
 ): string {
   if (
     !trigger ||
-    trigger.data.triggerMode !==
-      "interval" ||
-    testRun
+    testRun ||
+    trigger.data.triggerMode ===
+      "manual"
   ) {
     return code;
+  }
+
+  const taskName =
+    "FLOW_" +
+    pageId.replace(
+      /[^a-zA-Z0-9_-]/g,
+      "_"
+    );
+
+  if (
+    trigger.data.triggerMode ===
+      "sensor"
+  ) {
+    const address =
+      Math.max(
+        1,
+        Math.min(
+          65535,
+          Math.round(
+            trigger.data.sensorAddress ??
+            1
+          )
+        )
+      );
+
+    const target =
+      trigger.data.sensorState !==
+      false;
+
+    const targetSource =
+      target
+        ? "true"
+        : "false";
+
+    const resetSource =
+      target
+        ? "false"
+        : "true";
+
+    return [
+      "while (isRunning()) {",
+      `  await dcc.waitForSensor(${address}, ${resetSource});`,
+      "  if (!isRunning()) break;",
+      `  await dcc.waitForSensor(${address}, ${targetSource});`,
+      "  if (!isRunning()) break;",
+      "",
+      `  startTask(${jsString(taskName)}, async () => {`,
+      indent(
+        code,
+        4
+      ),
+      "  });",
+      "}",
+    ].join("\n");
   }
 
   const intervalMs =
@@ -1392,13 +1449,6 @@ function wrapWithTrigger(
           60000
         )
       )
-    );
-
-  const taskName =
-    "FLOW_" +
-    pageId.replace(
-      /[^a-zA-Z0-9_-]/g,
-      "_"
     );
 
   return [
