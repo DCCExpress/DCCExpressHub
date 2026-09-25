@@ -1694,6 +1694,7 @@ export default function AutomationFlowDialog({
         <Stack
           gap="xs"
           h="100%"
+          className="automation-flow-dialog-stack"
         >
           <Group
             justify="space-between"
