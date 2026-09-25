@@ -969,5 +969,15 @@
   "flowLoadingBlocks": "Blokkok betöltése...",
   "flowNoConfiguredBlocks": "Nem található blokk a pályatervben.",
   "flowBlockGetterPayloadHint": "A talált mozdonycímet a payload.locoAddress mezőbe írja, majd továbbadja a payloadot.",
-  "flowBlockSetterPayloadHint": "A mozdonycímet a payload.locoAddress mezőből veszi."
+  "flowBlockSetterPayloadHint": "A mozdonycímet a payload.locoAddress mezőből veszi.",
+  "automationScriptsTab": "Scriptek",
+  "automationFlowsTab": "Flow-k",
+  "automationStatus": "Állapot",
+  "automationStartAllColumn": "Mind",
+  "automationScriptColumn": "Script",
+  "automationActions": "Műveletek",
+  "flowSavedFlows": "Mentett flow-k",
+  "flowEveryMinutes": "Minden {{count}} perc",
+  "flowEverySeconds": "Minden {{count}} mp",
+  "flowEveryMilliseconds": "Minden {{count}} ms"
 }
