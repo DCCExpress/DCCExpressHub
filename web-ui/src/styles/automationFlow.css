@@ -47,6 +47,7 @@
 .automation-flow-node {
   width: 188px;
   min-height: 64px;
+  overflow: visible;
   background: var(--mantine-color-body);
 }
 
