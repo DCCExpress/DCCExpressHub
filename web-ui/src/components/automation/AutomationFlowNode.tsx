@@ -1,10 +1,16 @@
 import {
+  ActionIcon,
   Badge,
   Card,
   Group,
   Stack,
   Text,
+  Tooltip,
 } from "@mantine/core";
+
+import {
+  IconPlayerPlay,
+} from "@tabler/icons-react";
 
 import {
   Handle,
@@ -18,6 +24,10 @@ import type {
   AutomationFlowNodeData,
   AutomationFlowNodeKind,
 } from "../../domain/automationFlow";
+
+import {
+  dispatchAutomationFlowInject,
+} from "./automationFlowEvents";
 
 type AutomationReactFlowNode =
   Node<
@@ -229,6 +239,7 @@ function summary(
 }
 
 export default function AutomationFlowNode({
+  id,
   data,
   selected,
 }: AutomationNodeProps) {
@@ -303,6 +314,41 @@ export default function AutomationFlowNode({
               meta.title
             }
           </Text>
+
+          {data.kind ===
+            "trigger" && (
+            <Tooltip
+              label="Inject now"
+            >
+              <ActionIcon
+                size="sm"
+                variant="light"
+                color="green"
+                className="nodrag nopan"
+                aria-label="Inject trigger payload now"
+                onPointerDown={
+                  event =>
+                    event.stopPropagation()
+                }
+                onClick={
+                  event => {
+                    event.stopPropagation();
+
+                    dispatchAutomationFlowInject({
+                      pageId:
+                        data.pageId,
+                      triggerNodeId:
+                        id,
+                    });
+                  }
+                }
+              >
+                <IconPlayerPlay
+                  size={15}
+                />
+              </ActionIcon>
+            </Tooltip>
+          )}
 
           <Badge
             size="xs"
