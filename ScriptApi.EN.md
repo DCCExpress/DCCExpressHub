@@ -773,6 +773,7 @@ await setRoute(name, delayMs)
 
 ```text
 await dispatcher([blocks], async (loco, dir) => { ... }, options?)
+await smartDispatcher([blocks], async (loco, dir, run) => { ... }, options?)
 startTask(name, taskFunction)
 isTaskRunning(name)
 getTaskState(name)
@@ -1222,3 +1223,220 @@ setInfo("Finishing - no new dispatcher");
 ```
 
 This scheduler attempts to start both routes every 500 ms. Because `startTask()` is single-flight by task name, the same route cannot start again while its previous instance is still running. If a Dispatcher attempt quickly finishes with `empty` or `blocked`, a later scheduler cycle can retry it.
+
+
+---
+
+# 21. SmartDispatcher – rolling block reservation
+
+\`smartDispatcher()\` is a separate implementation next to the stable \`dispatcher()\`. The normal Dispatcher still reserves the full route in advance; SmartDispatcher holds only the **current and next block**.
+
+SmartDispatcher automatically:
+
+- checks the next block's \`actual\`, \`target\`, and occupancy state;
+- acquires the next block Web Lock;
+- marks the next block with the target locomotive;
+- locks and sets only the turnouts required for the current block transition;
+- stops the locomotive when clearance is unavailable;
+- restores the requested speed when clearance becomes available;
+- releases the previous block and transition turnout locks after confirmed arrival;
+- automatically stops the locomotive at the destination.
+
+## 21.1 Basic usage
+
+\`\`\`js
+await smartDispatcher(
+  ["A1", "B1", "C1"],
+
+  async (loco, dir, run) => {
+    run.setSpeed(20);
+
+    await run.waitForBlock("B1");
+
+    await horn(loco);
+
+    run.setSpeed(25);
+
+    await run.waitForBlock("C1");
+  }
+);
+\`\`\`
+
+For normal movement inside SmartDispatcher, use \`run.setSpeed()\` instead of direct \`dcc.setLoco()\`. This lets SmartDispatcher remember the desired speed and restore it automatically after clearance returns.
+
+## 21.2 arrivedWhen – confirmed block arrival
+
+Explicit sensor conditions can be assigned to a block:
+
+\`\`\`js
+await smartDispatcher(
+  [
+    "A1",
+
+    {
+      block: "B1",
+      arrivedWhen: [
+        { sensor: 1000, state: true },
+        { sensor: 999, state: false }
+      ]
+    },
+
+    {
+      block: "C1",
+      arrivedWhen: [
+        { sensor: 1010, state: true },
+        { sensor: 1000, state: false }
+      ]
+    }
+  ],
+
+  async (loco, dir, run) => {
+    run.setSpeed(20);
+
+    await run.waitForBlock("B1");
+
+    await horn(loco);
+
+    await run.waitForBlock("C1");
+  }
+);
+\`\`\`
+
+In this example B1 is considered fully reached when:
+
+\`\`\`text
+sensor 1000 == true
+sensor  999 == false
+\`\`\`
+
+This means the train is detected in B1 and has completely left the previous section. Only then does SmartDispatcher release the previous block.
+
+When no explicit \`arrivedWhen\` is supplied, the default is:
+
+\`\`\`text
+current block occupancy sensor  == true
+previous block occupancy sensor == false
+\`\`\`
+
+If two adjacent blocks use the same occupancy sensor, an explicit \`arrivedWhen\` is required.
+
+## 21.3 Clearance and automatic stopping
+
+SmartDispatcher continuously attempts to reserve the next block.
+
+The next block is usable only when:
+
+\`\`\`text
+actual loco == 0
+target loco == 0
+occupancy   == false
+block Web Lock can be acquired
+required turnout locks can be acquired
+required turnout states can be set
+\`\`\`
+
+If clearance is unavailable, physical speed becomes:
+
+\`\`\`text
+0
+\`\`\`
+
+while the speed requested with \`run.setSpeed()\` is retained.
+
+For example:
+
+\`\`\`js
+run.setSpeed(30);
+\`\`\`
+
+While the next block is blocked:
+
+\`\`\`text
+desired speed  = 30
+physical speed = 0
+\`\`\`
+
+When the block and turnouts become available:
+
+\`\`\`text
+desired speed  = 30
+physical speed = 30
+\`\`\`
+
+No extra restart logic is required in the script.
+
+## 21.4 waitForBlock and waitForClearance
+
+\`\`\`js
+await run.waitForBlock("B1");
+\`\`\`
+
+means that B1's \`arrivedWhen\` conditions are satisfied and the train has been confirmed in the block.
+
+\`\`\`js
+await run.waitForClearance("C1");
+\`\`\`
+
+means that C1 is already reserved for the locomotive and the required turnout section is available.
+
+\`waitForClearance()\` is **not required for SmartDispatcher to operate**. Clearance handling is automatic; this method is useful when script logic explicitly needs to wait for or synchronize with clearance.
+
+## 21.5 Arbitrary trackside sensors
+
+The normal sensor API remains available alongside SmartDispatcher:
+
+\`\`\`js
+await run.waitForBlock("B1");
+
+await dcc.waitForSensor(1234, true);
+
+await horn(loco);
+\`\`\`
+
+This allows horn, speed, audio, or other actions at any independent trackside sensor.
+
+## 21.6 run API
+
+\`\`\`text
+run.setSpeed(speed)
+run.stop()
+await run.waitForBlock(blockName)
+await run.waitForClearance(blockName)
+run.getCurrentBlock()
+run.getNextBlock()
+run.getRoute()
+run.getDesiredSpeed()
+\`\`\`
+
+Speed range is \`0..126\`.
+
+## 21.7 Options
+
+\`\`\`js
+await smartDispatcher(
+  ["A1", "B1", "C1"],
+  async (loco, dir, run) => {
+    run.setSpeed(20);
+    await run.waitForBlock("C1");
+  },
+  {
+    setDelayMs: 250,
+    blockPollMs: 100,
+
+    onEmpty: async dir => {
+      log("A1 is empty", dir);
+    },
+
+    onBlocked: async (loco, dir, conflicts) => {
+      log("SmartDispatcher waiting", loco, conflicts);
+    }
+  }
+);
+\`\`\`
+
+- \`setDelayMs\`: delay between consecutive turnout commands;
+- \`blockPollMs\`: polling interval for block and arrival conditions, \`25..5000 ms\`;
+- \`onEmpty(dir)\`: empty source block;
+- \`onBlocked(loco, dir, conflicts)\`: called the first time SmartDispatcher must wait for a particular next block.
+
+SmartDispatcher automatically commands speed \`0\` after confirmed arrival at the destination.
