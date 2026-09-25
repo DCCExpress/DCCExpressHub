@@ -936,5 +936,6 @@
   "flowTriggerManual": "Kézi",
   "flowTriggerInterval": "Időzített",
   "flowIntervalMs": "Intervallum (ms)",
-  "flowIntervalDescription": "1000 ms = 1 másodperc, 60000 ms = 1 perc"
+  "flowIntervalDescription": "1000 ms = 1 másodperc, 60000 ms = 1 perc",
+  "flowRun": "FUTTATÁS"
 }
