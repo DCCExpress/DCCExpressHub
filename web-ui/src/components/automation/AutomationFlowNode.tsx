@@ -340,9 +340,17 @@ function summary(
 
     case "playAudio":
       return (
-        data.audioName
-          ? `/sd/audio/${data.audioName}.mp3`
-          : "Select audio"
+        (
+          data.audioName
+            ? `/sd/audio/${data.audioName}.mp3`
+            : "Select audio"
+        ) +
+        (
+          data.audioWaitForEnd ===
+          true
+            ? " · await"
+            : " · continue"
+        )
       );
 
     case "log":
