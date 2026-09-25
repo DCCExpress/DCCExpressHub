@@ -997,5 +997,8 @@
   "flowNoInputNodes": "No input nodes",
   "flowRunFlows": "Run flows",
   "flowRuntimeEnabledDescription": "Enabled pages are live. Sensor and interval inputs can start their connected branches.",
-  "flowRuntimeDisabledDescription": "Flow runtime is disabled. Editor Manual/Test injects are still available."
+  "flowRuntimeDisabledDescription": "Flow runtime is disabled. Editor Manual/Test injects are still available.",
+  "flowNodePlayAudio": "Play Audio",
+  "flowAudioName": "Audio name",
+  "flowAudioNameDescription": "Base MP3 filename in /sd/audio, without path or .mp3 extension."
 }
