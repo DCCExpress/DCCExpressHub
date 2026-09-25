@@ -923,5 +923,18 @@
   "flowTurnoutAddress": "Turnout address",
   "flowTurnoutState": "Turnout state",
   "flowAccessoryAddress": "Accessory address",
-  "flowAccessoryState": "Accessory state"
+  "flowAccessoryState": "Accessory state",
+  "flowLog": "Log",
+  "flowTest": "TEST",
+  "flowStop": "STOP",
+  "flowRuntimeLogDescription": "Runtime and log(...) messages from flow tests.",
+  "flowClearLog": "Clear log",
+  "flowNoLogMessages": "No log messages yet.",
+  "flowGroupTrigger": "Trigger",
+  "flowNodeTrigger": "Trigger",
+  "flowTriggerMode": "Trigger mode",
+  "flowTriggerManual": "Manual",
+  "flowTriggerInterval": "Interval",
+  "flowIntervalMs": "Interval (ms)",
+  "flowIntervalDescription": "1000 ms = 1 second, 60000 ms = 1 minute"
 }
