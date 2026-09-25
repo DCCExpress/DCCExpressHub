@@ -6,7 +6,7 @@
         ShowInTaskbar="False"
         AllowsTransparency="True"
         Background="#B3000000"
-        WindowStartupLocation="Manual">
+        WindowStartupLocation="CenterOwner">
   <Window.Resources>
     <Style TargetType="Button">
       <Setter Property="Background" Value="#172033"/>
