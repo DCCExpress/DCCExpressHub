@@ -20,6 +20,7 @@ export type AutomationFlowNodeKind =
   | "clearBlockTargetLoco"
   | "horn"
   | "delay"
+  | "playAudio"
   | "log";
 
 export type AutomationFlowTurnoutCommand = {
@@ -76,6 +77,7 @@ export type AutomationFlowNodeData = Record<string, unknown> & {
   functionNumber?: number;
   pulseMs?: number;
   delayMs?: number;
+  audioName?: string;
   message?: string;
 
   triggerMode?:
@@ -141,6 +143,7 @@ const NODE_KINDS =
     "clearBlockTargetLoco",
     "horn",
     "delay",
+    "playAudio",
     "log",
   ]);
 
@@ -578,6 +581,11 @@ function normalizeNodeData(
           )
         )
       ),
+    audioName:
+      typeof candidate.audioName ===
+        "string"
+        ? candidate.audioName.trim()
+        : "",
     message:
       typeof candidate.message === "string"
         ? candidate.message
@@ -1291,6 +1299,20 @@ function generateStatement(
 
     case "delay":
       return `await delay(${Math.max(0, Math.round(data.delayMs ?? 500))});`;
+
+    case "playAudio": {
+      const audioName =
+        String(
+          data.audioName ??
+          ""
+        ).trim();
+
+      if (!audioName) {
+        return 'throw new Error("Play Audio requires an audio name.");';
+      }
+
+      return `playAudio(${jsString(audioName)});`;
+    }
 
     case "log":
       return `log(${jsString(data.message || "")}, payload);`;
