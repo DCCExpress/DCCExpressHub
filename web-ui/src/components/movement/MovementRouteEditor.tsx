@@ -335,34 +335,6 @@ export default function MovementRouteEditor({
           : plan && (
             <>
               <div
-                className="movement-route-grid-header"
-              >
-                <Text
-                  size="xs"
-                  fw={700}
-                  c="dimmed"
-                >
-                  PHYSICAL ROUTE
-                </Text>
-
-                <Text
-                  size="xs"
-                  fw={700}
-                  c="dimmed"
-                >
-                  CONDITION / EVENT
-                </Text>
-
-                <Text
-                  size="xs"
-                  fw={700}
-                  c="dimmed"
-                >
-                  ACTIONS
-                </Text>
-              </div>
-
-              <div
                 className="movement-route-timeline"
               >
                 {
@@ -378,6 +350,9 @@ export default function MovementRouteEditor({
                         <MovementRouteRow
                           key={
                             `${resource.key}:${index}`
+                          }
+                          pageId={
+                            page.id
                           }
                           resource={
                             resource
