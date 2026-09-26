@@ -221,6 +221,68 @@
   min-width: 0;
 }
 
+.movement-collapsible-header {
+  margin: -8px -8px 0;
+  padding: 7px 9px;
+  border-radius:
+    var(--mantine-radius-md)
+    var(--mantine-radius-md)
+    0
+    0;
+  border-bottom: 1px solid var(--mantine-color-default-border);
+  transition: background-color 120ms ease;
+}
+
+.movement-collapsible-header:hover {
+  filter: brightness(0.98);
+}
+
+.movement-collapsible-header-condition {
+  background: color-mix(
+    in srgb,
+    var(--mantine-color-gray-7) 12%,
+    var(--mantine-color-body)
+  );
+}
+
+.movement-collapsible-header-actions {
+  background: color-mix(
+    in srgb,
+    var(--mantine-color-gray-7) 16%,
+    var(--mantine-color-body)
+  );
+}
+
+.movement-collapsible-body {
+  margin: 0 -8px -8px;
+  padding: 0 8px 8px;
+  border-radius:
+    0
+    0
+    var(--mantine-radius-md)
+    var(--mantine-radius-md);
+}
+
+.movement-collapsible-body > .mantine-Divider-root {
+  margin-inline: -8px;
+}
+
+.movement-collapsible-body-condition {
+  background: color-mix(
+    in srgb,
+    var(--mantine-color-gray-5) 5%,
+    var(--mantine-color-body)
+  );
+}
+
+.movement-collapsible-body-actions {
+  background: color-mix(
+    in srgb,
+    var(--mantine-color-gray-5) 8%,
+    var(--mantine-color-body)
+  );
+}
+
 .movement-enabled-dot,
 .movement-disabled-dot {
   display: inline-block;
