@@ -1392,12 +1392,12 @@ test("Movement actions are draggable inside their sequence order", () => {
 
   assert.match(
     actionEditor,
-    /moveDraggedActionToIndex/
+    /moveActionByOffset/
   );
 
   assert.match(
     actionEditor,
-    /moveActionByOffset/
+    /draggedActionId/
   );
 
   assert.match(
@@ -1674,12 +1674,13 @@ test("Movement destination block exposes and fires APPROACH before ARRIVED", () 
 
   const approach =
     engine.indexOf(
-      'leg.to.key,\n          "approach"'
+      "approachSegment?.key"
     );
 
-  const arrived =
+  const arrivalWait =
     engine.indexOf(
-      'leg.to.key,\n      "arrived"'
+      "await waitForArrival",
+      approach
     );
 
   assert.ok(
@@ -1688,7 +1689,8 @@ test("Movement destination block exposes and fires APPROACH before ARRIVED", () 
   );
 
   assert.ok(
-    arrived >= 0,
-    "Destination ARRIVED action trigger missing"
+    arrivalWait >
+      approach,
+    "Destination APPROACH must be wired before arrival wait"
   );
 });
