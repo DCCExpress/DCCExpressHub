@@ -46,6 +46,8 @@ import {
   stopMovement,
 } from "../../services/movementEngine";
 
+import MovementElapsedBadge from "./MovementElapsedBadge";
+
 import MovementRuntimeControls, {
   movementRuntimeStatusColor,
   useMovementRuntimeState,
@@ -228,6 +230,17 @@ function MovementCard({
                   page.speed
                 }
               </Badge>
+
+
+              <MovementElapsedBadge
+                page={
+                  page
+                }
+                state={
+                  state
+                }
+                compact
+              />
             </Group>
 
             <Text
