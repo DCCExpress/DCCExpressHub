@@ -436,6 +436,34 @@
   );
 }
 
+.movement-sequence-card {
+  overflow: hidden;
+  border-color: color-mix(
+    in srgb,
+    var(--mantine-color-violet-6) 35%,
+    var(--mantine-color-default-border)
+  );
+}
+
+.movement-sequence-card-header {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--mantine-color-default-border);
+  background: color-mix(
+    in srgb,
+    black 30%,
+    var(--mantine-color-body)
+  );
+}
+
+.movement-sequence-card-body {
+  padding: 10px;
+  background: color-mix(
+    in srgb,
+    var(--mantine-color-gray-5) 7%,
+    var(--mantine-color-body)
+  );
+}
+
 .movement-action-card {
   overflow: hidden;
 }
