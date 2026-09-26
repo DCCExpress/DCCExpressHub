@@ -1,27 +1,14 @@
 import {
-  ActionIcon,
   Badge,
-  Button,
   Card,
   Group,
-  Select,
   Stack,
-  Switch,
   Text,
 } from "@mantine/core";
-
-import {
-  IconPlus,
-  IconTrash,
-} from "@tabler/icons-react";
 
 import type {
   MovementAction,
   MovementBlockRule,
-} from "../../domain/movement";
-
-import {
-  createMovementId,
 } from "../../domain/movement";
 
 import type {
@@ -34,6 +21,7 @@ import type {
 
 import CollapsiblePanelCard from "../common/CollapsiblePanelCard";
 import MovementActionEditor from "./MovementActionEditor";
+import MovementBlockConditionsEditor from "./MovementBlockConditionsEditor";
 
 type Props = {
   pageId: string;
@@ -132,26 +120,19 @@ export default function MovementRouteRow({
   onRuleChange,
   onActionsChange,
 }: Props) {
-  const conditions =
-    rule?.arrivedWhen ??
-    [];
-
-  const usedSensorAddresses =
-    new Set(
-      conditions.map(
-        condition =>
-          condition.sensor
-      )
+  const conditionCount =
+    (
+      rule?.departWhen.length ??
+      0
+    ) +
+    (
+      rule?.leaveWhen.length ??
+      0
+    ) +
+    (
+      rule?.arrivedWhen.length ??
+      0
     );
-
-  const nextAvailableSensor =
-    sensorCatalog.find(
-      sensor =>
-        !usedSensorAddresses.has(
-          sensor.address
-        )
-    ) ??
-    null;
 
   return (
     <div
@@ -187,479 +168,252 @@ export default function MovementRouteRow({
         p="sm"
         className="movement-physical-route-card"
       >
-        <Stack gap="sm">
         <Stack
-          gap={6}
+          gap="sm"
         >
-          <Group
-            gap="xs"
-            wrap="wrap"
+          <Stack
+            gap={6}
           >
-            <Text
-              fw={700}
+            <Group
+              gap="xs"
+              wrap="wrap"
             >
-              {
-                resource.label
-              }
-            </Text>
-
-            <Badge
-              size="sm"
-              variant="light"
-              color={
-                resourceColor(
-                  resource,
-                  isSource,
-                  isDestination
-                )
-              }
-            >
-              {
-                resourceBadge(
-                  resource,
-                  isSource,
-                  isDestination
-                )
-              }
-            </Badge>
-          </Group>
-
-          {
-            resource.kind ===
-              "block" && (
               <Text
-                size="xs"
-                c="dimmed"
-              >
-                Block ID #{resource.blockId}
-                {
-                  resource.sensorAddress
-                    ? ` · occupancy sensor ${resource.sensorAddress}`
-                    : ""
-                }
-              </Text>
-            )
-          }
-
-          {
-            resource.kind ===
-              "segment" && (
-              <Text
-                size="xs"
-                c="dimmed"
+                fw={700}
               >
                 {
-                  resource.detectors.length >
-                    0
-                    ? `Detectors: ${resource.detectors.join(", ")}`
-                    : "No detector in this segment"
+                  resource.label
                 }
               </Text>
-            )
-          }
 
-          {
-            resource.kind ===
-              "turnout" && (
-              <Text
-                size="xs"
-                c="dimmed"
+              <Badge
+                size="sm"
+                variant="light"
+                color={
+                  resourceColor(
+                    resource,
+                    isSource,
+                    isDestination
+                  )
+                }
               >
                 {
-                  resource.turnoutStates.length >
-                    0
-                    ? resource.turnoutStates
-                        .map(
-                          state =>
-                            `#${state.address} ${state.closed ? "CLOSED" : "THROWN"}`
-                        )
-                        .join(" · ")
-                    : "Physical turnout passage"
+                  resourceBadge(
+                    resource,
+                    isSource,
+                    isDestination
+                  )
                 }
-              </Text>
-            )
-          }
-        </Stack>
+              </Badge>
+            </Group>
 
-          <CollapsiblePanelCard
-            title="Condition / Event"
-            collapsedStorageKey={"movement:" + pageId + ":" + resource.key + ":condition"}
-            expandTooltip="Expand condition / event"
-            collapseTooltip="Collapse condition / event"
-            clickableHeader
-            defaultCollapsed={resource.kind !== "block" || isSource}
-            rightSection={
-              resource.kind === "block" && !isSource ? (
-                <Badge size="xs" variant="light" color={conditions.length > 0 ? "blue" : "gray"}>
-                  {conditions.length} condition{conditions.length === 1 ? "" : "s"}
-                </Badge>
-              ) : undefined
-            }
-            cardPadding="xs"
-            headerClassName="movement-collapsible-header movement-collapsible-header-condition"
-            bodyClassName="movement-collapsible-body movement-collapsible-body-condition"
-          >
-        {
-          resource.kind !==
-            "block"
-            ? (
-              <Stack
-                gap={4}
-              >
+            {
+              resource.kind ===
+                "block" && (
                 <Text
-                  size="sm"
-                  fw={600}
+                  size="xs"
+                  c="dimmed"
                 >
-                  Runtime event source
+                  Block ID #{resource.blockId}
+                  {
+                    resource.sensorAddress
+                      ? ` · occupancy sensor ${resource.sensorAddress}`
+                      : ""
+                  }
                 </Text>
+              )
+            }
 
+            {
+              resource.kind ===
+                "segment" && (
                 <Text
                   size="xs"
                   c="dimmed"
                 >
                   {
-                    resource.kind ===
-                    "segment"
-                      ? "Segment ENTER / LEAVE actions are tied to this physical route section."
-                      : "The engine sets and locks the route-required turnout state automatically. APPROACH / LEAVE actions are only train/audio/timing actions."
+                    resource.detectors.length >
+                      0
+                      ? `Detectors: ${resource.detectors.join(", ")}`
+                      : "No detector in this segment"
                   }
                 </Text>
-              </Stack>
-            )
-            : isSource
-              ? (
-                <Stack
-                  gap={4}
-                >
-                  <Text
-                    size="sm"
-                    fw={600}
-                  >
-                    Departure authority
-                  </Text>
-
-                  <Text
-                    size="xs"
-                    c="dimmed"
-                  >
-                    Movement starts with the locomotive assigned to this block.
-                  </Text>
-                </Stack>
               )
-              : (
-                <Stack
-                  gap="xs"
+            }
+
+            {
+              resource.kind ===
+                "turnout" && (
+                <Text
+                  size="xs"
+                  c="dimmed"
                 >
-                  <Group
-                    justify="space-between"
-                    align="center"
+                  {
+                    resource.turnoutStates.length >
+                      0
+                      ? resource.turnoutStates
+                          .map(
+                            state =>
+                              `#${state.address} ${state.closed ? "CLOSED" : "THROWN"}`
+                          )
+                          .join(" · ")
+                      : "Physical turnout passage"
+                  }
+                </Text>
+              )
+            }
+          </Stack>
+
+          <CollapsiblePanelCard
+            title="Condition / Event"
+            collapsedStorageKey={
+              "movement:" +
+              pageId +
+              ":" +
+              resource.key +
+              ":condition"
+            }
+            expandTooltip="Expand condition / event"
+            collapseTooltip="Collapse condition / event"
+            clickableHeader
+            defaultCollapsed={
+              resource.kind !==
+              "block"
+            }
+            rightSection={
+              resource.kind ===
+                "block"
+                ? (
+                  <Badge
+                    size="xs"
+                    variant="light"
+                    color={
+                      conditionCount >
+                        0
+                        ? "blue"
+                        : "gray"
+                    }
+                  >
+                    {
+                      conditionCount
+                    } condition{
+                      conditionCount ===
+                        1
+                        ? ""
+                        : "s"
+                    }
+                  </Badge>
+                )
+                : undefined
+            }
+            cardPadding="xs"
+            headerClassName="movement-collapsible-header movement-collapsible-header-condition"
+            bodyClassName="movement-collapsible-body movement-collapsible-body-condition"
+          >
+            {
+              resource.kind ===
+                "block" &&
+              resource.blockId !==
+                null
+                ? (
+                  <MovementBlockConditionsEditor
+                    blockId={
+                      resource.blockId
+                    }
+                    isSource={
+                      isSource
+                    }
+                    isDestination={
+                      isDestination
+                    }
+                    rule={
+                      rule
+                    }
+                    sensorCatalog={
+                      sensorCatalog
+                    }
+                    onChange={
+                      onRuleChange
+                    }
+                  />
+                )
+                : (
+                  <Stack
+                    gap={4}
                   >
                     <Text
                       size="sm"
                       fw={600}
                     >
-                      Block arrived when
+                      Runtime event source
                     </Text>
 
-                    <Button
-                      size="compact-xs"
-                      variant="light"
-                      leftSection={
-                        <IconPlus
-                          size={13}
-                        />
-                      }
-                      disabled={
-                        nextAvailableSensor ===
-                        null
-                      }
-                      onClick={
-                        () => {
-                          if (
-                            nextAvailableSensor ===
-                            null ||
-                            resource.blockId ===
-                            null
-                          ) {
-                            return;
-                          }
-
-                          onRuleChange({
-                            blockId:
-                              resource.blockId,
-                            arrivedWhen: [
-                              ...conditions,
-                              {
-                                id:
-                                  createMovementId(
-                                    "condition"
-                                  ),
-                                sensor:
-                                  nextAvailableSensor.address,
-                                state: true,
-                              },
-                            ],
-                          });
-                        }
-                      }
+                    <Text
+                      size="xs"
+                      c="dimmed"
                     >
-                      Sensor
-                    </Button>
-                  </Group>
-
-                  {
-                    sensorCatalog.length ===
-                      0 && (
-                      <Text
-                        size="xs"
-                        c="orange"
-                      >
-                        No configured sensors are available in the layout.
-                      </Text>
-                    )
-                  }
-
-                  {
-                    conditions.length ===
-                      0 && (
-                      <Text
-                        size="xs"
-                        c="dimmed"
-                      >
-                        Default: destination occupancy ON and previous block occupancy OFF when both sensors exist.
-                      </Text>
-                    )
-                  }
-
-                  {
-                    conditions.map(
-                      condition => (
-                        <Group
-                          key={
-                            condition.id
-                          }
-                          gap="xs"
-                          wrap="nowrap"
-                        >
-                          <Select
-                            size="xs"
-                            value={
-                              String(
-                                condition.sensor
-                              )
-                            }
-                            data={
-                              (
-                                sensorCatalog.some(
-                                  sensor =>
-                                    sensor.address ===
-                                    condition.sensor
-                                )
-                                  ? sensorCatalog
-                                  : [
-                                      {
-                                        id:
-                                          0,
-                                        address:
-                                          condition.sensor,
-                                        name:
-                                          "",
-                                        label:
-                                          `Sensor ${condition.sensor} · missing from layout`,
-                                      },
-                                      ...sensorCatalog,
-                                    ]
-                              )
-                                .filter(
-                                  sensor =>
-                                    sensor.address ===
-                                      condition.sensor ||
-                                    !conditions.some(
-                                      other =>
-                                        other.id !==
-                                          condition.id &&
-                                        other.sensor ===
-                                          sensor.address
-                                    )
-                                )
-                                .map(
-                                  sensor => ({
-                                    value:
-                                      String(
-                                        sensor.address
-                                      ),
-                                    label:
-                                      sensor.label,
-                                    disabled:
-                                      sensor.id ===
-                                      0,
-                                  })
-                                )
-                            }
-                            allowDeselect={
-                              false
-                            }
-                            searchable={
-                              false
-                            }
-                            onChange={
-                              value => {
-                                if (
-                                  value ===
-                                  null ||
-                                  resource.blockId ===
-                                  null
-                                ) {
-                                  return;
-                                }
-
-                                const sensor =
-                                  Number(
-                                    value
-                                  );
-
-                                if (
-                                  !sensorCatalog.some(
-                                    option =>
-                                      option.address ===
-                                      sensor
-                                  )
-                                ) {
-                                  return;
-                                }
-
-                                onRuleChange({
-                                  blockId:
-                                    resource.blockId,
-                                  arrivedWhen:
-                                    conditions.map(
-                                      current =>
-                                        current.id ===
-                                        condition.id
-                                          ? {
-                                              ...current,
-                                              sensor,
-                                            }
-                                          : current
-                                    ),
-                                });
-                              }
-                            }
-                            style={{
-                              flex: 1,
-                            }}
-                          />
-
-                          <Switch
-                            size="sm"
-                            checked={
-                              condition.state
-                            }
-                            label={
-                              condition.state
-                                ? "ON"
-                                : "OFF"
-                            }
-                            onChange={
-                              event => {
-                                if (
-                                  resource.blockId ===
-                                  null
-                                ) {
-                                  return;
-                                }
-
-                                onRuleChange({
-                                  blockId:
-                                    resource.blockId,
-                                  arrivedWhen:
-                                    conditions.map(
-                                      current =>
-                                        current.id ===
-                                        condition.id
-                                          ? {
-                                              ...current,
-                                              state:
-                                                event.currentTarget.checked,
-                                            }
-                                          : current
-                                    ),
-                                });
-                              }
-                            }
-                          />
-
-                          <ActionIcon
-                            size="sm"
-                            variant="light"
-                            color="red"
-                            onClick={
-                              () => {
-                                if (
-                                  resource.blockId ===
-                                  null
-                                ) {
-                                  return;
-                                }
-
-                                onRuleChange({
-                                  blockId:
-                                    resource.blockId,
-                                  arrivedWhen:
-                                    conditions.filter(
-                                      current =>
-                                        current.id !==
-                                        condition.id
-                                    ),
-                                });
-                              }
-                            }
-                          >
-                            <IconTrash
-                              size={14}
-                            />
-                          </ActionIcon>
-                        </Group>
-                      )
-                    )
-                  }
-                </Stack>
-              )
-        }
-
+                      {
+                        resource.kind ===
+                        "segment"
+                          ? "Segment ENTER / LEAVE actions are tied to this physical route section."
+                          : "The engine sets and locks the route-required turnout state automatically. APPROACH / LEAVE actions are only train/audio/timing actions."
+                      }
+                    </Text>
+                  </Stack>
+                )
+            }
           </CollapsiblePanelCard>
 
           <CollapsiblePanelCard
             title="Actions"
-            collapsedStorageKey={"movement:" + pageId + ":" + resource.key + ":actions"}
+            collapsedStorageKey={
+              "movement:" +
+              pageId +
+              ":" +
+              resource.key +
+              ":actions"
+            }
             expandTooltip="Expand actions"
             collapseTooltip="Collapse actions"
             clickableHeader
-            defaultCollapsed={actions.length === 0}
+            defaultCollapsed={
+              actions.length ===
+              0
+            }
             rightSection={
-              <Badge size="xs" variant="light" color={actions.length > 0 ? "violet" : "gray"}>
-                {actions.length}
+              <Badge
+                size="xs"
+                variant="light"
+                color={
+                  actions.length >
+                    0
+                    ? "violet"
+                    : "gray"
+                }
+              >
+                {
+                  actions.length
+                }
               </Badge>
             }
             cardPadding="xs"
             headerClassName="movement-collapsible-header movement-collapsible-header-actions"
             bodyClassName="movement-collapsible-body movement-collapsible-body-actions"
           >
-        <MovementActionEditor
-          resourceKey={
-            resource.key
-          }
-          resourceKind={
-            resource.kind
-          }
-          actions={
-            actions
-          }
-          onChange={
-            onActionsChange
-          }
-        />
-
+            <MovementActionEditor
+              resourceKey={
+                resource.key
+              }
+              resourceKind={
+                resource.kind
+              }
+              actions={
+                actions
+              }
+              onChange={
+                onActionsChange
+              }
+            />
           </CollapsiblePanelCard>
         </Stack>
       </Card>
