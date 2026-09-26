@@ -1919,3 +1919,71 @@ test("flow palette category cards have dark full-width clickable headers", () =>
     /aria-expanded="false"/
   );
 });
+
+
+test("flow edges and connection preview use bezier curves with hover and selected styling", () => {
+  const dialog =
+    read(
+      "src/components/automation/AutomationFlowDialog.tsx"
+    );
+
+  const domain =
+    read(
+      "src/domain/automationFlow.ts"
+    );
+
+  const css =
+    read(
+      "src/styles/automationFlow.css"
+    );
+
+  assert.match(
+    dialog,
+    /ConnectionLineType\.Bezier/
+  );
+
+  assert.match(
+    dialog,
+    /connectionLineType=\{[\s\S]*ConnectionLineType\.Bezier/
+  );
+
+  assert.match(
+    dialog,
+    /type:\s*"bezier"/
+  );
+
+  assert.doesNotMatch(
+    dialog,
+    /type:\s*"smoothstep"/
+  );
+
+  assert.match(
+    domain,
+    /type:\s*"bezier"/
+  );
+
+  assert.doesNotMatch(
+    domain,
+    /:\s*"smoothstep"/
+  );
+
+  assert.match(
+    css,
+    /\.react-flow__edge-path/
+  );
+
+  assert.match(
+    css,
+    /\.react-flow__edge:hover \.react-flow__edge-path/
+  );
+
+  assert.match(
+    css,
+    /\.react-flow__edge\.selected \.react-flow__edge-path/
+  );
+
+  assert.match(
+    css,
+    /\.react-flow__connection-path/
+  );
+});

@@ -1061,11 +1061,11 @@ export function normalizeAutomationFlowDocument(
             }
           : {}
       ),
+      // The visual flow editor uses one consistent curved edge style.
+      // Older saved documents may still contain "smoothstep"; normalize them
+      // so loading and re-saving migrates the flow to Bezier connections.
       type:
-        typeof edge.type ===
-        "string"
-          ? edge.type
-          : "smoothstep",
+        "bezier",
     });
   }
 

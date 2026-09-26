@@ -93,6 +93,20 @@ body.automation-flow-panel-resizing * {
   cursor: pointer;
 }
 
+.automation-flow-canvas .react-flow__edge-path {
+  stroke: rgba(173, 181, 189, 0.72);
+  stroke-width: 1.8;
+  transition:
+    stroke 120ms ease,
+    stroke-width 120ms ease,
+    opacity 120ms ease;
+}
+
+.automation-flow-canvas .react-flow__edge:hover .react-flow__edge-path {
+  stroke: var(--mantine-color-blue-4);
+  stroke-width: 2.5;
+}
+
 .automation-flow-canvas .react-flow__edge.selected .react-flow__edge-path {
   stroke: var(--mantine-color-violet-5);
   stroke-width: 3;
@@ -100,6 +114,12 @@ body.automation-flow-panel-resizing * {
 
 .automation-flow-canvas .react-flow__edge.selected .react-flow__edge-interaction {
   stroke-width: 28;
+}
+
+.automation-flow-canvas .react-flow__connection-path {
+  stroke: var(--mantine-color-violet-4);
+  stroke-width: 2;
+  opacity: 0.9;
 }
 
 .automation-flow-node {

@@ -55,6 +55,7 @@ import {
   Background,
   BackgroundVariant,
   Controls,
+  ConnectionLineType,
   MarkerType,
   MiniMap,
   ReactFlow,
@@ -329,6 +330,8 @@ export default function AutomationFlowDialog({
         activeEdges.map(
           edge => ({
             ...edge,
+            type:
+              "bezier",
             selected:
               edge.id ===
               selectedEdgeId,
@@ -920,7 +923,7 @@ export default function AutomationFlowDialog({
                 "edge"
               ),
             type:
-              "smoothstep",
+              "bezier",
             markerEnd: {
               type:
                 MarkerType.ArrowClosed,
@@ -1698,9 +1701,12 @@ export default function AutomationFlowDialog({
                     activePage.viewportZoom ===
                     undefined
                   }
+                  connectionLineType={
+                    ConnectionLineType.Bezier
+                  }
                   defaultEdgeOptions={{
                     type:
-                      "smoothstep",
+                      "bezier",
                     interactionWidth:
                       24,
                     markerEnd: {
