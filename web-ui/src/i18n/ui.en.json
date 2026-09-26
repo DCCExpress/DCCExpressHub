@@ -1054,5 +1054,7 @@
   "timetableAddAction": "Add action",
   "timetableDeleteRow": "Delete row",
   "timetableAddRow": "Add row",
-  "timetableMissingMovement": "Missing Movement"
+  "timetableMissingMovement": "Missing Movement",
+  "timetableNextRowsDescription": "Always showing the next {{value1}} timetable rows · running rows stay pinned above them",
+  "noUpcomingTimetableRows": "No upcoming timetable rows."
 }
