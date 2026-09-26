@@ -285,46 +285,46 @@
 }
 
 .movement-physical-route-header.is-segment {
-  border-left-color: var(--mantine-color-gray-6);
+  border-left-color: var(--mantine-color-gray-7);
   background: color-mix(
     in srgb,
-    var(--mantine-color-gray-6) 11%,
+    var(--mantine-color-gray-7) 24%,
     var(--mantine-color-body)
   );
 }
 
 .movement-physical-route-header.is-turnout {
-  border-left-color: var(--mantine-color-orange-6);
+  border-left-color: var(--mantine-color-orange-7);
   background: color-mix(
     in srgb,
-    var(--mantine-color-orange-6) 14%,
+    var(--mantine-color-orange-7) 28%,
     var(--mantine-color-body)
   );
 }
 
 .movement-physical-route-header.is-from {
-  border-left-color: var(--mantine-color-blue-6);
+  border-left-color: var(--mantine-color-blue-7);
   background: color-mix(
     in srgb,
-    var(--mantine-color-blue-6) 17%,
+    var(--mantine-color-blue-7) 30%,
     var(--mantine-color-body)
   );
 }
 
 .movement-physical-route-header.is-via {
-  border-left-color: var(--mantine-color-pink-6);
+  border-left-color: var(--mantine-color-pink-7);
   background: color-mix(
     in srgb,
-    var(--mantine-color-pink-6) 15%,
+    var(--mantine-color-pink-7) 28%,
     var(--mantine-color-body)
   );
 }
 
 .movement-physical-route-header.is-to {
-  border-left-color: var(--mantine-color-green-6);
+  border-left-color: var(--mantine-color-green-7);
   background: color-mix(
     in srgb,
-    var(--mantine-color-green-6) 15%,
+    var(--mantine-color-green-7) 28%,
     var(--mantine-color-body)
   );
 }
@@ -353,7 +353,7 @@
 .movement-collapsible-header-condition {
   background: color-mix(
     in srgb,
-    var(--mantine-color-gray-7) 12%,
+    black 20%,
     var(--mantine-color-body)
   );
 }
@@ -361,7 +361,7 @@
 .movement-collapsible-header-actions {
   background: color-mix(
     in srgb,
-    var(--mantine-color-gray-7) 16%,
+    black 27%,
     var(--mantine-color-body)
   );
 }
@@ -408,6 +408,65 @@
     var(--mantine-color-gray-5) 4%,
     var(--mantine-color-body)
   );
+}
+
+.movement-block-event-condition {
+  overflow: hidden;
+}
+
+.movement-block-event-condition-header {
+  margin: -8px -8px 2px;
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--mantine-color-default-border);
+  background: color-mix(
+    in srgb,
+    black 18%,
+    var(--mantine-color-body)
+  );
+}
+
+.movement-action-editor-toolbar {
+  margin: -2px -2px 2px;
+  padding: 7px 8px;
+  border-radius: var(--mantine-radius-sm);
+  background: color-mix(
+    in srgb,
+    black 14%,
+    var(--mantine-color-body)
+  );
+}
+
+.movement-action-card {
+  overflow: hidden;
+}
+
+.movement-action-card-header {
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--mantine-color-default-border);
+  background: color-mix(
+    in srgb,
+    black 24%,
+    var(--mantine-color-body)
+  );
+}
+
+.movement-action-card-body {
+  padding: 8px;
+  background: color-mix(
+    in srgb,
+    var(--mantine-color-gray-5) 5%,
+    var(--mantine-color-body)
+  );
+}
+
+.movement-action-drag-handle {
+  display: inline-flex;
+  cursor: grab;
+  touch-action: none;
+}
+
+.movement-action-drag-handle:active {
+  cursor: grabbing;
 }
 
 .movement-enabled-dot,
