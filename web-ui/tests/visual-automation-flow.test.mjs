@@ -3035,3 +3035,45 @@ test("force turnout unlock aborts active automation before releasing locks", () 
     releaseIndex > abortIndex
   );
 });
+
+
+test("script abort reaches worker before owned block targets are cleared", () => {
+  const source =
+    read(
+      "src/services/clientScriptRunner.ts"
+    );
+
+  const abortStart =
+    source.indexOf(
+      "export function abortClientScript"
+    );
+
+  assert.ok(
+    abortStart >= 0
+  );
+
+  const abortBody =
+    source.slice(
+      abortStart,
+      source.indexOf(
+        "export function abortAllClientScriptExecutions",
+        abortStart
+      )
+    );
+
+  const workerAbortIndex =
+    abortBody.indexOf(
+      'type: "abort"'
+    );
+
+  const clearTargetsIndex =
+    abortBody.indexOf(
+      "clearTargetsOwnedByExecution("
+    );
+
+  assert.ok(
+    workerAbortIndex >= 0 &&
+    clearTargetsIndex >
+      workerAbortIndex
+  );
+});

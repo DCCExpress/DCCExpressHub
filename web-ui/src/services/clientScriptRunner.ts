@@ -3289,16 +3289,25 @@ export function abortClientScript(
     elementId
   );
 
-  clearTargetsOwnedByExecution(
-    elementId
-  );
-
+  /*
+   * Abort the Worker first.
+   *
+   * Worker messages from this main thread are processed in order. Sending the
+   * abort before clearing owned block targets prevents SmartDispatcher from
+   * seeing its target marker disappear while it still considers the run
+   * active, which would otherwise surface a false
+   * "target for block ... was lost during movement" error.
+   */
   postToWorker({
     type: "abort",
     executionId:
       elementId,
     reason,
   });
+
+  clearTargetsOwnedByExecution(
+    elementId
+  );
 
   stopScriptAudioRequests(
     elementId
