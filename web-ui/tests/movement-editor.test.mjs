@@ -1749,7 +1749,7 @@ test("Movement physical route highlights stable physical runtime progress", () =
 
   assert.match(
     engine,
-    /waitForSegmentEntry\([\s\S]*setActiveRouteResource\([\s\S]*resource\.key/
+    /waitForResourceEntry\([\s\S]*setActiveRouteResource\([\s\S]*resource\.key/
   );
 
   assert.match(
