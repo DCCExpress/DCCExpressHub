@@ -150,7 +150,18 @@ class TimetableScheduler {
           ),
       })
     );
-    this.timetable = timetable.map(entry => ({ ...entry }));
+    this.timetable =
+      timetable.map(
+        entry => ({
+          ...entry,
+          actions:
+            entry.actions.map(
+              action => ({
+                ...action,
+              })
+            ),
+        })
+      );
   }
 
   getState(): TimetableSchedulerState {
