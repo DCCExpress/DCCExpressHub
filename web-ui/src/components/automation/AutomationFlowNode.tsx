@@ -96,12 +96,6 @@ const NODE_META:
       title:
         "Loco event",
     },
-    smartDispatcher: {
-      icon: "🚂",
-      color: "violet",
-      title:
-        "SmartDispatcher",
-    },
     setSpeed: {
       icon: "⚡",
       color: "blue",
@@ -280,21 +274,6 @@ function summary(
             : "Select locomotive"
         )
       );
-
-    case "smartDispatcher": {
-      const route =
-        Array.isArray(
-          data.route
-        )
-          ? data.route
-          : [];
-
-      return route.length >= 2
-        ? route.join(
-            " → "
-          )
-        : "FROM → TO";
-    }
 
     case "setSpeed":
       return `${data.speed ?? 20}`;
@@ -495,8 +474,6 @@ export default function AutomationFlowNode({
     );
 
   const isWide =
-    data.kind ===
-      "smartDispatcher" ||
     isInput;
 
   const hasTarget =
@@ -690,30 +667,6 @@ export default function AutomationFlowNode({
             {summary(data)}
           </Text>
 
-          {data.kind ===
-            "smartDispatcher" &&
-            (
-              data.arrivalRules?.length ??
-              0
-            ) >
-              0 && (
-            <Text
-              size="xs"
-              c="violet"
-            >
-              {
-                data.arrivalRules
-                  ?.length
-              } arrival rule
-              {
-                data.arrivalRules
-                  ?.length ===
-                1
-                  ? ""
-                  : "s"
-              }
-            </Text>
-          )}
         </Stack>
       )}
 
