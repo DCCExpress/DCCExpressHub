@@ -69,6 +69,7 @@ import TimetableDialog from "@/components/TimetableDialog";
 import TimetablePanel from "@/components/TimetablePanel";
 import RoutesDialog from "@/components/RoutesDialog";
 import AutomationFlowDialog from "@/components/automation/AutomationFlowDialog";
+import MovementEditorDialog from "@/components/movement/MovementEditorDialog";
 import { restorePersistedTopologyMetadata } from "@/services/layoutTopologyPersistence";
 import {
   attachClientRouteTopologyToLayoutJson,
@@ -114,9 +115,11 @@ import {
 import {
   createAutomationId,
   createAutomationPayload,
+  loadAutomationMovement,
   loadAutomationScripts,
   normalizeAutomationScripts,
   saveAutomationFlow,
+  saveAutomationMovement,
   saveAutomationScripts,
   type AutomationScriptDefinition,
   type AutomationStoragePayload,
@@ -126,6 +129,11 @@ import {
   normalizeAutomationFlowDocument,
   type AutomationFlowDocument,
 } from "@/domain/automationFlow";
+import {
+  createEmptyMovementDocument,
+  normalizeMovementDocument,
+  type MovementDocument,
+} from "@/domain/movement";
 import "@/styles/propertypanel.css";
 import DebugDialog from "@/components/debug/DebugDialog";
 type LiteLayoutPageProps = {
@@ -271,7 +279,8 @@ function serializeLayoutOnly(layout: LayoutView): string {
 function createProjectExport(
   layout: LayoutView,
   automationScripts: AutomationScriptDefinition[],
-  visualFlow: AutomationFlowDocument
+  visualFlow: AutomationFlowDocument,
+  movement: MovementDocument
 ): DccExpressProjectExport {
   return {
     format: "dccexpress-project",
@@ -282,7 +291,8 @@ function createProjectExport(
       createAutomationPayload(
         automationScripts,
         undefined,
-        visualFlow
+        visualFlow,
+        movement
       ),
   };
 }
@@ -291,6 +301,7 @@ function parseImportedProject(raw: unknown): {
   layoutData: unknown;
   automationScripts: AutomationScriptDefinition[];
   visualFlow: AutomationFlowDocument;
+  movement: MovementDocument;
 } {
   if (raw && typeof raw === "object") {
     const candidate = raw as Record<string, unknown>;
@@ -317,6 +328,10 @@ function parseImportedProject(raw: unknown): {
           normalizeAutomationFlowDocument(
             automations.visualFlow
           ),
+        movement:
+          normalizeMovementDocument(
+            automations.movement
+          ),
       };
     }
   }
@@ -328,6 +343,8 @@ function parseImportedProject(raw: unknown): {
     automationScripts: prepared.legacyAutomationScripts,
     visualFlow:
       createEmptyAutomationFlowDocument(),
+    movement:
+      createEmptyMovementDocument(),
   };
 }
 
@@ -635,6 +652,11 @@ export default function LiteLayoutPage({
 
   const [layout, setLayout] = useState(() => new LayoutView());
   const [automationScripts, setAutomationScripts] = useState<AutomationScriptDefinition[]>([]);
+  const [movementDocument, setMovementDocument] =
+    useState<MovementDocument>(
+      () =>
+        createEmptyMovementDocument()
+    );
   const importFileRef = useRef<HTMLInputElement | null>(null);
   const [selectedElement, setSelectedElement] = useState<BaseElement | null>(null);
   const [tool, setTool] = useState<EditorTool>({ mode: "cursor", elementType: "general" });
@@ -667,6 +689,11 @@ export default function LiteLayoutPage({
   const [routesOpened, setRoutesOpened] = useState(false);
   const [automationFlowOpened, setAutomationFlowOpened] = useState(false);
   const [automationFlowPageId, setAutomationFlowPageId] =
+    useState<string | null>(
+      null
+    );
+  const [movementEditorOpened, setMovementEditorOpened] = useState(false);
+  const [movementEditorPageId, setMovementEditorPageId] =
     useState<string | null>(
       null
     );
@@ -916,9 +943,11 @@ export default function LiteLayoutPage({
       const [
         layoutResponse,
         storedAutomations,
+        storedMovements,
       ] = await Promise.all([
         fetch("/api/layout", { cache: "no-store" }),
         loadAutomationScripts(),
+        loadAutomationMovement(),
       ]);
 
       if (!layoutResponse.ok) {
@@ -944,6 +973,9 @@ export default function LiteLayoutPage({
         storedAutomations.length > 0
           ? storedAutomations
           : prepared.legacyAutomationScripts
+      );
+      setMovementDocument(
+        storedMovements
       );
 
       setSelectedElement(null);
@@ -1285,7 +1317,8 @@ export default function LiteLayoutPage({
         createProjectExport(
           layout,
           automationScripts,
-          automationFlow
+          automationFlow,
+          movementDocument
         );
       const json = JSON.stringify(project, null, 2);
       const blob = new Blob([json], { type: "application/json;charset=utf-8" });
@@ -1316,7 +1349,7 @@ export default function LiteLayoutPage({
         message,
       });
     }
-  }, [layout, automationScripts, automationFlow, invalidate]);
+  }, [layout, automationScripts, automationFlow, movementDocument, invalidate]);
 
   const importProject = useCallback(
     async (file: File): Promise<void> => {
@@ -1364,8 +1397,10 @@ export default function LiteLayoutPage({
 
         await saveAutomationScripts(imported.automationScripts);
         await saveAutomationFlow(imported.visualFlow);
+        await saveAutomationMovement(imported.movement);
         setLayout(nextLayout);
         setAutomationScripts(imported.automationScripts);
+        setMovementDocument(imported.movement);
         onAutomationFlowChange(
           imported.visualFlow
         );
@@ -1674,6 +1709,12 @@ export default function LiteLayoutPage({
                             setAutomationFlowPageId(pageId);
                             setAutomationFlowOpened(true);
                           }}
+                          movements={movementDocument}
+                          onMovementsChange={setMovementDocument}
+                          onOpenMovementEditor={pageId => {
+                            setMovementEditorPageId(pageId);
+                            setMovementEditorOpened(true);
+                          }}
                         />
                       </div>
                     </Stack>
@@ -1893,6 +1934,16 @@ export default function LiteLayoutPage({
         onClose={() => {
           setAutomationFlowOpened(false);
           setAutomationFlowPageId(null);
+        }}
+      />
+
+      <MovementEditorDialog
+        opened={movementEditorOpened}
+        initialPageId={movementEditorPageId}
+        onSaved={setMovementDocument}
+        onClose={() => {
+          setMovementEditorOpened(false);
+          setMovementEditorPageId(null);
         }}
       />
 
