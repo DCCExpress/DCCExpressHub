@@ -378,3 +378,61 @@ test("next-ten timetable view has EN HU DE text", () => {
     );
   }
 });
+
+
+test("timetable editor uses a fixed large scrollable layout with compact target selects", () => {
+  const dialog =
+    read(
+      "src/components/TimetableDialog.tsx"
+    );
+
+  assert.match(
+    dialog,
+    /size=\{1360\}/
+  );
+
+  assert.match(
+    dialog,
+    /height:\s*820/
+  );
+
+  assert.match(
+    dialog,
+    /maxHeight:[\s\S]*100dvh/
+  );
+
+  assert.match(
+    dialog,
+    /<ScrollArea[\s\S]*type="always"[\s\S]*flex:\s*1/
+  );
+
+  assert.match(
+    dialog,
+    /tableLayout:[\s\S]*"fixed"/
+  );
+
+  assert.match(
+    dialog,
+    /w=\{150\}/
+  );
+
+  assert.match(
+    dialog,
+    /w=\{210\}/
+  );
+
+  assert.match(
+    dialog,
+    /w=\{125\}/
+  );
+
+  assert.match(
+    dialog,
+    /w=\{290\}/
+  );
+
+  assert.doesNotMatch(
+    dialog,
+    /label=\{[\s\S]*ui\.timetableTarget[\s\S]*searchable/
+  );
+});
