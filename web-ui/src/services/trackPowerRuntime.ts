@@ -105,6 +105,25 @@ function install(): void {
   );
 }
 
+
+export function setTrackPowerRuntimeState(
+  on: boolean
+): void {
+  install();
+
+  if (
+    trackPowerOn ===
+    on
+  ) {
+    return;
+  }
+
+  trackPowerOn =
+    on;
+
+  emit();
+}
+
 export function isTrackPowerOn(): boolean {
   install();
 
