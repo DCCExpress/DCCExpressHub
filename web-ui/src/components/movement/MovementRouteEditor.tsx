@@ -26,6 +26,7 @@ import {
 } from "@tabler/icons-react";
 
 import type {
+  MovementAction,
   MovementBlockRule,
   MovementPage,
 } from "../../domain/movement";
@@ -39,6 +40,11 @@ import {
   loadAutomationSensorCatalog,
   type AutomationSensorOption,
 } from "../../services/automationSensorCatalog";
+
+import {
+  loadMovementPlan,
+  type MovementPlan,
+} from "../../services/movementPlan";
 
 import MovementRouteRow from "./MovementRouteRow";
 
@@ -70,6 +76,17 @@ export default function MovementRouteEditor({
     useState<
       AutomationSensorOption[]
     >([]);
+
+  const [
+    plan,
+    setPlan,
+  ] =
+    useState<
+      MovementPlan |
+      null
+    >(
+      null
+    );
 
   const [
     loading,
@@ -118,16 +135,18 @@ export default function MovementRouteEditor({
             sensors,
           ]) => {
             if (
-              !disposed
+              disposed
             ) {
-              setCatalog(
-                blocks
-              );
-
-              setSensorCatalog(
-                sensors
-              );
+              return;
             }
+
+            setCatalog(
+              blocks
+            );
+
+            setSensorCatalog(
+              sensors
+            );
           }
         )
         .catch(
@@ -165,6 +184,101 @@ export default function MovementRouteEditor({
     []
   );
 
+  const routeSignature =
+    [
+      page.fromBlockId ??
+        0,
+      ...page.viaBlockIds,
+      page.toBlockId ??
+        0,
+    ].join(
+      ":"
+    );
+
+  useEffect(
+    () => {
+      let disposed =
+        false;
+
+      if (
+        page.fromBlockId ===
+          null ||
+        page.toBlockId ===
+          null
+      ) {
+        setPlan(
+          null
+        );
+
+        return () => {
+          disposed =
+            true;
+        };
+      }
+
+      setLoading(
+        true
+      );
+
+      setLoadError(
+        null
+      );
+
+      void loadMovementPlan(
+        page
+      )
+        .then(
+          nextPlan => {
+            if (
+              !disposed
+            ) {
+              setPlan(
+                nextPlan
+              );
+            }
+          }
+        )
+        .catch(
+          error => {
+            if (
+              !disposed
+            ) {
+              setPlan(
+                null
+              );
+
+              setLoadError(
+                error instanceof Error
+                  ? error.message
+                  : String(
+                      error
+                    )
+              );
+            }
+          }
+        )
+        .finally(
+          () => {
+            if (
+              !disposed
+            ) {
+              setLoading(
+                false
+              );
+            }
+          }
+        );
+
+      return () => {
+        disposed =
+          true;
+      };
+    },
+    [
+      routeSignature,
+    ]
+  );
+
   const selectData =
     useMemo(
       () =>
@@ -182,76 +296,6 @@ export default function MovementRouteEditor({
         catalog,
       ]
     );
-
-  const routeIds =
-    useMemo(
-      () => {
-        const result:
-          number[] = [];
-
-        if (
-          page.fromBlockId !==
-          null
-        ) {
-          result.push(
-            page.fromBlockId
-          );
-        }
-
-        for (
-          const blockId of
-          page.viaBlockIds
-        ) {
-          if (
-            !result.includes(
-              blockId
-            )
-          ) {
-            result.push(
-              blockId
-            );
-          }
-        }
-
-        if (
-          page.toBlockId !==
-            null &&
-          !result.includes(
-            page.toBlockId
-          )
-        ) {
-          result.push(
-            page.toBlockId
-          );
-        }
-
-        return result;
-      },
-      [
-        page.fromBlockId,
-        page.viaBlockIds,
-        page.toBlockId,
-      ]
-    );
-
-  const routeBlocks =
-    routeIds
-      .map(
-        blockId =>
-          catalog.find(
-            block =>
-              block.id ===
-              blockId
-          ) ??
-          null
-      )
-      .filter(
-        (
-          block
-        ): block is AutomationBlockOption =>
-          block !==
-          null
-      );
 
   const updateRule =
     (
@@ -283,6 +327,25 @@ export default function MovementRouteEditor({
       });
     };
 
+  const updateActionsForResource =
+    (
+      resourceKey: string,
+      actions:
+        MovementAction[]
+    ): void => {
+      onChange({
+        ...page,
+        actions: [
+          ...page.actions.filter(
+            action =>
+              action.resourceKey !==
+              resourceKey
+          ),
+          ...actions,
+        ],
+      });
+    };
+
   const moveVia =
     (
       index: number,
@@ -300,10 +363,9 @@ export default function MovementRouteEditor({
         return;
       }
 
-      const next =
-        [
-          ...page.viaBlockIds,
-        ];
+      const next = [
+        ...page.viaBlockIds,
+      ];
 
       const current =
         next[index];
@@ -364,38 +426,25 @@ export default function MovementRouteEditor({
             >
               FROM / VIA / TO
             </Badge>
-          </Group>
 
-          {
-            loading && (
-              <Group
-                gap="xs"
-              >
-                <Loader
-                  size="sm"
-                />
-
-                <Text
-                  size="sm"
-                  c="dimmed"
+            {
+              plan && (
+                <Badge
+                  variant="light"
+                  color={
+                    plan.topologyVersion >=
+                    3
+                      ? "teal"
+                      : "yellow"
+                  }
                 >
-                  Loading blocks...
-                </Text>
-              </Group>
-            )
-          }
-
-          {
-            loadError && (
-              <Alert
-                color="red"
-              >
-                {
-                  loadError
-                }
-              </Alert>
-            )
-          }
+                  topology v{
+                    plan.topologyVersion
+                  }
+                </Badge>
+              )
+            }
+          </Group>
 
           <div
             className="movement-route-selector-grid"
@@ -554,16 +603,13 @@ export default function MovementRouteEditor({
                     return;
                   }
 
-                  const blockId =
-                    Number(
-                      viaCandidate
-                    );
-
                   onChange({
                     ...page,
                     viaBlockIds: [
                       ...page.viaBlockIds,
-                      blockId,
+                      Number(
+                        viaCandidate
+                      ),
                     ],
                   });
 
@@ -662,7 +708,7 @@ export default function MovementRouteEditor({
                             variant="light"
                             color="red"
                             onClick={
-                              () => {
+                              () =>
                                 onChange({
                                   ...page,
                                   viaBlockIds:
@@ -671,8 +717,7 @@ export default function MovementRouteEditor({
                                         id !==
                                         blockId
                                     ),
-                                });
-                              }
+                                })
                             }
                           >
                             <IconTrash
@@ -691,6 +736,50 @@ export default function MovementRouteEditor({
       </Card>
 
       {
+        loading && (
+          <Group
+            gap="xs"
+          >
+            <Loader
+              size="sm"
+            />
+
+            <Text
+              size="sm"
+              c="dimmed"
+            >
+              Building physical movement plan...
+            </Text>
+          </Group>
+        )
+      }
+
+      {
+        loadError && (
+          <Alert
+            color="red"
+          >
+            {
+              loadError
+            }
+          </Alert>
+        )
+      }
+
+      {
+        plan &&
+        plan.topologyVersion <
+          3 && (
+          <Alert
+            color="yellow"
+            variant="light"
+          >
+            Legacy route topology: segments are exact, but turnout passage order is reconstructed from old edge requirements. Generate and save the route graph once to upgrade to topology v3.
+          </Alert>
+        )
+      }
+
+      {
         page.fromBlockId ===
           null ||
         page.toBlockId ===
@@ -700,10 +789,10 @@ export default function MovementRouteEditor({
               color="blue"
               variant="light"
             >
-              Select a FROM and TO block. The vertical dispatcher timeline will be built from the route checkpoints.
+              Select a FROM and TO block.
             </Alert>
           )
-          : (
+          : plan && (
             <>
               <div
                 className="movement-route-grid-header"
@@ -713,7 +802,7 @@ export default function MovementRouteEditor({
                   fw={700}
                   c="dimmed"
                 >
-                  ROUTE
+                  PHYSICAL ROUTE
                 </Text>
 
                 <Text
@@ -721,7 +810,7 @@ export default function MovementRouteEditor({
                   fw={700}
                   c="dimmed"
                 >
-                  ARRIVAL / CONDITION
+                  CONDITION / EVENT
                 </Text>
 
                 <Text
@@ -737,56 +826,70 @@ export default function MovementRouteEditor({
                 className="movement-route-timeline"
               >
                 {
-                  routeBlocks.map(
+                  plan.resources.map(
                     (
-                      block,
+                      resource,
                       index
-                    ) => (
-                      <MovementRouteRow
-                        key={
-                          block.id
-                        }
-                        block={
-                          block
-                        }
-                        index={
-                          index
-                        }
-                        isSource={
-                          index ===
-                          0
-                        }
-                        isDestination={
-                          index ===
-                          routeBlocks.length -
-                            1
-                        }
-                        rule={
-                          page.blockRules.find(
-                            rule =>
-                              rule.blockId ===
-                              block.id
-                          ) ??
-                          null
-                        }
-                        sensorCatalog={
-                          sensorCatalog
-                        }
-                        onRuleChange={
-                          updateRule
-                        }
-                      />
-                    )
+                    ) => {
+                      const blockId =
+                        resource.blockId;
+
+                      return (
+                        <MovementRouteRow
+                          key={
+                            `${resource.key}:${index}`
+                          }
+                          resource={
+                            resource
+                          }
+                          index={
+                            index
+                          }
+                          isSource={
+                            resource.key ===
+                            `block:${page.fromBlockId}`
+                          }
+                          isDestination={
+                            resource.key ===
+                            `block:${page.toBlockId}`
+                          }
+                          rule={
+                            blockId ===
+                            null
+                              ? null
+                              : page.blockRules.find(
+                                  rule =>
+                                    rule.blockId ===
+                                    blockId
+                                ) ??
+                                null
+                          }
+                          sensorCatalog={
+                            sensorCatalog
+                          }
+                          actions={
+                            page.actions.filter(
+                              action =>
+                                action.resourceKey ===
+                                resource.key
+                            )
+                          }
+                          onRuleChange={
+                            updateRule
+                          }
+                          onActionsChange={
+                            actions =>
+                              updateActionsForResource(
+                                resource.key,
+                                actions
+                              )
+                          }
+                        />
+                      );
+                    }
                   )
                 }
               </div>
-
-              <Alert
-                color="gray"
-                variant="light"
-              >
-                This first editor layer shows block checkpoints. The saved route topology will expand the gaps with Segment / Turnout / Signal resources without changing the page model.
-              </Alert>
             </>
           )
       }
