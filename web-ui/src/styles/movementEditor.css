@@ -448,6 +448,16 @@
     black 24%,
     var(--mantine-color-body)
   );
+  cursor: grab;
+  user-select: none;
+}
+
+.movement-action-card-header:active {
+  cursor: grabbing;
+}
+
+.movement-action-card-header button {
+  cursor: pointer;
 }
 
 .movement-action-card-body {
