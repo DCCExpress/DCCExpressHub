@@ -331,65 +331,22 @@ export default function MovementActionEditor({
             actionId
         );
 
-      const current =
-        actions[
-          fromIndex
-        ];
-
       if (
-        !current
+        fromIndex < 0
       ) {
         return;
       }
 
-      const sameWhenIndexes =
-        actions
-          .map(
-            (
-              action,
-              index
-            ) => ({
-              action,
-              index,
-            })
-          )
-          .filter(
-            entry =>
-              entry.action.when ===
-              current.when
-          )
-          .map(
-            entry =>
-              entry.index
-          );
-
-      const currentGroupIndex =
-        sameWhenIndexes.indexOf(
-          fromIndex
-        );
-
-      const targetGroupIndex =
+      const toIndex =
         Math.max(
           0,
           Math.min(
-            currentGroupIndex +
+            fromIndex +
               offset,
-            sameWhenIndexes.length -
+            actions.length -
               1
           )
         );
-
-      const toIndex =
-        sameWhenIndexes[
-          targetGroupIndex
-        ];
-
-      if (
-        toIndex ===
-        undefined
-      ) {
-        return;
-      }
 
       const next =
         moveAction(
@@ -426,21 +383,8 @@ export default function MovementActionEditor({
             draggedActionId
         );
 
-      const dragged =
-        actions[
-          fromIndex
-        ];
-
-      const target =
-        actions[
-          targetIndex
-        ];
-
       if (
-        !dragged ||
-        !target ||
-        dragged.when !==
-          target.when
+        fromIndex < 0
       ) {
         return;
       }
@@ -564,20 +508,6 @@ export default function MovementActionEditor({
             action,
             actionIndex
           ) => {
-            const phaseActions =
-              actions.filter(
-                current =>
-                  current.when ===
-                  action.when
-              );
-
-            const phaseIndex =
-              phaseActions.findIndex(
-                current =>
-                  current.id ===
-                  action.id
-              );
-
             const phaseLabel =
               options.find(
                 option =>
@@ -671,14 +601,14 @@ export default function MovementActionEditor({
                         : "gray"
                     }
                   >
-                    #{phaseIndex + 1}
+                    #{actionIndex + 1}
                   </Badge>
 
                   <Text
                     size="xs"
                     c="dimmed"
                   >
-                    {phaseLabel} order
+                    #{actionIndex + 1} · {phaseLabel}
                   </Text>
                 </Group>
 
@@ -695,7 +625,7 @@ export default function MovementActionEditor({
                       color="gray"
                       variant="light"
                       disabled={
-                        phaseIndex ===
+                        actionIndex ===
                         0
                       }
                       onClick={
@@ -721,8 +651,8 @@ export default function MovementActionEditor({
                       color="gray"
                       variant="light"
                       disabled={
-                        phaseIndex >=
-                        phaseActions.length -
+                        actionIndex >=
+                        actions.length -
                           1
                       }
                       onClick={
