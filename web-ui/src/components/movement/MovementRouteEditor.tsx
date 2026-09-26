@@ -380,7 +380,7 @@ export default function MovementRouteEditor({
                           isCurrent={
                             runtimeState.status !==
                               "idle" &&
-                            runtimeState.currentResourceKey ===
+                            runtimeState.activeRouteResourceKey ===
                               resource.key
                           }
                           rule={
