@@ -1914,3 +1914,126 @@ test("Movement route condition sequence and action cards can all collapse", () =
     /<Collapse[\s\S]*collapsedActionIds\.has/
   );
 });
+
+
+test("Movement stores run timing and cards show live elapsed duration", () => {
+  const domain =
+    read(
+      "src/domain/movement.ts"
+    );
+
+  const api =
+    read(
+      "src/services/automationApi.ts"
+    );
+
+  const engine =
+    read(
+      "src/services/movementEngine.ts"
+    );
+
+  const elapsed =
+    read(
+      "src/components/movement/MovementElapsedBadge.tsx"
+    );
+
+  const cards =
+    read(
+      "src/components/movement/MovementPagesTable.tsx"
+    );
+
+  const sidebar =
+    read(
+      "src/components/movement/MovementSidebarCard.tsx"
+    );
+
+  const editor =
+    read(
+      "src/components/movement/MovementEditorDialog.tsx"
+    );
+
+  assert.match(
+    domain,
+    /startedAt:\s*number \| null/
+  );
+
+  assert.match(
+    domain,
+    /stoppedAt:\s*number \| null/
+  );
+
+  assert.match(
+    domain,
+    /startedAt:\s*null[\s\S]*stoppedAt:\s*null/
+  );
+
+  assert.match(
+    api,
+    /updateAutomationMovementTiming/
+  );
+
+  assert.match(
+    engine,
+    /stoppedAt:\s*number \| null/
+  );
+
+  assert.match(
+    engine,
+    /persistMovementTiming/
+  );
+
+  assert.match(
+    engine,
+    /const startedAt =[\s\S]*Date\.now\(\)/
+  );
+
+  assert.match(
+    engine,
+    /const stoppedAt =[\s\S]*Date\.now\(\)/
+  );
+
+  assert.match(
+    elapsed,
+    /window\.setInterval/
+  );
+
+  assert.match(
+    elapsed,
+    /1000/
+  );
+
+  assert.match(
+    elapsed,
+    /padStart\([\s\S]*2/
+  );
+
+  assert.match(
+    elapsed,
+    /\(\$\{safeSeconds\} s\)/
+  );
+
+  assert.match(
+    cards,
+    /MovementElapsedBadge/
+  );
+
+  assert.match(
+    sidebar,
+    /MovementElapsedBadge/
+  );
+
+  assert.match(
+    cards,
+    /getMovementEngineState/
+  );
+
+  assert.match(
+    editor,
+    /runtime\.startedAt/
+  );
+
+  assert.match(
+    editor,
+    /runtime\.stoppedAt/
+  );
+});
