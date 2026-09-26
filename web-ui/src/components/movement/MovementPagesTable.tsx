@@ -155,31 +155,35 @@ export default function MovementPagesTable({
     );
 
   const persist =
-    (
+    async (
       next:
         MovementDocument
-    ): void => {
+    ): Promise<boolean> => {
       onDocumentChange(
         next
       );
 
-      void saveAutomationMovement(
-        next
-      ).catch(
-        error => {
-          showNotification({
-            color: "red",
-            title:
-              "Movement save failed",
-            message:
-              error instanceof Error
-                ? error.message
-                : String(
-                    error
-                  ),
-          });
-        }
-      );
+      try {
+        await saveAutomationMovement(
+          next
+        );
+
+        return true;
+      } catch (error) {
+        showNotification({
+          color: "red",
+          title:
+            "Movement save failed",
+          message:
+            error instanceof Error
+              ? error.message
+              : String(
+                  error
+                ),
+        });
+
+        return false;
+      }
     };
 
   const createPage =
@@ -199,12 +203,18 @@ export default function MovementPagesTable({
           page.id,
       };
 
-      persist(
+      void persist(
         next
-      );
-
-      onOpenEditor(
-        page.id
+      ).then(
+        saved => {
+          if (
+            saved
+          ) {
+            onOpenEditor(
+              page.id
+            );
+          }
+        }
       );
     };
 
@@ -389,7 +399,7 @@ export default function MovementPagesTable({
                       label="Enabled"
                       onChange={
                         event => {
-                          persist({
+                          void persist({
                             ...document,
                             pages:
                               document.pages.map(
