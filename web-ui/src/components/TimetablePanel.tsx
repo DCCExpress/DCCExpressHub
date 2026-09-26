@@ -297,9 +297,15 @@ export default function TimetablePanel({
 
         const activeKeys =
           new Set(
-            schedulerState.activeRuns.map(
-              run =>
-                `${run.timetableEntryId}:${run.timetableActionId}:${run.scheduledMinuteOfDay}`
+            activeRows.map(
+              row => {
+                const run =
+                  row.activeRun!;
+
+                return (
+                  `${run.timetableEntryId}:${run.timetableActionId}:${row.absoluteMinute}`
+                );
+              }
             )
           );
 
@@ -330,11 +336,9 @@ export default function TimetablePanel({
               entry.actions
             ) {
               const occurrenceKey =
-                `${entry.id}:${action.id}:${occurrence.minuteOfDay}`;
+                `${entry.id}:${action.id}:${occurrence.absoluteMinute}`;
 
               if (
-                occurrence.dayOffset ===
-                  0 &&
                 activeKeys.has(
                   occurrenceKey
                 )
