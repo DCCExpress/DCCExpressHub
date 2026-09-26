@@ -1,5 +1,6 @@
 import {
   type DragEvent,
+  useMemo,
   useState,
 } from "react";
 
@@ -28,8 +29,10 @@ import {
 
 import {
   createMovementAction,
+  createMovementId,
   type MovementAction,
   type MovementActionKind,
+  type MovementSequenceMode,
   type MovementWhen,
 } from "../../domain/movement";
 
@@ -59,6 +62,15 @@ type Props = {
   ) => void;
 };
 
+type SequenceGroup = {
+  id: string;
+  when: MovementWhen;
+  mode:
+    MovementSequenceMode;
+  actions:
+    MovementAction[];
+};
+
 function whenOptions(
   kind:
     MovementPlanResourceKind,
@@ -77,6 +89,12 @@ function whenOptions(
       isDestination
     ) {
       return [
+        {
+          value:
+            "approach",
+          label:
+            "APPROACH",
+        },
         {
           value:
             "arrived",
@@ -121,12 +139,23 @@ function whenOptions(
     if (
       !isSource
     ) {
-      options.unshift({
-        value:
-          "arrived",
-        label:
-          "ARRIVED",
-      });
+      options.unshift(
+        {
+          value:
+            "arrived",
+          label:
+            "ARRIVED",
+        }
+      );
+
+      options.unshift(
+        {
+          value:
+            "approach",
+          label:
+            "APPROACH",
+        }
+      );
     }
 
     return options;
@@ -191,7 +220,7 @@ function defaultWhen(
   if (
     isDestination
   ) {
-    return "arrived";
+    return "approach";
   }
 
   if (
@@ -200,50 +229,7 @@ function defaultWhen(
     return "beforeDepart";
   }
 
-  return "arrived";
-}
-
-function moveAction(
-  actions:
-    MovementAction[],
-  fromIndex: number,
-  toIndex: number
-): MovementAction[] {
-  if (
-    fromIndex < 0 ||
-    fromIndex >=
-      actions.length ||
-    toIndex < 0 ||
-    toIndex >=
-      actions.length ||
-    fromIndex ===
-      toIndex
-  ) {
-    return actions;
-  }
-
-  const next =
-    [...actions];
-
-  const [
-    moved,
-  ] =
-    next.splice(
-      fromIndex,
-      1
-    );
-
-  if (!moved) {
-    return actions;
-  }
-
-  next.splice(
-    toIndex,
-    0,
-    moved
-  );
-
-  return next;
+  return "approach";
 }
 
 const WHAT_OPTIONS:
@@ -296,6 +282,94 @@ const WHAT_OPTIONS:
     },
   ];
 
+const SEQUENCE_MODE_OPTIONS:
+  Array<{
+    value:
+      MovementSequenceMode;
+    label: string;
+  }> = [
+    {
+      value:
+        "blocking",
+      label:
+        "Blocking",
+    },
+    {
+      value:
+        "background",
+      label:
+        "Background",
+    },
+  ];
+
+function groupSequences(
+  actions:
+    MovementAction[]
+): SequenceGroup[] {
+  const result:
+    SequenceGroup[] = [];
+
+  const byId =
+    new Map<
+      string,
+      SequenceGroup
+    >();
+
+  for (const action of actions) {
+    let sequence =
+      byId.get(
+        action.sequenceId
+      );
+
+    if (!sequence) {
+      sequence = {
+        id:
+          action.sequenceId,
+        when:
+          action.when,
+        mode:
+          action.sequenceMode,
+        actions: [],
+      };
+
+      byId.set(
+        action.sequenceId,
+        sequence
+      );
+
+      result.push(
+        sequence
+      );
+    }
+
+    sequence.actions.push(
+      action
+    );
+  }
+
+  return result;
+}
+
+function flattenSequences(
+  sequences:
+    SequenceGroup[]
+): MovementAction[] {
+  return sequences.flatMap(
+    sequence =>
+      sequence.actions.map(
+        action => ({
+          ...action,
+          sequenceId:
+            sequence.id,
+          sequenceMode:
+            sequence.mode,
+          when:
+            sequence.when,
+        })
+      )
+  );
+}
+
 export default function MovementActionEditor({
   resourceKey,
   resourceKind,
@@ -311,6 +385,17 @@ export default function MovementActionEditor({
       isDestination
     );
 
+  const sequences =
+    useMemo(
+      () =>
+        groupSequences(
+          actions
+        ),
+      [
+        actions,
+      ]
+    );
+
   const [
     draggedActionId,
     setDraggedActionId,
@@ -319,13 +404,336 @@ export default function MovementActionEditor({
       null
     );
 
+  const commitSequences =
+    (
+      next:
+        SequenceGroup[]
+    ): void => {
+      onChange(
+        flattenSequences(
+          next
+        )
+      );
+    };
+
+  const updateSequence =
+    (
+      sequenceId: string,
+      patch:
+        Partial<
+          Pick<
+            SequenceGroup,
+            "when" |
+            "mode"
+          >
+        >
+    ): void => {
+      commitSequences(
+        sequences.map(
+          sequence =>
+            sequence.id ===
+            sequenceId
+              ? {
+                  ...sequence,
+                  ...patch,
+                }
+              : sequence
+        )
+      );
+    };
+
+  const addSequence =
+    (): void => {
+      const sequenceId =
+        createMovementId(
+          "movement-sequence"
+        );
+
+      const when =
+        defaultWhen(
+          resourceKind,
+          isSource,
+          isDestination
+        );
+
+      const action =
+        createMovementAction(
+          resourceKey,
+          when,
+          "speed",
+          sequenceId,
+          "blocking"
+        );
+
+      commitSequences([
+        ...sequences,
+        {
+          id:
+            sequenceId,
+          when,
+          mode:
+            "blocking",
+          actions: [
+            action,
+          ],
+        },
+      ]);
+    };
+
+  const addAction =
+    (
+      sequence:
+        SequenceGroup
+    ): void => {
+      commitSequences(
+        sequences.map(
+          current =>
+            current.id ===
+            sequence.id
+              ? {
+                  ...current,
+                  actions: [
+                    ...current.actions,
+                    createMovementAction(
+                      resourceKey,
+                      current.when,
+                      "speed",
+                      current.id,
+                      current.mode
+                    ),
+                  ],
+                }
+              : current
+        )
+      );
+    };
+
+  const deleteSequence =
+    (
+      sequenceId:
+        string
+    ): void => {
+      commitSequences(
+        sequences.filter(
+          sequence =>
+            sequence.id !==
+            sequenceId
+        )
+      );
+    };
+
+  const moveSequence =
+    (
+      sequenceIndex:
+        number,
+      offset:
+        number
+    ): void => {
+      const toIndex =
+        Math.max(
+          0,
+          Math.min(
+            sequenceIndex +
+              offset,
+            sequences.length -
+              1
+          )
+        );
+
+      if (
+        toIndex ===
+        sequenceIndex
+      ) {
+        return;
+      }
+
+      const next =
+        [...sequences];
+
+      const [
+        moved,
+      ] =
+        next.splice(
+          sequenceIndex,
+          1
+        );
+
+      if (!moved) {
+        return;
+      }
+
+      next.splice(
+        toIndex,
+        0,
+        moved
+      );
+
+      commitSequences(
+        next
+      );
+    };
+
+  const updateAction =
+    (
+      sequenceId:
+        string,
+      actionId:
+        string,
+      patch:
+        Partial<MovementAction>
+    ): void => {
+      commitSequences(
+        sequences.map(
+          sequence =>
+            sequence.id ===
+            sequenceId
+              ? {
+                  ...sequence,
+                  actions:
+                    sequence.actions.map(
+                      action =>
+                        action.id ===
+                        actionId
+                          ? {
+                              ...action,
+                              ...patch,
+                            }
+                          : action
+                    ),
+                }
+              : sequence
+        )
+      );
+    };
+
+  const deleteAction =
+    (
+      sequenceId:
+        string,
+      actionId:
+        string
+    ): void => {
+      const next =
+        sequences
+          .map(
+            sequence =>
+              sequence.id ===
+              sequenceId
+                ? {
+                    ...sequence,
+                    actions:
+                      sequence.actions.filter(
+                        action =>
+                          action.id !==
+                          actionId
+                      ),
+                  }
+                : sequence
+          )
+          .filter(
+            sequence =>
+              sequence.actions.length >
+              0
+          );
+
+      commitSequences(
+        next
+      );
+    };
+
+  const moveAction =
+    (
+      sequenceId:
+        string,
+      actionId:
+        string,
+      targetIndex:
+        number
+    ): void => {
+      commitSequences(
+        sequences.map(
+          sequence => {
+            if (
+              sequence.id !==
+              sequenceId
+            ) {
+              return sequence;
+            }
+
+            const fromIndex =
+              sequence.actions.findIndex(
+                action =>
+                  action.id ===
+                  actionId
+              );
+
+            if (
+              fromIndex < 0
+            ) {
+              return sequence;
+            }
+
+            const boundedTarget =
+              Math.max(
+                0,
+                Math.min(
+                  targetIndex,
+                  sequence.actions.length -
+                    1
+                )
+              );
+
+            if (
+              boundedTarget ===
+              fromIndex
+            ) {
+              return sequence;
+            }
+
+            const nextActions =
+              [
+                ...sequence.actions,
+              ];
+
+            const [
+              moved,
+            ] =
+              nextActions.splice(
+                fromIndex,
+                1
+              );
+
+            if (!moved) {
+              return sequence;
+            }
+
+            nextActions.splice(
+              boundedTarget,
+              0,
+              moved
+            );
+
+            return {
+              ...sequence,
+              actions:
+                nextActions,
+            };
+          }
+        )
+      );
+    };
+
   const moveActionByOffset =
     (
-      actionId: string,
-      offset: number
+      sequence:
+        SequenceGroup,
+      actionId:
+        string,
+      offset:
+        number
     ): void => {
       const fromIndex =
-        actions.findIndex(
+        sequence.actions.findIndex(
           action =>
             action.id ===
             actionId
@@ -337,73 +745,12 @@ export default function MovementActionEditor({
         return;
       }
 
-      const toIndex =
-        Math.max(
-          0,
-          Math.min(
-            fromIndex +
-              offset,
-            actions.length -
-              1
-          )
-        );
-
-      const next =
-        moveAction(
-          actions,
-          fromIndex,
-          toIndex
-        );
-
-      if (
-        next !==
-        actions
-      ) {
-        onChange(
-          next
-        );
-      }
-    };
-
-  const moveDraggedActionToIndex =
-    (
-      targetIndex:
-        number
-    ): void => {
-      if (
-        !draggedActionId
-      ) {
-        return;
-      }
-
-      const fromIndex =
-        actions.findIndex(
-          action =>
-            action.id ===
-            draggedActionId
-        );
-
-      if (
-        fromIndex < 0
-      ) {
-        return;
-      }
-
-      const next =
-        moveAction(
-          actions,
-          fromIndex,
-          targetIndex
-        );
-
-      if (
-        next !==
-        actions
-      ) {
-        onChange(
-          next
-        );
-      }
+      moveAction(
+        sequence.id,
+        actionId,
+        fromIndex +
+          offset
+      );
     };
 
   const handleDragStart =
@@ -426,41 +773,30 @@ export default function MovementActionEditor({
       );
     };
 
-  const update =
-    (
-      id: string,
-      patch:
-        Partial<MovementAction>
-    ): void => {
-      onChange(
-        actions.map(
-          action =>
-            action.id ===
-            id
-              ? {
-                  ...action,
-                  ...patch,
-                }
-              : action
-        )
-      );
-    };
-
   return (
     <Stack
-      gap="xs"
+      gap="sm"
     >
       <Group
         justify="space-between"
         align="center"
         className="movement-action-editor-toolbar"
       >
-        <Text
-          size="sm"
-          fw={600}
-        >
-          WHEN → WHAT
-        </Text>
+        <div>
+          <Text
+            size="sm"
+            fw={700}
+          >
+            Sequences
+          </Text>
+
+          <Text
+            size="xs"
+            c="dimmed"
+          >
+            Blocking waits for the sequence. Background keeps the train moving while its actions still run in order.
+          </Text>
+        </div>
 
         <Button
           size="compact-xs"
@@ -471,166 +807,124 @@ export default function MovementActionEditor({
             />
           }
           onClick={
-            () =>
-              onChange([
-                ...actions,
-                createMovementAction(
-                  resourceKey,
-                  defaultWhen(
-                    resourceKind,
-                    isSource,
-                    isDestination
-                  ),
-                  "speed"
-                ),
-              ])
+            addSequence
           }
         >
-          Action
+          Sequence
         </Button>
       </Group>
 
       {
-        actions.length ===
+        sequences.length ===
           0 && (
           <Text
             size="xs"
             c="dimmed"
           >
-            No actions for this route resource.
+            No action sequences for this route resource.
           </Text>
         )
       }
 
       {
-        actions.map(
+        sequences.map(
           (
-            action,
-            actionIndex
-          ) => {
-            const phaseLabel =
-              options.find(
-                option =>
-                  option.value ===
-                  action.when
-              )?.label ??
-              action.when;
-
-            return (
-            <div
+            sequence,
+            sequenceIndex
+          ) => (
+            <Card
               key={
-                action.id
+                sequence.id
               }
-              className={
-                "movement-inner-step-row movement-action-step-row" +
-                (
-                  actionIndex ===
-                  actions.length - 1
-                    ? " is-last"
-                    : ""
-                )
-              }
-            >
-              <div
-                className="movement-inner-step-spine"
-              >
-                <div
-                  className="movement-inner-step-dot movement-action-step-dot"
-                >
-                  {
-                    actionIndex + 1
-                  }
-                </div>
-
-                <div
-                  className="movement-inner-step-line"
-                />
-              </div>
-
-              <Card
               withBorder
               p={0}
-              className="movement-action-card"
-              onDragOver={
-                event => {
-                  event.preventDefault();
-
-                  event.dataTransfer.dropEffect =
-                    "move";
-
-                  if (
-                    draggedActionId &&
-                    draggedActionId !==
-                      action.id
-                  ) {
-                    moveDraggedActionToIndex(
-                      actionIndex
-                    );
-                  }
-                }
-              }
-              style={{
-                opacity:
-                  draggedActionId ===
-                    action.id
-                    ? 0.35
-                    : 1,
-                transition:
-                  "opacity 120ms ease, transform 120ms ease, border-color 120ms ease, background-color 120ms ease",
-              }}
+              className="movement-sequence-card"
             >
               <Group
                 justify="space-between"
-                wrap="nowrap"
-                className="movement-action-card-header"
-                draggable
-                onDragStart={
-                  event =>
-                    handleDragStart(
-                      event,
-                      action.id
-                    )
-                }
-                onDragEnd={
-                  () =>
-                    setDraggedActionId(
-                      null
-                    )
-                }
+                align="flex-end"
+                wrap="wrap"
+                className="movement-sequence-card-header"
               >
                 <Group
                   gap="xs"
-                  wrap="nowrap"
+                  align="flex-end"
+                  wrap="wrap"
+                  style={{
+                    flex: 1,
+                  }}
                 >
-                  <div
-                    className="movement-action-drag-handle"
-                    title="Drag to reorder"
-                  >
-                    <ActionIcon
-                      variant="subtle"
-                      color="gray"
-                      aria-label="Reorder action"
-                      tabIndex={-1}
-                      draggable={false}
-                    >
-                      <IconGripVertical
-                        size={17}
-                      />
-                    </ActionIcon>
-                  </div>
-
                   <Badge
-                    size="sm"
-                    variant="light"
+                    variant="filled"
                     color={
-                      draggedActionId ===
-                        action.id
-                        ? "orange"
-                        : "gray"
+                      sequence.mode ===
+                        "background"
+                        ? "cyan"
+                        : "violet"
                     }
                   >
-                    {phaseLabel}
+                    Sequence {sequenceIndex + 1}
                   </Badge>
+
+                  <Select
+                    label="WHEN"
+                    size="xs"
+                    allowDeselect={
+                      false
+                    }
+                    data={
+                      options
+                    }
+                    value={
+                      sequence.when
+                    }
+                    onChange={
+                      value => {
+                        if (
+                          value
+                        ) {
+                          updateSequence(
+                            sequence.id,
+                            {
+                              when:
+                                value as MovementWhen,
+                            }
+                          );
+                        }
+                      }
+                    }
+                    w={180}
+                  />
+
+                  <Select
+                    label="MODE"
+                    size="xs"
+                    allowDeselect={
+                      false
+                    }
+                    data={
+                      SEQUENCE_MODE_OPTIONS
+                    }
+                    value={
+                      sequence.mode
+                    }
+                    onChange={
+                      value => {
+                        if (
+                          value
+                        ) {
+                          updateSequence(
+                            sequence.id,
+                            {
+                              mode:
+                                value as MovementSequenceMode,
+                            }
+                          );
+                        }
+                      }
+                    }
+                    w={150}
+                  />
                 </Group>
 
                 <Group
@@ -639,20 +933,20 @@ export default function MovementActionEditor({
                 >
                   <Tooltip
                     withArrow
-                    label="Move up"
+                    label="Move sequence up"
                   >
                     <ActionIcon
                       size="sm"
                       color="gray"
                       variant="light"
                       disabled={
-                        actionIndex ===
+                        sequenceIndex ===
                         0
                       }
                       onClick={
                         () =>
-                          moveActionByOffset(
-                            action.id,
+                          moveSequence(
+                            sequenceIndex,
                             -1
                           )
                       }
@@ -665,21 +959,21 @@ export default function MovementActionEditor({
 
                   <Tooltip
                     withArrow
-                    label="Move down"
+                    label="Move sequence down"
                   >
                     <ActionIcon
                       size="sm"
                       color="gray"
                       variant="light"
                       disabled={
-                        actionIndex >=
-                        actions.length -
+                        sequenceIndex >=
+                        sequences.length -
                           1
                       }
                       onClick={
                         () =>
-                          moveActionByOffset(
-                            action.id,
+                          moveSequence(
+                            sequenceIndex,
                             1
                           )
                       }
@@ -689,480 +983,689 @@ export default function MovementActionEditor({
                       />
                     </ActionIcon>
                   </Tooltip>
+
+                  <Tooltip
+                    withArrow
+                    label="Add action"
+                  >
+                    <ActionIcon
+                      size="sm"
+                      color="blue"
+                      variant="light"
+                      onClick={
+                        () =>
+                          addAction(
+                            sequence
+                          )
+                      }
+                    >
+                      <IconPlus
+                        size={14}
+                      />
+                    </ActionIcon>
+                  </Tooltip>
+
+                  <Tooltip
+                    withArrow
+                    label="Delete sequence"
+                  >
+                    <ActionIcon
+                      size="sm"
+                      color="red"
+                      variant="light"
+                      onClick={
+                        () =>
+                          deleteSequence(
+                            sequence.id
+                          )
+                      }
+                    >
+                      <IconTrash
+                        size={14}
+                      />
+                    </ActionIcon>
+                  </Tooltip>
                 </Group>
               </Group>
 
               <Stack
-                gap={6}
-                className="movement-action-card-body"
-              >
-              <Group
                 gap="xs"
-                wrap="nowrap"
-                align="flex-end"
+                className="movement-sequence-card-body"
               >
-                <Select
-                  label="WHEN"
-                  size="xs"
-                  allowDeselect={
-                    false
-                  }
-                  data={
-                    options
-                  }
-                  value={
-                    action.when
-                  }
-                  onChange={
-                    value => {
-                      if (
-                        value
-                      ) {
-                        update(
-                          action.id,
-                          {
-                            when:
-                              value as MovementWhen,
-                          }
-                        );
-                      }
-                    }
-                  }
-                  style={{
-                    flex: 1,
-                  }}
-                />
-
-                <Select
-                  label="WHAT"
-                  size="xs"
-                  allowDeselect={
-                    false
-                  }
-                  data={
-                    WHAT_OPTIONS
-                  }
-                  value={
-                    action.kind
-                  }
-                  onChange={
-                    value => {
-                      if (
-                        value
-                      ) {
-                        update(
-                          action.id,
-                          {
-                            kind:
-                              value as MovementActionKind,
-                          }
-                        );
-                      }
-                    }
-                  }
-                  style={{
-                    flex: 1.25,
-                  }}
-                />
-
-                <ActionIcon
-                  size="sm"
-                  variant="light"
-                  color="red"
-                  onClick={
-                    () =>
-                      onChange(
-                        actions.filter(
-                          current =>
-                            current.id !==
-                            action.id
-                        )
-                      )
-                  }
-                >
-                  <IconTrash
-                    size={14}
-                  />
-                </ActionIcon>
-              </Group>
-
-              {
-                action.kind ===
-                  "speed" && (
-                  <NumberInput
-                    size="xs"
-                    label="Speed"
-                    min={0}
-                    max={126}
-                    value={
-                      action.speed
-                    }
-                    onChange={
-                      value =>
-                        update(
-                          action.id,
-                          {
-                            speed:
-                              Math.max(
-                                0,
-                                Math.min(
-                                  126,
-                                  Math.round(
-                                    Number(
-                                      value
-                                    ) ||
-                                    0
-                                  )
-                                )
-                              ),
-                          }
-                        )
-                    }
-                  />
-                )
-              }
-
-              {
-                action.kind ===
-                  "function" && (
-                  <Group
-                    gap="xs"
-                    align="flex-end"
-                  >
-                    <NumberInput
-                      size="xs"
-                      label="Function"
-                      min={0}
-                      max={68}
-                      value={
-                        action.functionNumber
-                      }
-                      onChange={
-                        value =>
-                          update(
-                            action.id,
-                            {
-                              functionNumber:
-                                Math.max(
-                                  0,
-                                  Math.min(
-                                    68,
-                                    Math.round(
-                                      Number(
-                                        value
-                                      ) ||
-                                      0
-                                    )
-                                  )
-                                ),
-                            }
-                          )
-                      }
-                      style={{
-                        flex: 1,
-                      }}
-                    />
-
-                    <Switch
-                      checked={
-                        action.functionActive
-                      }
-                      label={
-                        action.functionActive
-                          ? "ON"
-                          : "OFF"
-                      }
-                      onChange={
-                        event =>
-                          update(
-                            action.id,
-                            {
-                              functionActive:
-                                event.currentTarget.checked,
-                            }
-                          )
-                      }
-                    />
-                  </Group>
-                )
-              }
-
-              {
-                action.kind ===
-                  "horn" && (
-                  <Group
-                    gap="xs"
-                  >
-                    <NumberInput
-                      size="xs"
-                      label="Function"
-                      min={0}
-                      max={68}
-                      value={
-                        action.functionNumber
-                      }
-                      onChange={
-                        value =>
-                          update(
-                            action.id,
-                            {
-                              functionNumber:
-                                Math.max(
-                                  0,
-                                  Math.min(
-                                    68,
-                                    Math.round(
-                                      Number(
-                                        value
-                                      ) ||
-                                      0
-                                    )
-                                  )
-                                ),
-                            }
-                          )
-                      }
-                      style={{
-                        flex: 1,
-                      }}
-                    />
-
-                    <NumberInput
-                      size="xs"
-                      label="Pulse (ms)"
-                      min={1}
-                      max={600000}
-                      value={
-                        action.pulseMs
-                      }
-                      onChange={
-                        value =>
-                          update(
-                            action.id,
-                            {
-                              pulseMs:
-                                Math.max(
-                                  1,
-                                  Math.min(
-                                    600000,
-                                    Math.round(
-                                      Number(
-                                        value
-                                      ) ||
-                                      1
-                                    )
-                                  )
-                                ),
-                            }
-                          )
-                      }
-                      style={{
-                        flex: 1,
-                      }}
-                    />
-                  </Group>
-                )
-              }
-
-              {
-                action.kind ===
-                  "delay" && (
-                  <NumberInput
-                    size="xs"
-                    label="Delay (ms)"
-                    min={0}
-                    max={600000}
-                    value={
-                      action.delayMs
-                    }
-                    onChange={
-                      value =>
-                        update(
-                          action.id,
-                          {
-                            delayMs:
-                              Math.max(
-                                0,
-                                Math.min(
-                                  600000,
-                                  Math.round(
-                                    Number(
-                                      value
-                                    ) ||
-                                    0
-                                  )
-                                )
-                              ),
-                          }
-                        )
-                    }
-                  />
-                )
-              }
-
-              {
-                action.kind ===
-                  "randomDelay" && (
-                  <Group
-                    gap="xs"
-                  >
-                    <NumberInput
-                      size="xs"
-                      label="Min (ms)"
-                      min={0}
-                      max={600000}
-                      value={
-                        action.minDelayMs
-                      }
-                      onChange={
-                        value =>
-                          update(
-                            action.id,
-                            {
-                              minDelayMs:
-                                Math.max(
-                                  0,
-                                  Math.min(
-                                    600000,
-                                    Math.round(
-                                      Number(
-                                        value
-                                      ) ||
-                                      0
-                                    )
-                                  )
-                                ),
-                            }
-                          )
-                      }
-                      style={{
-                        flex: 1,
-                      }}
-                    />
-
-                    <NumberInput
-                      size="xs"
-                      label="Max (ms)"
-                      min={0}
-                      max={600000}
-                      value={
-                        action.maxDelayMs
-                      }
-                      onChange={
-                        value =>
-                          update(
-                            action.id,
-                            {
-                              maxDelayMs:
-                                Math.max(
-                                  action.minDelayMs,
-                                  Math.min(
-                                    600000,
-                                    Math.round(
-                                      Number(
-                                        value
-                                      ) ||
-                                      0
-                                    )
-                                  )
-                                ),
-                            }
-                          )
-                      }
-                      style={{
-                        flex: 1,
-                      }}
-                    />
-                  </Group>
-                )
-              }
-
-              {
-                action.kind ===
-                  "playAudio" && (
-                  <>
-                    <AudioFileInput
-                      label="Audio file"
-                      description="Choose an audio file from the Hub SD card."
-                      value={
-                        action.audioName
-                      }
-                      allowManualInput={
-                        false
-                      }
-                      onChange={
-                        audioName =>
-                          update(
-                            action.id,
-                            {
-                              audioName,
-                            }
-                          )
-                      }
-                      onTest={
-                        () => {
-                          const source =
-                            action.audioName.trim();
-
-                          if (
-                            source
-                          ) {
-                            audioManager.play(
-                              source
-                            );
-                          }
+                {
+                  sequence.actions.map(
+                    (
+                      action,
+                      actionIndex
+                    ) => (
+                      <div
+                        key={
+                          action.id
                         }
-                      }
-                    />
-
-                    <Switch
-                      size="sm"
-                      checked={
-                        action.audioWaitForEnd
-                      }
-                      label="Wait for audio end"
-                      onChange={
-                        event =>
-                          update(
-                            action.id,
-                            {
-                              audioWaitForEnd:
-                                event.currentTarget.checked,
-                            }
+                        className={
+                          "movement-inner-step-row movement-action-step-row" +
+                          (
+                            actionIndex ===
+                            sequence.actions.length -
+                              1
+                              ? " is-last"
+                              : ""
                           )
-                      }
-                    />
-                  </>
-                )
-              }
+                        }
+                      >
+                        <div
+                          className="movement-inner-step-spine"
+                        >
+                          <div
+                            className="movement-inner-step-dot movement-action-step-dot"
+                          >
+                            {
+                              actionIndex + 1
+                            }
+                          </div>
 
-              {
-                action.kind ===
-                  "log" && (
-                  <TextInput
-                    size="xs"
-                    label="Message"
-                    value={
-                      action.message
-                    }
-                    onChange={
-                      event =>
-                        update(
-                          action.id,
-                          {
-                            message:
-                              event.currentTarget.value,
+                          <div
+                            className="movement-inner-step-line"
+                          />
+                        </div>
+
+                        <Card
+                          withBorder
+                          p={0}
+                          className="movement-action-card"
+                          onDragOver={
+                            event => {
+                              event.preventDefault();
+
+                              event.dataTransfer.dropEffect =
+                                "move";
+
+                              if (
+                                draggedActionId &&
+                                draggedActionId !==
+                                  action.id &&
+                                sequence.actions.some(
+                                  current =>
+                                    current.id ===
+                                    draggedActionId
+                                )
+                              ) {
+                                moveAction(
+                                  sequence.id,
+                                  draggedActionId,
+                                  actionIndex
+                                );
+                              }
+                            }
                           }
-                        )
-                    }
-                  />
-                )
-              }
+                          style={{
+                            opacity:
+                              draggedActionId ===
+                                action.id
+                                ? 0.35
+                                : 1,
+                          }}
+                        >
+                          <Group
+                            justify="space-between"
+                            wrap="nowrap"
+                            className="movement-action-card-header"
+                            draggable
+                            onDragStart={
+                              event =>
+                                handleDragStart(
+                                  event,
+                                  action.id
+                                )
+                            }
+                            onDragEnd={
+                              () =>
+                                setDraggedActionId(
+                                  null
+                                )
+                            }
+                          >
+                            <Group
+                              gap="xs"
+                              wrap="nowrap"
+                            >
+                              <div
+                                className="movement-action-drag-handle"
+                                title="Drag to reorder"
+                              >
+                                <ActionIcon
+                                  variant="subtle"
+                                  color="gray"
+                                  aria-label="Reorder action"
+                                  tabIndex={-1}
+                                  draggable={false}
+                                >
+                                  <IconGripVertical
+                                    size={17}
+                                  />
+                                </ActionIcon>
+                              </div>
+
+                              <Badge
+                                size="sm"
+                                variant="light"
+                                color="gray"
+                              >
+                                {
+                                  WHAT_OPTIONS.find(
+                                    option =>
+                                      option.value ===
+                                      action.kind
+                                  )?.label ??
+                                  action.kind
+                                }
+                              </Badge>
+                            </Group>
+
+                            <Group
+                              gap={4}
+                              wrap="nowrap"
+                            >
+                              <Tooltip
+                                withArrow
+                                label="Move up"
+                              >
+                                <ActionIcon
+                                  size="sm"
+                                  color="gray"
+                                  variant="light"
+                                  disabled={
+                                    actionIndex ===
+                                    0
+                                  }
+                                  onClick={
+                                    () =>
+                                      moveActionByOffset(
+                                        sequence,
+                                        action.id,
+                                        -1
+                                      )
+                                  }
+                                >
+                                  <IconArrowUp
+                                    size={14}
+                                  />
+                                </ActionIcon>
+                              </Tooltip>
+
+                              <Tooltip
+                                withArrow
+                                label="Move down"
+                              >
+                                <ActionIcon
+                                  size="sm"
+                                  color="gray"
+                                  variant="light"
+                                  disabled={
+                                    actionIndex >=
+                                    sequence.actions.length -
+                                      1
+                                  }
+                                  onClick={
+                                    () =>
+                                      moveActionByOffset(
+                                        sequence,
+                                        action.id,
+                                        1
+                                      )
+                                  }
+                                >
+                                  <IconArrowDown
+                                    size={14}
+                                  />
+                                </ActionIcon>
+                              </Tooltip>
+
+                              <ActionIcon
+                                size="sm"
+                                variant="light"
+                                color="red"
+                                onClick={
+                                  () =>
+                                    deleteAction(
+                                      sequence.id,
+                                      action.id
+                                    )
+                                }
+                              >
+                                <IconTrash
+                                  size={14}
+                                />
+                              </ActionIcon>
+                            </Group>
+                          </Group>
+
+                          <Stack
+                            gap={6}
+                            className="movement-action-card-body"
+                          >
+                            <Select
+                              label="WHAT"
+                              size="xs"
+                              allowDeselect={
+                                false
+                              }
+                              data={
+                                WHAT_OPTIONS
+                              }
+                              value={
+                                action.kind
+                              }
+                              onChange={
+                                value => {
+                                  if (
+                                    value
+                                  ) {
+                                    updateAction(
+                                      sequence.id,
+                                      action.id,
+                                      {
+                                        kind:
+                                          value as MovementActionKind,
+                                      }
+                                    );
+                                  }
+                                }
+                              }
+                            />
+
+                            {
+                              action.kind ===
+                                "speed" && (
+                                <NumberInput
+                                  size="xs"
+                                  label="Speed"
+                                  min={0}
+                                  max={126}
+                                  value={
+                                    action.speed
+                                  }
+                                  onChange={
+                                    value =>
+                                      updateAction(
+                                        sequence.id,
+                                        action.id,
+                                        {
+                                          speed:
+                                            Math.max(
+                                              0,
+                                              Math.min(
+                                                126,
+                                                Math.round(
+                                                  Number(
+                                                    value
+                                                  ) ||
+                                                  0
+                                                )
+                                              )
+                                            ),
+                                        }
+                                      )
+                                  }
+                                />
+                              )
+                            }
+
+                            {
+                              action.kind ===
+                                "function" && (
+                                <Group
+                                  gap="xs"
+                                  align="flex-end"
+                                >
+                                  <NumberInput
+                                    size="xs"
+                                    label="Function"
+                                    min={0}
+                                    max={68}
+                                    value={
+                                      action.functionNumber
+                                    }
+                                    onChange={
+                                      value =>
+                                        updateAction(
+                                          sequence.id,
+                                          action.id,
+                                          {
+                                            functionNumber:
+                                              Math.max(
+                                                0,
+                                                Math.min(
+                                                  68,
+                                                  Math.round(
+                                                    Number(
+                                                      value
+                                                    ) ||
+                                                    0
+                                                  )
+                                                )
+                                              ),
+                                          }
+                                        )
+                                    }
+                                    style={{
+                                      flex: 1,
+                                    }}
+                                  />
+
+                                  <Switch
+                                    checked={
+                                      action.functionActive
+                                    }
+                                    label={
+                                      action.functionActive
+                                        ? "ON"
+                                        : "OFF"
+                                    }
+                                    onChange={
+                                      event =>
+                                        updateAction(
+                                          sequence.id,
+                                          action.id,
+                                          {
+                                            functionActive:
+                                              event.currentTarget.checked,
+                                          }
+                                        )
+                                    }
+                                  />
+                                </Group>
+                              )
+                            }
+
+                            {
+                              action.kind ===
+                                "horn" && (
+                                <Group
+                                  gap="xs"
+                                >
+                                  <NumberInput
+                                    size="xs"
+                                    label="Function"
+                                    min={0}
+                                    max={68}
+                                    value={
+                                      action.functionNumber
+                                    }
+                                    onChange={
+                                      value =>
+                                        updateAction(
+                                          sequence.id,
+                                          action.id,
+                                          {
+                                            functionNumber:
+                                              Math.max(
+                                                0,
+                                                Math.min(
+                                                  68,
+                                                  Math.round(
+                                                    Number(
+                                                      value
+                                                    ) ||
+                                                    0
+                                                  )
+                                                )
+                                              ),
+                                          }
+                                        )
+                                    }
+                                    style={{
+                                      flex: 1,
+                                    }}
+                                  />
+
+                                  <NumberInput
+                                    size="xs"
+                                    label="Pulse (ms)"
+                                    min={1}
+                                    max={600000}
+                                    value={
+                                      action.pulseMs
+                                    }
+                                    onChange={
+                                      value =>
+                                        updateAction(
+                                          sequence.id,
+                                          action.id,
+                                          {
+                                            pulseMs:
+                                              Math.max(
+                                                1,
+                                                Math.min(
+                                                  600000,
+                                                  Math.round(
+                                                    Number(
+                                                      value
+                                                    ) ||
+                                                    1
+                                                  )
+                                                )
+                                              ),
+                                          }
+                                        )
+                                    }
+                                    style={{
+                                      flex: 1,
+                                    }}
+                                  />
+                                </Group>
+                              )
+                            }
+
+                            {
+                              action.kind ===
+                                "delay" && (
+                                <NumberInput
+                                  size="xs"
+                                  label="Delay (ms)"
+                                  min={0}
+                                  max={600000}
+                                  value={
+                                    action.delayMs
+                                  }
+                                  onChange={
+                                    value =>
+                                      updateAction(
+                                        sequence.id,
+                                        action.id,
+                                        {
+                                          delayMs:
+                                            Math.max(
+                                              0,
+                                              Math.min(
+                                                600000,
+                                                Math.round(
+                                                  Number(
+                                                    value
+                                                  ) ||
+                                                  0
+                                                )
+                                              )
+                                            ),
+                                        }
+                                      )
+                                  }
+                                />
+                              )
+                            }
+
+                            {
+                              action.kind ===
+                                "randomDelay" && (
+                                <Group
+                                  gap="xs"
+                                >
+                                  <NumberInput
+                                    size="xs"
+                                    label="Min (ms)"
+                                    min={0}
+                                    max={600000}
+                                    value={
+                                      action.minDelayMs
+                                    }
+                                    onChange={
+                                      value =>
+                                        updateAction(
+                                          sequence.id,
+                                          action.id,
+                                          {
+                                            minDelayMs:
+                                              Math.max(
+                                                0,
+                                                Math.min(
+                                                  600000,
+                                                  Math.round(
+                                                    Number(
+                                                      value
+                                                    ) ||
+                                                    0
+                                                  )
+                                                )
+                                              ),
+                                          }
+                                        )
+                                    }
+                                    style={{
+                                      flex: 1,
+                                    }}
+                                  />
+
+                                  <NumberInput
+                                    size="xs"
+                                    label="Max (ms)"
+                                    min={0}
+                                    max={600000}
+                                    value={
+                                      action.maxDelayMs
+                                    }
+                                    onChange={
+                                      value =>
+                                        updateAction(
+                                          sequence.id,
+                                          action.id,
+                                          {
+                                            maxDelayMs:
+                                              Math.max(
+                                                action.minDelayMs,
+                                                Math.min(
+                                                  600000,
+                                                  Math.round(
+                                                    Number(
+                                                      value
+                                                    ) ||
+                                                    0
+                                                  )
+                                                )
+                                              ),
+                                          }
+                                        )
+                                    }
+                                    style={{
+                                      flex: 1,
+                                    }}
+                                  />
+                                </Group>
+                              )
+                            }
+
+                            {
+                              action.kind ===
+                                "playAudio" && (
+                                <>
+                                  <AudioFileInput
+                                    label="Audio file"
+                                    description="Choose an audio file from the Hub SD card."
+                                    value={
+                                      action.audioName
+                                    }
+                                    allowManualInput={
+                                      false
+                                    }
+                                    onChange={
+                                      audioName =>
+                                        updateAction(
+                                          sequence.id,
+                                          action.id,
+                                          {
+                                            audioName,
+                                          }
+                                        )
+                                    }
+                                    onTest={
+                                      () => {
+                                        const source =
+                                          action.audioName.trim();
+
+                                        if (
+                                          source
+                                        ) {
+                                          audioManager.play(
+                                            source
+                                          );
+                                        }
+                                      }
+                                    }
+                                  />
+
+                                  <Switch
+                                    size="sm"
+                                    checked={
+                                      action.audioWaitForEnd
+                                    }
+                                    label="Wait for audio end"
+                                    onChange={
+                                      event =>
+                                        updateAction(
+                                          sequence.id,
+                                          action.id,
+                                          {
+                                            audioWaitForEnd:
+                                              event.currentTarget.checked,
+                                          }
+                                        )
+                                    }
+                                  />
+                                </>
+                              )
+                            }
+
+                            {
+                              action.kind ===
+                                "log" && (
+                                <TextInput
+                                  size="xs"
+                                  label="Message"
+                                  value={
+                                    action.message
+                                  }
+                                  onChange={
+                                    event =>
+                                      updateAction(
+                                        sequence.id,
+                                        action.id,
+                                        {
+                                          message:
+                                            event.currentTarget.value,
+                                        }
+                                      )
+                                  }
+                                />
+                              )
+                            }
+                          </Stack>
+                        </Card>
+                      </div>
+                    )
+                  )
+                }
               </Stack>
-              </Card>
-            </div>
-            );
-          }
+            </Card>
+          )
         )
       }
     </Stack>
