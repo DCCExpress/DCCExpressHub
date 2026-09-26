@@ -1949,14 +1949,19 @@ test("saved flows use reorderable enable-only runtime cards", () => {
     /checked=\{[\s\S]*page\.enabled/
   );
 
-  assert.match(
+  assert.doesNotMatch(
     flows,
     /flowTriggerManualEditorOnly/
   );
 
-  assert.match(
+  assert.doesNotMatch(
     flows,
     /flowSensorTriggerLabel/
+  );
+
+  assert.doesNotMatch(
+    flows,
+    /flowNoInputNodes/
   );
 
   assert.match(
