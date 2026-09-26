@@ -404,7 +404,7 @@ test("sensor nodes are event inputs and the runtime scans enabled pages", () => 
   );
 });
 
-test("flow runtime global and page disable abort active flow executions", () => {
+test("enabled flow pages are always live and disabling a page aborts its executions", () => {
   const layoutPage =
     read(
       "src/LiteLayoutPage.tsx"
@@ -422,17 +422,17 @@ test("flow runtime global and page disable abort active flow executions", () => 
 
   assert.match(
     layoutPage,
+    /useAutomationFlowRuntime\([\s\S]*automationFlow[\s\S]*\)/
+  );
+
+  assert.doesNotMatch(
+    layoutPage,
     /flowRuntimeEnabled/
   );
 
-  assert.match(
-    layoutPage,
-    /useAutomationFlowRuntime\([\s\S]*automationFlow,[\s\S]*flowRuntimeEnabled/
-  );
-
-  assert.match(
+  assert.doesNotMatch(
     runtime,
-    /abortAllAutomationFlowExecutions/
+    /runtimeEnabled/
   );
 
   assert.match(
@@ -440,14 +440,14 @@ test("flow runtime global and page disable abort active flow executions", () => 
     /abortAutomationFlowPageExecutions/
   );
 
-  assert.match(
+  assert.doesNotMatch(
     cards,
     /flowRunFlows/
   );
 
-  assert.match(
+  assert.doesNotMatch(
     cards,
-    /abortAllAutomationFlowExecutions/
+    /runtimeEnabled/
   );
 
   assert.match(
@@ -772,11 +772,6 @@ test("log node writes the message and serialized payload to the runtime log", ()
   assert.match(
     runtime,
     /IGNORED signalAspectChanged/
-  );
-
-  assert.match(
-    runtime,
-    /Run flows is OFF/
   );
 
   assert.match(
@@ -1457,11 +1452,6 @@ test("saved flows use reorderable enable-only runtime cards", () => {
   assert.match(
     flows,
     /saveAutomationFlow/
-  );
-
-  assert.match(
-    flows,
-    /checked=\{[\s\S]*runtimeEnabled/
   );
 
   assert.match(

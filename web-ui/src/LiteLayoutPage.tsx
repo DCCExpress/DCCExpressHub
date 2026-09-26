@@ -602,15 +602,8 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
         createEmptyAutomationFlowDocument()
     );
 
-  const [
-    flowRuntimeEnabled,
-    setFlowRuntimeEnabled,
-  ] =
-    useState(false);
-
   useAutomationFlowRuntime(
-    automationFlow,
-    flowRuntimeEnabled
+    automationFlow
   );
   const importFileRef = useRef<HTMLInputElement | null>(null);
   const [selectedElement, setSelectedElement] = useState<BaseElement | null>(null);
@@ -1628,8 +1621,6 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
                           onScriptsChange={setAutomationScripts}
                           flows={automationFlow}
                           onFlowsChange={setAutomationFlow}
-                          flowRuntimeEnabled={flowRuntimeEnabled}
-                          onFlowRuntimeEnabledChange={setFlowRuntimeEnabled}
                           onOpenFlowEditor={pageId => {
                             setAutomationFlowPageId(pageId);
                             setAutomationFlowOpened(true);

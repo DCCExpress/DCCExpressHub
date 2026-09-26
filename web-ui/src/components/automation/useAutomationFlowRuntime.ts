@@ -341,13 +341,9 @@ function runInputBranch(
 
 function runtimeConfigSignature(
   document:
-    AutomationFlowDocument,
-  runtimeEnabled:
-    boolean
+    AutomationFlowDocument
 ): string {
   return JSON.stringify({
-    enabled:
-      runtimeEnabled,
     pages:
       document.pages
         .map(
@@ -417,18 +413,11 @@ function runtimeConfigSignature(
 
 export function useAutomationFlowRuntime(
   document:
-    AutomationFlowDocument,
-  runtimeEnabled:
-    boolean
+    AutomationFlowDocument
 ): void {
   const documentRef =
     useRef(
       document
-    );
-
-  const runtimeEnabledRef =
-    useRef(
-      runtimeEnabled
     );
 
   const blockStateSignaturesRef =
@@ -444,13 +433,9 @@ export function useAutomationFlowRuntime(
   documentRef.current =
     document;
 
-  runtimeEnabledRef.current =
-    runtimeEnabled;
-
   const signature =
     runtimeConfigSignature(
-      document,
-      runtimeEnabled
+      document
     );
 
   useEffect(
@@ -467,15 +452,6 @@ export function useAutomationFlowRuntime(
     () => {
       const current =
         documentRef.current;
-
-      if (
-        !runtimeEnabledRef.current
-      ) {
-        abortAllAutomationFlowExecutions(
-          "Visual flows globally disabled."
-        );
-        return;
-      }
 
       for (
         const page of
@@ -534,12 +510,6 @@ export function useAutomationFlowRuntime(
         data => {
           const current =
             documentRef.current;
-
-          if (
-            !runtimeEnabledRef.current
-          ) {
-            return;
-          }
 
           const address =
             Number(
@@ -694,26 +664,6 @@ export function useAutomationFlowRuntime(
             };
 
             if (
-              !runtimeEnabledRef.current
-            ) {
-              dispatchAutomationFlowRuntimeLog({
-                pageId:
-                  page.id,
-                timestamp:
-                  Date.now(),
-                level:
-                  "error",
-                values: [
-                  "IGNORED turnoutChanged",
-                  "Run flows is OFF.",
-                  payload,
-                ],
-              });
-
-              continue;
-            }
-
-            if (
               !page.enabled
             ) {
               dispatchAutomationFlowRuntimeLog({
@@ -850,26 +800,6 @@ export function useAutomationFlowRuntime(
             };
 
             if (
-              !runtimeEnabledRef.current
-            ) {
-              dispatchAutomationFlowRuntimeLog({
-                pageId:
-                  page.id,
-                timestamp:
-                  Date.now(),
-                level:
-                  "error",
-                values: [
-                  "IGNORED accessoryChanged",
-                  "Run flows is OFF.",
-                  payload,
-                ],
-              });
-
-              continue;
-            }
-
-            if (
               !page.enabled
             ) {
               dispatchAutomationFlowRuntimeLog({
@@ -999,26 +929,6 @@ export function useAutomationFlowRuntime(
               address,
               aspect,
             };
-
-            if (
-              !runtimeEnabledRef.current
-            ) {
-              dispatchAutomationFlowRuntimeLog({
-                pageId:
-                  page.id,
-                timestamp:
-                  Date.now(),
-                level:
-                  "error",
-                values: [
-                  "IGNORED signalAspectChanged",
-                  "Run flows is OFF.",
-                  payload,
-                ],
-              });
-
-              continue;
-            }
 
             if (
               !page.enabled
@@ -1164,8 +1074,7 @@ export function useAutomationFlowRuntime(
 
           if (
             changed.length ===
-              0 ||
-            !runtimeEnabledRef.current
+              0
           ) {
             return;
           }
@@ -1286,8 +1195,7 @@ export function useAutomationFlowRuntime(
             previous ===
               undefined ||
             previous ===
-              signature ||
-            !runtimeEnabledRef.current
+              signature
           ) {
             return;
           }
@@ -1355,12 +1263,6 @@ export function useAutomationFlowRuntime(
     () => {
       const current =
         documentRef.current;
-
-      if (
-        !runtimeEnabledRef.current
-      ) {
-        return;
-      }
 
       const timers:
         number[] = [];
@@ -1435,7 +1337,6 @@ export function useAutomationFlowRuntime(
                   );
 
                 if (
-                  !runtimeEnabledRef.current ||
                   !latestPage?.enabled ||
                   !latestInput
                 ) {

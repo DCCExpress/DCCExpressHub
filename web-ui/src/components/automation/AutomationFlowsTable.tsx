@@ -42,7 +42,6 @@ import {
 } from "../../services/automationApi";
 
 import {
-  abortAllAutomationFlowExecutions,
   abortAutomationFlowPageExecutions,
 } from "./useAutomationFlowRuntime";
 
@@ -52,12 +51,6 @@ type Props = {
   onDocumentChange: (
     document:
       AutomationFlowDocument
-  ) => void;
-  runtimeEnabled:
-    boolean;
-  onRuntimeEnabledChange: (
-    enabled:
-      boolean
   ) => void;
   onOpenEditor: (
     pageId:
@@ -752,8 +745,6 @@ function FlowCard({
 export default function AutomationFlowsTable({
   document,
   onDocumentChange,
-  runtimeEnabled,
-  onRuntimeEnabledChange,
   onOpenEditor,
 }: Props) {
   const [
@@ -796,22 +787,6 @@ export default function AutomationFlowsTable({
                   ),
           });
         }
-      );
-    };
-
-  const setGlobalEnabled =
-    (
-      enabled:
-        boolean
-    ): void => {
-      if (!enabled) {
-        abortAllAutomationFlowExecutions(
-          "Visual flows globally disabled."
-        );
-      }
-
-      onRuntimeEnabledChange(
-        enabled
       );
     };
 
@@ -981,30 +956,6 @@ export default function AutomationFlowsTable({
         </Group>
 
         <Group gap="md">
-          <Switch
-            size="sm"
-            color="green"
-            checked={
-              runtimeEnabled
-            }
-            label={
-              i18next.t(
-                "ui.flowRunFlows",
-                {
-                  defaultValue:
-                    "Run flows",
-                }
-              )
-            }
-            onChange={
-              event =>
-                setGlobalEnabled(
-                  event.currentTarget
-                    .checked
-                )
-            }
-          />
-
           <Button
             size="xs"
             variant="light"
@@ -1039,21 +990,13 @@ export default function AutomationFlowsTable({
         c="dimmed"
       >
         {
-          runtimeEnabled
-            ? i18next.t(
-                "ui.flowRuntimeEnabledDescription",
-                {
-                  defaultValue:
-                    "Enabled pages are live. Event and interval inputs can start their connected branches."
-                }
-              )
-            : i18next.t(
-                "ui.flowRuntimeDisabledDescription",
-                {
-                  defaultValue:
-                    "Flow runtime is disabled. Editor Manual/Test injects are still available."
-                }
-              )
+          i18next.t(
+            "ui.flowRuntimeEnabledDescription",
+            {
+              defaultValue:
+                "Enabled pages are live. Event and interval inputs can start their connected branches."
+            }
+          )
         }
       </Text>
 
