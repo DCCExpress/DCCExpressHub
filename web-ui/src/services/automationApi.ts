@@ -24,10 +24,16 @@ export type AutomationScriptDefinition = {
   startWithAll?: boolean;
 };
 
+export type TimetableTargetType =
+  | "script"
+  | "movement";
+
 export type TimetableEntryDefinition = {
   id: string;
   enabled: boolean;
-  scriptId: string;
+  targetType:
+    TimetableTargetType;
+  targetId: string;
   /** Two-field railway cron: MINUTE HOUR. Example: */
   cron: string;
 };
@@ -141,14 +147,35 @@ export function normalizeTimetableEntries(
 
     usedIds.add(id);
 
+    const legacyScriptId =
+      typeof candidate.scriptId ===
+        "string"
+        ? candidate.scriptId.trim()
+        : "";
+
+    const targetType:
+      TimetableTargetType =
+      candidate.targetType ===
+        "movement"
+        ? "movement"
+        : "script";
+
+    const targetId =
+      typeof candidate.targetId ===
+        "string" &&
+      candidate.targetId.trim()
+        ? candidate.targetId.trim()
+        : targetType ===
+            "script"
+          ? legacyScriptId
+          : "";
+
     result.push({
       id,
       enabled:
         candidate.enabled !== false,
-      scriptId:
-        typeof candidate.scriptId === "string"
-          ? candidate.scriptId.trim()
-          : "",
+      targetType,
+      targetId,
       cron:
         typeof candidate.cron === "string" && candidate.cron.trim()
           ? candidate.cron.trim()
