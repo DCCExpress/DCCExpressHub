@@ -1351,6 +1351,53 @@ test("control station badges are distinct from WS status and appear in the layou
   );
 });
 
+test("programming page is locked while any Control Station is active", () => {
+  const app =
+    read(
+      "src/App.tsx"
+    );
+
+  const programming =
+    read(
+      "src/ProgrammingPage.tsx"
+    );
+
+  assert.match(
+    app,
+    /controlStationActive/
+  );
+
+  assert.match(
+    app,
+    /<ProgrammingPage[\s\S]*controlStationActive=\{controlStationActive\}/
+  );
+
+  assert.match(
+    programming,
+    /Programming is locked while Control Station is active/
+  );
+
+  assert.match(
+    programming,
+    /<fieldset[\s\S]*disabled=\{[\s\S]*controlStationActive/
+  );
+
+  assert.match(
+    programming,
+    /controlStationActiveRef\.current/
+  );
+
+  assert.match(
+    programming,
+    /restoreJoinAfterProgramming[\s\S]*!controlStationActiveRef\.current/
+  );
+
+  assert.match(
+    programming,
+    /setQuickControlOpened\([\s\S]*false/
+  );
+});
+
 test("control station ownership gates browser automation runtime", () => {
   const app =
     read(

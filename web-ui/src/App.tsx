@@ -1357,6 +1357,11 @@ export default function App() {
   ] =
     useState(false);
   const [
+    controlStationActive,
+    setControlStationActive,
+  ] =
+    useState(false);
+  const [
     controlStationOwnerName,
     setControlStationOwnerName,
   ] =
@@ -1413,6 +1418,10 @@ export default function App() {
           data => {
             setControlStationGranted(
               data.granted
+            );
+
+            setControlStationActive(
+              data.active
             );
 
             setControlStationOwnerName(
@@ -1472,6 +1481,10 @@ export default function App() {
         wsClient.on(
           "controlStationStatus",
           data => {
+            setControlStationActive(
+              data.active
+            );
+
             setControlStationOwnerName(
               data.ownerName ??
               null
@@ -1504,6 +1517,11 @@ export default function App() {
         setControlStationGranted(
           false
         );
+
+        setControlStationActive(
+          false
+        );
+
         return;
       }
 
@@ -1676,7 +1694,7 @@ export default function App() {
 
     if (page === "backup") return <BackupPage onBack={() => navigate("home")} onDataImported={reloadImportedData} />;
 
-    if (page === "programming") return <ProgrammingPage onBack={() => navigate("home")} status={status} />;
+    if (page === "programming") return <ProgrammingPage onBack={() => navigate("home")} status={status} controlStationActive={controlStationActive} controlStationOwnerName={controlStationOwnerName} />;
 
     if (page === "device-config") return <DeviceConfigurationPage onBack={() => navigate("home")} />;
 
