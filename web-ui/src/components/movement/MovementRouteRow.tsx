@@ -1,10 +1,17 @@
 import {
+  ActionIcon,
   Badge,
   Card,
+  Collapse,
   Group,
   Stack,
   Text,
+  Tooltip,
 } from "@mantine/core";
+
+import {
+  IconChevronDown,
+} from "@tabler/icons-react";
 
 import type {
   MovementAction,
@@ -20,6 +27,10 @@ import type {
 } from "../../services/movementPlan";
 
 import CollapsiblePanelCard from "../common/CollapsiblePanelCard";
+
+import {
+  usePersistentCollapsedState,
+} from "../../hooks/usePersistentCollapsedState";
 import MovementActionEditor from "./MovementActionEditor";
 import MovementBlockConditionsEditor from "./MovementBlockConditionsEditor";
 
@@ -154,6 +165,21 @@ export default function MovementRouteRow({
       isDestination
     );
 
+  const {
+    collapsed:
+      routeCollapsed,
+    toggleCollapsed:
+      toggleRouteCollapsed,
+  } =
+    usePersistentCollapsedState(
+      "movement:" +
+        pageId +
+        ":" +
+        resource.key +
+        ":route-card",
+      false
+    );
+
   const conditionCount =
     (
       rule?.departWhen.length ??
@@ -224,7 +250,37 @@ export default function MovementRouteRow({
             "movement-physical-route-header " +
             roleClass
           }
+          role="button"
+          tabIndex={0}
+          aria-expanded={
+            !routeCollapsed
+          }
+          onClick={
+            toggleRouteCollapsed
+          }
+          onKeyDown={
+            event => {
+              if (
+                event.key ===
+                  "Enter" ||
+                event.key ===
+                  " "
+              ) {
+                event.preventDefault();
+                toggleRouteCollapsed();
+              }
+            }
+          }
+          style={{
+            cursor:
+              "pointer",
+          }}
         >
+          <Group
+            justify="space-between"
+            align="flex-start"
+            wrap="nowrap"
+          >
           <Stack
             gap={6}
           >
@@ -313,12 +369,56 @@ export default function MovementRouteRow({
                           .join(" · ")
                       : "Physical turnout passage"
                   }
+                  {
+                    resource.detectors.length >
+                      0
+                      ? ` · Detectors: ${resource.detectors.join(", ")}`
+                      : ""
+                  }
                 </Text>
               )
             }
           </Stack>
+
+          <Tooltip
+            label={
+              routeCollapsed
+                ? "Expand route card"
+                : "Collapse route card"
+            }
+          >
+            <ActionIcon
+              size="sm"
+              variant="subtle"
+              color="gray"
+              onClick={
+                event => {
+                  event.stopPropagation();
+                  toggleRouteCollapsed();
+                }
+              }
+            >
+              <IconChevronDown
+                size={17}
+                style={{
+                  transform:
+                    routeCollapsed
+                      ? "rotate(-90deg)"
+                      : "rotate(0deg)",
+                  transition:
+                    "transform 150ms ease",
+                }}
+              />
+            </ActionIcon>
+          </Tooltip>
+          </Group>
         </div>
 
+        <Collapse
+          expanded={
+            !routeCollapsed
+          }
+        >
         <Stack
           gap="sm"
           className="movement-physical-route-body"
@@ -481,6 +581,7 @@ export default function MovementRouteRow({
             />
           </CollapsiblePanelCard>
         </Stack>
+        </Collapse>
       </Card>
     </div>
   );
