@@ -932,7 +932,7 @@ export default function TimetableDialog({
                       </Table.Th>
 
                       <Table.Th
-                        w={540}
+                        w={550}
                       >
                         {
                           t(
