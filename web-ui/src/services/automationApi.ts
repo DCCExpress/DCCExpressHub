@@ -28,12 +28,18 @@ export type TimetableTargetType =
   | "script"
   | "movement";
 
-export type TimetableEntryDefinition = {
+export type TimetableActionDefinition = {
   id: string;
-  enabled: boolean;
   targetType:
     TimetableTargetType;
   targetId: string;
+};
+
+export type TimetableEntryDefinition = {
+  id: string;
+  enabled: boolean;
+  actions:
+    TimetableActionDefinition[];
   /** Two-field railway cron: MINUTE HOUR. Example: */
   cron: string;
 };
@@ -66,6 +72,17 @@ export function createTimetableEntryId(): string {
   }
 
   return `timetable-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export function createTimetableActionId(): string {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
+    return crypto.randomUUID();
+  }
+
+  return `timetable-action-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 export function normalizeAutomationScripts(
@@ -147,35 +164,118 @@ export function normalizeTimetableEntries(
 
     usedIds.add(id);
 
-    const legacyScriptId =
-      typeof candidate.scriptId ===
-        "string"
-        ? candidate.scriptId.trim()
-        : "";
+    const actions:
+      TimetableActionDefinition[] = [];
 
-    const targetType:
-      TimetableTargetType =
-      candidate.targetType ===
-        "movement"
-        ? "movement"
-        : "script";
+    const rawActions =
+      Array.isArray(
+        candidate.actions
+      )
+        ? candidate.actions
+        : [];
 
-    const targetId =
-      typeof candidate.targetId ===
-        "string" &&
-      candidate.targetId.trim()
-        ? candidate.targetId.trim()
-        : targetType ===
-            "script"
-          ? legacyScriptId
+    const usedActionIds =
+      new Set<string>();
+
+    for (
+      const rawAction of
+      rawActions
+    ) {
+      if (
+        !rawAction ||
+        typeof rawAction !==
+          "object"
+      ) {
+        continue;
+      }
+
+      const action =
+        rawAction as
+          Record<string, unknown>;
+
+      let actionId =
+        typeof action.id ===
+          "string" &&
+        action.id.trim()
+          ? action.id.trim()
+          : createTimetableActionId();
+
+      while (
+        usedActionIds.has(
+          actionId
+        )
+      ) {
+        actionId =
+          createTimetableActionId();
+      }
+
+      usedActionIds.add(
+        actionId
+      );
+
+      const targetType:
+        TimetableTargetType =
+        action.targetType ===
+          "movement"
+          ? "movement"
+          : "script";
+
+      const targetId =
+        typeof action.targetId ===
+          "string"
+          ? action.targetId.trim()
           : "";
+
+      actions.push({
+        id:
+          actionId,
+        targetType,
+        targetId,
+      });
+    }
+
+    if (
+      actions.length ===
+      0
+    ) {
+      const legacyScriptId =
+        typeof candidate.scriptId ===
+          "string"
+          ? candidate.scriptId.trim()
+          : "";
+
+      const targetType:
+        TimetableTargetType =
+        candidate.targetType ===
+          "movement"
+          ? "movement"
+          : "script";
+
+      const targetId =
+        typeof candidate.targetId ===
+          "string" &&
+        candidate.targetId.trim()
+          ? candidate.targetId.trim()
+          : targetType ===
+              "script"
+            ? legacyScriptId
+            : "";
+
+      if (targetId) {
+        actions.push({
+          id:
+            createTimetableActionId(),
+          targetType,
+          targetId,
+        });
+      }
+    }
 
     result.push({
       id,
       enabled:
         candidate.enabled !== false,
-      targetType,
-      targetId,
+      actions,
       cron:
         typeof candidate.cron === "string" && candidate.cron.trim()
           ? candidate.cron.trim()
