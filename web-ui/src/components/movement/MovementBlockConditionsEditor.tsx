@@ -80,6 +80,21 @@ export default function MovementBlockConditionsEditor({
     EventSection[] = [];
 
   if (
+    !isSource
+  ) {
+    sections.push({
+      field:
+        "arrivedWhen",
+      title:
+        "Arrived when",
+      badge:
+        "ARRIVED",
+      description:
+        "Default: destination occupancy ON and previous block occupancy OFF when both sensors exist.",
+    });
+  }
+
+  if (
     !isDestination
   ) {
     sections.push({
@@ -102,21 +117,6 @@ export default function MovementBlockConditionsEditor({
         "LEAVE",
       description:
         "Default: source block occupancy sensor OFF; without one, runtime block release is used.",
-    });
-  }
-
-  if (
-    !isSource
-  ) {
-    sections.push({
-      field:
-        "arrivedWhen",
-      title:
-        "Arrived when",
-      badge:
-        "ARRIVED",
-      description:
-        "Default: destination occupancy ON and previous block occupancy OFF when both sensors exist.",
     });
   }
 
@@ -172,7 +172,15 @@ export default function MovementBlockConditionsEditor({
                 key={
                   section.field
                 }
-                className="movement-inner-step-row movement-condition-step-row"
+                className={
+                  "movement-inner-step-row movement-condition-step-row" +
+                  (
+                    sectionIndex ===
+                    sections.length - 1
+                      ? " is-last"
+                      : ""
+                  )
+                }
               >
                 <div
                   className="movement-inner-step-spine"
