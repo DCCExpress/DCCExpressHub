@@ -440,6 +440,16 @@ test("Movement uses a dedicated physical-route engine with JMRI-style actions", 
 
   assert.match(
     engine,
+    /isTrackPowerOn\(\)/
+  );
+
+  assert.match(
+    engine,
+    /Track power is OFF\. Turn it on before starting Movement\./
+  );
+
+  assert.match(
+    engine,
     /switchManCommand/
   );
 
@@ -531,6 +541,26 @@ test("Movement uses a dedicated physical-route engine with JMRI-style actions", 
   assert.match(
     runtimeControls,
     /abortMovement/
+  );
+
+  assert.match(
+    runtimeControls,
+    /isTrackPowerOn/
+  );
+
+  assert.match(
+    runtimeControls,
+    /subscribeTrackPower/
+  );
+
+  assert.match(
+    runtimeControls,
+    /Track power is OFF/
+  );
+
+  assert.match(
+    runtimeControls,
+    /!trackPowerOn/
   );
 
   assert.match(
@@ -791,5 +821,63 @@ test("Movement PlayAudio uses the shared picker without manual path typing", () 
   assert.match(
     audioPicker,
     /disabled=\{readonly\}/
+  );
+});
+
+
+test("Movement start is disabled and notified while track power is off", () => {
+  const controls =
+    read(
+      "src/components/movement/MovementRuntimeControls.tsx"
+    );
+
+  const engine =
+    read(
+      "src/services/movementEngine.ts"
+    );
+
+  const powerRuntime =
+    read(
+      "src/services/trackPowerRuntime.ts"
+    );
+
+  const commandCenter =
+    read(
+      "src/context/CommandCenterContext.tsx"
+    );
+
+  assert.match(
+    controls,
+    /disabled=\{[\s\S]*!trackPowerOn/
+  );
+
+  assert.match(
+    controls,
+    /notifyTrackPowerOff/
+  );
+
+  assert.match(
+    controls,
+    /showNotification\(/
+  );
+
+  assert.match(
+    engine,
+    /if \([\s\S]*!isTrackPowerOn\(\)[\s\S]*throw new Error/
+  );
+
+  assert.match(
+    powerRuntime,
+    /subscribeTrackPower/
+  );
+
+  assert.match(
+    powerRuntime,
+    /setTrackPowerRuntimeState/
+  );
+
+  assert.match(
+    commandCenter,
+    /data\.powerInfo\.trackVoltageOn ===[\s\S]*true/
   );
 });
