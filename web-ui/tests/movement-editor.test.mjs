@@ -1337,3 +1337,86 @@ test("Movement block actions support before-depart and after-leave lifecycle pha
     "AFTER LEAVE must run after source block runtime release"
   );
 });
+
+
+test("Movement actions are draggable and ordered within their WHEN phase", () => {
+  const actionEditor =
+    read(
+      "src/components/movement/MovementActionEditor.tsx"
+    );
+
+  const engine =
+    read(
+      "src/services/movementEngine.ts"
+    );
+
+  assert.match(
+    actionEditor,
+    /type DragEvent/
+  );
+
+  assert.match(
+    actionEditor,
+    /useState<string \| null>/
+  );
+
+  assert.match(
+    actionEditor,
+    /IconGripVertical/
+  );
+
+  assert.match(
+    actionEditor,
+    /draggable/
+  );
+
+  assert.match(
+    actionEditor,
+    /onDragStart/
+  );
+
+  assert.match(
+    actionEditor,
+    /onDragOver/
+  );
+
+  assert.match(
+    actionEditor,
+    /moveDraggedActionToIndex/
+  );
+
+  assert.match(
+    actionEditor,
+    /moveActionByOffset/
+  );
+
+  assert.match(
+    actionEditor,
+    /dragged\.when !==[\s\S]*target\.when/
+  );
+
+  assert.match(
+    actionEditor,
+    /phaseActions/
+  );
+
+  assert.match(
+    actionEditor,
+    /phaseIndex/
+  );
+
+  assert.match(
+    actionEditor,
+    /BEFORE DEPART/
+  );
+
+  assert.match(
+    actionEditor,
+    /AFTER LEAVE/
+  );
+
+  assert.match(
+    engine,
+    /execution\.page\.actions\.filter\([\s\S]*action\.when ===[\s\S]*when/
+  );
+});
