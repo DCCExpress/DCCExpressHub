@@ -69,6 +69,32 @@ type ResourceLease = {
     () => Promise<void>;
 };
 
+type SwitchManResponseData = {
+  requestId?: string;
+  action?: string;
+  ok?: boolean;
+  message?: string | null;
+  extra?: {
+    locks?: unknown[];
+    conflicts?: unknown[];
+    released?: number;
+  } | null;
+};
+
+type TurnoutLease = {
+  ownerId: string;
+  addresses: number[];
+  release:
+    () => Promise<void>;
+};
+
+type MovementLegLease = {
+  resources:
+    ResourceLease[];
+  turnouts:
+    TurnoutLease | null;
+};
+
 type MovementExecution = {
   page:
     MovementPage;
@@ -321,6 +347,170 @@ function delay(
           ms
         )
       )
+  );
+}
+
+function createRequestId(
+  prefix: string
+): string {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
+    return `${prefix}-${crypto.randomUUID()}`;
+  }
+
+  return (
+    `${prefix}-${Date.now()}-` +
+    Math.random()
+      .toString(16)
+      .slice(2)
+  );
+}
+
+async function switchManRequest(
+  action: string,
+  data:
+    Record<string, unknown>,
+  timeoutMs = 10000
+): Promise<SwitchManResponseData> {
+  const requestId =
+    createRequestId(
+      `movement-${action}`
+    );
+
+  return await new Promise<SwitchManResponseData>(
+    (
+      resolve,
+      reject
+    ) => {
+      let settled =
+        false;
+
+      const finish =
+        (
+          callback:
+            () => void
+        ): void => {
+          if (
+            settled
+          ) {
+            return;
+          }
+
+          settled =
+            true;
+
+          window.clearTimeout(
+            timer
+          );
+
+          unsubscribe();
+
+          callback();
+        };
+
+      const unsubscribe =
+        wsClient.subscribeMessages(
+          message => {
+            const raw =
+              message as unknown as {
+                type?: string;
+                data?:
+                  SwitchManResponseData;
+              };
+
+            if (
+              raw.type !==
+                "switchManResponse" ||
+              raw.data?.requestId !==
+                requestId ||
+              raw.data?.action !==
+                action
+            ) {
+              return;
+            }
+
+            if (
+              !raw.data.ok
+            ) {
+              finish(
+                () => {
+                  const error =
+                    new Error(
+                      raw.data?.message ||
+                      `SwitchMan ${action} failed.`
+                    ) as Error & {
+                      code?: string;
+                      details?: unknown;
+                    };
+
+                  error.code =
+                    raw.data?.message ??
+                    "switchman_failed";
+
+                  error.details =
+                    raw.data?.extra ??
+                    null;
+
+                  reject(
+                    error
+                  );
+                }
+              );
+
+              return;
+            }
+
+            finish(
+              () =>
+                resolve(
+                  raw.data ??
+                  {}
+                )
+            );
+          }
+        );
+
+      const timer =
+        window.setTimeout(
+          () => {
+            finish(
+              () =>
+                reject(
+                  new Error(
+                    `SwitchMan ${action} timed out.`
+                  )
+                )
+            );
+          },
+          timeoutMs
+        );
+
+      const sent =
+        wsClient.send({
+          type:
+            "switchManCommand",
+          data: {
+            requestId,
+            action,
+            ...data,
+          },
+        } as any);
+
+      if (
+        !sent
+      ) {
+        finish(
+          () =>
+            reject(
+              new Error(
+                "Movement could not send SwitchMan command."
+              )
+            )
+        );
+      }
+    }
   );
 }
 
@@ -748,56 +938,6 @@ function aheadSegmentsAreFree(
     );
 }
 
-function turnoutRequirementsMatch(
-  leg:
-    MovementPlanLeg
-): {
-  ok: boolean;
-  mismatch:
-    string | null;
-} {
-  for (
-    const requirement of
-    leg.turnoutStates
-  ) {
-    const current =
-      turnoutStates.get(
-        requirement.address
-      );
-
-    /*
-     * Movement never changes turnout state.
-     *
-     * Some backends do not publish an authoritative startup state for every
-     * turnout. UNKNOWN must therefore not deadlock Movement startup. A known
-     * contradictory state still blocks the movement.
-     */
-    if (
-      current ===
-      undefined
-    ) {
-      continue;
-    }
-
-    if (
-      current !==
-      requirement.closed
-    ) {
-      return {
-        ok: false,
-        mismatch:
-          `Turnout #${requirement.address} must be ${requirement.closed ? "CLOSED" : "THROWN"} (Movement never changes it).`,
-      };
-    }
-  }
-
-  return {
-    ok: true,
-    mismatch:
-      null,
-  };
-}
-
 async function acquireLock(
   name: string
 ): Promise<ResourceLease | null> {
@@ -965,14 +1105,6 @@ function lockNamesForLeg(
       );
     }
 
-    if (
-      resource.kind ===
-      "turnout"
-    ) {
-      names.add(
-        `dcc-express-movement-turnout:${resource.key}`
-      );
-    }
   }
 
   return [
@@ -1044,23 +1176,295 @@ async function releaseLeases(
   }
 }
 
+function normalizedTurnoutRequirements(
+  leg:
+    MovementPlanLeg
+): Array<{
+  address: number;
+  closed: boolean;
+}> {
+  const byAddress =
+    new Map<
+      number,
+      boolean
+    >();
+
+  for (
+    const state of
+    leg.turnoutStates
+  ) {
+    if (
+      !Number.isInteger(
+        state.address
+      ) ||
+      state.address < 1 ||
+      state.address > 2048
+    ) {
+      throw new Error(
+        `Movement route contains invalid turnout address: ${state.address}.`
+      );
+    }
+
+    const existing =
+      byAddress.get(
+        state.address
+      );
+
+    if (
+      existing !==
+        undefined &&
+      existing !==
+        state.closed
+    ) {
+      throw new Error(
+        `Movement route contains conflicting turnout state for #${state.address}.`
+      );
+    }
+
+    byAddress.set(
+      state.address,
+      state.closed
+    );
+  }
+
+  return [
+    ...byAddress.entries(),
+  ]
+    .sort(
+      (
+        [a],
+        [b]
+      ) =>
+        a - b
+    )
+    .map(
+      ([
+        address,
+        closed,
+      ]) => ({
+        address,
+        closed,
+      })
+    );
+}
+
+async function tryAcquireAndSetTurnouts(
+  execution:
+    MovementExecution,
+  leg:
+    MovementPlanLeg
+): Promise<TurnoutLease | null> {
+  const requirements =
+    normalizedTurnoutRequirements(
+      leg
+    );
+
+  if (
+    requirements.length ===
+    0
+  ) {
+    return null;
+  }
+
+  const addresses =
+    requirements.map(
+      state =>
+        state.address
+    );
+
+  const ownerId =
+    createRequestId(
+      `movement-${execution.page.id}-leg-${leg.index}`
+    );
+
+  const ownerName =
+    `Movement: ${execution.page.name}`;
+
+  try {
+    await switchManRequest(
+      "acquire",
+      {
+        ownerId,
+        ownerName,
+        addresses,
+        timeoutMs: 0,
+      },
+      5000
+    );
+  } catch (error) {
+    const code =
+      (
+        error as {
+          code?: unknown;
+        }
+      )?.code;
+
+    if (
+      code ===
+      "turnout_locked"
+    ) {
+      return null;
+    }
+
+    throw error;
+  }
+
+  let released =
+    false;
+
+  const release =
+    async (): Promise<void> => {
+      if (
+        released
+      ) {
+        return;
+      }
+
+      released =
+        true;
+
+      await switchManRequest(
+        "release",
+        {
+          ownerId,
+          ownerName,
+          addresses,
+        },
+        5000
+      );
+  };
+
+  try {
+    for (
+      let index = 0;
+      index <
+        requirements.length;
+      index += 1
+    ) {
+      if (
+        execution.cancelled
+      ) {
+        throw new Error(
+          "Movement cancelled."
+        );
+      }
+
+      const requirement =
+        requirements[
+          index
+        ]!;
+
+      const current =
+        turnoutStates.get(
+          requirement.address
+        );
+
+      if (
+        current ===
+        requirement.closed
+      ) {
+        continue;
+      }
+
+      execution.moving =
+        false;
+
+      applyDesiredSpeed(
+        execution
+      );
+
+      setInfo(
+        execution,
+        `Setting turnout #${requirement.address} → ${requirement.closed ? "CLOSED" : "THROWN"}`,
+        leg.from.key
+      );
+
+      await switchManRequest(
+        "set",
+        {
+          ownerId,
+          ownerName,
+          address:
+            requirement.address,
+          closed:
+            requirement.closed,
+        },
+        10000
+      );
+
+      /*
+       * The backend ACK is authoritative. Update the local cache immediately;
+       * turnoutChanged will reconcile it as well.
+       */
+      turnoutStates.set(
+        requirement.address,
+        requirement.closed
+      );
+
+      if (
+        index + 1 <
+          requirements.length
+      ) {
+        await controlledDelay(
+          execution,
+          250
+        );
+      }
+    }
+
+    wsApi.getLayoutRuntimeSnapshot();
+
+    return {
+      ownerId,
+      addresses,
+      release,
+    };
+  } catch (error) {
+    try {
+      await release();
+    } catch {
+      // Preserve the original setting error.
+    }
+
+    throw error;
+  }
+}
+
+async function releaseMovementLegLease(
+  lease:
+    MovementLegLease
+): Promise<void> {
+  if (
+    lease.turnouts
+  ) {
+    try {
+      await lease.turnouts.release();
+    } finally {
+      await releaseLeases(
+        lease.resources
+      );
+    }
+
+    return;
+  }
+
+  await releaseLeases(
+    lease.resources
+  );
+}
+
 async function waitForLegClearance(
   execution:
     MovementExecution,
   leg:
     MovementPlanLeg
-): Promise<ResourceLease[]> {
+): Promise<MovementLegLease> {
   let lastInfo =
     "";
 
   while (
     !execution.cancelled
   ) {
-    const turnout =
-      turnoutRequirementsMatch(
-        leg
-      );
-
     let reason =
       "";
 
@@ -1078,15 +1482,11 @@ async function waitForLegClearance(
     ) {
       reason =
         "Waiting for route segment to become free";
-    } else if (
-      !turnout.ok
-    ) {
-      reason =
-        turnout.mismatch ??
-        "Waiting for turnout state";
     }
 
-    if (reason) {
+    if (
+      reason
+    ) {
       execution.moving =
         false;
 
@@ -1116,12 +1516,14 @@ async function waitForLegClearance(
       continue;
     }
 
-    const leases =
+    const resources =
       await tryAcquireLeg(
         leg
       );
 
-    if (!leases) {
+    if (
+      !resources
+    ) {
       execution.moving =
         false;
 
@@ -1143,26 +1545,79 @@ async function waitForLegClearance(
       continue;
     }
 
-    const afterLockTurnout =
-      turnoutRequirementsMatch(
+    if (
+      !blockIsFree(
+        leg.to
+      ) ||
+      !aheadSegmentsAreFree(
+        leg
+      )
+    ) {
+      await releaseLeases(
+        resources
+      );
+
+      continue;
+    }
+
+    const turnouts =
+      await tryAcquireAndSetTurnouts(
+        execution,
         leg
       );
 
+    if (
+      leg.turnoutStates.length >
+        0 &&
+      !turnouts
+    ) {
+      await releaseLeases(
+        resources
+      );
+
+      execution.moving =
+        false;
+
+      applyDesiredSpeed(
+        execution
+      );
+
+      setInfo(
+        execution,
+        "Waiting for turnout lock",
+        leg.from.key
+      );
+
+      await controlledDelay(
+        execution,
+        150
+      );
+
+      continue;
+    }
+
+    /*
+     * Turnouts are now locked and in the route-required state.
+     * Recheck occupancy one last time before granting movement authority.
+     */
     if (
       blockIsFree(
         leg.to
       ) &&
       aheadSegmentsAreFree(
         leg
-      ) &&
-      afterLockTurnout.ok
+      )
     ) {
-      return leases;
+      return {
+        resources,
+        turnouts,
+      };
     }
 
-    await releaseLeases(
-      leases
-    );
+    await releaseMovementLegLease({
+      resources,
+      turnouts,
+    });
   }
 
   throw new Error(
@@ -1196,11 +1651,6 @@ async function waitForHeldLegReady(
   while (
     !execution.cancelled
   ) {
-    const turnout =
-      turnoutRequirementsMatch(
-        leg
-      );
-
     let reason =
       "";
 
@@ -1218,15 +1668,11 @@ async function waitForHeldLegReady(
     ) {
       reason =
         "Waiting for route segment to become free";
-    } else if (
-      !turnout.ok
-    ) {
-      reason =
-        turnout.mismatch ??
-        "Waiting for turnout state";
     }
 
-    if (!reason) {
+    if (
+      !reason
+    ) {
       return;
     }
 
@@ -1300,8 +1746,6 @@ async function waitForArrival(
 async function waitForSegmentEntry(
   execution:
     MovementExecution,
-  leg:
-    MovementPlanLeg,
   resource:
     MovementPlanResource
 ): Promise<void> {
@@ -1321,47 +1765,6 @@ async function waitForSegmentEntry(
   while (
     !execution.cancelled
   ) {
-    const turnout =
-      turnoutRequirementsMatch(
-        leg
-      );
-
-    if (
-      !turnout.ok
-    ) {
-      execution.moving =
-        false;
-
-      applyDesiredSpeed(
-        execution
-      );
-
-      setInfo(
-        execution,
-        turnout.mismatch ??
-        "Waiting for turnout state",
-        resource.key
-      );
-
-      await controlledDelay(
-        execution,
-        75
-      );
-
-      continue;
-    }
-
-    if (
-      !execution.moving
-    ) {
-      execution.moving =
-        true;
-
-      applyDesiredSpeed(
-        execution
-      );
-    }
-
     if (
       resource.detectors.some(
         address =>
@@ -1474,7 +1877,6 @@ async function traverseLeg(
 
       await waitForSegmentEntry(
         execution,
-        leg,
         resource
       );
 
@@ -1568,7 +1970,7 @@ async function traverseLeg(
       leg.to.key
     );
   } finally {
-    await releaseLeases(
+    await releaseMovementLegLease(
       leases
     );
   }
