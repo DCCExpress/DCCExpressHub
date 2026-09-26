@@ -227,63 +227,86 @@ export default function TimetablePanel({
         continue;
       }
 
-      const target =
-        entry.targetType ===
-          "movement"
-          ? movementsById.get(
-              entry.targetId
-            )
-          : scriptsById.get(
-              entry.targetId
+      const occurrences =
+        enumerateTimetableCronOccurrences(
+          entry.cron,
+          snapshot.timeMs,
+          TIMETABLE_WINDOW_MINUTES
+        );
+
+      for (
+        const occurrence of
+        occurrences
+      ) {
+        for (
+          const action of
+          entry.actions
+        ) {
+          const target =
+            action.targetType ===
+              "movement"
+              ? movementsById.get(
+                  action.targetId
+                )
+              : scriptsById.get(
+                  action.targetId
+                );
+
+          const activeRun =
+            occurrence.dayOffset ===
+              0
+              ? schedulerState.activeRuns.find(
+                  run =>
+                    run.timetableEntryId ===
+                      entry.id &&
+                    run.timetableActionId ===
+                      action.id &&
+                    run.scheduledMinuteOfDay ===
+                      occurrence.minuteOfDay
+                ) ??
+                null
+              : null;
+
+          if (activeRun) {
+            representedRunIds.add(
+              activeRun.id
             );
+          }
 
-      const occurrences = enumerateTimetableCronOccurrences(
-        entry.cron,
-        snapshot.timeMs,
-        TIMETABLE_WINDOW_MINUTES
-      );
-
-      for (const occurrence of occurrences) {
-        const activeRun =
-          occurrence.dayOffset === 0
-            ? schedulerState.activeRuns.find(
-                run =>
-                  run.timetableEntryId === entry.id &&
-                  run.scheduledMinuteOfDay === occurrence.minuteOfDay
-              ) ?? null
-            : null;
-
-        if (activeRun) {
-          representedRunIds.add(activeRun.id);
+          rows.push({
+            key:
+              `${entry.id}:${action.id}:${occurrence.absoluteMinute}`,
+            time:
+              formatTimetableTime(
+                occurrence.hour,
+                occurrence.minute
+              ),
+            absoluteMinute:
+              occurrence.absoluteMinute,
+            dayOffset:
+              occurrence.dayOffset,
+            targetName:
+              target?.name ??
+              (
+                action.targetType ===
+                  "movement"
+                  ? "Missing Movement"
+                  : t(
+                      "ui.missingScript"
+                    )
+              ),
+            targetMissing:
+              !target,
+            targetType:
+              action.targetType,
+            isCurrent:
+              occurrence.dayOffset ===
+                0 &&
+              occurrence.absoluteMinute ===
+                fastClockMinute,
+            activeRun,
+          });
         }
-
-        rows.push({
-          key: `${entry.id}:${occurrence.absoluteMinute}`,
-          time: formatTimetableTime(
-            occurrence.hour,
-            occurrence.minute
-          ),
-          absoluteMinute: occurrence.absoluteMinute,
-          dayOffset: occurrence.dayOffset,
-          targetName:
-            target?.name ??
-            (
-              entry.targetType ===
-                "movement"
-                ? "Missing Movement"
-                : t(
-                    "ui.missingScript"
-                  )
-            ),
-          targetMissing:
-            !target,
-          targetType:
-            entry.targetType,
-          isCurrent:
-            occurrence.dayOffset === 0 &&
-            occurrence.absoluteMinute === fastClockMinute,
-          activeRun,
-        });
       }
     }
 
@@ -571,7 +594,7 @@ export default function TimetablePanel({
                 <Table.Thead>
                   <Table.Tr>
                     <Table.Th w={82}>{t("ui.timeColumn")}</Table.Th>
-                    <Table.Th>Target</Table.Th>
+                    <Table.Th>{t("ui.timetableTarget")}</Table.Th>
                   </Table.Tr>
                 </Table.Thead>
 
@@ -684,7 +707,9 @@ export default function TimetablePanel({
                                 (
                                   row.activeRun.targetType ===
                                     "movement"
-                                    ? "Movement running"
+                                    ? t(
+                                        "ui.running"
+                                      )
                                     : t(
                                         "ui.scriptRunning"
                                       )
