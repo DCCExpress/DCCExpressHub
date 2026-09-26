@@ -113,6 +113,16 @@ test("Movement editor is split into reusable components", () => {
       "src/components/movement/MovementRouteEditor.tsx"
     );
 
+  const selector =
+    read(
+      "src/components/movement/MovementRouteSelector.tsx"
+    );
+
+  const navigation =
+    read(
+      "src/services/movementRouteNavigation.ts"
+    );
+
   const row =
     read(
       "src/components/movement/MovementRouteRow.tsx"
@@ -145,27 +155,67 @@ test("Movement editor is split into reusable components", () => {
 
   assert.match(
     dialog,
-    /checked=\{\s*page\.enabled/
+    /movement-editor-sidebar/
   );
 
   assert.match(
-    editor,
-    /loadAutomationBlockCatalog/
+    dialog,
+    /movement-page-list-card/
   );
 
   assert.match(
-    editor,
-    /From block/
+    dialog,
+    /New movement/
+  );
+
+  assert.doesNotMatch(
+    dialog,
+    /<Tabs/
   );
 
   assert.match(
-    editor,
-    /To block/
+    dialog,
+    /MovementRouteSelector/
   );
 
   assert.match(
-    editor,
-    /Via block/
+    selector,
+    /FROM BLOCK/
+  );
+
+  assert.match(
+    selector,
+    /VIA BLOCK/
+  );
+
+  assert.match(
+    selector,
+    /TO BLOCK/
+  );
+
+  assert.match(
+    selector,
+    /Add block/
+  );
+
+  assert.match(
+    selector,
+    /nextByBlockId/
+  );
+
+  assert.match(
+    selector,
+    /slice\(\s*0,\s*viaIndex/
+  );
+
+  assert.match(
+    navigation,
+    /routeTable/
+  );
+
+  assert.match(
+    navigation,
+    /blockIds\[\s*index \+ 1/
   );
 
   assert.match(
