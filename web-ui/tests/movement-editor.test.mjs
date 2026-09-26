@@ -1808,3 +1808,109 @@ test("Movement physical route highlights stable physical runtime progress", () =
     /movement-current-step-pulse/
   );
 });
+
+
+test("Movement turnout resources keep their occupancy detector and use it for progress", () => {
+  const plan =
+    read(
+      "src/services/movementPlan.ts"
+    );
+
+  const engine =
+    read(
+      "src/services/movementEngine.ts"
+    );
+
+  const row =
+    read(
+      "src/components/movement/MovementRouteRow.tsx"
+    );
+
+  assert.match(
+    plan,
+    /sensorAddress:[\s\S]*trackAddresses\.get\([\s\S]*elementId/
+  );
+
+  assert.match(
+    plan,
+    /detectors:[\s\S]*trackAddresses\.get\([\s\S]*elementId/
+  );
+
+  assert.match(
+    engine,
+    /resource\.kind ===[\s\S]*"turnout"[\s\S]*await waitForResourceEntry/
+  );
+
+  assert.match(
+    engine,
+    /waitForResourceEntry[\s\S]*resource\.detectors\.some/
+  );
+
+  assert.match(
+    row,
+    /resource\.kind ===[\s\S]*"turnout"[\s\S]*Detectors:/
+  );
+});
+
+
+test("Movement route condition sequence and action cards can all collapse", () => {
+  const row =
+    read(
+      "src/components/movement/MovementRouteRow.tsx"
+    );
+
+  const conditions =
+    read(
+      "src/components/movement/MovementBlockConditionsEditor.tsx"
+    );
+
+  const actions =
+    read(
+      "src/components/movement/MovementActionEditor.tsx"
+    );
+
+  assert.match(
+    row,
+    /usePersistentCollapsedState/
+  );
+
+  assert.match(
+    row,
+    /routeCollapsed/
+  );
+
+  assert.match(
+    row,
+    /<Collapse[\s\S]*!routeCollapsed/
+  );
+
+  assert.match(
+    conditions,
+    /collapsedSections/
+  );
+
+  assert.match(
+    conditions,
+    /<Collapse[\s\S]*collapsedSections\.has/
+  );
+
+  assert.match(
+    actions,
+    /collapsedSequenceIds/
+  );
+
+  assert.match(
+    actions,
+    /collapsedActionIds/
+  );
+
+  assert.match(
+    actions,
+    /<Collapse[\s\S]*collapsedSequenceIds\.has/
+  );
+
+  assert.match(
+    actions,
+    /<Collapse[\s\S]*collapsedActionIds\.has/
+  );
+});
