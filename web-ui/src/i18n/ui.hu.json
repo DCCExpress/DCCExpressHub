@@ -898,7 +898,6 @@
   "flowExpandAll": "Összes kinyitása",
   "flowCurrentPageOnly": "Csak az aktuális lapra vonatkozik.",
   "flowGeneratedCode": "Generált JavaScript",
-  "flowNodeSmartDispatcher": "SmartDispatcher",
   "flowNodeSetSpeed": "Sebesség",
   "flowNodeWaitBlock": "Várakozás blokkra",
   "flowNodeWaitSensor": "Várakozás szenzorra",
