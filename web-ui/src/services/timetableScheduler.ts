@@ -4,6 +4,7 @@ import {
 
 import type {
   AutomationScriptDefinition,
+  TimetableActionDefinition,
   TimetableEntryDefinition,
   TimetableTargetType,
 } from "@/services/automationApi";
@@ -62,6 +63,7 @@ export type TimetableRunStatus =
 export type TimetableActiveRun = {
   id: string;
   timetableEntryId: string;
+  timetableActionId: string;
   targetType:
     TimetableTargetType;
   targetId: string;
@@ -328,59 +330,70 @@ class TimetableScheduler {
         continue;
       }
 
-      if (
-        entry.targetType ===
-        "movement"
+      for (
+        const action of
+        entry.actions
       ) {
-        const movement =
-          movementsById.get(
-            entry.targetId
+        if (
+          action.targetType ===
+          "movement"
+        ) {
+          const movement =
+            movementsById.get(
+              action.targetId
+            );
+
+          if (!movement) {
+            console.warn(
+              `[Timetable] ${this.formatTime(hour, minute)} skipped: Movement ` +
+              `"${action.targetId}" is missing.`
+            );
+            continue;
+          }
+
+          this.launchMovement(
+            entry,
+            action,
+            movement,
+            hour,
+            minute,
+            minuteOfDay
           );
 
-        if (!movement) {
+          continue;
+        }
+
+        const script =
+          scriptsById.get(
+            action.targetId
+          );
+
+        if (
+          !script ||
+          !script.script.trim()
+        ) {
           console.warn(
-            `[Timetable] ${this.formatTime(hour, minute)} skipped: Movement ` +
-            `"${entry.targetId}" is missing.`
+            `[Timetable] ${this.formatTime(hour, minute)} skipped: script ` +
+            `"${action.targetId}" is missing or empty.`
           );
           continue;
         }
 
-        this.launchMovement(
+        this.launchScript(
           entry,
-          movement,
+          action,
+          script,
           hour,
           minute,
           minuteOfDay
         );
-
-        continue;
       }
-
-      const script =
-        scriptsById.get(
-          entry.targetId
-        );
-
-      if (!script || !script.script.trim()) {
-        console.warn(
-          `[Timetable] ${this.formatTime(hour, minute)} skipped: script ` +
-          `"${entry.targetId}" is missing or empty.`
-        );
-        continue;
-      }
-
-      this.launchScript(
-        entry,
-        script,
-        hour,
-        minute,
-        minuteOfDay
-      );
     }
   }
 
   private launchScript(
     entry: TimetableEntryDefinition,
+    action: TimetableActionDefinition,
     script: AutomationScriptDefinition,
     hour: number,
     minute: number,
@@ -420,6 +433,8 @@ class TimetableScheduler {
     const activeRun: TimetableActiveRun = {
       id: runId,
       timetableEntryId: entry.id,
+      timetableActionId:
+        action.id,
       targetType:
         "script",
       targetId:
@@ -527,6 +542,7 @@ class TimetableScheduler {
 
   private launchMovement(
     entry: TimetableEntryDefinition,
+    action: TimetableActionDefinition,
     movement: MovementPage,
     hour: number,
     minute: number,
@@ -578,6 +594,8 @@ class TimetableScheduler {
       id: runId,
       timetableEntryId:
         entry.id,
+      timetableActionId:
+        action.id,
       targetType:
         "movement",
       targetId:
