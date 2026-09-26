@@ -3,7 +3,6 @@ import {
   Alert,
   Badge,
   Button,
-  Card,
   Divider,
   Group,
   NumberInput,
@@ -19,7 +18,6 @@ import {
 import {
   IconChevronDown,
   IconChevronRight,
-  IconPlus,
   IconTrash,
 } from "@tabler/icons-react";
 
@@ -35,6 +33,7 @@ import AutomationFlowPayloadEditor from "./AutomationFlowPayloadEditor";
 import AutomationFlowTurnoutEditor from "./AutomationFlowTurnoutEditor";
 import AutomationFlowBlockEditor from "./AutomationFlowBlockEditor";
 import AutomationFlowLocoInputEditor from "./AutomationFlowLocoInputEditor";
+import AutomationFlowSmartDispatcherEditor from "./AutomationFlowSmartDispatcherEditor";
 import { AudioFileInput } from "../../layout/property-panel/AudioFilePropertyEditor";
 import { audioManager } from "../../services/audioManager";
 import {
@@ -341,291 +340,26 @@ export default function AutomationFlowPropertiesPanel({
 
       {data.kind ===
         "smartDispatcher" && (
-        <>
-          <Stack gap="xs">
-            <Text
-              size="sm"
-              fw={500}
-            >
-              {
-                t(
-                  "ui.flowRouteBlocks",
-                  "Route blocks"
-                )
-              }
-            </Text>
-
-            <Text
-              size="xs"
-              c="dimmed"
-            >
-              {
-                t(
-                  "ui.flowRouteBlocksDescription",
-                  "Example: A1 → B1 → C1"
-                )
-              }
-            </Text>
-
-            {(
-              data.route ??
-              []
-            ).map(
-              (
-                block,
-                index
-              ) => (
-                <Group
-                  key={
-                    `${node.id}-route-${index}`
-                  }
-                  gap="xs"
-                  wrap="nowrap"
-                >
-                  <TextInput
-                    size="xs"
-                    label={
-                      `#${index + 1}`
-                    }
-                    value={
-                      block
-                    }
-                    onChange={
-                      event => {
-                        const route = [
-                          ...(
-                            data.route ??
-                            []
-                          ),
-                        ];
-
-                        route[index] =
-                          event.currentTarget
-                            .value;
-
-                        onChange({
-                          route,
-                        });
-                      }
-                    }
-                    style={{
-                      flex: 1,
-                    }}
-                  />
-
-                  <ActionIcon
-                    mt={22}
-                    color="red"
-                    variant="subtle"
-                    disabled={
-                      (
-                        data.route
-                          ?.length ??
-                        0
-                      ) <= 2
-                    }
-                    onClick={
-                      () =>
-                        onChange({
-                          route:
-                            (
-                              data.route ??
-                              []
-                            ).filter(
-                              (
-                                _,
-                                routeIndex
-                              ) =>
-                                routeIndex !==
-                                index
-                            ),
-                        })
-                    }
-                  >
-                    <IconTrash
-                      size={15}
-                    />
-                  </ActionIcon>
-                </Group>
-              )
-            )}
-
-            <Button
-              size="xs"
-              variant="light"
-              leftSection={
-                <IconPlus
-                  size={14}
-                />
-              }
-              onClick={
-                () =>
-                  onChange({
-                    route: [
-                      ...(
-                        data.route ??
-                        []
-                      ),
-                      "",
-                    ],
-                  })
-              }
-            >
-              {
-                t(
-                  "ui.flowAddRouteBlock",
-                  "Add route block"
-                )
-              }
-            </Button>
-          </Stack>
-
-          <Divider
-            label={
-              t(
-                "ui.flowArrivalConditions",
-                "Arrival conditions"
-              )
-            }
-            labelPosition="left"
-          />
-
-          <Stack gap="xs">
-            {(
-              data.arrivalRules ??
-              []
-            ).map(
-              rule => (
-                <Card
-                  key={
-                    rule.id
-                  }
-                  withBorder
-                  p="xs"
-                >
-                  <Stack gap="xs">
-                    <Group
-                      align="flex-end"
-                      wrap="nowrap"
-                    >
-                      <TextInput
-                        label={
-                          t(
-                            "ui.block2",
-                            "Block"
-                          )
-                        }
-                        value={
-                          rule.block
-                        }
-                        onChange={
-                          event =>
-                            onChangeArrivalRule(
-                              rule.id,
-                              {
-                                block:
-                                  event.currentTarget
-                                    .value,
-                              }
-                            )
-                        }
-                        style={{
-                          flex: 1,
-                        }}
-                      />
-
-                      <NumberInput
-                        label={
-                          t(
-                            "ui.sensorAddress",
-                            "Sensor address"
-                          )
-                        }
-                        value={
-                          rule.sensor
-                        }
-                        min={1}
-                        max={65535}
-                        onChange={
-                          value =>
-                            onChangeArrivalRule(
-                              rule.id,
-                              {
-                                sensor:
-                                  Number(
-                                    value
-                                  ) ||
-                                  1,
-                              }
-                            )
-                        }
-                        w={120}
-                      />
-
-                      <ActionIcon
-                        color="red"
-                        variant="subtle"
-                        onClick={
-                          () =>
-                            onDeleteArrivalRule(
-                              rule.id
-                            )
-                        }
-                      >
-                        <IconTrash
-                          size={15}
-                        />
-                      </ActionIcon>
-                    </Group>
-
-                    <Switch
-                      size="sm"
-                      checked={
-                        rule.state
-                      }
-                      label={
-                        rule.state
-                          ? "ON / true"
-                          : "OFF / false"
-                      }
-                      onChange={
-                        event =>
-                          onChangeArrivalRule(
-                            rule.id,
-                            {
-                              state:
-                                event.currentTarget
-                                  .checked,
-                            }
-                          )
-                      }
-                    />
-                  </Stack>
-                </Card>
-              )
-            )}
-
-            <Button
-              size="xs"
-              variant="light"
-              leftSection={
-                <IconPlus
-                  size={14}
-                />
-              }
-              onClick={
-                onAddArrivalRule
-              }
-            >
-              {
-                t(
-                  "ui.flowAddArrivalCondition",
-                  "Add arrival condition"
-                )
-              }
-            </Button>
-          </Stack>
-        </>
+        <AutomationFlowSmartDispatcherEditor
+          nodeId={
+            node.id
+          }
+          data={
+            data
+          }
+          onChange={
+            onChange
+          }
+          onAddArrivalRule={
+            onAddArrivalRule
+          }
+          onChangeArrivalRule={
+            onChangeArrivalRule
+          }
+          onDeleteArrivalRule={
+            onDeleteArrivalRule
+          }
+        />
       )}
 
       {data.kind ===

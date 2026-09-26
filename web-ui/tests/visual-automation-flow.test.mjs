@@ -117,6 +117,46 @@ test("visual flow editor supports pages, enabled state and SmartDispatcher nodes
     /kind: "smartDispatcher"/
   );
 
+  const properties =
+    read(
+      "src/components/automation/AutomationFlowPropertiesPanel.tsx"
+    );
+
+  const smartDispatcherEditor =
+    read(
+      "src/components/automation/AutomationFlowSmartDispatcherEditor.tsx"
+    );
+
+  assert.match(
+    properties,
+    /AutomationFlowSmartDispatcherEditor/
+  );
+
+  assert.match(
+    smartDispatcherEditor,
+    /loadAutomationBlockCatalog/
+  );
+
+  assert.match(
+    smartDispatcherEditor,
+    /<Select/
+  );
+
+  assert.match(
+    smartDispatcherEditor,
+    /option\.id/
+  );
+
+  assert.match(
+    smartDispatcherEditor,
+    /option\?\.name/
+  );
+
+  assert.doesNotMatch(
+    smartDispatcherEditor,
+    /<TextInput/
+  );
+
   assert.match(
     editor,
     /arrivalRules/
