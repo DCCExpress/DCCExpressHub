@@ -160,7 +160,7 @@ test("Movement editor is split into reusable components", () => {
 
   assert.match(
     dialog,
-    /movement-page-list-card/
+    /MovementSidebarCard/
   );
 
   assert.match(
@@ -348,6 +348,16 @@ test("Movement uses a dedicated physical-route engine with JMRI-style actions", 
       "src/components/movement/MovementPagesTable.tsx"
     );
 
+  const runtimeControls =
+    read(
+      "src/components/movement/MovementRuntimeControls.tsx"
+    );
+
+  const sidebarCard =
+    read(
+      "src/components/movement/MovementSidebarCard.tsx"
+    );
+
   const actionEditor =
     read(
       "src/components/movement/MovementActionEditor.tsx"
@@ -475,17 +485,32 @@ test("Movement uses a dedicated physical-route engine with JMRI-style actions", 
 
   assert.match(
     cards,
+    /MovementRuntimeControls/
+  );
+
+  assert.match(
+    runtimeControls,
     /startMovement/
   );
 
   assert.match(
-    cards,
+    runtimeControls,
     /stopMovement/
   );
 
   assert.match(
-    cards,
+    runtimeControls,
     /abortMovement/
+  );
+
+  assert.match(
+    sidebarCard,
+    /MovementRuntimeControls/
+  );
+
+  assert.match(
+    sidebarCard,
+    /useMovementRuntimeState/
   );
 
   assert.match(
@@ -567,5 +592,63 @@ test("Movement route selector rejects reverse-direction continuation", () => {
   assert.match(
     navigation,
     /getMovementSequenceDirections\([\s\S]*\[\s*\.\.\.sequence,[\s\S]*option\.blockId/
+  );
+});
+
+
+test("Movement editor sidebar cards expose runtime controls without changing pages", () => {
+  const dialog =
+    read(
+      "src/components/movement/MovementEditorDialog.tsx"
+    );
+
+  const sidebar =
+    read(
+      "src/components/movement/MovementSidebarCard.tsx"
+    );
+
+  const controls =
+    read(
+      "src/components/movement/MovementRuntimeControls.tsx"
+    );
+
+  assert.match(
+    dialog,
+    /<MovementSidebarCard/
+  );
+
+  assert.match(
+    sidebar,
+    /movement-page-list-runtime/
+  );
+
+  assert.match(
+    sidebar,
+    /MovementRuntimeControls/
+  );
+
+  assert.match(
+    controls,
+    /IconPlayerPlay/
+  );
+
+  assert.match(
+    controls,
+    /IconPlayerStop/
+  );
+
+  assert.match(
+    controls,
+    /IconAlertTriangle/
+  );
+
+  assert.match(
+    controls,
+    /event\.stopPropagation\(\)/
+  );
+
+  assert.match(
+    sidebar,
+    /state\.info/
   );
 });
