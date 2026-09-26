@@ -857,7 +857,8 @@ async function runActionSequence(
   when:
     MovementWhen,
   actions:
-    MovementAction[]
+    MovementAction[],
+  reportInfo = true
 ): Promise<void> {
   for (const action of actions) {
     if (
@@ -868,11 +869,15 @@ async function runActionSequence(
       );
     }
 
-    setInfo(
-      execution,
-      `${when.toUpperCase()}: ${action.kind}`,
-      resourceKey
-    );
+    if (
+      reportInfo
+    ) {
+      setInfo(
+        execution,
+        `${when.toUpperCase()}: ${action.kind}`,
+        resourceKey
+      );
+    }
 
     await executeAction(
       execution,
@@ -898,7 +903,8 @@ function startBackgroundSequence(
       execution,
       resourceKey,
       when,
-      actions
+      actions,
+      false
     )
       .catch(
         error => {
