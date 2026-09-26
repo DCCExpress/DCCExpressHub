@@ -222,17 +222,6 @@ function MovementCard({
                 }
               </Badge>
 
-              <Badge
-                size="xs"
-                variant="light"
-                color="cyan"
-              >
-                speed {
-                  page.speed
-                }
-              </Badge>
-
-
               <MovementElapsedBadge
                 page={
                   page
