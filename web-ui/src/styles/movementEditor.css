@@ -206,13 +206,13 @@
 }
 
 .movement-route-dot.is-turnout {
-  border-color: var(--mantine-color-blue-6);
+  border-color: var(--mantine-color-orange-6);
   background: color-mix(
     in srgb,
-    var(--mantine-color-blue-6) 16%,
+    var(--mantine-color-orange-6) 16%,
     var(--mantine-color-body)
   );
-  color: var(--mantine-color-blue-7);
+  color: var(--mantine-color-orange-7);
 }
 
 .movement-route-dot.is-from {
@@ -226,13 +226,13 @@
 }
 
 .movement-route-dot.is-via {
-  border-color: var(--mantine-color-violet-6);
+  border-color: var(--mantine-color-pink-6);
   background: color-mix(
     in srgb,
-    var(--mantine-color-violet-6) 18%,
+    var(--mantine-color-pink-6) 18%,
     var(--mantine-color-body)
   );
-  color: var(--mantine-color-violet-7);
+  color: var(--mantine-color-pink-7);
 }
 
 .movement-route-dot.is-to {
@@ -258,13 +258,16 @@
   background: var(--mantine-color-gray-5);
 }
 
-.movement-route-line.is-turnout,
+.movement-route-line.is-turnout {
+  background: var(--mantine-color-orange-5);
+}
+
 .movement-route-line.is-from {
   background: var(--mantine-color-blue-5);
 }
 
 .movement-route-line.is-via {
-  background: var(--mantine-color-violet-5);
+  background: var(--mantine-color-pink-5);
 }
 
 .movement-route-line.is-to {
@@ -296,10 +299,10 @@
 }
 
 .movement-physical-route-header.is-turnout {
-  border-left-color: var(--mantine-color-blue-6);
+  border-left-color: var(--mantine-color-orange-6);
   background: color-mix(
     in srgb,
-    var(--mantine-color-blue-6) 14%,
+    var(--mantine-color-orange-6) 14%,
     var(--mantine-color-body)
   );
 }
@@ -314,10 +317,10 @@
 }
 
 .movement-physical-route-header.is-via {
-  border-left-color: var(--mantine-color-violet-6);
+  border-left-color: var(--mantine-color-pink-6);
   background: color-mix(
     in srgb,
-    var(--mantine-color-violet-6) 15%,
+    var(--mantine-color-pink-6) 15%,
     var(--mantine-color-body)
   );
 }
