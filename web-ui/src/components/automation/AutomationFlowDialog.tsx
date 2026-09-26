@@ -79,7 +79,6 @@ import {
   createEmptyAutomationFlowDocument,
   generateAutomationFlowPageScript,
   normalizeAutomationFlowDocument,
-  type AutomationArrivalRule,
   type AutomationFlowDocument,
   type AutomationFlowEdge,
   type AutomationFlowNode,
@@ -1289,103 +1288,6 @@ export default function AutomationFlowDialog({
       );
     };
 
-  const addArrivalRule =
-    (): void => {
-      if (
-        !selectedNode ||
-        selectedNode.data.kind !==
-          "smartDispatcher"
-      ) {
-        return;
-      }
-
-      const route =
-        selectedNode.data.route ??
-        [];
-
-      const rule:
-        AutomationArrivalRule = {
-          id:
-            createAutomationFlowId(
-              "arrival"
-            ),
-          block:
-            route[1] ??
-            route[0] ??
-            "B1",
-          sensor: 1,
-          state: true,
-        };
-
-      updateSelectedNode({
-        arrivalRules: [
-          ...(
-            selectedNode.data
-              .arrivalRules ??
-            []
-          ),
-          rule,
-        ],
-      });
-    };
-
-  const updateArrivalRule =
-    (
-      id: string,
-      patch:
-        Partial<
-          AutomationArrivalRule
-        >
-    ): void => {
-      if (
-        !selectedNode ||
-        selectedNode.data.kind !==
-          "smartDispatcher"
-      ) {
-        return;
-      }
-
-      updateSelectedNode({
-        arrivalRules:
-          (
-            selectedNode.data
-              .arrivalRules ??
-            []
-          ).map(
-            rule =>
-              rule.id ===
-              id
-                ? {
-                    ...rule,
-                    ...patch,
-                  }
-                : rule
-          ),
-      });
-    };
-
-  const deleteArrivalRule =
-    (
-      id: string
-    ): void => {
-      if (!selectedNode) {
-        return;
-      }
-
-      updateSelectedNode({
-        arrivalRules:
-          (
-            selectedNode.data
-              .arrivalRules ??
-            []
-          ).filter(
-            rule =>
-              rule.id !==
-              id
-          ),
-      });
-    };
-
   const updateViewport =
     (
       viewport:
@@ -1911,15 +1813,6 @@ export default function AutomationFlowDialog({
                 }
                 onDeleteNode={
                   deleteSelectedNode
-                }
-                onAddArrivalRule={
-                  addArrivalRule
-                }
-                onChangeArrivalRule={
-                  updateArrivalRule
-                }
-                onDeleteArrivalRule={
-                  deleteArrivalRule
                 }
               />
             </Card>
