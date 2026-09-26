@@ -146,6 +146,9 @@ export function CommandCenterProvider({
 
         if (!data.alive) {
           setPowerInfo(null);
+          setTrackPowerRuntimeState(
+            false
+          );
           setZ21SystemState(null);
           setLockState(emptyLockState);
         }
