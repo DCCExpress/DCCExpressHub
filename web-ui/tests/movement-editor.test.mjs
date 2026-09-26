@@ -219,6 +219,36 @@ test("Movement editor is split into reusable components", () => {
   );
 
   assert.match(
+    navigation,
+    /locoDirection/
+  );
+
+  assert.match(
+    navigation,
+    /mergeDirection/
+  );
+
+  assert.match(
+    navigation,
+    /getMovementSequenceDirections/
+  );
+
+  assert.match(
+    navigation,
+    /getCompatibleMovementNextBlockIds/
+  );
+
+  assert.match(
+    selector,
+    /getCompatibleMovementNextBlockIds/
+  );
+
+  assert.match(
+    selector,
+    /direction mismatch/
+  );
+
+  assert.match(
     editor,
     /MovementRouteRow/
   );
@@ -509,5 +539,33 @@ test("backend actual block assignment replaces target-only markers", () => {
   assert.match(
     esp32,
     /else if \(target->locoId != locoId \|\| target->locoAddress != locoAddress\)[\s\S]*target->locoId = locoId;[\s\S]*target->locoAddress = locoAddress;/
+  );
+});
+
+
+test("Movement route selector rejects reverse-direction continuation", () => {
+  const navigation =
+    read(
+      "src/services/movementRouteNavigation.ts"
+    );
+
+  assert.match(
+    navigation,
+    /current ===[\s\S]*"unknown"[\s\S]*return next/
+  );
+
+  assert.match(
+    navigation,
+    /next ===[\s\S]*"unknown"[\s\S]*return current/
+  );
+
+  assert.match(
+    navigation,
+    /current ===[\s\S]*next[\s\S]*\?[\s\S]*current[\s\S]*:[\s\S]*null/
+  );
+
+  assert.match(
+    navigation,
+    /getMovementSequenceDirections\([\s\S]*\[\s*\.\.\.sequence,[\s\S]*option\.blockId/
   );
 });
