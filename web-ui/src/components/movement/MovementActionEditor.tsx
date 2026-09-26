@@ -521,7 +521,15 @@ export default function MovementActionEditor({
               key={
                 action.id
               }
-              className="movement-inner-step-row movement-action-step-row"
+              className={
+                "movement-inner-step-row movement-action-step-row" +
+                (
+                  actionIndex ===
+                  actions.length - 1
+                    ? " is-last"
+                    : ""
+                )
+              }
             >
               <div
                 className="movement-inner-step-spine"
