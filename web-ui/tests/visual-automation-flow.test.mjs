@@ -2723,6 +2723,11 @@ test("flow palette category cards have dark full-width clickable headers", () =>
   );
 
   assert.match(
+    header,
+    /cursor:[\s\S]*clickableHeader[\s\S]*\? "pointer"/
+  );
+
+  assert.match(
     css,
     /\.automation-flow-palette-group-header/
   );
