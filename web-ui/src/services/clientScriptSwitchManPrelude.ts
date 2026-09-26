@@ -806,7 +806,14 @@ const __dccDispatcherLoadLayout = async () => {
       }
 
       if (
-        Number(topology.version) !== 2
+        ![
+          2,
+          3,
+        ].includes(
+          Number(
+            topology.version
+          )
+        )
       ) {
         throw new Error(
           "dispatcher: unsupported routeTopology version. Regenerate and save the route graph with the current version."
