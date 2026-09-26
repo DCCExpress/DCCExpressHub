@@ -1420,3 +1420,71 @@ test("Movement actions are draggable and ordered within their WHEN phase", () =>
     /execution\.page\.actions\.filter\([\s\S]*action\.when ===[\s\S]*when/
   );
 });
+
+
+test("Movement action drag uses a dedicated handle and darker card headers", () => {
+  const actionEditor =
+    read(
+      "src/components/movement/MovementActionEditor.tsx"
+    );
+
+  const conditions =
+    read(
+      "src/components/movement/MovementBlockConditionsEditor.tsx"
+    );
+
+  const css =
+    read(
+      "src/styles/movementEditor.css"
+    );
+
+  assert.match(
+    actionEditor,
+    /className="movement-action-card"/
+  );
+
+  assert.match(
+    actionEditor,
+    /className="movement-action-card-header"/
+  );
+
+  assert.match(
+    actionEditor,
+    /className="movement-action-drag-handle"/
+  );
+
+  assert.match(
+    actionEditor,
+    /<div[\s\S]*draggable[\s\S]*movement-action-drag-handle/
+  );
+
+  assert.doesNotMatch(
+    actionEditor,
+    /<Card[\s\S]{0,300}\bdraggable\b/
+  );
+
+  assert.match(
+    conditions,
+    /movement-block-event-condition-header/
+  );
+
+  assert.match(
+    css,
+    /movement-action-card-header[\s\S]*black 24%/
+  );
+
+  assert.match(
+    css,
+    /movement-block-event-condition-header[\s\S]*black 18%/
+  );
+
+  assert.match(
+    css,
+    /movement-collapsible-header-condition[\s\S]*black 20%/
+  );
+
+  assert.match(
+    css,
+    /movement-collapsible-header-actions[\s\S]*black 27%/
+  );
+});
