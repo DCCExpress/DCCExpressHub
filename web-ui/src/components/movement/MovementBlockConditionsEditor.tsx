@@ -141,7 +141,10 @@ export default function MovementBlockConditionsEditor({
     >
       {
         sections.map(
-          section => {
+          (
+            section,
+            sectionIndex
+          ) => {
             const conditions =
               current[
                 section.field
@@ -165,14 +168,33 @@ export default function MovementBlockConditionsEditor({
               null;
 
             return (
-              <Stack
+              <div
                 key={
                   section.field
                 }
-                gap={6}
-                p="xs"
-                className="movement-block-event-condition"
+                className="movement-inner-step-row movement-condition-step-row"
               >
+                <div
+                  className="movement-inner-step-spine"
+                >
+                  <div
+                    className="movement-inner-step-dot movement-condition-step-dot"
+                  >
+                    {
+                      sectionIndex + 1
+                    }
+                  </div>
+
+                  <div
+                    className="movement-inner-step-line"
+                  />
+                </div>
+
+                <Stack
+                  gap={6}
+                  p="xs"
+                  className="movement-block-event-condition"
+                >
                 <Group
                   justify="space-between"
                   align="center"
@@ -429,7 +451,8 @@ export default function MovementBlockConditionsEditor({
                     )
                   )
                 }
-              </Stack>
+                </Stack>
+              </div>
             );
           }
         )
