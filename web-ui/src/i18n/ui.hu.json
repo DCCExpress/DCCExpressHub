@@ -1056,5 +1056,7 @@
   "timetableAddRow": "Új sor",
   "timetableMissingMovement": "Hiányzó Movement",
   "timetableNextRowsDescription": "Mindig a következő {{value1}} menetrendi sor látszik · a futó sorok fölöttük maradnak",
-  "noUpcomingTimetableRows": "Nincs következő menetrendi sor."
+  "noUpcomingTimetableRows": "Nincs következő menetrendi sor.",
+  "timetableJumpBeforeFirst": "Első indulás elé {{seconds}} mp",
+  "fastClockSetTimeFailed": "A FastClock idejét nem sikerült beállítani."
 }
