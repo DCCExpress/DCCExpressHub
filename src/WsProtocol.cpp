@@ -2842,6 +2842,21 @@ void WsProtocol::handleMessage(
             changed =
                 true;
         }
+        else if (
+            action ==
+            "setTime")
+        {
+            const double timeMs =
+                data["timeMs"] |
+                0.0;
+
+            snapshot =
+                _fastClock.setTime(
+                    timeMs);
+
+            changed =
+                true;
+        }
         else
         {
             hasSnapshot =
