@@ -195,6 +195,45 @@
   box-shadow: 0 0 0 3px var(--mantine-color-body);
 }
 
+.movement-route-dot.is-current {
+  width: 34px;
+  height: 34px;
+  margin: -3px;
+  border-width: 3px;
+  border-color: var(--mantine-color-red-5) !important;
+  background: var(--mantine-color-red-8) !important;
+  color: var(--mantine-color-yellow-3) !important;
+  font-size: 12px;
+  font-weight: 900;
+  box-shadow:
+    0 0 0 3px var(--mantine-color-body),
+    0 0 0 5px color-mix(
+      in srgb,
+      var(--mantine-color-yellow-5) 48%,
+      transparent
+    ),
+    0 0 16px color-mix(
+      in srgb,
+      var(--mantine-color-red-5) 72%,
+      transparent
+    );
+  animation:
+    movement-current-step-pulse
+    1.25s ease-in-out
+    infinite;
+}
+
+@keyframes movement-current-step-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.08);
+  }
+}
+
 .movement-route-dot.is-segment {
   border-color: var(--mantine-color-gray-8);
   background: color-mix(
@@ -276,6 +315,24 @@
 .movement-physical-route-card {
   min-width: 0;
   overflow: hidden;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.movement-physical-route-card.is-current {
+  border-color: var(--mantine-color-red-6);
+  box-shadow:
+    0 0 0 1px color-mix(
+      in srgb,
+      var(--mantine-color-red-6) 55%,
+      transparent
+    ),
+    0 0 14px color-mix(
+      in srgb,
+      var(--mantine-color-red-6) 20%,
+      transparent
+    );
 }
 
 .movement-physical-route-header {
