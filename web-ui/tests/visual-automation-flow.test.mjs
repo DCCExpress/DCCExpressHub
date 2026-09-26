@@ -3002,3 +3002,36 @@ test("ESP32 turnout commands also publish Basic Accessory feedback", () => {
     /accessory\["active"\][\s\S]*physicalValue/
   );
 });
+
+
+test("force turnout unlock aborts active automation before releasing locks", () => {
+  const source =
+    read(
+      "src/LiteLayoutPage.tsx"
+    );
+
+  assert.match(
+    source,
+    /abortAllClientScriptExecutions/
+  );
+
+  assert.match(
+    source,
+    /forceReleaseAllTurnoutLocksWithScriptsConfirm/
+  );
+
+  const abortIndex =
+    source.indexOf(
+      "abortAllClientScriptExecutions("
+    );
+
+  const releaseIndex =
+    source.indexOf(
+      'action: "forceReleaseAll"'
+    );
+
+  assert.ok(
+    abortIndex >= 0 &&
+    releaseIndex > abortIndex
+  );
+});

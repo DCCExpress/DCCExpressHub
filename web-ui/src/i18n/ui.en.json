@@ -867,6 +867,7 @@
   "stopScriptsFirst": "Stop the scripts first",
   "scriptsStillRunningOrPaused": "Still running or paused: {{value1}}.",
   "forceReleaseAllTurnoutLocksConfirm": "Release all turnout locks? This also force-releases remaining/orphaned turnout locks.",
+  "forceReleaseAllTurnoutLocksWithScriptsConfirm": "Active automation is still running: {{value1}}. Abort all active scripts/flows and release all turnout locks?",
   "turnoutLockReleaseFailed": "Failed to release turnout locks.",
   "turnoutLockReleaseTimeout": "The turnout-lock release request timed out.",
   "noWebSocketConnection": "No WebSocket connection to the backend.",

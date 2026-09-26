@@ -867,6 +867,7 @@
   "stopScriptsFirst": "Előbb állítsd le a scripteket",
   "scriptsStillRunningOrPaused": "Még fut vagy szünetel: {{value1}}.",
   "forceReleaseAllTurnoutLocksConfirm": "Minden váltózár feloldása? Ez a megmaradt/orphaned váltózárakat is kényszerítve feloldja.",
+  "forceReleaseAllTurnoutLocksWithScriptsConfirm": "Még aktív automatizáció fut: {{value1}}. Abortáljuk az összes futó scriptet/flow-t és oldjuk fel az összes váltózárat?",
   "turnoutLockReleaseFailed": "A váltózárak feloldása sikertelen.",
   "turnoutLockReleaseTimeout": "A váltózár-feloldási kérés túllépte az időkorlátot.",
   "noWebSocketConnection": "Nincs WebSocket kapcsolat a backendhez.",

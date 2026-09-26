@@ -102,7 +102,10 @@ import ElementPreview from "@/models/editor/rendering/ElementPreviewRenderer";
 import type { EditorTool } from "@/models/editor/types/EditorTypes";
 import { wsApi } from "@/services/wsApi";
 import { wsClient, type WsConnectionStatus } from "@/services/wsClient";
-import { getActiveClientScriptExecutions } from "@/services/clientScriptRunner";
+import {
+  abortAllClientScriptExecutions,
+  getActiveClientScriptExecutions,
+} from "@/services/clientScriptRunner";
 import {
   isBroadcastAudioEnabled,
   setBroadcastAudioEnabled,
@@ -675,26 +678,53 @@ export default function LiteLayoutPage({
     const activeScripts =
       getActiveClientScriptExecutions();
 
-    if (activeScripts.length > 0) {
-      showNotification({
-        color: "orange",
-        title: i18next.t("ui.stopScriptsFirst"),
-        message: i18next.t(
-          "ui.scriptsStillRunningOrPaused",
-          {
-            value1: activeScripts
-              .map(script => script.name)
-              .join(", "),
-          }
-        ),
-      });
+    const confirmMessage =
+      activeScripts.length > 0
+        ? i18next.t(
+            "ui.forceReleaseAllTurnoutLocksWithScriptsConfirm",
+            {
+              value1: activeScripts
+                .map(script => script.name)
+                .join(", "),
+            }
+          )
+        : i18next.t(
+            "ui.forceReleaseAllTurnoutLocksConfirm"
+          );
+
+    if (
+      !window.confirm(
+        confirmMessage
+      )
+    ) {
       return;
     }
 
-    if (!window.confirm(
-      i18next.t("ui.forceReleaseAllTurnoutLocksConfirm")
-    )) {
-      return;
+    if (
+      activeScripts.length > 0
+    ) {
+      abortAllClientScriptExecutions(
+        "Turnout locks were force-released by the user."
+      );
+
+      const abortDeadline =
+        Date.now() +
+        2000;
+
+      while (
+        getActiveClientScriptExecutions()
+          .length > 0 &&
+        Date.now() <
+          abortDeadline
+      ) {
+        await new Promise<void>(
+          resolve =>
+            window.setTimeout(
+              resolve,
+              50
+            )
+        );
+      }
     }
 
     const requestId =

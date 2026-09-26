@@ -867,6 +867,7 @@
   "stopScriptsFirst": "Stoppe zuerst die Skripte",
   "scriptsStillRunningOrPaused": "Noch aktiv oder pausiert: {{value1}}.",
   "forceReleaseAllTurnoutLocksConfirm": "Alle Weichensperren lösen? Dadurch werden auch verbliebene/verwaiste Weichensperren zwangsweise gelöst.",
+  "forceReleaseAllTurnoutLocksWithScriptsConfirm": "Es läuft noch eine Automatisierung: {{value1}}. Alle aktiven Skripte/Flows abbrechen und alle Weichensperren lösen?",
   "turnoutLockReleaseFailed": "Die Weichensperren konnten nicht gelöst werden.",
   "turnoutLockReleaseTimeout": "Zeitüberschreitung beim Lösen der Weichensperren.",
   "noWebSocketConnection": "Keine WebSocket-Verbindung zum Backend.",
