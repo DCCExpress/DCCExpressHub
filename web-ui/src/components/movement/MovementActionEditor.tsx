@@ -26,6 +26,14 @@ import type {
   MovementPlanResourceKind,
 } from "../../services/movementPlan";
 
+import {
+  AudioFileInput,
+} from "../../layout/property-panel/AudioFilePropertyEditor";
+
+import {
+  audioManager,
+} from "../../services/audioManager";
+
 type Props = {
   resourceKey: string;
   resourceKind:
@@ -658,22 +666,37 @@ export default function MovementActionEditor({
                 action.kind ===
                   "playAudio" && (
                   <>
-                    <TextInput
-                      size="xs"
+                    <AudioFileInput
                       label="Audio file"
-                      placeholder="/sd/audio/file.mp3"
+                      description="Choose an audio file from the Hub SD card."
                       value={
                         action.audioName
                       }
+                      allowManualInput={
+                        false
+                      }
                       onChange={
-                        event =>
+                        audioName =>
                           update(
                             action.id,
                             {
-                              audioName:
-                                event.currentTarget.value,
+                              audioName,
                             }
                           )
+                      }
+                      onTest={
+                        () => {
+                          const source =
+                            action.audioName.trim();
+
+                          if (
+                            source
+                          ) {
+                            audioManager.play(
+                              source
+                            );
+                          }
+                        }
                       }
                     />
 
