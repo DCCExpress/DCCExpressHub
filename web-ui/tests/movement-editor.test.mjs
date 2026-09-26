@@ -1145,12 +1145,17 @@ test("Movement stepper and PhysicalRoute headers share route-role colors", () =>
 
   assert.match(
     row,
-    /resource\.kind ===[\s\S]*"turnout"[\s\S]*return "blue"/
+    /resource\.kind ===[\s\S]*"turnout"[\s\S]*return "orange"/
   );
 
   assert.match(
     row,
     /resource\.kind ===[\s\S]*"segment"[\s\S]*return "gray"/
+  );
+
+  assert.match(
+    row,
+    /return "pink"/
   );
 
   assert.match(
