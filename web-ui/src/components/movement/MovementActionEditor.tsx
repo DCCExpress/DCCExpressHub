@@ -1,5 +1,7 @@
 import {
   type DragEvent,
+  type Dispatch,
+  type SetStateAction,
   useMemo,
   useState,
 } from "react";
@@ -9,6 +11,7 @@ import {
   Badge,
   Button,
   Card,
+  Collapse,
   Group,
   NumberInput,
   Select,
@@ -22,6 +25,7 @@ import {
 import {
   IconArrowDown,
   IconArrowUp,
+  IconChevronDown,
   IconGripVertical,
   IconPlus,
   IconTrash,
@@ -403,6 +407,65 @@ export default function MovementActionEditor({
     useState<string | null>(
       null
     );
+
+
+  const [
+    collapsedSequenceIds,
+    setCollapsedSequenceIds,
+  ] =
+    useState<
+      Set<string>
+    >(
+      () =>
+        new Set<string>()
+    );
+
+  const [
+    collapsedActionIds,
+    setCollapsedActionIds,
+  ] =
+    useState<
+      Set<string>
+    >(
+      () =>
+        new Set<string>()
+    );
+
+  const toggleCollapsedId =
+    (
+      setter:
+        Dispatch<
+          SetStateAction<
+            Set<string>
+          >
+        >,
+      id: string
+    ): void => {
+      setter(
+        current => {
+          const next =
+            new Set(
+              current
+            );
+
+          if (
+            next.has(
+              id
+            )
+          ) {
+            next.delete(
+              id
+            );
+          } else {
+            next.add(
+              id
+            );
+          }
+
+          return next;
+        }
+      );
+    };
 
   const commitSequences =
     (
@@ -933,6 +996,44 @@ export default function MovementActionEditor({
                 >
                   <Tooltip
                     withArrow
+                    label={
+                      collapsedSequenceIds.has(
+                        sequence.id
+                      )
+                        ? "Expand sequence"
+                        : "Collapse sequence"
+                    }
+                  >
+                    <ActionIcon
+                      size="sm"
+                      color="gray"
+                      variant="subtle"
+                      onClick={
+                        () =>
+                          toggleCollapsedId(
+                            setCollapsedSequenceIds,
+                            sequence.id
+                          )
+                      }
+                    >
+                      <IconChevronDown
+                        size={14}
+                        style={{
+                          transform:
+                            collapsedSequenceIds.has(
+                              sequence.id
+                            )
+                              ? "rotate(-90deg)"
+                              : "rotate(0deg)",
+                          transition:
+                            "transform 150ms ease",
+                        }}
+                      />
+                    </ActionIcon>
+                  </Tooltip>
+
+                  <Tooltip
+                    withArrow
                     label="Move sequence up"
                   >
                     <ActionIcon
@@ -1028,6 +1129,13 @@ export default function MovementActionEditor({
                 </Group>
               </Group>
 
+              <Collapse
+                expanded={
+                  !collapsedSequenceIds.has(
+                    sequence.id
+                  )
+                }
+              >
               <Stack
                 gap="xs"
                 className="movement-sequence-card-body"
@@ -1168,6 +1276,46 @@ export default function MovementActionEditor({
                             >
                               <Tooltip
                                 withArrow
+                                label={
+                                  collapsedActionIds.has(
+                                    action.id
+                                  )
+                                    ? "Expand action"
+                                    : "Collapse action"
+                                }
+                              >
+                                <ActionIcon
+                                  size="sm"
+                                  color="gray"
+                                  variant="subtle"
+                                  onClick={
+                                    event => {
+                                      event.stopPropagation();
+                                      toggleCollapsedId(
+                                        setCollapsedActionIds,
+                                        action.id
+                                      );
+                                    }
+                                  }
+                                >
+                                  <IconChevronDown
+                                    size={14}
+                                    style={{
+                                      transform:
+                                        collapsedActionIds.has(
+                                          action.id
+                                        )
+                                          ? "rotate(-90deg)"
+                                          : "rotate(0deg)",
+                                      transition:
+                                        "transform 150ms ease",
+                                    }}
+                                  />
+                                </ActionIcon>
+                              </Tooltip>
+
+                              <Tooltip
+                                withArrow
                                 label="Move up"
                               >
                                 <ActionIcon
@@ -1240,6 +1388,13 @@ export default function MovementActionEditor({
                             </Group>
                           </Group>
 
+                          <Collapse
+                            expanded={
+                              !collapsedActionIds.has(
+                                action.id
+                              )
+                            }
+                          >
                           <Stack
                             gap={6}
                             className="movement-action-card-body"
@@ -1658,12 +1813,14 @@ export default function MovementActionEditor({
                               )
                             }
                           </Stack>
+                          </Collapse>
                         </Card>
                       </div>
                     )
                   )
                 }
               </Stack>
+              </Collapse>
             </Card>
           )
         )
