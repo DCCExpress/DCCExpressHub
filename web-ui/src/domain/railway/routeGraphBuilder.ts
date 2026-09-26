@@ -6,6 +6,7 @@ import {
   type SectionDetector,
   type SectionSignal,
   type TurnoutStateRequirement,
+  type RouteTurnoutPassage,
 } from "./graph";
 
 import {
@@ -465,6 +466,7 @@ export class RouteGraphBuilder {
           turnout,
           side,
           [],
+          [],
           new Set<string>(),
           locoDirection
         );
@@ -477,6 +479,7 @@ export class RouteGraphBuilder {
     turnout: TopologyTurnoutElement,
     enteredSide: TurnoutSide,
     turnoutStates: TurnoutStateRequirement[],
+    turnoutPath: RouteTurnoutPassage[],
     visitedTurnoutSides: Set<string>,
     locoDirection: TravelDirection
   ): void {
@@ -496,6 +499,21 @@ export class RouteGraphBuilder {
       const nextTurnoutStates = [
         ...turnoutStates,
         ...exit.turnoutStates,
+      ];
+
+      const nextTurnoutPath = [
+        ...turnoutPath,
+        {
+          elementId:
+            turnout.id,
+          name:
+            turnout.name?.trim() ||
+            `Turnout ${turnout.id}`,
+          turnoutStates:
+            this.normalizeTurnoutStates(
+              exit.turnoutStates
+            ),
+        },
       ];
 
       const exitPos =
@@ -518,6 +536,7 @@ export class RouteGraphBuilder {
           nextElem,
           turnout.pos,
           nextTurnoutStates,
+          nextTurnoutPath,
           locoDirection
         );
 
@@ -539,6 +558,7 @@ export class RouteGraphBuilder {
         nextElem,
         nextEnteredSide,
         nextTurnoutStates,
+        nextTurnoutPath,
         nextVisited,
         locoDirection
       );
@@ -550,6 +570,7 @@ export class RouteGraphBuilder {
     targetElem: TopologyTrackElement,
     connectedFrom: TopologyPoint,
     turnoutStates: TurnoutStateRequirement[],
+    turnoutPath: RouteTurnoutPassage[],
     locoDirection: TravelDirection
   ): void {
     const targetSection =
@@ -573,6 +594,7 @@ export class RouteGraphBuilder {
       fromNode,
       toNode,
       turnoutStates,
+      turnoutPath,
       locoDirection
     );
   }
@@ -581,6 +603,7 @@ export class RouteGraphBuilder {
     from: GraphNode,
     to: GraphNode,
     turnoutStates: TurnoutStateRequirement[],
+    turnoutPath: RouteTurnoutPassage[],
     locoDirection: TravelDirection
   ): void {
     const normalizedStates =
@@ -606,7 +629,8 @@ export class RouteGraphBuilder {
         from,
         to,
         normalizedStates,
-        locoDirection
+        locoDirection,
+        turnoutPath
       )
     );
   }
