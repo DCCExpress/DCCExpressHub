@@ -1105,3 +1105,106 @@ test("Movement block conditions support DEPART LEAVE and ARRIVED sensor rules", 
     /Default: destination occupancy ON/
   );
 });
+
+
+test("Movement stepper and PhysicalRoute headers share route-role colors", () => {
+  const row =
+    read(
+      "src/components/movement/MovementRouteRow.tsx"
+    );
+
+  const css =
+    read(
+      "src/styles/movementEditor.css"
+    );
+
+  assert.match(
+    row,
+    /return "is-segment"/
+  );
+
+  assert.match(
+    row,
+    /return "is-turnout"/
+  );
+
+  assert.match(
+    row,
+    /return "is-from"/
+  );
+
+  assert.match(
+    row,
+    /return "is-to"/
+  );
+
+  assert.match(
+    row,
+    /return "is-via"/
+  );
+
+  assert.match(
+    row,
+    /resource\.kind ===[\s\S]*"turnout"[\s\S]*return "blue"/
+  );
+
+  assert.match(
+    row,
+    /resource\.kind ===[\s\S]*"segment"[\s\S]*return "gray"/
+  );
+
+  assert.match(
+    row,
+    /resource\.kind ===[\s\S]*"block"[\s\S]*return "VIA"/
+  );
+
+  assert.match(
+    css,
+    /movement-route-dot\.is-segment/
+  );
+
+  assert.match(
+    css,
+    /movement-route-dot\.is-turnout/
+  );
+
+  assert.match(
+    css,
+    /movement-route-dot\.is-from/
+  );
+
+  assert.match(
+    css,
+    /movement-route-dot\.is-via/
+  );
+
+  assert.match(
+    css,
+    /movement-route-dot\.is-to/
+  );
+
+  assert.match(
+    css,
+    /movement-physical-route-header\.is-segment/
+  );
+
+  assert.match(
+    css,
+    /movement-physical-route-header\.is-turnout/
+  );
+
+  assert.match(
+    css,
+    /movement-physical-route-header\.is-from/
+  );
+
+  assert.match(
+    css,
+    /movement-physical-route-header\.is-via/
+  );
+
+  assert.match(
+    css,
+    /movement-physical-route-header\.is-to/
+  );
+});
