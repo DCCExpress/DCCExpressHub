@@ -95,7 +95,7 @@ function resourceBadge(
     resource.kind ===
     "block"
   ) {
-    return "BLOCK";
+    return "VIA";
   }
 
   if (
@@ -106,6 +106,31 @@ function resourceBadge(
   }
 
   return "SEGMENT";
+}
+
+function routeRoleClass(
+  resource:
+    MovementPlanResource,
+  isSource: boolean,
+  isDestination: boolean
+): string {
+  if (resource.kind === "segment") {
+    return "is-segment";
+  }
+
+  if (resource.kind === "turnout") {
+    return "is-turnout";
+  }
+
+  if (isSource) {
+    return "is-from";
+  }
+
+  if (isDestination) {
+    return "is-to";
+  }
+
+  return "is-via";
 }
 
 export default function MovementRouteRow({
@@ -120,6 +145,13 @@ export default function MovementRouteRow({
   onRuleChange,
   onActionsChange,
 }: Props) {
+  const roleClass =
+    routeRoleClass(
+      resource,
+      isSource,
+      isDestination
+    );
+
   const conditionCount =
     (
       rule?.departWhen.length ??
@@ -143,14 +175,8 @@ export default function MovementRouteRow({
       >
         <div
           className={
-            "movement-route-dot" +
-            (
-              isSource
-                ? " is-source"
-                : isDestination
-                  ? " is-destination"
-                  : ""
-            )
+            "movement-route-dot " +
+            roleClass
           }
         >
           {
@@ -165,11 +191,17 @@ export default function MovementRouteRow({
 
       <Card
         withBorder
-        p="sm"
-        className="movement-physical-route-card"
+        p={0}
+        className={
+          "movement-physical-route-card " +
+          roleClass
+        }
       >
-        <Stack
-          gap="sm"
+        <div
+          className={
+            "movement-physical-route-header " +
+            roleClass
+          }
         >
           <Stack
             gap={6}
@@ -263,7 +295,12 @@ export default function MovementRouteRow({
               )
             }
           </Stack>
+        </div>
 
+        <Stack
+          gap="sm"
+          className="movement-physical-route-body"
+        >
           <CollapsiblePanelCard
             title="Condition / Event"
             collapsedStorageKey={
