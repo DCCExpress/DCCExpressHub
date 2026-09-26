@@ -41,6 +41,10 @@ import {
   wsClient,
 } from "./wsClient";
 
+import {
+  isTrackPowerOn,
+} from "./trackPowerRuntime";
+
 export type MovementEngineStatus =
   | "idle"
   | "running"
@@ -2337,6 +2341,14 @@ export async function startMovement(
   ) {
     throw new Error(
       `Movement "${page.name}" is disabled.`
+    );
+  }
+
+  if (
+    !isTrackPowerOn()
+  ) {
+    throw new Error(
+      "Track power is OFF. Turn it on before starting Movement."
     );
   }
 
