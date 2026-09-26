@@ -14,6 +14,7 @@ import {
   Stack,
   Switch,
   Text,
+  Tooltip,
 } from "@mantine/core";
 
 import {
@@ -21,7 +22,10 @@ import {
 } from "@mantine/notifications";
 
 import {
+  IconAlertTriangle,
   IconEdit,
+  IconPlayerPlay,
+  IconPlayerStop,
   IconPlus,
   IconRoute,
 } from "@tabler/icons-react";
@@ -40,6 +44,24 @@ import {
   loadAutomationBlockCatalog,
   type AutomationBlockOption,
 } from "../../services/automationBlockCatalog";
+
+import {
+  abortClientScript,
+  getClientScriptState,
+  runClientScript,
+  ScriptAbortError,
+  subscribeClientScriptState,
+  type ClientScriptState,
+} from "../../services/clientScriptRunner";
+
+import {
+  buildMovementScript,
+  movementExecutionId,
+} from "../../services/movementRuntime";
+
+import {
+  wsApi,
+} from "../../services/wsApi";
 
 type Props = {
   document:
@@ -82,16 +104,439 @@ function routeLabel(
       );
     };
 
-  const route = [
+  return [
     page.fromBlockId,
     ...page.viaBlockIds,
     page.toBlockId,
-  ].map(
-    name
+  ]
+    .map(
+      name
+    )
+    .join(
+      " → "
+    );
+}
+
+function movementStatusColor(
+  state:
+    ClientScriptState
+): string {
+  if (
+    state.status ===
+    "running"
+  ) {
+    return "green";
+  }
+
+  if (
+    state.status ===
+    "paused"
+  ) {
+    return "yellow";
+  }
+
+  return state.error
+    ? "red"
+    : "gray";
+}
+
+function MovementCard({
+  page,
+  catalog,
+  onEnabledChange,
+  onOpenEditor,
+}: {
+  page:
+    MovementPage;
+  catalog:
+    AutomationBlockOption[];
+  onEnabledChange: (
+    enabled:
+      boolean
+  ) => void;
+  onOpenEditor: () => void;
+}) {
+  const executionId =
+    movementExecutionId(
+      page.id
+    );
+
+  const [
+    state,
+    setState,
+  ] =
+    useState<ClientScriptState>(
+      () =>
+        getClientScriptState(
+          executionId
+        )
+    );
+
+  useEffect(
+    () =>
+      subscribeClientScriptState(
+        executionId,
+        setState
+      ),
+    [
+      executionId,
+    ]
   );
 
-  return route.join(
-    " → "
+  const hasRoute =
+    page.fromBlockId !==
+      null &&
+    page.toBlockId !==
+      null;
+
+  const routeIds = [
+    page.fromBlockId,
+    ...page.viaBlockIds,
+    page.toBlockId,
+  ].filter(
+    (
+      value
+    ): value is number =>
+      value !==
+      null
+  );
+
+  const routeResolved =
+    hasRoute &&
+    routeIds.every(
+      blockId =>
+        catalog.some(
+          block =>
+            block.id ===
+            blockId
+        )
+    );
+
+  const idle =
+    state.status ===
+    "idle";
+
+  const running =
+    state.status ===
+    "running";
+
+  const run =
+    async (): Promise<void> => {
+      try {
+        const script =
+          buildMovementScript(
+            page,
+            catalog
+          );
+
+        await runClientScript(
+          script,
+          {
+            id:
+              executionId,
+            name:
+              page.name,
+            type:
+              "movement",
+          }
+        );
+
+        showNotification({
+          color: "green",
+          title:
+            "Movement completed",
+          message:
+            page.name,
+        });
+      } catch (error) {
+        if (
+          error instanceof
+          ScriptAbortError
+        ) {
+          return;
+        }
+
+        showNotification({
+          color: "red",
+          title:
+            "Movement failed",
+          message:
+            error instanceof Error
+              ? error.message
+              : String(
+                  error
+                ),
+        });
+      }
+    };
+
+  const stop =
+    (): void => {
+      abortClientScript(
+        executionId,
+        "Movement stopped by user."
+      );
+  };
+
+  const abort =
+    (): void => {
+      abortClientScript(
+        executionId,
+        "Movement aborted by user."
+      );
+
+      if (
+        !wsApi.emergencyStop()
+      ) {
+        showNotification({
+          color: "red",
+          title:
+            "Emergency stop could not be sent",
+          message:
+            page.name,
+        });
+      }
+    };
+
+  return (
+    <Card
+      withBorder
+      p="sm"
+      style={{
+        opacity:
+          page.enabled
+            ? 1
+            : 0.6,
+      }}
+    >
+      <Stack
+        gap="xs"
+      >
+        <Group
+          justify="space-between"
+          wrap="nowrap"
+        >
+          <div
+            style={{
+              minWidth: 0,
+              flex: 1,
+            }}
+          >
+            <Group
+              gap="xs"
+              wrap="nowrap"
+            >
+              <Text
+                fw={700}
+                size="sm"
+                truncate
+              >
+                {
+                  page.name
+                }
+              </Text>
+
+              <Badge
+                size="xs"
+                variant="light"
+                color={
+                  movementStatusColor(
+                    state
+                  )
+                }
+              >
+                {
+                  state.status
+                }
+              </Badge>
+
+              <Badge
+                size="xs"
+                variant="light"
+                color="cyan"
+              >
+                speed {
+                  page.speed
+                }
+              </Badge>
+            </Group>
+
+            <Text
+              size="xs"
+              c="dimmed"
+              truncate
+            >
+              {
+                routeLabel(
+                  page,
+                  catalog
+                )
+              }
+            </Text>
+          </div>
+
+          <Group
+            gap={4}
+            wrap="nowrap"
+          >
+            <Tooltip
+              withArrow
+              label="Start movement"
+            >
+              <ActionIcon
+                size="sm"
+                variant="light"
+                color="green"
+                disabled={
+                  !idle ||
+                  !page.enabled ||
+                  !routeResolved
+                }
+                onClick={
+                  () =>
+                    void run()
+                }
+              >
+                <IconPlayerPlay
+                  size={15}
+                />
+              </ActionIcon>
+            </Tooltip>
+
+            <Tooltip
+              withArrow
+              label="Stop movement"
+            >
+              <ActionIcon
+                size="sm"
+                variant="light"
+                color="yellow"
+                disabled={
+                  idle
+                }
+                onClick={
+                  stop
+                }
+              >
+                <IconPlayerStop
+                  size={15}
+                />
+              </ActionIcon>
+            </Tooltip>
+
+            <Tooltip
+              withArrow
+              label="Abort + emergency stop"
+            >
+              <ActionIcon
+                size="sm"
+                variant="light"
+                color="red"
+                disabled={
+                  idle
+                }
+                onClick={
+                  abort
+                }
+              >
+                <IconAlertTriangle
+                  size={15}
+                />
+              </ActionIcon>
+            </Tooltip>
+
+            <Tooltip
+              withArrow
+              label="Edit movement"
+            >
+              <ActionIcon
+                size="sm"
+                variant="light"
+                color="violet"
+                disabled={
+                  running
+                }
+                onClick={
+                  onOpenEditor
+                }
+              >
+                <IconEdit
+                  size={15}
+                />
+              </ActionIcon>
+            </Tooltip>
+          </Group>
+        </Group>
+
+        <Group
+          justify="space-between"
+          wrap="wrap"
+        >
+          <Switch
+            size="sm"
+            color="green"
+            checked={
+              page.enabled
+            }
+            label="Enabled"
+            onChange={
+              event => {
+                const enabled =
+                  event.currentTarget
+                    .checked;
+
+                if (
+                  !enabled &&
+                  !idle
+                ) {
+                  stop();
+                }
+
+                onEnabledChange(
+                  enabled
+                );
+              }
+            }
+          />
+
+          {
+            !hasRoute && (
+              <Text
+                size="xs"
+                c="orange"
+              >
+                FROM / TO missing
+              </Text>
+            )
+          }
+
+          {
+            hasRoute &&
+            !routeResolved && (
+              <Text
+                size="xs"
+                c="red"
+              >
+                Route references a missing block
+              </Text>
+            )
+          }
+
+          {
+            state.error && (
+              <Text
+                size="xs"
+                c="red"
+              >
+                {
+                  state.error
+                }
+              </Text>
+            )
+          }
+        </Group>
+      </Stack>
+    </Card>
   );
 }
 
@@ -308,7 +753,7 @@ export default function MovementPagesTable({
         size="xs"
         c="dimmed"
       >
-        Each page is one saved dispatcher movement. Enabled pages are ready for the future runtime engine.
+        Play runs the saved Movement through SmartDispatcher. Stop ends only this Movement; Abort also requests emergency stop.
       </Text>
 
       <ScrollArea
@@ -324,101 +769,41 @@ export default function MovementPagesTable({
           {
             document.pages.map(
               page => (
-                <Card
+                <MovementCard
                   key={
                     page.id
                   }
-                  withBorder
-                  p="sm"
-                  style={{
-                    opacity:
-                      page.enabled
-                        ? 1
-                        : 0.6,
-                  }}
-                >
-                  <Stack
-                    gap="xs"
-                  >
-                    <Group
-                      justify="space-between"
-                      wrap="nowrap"
-                    >
-                      <div
-                        style={{
-                          minWidth: 0,
-                        }}
-                      >
-                        <Text
-                          fw={700}
-                          size="sm"
-                          truncate
-                        >
-                          {
-                            page.name
-                          }
-                        </Text>
-
-                        <Text
-                          size="xs"
-                          c="dimmed"
-                          truncate
-                        >
-                          {
-                            routeLabel(
-                              page,
-                              catalog
-                            )
-                          }
-                        </Text>
-                      </div>
-
-                      <ActionIcon
-                        size="sm"
-                        variant="light"
-                        color="violet"
-                        onClick={
-                          () =>
-                            onOpenEditor(
+                  page={
+                    page
+                  }
+                  catalog={
+                    catalog
+                  }
+                  onOpenEditor={
+                    () =>
+                      onOpenEditor(
+                        page.id
+                      )
+                  }
+                  onEnabledChange={
+                    enabled => {
+                      void persist({
+                        ...document,
+                        pages:
+                          document.pages.map(
+                            current =>
+                              current.id ===
                               page.id
-                            )
-                        }
-                      >
-                        <IconEdit
-                          size={15}
-                        />
-                      </ActionIcon>
-                    </Group>
-
-                    <Switch
-                      size="sm"
-                      color="green"
-                      checked={
-                        page.enabled
-                      }
-                      label="Enabled"
-                      onChange={
-                        event => {
-                          void persist({
-                            ...document,
-                            pages:
-                              document.pages.map(
-                                current =>
-                                  current.id ===
-                                  page.id
-                                    ? {
-                                        ...current,
-                                        enabled:
-                                          event.currentTarget.checked,
-                                      }
-                                    : current
-                              ),
-                          });
-                        }
-                      }
-                    />
-                  </Stack>
-                </Card>
+                                ? {
+                                    ...current,
+                                    enabled,
+                                  }
+                                : current
+                          ),
+                      });
+                    }
+                  }
+                />
               )
             )
           }
