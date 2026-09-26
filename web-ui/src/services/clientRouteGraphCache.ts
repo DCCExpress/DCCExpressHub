@@ -12,6 +12,7 @@ import type {
   GraphNode,
   SectionBlock,
   TurnoutStateRequirement,
+  RouteTurnoutPassage,
 } from "@domain/railway/graph";
 
 import type {
@@ -27,28 +28,29 @@ import {
   createClientGraphFromRouteGraphDto,
 } from "@/services/routeGraphDtoMapper";
 
-const ROUTE_TOPOLOGY_VERSION = 2;
+const ROUTE_TOPOLOGY_VERSION = 3;
 
 const ROUTE_TOPOLOGY_FIELD =
   "routeTopology";
 
-type PersistedRouteBlockEntry = {
+export type PersistedRouteBlockEntry = {
   id: number;
   name: string;
   nodeIndex: number;
 };
 
-type PersistedRouteEdgeEntry = {
+export type PersistedRouteEdgeEntry = {
   from: string;
   to: string;
   turnoutStates: TurnoutStateRequirement[];
+  turnoutPath: RouteTurnoutPassage[];
   locoDirection:
     | "unknown"
     | "forward"
     | "reverse";
 };
 
-type PersistedRouteTableEntry = {
+export type PersistedRouteTableEntry = {
   fromBlockId: number;
   fromBlockName: string;
   toBlockId: number;
@@ -359,6 +361,21 @@ function graphToDto(
             edge.turnoutStates.map(
               state => ({
                 ...state,
+              })
+            ),
+          turnoutPath:
+            edge.turnoutPath.map(
+              passage => ({
+                elementId:
+                  passage.elementId,
+                name:
+                  passage.name,
+                turnoutStates:
+                  passage.turnoutStates.map(
+                    state => ({
+                      ...state,
+                    })
+                  ),
               })
             ),
           locoDirection:
@@ -711,6 +728,8 @@ function enumerateRouteVariantsForBlockPair(
                         )
                       )
                     ),
+                  turnoutPath:
+                    routeEdge.turnoutPath,
                   locoDirection:
                     routeEdge.locoDirection,
                 })
@@ -768,6 +787,21 @@ function enumerateRouteVariantsForBlockPair(
                         ] as const
                       )
                     )
+                  ),
+                turnoutPath:
+                  routeEdge.turnoutPath.map(
+                    passage => ({
+                      elementId:
+                        passage.elementId,
+                      name:
+                        passage.name,
+                      turnoutStates:
+                        passage.turnoutStates.map(
+                          state => ({
+                            ...state,
+                          })
+                        ),
+                    })
                   ),
                 locoDirection:
                   routeEdge.locoDirection,
