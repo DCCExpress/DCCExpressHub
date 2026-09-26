@@ -766,18 +766,17 @@ function turnoutRequirementsMatch(
       );
 
     /*
-     * Movement never changes turnout state. Unknown therefore fails closed:
-     * the train stays stopped until authoritative turnout feedback arrives.
+     * Movement never changes turnout state.
+     *
+     * Some backends do not publish an authoritative startup state for every
+     * turnout. UNKNOWN must therefore not deadlock Movement startup. A known
+     * contradictory state still blocks the movement.
      */
     if (
       current ===
       undefined
     ) {
-      return {
-        ok: false,
-        mismatch:
-          `Turnout #${requirement.address} state is unknown. Movement will not change it.`,
-      };
+      continue;
     }
 
     if (
