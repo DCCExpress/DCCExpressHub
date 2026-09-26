@@ -245,9 +245,33 @@ export default function MovementEditorDialog({
 
       try {
         const normalized =
-          normalizeMovementDocument(
-            document
-          );
+          normalizeMovementDocument({
+            ...document,
+            pages:
+              document.pages.map(
+                page => {
+                  const runtime =
+                    getMovementEngineState(
+                      page.id
+                    );
+
+                  if (
+                    runtime.startedAt ===
+                    null
+                  ) {
+                    return page;
+                  }
+
+                  return {
+                    ...page,
+                    startedAt:
+                      runtime.startedAt,
+                    stoppedAt:
+                      runtime.stoppedAt,
+                  };
+                }
+              ),
+          });
 
         await saveAutomationMovement(
           normalized
