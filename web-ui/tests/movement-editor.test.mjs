@@ -1757,6 +1757,12 @@ test("Movement physical route highlights stable physical runtime progress", () =
     /waitForArrival\([\s\S]*setActiveRouteResource\([\s\S]*leg\.to\.key/
   );
 
+
+  assert.match(
+    engine,
+    /status:[\s\S]*"idle"[\s\S]*activeRouteResourceKey:[\s\S]*null/
+  );
+
   assert.match(
     editor,
     /isCurrent=/
