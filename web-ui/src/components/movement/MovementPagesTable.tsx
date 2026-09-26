@@ -46,22 +46,13 @@ import {
 } from "../../services/automationBlockCatalog";
 
 import {
-  abortClientScript,
-  getClientScriptState,
-  runClientScript,
-  ScriptAbortError,
-  subscribeClientScriptState,
-  type ClientScriptState,
-} from "../../services/clientScriptRunner";
-
-import {
-  buildMovementScript,
-  movementExecutionId,
-} from "../../services/movementRuntime";
-
-import {
-  wsApi,
-} from "../../services/wsApi";
+  abortMovement,
+  getMovementEngineState,
+  startMovement,
+  stopMovement,
+  subscribeMovementEngineState,
+  type MovementEngineState,
+} from "../../services/movementEngine";
 
 type Props = {
   document:
@@ -119,7 +110,7 @@ function routeLabel(
 
 function movementStatusColor(
   state:
-    ClientScriptState
+    MovementEngineState
 ): string {
   if (
     state.status ===
@@ -130,12 +121,16 @@ function movementStatusColor(
 
   if (
     state.status ===
-    "paused"
+    "stopping"
   ) {
     return "yellow";
   }
 
-  return state.error
+  return (
+    state.status ===
+      "error" ||
+    state.error
+  )
     ? "red"
     : "gray";
 }
@@ -156,30 +151,25 @@ function MovementCard({
   ) => void;
   onOpenEditor: () => void;
 }) {
-  const executionId =
-    movementExecutionId(
-      page.id
-    );
-
   const [
     state,
     setState,
   ] =
-    useState<ClientScriptState>(
+    useState<MovementEngineState>(
       () =>
-        getClientScriptState(
-          executionId
+        getMovementEngineState(
+          page.id
         )
     );
 
   useEffect(
     () =>
-      subscribeClientScriptState(
-        executionId,
+      subscribeMovementEngineState(
+        page.id,
         setState
       ),
     [
-      executionId,
+      page.id,
     ]
   );
 
@@ -214,7 +204,9 @@ function MovementCard({
 
   const idle =
     state.status ===
-    "idle";
+      "idle" ||
+    state.status ===
+      "error";
 
   const running =
     state.status ===
@@ -223,22 +215,8 @@ function MovementCard({
   const run =
     async (): Promise<void> => {
       try {
-        const script =
-          buildMovementScript(
-            page,
-            catalog
-          );
-
-        await runClientScript(
-          script,
-          {
-            id:
-              executionId,
-            name:
-              page.name,
-            type:
-              "movement",
-          }
+        await startMovement(
+          page
         );
 
         showNotification({
@@ -249,13 +227,6 @@ function MovementCard({
             page.name,
         });
       } catch (error) {
-        if (
-          error instanceof
-          ScriptAbortError
-        ) {
-          return;
-        }
-
         showNotification({
           color: "red",
           title:
@@ -272,30 +243,16 @@ function MovementCard({
 
   const stop =
     (): void => {
-      abortClientScript(
-        executionId,
-        "Movement stopped by user."
+      stopMovement(
+        page.id
       );
-  };
+    };
 
   const abort =
     (): void => {
-      abortClientScript(
-        executionId,
-        "Movement aborted by user."
+      abortMovement(
+        page.id
       );
-
-      if (
-        !wsApi.emergencyStop()
-      ) {
-        showNotification({
-          color: "red",
-          title:
-            "Emergency stop could not be sent",
-          message:
-            page.name,
-        });
-      }
     };
 
   return (
@@ -753,7 +710,7 @@ export default function MovementPagesTable({
         size="xs"
         c="dimmed"
       >
-        Play runs the saved Movement through SmartDispatcher. Stop ends only this Movement; Abort also requests emergency stop.
+        Play runs the dedicated MovementEngine. Stop ends only this Movement; Abort also requests emergency stop. Turnouts are checked but never changed.
       </Text>
 
       <ScrollArea
