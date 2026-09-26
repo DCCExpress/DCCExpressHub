@@ -2435,7 +2435,7 @@ async function waitForArrival(
   );
 }
 
-async function waitForSegmentEntry(
+async function waitForResourceEntry(
   execution:
     MovementExecution,
   leg:
@@ -2454,7 +2454,7 @@ async function waitForSegmentEntry(
 
   setInfo(
     execution,
-    `Waiting for segment ${resource.name}`,
+    `Waiting for ${resource.kind} ${resource.name}`,
     resource.key
   );
 
@@ -2632,6 +2632,13 @@ async function traverseLeg(
         resource.kind ===
         "turnout"
       ) {
+        await waitForResourceEntry(
+          execution,
+          leg,
+          resource,
+          blockLeaveState
+        );
+
         setActiveRouteResource(
           execution,
           resource.key
@@ -2657,7 +2664,7 @@ async function traverseLeg(
         continue;
       }
 
-      await waitForSegmentEntry(
+      await waitForResourceEntry(
         execution,
         leg,
         resource,
