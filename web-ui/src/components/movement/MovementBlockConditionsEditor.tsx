@@ -1,7 +1,12 @@
 import {
+  useState,
+} from "react";
+
+import {
   ActionIcon,
   Badge,
   Button,
+  Collapse,
   Group,
   Select,
   Stack,
@@ -10,6 +15,7 @@ import {
 } from "@mantine/core";
 
 import {
+  IconChevronDown,
   IconPlus,
   IconTrash,
 } from "@tabler/icons-react";
@@ -70,6 +76,50 @@ export default function MovementBlockConditionsEditor({
   sensorCatalog,
   onChange,
 }: Props) {
+  const [
+    collapsedSections,
+    setCollapsedSections,
+  ] =
+    useState<
+      Set<ConditionField>
+    >(
+      () =>
+        new Set<
+          ConditionField
+        >()
+    );
+
+  const toggleSection =
+    (
+      field:
+        ConditionField
+    ): void => {
+      setCollapsedSections(
+        current => {
+          const next =
+            new Set(
+              current
+            );
+
+          if (
+            next.has(
+              field
+            )
+          ) {
+            next.delete(
+              field
+            );
+          } else {
+            next.add(
+              field
+            );
+          }
+
+          return next;
+        }
+      );
+    };
+
   const current =
     rule ??
     emptyRule(
@@ -233,6 +283,36 @@ export default function MovementBlockConditionsEditor({
                     </Badge>
                   </Group>
 
+                  <Group
+                    gap={4}
+                    wrap="nowrap"
+                  >
+                  <ActionIcon
+                    size="sm"
+                    variant="subtle"
+                    color="gray"
+                    onClick={
+                      () =>
+                        toggleSection(
+                          section.field
+                        )
+                    }
+                  >
+                    <IconChevronDown
+                      size={15}
+                      style={{
+                        transform:
+                          collapsedSections.has(
+                            section.field
+                          )
+                            ? "rotate(-90deg)"
+                            : "rotate(0deg)",
+                        transition:
+                          "transform 150ms ease",
+                      }}
+                    />
+                  </ActionIcon>
+
                   <Button
                     size="compact-xs"
                     variant="light"
@@ -275,8 +355,19 @@ export default function MovementBlockConditionsEditor({
                   >
                     Sensor
                   </Button>
+                  </Group>
                 </Group>
 
+                <Collapse
+                  expanded={
+                    !collapsedSections.has(
+                      section.field
+                    )
+                  }
+                >
+                <Stack
+                  gap={6}
+                >
                 {
                   conditions.length ===
                     0 && (
@@ -459,6 +550,8 @@ export default function MovementBlockConditionsEditor({
                     )
                   )
                 }
+                </Stack>
+                </Collapse>
                 </Stack>
               </div>
             );
