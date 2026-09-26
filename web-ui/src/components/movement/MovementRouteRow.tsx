@@ -4,7 +4,7 @@ import {
   Button,
   Card,
   Group,
-  NumberInput,
+  Select,
   Stack,
   Switch,
   Text,
@@ -27,6 +27,10 @@ import type {
   AutomationBlockOption,
 } from "../../services/automationBlockCatalog";
 
+import type {
+  AutomationSensorOption,
+} from "../../services/automationSensorCatalog";
+
 type Props = {
   block:
     AutomationBlockOption;
@@ -35,6 +39,8 @@ type Props = {
   isDestination: boolean;
   rule:
     MovementBlockRule | null;
+  sensorCatalog:
+    AutomationSensorOption[];
   onRuleChange: (
     rule:
       MovementBlockRule
@@ -47,11 +53,29 @@ export default function MovementRouteRow({
   isSource,
   isDestination,
   rule,
+  sensorCatalog,
   onRuleChange,
 }: Props) {
   const conditions =
     rule?.arrivedWhen ??
     [];
+
+  const usedSensorAddresses =
+    new Set(
+      conditions.map(
+        condition =>
+          condition.sensor
+      )
+    );
+
+  const nextAvailableSensor =
+    sensorCatalog.find(
+      sensor =>
+        !usedSensorAddresses.has(
+          sensor.address
+        )
+    ) ??
+    null;
 
   return (
     <div
@@ -200,8 +224,19 @@ export default function MovementRouteRow({
                         size={13}
                       />
                     }
+                    disabled={
+                      nextAvailableSensor ===
+                      null
+                    }
                     onClick={
                       () => {
+                        if (
+                          nextAvailableSensor ===
+                          null
+                        ) {
+                          return;
+                        }
+
                         onRuleChange({
                           blockId:
                             block.id,
@@ -212,7 +247,8 @@ export default function MovementRouteRow({
                                 createMovementId(
                                   "condition"
                                 ),
-                              sensor: 1,
+                              sensor:
+                                nextAvailableSensor.address,
                               state: true,
                             },
                           ],
@@ -223,6 +259,18 @@ export default function MovementRouteRow({
                     Sensor
                   </Button>
                 </Group>
+
+                {
+                  sensorCatalog.length ===
+                    0 && (
+                    <Text
+                      size="xs"
+                      c="orange"
+                    >
+                      No configured sensors are available in the layout.
+                    </Text>
+                  )
+                }
 
                 {
                   conditions.length ===
@@ -246,27 +294,90 @@ export default function MovementRouteRow({
                         gap="xs"
                         wrap="nowrap"
                       >
-                        <NumberInput
+                        <Select
                           size="xs"
-                          min={1}
-                          max={65535}
                           value={
-                            condition.sensor
+                            String(
+                              condition.sensor
+                            )
                           }
-                          prefix="Sensor "
+                          data={
+                            (
+                              sensorCatalog.some(
+                                sensor =>
+                                  sensor.address ===
+                                  condition.sensor
+                              )
+                                ? sensorCatalog
+                                : [
+                                    {
+                                      id:
+                                        0,
+                                      address:
+                                        condition.sensor,
+                                      name:
+                                        "",
+                                      label:
+                                        `Sensor ${condition.sensor} · missing from layout`,
+                                    },
+                                    ...sensorCatalog,
+                                  ]
+                            )
+                              .filter(
+                                sensor =>
+                                  sensor.address ===
+                                    condition.sensor ||
+                                  !conditions.some(
+                                    other =>
+                                      other.id !==
+                                        condition.id &&
+                                      other.sensor ===
+                                        sensor.address
+                                  )
+                              )
+                              .map(
+                                sensor => ({
+                                  value:
+                                    String(
+                                      sensor.address
+                                    ),
+                                  label:
+                                    sensor.label,
+                                  disabled:
+                                    sensor.id ===
+                                    0,
+                                })
+                              )
+                          }
+                          allowDeselect={
+                            false
+                          }
+                          searchable={
+                            false
+                          }
                           onChange={
                             value => {
+                              if (
+                                value ===
+                                null
+                              ) {
+                                return;
+                              }
+
                               const sensor =
-                                Math.max(
-                                  1,
-                                  Math.min(
-                                    65535,
-                                    Math.round(
-                                      Number(value) ||
-                                      1
-                                    )
-                                  )
+                                Number(
+                                  value
                                 );
+
+                              if (
+                                !sensorCatalog.some(
+                                  option =>
+                                    option.address ===
+                                    sensor
+                                )
+                              ) {
+                                return;
+                              }
 
                               onRuleChange({
                                 blockId:
