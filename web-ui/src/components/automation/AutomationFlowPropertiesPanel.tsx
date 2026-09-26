@@ -24,7 +24,6 @@ import {
 import i18next from "i18next";
 
 import type {
-  AutomationArrivalRule,
   AutomationFlowNode,
   AutomationFlowNodeData,
 } from "../../domain/automationFlow";
@@ -33,7 +32,6 @@ import AutomationFlowPayloadEditor from "./AutomationFlowPayloadEditor";
 import AutomationFlowTurnoutEditor from "./AutomationFlowTurnoutEditor";
 import AutomationFlowBlockEditor from "./AutomationFlowBlockEditor";
 import AutomationFlowLocoInputEditor from "./AutomationFlowLocoInputEditor";
-import AutomationFlowSmartDispatcherEditor from "./AutomationFlowSmartDispatcherEditor";
 import { AudioFileInput } from "../../layout/property-panel/AudioFilePropertyEditor";
 import { audioManager } from "../../services/audioManager";
 import {
@@ -48,15 +46,6 @@ type Props = {
       Partial<AutomationFlowNodeData>
   ) => void;
   onDelete: () => void;
-  onAddArrivalRule: () => void;
-  onChangeArrivalRule: (
-    id: string,
-    patch:
-      Partial<AutomationArrivalRule>
-  ) => void;
-  onDeleteArrivalRule: (
-    id: string
-  ) => void;
 };
 
 function t(
@@ -77,9 +66,6 @@ export default function AutomationFlowPropertiesPanel({
   pageId,
   onChange,
   onDelete,
-  onAddArrivalRule,
-  onChangeArrivalRule,
-  onDeleteArrivalRule,
 }: Props) {
   if (!node) {
     return (
@@ -336,30 +322,6 @@ export default function AutomationFlowPropertiesPanel({
             }
           />
         </>
-      )}
-
-      {data.kind ===
-        "smartDispatcher" && (
-        <AutomationFlowSmartDispatcherEditor
-          nodeId={
-            node.id
-          }
-          data={
-            data
-          }
-          onChange={
-            onChange
-          }
-          onAddArrivalRule={
-            onAddArrivalRule
-          }
-          onChangeArrivalRule={
-            onChangeArrivalRule
-          }
-          onDeleteArrivalRule={
-            onDeleteArrivalRule
-          }
-        />
       )}
 
       {data.kind ===
