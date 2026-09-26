@@ -517,10 +517,29 @@ export default function MovementActionEditor({
               action.when;
 
             return (
-            <Card
+            <div
               key={
                 action.id
               }
+              className="movement-inner-step-row movement-action-step-row"
+            >
+              <div
+                className="movement-inner-step-spine"
+              >
+                <div
+                  className="movement-inner-step-dot movement-action-step-dot"
+                >
+                  {
+                    actionIndex + 1
+                  }
+                </div>
+
+                <div
+                  className="movement-inner-step-line"
+                />
+              </div>
+
+              <Card
               withBorder
               p={0}
               className="movement-action-card"
@@ -594,7 +613,7 @@ export default function MovementActionEditor({
 
                   <Badge
                     size="sm"
-                    variant="filled"
+                    variant="light"
                     color={
                       draggedActionId ===
                         action.id
@@ -602,15 +621,8 @@ export default function MovementActionEditor({
                         : "gray"
                     }
                   >
-                    #{actionIndex + 1}
-                  </Badge>
-
-                  <Text
-                    size="xs"
-                    c="dimmed"
-                  >
                     {phaseLabel}
-                  </Text>
+                  </Badge>
                 </Group>
 
                 <Group
@@ -1139,7 +1151,8 @@ export default function MovementActionEditor({
                 )
               }
               </Stack>
-            </Card>
+              </Card>
+            </div>
             );
           }
         )
