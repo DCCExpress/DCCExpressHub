@@ -410,7 +410,7 @@ export default function MovementActionEditor({
                       size="xs"
                       label="Function"
                       min={0}
-                      max={28}
+                      max={68}
                       value={
                         action.functionNumber
                       }
@@ -423,7 +423,7 @@ export default function MovementActionEditor({
                                 Math.max(
                                   0,
                                   Math.min(
-                                    28,
+                                    68,
                                     Math.round(
                                       Number(
                                         value
@@ -474,7 +474,7 @@ export default function MovementActionEditor({
                       size="xs"
                       label="Function"
                       min={0}
-                      max={28}
+                      max={68}
                       value={
                         action.functionNumber
                       }
@@ -487,7 +487,7 @@ export default function MovementActionEditor({
                                 Math.max(
                                   0,
                                   Math.min(
-                                    28,
+                                    68,
                                     Math.round(
                                       Number(
                                         value
