@@ -53,6 +53,7 @@ export type AutomationFlowNodeData = Record<string, unknown> & {
   kind: AutomationFlowNodeKind;
   label: string;
   pageId: string;
+  collapsed?: boolean;
 
   route?: string[];
   arrivalRules?: AutomationArrivalRule[];
@@ -489,6 +490,9 @@ function normalizeNodeData(
     kind,
     label,
     pageId,
+    collapsed:
+      candidate.collapsed ===
+      true,
     route:
       normalizeRoute(
         candidate.route

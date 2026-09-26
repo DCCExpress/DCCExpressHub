@@ -1783,7 +1783,7 @@ test("flow nodes have a dark clickable collapsible header", () => {
 
   assert.match(
     node,
-    /useState\(false\)/
+    /data\.collapsed ===[\s\S]*true/
   );
 
   assert.match(
@@ -1798,7 +1798,7 @@ test("flow nodes have a dark clickable collapsible header", () => {
 
   assert.match(
     node,
-    /setCollapsed/
+    /dispatchAutomationFlowNodeCollapsedChange/
   );
 
   assert.match(
@@ -2071,18 +2071,18 @@ test("flow canvas supports collapse all and expand all for the current page", ()
   );
 
   assert.match(
-    node,
+    dialog,
     /AUTOMATION_FLOW_NODE_COLLAPSE_EVENT/
   );
 
   assert.match(
-    node,
-    /detail\.pageId !==[\s\S]*data\.pageId/
+    dialog,
+    /node\.data\.pageId ===[\s\S]*detail\.pageId/
   );
 
   assert.match(
-    node,
-    /setCollapsed\([\s\S]*detail\.collapsed/
+    dialog,
+    /collapsed:[\s\S]*detail\.collapsed/
   );
 });
 
@@ -2145,5 +2145,73 @@ test("flow node palette supports collapse all and expand all categories", () => 
   assert.match(
     collapsedState,
     /localStorage\.setItem/
+  );
+});
+
+
+test("flow node collapsed state is persisted in the flow document", () => {
+  const domain =
+    read(
+      "src/domain/automationFlow.ts"
+    );
+
+  const node =
+    read(
+      "src/components/automation/AutomationFlowNode.tsx"
+    );
+
+  const dialog =
+    read(
+      "src/components/automation/AutomationFlowDialog.tsx"
+    );
+
+  const events =
+    read(
+      "src/components/automation/automationFlowEvents.ts"
+    );
+
+  assert.match(
+    domain,
+    /collapsed\?: boolean/
+  );
+
+  assert.match(
+    domain,
+    /collapsed:[\s\S]*candidate\.collapsed ===[\s\S]*true/
+  );
+
+  assert.match(
+    node,
+    /data\.collapsed ===[\s\S]*true/
+  );
+
+  assert.match(
+    node,
+    /dispatchAutomationFlowNodeCollapsedChange/
+  );
+
+  assert.match(
+    events,
+    /AUTOMATION_FLOW_NODE_COLLAPSED_CHANGE_EVENT/
+  );
+
+  assert.match(
+    events,
+    /nodeId:\s*string/
+  );
+
+  assert.match(
+    dialog,
+    /AUTOMATION_FLOW_NODE_COLLAPSED_CHANGE_EVENT/
+  );
+
+  assert.match(
+    dialog,
+    /node\.id ===[\s\S]*detail\.nodeId/
+  );
+
+  assert.match(
+    dialog,
+    /collapsed:[\s\S]*detail\.collapsed/
   );
 });

@@ -40,3 +40,26 @@ export function dispatchAutomationFlowNodeCollapse(
     )
   );
 }
+
+
+export const AUTOMATION_FLOW_NODE_COLLAPSED_CHANGE_EVENT =
+  "dcc-express-automation-flow-node-collapsed-change";
+
+export type AutomationFlowNodeCollapsedChangeEventDetail = {
+  pageId: string;
+  nodeId: string;
+  collapsed: boolean;
+};
+
+export function dispatchAutomationFlowNodeCollapsedChange(
+  detail: AutomationFlowNodeCollapsedChangeEventDetail
+): void {
+  window.dispatchEvent(
+    new CustomEvent<AutomationFlowNodeCollapsedChangeEventDetail>(
+      AUTOMATION_FLOW_NODE_COLLAPSED_CHANGE_EVENT,
+      {
+        detail,
+      }
+    )
+  );
+}

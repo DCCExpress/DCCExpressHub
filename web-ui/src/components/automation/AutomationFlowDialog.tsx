@@ -107,7 +107,11 @@ import {
 } from "./useAutomationFlowPanelSizes";
 import {
   AUTOMATION_FLOW_INJECT_EVENT,
+  AUTOMATION_FLOW_NODE_COLLAPSE_EVENT,
+  AUTOMATION_FLOW_NODE_COLLAPSED_CHANGE_EVENT,
   type AutomationFlowInjectEventDetail,
+  type AutomationFlowNodeCollapseEventDetail,
+  type AutomationFlowNodeCollapsedChangeEventDetail,
 } from "./automationFlowEvents";
 
 type AutomationFlowDialogProps = {
@@ -455,6 +459,115 @@ export default function AutomationFlowDialog({
       activePageId,
       flowExecution.execution,
       flowExecution.inject,
+    ]
+  );
+
+  useEffect(
+    () => {
+      if (!opened) {
+        return;
+      }
+
+      const handleCollapsePageNodes =
+        (
+          event: Event
+        ): void => {
+          const detail =
+            (
+              event as CustomEvent<
+                AutomationFlowNodeCollapseEventDetail
+              >
+            ).detail;
+
+          if (!detail) {
+            return;
+          }
+
+          setDocument(
+            current => ({
+              ...current,
+              nodes:
+                current.nodes.map(
+                  node =>
+                    node.data.pageId ===
+                    detail.pageId
+                      ? {
+                          ...node,
+                          data: {
+                            ...node.data,
+                            collapsed:
+                              detail.collapsed,
+                          },
+                        }
+                      : node
+                ),
+            })
+          );
+        };
+
+      const handleNodeCollapsedChange =
+        (
+          event: Event
+        ): void => {
+          const detail =
+            (
+              event as CustomEvent<
+                AutomationFlowNodeCollapsedChangeEventDetail
+              >
+            ).detail;
+
+          if (!detail) {
+            return;
+          }
+
+          setDocument(
+            current => ({
+              ...current,
+              nodes:
+                current.nodes.map(
+                  node =>
+                    node.id ===
+                      detail.nodeId &&
+                    node.data.pageId ===
+                      detail.pageId
+                      ? {
+                          ...node,
+                          data: {
+                            ...node.data,
+                            collapsed:
+                              detail.collapsed,
+                          },
+                        }
+                      : node
+                ),
+            })
+          );
+        };
+
+      window.addEventListener(
+        AUTOMATION_FLOW_NODE_COLLAPSE_EVENT,
+        handleCollapsePageNodes
+      );
+
+      window.addEventListener(
+        AUTOMATION_FLOW_NODE_COLLAPSED_CHANGE_EVENT,
+        handleNodeCollapsedChange
+      );
+
+      return () => {
+        window.removeEventListener(
+          AUTOMATION_FLOW_NODE_COLLAPSE_EVENT,
+          handleCollapsePageNodes
+        );
+
+        window.removeEventListener(
+          AUTOMATION_FLOW_NODE_COLLAPSED_CHANGE_EVENT,
+          handleNodeCollapsedChange
+        );
+      };
+    },
+    [
+      opened,
     ]
   );
 
