@@ -556,27 +556,27 @@ export default function MovementActionEditor({
                 justify="space-between"
                 wrap="nowrap"
                 className="movement-action-card-header"
+                draggable
+                onDragStart={
+                  event =>
+                    handleDragStart(
+                      event,
+                      action.id
+                    )
+                }
+                onDragEnd={
+                  () =>
+                    setDraggedActionId(
+                      null
+                    )
+                }
               >
                 <Group
                   gap="xs"
                   wrap="nowrap"
                 >
                   <div
-                    draggable
                     className="movement-action-drag-handle"
-                    onDragStart={
-                      event =>
-                        handleDragStart(
-                          event,
-                          action.id
-                        )
-                    }
-                    onDragEnd={
-                      () =>
-                        setDraggedActionId(
-                          null
-                        )
-                    }
                     title="Drag to reorder"
                   >
                     <ActionIcon
@@ -584,6 +584,7 @@ export default function MovementActionEditor({
                       color="gray"
                       aria-label="Reorder action"
                       tabIndex={-1}
+                      draggable={false}
                     >
                       <IconGripVertical
                         size={17}
@@ -608,7 +609,7 @@ export default function MovementActionEditor({
                     size="xs"
                     c="dimmed"
                   >
-                    #{actionIndex + 1} · {phaseLabel}
+                    {phaseLabel}
                   </Text>
                 </Group>
 
