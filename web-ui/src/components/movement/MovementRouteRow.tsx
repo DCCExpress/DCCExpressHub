@@ -447,6 +447,12 @@ export default function MovementRouteRow({
               resourceKind={
                 resource.kind
               }
+              isSource={
+                isSource
+              }
+              isDestination={
+                isDestination
+              }
               actions={
                 actions
               }
