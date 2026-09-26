@@ -42,6 +42,12 @@ export default function CollapsibleCardHeader({
       className={
         className
       }
+      style={{
+        cursor:
+          clickableHeader
+            ? "pointer"
+            : "default",
+      }}
       role={
         clickableHeader
           ? "button"
