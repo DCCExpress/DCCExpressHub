@@ -490,6 +490,10 @@ function buildPersistedBlockPath(
     const node =
       nodes[nodeIndex];
 
+    if (!node) {
+      continue;
+    }
+
     for (const block of node.blocks) {
       if (
         block.id === fromBlock.id ||
