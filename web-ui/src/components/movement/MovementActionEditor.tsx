@@ -509,6 +509,7 @@ export default function MovementActionEditor({
       <Group
         justify="space-between"
         align="center"
+        className="movement-action-editor-toolbar"
       >
         <Text
           size="sm"
