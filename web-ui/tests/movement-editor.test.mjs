@@ -363,6 +363,31 @@ test("Movement uses a dedicated physical-route engine with JMRI-style actions", 
     /tryAcquireAndSetTurnouts/
   );
 
+  assert.match(
+    engine,
+    /createBlockTargetLocoMarker/
+  );
+
+  assert.match(
+    engine,
+    /setOptimisticBlockTargetLoco/
+  );
+
+  assert.match(
+    engine,
+    /wsApi\.setBlock\(/
+  );
+
+  assert.match(
+    engine,
+    /wsApi\.setBlockRemove\(/
+  );
+
+  assert.match(
+    engine,
+    /Target \$\{leg\.to\.name\}: loco/
+  );
+
   assert.doesNotMatch(
     engine,
     /smartDispatcher/
@@ -401,5 +426,38 @@ test("Movement uses a dedicated physical-route engine with JMRI-style actions", 
   assert.match(
     routeEditor,
     /topology v/
+  );
+});
+
+
+test("backend actual block assignment replaces target-only markers", () => {
+  const dotnet =
+    read(
+      "../desktop/DCCExpressHub.Net/Web/LayoutRuntime.cs"
+    );
+
+  const esp32 =
+    read(
+      "../src/LayoutRuntime.cpp"
+    );
+
+  assert.match(
+    dotnet,
+    /TargetOnly/
+  );
+
+  assert.match(
+    dotnet,
+    /else if \(target\.LocoId != locoId \|\| target\.LocoAddress != locoAddress\)[\s\S]*target\.LocoId = locoId;[\s\S]*target\.LocoAddress = locoAddress;/
+  );
+
+  assert.match(
+    esp32,
+    /targetOnly\(\)/
+  );
+
+  assert.match(
+    esp32,
+    /else if \(target->locoId != locoId \|\| target->locoAddress != locoAddress\)[\s\S]*target->locoId = locoId;[\s\S]*target->locoAddress = locoAddress;/
   );
 });
