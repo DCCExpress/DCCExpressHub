@@ -245,3 +245,91 @@ test("Layout project import and export preserve Movement pages", () => {
     /movements=\{movementDocument\}/
   );
 });
+
+
+test("Movement cards execute SmartDispatcher with saved cruise speed", () => {
+  const movement =
+    read(
+      "src/domain/movement.ts"
+    );
+
+  const runtime =
+    read(
+      "src/services/movementRuntime.ts"
+    );
+
+  const cards =
+    read(
+      "src/components/movement/MovementPagesTable.tsx"
+    );
+
+  const editor =
+    read(
+      "src/components/movement/MovementEditorDialog.tsx"
+    );
+
+  assert.match(
+    movement,
+    /speed: number/
+  );
+
+  assert.match(
+    movement,
+    /speed: 20/
+  );
+
+  assert.match(
+    runtime,
+    /await smartDispatcher/
+  );
+
+  assert.match(
+    runtime,
+    /run\.setSpeed/
+  );
+
+  assert.match(
+    runtime,
+    /run\.waitForBlock/
+  );
+
+  assert.match(
+    runtime,
+    /arrivedWhen/
+  );
+
+  assert.match(
+    cards,
+    /runClientScript/
+  );
+
+  assert.match(
+    cards,
+    /movementExecutionId/
+  );
+
+  assert.match(
+    cards,
+    /IconPlayerPlay/
+  );
+
+  assert.match(
+    cards,
+    /IconPlayerStop/
+  );
+
+  assert.match(
+    cards,
+    /emergencyStop/
+  );
+
+  assert.doesNotMatch(
+    cards,
+    /pauseClientScript/
+  );
+
+  assert.match(
+    editor,
+    /Cruise speed/
+  );
+});
