@@ -67,6 +67,8 @@ export type MovementPage = {
   name: string;
   enabled: boolean;
   speed: number;
+  startedAt: number | null;
+  stoppedAt: number | null;
   fromBlockId: number | null;
   viaBlockIds: number[];
   toBlockId: number | null;
@@ -144,6 +146,8 @@ export function createMovementPage(
     name,
     enabled: true,
     speed: 20,
+    startedAt: null,
+    stoppedAt: null,
     fromBlockId: null,
     viaBlockIds: [],
     toBlockId: null,
@@ -199,6 +203,24 @@ function integerRange(
       )
     )
   );
+}
+
+function timestampOrNull(
+  value: unknown
+): number | null {
+  const numeric =
+    Number(value);
+
+  return (
+    Number.isFinite(
+      numeric
+    ) &&
+    numeric > 0
+  )
+    ? Math.round(
+        numeric
+      )
+    : null;
 }
 
 function positiveInteger(
@@ -632,6 +654,14 @@ function normalizeMovementPage(
         20,
         0,
         126
+      ),
+    startedAt:
+      timestampOrNull(
+        candidate.startedAt
+      ),
+    stoppedAt:
+      timestampOrNull(
+        candidate.stoppedAt
       ),
     fromBlockId,
     viaBlockIds,
