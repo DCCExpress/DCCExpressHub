@@ -30,18 +30,51 @@
 .movement-page-list-card {
   display: block;
   width: 100%;
-  padding: 7px 9px;
   border: 1px solid var(--mantine-color-default-border);
   border-radius: var(--mantine-radius-sm);
   background: var(--mantine-color-body);
   text-align: left;
+  overflow: hidden;
   transition:
     border-color 120ms ease,
     background-color 120ms ease;
 }
 
-.movement-page-list-card:hover {
+.movement-page-list-select {
+  display: block;
+  width: 100%;
+  padding: 7px 9px 6px;
+  text-align: left;
+}
+
+.movement-page-list-select:hover {
   background: var(--mantine-color-default-hover);
+}
+
+.movement-page-list-runtime {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 5px 7px 6px;
+  border-top: 1px solid var(--mantine-color-default-border);
+  background: color-mix(
+    in srgb,
+    var(--mantine-color-default-hover) 45%,
+    var(--mantine-color-body)
+  );
+}
+
+.movement-runtime-controls {
+  min-width: 0;
+}
+
+.movement-runtime-controls.is-compact {
+  justify-content: flex-start;
+}
+
+.movement-runtime-info {
+  min-width: 0;
+  flex: 1;
 }
 
 .movement-page-list-card.is-active {
