@@ -1289,6 +1289,68 @@ test("layout page consumes the app-owned flow document and keeps editor saves sy
   );
 });
 
+test("control station badges are distinct from WS status and appear in the layout status row", () => {
+  const app =
+    read(
+      "src/App.tsx"
+    );
+
+  const layout =
+    read(
+      "src/LiteLayoutPage.tsx"
+    );
+
+  const indicator =
+    read(
+      "src/services/dccExHeartbeatStatusIndicator.ts"
+    );
+
+  assert.match(
+    app,
+    /data-dccex-status-role="home-ws"/
+  );
+
+  assert.match(
+    app,
+    /data-dccex-status-role="home-control-station"/
+  );
+
+  assert.match(
+    app,
+    /controlStationGranted[\s\S]*\? "green"[\s\S]*: "dark"/
+  );
+
+  assert.match(
+    layout,
+    /data-dccex-status-role="layout-ws"/
+  );
+
+  assert.match(
+    layout,
+    /data-dccex-status-role="layout-control-station"/
+  );
+
+  assert.match(
+    layout,
+    /controlStationActive[\s\S]*\? "green"[\s\S]*: "dark"/
+  );
+
+  assert.match(
+    indicator,
+    /home-ws/
+  );
+
+  assert.match(
+    indicator,
+    /layout-ws/
+  );
+
+  assert.doesNotMatch(
+    indicator,
+    /querySelector<HTMLElement>\(\s*"\.mantine-Badge-root"/
+  );
+});
+
 test("control station ownership gates browser automation runtime", () => {
   const app =
     read(

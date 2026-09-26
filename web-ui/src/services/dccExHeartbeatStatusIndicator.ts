@@ -203,7 +203,7 @@ function paintHome(): void {
 
   const existingWsBadge =
     actions.querySelector<HTMLElement>(
-      ".mantine-Badge-root"
+      '[data-dccex-status-role="home-ws"]'
     );
 
   if (!existingWsBadge) {
@@ -306,7 +306,7 @@ function paintLayoutStatusBar():
 
   const existingWsBadge =
     leftGroup.querySelector<HTMLElement>(
-      ".mantine-Badge-root"
+      '[data-dccex-status-role="layout-ws"]'
     );
 
   if (!existingWsBadge) {
@@ -361,7 +361,7 @@ function paintLayoutStatusBar():
   );
 
   // Layout status order:
-  // WS -> DCC-EX -> ESTOP -> ...
+  // WS -> DCC-EX -> Control Station -> ESTOP -> ...
   if (
     dccBadge.previousElementSibling !==
       existingWsBadge

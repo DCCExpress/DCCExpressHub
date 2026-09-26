@@ -124,6 +124,8 @@ type LiteLayoutPageProps = {
   locos: Loco[];
   automationFlow:
     AutomationFlowDocument;
+  controlStationActive:
+    boolean;
   onAutomationFlowChange: (
     document:
       AutomationFlowDocument
@@ -599,6 +601,7 @@ export default function LiteLayoutPage({
   version,
   locos,
   automationFlow,
+  controlStationActive,
   onAutomationFlowChange,
   onBack,
   onOpenLocoEditor,
@@ -1655,6 +1658,7 @@ export default function LiteLayoutPage({
         <Group justify="space-between" wrap="nowrap" gap="xs">
           <Group gap={6} wrap="nowrap">
             <Badge
+              data-dccex-status-role="layout-ws"
               size="sm"
               variant={wsStatus === "connected" ? "light" : "filled"}
               color={wsStatus === "connected" ? "green" : "red"}
@@ -1662,6 +1666,24 @@ export default function LiteLayoutPage({
               title={wsStatus === "connected" ? i18next.t("ui.websocketConnected") : i18next.t("ui.websocketReconnectingAutomatically", { value1: wsStatus })}
             >
               {wsStatus === "connected" ? "WS" : wsStatus === "reconnecting" ? i18next.t("ui.wsRetry") : i18next.t("ui.wsLost")}
+            </Badge>
+
+            <Badge
+              data-dccex-status-role="layout-control-station"
+              size="sm"
+              variant="filled"
+              color={
+                controlStationActive
+                  ? "green"
+                  : "dark"
+              }
+              title={
+                controlStationActive
+                  ? "This browser is the active Control Station."
+                  : "This browser is not the active Control Station."
+              }
+            >
+              Control Station
             </Badge>
 
             <Divider orientation="vertical" />

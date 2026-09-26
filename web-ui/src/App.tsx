@@ -298,31 +298,28 @@ function AppHeader({
           }
         />
 
-        {controlStationRequested && (
-          <Badge
-            size="sm"
-            variant="light"
-            color={
-              controlStationGranted
-                ? "green"
-                : status === "connected"
-                  ? "orange"
-                  : "gray"
-            }
-          >
-            {
-              controlStationGranted
-                ? "ACTIVE"
-                : status !== "connected"
-                  ? "WAITING"
-                  : controlStationOwnerName
-                    ? "IN USE"
-                    : "AVAILABLE"
-            }
-          </Badge>
-        )}
+        <Badge
+          data-dccex-status-role="home-control-station"
+          size="sm"
+          variant="filled"
+          color={
+            controlStationGranted
+              ? "green"
+              : "dark"
+          }
+          title={
+            controlStationGranted
+              ? "This browser is the active Control Station."
+              : controlStationOwnerName
+                ? `Control Station is active on ${controlStationOwnerName}.`
+                : "This browser is not the active Control Station."
+          }
+        >
+          Control Station
+        </Badge>
 
         <Badge
+          data-dccex-status-role="home-ws"
           color={statusColor(status)}
           variant={status === "connected" ? "light" : "filled"}
           size="lg"
@@ -1669,7 +1666,7 @@ export default function App() {
       );
     }
 
-    if (page === "layout") return <LiteLayoutPage version={version} locos={locos} automationFlow={automationFlow} onAutomationFlowChange={setAutomationFlow} onBack={() => navigate("home")} onOpenLocoEditor={() => setLocoEditorOpened(true)} />;
+    if (page === "layout") return <LiteLayoutPage version={version} locos={locos} automationFlow={automationFlow} controlStationActive={controlStationGranted} onAutomationFlowChange={setAutomationFlow} onBack={() => navigate("home")} onOpenLocoEditor={() => setLocoEditorOpened(true)} />;
 
     if (page === "drive") {
       return (
