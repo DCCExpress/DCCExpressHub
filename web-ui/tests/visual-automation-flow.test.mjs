@@ -609,6 +609,41 @@ test("play audio node supports blocking and non-blocking playback", () => {
       "src/services/clientScriptWorkerProtocol.ts"
     );
 
+  const broadcastAudio =
+    read(
+      "src/services/broadcastAudioRuntime.ts"
+    );
+
+  const app =
+    read(
+      "src/App.tsx"
+    );
+
+  const layout =
+    read(
+      "src/LiteLayoutPage.tsx"
+    );
+
+  const clientCommands =
+    read(
+      "src/domain/clientWsCommands.ts"
+    );
+
+  const wsTypes =
+    read(
+      "src/domain/wsTypes.ts"
+    );
+
+  const espProtocol =
+    read(
+      "../src/WsProtocol.cpp"
+    );
+
+  const desktopHub =
+    read(
+      "../desktop/DCCExpressHub.Net/Web/WsHub.cs"
+    );
+
   assert.match(
     domain,
     /\| "playAudio"/
@@ -655,6 +690,21 @@ test("play audio node supports blocking and non-blocking playback", () => {
   );
 
   assert.match(
+    runner,
+    /broadcastAudioPlayback/
+  );
+
+  assert.match(
+    runner,
+    /broadcastAudioStop/
+  );
+
+  assert.doesNotMatch(
+    runner,
+    /audioManager\.play/
+  );
+
+  assert.match(
     worker,
     /requestAudioPlayback/
   );
@@ -687,6 +737,91 @@ test("play audio node supports blocking and non-blocking playback", () => {
   assert.match(
     audioManager,
     /audioStopCallbacks/
+  );
+
+  assert.match(
+    broadcastAudio,
+    /dcc-express-audio-enabled/
+  );
+
+  assert.match(
+    broadcastAudio,
+    /wsClient\.on\([\s\S]*"playAudio"/
+  );
+
+  assert.match(
+    broadcastAudio,
+    /wsClient\.on\([\s\S]*"stopAudio"/
+  );
+
+  assert.match(
+    broadcastAudio,
+    /audioManager\.play/
+  );
+
+  assert.match(
+    broadcastAudio,
+    /localStorage\.setItem/
+  );
+
+  assert.match(
+    app,
+    /installBroadcastAudioRuntime/
+  );
+
+  assert.match(
+    layout,
+    /IconVolume/
+  );
+
+  assert.match(
+    layout,
+    /broadcastAudioEnabled[\s\S]*\? "lime"[\s\S]*: "dark"/
+  );
+
+  assert.match(
+    layout,
+    /setBroadcastAudioEnabled/
+  );
+
+  assert.match(
+    clientCommands,
+    /broadcastPlayAudio/
+  );
+
+  assert.match(
+    clientCommands,
+    /broadcastStopAudio/
+  );
+
+  assert.match(
+    wsTypes,
+    /playAudio:[\s\S]*requestId:[\s\S]*fileName:/
+  );
+
+  assert.match(
+    wsTypes,
+    /stopAudio:[\s\S]*fileName:/
+  );
+
+  assert.match(
+    espProtocol,
+    /"broadcastPlayAudio"[\s\S]*"playAudio"/
+  );
+
+  assert.match(
+    espProtocol,
+    /"broadcastStopAudio"[\s\S]*"stopAudio"/
+  );
+
+  assert.match(
+    desktopHub,
+    /case "broadcastPlayAudio":[\s\S]*Broadcast\("playAudio"/
+  );
+
+  assert.match(
+    desktopHub,
+    /case "broadcastStopAudio":[\s\S]*Broadcast\("stopAudio"/
   );
 
   const abortStart =

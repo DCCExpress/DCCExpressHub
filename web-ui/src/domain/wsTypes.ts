@@ -122,6 +122,8 @@ export const CLIENT_WS_MESSAGE_TYPES = [
   "controlStationClaim",
   "controlStationRelease",
   "getControlStationStatus",
+  "broadcastPlayAudio",
+  "broadcastStopAudio",
   "setTrackPower",
   "setProgrammingPower",
   "emergencyStop",
@@ -407,7 +409,13 @@ export type ServerWsPayloadMap = {
   fastClockResponse: FastClockResponsePayload;
   fileResponse: FileResponsePayload;
 
-  playAudio: { fileName: string };
+  playAudio: {
+    requestId: string;
+    fileName: string;
+  };
+  stopAudio: {
+    fileName: string;
+  };
   locoActionListStatus: unknown;
   blockActionListStatus: unknown;
 };

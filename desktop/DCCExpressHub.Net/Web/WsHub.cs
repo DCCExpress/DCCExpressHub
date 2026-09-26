@@ -132,6 +132,14 @@ public sealed class WsHub
         }
     }
 
+    private bool IsControlStationOwner(Guid connectionId)
+    {
+        lock (_controlStationGate)
+            return
+                _controlStationOwnerConnectionId.HasValue &&
+                _controlStationOwnerConnectionId.Value == connectionId;
+    }
+
     private void ApplyPower(PowerFeedback p)
     {
         if (p.Target == "All") { HubState.TrackPower = p.On; HubState.ProgrammingPower = p.On; }
@@ -214,6 +222,51 @@ public sealed class WsHub
                 case "getControlStationStatus":
                     await Send(ws, "controlStationStatus", ControlStationStatus());
                     return;
+                case "broadcastPlayAudio":
+                    {
+                        if (!IsControlStationOwner(connectionId))
+                        {
+                            await Send(ws, "error", new { message = "control_station_required" });
+                            return;
+                        }
+
+                        var requestId = S(data, "requestId");
+                        var fileName = S(data, "fileName");
+
+                        if (
+                            string.IsNullOrWhiteSpace(requestId) ||
+                            string.IsNullOrWhiteSpace(fileName) ||
+                            fileName.Length > 240)
+                        {
+                            await Send(ws, "error", new { message = "invalid_audio_broadcast" });
+                            return;
+                        }
+
+                        await Broadcast("playAudio", new
+                        {
+                            requestId,
+                            fileName
+                        });
+                        return;
+                    }
+                case "broadcastStopAudio":
+                    {
+                        if (!IsControlStationOwner(connectionId))
+                            return;
+
+                        var fileName = S(data, "fileName");
+
+                        if (
+                            string.IsNullOrWhiteSpace(fileName) ||
+                            fileName.Length > 240)
+                            return;
+
+                        await Broadcast("stopAudio", new
+                        {
+                            fileName
+                        });
+                        return;
+                    }
                 case "heartbeat":
                     await Send(ws, "heartbeatAck", new { });
                     await SendCommandCenterInfo(ws);

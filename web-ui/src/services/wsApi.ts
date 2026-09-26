@@ -222,6 +222,30 @@ class WebSocketApi {
     );
   }
 
+  broadcastPlayAudio(
+    requestId: string,
+    fileName: string
+  ): boolean {
+    return this.send(
+      "broadcastPlayAudio",
+      {
+        requestId,
+        fileName,
+      }
+    );
+  }
+
+  broadcastStopAudio(
+    fileName: string
+  ): boolean {
+    return this.send(
+      "broadcastStopAudio",
+      {
+        fileName,
+      }
+    );
+  }
+
   writeDccExDirectCommand(command: string): boolean {
     return this.send("writeDccExDirectCommand", { command });
   }

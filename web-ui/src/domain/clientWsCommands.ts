@@ -287,11 +287,22 @@ export type ControlStationClaimCommandPayload = {
   clientName: string;
 };
 
+export type BroadcastPlayAudioCommandPayload = {
+  requestId: string;
+  fileName: string;
+};
+
+export type BroadcastStopAudioCommandPayload = {
+  fileName: string;
+};
+
 export type ClientWsPayloadMap = {
   heartbeat: EmptyClientWsCommandPayload;
   controlStationClaim: ControlStationClaimCommandPayload;
   controlStationRelease: EmptyClientWsCommandPayload;
   getControlStationStatus: EmptyClientWsCommandPayload;
+  broadcastPlayAudio: BroadcastPlayAudioCommandPayload;
+  broadcastStopAudio: BroadcastStopAudioCommandPayload;
   setTrackPower: SetTrackPowerCommandPayload;
   setProgrammingPower: SetProgrammingPowerCommandPayload;
   emergencyStop: EmptyClientWsCommandPayload;

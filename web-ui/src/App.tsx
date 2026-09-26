@@ -88,6 +88,9 @@ import {
 import {
   setControlStationRuntimeActive,
 } from "@/services/controlStationRuntime";
+import {
+  installBroadcastAudioRuntime,
+} from "@/services/broadcastAudioRuntime";
 
 const LiteLayoutPage = lazy(() => import("./LiteLayoutPage"));
 const AutomationFlowPage = lazy(() => import("./AutomationFlowPage"));
@@ -1389,6 +1392,13 @@ export default function App() {
   useAutomationFlowRuntime(
     automationFlow,
     controlStationGranted
+  );
+
+  useEffect(
+    () => {
+      installBroadcastAudioRuntime();
+    },
+    []
   );
 
   useEffect(

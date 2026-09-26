@@ -11,8 +11,10 @@ import {
 } from "./controlStationRuntime";
 
 import {
-  audioManager,
-} from "./audioManager";
+  broadcastAudioPlayback,
+  broadcastAudioPlaybackNoWait,
+  broadcastAudioStop,
+} from "./broadcastAudioRuntime";
 
 import {
   buildClientScriptSwitchManFinally,
@@ -184,7 +186,7 @@ function stopScriptAudioRequests(
     const path of
     paths
   ) {
-    audioManager.stop(
+    broadcastAudioStop(
       path
     );
   }
@@ -2008,21 +2010,17 @@ function executeScriptAudioCommand(
       )
     );
 
-  audioManager.play(
-    virtualPath,
-    {
-      onError:
-        error => {
-          console.error(
-            `[Automation Audio] playAudio("${virtualPath}") failed:`,
-            error
-          );
-        },
-    }
-  );
+  const sent =
+    broadcastAudioPlaybackNoWait(
+      virtualPath
+    );
+
+  if (!sent) {
+    return "Audio broadcast could not be sent.";
+  }
 
   console.info(
-    `[Automation Audio] ${virtualPath}`
+    `[Automation Audio Broadcast] ${virtualPath}`
   );
 
   return null;
@@ -2115,82 +2113,60 @@ function handleScriptAudioPlayback(
     virtualPath
   );
 
-  let settled =
-    false;
+  void broadcastAudioPlayback(
+    virtualPath
+  )
+    .then(
+      ok => {
+        forgetScriptAudioRequest(
+          message.executionId,
+          message.requestId
+        );
 
-  const finish = (
-    ok:
-      boolean,
-    error?:
-      unknown
-  ) => {
-    if (settled) {
-      return;
-    }
+        if (
+          !ok
+        ) {
+          console.error(
+            `[Automation Audio Broadcast] playAudio("${virtualPath}") failed.`
+          );
+        }
 
-    settled =
-      true;
+        reply(
+          ok,
+          ok
+            ? undefined
+            : "Audio broadcast/playback failed."
+        );
+      }
+    )
+    .catch(
+      error => {
+        forgetScriptAudioRequest(
+          message.executionId,
+          message.requestId
+        );
 
-    forgetScriptAudioRequest(
-      message.executionId,
-      message.requestId
+        const messageText =
+          error instanceof Error
+            ? error.message
+            : String(
+                error
+              );
+
+        console.error(
+          `[Automation Audio Broadcast] playAudio("${virtualPath}") failed:`,
+          error
+        );
+
+        reply(
+          false,
+          messageText
+        );
+      }
     );
-
-    const errorText =
-      error == null
-        ? undefined
-        : error instanceof Error
-          ? error.message
-          : String(
-              error
-            );
-
-    if (
-      !ok &&
-      errorText
-    ) {
-      console.error(
-        `[Automation Audio] playAudio("${virtualPath}") failed:`,
-        error
-      );
-    }
-
-    reply(
-      ok,
-      errorText
-    );
-  };
-
-  audioManager.play(
-    virtualPath,
-    {
-      onEnded:
-        () => {
-          finish(
-            true
-          );
-        },
-      onError:
-        error => {
-          finish(
-            false,
-            error
-          );
-        },
-      onStopped:
-        () => {
-          finish(
-            false,
-            new Error(
-              "Audio playback stopped."
-            )
-          );
-        },
-    }
-  );
 
   console.info(
-    `[Automation Audio] ${virtualPath}`
+    `[Automation Audio Broadcast] ${virtualPath}`
   );
 }
 

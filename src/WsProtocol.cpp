@@ -2644,6 +2644,111 @@ void WsProtocol::handleMessage(
     if (
         strcmp(
             type,
+            "broadcastPlayAudio") ==
+        0)
+    {
+        if (
+            _controlStationOwnerConnectionId !=
+            client->id())
+        {
+            JsonDocument denied;
+
+            denied["message"] =
+                "control_station_required";
+
+            send(
+                client,
+                "error",
+                denied.as<JsonVariantConst>());
+
+            return;
+        }
+
+        const String requestId =
+            data["requestId"] |
+            "";
+
+        const String fileName =
+            data["fileName"] |
+            "";
+
+        if (
+            requestId.length() ==
+                0 ||
+            fileName.length() ==
+                0 ||
+            fileName.length() >
+                240)
+        {
+            JsonDocument invalid;
+
+            invalid["message"] =
+                "invalid_audio_broadcast";
+
+            send(
+                client,
+                "error",
+                invalid.as<JsonVariantConst>());
+
+            return;
+        }
+
+        JsonDocument out;
+
+        out["requestId"] =
+            requestId;
+
+        out["fileName"] =
+            fileName;
+
+        broadcast(
+            "playAudio",
+            out);
+
+        return;
+    }
+
+    if (
+        strcmp(
+            type,
+            "broadcastStopAudio") ==
+        0)
+    {
+        if (
+            _controlStationOwnerConnectionId !=
+            client->id())
+        {
+            return;
+        }
+
+        const String fileName =
+            data["fileName"] |
+            "";
+
+        if (
+            fileName.length() ==
+                0 ||
+            fileName.length() >
+                240)
+        {
+            return;
+        }
+
+        JsonDocument out;
+
+        out["fileName"] =
+            fileName;
+
+        broadcast(
+            "stopAudio",
+            out);
+
+        return;
+    }
+
+    if (
+        strcmp(
+            type,
             "heartbeat") ==
         0)
     {

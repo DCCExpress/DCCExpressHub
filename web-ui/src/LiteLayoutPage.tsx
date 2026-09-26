@@ -41,6 +41,7 @@ import {
   IconBug,
   IconLockOpen,
   IconRoute,
+  IconVolume,
 } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { showNotification } from "@mantine/notifications";
@@ -102,6 +103,11 @@ import type { EditorTool } from "@/models/editor/types/EditorTypes";
 import { wsApi } from "@/services/wsApi";
 import { wsClient, type WsConnectionStatus } from "@/services/wsClient";
 import { getActiveClientScriptExecutions } from "@/services/clientScriptRunner";
+import {
+  isBroadcastAudioEnabled,
+  setBroadcastAudioEnabled,
+  subscribeBroadcastAudioEnabled,
+} from "@/services/broadcastAudioRuntime";
 import {
   createAutomationId,
   createAutomationPayload,
@@ -608,6 +614,22 @@ export default function LiteLayoutPage({
 }: LiteLayoutPageProps) {
   useTranslation();
   const commandCenter = useCommandCenter();
+  const [
+    broadcastAudioEnabled,
+    setBroadcastAudioEnabledState,
+  ] =
+    useState<boolean>(
+      isBroadcastAudioEnabled
+    );
+
+  useEffect(
+    () =>
+      subscribeBroadcastAudioEnabled(
+        setBroadcastAudioEnabledState
+      ),
+    []
+  );
+
   const [layout, setLayout] = useState(() => new LayoutView());
   const [automationScripts, setAutomationScripts] = useState<AutomationScriptDefinition[]>([]);
   const importFileRef = useRef<HTMLInputElement | null>(null);
@@ -1727,10 +1749,39 @@ export default function LiteLayoutPage({
             >
               <IconTrain size={15} />
             </ActionIcon>
+
           </Group>
-          <Text size="xs" c="dimmed" truncate>
-            {layout.getAllElements().length} elements · {locos.length} locos
-          </Text>
+          <Group gap={6} wrap="nowrap">
+            <Text size="xs" c="dimmed" truncate>
+              {layout.getAllElements().length} elements · {locos.length} locos
+            </Text>
+            <ActionIcon
+              size="sm"
+              variant="filled"
+              color={
+                broadcastAudioEnabled
+                  ? "lime"
+                  : "dark"
+              }
+              aria-label={
+                broadcastAudioEnabled
+                  ? "Disable broadcast audio on this client"
+                  : "Enable broadcast audio on this client"
+              }
+              title={
+                broadcastAudioEnabled
+                  ? "Broadcast audio enabled on this client"
+                  : "Broadcast audio muted on this client"
+              }
+              onClick={() =>
+                setBroadcastAudioEnabled(
+                  !broadcastAudioEnabled
+                )
+              }
+            >
+              <IconVolume size={15} />
+            </ActionIcon>
+          </Group>
         </Group>
       </Card>
 
