@@ -24,6 +24,10 @@ export type MovementWhen =
   | "afterLeave"
   | "approach";
 
+export type MovementSequenceMode =
+  | "blocking"
+  | "background";
+
 export type MovementActionKind =
   | "speed"
   | "function"
@@ -37,6 +41,9 @@ export type MovementAction = {
   id: string;
   resourceKey: string;
   when: MovementWhen;
+  sequenceId: string;
+  sequenceMode:
+    MovementSequenceMode;
   kind: MovementActionKind;
 
   speed: number;
@@ -94,7 +101,14 @@ export function createMovementId(
 export function createMovementAction(
   resourceKey: string,
   when: MovementWhen = "arrived",
-  kind: MovementActionKind = "speed"
+  kind: MovementActionKind = "speed",
+  sequenceId =
+    createMovementId(
+      "movement-sequence"
+    ),
+  sequenceMode:
+    MovementSequenceMode =
+      "blocking"
 ): MovementAction {
   return {
     id:
@@ -103,6 +117,8 @@ export function createMovementAction(
       ),
     resourceKey,
     when,
+    sequenceId,
+    sequenceMode,
     kind,
     speed: 20,
     functionNumber: 2,
@@ -359,6 +375,12 @@ function normalizeActions(
   const usedIds =
     new Set<string>();
 
+  const legacySequenceIds =
+    new Map<
+      string,
+      string
+    >();
+
   for (const raw of value) {
     if (
       !raw ||
@@ -437,11 +459,49 @@ function normalizeActions(
         )
       );
 
+    const requestedSequenceId =
+      String(
+        candidate.sequenceId ??
+        ""
+      ).trim();
+
+    const legacySequenceKey =
+      resourceKey +
+      "::" +
+      requestedWhen;
+
+    let sequenceId =
+      requestedSequenceId;
+
+    if (!sequenceId) {
+      sequenceId =
+        legacySequenceIds.get(
+          legacySequenceKey
+        ) ??
+        createMovementId(
+          "movement-sequence"
+        );
+
+      legacySequenceIds.set(
+        legacySequenceKey,
+        sequenceId
+      );
+    }
+
+    const sequenceMode:
+      MovementSequenceMode =
+      candidate.sequenceMode ===
+        "background"
+        ? "background"
+        : "blocking";
+
     result.push({
       id,
       resourceKey,
       when:
         requestedWhen,
+      sequenceId,
+      sequenceMode,
       kind:
         requestedKind,
       speed:
