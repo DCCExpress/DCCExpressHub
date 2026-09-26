@@ -261,7 +261,6 @@ function AppHeader({
             gap={6}
             wrap="wrap"
           >
-            <Text size="xs" c="dimmed">{t("homeHub.commandStation")}</Text>
             <Badge
               className="app-version-badge"
               size="xs"
@@ -433,10 +432,7 @@ function HomePage({
               onControlStationRequestedChange
             }
           />
-          <Group justify="space-between" align="center" gap="sm" wrap="wrap">
-            <Text c="dimmed">
-              {t("homeHub.description")}
-            </Text>
+          <Group justify="flex-end" align="center" gap="sm" wrap="wrap">
             <LanguageSwitcher />
           </Group>
         </Stack>
