@@ -1,19 +1,24 @@
-import type {
-  ReactNode,
+import {
+  useState,
+  type ReactNode,
 } from "react";
 
 import {
+  ActionIcon,
   Badge,
   Button,
   Group,
   ScrollArea,
   Stack,
   Text,
+  Tooltip,
 } from "@mantine/core";
 
 import {
   IconAntenna,
   IconBolt,
+  IconChevronDown,
+  IconChevronRight,
   IconClock,
   IconGitBranch,
   IconNote,
@@ -516,22 +521,121 @@ type Props = {
 export default function AutomationFlowPalette({
   onAdd,
 }: Props) {
+  const [
+    collapseCommand,
+    setCollapseCommand,
+  ] =
+    useState<{
+      collapsed: boolean;
+      revision: number;
+    } | undefined>(
+      undefined
+    );
+
+  const setAllCollapsed =
+    (
+      collapsed: boolean
+    ): void => {
+      setCollapseCommand(
+        current => ({
+          collapsed,
+          revision:
+            (
+              current?.revision ??
+              0
+            ) + 1,
+        })
+      );
+    };
+
   return (
     <Stack
       gap="xs"
       h="100%"
     >
-      <Text
-        fw={700}
-        size="sm"
+      <Group
+        justify="space-between"
+        wrap="nowrap"
       >
-        {
-          t(
-            "ui.flowNodes",
-            "Nodes"
-          )
-        }
-      </Text>
+        <Text
+          fw={700}
+          size="sm"
+        >
+          {
+            t(
+              "ui.flowNodes",
+              "Nodes"
+            )
+          }
+        </Text>
+
+        <Group
+          gap={4}
+          wrap="nowrap"
+        >
+          <Tooltip
+            label={
+              t(
+                "ui.flowCollapseAll",
+                "Collapse all"
+              )
+            }
+          >
+            <ActionIcon
+              size="sm"
+              variant="subtle"
+              color="gray"
+              aria-label={
+                t(
+                  "ui.flowCollapseAll",
+                  "Collapse all"
+                )
+              }
+              onClick={
+                () =>
+                  setAllCollapsed(
+                    true
+                  )
+              }
+            >
+              <IconChevronRight
+                size={16}
+              />
+            </ActionIcon>
+          </Tooltip>
+
+          <Tooltip
+            label={
+              t(
+                "ui.flowExpandAll",
+                "Expand all"
+              )
+            }
+          >
+            <ActionIcon
+              size="sm"
+              variant="subtle"
+              color="violet"
+              aria-label={
+                t(
+                  "ui.flowExpandAll",
+                  "Expand all"
+                )
+              }
+              onClick={
+                () =>
+                  setAllCollapsed(
+                    false
+                  )
+              }
+            >
+              <IconChevronDown
+                size={16}
+              />
+            </ActionIcon>
+          </Tooltip>
+        </Group>
+      </Group>
 
       <Text
         size="xs"
@@ -621,6 +725,9 @@ export default function AutomationFlowPalette({
                   headerClassName="automation-flow-palette-group-header"
                   bodyClassName="automation-flow-palette-group-body"
                   cardPadding={0}
+                  collapseCommand={
+                    collapseCommand
+                  }
                 >
                   <Stack gap={6}>
                     {items.map(

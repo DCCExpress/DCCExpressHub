@@ -15,6 +15,7 @@ import {
 } from "@tabler/icons-react";
 
 import {
+  useEffect,
   useState,
 } from "react";
 
@@ -34,7 +35,9 @@ import {
 } from "../../domain/automationFlow";
 
 import {
+  AUTOMATION_FLOW_NODE_COLLAPSE_EVENT,
   dispatchAutomationFlowInject,
+  type AutomationFlowNodeCollapseEventDetail,
 } from "./automationFlowEvents";
 
 type AutomationReactFlowNode =
@@ -472,6 +475,49 @@ export default function AutomationFlowNode({
     setCollapsed,
   ] =
     useState(false);
+
+  useEffect(
+    () => {
+      const handleCollapse =
+        (
+          event: Event
+        ): void => {
+          const detail =
+            (
+              event as CustomEvent<
+                AutomationFlowNodeCollapseEventDetail
+              >
+            ).detail;
+
+          if (
+            !detail ||
+            detail.pageId !==
+              data.pageId
+          ) {
+            return;
+          }
+
+          setCollapsed(
+            detail.collapsed
+          );
+        };
+
+      window.addEventListener(
+        AUTOMATION_FLOW_NODE_COLLAPSE_EVENT,
+        handleCollapse
+      );
+
+      return () => {
+        window.removeEventListener(
+          AUTOMATION_FLOW_NODE_COLLAPSE_EVENT,
+          handleCollapse
+        );
+      };
+    },
+    [
+      data.pageId,
+    ]
+  );
 
   const meta =
     NODE_META[

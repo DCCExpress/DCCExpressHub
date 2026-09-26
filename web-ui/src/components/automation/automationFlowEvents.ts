@@ -18,3 +18,25 @@ export function dispatchAutomationFlowInject(
     )
   );
 }
+
+
+export const AUTOMATION_FLOW_NODE_COLLAPSE_EVENT =
+  "dcc-express-automation-flow-node-collapse";
+
+export type AutomationFlowNodeCollapseEventDetail = {
+  pageId: string;
+  collapsed: boolean;
+};
+
+export function dispatchAutomationFlowNodeCollapse(
+  detail: AutomationFlowNodeCollapseEventDetail
+): void {
+  window.dispatchEvent(
+    new CustomEvent<AutomationFlowNodeCollapseEventDetail>(
+      AUTOMATION_FLOW_NODE_COLLAPSE_EVENT,
+      {
+        detail,
+      }
+    )
+  );
+}

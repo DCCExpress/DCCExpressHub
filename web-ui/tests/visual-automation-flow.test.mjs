@@ -1987,3 +1987,163 @@ test("flow edges and connection preview use bezier curves with hover and selecte
     /\.react-flow__connection-path/
   );
 });
+
+
+test("flow canvas supports collapse all and expand all for the current page", () => {
+  const dialog =
+    read(
+      "src/components/automation/AutomationFlowDialog.tsx"
+    );
+
+  const inspector =
+    read(
+      "src/components/automation/AutomationFlowInspector.tsx"
+    );
+
+  const properties =
+    read(
+      "src/components/automation/AutomationFlowPropertiesPanel.tsx"
+    );
+
+  const node =
+    read(
+      "src/components/automation/AutomationFlowNode.tsx"
+    );
+
+  const events =
+    read(
+      "src/components/automation/automationFlowEvents.ts"
+    );
+
+  assert.match(
+    dialog,
+    /pageId=\{[\s\S]*activePageId/
+  );
+
+  assert.match(
+    inspector,
+    /pageId:\s*string/
+  );
+
+  assert.match(
+    inspector,
+    /<AutomationFlowPropertiesPanel[\s\S]*pageId=/
+  );
+
+  assert.match(
+    properties,
+    /dispatchAutomationFlowNodeCollapse/
+  );
+
+  assert.match(
+    properties,
+    /"ui\.flowCollapseAll"/
+  );
+
+  assert.match(
+    properties,
+    /"ui\.flowExpandAll"/
+  );
+
+  assert.match(
+    properties,
+    /pageId,[\s\S]*collapsed:\s*true/
+  );
+
+  assert.match(
+    properties,
+    /pageId,[\s\S]*collapsed:\s*false/
+  );
+
+  assert.match(
+    events,
+    /AUTOMATION_FLOW_NODE_COLLAPSE_EVENT/
+  );
+
+  assert.match(
+    events,
+    /pageId:\s*string/
+  );
+
+  assert.match(
+    events,
+    /collapsed:\s*boolean/
+  );
+
+  assert.match(
+    node,
+    /AUTOMATION_FLOW_NODE_COLLAPSE_EVENT/
+  );
+
+  assert.match(
+    node,
+    /detail\.pageId !==[\s\S]*data\.pageId/
+  );
+
+  assert.match(
+    node,
+    /setCollapsed\([\s\S]*detail\.collapsed/
+  );
+});
+
+test("flow node palette supports collapse all and expand all categories", () => {
+  const palette =
+    read(
+      "src/components/automation/AutomationFlowPalette.tsx"
+    );
+
+  const panel =
+    read(
+      "src/components/common/CollapsiblePanelCard.tsx"
+    );
+
+  const collapsedState =
+    read(
+      "src/hooks/usePersistentCollapsedState.ts"
+    );
+
+  assert.match(
+    palette,
+    /collapseCommand/
+  );
+
+  assert.match(
+    palette,
+    /setAllCollapsed/
+  );
+
+  assert.match(
+    palette,
+    /setAllCollapsed\([\s\S]*true/
+  );
+
+  assert.match(
+    palette,
+    /setAllCollapsed\([\s\S]*false/
+  );
+
+  assert.match(
+    palette,
+    /<CollapsiblePanelCard[\s\S]*collapseCommand=/
+  );
+
+  assert.match(
+    panel,
+    /collapseCommand\?:/
+  );
+
+  assert.match(
+    panel,
+    /setCollapsed\([\s\S]*collapseCommand\.collapsed/
+  );
+
+  assert.match(
+    collapsedState,
+    /setCollapsed:[\s\S]*setCollapsedValue/
+  );
+
+  assert.match(
+    collapsedState,
+    /localStorage\.setItem/
+  );
+});

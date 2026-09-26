@@ -1781,6 +1781,9 @@ export default function AutomationFlowDialog({
                 node={
                   selectedNode
                 }
+                pageId={
+                  activePageId
+                }
                 generated={
                   generated
                 }

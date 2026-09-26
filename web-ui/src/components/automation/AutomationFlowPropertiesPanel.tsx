@@ -17,6 +17,8 @@ import {
 } from "@mantine/core";
 
 import {
+  IconChevronDown,
+  IconChevronRight,
   IconPlus,
   IconTrash,
 } from "@tabler/icons-react";
@@ -35,9 +37,13 @@ import AutomationFlowBlockEditor from "./AutomationFlowBlockEditor";
 import AutomationFlowLocoInputEditor from "./AutomationFlowLocoInputEditor";
 import { AudioFileInput } from "../../layout/property-panel/AudioFilePropertyEditor";
 import { audioManager } from "../../services/audioManager";
+import {
+  dispatchAutomationFlowNodeCollapse,
+} from "./automationFlowEvents";
 
 type Props = {
   node: AutomationFlowNode | null;
+  pageId: string;
   onChange: (
     patch:
       Partial<AutomationFlowNodeData>
@@ -69,6 +75,7 @@ function t(
 
 export default function AutomationFlowPropertiesPanel({
   node,
+  pageId,
   onChange,
   onDelete,
   onAddArrivalRule,
@@ -77,17 +84,98 @@ export default function AutomationFlowPropertiesPanel({
 }: Props) {
   if (!node) {
     return (
-      <Text
-        size="sm"
-        c="dimmed"
-      >
-        {
-          t(
-            "ui.flowNoNodeSelected",
-            "Select a node to edit its properties."
-          )
-        }
-      </Text>
+      <Stack gap="sm">
+        <Text
+          size="sm"
+          c="dimmed"
+        >
+          {
+            t(
+              "ui.flowNoNodeSelected",
+              "Select a node to edit its properties."
+            )
+          }
+        </Text>
+
+        <Divider
+          label={
+            t(
+              "ui.flowCanvasNodes",
+              "Canvas nodes"
+            )
+          }
+          labelPosition="left"
+        />
+
+        <Group
+          grow
+          gap="xs"
+        >
+          <Button
+            size="xs"
+            variant="light"
+            color="gray"
+            leftSection={
+              <IconChevronRight
+                size={14}
+              />
+            }
+            onClick={
+              () =>
+                dispatchAutomationFlowNodeCollapse({
+                  pageId,
+                  collapsed:
+                    true,
+                })
+            }
+          >
+            {
+              t(
+                "ui.flowCollapseAll",
+                "Collapse all"
+              )
+            }
+          </Button>
+
+          <Button
+            size="xs"
+            variant="light"
+            color="violet"
+            leftSection={
+              <IconChevronDown
+                size={14}
+              />
+            }
+            onClick={
+              () =>
+                dispatchAutomationFlowNodeCollapse({
+                  pageId,
+                  collapsed:
+                    false,
+                })
+            }
+          >
+            {
+              t(
+                "ui.flowExpandAll",
+                "Expand all"
+              )
+            }
+          </Button>
+        </Group>
+
+        <Text
+          size="xs"
+          c="dimmed"
+        >
+          {
+            t(
+              "ui.flowCurrentPageOnly",
+              "Applies to the current page only."
+            )
+          }
+        </Text>
+      </Stack>
     );
   }
 

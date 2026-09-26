@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useState,
 } from "react";
 
@@ -27,29 +28,59 @@ export function usePersistentCollapsedState(
       }
     });
 
-  const toggleCollapsed =
-    () => {
-      setCollapsed(
-        current => {
-          const next =
-            !current;
+  const setCollapsedValue =
+    useCallback(
+      (
+        next: boolean
+      ) => {
+        setCollapsed(
+          next
+        );
 
-          try {
-            window.localStorage.setItem(
-              storageKey,
-              String(next)
-            );
-          } catch {
-            // Storage can be unavailable in privacy/restricted modes.
-          }
-
-          return next;
+        try {
+          window.localStorage.setItem(
+            storageKey,
+            String(next)
+          );
+        } catch {
+          // Storage can be unavailable in privacy/restricted modes.
         }
-      );
-    };
+      },
+      [
+        storageKey,
+      ]
+    );
+
+  const toggleCollapsed =
+    useCallback(
+      () => {
+        setCollapsed(
+          current => {
+            const next =
+              !current;
+
+            try {
+              window.localStorage.setItem(
+                storageKey,
+                String(next)
+              );
+            } catch {
+              // Storage can be unavailable in privacy/restricted modes.
+            }
+
+            return next;
+          }
+        );
+      },
+      [
+        storageKey,
+      ]
+    );
 
   return {
     collapsed,
+    setCollapsed:
+      setCollapsedValue,
     toggleCollapsed,
   };
 }

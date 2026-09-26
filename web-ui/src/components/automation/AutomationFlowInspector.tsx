@@ -30,6 +30,7 @@ import AutomationFlowPropertiesPanel from "./AutomationFlowPropertiesPanel";
 
 type Props = {
   node: AutomationFlowNode | null;
+  pageId: string;
   generated: GeneratedAutomationFlowScript;
   logs: AutomationFlowLogLine[];
   onClearLogs: () => void;
@@ -64,6 +65,7 @@ function t(
 
 export default function AutomationFlowInspector({
   node,
+  pageId,
   generated,
   logs,
   onClearLogs,
@@ -128,6 +130,9 @@ export default function AutomationFlowInspector({
             <AutomationFlowPropertiesPanel
               node={
                 node
+              }
+              pageId={
+                pageId
               }
               onChange={
                 onChangeNode

@@ -1,5 +1,6 @@
-import type {
-  ReactNode,
+import {
+  useEffect,
+  type ReactNode,
 } from "react";
 
 import {
@@ -28,6 +29,10 @@ export type CollapsiblePanelCardProps = {
   clickableHeader?: boolean;
   headerClassName?: string;
   bodyClassName?: string;
+  collapseCommand?: {
+    collapsed: boolean;
+    revision: number;
+  };
 };
 
 export default function CollapsiblePanelCard({
@@ -43,15 +48,36 @@ export default function CollapsiblePanelCard({
   clickableHeader = false,
   headerClassName,
   bodyClassName,
+  collapseCommand,
 }: CollapsiblePanelCardProps) {
   const {
     collapsed,
+    setCollapsed,
     toggleCollapsed,
   } =
     usePersistentCollapsedState(
       collapsedStorageKey,
       defaultCollapsed
     );
+
+  useEffect(
+    () => {
+      if (
+        collapseCommand ===
+        undefined
+      ) {
+        return;
+      }
+
+      setCollapsed(
+        collapseCommand.collapsed
+      );
+    },
+    [
+      collapseCommand,
+      setCollapsed,
+    ]
+  );
 
   return (
     <Card
