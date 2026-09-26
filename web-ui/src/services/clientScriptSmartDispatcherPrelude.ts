@@ -25,6 +25,81 @@ export function buildClientScriptSmartDispatcherPrelude(): string {
 
 let __dccSmartDispatcherSequence = 0;
 
+const __dccSmartLog = (
+  level,
+  message,
+  details = null
+) => {
+  const prefix =
+    "[SmartDispatcher][" +
+    String(level) +
+    "]";
+
+  try {
+    if (details === null || details === undefined) {
+      log(
+        prefix,
+        String(message)
+      );
+    } else {
+      log(
+        prefix,
+        String(message),
+        details
+      );
+    }
+  } catch {
+    // Logging must never break safety cleanup, especially during abort.
+  }
+
+  if (level === "ERROR") {
+    console.error(
+      prefix,
+      message,
+      details
+    );
+  } else if (level === "WARN") {
+    console.warn(
+      prefix,
+      message,
+      details
+    );
+  } else {
+    console.info(
+      prefix,
+      message,
+      details
+    );
+  }
+};
+
+const __dccSmartErrorText =
+  error =>
+    error instanceof Error
+      ? error.message
+      : String(error);
+
+const __dccSmartTransitionName =
+  transition =>
+    transition.from.name +
+    " -> " +
+    transition.to.name;
+
+const __dccSmartArrivalSnapshot =
+  conditions =>
+    conditions.map(
+      item => ({
+        sensor:
+          item.sensor,
+        expected:
+          item.state,
+        actual:
+          dcc.getSensor(
+            item.sensor
+          ),
+      })
+    );
+
 const __dccSmartNormalizeArrival = (value, blockName) => {
   if (!Array.isArray(value) || value.length === 0) {
     throw new Error(
@@ -224,39 +299,36 @@ const __dccSmartNormalizeOptions = value => {
 };
 
 const __dccSmartBuildRoute = async request => {
-  /*
-   * SAFETY RULE:
-   *
-   * The normal Dispatcher is the authoritative route selector. It already
-   * resolves exactly one persisted physical route and validates its complete
-   * logical turnout requirement set.
-   *
-   * SmartDispatcher must NOT reconstruct turnout states again from individual
-   * graph edges. A second reconstruction can select a different edge variant
-   * or lose a route requirement, which is unacceptable before authorizing
-   * train movement.
-   *
-   * Until route topology persists explicit per-block-transition turnout
-   * requirements, every rolling transition uses the authoritative complete
-   * turnout state set from the selected Dispatcher route. This may lock/set
-   * more turnouts than strictly necessary for a single transition, but it
-   * fails safe and guarantees the same physical route as dispatcher().
-   */
   const baseRoute =
     await __dccDispatcherFindRoute(
       request.checkpointNames
     );
 
+  if (
+    !Array.isArray(
+      baseRoute.blockNodeIndexes
+    ) ||
+    baseRoute.blockNodeIndexes.length !==
+      baseRoute.blocks.length ||
+    !Array.isArray(
+      baseRoute.edgePath
+    ) ||
+    !Array.isArray(
+      baseRoute.nodePath
+    )
+  ) {
+    throw new Error(
+      "smartDispatcher: exact per-transition route data is missing. Regenerate and save the route graph."
+    );
+  }
+
   const authoritativeTurnouts =
-    Object.freeze(
+    new Map(
       baseRoute.turnoutStates.map(
-        state =>
-          Object.freeze({
-            address:
-              state.address,
-            closed:
-              state.closed,
-          })
+        state => [
+          state.address,
+          state.closed,
+        ]
       )
     );
 
@@ -276,6 +348,126 @@ const __dccSmartBuildRoute = async request => {
       baseRoute.blocks[
         blockIndex + 1
       ];
+
+    const nodeFrom =
+      baseRoute.blockNodeIndexes[
+        blockIndex
+      ];
+
+    const nodeTo =
+      baseRoute.blockNodeIndexes[
+        blockIndex + 1
+      ];
+
+    if (
+      !Number.isInteger(nodeFrom) ||
+      !Number.isInteger(nodeTo) ||
+      nodeFrom < 0 ||
+      nodeTo < nodeFrom ||
+      nodeTo >=
+        baseRoute.nodePath.length
+    ) {
+      throw new Error(
+        "smartDispatcher: invalid saved node range for " +
+        from.name +
+        " -> " +
+        to.name +
+        ". Regenerate and save the route graph."
+      );
+    }
+
+    const turnouts =
+      new Map();
+
+    for (
+      let edgeIndex = nodeFrom;
+      edgeIndex < nodeTo;
+      edgeIndex += 1
+    ) {
+      const edge =
+        baseRoute.edgePath[
+          edgeIndex
+        ];
+
+      if (!edge) {
+        throw new Error(
+          "smartDispatcher: missing saved edge " +
+          String(edgeIndex) +
+          " for " +
+          from.name +
+          " -> " +
+          to.name +
+          "."
+        );
+      }
+
+      for (
+        const requirement of
+        edge.turnoutStates
+      ) {
+        const authoritative =
+          authoritativeTurnouts.get(
+            requirement.address
+          );
+
+        if (
+          authoritative === undefined ||
+          authoritative !==
+            requirement.closed
+        ) {
+          throw new Error(
+            "smartDispatcher: transition turnout #" +
+            String(
+              requirement.address
+            ) +
+            " disagrees with the authoritative route."
+          );
+        }
+
+        if (
+          turnouts.has(
+            requirement.address
+          ) &&
+          turnouts.get(
+            requirement.address
+          ) !==
+            requirement.closed
+        ) {
+          throw new Error(
+            "smartDispatcher: contradictory turnout requirement #" +
+            String(
+              requirement.address
+            ) +
+            " inside transition " +
+            from.name +
+            " -> " +
+            to.name +
+            "."
+          );
+        }
+
+        turnouts.set(
+          requirement.address,
+          requirement.closed
+        );
+      }
+    }
+
+    const turnoutStates =
+      Object.freeze(
+        [...turnouts.entries()]
+          .sort(
+            (a, b) =>
+              a[0] - b[0]
+          )
+          .map(
+            ([address, closed]) =>
+              Object.freeze({
+                address,
+                closed,
+              })
+          )
+      );
 
     const spec =
       request.specsByName.get(
@@ -324,29 +516,76 @@ const __dccSmartBuildRoute = async request => {
           blockIndex,
         from,
         to,
+        nodeFrom,
+        nodeTo,
         arrivedWhen,
-        turnoutStates:
-          authoritativeTurnouts,
+        turnoutStates,
       })
     );
   }
 
-  return Object.freeze({
-    fromBlockName:
-      baseRoute.fromBlockName,
-    toBlockName:
-      baseRoute.toBlockName,
-    requestedBlocks:
-      baseRoute.requestedBlocks,
-    direction:
-      baseRoute.direction,
-    blocks:
-      baseRoute.blocks,
-    transitions:
-      Object.freeze(
-        transitions
-      ),
-  });
+  const route =
+    Object.freeze({
+      fromBlockName:
+        baseRoute.fromBlockName,
+      toBlockName:
+        baseRoute.toBlockName,
+      requestedBlocks:
+        baseRoute.requestedBlocks,
+      direction:
+        baseRoute.direction,
+      blocks:
+        baseRoute.blocks,
+      transitions:
+        Object.freeze(
+          transitions
+        ),
+    });
+
+  __dccSmartLog(
+    "INFO",
+    "route resolved",
+    {
+      requested:
+        [...route.requestedBlocks],
+      expanded:
+        route.blocks.map(
+          block =>
+            block.name
+        ),
+      direction:
+        route.direction,
+      transitions:
+        route.transitions.map(
+          transition => ({
+            from:
+              transition.from.name,
+            to:
+              transition.to.name,
+            turnoutStates:
+              transition.turnoutStates.map(
+                state => ({
+                  address:
+                    state.address,
+                  closed:
+                    state.closed,
+                })
+              ),
+            arrivedWhen:
+              transition.arrivedWhen.map(
+                item => ({
+                  sensor:
+                    item.sensor,
+                  state:
+                    item.state,
+                })
+              ),
+          })
+        ),
+    }
+  );
+
+  return route;
 };
 
 const __dccSmartBlockConflict = (block, loco) => {
@@ -494,22 +733,46 @@ const __dccSmartTryBlockLease = async block => {
 };
 
 const __dccSmartTryTurnoutLease =
-  async (states, setDelayMs, beforeChange) => {
+  async (
+    states,
+    setDelayMs,
+    beforeChange,
+    transitionName
+  ) => {
     if (states.length === 0) {
+      __dccSmartLog(
+        "INFO",
+        transitionName +
+        ": no turnout lock required"
+      );
+
       return Object.freeze({
         acquired: true,
-        conflicts: Object.freeze([]),
+        conflicts:
+          Object.freeze([]),
         async release() {},
       });
     }
 
     const addresses =
-      states.map(state => state.address);
+      states.map(
+        state =>
+          state.address
+      );
 
     const ownerId =
       __dccSwitchManOwnerBaseId +
       ":smart-dispatcher:" +
-      String(++__dccSmartDispatcherSequence);
+      String(
+        ++__dccSmartDispatcherSequence
+      );
+
+    __dccSmartLog(
+      "INFO",
+      transitionName +
+      ": requesting turnout lock",
+      states
+    );
 
     try {
       await __dccSwitchManRequest(
@@ -521,22 +784,62 @@ const __dccSmartTryTurnoutLease =
         }
       );
     } catch (error) {
-      if (error && error.code === "turnout_locked") {
+      if (
+        error &&
+        error.code ===
+          "turnout_locked"
+      ) {
         const raw =
           error.details &&
-          Array.isArray(error.details.conflicts)
+          Array.isArray(
+            error.details.conflicts
+          )
             ? error.details.conflicts
             : [];
 
+        const conflicts =
+          __dccSwitchManSafeConflicts(
+            raw
+          );
+
+        __dccSmartLog(
+          "WARN",
+          transitionName +
+          ": turnout lock blocked",
+          conflicts
+        );
+
         return Object.freeze({
           acquired: false,
-          conflicts:
-            __dccSwitchManSafeConflicts(raw),
+          conflicts,
         });
       }
 
+      __dccSmartLog(
+        "ERROR",
+        transitionName +
+        ": turnout lock request failed",
+        {
+          error:
+            __dccSmartErrorText(
+              error
+            ),
+          states,
+        }
+      );
+
       throw error;
     }
+
+    __dccSmartLog(
+      "INFO",
+      transitionName +
+      ": turnout lock acquired",
+      {
+        ownerId,
+        states,
+      }
+    );
 
     let released = false;
 
@@ -548,36 +851,54 @@ const __dccSmartTryTurnoutLease =
 
         released = true;
 
-        await __dccSwitchManRequest(
-          "release",
-          ownerId,
-          { addresses },
-          10000
-        );
+        try {
+          await __dccSwitchManRequest(
+            "release",
+            ownerId,
+            {
+              addresses,
+            },
+            10000
+          );
+
+          __dccSmartLog(
+            "INFO",
+            transitionName +
+            ": turnout lock released",
+            addresses
+          );
+        } catch (error) {
+          __dccSmartLog(
+            "ERROR",
+            transitionName +
+            ": turnout lock release failed",
+            {
+              addresses,
+              error:
+                __dccSmartErrorText(
+                  error
+                ),
+            }
+          );
+
+          throw error;
+        }
       };
 
     try {
-      console.info(
-        "[SmartDispatcher] authoritative turnout plan",
-        states.map(
-          state => ({
-            address:
-              state.address,
-            closed:
-              state.closed,
-          })
-        )
-      );
-
       const needsChange =
         states.some(
           state =>
-            dcc.getTurnout(state.address) !== state.closed
+            dcc.getTurnout(
+              state.address
+            ) !==
+              state.closed
         );
 
       if (
         needsChange &&
-        typeof beforeChange === "function"
+        typeof beforeChange ===
+          "function"
       ) {
         beforeChange();
       }
@@ -585,45 +906,108 @@ const __dccSmartTryTurnoutLease =
       for (
         let index = 0;
         index < states.length;
-        ++index
+        index += 1
       ) {
-        const state = states[index];
+        const turnoutState =
+          states[index];
 
-        if (dcc.getTurnout(state.address) === state.closed) {
+        const current =
+          dcc.getTurnout(
+            turnoutState.address
+          );
+
+        if (
+          current ===
+            turnoutState.closed
+        ) {
+          __dccSmartLog(
+            "INFO",
+            transitionName +
+            ": turnout already correct",
+            {
+              address:
+                turnoutState.address,
+              closed:
+                turnoutState.closed,
+            }
+          );
+
           continue;
         }
+
+        __dccSmartLog(
+          "INFO",
+          transitionName +
+          ": setting turnout",
+          {
+            address:
+              turnoutState.address,
+            fromClosed:
+              current,
+            toClosed:
+              turnoutState.closed,
+          }
+        );
 
         await __dccSwitchManRequest(
           "set",
           ownerId,
           {
-            address: state.address,
-            closed: state.closed,
+            address:
+              turnoutState.address,
+            closed:
+              turnoutState.closed,
           },
           15000
         );
 
+        __dccSmartLog(
+          "INFO",
+          transitionName +
+          ": turnout command accepted",
+          {
+            address:
+              turnoutState.address,
+            closed:
+              turnoutState.closed,
+          }
+        );
+
         if (
-          index + 1 < states.length &&
+          index + 1 <
+            states.length &&
           setDelayMs > 0
         ) {
-          await delay(setDelayMs);
+          await delay(
+            setDelayMs
+          );
         }
       }
 
       return Object.freeze({
         acquired: true,
-        conflicts: Object.freeze([]),
+        conflicts:
+          Object.freeze([]),
         release,
       });
     } catch (error) {
+      __dccSmartLog(
+        "ERROR",
+        transitionName +
+        ": turnout setup failed",
+        {
+          error:
+            __dccSmartErrorText(
+              error
+            ),
+          states,
+        }
+      );
+
       try {
         await release();
-      } catch (releaseError) {
-        console.error(
-          "[SmartDispatcher] turnout release failed after setup error",
-          releaseError
-        );
+      } catch {
+        // release() already logged the failure.
       }
 
       throw error;
@@ -877,60 +1261,131 @@ const __dccSmartReleaseReservation =
 
 const __dccSmartTryReserve =
   async (state, transition) => {
-    const block = transition.to;
+    const block =
+      transition.to;
+
+    const transitionName =
+      __dccSmartTransitionName(
+        transition
+      );
+
     const conflict =
-      __dccSmartBlockConflict(block, state.loco);
+      __dccSmartBlockConflict(
+        block,
+        state.loco
+      );
 
     if (conflict) {
       return Object.freeze({
         acquired: false,
-        conflicts: Object.freeze([conflict]),
+        conflicts:
+          Object.freeze([
+            conflict,
+          ]),
       });
     }
 
     const blockLease =
-      await __dccSmartTryBlockLease(block);
+      await __dccSmartTryBlockLease(
+        block
+      );
 
     if (!blockLease.acquired) {
       return Object.freeze({
         acquired: false,
         conflicts:
-          Object.freeze([blockLease.conflict]),
+          Object.freeze([
+            blockLease.conflict,
+          ]),
       });
     }
 
-    let targetSet = false;
+    let targetSet =
+      false;
 
     try {
       const lockedConflict =
-        __dccSmartBlockConflict(block, state.loco);
+        __dccSmartBlockConflict(
+          block,
+          state.loco
+        );
 
       if (lockedConflict) {
         return Object.freeze({
           acquired: false,
           conflicts:
-            Object.freeze([lockedConflict]),
+            Object.freeze([
+              lockedConflict,
+            ]),
           blockLease,
         });
       }
 
-      dcc.setBlockTargetLoco(block.name, state.loco);
-      targetSet = true;
+      __dccSmartLog(
+        "INFO",
+        transitionName +
+        ": target block is free; reserving target",
+        {
+          block:
+            block.name,
+          sensorAddress:
+            block.sensorAddress,
+          loco:
+            state.loco,
+        }
+      );
+
+      dcc.setBlockTargetLoco(
+        block.name,
+        state.loco
+      );
+
+      targetSet =
+        true;
+
       await delay(0);
 
+      const actual =
+        dcc.getBlock(
+          block.name
+        );
+
+      const target =
+        dcc.getBlockTargetLoco(
+          block.name
+        );
+
+      const occupied =
+        dcc.getSensor(
+          block.sensorAddress
+        );
+
       if (
-        dcc.getBlock(block.name) !== 0 ||
-        dcc.getBlockTargetLoco(block.name) !== state.loco ||
-        dcc.getSensor(block.sensorAddress) !== false
+        actual !== 0 ||
+        target !==
+          state.loco ||
+        occupied !== false
       ) {
         return Object.freeze({
           acquired: false,
           conflicts:
             Object.freeze([
               Object.freeze({
-                type: "block-changed",
-                blockId: block.id,
-                blockName: block.name,
+                type:
+                  "block-changed",
+                blockId:
+                  block.id,
+                blockName:
+                  block.name,
+                sensorAddress:
+                  block.sensorAddress,
+                locoAddress:
+                  actual,
+                targetLocoAddress:
+                  target,
+                occupied,
+                requestedLoco:
+                  state.loco,
               }),
             ]),
           clearTarget: true,
@@ -938,15 +1393,35 @@ const __dccSmartTryReserve =
         });
       }
 
+      __dccSmartLog(
+        "INFO",
+        transitionName +
+        ": target reservation confirmed",
+        {
+          block:
+            block.name,
+          targetLoco:
+            target,
+          occupied,
+        }
+      );
+
       const turnoutNeedsChange =
         transition.turnoutStates.some(
           item =>
-            dcc.getTurnout(item.address) !== item.closed
+            dcc.getTurnout(
+              item.address
+            ) !==
+              item.closed
         );
 
       if (turnoutNeedsChange) {
-        state.motionAuthorized = false;
-        __dccSmartApplySpeed(state);
+        state.motionAuthorized =
+          false;
+
+        __dccSmartApplySpeed(
+          state
+        );
       }
 
       const turnoutLease =
@@ -954,15 +1429,21 @@ const __dccSmartTryReserve =
           transition.turnoutStates,
           state.options.setDelayMs,
           () => {
-            state.motionAuthorized = false;
-            __dccSmartApplySpeed(state);
-          }
+            state.motionAuthorized =
+              false;
+
+            __dccSmartApplySpeed(
+              state
+            );
+          },
+          transitionName
         );
 
       if (!turnoutLease.acquired) {
         return Object.freeze({
           acquired: false,
-          conflicts: turnoutLease.conflicts,
+          conflicts:
+            turnoutLease.conflicts,
           clearTarget: true,
           blockLease,
         });
@@ -971,21 +1452,44 @@ const __dccSmartTryReserve =
       return Object.freeze({
         acquired: true,
         block,
-        toIndex: transition.index + 1,
+        toIndex:
+          transition.index + 1,
         blockLease,
         turnoutLease,
       });
     } catch (error) {
+      __dccSmartLog(
+        "ERROR",
+        transitionName +
+        ": reservation failed",
+        {
+          error:
+            __dccSmartErrorText(
+              error
+            ),
+        }
+      );
+
       if (targetSet) {
-        __dccSmartClearTarget(block, state.loco);
+        __dccSmartClearTarget(
+          block,
+          state.loco
+        );
       }
 
       try {
         await blockLease.release();
       } catch (releaseError) {
-        console.error(
-          "[SmartDispatcher] block release failed after reservation error",
-          releaseError
+        __dccSmartLog(
+          "ERROR",
+          transitionName +
+          ": block lease release failed after reservation error",
+          {
+            error:
+              __dccSmartErrorText(
+                releaseError
+              ),
+          }
         );
       }
 
@@ -1009,7 +1513,30 @@ const __dccSmartDisposeFailedAttempt =
 
 const __dccSmartWaitForClearance =
   async (state, transition) => {
-    let notified = false;
+    let notified =
+      false;
+
+    let lastConflictSignature =
+      null;
+
+    const transitionName =
+      __dccSmartTransitionName(
+        transition
+      );
+
+    __dccSmartLog(
+      "INFO",
+      transitionName +
+      ": checking next block",
+      {
+        block:
+          transition.to.name,
+        sensorAddress:
+          transition.to.sensorAddress,
+        turnouts:
+          transition.turnoutStates,
+      }
+    );
 
     while (!state.cancelled) {
       const result =
@@ -1019,16 +1546,37 @@ const __dccSmartWaitForClearance =
         );
 
       if (result.acquired) {
-        state.reservation = result;
-        state.motionAuthorized = true;
-        __dccSmartApplySpeed(state);
-        __dccSmartResolveWaiters(state);
+        state.reservation =
+          result;
+
+        state.motionAuthorized =
+          true;
+
+        __dccSmartApplySpeed(
+          state
+        );
+
+        __dccSmartResolveWaiters(
+          state
+        );
 
         setInfo(
           "SmartDispatcher szabad: " +
-          transition.from.name +
-          " -> " +
-          transition.to.name
+          transitionName
+        );
+
+        __dccSmartLog(
+          "INFO",
+          transitionName +
+          ": clearance granted; movement authorized",
+          {
+            desiredSpeed:
+              state.desiredSpeed,
+            targetBlock:
+              transition.to.name,
+            turnoutStates:
+              transition.turnoutStates,
+          }
         );
 
         return result;
@@ -1040,20 +1588,45 @@ const __dccSmartWaitForClearance =
         result
       );
 
-      state.motionAuthorized = false;
-      __dccSmartApplySpeed(state);
+      state.motionAuthorized =
+        false;
+
+      __dccSmartApplySpeed(
+        state
+      );
+
+      const conflictSignature =
+        JSON.stringify(
+          result.conflicts
+        );
+
+      if (
+        conflictSignature !==
+          lastConflictSignature
+      ) {
+        lastConflictSignature =
+          conflictSignature;
+
+        __dccSmartLog(
+          "WARN",
+          transitionName +
+          ": clearance blocked",
+          result.conflicts
+        );
+      }
 
       if (!notified) {
-        notified = true;
+        notified =
+          true;
 
         setInfo(
           "SmartDispatcher vár: " +
-          transition.from.name +
-          " -> " +
-          transition.to.name
+          transitionName
         );
 
-        if (state.options.onBlocked) {
+        if (
+          state.options.onBlocked
+        ) {
           await state.options.onBlocked(
             state.loco,
             state.direction,
@@ -1062,28 +1635,89 @@ const __dccSmartWaitForClearance =
         }
       }
 
-      await delay(state.options.blockPollMs);
+      await delay(
+        state.options.blockPollMs
+      );
     }
 
     throw (
       state.failure ||
-      new Error("smartDispatcher cancelled.")
+      new Error(
+        "smartDispatcher cancelled."
+      )
     );
   };
 
 const __dccSmartWaitForArrival =
   async (state, transition) => {
+    const transitionName =
+      __dccSmartTransitionName(
+        transition
+      );
+
+    let lastArrivalSignature =
+      null;
+
+    __dccSmartLog(
+      "INFO",
+      transitionName +
+      ": waiting for arrival",
+      {
+        conditions:
+          __dccSmartArrivalSnapshot(
+            transition.arrivedWhen
+          ),
+      }
+    );
+
     while (!state.cancelled) {
-      if (
-        __dccSmartArrivalSatisfied(
+      const arrivalSnapshot =
+        __dccSmartArrivalSnapshot(
           transition.arrivedWhen
+        );
+
+      const arrivalSignature =
+        JSON.stringify(
+          arrivalSnapshot
+        );
+
+      if (
+        arrivalSignature !==
+          lastArrivalSignature
+      ) {
+        lastArrivalSignature =
+          arrivalSignature;
+
+        __dccSmartLog(
+          "INFO",
+          transitionName +
+          ": arrival sensor state changed",
+          arrivalSnapshot
+        );
+      }
+
+      if (
+        arrivalSnapshot.every(
+          item =>
+            item.actual ===
+              item.expected
         )
       ) {
+        __dccSmartLog(
+          "INFO",
+          transitionName +
+          ": arrival conditions satisfied",
+          arrivalSnapshot
+        );
+
         return;
       }
 
       const actual =
-        dcc.getBlock(transition.to.name);
+        dcc.getBlock(
+          transition.to.name
+        );
+
       const target =
         dcc.getBlockTargetLoco(
           transition.to.name
@@ -1093,60 +1727,176 @@ const __dccSmartWaitForArrival =
         actual !== 0 &&
         actual !== state.loco
       ) {
-        state.motionAuthorized = false;
-        __dccSmartApplySpeed(state);
+        state.motionAuthorized =
+          false;
 
-        throw new Error(
-          'smartDispatcher: block "' +
-          transition.to.name +
-          '" was assigned to another locomotive during movement.'
+        __dccSmartApplySpeed(
+          state
         );
+
+        const error =
+          new Error(
+            'smartDispatcher: block "' +
+            transition.to.name +
+            '" was assigned to another locomotive during movement.'
+          );
+
+        __dccSmartLog(
+          "ERROR",
+          transitionName +
+          ": destination block ownership changed during movement",
+          {
+            expectedLoco:
+              state.loco,
+            actualLoco:
+              actual,
+            targetLoco:
+              target,
+            sensors:
+              arrivalSnapshot,
+          }
+        );
+
+        throw error;
       }
 
       if (
         actual === 0 &&
         target !== state.loco
       ) {
-        state.motionAuthorized = false;
-        __dccSmartApplySpeed(state);
+        state.motionAuthorized =
+          false;
 
-        throw new Error(
-          'smartDispatcher: target for block "' +
-          transition.to.name +
-          '" was lost during movement.'
+        __dccSmartApplySpeed(
+          state
         );
+
+        const error =
+          new Error(
+            'smartDispatcher: target for block "' +
+            transition.to.name +
+            '" was lost during movement.'
+          );
+
+        __dccSmartLog(
+          "ERROR",
+          transitionName +
+          ": target reservation was lost during movement",
+          {
+            expectedLoco:
+              state.loco,
+            actualLoco:
+              actual,
+            targetLoco:
+              target,
+            sensors:
+              arrivalSnapshot,
+          }
+        );
+
+        throw error;
       }
 
-      await delay(state.options.blockPollMs);
+      await delay(
+        state.options.blockPollMs
+      );
     }
 
     throw (
       state.failure ||
-      new Error("smartDispatcher cancelled.")
+      new Error(
+        "smartDispatcher cancelled."
+      )
     );
   };
 
 const __dccSmartCommitArrival =
-  async (state, transition, reservation) => {
-    const previousLease = state.currentLease;
+  async (
+    state,
+    transition,
+    reservation
+  ) => {
+    const previousLease =
+      state.currentLease;
 
-    dcc.clearBlock(transition.from.name);
-    dcc.clearBlockTargetLoco(transition.to.name);
-    dcc.setBlock(transition.to.name, state.loco);
+    const transitionName =
+      __dccSmartTransitionName(
+        transition
+      );
+
+    __dccSmartLog(
+      "INFO",
+      transitionName +
+      ": committing arrival",
+      {
+        loco:
+          state.loco,
+        clearBlock:
+          transition.from.name,
+        destination:
+          transition.to.name,
+      }
+    );
+
+    dcc.clearBlock(
+      transition.from.name
+    );
+
+    dcc.clearBlockTargetLoco(
+      transition.to.name
+    );
+
+    dcc.setBlock(
+      transition.to.name,
+      state.loco
+    );
+
     await delay(0);
 
-    state.currentIndex = reservation.toIndex;
-    state.currentLease = reservation.blockLease;
-    state.reservation = null;
+    const committedLoco =
+      dcc.getBlock(
+        transition.to.name
+      );
 
-    __dccSmartResolveWaiters(state);
+    if (
+      committedLoco !==
+        state.loco
+    ) {
+      throw new Error(
+        'smartDispatcher: destination block "' +
+        transition.to.name +
+        '" did not commit locomotive ' +
+        String(state.loco) +
+        "."
+      );
+    }
+
+    state.currentIndex =
+      reservation.toIndex;
+
+    state.currentLease =
+      reservation.blockLease;
+
+    state.reservation =
+      null;
+
+    __dccSmartResolveWaiters(
+      state
+    );
 
     try {
       await reservation.turnoutLease.release();
     } catch (error) {
-      console.error(
-        "[SmartDispatcher] turnout release failed after arrival",
-        error
+      __dccSmartLog(
+        "ERROR",
+        transitionName +
+        ": turnout release failed after arrival",
+        {
+          error:
+            __dccSmartErrorText(
+              error
+            ),
+        }
       );
     }
 
@@ -1154,68 +1904,129 @@ const __dccSmartCommitArrival =
       try {
         await previousLease.release();
       } catch (error) {
-        console.error(
-          "[SmartDispatcher] previous block release failed",
-          error
+        __dccSmartLog(
+          "ERROR",
+          transitionName +
+          ": previous block lease release failed",
+          {
+            error:
+              __dccSmartErrorText(
+                error
+              ),
+          }
         );
       }
     }
+
+    __dccSmartLog(
+      "INFO",
+      transitionName +
+      ": arrival committed; previous resources released",
+      {
+        currentBlock:
+          transition.to.name,
+        loco:
+          state.loco,
+      }
+    );
   };
 
-const __dccSmartMonitor = async state => {
-  while (
-    !state.cancelled &&
-    state.currentIndex < state.route.blocks.length - 1
-  ) {
-    const transition =
-      state.route.transitions[state.currentIndex];
+const __dccSmartMonitor =
+  async state => {
+    while (
+      !state.cancelled &&
+      state.currentIndex <
+        state.route.blocks.length - 1
+    ) {
+      const transition =
+        state.route.transitions[
+          state.currentIndex
+        ];
 
-    const reservation =
-      await __dccSmartWaitForClearance(
+      __dccSmartLog(
+        "INFO",
+        "starting transition " +
+        __dccSmartTransitionName(
+          transition
+        ),
+        {
+          transitionIndex:
+            transition.index,
+          turnoutStates:
+            transition.turnoutStates,
+        }
+      );
+
+      const reservation =
+        await __dccSmartWaitForClearance(
+          state,
+          transition
+        );
+
+      if (state.cancelled) {
+        await __dccSmartReleaseReservation(
+          state,
+          reservation
+        );
+
+        return;
+      }
+
+      await __dccSmartWaitForArrival(
         state,
         transition
       );
 
-    if (state.cancelled) {
-      await __dccSmartReleaseReservation(
+      if (state.cancelled) {
+        return;
+      }
+
+      await __dccSmartCommitArrival(
         state,
+        transition,
         reservation
       );
-      return;
     }
 
-    await __dccSmartWaitForArrival(
-      state,
-      transition
-    );
+    if (
+      !state.cancelled &&
+      state.currentIndex ===
+        state.route.blocks.length - 1
+    ) {
+      state.completed =
+        true;
 
-    if (state.cancelled) {
-      return;
+      state.desiredSpeed =
+        0;
+
+      state.motionAuthorized =
+        false;
+
+      __dccSmartApplySpeed(
+        state
+      );
+
+      __dccSmartResolveWaiters(
+        state
+      );
+
+      setInfo(
+        "SmartDispatcher megérkezett: " +
+        state.route.toBlockName
+      );
+
+      __dccSmartLog(
+        "INFO",
+        "route completed",
+        {
+          destination:
+            state.route.toBlockName,
+          loco:
+            state.loco,
+        }
+      );
     }
-
-    await __dccSmartCommitArrival(
-      state,
-      transition,
-      reservation
-    );
-  }
-
-  if (
-    !state.cancelled &&
-    state.currentIndex === state.route.blocks.length - 1
-  ) {
-    state.completed = true;
-    state.desiredSpeed = 0;
-    state.motionAuthorized = false;
-    __dccSmartApplySpeed(state);
-    __dccSmartResolveWaiters(state);
-
-    setInfo(
-      "SmartDispatcher megérkezett: " +
-      state.route.toBlockName
-    );
-  }
-};
+  };
 
 const __dccSmartCleanup = async state => {
   state.cancelled = true;
@@ -1252,21 +2063,81 @@ const smartDispatcher = async (
   callback,
   rawOptions = null
 ) => {
-  if (typeof callback !== "function") {
+  if (
+    typeof callback !==
+      "function"
+  ) {
     throw new Error(
       "smartDispatcher(blocks, callback, options?): callback must be a function."
     );
   }
 
-  const request =
-    __dccSmartNormalizeRequest(blocks);
-  const options =
-    __dccSmartNormalizeOptions(rawOptions);
-  const route =
-    await __dccSmartBuildRoute(request);
+  let request;
+  let options;
+  let route;
 
-  const loco =
-    __dccDispatcherReadSourceLoco(route);
+  try {
+    request =
+      __dccSmartNormalizeRequest(
+        blocks
+      );
+
+    options =
+      __dccSmartNormalizeOptions(
+        rawOptions
+      );
+
+    __dccSmartLog(
+      "INFO",
+      "starting",
+      {
+        requestedBlocks:
+          [...request.checkpointNames],
+      }
+    );
+
+    route =
+      await __dccSmartBuildRoute(
+        request
+      );
+  } catch (error) {
+    __dccSmartLog(
+      "ERROR",
+      "route preparation failed",
+      {
+        error:
+          __dccSmartErrorText(
+            error
+          ),
+      }
+    );
+
+    throw error;
+  }
+
+  let loco;
+
+  try {
+    loco =
+      __dccDispatcherReadSourceLoco(
+        route
+      );
+  } catch (error) {
+    __dccSmartLog(
+      "ERROR",
+      "source block validation failed",
+      {
+        source:
+          route.fromBlockName,
+        error:
+          __dccSmartErrorText(
+            error
+          ),
+      }
+    );
+
+    throw error;
+  }
 
   if (loco === 0) {
     setInfo(
@@ -1274,13 +2145,26 @@ const smartDispatcher = async (
       route.fromBlockName
     );
 
+    __dccSmartLog(
+      "WARN",
+      "source block is empty",
+      {
+        source:
+          route.fromBlockName,
+      }
+    );
+
     if (options.onEmpty) {
-      await options.onEmpty(route.direction);
+      await options.onEmpty(
+        route.direction
+      );
 
       return Object.freeze({
-        status: "empty",
+        status:
+          "empty",
         loco: 0,
-        dir: route.direction,
+        dir:
+          route.direction,
       });
     }
 
@@ -1297,6 +2181,18 @@ const smartDispatcher = async (
     throw error;
   }
 
+  __dccSmartLog(
+    "INFO",
+    "source locomotive resolved",
+    {
+      source:
+        route.fromBlockName,
+      loco,
+      direction:
+        route.direction,
+    }
+  );
+
   const sourceLease =
     await __dccSmartTryBlockLease(
       route.blocks[0]
@@ -1304,7 +2200,15 @@ const smartDispatcher = async (
 
   if (!sourceLease.acquired) {
     const conflicts =
-      Object.freeze([sourceLease.conflict]);
+      Object.freeze([
+        sourceLease.conflict,
+      ]);
+
+    __dccSmartLog(
+      "WARN",
+      "source block lock is unavailable",
+      conflicts
+    );
 
     if (options.onBlocked) {
       await options.onBlocked(
@@ -1315,54 +2219,91 @@ const smartDispatcher = async (
     }
 
     return Object.freeze({
-      status: "blocked",
+      status:
+        "blocked",
       loco,
-      dir: route.direction,
+      dir:
+        route.direction,
       conflicts,
     });
   }
 
   const lockedLoco =
-    __dccDispatcherReadSourceLoco(route);
+    __dccDispatcherReadSourceLoco(
+      route
+    );
 
   if (lockedLoco !== loco) {
     await sourceLease.release();
 
-    throw new Error(
-      'smartDispatcher: source block "' +
-      route.fromBlockName +
-      '" changed while locking.'
+    const error =
+      new Error(
+        'smartDispatcher: source block "' +
+        route.fromBlockName +
+        '" changed while locking.'
+      );
+
+    __dccSmartLog(
+      "ERROR",
+      "source block changed while acquiring its lease",
+      {
+        source:
+          route.fromBlockName,
+        expectedLoco:
+          loco,
+        actualLoco:
+          lockedLoco,
+      }
     );
+
+    throw error;
   }
 
   const state = {
     route,
     loco,
-    direction: route.direction,
+    direction:
+      route.direction,
     options,
     currentIndex: 0,
-    currentLease: sourceLease,
-    reservation: null,
+    currentLease:
+      sourceLease,
+    reservation:
+      null,
     desiredSpeed: 0,
-    physicalSpeed: null,
-    motionAuthorized: false,
-    completed: false,
-    cancelled: false,
-    failure: null,
+    physicalSpeed:
+      null,
+    motionAuthorized:
+      false,
+    completed:
+      false,
+    cancelled:
+      false,
+    failure:
+      null,
     waiters: [],
   };
 
-  __dccSmartApplySpeed(state);
+  __dccSmartApplySpeed(
+    state
+  );
 
   const run =
-    __dccSmartRunApi(state);
+    __dccSmartRunApi(
+      state
+    );
 
-  let monitorPromise = null;
-  let callbackPromise = null;
+  let monitorPromise =
+    null;
+
+  let callbackPromise =
+    null;
 
   try {
     monitorPromise =
-      __dccSmartMonitor(state);
+      __dccSmartMonitor(
+        state
+      );
 
     callbackPromise =
       Promise.resolve().then(
@@ -1379,19 +2320,63 @@ const smartDispatcher = async (
       callbackPromise,
     ]);
 
+    __dccSmartLog(
+      "INFO",
+      "finished successfully",
+      {
+        loco,
+        destination:
+          route.toBlockName,
+      }
+    );
+
     return Object.freeze({
-      status: "completed",
+      status:
+        "completed",
       loco,
-      dir: route.direction,
-      block: route.toBlockName,
+      dir:
+        route.direction,
+      block:
+        route.toBlockName,
     });
   } catch (error) {
     state.failure =
       error instanceof Error
         ? error
-        : new Error(String(error));
+        : new Error(
+            String(error)
+          );
 
-    state.cancelled = true;
+    __dccSmartLog(
+      "ERROR",
+      "execution failed",
+      {
+        error:
+          state.failure.message,
+        loco:
+          state.loco,
+        currentBlock:
+          state.route.blocks[
+            state.currentIndex
+          ]?.name ??
+          null,
+        nextBlock:
+          state.route.blocks[
+            state.currentIndex + 1
+          ]?.name ??
+          null,
+        desiredSpeed:
+          state.desiredSpeed,
+        physicalSpeed:
+          state.physicalSpeed,
+        motionAuthorized:
+          state.motionAuthorized,
+      }
+    );
+
+    state.cancelled =
+      true;
+
     __dccSmartRejectWaiters(
       state,
       state.failure
@@ -1399,7 +2384,8 @@ const smartDispatcher = async (
 
     throw error;
   } finally {
-    state.cancelled = true;
+    state.cancelled =
+      true;
 
     __dccSmartRejectWaiters(
       state,
@@ -1409,16 +2395,38 @@ const smartDispatcher = async (
         )
     );
 
-    await __dccSmartCleanup(state);
+    await __dccSmartCleanup(
+      state
+    );
 
     if (monitorPromise) {
-      monitorPromise.catch(() => {});
+      monitorPromise.catch(
+        () => {}
+      );
     }
 
     if (callbackPromise) {
-      callbackPromise.catch(() => {});
+      callbackPromise.catch(
+        () => {}
+      );
     }
+
+    __dccSmartLog(
+      "INFO",
+      "cleanup finished",
+      {
+        loco:
+          state.loco,
+        completed:
+          state.completed,
+        failed:
+          Boolean(
+            state.failure
+          ),
+      }
+    );
   }
 };
+
 `;
 }

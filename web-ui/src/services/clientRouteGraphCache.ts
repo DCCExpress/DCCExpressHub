@@ -8,6 +8,7 @@ import type {
 } from "@domain/railway/routeGraphDto";
 
 import type {
+  Edge,
   GraphNode,
   SectionBlock,
   TurnoutStateRequirement,
@@ -26,7 +27,7 @@ import {
   createClientGraphFromRouteGraphDto,
 } from "@/services/routeGraphDtoMapper";
 
-const ROUTE_TOPOLOGY_VERSION = 1;
+const ROUTE_TOPOLOGY_VERSION = 2;
 
 const ROUTE_TOPOLOGY_FIELD =
   "routeTopology";
@@ -34,6 +35,17 @@ const ROUTE_TOPOLOGY_FIELD =
 type PersistedRouteBlockEntry = {
   id: number;
   name: string;
+  nodeIndex: number;
+};
+
+type PersistedRouteEdgeEntry = {
+  from: string;
+  to: string;
+  turnoutStates: TurnoutStateRequirement[];
+  locoDirection:
+    | "unknown"
+    | "forward"
+    | "reverse";
 };
 
 type PersistedRouteTableEntry = {
@@ -52,6 +64,7 @@ type PersistedRouteTableEntry = {
    */
   blockPath: PersistedRouteBlockEntry[];
   nodes: string[];
+  edgePath: PersistedRouteEdgeEntry[];
   turnoutStates: TurnoutStateRequirement[];
   locoDirection:
     | "unknown"
@@ -440,7 +453,8 @@ function buildPersistedBlockPath(
     new Set<number>();
 
   const push = (
-    block: SectionBlock
+    block: SectionBlock,
+    nodeIndex: number
   ) => {
     if (
       seen.has(
@@ -459,14 +473,23 @@ function buildPersistedBlockPath(
         block.id,
       name:
         block.name,
+      nodeIndex,
     });
   };
 
   push(
-    fromBlock
+    fromBlock,
+    0
   );
 
-  for (const node of nodes) {
+  for (
+    let nodeIndex = 0;
+    nodeIndex < nodes.length;
+    nodeIndex += 1
+  ) {
+    const node =
+      nodes[nodeIndex];
+
     for (const block of node.blocks) {
       if (
         block.id === fromBlock.id ||
@@ -476,13 +499,18 @@ function buildPersistedBlockPath(
       }
 
       push(
-        block
+        block,
+        nodeIndex
       );
     }
   }
 
   push(
-    toBlock
+    toBlock,
+    Math.max(
+      0,
+      nodes.length - 1
+    )
   );
 
   return result;
@@ -539,6 +567,7 @@ function enumerateRouteVariantsForBlockPair(
       nodes: [
         fromNode.name,
       ],
+      edgePath: [],
       turnoutStates: [],
       locoDirection:
         "unknown",
@@ -554,6 +583,7 @@ function enumerateRouteVariantsForBlockPair(
   type SearchState = {
     node: GraphNode;
     nodes: GraphNode[];
+    edges: Edge[];
     visited: Set<GraphNode>;
     turnoutRequirements:
       Map<number, boolean>;
@@ -570,6 +600,7 @@ function enumerateRouteVariantsForBlockPair(
       nodes: [
         fromNode,
       ],
+      edges: [],
       visited:
         new Set([
           fromNode,
@@ -631,6 +662,11 @@ function enumerateRouteVariantsForBlockPair(
         edge.to,
       ];
 
+      const edges = [
+        ...current.edges,
+        edge,
+      ];
+
       if (
         edge.to === toNode
       ) {
@@ -652,6 +688,28 @@ function enumerateRouteVariantsForBlockPair(
               nodes.map(
                 node =>
                   node.name
+              ),
+            edgePath:
+              edges.map(
+                routeEdge => ({
+                  from:
+                    routeEdge.from.name,
+                  to:
+                    routeEdge.to.name,
+                  turnoutStates:
+                    turnoutRequirementsToArray(
+                      new Map(
+                        routeEdge.turnoutStates.map(
+                          state => [
+                            state.address,
+                            state.closed,
+                          ]
+                        )
+                      )
+                    ),
+                  locoDirection:
+                    routeEdge.locoDirection,
+                })
               ),
             blockPath:
               blockPath.map(
@@ -689,6 +747,28 @@ function enumerateRouteVariantsForBlockPair(
               node =>
                 node.name
             ),
+          edgePath:
+            edges.map(
+              routeEdge => ({
+                from:
+                  routeEdge.from.name,
+                to:
+                  routeEdge.to.name,
+                turnoutStates:
+                  turnoutRequirementsToArray(
+                    new Map(
+                      routeEdge.turnoutStates.map(
+                        state => [
+                          state.address,
+                          state.closed,
+                        ]
+                      )
+                    )
+                  ),
+                locoDirection:
+                  routeEdge.locoDirection,
+              })
+            ),
           turnoutStates,
           locoDirection,
         });
@@ -719,6 +799,7 @@ function enumerateRouteVariantsForBlockPair(
         node:
           edge.to,
         nodes,
+        edges,
         visited,
         turnoutRequirements,
         locoDirection,

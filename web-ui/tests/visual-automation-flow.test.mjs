@@ -168,10 +168,20 @@ test("visual flow editor supports pages, enabled state and SmartDispatcher nodes
   );
 });
 
-test("SmartDispatcher uses only the authoritative Dispatcher turnout plan", () => {
+test("SmartDispatcher uses exact saved per-transition turnout plans", () => {
   const source =
     read(
       "src/services/clientScriptSmartDispatcherPrelude.ts"
+    );
+
+  const cache =
+    read(
+      "src/services/clientRouteGraphCache.ts"
+    );
+
+  const dispatcherPrelude =
+    read(
+      "src/services/clientScriptSwitchManPrelude.ts"
     );
 
   const buildStart =
@@ -197,28 +207,105 @@ test("SmartDispatcher uses only the authoritative Dispatcher turnout plan", () =
     );
 
   assert.match(
+    cache,
+    /ROUTE_TOPOLOGY_VERSION = 2/
+  );
+
+  assert.match(
+    cache,
+    /nodeIndex: number/
+  );
+
+  assert.match(
+    cache,
+    /edgePath: PersistedRouteEdgeEntry\[\]/
+  );
+
+  assert.match(
+    dispatcherPrelude,
+    /Number\(topology\.version\) !== 2/
+  );
+
+  assert.match(
+    dispatcherPrelude,
+    /blockNodeIndexes/
+  );
+
+  assert.match(
+    dispatcherPrelude,
+    /edgePath/
+  );
+
+  assert.match(
     buildRoute,
     /await __dccDispatcherFindRoute/
   );
 
   assert.match(
     buildRoute,
-    /baseRoute\.turnoutStates/
+    /baseRoute\.blockNodeIndexes/
   );
 
   assert.match(
     buildRoute,
-    /turnoutStates:[\s\S]*authoritativeTurnouts/
+    /baseRoute\.edgePath/
+  );
+
+  assert.match(
+    buildRoute,
+    /for \([\s\S]*edgeIndex = nodeFrom[\s\S]*edgeIndex < nodeTo/
+  );
+
+  assert.match(
+    buildRoute,
+    /turnoutStates,[\s\S]*arrivedWhen/
   );
 
   assert.doesNotMatch(
     buildRoute,
-    /topology\.graph\.edges/
+    /authoritativeTurnouts[\s\S]*turnoutStates:\s*authoritativeTurnouts/
+  );
+});
+
+test("SmartDispatcher logs route, clearance, arrival and failures", () => {
+  const source =
+    read(
+      "src/services/clientScriptSmartDispatcherPrelude.ts"
+    );
+
+  assert.match(
+    source,
+    /const __dccSmartLog/
   );
 
-  assert.doesNotMatch(
-    buildRoute,
-    /rolling turnout path/
+  assert.match(
+    source,
+    /"route resolved"/
+  );
+
+  assert.match(
+    source,
+    /"clearance blocked"/
+  );
+
+  assert.match(
+    source,
+    /"clearance granted; movement authorized"/
+  );
+
+  assert.match(
+    source,
+    /"arrival conditions satisfied"/
+  );
+
+  assert.match(
+    source,
+    /"target reservation was lost during movement"/
+  );
+
+  assert.match(
+    source,
+    /"execution failed"/
   );
 });
 

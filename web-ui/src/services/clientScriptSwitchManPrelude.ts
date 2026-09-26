@@ -806,10 +806,10 @@ const __dccDispatcherLoadLayout = async () => {
       }
 
       if (
-        Number(topology.version) !== 1
+        Number(topology.version) !== 2
       ) {
         throw new Error(
-          "dispatcher: unsupported routeTopology version."
+          "dispatcher: unsupported routeTopology version. Regenerate and save the route graph with the current version."
         );
       }
 
@@ -1148,7 +1148,42 @@ const __dccDispatcherFindRoute = async (
     );
   }
 
+  if (
+    !Array.isArray(route.nodes) ||
+    route.nodes.length < 1 ||
+    !Array.isArray(route.edgePath) ||
+    route.edgePath.length !==
+      Math.max(
+        0,
+        route.nodes.length - 1
+      )
+  ) {
+    throw new Error(
+      'dispatcher: route "' +
+      displayPath +
+      '" has no exact saved edge path. Regenerate and save the route graph.'
+    );
+  }
+
+  const nodePath =
+    route.nodes.map(
+      value =>
+        String(value ?? "")
+    );
+
+  if (
+    nodePath.some(
+      name =>
+        !name
+    )
+  ) {
+    throw new Error(
+      "dispatcher: saved route contains an empty graph node name."
+    );
+  }
+
   const blocks = [];
+  const blockNodeIndexes = [];
   const seenBlockIds =
     new Set();
 
@@ -1166,6 +1201,35 @@ const __dccDispatcherFindRoute = async (
     if (id === null) {
       throw new Error(
         "dispatcher: route blockPath contains an invalid block ID."
+      );
+    }
+
+    const nodeIndex =
+      Number(
+        raw && raw.nodeIndex
+      );
+
+    if (
+      !Number.isInteger(nodeIndex) ||
+      nodeIndex < 0 ||
+      nodeIndex >= nodePath.length
+    ) {
+      throw new Error(
+        "dispatcher: route blockPath contains an invalid nodeIndex for block #" +
+        String(id) +
+        ". Regenerate and save the route graph."
+      );
+    }
+
+    if (
+      blockNodeIndexes.length > 0 &&
+      nodeIndex <
+        blockNodeIndexes[
+          blockNodeIndexes.length - 1
+        ]
+    ) {
+      throw new Error(
+        "dispatcher: route blockPath node indexes are not ordered."
       );
     }
 
@@ -1191,6 +1255,21 @@ const __dccDispatcherFindRoute = async (
     }
 
     blocks.push(config);
+    blockNodeIndexes.push(
+      nodeIndex
+    );
+  }
+
+  if (
+    blockNodeIndexes[0] !== 0 ||
+    blockNodeIndexes[
+      blockNodeIndexes.length - 1
+    ] !==
+      nodePath.length - 1
+  ) {
+    throw new Error(
+      "dispatcher: saved route block endpoints do not align with the exact node path. Regenerate and save the route graph."
+    );
   }
 
   const first =
@@ -1299,6 +1378,140 @@ const __dccDispatcherFindRoute = async (
         })
       );
 
+  const edgePath =
+    route.edgePath.map(
+      (rawEdge, edgeIndex) => {
+        const from =
+          String(
+            rawEdge && rawEdge.from || ""
+          );
+
+        const to =
+          String(
+            rawEdge && rawEdge.to || ""
+          );
+
+        if (
+          from !== nodePath[edgeIndex] ||
+          to !== nodePath[edgeIndex + 1]
+        ) {
+          throw new Error(
+            "dispatcher: saved edge path does not match the saved node path at edge " +
+            String(edgeIndex) +
+            ". Regenerate and save the route graph."
+          );
+        }
+
+        const edgeDirection =
+          String(
+            rawEdge &&
+            rawEdge.locoDirection ||
+            "unknown"
+          );
+
+        if (
+          edgeDirection !== "unknown" &&
+          edgeDirection !== direction
+        ) {
+          throw new Error(
+            "dispatcher: saved edge direction conflicts with route direction at " +
+            from +
+            " -> " +
+            to +
+            "."
+          );
+        }
+
+        const edgeStatesByAddress =
+          new Map();
+
+        for (
+          const rawState of
+          Array.isArray(
+            rawEdge &&
+            rawEdge.turnoutStates
+          )
+            ? rawEdge.turnoutStates
+            : []
+        ) {
+          const address =
+            Number(
+              rawState &&
+              rawState.address
+            );
+
+          if (
+            !Number.isInteger(address) ||
+            address < 1 ||
+            address > 2048
+          ) {
+            throw new Error(
+              "dispatcher: saved edge contains an invalid turnout address at " +
+              from +
+              " -> " +
+              to +
+              "."
+            );
+          }
+
+          const closed =
+            Boolean(
+              rawState &&
+              rawState.closed
+            );
+
+          if (
+            edgeStatesByAddress.has(address) &&
+            edgeStatesByAddress.get(address) !== closed
+          ) {
+            throw new Error(
+              "dispatcher: saved edge contains contradictory turnout states for address " +
+              String(address) +
+              "."
+            );
+          }
+
+          if (
+            !byAddress.has(address) ||
+            byAddress.get(address) !== closed
+          ) {
+            throw new Error(
+              "dispatcher: saved edge turnout state is not part of the authoritative route plan for address " +
+              String(address) +
+              "."
+            );
+          }
+
+          edgeStatesByAddress.set(
+            address,
+            closed
+          );
+        }
+
+        return Object.freeze({
+          from,
+          to,
+          turnoutStates:
+            Object.freeze(
+              [...edgeStatesByAddress.entries()]
+                .sort(
+                  (a, b) =>
+                    a[0] - b[0]
+                )
+                .map(
+                  ([address, closed]) =>
+                    Object.freeze({
+                      address,
+                      closed,
+                    })
+                )
+            ),
+          locoDirection:
+            edgeDirection,
+        });
+      }
+    );
+
   return Object.freeze({
     fromBlockName:
       first.name,
@@ -1311,6 +1524,18 @@ const __dccDispatcherFindRoute = async (
     direction,
     blocks:
       Object.freeze(blocks),
+    blockNodeIndexes:
+      Object.freeze(
+        blockNodeIndexes
+      ),
+    nodePath:
+      Object.freeze(
+        nodePath
+      ),
+    edgePath:
+      Object.freeze(
+        edgePath
+      ),
     turnoutStates:
       Object.freeze(turnoutStates),
   });
