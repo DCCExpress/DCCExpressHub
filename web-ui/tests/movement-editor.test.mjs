@@ -881,3 +881,51 @@ test("Movement start is disabled and notified while track power is off", () => {
     /data\.powerInfo\.trackVoltageOn ===[\s\S]*true/
   );
 });
+
+
+test("Movement Condition and Actions panels use subtle grayscale section styling", () => {
+  const row =
+    read(
+      "src/components/movement/MovementRouteRow.tsx"
+    );
+
+  const css =
+    read(
+      "src/styles/movementEditor.css"
+    );
+
+  assert.match(
+    row,
+    /movement-collapsible-header-condition/
+  );
+
+  assert.match(
+    row,
+    /movement-collapsible-header-actions/
+  );
+
+  assert.match(
+    row,
+    /movement-collapsible-body-condition/
+  );
+
+  assert.match(
+    row,
+    /movement-collapsible-body-actions/
+  );
+
+  assert.match(
+    css,
+    /movement-collapsible-header-condition/
+  );
+
+  assert.match(
+    css,
+    /movement-collapsible-header-actions/
+  );
+
+  assert.match(
+    css,
+    /color-mix/
+  );
+});
