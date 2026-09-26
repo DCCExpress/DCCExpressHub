@@ -433,7 +433,17 @@ export default function MovementEditorDialog({
                     value={
                       page.id
                     }
-                    rightSection={
+                  >
+                    <Group
+                      gap={6}
+                      wrap="nowrap"
+                    >
+                      <span>
+                        {
+                          page.name
+                        }
+                      </span>
+
                       <span
                         className={
                           page.enabled
@@ -441,11 +451,7 @@ export default function MovementEditorDialog({
                             : "movement-disabled-dot"
                         }
                       />
-                    }
-                  >
-                    {
-                      page.name
-                    }
+                    </Group>
                   </Tabs.Tab>
                 )
               )
