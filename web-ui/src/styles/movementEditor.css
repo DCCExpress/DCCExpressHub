@@ -157,13 +157,6 @@
   padding: 2px 6px 18px 2px;
 }
 
-.movement-route-grid-header {
-  display: grid;
-  grid-template-columns: minmax(250px, 0.9fr) minmax(320px, 1.15fr) minmax(260px, 0.95fr);
-  gap: 12px;
-  padding-left: 48px;
-}
-
 .movement-route-timeline {
   display: flex;
   flex-direction: column;
@@ -172,7 +165,7 @@
 
 .movement-route-row {
   display: grid;
-  grid-template-columns: 36px minmax(250px, 0.9fr) minmax(320px, 1.15fr) minmax(260px, 0.95fr);
+  grid-template-columns: 36px minmax(0, 1fr);
   gap: 12px;
   align-items: stretch;
   position: relative;
@@ -220,10 +213,12 @@
   visibility: hidden;
 }
 
-.movement-route-resource,
-.movement-route-condition,
-.movement-route-actions {
-  min-height: 88px;
+.movement-physical-route-card {
+  min-width: 0;
+}
+
+.movement-physical-route-card > .mantine-Stack-root {
+  min-width: 0;
 }
 
 .movement-enabled-dot,
@@ -273,16 +268,7 @@
     flex: 1;
   }
 
-  .movement-route-grid-header {
-    display: none;
-  }
-
   .movement-route-row {
-    grid-template-columns: 32px 1fr;
-  }
-
-  .movement-route-condition,
-  .movement-route-actions {
-    grid-column: 2;
+    grid-template-columns: 32px minmax(0, 1fr);
   }
 }
