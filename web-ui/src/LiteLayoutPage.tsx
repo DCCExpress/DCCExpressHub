@@ -1723,6 +1723,7 @@ export default function LiteLayoutPage({
                   <Tabs.Panel value="timetable" className="lite-info-tab-panel">
                     <TimetablePanel
                       scripts={automationScripts}
+                      movements={movementDocument.pages}
                       timetableRevision={timetableRevision}
                       onOpenTimetable={() => setTimetableOpened(true)}
                     />
@@ -1952,6 +1953,7 @@ export default function LiteLayoutPage({
         onClose={() => setTimetableOpened(false)}
         onSaved={() => setTimetableRevision(value => value + 1)}
         scripts={automationScripts}
+        movements={movementDocument.pages}
       />
 
       <FullscreenLoader visible={canvasBusy} text={canvasBusyText} />
