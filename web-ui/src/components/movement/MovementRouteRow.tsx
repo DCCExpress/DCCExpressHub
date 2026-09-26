@@ -30,6 +30,7 @@ type Props = {
   index: number;
   isSource: boolean;
   isDestination: boolean;
+  isCurrent: boolean;
   rule:
     MovementBlockRule | null;
   sensorCatalog:
@@ -139,6 +140,7 @@ export default function MovementRouteRow({
   index,
   isSource,
   isDestination,
+  isCurrent,
   rule,
   sensorCatalog,
   actions,
@@ -168,7 +170,14 @@ export default function MovementRouteRow({
 
   return (
     <div
-      className="movement-route-row"
+      className={
+        "movement-route-row" +
+        (
+          isCurrent
+            ? " is-current"
+            : ""
+        )
+      }
     >
       <div
         className="movement-route-spine"
@@ -176,7 +185,12 @@ export default function MovementRouteRow({
         <div
           className={
             "movement-route-dot " +
-            roleClass
+            roleClass +
+            (
+              isCurrent
+                ? " is-current"
+                : ""
+            )
           }
         >
           {
@@ -197,7 +211,12 @@ export default function MovementRouteRow({
         p={0}
         className={
           "movement-physical-route-card " +
-          roleClass
+          roleClass +
+          (
+            isCurrent
+              ? " is-current"
+              : ""
+          )
         }
       >
         <div
