@@ -12,6 +12,8 @@ import type {
   AutomationBlockOption,
 } from "../../services/automationBlockCatalog";
 
+import MovementElapsedBadge from "./MovementElapsedBadge";
+
 import MovementRuntimeControls, {
   useMovementRuntimeState,
 } from "./MovementRuntimeControls";
@@ -173,6 +175,17 @@ export default function MovementSidebarCard({
             routeResolved
           }
           showStatus
+        />
+
+
+        <MovementElapsedBadge
+          page={
+            page
+          }
+          state={
+            state
+          }
+          compact
         />
 
         {
