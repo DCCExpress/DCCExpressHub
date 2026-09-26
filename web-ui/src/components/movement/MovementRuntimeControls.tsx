@@ -34,6 +34,11 @@ import {
   type MovementEngineState,
 } from "../../services/movementEngine";
 
+import {
+  isTrackPowerOn,
+  subscribeTrackPower,
+} from "../../services/trackPowerRuntime";
+
 type Props = {
   page:
     MovementPage;
@@ -74,6 +79,27 @@ export function movementRuntimeStatusColor(
   }
 
   return "gray";
+}
+
+export function useTrackPowerOn(): boolean {
+  const [
+    powerOn,
+    setPowerOn,
+  ] =
+    useState(
+      () =>
+        isTrackPowerOn()
+    );
+
+  useEffect(
+    () =>
+      subscribeTrackPower(
+        setPowerOn
+      ),
+    []
+  );
+
+  return powerOn;
 }
 
 export function useMovementRuntimeState(
@@ -117,6 +143,9 @@ export default function MovementRuntimeControls({
       page.id
     );
 
+  const trackPowerOn =
+    useTrackPowerOn();
+
   useEffect(
     () => {
       onStateChange?.(
@@ -135,8 +164,27 @@ export default function MovementRuntimeControls({
     state.status ===
       "error";
 
+  const notifyTrackPowerOff =
+    (): void => {
+      showNotification({
+        color: "red",
+        title:
+          "Track power is OFF",
+        message:
+          "Turn on track power before starting Movement.",
+      });
+    };
+
   const run =
     async (): Promise<void> => {
+      if (
+        !trackPowerOn
+      ) {
+        notifyTrackPowerOff();
+
+        return;
+      }
+
       try {
         await startMovement(
           page
@@ -204,33 +252,55 @@ export default function MovementRuntimeControls({
 
       <Tooltip
         withArrow
-        label="Start movement"
+        label={
+          trackPowerOn
+            ? "Start movement"
+            : "Track power is OFF"
+        }
       >
-        <ActionIcon
-          size={
-            buttonSize
-          }
-          variant="light"
-          color="green"
-          disabled={
-            !idle ||
-            !page.enabled ||
-            !routeResolved
-          }
-          onClick={
+        <span
+          style={{
+            display:
+              "inline-flex",
+          }}
+          onPointerDown={
             event => {
-              event.stopPropagation();
-
-              void run();
+              if (
+                !trackPowerOn
+              ) {
+                event.stopPropagation();
+                notifyTrackPowerOff();
+              }
             }
           }
         >
-          <IconPlayerPlay
+          <ActionIcon
             size={
-              iconSize
+              buttonSize
             }
-          />
-        </ActionIcon>
+            variant="light"
+            color="green"
+            disabled={
+              !idle ||
+              !page.enabled ||
+              !routeResolved ||
+              !trackPowerOn
+            }
+            onClick={
+              event => {
+                event.stopPropagation();
+
+                void run();
+              }
+            }
+          >
+            <IconPlayerPlay
+              size={
+                iconSize
+              }
+            />
+          </ActionIcon>
+        </span>
       </Tooltip>
 
       <Tooltip
