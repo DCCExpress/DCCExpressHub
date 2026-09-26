@@ -64,14 +64,14 @@ function resourceColor(
     resource.kind ===
     "turnout"
   ) {
-    return "orange";
+    return "blue";
   }
 
   if (
     resource.kind ===
     "segment"
   ) {
-    return "cyan";
+    return "gray";
   }
 
   return "violet";
@@ -185,7 +185,10 @@ export default function MovementRouteRow({
         </div>
 
         <div
-          className="movement-route-line"
+          className={
+            "movement-route-line " +
+            roleClass
+          }
         />
       </div>
 
