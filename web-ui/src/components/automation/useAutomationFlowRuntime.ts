@@ -413,11 +413,18 @@ function runtimeConfigSignature(
 
 export function useAutomationFlowRuntime(
   document:
-    AutomationFlowDocument
+    AutomationFlowDocument,
+  controlStationActive:
+    boolean
 ): void {
   const documentRef =
     useRef(
       document
+    );
+
+  const controlStationActiveRef =
+    useRef(
+      controlStationActive
     );
 
   const blockStateSignaturesRef =
@@ -433,10 +440,13 @@ export function useAutomationFlowRuntime(
   documentRef.current =
     document;
 
+  controlStationActiveRef.current =
+    controlStationActive;
+
   const signature =
-    runtimeConfigSignature(
+    `${runtimeConfigSignature(
       document
-    );
+    )}:${controlStationActive ? "control" : "standby"}`;
 
   useEffect(
     () =>
@@ -446,6 +456,23 @@ export function useAutomationFlowRuntime(
         );
       },
     []
+  );
+
+  useEffect(
+    () => {
+      if (
+        controlStationActive
+      ) {
+        return;
+      }
+
+      abortAllAutomationFlowExecutions(
+        "Control Station ownership is not active."
+      );
+    },
+    [
+      controlStationActive,
+    ]
   );
 
   useEffect(
@@ -508,6 +535,12 @@ export function useAutomationFlowRuntime(
       wsClient.on(
         "sensorChanged",
         data => {
+          if (
+            !controlStationActiveRef.current
+          ) {
+            return;
+          }
+
           const current =
             documentRef.current;
 
@@ -590,6 +623,12 @@ export function useAutomationFlowRuntime(
       wsClient.on(
         "turnoutChanged",
         data => {
+          if (
+            !controlStationActiveRef.current
+          ) {
+            return;
+          }
+
           const current =
             documentRef.current;
 
@@ -742,6 +781,12 @@ export function useAutomationFlowRuntime(
       wsClient.on(
         "accessoryChanged",
         data => {
+          if (
+            !controlStationActiveRef.current
+          ) {
+            return;
+          }
+
           const current =
             documentRef.current;
 
@@ -868,6 +913,12 @@ export function useAutomationFlowRuntime(
       wsClient.on(
         "signalAspectChanged",
         data => {
+          if (
+            !controlStationActiveRef.current
+          ) {
+            return;
+          }
+
           const current =
             documentRef.current;
 
@@ -999,6 +1050,12 @@ export function useAutomationFlowRuntime(
       wsClient.on(
         "blockStateChanged",
         data => {
+          if (
+            !controlStationActiveRef.current
+          ) {
+            return;
+          }
+
           const changed:
             Array<{
               blockId: string;
@@ -1153,6 +1210,12 @@ export function useAutomationFlowRuntime(
       wsClient.on(
         "locoState",
         data => {
+          if (
+            !controlStationActiveRef.current
+          ) {
+            return;
+          }
+
           const loco =
             data.loco;
 
@@ -1261,6 +1324,12 @@ export function useAutomationFlowRuntime(
 
   useEffect(
     () => {
+      if (
+        !controlStationActiveRef.current
+      ) {
+        return;
+      }
+
       const current =
         documentRef.current;
 

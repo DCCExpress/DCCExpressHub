@@ -19,6 +19,10 @@ public sealed class WsHub
     private readonly ConcurrentDictionary<Guid, WebSocket> Clients = new();
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     private readonly object _programmingGate = new();
+    private readonly object _controlStationGate = new();
+    private Guid? _controlStationOwnerConnectionId;
+    private string _controlStationOwnerClientId = "";
+    private string _controlStationOwnerName = "";
     private PendingProgramming? _pendingProgramming;
     private sealed record PendingProgramming(string RequestId, string Action, int ExpectedCv, long Token);
     private long _programmingToken;
@@ -73,6 +77,61 @@ public sealed class WsHub
         };
     }
 
+    private object ControlStationStatus()
+    {
+        lock (_controlStationGate)
+        {
+            return new
+            {
+                active = _controlStationOwnerConnectionId.HasValue,
+                ownerClientId = _controlStationOwnerConnectionId.HasValue ? _controlStationOwnerClientId : null,
+                ownerName = _controlStationOwnerConnectionId.HasValue ? _controlStationOwnerName : null
+            };
+        }
+    }
+
+    private (bool Granted, string? OwnerClientId, string? OwnerName) ClaimControlStation(
+        Guid connectionId,
+        string clientId,
+        string clientName)
+    {
+        lock (_controlStationGate)
+        {
+            var granted =
+                !_controlStationOwnerConnectionId.HasValue ||
+                _controlStationOwnerConnectionId.Value == connectionId;
+
+            if (granted)
+            {
+                _controlStationOwnerConnectionId = connectionId;
+                _controlStationOwnerClientId = clientId;
+                _controlStationOwnerName = clientName;
+            }
+
+            return (
+                granted,
+                _controlStationOwnerConnectionId.HasValue ? _controlStationOwnerClientId : null,
+                _controlStationOwnerConnectionId.HasValue ? _controlStationOwnerName : null
+            );
+        }
+    }
+
+    private bool ReleaseControlStation(Guid connectionId)
+    {
+        lock (_controlStationGate)
+        {
+            if (
+                !_controlStationOwnerConnectionId.HasValue ||
+                _controlStationOwnerConnectionId.Value != connectionId)
+                return false;
+
+            _controlStationOwnerConnectionId = null;
+            _controlStationOwnerClientId = "";
+            _controlStationOwnerName = "";
+            return true;
+        }
+    }
+
     private void ApplyPower(PowerFeedback p)
     {
         if (p.Target == "All") { HubState.TrackPower = p.On; HubState.ProgrammingPower = p.On; }
@@ -88,19 +147,28 @@ public sealed class WsHub
         try
         {
             await Send(ws, "ws:welcome", new { message = "DCCExpressHub" });
+            await Send(ws, "controlStationStatus", ControlStationStatus());
             await SendSnapshot(ws);
             var buf = new byte[64 * 1024];
             while (ws.State == WebSocketState.Open)
             {
                 var ms = new MemoryStream(); WebSocketReceiveResult r;
                 do { r = await ws.ReceiveAsync(buf, ctx.RequestAborted); if (r.MessageType == WebSocketMessageType.Close) return; ms.Write(buf, 0, r.Count); } while (!r.EndOfMessage);
-                var text = Encoding.UTF8.GetString(ms.ToArray()); await Handle(ws, text, ctx.RequestAborted);
+                var text = Encoding.UTF8.GetString(ms.ToArray()); await Handle(id, ws, text, ctx.RequestAborted);
             }
         }
-        finally { Clients.TryRemove(id, out _); try { await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "bye", CancellationToken.None); } catch { } }
+        finally
+        {
+            Clients.TryRemove(id, out _);
+
+            if (ReleaseControlStation(id))
+                await Broadcast("controlStationStatus", ControlStationStatus());
+
+            try { await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "bye", CancellationToken.None); } catch { }
+        }
     }
 
-    private async Task Handle(WebSocket ws, string text, CancellationToken ct)
+    private async Task Handle(Guid connectionId, WebSocket ws, string text, CancellationToken ct)
     {
         JsonDocument json;
         try
@@ -118,6 +186,34 @@ public sealed class WsHub
             bool ok = true;
             switch (type)
             {
+                case "controlStationClaim":
+                    {
+                        var clientId = S(data, "clientId");
+                        var clientName = S(data, "clientName");
+                        var result = ClaimControlStation(connectionId, clientId, clientName);
+
+                        if (result.Granted)
+                            await Broadcast("controlStationStatus", ControlStationStatus());
+
+                        await Send(ws, "controlStationClaimResult", new
+                        {
+                            granted = result.Granted,
+                            active = true,
+                            ownerClientId = result.OwnerClientId,
+                            ownerName = result.OwnerName,
+                            message = result.Granted ? null : "Another Control Station is already connected."
+                        });
+                        return;
+                    }
+                case "controlStationRelease":
+                    if (ReleaseControlStation(connectionId))
+                        await Broadcast("controlStationStatus", ControlStationStatus());
+                    else
+                        await Send(ws, "controlStationStatus", ControlStationStatus());
+                    return;
+                case "getControlStationStatus":
+                    await Send(ws, "controlStationStatus", ControlStationStatus());
+                    return;
                 case "heartbeat":
                     await Send(ws, "heartbeatAck", new { });
                     await SendCommandCenterInfo(ws);

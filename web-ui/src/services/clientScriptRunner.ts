@@ -7,6 +7,10 @@ import {
 } from "./wsClient";
 
 import {
+  isControlStationRuntimeActive,
+} from "./controlStationRuntime";
+
+import {
   audioManager,
 } from "./audioManager";
 
@@ -3331,6 +3335,31 @@ export function abortClientScript(
   return true;
 }
 
+export function abortAllClientScriptExecutions(
+  reason =
+    "Control Station ownership lost."
+): number {
+  let aborted =
+    0;
+
+  for (
+    const execution of
+    getActiveClientScriptExecutions()
+  ) {
+    if (
+      abortClientScript(
+        execution.id,
+        reason
+      )
+    ) {
+      aborted +=
+        1;
+    }
+  }
+
+  return aborted;
+}
+
 export async function runClientScript(
   script: string,
   element: ClientScriptElementContext
@@ -3339,6 +3368,14 @@ export async function runClientScript(
     !script.trim()
   ) {
     return undefined;
+  }
+
+  if (
+    !isControlStationRuntimeActive()
+  ) {
+    throw new Error(
+      "This browser is not the active Control Station."
+    );
   }
 
   if (

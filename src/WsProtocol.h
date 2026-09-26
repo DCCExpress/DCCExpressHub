@@ -192,6 +192,10 @@ private:
 
   uint8_t _wsClientCount = 0;
 
+  uint32_t _controlStationOwnerConnectionId = 0;
+  String _controlStationOwnerClientId;
+  String _controlStationOwnerName;
+
   struct PendingProgrammingRequest {
     bool active = false;
     String requestId;
@@ -263,6 +267,11 @@ private:
 
   void sendPowerInfo(
       AsyncWebSocketClient* client);
+
+  void sendControlStationStatus(
+      AsyncWebSocketClient* client);
+
+  void broadcastControlStationStatus();
 
   void sendRuntimeSnapshot(
       AsyncWebSocketClient* client);

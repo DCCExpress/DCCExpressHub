@@ -13,6 +13,7 @@ import {
   PasswordInput,
   SimpleGrid,
   Stack,
+  Switch,
   Text,
   TextInput,
   ThemeIcon,
@@ -81,6 +82,12 @@ import {
 import {
   useAutomationFlowRuntime,
 } from "@/components/automation/useAutomationFlowRuntime";
+import {
+  abortAllClientScriptExecutions,
+} from "@/services/clientScriptRunner";
+import {
+  setControlStationRuntimeActive,
+} from "@/services/controlStationRuntime";
 
 const LiteLayoutPage = lazy(() => import("./LiteLayoutPage"));
 const AutomationFlowPage = lazy(() => import("./AutomationFlowPage"));
@@ -107,6 +114,68 @@ type ApiResponse = {
   ok: boolean;
   message: string;
 };
+
+const CONTROL_STATION_ENABLED_KEY =
+  "dcc-express-control-station-enabled";
+
+const CONTROL_STATION_CLIENT_ID_KEY =
+  "dcc-express-control-station-client-id";
+
+function readControlStationRequested(): boolean {
+  try {
+    return (
+      window.localStorage.getItem(
+        CONTROL_STATION_ENABLED_KEY
+      ) ===
+      "true"
+    );
+  } catch {
+    return false;
+  }
+}
+
+function controlStationClientId(): string {
+  try {
+    const existing =
+      window.localStorage.getItem(
+        CONTROL_STATION_CLIENT_ID_KEY
+      );
+
+    if (existing) {
+      return existing;
+    }
+
+    const created =
+      typeof crypto !== "undefined" &&
+      typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `browser-${Date.now()}-${Math.random()
+            .toString(36)
+            .slice(2, 10)}`;
+
+    window.localStorage.setItem(
+      CONTROL_STATION_CLIENT_ID_KEY,
+      created
+    );
+
+    return created;
+  } catch {
+    return `browser-${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2, 10)}`;
+  }
+}
+
+function controlStationClientName(): string {
+  const platform =
+    typeof navigator !== "undefined"
+      ? navigator.platform
+      : "";
+
+  return platform
+    ? `${platform} browser`
+    : "Browser";
+}
 
 function statusColor(status: WsConnectionStatus): string {
   switch (status) {
@@ -137,7 +206,23 @@ function pageFromHash(): Page {
   return page === "drive" || page === "layout" || page === "flows" || page === "programming" || page === "settings" || page === "device-config" || page === "gamepad" || page === "console" || page === "files" || page === "backup" ? page : "home";
 }
 
-function AppHeader({ status, version }: { status: WsConnectionStatus; version: string }) {
+function AppHeader({
+  status,
+  version,
+  controlStationRequested,
+  controlStationGranted,
+  controlStationOwnerName,
+  onControlStationRequestedChange,
+}: {
+  status: WsConnectionStatus;
+  version: string;
+  controlStationRequested: boolean;
+  controlStationGranted: boolean;
+  controlStationOwnerName: string | null;
+  onControlStationRequestedChange: (
+    requested: boolean
+  ) => void;
+}) {
   const { t } = useTranslation();
   const commandCenter = useCommandCenter();
   const [commandCenterSettingsOpened, setCommandCenterSettingsOpened] =
@@ -191,6 +276,52 @@ function AppHeader({ status, version }: { status: WsConnectionStatus; version: s
         gap="xs"
         wrap="nowrap"
       >
+        <Switch
+          size="sm"
+          checked={
+            controlStationRequested
+          }
+          label="Control Station"
+          onChange={
+            event =>
+              onControlStationRequestedChange(
+                event.currentTarget.checked
+              )
+          }
+          title={
+            controlStationGranted
+              ? "This browser owns the automation runtime."
+              : controlStationRequested &&
+                  controlStationOwnerName
+                ? `Automation runtime is owned by ${controlStationOwnerName}.`
+                : "Run browser automation on this device."
+          }
+        />
+
+        {controlStationRequested && (
+          <Badge
+            size="sm"
+            variant="light"
+            color={
+              controlStationGranted
+                ? "green"
+                : status === "connected"
+                  ? "orange"
+                  : "gray"
+            }
+          >
+            {
+              controlStationGranted
+                ? "ACTIVE"
+                : status !== "connected"
+                  ? "WAITING"
+                  : controlStationOwnerName
+                    ? "IN USE"
+                    : "AVAILABLE"
+            }
+          </Badge>
+        )}
+
         <Badge
           color={statusColor(status)}
           variant={status === "connected" ? "light" : "filled"}
@@ -263,12 +394,22 @@ function HomePage({
   locoCount,
   onNavigate,
   onOpenLocoEditor,
+  controlStationRequested,
+  controlStationGranted,
+  controlStationOwnerName,
+  onControlStationRequestedChange,
 }: {
   status: WsConnectionStatus;
   version: string;
   locoCount: number;
   onNavigate: (page: Page) => void;
   onOpenLocoEditor: () => void;
+  controlStationRequested: boolean;
+  controlStationGranted: boolean;
+  controlStationOwnerName: string | null;
+  onControlStationRequestedChange: (
+    requested: boolean
+  ) => void;
 }) {
   const { t } = useTranslation();
 
@@ -276,7 +417,22 @@ function HomePage({
     <Stack gap="md">
       <Card className="hero-card" radius={5} p="lg">
         <Stack gap="sm">
-          <AppHeader status={status} version={version} />
+          <AppHeader
+            status={status}
+            version={version}
+            controlStationRequested={
+              controlStationRequested
+            }
+            controlStationGranted={
+              controlStationGranted
+            }
+            controlStationOwnerName={
+              controlStationOwnerName
+            }
+            onControlStationRequestedChange={
+              onControlStationRequestedChange
+            }
+          />
           <Group justify="space-between" align="center" gap="sm" wrap="wrap">
             <Text c="dimmed">
               {t("homeHub.description")}
@@ -1192,6 +1348,34 @@ export default function App() {
   const [driveLayoutOpen, setDriveLayoutOpen] = useState(false);
   const [version, setVersion] = useState("development");
   const [
+    controlStationRequested,
+    setControlStationRequested,
+  ] =
+    useState<boolean>(
+      readControlStationRequested
+    );
+  const [
+    controlStationGranted,
+    setControlStationGranted,
+  ] =
+    useState(false);
+  const [
+    controlStationOwnerName,
+    setControlStationOwnerName,
+  ] =
+    useState<string | null>(
+      null
+    );
+  const controlStationClientIdRef =
+    useRef(
+      controlStationClientId()
+    );
+  const controlStationClientNameRef =
+    useRef(
+      controlStationClientName()
+    );
+
+  const [
     automationFlow,
     setAutomationFlow,
   ] =
@@ -1201,8 +1385,148 @@ export default function App() {
     );
 
   useAutomationFlowRuntime(
-    automationFlow
+    automationFlow,
+    controlStationGranted
   );
+
+  useEffect(
+    () => {
+      setControlStationRuntimeActive(
+        controlStationGranted
+      );
+
+      if (
+        !controlStationGranted
+      ) {
+        abortAllClientScriptExecutions(
+          "Control Station ownership is not active."
+        );
+      }
+    },
+    [
+      controlStationGranted,
+    ]
+  );
+
+  useEffect(
+    () => {
+      const unsubscribeClaim =
+        wsClient.on(
+          "controlStationClaimResult",
+          data => {
+            setControlStationGranted(
+              data.granted
+            );
+
+            setControlStationOwnerName(
+              data.ownerName ??
+              null
+            );
+
+            if (
+              !data.granted
+            ) {
+              showNotification({
+                color: "orange",
+                title:
+                  "Control Station already in use",
+                message:
+                  data.ownerName
+                    ? `Automation is running on ${data.ownerName}.`
+                    : "Another browser already owns the automation runtime.",
+              });
+            }
+          }
+        );
+
+      const unsubscribeStatus =
+        wsClient.on(
+          "controlStationStatus",
+          data => {
+            setControlStationOwnerName(
+              data.ownerName ??
+              null
+            );
+
+            if (
+              !data.active
+            ) {
+              setControlStationGranted(
+                false
+              );
+            }
+          }
+        );
+
+      return () => {
+        unsubscribeClaim();
+        unsubscribeStatus();
+      };
+    },
+    []
+  );
+
+  useEffect(
+    () => {
+      if (
+        status !==
+        "connected"
+      ) {
+        setControlStationGranted(
+          false
+        );
+        return;
+      }
+
+      if (
+        controlStationRequested
+      ) {
+        wsApi.claimControlStation(
+          controlStationClientIdRef.current,
+          controlStationClientNameRef.current
+        );
+      } else {
+        wsApi.releaseControlStation();
+        wsApi.getControlStationStatus();
+      }
+    },
+    [
+      controlStationRequested,
+      status,
+    ]
+  );
+
+  const updateControlStationRequested =
+    useCallback(
+      (
+        requested:
+          boolean
+      ): void => {
+        setControlStationRequested(
+          requested
+        );
+
+        try {
+          window.localStorage.setItem(
+            CONTROL_STATION_ENABLED_KEY,
+            requested
+              ? "true"
+              : "false"
+          );
+        } catch {
+          // Persistence is optional; backend ownership remains authoritative.
+        }
+
+        if (
+          !requested
+        ) {
+          setControlStationGranted(
+            false
+          );
+        }
+      },
+      []
+    );
 
   const loadAutomationFlowState =
     useCallback(
@@ -1411,7 +1735,29 @@ export default function App() {
       );
     }
 
-    return <HomePage status={status} version={version} locoCount={locos.length} onNavigate={navigate} onOpenLocoEditor={() => setLocoEditorOpened(true)} />;
+    return (
+      <HomePage
+        status={status}
+        version={version}
+        locoCount={locos.length}
+        onNavigate={navigate}
+        onOpenLocoEditor={() =>
+          setLocoEditorOpened(true)
+        }
+        controlStationRequested={
+          controlStationRequested
+        }
+        controlStationGranted={
+          controlStationGranted
+        }
+        controlStationOwnerName={
+          controlStationOwnerName
+        }
+        onControlStationRequestedChange={
+          updateControlStationRequested
+        }
+      />
+    );
   };
 
   return (

@@ -1289,6 +1289,155 @@ test("layout page consumes the app-owned flow document and keeps editor saves sy
   );
 });
 
+test("control station ownership gates browser automation runtime", () => {
+  const app =
+    read(
+      "src/App.tsx"
+    );
+
+  const runtime =
+    read(
+      "src/components/automation/useAutomationFlowRuntime.ts"
+    );
+
+  const runner =
+    read(
+      "src/services/clientScriptRunner.ts"
+    );
+
+  const controlRuntime =
+    read(
+      "src/services/controlStationRuntime.ts"
+    );
+
+  const wsTypes =
+    read(
+      "src/domain/wsTypes.ts"
+    );
+
+  const clientCommands =
+    read(
+      "src/domain/clientWsCommands.ts"
+    );
+
+  const espProtocol =
+    read(
+      "../src/WsProtocol.cpp"
+    );
+
+  const desktopHub =
+    read(
+      "../desktop/DCCExpressHub.Net/Web/WsHub.cs"
+    );
+
+  assert.match(
+    app,
+    /CONTROL_STATION_ENABLED_KEY/
+  );
+
+  assert.match(
+    app,
+    /localStorage\.setItem\([\s\S]*CONTROL_STATION_ENABLED_KEY/
+  );
+
+  assert.match(
+    app,
+    /claimControlStation/
+  );
+
+  assert.match(
+    app,
+    /useAutomationFlowRuntime\([\s\S]*automationFlow,[\s\S]*controlStationGranted/
+  );
+
+  assert.match(
+    runtime,
+    /controlStationActiveRef/
+  );
+
+  assert.match(
+    runner,
+    /isControlStationRuntimeActive/
+  );
+
+  assert.match(
+    runner,
+    /not the active Control Station/
+  );
+
+  assert.match(
+    controlRuntime,
+    /setControlStationRuntimeActive/
+  );
+
+  for (
+    const type of [
+      "controlStationClaim",
+      "controlStationRelease",
+      "getControlStationStatus",
+    ]
+  ) {
+    assert.match(
+      clientCommands,
+      new RegExp(
+        type
+      )
+    );
+
+    assert.match(
+      wsTypes,
+      new RegExp(
+        `"${type}"`
+      )
+    );
+  }
+
+  assert.match(
+    wsTypes,
+    /controlStationClaimResult/
+  );
+
+  assert.match(
+    wsTypes,
+    /controlStationStatus/
+  );
+
+  assert.match(
+    espProtocol,
+    /_controlStationOwnerConnectionId/
+  );
+
+  assert.match(
+    espProtocol,
+    /"controlStationClaim"/
+  );
+
+  assert.match(
+    espProtocol,
+    /"controlStationRelease"/
+  );
+
+  assert.match(
+    espProtocol,
+    /Control Station released because owner disconnected/
+  );
+
+  assert.match(
+    desktopHub,
+    /_controlStationOwnerConnectionId/
+  );
+
+  assert.match(
+    desktopHub,
+    /case "controlStationClaim"/
+  );
+
+  assert.match(
+    desktopHub,
+    /ReleaseControlStation\(id\)/
+  );
+});
+
 test("flow editor is available from a standalone home route using the same editor component", () => {
   const app =
     read(

@@ -282,8 +282,16 @@ export type SetEditorEditModeCommandPayload = {
   editMode: boolean;
 };
 
+export type ControlStationClaimCommandPayload = {
+  clientId: string;
+  clientName: string;
+};
+
 export type ClientWsPayloadMap = {
   heartbeat: EmptyClientWsCommandPayload;
+  controlStationClaim: ControlStationClaimCommandPayload;
+  controlStationRelease: EmptyClientWsCommandPayload;
+  getControlStationStatus: EmptyClientWsCommandPayload;
   setTrackPower: SetTrackPowerCommandPayload;
   setProgrammingPower: SetProgrammingPowerCommandPayload;
   emergencyStop: EmptyClientWsCommandPayload;
