@@ -52,7 +52,8 @@ export function createClientGraphFromRouteGraphDto(
         fromNode,
         toNode,
         edgeDto.turnoutStates,
-        edgeDto.locoDirection
+        edgeDto.locoDirection,
+        edgeDto.turnoutPath ?? []
       )
     );
   }
