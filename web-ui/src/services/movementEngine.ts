@@ -1348,6 +1348,13 @@ async function traverseLeg(
     let previousSegment:
       MovementPlanResource |
       null =
+      execution.plan.resources.find(
+        resource =>
+          resource.kind ===
+            "segment" &&
+          resource.nodeIndex ===
+            leg.from.nodeIndex
+      ) ??
       null;
 
     const pendingTurnouts:
@@ -1445,16 +1452,6 @@ async function traverseLeg(
       await runActions(
         execution,
         turnout.key,
-        "leave"
-      );
-    }
-
-    if (
-      previousSegment
-    ) {
-      await runActions(
-        execution,
-        previousSegment.key,
         "leave"
       );
     }
