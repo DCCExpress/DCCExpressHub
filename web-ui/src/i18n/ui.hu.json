@@ -1006,7 +1006,7 @@
   "flowNodeBasicAccessoryInput": "Basic Accessory esemény",
   "flowNodeExtendedAccessoryInput": "Extended Accessory esemény",
   "flowNodeLocoInput": "Mozdony esemény",
-  "flowSensorInputDescription": "Ha a flow futtatás engedélyezve van, minden illeszkedő sensorChanged esemény egyszer elindítja az innen kapcsolt ágat.",
+  "flowSensorInputDescription": "Amíg a lap engedélyezve van, minden illeszkedő sensorChanged esemény egyszer elindítja az innen kapcsolt ágat.",
   "flowBlockInputDescription": "A kiválasztott blokk állapotváltozásakor fut le. Az új blokkállapot a payloadba kerül.",
   "flowTurnoutInputDescription": "A kiválasztott váltó bármely hozzá tartozó DCC címének változásakor fut le. A megváltozott cím és állapot a payloadba kerül.",
   "flowBasicAccessoryInputDescription": "A Basic Accessory minden állapotváltozásakor lefut. A payload tartalmazza az eventType, address és active mezőket.",

@@ -1006,7 +1006,7 @@
   "flowNodeBasicAccessoryInput": "Basic-Accessory-Ereignis",
   "flowNodeExtendedAccessoryInput": "Extended-Accessory-Ereignis",
   "flowNodeLocoInput": "Lok-Ereignis",
-  "flowSensorInputDescription": "Wenn die Flow-Laufzeit aktiviert ist, startet jedes passende sensorChanged-Ereignis den verbundenen Zweig einmal.",
+  "flowSensorInputDescription": "Solange die Seite aktiviert ist, startet jedes passende sensorChanged-Ereignis den verbundenen Zweig einmal.",
   "flowBlockInputDescription": "Startet, wenn sich der Zustand des ausgewählten Blocks ändert. Der neue Blockzustand wird im Payload übergeben.",
   "flowTurnoutInputDescription": "Startet, wenn sich eine DCC-Adresse dieser Weiche ändert. Adresse und Zustand werden im Payload übergeben.",
   "flowBasicAccessoryInputDescription": "Startet bei jeder Zustandsänderung dieses Basic Accessory. payload enthält eventType, address und active.",

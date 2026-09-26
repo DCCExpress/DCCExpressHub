@@ -1006,7 +1006,7 @@
   "flowNodeBasicAccessoryInput": "Basic Accessory event",
   "flowNodeExtendedAccessoryInput": "Extended Accessory event",
   "flowNodeLocoInput": "Loco event",
-  "flowSensorInputDescription": "When flow runtime is enabled, every matching sensorChanged event runs the connected branch once.",
+  "flowSensorInputDescription": "Every matching sensorChanged event runs the connected branch once while the page is enabled.",
   "flowBlockInputDescription": "Runs when the selected block state changes. The new block state is passed in payload.",
   "flowTurnoutInputDescription": "Runs when any DCC address belonging to this turnout changes. The changed address and state are passed in payload.",
   "flowBasicAccessoryInputDescription": "Runs whenever this Basic Accessory state changes. payload contains eventType, address and active.",

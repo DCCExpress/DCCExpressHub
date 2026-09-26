@@ -773,7 +773,7 @@ export default function AutomationFlowPropertiesPanel({
               {
                 t(
                   "ui.flowSensorInputDescription",
-                  "When flows are enabled, every matching sensorChanged event injects this branch once."
+                  "Every matching sensorChanged event injects this branch once while the page is enabled."
                 )
               }
             </Text>
