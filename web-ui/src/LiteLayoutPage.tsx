@@ -1735,26 +1735,6 @@ export default function LiteLayoutPage({
 
             <Divider orientation="vertical" />
 
-            <Badge style={{ display: "none" }} size="sm" variant="light" color={commandCenter.locked ? "orange" : "gray"}>{commandCenter.locked ? i18next.t("ui.lock") : i18next.t("ui.free")}</Badge>
-            <ActionIcon
-              size="sm"
-              variant={rightPanelMode === "loco" ? "filled" : "light"}
-              color={rightPanelMode === "loco" ? "green" : "gray"}
-              aria-label={i18next.t("ui.toggleRightLocomotivePanel")}
-              title={rightPanelMode === "loco" ? i18next.t("ui.rightPanelLocomotiveControl") : i18next.t("ui.rightPanelProperties")}
-              onClick={() => {
-                setRightPanelMode(value => value === "property" ? "loco" : "property");
-                setPropertyPanelCollapsed(false);
-              }}
-            >
-              <IconTrain size={15} />
-            </ActionIcon>
-
-          </Group>
-          <Group gap={6} wrap="nowrap">
-            <Text size="xs" c="dimmed" truncate>
-              {layout.getAllElements().length} elements · {locos.length} locos
-            </Text>
             <ActionIcon
               size="sm"
               variant="filled"
@@ -1781,7 +1761,28 @@ export default function LiteLayoutPage({
             >
               <IconVolume size={15} />
             </ActionIcon>
+
+            <Divider orientation="vertical" />
+
+            <Badge style={{ display: "none" }} size="sm" variant="light" color={commandCenter.locked ? "orange" : "gray"}>{commandCenter.locked ? i18next.t("ui.lock") : i18next.t("ui.free")}</Badge>
+            <ActionIcon
+              size="sm"
+              variant={rightPanelMode === "loco" ? "filled" : "light"}
+              color={rightPanelMode === "loco" ? "green" : "gray"}
+              aria-label={i18next.t("ui.toggleRightLocomotivePanel")}
+              title={rightPanelMode === "loco" ? i18next.t("ui.rightPanelLocomotiveControl") : i18next.t("ui.rightPanelProperties")}
+              onClick={() => {
+                setRightPanelMode(value => value === "property" ? "loco" : "property");
+                setPropertyPanelCollapsed(false);
+              }}
+            >
+              <IconTrain size={15} />
+            </ActionIcon>
+
           </Group>
+          <Text size="xs" c="dimmed" truncate>
+            {layout.getAllElements().length} elements · {locos.length} locos
+          </Text>
         </Group>
       </Card>
 
