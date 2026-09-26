@@ -32,9 +32,11 @@ import type {
   MovementPlanResource,
 } from "../../services/movementPlan";
 
+import CollapsiblePanelCard from "../common/CollapsiblePanelCard";
 import MovementActionEditor from "./MovementActionEditor";
 
 type Props = {
+  pageId: string;
   resource:
     MovementPlanResource;
   index: number;
@@ -119,6 +121,7 @@ function resourceBadge(
 }
 
 export default function MovementRouteRow({
+  pageId,
   resource,
   index,
   isSource,
@@ -182,8 +185,9 @@ export default function MovementRouteRow({
       <Card
         withBorder
         p="sm"
-        className="movement-route-resource"
+        className="movement-physical-route-card"
       >
+        <Stack gap="sm">
         <Stack
           gap={6}
         >
@@ -276,13 +280,23 @@ export default function MovementRouteRow({
             )
           }
         </Stack>
-      </Card>
 
-      <Card
-        withBorder
-        p="sm"
-        className="movement-route-condition"
-      >
+          <CollapsiblePanelCard
+            title="Condition / Event"
+            collapsedStorageKey={"movement:" + pageId + ":" + resource.key + ":condition"}
+            expandTooltip="Expand condition / event"
+            collapseTooltip="Collapse condition / event"
+            clickableHeader
+            defaultCollapsed={resource.kind !== "block" || isSource}
+            rightSection={
+              resource.kind === "block" && !isSource ? (
+                <Badge size="xs" variant="light" color={conditions.length > 0 ? "blue" : "gray"}>
+                  {conditions.length} condition{conditions.length === 1 ? "" : "s"}
+                </Badge>
+              ) : undefined
+            }
+            cardPadding="xs"
+          >
         {
           resource.kind !==
             "block"
@@ -610,13 +624,23 @@ export default function MovementRouteRow({
                 </Stack>
               )
         }
-      </Card>
 
-      <Card
-        withBorder
-        p="sm"
-        className="movement-route-actions"
-      >
+          </CollapsiblePanelCard>
+
+          <CollapsiblePanelCard
+            title="Actions"
+            collapsedStorageKey={"movement:" + pageId + ":" + resource.key + ":actions"}
+            expandTooltip="Expand actions"
+            collapseTooltip="Collapse actions"
+            clickableHeader
+            defaultCollapsed={actions.length === 0}
+            rightSection={
+              <Badge size="xs" variant="light" color={actions.length > 0 ? "violet" : "gray"}>
+                {actions.length}
+              </Badge>
+            }
+            cardPadding="xs"
+          >
         <MovementActionEditor
           resourceKey={
             resource.key
@@ -631,6 +655,9 @@ export default function MovementRouteRow({
             onActionsChange
           }
         />
+
+          </CollapsiblePanelCard>
+        </Stack>
       </Card>
     </div>
   );
