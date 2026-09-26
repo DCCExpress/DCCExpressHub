@@ -10,11 +10,16 @@ import type {
 } from "../domain/automationFlow";
 
 import type {
+  MovementDocument,
+} from "../domain/movement";
+
+import type {
   AutomationScriptDefinition,
 } from "../services/automationApi";
 
 import AutomationFlowsTable from "./automation/AutomationFlowsTable";
 import AutomationScriptsTable from "./automation/AutomationScriptsTable";
+import MovementPagesTable from "./movement/MovementPagesTable";
 
 type AutomationPanelProps = {
   scripts:
@@ -33,6 +38,16 @@ type AutomationPanelProps = {
     pageId:
       string
   ) => void;
+  movements:
+    MovementDocument;
+  onMovementsChange: (
+    movements:
+      MovementDocument
+  ) => void;
+  onOpenMovementEditor: (
+    pageId:
+      string
+  ) => void;
 };
 
 export default function AutomationPanel({
@@ -41,6 +56,9 @@ export default function AutomationPanel({
   flows,
   onFlowsChange,
   onOpenFlowEditor,
+  movements,
+  onMovementsChange,
+  onOpenMovementEditor,
 }: AutomationPanelProps) {
   return (
     <Tabs
@@ -83,6 +101,20 @@ export default function AutomationPanel({
               )
             }
           </Tabs.Tab>
+
+          <Tabs.Tab
+            value="movement"
+          >
+            {
+              i18next.t(
+                "ui.automationMovementTab",
+                {
+                  defaultValue:
+                    "Movement",
+                }
+              )
+            }
+          </Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel
@@ -118,6 +150,26 @@ export default function AutomationPanel({
             }
             onOpenEditor={
               onOpenFlowEditor
+            }
+          />
+        </Tabs.Panel>
+
+        <Tabs.Panel
+          value="movement"
+          style={{
+            flex: 1,
+            minHeight: 0,
+          }}
+        >
+          <MovementPagesTable
+            document={
+              movements
+            }
+            onDocumentChange={
+              onMovementsChange
+            }
+            onOpenEditor={
+              onOpenMovementEditor
             }
           />
         </Tabs.Panel>
