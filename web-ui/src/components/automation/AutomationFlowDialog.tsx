@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -40,7 +41,6 @@ import {
   IconGitBranch,
   IconNote,
   IconPlus,
-  IconPlayerPlay,
   IconPlayerStop,
   IconRefresh,
   IconRoute,
@@ -63,6 +63,7 @@ import {
   type EdgeChange,
   type Node,
   type NodeChange,
+  type ReactFlowInstance,
   type Viewport,
 } from "@xyflow/react";
 
@@ -253,6 +254,16 @@ export default function AutomationFlowDialog({
     setSaving,
   ] =
     useState(false);
+
+  const canvasRef =
+    useRef<HTMLDivElement | null>(
+      null
+    );
+
+  const flowInstanceRef =
+    useRef<ReactFlowInstance | null>(
+      null
+    );
 
   const activePage =
     document.pages.find(
@@ -743,8 +754,62 @@ export default function AutomationFlowDialog({
         return;
       }
 
-      const index =
-        activeNodes.length;
+      const canvasRect =
+        canvasRef.current
+          ?.getBoundingClientRect();
+
+      const fallbackViewport =
+        pageViewport(
+          activePage
+        );
+
+      const fallbackCenter = {
+        x:
+          (
+            (
+              canvasRect?.width ??
+              800
+            ) /
+              2 -
+            fallbackViewport.x
+          ) /
+          fallbackViewport.zoom,
+        y:
+          (
+            (
+              canvasRect?.height ??
+              600
+            ) /
+              2 -
+            fallbackViewport.y
+          ) /
+          fallbackViewport.zoom,
+      };
+
+      const visibleCenter =
+        (
+          canvasRect &&
+          flowInstanceRef.current
+        )
+          ? flowInstanceRef.current
+              .screenToFlowPosition({
+                x:
+                  canvasRect.left +
+                  canvasRect.width /
+                    2,
+                y:
+                  canvasRect.top +
+                  canvasRect.height /
+                    2,
+              })
+          : fallbackCenter;
+
+      const cascadeOffset =
+        (
+          activeNodes.length %
+          5
+        ) *
+        18;
 
       const node:
         AutomationFlowNode = {
@@ -756,11 +821,13 @@ export default function AutomationFlowDialog({
             "automationNode",
           position: {
             x:
-              120,
+              visibleCenter.x -
+              100 +
+              cascadeOffset,
             y:
-              70 +
-              index *
-                120,
+              visibleCenter.y -
+              40 +
+              cascadeOffset,
           },
           data:
             createDefaultAutomationNodeData(
@@ -1309,74 +1376,6 @@ export default function AutomationFlowDialog({
               <Button
                 size="xs"
                 variant="light"
-                color="teal"
-                leftSection={
-                  <IconPlayerPlay
-                    size={15}
-                  />
-                }
-                loading={
-                  flowExecution.execution?.mode ===
-                  "test"
-                }
-                disabled={
-                  !activePage ||
-                  generatedTest.code.trim().startsWith(
-                    "//"
-                  ) ||
-                  flowExecution.execution !==
-                  null
-                }
-                onClick={
-                  () =>
-                    void flowExecution.runTest()
-                }
-              >
-                {
-                  t(
-                    "ui.flowTest",
-                    "TEST"
-                  )
-                }
-              </Button>
-
-              <Button
-                size="xs"
-                variant="light"
-                color="blue"
-                leftSection={
-                  <IconPlayerPlay
-                    size={15}
-                  />
-                }
-                loading={
-                  flowExecution.execution?.mode ===
-                  "run"
-                }
-                disabled={
-                  !activePage ||
-                  generated.code.trim().startsWith(
-                    "//"
-                  ) ||
-                  flowExecution.execution !==
-                  null
-                }
-                onClick={
-                  () =>
-                    void flowExecution.run()
-                }
-              >
-                {
-                  t(
-                    "ui.flowRun",
-                    "RUN"
-                  )
-                }
-              </Button>
-
-              <Button
-                size="xs"
-                variant="light"
                 color="red"
                 leftSection={
                   <IconPlayerStop
@@ -1422,6 +1421,31 @@ export default function AutomationFlowDialog({
                   )
                 }
               </Button>
+
+              <Tooltip
+                label={
+                  t(
+                    "ui.flowDeletePage",
+                    "Delete page"
+                  )
+                }
+              >
+                <ActionIcon
+                  color="red"
+                  variant="light"
+                  disabled={
+                    document.pages.length <=
+                    1
+                  }
+                  onClick={
+                    deleteActivePage
+                  }
+                >
+                  <IconTrash
+                    size={16}
+                  />
+                </ActionIcon>
+              </Tooltip>
             </Group>
 
             {activePage && (
@@ -1466,26 +1490,6 @@ export default function AutomationFlowDialog({
                   }
                 />
 
-                <Tooltip
-                  label={
-                    t(
-                      "ui.flowDeletePage",
-                      "Delete page"
-                    )
-                  }
-                >
-                  <ActionIcon
-                    color="red"
-                    variant="light"
-                    onClick={
-                      deleteActivePage
-                    }
-                  >
-                    <IconTrash
-                      size={16}
-                    />
-                  </ActionIcon>
-                </Tooltip>
               </Group>
             )}
           </Group>
@@ -1586,7 +1590,12 @@ export default function AutomationFlowDialog({
               }
             />
 
-            <div className="automation-flow-canvas">
+            <div
+              ref={
+                canvasRef
+              }
+              className="automation-flow-canvas"
+            >
               {activePage && (
                 <ReactFlow
                   key={
@@ -1600,6 +1609,12 @@ export default function AutomationFlowDialog({
                   }
                   nodeTypes={
                     automationFlowNodeTypes
+                  }
+                  onInit={
+                    instance => {
+                      flowInstanceRef.current =
+                        instance;
+                    }
                   }
                   onNodesChange={
                     onNodesChange

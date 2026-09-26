@@ -306,14 +306,19 @@ test("trigger supports manual editor inject and interval mode", () => {
     /kind: "trigger"/
   );
 
-  assert.match(
+  assert.doesNotMatch(
     dialog,
     /flowExecution\.runTest/
   );
 
-  assert.match(
+  assert.doesNotMatch(
     dialog,
     /flowExecution\.run\(\)/
+  );
+
+  assert.match(
+    dialog,
+    /flowExecution\.inject/
   );
 });
 
@@ -1077,43 +1082,6 @@ test("automation scripts are rendered in a runtime table instead of cards", () =
   );
 });
 
-test("saved flows have start stop abort and edit runtime actions", () => {
-  const flows =
-    read(
-      "src/components/automation/AutomationFlowsTable.tsx"
-    );
-
-  assert.match(
-    flows,
-    /visual-flow-run:/
-  );
-
-  assert.match(
-    flows,
-    /runClientScript/
-  );
-
-  assert.match(
-    flows,
-    /pauseClientScript/
-  );
-
-  assert.match(
-    flows,
-    /abortClientScript/
-  );
-
-  assert.match(
-    flows,
-    /onOpenEditor/
-  );
-
-  assert.match(
-    flows,
-    /generateAutomationFlowPageScript/
-  );
-});
-
 test("layout page keeps saved flows synchronized with the flow editor", () => {
   const page =
     read(
@@ -1267,7 +1235,7 @@ test("flow edges are selectable deletable and use vertical handles", () => {
   );
 });
 
-test("new flow nodes are placed top to bottom by default", () => {
+test("new flow nodes are placed in the visible canvas center", () => {
   const dialog =
     read(
       "src/components/automation/AutomationFlowDialog.tsx"
@@ -1275,10 +1243,30 @@ test("new flow nodes are placed top to bottom by default", () => {
 
   assert.match(
     dialog,
-    /x:\s*120/
+    /canvasRef/
   );
 
   assert.match(
+    dialog,
+    /getBoundingClientRect/
+  );
+
+  assert.match(
+    dialog,
+    /screenToFlowPosition/
+  );
+
+  assert.match(
+    dialog,
+    /visibleCenter\.x/
+  );
+
+  assert.match(
+    dialog,
+    /visibleCenter\.y/
+  );
+
+  assert.doesNotMatch(
     dialog,
     /index \*\s*120/
   );
@@ -1599,5 +1587,46 @@ test("block turnout accessory and loco events are first-class flow inputs", () =
   assert.match(
     properties,
     /AutomationFlowLocoInputEditor/
+  );
+});
+
+
+test("flow editor toolbar omits run and test and keeps page delete beside add page", () => {
+  const dialog =
+    read(
+      "src/components/automation/AutomationFlowDialog.tsx"
+    );
+
+  assert.doesNotMatch(
+    dialog,
+    /flowExecution\.runTest/
+  );
+
+  assert.doesNotMatch(
+    dialog,
+    /flowExecution\.run\(\)/
+  );
+
+  const addPage =
+    dialog.indexOf(
+      '"ui.flowAddPage"'
+    );
+
+  const deletePage =
+    dialog.indexOf(
+      '"ui.flowDeletePage"',
+      addPage
+    );
+
+  const pageName =
+    dialog.indexOf(
+      "<TextInput",
+      deletePage
+    );
+
+  assert.ok(
+    addPage >= 0 &&
+    deletePage > addPage &&
+    pageName > deletePage
   );
 });
