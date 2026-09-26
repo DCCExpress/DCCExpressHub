@@ -1053,5 +1053,6 @@
   "timetableDeleteAction": "Akció törlése",
   "timetableAddAction": "Akció hozzáadása",
   "timetableDeleteRow": "Sor törlése",
-  "timetableAddRow": "Új sor"
+  "timetableAddRow": "Új sor",
+  "timetableMissingMovement": "Hiányzó Movement"
 }
