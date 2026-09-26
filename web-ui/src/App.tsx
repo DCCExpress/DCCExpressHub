@@ -1423,6 +1423,19 @@ export default function App() {
             if (
               !data.granted
             ) {
+              setControlStationRequested(
+                false
+              );
+
+              try {
+                window.localStorage.setItem(
+                  CONTROL_STATION_ENABLED_KEY,
+                  "false"
+                );
+              } catch {
+                // Persistence is optional; backend ownership remains authoritative.
+              }
+
               showNotification({
                 color: "orange",
                 title:

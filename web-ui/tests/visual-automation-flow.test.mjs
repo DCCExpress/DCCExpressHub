@@ -1409,6 +1409,11 @@ test("control station ownership gates browser automation runtime", () => {
 
   assert.match(
     app,
+    /!data\.granted[\s\S]*setControlStationRequested\([\s\S]*false[\s\S]*CONTROL_STATION_ENABLED_KEY[\s\S]*"false"/
+  );
+
+  assert.match(
+    app,
     /useAutomationFlowRuntime\([\s\S]*automationFlow,[\s\S]*controlStationGranted/
   );
 
