@@ -215,9 +215,23 @@ export default function TimetablePanel({
   const firstRunnableTimetableMinute =
     useMemo(
       () => {
-        let earliest:
+        if (
+          fastClockMinute <
+          0
+        ) {
+          return null;
+        }
+
+        let earliestAbsoluteMinute:
           number | null =
           null;
+        let earliestMinuteOfDay:
+          number | null =
+          null;
+
+        const searchStartMs =
+          fastClockMinute *
+          MINUTE_MS;
 
         for (
           const entry of
@@ -266,8 +280,8 @@ export default function TimetablePanel({
           const firstOccurrence =
             enumerateTimetableCronOccurrences(
               entry.cron,
-              0,
-              24 * 60,
+              searchStartMs,
+              24 * 60 + 1,
               true
             )[0];
 
@@ -278,19 +292,22 @@ export default function TimetablePanel({
           }
 
           if (
-            earliest ===
+            earliestAbsoluteMinute ===
               null ||
-            firstOccurrence.minuteOfDay <
-              earliest
+            firstOccurrence.absoluteMinute <
+              earliestAbsoluteMinute
           ) {
-            earliest =
+            earliestAbsoluteMinute =
+              firstOccurrence.absoluteMinute;
+            earliestMinuteOfDay =
               firstOccurrence.minuteOfDay;
           }
         }
 
-        return earliest;
+        return earliestMinuteOfDay;
       },
       [
+        fastClockMinute,
         timetable,
         scripts,
         movements,
