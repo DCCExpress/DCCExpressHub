@@ -9,8 +9,14 @@ import {
 } from "@mantine/core";
 
 import {
+  IconChevronDown,
+  IconChevronRight,
   IconPlayerPlay,
 } from "@tabler/icons-react";
+
+import {
+  useState,
+} from "react";
 
 import {
   Handle,
@@ -461,6 +467,12 @@ export default function AutomationFlowNode({
   data,
   selected,
 }: AutomationNodeProps) {
+  const [
+    collapsed,
+    setCollapsed,
+  ] =
+    useState(false);
+
   const meta =
     NODE_META[
       data.kind
@@ -487,12 +499,20 @@ export default function AutomationFlowNode({
   return (
     <Card
       withBorder
-      p="sm"
+      p={0}
       radius="md"
       className={
-        isWide
-          ? "automation-flow-node automation-flow-node-smart"
-          : "automation-flow-node"
+        [
+          "automation-flow-node",
+          isWide
+            ? "automation-flow-node-smart"
+            : "",
+          collapsed
+            ? "automation-flow-node-collapsed"
+            : "",
+        ]
+          .filter(Boolean)
+          .join(" ")
       }
       style={{
         borderColor:
@@ -515,10 +535,52 @@ export default function AutomationFlowNode({
         />
       )}
 
-      <Stack gap={5}>
+      <div
+        className="automation-flow-node-header"
+        role="button"
+        tabIndex={0}
+        aria-expanded={
+          !collapsed
+        }
+        title={
+          collapsed
+            ? "Expand node"
+            : "Collapse node"
+        }
+        onClick={
+          event => {
+            event.stopPropagation();
+            setCollapsed(
+              current =>
+                !current
+            );
+          }
+        }
+        onKeyDown={
+          event => {
+            if (
+              event.key !==
+                "Enter" &&
+              event.key !==
+                " "
+            ) {
+              return;
+            }
+
+            event.preventDefault();
+            event.stopPropagation();
+
+            setCollapsed(
+              current =>
+                !current
+            );
+          }
+        }
+      >
         <Group
           gap={6}
           wrap="nowrap"
+          h="100%"
         >
           <Text
             size="lg"
@@ -593,41 +655,64 @@ export default function AutomationFlowNode({
                     : data.kind
             }
           </Badge>
+
+          <span className="automation-flow-node-collapse-icon">
+            {
+              collapsed
+                ? (
+                  <IconChevronRight
+                    size={14}
+                  />
+                )
+                : (
+                  <IconChevronDown
+                    size={14}
+                  />
+                )
+            }
+          </span>
         </Group>
+      </div>
 
-        <Text
-          size="xs"
-          c="dimmed"
-          truncate
+      {!collapsed && (
+        <Stack
+          gap={5}
+          className="automation-flow-node-body"
         >
-          {summary(data)}
-        </Text>
-
-        {data.kind ===
-          "smartDispatcher" &&
-          (
-            data.arrivalRules?.length ??
-            0
-          ) >
-            0 && (
           <Text
             size="xs"
-            c="violet"
+            c="dimmed"
+            truncate
           >
-            {
-              data.arrivalRules
-                ?.length
-            } arrival rule
-            {
-              data.arrivalRules
-                ?.length ===
-              1
-                ? ""
-                : "s"
-            }
+            {summary(data)}
           </Text>
-        )}
-      </Stack>
+
+          {data.kind ===
+            "smartDispatcher" &&
+            (
+              data.arrivalRules?.length ??
+              0
+            ) >
+              0 && (
+            <Text
+              size="xs"
+              c="violet"
+            >
+              {
+                data.arrivalRules
+                  ?.length
+              } arrival rule
+              {
+                data.arrivalRules
+                  ?.length ===
+                1
+                  ? ""
+                  : "s"
+              }
+            </Text>
+          )}
+        </Stack>
+      )}
 
       <Handle
         type="source"

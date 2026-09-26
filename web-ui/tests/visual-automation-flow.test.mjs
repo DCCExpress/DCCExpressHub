@@ -1768,3 +1768,76 @@ test("block output supports a fixed locomotive or payload locoAddress", () => {
     /data\.kind ===[\s\S]*"setBlock"[\s\S]*AutomationFlowLocoInputEditor/
   );
 });
+
+
+test("flow nodes have a dark clickable collapsible header", () => {
+  const node =
+    read(
+      "src/components/automation/AutomationFlowNode.tsx"
+    );
+
+  const css =
+    read(
+      "src/styles/automationFlow.css"
+    );
+
+  assert.match(
+    node,
+    /useState\(false\)/
+  );
+
+  assert.match(
+    node,
+    /automation-flow-node-header/
+  );
+
+  assert.match(
+    node,
+    /aria-expanded/
+  );
+
+  assert.match(
+    node,
+    /setCollapsed/
+  );
+
+  assert.match(
+    node,
+    /IconChevronRight/
+  );
+
+  assert.match(
+    node,
+    /IconChevronDown/
+  );
+
+  assert.match(
+    node,
+    /!collapsed &&/
+  );
+
+  assert.match(
+    node,
+    /dispatchAutomationFlowInject/
+  );
+
+  assert.match(
+    node,
+    /event\.stopPropagation\(\)/
+  );
+
+  assert.match(
+    css,
+    /\.automation-flow-node-header/
+  );
+
+  assert.match(
+    css,
+    /background:\s*rgba\(0, 0, 0, 0\.16\)/
+  );
+
+  assert.match(
+    css,
+    /\.automation-flow-node-collapsed/
+  );
+});
