@@ -64,7 +64,7 @@ function resourceColor(
     resource.kind ===
     "turnout"
   ) {
-    return "blue";
+    return "orange";
   }
 
   if (
@@ -74,7 +74,7 @@ function resourceColor(
     return "gray";
   }
 
-  return "violet";
+  return "pink";
 }
 
 function resourceBadge(
