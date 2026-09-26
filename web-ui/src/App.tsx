@@ -279,7 +279,7 @@ function AppHeader({
         <Switch
           size="sm"
           checked={
-            controlStationRequested
+            controlStationGranted
           }
           label="Control Station"
           onChange={
@@ -1421,6 +1421,25 @@ export default function App() {
             );
 
             if (
+              data.granted
+            ) {
+              setControlStationRequested(
+                true
+              );
+
+              try {
+                window.localStorage.setItem(
+                  CONTROL_STATION_ENABLED_KEY,
+                  "true"
+                );
+              } catch {
+                // Persistence is optional; backend ownership remains authoritative.
+              }
+
+              return;
+            }
+
+            if (
               !data.granted
             ) {
               setControlStationRequested(
@@ -1516,20 +1535,19 @@ export default function App() {
           requested
         );
 
-        try {
-          window.localStorage.setItem(
-            CONTROL_STATION_ENABLED_KEY,
-            requested
-              ? "true"
-              : "false"
-          );
-        } catch {
-          // Persistence is optional; backend ownership remains authoritative.
-        }
-
         if (
           !requested
         ) {
+          try {
+            window.localStorage.setItem(
+              CONTROL_STATION_ENABLED_KEY,
+              "false"
+            );
+          } catch {
+            // Persistence is optional; backend ownership remains authoritative.
+          }
+
+
           setControlStationGranted(
             false
           );
