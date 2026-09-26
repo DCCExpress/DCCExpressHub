@@ -196,7 +196,7 @@ function MovementCard({
           >
             <Group
               gap="xs"
-              wrap="nowrap"
+              wrap="wrap"
             >
               <Text
                 fw={700}
