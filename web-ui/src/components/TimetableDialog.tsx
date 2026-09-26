@@ -7,6 +7,7 @@ import {
   Loader,
   NativeSelect,
   NumberInput,
+  Paper,
   ScrollArea,
   Select,
   Stack,
@@ -16,27 +17,49 @@ import {
   TextInput,
   Tooltip,
 } from "@mantine/core";
-import { showNotification } from "@mantine/notifications";
+
+import {
+  showNotification,
+} from "@mantine/notifications";
+
 import {
   IconAlertTriangle,
   IconDeviceFloppy,
   IconPlus,
   IconTrash,
 } from "@tabler/icons-react";
-import { useEffect, useMemo, useState } from "react";
+
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
+import {
+  useTranslation,
+} from "react-i18next";
 
 import AppModal from "@/components/common/AppModal";
-import { isValidTimetableCron } from "@/domain/timetableCron";
 
 import type {
   MovementPage,
 } from "@/domain/movement";
-export { isValidTimetableCron };
+
 import {
+  isValidTimetableCron,
+} from "@/domain/timetableCron";
+
+export {
+  isValidTimetableCron,
+};
+
+import {
+  createTimetableActionId,
   createTimetableEntryId,
   loadAutomationTimetable,
   saveAutomationTimetable,
   type AutomationScriptDefinition,
+  type TimetableActionDefinition,
   type TimetableEntryDefinition,
   type TimetableTargetType,
 } from "@/services/automationApi";
@@ -45,8 +68,10 @@ type TimetableDialogProps = {
   opened: boolean;
   onClose: () => void;
   onSaved?: () => void;
-  scripts: AutomationScriptDefinition[];
-  movements: MovementPage[];
+  scripts:
+    AutomationScriptDefinition[];
+  movements:
+    MovementPage[];
 };
 
 type ScheduleMode =
@@ -79,9 +104,14 @@ function parseCronEditor(
 
   if (exact) {
     const minute =
-      Number(exact[1]);
+      Number(
+        exact[1]
+      );
+
     const hour =
-      Number(exact[2]);
+      Number(
+        exact[2]
+      );
 
     if (
       minute >= 0 &&
@@ -90,11 +120,24 @@ function parseCronEditor(
       hour <= 23
     ) {
       return {
-        mode: "time",
+        mode:
+          "time",
         time:
-          `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
-        intervalMinutes: 5,
-        cron: value,
+          `${String(
+            hour
+          ).padStart(
+            2,
+            "0"
+          )}:${String(
+            minute
+          ).padStart(
+            2,
+            "0"
+          )}`,
+        intervalMinutes:
+          5,
+        cron:
+          value,
       };
     }
   }
@@ -106,32 +149,44 @@ function parseCronEditor(
 
   if (interval) {
     const intervalMinutes =
-      Number(interval[1]);
+      Number(
+        interval[1]
+      );
 
     if (
-      intervalMinutes >= 1 &&
-      intervalMinutes <= 59
+      intervalMinutes >=
+        1 &&
+      intervalMinutes <=
+        59
     ) {
       return {
-        mode: "interval",
-        time: "08:00",
+        mode:
+          "interval",
+        time:
+          "08:00",
         intervalMinutes,
-        cron: value,
+        cron:
+          value,
       };
     }
   }
 
   return {
-    mode: "cron",
-    time: "08:00",
-    intervalMinutes: 5,
+    mode:
+      "cron",
+    time:
+      "08:00",
+    intervalMinutes:
+      5,
     cron:
-      value || "*/5 *",
+      value ||
+      "*/5 *",
   };
 }
 
 function cronFromEditor(
-  editor: EditorSchedule
+  editor:
+    EditorSchedule
 ): string {
   if (
     editor.mode ===
@@ -147,32 +202,76 @@ function cronFromEditor(
     }
 
     const hour =
-      Number(match[1]);
-    const minute =
-      Number(match[2]);
+      Number(
+        match[1]
+      );
 
-    return `${minute} ${hour}`;
+    const minute =
+      Number(
+        match[2]
+      );
+
+    return (
+      `${minute} ${hour}`
+    );
   }
 
   if (
     editor.mode ===
     "interval"
   ) {
-    return `*/${Math.trunc(editor.intervalMinutes)} *`;
+    return (
+      `*/${Math.trunc(
+        editor.intervalMinutes
+      )} *`
+    );
   }
 
   return editor.cron.trim();
 }
 
 function toEditorRow(
-  entry: TimetableEntryDefinition
+  entry:
+    TimetableEntryDefinition
 ): EditorRow {
   return {
     ...entry,
+    actions:
+      entry.actions.map(
+        action => ({
+          ...action,
+        })
+      ),
     editor:
       parseCronEditor(
         entry.cron
       ),
+  };
+}
+
+function createDefaultAction(
+  scripts:
+    AutomationScriptDefinition[],
+  movements:
+    MovementPage[]
+): TimetableActionDefinition {
+  const targetType:
+    TimetableTargetType =
+    scripts.length > 0
+      ? "script"
+      : "movement";
+
+  return {
+    id:
+      createTimetableActionId(),
+    targetType,
+    targetId:
+      targetType ===
+        "script"
+        ? scripts[0]?.id ??
+          ""
+        : movements[0]?.id ??
+          "",
   };
 }
 
@@ -182,30 +281,28 @@ function createEditorRow(
   movements:
     MovementPage[]
 ): EditorRow {
-  const targetType:
-    TimetableTargetType =
-    scripts.length > 0
-      ? "script"
-      : "movement";
-
   return {
     id:
       createTimetableEntryId(),
-    enabled: true,
-    targetType,
-    targetId:
-      targetType ===
-        "script"
-        ? scripts[0]?.id ??
-          ""
-        : movements[0]?.id ??
-          "",
-    cron: "0 8",
+    enabled:
+      true,
+    actions: [
+      createDefaultAction(
+        scripts,
+        movements
+      ),
+    ],
+    cron:
+      "0 8",
     editor: {
-      mode: "time",
-      time: "08:00",
-      intervalMinutes: 5,
-      cron: "0 8",
+      mode:
+        "time",
+      time:
+        "08:00",
+      intervalMinutes:
+        5,
+      cron:
+        "0 8",
     },
   };
 }
@@ -217,14 +314,44 @@ export default function TimetableDialog({
   scripts,
   movements,
 }: TimetableDialogProps) {
-  const [rows, setRows] =
-    useState<EditorRow[]>([]);
-  const [loading, setLoading] =
-    useState(false);
-  const [saving, setSaving] =
-    useState(false);
-  const [loadError, setLoadError] =
-    useState<string | null>(null);
+  const {
+    t,
+  } =
+    useTranslation();
+
+  const [
+    rows,
+    setRows,
+  ] =
+    useState<
+      EditorRow[]
+    >([]);
+
+  const [
+    loading,
+    setLoading,
+  ] =
+    useState(
+      false
+    );
+
+  const [
+    saving,
+    setSaving,
+  ] =
+    useState(
+      false
+    );
+
+  const [
+    loadError,
+    setLoadError,
+  ] =
+    useState<
+      string | null
+    >(
+      null
+    );
 
   const scriptOptions =
     useMemo(
@@ -237,9 +364,10 @@ export default function TimetableDialog({
               script.name,
           })
         ),
-      [scripts]
+      [
+        scripts,
+      ]
     );
-
 
   const movementOptions =
     useMemo(
@@ -266,73 +394,198 @@ export default function TimetableDialog({
       let cancelled =
         false;
 
-      setLoading(true);
-      setLoadError(null);
+      setLoading(
+        true
+      );
+
+      setLoadError(
+        null
+      );
 
       void loadAutomationTimetable()
-        .then(entries => {
-          if (cancelled) {
-            return;
-          }
+        .then(
+          entries => {
+            if (
+              cancelled
+            ) {
+              return;
+            }
 
-          setRows(
-            entries.map(
-              toEditorRow
-            )
-          );
-        })
-        .catch(error => {
-          if (cancelled) {
-            return;
+            setRows(
+              entries.map(
+                toEditorRow
+              )
+            );
           }
+        )
+        .catch(
+          error => {
+            if (
+              cancelled
+            ) {
+              return;
+            }
 
-          setLoadError(
-            error instanceof Error
-              ? error.message
-              : String(error)
-          );
-        })
-        .finally(() => {
-          if (!cancelled) {
-            setLoading(false);
+            setLoadError(
+              error instanceof
+                Error
+                ? error.message
+                : String(
+                    error
+                  )
+            );
           }
-        });
+        )
+        .finally(
+          () => {
+            if (
+              !cancelled
+            ) {
+              setLoading(
+                false
+              );
+            }
+          }
+        );
 
       return () => {
-        cancelled = true;
+        cancelled =
+          true;
       };
     },
-    [opened]
+    [
+      opened,
+    ]
   );
 
-  const updateRow = (
-    id: string,
-    update: (
-      row: EditorRow
-    ) => EditorRow
-  ): void => {
-    setRows(
-      current =>
-        current.map(
-          row =>
-            row.id === id
-              ? update(row)
-              : row
-        )
-    );
-  };
+  const updateRow =
+    (
+      id: string,
+      update:
+        (
+          row:
+            EditorRow
+        ) => EditorRow
+    ): void => {
+      setRows(
+        current =>
+          current.map(
+            row =>
+              row.id ===
+              id
+                ? update(
+                    row
+                  )
+                : row
+          )
+      );
+    };
 
-  const deleteRow = (
-    id: string
-  ): void => {
-    setRows(
-      current =>
-        current.filter(
-          row =>
-            row.id !== id
+  const addAction =
+    (
+      rowId:
+        string
+    ): void => {
+      updateRow(
+        rowId,
+        row => ({
+          ...row,
+          actions: [
+            ...row.actions,
+            createDefaultAction(
+              scripts,
+              movements
+            ),
+          ],
+        })
+      );
+    };
+
+  const updateAction =
+    (
+      rowId:
+        string,
+      actionId:
+        string,
+      update:
+        (
+          action:
+            TimetableActionDefinition
+        ) =>
+          TimetableActionDefinition
+    ): void => {
+      updateRow(
+        rowId,
+        row => ({
+          ...row,
+          actions:
+            row.actions.map(
+              action =>
+                action.id ===
+                actionId
+                  ? update(
+                      action
+                    )
+                  : action
+            ),
+        })
+      );
+    };
+
+  const deleteAction =
+    (
+      rowId:
+        string,
+      actionId:
+        string
+    ): void => {
+      if (
+        !window.confirm(
+          t(
+            "ui.timetableDeleteActionConfirm"
+          )
         )
-    );
-  };
+      ) {
+        return;
+      }
+
+      updateRow(
+        rowId,
+        row => ({
+          ...row,
+          actions:
+            row.actions.filter(
+              action =>
+                action.id !==
+                actionId
+            ),
+        })
+      );
+    };
+
+  const deleteRow =
+    (
+      id: string
+    ): void => {
+      if (
+        !window.confirm(
+          t(
+            "ui.timetableDeleteRowConfirm"
+          )
+        )
+      ) {
+        return;
+      }
+
+      setRows(
+        current =>
+          current.filter(
+            row =>
+              row.id !==
+              id
+          )
+      );
+    };
 
   const persist =
     async (): Promise<void> => {
@@ -344,10 +597,12 @@ export default function TimetableDialog({
               row.id,
             enabled:
               row.enabled,
-            targetType:
-              row.targetType,
-            targetId:
-              row.targetId,
+            actions:
+              row.actions.map(
+                action => ({
+                  ...action,
+                })
+              ),
             cron:
               cronFromEditor(
                 row.editor
@@ -363,46 +618,95 @@ export default function TimetableDialog({
             )
         );
 
-      if (invalidCron) {
+      if (
+        invalidCron
+      ) {
         showNotification({
-          color: "red",
+          color:
+            "red",
           title:
-            "Hibás menetrendi időzítés",
+            t(
+              "ui.timetableInvalidScheduleTitle"
+            ),
           message:
-            "A cron formátum két mezőből áll: PERC ÓRA. Például: */5 * vagy 15 8.",
+            t(
+              "ui.timetableInvalidScheduleMessage"
+            ),
         });
+
         return;
       }
 
-      const invalidTarget =
+      const emptyEntry =
         normalized.find(
           entry =>
-            entry.targetType ===
-              "movement"
-              ? !movements.some(
-                  movement =>
-                    movement.id ===
-                    entry.targetId
-                )
-              : !scripts.some(
-                  script =>
-                    script.id ===
-                    entry.targetId
-                )
+            entry.actions.length ===
+            0
         );
 
-      if (invalidTarget) {
+      if (
+        emptyEntry
+      ) {
         showNotification({
-          color: "red",
+          color:
+            "red",
           title:
-            "Hiányzó menetrendi cél",
+            t(
+              "ui.timetableMissingActionTitle"
+            ),
           message:
-            "Minden menetrendi sorhoz válassz létező scriptet vagy Movementet.",
+            t(
+              "ui.timetableMissingActionMessage"
+            ),
         });
+
         return;
       }
 
-      setSaving(true);
+      const invalidAction =
+        normalized
+          .flatMap(
+            entry =>
+              entry.actions
+          )
+          .find(
+            action =>
+              action.targetType ===
+                "movement"
+                ? !movements.some(
+                    movement =>
+                      movement.id ===
+                      action.targetId
+                  )
+                : !scripts.some(
+                    script =>
+                      script.id ===
+                      action.targetId
+                  )
+          );
+
+      if (
+        invalidAction
+      ) {
+        showNotification({
+          color:
+            "red",
+          title:
+            t(
+              "ui.timetableMissingTargetTitle"
+            ),
+          message:
+            t(
+              "ui.timetableMissingTargetMessage"
+            ),
+        });
+
+        return;
+      }
+
+      setSaving(
+        true
+      );
 
       try {
         await saveAutomationTimetable(
@@ -418,407 +722,679 @@ export default function TimetableDialog({
         onSaved?.();
 
         showNotification({
-          color: "teal",
+          color:
+            "teal",
           title:
-            "Menetrend elmentve",
+            t(
+              "ui.timetableSavedTitle"
+            ),
           message:
-            `${normalized.length} sor mentve az automations.json fájlba.`,
+            t(
+              "ui.timetableSavedMessage",
+              {
+                count:
+                  normalized.length,
+              }
+            ),
         });
       } catch (error) {
         showNotification({
-          color: "red",
+          color:
+            "red",
           title:
-            "Menetrend mentési hiba",
+            t(
+              "ui.timetableSaveFailedTitle"
+            ),
           message:
-            error instanceof Error
+            error instanceof
+              Error
               ? error.message
-              : String(error),
+              : String(
+                  error
+                ),
         });
       } finally {
-        setSaving(false);
+        setSaving(
+          false
+        );
       }
     };
 
   return (
     <AppModal
-      opened={opened}
-      onClose={onClose}
-      title="Menetrend"
+      opened={
+        opened
+      }
+      onClose={
+        onClose
+      }
+      title={
+        t(
+          "ui.timetable"
+        )
+      }
       size="xl"
       centered
       draggable
-      closeOnClickOutside={!saving}
-      closeOnEscape={!saving}
+      closeOnClickOutside={
+        !saving
+      }
+      closeOnEscape={
+        !saving
+      }
     >
-      <Stack gap="sm">
+      <Stack
+        gap="sm"
+      >
         <Alert
           color="blue"
           variant="light"
         >
-          <Text size="sm">
-            Az időzítés FastClock-alapú, kétmezős cron formátumot használ: <Code>PERC ÓRA</Code>.
-            Példák: <Code>*/5 *</Code> = minden 5. percben, <Code>15 8</Code> = 08:15-kor.
-            A menetrendi sor célja lehet automation script vagy Movement; a FastClock a megadott időpontban automatikusan elindítja a kiválasztott célt.
+          <Text
+            size="sm"
+          >
+            {
+              t(
+                "ui.timetableEditorDescription"
+              )
+            }{" "}
+            <Code>
+              {
+                t(
+                  "ui.timetableCronFields"
+                )
+              }
+            </Code>
           </Text>
         </Alert>
 
-        {loadError && (
-          <Alert
-            color="red"
-            icon={
-              <IconAlertTriangle
-                size={18}
-              />
-            }
-          >
-            {loadError}
-          </Alert>
-        )}
-
-        {scripts.length === 0 &&
-          movements.length === 0 && (
-          <Alert color="yellow">
-            Előbb hozz létre legalább egy automation scriptet vagy Movementet, hogy menetrendi sort lehessen hozzá rendelni.
-          </Alert>
-        )}
-
-        {loading ? (
-          <Group
-            justify="center"
-            p="xl"
-          >
-            <Loader />
-          </Group>
-        ) : (
-          <ScrollArea
-            type="auto"
-            offsetScrollbars
-          >
-            <Table
-              striped
-              highlightOnHover
-              withTableBorder
-              withColumnBorders
-              miw={1180}
-              verticalSpacing="xs"
+        {
+          loadError && (
+            <Alert
+              color="red"
+              icon={
+                <IconAlertTriangle
+                  size={18}
+                />
+              }
             >
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th w={90}>Enable</Table.Th>
-                  <Table.Th w={150}>Időzítés típusa</Table.Th>
-                  <Table.Th w={235}>Időzítés</Table.Th>
-                  <Table.Th w={135}>Cél típusa</Table.Th>
-                  <Table.Th>Cél</Table.Th>
-                  <Table.Th w={52}></Table.Th>
-                </Table.Tr>
-              </Table.Thead>
+              {
+                loadError
+              }
+            </Alert>
+          )
+        }
 
-              <Table.Tbody>
-                {rows.length === 0 ? (
-                  <Table.Tr>
-                    <Table.Td colSpan={6}>
-                      <Text
-                        ta="center"
-                        c="dimmed"
-                        py="md"
+        {
+          scripts.length ===
+            0 &&
+          movements.length ===
+            0 && (
+            <Alert
+              color="yellow"
+            >
+              {
+                t(
+                  "ui.timetableNoTargets"
+                )
+              }
+            </Alert>
+          )
+        }
+
+        {
+          loading
+            ? (
+              <Group
+                justify="center"
+                p="xl"
+              >
+                <Loader />
+              </Group>
+            )
+            : (
+              <ScrollArea
+                type="auto"
+                offsetScrollbars
+              >
+                <Table
+                  striped
+                  highlightOnHover
+                  withTableBorder
+                  withColumnBorders
+                  miw={1100}
+                  verticalSpacing="xs"
+                >
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th
+                        w={90}
                       >
-                        Nincs még menetrendi sor.
-                      </Text>
-                    </Table.Td>
-                  </Table.Tr>
-                ) : rows.map(
-                  row => {
-                    const resolvedCron =
-                      cronFromEditor(
-                        row.editor
-                      );
+                        {
+                          t(
+                            "ui.enabled"
+                          )
+                        }
+                      </Table.Th>
 
-                    const cronValid =
-                      isValidTimetableCron(
-                        resolvedCron
-                      );
-
-                    return (
-                      <Table.Tr
-                        key={row.id}
+                      <Table.Th
+                        w={155}
                       >
-                        <Table.Td>
-                          <Switch
-                            checked={
-                              row.enabled
-                            }
-                            onChange={
-                              event =>
-                                updateRow(
-                                  row.id,
-                                  current => ({
-                                    ...current,
-                                    enabled:
-                                      event.currentTarget.checked,
-                                  })
-                                )
-                            }
-                          />
-                        </Table.Td>
+                        {
+                          t(
+                            "ui.timetableScheduleType"
+                          )
+                        }
+                      </Table.Th>
 
-                        <Table.Td>
-                          <NativeSelect
-                            size="xs"
-                            value={
-                              row.editor.mode
-                            }
-                            data={[
-                              {
-                                value: "time",
-                                label: "Időpont",
-                              },
-                              {
-                                value: "interval",
-                                label: "Minden N perc",
-                              },
-                              {
-                                value: "cron",
-                                label: "Cron",
-                              },
-                            ]}
-                            onChange={
-                              event => {
-                                const mode =
-                                  event.currentTarget.value as ScheduleMode;
+                      <Table.Th
+                        w={235}
+                      >
+                        {
+                          t(
+                            "ui.timetableSchedule"
+                          )
+                        }
+                      </Table.Th>
 
-                                updateRow(
-                                  row.id,
-                                  current => ({
-                                    ...current,
-                                    editor: {
-                                      ...current.editor,
-                                      mode,
-                                    },
-                                  })
-                                );
-                              }
-                            }
-                          />
-                        </Table.Td>
+                      <Table.Th>
+                        {
+                          t(
+                            "ui.timetableActions"
+                          )
+                        }
+                      </Table.Th>
 
-                        <Table.Td>
-                          {row.editor.mode === "time" ? (
-                            <Stack gap={3}>
-                              <TextInput
-                                size="xs"
-                                type="time"
-                                value={
-                                  row.editor.time
-                                }
-                                onChange={
-                                  event =>
-                                    updateRow(
-                                      row.id,
-                                      current => ({
-                                        ...current,
-                                        editor: {
-                                          ...current.editor,
-                                          time:
-                                            event.currentTarget.value,
-                                        },
-                                      })
-                                    )
-                                }
-                              />
-                              <Text
-                                size="xs"
-                                c="dimmed"
-                              >
-                                cron: <Code>{resolvedCron || "—"}</Code>
-                              </Text>
-                            </Stack>
-                          ) : row.editor.mode === "interval" ? (
-                            <Stack gap={3}>
-                              <NumberInput
-                                size="xs"
-                                min={1}
-                                max={59}
-                                allowDecimal={false}
-                                value={
-                                  row.editor.intervalMinutes
-                                }
-                                suffix=" perc"
-                                onChange={
-                                  value =>
-                                    updateRow(
-                                      row.id,
-                                      current => ({
-                                        ...current,
-                                        editor: {
-                                          ...current.editor,
-                                          intervalMinutes:
-                                            typeof value === "number"
-                                              ? value
-                                              : Number(value) || 1,
-                                        },
-                                      })
-                                    )
-                                }
-                              />
-                              <Text
-                                size="xs"
-                                c="dimmed"
-                              >
-                                cron: <Code>{resolvedCron}</Code>
-                              </Text>
-                            </Stack>
-                          ) : (
-                            <TextInput
-                              size="xs"
-                              value={
-                                row.editor.cron
-                              }
-                              error={
-                                cronValid
-                                  ? undefined
-                                  : "PERC ÓRA"
-                              }
-                              placeholder="*/5 *"
-                              onChange={
-                                event =>
-                                  updateRow(
-                                    row.id,
-                                    current => ({
-                                      ...current,
-                                      editor: {
-                                        ...current.editor,
-                                        cron:
-                                          event.currentTarget.value,
-                                      },
-                                    })
-                                  )
-                              }
-                            />
-                          )}
-                        </Table.Td>
+                      <Table.Th
+                        w={52}
+                      />
+                    </Table.Tr>
+                  </Table.Thead>
 
-                        <Table.Td>
-                          <Select
-                            size="xs"
-                            clearable={
-                              false
-                            }
-                            searchable={
-                              false
-                            }
-                            data={[
-                              {
-                                value:
-                                  "script",
-                                label:
-                                  "Script",
-                              },
-                              {
-                                value:
-                                  "movement",
-                                label:
-                                  "Movement",
-                              },
-                            ]}
-                            value={
-                              row.targetType
-                            }
-                            onChange={
-                              value => {
-                                const targetType =
-                                  (
-                                    value ===
-                                    "movement"
-                                      ? "movement"
-                                      : "script"
-                                  ) as TimetableTargetType;
-
-                                updateRow(
-                                  row.id,
-                                  current => ({
-                                    ...current,
-                                    targetType,
-                                    targetId:
-                                      targetType ===
-                                        "movement"
-                                        ? movements[0]?.id ??
-                                          ""
-                                        : scripts[0]?.id ??
-                                          "",
-                                  })
-                                );
-                              }
-                            }
-                          />
-                        </Table.Td>
-
-                        <Table.Td>
-                          <Select
-                            size="xs"
-                            searchable
-                            clearable={
-                              false
-                            }
-                            data={
-                              row.targetType ===
-                                "movement"
-                                ? movementOptions
-                                : scriptOptions
-                            }
-                            value={
-                              row.targetId ||
-                              null
-                            }
-                            placeholder={
-                              row.targetType ===
-                                "movement"
-                                ? "Válassz Movementet"
-                                : "Válassz scriptet"
-                            }
-                            onChange={
-                              value =>
-                                updateRow(
-                                  row.id,
-                                  current => ({
-                                    ...current,
-                                    targetId:
-                                      value ??
-                                      "",
-                                  })
-                                )
-                            }
-                          />
-                        </Table.Td>
-
-                        <Table.Td>
-                          <Tooltip
-                            label="Sor törlése"
-                          >
-                            <ActionIcon
-                              color="red"
-                              variant="light"
-                              onClick={
-                                () =>
-                                  deleteRow(
-                                    row.id
-                                  )
-                              }
-                              aria-label="Sor törlése"
+                  <Table.Tbody>
+                    {
+                      rows.length ===
+                        0
+                        ? (
+                          <Table.Tr>
+                            <Table.Td
+                              colSpan={5}
                             >
-                              <IconTrash
-                                size={16}
-                              />
-                            </ActionIcon>
-                          </Tooltip>
-                        </Table.Td>
-                      </Table.Tr>
-                    );
-                  }
-                )}
-              </Table.Tbody>
-            </Table>
-          </ScrollArea>
-        )}
+                              <Text
+                                ta="center"
+                                c="dimmed"
+                                py="md"
+                              >
+                                {
+                                  t(
+                                    "ui.timetableNoRows"
+                                  )
+                                }
+                              </Text>
+                            </Table.Td>
+                          </Table.Tr>
+                        )
+                        : rows.map(
+                          row => {
+                            const resolvedCron =
+                              cronFromEditor(
+                                row.editor
+                              );
+
+                            const cronValid =
+                              isValidTimetableCron(
+                                resolvedCron
+                              );
+
+                            return (
+                              <Table.Tr
+                                key={
+                                  row.id
+                                }
+                              >
+                                <Table.Td>
+                                  <Switch
+                                    checked={
+                                      row.enabled
+                                    }
+                                    onChange={
+                                      event =>
+                                        updateRow(
+                                          row.id,
+                                          current => ({
+                                            ...current,
+                                            enabled:
+                                              event.currentTarget.checked,
+                                          })
+                                        )
+                                    }
+                                  />
+                                </Table.Td>
+
+                                <Table.Td>
+                                  <NativeSelect
+                                    size="xs"
+                                    value={
+                                      row.editor.mode
+                                    }
+                                    data={[
+                                      {
+                                        value:
+                                          "time",
+                                        label:
+                                          t(
+                                            "ui.timetableExactTime"
+                                          ),
+                                      },
+                                      {
+                                        value:
+                                          "interval",
+                                        label:
+                                          t(
+                                            "ui.timetableEveryNMinutes"
+                                          ),
+                                      },
+                                      {
+                                        value:
+                                          "cron",
+                                        label:
+                                          "Cron",
+                                      },
+                                    ]}
+                                    onChange={
+                                      event => {
+                                        const mode =
+                                          event.currentTarget.value as
+                                            ScheduleMode;
+
+                                        updateRow(
+                                          row.id,
+                                          current => ({
+                                            ...current,
+                                            editor: {
+                                              ...current.editor,
+                                              mode,
+                                            },
+                                          })
+                                        );
+                                      }
+                                    }
+                                  />
+                                </Table.Td>
+
+                                <Table.Td>
+                                  {
+                                    row.editor.mode ===
+                                      "time"
+                                      ? (
+                                        <Stack
+                                          gap={3}
+                                        >
+                                          <TextInput
+                                            size="xs"
+                                            type="time"
+                                            value={
+                                              row.editor.time
+                                            }
+                                            onChange={
+                                              event =>
+                                                updateRow(
+                                                  row.id,
+                                                  current => ({
+                                                    ...current,
+                                                    editor: {
+                                                      ...current.editor,
+                                                      time:
+                                                        event.currentTarget.value,
+                                                    },
+                                                  })
+                                                )
+                                            }
+                                          />
+
+                                          <Text
+                                            size="xs"
+                                            c="dimmed"
+                                          >
+                                            cron:{" "}
+                                            <Code>
+                                              {
+                                                resolvedCron ||
+                                                "—"
+                                              }
+                                            </Code>
+                                          </Text>
+                                        </Stack>
+                                      )
+                                      : row.editor.mode ===
+                                          "interval"
+                                        ? (
+                                          <Stack
+                                            gap={3}
+                                          >
+                                            <NumberInput
+                                              size="xs"
+                                              min={1}
+                                              max={59}
+                                              allowDecimal={
+                                                false
+                                              }
+                                              value={
+                                                row.editor.intervalMinutes
+                                              }
+                                              suffix={
+                                                ` ${t(
+                                                  "ui.minutesShort"
+                                                )}`
+                                              }
+                                              onChange={
+                                                value =>
+                                                  updateRow(
+                                                    row.id,
+                                                    current => ({
+                                                      ...current,
+                                                      editor: {
+                                                        ...current.editor,
+                                                        intervalMinutes:
+                                                          typeof value ===
+                                                            "number"
+                                                            ? value
+                                                            : Number(
+                                                                value
+                                                              ) ||
+                                                              1,
+                                                      },
+                                                    })
+                                                  )
+                                              }
+                                            />
+
+                                            <Text
+                                              size="xs"
+                                              c="dimmed"
+                                            >
+                                              cron:{" "}
+                                              <Code>
+                                                {
+                                                  resolvedCron
+                                                }
+                                              </Code>
+                                            </Text>
+                                          </Stack>
+                                        )
+                                        : (
+                                          <TextInput
+                                            size="xs"
+                                            value={
+                                              row.editor.cron
+                                            }
+                                            error={
+                                              cronValid
+                                                ? undefined
+                                                : t(
+                                                    "ui.timetableCronFields"
+                                                  )
+                                            }
+                                            placeholder="*/5 *"
+                                            onChange={
+                                              event =>
+                                                updateRow(
+                                                  row.id,
+                                                  current => ({
+                                                    ...current,
+                                                    editor: {
+                                                      ...current.editor,
+                                                      cron:
+                                                        event.currentTarget.value,
+                                                    },
+                                                  })
+                                                )
+                                            }
+                                          />
+                                        )
+                                  }
+                                </Table.Td>
+
+                                <Table.Td>
+                                  <Stack
+                                    gap="xs"
+                                  >
+                                    {
+                                      row.actions.map(
+                                        (
+                                          action,
+                                          actionIndex
+                                        ) => (
+                                          <Paper
+                                            key={
+                                              action.id
+                                            }
+                                            withBorder
+                                            p="xs"
+                                            radius="sm"
+                                          >
+                                            <Group
+                                              gap="xs"
+                                              align="flex-end"
+                                              wrap="nowrap"
+                                            >
+                                              <Select
+                                                size="xs"
+                                                label={
+                                                  `${t(
+                                                    "ui.timetableAction"
+                                                  )} ${actionIndex + 1}`
+                                                }
+                                                clearable={
+                                                  false
+                                                }
+                                                searchable={
+                                                  false
+                                                }
+                                                data={[
+                                                  {
+                                                    value:
+                                                      "script",
+                                                    label:
+                                                      t(
+                                                        "ui.script"
+                                                      ),
+                                                  },
+                                                  {
+                                                    value:
+                                                      "movement",
+                                                    label:
+                                                      "Movement",
+                                                  },
+                                                ]}
+                                                value={
+                                                  action.targetType
+                                                }
+                                                onChange={
+                                                  value => {
+                                                    const targetType =
+                                                      (
+                                                        value ===
+                                                        "movement"
+                                                          ? "movement"
+                                                          : "script"
+                                                      ) as
+                                                        TimetableTargetType;
+
+                                                    updateAction(
+                                                      row.id,
+                                                      action.id,
+                                                      current => ({
+                                                        ...current,
+                                                        targetType,
+                                                        targetId:
+                                                          targetType ===
+                                                            "movement"
+                                                            ? movements[0]?.id ??
+                                                              ""
+                                                            : scripts[0]?.id ??
+                                                              "",
+                                                      })
+                                                    );
+                                                  }
+                                                }
+                                                w={135}
+                                              />
+
+                                              <Select
+                                                size="xs"
+                                                label={
+                                                  t(
+                                                    "ui.timetableTarget"
+                                                  )
+                                                }
+                                                searchable
+                                                clearable={
+                                                  false
+                                                }
+                                                data={
+                                                  action.targetType ===
+                                                    "movement"
+                                                    ? movementOptions
+                                                    : scriptOptions
+                                                }
+                                                value={
+                                                  action.targetId ||
+                                                  null
+                                                }
+                                                placeholder={
+                                                  action.targetType ===
+                                                    "movement"
+                                                    ? t(
+                                                        "ui.timetableSelectMovement"
+                                                      )
+                                                    : t(
+                                                        "ui.timetableSelectScript"
+                                                      )
+                                                }
+                                                onChange={
+                                                  value =>
+                                                    updateAction(
+                                                      row.id,
+                                                      action.id,
+                                                      current => ({
+                                                        ...current,
+                                                        targetId:
+                                                          value ??
+                                                          "",
+                                                      })
+                                                    )
+                                                }
+                                                style={{
+                                                  flex:
+                                                    1,
+                                                }}
+                                              />
+
+                                              <Tooltip
+                                                label={
+                                                  t(
+                                                    "ui.timetableDeleteAction"
+                                                  )
+                                                }
+                                              >
+                                                <ActionIcon
+                                                  color="red"
+                                                  variant="light"
+                                                  mb={1}
+                                                  aria-label={
+                                                    t(
+                                                      "ui.timetableDeleteAction"
+                                                    )
+                                                  }
+                                                  onClick={
+                                                    () =>
+                                                      deleteAction(
+                                                        row.id,
+                                                        action.id
+                                                      )
+                                                  }
+                                                >
+                                                  <IconTrash
+                                                    size={16}
+                                                  />
+                                                </ActionIcon>
+                                              </Tooltip>
+                                            </Group>
+                                          </Paper>
+                                        )
+                                      )
+                                    }
+
+                                    <Button
+                                      size="compact-xs"
+                                      variant="light"
+                                      leftSection={
+                                        <IconPlus
+                                          size={14}
+                                        />
+                                      }
+                                      disabled={
+                                        scripts.length ===
+                                          0 &&
+                                        movements.length ===
+                                          0
+                                      }
+                                      onClick={
+                                        () =>
+                                          addAction(
+                                            row.id
+                                          )
+                                      }
+                                    >
+                                      {
+                                        t(
+                                          "ui.timetableAddAction"
+                                        )
+                                      }
+                                    </Button>
+                                  </Stack>
+                                </Table.Td>
+
+                                <Table.Td>
+                                  <Tooltip
+                                    label={
+                                      t(
+                                        "ui.timetableDeleteRow"
+                                      )
+                                    }
+                                  >
+                                    <ActionIcon
+                                      color="red"
+                                      variant="light"
+                                      onClick={
+                                        () =>
+                                          deleteRow(
+                                            row.id
+                                          )
+                                      }
+                                      aria-label={
+                                        t(
+                                          "ui.timetableDeleteRow"
+                                        )
+                                      }
+                                    >
+                                      <IconTrash
+                                        size={16}
+                                      />
+                                    </ActionIcon>
+                                  </Tooltip>
+                                </Table.Td>
+                              </Table.Tr>
+                            );
+                          }
+                        )
+                    }
+                  </Table.Tbody>
+                </Table>
+              </ScrollArea>
+            )
+        }
 
         <Group
           justify="space-between"
@@ -835,8 +1411,10 @@ export default function TimetableDialog({
               loading ||
               saving ||
               (
-                scripts.length === 0 &&
-                movements.length === 0
+                scripts.length ===
+                  0 &&
+                movements.length ===
+                  0
               )
             }
             onClick={
@@ -852,16 +1430,30 @@ export default function TimetableDialog({
                 )
             }
           >
-            Új sor
+            {
+              t(
+                "ui.timetableAddRow"
+              )
+            }
           </Button>
 
-          <Group gap="xs">
+          <Group
+            gap="xs"
+          >
             <Button
               variant="default"
-              disabled={saving}
-              onClick={onClose}
+              disabled={
+                saving
+              }
+              onClick={
+                onClose
+              }
             >
-              Bezárás
+              {
+                t(
+                  "ui.close"
+                )
+              }
             </Button>
 
             <Button
@@ -870,13 +1462,18 @@ export default function TimetableDialog({
                   size={16}
                 />
               }
-              loading={saving}
+              loading={
+                saving
+              }
               disabled={
                 loading ||
                 (
-                  scripts.length === 0 &&
-                  movements.length === 0 &&
-                  rows.length > 0
+                  scripts.length ===
+                    0 &&
+                  movements.length ===
+                    0 &&
+                  rows.length >
+                    0
                 )
               }
               onClick={
@@ -885,7 +1482,11 @@ export default function TimetableDialog({
                 }
               }
             >
-              Mentés
+              {
+                t(
+                  "ui.save"
+                )
+              }
             </Button>
           </Group>
         </Group>
