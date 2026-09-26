@@ -959,9 +959,31 @@ export function buildMovementPlan(
             `Turnout ${fallbackAddress}`
           ),
         blockId: null,
-        sensorAddress: null,
+        sensorAddress:
+          elementId !==
+            null
+            ? trackAddresses.get(
+                elementId
+              ) ??
+              null
+            : null,
         nodeIndex,
-        detectors: [],
+        detectors:
+          elementId !==
+            null &&
+          (
+            trackAddresses.get(
+              elementId
+            ) ??
+            0
+          ) >
+            0
+            ? [
+                trackAddresses.get(
+                  elementId
+                )!,
+              ]
+            : [],
         turnoutStates,
       });
     }
