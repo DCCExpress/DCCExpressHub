@@ -52,6 +52,7 @@ type RawRouteEntry = {
 type RawGraphNode = {
   name: string;
   trackName?: string;
+  elementIds?: number[];
   detectors?: Array<{
     id: number;
     address: number;
@@ -146,6 +147,73 @@ function asPositiveInteger(
   )
     ? numeric
     : null;
+}
+
+function trackAddressMap(
+  layout:
+    SerializedLayoutDto
+): Map<number, number> {
+  const result =
+    new Map<
+      number,
+      number
+    >();
+
+  for (
+    const layer of
+    layout.layers ??
+    []
+  ) {
+    for (
+      const element of
+      layer.elements ??
+      []
+    ) {
+      const type =
+        String(
+          element.type ??
+          ""
+        );
+
+      if (
+        !type.startsWith(
+          "track"
+        ) ||
+        type ===
+          "tracksignal" ||
+        type ===
+          "tracksignal2" ||
+        type ===
+          "tracksignal3" ||
+        type ===
+          "tracksignal4"
+      ) {
+        continue;
+      }
+
+      const id =
+        asPositiveInteger(
+          element.id
+        );
+
+      const address =
+        asPositiveInteger(
+          element.address
+        );
+
+      if (
+        id !== null &&
+        address !== null
+      ) {
+        result.set(
+          id,
+          address
+        );
+      }
+    }
+  }
+
+  return result;
 }
 
 function blockSensorMap(
@@ -551,6 +619,11 @@ export function buildMovementPlan(
       layout
     );
 
+  const trackAddresses =
+    trackAddressMap(
+      layout
+    );
+
   const resources:
     MovementPlanResource[] =
     [];
@@ -644,21 +717,46 @@ export function buildMovementPlan(
       sensorAddress: null,
       nodeIndex,
       detectors:
-        (
-          node?.detectors ??
-          []
-        )
-          .map(
-            detector =>
-              detector.address
-          )
-          .filter(
-            address =>
-              Number.isInteger(
-                address
-              ) &&
-              address > 0
-          ),
+        [
+          ...new Set([
+            ...(
+              node?.detectors ??
+              []
+            )
+              .map(
+                detector =>
+                  detector.address
+              )
+              .filter(
+                address =>
+                  Number.isInteger(
+                    address
+                  ) &&
+                  address > 0
+              ),
+            ...(
+              node?.elementIds ??
+              []
+            )
+              .map(
+                elementId =>
+                  trackAddresses.get(
+                    elementId
+                  ) ??
+                  0
+              )
+              .filter(
+                address =>
+                  address > 0
+              ),
+          ]),
+        ].sort(
+          (
+            a,
+            b
+          ) =>
+            a - b
+        ),
       turnoutStates: [],
     });
 
