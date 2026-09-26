@@ -1243,18 +1243,36 @@ const __dccSmartReleaseReservation =
     try {
       await reservation.turnoutLease.release();
     } catch (error) {
-      console.error(
-        "[SmartDispatcher] turnout release failed",
-        error
+      __dccSmartLog(
+        "ERROR",
+        "reservation turnout release failed",
+        {
+          block:
+            reservation.block?.name ??
+            null,
+          error:
+            __dccSmartErrorText(
+              error
+            ),
+        }
       );
     }
 
     try {
       await reservation.blockLease.release();
     } catch (error) {
-      console.error(
-        "[SmartDispatcher] block release failed",
-        error
+      __dccSmartLog(
+        "ERROR",
+        "reservation block lease release failed",
+        {
+          block:
+            reservation.block?.name ??
+            null,
+          error:
+            __dccSmartErrorText(
+              error
+            ),
+        }
       );
     }
   };
@@ -2050,9 +2068,20 @@ const __dccSmartCleanup = async state => {
     try {
       await lease.release();
     } catch (error) {
-      console.error(
-        "[SmartDispatcher] current block release failed",
-        error
+      __dccSmartLog(
+        "ERROR",
+        "current block lease release failed during cleanup",
+        {
+          currentBlock:
+            state.route.blocks[
+              state.currentIndex
+            ]?.name ??
+            null,
+          error:
+            __dccSmartErrorText(
+              error
+            ),
+        }
       );
     }
   }

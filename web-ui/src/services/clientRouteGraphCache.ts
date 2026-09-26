@@ -703,7 +703,7 @@ function enumerateRouteVariantsForBlockPair(
                           state => [
                             state.address,
                             state.closed,
-                          ]
+                          ] as const
                         )
                       )
                     ),
@@ -761,7 +761,7 @@ function enumerateRouteVariantsForBlockPair(
                         state => [
                           state.address,
                           state.closed,
-                        ]
+                        ] as const
                       )
                     )
                   ),
