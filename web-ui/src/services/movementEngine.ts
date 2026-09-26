@@ -17,6 +17,10 @@ import {
 } from "./broadcastAudioRuntime";
 
 import {
+  updateAutomationMovementTiming,
+} from "./automationApi";
+
+import {
   clearOptimisticBlockTargetLoco,
   createBlockTargetLocoMarker,
   setOptimisticBlockTargetLoco,
@@ -55,6 +59,8 @@ export type MovementEngineState = {
   status:
     MovementEngineStatus;
   startedAt:
+    number | null;
+  stoppedAt:
     number | null;
   locoAddress:
     number | null;
@@ -184,6 +190,8 @@ const idleState =
       "idle",
     startedAt:
       null,
+    stoppedAt:
+      null,
     locoAddress:
       null,
     desiredSpeed:
@@ -197,6 +205,26 @@ const idleState =
     error:
       null,
   });
+
+async function persistMovementTiming(
+  pageId: string,
+  startedAt: number | null,
+  stoppedAt: number | null
+): Promise<void> {
+  try {
+    await updateAutomationMovementTiming(
+      pageId,
+      startedAt,
+      stoppedAt
+    );
+  } catch (error) {
+    console.error(
+      "[Movement] Could not persist run timing",
+      pageId,
+      error
+    );
+  }
+}
 
 function copyState(
   state:
@@ -3092,12 +3120,16 @@ export async function startMovement(
       ? "reverse"
       : "forward";
 
+  const startedAt =
+    Date.now();
+
   const state:
     MovementEngineState = {
     status:
       "running",
-    startedAt:
-      Date.now(),
+    startedAt,
+    stoppedAt:
+      null,
     locoAddress,
     desiredSpeed:
       page.speed,
@@ -3152,18 +3184,26 @@ export async function startMovement(
     state
   );
 
+  await persistMovementTiming(
+    page.id,
+    startedAt,
+    null
+  );
+
   try {
     await executeMovement(
       execution
     );
+
+    const stoppedAt =
+      Date.now();
 
     updateState(
       execution,
       {
         status:
           "idle",
-        startedAt:
-          null,
+        stoppedAt,
         desiredSpeed:
           0,
         currentResourceKey:
@@ -3175,6 +3215,12 @@ export async function startMovement(
         error:
           null,
       }
+    );
+
+    await persistMovementTiming(
+      page.id,
+      execution.state.startedAt,
+      stoppedAt
     );
   } catch (error) {
     execution.moving =
@@ -3194,13 +3240,15 @@ export async function startMovement(
     if (
       execution.cancelled
     ) {
+      const stoppedAt =
+        Date.now();
+
       updateState(
         execution,
         {
           status:
             "idle",
-          startedAt:
-            null,
+          stoppedAt,
           desiredSpeed:
             0,
           currentResourceKey:
@@ -3216,6 +3264,12 @@ export async function startMovement(
         }
       );
 
+      await persistMovementTiming(
+        page.id,
+        execution.state.startedAt,
+        stoppedAt
+      );
+
       return;
     }
 
@@ -3226,13 +3280,15 @@ export async function startMovement(
             error
           );
 
+    const stoppedAt =
+      Date.now();
+
     updateState(
       execution,
       {
         status:
           "error",
-        startedAt:
-          null,
+        stoppedAt,
         desiredSpeed:
           0,
         activeRouteResourceKey:
@@ -3242,6 +3298,12 @@ export async function startMovement(
         error:
           message,
       }
+    );
+
+    await persistMovementTiming(
+      page.id,
+      execution.state.startedAt,
+      stoppedAt
     );
 
     throw error;
