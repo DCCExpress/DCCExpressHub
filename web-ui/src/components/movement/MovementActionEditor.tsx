@@ -330,16 +330,65 @@ export default function MovementActionEditor({
             actionId
         );
 
-      const toIndex =
+      const current =
+        actions[
+          fromIndex
+        ];
+
+      if (
+        !current
+      ) {
+        return;
+      }
+
+      const sameWhenIndexes =
+        actions
+          .map(
+            (
+              action,
+              index
+            ) => ({
+              action,
+              index,
+            })
+          )
+          .filter(
+            entry =>
+              entry.action.when ===
+              current.when
+          )
+          .map(
+            entry =>
+              entry.index
+          );
+
+      const currentGroupIndex =
+        sameWhenIndexes.indexOf(
+          fromIndex
+        );
+
+      const targetGroupIndex =
         Math.max(
           0,
           Math.min(
-            fromIndex +
+            currentGroupIndex +
               offset,
-            actions.length -
+            sameWhenIndexes.length -
               1
           )
         );
+
+      const toIndex =
+        sameWhenIndexes[
+          targetGroupIndex
+        ];
+
+      if (
+        toIndex ===
+        undefined
+      ) {
+        return;
+      }
 
       const next =
         moveAction(
@@ -375,6 +424,25 @@ export default function MovementActionEditor({
             action.id ===
             draggedActionId
         );
+
+      const dragged =
+        actions[
+          fromIndex
+        ];
+
+      const target =
+        actions[
+          targetIndex
+        ];
+
+      if (
+        !dragged ||
+        !target ||
+        dragged.when !==
+          target.when
+      ) {
+        return;
+      }
 
       const next =
         moveAction(
@@ -493,7 +561,22 @@ export default function MovementActionEditor({
           (
             action,
             actionIndex
-          ) => (
+          ) => {
+            const phaseActions =
+              actions.filter(
+                current =>
+                  current.when ===
+                  action.when
+              );
+
+            const phaseIndex =
+              phaseActions.findIndex(
+                current =>
+                  current.id ===
+                  action.id
+              );
+
+            return (
             <Stack
               key={
                 action.id
@@ -580,14 +663,14 @@ export default function MovementActionEditor({
                         : "gray"
                     }
                   >
-                    #{actionIndex + 1}
+                    #{phaseIndex + 1}
                   </Badge>
 
                   <Text
                     size="xs"
                     c="dimmed"
                   >
-                    Execution order
+                    {action.when.toUpperCase()} order
                   </Text>
                 </Group>
 
@@ -604,7 +687,7 @@ export default function MovementActionEditor({
                       color="gray"
                       variant="light"
                       disabled={
-                        actionIndex ===
+                        phaseIndex ===
                         0
                       }
                       onClick={
@@ -630,8 +713,8 @@ export default function MovementActionEditor({
                       color="gray"
                       variant="light"
                       disabled={
-                        actionIndex >=
-                        actions.length -
+                        phaseIndex >=
+                        phaseActions.length -
                           1
                       }
                       onClick={
@@ -1113,7 +1196,8 @@ export default function MovementActionEditor({
                 )
               }
             </Stack>
-          )
+            );
+          }
         )
       }
     </Stack>
