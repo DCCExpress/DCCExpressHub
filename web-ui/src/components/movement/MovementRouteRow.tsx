@@ -305,7 +305,7 @@ export default function MovementRouteRow({
                     resource.kind ===
                     "segment"
                       ? "Segment ENTER / LEAVE actions are tied to this physical route section."
-                      : "Turnout APPROACH / LEAVE actions never change the turnout state."
+                      : "The engine sets and locks the route-required turnout state automatically. APPROACH / LEAVE actions are only train/audio/timing actions."
                   }
                 </Text>
               </Stack>
