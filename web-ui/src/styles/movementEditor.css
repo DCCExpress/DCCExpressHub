@@ -196,46 +196,46 @@
 }
 
 .movement-route-dot.is-segment {
-  border-color: var(--mantine-color-gray-6);
+  border-color: var(--mantine-color-gray-8);
   background: color-mix(
     in srgb,
-    var(--mantine-color-gray-6) 14%,
+    var(--mantine-color-gray-8) 78%,
     var(--mantine-color-body)
   );
 }
 
 .movement-route-dot.is-turnout {
-  border-color: var(--mantine-color-orange-6);
+  border-color: var(--mantine-color-orange-8);
   background: color-mix(
     in srgb,
-    var(--mantine-color-orange-6) 16%,
+    var(--mantine-color-orange-8) 78%,
     var(--mantine-color-body)
   );
 }
 
 .movement-route-dot.is-from {
-  border-color: var(--mantine-color-blue-6);
+  border-color: var(--mantine-color-blue-8);
   background: color-mix(
     in srgb,
-    var(--mantine-color-blue-6) 20%,
+    var(--mantine-color-blue-8) 80%,
     var(--mantine-color-body)
   );
 }
 
 .movement-route-dot.is-via {
-  border-color: var(--mantine-color-pink-6);
+  border-color: var(--mantine-color-pink-8);
   background: color-mix(
     in srgb,
-    var(--mantine-color-pink-6) 18%,
+    var(--mantine-color-pink-8) 78%,
     var(--mantine-color-body)
   );
 }
 
 .movement-route-dot.is-to {
-  border-color: var(--mantine-color-green-6);
+  border-color: var(--mantine-color-green-8);
   background: color-mix(
     in srgb,
-    var(--mantine-color-green-6) 18%,
+    var(--mantine-color-green-8) 78%,
     var(--mantine-color-body)
   );
 }
