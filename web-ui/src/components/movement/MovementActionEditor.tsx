@@ -67,6 +67,12 @@ function whenOptions(
       },
       {
         value:
+          "leave",
+        label:
+          "LEAVE",
+      },
+      {
+        value:
           "arrived",
         label:
           "ARRIVED",
