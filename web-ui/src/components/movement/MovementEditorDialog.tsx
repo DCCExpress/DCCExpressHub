@@ -10,6 +10,7 @@ import {
   Divider,
   Group,
   Modal,
+  NumberInput,
   ScrollArea,
   Stack,
   Switch,
@@ -530,6 +531,34 @@ function CardHeader({
           flex:
             "1 1 320px",
         }}
+      />
+
+      <NumberInput
+        label="Cruise speed"
+        description="DCC speed step (0..126)"
+        min={0}
+        max={126}
+        value={
+          page.speed
+        }
+        onChange={
+          value =>
+            onChange({
+              ...page,
+              speed:
+                Math.max(
+                  0,
+                  Math.min(
+                    126,
+                    Math.round(
+                      Number(value) ||
+                      0
+                    )
+                  )
+                ),
+            })
+        }
+        w={150}
       />
 
       <Switch
