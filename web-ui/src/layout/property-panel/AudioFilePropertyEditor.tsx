@@ -47,6 +47,7 @@ type AudioFileInputProps = {
   label: string;
   value: string;
   readonly?: boolean;
+  allowManualInput?: boolean;
   description?: string;
   onChange: (value: string) => void;
   onTest?: () => void;
@@ -85,6 +86,7 @@ export function AudioFileInput({
   label,
   value,
   readonly = false,
+  allowManualInput = true,
   description,
   onChange,
   onTest,
@@ -174,8 +176,22 @@ export function AudioFileInput({
           description={description}
           value={value}
           placeholder="/sd/audio/horn.mp3"
-          readOnly={readonly}
-          onChange={event => onChange(event.currentTarget.value)}
+          readOnly={
+            readonly ||
+            !allowManualInput
+          }
+          onChange={
+            event => {
+              if (
+                !readonly &&
+                allowManualInput
+              ) {
+                onChange(
+                  event.currentTarget.value
+                );
+              }
+            }
+          }
           rightSection={
             <Group gap={2} wrap="nowrap">
               <ActionIcon
