@@ -50,6 +50,10 @@ import {
   type MovementRouteNavigation,
 } from "../../services/movementRouteNavigation";
 
+import {
+  getMovementEngineState,
+} from "../../services/movementEngine";
+
 import MovementRouteEditor from "./MovementRouteEditor";
 import MovementRouteSelector from "./MovementRouteSelector";
 import MovementSidebarCard from "./MovementSidebarCard";
@@ -337,6 +341,28 @@ export default function MovementEditorDialog({
             "The last movement cannot be deleted",
           message:
             "",
+        });
+
+        return;
+      }
+
+      const runtimeState =
+        getMovementEngineState(
+          activePage.id
+        );
+
+      if (
+        runtimeState.status ===
+          "running" ||
+        runtimeState.status ===
+          "stopping"
+      ) {
+        showNotification({
+          color: "orange",
+          title:
+            "Movement is running",
+          message:
+            "Stop or abort the movement before deleting it.",
         });
 
         return;
