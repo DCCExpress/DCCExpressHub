@@ -168,6 +168,60 @@ test("visual flow editor supports pages, enabled state and SmartDispatcher nodes
   );
 });
 
+test("SmartDispatcher uses only the authoritative Dispatcher turnout plan", () => {
+  const source =
+    read(
+      "src/services/clientScriptSmartDispatcherPrelude.ts"
+    );
+
+  const buildStart =
+    source.indexOf(
+      "const __dccSmartBuildRoute"
+    );
+
+  const buildEnd =
+    source.indexOf(
+      "const __dccSmartBlockConflict",
+      buildStart
+    );
+
+  assert.ok(
+    buildStart >= 0 &&
+    buildEnd > buildStart
+  );
+
+  const buildRoute =
+    source.slice(
+      buildStart,
+      buildEnd
+    );
+
+  assert.match(
+    buildRoute,
+    /await __dccDispatcherFindRoute/
+  );
+
+  assert.match(
+    buildRoute,
+    /baseRoute\.turnoutStates/
+  );
+
+  assert.match(
+    buildRoute,
+    /turnoutStates:[\s\S]*authoritativeTurnouts/
+  );
+
+  assert.doesNotMatch(
+    buildRoute,
+    /topology\.graph\.edges/
+  );
+
+  assert.doesNotMatch(
+    buildRoute,
+    /rolling turnout path/
+  );
+});
+
 test("visual flow generator emits the existing smartDispatcher API", () => {
   const source =
     read(

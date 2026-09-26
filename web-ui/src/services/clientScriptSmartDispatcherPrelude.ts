@@ -24,7 +24,6 @@ export function buildClientScriptSmartDispatcherPrelude(): string {
 // speed is restored automatically.
 
 let __dccSmartDispatcherSequence = 0;
-let __dccSmartDispatcherTopologyPromise = null;
 
 const __dccSmartNormalizeArrival = (value, blockName) => {
   if (!Array.isArray(value) || value.length === 0) {
@@ -224,208 +223,42 @@ const __dccSmartNormalizeOptions = value => {
   });
 };
 
-const __dccSmartLoadTopology = async () => {
-  if (__dccSmartDispatcherTopologyPromise) {
-    return __dccSmartDispatcherTopologyPromise;
-  }
-
-  __dccSmartDispatcherTopologyPromise =
-    (async () => {
-      const response =
-        await fetch("/api/layout", { cache: "no-store" });
-
-      if (!response.ok) {
-        throw new Error(
-          "smartDispatcher: layout could not be loaded (HTTP " +
-          String(response.status) +
-          ")."
-        );
-      }
-
-      const layout = await response.json();
-      const topology =
-        layout && typeof layout === "object"
-          ? layout.routeTopology
-          : null;
-
-      if (
-        !topology ||
-        Number(topology.version) !== 1 ||
-        !Array.isArray(topology.routeTable) ||
-        !topology.graph ||
-        !Array.isArray(topology.graph.nodes) ||
-        !Array.isArray(topology.graph.edges)
-      ) {
-        throw new Error(
-          "smartDispatcher: saved route graph is unavailable. Generate/save the layout first."
-        );
-      }
-
-      if (
-        Number(topology.topologyRevision) !==
-        Number(topology.graphRevision)
-      ) {
-        throw new Error(
-          "smartDispatcher: saved route graph is stale. Regenerate/save the layout."
-        );
-      }
-
-      return topology;
-    })();
-
-  try {
-    return await __dccSmartDispatcherTopologyPromise;
-  } catch (error) {
-    __dccSmartDispatcherTopologyPromise = null;
-    throw error;
-  }
-};
-
-const __dccSmartMergeTurnouts = (target, states, context) => {
-  for (const raw of states) {
-    const address = Number(raw && raw.address);
-
-    if (
-      !Number.isInteger(address) ||
-      address < 1 ||
-      address > 2048
-    ) {
-      throw new Error(
-        "smartDispatcher: invalid turnout in " + context + "."
-      );
-    }
-
-    const closed = Boolean(raw && raw.closed);
-
-    if (target.has(address) && target.get(address) !== closed) {
-      throw new Error(
-        "smartDispatcher: contradictory turnout state for " +
-        String(address) +
-        " in " +
-        context +
-        "."
-      );
-    }
-
-    target.set(address, closed);
-  }
-};
-
-const __dccSmartTurnoutSignature = states =>
-  states
-    .map(
-      state =>
-        String(state.address) +
-        ":" +
-        (state.closed ? "1" : "0")
-    )
-    .sort()
-    .join(",");
-
 const __dccSmartBuildRoute = async request => {
+  /*
+   * SAFETY RULE:
+   *
+   * The normal Dispatcher is the authoritative route selector. It already
+   * resolves exactly one persisted physical route and validates its complete
+   * logical turnout requirement set.
+   *
+   * SmartDispatcher must NOT reconstruct turnout states again from individual
+   * graph edges. A second reconstruction can select a different edge variant
+   * or lose a route requirement, which is unacceptable before authorizing
+   * train movement.
+   *
+   * Until route topology persists explicit per-block-transition turnout
+   * requirements, every rolling transition uses the authoritative complete
+   * turnout state set from the selected Dispatcher route. This may lock/set
+   * more turnouts than strictly necessary for a single transition, but it
+   * fails safe and guarantees the same physical route as dispatcher().
+   */
   const baseRoute =
     await __dccDispatcherFindRoute(
       request.checkpointNames
     );
 
-  const topology =
-    await __dccSmartLoadTopology();
-
-  let matches =
-    topology.routeTable.filter(
-      route =>
-        __dccDispatcherRouteMatchesCheckpoints(
-          route,
-          request.checkpointNames,
-          false
-        )
+  const authoritativeTurnouts =
+    Object.freeze(
+      baseRoute.turnoutStates.map(
+        state =>
+          Object.freeze({
+            address:
+              state.address,
+            closed:
+              state.closed,
+          })
+      )
     );
-
-  if (matches.length === 0) {
-    matches =
-      topology.routeTable.filter(
-        route =>
-          __dccDispatcherRouteMatchesCheckpoints(
-            route,
-            request.checkpointNames,
-            true
-          )
-      );
-  }
-
-  if (matches.length !== 1) {
-    throw new Error(
-      "smartDispatcher: persisted route is not uniquely resolvable."
-    );
-  }
-
-  const persisted = matches[0];
-
-  if (!Array.isArray(persisted.nodes) || persisted.nodes.length === 0) {
-    throw new Error(
-      "smartDispatcher: route node path is missing."
-    );
-  }
-
-  const nodePath =
-    persisted.nodes.map(value => String(value));
-
-  const nodesByName = new Map();
-
-  for (const node of topology.graph.nodes) {
-    nodesByName.set(
-      String(node && node.name || ""),
-      node
-    );
-  }
-
-  const blockNodeIndexes = [];
-  let searchFrom = 0;
-
-  for (const block of baseRoute.blocks) {
-    let found = -1;
-
-    for (
-      let index = searchFrom;
-      index < nodePath.length;
-      ++index
-    ) {
-      const node =
-        nodesByName.get(nodePath[index]);
-
-      if (
-        node &&
-        Array.isArray(node.blocks) &&
-        node.blocks.some(
-          item => Number(item && item.id) === block.id
-        )
-      ) {
-        found = index;
-        break;
-      }
-    }
-
-    if (found < 0) {
-      throw new Error(
-        'smartDispatcher: block "' +
-        block.name +
-        '" is missing from the route node path.'
-      );
-    }
-
-    blockNodeIndexes.push(found);
-    searchFrom = found;
-  }
-
-  const routeTurnouts = new Map();
-
-  __dccSmartMergeTurnouts(
-    routeTurnouts,
-    Array.isArray(persisted.turnoutStates)
-      ? persisted.turnoutStates
-      : [],
-    "route"
-  );
 
   const transitions = [];
 
@@ -434,89 +267,15 @@ const __dccSmartBuildRoute = async request => {
     blockIndex < baseRoute.blocks.length - 1;
     ++blockIndex
   ) {
-    const from = baseRoute.blocks[blockIndex];
-    const to = baseRoute.blocks[blockIndex + 1];
-    const nodeFrom = blockNodeIndexes[blockIndex];
-    const nodeTo = blockNodeIndexes[blockIndex + 1];
+    const from =
+      baseRoute.blocks[
+        blockIndex
+      ];
 
-    if (nodeTo < nodeFrom) {
-      throw new Error(
-        "smartDispatcher: block path runs backwards in the saved node path."
-      );
-    }
-
-    const turnouts = new Map();
-
-    for (
-      let nodeIndex = nodeFrom;
-      nodeIndex < nodeTo;
-      ++nodeIndex
-    ) {
-      const fromNode = nodePath[nodeIndex];
-      const toNode = nodePath[nodeIndex + 1];
-
-      const candidates =
-        topology.graph.edges.filter(edge => {
-          if (
-            String(edge && edge.from || "") !== fromNode ||
-            String(edge && edge.to || "") !== toNode
-          ) {
-            return false;
-          }
-
-          const edgeDirection =
-            String(edge && edge.locoDirection || "unknown");
-
-          if (
-            edgeDirection !== "unknown" &&
-            edgeDirection !== baseRoute.direction
-          ) {
-            return false;
-          }
-
-          const states =
-            Array.isArray(edge && edge.turnoutStates)
-              ? edge.turnoutStates
-              : [];
-
-          return states.every(
-            state =>
-              routeTurnouts.has(Number(state.address)) &&
-              routeTurnouts.get(Number(state.address)) ===
-                Boolean(state.closed)
-          );
-        });
-
-      const bySignature = new Map();
-
-      for (const edge of candidates) {
-        const states =
-          Array.isArray(edge.turnoutStates)
-            ? edge.turnoutStates
-            : [];
-
-        bySignature.set(
-          __dccSmartTurnoutSignature(states),
-          states
-        );
-      }
-
-      if (bySignature.size !== 1) {
-        throw new Error(
-          "smartDispatcher: rolling turnout path is ambiguous at " +
-          fromNode +
-          " -> " +
-          toNode +
-          "."
-        );
-      }
-
-      __dccSmartMergeTurnouts(
-        turnouts,
-        [...bySignature.values()][0],
-        fromNode + " -> " + toNode
-      );
-    }
+    const to =
+      baseRoute.blocks[
+        blockIndex + 1
+      ];
 
     const spec =
       request.specsByName.get(
@@ -529,7 +288,10 @@ const __dccSmartBuildRoute = async request => {
         : null;
 
     if (!arrivedWhen) {
-      if (from.sensorAddress === to.sensorAddress) {
+      if (
+        from.sensorAddress ===
+        to.sensorAddress
+      ) {
         throw new Error(
           'smartDispatcher: adjacent blocks "' +
           from.name +
@@ -542,46 +304,48 @@ const __dccSmartBuildRoute = async request => {
       arrivedWhen =
         Object.freeze([
           Object.freeze({
-            sensor: to.sensorAddress,
-            state: true,
+            sensor:
+              to.sensorAddress,
+            state:
+              true,
           }),
           Object.freeze({
-            sensor: from.sensorAddress,
-            state: false,
+            sensor:
+              from.sensorAddress,
+            state:
+              false,
           }),
         ]);
     }
 
     transitions.push(
       Object.freeze({
-        index: blockIndex,
+        index:
+          blockIndex,
         from,
         to,
         arrivedWhen,
         turnoutStates:
-          Object.freeze(
-            [...turnouts.entries()]
-              .sort((a, b) => a[0] - b[0])
-              .map(
-                ([address, closed]) =>
-                  Object.freeze({
-                    address,
-                    closed,
-                  })
-              )
-          ),
+          authoritativeTurnouts,
       })
     );
   }
 
   return Object.freeze({
-    fromBlockName: baseRoute.fromBlockName,
-    toBlockName: baseRoute.toBlockName,
-    requestedBlocks: baseRoute.requestedBlocks,
-    direction: baseRoute.direction,
-    blocks: baseRoute.blocks,
+    fromBlockName:
+      baseRoute.fromBlockName,
+    toBlockName:
+      baseRoute.toBlockName,
+    requestedBlocks:
+      baseRoute.requestedBlocks,
+    direction:
+      baseRoute.direction,
+    blocks:
+      baseRoute.blocks,
     transitions:
-      Object.freeze(transitions),
+      Object.freeze(
+        transitions
+      ),
   });
 };
 
@@ -793,6 +557,18 @@ const __dccSmartTryTurnoutLease =
       };
 
     try {
+      console.info(
+        "[SmartDispatcher] authoritative turnout plan",
+        states.map(
+          state => ({
+            address:
+              state.address,
+            closed:
+              state.closed,
+          })
+        )
+      );
+
       const needsChange =
         states.some(
           state =>
