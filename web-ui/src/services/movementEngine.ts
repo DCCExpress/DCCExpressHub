@@ -1232,6 +1232,8 @@ async function waitForArrival(
 async function waitForSegmentEntry(
   execution:
     MovementExecution,
+  leg:
+    MovementPlanLeg,
   resource:
     MovementPlanResource
 ): Promise<void> {
@@ -1251,6 +1253,47 @@ async function waitForSegmentEntry(
   while (
     !execution.cancelled
   ) {
+    const turnout =
+      turnoutRequirementsMatch(
+        leg
+      );
+
+    if (
+      !turnout.ok
+    ) {
+      execution.moving =
+        false;
+
+      applyDesiredSpeed(
+        execution
+      );
+
+      setInfo(
+        execution,
+        turnout.mismatch ??
+        "Waiting for turnout state",
+        resource.key
+      );
+
+      await controlledDelay(
+        execution,
+        75
+      );
+
+      continue;
+    }
+
+    if (
+      !execution.moving
+    ) {
+      execution.moving =
+        true;
+
+      applyDesiredSpeed(
+        execution
+      );
+    }
+
     if (
       resource.detectors.some(
         address =>
@@ -1347,6 +1390,7 @@ async function traverseLeg(
 
       await waitForSegmentEntry(
         execution,
+        leg,
         resource
       );
 
@@ -1608,10 +1652,6 @@ export async function startMovement(
   wsApi.getBlocks();
   wsApi.getLayoutRuntimeSnapshot();
 
-  await delay(
-    100
-  );
-
   const source =
     plan.blocks[0];
 
@@ -1625,14 +1665,40 @@ export async function startMovement(
     );
   }
 
-  const sourceState =
-    blockStateFor(
-      source.blockId
-    );
+  const sourceDeadline =
+    Date.now() +
+    3000;
 
-  const locoAddress =
-    sourceState?.locoAddress ??
+  let locoAddress =
     0;
+
+  while (
+    Date.now() <
+      sourceDeadline
+  ) {
+    const sourceState =
+      blockStateFor(
+        source.blockId
+      );
+
+    locoAddress =
+      sourceState?.locoAddress ??
+      0;
+
+    if (
+      Number.isInteger(
+        locoAddress
+      ) &&
+      locoAddress >
+        0
+    ) {
+      break;
+    }
+
+    await delay(
+      50
+    );
+  }
 
   if (
     !Number.isInteger(
