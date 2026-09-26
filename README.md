@@ -1,11 +1,11 @@
 # DCCExpressHub
 
-DCCExpressHub is a control and integration application for **DCC-EX** model railway command stations.
+DCCExpressHub is a control, automation and integration server for **DCC-EX** model railway command stations.
 
-It can run in two ways:
+It can run on either a **Windows PC** or a supported **ESP32** device. In both cases DCCExpressHub can act as the layout server, hosting the Web UI and runtime services so the railway can be controlled from multiple devices such as PCs, notebooks, tablets and phones on the local network.
 
-- **Windows Desktop** — run DCCExpressHub directly on a Windows PC.
-- **ESP32 Hub** — run DCCExpressHub on a supported ESP32 device and control the layout from a PC, tablet or phone.
+- **Windows Desktop / Server** — runs directly on a Windows PC and can be used locally or as a network server for other devices. The Windows version can connect to a DCC-EX command station over **TCP/IP** (for example an EX-CSB1 on the network) or through a **Serial / USB COM port** (for example an Arduino-based DCC-EX command station).
+- **ESP32 Hub** — runs as a standalone embedded server on a supported ESP32 device and provides the same browser-based control interface to PCs, tablets and phones. The ESP32 version currently connects to the DCC-EX command station over **TCP/IP**.
 
 > **DCCExpressHub is not a command station.**
 >
