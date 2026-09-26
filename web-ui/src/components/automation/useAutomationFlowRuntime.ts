@@ -15,11 +15,16 @@ import {
   getActiveClientScriptExecutions,
   runClientScript,
   ScriptAbortError,
+  subscribeClientScriptLog,
 } from "../../services/clientScriptRunner";
 
 import {
   wsClient,
 } from "../../services/wsClient";
+
+import {
+  dispatchAutomationFlowRuntimeLog,
+} from "./automationFlowEvents";
 
 const FLOW_RUNTIME_PREFIX =
   "visual-flow-runtime:";
@@ -236,6 +241,20 @@ function runInputBranch(
       currentInput.id
     );
 
+  const unsubscribeLog =
+    subscribeClientScriptLog(
+      id,
+      entry => {
+        dispatchAutomationFlowRuntimeLog({
+          pageId,
+          timestamp:
+            entry.timestamp,
+          values:
+            entry.values,
+        });
+      }
+    );
+
   void runClientScript(
     generated.code,
     {
@@ -245,23 +264,29 @@ function runInputBranch(
       type:
         "visual-flow",
     }
-  ).catch(
-    error => {
-      if (
-        error instanceof
-        ScriptAbortError
-      ) {
-        return;
-      }
+  )
+    .catch(
+      error => {
+        if (
+          error instanceof
+          ScriptAbortError
+        ) {
+          return;
+        }
 
-      console.error(
-        "[Automation Flow Runtime]",
-        page.name,
-        currentInput.data.label,
-        error
-      );
-    }
-  );
+        console.error(
+          "[Automation Flow Runtime]",
+          page.name,
+          currentInput.data.label,
+          error
+        );
+      }
+    )
+    .finally(
+      () => {
+        unsubscribeLog();
+      }
+    );
 }
 
 function runtimeConfigSignature(
@@ -681,7 +706,7 @@ export function useAutomationFlowRuntime(
                   node.data.pageId ===
                     page.id &&
                   node.data.kind ===
-                    "accessoryInput" &&
+                    "basicAccessoryInput" &&
                   Math.round(
                     node.data.accessoryAddress ??
                     0
@@ -705,6 +730,87 @@ export function useAutomationFlowRuntime(
                     Boolean(
                       data.active
                     ),
+                }
+              );
+            }
+          }
+        }
+      ),
+    []
+  );
+
+  useEffect(
+    () =>
+      wsClient.on(
+        "signalAspectChanged",
+        data => {
+          const current =
+            documentRef.current;
+
+          if (
+            !runtimeEnabledRef.current
+          ) {
+            return;
+          }
+
+          const address =
+            Number(
+              data.address
+            );
+
+          const aspect =
+            Number(
+              data.aspect
+            );
+
+          if (
+            !Number.isInteger(
+              address
+            ) ||
+            !Number.isInteger(
+              aspect
+            )
+          ) {
+            return;
+          }
+
+          for (
+            const page of
+            current.pages
+          ) {
+            if (
+              !page.enabled
+            ) {
+              continue;
+            }
+
+            const inputs =
+              current.nodes.filter(
+                node =>
+                  node.data.pageId ===
+                    page.id &&
+                  node.data.kind ===
+                    "extendedAccessoryInput" &&
+                  Math.round(
+                    node.data.accessoryAddress ??
+                    0
+                  ) ===
+                    address
+              );
+
+            for (
+              const input of
+              inputs
+            ) {
+              runInputBranch(
+                current,
+                page.id,
+                input,
+                {
+                  eventType:
+                    "signalAspectChanged",
+                  address,
+                  aspect,
                 }
               );
             }

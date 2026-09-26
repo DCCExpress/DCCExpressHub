@@ -69,7 +69,7 @@ export default function AutomationFlowLogPanel({
           {
             t(
               "ui.flowRuntimeLogDescription",
-              "Runtime and log(...) messages from flow tests."
+              "Runtime and log(...) messages from live flows and editor runs."
             )
           }
         </Text>

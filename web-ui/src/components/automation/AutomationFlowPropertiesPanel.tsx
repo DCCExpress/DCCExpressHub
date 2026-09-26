@@ -846,8 +846,10 @@ export default function AutomationFlowPropertiesPanel({
         />
       )}
 
-      {data.kind ===
-        "accessoryInput" && (
+      {(data.kind ===
+        "basicAccessoryInput" ||
+        data.kind ===
+          "extendedAccessoryInput") && (
         <>
           <NumberInput
             label={
@@ -879,10 +881,16 @@ export default function AutomationFlowPropertiesPanel({
             c="dimmed"
           >
             {
-              t(
-                "ui.flowAccessoryInputDescription",
-                "Runs whenever this accessory changes. The new active state is passed in payload."
-              )
+              data.kind ===
+              "extendedAccessoryInput"
+                ? t(
+                    "ui.flowExtendedAccessoryInputDescription",
+                    "Runs whenever this Extended Accessory aspect changes. payload contains eventType, address and aspect."
+                  )
+                : t(
+                    "ui.flowBasicAccessoryInputDescription",
+                    "Runs whenever this Basic Accessory state changes. payload contains eventType, address and active."
+                  )
             }
           </Text>
         </>

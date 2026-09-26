@@ -196,13 +196,25 @@ function inputLabel(
 
   if (
     node.data.kind ===
-    "accessoryInput"
+    "basicAccessoryInput"
   ) {
     return {
       label:
-        `Accessory #${node.data.accessoryAddress ?? 1} · any change`,
+        `Basic Accessory #${node.data.accessoryAddress ?? 1} · any change`,
       color:
         "yellow",
+    };
+  }
+
+  if (
+    node.data.kind ===
+    "extendedAccessoryInput"
+  ) {
+    return {
+      label:
+        `Extended Accessory #${node.data.accessoryAddress ?? 1} · any aspect`,
+      color:
+        "orange",
     };
   }
 

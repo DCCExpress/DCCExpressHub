@@ -5,7 +5,8 @@ export type AutomationFlowNodeKind =
   | "sensorInput"
   | "blockInput"
   | "turnoutInput"
-  | "accessoryInput"
+  | "basicAccessoryInput"
+  | "extendedAccessoryInput"
   | "locoInput"
   | "smartDispatcher"
   | "setSpeed"
@@ -139,7 +140,8 @@ const NODE_KINDS =
     "sensorInput",
     "blockInput",
     "turnoutInput",
-    "accessoryInput",
+    "basicAccessoryInput",
+    "extendedAccessoryInput",
     "locoInput",
     "smartDispatcher",
     "setSpeed",
@@ -171,7 +173,8 @@ export function isAutomationFlowInputNodeKind(
     kind === "sensorInput" ||
     kind === "blockInput" ||
     kind === "turnoutInput" ||
-    kind === "accessoryInput" ||
+    kind === "basicAccessoryInput" ||
+    kind === "extendedAccessoryInput" ||
     kind === "locoInput"
   );
 }
@@ -464,7 +467,15 @@ function normalizeNodeData(
     candidate.triggerMode ===
       "sensor"
       ? "sensorInput"
-      : requestedKind;
+      : (
+          String(
+            candidate.kind ??
+            ""
+          ) ===
+          "accessoryInput"
+            ? "basicAccessoryInput"
+            : requestedKind
+        );
 
   if (
     !NODE_KINDS.has(
@@ -1468,7 +1479,7 @@ function generateStatement(
     }
 
     case "log":
-      return `log(${jsString(data.message || "")}, payload);`;
+      return `log(${jsString(data.message || "")}, "payload:", JSON.stringify(payload, null, 2));`;
 
     default:
       return "";
@@ -1577,21 +1588,42 @@ function triggerPayloadSource(
 
   if (
     trigger.data.kind ===
-      "accessoryInput"
+      "basicAccessoryInput" ||
+    trigger.data.kind ===
+      "extendedAccessoryInput"
   ) {
-    return JSON.stringify({
-      address:
-        Math.max(
-          1,
-          Math.min(
-            2048,
-            Math.round(
-              trigger.data.accessoryAddress ??
-              1
-            )
+    const address =
+      Math.max(
+        1,
+        Math.min(
+          2048,
+          Math.round(
+            trigger.data.accessoryAddress ??
+            1
           )
-        ),
-    });
+        )
+      );
+
+    return JSON.stringify(
+      trigger.data.kind ===
+        "extendedAccessoryInput"
+        ? {
+            eventType:
+              "signalAspectChanged",
+            address,
+            aspect:
+              trigger.data.accessoryAspect ??
+              0,
+          }
+        : {
+            eventType:
+              "accessoryChanged",
+            address,
+            active:
+              trigger.data.accessoryActive !==
+              false,
+          }
+    );
   }
 
   if (

@@ -133,12 +133,20 @@ const ITEMS: PaletteItem[] = [
     color: "grape",
   },
   {
-    kind: "accessoryInput",
+    kind: "basicAccessoryInput",
     group: "trigger",
     icon: <IconBolt size={16} />,
-    labelKey: "ui.flowNodeAccessoryInput",
-    fallback: "Accessory event",
+    labelKey: "ui.flowNodeBasicAccessoryInput",
+    fallback: "Basic Accessory event",
     color: "yellow",
+  },
+  {
+    kind: "extendedAccessoryInput",
+    group: "trigger",
+    icon: <IconBolt size={16} />,
+    labelKey: "ui.flowNodeExtendedAccessoryInput",
+    fallback: "Extended Accessory event",
+    color: "orange",
   },
   {
     kind: "locoInput",
@@ -405,10 +413,18 @@ export function createDefaultAutomationNodeData(
         turnoutAddresses: [],
       };
 
-    case "accessoryInput":
+    case "basicAccessoryInput":
       return {
         ...base,
         accessoryAddress: 1,
+        accessoryActive: true,
+      };
+
+    case "extendedAccessoryInput":
+      return {
+        ...base,
+        accessoryAddress: 1,
+        accessoryAspect: 0,
       };
 
     case "locoInput":

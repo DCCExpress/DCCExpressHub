@@ -63,3 +63,26 @@ export function dispatchAutomationFlowNodeCollapsedChange(
     )
   );
 }
+
+
+export const AUTOMATION_FLOW_RUNTIME_LOG_EVENT =
+  "dcc-express-automation-flow-runtime-log";
+
+export type AutomationFlowRuntimeLogEventDetail = {
+  pageId: string;
+  timestamp: number;
+  values: unknown[];
+};
+
+export function dispatchAutomationFlowRuntimeLog(
+  detail: AutomationFlowRuntimeLogEventDetail
+): void {
+  window.dispatchEvent(
+    new CustomEvent<AutomationFlowRuntimeLogEventDetail>(
+      AUTOMATION_FLOW_RUNTIME_LOG_EVENT,
+      {
+        detail,
+      }
+    )
+  );
+}

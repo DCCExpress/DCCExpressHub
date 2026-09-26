@@ -3126,6 +3126,22 @@ void WsProtocol::handleMessage(
             "turnoutChanged",
             out);
 
+        // A normal turnout command is physically a Basic Accessory command.
+        // Mirror the physical endpoint as accessoryChanged as well so generic
+        // Basic Accessory consumers (including Flow inputs) receive the same
+        // accepted state change.
+        JsonDocument accessory;
+
+        accessory["address"] =
+            address;
+
+        accessory["active"] =
+            physicalValue;
+
+        broadcast(
+            "accessoryChanged",
+            accessory);
+
         return;
     }
 

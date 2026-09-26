@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useState,
 } from "react";
 
@@ -17,6 +18,11 @@ import {
 import type {
   AutomationFlowLogLine,
 } from "./AutomationFlowLogPanel";
+
+import {
+  AUTOMATION_FLOW_RUNTIME_LOG_EVENT,
+  type AutomationFlowRuntimeLogEventDetail,
+} from "./automationFlowEvents";
 
 export type AutomationFlowExecutionMode =
   | "test"
@@ -114,6 +120,71 @@ export function useAutomationFlowExecution({
         ]
       );
     };
+
+  useEffect(
+    () => {
+      const handleRuntimeLog =
+        (
+          event: Event
+        ): void => {
+          const detail =
+            (
+              event as CustomEvent<
+                AutomationFlowRuntimeLogEventDetail
+              >
+            ).detail;
+
+          if (
+            !detail ||
+            detail.pageId !==
+              page?.id
+          ) {
+            return;
+          }
+
+          setLogs(
+            current => [
+              ...current.slice(
+                -499
+              ),
+              {
+                id:
+                  createAutomationFlowId(
+                    "flow-log"
+                  ),
+                timestamp:
+                  detail.timestamp,
+                level:
+                  "log",
+                message:
+                  detail.values
+                    .map(
+                      logValue
+                    )
+                    .join(
+                      " "
+                    ),
+              },
+            ]
+          );
+        };
+
+      window.addEventListener(
+        AUTOMATION_FLOW_RUNTIME_LOG_EVENT,
+        handleRuntimeLog
+      );
+
+      return () => {
+        window.removeEventListener(
+          AUTOMATION_FLOW_RUNTIME_LOG_EVENT,
+          handleRuntimeLog
+        );
+      };
+    },
+    [
+      page?.id,
+    ]
+  );
 
   const start =
     async (

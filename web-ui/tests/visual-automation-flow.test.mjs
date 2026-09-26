@@ -703,15 +703,55 @@ test("play audio node supports blocking and non-blocking playback", () => {
   );
 });
 
-test("log node writes the current payload to the runtime log", () => {
+test("log node writes the message and serialized payload to the runtime log", () => {
   const domain =
     read(
       "src/domain/automationFlow.ts"
     );
 
+  const runtime =
+    read(
+      "src/components/automation/useAutomationFlowRuntime.ts"
+    );
+
+  const execution =
+    read(
+      "src/components/automation/useAutomationFlowExecution.ts"
+    );
+
+  const events =
+    read(
+      "src/components/automation/automationFlowEvents.ts"
+    );
+
   assert.match(
     domain,
-    /log\([^\n]*payload\)/
+    /"payload:", JSON\.stringify\(payload, null, 2\)/
+  );
+
+  assert.match(
+    runtime,
+    /subscribeClientScriptLog/
+  );
+
+  assert.match(
+    runtime,
+    /dispatchAutomationFlowRuntimeLog/
+  );
+
+  assert.match(
+    events,
+    /AUTOMATION_FLOW_RUNTIME_LOG_EVENT/
+  );
+
+  assert.match(
+    execution,
+    /AUTOMATION_FLOW_RUNTIME_LOG_EVENT/
+  );
+
+  assert.match(
+    execution,
+    /detail\.values[\s\S]*\.map\([\s\S]*logValue/
   );
 });
 
@@ -1512,7 +1552,7 @@ test("automation scripts use reorderable cards with grouped runtime controls", (
 });
 
 
-test("block turnout accessory and loco events are first-class flow inputs", () => {
+test("block turnout basic and extended accessory and loco events are first-class flow inputs", () => {
   const domain =
     read(
       "src/domain/automationFlow.ts"
@@ -1542,7 +1582,8 @@ test("block turnout accessory and loco events are first-class flow inputs", () =
     const kind of [
       "blockInput",
       "turnoutInput",
-      "accessoryInput",
+      "basicAccessoryInput",
+      "extendedAccessoryInput",
       "locoInput",
     ]
   ) {
@@ -1573,6 +1614,7 @@ test("block turnout accessory and loco events are first-class flow inputs", () =
       "blockStateChanged",
       "turnoutChanged",
       "accessoryChanged",
+      "signalAspectChanged",
       "locoState",
     ]
   ) {
@@ -2213,5 +2255,56 @@ test("flow node collapsed state is persisted in the flow document", () => {
   assert.match(
     dialog,
     /collapsed:[\s\S]*detail\.collapsed/
+  );
+});
+
+
+test("legacy accessory flow inputs migrate to Basic Accessory inputs", () => {
+  const domain =
+    read(
+      "src/domain/automationFlow.ts"
+    );
+
+  assert.match(
+    domain,
+    /"accessoryInput"[\s\S]*"basicAccessoryInput"/
+  );
+});
+
+test("ESP32 turnout commands also publish Basic Accessory feedback", () => {
+  const wsProtocol =
+    read(
+      "../src/WsProtocol.cpp"
+    );
+
+  const turnoutCommand =
+    wsProtocol.indexOf(
+      '"setTurnout"'
+    );
+
+  const accessoryFeedback =
+    wsProtocol.indexOf(
+      '"accessoryChanged"',
+      turnoutCommand
+    );
+
+  const signalCommand =
+    wsProtocol.indexOf(
+      '"setSignalAspect"',
+      turnoutCommand
+    );
+
+  assert.ok(
+    turnoutCommand >= 0 &&
+    accessoryFeedback > turnoutCommand &&
+    signalCommand > accessoryFeedback
+  );
+
+  assert.match(
+    wsProtocol.slice(
+      turnoutCommand,
+      signalCommand
+    ),
+    /accessory\["active"\][\s\S]*physicalValue/
   );
 });

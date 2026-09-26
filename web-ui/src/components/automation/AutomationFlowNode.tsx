@@ -78,11 +78,17 @@ const NODE_META:
       title:
         "Turnout event",
     },
-    accessoryInput: {
+    basicAccessoryInput: {
       icon: "⚡",
       color: "yellow",
       title:
-        "Accessory event",
+        "Basic Accessory event",
+    },
+    extendedAccessoryInput: {
+      icon: "⚡",
+      color: "orange",
+      title:
+        "Extended Accessory event",
     },
     locoInput: {
       icon: "🚂",
@@ -255,9 +261,14 @@ function summary(
         `${data.turnoutLabel || "Select turnout"} · any change`
       );
 
-    case "accessoryInput":
+    case "basicAccessoryInput":
       return (
-        `#${data.accessoryAddress ?? 1} · any change`
+        `#${data.accessoryAddress ?? 1} · Basic · any change`
+      );
+
+    case "extendedAccessoryInput":
+      return (
+        `#${data.accessoryAddress ?? 1} · Extended · any aspect`
       );
 
     case "locoInput":
