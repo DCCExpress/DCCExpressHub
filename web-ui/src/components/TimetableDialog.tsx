@@ -773,9 +773,24 @@ export default function TimetableDialog({
           "ui.timetable"
         )
       }
-      size="xl"
+      size={1360}
       centered
       draggable
+      styles={{
+        content: {
+          height: 820,
+          maxHeight:
+            "calc(100dvh - 32px)",
+          overflow:
+            "hidden",
+        },
+        body: {
+          height:
+            "calc(100% - 56px)",
+          overflow:
+            "hidden",
+        },
+      }}
       closeOnClickOutside={
         !saving
       }
@@ -785,6 +800,10 @@ export default function TimetableDialog({
     >
       <Stack
         gap="sm"
+        h="100%"
+        style={{
+          minHeight: 0,
+        }}
       >
         <Alert
           color="blue"
@@ -847,28 +866,43 @@ export default function TimetableDialog({
             ? (
               <Group
                 justify="center"
+                align="center"
                 p="xl"
+                style={{
+                  flex: 1,
+                  minHeight: 0,
+                }}
               >
                 <Loader />
               </Group>
             )
             : (
               <ScrollArea
-                type="auto"
+                type="always"
                 offsetScrollbars
+                scrollbarSize={10}
+                style={{
+                  flex: 1,
+                  minHeight: 0,
+                }}
               >
                 <Table
                   striped
                   highlightOnHover
                   withTableBorder
                   withColumnBorders
-                  miw={1100}
+                  miw={1040}
+                  w="100%"
                   verticalSpacing="xs"
+                  style={{
+                    tableLayout:
+                      "fixed",
+                  }}
                 >
                   <Table.Thead>
                     <Table.Tr>
                       <Table.Th
-                        w={90}
+                        w={76}
                       >
                         {
                           t(
@@ -878,7 +912,7 @@ export default function TimetableDialog({
                       </Table.Th>
 
                       <Table.Th
-                        w={155}
+                        w={150}
                       >
                         {
                           t(
@@ -888,7 +922,7 @@ export default function TimetableDialog({
                       </Table.Th>
 
                       <Table.Th
-                        w={235}
+                        w={210}
                       >
                         {
                           t(
@@ -897,7 +931,9 @@ export default function TimetableDialog({
                         }
                       </Table.Th>
 
-                      <Table.Th>
+                      <Table.Th
+                        w={540}
+                      >
                         {
                           t(
                             "ui.timetableActions"
@@ -1175,16 +1211,27 @@ export default function TimetableDialog({
                                           >
                                             <Group
                                               gap="xs"
-                                              align="flex-end"
+                                              align="center"
                                               wrap="nowrap"
                                             >
-                                              <Select
+                                              <Text
                                                 size="xs"
-                                                label={
+                                                fw={700}
+                                                w={58}
+                                                style={{
+                                                  flex:
+                                                    "0 0 58px",
+                                                }}
+                                              >
+                                                {
                                                   `${t(
                                                     "ui.timetableAction"
                                                   )} ${actionIndex + 1}`
                                                 }
+                                              </Text>
+
+                                              <Select
+                                                size="xs"
                                                 clearable={
                                                   false
                                                 }
@@ -1238,16 +1285,15 @@ export default function TimetableDialog({
                                                     );
                                                   }
                                                 }
-                                                w={135}
+                                                w={125}
+                                                style={{
+                                                  flex:
+                                                    "0 0 125px",
+                                                }}
                                               />
 
                                               <Select
                                                 size="xs"
-                                                label={
-                                                  t(
-                                                    "ui.timetableTarget"
-                                                  )
-                                                }
                                                 searchable
                                                 clearable={
                                                   false
@@ -1285,9 +1331,11 @@ export default function TimetableDialog({
                                                       })
                                                     )
                                                 }
+                                                w={290}
+                                                maw={290}
                                                 style={{
                                                   flex:
-                                                    1,
+                                                    "0 0 290px",
                                                 }}
                                               />
 
@@ -1301,7 +1349,6 @@ export default function TimetableDialog({
                                                 <ActionIcon
                                                   color="red"
                                                   variant="light"
-                                                  mb={1}
                                                   aria-label={
                                                     t(
                                                       "ui.timetableDeleteAction"
