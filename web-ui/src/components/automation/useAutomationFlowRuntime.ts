@@ -690,7 +690,6 @@ export function useAutomationFlowRuntime(
             const payload = {
               eventType:
                 "turnoutChanged",
-              address,
               ...data,
             };
 
