@@ -1056,5 +1056,7 @@
   "timetableAddRow": "Add row",
   "timetableMissingMovement": "Missing Movement",
   "timetableNextRowsDescription": "Always showing the next {{value1}} timetable rows · running rows stay pinned above them",
-  "noUpcomingTimetableRows": "No upcoming timetable rows."
+  "noUpcomingTimetableRows": "No upcoming timetable rows.",
+  "timetableJumpBeforeFirst": "First start −{{seconds}}s",
+  "fastClockSetTimeFailed": "Failed to set FastClock time."
 }
