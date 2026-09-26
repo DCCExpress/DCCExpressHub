@@ -283,13 +283,33 @@ test("Movement editor is split into reusable components", () => {
     /movement-route-actions/
   );
 
-  assert.match(
-    row,
-    /Block arrived when/
-  );
+  const blockConditions =
+    read(
+      "src/components/movement/MovementBlockConditionsEditor.tsx"
+    );
 
   assert.match(
     row,
+    /MovementBlockConditionsEditor/
+  );
+
+  assert.match(
+    blockConditions,
+    /Depart when/
+  );
+
+  assert.match(
+    blockConditions,
+    /Leave when/
+  );
+
+  assert.match(
+    blockConditions,
+    /Arrived when/
+  );
+
+  assert.match(
+    blockConditions,
     /condition\.sensor/
   );
 
@@ -970,5 +990,118 @@ test("Movement block LEAVE fires from source occupancy release", () => {
   assert.match(
     engine,
     /runBlockLeaveFallback/
+  );
+});
+
+
+test("Movement block conditions support DEPART LEAVE and ARRIVED sensor rules", () => {
+  const domain =
+    read(
+      "src/domain/movement.ts"
+    );
+
+  const plan =
+    read(
+      "src/services/movementPlan.ts"
+    );
+
+  const engine =
+    read(
+      "src/services/movementEngine.ts"
+    );
+
+  const editor =
+    read(
+      "src/components/movement/MovementBlockConditionsEditor.tsx"
+    );
+
+  assert.match(
+    domain,
+    /departWhen:\s*MovementSensorCondition\[\]/
+  );
+
+  assert.match(
+    domain,
+    /leaveWhen:\s*MovementSensorCondition\[\]/
+  );
+
+  assert.match(
+    domain,
+    /arrivedWhen:\s*MovementSensorCondition\[\]/
+  );
+
+  assert.match(
+    domain,
+    /candidate\.departWhen/
+  );
+
+  assert.match(
+    domain,
+    /candidate\.leaveWhen/
+  );
+
+  assert.match(
+    plan,
+    /departureRuleFor/
+  );
+
+  assert.match(
+    plan,
+    /leaveRuleFor/
+  );
+
+  assert.match(
+    plan,
+    /leaveWhenExplicit/
+  );
+
+  assert.match(
+    engine,
+    /waitForDepartureConditions/
+  );
+
+  assert.match(
+    engine,
+    /Waiting for departure/
+  );
+
+  assert.match(
+    engine,
+    /Waiting for leave/
+  );
+
+  assert.match(
+    engine,
+    /conditionsSatisfied/
+  );
+
+  assert.match(
+    editor,
+    /"departWhen"/
+  );
+
+  assert.match(
+    editor,
+    /"leaveWhen"/
+  );
+
+  assert.match(
+    editor,
+    /"arrivedWhen"/
+  );
+
+  assert.match(
+    editor,
+    /Default: depart as soon as route authority is available/
+  );
+
+  assert.match(
+    editor,
+    /Default: source block occupancy sensor OFF/
+  );
+
+  assert.match(
+    editor,
+    /Default: destination occupancy ON/
   );
 });
