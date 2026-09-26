@@ -935,7 +935,7 @@
   "flowLog": "Log",
   "flowTest": "TEST",
   "flowStop": "STOP",
-  "flowRuntimeLogDescription": "Laufzeit- und log(...)-Meldungen aus Live-Flows und Editor-Ausführungen.",
+  "flowRuntimeLogDescription": "Live-Event-Eingänge verwenden den zuletzt gespeicherten Flow. Run flows und die Seite müssen aktiviert sein. log(...)-Meldungen erscheinen hier.",
   "flowClearLog": "Log löschen",
   "flowNoLogMessages": "Noch keine Log-Meldungen.",
   "flowGroupTrigger": "Trigger",

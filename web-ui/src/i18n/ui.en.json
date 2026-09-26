@@ -935,7 +935,7 @@
   "flowLog": "Log",
   "flowTest": "TEST",
   "flowStop": "STOP",
-  "flowRuntimeLogDescription": "Runtime and log(...) messages from live flows and editor runs.",
+  "flowRuntimeLogDescription": "Live event inputs use the last saved flow. Run flows and the page must be enabled. log(...) messages appear here.",
   "flowClearLog": "Clear log",
   "flowNoLogMessages": "No log messages yet.",
   "flowGroupTrigger": "Trigger",

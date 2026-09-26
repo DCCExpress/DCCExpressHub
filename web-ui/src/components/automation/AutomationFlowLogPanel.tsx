@@ -69,7 +69,7 @@ export default function AutomationFlowLogPanel({
           {
             t(
               "ui.flowRuntimeLogDescription",
-              "Runtime and log(...) messages from live flows and editor runs."
+              "Live event inputs use the last saved flow. Run flows and the page must be enabled. log(...) messages appear here."
             )
           }
         </Text>

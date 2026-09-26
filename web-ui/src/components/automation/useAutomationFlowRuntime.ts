@@ -24,6 +24,7 @@ import {
 
 import {
   dispatchAutomationFlowRuntimeLog,
+  hasAutomationFlowRuntimeLogSubscribers,
 } from "./automationFlowEvents";
 
 const FLOW_RUNTIME_PREFIX =
@@ -622,12 +623,6 @@ export function useAutomationFlowRuntime(
           const current =
             documentRef.current;
 
-          if (
-            !runtimeEnabledRef.current
-          ) {
-            return;
-          }
-
           const address =
             Number(
               data.address
@@ -641,16 +636,13 @@ export function useAutomationFlowRuntime(
             return;
           }
 
+          let matchedAny =
+            false;
+
           for (
             const page of
             current.pages
           ) {
-            if (
-              !page.enabled
-            ) {
-              continue;
-            }
-
             const inputs =
               current.nodes.filter(
                 node => {
@@ -685,6 +677,63 @@ export function useAutomationFlowRuntime(
                 }
               );
 
+            if (
+              inputs.length ===
+              0
+            ) {
+              continue;
+            }
+
+            matchedAny =
+              true;
+
+            const payload = {
+              eventType:
+                "turnoutChanged",
+              address,
+              ...data,
+            };
+
+            if (
+              !runtimeEnabledRef.current
+            ) {
+              dispatchAutomationFlowRuntimeLog({
+                pageId:
+                  page.id,
+                timestamp:
+                  Date.now(),
+                level:
+                  "error",
+                values: [
+                  "IGNORED turnoutChanged",
+                  "Run flows is OFF.",
+                  payload,
+                ],
+              });
+
+              continue;
+            }
+
+            if (
+              !page.enabled
+            ) {
+              dispatchAutomationFlowRuntimeLog({
+                pageId:
+                  page.id,
+                timestamp:
+                  Date.now(),
+                level:
+                  "error",
+                values: [
+                  "IGNORED turnoutChanged",
+                  `Page "${page.name}" is disabled.`,
+                  payload,
+                ],
+              });
+
+              continue;
+            }
+
             for (
               const input of
               inputs
@@ -707,6 +756,33 @@ export function useAutomationFlowRuntime(
               );
             }
           }
+
+          if (
+            !matchedAny
+          ) {
+            const pageId =
+              current.activePageId;
+
+            if (
+              pageId &&
+              hasAutomationFlowRuntimeLogSubscribers(
+                pageId
+              )
+            ) {
+              dispatchAutomationFlowRuntimeLog({
+                pageId,
+                timestamp:
+                  Date.now(),
+                level:
+                  "info",
+                values: [
+                  "WS turnoutChanged",
+                  `No matching SAVED Turnout event input for address ${address}. Save editor changes first.`,
+                  data,
+                ],
+              });
+            }
+          }
         }
       ),
     []
@@ -719,12 +795,6 @@ export function useAutomationFlowRuntime(
         data => {
           const current =
             documentRef.current;
-
-          if (
-            !runtimeEnabledRef.current
-          ) {
-            return;
-          }
 
           const address =
             Number(
@@ -739,16 +809,13 @@ export function useAutomationFlowRuntime(
             return;
           }
 
+          let matchedAny =
+            false;
+
           for (
             const page of
             current.pages
           ) {
-            if (
-              !page.enabled
-            ) {
-              continue;
-            }
-
             const inputs =
               current.nodes.filter(
                 node =>
@@ -763,6 +830,66 @@ export function useAutomationFlowRuntime(
                     address
               );
 
+            if (
+              inputs.length ===
+              0
+            ) {
+              continue;
+            }
+
+            matchedAny =
+              true;
+
+            const payload = {
+              eventType:
+                "accessoryChanged",
+              address,
+              active:
+                Boolean(
+                  data.active
+                ),
+            };
+
+            if (
+              !runtimeEnabledRef.current
+            ) {
+              dispatchAutomationFlowRuntimeLog({
+                pageId:
+                  page.id,
+                timestamp:
+                  Date.now(),
+                level:
+                  "error",
+                values: [
+                  "IGNORED accessoryChanged",
+                  "Run flows is OFF.",
+                  payload,
+                ],
+              });
+
+              continue;
+            }
+
+            if (
+              !page.enabled
+            ) {
+              dispatchAutomationFlowRuntimeLog({
+                pageId:
+                  page.id,
+                timestamp:
+                  Date.now(),
+                level:
+                  "error",
+                values: [
+                  "IGNORED accessoryChanged",
+                  `Page "${page.name}" is disabled.`,
+                  payload,
+                ],
+              });
+
+              continue;
+            }
+
             for (
               const input of
               inputs
@@ -771,16 +898,35 @@ export function useAutomationFlowRuntime(
                 current,
                 page.id,
                 input,
-                {
-                  eventType:
-                    "accessoryChanged",
-                  address,
-                  active:
-                    Boolean(
-                      data.active
-                    ),
-                }
+                payload
               );
+            }
+          }
+
+          if (
+            !matchedAny
+          ) {
+            const pageId =
+              current.activePageId;
+
+            if (
+              pageId &&
+              hasAutomationFlowRuntimeLogSubscribers(
+                pageId
+              )
+            ) {
+              dispatchAutomationFlowRuntimeLog({
+                pageId,
+                timestamp:
+                  Date.now(),
+                level:
+                  "info",
+                values: [
+                  "WS accessoryChanged",
+                  `No matching SAVED Basic Accessory event input for address ${address}. Save editor changes first.`,
+                  data,
+                ],
+              });
             }
           }
         }
@@ -795,12 +941,6 @@ export function useAutomationFlowRuntime(
         data => {
           const current =
             documentRef.current;
-
-          if (
-            !runtimeEnabledRef.current
-          ) {
-            return;
-          }
 
           const address =
             Number(
@@ -823,16 +963,13 @@ export function useAutomationFlowRuntime(
             return;
           }
 
+          let matchedAny =
+            false;
+
           for (
             const page of
             current.pages
           ) {
-            if (
-              !page.enabled
-            ) {
-              continue;
-            }
-
             const inputs =
               current.nodes.filter(
                 node =>
@@ -847,6 +984,63 @@ export function useAutomationFlowRuntime(
                     address
               );
 
+            if (
+              inputs.length ===
+              0
+            ) {
+              continue;
+            }
+
+            matchedAny =
+              true;
+
+            const payload = {
+              eventType:
+                "signalAspectChanged",
+              address,
+              aspect,
+            };
+
+            if (
+              !runtimeEnabledRef.current
+            ) {
+              dispatchAutomationFlowRuntimeLog({
+                pageId:
+                  page.id,
+                timestamp:
+                  Date.now(),
+                level:
+                  "error",
+                values: [
+                  "IGNORED signalAspectChanged",
+                  "Run flows is OFF.",
+                  payload,
+                ],
+              });
+
+              continue;
+            }
+
+            if (
+              !page.enabled
+            ) {
+              dispatchAutomationFlowRuntimeLog({
+                pageId:
+                  page.id,
+                timestamp:
+                  Date.now(),
+                level:
+                  "error",
+                values: [
+                  "IGNORED signalAspectChanged",
+                  `Page "${page.name}" is disabled.`,
+                  payload,
+                ],
+              });
+
+              continue;
+            }
+
             for (
               const input of
               inputs
@@ -855,13 +1049,35 @@ export function useAutomationFlowRuntime(
                 current,
                 page.id,
                 input,
-                {
-                  eventType:
-                    "signalAspectChanged",
-                  address,
-                  aspect,
-                }
+                payload
               );
+            }
+          }
+
+          if (
+            !matchedAny
+          ) {
+            const pageId =
+              current.activePageId;
+
+            if (
+              pageId &&
+              hasAutomationFlowRuntimeLogSubscribers(
+                pageId
+              )
+            ) {
+              dispatchAutomationFlowRuntimeLog({
+                pageId,
+                timestamp:
+                  Date.now(),
+                level:
+                  "info",
+                values: [
+                  "WS signalAspectChanged",
+                  `No matching SAVED Extended Accessory event input for address ${address}. Save editor changes first.`,
+                  data,
+                ],
+              });
             }
           }
         }

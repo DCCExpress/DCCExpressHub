@@ -103,6 +103,17 @@ const runtimeLogListenersByPage =
     >
   >();
 
+export function hasAutomationFlowRuntimeLogSubscribers(
+  pageId: string
+): boolean {
+  return (
+    runtimeLogListenersByPage.get(
+      pageId
+    )?.size ??
+    0
+  ) > 0;
+}
+
 export function getAutomationFlowRuntimeLogs(
   pageId: string
 ): AutomationFlowRuntimeLogEventDetail[] {

@@ -935,7 +935,7 @@
   "flowLog": "Log",
   "flowTest": "TESZT",
   "flowStop": "STOP",
-  "flowRuntimeLogDescription": "Az élő flow-k és az editor futtatásainak runtime és log(...) üzenetei.",
+  "flowRuntimeLogDescription": "Az élő event inputok a legutóbb elmentett flow-t futtatják. A Run flows és a lap Enabled kapcsolója is legyen bekapcsolva. A log(...) üzenetek itt jelennek meg.",
   "flowClearLog": "Log törlése",
   "flowNoLogMessages": "Még nincs log üzenet.",
   "flowGroupTrigger": "Indítás",

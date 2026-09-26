@@ -755,6 +755,46 @@ test("log node writes the message and serialized payload to the runtime log", ()
   );
 
   assert.match(
+    events,
+    /hasAutomationFlowRuntimeLogSubscribers/
+  );
+
+  assert.match(
+    runtime,
+    /IGNORED turnoutChanged/
+  );
+
+  assert.match(
+    runtime,
+    /IGNORED accessoryChanged/
+  );
+
+  assert.match(
+    runtime,
+    /IGNORED signalAspectChanged/
+  );
+
+  assert.match(
+    runtime,
+    /Run flows is OFF/
+  );
+
+  assert.match(
+    runtime,
+    /No matching SAVED Turnout event input/
+  );
+
+  assert.match(
+    runtime,
+    /No matching SAVED Basic Accessory event input/
+  );
+
+  assert.match(
+    runtime,
+    /No matching SAVED Extended Accessory event input/
+  );
+
+  assert.match(
     runtime,
     /level:[\s\S]*"info"[\s\S]*EVENT/
   );
