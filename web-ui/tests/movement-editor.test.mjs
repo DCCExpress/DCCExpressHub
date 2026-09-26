@@ -320,7 +320,22 @@ test("Movement uses a dedicated physical-route engine with JMRI-style actions", 
 
   assert.match(
     engine,
-    /turnoutRequirementsMatch/
+    /switchManCommand/
+  );
+
+  assert.match(
+    engine,
+    /"acquire"/
+  );
+
+  assert.match(
+    engine,
+    /"set"/
+  );
+
+  assert.match(
+    engine,
+    /"release"/
   );
 
   assert.match(
@@ -341,6 +356,11 @@ test("Movement uses a dedicated physical-route engine with JMRI-style actions", 
   assert.doesNotMatch(
     engine,
     /wsApi\.setTurnout/
+  );
+
+  assert.match(
+    engine,
+    /tryAcquireAndSetTurnouts/
   );
 
   assert.doesNotMatch(
