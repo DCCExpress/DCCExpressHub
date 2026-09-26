@@ -15,6 +15,7 @@ export type MovementPage = {
   id: string;
   name: string;
   enabled: boolean;
+  speed: number;
   fromBlockId: number | null;
   viaBlockIds: number[];
   toBlockId: number | null;
@@ -55,6 +56,7 @@ export function createMovementPage(
       ),
     name,
     enabled: true,
+    speed: 20,
     fromBlockId: null,
     viaBlockIds: [],
     toBlockId: null,
@@ -276,6 +278,20 @@ function normalizeMovementPage(
     enabled:
       candidate.enabled !==
       false,
+    speed:
+      Math.max(
+        0,
+        Math.min(
+          126,
+          Math.round(
+            Number(
+              candidate.speed ??
+              20
+            ) ||
+            0
+          )
+        )
+      ),
     fromBlockId,
     viaBlockIds,
     toBlockId:
