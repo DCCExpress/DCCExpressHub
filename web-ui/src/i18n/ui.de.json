@@ -898,7 +898,6 @@
   "flowExpandAll": "Alle ausklappen",
   "flowCurrentPageOnly": "Gilt nur für die aktuelle Seite.",
   "flowGeneratedCode": "Generiertes JavaScript",
-  "flowNodeSmartDispatcher": "SmartDispatcher",
   "flowNodeSetSpeed": "Geschwindigkeit setzen",
   "flowNodeWaitBlock": "Auf Block warten",
   "flowNodeWaitSensor": "Auf Sensor warten",
