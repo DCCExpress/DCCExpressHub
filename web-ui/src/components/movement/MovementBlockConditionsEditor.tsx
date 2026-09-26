@@ -177,6 +177,7 @@ export default function MovementBlockConditionsEditor({
                   justify="space-between"
                   align="center"
                   wrap="nowrap"
+                  className="movement-block-event-condition-header"
                 >
                   <Group
                     gap="xs"
