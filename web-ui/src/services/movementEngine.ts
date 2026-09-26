@@ -1560,11 +1560,24 @@ async function waitForLegClearance(
       continue;
     }
 
-    const turnouts =
-      await tryAcquireAndSetTurnouts(
-        execution,
-        leg
+    let turnouts:
+      TurnoutLease |
+      null =
+      null;
+
+    try {
+      turnouts =
+        await tryAcquireAndSetTurnouts(
+          execution,
+          leg
+        );
+    } catch (error) {
+      await releaseLeases(
+        resources
       );
+
+      throw error;
+    }
 
     if (
       leg.turnoutStates.length >
