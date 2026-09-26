@@ -547,8 +547,7 @@
   background: var(--mantine-color-violet-6);
 }
 
-.movement-condition-step-row:last-child .movement-inner-step-line,
-.movement-action-step-row:last-child .movement-inner-step-line {
+.movement-inner-step-row.is-last .movement-inner-step-line {
   visibility: hidden;
 }
 
