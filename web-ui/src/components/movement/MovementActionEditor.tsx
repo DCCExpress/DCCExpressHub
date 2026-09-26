@@ -1,5 +1,11 @@
 import {
+  type DragEvent,
+  useState,
+} from "react";
+
+import {
   ActionIcon,
+  Badge,
   Button,
   Group,
   NumberInput,
@@ -8,9 +14,13 @@ import {
   Switch,
   Text,
   TextInput,
+  Tooltip,
 } from "@mantine/core";
 
 import {
+  IconArrowDown,
+  IconArrowUp,
+  IconGripVertical,
   IconPlus,
   IconTrash,
 } from "@tabler/icons-react";
@@ -192,6 +202,49 @@ function defaultWhen(
   return "arrived";
 }
 
+function moveAction(
+  actions:
+    MovementAction[],
+  fromIndex: number,
+  toIndex: number
+): MovementAction[] {
+  if (
+    fromIndex < 0 ||
+    fromIndex >=
+      actions.length ||
+    toIndex < 0 ||
+    toIndex >=
+      actions.length ||
+    fromIndex ===
+      toIndex
+  ) {
+    return actions;
+  }
+
+  const next =
+    [...actions];
+
+  const [
+    moved,
+  ] =
+    next.splice(
+      fromIndex,
+      1
+    );
+
+  if (!moved) {
+    return actions;
+  }
+
+  next.splice(
+    toIndex,
+    0,
+    moved
+  );
+
+  return next;
+}
+
 const WHAT_OPTIONS:
   Array<{
     value:
@@ -256,6 +309,109 @@ export default function MovementActionEditor({
       isSource,
       isDestination
     );
+
+  const [
+    draggedActionId,
+    setDraggedActionId,
+  ] =
+    useState<string | null>(
+      null
+    );
+
+  const moveActionByOffset =
+    (
+      actionId: string,
+      offset: number
+    ): void => {
+      const fromIndex =
+        actions.findIndex(
+          action =>
+            action.id ===
+            actionId
+        );
+
+      const toIndex =
+        Math.max(
+          0,
+          Math.min(
+            fromIndex +
+              offset,
+            actions.length -
+              1
+          )
+        );
+
+      const next =
+        moveAction(
+          actions,
+          fromIndex,
+          toIndex
+        );
+
+      if (
+        next !==
+        actions
+      ) {
+        onChange(
+          next
+        );
+      }
+    };
+
+  const moveDraggedActionToIndex =
+    (
+      targetIndex:
+        number
+    ): void => {
+      if (
+        !draggedActionId
+      ) {
+        return;
+      }
+
+      const fromIndex =
+        actions.findIndex(
+          action =>
+            action.id ===
+            draggedActionId
+        );
+
+      const next =
+        moveAction(
+          actions,
+          fromIndex,
+          targetIndex
+        );
+
+      if (
+        next !==
+        actions
+      ) {
+        onChange(
+          next
+        );
+      }
+    };
+
+  const handleDragStart =
+    (
+      event:
+        DragEvent<HTMLDivElement>,
+      actionId:
+        string
+    ): void => {
+      setDraggedActionId(
+        actionId
+      );
+
+      event.dataTransfer.effectAllowed =
+        "move";
+
+      event.dataTransfer.setData(
+        "text/plain",
+        actionId
+      );
+    };
 
   const update =
     (
@@ -334,20 +490,166 @@ export default function MovementActionEditor({
 
       {
         actions.map(
-          action => (
+          (
+            action,
+            actionIndex
+          ) => (
             <Stack
               key={
                 action.id
               }
               gap={6}
               p={8}
+              draggable
+              onDragStart={
+                event =>
+                  handleDragStart(
+                    event,
+                    action.id
+                  )
+              }
+              onDragEnd={
+                () =>
+                  setDraggedActionId(
+                    null
+                  )
+              }
+              onDragOver={
+                event => {
+                  event.preventDefault();
+
+                  event.dataTransfer.dropEffect =
+                    "move";
+
+                  if (
+                    draggedActionId &&
+                    draggedActionId !==
+                      action.id
+                  ) {
+                    moveDraggedActionToIndex(
+                      actionIndex
+                    );
+                  }
+                }
+              }
               style={{
                 border:
                   "1px solid var(--mantine-color-default-border)",
                 borderRadius:
                   "var(--mantine-radius-sm)",
+                opacity:
+                  draggedActionId ===
+                    action.id
+                    ? 0.35
+                    : 1,
+                transition:
+                  "opacity 120ms ease, transform 120ms ease, border-color 120ms ease, background-color 120ms ease",
               }}
             >
+              <Group
+                justify="space-between"
+                wrap="nowrap"
+              >
+                <Group
+                  gap="xs"
+                  wrap="nowrap"
+                >
+                  <ActionIcon
+                    variant="subtle"
+                    color="gray"
+                    style={{
+                      cursor:
+                        "grab",
+                      touchAction:
+                        "none",
+                    }}
+                    aria-label="Reorder action"
+                  >
+                    <IconGripVertical
+                      size={17}
+                    />
+                  </ActionIcon>
+
+                  <Badge
+                    size="sm"
+                    variant="filled"
+                    color={
+                      draggedActionId ===
+                        action.id
+                        ? "orange"
+                        : "gray"
+                    }
+                  >
+                    #{actionIndex + 1}
+                  </Badge>
+
+                  <Text
+                    size="xs"
+                    c="dimmed"
+                  >
+                    Execution order
+                  </Text>
+                </Group>
+
+                <Group
+                  gap={4}
+                  wrap="nowrap"
+                >
+                  <Tooltip
+                    withArrow
+                    label="Move up"
+                  >
+                    <ActionIcon
+                      size="sm"
+                      color="gray"
+                      variant="light"
+                      disabled={
+                        actionIndex ===
+                        0
+                      }
+                      onClick={
+                        () =>
+                          moveActionByOffset(
+                            action.id,
+                            -1
+                          )
+                      }
+                    >
+                      <IconArrowUp
+                        size={14}
+                      />
+                    </ActionIcon>
+                  </Tooltip>
+
+                  <Tooltip
+                    withArrow
+                    label="Move down"
+                  >
+                    <ActionIcon
+                      size="sm"
+                      color="gray"
+                      variant="light"
+                      disabled={
+                        actionIndex >=
+                        actions.length -
+                          1
+                      }
+                      onClick={
+                        () =>
+                          moveActionByOffset(
+                            action.id,
+                            1
+                          )
+                      }
+                    >
+                      <IconArrowDown
+                        size={14}
+                      />
+                    </ActionIcon>
+                  </Tooltip>
+                </Group>
+              </Group>
+
               <Group
                 gap="xs"
                 wrap="nowrap"
