@@ -302,3 +302,79 @@ test("native automation endpoints preserve multi-action timetable fields", () =>
     /memory\.CopyToAsync\(output\)/
   );
 });
+
+
+test("timetable view keeps all running rows plus the next ten scheduled rows", () => {
+  const panel =
+    read(
+      "src/components/TimetablePanel.tsx"
+    );
+
+  assert.match(
+    panel,
+    /TIMETABLE_NEXT_ROW_COUNT = 10/
+  );
+
+  assert.match(
+    panel,
+    /TIMETABLE_LOOKAHEAD_MINUTES/
+  );
+
+  assert.match(
+    panel,
+    /const activeRows/
+  );
+
+  assert.match(
+    panel,
+    /schedulerState\.activeRuns\.map/
+  );
+
+  assert.match(
+    panel,
+    /nextRows\.slice\([\s\S]*0,[\s\S]*TIMETABLE_NEXT_ROW_COUNT/
+  );
+
+  assert.match(
+    panel,
+    /return \[[\s\S]*\.\.\.activeRows,[\s\S]*\.\.\.nextRows\.slice/
+  );
+
+  assert.match(
+    panel,
+    /row\.absoluteMinute/
+  );
+
+  assert.doesNotMatch(
+    panel,
+    /TIMETABLE_WINDOW_MINUTES/
+  );
+});
+
+
+test("next-ten timetable view has EN HU DE text", () => {
+  for (
+    const language of [
+      "en",
+      "hu",
+      "de",
+    ]
+  ) {
+    const ui =
+      JSON.parse(
+        read(
+          `src/i18n/ui.${language}.json`
+        )
+      );
+
+    assert.equal(
+      typeof ui.timetableNextRowsDescription,
+      "string"
+    );
+
+    assert.equal(
+      typeof ui.noUpcomingTimetableRows,
+      "string"
+    );
+  }
+});
