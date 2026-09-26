@@ -16,10 +16,12 @@ export type MovementBlockRule = {
 export type MovementWhen =
   | "start"
   | "complete"
+  | "beforeDepart"
   | "depart"
   | "arrived"
   | "enter"
   | "leave"
+  | "afterLeave"
   | "approach";
 
 export type MovementActionKind =
@@ -324,10 +326,12 @@ const MOVEMENT_WHEN =
   new Set<MovementWhen>([
     "start",
     "complete",
+    "beforeDepart",
     "depart",
     "arrived",
     "enter",
     "leave",
+    "afterLeave",
     "approach",
   ]);
 
