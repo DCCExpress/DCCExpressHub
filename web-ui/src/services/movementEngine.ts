@@ -61,6 +61,8 @@ export type MovementEngineState = {
   desiredSpeed: number;
   currentResourceKey:
     string | null;
+  activeRouteResourceKey:
+    string | null;
   info:
     string | null;
   error:
@@ -187,6 +189,8 @@ const idleState =
     desiredSpeed:
       0,
     currentResourceKey:
+      null,
+    activeRouteResourceKey:
       null,
     info:
       null,
@@ -596,6 +600,28 @@ function setInfo(
     {
       info,
       currentResourceKey:
+        resourceKey,
+    }
+  );
+}
+
+function setActiveRouteResource(
+  execution:
+    MovementExecution,
+  resourceKey:
+    string | null
+): void {
+  if (
+    execution.state.activeRouteResourceKey ===
+      resourceKey
+  ) {
+    return;
+  }
+
+  updateState(
+    execution,
+    {
+      activeRouteResourceKey:
         resourceKey,
     }
   );
@@ -2470,6 +2496,11 @@ async function traverseLeg(
   leg:
     MovementPlanLeg
 ): Promise<void> {
+  setActiveRouteResource(
+    execution,
+    leg.from.key
+  );
+
   /*
    * Do not reserve the next leg while a custom DEPART condition is still
    * false. This keeps rolling authority local to the actual movement.
@@ -2601,6 +2632,11 @@ async function traverseLeg(
         resource.kind ===
         "turnout"
       ) {
+        setActiveRouteResource(
+          execution,
+          resource.key
+        );
+
         await runActions(
           execution,
           resource.key,
@@ -2626,6 +2662,11 @@ async function traverseLeg(
         leg,
         resource,
         blockLeaveState
+      );
+
+      setActiveRouteResource(
+        execution,
+        resource.key
       );
 
       for (
@@ -2682,6 +2723,11 @@ async function traverseLeg(
       execution,
       leg,
       blockLeaveState
+    );
+
+    setActiveRouteResource(
+      execution,
+      leg.to.key
     );
 
     await maybeRunBlockLeave(
@@ -3050,6 +3096,8 @@ export async function startMovement(
       page.speed,
     currentResourceKey:
       source.key,
+    activeRouteResourceKey:
+      source.key,
     info:
       `Starting from ${source.name}`,
     error:
@@ -3112,6 +3160,8 @@ export async function startMovement(
         desiredSpeed:
           0,
         currentResourceKey:
+          null,
+        activeRouteResourceKey:
           null,
         info:
           "Movement completed",
@@ -3176,6 +3226,8 @@ export async function startMovement(
           null,
         desiredSpeed:
           0,
+        activeRouteResourceKey:
+          null,
         info:
           "Movement failed",
         error:
