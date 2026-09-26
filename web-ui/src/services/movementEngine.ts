@@ -766,16 +766,18 @@ function turnoutRequirementsMatch(
       );
 
     /*
-     * Unknown turnout state is intentionally not changed and is not treated
-     * as a mismatch. Some command stations do not report startup state.
-     * Once a state is known, a wrong state blocks movement until the user or
-     * another system corrects it.
+     * Movement never changes turnout state. Unknown therefore fails closed:
+     * the train stays stopped until authoritative turnout feedback arrives.
      */
     if (
       current ===
       undefined
     ) {
-      continue;
+      return {
+        ok: false,
+        mismatch:
+          `Turnout #${requirement.address} state is unknown. Movement will not change it.`,
+      };
     }
 
     if (
