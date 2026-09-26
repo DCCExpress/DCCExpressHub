@@ -18,6 +18,7 @@ import {
 import { showNotification } from "@mantine/notifications";
 import {
   IconCalendarTime,
+  IconClock,
   IconDeviceFloppy,
   IconPlayerPause,
   IconPlayerPlay,
@@ -30,6 +31,7 @@ import {
   resetFastClock,
   runFastClock,
   setFastClockSpeed,
+  setFastClockTime,
 } from "@/api/fastClockApi";
 import {
   enumerateTimetableCronOccurrences,
@@ -80,6 +82,8 @@ type ExpandedTimetableRow = {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MINUTE_MS = 60 * 1000;
+const FAST_CLOCK_TEST_LEAD_MS =
+  15 * 1000;
 const TIMETABLE_NEXT_ROW_COUNT = 10;
 const TIMETABLE_LOOKAHEAD_MINUTES =
   24 *
@@ -206,6 +210,92 @@ export default function TimetablePanel({
   const fastClockMinute = snapshot
     ? Math.floor(normalizeDayTime(snapshot.timeMs) / MINUTE_MS)
     : -1;
+
+
+  const firstRunnableTimetableMinute =
+    useMemo(
+      () => {
+        let earliest:
+          number | null =
+          null;
+
+        for (
+          const entry of
+          timetable
+        ) {
+          if (
+            !entry.enabled ||
+            entry.actions.length ===
+              0
+          ) {
+            continue;
+          }
+
+          const hasRunnableAction =
+            entry.actions.some(
+              action => {
+                if (
+                  action.targetType ===
+                  "movement"
+                ) {
+                  return movements.some(
+                    movement =>
+                      movement.id ===
+                        action.targetId &&
+                      movement.enabled
+                  );
+                }
+
+                return scripts.some(
+                  script =>
+                    script.id ===
+                      action.targetId &&
+                    script.script.trim()
+                      .length >
+                      0
+                );
+              }
+            );
+
+          if (
+            !hasRunnableAction
+          ) {
+            continue;
+          }
+
+          const firstOccurrence =
+            enumerateTimetableCronOccurrences(
+              entry.cron,
+              0,
+              24 * 60,
+              true
+            )[0];
+
+          if (
+            !firstOccurrence
+          ) {
+            continue;
+          }
+
+          if (
+            earliest ===
+              null ||
+            firstOccurrence.minuteOfDay <
+              earliest
+          ) {
+            earliest =
+              firstOccurrence.minuteOfDay;
+          }
+        }
+
+        return earliest;
+      },
+      [
+        timetable,
+        scripts,
+        movements,
+      ]
+    );
 
   const expandedRows =
     useMemo<
@@ -475,6 +565,38 @@ export default function TimetablePanel({
       t("ui.fastClockSpeedSetFailed")
     );
   };
+
+
+  const jumpBeforeFirstTimetableStart =
+    (): void => {
+      if (
+        firstRunnableTimetableMinute ===
+        null
+      ) {
+        return;
+      }
+
+      const firstStartMs =
+        firstRunnableTimetableMinute *
+        MINUTE_MS;
+
+      const targetMs =
+        normalizeDayTime(
+          firstStartMs -
+            FAST_CLOCK_TEST_LEAD_MS
+        );
+
+      void executeClockCommand(
+        () =>
+          setFastClockTime(
+            targetMs
+          ),
+        t(
+          "ui.fastClockSetTimeFailed"
+        ),
+        true
+      );
+    };
 
   return (
     <ScrollArea
@@ -832,7 +954,43 @@ export default function TimetablePanel({
                 )}
             </Group>
 
-            <Group grow gap="xs">
+            <Group
+              grow
+              gap="xs"
+              wrap="wrap"
+            >
+              <Button
+                color="cyan"
+                variant="light"
+                leftSection={
+                  <IconClock
+                    size={16}
+                  />
+                }
+                disabled={
+                  busy ||
+                  !clockState.connected ||
+                  !snapshot ||
+                  timetableLoading ||
+                  firstRunnableTimetableMinute ===
+                    null
+                }
+                onClick={
+                  jumpBeforeFirstTimetableStart
+                }
+              >
+                {
+                  t(
+                    "ui.timetableJumpBeforeFirst",
+                    {
+                      seconds:
+                        FAST_CLOCK_TEST_LEAD_MS /
+                        1000,
+                    }
+                  )
+                }
+              </Button>
+
               <Button
                 color="green"
                 variant="light"
