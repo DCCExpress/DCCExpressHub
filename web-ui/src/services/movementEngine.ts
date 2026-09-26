@@ -3198,6 +3198,8 @@ export async function startMovement(
             0,
           currentResourceKey:
             null,
+          activeRouteResourceKey:
+            null,
           info:
             execution.emergencyAbort
               ? "Movement aborted"
