@@ -25,6 +25,9 @@ export type CollapsiblePanelCardProps = {
   bodyGap?: string | number;
   cardPadding?: string | number;
   defaultCollapsed?: boolean;
+  clickableHeader?: boolean;
+  headerClassName?: string;
+  bodyClassName?: string;
 };
 
 export default function CollapsiblePanelCard({
@@ -37,6 +40,9 @@ export default function CollapsiblePanelCard({
   bodyGap = "xs",
   cardPadding = "xs",
   defaultCollapsed = false,
+  clickableHeader = false,
+  headerClassName,
+  bodyClassName,
 }: CollapsiblePanelCardProps) {
   const {
     collapsed,
@@ -60,6 +66,17 @@ export default function CollapsiblePanelCard({
           onToggle={toggleCollapsed}
           expandTooltip={expandTooltip}
           collapseTooltip={collapseTooltip}
+          clickableHeader={
+            clickableHeader
+          }
+          {...(
+            headerClassName !== undefined
+              ? {
+                  className:
+                    headerClassName,
+                }
+              : {}
+          )}
           {...(
             rightSection !== undefined
               ? {
@@ -74,6 +91,14 @@ export default function CollapsiblePanelCard({
         >
           <Stack
             gap={bodyGap}
+            {...(
+              bodyClassName !== undefined
+                ? {
+                    className:
+                      bodyClassName,
+                  }
+                : {}
+            )}
           >
             <Divider />
             {children}

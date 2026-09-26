@@ -173,6 +173,43 @@ body.automation-flow-panel-resizing * {
   border: 2px solid var(--mantine-color-body);
 }
 
+.automation-flow-palette-group-header {
+  min-height: 36px;
+  padding: 0 9px;
+  border-radius:
+    calc(var(--mantine-radius-md) - 1px)
+    calc(var(--mantine-radius-md) - 1px)
+    0
+    0;
+  background: rgba(0, 0, 0, 0.14);
+  border-bottom: 1px solid rgba(127, 127, 127, 0.14);
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease;
+}
+
+.automation-flow-palette-group-header:hover {
+  background: rgba(0, 0, 0, 0.21);
+  border-bottom-color: rgba(127, 127, 127, 0.24);
+}
+
+.automation-flow-palette-group-header[aria-expanded="false"] {
+  border-bottom: 0;
+  border-radius:
+    calc(var(--mantine-radius-md) - 1px);
+}
+
+.automation-flow-palette-group-header:focus-visible {
+  outline: 2px solid var(--mantine-color-violet-5);
+  outline-offset: -2px;
+}
+
+.automation-flow-palette-group-body {
+  padding: 0 8px 8px;
+}
+
 .automation-flow-palette-button {
   justify-content: flex-start;
 }

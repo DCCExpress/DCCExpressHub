@@ -1841,3 +1841,81 @@ test("flow nodes have a dark clickable collapsible header", () => {
     /\.automation-flow-node-collapsed/
   );
 });
+
+
+test("flow palette category cards have dark full-width clickable headers", () => {
+  const palette =
+    read(
+      "src/components/automation/AutomationFlowPalette.tsx"
+    );
+
+  const panel =
+    read(
+      "src/components/common/CollapsiblePanelCard.tsx"
+    );
+
+  const header =
+    read(
+      "src/components/common/CollapsibleCardHeader.tsx"
+    );
+
+  const css =
+    read(
+      "src/styles/automationFlow.css"
+    );
+
+  assert.match(
+    palette,
+    /clickableHeader/
+  );
+
+  assert.match(
+    palette,
+    /headerClassName="automation-flow-palette-group-header"/
+  );
+
+  assert.match(
+    palette,
+    /cardPadding=\{0\}/
+  );
+
+  assert.match(
+    panel,
+    /clickableHeader\?: boolean/
+  );
+
+  assert.match(
+    panel,
+    /headerClassName\?: string/
+  );
+
+  assert.match(
+    header,
+    /role=\{[\s\S]*"button"/
+  );
+
+  assert.match(
+    header,
+    /aria-expanded/
+  );
+
+  assert.match(
+    header,
+    /onClick=\{[\s\S]*onToggle/
+  );
+
+  assert.match(
+    css,
+    /\.automation-flow-palette-group-header/
+  );
+
+  assert.match(
+    css,
+    /background:\s*rgba\(0, 0, 0, 0\.14\)/
+  );
+
+  assert.match(
+    css,
+    /aria-expanded="false"/
+  );
+});

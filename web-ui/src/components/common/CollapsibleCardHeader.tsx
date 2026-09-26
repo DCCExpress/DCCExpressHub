@@ -20,6 +20,8 @@ type CollapsibleCardHeaderProps = {
   expandTooltip: string;
   collapseTooltip: string;
   rightSection?: ReactNode;
+  clickableHeader?: boolean;
+  className?: string;
 };
 
 export default function CollapsibleCardHeader({
@@ -29,12 +31,54 @@ export default function CollapsibleCardHeader({
   expandTooltip,
   collapseTooltip,
   rightSection,
+  clickableHeader = false,
+  className,
 }: CollapsibleCardHeaderProps) {
   return (
     <Group
       justify="space-between"
       align="center"
       wrap="nowrap"
+      className={
+        className
+      }
+      role={
+        clickableHeader
+          ? "button"
+          : undefined
+      }
+      tabIndex={
+        clickableHeader
+          ? 0
+          : undefined
+      }
+      aria-expanded={
+        clickableHeader
+          ? !collapsed
+          : undefined
+      }
+      onClick={
+        clickableHeader
+          ? onToggle
+          : undefined
+      }
+      onKeyDown={
+        clickableHeader
+          ? event => {
+              if (
+                event.key !==
+                  "Enter" &&
+                event.key !==
+                  " "
+              ) {
+                return;
+              }
+
+              event.preventDefault();
+              onToggle();
+            }
+          : undefined
+      }
     >
       {typeof title === "string" ? (
         <Text
@@ -65,7 +109,15 @@ export default function CollapsibleCardHeader({
             variant="subtle"
             color="gray"
             onClick={
-              onToggle
+              event => {
+                if (
+                  clickableHeader
+                ) {
+                  event.stopPropagation();
+                }
+
+                onToggle();
+              }
             }
           >
             <IconChevronDown

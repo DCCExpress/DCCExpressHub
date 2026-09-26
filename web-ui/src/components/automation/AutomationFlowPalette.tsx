@@ -617,6 +617,10 @@ export default function AutomationFlowPalette({
                     group.defaultCollapsed ===
                     true
                   }
+                  clickableHeader
+                  headerClassName="automation-flow-palette-group-header"
+                  bodyClassName="automation-flow-palette-group-body"
+                  cardPadding={0}
                 >
                   <Stack gap={6}>
                     {items.map(
