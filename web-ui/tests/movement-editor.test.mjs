@@ -1696,7 +1696,7 @@ test("Movement destination block exposes and fires APPROACH before ARRIVED", () 
 });
 
 
-test("Movement physical route highlights the current runtime step", () => {
+test("Movement physical route highlights stable physical runtime progress", () => {
   const editor =
     read(
       "src/components/movement/MovementRouteEditor.tsx"
@@ -1705,6 +1705,11 @@ test("Movement physical route highlights the current runtime step", () => {
   const row =
     read(
       "src/components/movement/MovementRouteRow.tsx"
+    );
+
+  const engine =
+    read(
+      "src/services/movementEngine.ts"
     );
 
   const css =
@@ -1719,7 +1724,37 @@ test("Movement physical route highlights the current runtime step", () => {
 
   assert.match(
     editor,
-    /runtimeState\.currentResourceKey/
+    /runtimeState\.activeRouteResourceKey/
+  );
+
+  assert.doesNotMatch(
+    editor,
+    /runtimeState\.currentResourceKey ===[\s\S]*resource\.key/
+  );
+
+  assert.match(
+    engine,
+    /activeRouteResourceKey:\s*string \| null/
+  );
+
+  assert.match(
+    engine,
+    /function setActiveRouteResource/
+  );
+
+  assert.match(
+    engine,
+    /setActiveRouteResource\([\s\S]*leg\.from\.key/
+  );
+
+  assert.match(
+    engine,
+    /waitForSegmentEntry\([\s\S]*setActiveRouteResource\([\s\S]*resource\.key/
+  );
+
+  assert.match(
+    engine,
+    /waitForArrival\([\s\S]*setActiveRouteResource\([\s\S]*leg\.to\.key/
   );
 
   assert.match(
