@@ -80,7 +80,14 @@ type ExpandedTimetableRow = {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MINUTE_MS = 60 * 1000;
-const TIMETABLE_WINDOW_MINUTES = 60;
+const TIMETABLE_NEXT_ROW_COUNT = 10;
+const TIMETABLE_LOOKAHEAD_MINUTES =
+  24 *
+  60 *
+  (
+    TIMETABLE_NEXT_ROW_COUNT +
+    1
+  );
 
 function normalizeDayTime(value: number): number {
   const normalized = value % DAY_MS;
@@ -200,176 +207,230 @@ export default function TimetablePanel({
     ? Math.floor(normalizeDayTime(snapshot.timeMs) / MINUTE_MS)
     : -1;
 
-  const expandedRows = useMemo<ExpandedTimetableRow[]>(() => {
-    if (!snapshot) {
-      return [];
-    }
+  const expandedRows =
+    useMemo<
+      ExpandedTimetableRow[]
+    >(
+      () => {
+        if (!snapshot) {
+          return [];
+        }
 
-    const scriptsById = new Map(
-      scripts.map(script => [script.id, script] as const)
-    );
+        const scriptsById =
+          new Map(
+            scripts.map(
+              script => [
+                script.id,
+                script,
+              ] as const
+            )
+          );
 
-    const movementsById =
-      new Map(
-        movements.map(
-          movement => [
-            movement.id,
-            movement,
-          ] as const
-        )
-      );
+        const movementsById =
+          new Map(
+            movements.map(
+              movement => [
+                movement.id,
+                movement,
+              ] as const
+            )
+          );
 
-    const rows: ExpandedTimetableRow[] = [];
-    const representedRunIds = new Set<string>();
+        const activeRows:
+          ExpandedTimetableRow[] =
+          schedulerState.activeRuns.map(
+            activeRun => {
+              let absoluteMinute =
+                activeRun.scheduledMinuteOfDay;
 
-    for (const entry of timetable) {
-      if (!entry.enabled) {
-        continue;
-      }
+              if (
+                absoluteMinute >
+                fastClockMinute
+              ) {
+                absoluteMinute -=
+                  24 *
+                  60;
+              }
 
-      const occurrences =
-        enumerateTimetableCronOccurrences(
-          entry.cron,
-          snapshot.timeMs,
-          TIMETABLE_WINDOW_MINUTES
-        );
+              return {
+                key:
+                  `active:${activeRun.id}`,
+                time:
+                  activeRun.scheduledTime,
+                absoluteMinute,
+                dayOffset:
+                  0,
+                targetName:
+                  activeRun.targetName,
+                targetMissing:
+                  false,
+                targetType:
+                  activeRun.targetType,
+                isCurrent:
+                  activeRun.scheduledMinuteOfDay ===
+                  fastClockMinute,
+                activeRun,
+              };
+            }
+          );
 
-      for (
-        const occurrence of
-        occurrences
-      ) {
-        for (
-          const action of
-          entry.actions
-        ) {
-          const target =
-            action.targetType ===
-              "movement"
-              ? movementsById.get(
-                  action.targetId
-                )
-              : scriptsById.get(
-                  action.targetId
-                );
+        activeRows.sort(
+          (
+            left,
+            right
+          ) => {
+            if (
+              left.absoluteMinute !==
+              right.absoluteMinute
+            ) {
+              return (
+                left.absoluteMinute -
+                right.absoluteMinute
+              );
+            }
 
-          const activeRun =
-            occurrence.dayOffset ===
-              0
-              ? schedulerState.activeRuns.find(
-                  run =>
-                    run.timetableEntryId ===
-                      entry.id &&
-                    run.timetableActionId ===
-                      action.id &&
-                    run.scheduledMinuteOfDay ===
-                      occurrence.minuteOfDay
-                ) ??
-                null
-              : null;
-
-          if (activeRun) {
-            representedRunIds.add(
-              activeRun.id
+            return left.targetName.localeCompare(
+              right.targetName
             );
           }
+        );
 
-          rows.push({
-            key:
-              `${entry.id}:${action.id}:${occurrence.absoluteMinute}`,
-            time:
-              formatTimetableTime(
-                occurrence.hour,
-                occurrence.minute
-              ),
-            absoluteMinute:
-              occurrence.absoluteMinute,
-            dayOffset:
-              occurrence.dayOffset,
-            targetName:
-              target?.name ??
-              (
+        const activeKeys =
+          new Set(
+            schedulerState.activeRuns.map(
+              run =>
+                `${run.timetableEntryId}:${run.timetableActionId}:${run.scheduledMinuteOfDay}`
+            )
+          );
+
+        const nextRows:
+          ExpandedTimetableRow[] = [];
+
+        for (
+          const entry of
+          timetable
+        ) {
+          if (!entry.enabled) {
+            continue;
+          }
+
+          const occurrences =
+            enumerateTimetableCronOccurrences(
+              entry.cron,
+              snapshot.timeMs,
+              TIMETABLE_LOOKAHEAD_MINUTES
+            );
+
+          for (
+            const occurrence of
+            occurrences
+          ) {
+            for (
+              const action of
+              entry.actions
+            ) {
+              const occurrenceKey =
+                `${entry.id}:${action.id}:${occurrence.minuteOfDay}`;
+
+              if (
+                occurrence.dayOffset ===
+                  0 &&
+                activeKeys.has(
+                  occurrenceKey
+                )
+              ) {
+                continue;
+              }
+
+              const target =
                 action.targetType ===
                   "movement"
-                  ? t(
-                      "ui.timetableMissingMovement"
+                  ? movementsById.get(
+                      action.targetId
                     )
-                  : t(
-                      "ui.missingScript"
-                    )
-              ),
-            targetMissing:
-              !target,
-            targetType:
-              action.targetType,
-            isCurrent:
-              occurrence.dayOffset ===
-                0 &&
-              occurrence.absoluteMinute ===
-                fastClockMinute,
-            activeRun,
-          });
+                  : scriptsById.get(
+                      action.targetId
+                    );
+
+              nextRows.push({
+                key:
+                  `${entry.id}:${action.id}:${occurrence.absoluteMinute}`,
+                time:
+                  formatTimetableTime(
+                    occurrence.hour,
+                    occurrence.minute
+                  ),
+                absoluteMinute:
+                  occurrence.absoluteMinute,
+                dayOffset:
+                  occurrence.dayOffset,
+                targetName:
+                  target?.name ??
+                  (
+                    action.targetType ===
+                      "movement"
+                      ? t(
+                          "ui.timetableMissingMovement"
+                        )
+                      : t(
+                          "ui.missingScript"
+                        )
+                  ),
+                targetMissing:
+                  !target,
+                targetType:
+                  action.targetType,
+                isCurrent:
+                  occurrence.dayOffset ===
+                    0 &&
+                  occurrence.absoluteMinute ===
+                    fastClockMinute,
+                activeRun:
+                  null,
+              });
+            }
+          }
         }
-      }
-    }
 
-    // A timetable window normally starts at the current minute, so a run that
-    // started earlier would disappear from the list while it is still active.
-    // Keep that concrete departure visible until its script actually finishes.
-    for (const activeRun of schedulerState.activeRuns) {
-      if (representedRunIds.has(activeRun.id)) {
-        continue;
-      }
+        nextRows.sort(
+          (
+            left,
+            right
+          ) => {
+            if (
+              left.absoluteMinute !==
+              right.absoluteMinute
+            ) {
+              return (
+                left.absoluteMinute -
+                right.absoluteMinute
+              );
+            }
 
-      let absoluteMinute = activeRun.scheduledMinuteOfDay;
+            return left.targetName.localeCompare(
+              right.targetName
+            );
+          }
+        );
 
-      if (absoluteMinute > fastClockMinute) {
-        // The run belongs to the previous FastClock day (midnight wrap).
-        absoluteMinute -= 24 * 60;
-      }
-
-      rows.push({
-        key: `active:${activeRun.id}`,
-        time: activeRun.scheduledTime,
-        absoluteMinute,
-        dayOffset: 0,
-        targetName:
-          activeRun.targetName,
-        targetMissing:
-          false,
-        targetType:
-          activeRun.targetType,
-        isCurrent:
-          activeRun.scheduledMinuteOfDay === fastClockMinute,
-        activeRun,
-      });
-    }
-
-    rows.sort((left, right) => {
-      if (left.absoluteMinute !== right.absoluteMinute) {
-        return left.absoluteMinute - right.absoluteMinute;
-      }
-
-      if (left.activeRun && !right.activeRun) {
-        return -1;
-      }
-
-      if (!left.activeRun && right.activeRun) {
-        return 1;
-      }
-
-      return left.targetName.localeCompare(right.targetName);
-    });
-
-    return rows;
-  }, [
-    fastClockMinute,
-    timetable,
-    scripts,
-    movements,
-    schedulerState.activeRuns,
-    snapshot !== null,
-    t,
-  ]);
+        return [
+          ...activeRows,
+          ...nextRows.slice(
+            0,
+            TIMETABLE_NEXT_ROW_COUNT
+          ),
+        ];
+      },
+      [
+        fastClockMinute,
+        timetable,
+        scripts,
+        movements,
+        schedulerState.activeRuns,
+        snapshot !== null,
+        t,
+      ]
+    );
 
   const executeClockCommand = async (
     operation: () => Promise<NonNullable<FastClockViewState["snapshot"]>>,
@@ -551,7 +612,13 @@ export default function TimetablePanel({
               <div>
                 <Text fw={700}>{t("ui.timetable")}</Text>
                 <Text size="xs" c="dimmed">
-                  {t("ui.timetableWindowDescription", { value1: TIMETABLE_WINDOW_MINUTES })}
+                  {t(
+                    "ui.timetableNextRowsDescription",
+                    {
+                      value1:
+                        TIMETABLE_NEXT_ROW_COUNT,
+                    }
+                  )}
                 </Text>
               </div>
 
@@ -584,7 +651,9 @@ export default function TimetablePanel({
               </Text>
             ) : expandedRows.length === 0 ? (
               <Text size="sm" c="dimmed" ta="center" py="sm">
-                {t("ui.noDeparturesNextMinutes", { value1: TIMETABLE_WINDOW_MINUTES })}
+                {t(
+                  "ui.noUpcomingTimetableRows"
+                )}
               </Text>
             ) : (
               <Table
