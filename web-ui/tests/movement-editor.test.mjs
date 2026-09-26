@@ -554,6 +554,21 @@ test("Movement uses a dedicated physical-route engine with JMRI-style actions", 
   );
 
   assert.match(
+    actionEditor,
+    /AudioFileInput/
+  );
+
+  assert.match(
+    actionEditor,
+    /allowManualInput=\{\s*false\s*\}/
+  );
+
+  assert.match(
+    actionEditor,
+    /audioManager\.play/
+  );
+
+  assert.match(
     routeEditor,
     /plan\.resources/
   );
@@ -733,5 +748,48 @@ test("Movement physical route uses one collapsible card instead of three columns
   assert.doesNotMatch(
     css,
     /movement-route-actions/
+  );
+});
+
+
+test("Movement PlayAudio uses the shared picker without manual path typing", () => {
+  const actionEditor =
+    read(
+      "src/components/movement/MovementActionEditor.tsx"
+    );
+
+  const audioPicker =
+    read(
+      "src/layout/property-panel/AudioFilePropertyEditor.tsx"
+    );
+
+  assert.match(
+    actionEditor,
+    /action\.kind ===[\s\S]*"playAudio"[\s\S]*<AudioFileInput/
+  );
+
+  assert.match(
+    actionEditor,
+    /allowManualInput=\{\s*false\s*\}/
+  );
+
+  assert.doesNotMatch(
+    actionEditor,
+    /placeholder="\/sd\/audio\/file\.mp3"/
+  );
+
+  assert.match(
+    audioPicker,
+    /allowManualInput\?: boolean/
+  );
+
+  assert.match(
+    audioPicker,
+    /readOnly=\{[\s\S]*readonly[\s\S]*!allowManualInput/
+  );
+
+  assert.match(
+    audioPicker,
+    /disabled=\{readonly\}/
   );
 });
