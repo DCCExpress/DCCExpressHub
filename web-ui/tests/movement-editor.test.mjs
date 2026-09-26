@@ -1493,3 +1493,61 @@ test("Movement action drag uses a dedicated handle and darker card headers", () 
     /movement-collapsible-header-actions[\s\S]*black 27%/
   );
 });
+
+
+test("Movement condition and action content use nested steppers", () => {
+  const conditions =
+    read(
+      "src/components/movement/MovementBlockConditionsEditor.tsx"
+    );
+
+  const actions =
+    read(
+      "src/components/movement/MovementActionEditor.tsx"
+    );
+
+  const css =
+    read(
+      "src/styles/movementEditor.css"
+    );
+
+  assert.match(
+    conditions,
+    /movement-inner-step-row movement-condition-step-row/
+  );
+
+  assert.match(
+    conditions,
+    /sectionIndex \+ 1/
+  );
+
+  assert.match(
+    conditions,
+    /"arrivedWhen"[\s\S]*"departWhen"[\s\S]*"leaveWhen"/
+  );
+
+  assert.match(
+    actions,
+    /movement-inner-step-row movement-action-step-row/
+  );
+
+  assert.match(
+    actions,
+    /actionIndex \+ 1/
+  );
+
+  assert.match(
+    css,
+    /grid-template-columns:\s*38px minmax\(0, 1fr\)/
+  );
+
+  assert.match(
+    css,
+    /gap:\s*12px/
+  );
+
+  assert.match(
+    css,
+    /movement-inner-step-row\.is-last/
+  );
+});
