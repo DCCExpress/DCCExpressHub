@@ -425,3 +425,62 @@ export async function saveAutomationMovement(
     )
   );
 }
+
+
+export async function updateAutomationMovementTiming(
+  pageId: string,
+  startedAt: number | null,
+  stoppedAt: number | null
+): Promise<void> {
+  const current =
+    await loadAutomationStorage();
+
+  let changed =
+    false;
+
+  const pages =
+    current.movement.pages.map(
+      page => {
+        if (
+          page.id !==
+          pageId
+        ) {
+          return page;
+        }
+
+        if (
+          page.startedAt ===
+            startedAt &&
+          page.stoppedAt ===
+            stoppedAt
+        ) {
+          return page;
+        }
+
+        changed =
+          true;
+
+        return {
+          ...page,
+          startedAt,
+          stoppedAt,
+        };
+      }
+    );
+
+  if (!changed) {
+    return;
+  }
+
+  await saveAutomationStorage(
+    createAutomationPayload(
+      current.scripts,
+      current.timetable,
+      current.visualFlow,
+      {
+        ...current.movement,
+        pages,
+      }
+    )
+  );
+}
