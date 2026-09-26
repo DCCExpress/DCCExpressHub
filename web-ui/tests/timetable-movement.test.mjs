@@ -29,7 +29,7 @@ function read(
   );
 }
 
-test("legacy timetable scriptId rows normalize to script targets", () => {
+test("legacy timetable targets normalize into one action", () => {
   const api =
     read(
       "src/services/automationApi.ts"
@@ -37,12 +37,17 @@ test("legacy timetable scriptId rows normalize to script targets", () => {
 
   assert.match(
     api,
-    /TimetableTargetType/
+    /TimetableActionDefinition/
   );
 
   assert.match(
     api,
-    /targetType:[\s\S]*TimetableTargetType/
+    /actions:\s*TimetableActionDefinition\[\]/
+  );
+
+  assert.match(
+    api,
+    /candidate\.actions/
   );
 
   assert.match(
@@ -57,11 +62,16 @@ test("legacy timetable scriptId rows normalize to script targets", () => {
 
   assert.match(
     api,
-    /targetType ===[\s\S]*"script"[\s\S]*legacyScriptId/
+    /candidate\.targetId/
+  );
+
+  assert.match(
+    api,
+    /actions\.push\(\{[\s\S]*targetType,[\s\S]*targetId/
   );
 });
 
-test("timetable editor offers read-only script or Movement target selection", () => {
+test("timetable editor groups multiple actions in one schedule row", () => {
   const dialog =
     read(
       "src/components/TimetableDialog.tsx"
@@ -69,46 +79,61 @@ test("timetable editor offers read-only script or Movement target selection", ()
 
   assert.match(
     dialog,
-    /movements:\s*MovementPage\[\]/
+    /createTimetableActionId/
   );
 
   assert.match(
     dialog,
-    /value:[\s\S]*"script"[\s\S]*label:[\s\S]*"Script"/
+    /row\.actions\.map/
   );
 
   assert.match(
     dialog,
-    /value:[\s\S]*"movement"[\s\S]*label:[\s\S]*"Movement"/
+    /addAction\(/
   );
 
   assert.match(
     dialog,
-    /row\.targetType/
+    /updateAction\(/
   );
 
   assert.match(
     dialog,
-    /row\.targetId/
+    /deleteAction\(/
   );
 
   assert.match(
     dialog,
-    /movementOptions/
+    /timetableAddAction/
   );
 
   assert.match(
     dialog,
-    /scriptOptions/
+    /timetableDeleteActionConfirm/
+  );
+
+  assert.match(
+    dialog,
+    /window\.confirm/
+  );
+
+  assert.match(
+    dialog,
+    /<Paper[\s\S]*withBorder/
   );
 
   assert.doesNotMatch(
     dialog,
-    /row\.scriptId/
+    /row\.targetType/
+  );
+
+  assert.doesNotMatch(
+    dialog,
+    /row\.targetId/
   );
 });
 
-test("timetable scheduler launches and tracks Movements as first-class targets", () => {
+test("timetable scheduler launches every action in a matching row", () => {
   const scheduler =
     read(
       "src/services/timetableScheduler.ts"
@@ -116,17 +141,27 @@ test("timetable scheduler launches and tracks Movements as first-class targets",
 
   assert.match(
     scheduler,
-    /private movements:\s*MovementPage\[\]/
+    /for\s*\([\s\S]*const action of[\s\S]*entry\.actions/
   );
 
   assert.match(
     scheduler,
-    /entry\.targetType ===[\s\S]*"movement"/
+    /action\.targetType ===[\s\S]*"movement"/
   );
 
   assert.match(
     scheduler,
-    /this\.launchMovement/
+    /this\.launchMovement\([\s\S]*entry,[\s\S]*action,[\s\S]*movement/
+  );
+
+  assert.match(
+    scheduler,
+    /this\.launchScript\([\s\S]*entry,[\s\S]*action,[\s\S]*script/
+  );
+
+  assert.match(
+    scheduler,
+    /timetableActionId:\s*[\s\S]*action\.id/
   );
 
   assert.match(
@@ -136,63 +171,107 @@ test("timetable scheduler launches and tracks Movements as first-class targets",
 
   assert.match(
     scheduler,
-    /subscribeMovementEngineState/
-  );
-
-  assert.match(
-    scheduler,
-    /getMovementEngineState/
-  );
-
-  assert.match(
-    scheduler,
-    /targetType:[\s\S]*"movement"/
-  );
-
-  assert.match(
-    scheduler,
-    /Movement "[^"]*" is already active|Movement "\$\{movement\.name\}" is already active/
+    /runClientScript\(/
   );
 });
 
-test("timetable runtime receives Movement definitions and labels mixed targets", () => {
+test("timetable runtime tracks each action independently", () => {
   const panel =
     read(
       "src/components/TimetablePanel.tsx"
     );
 
-  const layout =
-    read(
-      "src/LiteLayoutPage.tsx"
-    );
-
   assert.match(
     panel,
-    /movements:\s*MovementPage\[\]/
+    /for\s*\([\s\S]*const action of[\s\S]*entry\.actions/
   );
 
   assert.match(
     panel,
-    /timetableScheduler\.configure\([\s\S]*scripts,[\s\S]*movements,[\s\S]*timetable/
+    /run\.timetableActionId ===[\s\S]*action\.id/
   );
 
   assert.match(
     panel,
-    /row\.targetType ===[\s\S]*"movement"/
+    /entry\.id[\s\S]*action\.id[\s\S]*occurrence\.absoluteMinute/
   );
 
   assert.match(
-    layout,
-    /<TimetablePanel[\s\S]*movements=\{movementDocument\.pages\}/
-  );
-
-  assert.match(
-    layout,
-    /<TimetableDialog[\s\S]*movements=\{movementDocument\.pages\}/
+    panel,
+    /action\.targetType/
   );
 });
 
-test("native automation endpoints preserve generic timetable target fields", () => {
+test("timetable dialog uses i18n instead of hardcoded Hungarian UI", () => {
+  const dialog =
+    read(
+      "src/components/TimetableDialog.tsx"
+    );
+
+  const en =
+    JSON.parse(
+      read(
+        "src/i18n/ui.en.json"
+      )
+    );
+
+  const hu =
+    JSON.parse(
+      read(
+        "src/i18n/ui.hu.json"
+      )
+    );
+
+  const de =
+    JSON.parse(
+      read(
+        "src/i18n/ui.de.json"
+      )
+    );
+
+  assert.match(
+    dialog,
+    /useTranslation/
+  );
+
+  for (
+    const key of [
+      "timetableScheduleType",
+      "timetableSchedule",
+      "timetableActions",
+      "timetableAddAction",
+      "timetableDeleteAction",
+      "timetableDeleteActionConfirm",
+      "timetableAddRow",
+      "timetableDeleteRow",
+    ]
+  ) {
+    assert.equal(
+      typeof en[key],
+      "string",
+      `English translation missing: ${key}`
+    );
+
+    assert.equal(
+      typeof hu[key],
+      "string",
+      `Hungarian translation missing: ${key}`
+    );
+
+    assert.equal(
+      typeof de[key],
+      "string",
+      `German translation missing: ${key}`
+    );
+  }
+
+  assert.doesNotMatch(
+    dialog,
+    /Menetrend elmentve|Hibás menetrendi|Válassz scriptet|Új sor|Sor törlése/
+  );
+});
+
+test("native automation endpoints preserve multi-action timetable fields", () => {
   const firmware =
     read(
       "../src/AutomationsEndpoint.cpp"
