@@ -2,9 +2,23 @@ import type {
   SerializedLayoutDto,
 } from "../domain/layout/layoutDto";
 
+export type MovementTravelDirection =
+  | "unknown"
+  | "forward"
+  | "reverse";
+
+export type MovementRouteNext = {
+  blockId: number;
+  directions:
+    MovementTravelDirection[];
+};
+
 export type MovementRouteNavigation = {
   nextByBlockId:
-    Map<number, number[]>;
+    Map<
+      number,
+      MovementRouteNext[]
+    >;
 };
 
 type RawBlockPathEntry = {
@@ -13,6 +27,7 @@ type RawBlockPathEntry = {
 
 type RawRouteEntry = {
   blockPath?: unknown;
+  locoDirection?: unknown;
 };
 
 function positiveInteger(
@@ -48,6 +63,56 @@ function record(
     : null;
 }
 
+function travelDirection(
+  value: unknown
+): MovementTravelDirection {
+  if (
+    value ===
+      "forward" ||
+    value ===
+      "reverse"
+  ) {
+    return value;
+  }
+
+  return "unknown";
+}
+
+function mergeDirection(
+  current:
+    MovementTravelDirection,
+  next:
+    MovementTravelDirection
+): MovementTravelDirection | null {
+  if (
+    current ===
+    "unknown"
+  ) {
+    return next;
+  }
+
+  if (
+    next ===
+    "unknown"
+  ) {
+    return current;
+  }
+
+  return (
+    current ===
+    next
+  )
+    ? current
+    : null;
+}
+
+function transitionKey(
+  from: number,
+  to: number
+): string {
+  return `${from}->${to}`;
+}
+
 export function buildMovementRouteNavigation(
   layout:
     SerializedLayoutDto
@@ -68,10 +133,15 @@ export function buildMovementRouteNavigation(
       ? topology.routeTable
       : [];
 
-  const nextSets =
+  const transitions =
     new Map<
-      number,
-      Set<number>
+      string,
+      {
+        from: number;
+        to: number;
+        directions:
+          Set<MovementTravelDirection>;
+      }
     >();
 
   for (
@@ -91,6 +161,11 @@ export function buildMovementRouteNavigation(
     ) {
       continue;
     }
+
+    const direction =
+      travelDirection(
+        route.locoDirection
+      );
 
     const blockIds =
       route.blockPath
@@ -141,23 +216,35 @@ export function buildMovementRouteNavigation(
         continue;
       }
 
-      let targets =
-        nextSets.get(
-          from
+      const key =
+        transitionKey(
+          from,
+          to
         );
 
-      if (!targets) {
-        targets =
-          new Set<number>();
+      let transition =
+        transitions.get(
+          key
+        );
 
-        nextSets.set(
+      if (!transition) {
+        transition = {
           from,
-          targets
+          to,
+          directions:
+            new Set<
+              MovementTravelDirection
+            >(),
+        };
+
+        transitions.set(
+          key,
+          transition
         );
       }
 
-      targets.add(
-        to
+      transition.directions.add(
+        direction
       );
     }
   }
@@ -165,33 +252,211 @@ export function buildMovementRouteNavigation(
   const nextByBlockId =
     new Map<
       number,
-      number[]
+      MovementRouteNext[]
     >();
 
   for (
-    const [
-      blockId,
-      targets,
-    ] of nextSets
+    const transition of
+    transitions.values()
   ) {
-    nextByBlockId.set(
-      blockId,
-      [
-        ...targets,
-      ].sort(
-        (
-          a,
-          b
-        ) =>
-          a -
-          b
-      )
+    let entries =
+      nextByBlockId.get(
+        transition.from
+      );
+
+    if (!entries) {
+      entries = [];
+
+      nextByBlockId.set(
+        transition.from,
+        entries
+      );
+    }
+
+    entries.push({
+      blockId:
+        transition.to,
+      directions: [
+        ...transition.directions,
+      ].sort(),
+    });
+  }
+
+  for (
+    const entries of
+    nextByBlockId.values()
+  ) {
+    entries.sort(
+      (
+        a,
+        b
+      ) =>
+        a.blockId -
+        b.blockId
     );
   }
 
   return {
     nextByBlockId,
   };
+}
+
+export function getMovementSequenceDirections(
+  navigation:
+    MovementRouteNavigation,
+  sequence:
+    number[]
+): MovementTravelDirection[] {
+  if (
+    sequence.length <
+    2
+  ) {
+    return [
+      "unknown",
+    ];
+  }
+
+  let possible =
+    new Set<
+      MovementTravelDirection
+    >([
+      "unknown",
+    ]);
+
+  for (
+    let index = 0;
+    index <
+      sequence.length - 1;
+    index += 1
+  ) {
+    const from =
+      sequence[
+        index
+      ];
+
+    const to =
+      sequence[
+        index + 1
+      ];
+
+    if (
+      from ===
+        undefined ||
+      to ===
+        undefined
+    ) {
+      return [];
+    }
+
+    const transition =
+      navigation.nextByBlockId
+        .get(
+          from
+        )
+        ?.find(
+          item =>
+            item.blockId ===
+            to
+        );
+
+    if (!transition) {
+      return [];
+    }
+
+    const merged =
+      new Set<
+        MovementTravelDirection
+      >();
+
+    for (
+      const current of
+      possible
+    ) {
+      for (
+        const next of
+        transition.directions
+      ) {
+        const direction =
+          mergeDirection(
+            current,
+            next
+          );
+
+        if (
+          direction !==
+          null
+        ) {
+          merged.add(
+            direction
+          );
+        }
+      }
+    }
+
+    if (
+      merged.size ===
+      0
+    ) {
+      return [];
+    }
+
+    possible =
+      merged;
+  }
+
+  return [
+    ...possible,
+  ].sort();
+}
+
+export function getCompatibleMovementNextBlockIds(
+  navigation:
+    MovementRouteNavigation,
+  sequence:
+    number[]
+): number[] {
+  const from =
+    sequence[
+      sequence.length -
+      1
+    ];
+
+  if (
+    from ===
+    undefined
+  ) {
+    return [];
+  }
+
+  const used =
+    new Set(
+      sequence
+    );
+
+  return (
+    navigation.nextByBlockId.get(
+      from
+    ) ??
+    []
+  )
+    .filter(
+      option =>
+        !used.has(
+          option.blockId
+        ) &&
+        getMovementSequenceDirections(
+          navigation,
+          [
+            ...sequence,
+            option.blockId,
+          ]
+        ).length >
+          0
+    )
+    .map(
+      option =>
+        option.blockId
+    );
 }
 
 export async function loadMovementRouteNavigation(): Promise<MovementRouteNavigation> {
