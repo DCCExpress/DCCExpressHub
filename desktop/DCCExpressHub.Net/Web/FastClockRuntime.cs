@@ -75,6 +75,23 @@ public sealed class FastClockRuntime
         }
     }
 
+    public FastClockSnapshot SetTime(double timeMs)
+    {
+        lock (_gate)
+        {
+            SyncFromRealTime();
+
+            _timeMs =
+                NormalizeDayTime(
+                    double.IsFinite(timeMs)
+                        ? timeMs
+                        : 0d);
+
+            _lastRealTimestampMs = Environment.TickCount64;
+            return CreateSnapshot();
+        }
+    }
+
     private void SyncFromRealTime()
     {
         var now = Environment.TickCount64;
