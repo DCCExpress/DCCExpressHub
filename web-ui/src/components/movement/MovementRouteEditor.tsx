@@ -29,6 +29,10 @@ import {
 
 import MovementRouteRow from "./MovementRouteRow";
 
+import {
+  useMovementRuntimeState,
+} from "./MovementRuntimeControls";
+
 type Props = {
   page:
     MovementPage;
@@ -42,6 +46,11 @@ export default function MovementRouteEditor({
   page,
   onChange,
 }: Props) {
+  const runtimeState =
+    useMovementRuntimeState(
+      page.id
+    );
+
   const [
     sensorCatalog,
     setSensorCatalog,
@@ -367,6 +376,12 @@ export default function MovementRouteEditor({
                           isDestination={
                             resource.key ===
                             `block:${page.toBlockId}`
+                          }
+                          isCurrent={
+                            runtimeState.status !==
+                              "idle" &&
+                            runtimeState.currentResourceKey ===
+                              resource.key
                           }
                           rule={
                             blockId ===
