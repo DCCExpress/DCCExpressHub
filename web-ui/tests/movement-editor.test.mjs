@@ -182,6 +182,26 @@ test("Movement editor is split into reusable components", () => {
     row,
     /condition\.sensor/
   );
+
+  assert.match(
+    editor,
+    /loadAutomationSensorCatalog/
+  );
+
+  assert.match(
+    row,
+    /<Select/
+  );
+
+  assert.doesNotMatch(
+    row,
+    /<NumberInput/
+  );
+
+  assert.match(
+    row,
+    /searchable=\{\s*false\s*\}/
+  );
 });
 
 test("Layout project import and export preserve Movement pages", () => {
