@@ -8,7 +8,6 @@ export type AutomationFlowNodeKind =
   | "basicAccessoryInput"
   | "extendedAccessoryInput"
   | "locoInput"
-  | "smartDispatcher"
   | "setSpeed"
   | "waitForBlock"
   | "waitForSensor"
@@ -143,7 +142,6 @@ const NODE_KINDS =
     "basicAccessoryInput",
     "extendedAccessoryInput",
     "locoInput",
-    "smartDispatcher",
     "setSpeed",
     "waitForBlock",
     "waitForSensor",
@@ -1932,30 +1930,6 @@ export function generateAutomationFlowPageScript(
     };
   }
 
-  const selectedRootNode =
-    triggerNextId
-      ? nodeById.get(
-          triggerNextId
-        )
-      : undefined;
-
-  const smartNodes =
-    pageNodes.filter(
-      node =>
-        node.data.kind ===
-        "smartDispatcher"
-    );
-
-  const useSmartGenerator =
-    selectedRootNode
-      ? selectedRootNode.data.kind ===
-        "smartDispatcher"
-      : smartNodes.length >
-        0;
-
-  if (
-    !useSmartGenerator
-  ) {
     if (
       pageNodes.length === 0
     ) {
@@ -2007,9 +1981,7 @@ export function generateAutomationFlowPageScript(
         );
 
       if (
-        triggeredRoot &&
-        triggeredRoot.data.kind !==
-          "smartDispatcher"
+        triggeredRoot
       ) {
         roots.splice(
           0,
@@ -2143,224 +2115,4 @@ export function generateAutomationFlowPageScript(
         ),
       warnings,
     };
-  }
-
-  if (
-    smartNodes.length > 1
-  ) {
-    warnings.push(
-      "Only the first SmartDispatcher node is used by the current linear generator."
-    );
-  }
-
-  const root =
-    (
-      selectedRootNode?.data.kind ===
-        "smartDispatcher"
-        ? selectedRootNode
-        : undefined
-    ) ??
-    smartNodes[0]!;
-
-  const route =
-    normalizeRoute(
-      root.data.route
-    );
-
-  if (
-    route.length < 2
-  ) {
-    warnings.push(
-      "SmartDispatcher route needs at least two block names."
-    );
-  }
-
-  const rules =
-    normalizeArrivalRules(
-      root.data.arrivalRules
-    );
-
-  const rulesByBlock =
-    new Map<
-      string,
-      AutomationArrivalRule[]
-    >();
-
-  for (const rule of rules) {
-    const key =
-      rule.block.toLocaleLowerCase();
-
-    rulesByBlock.set(
-      key,
-      [
-        ...(
-          rulesByBlock.get(
-            key
-          ) ??
-          []
-        ),
-        rule,
-      ]
-    );
-  }
-
-  const routeSource =
-    route.map(
-      block => {
-        const blockRules =
-          rulesByBlock.get(
-            block.toLocaleLowerCase()
-          ) ??
-          [];
-
-        if (
-          blockRules.length === 0
-        ) {
-          return (
-            "    " +
-            jsString(
-              block
-            )
-          );
-        }
-
-        return [
-          "    {",
-          `      block: ${jsString(block)},`,
-          "      arrivedWhen: [",
-          ...blockRules.map(
-            rule =>
-              `        { sensor: ${rule.sensor}, state: ${rule.state ? "true" : "false"} },`
-          ),
-          "      ]",
-          "    }",
-        ].join("\n");
-      }
-    )
-    .join(",\n");
-
-  const statements:
-    string[] = [];
-
-  const visited =
-    new Set<string>([
-      root.id,
-    ]);
-
-  let currentId =
-    root.id;
-
-  while (true) {
-    const nextEdges =
-      outgoing.get(
-        currentId
-      ) ??
-      [];
-
-    if (
-      nextEdges.length === 0
-    ) {
-      break;
-    }
-
-    if (
-      nextEdges.length > 1
-    ) {
-      warnings.push(
-        `Node ${currentId} has multiple outputs. The current generator follows only the first one.`
-      );
-    }
-
-    const next =
-      nodeById.get(
-        nextEdges[0]!.target
-      );
-
-    if (!next) {
-      break;
-    }
-
-    if (
-      visited.has(
-        next.id
-      )
-    ) {
-      warnings.push(
-        "A cycle was detected. Generation stopped before the loop."
-      );
-      break;
-    }
-
-    visited.add(
-      next.id
-    );
-
-    if (
-      next.data.kind ===
-      "smartDispatcher"
-    ) {
-      warnings.push(
-        "Nested SmartDispatcher nodes are not generated yet."
-      );
-      break;
-    }
-
-    const statement =
-      generateStatement(
-        next.data
-      );
-
-    if (statement) {
-      statements.push(
-        statement
-      );
-    }
-
-    currentId =
-      next.id;
-  }
-
-  const body =
-    statements.length > 0
-      ? statements
-          .map(
-            statement =>
-              indent(
-                statement,
-                4
-              )
-          )
-          .join("\n\n")
-      : "    // Connect movement/action nodes here.";
-
-  const code =
-    [
-      "await smartDispatcher(",
-      "  [",
-      routeSource ||
-        '    "FROM",\n    "TO"',
-      "  ],",
-      "  async (loco, dir, run) => {",
-      body,
-      "  }",
-      ");",
-    ].join("\n");
-
-  return {
-    code:
-      wrapWithTrigger(
-        withPayload(
-          code,
-          trigger,
-          warnings,
-          options.inputPayload,
-          runtimePayloadProvided
-        ),
-        trigger,
-        pageId,
-        options.testRun ===
-          true
-      ),
-    warnings,
-  };
 }
