@@ -247,15 +247,20 @@ test("Layout project import and export preserve Movement pages", () => {
 });
 
 
-test("Movement cards execute SmartDispatcher with saved cruise speed", () => {
+test("Movement uses a dedicated physical-route engine with JMRI-style actions", () => {
   const movement =
     read(
       "src/domain/movement.ts"
     );
 
-  const runtime =
+  const plan =
     read(
-      "src/services/movementRuntime.ts"
+      "src/services/movementPlan.ts"
+    );
+
+  const engine =
+    read(
+      "src/services/movementEngine.ts"
     );
 
   const cards =
@@ -263,73 +268,118 @@ test("Movement cards execute SmartDispatcher with saved cruise speed", () => {
       "src/components/movement/MovementPagesTable.tsx"
     );
 
-  const editor =
+  const actionEditor =
     read(
-      "src/components/movement/MovementEditorDialog.tsx"
+      "src/components/movement/MovementActionEditor.tsx"
+    );
+
+  const routeEditor =
+    read(
+      "src/components/movement/MovementRouteEditor.tsx"
     );
 
   assert.match(
     movement,
-    /speed: number/
+    /actions: MovementAction\[\]/
   );
 
   assert.match(
     movement,
-    /speed: 20/
+    /\| "approach"/
   );
 
   assert.match(
-    runtime,
-    /await smartDispatcher/
+    movement,
+    /\| "randomDelay"/
   );
 
   assert.match(
-    runtime,
-    /run\.setSpeed/
+    plan,
+    /kind:\s*"segment"/
   );
 
   assert.match(
-    runtime,
-    /run\.waitForBlock/
+    plan,
+    /kind:\s*"turnout"/
   );
 
   assert.match(
-    runtime,
-    /arrivedWhen/
+    plan,
+    /turnoutPath/
   );
 
   assert.match(
-    cards,
-    /runClientScript/
+    plan,
+    /trackAddressMap/
   );
 
   assert.match(
-    cards,
-    /movementExecutionId/
+    engine,
+    /export async function startMovement/
   );
 
   assert.match(
-    cards,
-    /IconPlayerPlay/
+    engine,
+    /turnoutRequirementsMatch/
   );
 
   assert.match(
-    cards,
-    /IconPlayerStop/
+    engine,
+    /dcc-express-movement-segment/
   );
 
   assert.match(
-    cards,
-    /emergencyStop/
+    engine,
+    /runActions/
+  );
+
+  assert.match(
+    engine,
+    /wsApi\.setLoco/
   );
 
   assert.doesNotMatch(
-    cards,
-    /pauseClientScript/
+    engine,
+    /wsApi\.setTurnout/
+  );
+
+  assert.doesNotMatch(
+    engine,
+    /smartDispatcher/
   );
 
   assert.match(
-    editor,
-    /Cruise speed/
+    cards,
+    /startMovement/
+  );
+
+  assert.match(
+    cards,
+    /stopMovement/
+  );
+
+  assert.match(
+    cards,
+    /abortMovement/
+  );
+
+  assert.match(
+    actionEditor,
+    /WHEN → WHAT/
+  );
+
+  assert.doesNotMatch(
+    actionEditor,
+    /Set turnout/
+  );
+
+  assert.match(
+    routeEditor,
+    /plan\.resources/
+  );
+
+  assert.match(
+    routeEditor,
+    /topology v/
   );
 });
