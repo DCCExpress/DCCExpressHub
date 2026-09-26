@@ -7,6 +7,7 @@ import {
   ActionIcon,
   Badge,
   Button,
+  Card,
   Group,
   NumberInput,
   Select,
@@ -585,26 +586,13 @@ export default function MovementActionEditor({
               action.when;
 
             return (
-            <Stack
+            <Card
               key={
                 action.id
               }
-              gap={6}
-              p={8}
-              draggable
-              onDragStart={
-                event =>
-                  handleDragStart(
-                    event,
-                    action.id
-                  )
-              }
-              onDragEnd={
-                () =>
-                  setDraggedActionId(
-                    null
-                  )
-              }
+              withBorder
+              p={0}
+              className="movement-action-card"
               onDragOver={
                 event => {
                   event.preventDefault();
@@ -624,10 +612,6 @@ export default function MovementActionEditor({
                 }
               }
               style={{
-                border:
-                  "1px solid var(--mantine-color-default-border)",
-                borderRadius:
-                  "var(--mantine-radius-sm)",
                 opacity:
                   draggedActionId ===
                     action.id
@@ -640,26 +624,41 @@ export default function MovementActionEditor({
               <Group
                 justify="space-between"
                 wrap="nowrap"
+                className="movement-action-card-header"
               >
                 <Group
                   gap="xs"
                   wrap="nowrap"
                 >
-                  <ActionIcon
-                    variant="subtle"
-                    color="gray"
-                    style={{
-                      cursor:
-                        "grab",
-                      touchAction:
-                        "none",
-                    }}
-                    aria-label="Reorder action"
+                  <div
+                    draggable
+                    className="movement-action-drag-handle"
+                    onDragStart={
+                      event =>
+                        handleDragStart(
+                          event,
+                          action.id
+                        )
+                    }
+                    onDragEnd={
+                      () =>
+                        setDraggedActionId(
+                          null
+                        )
+                    }
+                    title="Drag to reorder"
                   >
-                    <IconGripVertical
-                      size={17}
-                    />
-                  </ActionIcon>
+                    <ActionIcon
+                      variant="subtle"
+                      color="gray"
+                      aria-label="Reorder action"
+                      tabIndex={-1}
+                    >
+                      <IconGripVertical
+                        size={17}
+                      />
+                    </ActionIcon>
+                  </div>
 
                   <Badge
                     size="sm"
@@ -741,6 +740,10 @@ export default function MovementActionEditor({
                 </Group>
               </Group>
 
+              <Stack
+                gap={6}
+                className="movement-action-card-body"
+              >
               <Group
                 gap="xs"
                 wrap="nowrap"
@@ -1203,7 +1206,8 @@ export default function MovementActionEditor({
                   />
                 )
               }
-            </Stack>
+              </Stack>
+            </Card>
             );
           }
         )
