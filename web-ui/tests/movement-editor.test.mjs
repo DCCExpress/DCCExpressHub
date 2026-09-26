@@ -255,6 +255,36 @@ test("Movement editor is split into reusable components", () => {
 
   assert.match(
     row,
+    /CollapsiblePanelCard/
+  );
+
+  assert.match(
+    row,
+    /title="Condition \/ Event"/
+  );
+
+  assert.match(
+    row,
+    /title="Actions"/
+  );
+
+  assert.match(
+    row,
+    /movement-physical-route-card/
+  );
+
+  assert.doesNotMatch(
+    row,
+    /movement-route-condition/
+  );
+
+  assert.doesNotMatch(
+    row,
+    /movement-route-actions/
+  );
+
+  assert.match(
+    row,
     /Block arrived when/
   );
 
@@ -650,5 +680,58 @@ test("Movement editor sidebar cards expose runtime controls without changing pag
   assert.match(
     sidebar,
     /state\.info/
+  );
+});
+
+
+test("Movement physical route uses one collapsible card instead of three columns", () => {
+  const editor =
+    read(
+      "src/components/movement/MovementRouteEditor.tsx"
+    );
+
+  const row =
+    read(
+      "src/components/movement/MovementRouteRow.tsx"
+    );
+
+  const css =
+    read(
+      "src/styles/movementEditor.css"
+    );
+
+  assert.doesNotMatch(
+    editor,
+    /movement-route-grid-header/
+  );
+
+  assert.match(
+    editor,
+    /pageId=/
+  );
+
+  assert.match(
+    row,
+    /collapsedStorageKey/
+  );
+
+  assert.match(
+    row,
+    /defaultCollapsed/
+  );
+
+  assert.match(
+    css,
+    /grid-template-columns:\s*36px minmax\(0, 1fr\)/
+  );
+
+  assert.doesNotMatch(
+    css,
+    /movement-route-condition/
+  );
+
+  assert.doesNotMatch(
+    css,
+    /movement-route-actions/
   );
 });
