@@ -15,7 +15,6 @@ import {
   Switch,
   Text,
   TextInput,
-  UnstyledButton,
 } from "@mantine/core";
 
 import {
@@ -53,6 +52,7 @@ import {
 
 import MovementRouteEditor from "./MovementRouteEditor";
 import MovementRouteSelector from "./MovementRouteSelector";
+import MovementSidebarCard from "./MovementSidebarCard";
 
 import "../../styles/movementEditor.css";
 
@@ -65,50 +65,6 @@ type Props = {
       MovementDocument
   ) => void;
 };
-
-function movementRouteLabel(
-  page:
-    MovementPage,
-  catalog:
-    AutomationBlockOption[]
-): string {
-  const ids = [
-    ...(page.fromBlockId ===
-      null
-      ? []
-      : [
-          page.fromBlockId,
-        ]),
-    ...page.viaBlockIds,
-    ...(page.toBlockId ===
-      null
-      ? []
-      : [
-          page.toBlockId,
-        ]),
-  ];
-
-  if (
-    ids.length ===
-    0
-  ) {
-    return "No route";
-  }
-
-  return ids
-    .map(
-      id =>
-        catalog.find(
-          block =>
-            block.id ===
-            id
-        )?.name ||
-        `#${id}`
-    )
-    .join(
-      " → "
-    );
-}
 
 export default function MovementEditorDialog({
   opened,
@@ -477,20 +433,21 @@ export default function MovementEditorDialog({
               {
                 document.pages.map(
                   page => (
-                    <UnstyledButton
+                    <MovementSidebarCard
                       key={
                         page.id
                       }
-                      className={
-                        "movement-page-list-card" +
-                        (
-                          page.id ===
-                          document.activePageId
-                            ? " is-active"
-                            : ""
-                        )
+                      page={
+                        page
                       }
-                      onClick={
+                      catalog={
+                        catalog
+                      }
+                      active={
+                        page.id ===
+                        document.activePageId
+                      }
+                      onSelect={
                         () =>
                           setDocument(
                             current => ({
@@ -500,44 +457,7 @@ export default function MovementEditorDialog({
                             })
                           )
                       }
-                    >
-                      <Group
-                        justify="space-between"
-                        gap={6}
-                        wrap="nowrap"
-                      >
-                        <Text
-                          size="sm"
-                          fw={600}
-                          truncate
-                        >
-                          {
-                            page.name
-                          }
-                        </Text>
-
-                        <span
-                          className={
-                            page.enabled
-                              ? "movement-enabled-dot"
-                              : "movement-disabled-dot"
-                          }
-                        />
-                      </Group>
-
-                      <Text
-                        size="xs"
-                        c="dimmed"
-                        truncate
-                      >
-                        {
-                          movementRouteLabel(
-                            page,
-                            catalog
-                          )
-                        }
-                      </Text>
-                    </UnstyledButton>
+                    />
                   )
                 )
               }
