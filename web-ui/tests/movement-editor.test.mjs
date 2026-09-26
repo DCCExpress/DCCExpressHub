@@ -1694,3 +1694,76 @@ test("Movement destination block exposes and fires APPROACH before ARRIVED", () 
     "Destination APPROACH must be wired before arrival wait"
   );
 });
+
+
+test("Movement physical route highlights the current runtime step", () => {
+  const editor =
+    read(
+      "src/components/movement/MovementRouteEditor.tsx"
+    );
+
+  const row =
+    read(
+      "src/components/movement/MovementRouteRow.tsx"
+    );
+
+  const css =
+    read(
+      "src/styles/movementEditor.css"
+    );
+
+  assert.match(
+    editor,
+    /useMovementRuntimeState/
+  );
+
+  assert.match(
+    editor,
+    /runtimeState\.currentResourceKey/
+  );
+
+  assert.match(
+    editor,
+    /isCurrent=/
+  );
+
+  assert.match(
+    row,
+    /isCurrent:\s*boolean/
+  );
+
+  assert.match(
+    row,
+    /movement-route-dot[\s\S]*is-current/
+  );
+
+  assert.match(
+    row,
+    /movement-physical-route-card[\s\S]*is-current/
+  );
+
+  assert.match(
+    css,
+    /movement-route-dot\.is-current/
+  );
+
+  assert.match(
+    css,
+    /width:\s*34px/
+  );
+
+  assert.match(
+    css,
+    /mantine-color-red-8/
+  );
+
+  assert.match(
+    css,
+    /mantine-color-yellow-3/
+  );
+
+  assert.match(
+    css,
+    /movement-current-step-pulse/
+  );
+});
