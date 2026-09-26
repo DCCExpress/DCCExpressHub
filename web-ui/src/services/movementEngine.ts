@@ -1623,6 +1623,75 @@ async function releaseMovementLegLease(
   }
 }
 
+async function waitForPreDepartureAvailability(
+  execution:
+    MovementExecution,
+  leg:
+    MovementPlanLeg
+): Promise<void> {
+  let lastInfo =
+    "";
+
+  while (
+    !execution.cancelled
+  ) {
+    let reason =
+      "";
+
+    if (
+      !blockAvailableForTarget(
+        leg.to
+      )
+    ) {
+      reason =
+        `Waiting for block ${leg.to.name}`;
+    } else if (
+      !aheadSegmentsAreFree(
+        leg
+      )
+    ) {
+      reason =
+        "Waiting for route segment to become free";
+    }
+
+    if (
+      !reason
+    ) {
+      return;
+    }
+
+    execution.moving =
+      false;
+
+    applyDesiredSpeed(
+      execution
+    );
+
+    if (
+      reason !==
+        lastInfo
+    ) {
+      lastInfo =
+        reason;
+
+      setInfo(
+        execution,
+        reason,
+        leg.from.key
+      );
+    }
+
+    await controlledDelay(
+      execution,
+      150
+    );
+  }
+
+  throw new Error(
+    "Movement cancelled."
+  );
+}
+
 async function waitForLegClearance(
   execution:
     MovementExecution,
@@ -2252,6 +2321,15 @@ async function traverseLeg(
    * false. This keeps rolling authority local to the actual movement.
    */
   await waitForDepartureConditions(
+    execution,
+    leg
+  );
+
+  /*
+   * BEFORE DEPART should happen only when the next leg is basically clear,
+   * but it must not hold route or turnout locks during audio/delay actions.
+   */
+  await waitForPreDepartureAvailability(
     execution,
     leg
   );
