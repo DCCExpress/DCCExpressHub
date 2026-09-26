@@ -114,6 +114,11 @@ type MovementLegLease = {
     BlockTargetLease | null;
 };
 
+type BlockLeaveState = {
+  seenOccupied: boolean;
+  fired: boolean;
+};
+
 type MovementExecution = {
   page:
     MovementPage;
@@ -1844,6 +1849,119 @@ function arrivalSatisfied(
   );
 }
 
+function createBlockLeaveState(
+  leg:
+    MovementPlanLeg
+): BlockLeaveState {
+  const sensorAddress =
+    leg.from.sensorAddress;
+
+  return {
+    seenOccupied:
+      sensorAddress !==
+        null &&
+      sensorStates.get(
+        sensorAddress
+      ) ===
+        true,
+    fired:
+      false,
+  };
+}
+
+async function maybeRunBlockLeave(
+  execution:
+    MovementExecution,
+  leg:
+    MovementPlanLeg,
+  state:
+    BlockLeaveState
+): Promise<void> {
+  if (
+    state.fired
+  ) {
+    return;
+  }
+
+  const sensorAddress =
+    leg.from.sensorAddress;
+
+  if (
+    sensorAddress ===
+    null
+  ) {
+    return;
+  }
+
+  const occupied =
+    sensorStates.get(
+      sensorAddress
+    );
+
+  if (
+    occupied ===
+    true
+  ) {
+    state.seenOccupied =
+      true;
+
+    return;
+  }
+
+  if (
+    occupied !==
+      false ||
+    !state.seenOccupied
+  ) {
+    return;
+  }
+
+  state.fired =
+    true;
+
+  await runActions(
+    execution,
+    leg.from.key,
+    "leave"
+  );
+
+  setInfo(
+    execution,
+    `Left block: ${leg.from.name}`,
+    leg.from.key
+  );
+}
+
+async function runBlockLeaveFallback(
+  execution:
+    MovementExecution,
+  leg:
+    MovementPlanLeg,
+  state:
+    BlockLeaveState
+): Promise<void> {
+  if (
+    state.fired
+  ) {
+    return;
+  }
+
+  state.fired =
+    true;
+
+  await runActions(
+    execution,
+    leg.from.key,
+    "leave"
+  );
+
+  setInfo(
+    execution,
+    `Left block: ${leg.from.name}`,
+    leg.from.key
+  );
+}
+
 async function waitForHeldLegReady(
   execution:
     MovementExecution,
@@ -1909,7 +2027,9 @@ async function waitForArrival(
   execution:
     MovementExecution,
   leg:
-    MovementPlanLeg
+    MovementPlanLeg,
+  blockLeaveState:
+    BlockLeaveState
 ): Promise<void> {
   if (
     leg.arrivedWhen.length ===
@@ -1929,6 +2049,12 @@ async function waitForArrival(
   while (
     !execution.cancelled
   ) {
+    await maybeRunBlockLeave(
+      execution,
+      leg,
+      blockLeaveState
+    );
+
     if (
       arrivalSatisfied(
         leg
@@ -1951,8 +2077,12 @@ async function waitForArrival(
 async function waitForSegmentEntry(
   execution:
     MovementExecution,
+  leg:
+    MovementPlanLeg,
   resource:
-    MovementPlanResource
+    MovementPlanResource,
+  blockLeaveState:
+    BlockLeaveState
 ): Promise<void> {
   if (
     resource.detectors.length ===
@@ -1970,6 +2100,12 @@ async function waitForSegmentEntry(
   while (
     !execution.cancelled
   ) {
+    await maybeRunBlockLeave(
+      execution,
+      leg,
+      blockLeaveState
+    );
+
     if (
       resource.detectors.some(
         address =>
@@ -2030,6 +2166,11 @@ async function traverseLeg(
       execution
     );
 
+    const blockLeaveState =
+      createBlockLeaveState(
+        leg
+      );
+
     let previousSegment:
       MovementPlanResource |
       null =
@@ -2084,7 +2225,9 @@ async function traverseLeg(
 
       await waitForSegmentEntry(
         execution,
-        resource
+        leg,
+        resource,
+        blockLeaveState
       );
 
       for (
@@ -2124,7 +2267,14 @@ async function traverseLeg(
 
     await waitForArrival(
       execution,
-      leg
+      leg,
+      blockLeaveState
+    );
+
+    await maybeRunBlockLeave(
+      execution,
+      leg,
+      blockLeaveState
     );
 
     for (
@@ -2151,6 +2301,16 @@ async function traverseLeg(
         null
       );
     }
+
+    /*
+     * Without a reliable occupancy transition, runtime block release is the
+     * fallback LEAVE boundary. With occupancy, this is already fired above.
+     */
+    await runBlockLeaveFallback(
+      execution,
+      leg,
+      blockLeaveState
+    );
 
     if (
       leg.to.blockId !==
