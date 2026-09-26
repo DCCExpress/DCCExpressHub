@@ -163,14 +163,6 @@ const ITEMS: PaletteItem[] = [
     color: "blue",
   },
   {
-    kind: "smartDispatcher",
-    group: "railway",
-    icon: <IconRoute size={16} />,
-    labelKey: "ui.flowNodeSmartDispatcher",
-    fallback: "SmartDispatcher",
-    color: "violet",
-  },
-  {
     kind: "setSpeed",
     group: "railway",
     icon: <IconBolt size={16} />,
@@ -371,16 +363,6 @@ export function createDefaultAutomationNodeData(
           "json",
         triggerPayloadValue:
           '{\n  "locoAddress": 18\n}',
-      };
-
-    case "smartDispatcher":
-      return {
-        ...base,
-        route: [
-          "A1",
-          "B1",
-        ],
-        arrivalRules: [],
       };
 
     case "setSpeed":
