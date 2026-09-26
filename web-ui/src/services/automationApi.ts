@@ -307,6 +307,31 @@ async function saveAutomationStorage(
   }
 }
 
+export async function loadAutomationPayload(): Promise<AutomationStoragePayload> {
+  const current =
+    await loadAutomationStorage();
+
+  return createAutomationPayload(
+    current.scripts,
+    current.timetable,
+    current.visualFlow,
+    current.movement
+  );
+}
+
+export async function saveAutomationPayload(
+  payload: AutomationStoragePayload
+): Promise<void> {
+  await saveAutomationStorage(
+    createAutomationPayload(
+      payload.scripts,
+      payload.timetable,
+      payload.visualFlow,
+      payload.movement
+    )
+  );
+}
+
 export async function loadAutomationScripts(): Promise<AutomationScriptDefinition[]> {
   return (
     await loadAutomationStorage()
