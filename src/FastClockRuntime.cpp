@@ -89,6 +89,23 @@ FastClockSnapshot FastClockRuntime::setSpeed(
     return createSnapshot();
 }
 
+FastClockSnapshot FastClockRuntime::setTime(
+    double timeMs)
+{
+    syncFromRealTime();
+
+    _timeMs =
+        normalizeDayTime(
+            isfinite(timeMs)
+                ? timeMs
+                : 0.0);
+
+    _lastRealTimestampMs =
+        millis();
+
+    return createSnapshot();
+}
+
 void FastClockRuntime::syncFromRealTime()
 {
     const uint32_t now =
