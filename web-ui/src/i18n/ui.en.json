@@ -898,7 +898,6 @@
   "flowExpandAll": "Expand all",
   "flowCurrentPageOnly": "Applies to the current page only.",
   "flowGeneratedCode": "Generated JavaScript",
-  "flowNodeSmartDispatcher": "SmartDispatcher",
   "flowNodeSetSpeed": "Set speed",
   "flowNodeWaitBlock": "Wait block",
   "flowNodeWaitSensor": "Wait sensor",
