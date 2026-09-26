@@ -6,6 +6,7 @@ import type {
 import type {
   FastClockSnapshot,
   SetFastClockSpeedRequest,
+  SetFastClockTimeRequest,
 } from "@domain/fastClock";
 
 import {
@@ -15,7 +16,8 @@ import {
 async function sendFastClockCommand(
   action: FastClockCommandAction,
   fallbackError: string,
-  speed?: number
+  speed?: number,
+  timeMs?: number
 ): Promise<FastClockSnapshot> {
   const response = await requestWsCommand(
     "fastClockCommand",
@@ -23,6 +25,9 @@ async function sendFastClockCommand(
       action,
       ...(speed !== undefined
         ? { speed }
+        : {}),
+      ...(timeMs !== undefined
+        ? { timeMs }
         : {}),
     },
     "fastClockResponse",
@@ -75,5 +80,30 @@ export async function setFastClockSpeed(
     "setSpeed",
     "Could not update fast clock speed.",
     body.speed
+  );
+}
+
+export async function setFastClockTime(
+  timeMs: number
+): Promise<FastClockSnapshot> {
+  const body:
+    SetFastClockTimeRequest = {
+    timeMs:
+      Math.max(
+        0,
+        Math.min(
+          24 * 60 * 60 * 1000 - 1,
+          Math.round(
+            timeMs
+          )
+        )
+      ),
+  };
+
+  return sendFastClockCommand(
+    "setTime",
+    "Could not update fast clock time.",
+    undefined,
+    body.timeMs
   );
 }
