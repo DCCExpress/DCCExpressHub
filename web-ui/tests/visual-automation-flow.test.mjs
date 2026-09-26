@@ -404,7 +404,12 @@ test("sensor nodes are event inputs and the runtime scans enabled pages", () => 
   );
 });
 
-test("enabled flow pages are always live and disabling a page aborts its executions", () => {
+test("enabled flow pages stay live at app scope and disabling a page aborts its executions", () => {
+  const app =
+    read(
+      "src/App.tsx"
+    );
+
   const layoutPage =
     read(
       "src/LiteLayoutPage.tsx"
@@ -421,13 +426,18 @@ test("enabled flow pages are always live and disabling a page aborts its executi
     );
 
   assert.match(
-    layoutPage,
+    app,
+    /const \[[\s\S]*automationFlow,[\s\S]*setAutomationFlow/
+  );
+
+  assert.match(
+    app,
     /useAutomationFlowRuntime\([\s\S]*automationFlow[\s\S]*\)/
   );
 
   assert.doesNotMatch(
     layoutPage,
-    /flowRuntimeEnabled/
+    /useAutomationFlowRuntime/
   );
 
   assert.doesNotMatch(
@@ -1227,13 +1237,38 @@ test("automation scripts are rendered in a runtime table instead of cards", () =
   );
 });
 
-test("layout page keeps saved flows synchronized with the flow editor", () => {
+test("layout page consumes the app-owned flow document and keeps editor saves synchronized", () => {
+  const app =
+    read(
+      "src/App.tsx"
+    );
+
   const page =
     read(
       "src/LiteLayoutPage.tsx"
     );
 
   assert.match(
+    app,
+    /automationFlow=\{automationFlow\}/
+  );
+
+  assert.match(
+    app,
+    /onAutomationFlowChange=\{setAutomationFlow\}/
+  );
+
+  assert.match(
+    page,
+    /automationFlow:\s*AutomationFlowDocument/
+  );
+
+  assert.match(
+    page,
+    /onAutomationFlowChange/
+  );
+
+  assert.doesNotMatch(
     page,
     /const \[automationFlow, setAutomationFlow\]/
   );
@@ -1250,7 +1285,54 @@ test("layout page keeps saved flows synchronized with the flow editor", () => {
 
   assert.match(
     page,
-    /onSaved=\{setAutomationFlow\}/
+    /onSaved=\{onAutomationFlowChange\}/
+  );
+});
+
+test("flow editor is available from a standalone home route using the same editor component", () => {
+  const app =
+    read(
+      "src/App.tsx"
+    );
+
+  const page =
+    read(
+      "src/AutomationFlowPage.tsx"
+    );
+
+  assert.match(
+    app,
+    /\| "flows"/
+  );
+
+  assert.match(
+    app,
+    /page === "flows"/
+  );
+
+  assert.match(
+    app,
+    /onNavigate\("flows"\)/
+  );
+
+  assert.match(
+    app,
+    /<AutomationFlowPage/
+  );
+
+  assert.match(
+    page,
+    /<AutomationFlowDialog/
+  );
+
+  assert.match(
+    page,
+    /onSaved=\{[\s\S]*onDocumentChange/
+  );
+
+  assert.match(
+    page,
+    /onClose=\{[\s\S]*onBack/
   );
 });
 

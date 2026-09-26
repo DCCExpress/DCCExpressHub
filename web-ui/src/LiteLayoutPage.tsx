@@ -68,7 +68,6 @@ import TimetableDialog from "@/components/TimetableDialog";
 import TimetablePanel from "@/components/TimetablePanel";
 import RoutesDialog from "@/components/RoutesDialog";
 import AutomationFlowDialog from "@/components/automation/AutomationFlowDialog";
-import { useAutomationFlowRuntime } from "@/components/automation/useAutomationFlowRuntime";
 import { restorePersistedTopologyMetadata } from "@/services/layoutTopologyPersistence";
 import {
   attachClientRouteTopologyToLayoutJson,
@@ -106,7 +105,6 @@ import { getActiveClientScriptExecutions } from "@/services/clientScriptRunner";
 import {
   createAutomationId,
   createAutomationPayload,
-  loadAutomationFlow,
   loadAutomationScripts,
   normalizeAutomationScripts,
   saveAutomationFlow,
@@ -124,6 +122,12 @@ import DebugDialog from "@/components/debug/DebugDialog";
 type LiteLayoutPageProps = {
   version: string;
   locos: Loco[];
+  automationFlow:
+    AutomationFlowDocument;
+  onAutomationFlowChange: (
+    document:
+      AutomationFlowDocument
+  ) => void;
   onBack: () => void;
   onOpenLocoEditor: () => void;
 };
@@ -591,20 +595,18 @@ function LitePropertyPanel({
   );
 }
 
-export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEditor }: LiteLayoutPageProps) {
+export default function LiteLayoutPage({
+  version,
+  locos,
+  automationFlow,
+  onAutomationFlowChange,
+  onBack,
+  onOpenLocoEditor,
+}: LiteLayoutPageProps) {
   useTranslation();
   const commandCenter = useCommandCenter();
   const [layout, setLayout] = useState(() => new LayoutView());
   const [automationScripts, setAutomationScripts] = useState<AutomationScriptDefinition[]>([]);
-  const [automationFlow, setAutomationFlow] =
-    useState<AutomationFlowDocument>(
-      () =>
-        createEmptyAutomationFlowDocument()
-    );
-
-  useAutomationFlowRuntime(
-    automationFlow
-  );
   const importFileRef = useRef<HTMLInputElement | null>(null);
   const [selectedElement, setSelectedElement] = useState<BaseElement | null>(null);
   const [tool, setTool] = useState<EditorTool>({ mode: "cursor", elementType: "general" });
@@ -859,11 +861,9 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
       const [
         layoutResponse,
         storedAutomations,
-        storedFlow,
       ] = await Promise.all([
         fetch("/api/layout", { cache: "no-store" }),
         loadAutomationScripts(),
-        loadAutomationFlow(),
       ]);
 
       if (!layoutResponse.ok) {
@@ -889,12 +889,6 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
         storedAutomations.length > 0
           ? storedAutomations
           : prepared.legacyAutomationScripts
-      );
-
-      setAutomationFlow(
-        normalizeAutomationFlowDocument(
-          storedFlow
-        )
       );
 
       setSelectedElement(null);
@@ -1232,14 +1226,11 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
         invalidate();
       }
 
-      const visualFlow =
-        await loadAutomationFlow();
-
       const project =
         createProjectExport(
           layout,
           automationScripts,
-          visualFlow
+          automationFlow
         );
       const json = JSON.stringify(project, null, 2);
       const blob = new Blob([json], { type: "application/json;charset=utf-8" });
@@ -1270,7 +1261,7 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
         message,
       });
     }
-  }, [layout, automationScripts, invalidate]);
+  }, [layout, automationScripts, automationFlow, invalidate]);
 
   const importProject = useCallback(
     async (file: File): Promise<void> => {
@@ -1320,7 +1311,7 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
         await saveAutomationFlow(imported.visualFlow);
         setLayout(nextLayout);
         setAutomationScripts(imported.automationScripts);
-        setAutomationFlow(
+        onAutomationFlowChange(
           imported.visualFlow
         );
         setSelectedElement(null);
@@ -1341,7 +1332,10 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
         }
       }
     },
-    [i18next.resolvedLanguage,]
+    [
+      i18next.resolvedLanguage,
+      onAutomationFlowChange,
+    ]
   );
 
   useLayoutPageShortcuts({
@@ -1620,7 +1614,7 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
                           scripts={automationScripts}
                           onScriptsChange={setAutomationScripts}
                           flows={automationFlow}
-                          onFlowsChange={setAutomationFlow}
+                          onFlowsChange={onAutomationFlowChange}
                           onOpenFlowEditor={pageId => {
                             setAutomationFlowPageId(pageId);
                             setAutomationFlowOpened(true);
@@ -1791,7 +1785,7 @@ export default function LiteLayoutPage({ version, locos, onBack, onOpenLocoEdito
       <AutomationFlowDialog
         opened={automationFlowOpened}
         initialPageId={automationFlowPageId}
-        onSaved={setAutomationFlow}
+        onSaved={onAutomationFlowChange}
         onClose={() => {
           setAutomationFlowOpened(false);
           setAutomationFlowPageId(null);

@@ -44,6 +44,7 @@ import {
   IconCpu,
   IconPower,
   IconTerminal2,
+  IconGitBranch,
 } from "@tabler/icons-react";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -69,15 +70,27 @@ import DeviceConfigurationPage, {
   type DeviceConfigurationDocument,
 } from "./DeviceConfigurationPage";
 import { useCommandCenter } from "./context/CommandCenterContext";
+import {
+  createEmptyAutomationFlowDocument,
+  normalizeAutomationFlowDocument,
+  type AutomationFlowDocument,
+} from "@/domain/automationFlow";
+import {
+  loadAutomationFlow,
+} from "@/services/automationApi";
+import {
+  useAutomationFlowRuntime,
+} from "@/components/automation/useAutomationFlowRuntime";
 
 const LiteLayoutPage = lazy(() => import("./LiteLayoutPage"));
+const AutomationFlowPage = lazy(() => import("./AutomationFlowPage"));
 const RuntimeLayoutOverlay = lazy(() => import("./RuntimeLayoutOverlay"));
 const ProgrammingPage = lazy(() => import("./ProgrammingPage"));
 const GamepadPage = lazy(() => import("./GamepadPage"));
 const ConsolePage = lazy(() => import("./ConsolePage"));
 
 type LoadState = "idle" | "loading" | "ready" | "error";
-type Page = "home" | "drive" | "layout" | "programming" | "settings" | "device-config" | "gamepad" | "console" | "files" | "backup";
+type Page = "home" | "drive" | "layout" | "flows" | "programming" | "settings" | "device-config" | "gamepad" | "console" | "files" | "backup";
 
 type NetworkSettingsDto = {
   configured: boolean;
@@ -121,7 +134,7 @@ function formatStatus(status: WsConnectionStatus): string {
 
 function pageFromHash(): Page {
   const page = window.location.hash.replace("#", "");
-  return page === "drive" || page === "layout" || page === "programming" || page === "settings" || page === "device-config" || page === "gamepad" || page === "console" || page === "files" || page === "backup" ? page : "home";
+  return page === "drive" || page === "layout" || page === "flows" || page === "programming" || page === "settings" || page === "device-config" || page === "gamepad" || page === "console" || page === "files" || page === "backup" ? page : "home";
 }
 
 function AppHeader({ status, version }: { status: WsConnectionStatus; version: string }) {
@@ -281,6 +294,18 @@ function HomePage({
           <Title order={4} mt="md">{t("homeHub.cards.layout.title")}</Title>
           <Text size="sm" c="dimmed" mt={4}>
             {t("homeHub.cards.layout.description")}
+          </Text>
+        </Card>
+
+        <Card className="action-card" withBorder radius={5} p="lg" onClick={() => onNavigate("flows")}>
+          <ThemeIcon size={48} radius="lg" color="violet" variant="light">
+            <IconGitBranch size={27} />
+          </ThemeIcon>
+          <Title order={4} mt="md">
+            {t("homeHub.cards.flows.title", { defaultValue: "Flow Automation" })}
+          </Title>
+          <Text size="sm" c="dimmed" mt={4}>
+            {t("homeHub.cards.flows.description", { defaultValue: "Build and manage event-driven automation flows." })}
           </Text>
         </Card>
 
@@ -1166,6 +1191,33 @@ export default function App() {
   const [locoEditorOpened, setLocoEditorOpened] = useState(false);
   const [driveLayoutOpen, setDriveLayoutOpen] = useState(false);
   const [version, setVersion] = useState("development");
+  const [
+    automationFlow,
+    setAutomationFlow,
+  ] =
+    useState<AutomationFlowDocument>(
+      () =>
+        createEmptyAutomationFlowDocument()
+    );
+
+  useAutomationFlowRuntime(
+    automationFlow
+  );
+
+  const loadAutomationFlowState =
+    useCallback(
+      async (): Promise<void> => {
+        const loaded =
+          normalizeAutomationFlowDocument(
+            await loadAutomationFlow()
+          );
+
+        setAutomationFlow(
+          loaded
+        );
+      },
+      []
+    );
 
   const loadLocos = useCallback(async () => {
     setLoadState("loading");
@@ -1211,6 +1263,7 @@ export default function App() {
     const prepareApplication = async () => {
       await Promise.allSettled([
         loadLocos(),
+        loadAutomationFlowState(),
         fetch("/version.json", { cache: "no-store" })
           .then(response => response.ok ? response.json() as Promise<{ version?: string }> : null)
           .then(data => {
@@ -1241,7 +1294,21 @@ export default function App() {
       unsubscribeStatus();
       wsApi.disconnect();
     };
-  }, [loadLocos]);
+  }, [loadAutomationFlowState, loadLocos]);
+
+  const reloadImportedData =
+    useCallback(
+      async (): Promise<void> => {
+        await Promise.all([
+          loadLocos(),
+          loadAutomationFlowState(),
+        ]);
+      },
+      [
+        loadAutomationFlowState,
+        loadLocos,
+      ]
+    );
 
   const navigate = (nextPage: Page) => {
     if (nextPage !== "drive") setDriveLayoutOpen(false);
@@ -1255,13 +1322,30 @@ export default function App() {
 
     if (page === "files") return <FilesPage onBack={() => navigate("home")} />;
 
-    if (page === "backup") return <BackupPage onBack={() => navigate("home")} onDataImported={loadLocos} />;
+    if (page === "backup") return <BackupPage onBack={() => navigate("home")} onDataImported={reloadImportedData} />;
 
     if (page === "programming") return <ProgrammingPage onBack={() => navigate("home")} status={status} />;
 
     if (page === "device-config") return <DeviceConfigurationPage onBack={() => navigate("home")} />;
 
-    if (page === "layout") return <LiteLayoutPage version={version} locos={locos} onBack={() => navigate("home")} onOpenLocoEditor={() => setLocoEditorOpened(true)} />;
+    if (page === "flows") {
+      return (
+        <AutomationFlowPage
+          document={
+            automationFlow
+          }
+          onDocumentChange={
+            setAutomationFlow
+          }
+          onBack={
+            () =>
+              navigate("home")
+          }
+        />
+      );
+    }
+
+    if (page === "layout") return <LiteLayoutPage version={version} locos={locos} automationFlow={automationFlow} onAutomationFlowChange={setAutomationFlow} onBack={() => navigate("home")} onOpenLocoEditor={() => setLocoEditorOpened(true)} />;
 
     if (page === "drive") {
       return (
