@@ -17,7 +17,6 @@ import {
 import i18next from "i18next";
 
 import type {
-  AutomationArrivalRule,
   AutomationFlowNode,
   AutomationFlowNodeData,
   GeneratedAutomationFlowScript,
@@ -39,15 +38,6 @@ type Props = {
       Partial<AutomationFlowNodeData>
   ) => void;
   onDeleteNode: () => void;
-  onAddArrivalRule: () => void;
-  onChangeArrivalRule: (
-    id: string,
-    patch:
-      Partial<AutomationArrivalRule>
-  ) => void;
-  onDeleteArrivalRule: (
-    id: string
-  ) => void;
 };
 
 function t(
@@ -71,9 +61,6 @@ export default function AutomationFlowInspector({
   onClearLogs,
   onChangeNode,
   onDeleteNode,
-  onAddArrivalRule,
-  onChangeArrivalRule,
-  onDeleteArrivalRule,
 }: Props) {
   return (
     <Tabs
@@ -139,15 +126,6 @@ export default function AutomationFlowInspector({
               }
               onDelete={
                 onDeleteNode
-              }
-              onAddArrivalRule={
-                onAddArrivalRule
-              }
-              onChangeArrivalRule={
-                onChangeArrivalRule
-              }
-              onDeleteArrivalRule={
-                onDeleteArrivalRule
               }
             />
 
