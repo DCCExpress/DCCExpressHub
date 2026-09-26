@@ -1053,5 +1053,6 @@
   "timetableDeleteAction": "Delete action",
   "timetableAddAction": "Add action",
   "timetableDeleteRow": "Delete row",
-  "timetableAddRow": "Add row"
+  "timetableAddRow": "Add row",
+  "timetableMissingMovement": "Missing Movement"
 }
