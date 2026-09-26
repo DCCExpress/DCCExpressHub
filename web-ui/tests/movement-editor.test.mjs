@@ -578,6 +578,11 @@ test("Movement uses a dedicated physical-route engine with JMRI-style actions", 
     /WHEN → WHAT/
   );
 
+  assert.match(
+    actionEditor,
+    /value:\s*"leave"[\s\S]*label:\s*"LEAVE"/
+  );
+
   assert.doesNotMatch(
     actionEditor,
     /Set turnout/
@@ -927,5 +932,43 @@ test("Movement Condition and Actions panels use subtle grayscale section styling
   assert.match(
     css,
     /color-mix/
+  );
+});
+
+
+test("Movement block LEAVE fires from source occupancy release", () => {
+  const engine =
+    read(
+      "src/services/movementEngine.ts"
+    );
+
+  assert.match(
+    engine,
+    /createBlockLeaveState/
+  );
+
+  assert.match(
+    engine,
+    /seenOccupied/
+  );
+
+  assert.match(
+    engine,
+    /sensorStates\.get\([\s\S]*sensorAddress[\s\S]*\) ===[\s\S]*true/
+  );
+
+  assert.match(
+    engine,
+    /maybeRunBlockLeave/
+  );
+
+  assert.match(
+    engine,
+    /leg\.from\.key,[\s\S]*"leave"/
+  );
+
+  assert.match(
+    engine,
+    /runBlockLeaveFallback/
   );
 });
