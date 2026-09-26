@@ -290,7 +290,9 @@ export default function TimetablePanel({
               (
                 action.targetType ===
                   "movement"
-                  ? "Missing Movement"
+                  ? t(
+                      "ui.timetableMissingMovement"
+                    )
                   : t(
                       "ui.missingScript"
                     )
@@ -671,7 +673,9 @@ export default function TimetablePanel({
                                 row.targetType ===
                                   "movement"
                                   ? "Movement"
-                                  : "Script"
+                                  : t(
+                                      "ui.script"
+                                    )
                               }
                             </Badge>
 
