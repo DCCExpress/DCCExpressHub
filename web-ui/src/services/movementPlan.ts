@@ -99,6 +99,12 @@ export type MovementPlanLeg = {
     MovementPlanResource[];
   turnoutStates:
     RawTurnoutState[];
+  departWhen:
+    MovementSensorCondition[];
+  leaveWhen:
+    MovementSensorCondition[];
+  leaveWhenExplicit:
+    boolean;
   arrivedWhen:
     MovementSensorCondition[];
 };
@@ -504,6 +510,99 @@ function fallbackPassages(
   );
 }
 
+function explicitBlockRuleFor(
+  page:
+    MovementPage,
+  blockId: number
+) {
+  return page.blockRules.find(
+    rule =>
+      rule.blockId ===
+      blockId
+  );
+}
+
+function departureRuleFor(
+  page:
+    MovementPage,
+  blockId: number
+): MovementSensorCondition[] {
+  return (
+    explicitBlockRuleFor(
+      page,
+      blockId
+    )?.departWhen ??
+    []
+  ).map(
+    condition => ({
+      ...condition,
+    })
+  );
+}
+
+function leaveRuleFor(
+  page:
+    MovementPage,
+  blockId: number,
+  sensors:
+    Map<number, number>
+): {
+  conditions:
+    MovementSensorCondition[];
+  explicit: boolean;
+} {
+  const explicit =
+    explicitBlockRuleFor(
+      page,
+      blockId
+    );
+
+  if (
+    explicit &&
+    explicit.leaveWhen.length >
+      0
+  ) {
+    return {
+      conditions:
+        explicit.leaveWhen.map(
+          condition => ({
+            ...condition,
+          })
+        ),
+      explicit:
+        true,
+    };
+  }
+
+  const sensor =
+    sensors.get(
+      blockId
+    );
+
+  if (
+    sensor ===
+    undefined
+  ) {
+    return {
+      conditions: [],
+      explicit:
+        false,
+    };
+  }
+
+  return {
+    conditions: [{
+      id:
+        `auto-leave-${blockId}-off`,
+      sensor,
+      state:
+        false,
+    }],
+    explicit:
+      false,
+  };
+}
+
 function arrivalRuleFor(
   page:
     MovementPage,
@@ -514,10 +613,9 @@ function arrivalRuleFor(
     Map<number, number>
 ): MovementSensorCondition[] {
   const explicit =
-    page.blockRules.find(
-      rule =>
-        rule.blockId ===
-        blockId
+    explicitBlockRuleFor(
+      page,
+      blockId
     );
 
   if (
@@ -971,6 +1069,13 @@ export function buildMovementPlan(
         )
       );
 
+    const leaveRule =
+      leaveRuleFor(
+        page,
+        from.blockId!,
+        sensors
+      );
+
     legs.push({
       index,
       from,
@@ -978,6 +1083,15 @@ export function buildMovementPlan(
       resources:
         legResources,
       turnoutStates,
+      departWhen:
+        departureRuleFor(
+          page,
+          from.blockId!
+        ),
+      leaveWhen:
+        leaveRule.conditions,
+      leaveWhenExplicit:
+        leaveRule.explicit,
       arrivedWhen:
         arrivalRuleFor(
           page,
