@@ -22,10 +22,7 @@ import {
 } from "@mantine/notifications";
 
 import {
-  IconAlertTriangle,
   IconEdit,
-  IconPlayerPlay,
-  IconPlayerStop,
   IconPlus,
   IconRoute,
 } from "@tabler/icons-react";
@@ -46,13 +43,13 @@ import {
 } from "../../services/automationBlockCatalog";
 
 import {
-  abortMovement,
-  getMovementEngineState,
-  startMovement,
   stopMovement,
-  subscribeMovementEngineState,
-  type MovementEngineState,
 } from "../../services/movementEngine";
+
+import MovementRuntimeControls, {
+  movementRuntimeStatusColor,
+  useMovementRuntimeState,
+} from "./MovementRuntimeControls";
 
 type Props = {
   document:
@@ -108,33 +105,6 @@ function routeLabel(
     );
 }
 
-function movementStatusColor(
-  state:
-    MovementEngineState
-): string {
-  if (
-    state.status ===
-    "running"
-  ) {
-    return "green";
-  }
-
-  if (
-    state.status ===
-    "stopping"
-  ) {
-    return "yellow";
-  }
-
-  return (
-    state.status ===
-      "error" ||
-    state.error
-  )
-    ? "red"
-    : "gray";
-}
-
 function MovementCard({
   page,
   catalog,
@@ -151,27 +121,10 @@ function MovementCard({
   ) => void;
   onOpenEditor: () => void;
 }) {
-  const [
-    state,
-    setState,
-  ] =
-    useState<MovementEngineState>(
-      () =>
-        getMovementEngineState(
-          page.id
-        )
+  const state =
+    useMovementRuntimeState(
+      page.id
     );
-
-  useEffect(
-    () =>
-      subscribeMovementEngineState(
-        page.id,
-        setState
-      ),
-    [
-      page.id,
-    ]
-  );
 
   const hasRoute =
     page.fromBlockId !==
@@ -212,48 +165,7 @@ function MovementCard({
     state.status ===
     "running";
 
-  const run =
-    async (): Promise<void> => {
-      try {
-        await startMovement(
-          page
-        );
 
-        showNotification({
-          color: "green",
-          title:
-            "Movement completed",
-          message:
-            page.name,
-        });
-      } catch (error) {
-        showNotification({
-          color: "red",
-          title:
-            "Movement failed",
-          message:
-            error instanceof Error
-              ? error.message
-              : String(
-                  error
-                ),
-        });
-      }
-    };
-
-  const stop =
-    (): void => {
-      stopMovement(
-        page.id
-      );
-    };
-
-  const abort =
-    (): void => {
-      abortMovement(
-        page.id
-      );
-    };
 
   return (
     <Card
@@ -297,7 +209,7 @@ function MovementCard({
                 size="xs"
                 variant="light"
                 color={
-                  movementStatusColor(
+                  movementRuntimeStatusColor(
                     state
                   )
                 }
@@ -336,71 +248,17 @@ function MovementCard({
             gap={4}
             wrap="nowrap"
           >
-            <Tooltip
-              withArrow
-              label="Start movement"
-            >
-              <ActionIcon
-                size="sm"
-                variant="light"
-                color="green"
-                disabled={
-                  !idle ||
-                  !page.enabled ||
-                  !routeResolved
-                }
-                onClick={
-                  () =>
-                    void run()
-                }
-              >
-                <IconPlayerPlay
-                  size={15}
-                />
-              </ActionIcon>
-            </Tooltip>
-
-            <Tooltip
-              withArrow
-              label="Stop movement"
-            >
-              <ActionIcon
-                size="sm"
-                variant="light"
-                color="yellow"
-                disabled={
-                  idle
-                }
-                onClick={
-                  stop
-                }
-              >
-                <IconPlayerStop
-                  size={15}
-                />
-              </ActionIcon>
-            </Tooltip>
-
-            <Tooltip
-              withArrow
-              label="Abort + emergency stop"
-            >
-              <ActionIcon
-                size="sm"
-                variant="light"
-                color="red"
-                disabled={
-                  idle
-                }
-                onClick={
-                  abort
-                }
-              >
-                <IconAlertTriangle
-                  size={15}
-                />
-              </ActionIcon>
-            </Tooltip>
+            <MovementRuntimeControls
+              page={
+                page
+              }
+              routeResolved={
+                routeResolved
+              }
+              showStatus={
+                false
+              }
+            />
 
             <Tooltip
               withArrow
@@ -446,7 +304,9 @@ function MovementCard({
                   !enabled &&
                   !idle
                 ) {
-                  stop();
+                  stopMovement(
+                    page.id
+                  );
                 }
 
                 onEnabledChange(
