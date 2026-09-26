@@ -6,6 +6,12 @@ export type TurnoutStateRequirement = {
   closed: boolean;
 };
 
+export type RouteTurnoutPassage = {
+  elementId: LayoutElementId;
+  name: string;
+  turnoutStates: TurnoutStateRequirement[];
+};
+
 export type SectionDetector = {
   id: LayoutElementId;
   address: number;
@@ -88,7 +94,8 @@ export class Edge {
     public from: GraphNode,
     public to: GraphNode,
     public turnoutStates: TurnoutStateRequirement[] = [],
-    public locoDirection: TravelDirection = "unknown"
+    public locoDirection: TravelDirection = "unknown",
+    public turnoutPath: RouteTurnoutPassage[] = []
   ) {}
 }
 
