@@ -5,7 +5,6 @@ import {
 } from "react";
 
 import {
-  ActionIcon,
   Button,
   Divider,
   Group,
@@ -14,9 +13,9 @@ import {
   ScrollArea,
   Stack,
   Switch,
-  Tabs,
   Text,
   TextInput,
+  UnstyledButton,
 } from "@mantine/core";
 
 import {
@@ -42,7 +41,18 @@ import {
   saveAutomationMovement,
 } from "../../services/automationApi";
 
+import {
+  loadAutomationBlockCatalog,
+  type AutomationBlockOption,
+} from "../../services/automationBlockCatalog";
+
+import {
+  loadMovementRouteNavigation,
+  type MovementRouteNavigation,
+} from "../../services/movementRouteNavigation";
+
 import MovementRouteEditor from "./MovementRouteEditor";
+import MovementRouteSelector from "./MovementRouteSelector";
 
 import "../../styles/movementEditor.css";
 
@@ -55,6 +65,50 @@ type Props = {
       MovementDocument
   ) => void;
 };
+
+function movementRouteLabel(
+  page:
+    MovementPage,
+  catalog:
+    AutomationBlockOption[]
+): string {
+  const ids = [
+    ...(page.fromBlockId ===
+      null
+      ? []
+      : [
+          page.fromBlockId,
+        ]),
+    ...page.viaBlockIds,
+    ...(page.toBlockId ===
+      null
+      ? []
+      : [
+          page.toBlockId,
+        ]),
+  ];
+
+  if (
+    ids.length ===
+    0
+  ) {
+    return "No route";
+  }
+
+  return ids
+    .map(
+      id =>
+        catalog.find(
+          block =>
+            block.id ===
+            id
+        )?.name ||
+        `#${id}`
+    )
+    .join(
+      " → "
+    );
+}
 
 export default function MovementEditorDialog({
   opened,
@@ -71,6 +125,33 @@ export default function MovementEditorDialog({
         normalizeMovementDocument(
           null
         )
+    );
+
+  const [
+    catalog,
+    setCatalog,
+  ] =
+    useState<
+      AutomationBlockOption[]
+    >([]);
+
+  const [
+    navigation,
+    setNavigation,
+  ] =
+    useState<
+      MovementRouteNavigation |
+      null
+    >(
+      null
+    );
+
+  const [
+    routeLoadError,
+    setRouteLoadError,
+  ] =
+    useState<string | null>(
+      null
     );
 
   const [
@@ -104,10 +185,23 @@ export default function MovementEditorDialog({
           true
         );
 
+        setRouteLoadError(
+          null
+        );
+
         try {
+          const [
+            loadedMovement,
+            blocks,
+          ] =
+            await Promise.all([
+              loadAutomationMovement(),
+              loadAutomationBlockCatalog(),
+            ]);
+
           const loaded =
             normalizeMovementDocument(
-              await loadAutomationMovement()
+              loadedMovement
             );
 
           const activePageId =
@@ -124,6 +218,28 @@ export default function MovementEditorDialog({
             ...loaded,
             activePageId,
           });
+
+          setCatalog(
+            blocks
+          );
+
+          try {
+            setNavigation(
+              await loadMovementRouteNavigation()
+            );
+          } catch (error) {
+            setNavigation(
+              null
+            );
+
+            setRouteLoadError(
+              error instanceof Error
+                ? error.message
+                : String(
+                    error
+                  )
+            );
+          }
         } catch (error) {
           showNotification({
             color: "red",
@@ -278,6 +394,13 @@ export default function MovementEditorDialog({
         return;
       }
 
+      const currentIndex =
+        document.pages.findIndex(
+          page =>
+            page.id ===
+            activePage.id
+        );
+
       const pages =
         document.pages.filter(
           page =>
@@ -285,12 +408,24 @@ export default function MovementEditorDialog({
             activePage.id
         );
 
+      const nextIndex =
+        Math.max(
+          0,
+          Math.min(
+            currentIndex,
+            pages.length -
+              1
+          )
+        );
+
       setDocument(
         current => ({
           ...current,
           pages,
           activePageId:
-            pages[0]!.id,
+            pages[
+              nextIndex
+            ]!.id,
         })
       );
     };
@@ -309,17 +444,110 @@ export default function MovementEditorDialog({
         false
       }
     >
-      <Stack
-        gap="sm"
-        h="calc(100dvh - 76px)"
+      <div
+        className="movement-editor-shell"
       >
-        <Group
-          justify="space-between"
-          align="center"
-          wrap="wrap"
+        <aside
+          className="movement-editor-sidebar"
         >
+          <Text
+            size="sm"
+            fw={700}
+          >
+            Movements
+          </Text>
+
+          <Text
+            size="xs"
+            c="dimmed"
+          >
+            {
+              document.pages.length
+            } saved
+          </Text>
+
+          <ScrollArea
+            className="movement-editor-sidebar-list"
+            type="auto"
+          >
+            <Stack
+              gap={6}
+              py="xs"
+            >
+              {
+                document.pages.map(
+                  page => (
+                    <UnstyledButton
+                      key={
+                        page.id
+                      }
+                      className={
+                        "movement-page-list-card" +
+                        (
+                          page.id ===
+                          document.activePageId
+                            ? " is-active"
+                            : ""
+                        )
+                      }
+                      onClick={
+                        () =>
+                          setDocument(
+                            current => ({
+                              ...current,
+                              activePageId:
+                                page.id,
+                            })
+                          )
+                      }
+                    >
+                      <Group
+                        justify="space-between"
+                        gap={6}
+                        wrap="nowrap"
+                      >
+                        <Text
+                          size="sm"
+                          fw={600}
+                          truncate
+                        >
+                          {
+                            page.name
+                          }
+                        </Text>
+
+                        <span
+                          className={
+                            page.enabled
+                              ? "movement-enabled-dot"
+                              : "movement-disabled-dot"
+                          }
+                        />
+                      </Group>
+
+                      <Text
+                        size="xs"
+                        c="dimmed"
+                        truncate
+                      >
+                        {
+                          movementRouteLabel(
+                            page,
+                            catalog
+                          )
+                        }
+                      </Text>
+                    </UnstyledButton>
+                  )
+                )
+              }
+            </Stack>
+          </ScrollArea>
+
           <Group
-            gap="xs"
+            gap={6}
+            grow
+            className="movement-editor-sidebar-actions"
           >
             <Button
               size="xs"
@@ -333,12 +561,18 @@ export default function MovementEditorDialog({
                 addPage
               }
             >
-              New page
+              New movement
             </Button>
 
-            <ActionIcon
+            <Button
+              size="xs"
               variant="light"
               color="red"
+              leftSection={
+                <IconTrash
+                  size={14}
+                />
+              }
               disabled={
                 document.pages.length <=
                 1
@@ -346,247 +580,185 @@ export default function MovementEditorDialog({
               onClick={
                 deletePage
               }
-              title="Delete page"
             >
-              <IconTrash
-                size={16}
-              />
-            </ActionIcon>
-          </Group>
-
-          <Group
-            gap="xs"
-          >
-            <Button
-              size="xs"
-              variant="light"
-              color="gray"
-              leftSection={
-                <IconRefresh
-                  size={14}
-                />
-              }
-              loading={
-                loading
-              }
-              onClick={
-                () =>
-                  void load()
-              }
-            >
-              Reload
-            </Button>
-
-            <Button
-              size="xs"
-              color="teal"
-              leftSection={
-                <IconDeviceFloppy
-                  size={14}
-                />
-              }
-              loading={
-                saving
-              }
-              onClick={
-                () =>
-                  void save()
-              }
-            >
-              Save
+              Delete
             </Button>
           </Group>
-        </Group>
+        </aside>
 
-        <Tabs
-          value={
-            document.activePageId
-          }
-          onChange={
-            value => {
-              if (
-                value
-              ) {
-                setDocument(
-                  current => ({
-                    ...current,
-                    activePageId:
-                      value,
-                  })
-                );
-              }
-            }
-          }
-          keepMounted={
-            false
-          }
+        <section
+          className="movement-editor-main"
         >
-          <Tabs.List
-            className="movement-page-tabs"
-          >
-            {
-              document.pages.map(
-                page => (
-                  <Tabs.Tab
-                    key={
-                      page.id
-                    }
-                    value={
-                      page.id
-                    }
+          {
+            activePage && (
+              <>
+                <div
+                  className="movement-editor-page-header"
+                >
+                  <Group
+                    align="flex-end"
+                    wrap="wrap"
+                    gap="sm"
                   >
-                    <Group
-                      gap={6}
-                      wrap="nowrap"
+                    <TextInput
+                      label="Movement name"
+                      value={
+                        activePage.name
+                      }
+                      onChange={
+                        event =>
+                          updatePage({
+                            ...activePage,
+                            name:
+                              event.currentTarget.value,
+                          })
+                      }
+                      className="movement-editor-name"
+                    />
+
+                    <NumberInput
+                      label="Cruise speed"
+                      min={0}
+                      max={126}
+                      value={
+                        activePage.speed
+                      }
+                      onChange={
+                        value =>
+                          updatePage({
+                            ...activePage,
+                            speed:
+                              Math.max(
+                                0,
+                                Math.min(
+                                  126,
+                                  Math.round(
+                                    Number(
+                                      value
+                                    ) ||
+                                    0
+                                  )
+                                )
+                              ),
+                          })
+                      }
+                      w={120}
+                    />
+
+                    <Switch
+                      checked={
+                        activePage.enabled
+                      }
+                      color="green"
+                      label={
+                        activePage.enabled
+                          ? "Enabled"
+                          : "Disabled"
+                      }
+                      onChange={
+                        event =>
+                          updatePage({
+                            ...activePage,
+                            enabled:
+                              event.currentTarget.checked,
+                          })
+                      }
+                    />
+
+                    <div
+                      className="movement-editor-header-spacer"
+                    />
+
+                    <Button
+                      size="xs"
+                      variant="light"
+                      color="gray"
+                      leftSection={
+                        <IconRefresh
+                          size={14}
+                        />
+                      }
+                      loading={
+                        loading
+                      }
+                      onClick={
+                        () =>
+                          void load()
+                      }
                     >
-                      <span>
+                      Reload
+                    </Button>
+
+                    <Button
+                      size="xs"
+                      color="teal"
+                      leftSection={
+                        <IconDeviceFloppy
+                          size={14}
+                        />
+                      }
+                      loading={
+                        saving
+                      }
+                      onClick={
+                        () =>
+                          void save()
+                      }
+                    >
+                      Save
+                    </Button>
+                  </Group>
+
+                  {
+                    routeLoadError && (
+                      <Text
+                        size="xs"
+                        c="red"
+                        mt={6}
+                      >
                         {
-                          page.name
+                          routeLoadError
                         }
-                      </span>
-
-                      <span
-                        className={
-                          page.enabled
-                            ? "movement-enabled-dot"
-                            : "movement-disabled-dot"
-                        }
-                      />
-                    </Group>
-                  </Tabs.Tab>
-                )
-              )
-            }
-          </Tabs.List>
-        </Tabs>
-
-        {
-          activePage && (
-            <>
-              <CardHeader
-                page={
-                  activePage
-                }
-                onChange={
-                  updatePage
-                }
-              />
-
-              <Divider />
-
-              <ScrollArea
-                style={{
-                  flex: 1,
-                  minHeight: 0,
-                }}
-                type="always"
-              >
-                <MovementRouteEditor
-                  page={
-                    activePage
-                  }
-                  onChange={
-                    updatePage
-                  }
-                />
-              </ScrollArea>
-            </>
-          )
-        }
-      </Stack>
-    </Modal>
-  );
-}
-
-function CardHeader({
-  page,
-  onChange,
-}: {
-  page:
-    MovementPage;
-  onChange: (
-    page:
-      MovementPage
-  ) => void;
-}) {
-  return (
-    <Group
-      align="flex-end"
-      wrap="wrap"
-    >
-      <TextInput
-        label="Movement name"
-        value={
-          page.name
-        }
-        onChange={
-          event =>
-            onChange({
-              ...page,
-              name:
-                event.currentTarget.value,
-            })
-        }
-        style={{
-          flex:
-            "1 1 320px",
-        }}
-      />
-
-      <NumberInput
-        label="Cruise speed"
-        description="DCC speed step (0..126)"
-        min={0}
-        max={126}
-        value={
-          page.speed
-        }
-        onChange={
-          value =>
-            onChange({
-              ...page,
-              speed:
-                Math.max(
-                  0,
-                  Math.min(
-                    126,
-                    Math.round(
-                      Number(value) ||
-                      0
+                      </Text>
                     )
-                  )
-                ),
-            })
-        }
-        w={150}
-      />
+                  }
 
-      <Switch
-        checked={
-          page.enabled
-        }
-        color="green"
-        label={
-          page.enabled
-            ? "Enabled"
-            : "Disabled"
-        }
-        onChange={
-          event =>
-            onChange({
-              ...page,
-              enabled:
-                event.currentTarget.checked,
-            })
-        }
-      />
+                  <MovementRouteSelector
+                    page={
+                      activePage
+                    }
+                    catalog={
+                      catalog
+                    }
+                    navigation={
+                      navigation
+                    }
+                    onChange={
+                      updatePage
+                    }
+                  />
+                </div>
 
-      <Text
-        size="xs"
-        c="dimmed"
-      >
-        Page ID: {page.id}
-      </Text>
-    </Group>
+                <Divider />
+
+                <ScrollArea
+                  className="movement-editor-content"
+                  type="always"
+                >
+                  <MovementRouteEditor
+                    page={
+                      activePage
+                    }
+                    onChange={
+                      updatePage
+                    }
+                  />
+                </ScrollArea>
+              </>
+            )
+          }
+        </section>
+      </div>
+    </Modal>
   );
 }
