@@ -35,6 +35,11 @@ import {
   type AutomationBlockOption,
 } from "../../services/automationBlockCatalog";
 
+import {
+  loadAutomationSensorCatalog,
+  type AutomationSensorOption,
+} from "../../services/automationSensorCatalog";
+
 import MovementRouteRow from "./MovementRouteRow";
 
 type Props = {
@@ -56,6 +61,14 @@ export default function MovementRouteEditor({
   ] =
     useState<
       AutomationBlockOption[]
+    >([]);
+
+  const [
+    sensorCatalog,
+    setSensorCatalog,
+  ] =
+    useState<
+      AutomationSensorOption[]
     >([]);
 
   const [
@@ -95,14 +108,24 @@ export default function MovementRouteEditor({
         null
       );
 
-      void loadAutomationBlockCatalog()
+      void Promise.all([
+        loadAutomationBlockCatalog(),
+        loadAutomationSensorCatalog(),
+      ])
         .then(
-          blocks => {
+          ([
+            blocks,
+            sensors,
+          ]) => {
             if (
               !disposed
             ) {
               setCatalog(
                 blocks
+              );
+
+              setSensorCatalog(
+                sensors
               );
             }
           }
@@ -745,6 +768,9 @@ export default function MovementRouteEditor({
                               block.id
                           ) ??
                           null
+                        }
+                        sensorCatalog={
+                          sensorCatalog
                         }
                         onRuleChange={
                           updateRule
