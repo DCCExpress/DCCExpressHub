@@ -283,6 +283,20 @@
   );
 }
 
+.movement-block-event-condition {
+  border: 1px solid color-mix(
+    in srgb,
+    var(--mantine-color-gray-5) 35%,
+    transparent
+  );
+  border-radius: var(--mantine-radius-sm);
+  background: color-mix(
+    in srgb,
+    var(--mantine-color-gray-5) 4%,
+    var(--mantine-color-body)
+  );
+}
+
 .movement-enabled-dot,
 .movement-disabled-dot {
   display: inline-block;
