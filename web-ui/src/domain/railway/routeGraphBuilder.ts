@@ -615,8 +615,18 @@ export class RouteGraphBuilder {
       )
       .join("|");
 
+    const turnoutPathKey =
+      turnoutPath
+        .map(
+          passage =>
+            String(
+              passage.elementId
+            )
+        )
+        .join(">");
+
     const edgeKey =
-      `${from.name}->${to.name}:${turnoutKey}:${locoDirection}`;
+      `${from.name}->${to.name}:${turnoutKey}:${turnoutPathKey}:${locoDirection}`;
 
     if (this.createdEdgeKeys.has(edgeKey)) {
       return;
