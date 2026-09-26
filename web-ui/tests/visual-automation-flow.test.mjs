@@ -86,7 +86,7 @@ test("layout automation toolbar opens the visual flow editor after the routes co
   );
 });
 
-test("visual flow editor supports pages, enabled state and SmartDispatcher nodes", () => {
+test("visual flow editor supports pages and no longer exposes SmartDispatcher nodes", () => {
   const editor =
     read(
       "src/components/automation/AutomationFlowDialog.tsx"
@@ -95,6 +95,21 @@ test("visual flow editor supports pages, enabled state and SmartDispatcher nodes
   const palette =
     read(
       "src/components/automation/AutomationFlowPalette.tsx"
+    );
+
+  const properties =
+    read(
+      "src/components/automation/AutomationFlowPropertiesPanel.tsx"
+    );
+
+  const node =
+    read(
+      "src/components/automation/AutomationFlowNode.tsx"
+    );
+
+  const domain =
+    read(
+      "src/domain/automationFlow.ts"
     );
 
   assert.match(
@@ -113,58 +128,33 @@ test("visual flow editor supports pages, enabled state and SmartDispatcher nodes
   );
 
   assert.match(
+    editor,
+    /<ReactFlow/
+  );
+
+  assert.doesNotMatch(
     palette,
     /kind: "smartDispatcher"/
   );
 
-  const properties =
-    read(
-      "src/components/automation/AutomationFlowPropertiesPanel.tsx"
-    );
-
-  const smartDispatcherEditor =
-    read(
-      "src/components/automation/AutomationFlowSmartDispatcherEditor.tsx"
-    );
-
-  assert.match(
+  assert.doesNotMatch(
     properties,
     /AutomationFlowSmartDispatcherEditor/
   );
 
-  assert.match(
-    smartDispatcherEditor,
-    /loadAutomationBlockCatalog/
-  );
-
-  assert.match(
-    smartDispatcherEditor,
-    /<Select/
-  );
-
-  assert.match(
-    smartDispatcherEditor,
-    /option\.id/
-  );
-
-  assert.match(
-    smartDispatcherEditor,
-    /option\?\.name/
+  assert.doesNotMatch(
+    node,
+    /smartDispatcher/
   );
 
   assert.doesNotMatch(
-    smartDispatcherEditor,
-    /<TextInput/
+    domain,
+    /\| "smartDispatcher"/
   );
 
-  assert.match(
-    editor,
-    /arrivalRules/
-  );
-
-  assert.match(
-    editor,
-    /<ReactFlow/
+  assert.doesNotMatch(
+    domain,
+    /"await smartDispatcher\("/
   );
 });
 
@@ -208,7 +198,7 @@ test("SmartDispatcher uses exact saved per-transition turnout plans", () => {
 
   assert.match(
     cache,
-    /ROUTE_TOPOLOGY_VERSION = 2/
+    /ROUTE_TOPOLOGY_VERSION = 3/
   );
 
   assert.match(
@@ -223,7 +213,7 @@ test("SmartDispatcher uses exact saved per-transition turnout plans", () => {
 
   assert.match(
     dispatcherPrelude,
-    /Number\(topology\.version\) !== 2/
+    /2,[\s\S]*3,[\s\S]*\.includes\([\s\S]*Number\([\s\S]*topology\.version/
   );
 
   assert.match(
@@ -309,30 +299,35 @@ test("SmartDispatcher logs route, clearance, arrival and failures", () => {
   );
 });
 
-test("visual flow generator emits the existing smartDispatcher API", () => {
-  const source =
+test("SmartDispatcher remains available only through the script runtime", () => {
+  const domain =
     read(
       "src/domain/automationFlow.ts"
     );
 
-  assert.match(
-    source,
-    /"await smartDispatcher\("/
+  const runner =
+    read(
+      "src/services/clientScriptRunner.ts"
+    );
+
+  const prelude =
+    read(
+      "src/services/clientScriptSmartDispatcherPrelude.ts"
+    );
+
+  assert.doesNotMatch(
+    domain,
+    /smartDispatcher/
   );
 
   assert.match(
-    source,
-    /run\.setSpeed/
+    runner,
+    /buildClientScriptSmartDispatcherPrelude/
   );
 
   assert.match(
-    source,
-    /run\.waitForBlock/
-  );
-
-  assert.match(
-    source,
-    /arrivedWhen/
+    prelude,
+    /smartDispatcher/
   );
 });
 
