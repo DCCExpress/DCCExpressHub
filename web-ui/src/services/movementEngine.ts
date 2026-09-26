@@ -17,6 +17,12 @@ import {
 } from "./broadcastAudioRuntime";
 
 import {
+  clearOptimisticBlockTargetLoco,
+  createBlockTargetLocoMarker,
+  setOptimisticBlockTargetLoco,
+} from "./blockTargetLocoRuntime";
+
+import {
   isControlStationRuntimeActive,
 } from "./controlStationRuntime";
 
@@ -88,11 +94,20 @@ type TurnoutLease = {
     () => Promise<void>;
 };
 
+type BlockTargetLease = {
+  blockId: string;
+  marker: string;
+  release:
+    () => Promise<void>;
+};
+
 type MovementLegLease = {
   resources:
     ResourceLease[];
   turnouts:
     TurnoutLease | null;
+  target:
+    BlockTargetLease | null;
 };
 
 type MovementExecution = {
@@ -1430,27 +1445,173 @@ async function tryAcquireAndSetTurnouts(
   }
 }
 
+function blockAvailableForTarget(
+  block:
+    MovementPlanResource,
+  ownMarker:
+    string | null =
+      null
+): boolean {
+  const state =
+    blockStateFor(
+      block.blockId
+    );
+
+  if (
+    block.sensorAddress !==
+      null &&
+    sensorStates.get(
+      block.sensorAddress
+    ) ===
+      true
+  ) {
+    return false;
+  }
+
+  if (!state) {
+    return true;
+  }
+
+  if (
+    (
+      state.locoAddress ??
+      0
+    ) >
+    0
+  ) {
+    return false;
+  }
+
+  if (
+    state.locoId ===
+      null ||
+    state.locoId ===
+      undefined ||
+    state.locoId ===
+      ""
+  ) {
+    return true;
+  }
+
+  return (
+    ownMarker !==
+      null &&
+    state.locoId ===
+      ownMarker
+  );
+}
+
+function reserveBlockTarget(
+  execution:
+    MovementExecution,
+  leg:
+    MovementPlanLeg
+): BlockTargetLease {
+  if (
+    leg.to.blockId ===
+    null
+  ) {
+    throw new Error(
+      "Movement destination block ID is missing."
+    );
+  }
+
+  const blockId =
+    String(
+      leg.to.blockId
+    );
+
+  const ownerId =
+    createRequestId(
+      `movement-target-${execution.page.id}-leg-${leg.index}`
+    );
+
+  const marker =
+    createBlockTargetLocoMarker(
+      execution.locoAddress,
+      ownerId
+    );
+
+  if (
+    !wsApi.setBlock(
+      blockId,
+      marker
+    )
+  ) {
+    throw new Error(
+      `Movement could not set target locomotive for block "${leg.to.name}".`
+    );
+  }
+
+  setOptimisticBlockTargetLoco(
+    blockId,
+    execution.locoAddress,
+    ownerId,
+    marker
+  );
+
+  setInfo(
+    execution,
+    `Target ${leg.to.name}: loco ${execution.locoAddress}`,
+    leg.to.key
+  );
+
+  let released =
+    false;
+
+  return {
+    blockId,
+    marker,
+    async release() {
+      if (
+        released
+      ) {
+        return;
+      }
+
+      released =
+        true;
+
+      /*
+       * Owner-safe cleanup. If actual occupancy already replaced the target
+       * marker, the backend refuses to remove the real locomotive.
+       */
+      wsApi.setBlockRemove(
+        blockId,
+        marker
+      );
+
+      clearOptimisticBlockTargetLoco(
+        blockId,
+        marker
+      );
+    },
+  };
+}
+
 async function releaseMovementLegLease(
   lease:
     MovementLegLease
 ): Promise<void> {
-  if (
-    lease.turnouts
-  ) {
+  try {
+    if (
+      lease.target
+    ) {
+      await lease.target.release();
+    }
+  } finally {
     try {
-      await lease.turnouts.release();
+      if (
+        lease.turnouts
+      ) {
+        await lease.turnouts.release();
+      }
     } finally {
       await releaseLeases(
         lease.resources
       );
     }
-
-    return;
   }
-
-  await releaseLeases(
-    lease.resources
-  );
 }
 
 async function waitForLegClearance(
@@ -1469,7 +1630,7 @@ async function waitForLegClearance(
       "";
 
     if (
-      !blockIsFree(
+      !blockAvailableForTarget(
         leg.to
       )
     ) {
@@ -1546,7 +1707,7 @@ async function waitForLegClearance(
     }
 
     if (
-      !blockIsFree(
+      !blockAvailableForTarget(
         leg.to
       ) ||
       !aheadSegmentsAreFree(
@@ -1614,22 +1775,46 @@ async function waitForLegClearance(
      * Recheck occupancy one last time before granting movement authority.
      */
     if (
-      blockIsFree(
+      blockAvailableForTarget(
         leg.to
       ) &&
       aheadSegmentsAreFree(
         leg
       )
     ) {
-      return {
-        resources,
-        turnouts,
-      };
+      let target:
+        BlockTargetLease |
+        null =
+        null;
+
+      try {
+        target =
+          reserveBlockTarget(
+            execution,
+            leg
+          );
+
+        return {
+          resources,
+          turnouts,
+          target,
+        };
+      } catch (error) {
+        await releaseMovementLegLease({
+          resources,
+          turnouts,
+          target,
+        });
+
+        throw error;
+      }
     }
 
     await releaseMovementLegLease({
       resources,
       turnouts,
+      target:
+        null,
     });
   }
 
@@ -1659,7 +1844,9 @@ async function waitForHeldLegReady(
   execution:
     MovementExecution,
   leg:
-    MovementPlanLeg
+    MovementPlanLeg,
+  targetMarker:
+    string | null
 ): Promise<void> {
   while (
     !execution.cancelled
@@ -1668,8 +1855,9 @@ async function waitForHeldLegReady(
       "";
 
     if (
-      !blockIsFree(
-        leg.to
+      !blockAvailableForTarget(
+        leg.to,
+        targetMarker
       )
     ) {
       reason =
@@ -1826,7 +2014,9 @@ async function traverseLeg(
      */
     await waitForHeldLegReady(
       execution,
-      leg
+      leg,
+      leases.target?.marker ??
+      null
     );
 
     execution.moving =
@@ -1962,13 +2152,38 @@ async function traverseLeg(
       leg.to.blockId !==
         null
     ) {
-      wsApi.setBlock(
+      const destinationBlockId =
         String(
           leg.to.blockId
-        ),
-        null,
-        execution.locoAddress
-      );
+        );
+
+      if (
+        !wsApi.setBlock(
+          destinationBlockId,
+          null,
+          execution.locoAddress
+        )
+      ) {
+        throw new Error(
+          `Movement could not commit locomotive to block "${leg.to.name}".`
+        );
+      }
+
+      if (
+        leases.target
+      ) {
+        clearOptimisticBlockTargetLoco(
+          destinationBlockId,
+          leases.target.marker
+        );
+
+        /*
+         * Actual occupancy replaces the target marker in backend SetBlock.
+         * Do not issue owner-cleanup for the already committed block.
+         */
+        leases.target =
+          null;
+      }
     }
 
     await runActions(
