@@ -731,7 +731,7 @@ export default function MovementPagesTable({
         size="xs"
         c="dimmed"
       >
-        Play runs the dedicated MovementEngine. Stop ends only this Movement; Abort also requests emergency stop. Turnouts are checked but never changed.
+        Play runs the dedicated MovementEngine. The engine locks and sets route turnouts automatically after the next leg is clear. Stop ends only this Movement; Abort also requests emergency stop.
       </Text>
 
       <ScrollArea
