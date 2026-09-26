@@ -33,13 +33,14 @@ import {
 import {
   IconArrowDown,
   IconArrowUp,
+  IconCheck,
   IconEdit,
   IconGripVertical,
   IconPlayerPause,
   IconPlayerPlay,
-  IconPlayerPlayFilled,
   IconPlayerStop,
   IconTrash,
+  IconX,
 } from "@tabler/icons-react";
 
 import {
@@ -643,13 +644,13 @@ function ScriptCard({
                     definition.startWithAll !==
                     false
                       ? (
-                        <IconPlayerPlayFilled
-                          size={14}
+                        <IconCheck
+                          size={15}
                         />
                       )
                       : (
-                        <IconPlayerPlay
-                          size={14}
+                        <IconX
+                          size={15}
                         />
                       )
                   }

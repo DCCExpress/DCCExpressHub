@@ -2087,6 +2087,21 @@ test("automation scripts use reorderable cards with grouped runtime controls", (
 
   assert.match(
     scripts,
+    /IconCheck/
+  );
+
+  assert.match(
+    scripts,
+    /IconX/
+  );
+
+  assert.doesNotMatch(
+    scripts,
+    /IconPlayerPlayFilled/
+  );
+
+  assert.match(
+    scripts,
     /moveDraggedScriptToIndex/
   );
 
