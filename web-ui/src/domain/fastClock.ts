@@ -27,3 +27,7 @@ export type FastClockSnapshot = {
 export type SetFastClockSpeedRequest = {
   speed: number;
 };
+
+export type SetFastClockTimeRequest = {
+  timeMs: number;
+};
