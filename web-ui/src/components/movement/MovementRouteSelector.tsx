@@ -21,8 +21,10 @@ import type {
   AutomationBlockOption,
 } from "../../services/automationBlockCatalog";
 
-import type {
-  MovementRouteNavigation,
+import {
+  getCompatibleMovementNextBlockIds,
+  getMovementSequenceDirections,
+  type MovementRouteNavigation,
 } from "../../services/movementRouteNavigation";
 
 type Props = {
@@ -176,61 +178,81 @@ export default function MovementRouteSelector({
 
   const nextData =
     (
-      previousId:
-        number | null,
+      prefix:
+        number[],
       currentId:
-        number | null,
-      usedIds:
-        Set<number>
+        number | null
     ) => {
       if (
-        previousId ===
-          null
+        !navigation ||
+        prefix.length ===
+          0
       ) {
         return [];
       }
 
-      const ids =
-        navigation?.nextByBlockId.get(
-          previousId
-        ) ??
-        [];
+      const compatible =
+        getCompatibleMovementNextBlockIds(
+          navigation,
+          prefix
+        );
 
-      const allowed =
-        ids.filter(
-          id =>
-            id ===
-              currentId ||
-            !usedIds.has(
-              id
-            )
+      const result =
+        compatible.map(
+          id => ({
+            value:
+              String(
+                id
+              ),
+            label:
+              blockLabel(
+                id,
+                catalog
+              ),
+            disabled:
+              false,
+          })
         );
 
       if (
         currentId !==
           null &&
-        !allowed.includes(
+        !compatible.includes(
           currentId
         )
       ) {
-        allowed.unshift(
-          currentId
-        );
-      }
+        const currentDirections =
+          getMovementSequenceDirections(
+            navigation,
+            [
+              ...prefix,
+              currentId,
+            ]
+          );
 
-      return allowed.map(
-        id => ({
+        result.unshift({
           value:
             String(
-              id
+              currentId
             ),
           label:
-            blockLabel(
-              id,
-              catalog
-            ),
-        })
-      );
+            currentDirections.length >
+              0
+              ? blockLabel(
+                  currentId,
+                  catalog
+                )
+              : `${blockLabel(
+                  currentId,
+                  catalog
+                )} · direction mismatch`,
+          disabled:
+            currentDirections.length ===
+            0,
+        });
+      }
+
+      return result;
     };
 
   const changeFrom =
@@ -356,48 +378,33 @@ export default function MovementRouteSelector({
       );
     };
 
-  const previousForTo =
-    page.viaBlockIds[
-      page.viaBlockIds.length -
-      1
-    ] ??
-    page.fromBlockId;
-
-  const usedBeforeTo =
-    new Set<number>([
-      ...(page.fromBlockId ===
-        null
-        ? []
-        : [
-            page.fromBlockId,
-          ]),
-      ...page.viaBlockIds,
-    ]);
+  const prefixBeforeTo = [
+    ...(page.fromBlockId ===
+      null
+      ? []
+      : [
+          page.fromBlockId,
+        ]),
+    ...page.viaBlockIds,
+  ];
 
   const toOptions =
     nextData(
-      previousForTo,
-      page.toBlockId,
-      usedBeforeTo
+      prefixBeforeTo,
+      page.toBlockId
     );
 
   const nextAfterTo =
-    page.toBlockId ===
-      null
-      ? []
-      : (
-          navigation?.nextByBlockId.get(
-            page.toBlockId
-          ) ??
-          []
-        ).filter(
-          id =>
-            !new Set(
-              sequence
-            ).has(
-              id
-            )
-        );
+    (
+      navigation &&
+      page.toBlockId !==
+        null
+    )
+      ? getCompatibleMovementNextBlockIds(
+          navigation,
+          sequence
+        )
+      : [];
 
   const canAddBlock =
     page.toBlockId !==
@@ -448,30 +455,6 @@ export default function MovementRouteSelector({
             blockId,
             viaIndex
           ) => {
-            const previousId =
-              viaIndex ===
-                0
-                ? page.fromBlockId
-                : page.viaBlockIds[
-                    viaIndex -
-                      1
-                  ] ??
-                  null;
-
-            const usedIds =
-              new Set<number>([
-                ...(page.fromBlockId ===
-                  null
-                  ? []
-                  : [
-                      page.fromBlockId,
-                    ]),
-                ...page.viaBlockIds.slice(
-                  0,
-                  viaIndex
-                ),
-              ]);
-
             return (
               <Group
                 key={
@@ -532,9 +515,19 @@ export default function MovementRouteSelector({
                     }
                     data={
                       nextData(
-                        previousId,
-                        blockId,
-                        usedIds
+                        [
+                          ...(page.fromBlockId ===
+                            null
+                            ? []
+                            : [
+                                page.fromBlockId,
+                              ]),
+                          ...page.viaBlockIds.slice(
+                            0,
+                            viaIndex
+                          ),
+                        ],
+                        blockId
                       )
                     }
                     value={
