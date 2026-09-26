@@ -1339,7 +1339,7 @@ test("Movement block actions support before-depart and after-leave lifecycle pha
 });
 
 
-test("Movement actions are draggable and ordered within their WHEN phase", () => {
+test("Movement actions are draggable in one global resource order", () => {
   const actionEditor =
     read(
       "src/components/movement/MovementActionEditor.tsx"
@@ -1390,19 +1390,24 @@ test("Movement actions are draggable and ordered within their WHEN phase", () =>
     /moveActionByOffset/
   );
 
-  assert.match(
+  assert.doesNotMatch(
     actionEditor,
     /dragged\.when !==[\s\S]*target\.when/
   );
 
-  assert.match(
+  assert.doesNotMatch(
     actionEditor,
     /phaseActions/
   );
 
-  assert.match(
+  assert.doesNotMatch(
     actionEditor,
     /phaseIndex/
+  );
+
+  assert.match(
+    actionEditor,
+    /#\{actionIndex \+ 1\}/
   );
 
   assert.match(
@@ -1455,7 +1460,7 @@ test("Movement action drag uses a dedicated handle and darker card headers", () 
 
   assert.match(
     actionEditor,
-    /<div[\s\S]*draggable[\s\S]*movement-action-drag-handle/
+    /className="movement-action-card-header"[\s\S]*draggable[\s\S]*onDragStart/
   );
 
   assert.doesNotMatch(
