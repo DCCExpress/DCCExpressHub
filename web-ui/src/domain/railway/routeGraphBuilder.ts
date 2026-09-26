@@ -506,9 +506,31 @@ export class RouteGraphBuilder {
         {
           elementId:
             turnout.id,
-          name:
-            turnout.name?.trim() ||
-            `Turnout ${turnout.id}`,
+          name: (() => {
+            const configuredName =
+              turnout.name?.trim() ??
+              "";
+
+            if (
+              configuredName &&
+              configuredName !==
+                "element"
+            ) {
+              return configuredName;
+            }
+
+            const addresses =
+              exit.turnoutStates
+                .map(
+                  state =>
+                    state.address
+                )
+                .join("/");
+
+            return addresses
+              ? `Turnout #${addresses}`
+              : `Turnout #${turnout.id}`;
+          })(),
           turnoutStates:
             this.normalizeTurnoutStates(
               exit.turnoutStates
