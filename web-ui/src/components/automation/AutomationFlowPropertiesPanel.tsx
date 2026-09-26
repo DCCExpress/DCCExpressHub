@@ -883,19 +883,84 @@ export default function AutomationFlowPropertiesPanel({
       )}
 
       {data.kind ===
-        "setLoco" && (
+        "setExtendedAccessory" && (
         <>
-          <Alert
-            color="blue"
-            py="xs"
-          >
-            {
+          <NumberInput
+            label={
               t(
-                "ui.flowSetLocoPayloadHint",
-                "Uses payload.locoAddress as the locomotive address and passes payload on unchanged."
+                "ui.flowAccessoryAddress",
+                "Accessory address"
               )
             }
-          </Alert>
+            value={
+              data.accessoryAddress ??
+              1
+            }
+            min={1}
+            max={2048}
+            onChange={
+              value =>
+                onChange({
+                  accessoryAddress:
+                    Number(
+                      value
+                    ) ||
+                    1,
+                })
+            }
+          />
+
+          <NumberInput
+            label={
+              t(
+                "ui.flowExtendedAccessoryAspect",
+                "Aspect"
+              )
+            }
+            description={
+              t(
+                "ui.flowExtendedAccessoryAspectDescription",
+                "DCC Extended Accessory aspect value (0..255)."
+              )
+            }
+            value={
+              data.accessoryAspect ??
+              0
+            }
+            min={0}
+            max={255}
+            onChange={
+              value =>
+                onChange({
+                  accessoryAspect:
+                    Math.max(
+                      0,
+                      Math.min(
+                        255,
+                        Number(
+                          value
+                        ) ||
+                        0
+                      )
+                    ),
+                })
+            }
+          />
+        </>
+      )}
+
+      {data.kind ===
+        "setLoco" && (
+        <>
+          <AutomationFlowLocoInputEditor
+            data={
+              data
+            }
+            onChange={
+              onChange
+            }
+            mode="output"
+          />
 
           <NumberInput
             label={
@@ -1011,10 +1076,21 @@ export default function AutomationFlowPropertiesPanel({
             </Alert>
           )}
 
-          {(data.kind ===
-              "setBlock" ||
-            data.kind ===
-              "setBlockTargetLoco") && (
+          {data.kind ===
+            "setBlock" && (
+            <AutomationFlowLocoInputEditor
+              data={
+                data
+              }
+              onChange={
+                onChange
+              }
+              mode="output"
+            />
+          )}
+
+          {data.kind ===
+            "setBlockTargetLoco" && (
             <Alert
               color="blue"
               py="xs"

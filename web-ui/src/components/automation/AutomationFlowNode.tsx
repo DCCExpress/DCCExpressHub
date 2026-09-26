@@ -22,6 +22,7 @@ import {
 
 import {
   isAutomationFlowInputNodeKind,
+  isAutomationFlowOutputNodeKind,
   type AutomationFlowNodeData,
   type AutomationFlowNodeKind,
 } from "../../domain/automationFlow";
@@ -126,7 +127,13 @@ const NODE_META:
       icon: "⚡",
       color: "yellow",
       title:
-        "Set accessory",
+        "Basic Accessory output",
+    },
+    setExtendedAccessory: {
+      icon: "⚡",
+      color: "orange",
+      title:
+        "Extended Accessory output",
     },
     setLoco: {
       icon: "🚂",
@@ -335,11 +342,25 @@ function summary(
         )
       );
 
-    case "setLoco":
+    case "setExtendedAccessory":
       return (
-        `payload.locoAddress · ${data.speed ?? 20} · ` +
+        `#${data.accessoryAddress ?? 1} · aspect ${data.accessoryAspect ?? 0}`
+      );
+
+    case "setLoco": {
+      const source =
+        data.locoAddress
+          ? (
+              data.locoLabel ||
+              `#${data.locoAddress}`
+            )
+          : "payload.locoAddress";
+
+      return (
+        `${source} · ${data.speed ?? 20} · ` +
         `${data.locoDirection === "reverse" ? "reverse" : "forward"}`
       );
+    }
 
     case "getBlock":
       return (
@@ -348,7 +369,15 @@ function summary(
 
     case "setBlock":
       return (
-        `${data.blockLabel || data.blockName || "Select block"} ← payload.locoAddress`
+        `${data.blockLabel || data.blockName || "Select block"} ← ` +
+        (
+          data.locoAddress
+            ? (
+                data.locoLabel ||
+                `#${data.locoAddress}`
+              )
+            : "payload.locoAddress"
+        )
       );
 
     case "clearBlock":
@@ -439,6 +468,11 @@ export default function AutomationFlowNode({
 
   const isInput =
     isAutomationFlowInputNodeKind(
+      data.kind
+    );
+
+  const isOutput =
+    isAutomationFlowOutputNodeKind(
       data.kind
     );
 
@@ -552,9 +586,11 @@ export default function AutomationFlowNode({
             {
               isInput
                 ? "INPUT"
-                : isWide
-                  ? "FLOW"
-                  : data.kind
+                : isOutput
+                  ? "OUTPUT"
+                  : isWide
+                    ? "FLOW"
+                    : data.kind
             }
           </Badge>
         </Group>

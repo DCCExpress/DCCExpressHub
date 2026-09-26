@@ -14,6 +14,7 @@ export type AutomationFlowNodeKind =
   | "setSensor"
   | "setTurnout"
   | "setAccessory"
+  | "setExtendedAccessory"
   | "setLoco"
   | "locoFunction"
   | "getBlock"
@@ -80,6 +81,7 @@ export type AutomationFlowNodeData = Record<string, unknown> & {
 
   accessoryAddress?: number;
   accessoryActive?: boolean;
+  accessoryAspect?: number;
 
   functionNumber?: number;
   pulseMs?: number;
@@ -145,6 +147,7 @@ const NODE_KINDS =
     "setSensor",
     "setTurnout",
     "setAccessory",
+    "setExtendedAccessory",
     "setLoco",
     "locoFunction",
     "getBlock",
@@ -169,6 +172,19 @@ export function isAutomationFlowInputNodeKind(
     kind === "turnoutInput" ||
     kind === "accessoryInput" ||
     kind === "locoInput"
+  );
+}
+
+export function isAutomationFlowOutputNodeKind(
+  kind: AutomationFlowNodeKind
+): boolean {
+  return (
+    kind === "setLoco" ||
+    kind === "setBlock" ||
+    kind === "setSensor" ||
+    kind === "setTurnout" ||
+    kind === "setAccessory" ||
+    kind === "setExtendedAccessory"
   );
 }
 
@@ -625,6 +641,19 @@ function normalizeNodeData(
     accessoryActive:
       candidate.accessoryActive !==
       false,
+    accessoryAspect:
+      Math.max(
+        0,
+        Math.min(
+          255,
+          Math.round(
+            finiteNumber(
+              candidate.accessoryAspect,
+              0
+            )
+          )
+        )
+      ),
     functionNumber:
       Math.max(
         0,
@@ -1211,6 +1240,9 @@ function generateStatement(
     case "setAccessory":
       return `dcc.setAccessory(${Math.max(1, Math.min(2048, Math.round(data.accessoryAddress ?? 1)))}, ${data.accessoryActive !== false ? "true" : "false"});`;
 
+    case "setExtendedAccessory":
+      return `dcc.setSignalAspect(${Math.max(1, Math.min(2048, Math.round(data.accessoryAddress ?? 1)))}, ${Math.max(0, Math.min(255, Math.round(data.accessoryAspect ?? 0)))});`;
+
     case "setLoco": {
       const speed =
         Math.max(
@@ -1229,6 +1261,19 @@ function generateStatement(
         "reverse"
           ? "reverse"
           : "forward";
+
+      const configuredAddress =
+        Math.round(
+          data.locoAddress ??
+          0
+        );
+
+      if (
+        configuredAddress >= 1 &&
+        configuredAddress <= 10239
+      ) {
+        return `dcc.setLoco(${configuredAddress}, ${speed}, ${jsString(direction)});`;
+      }
 
       return payloadLocoAddressGuard(
         `dcc.setLoco(locoAddress, ${speed}, ${jsString(direction)});`
@@ -1259,6 +1304,19 @@ function generateStatement(
 
       if (!block) {
         return 'throw new Error("Set Block node has no configured block.");';
+      }
+
+      const configuredAddress =
+        Math.round(
+          data.locoAddress ??
+          0
+        );
+
+      if (
+        configuredAddress >= 1 &&
+        configuredAddress <= 10239
+      ) {
+        return `dcc.setBlock(${block}, ${configuredAddress});`;
       }
 
       return payloadLocoAddressGuard(

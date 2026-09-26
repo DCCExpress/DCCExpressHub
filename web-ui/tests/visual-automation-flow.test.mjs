@@ -990,7 +990,7 @@ test("get block nodes write payload locoAddress and setters consume it", () => {
   );
 });
 
-test("set loco uses payload locoAddress with configured speed and direction", () => {
+test("loco output supports a fixed locomotive or payload locoAddress", () => {
   const domain =
     read(
       "src/domain/automationFlow.ts"
@@ -1001,9 +1001,24 @@ test("set loco uses payload locoAddress with configured speed and direction", ()
       "src/components/automation/AutomationFlowPropertiesPanel.tsx"
     );
 
+  const locoEditor =
+    read(
+      "src/components/automation/AutomationFlowLocoInputEditor.tsx"
+    );
+
   assert.match(
     domain,
     /case "setLoco"/
+  );
+
+  assert.match(
+    domain,
+    /configuredAddress/
+  );
+
+  assert.match(
+    domain,
+    /dcc\.setLoco\(\$\{configuredAddress\}/
   );
 
   assert.match(
@@ -1013,7 +1028,17 @@ test("set loco uses payload locoAddress with configured speed and direction", ()
 
   assert.match(
     properties,
-    /flowSetLocoPayloadHint/
+    /mode="output"/
+  );
+
+  assert.match(
+    locoEditor,
+    /flowLocoOutputSourceHint/
+  );
+
+  assert.match(
+    locoEditor,
+    /clearable/
   );
 
   assert.match(
@@ -1628,5 +1653,118 @@ test("flow editor toolbar omits run and test and keeps page delete beside add pa
     addPage >= 0 &&
     deletePage > addPage &&
     pageName > deletePage
+  );
+});
+
+
+test("flow palette has first-class output nodes including basic and extended accessories", () => {
+  const domain =
+    read(
+      "src/domain/automationFlow.ts"
+    );
+
+  const palette =
+    read(
+      "src/components/automation/AutomationFlowPalette.tsx"
+    );
+
+  const properties =
+    read(
+      "src/components/automation/AutomationFlowPropertiesPanel.tsx"
+    );
+
+  const node =
+    read(
+      "src/components/automation/AutomationFlowNode.tsx"
+    );
+
+  assert.match(
+    palette,
+    /id: "output"/
+  );
+
+  for (
+    const kind of [
+      "setLoco",
+      "setBlock",
+      "setSensor",
+      "setTurnout",
+      "setAccessory",
+      "setExtendedAccessory",
+    ]
+  ) {
+    assert.match(
+      palette,
+      new RegExp(
+        `kind: "${kind}"[\\s\\S]*group: "output"`
+      )
+    );
+  }
+
+  assert.match(
+    domain,
+    /\| "setExtendedAccessory"/
+  );
+
+  assert.match(
+    domain,
+    /accessoryAspect\?: number/
+  );
+
+  assert.match(
+    domain,
+    /case "setExtendedAccessory":[\s\S]*dcc\.setSignalAspect/
+  );
+
+  assert.match(
+    properties,
+    /flowExtendedAccessoryAspect/
+  );
+
+  assert.match(
+    node,
+    /setExtendedAccessory:/
+  );
+
+  assert.match(
+    domain,
+    /isAutomationFlowOutputNodeKind/
+  );
+
+  assert.match(
+    node,
+    /"OUTPUT"/
+  );
+});
+
+test("block output supports a fixed locomotive or payload locoAddress", () => {
+  const domain =
+    read(
+      "src/domain/automationFlow.ts"
+    );
+
+  const properties =
+    read(
+      "src/components/automation/AutomationFlowPropertiesPanel.tsx"
+    );
+
+  assert.match(
+    domain,
+    /case "setBlock":[\s\S]*configuredAddress/
+  );
+
+  assert.match(
+    domain,
+    /dcc\.setBlock\(\$\{block\}, \$\{configuredAddress\}\)/
+  );
+
+  assert.match(
+    domain,
+    /dcc\.setBlock\(\$\{block\}, locoAddress\)/
+  );
+
+  assert.match(
+    properties,
+    /data\.kind ===[\s\S]*"setBlock"[\s\S]*AutomationFlowLocoInputEditor/
   );
 });

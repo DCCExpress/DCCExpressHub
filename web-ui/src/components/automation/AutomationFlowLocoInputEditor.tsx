@@ -41,6 +41,9 @@ type Props = {
     patch:
       Partial<AutomationFlowNodeData>
   ) => void;
+  mode?:
+    | "input"
+    | "output";
 };
 
 function t(
@@ -73,6 +76,7 @@ function locoLabel(
 export default function AutomationFlowLocoInputEditor({
   data,
   onChange,
+  mode = "input",
 }: Props) {
   const [
     locos,
@@ -188,6 +192,22 @@ export default function AutomationFlowLocoInputEditor({
         string |
         null
     ): void => {
+      if (
+        value ===
+          null &&
+        mode ===
+          "output"
+      ) {
+        onChange({
+          locoAddress:
+            0,
+          locoLabel:
+            "",
+        });
+
+        return;
+      }
+
       const address =
         Number(
           value ??
@@ -257,6 +277,10 @@ export default function AutomationFlowLocoInputEditor({
             )
           }
           searchable
+          clearable={
+            mode ===
+            "output"
+          }
           disabled={
             loading
           }
@@ -341,7 +365,9 @@ export default function AutomationFlowLocoInputEditor({
         </Alert>
       )}
 
-      {selected && (
+      {mode ===
+        "input" &&
+        selected && (
         <Text
           size="xs"
           c="dimmed"
@@ -350,6 +376,21 @@ export default function AutomationFlowLocoInputEditor({
             t(
               "ui.flowLocoEventPayloadHint",
               "Any runtime state change for this locomotive starts the connected branch. Event data is passed in payload."
+            )
+          }
+        </Text>
+      )}
+
+      {mode ===
+        "output" && (
+        <Text
+          size="xs"
+          c="dimmed"
+        >
+          {
+            t(
+              "ui.flowLocoOutputSourceHint",
+              "Select a locomotive for a fixed output target, or leave it empty to use payload.locoAddress."
             )
           }
         </Text>

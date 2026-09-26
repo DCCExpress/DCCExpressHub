@@ -33,10 +33,10 @@ import CollapsiblePanelCard from "../common/CollapsiblePanelCard";
 
 type PaletteGroup =
   | "trigger"
+  | "output"
   | "railway"
   | "locoBlocks"
   | "sensors"
-  | "dcc"
   | "utility";
 
 type PaletteItem = {
@@ -62,6 +62,12 @@ const GROUPS: Array<{
     color: "green",
   },
   {
+    id: "output",
+    labelKey: "ui.flowGroupOutput",
+    fallback: "Outputs",
+    color: "orange",
+  },
+  {
     id: "railway",
     labelKey: "ui.flowGroupRailway",
     fallback: "Railway / Movement",
@@ -78,12 +84,6 @@ const GROUPS: Array<{
     labelKey: "ui.flowGroupSensors",
     fallback: "Sensors",
     color: "teal",
-  },
-  {
-    id: "dcc",
-    labelKey: "ui.flowGroupDcc",
-    fallback: "DCC / Outputs",
-    color: "orange",
   },
   {
     id: "utility",
@@ -169,10 +169,10 @@ const ITEMS: PaletteItem[] = [
   },
   {
     kind: "setLoco",
-    group: "locoBlocks",
+    group: "output",
     icon: <IconBolt size={16} />,
     labelKey: "ui.flowNodeSetLoco",
-    fallback: "Set Loco",
+    fallback: "Loco output",
     color: "blue",
   },
   {
@@ -185,10 +185,10 @@ const ITEMS: PaletteItem[] = [
   },
   {
     kind: "setBlock",
-    group: "locoBlocks",
+    group: "output",
     icon: <IconGitBranch size={16} />,
     labelKey: "ui.flowNodeSetBlock",
-    fallback: "Set Block",
+    fallback: "Block output",
     color: "cyan",
   },
   {
@@ -249,27 +249,35 @@ const ITEMS: PaletteItem[] = [
   },
   {
     kind: "setSensor",
-    group: "sensors",
+    group: "output",
     icon: <IconAntenna size={16} />,
     labelKey: "ui.flowNodeSetSensor",
-    fallback: "Set sensor",
+    fallback: "Sensor output",
     color: "teal",
   },
   {
     kind: "setTurnout",
-    group: "dcc",
+    group: "output",
     icon: <IconGitBranch size={16} />,
     labelKey: "ui.flowNodeSetTurnout",
-    fallback: "Set turnout",
+    fallback: "Turnout output",
     color: "grape",
   },
   {
     kind: "setAccessory",
-    group: "dcc",
+    group: "output",
     icon: <IconBolt size={16} />,
     labelKey: "ui.flowNodeSetAccessory",
-    fallback: "Set accessory",
+    fallback: "Basic Accessory output",
     color: "yellow",
+  },
+  {
+    kind: "setExtendedAccessory",
+    group: "output",
+    icon: <IconBolt size={16} />,
+    labelKey: "ui.flowNodeSetExtendedAccessory",
+    fallback: "Extended Accessory output",
+    color: "orange",
   },
   {
     kind: "delay",
@@ -430,6 +438,13 @@ export function createDefaultAutomationNodeData(
         ...base,
         accessoryAddress: 1,
         accessoryActive: true,
+      };
+
+    case "setExtendedAccessory":
+      return {
+        ...base,
+        accessoryAddress: 1,
+        accessoryAspect: 0,
       };
 
     case "setLoco":
