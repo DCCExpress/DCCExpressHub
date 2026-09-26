@@ -623,6 +623,17 @@ class TimetableScheduler {
           }
 
           if (
+            currentRun.status ===
+              "launching" &&
+            state.status !==
+              "running" &&
+            state.status !==
+              "stopping"
+          ) {
+            return;
+          }
+
+          if (
             state.status ===
               "running" ||
             state.status ===
