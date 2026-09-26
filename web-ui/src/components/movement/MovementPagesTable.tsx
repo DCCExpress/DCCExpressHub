@@ -43,6 +43,7 @@ import {
 } from "../../services/automationBlockCatalog";
 
 import {
+  getMovementEngineState,
   stopMovement,
 } from "../../services/movementEngine";
 
@@ -455,13 +456,42 @@ export default function MovementPagesTable({
       next:
         MovementDocument
     ): Promise<boolean> => {
+      const withRuntimeTiming:
+        MovementDocument = {
+        ...next,
+        pages:
+          next.pages.map(
+            page => {
+              const runtime =
+                getMovementEngineState(
+                  page.id
+                );
+
+              if (
+                runtime.startedAt ===
+                null
+              ) {
+                return page;
+              }
+
+              return {
+                ...page,
+                startedAt:
+                  runtime.startedAt,
+                stoppedAt:
+                  runtime.stoppedAt,
+              };
+            }
+          ),
+      };
+
       onDocumentChange(
-        next
+        withRuntimeTiming
       );
 
       try {
         await saveAutomationMovement(
-          next
+          withRuntimeTiming
         );
 
         return true;
