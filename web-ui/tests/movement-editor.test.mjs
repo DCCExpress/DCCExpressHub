@@ -319,17 +319,17 @@ test("Movement editor is split into reusable components", () => {
   );
 
   assert.match(
-    row,
+    blockConditions,
     /<Select/
   );
 
   assert.doesNotMatch(
-    row,
+    blockConditions,
     /<NumberInput/
   );
 
   assert.match(
-    row,
+    blockConditions,
     /searchable=\{\s*false\s*\}/
   );
 });
