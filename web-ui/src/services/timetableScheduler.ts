@@ -5,7 +5,12 @@ import {
 import type {
   AutomationScriptDefinition,
   TimetableEntryDefinition,
+  TimetableTargetType,
 } from "@/services/automationApi";
+
+import type {
+  MovementPage,
+} from "@/domain/movement";
 
 import {
   fastClockStore,
@@ -22,6 +27,12 @@ import {
 import {
   subscribeSharedScriptInfo,
 } from "@/services/scriptInfoRuntime";
+
+import {
+  getMovementEngineState,
+  startMovement,
+  subscribeMovementEngineState,
+} from "@/services/movementEngine";
 
 const MINUTE_MS = 60 * 1000;
 const MINUTES_PER_DAY = 24 * 60;
@@ -51,9 +62,12 @@ export type TimetableRunStatus =
 export type TimetableActiveRun = {
   id: string;
   timetableEntryId: string;
-  scriptId: string;
-  scriptName: string;
-  executionId: string;
+  targetType:
+    TimetableTargetType;
+  targetId: string;
+  targetName: string;
+  executionId:
+    string | null;
   scheduledTime: string;
   scheduledMinuteOfDay: number;
   status: TimetableRunStatus;
@@ -63,7 +77,7 @@ export type TimetableActiveRun = {
 export type TimetableSchedulerState = {
   running: boolean;
   lastTriggeredAt: string | null;
-  lastTriggeredScriptName: string | null;
+  lastTriggeredTargetName: string | null;
   activeRuns: TimetableActiveRun[];
 };
 
@@ -73,13 +87,14 @@ class TimetableScheduler {
   private previousFastClockTimeMs: number | null = null;
 
   private scripts: AutomationScriptDefinition[] = [];
+  private movements: MovementPage[] = [];
   private timetable: TimetableEntryDefinition[] = [];
 
   private listeners =
     new Set<TimetableSchedulerListener>();
 
-  /** Guards the async gap before runClientScript registers its execution. */
-  private launchingScriptIds =
+  /** Guards the async gap before a script or Movement registers as active. */
+  private launchingTargetKeys =
     new Set<string>();
 
   private activeRuns =
@@ -88,13 +103,51 @@ class TimetableScheduler {
   private nextRunSequence = 1;
 
   private lastTriggeredAt: string | null = null;
-  private lastTriggeredScriptName: string | null = null;
+  private lastTriggeredTargetName: string | null = null;
 
   configure(
     scripts: AutomationScriptDefinition[],
+    movements: MovementPage[],
     timetable: TimetableEntryDefinition[]
   ): void {
     this.scripts = scripts.map(script => ({ ...script }));
+    this.movements = movements.map(
+      movement => ({
+        ...movement,
+        viaBlockIds:
+          [...movement.viaBlockIds],
+        blockRules:
+          movement.blockRules.map(
+            rule => ({
+              ...rule,
+              departWhen:
+                rule.departWhen.map(
+                  condition => ({
+                    ...condition,
+                  })
+                ),
+              leaveWhen:
+                rule.leaveWhen.map(
+                  condition => ({
+                    ...condition,
+                  })
+                ),
+              arrivedWhen:
+                rule.arrivedWhen.map(
+                  condition => ({
+                    ...condition,
+                  })
+                ),
+            })
+          ),
+        actions:
+          movement.actions.map(
+            action => ({
+              ...action,
+            })
+          ),
+      })
+    );
     this.timetable = timetable.map(entry => ({ ...entry }));
   }
 
@@ -102,7 +155,7 @@ class TimetableScheduler {
     return {
       running: this.running,
       lastTriggeredAt: this.lastTriggeredAt,
-      lastTriggeredScriptName: this.lastTriggeredScriptName,
+      lastTriggeredTargetName: this.lastTriggeredTargetName,
       activeRuns: [...this.activeRuns.values()].map(run => ({ ...run })),
     };
   }
@@ -257,6 +310,16 @@ class TimetableScheduler {
       this.scripts.map(script => [script.id, script] as const)
     );
 
+    const movementsById =
+      new Map(
+        this.movements.map(
+          movement => [
+            movement.id,
+            movement,
+          ] as const
+        )
+      );
+
     for (const entry of this.timetable) {
       if (
         !entry.enabled ||
@@ -265,17 +328,54 @@ class TimetableScheduler {
         continue;
       }
 
-      const script = scriptsById.get(entry.scriptId);
+      if (
+        entry.targetType ===
+        "movement"
+      ) {
+        const movement =
+          movementsById.get(
+            entry.targetId
+          );
+
+        if (!movement) {
+          console.warn(
+            `[Timetable] ${this.formatTime(hour, minute)} skipped: Movement ` +
+            `"${entry.targetId}" is missing.`
+          );
+          continue;
+        }
+
+        this.launchMovement(
+          entry,
+          movement,
+          hour,
+          minute,
+          minuteOfDay
+        );
+
+        continue;
+      }
+
+      const script =
+        scriptsById.get(
+          entry.targetId
+        );
 
       if (!script || !script.script.trim()) {
         console.warn(
           `[Timetable] ${this.formatTime(hour, minute)} skipped: script ` +
-          `"${entry.scriptId}" is missing or empty.`
+          `"${entry.targetId}" is missing or empty.`
         );
         continue;
       }
 
-      this.launchScript(entry, script, hour, minute, minuteOfDay);
+      this.launchScript(
+        entry,
+        script,
+        hour,
+        minute,
+        minuteOfDay
+      );
     }
   }
 
@@ -292,9 +392,14 @@ class TimetableScheduler {
     const currentState =
       getClientScriptState(executionId);
 
+    const targetKey =
+      `script:${script.id}`;
+
     if (
       currentState.status !== "idle" ||
-      this.launchingScriptIds.has(script.id)
+      this.launchingTargetKeys.has(
+        targetKey
+      )
     ) {
       console.info(
         `[Timetable] ${this.formatTime(hour, minute)} skipped: ` +
@@ -303,7 +408,9 @@ class TimetableScheduler {
       return;
     }
 
-    this.launchingScriptIds.add(script.id);
+    this.launchingTargetKeys.add(
+      targetKey
+    );
 
     const runId =
       `timetable-run-${this.nextRunSequence}`;
@@ -313,8 +420,12 @@ class TimetableScheduler {
     const activeRun: TimetableActiveRun = {
       id: runId,
       timetableEntryId: entry.id,
-      scriptId: script.id,
-      scriptName: script.name,
+      targetType:
+        "script",
+      targetId:
+        script.id,
+      targetName:
+        script.name,
       executionId,
       scheduledTime: this.formatTime(hour, minute),
       scheduledMinuteOfDay,
@@ -325,7 +436,8 @@ class TimetableScheduler {
     this.activeRuns.set(runId, activeRun);
 
     this.lastTriggeredAt = activeRun.scheduledTime;
-    this.lastTriggeredScriptName = script.name;
+    this.lastTriggeredTargetName =
+      script.name;
     this.emit();
 
     const unsubscribeState =
@@ -405,10 +517,154 @@ class TimetableScheduler {
       .finally(() => {
         unsubscribeState();
         unsubscribeInfo();
-        this.launchingScriptIds.delete(script.id);
+        this.launchingTargetKeys.delete(
+          targetKey
+        );
         this.activeRuns.delete(runId);
         this.emit();
       });
+  }
+
+  private launchMovement(
+    entry: TimetableEntryDefinition,
+    movement: MovementPage,
+    hour: number,
+    minute: number,
+    scheduledMinuteOfDay: number
+  ): void {
+    const targetKey =
+      `movement:${movement.id}`;
+
+    const currentState =
+      getMovementEngineState(
+        movement.id
+      );
+
+    if (
+      currentState.status ===
+        "running" ||
+      currentState.status ===
+        "stopping" ||
+      this.launchingTargetKeys.has(
+        targetKey
+      )
+    ) {
+      console.info(
+        `[Timetable] ${this.formatTime(hour, minute)} skipped: ` +
+        `Movement "${movement.name}" is already active.`
+      );
+      return;
+    }
+
+    if (!movement.enabled) {
+      console.warn(
+        `[Timetable] ${this.formatTime(hour, minute)} skipped: ` +
+        `Movement "${movement.name}" is disabled.`
+      );
+      return;
+    }
+
+    this.launchingTargetKeys.add(
+      targetKey
+    );
+
+    const runId =
+      `timetable-run-${this.nextRunSequence}`;
+
+    this.nextRunSequence += 1;
+
+    const activeRun:
+      TimetableActiveRun = {
+      id: runId,
+      timetableEntryId:
+        entry.id,
+      targetType:
+        "movement",
+      targetId:
+        movement.id,
+      targetName:
+        movement.name,
+      executionId:
+        null,
+      scheduledTime:
+        this.formatTime(
+          hour,
+          minute
+        ),
+      scheduledMinuteOfDay,
+      status:
+        "launching",
+      message:
+        null,
+    };
+
+    this.activeRuns.set(
+      runId,
+      activeRun
+    );
+
+    this.lastTriggeredAt =
+      activeRun.scheduledTime;
+    this.lastTriggeredTargetName =
+      movement.name;
+    this.emit();
+
+    const unsubscribeState =
+      subscribeMovementEngineState(
+        movement.id,
+        state => {
+          const currentRun =
+            this.activeRuns.get(
+              runId
+            );
+
+          if (!currentRun) {
+            return;
+          }
+
+          if (
+            state.status ===
+              "running" ||
+            state.status ===
+              "stopping"
+          ) {
+            currentRun.status =
+              "running";
+          }
+
+          currentRun.message =
+            state.info;
+
+          this.emit();
+        }
+      );
+
+    void startMovement(
+      movement
+    )
+      .catch(
+        error => {
+          console.error(
+            `[Timetable] Movement "${movement.name}" failed:`,
+            error
+          );
+        }
+      )
+      .finally(
+        () => {
+          unsubscribeState();
+
+          this.launchingTargetKeys.delete(
+            targetKey
+          );
+
+          this.activeRuns.delete(
+            runId
+          );
+
+          this.emit();
+        }
+      );
   }
 
   private normalizeDayTime(
