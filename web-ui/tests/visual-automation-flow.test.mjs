@@ -741,12 +741,37 @@ test("log node writes the message and serialized payload to the runtime log", ()
 
   assert.match(
     events,
-    /AUTOMATION_FLOW_RUNTIME_LOG_EVENT/
+    /runtimeLogsByPage/
+  );
+
+  assert.match(
+    events,
+    /subscribeAutomationFlowRuntimeLogs/
+  );
+
+  assert.match(
+    events,
+    /getAutomationFlowRuntimeLogs/
+  );
+
+  assert.match(
+    runtime,
+    /level:[\s\S]*"info"[\s\S]*EVENT/
+  );
+
+  assert.match(
+    runtime,
+    /level:[\s\S]*"error"[\s\S]*ERROR/
   );
 
   assert.match(
     execution,
-    /AUTOMATION_FLOW_RUNTIME_LOG_EVENT/
+    /subscribeAutomationFlowRuntimeLogs/
+  );
+
+  assert.match(
+    execution,
+    /getAutomationFlowRuntimeLogs/
   );
 
   assert.match(
@@ -780,6 +805,26 @@ test("trigger node play button injects that specific trigger once", () => {
   assert.match(
     node,
     /IconPlayerPlay/
+  );
+
+  assert.match(
+    node,
+    /trigger:\s*\{[\s\S]*icon:\s*"◉"/
+  );
+
+  const palette =
+    read(
+      "src/components/automation/AutomationFlowPalette.tsx"
+    );
+
+  assert.match(
+    palette,
+    /kind:\s*"trigger"[\s\S]*◉/
+  );
+
+  assert.doesNotMatch(
+    palette,
+    /kind:\s*"trigger"[\s\S]{0,200}IconPlayerPlay/
   );
 
   assert.match(
@@ -1812,7 +1857,7 @@ test("block output supports a fixed locomotive or payload locoAddress", () => {
 });
 
 
-test("flow nodes have a dark clickable collapsible header", () => {
+test("flow nodes have a dark draggable header and collapse only from the chevron button", () => {
   const node =
     read(
       "src/components/automation/AutomationFlowNode.tsx"
@@ -1833,9 +1878,19 @@ test("flow nodes have a dark clickable collapsible header", () => {
     /automation-flow-node-header/
   );
 
+  assert.doesNotMatch(
+    node,
+    /className="automation-flow-node-header"[\s\S]{0,500}aria-expanded/
+  );
+
   assert.match(
     node,
-    /aria-expanded/
+    /automation-flow-node-collapse-icon nodrag nopan/
+  );
+
+  assert.match(
+    node,
+    /aria-label=\{[\s\S]*"Expand node"[\s\S]*"Collapse node"/
   );
 
   assert.match(
@@ -1876,6 +1931,11 @@ test("flow nodes have a dark clickable collapsible header", () => {
   assert.match(
     css,
     /background:\s*rgba\(0, 0, 0, 0\.16\)/
+  );
+
+  assert.match(
+    css,
+    /\.automation-flow-node-header[\s\S]*cursor:\s*grab/
   );
 
   assert.match(

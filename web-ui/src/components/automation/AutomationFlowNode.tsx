@@ -55,7 +55,7 @@ const NODE_META:
     }
   > = {
     trigger: {
-      icon: "▶",
+      icon: "◉",
       color: "green",
       title:
         "Trigger",
@@ -543,53 +543,6 @@ export default function AutomationFlowNode({
 
       <div
         className="automation-flow-node-header"
-        role="button"
-        tabIndex={0}
-        aria-expanded={
-          !collapsed
-        }
-        title={
-          collapsed
-            ? "Expand node"
-            : "Collapse node"
-        }
-        onClick={
-          event => {
-            event.stopPropagation();
-            dispatchAutomationFlowNodeCollapsedChange({
-              pageId:
-                data.pageId,
-              nodeId:
-                id,
-              collapsed:
-                !collapsed,
-            });
-          }
-        }
-        onKeyDown={
-          event => {
-            if (
-              event.key !==
-                "Enter" &&
-              event.key !==
-                " "
-            ) {
-              return;
-            }
-
-            event.preventDefault();
-            event.stopPropagation();
-
-            dispatchAutomationFlowNodeCollapsedChange({
-              pageId:
-                data.pageId,
-              nodeId:
-                id,
-              collapsed:
-                !collapsed,
-            });
-          }
-        }
       >
         <Group
           gap={6}
@@ -670,21 +623,57 @@ export default function AutomationFlowNode({
             }
           </Badge>
 
-          <span className="automation-flow-node-collapse-icon">
-            {
+          <Tooltip
+            label={
               collapsed
-                ? (
-                  <IconChevronRight
-                    size={14}
-                  />
-                )
-                : (
-                  <IconChevronDown
-                    size={14}
-                  />
-                )
+                ? "Expand node"
+                : "Collapse node"
             }
-          </span>
+          >
+            <ActionIcon
+              size="sm"
+              variant="subtle"
+              color="gray"
+              className="automation-flow-node-collapse-icon nodrag nopan"
+              aria-label={
+                collapsed
+                  ? "Expand node"
+                  : "Collapse node"
+              }
+              onPointerDown={
+                event =>
+                  event.stopPropagation()
+              }
+              onClick={
+                event => {
+                  event.stopPropagation();
+
+                  dispatchAutomationFlowNodeCollapsedChange({
+                    pageId:
+                      data.pageId,
+                    nodeId:
+                      id,
+                    collapsed:
+                      !collapsed,
+                  });
+                }
+              }
+            >
+              {
+                collapsed
+                  ? (
+                    <IconChevronRight
+                      size={14}
+                    />
+                  )
+                  : (
+                    <IconChevronDown
+                      size={14}
+                    />
+                  )
+              }
+            </ActionIcon>
+          </Tooltip>
         </Group>
       </div>
 

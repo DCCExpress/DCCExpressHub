@@ -139,7 +139,7 @@ body.automation-flow-panel-resizing * {
     0;
   background: rgba(0, 0, 0, 0.16);
   border-bottom: 1px solid rgba(127, 127, 127, 0.16);
-  cursor: pointer;
+  cursor: grab;
   user-select: none;
   transition:
     background 120ms ease,

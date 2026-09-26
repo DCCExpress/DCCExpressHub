@@ -227,11 +227,39 @@ function runInputBranch(
       }
     );
 
+  dispatchAutomationFlowRuntimeLog({
+    pageId,
+    timestamp:
+      Date.now(),
+    level:
+      "info",
+    values: [
+      `EVENT ${currentInput.data.label}`,
+      inputPayload ??
+        null,
+    ],
+  });
+
   if (
     !isRunnableCode(
       generated.code
     )
   ) {
+    dispatchAutomationFlowRuntimeLog({
+      pageId,
+      timestamp:
+        Date.now(),
+      level:
+        "error",
+      values: [
+        `SKIP ${currentInput.data.label}`,
+        generated.warnings.join(
+          " | "
+        ) ||
+          "The input has no runnable connected branch.",
+      ],
+    });
+
     return;
   }
 
@@ -249,6 +277,8 @@ function runInputBranch(
           pageId,
           timestamp:
             entry.timestamp,
+          level:
+            "log",
           values:
             entry.values,
         });
@@ -273,6 +303,25 @@ function runInputBranch(
         ) {
           return;
         }
+
+        const message =
+          error instanceof Error
+            ? error.message
+            : String(
+                error
+              );
+
+        dispatchAutomationFlowRuntimeLog({
+          pageId,
+          timestamp:
+            Date.now(),
+          level:
+            "error",
+          values: [
+            `ERROR ${currentInput.data.label}`,
+            message,
+          ],
+        });
 
         console.error(
           "[Automation Flow Runtime]",

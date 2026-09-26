@@ -22,7 +22,6 @@ import {
   IconClock,
   IconGitBranch,
   IconNote,
-  IconPlayerPlay,
   IconRoute,
   IconVolume,
 } from "@tabler/icons-react";
@@ -103,7 +102,14 @@ const ITEMS: PaletteItem[] = [
   {
     kind: "trigger",
     group: "trigger",
-    icon: <IconPlayerPlay size={16} />,
+    icon: (
+      <Text
+        size="sm"
+        fw={700}
+      >
+        ◉
+      </Text>
+    ),
     labelKey: "ui.flowNodeTrigger",
     fallback: "Trigger",
     color: "green",

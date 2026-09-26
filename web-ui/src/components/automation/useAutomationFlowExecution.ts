@@ -20,7 +20,9 @@ import type {
 } from "./AutomationFlowLogPanel";
 
 import {
-  AUTOMATION_FLOW_RUNTIME_LOG_EVENT,
+  clearAutomationFlowRuntimeLogs,
+  getAutomationFlowRuntimeLogs,
+  subscribeAutomationFlowRuntimeLogs,
   type AutomationFlowRuntimeLogEventDetail,
 } from "./automationFlowEvents";
 
@@ -123,63 +125,62 @@ export function useAutomationFlowExecution({
 
   useEffect(
     () => {
-      const handleRuntimeLog =
+      const pageId =
+        page?.id;
+
+      if (!pageId) {
+        setLogs(
+          []
+        );
+        return;
+      }
+
+      const toLine =
         (
-          event: Event
-        ): void => {
-          const detail =
-            (
-              event as CustomEvent<
-                AutomationFlowRuntimeLogEventDetail
-              >
-            ).detail;
+          detail:
+            AutomationFlowRuntimeLogEventDetail
+        ): AutomationFlowLogLine => ({
+          id:
+            createAutomationFlowId(
+              "flow-log"
+            ),
+          timestamp:
+            detail.timestamp,
+          level:
+            detail.level,
+          message:
+            detail.values
+              .map(
+                logValue
+              )
+              .join(
+                " "
+              ),
+        });
 
-          if (
-            !detail ||
-            detail.pageId !==
-              page?.id
-          ) {
-            return;
-          }
+      setLogs(
+        getAutomationFlowRuntimeLogs(
+          pageId
+        ).map(
+          toLine
+        )
+      );
 
+      return subscribeAutomationFlowRuntimeLogs(
+        pageId,
+        detail => {
           setLogs(
             current => [
               ...current.slice(
                 -499
               ),
-              {
-                id:
-                  createAutomationFlowId(
-                    "flow-log"
-                  ),
-                timestamp:
-                  detail.timestamp,
-                level:
-                  "log",
-                message:
-                  detail.values
-                    .map(
-                      logValue
-                    )
-                    .join(
-                      " "
-                    ),
-              },
+              toLine(
+                detail
+              ),
             ]
           );
-        };
-
-      window.addEventListener(
-        AUTOMATION_FLOW_RUNTIME_LOG_EVENT,
-        handleRuntimeLog
+        }
       );
-
-      return () => {
-        window.removeEventListener(
-          AUTOMATION_FLOW_RUNTIME_LOG_EVENT,
-          handleRuntimeLog
-        );
-      };
     },
     [
       page?.id,
@@ -304,8 +305,19 @@ export function useAutomationFlowExecution({
   return {
     logs,
     clearLogs:
-      () =>
-        setLogs([]),
+      () => {
+        if (
+          page?.id
+        ) {
+          clearAutomationFlowRuntimeLogs(
+            page.id
+          );
+        }
+
+        setLogs(
+          []
+        );
+      },
     execution,
     runTest:
       () =>
