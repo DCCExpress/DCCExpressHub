@@ -595,7 +595,17 @@ test("Movement uses a dedicated physical-route engine with JMRI-style actions", 
 
   assert.match(
     actionEditor,
-    /WHEN → WHAT/
+    /Sequences/
+  );
+
+  assert.match(
+    actionEditor,
+    /Blocking/
+  );
+
+  assert.match(
+    actionEditor,
+    /Background/
   );
 
   assert.match(
@@ -1339,7 +1349,7 @@ test("Movement block actions support before-depart and after-leave lifecycle pha
 });
 
 
-test("Movement actions are draggable in one global resource order", () => {
+test("Movement actions are draggable inside their sequence order", () => {
   const actionEditor =
     read(
       "src/components/movement/MovementActionEditor.tsx"
@@ -1390,24 +1400,19 @@ test("Movement actions are draggable in one global resource order", () => {
     /moveActionByOffset/
   );
 
-  assert.doesNotMatch(
+  assert.match(
     actionEditor,
-    /dragged\.when !==[\s\S]*target\.when/
-  );
-
-  assert.doesNotMatch(
-    actionEditor,
-    /phaseActions/
-  );
-
-  assert.doesNotMatch(
-    actionEditor,
-    /phaseIndex/
+    /sequence\.actions\.some/
   );
 
   assert.match(
     actionEditor,
-    /#\{actionIndex \+ 1\}/
+    /actionIndex \+ 1/
+  );
+
+  assert.match(
+    actionEditor,
+    /moveAction\(/
   );
 
   assert.match(
@@ -1549,5 +1554,141 @@ test("Movement condition and action content use nested steppers", () => {
   assert.match(
     css,
     /movement-inner-step-row\.is-last/
+  );
+});
+
+
+test("Movement action sequences support blocking and background execution", () => {
+  const domain =
+    read(
+      "src/domain/movement.ts"
+    );
+
+  const editor =
+    read(
+      "src/components/movement/MovementActionEditor.tsx"
+    );
+
+  const engine =
+    read(
+      "src/services/movementEngine.ts"
+    );
+
+  assert.match(
+    domain,
+    /MovementSequenceMode/
+  );
+
+  assert.match(
+    domain,
+    /sequenceId:\s*string/
+  );
+
+  assert.match(
+    domain,
+    /sequenceMode:\s*MovementSequenceMode/
+  );
+
+  assert.match(
+    domain,
+    /candidate\.sequenceMode ===[\s\S]*"background"/
+  );
+
+  assert.match(
+    domain,
+    /legacySequenceIds/
+  );
+
+  assert.match(
+    editor,
+    /Sequence \{sequenceIndex \+ 1\}/
+  );
+
+  assert.match(
+    editor,
+    /SEQUENCE_MODE_OPTIONS/
+  );
+
+  assert.match(
+    editor,
+    /value:\s*"blocking"/
+  );
+
+  assert.match(
+    editor,
+    /value:\s*"background"/
+  );
+
+  assert.match(
+    engine,
+    /runActionSequence/
+  );
+
+  assert.match(
+    engine,
+    /startBackgroundSequence/
+  );
+
+  assert.match(
+    engine,
+    /execution\.backgroundTasks/
+  );
+
+  assert.match(
+    engine,
+    /Promise\.allSettled/
+  );
+});
+
+
+test("Movement destination block exposes and fires APPROACH before ARRIVED", () => {
+  const editor =
+    read(
+      "src/components/movement/MovementActionEditor.tsx"
+    );
+
+  const engine =
+    read(
+      "src/services/movementEngine.ts"
+    );
+
+  assert.match(
+    editor,
+    /isDestination[\s\S]*"approach"[\s\S]*"arrived"/
+  );
+
+  assert.match(
+    engine,
+    /approachSegments/
+  );
+
+  assert.match(
+    engine,
+    /approachSegment/
+  );
+
+  assert.match(
+    engine,
+    /leg\.to\.key,[\s\S]*"approach"/
+  );
+
+  const approach =
+    engine.indexOf(
+      'leg.to.key,\n          "approach"'
+    );
+
+  const arrived =
+    engine.indexOf(
+      'leg.to.key,\n      "arrived"'
+    );
+
+  assert.ok(
+    approach >= 0,
+    "Destination APPROACH action trigger missing"
+  );
+
+  assert.ok(
+    arrived >= 0,
+    "Destination ARRIVED action trigger missing"
   );
 });
