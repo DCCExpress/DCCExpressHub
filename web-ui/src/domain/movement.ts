@@ -8,6 +8,8 @@ export type MovementSensorCondition = {
 
 export type MovementBlockRule = {
   blockId: number;
+  departWhen: MovementSensorCondition[];
+  leaveWhen: MovementSensorCondition[];
   arrivedWhen: MovementSensorCondition[];
 };
 
@@ -297,6 +299,14 @@ function normalizeBlockRules(
       blockId,
       {
         blockId,
+        departWhen:
+          normalizeConditions(
+            candidate.departWhen
+          ),
+        leaveWhen:
+          normalizeConditions(
+            candidate.leaveWhen
+          ),
         arrivedWhen:
           normalizeConditions(
             candidate.arrivedWhen
