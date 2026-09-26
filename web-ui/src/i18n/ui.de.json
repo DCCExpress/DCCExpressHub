@@ -1054,5 +1054,7 @@
   "timetableAddAction": "Aktion hinzufügen",
   "timetableDeleteRow": "Zeile löschen",
   "timetableAddRow": "Zeile hinzufügen",
-  "timetableMissingMovement": "Fehlendes Movement"
+  "timetableMissingMovement": "Fehlendes Movement",
+  "timetableNextRowsDescription": "Es werden immer die nächsten {{value1}} Fahrplanzeilen angezeigt · laufende Zeilen bleiben darüber angeheftet",
+  "noUpcomingTimetableRows": "Keine kommenden Fahrplanzeilen."
 }
