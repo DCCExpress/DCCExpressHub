@@ -184,7 +184,7 @@
   border-radius: 999px;
   border: 2px solid var(--mantine-color-gray-5);
   background: var(--mantine-color-body);
-  color: var(--mantine-color-dimmed);
+  color: var(--mantine-color-white);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -202,7 +202,6 @@
     var(--mantine-color-gray-6) 14%,
     var(--mantine-color-body)
   );
-  color: var(--mantine-color-gray-7);
 }
 
 .movement-route-dot.is-turnout {
@@ -212,7 +211,6 @@
     var(--mantine-color-orange-6) 16%,
     var(--mantine-color-body)
   );
-  color: var(--mantine-color-orange-7);
 }
 
 .movement-route-dot.is-from {
@@ -222,7 +220,6 @@
     var(--mantine-color-blue-6) 20%,
     var(--mantine-color-body)
   );
-  color: var(--mantine-color-blue-7);
 }
 
 .movement-route-dot.is-via {
@@ -232,7 +229,6 @@
     var(--mantine-color-pink-6) 18%,
     var(--mantine-color-body)
   );
-  color: var(--mantine-color-pink-7);
 }
 
 .movement-route-dot.is-to {
@@ -242,7 +238,6 @@
     var(--mantine-color-green-6) 18%,
     var(--mantine-color-body)
   );
-  color: var(--mantine-color-green-7);
 }
 
 .movement-route-line {
