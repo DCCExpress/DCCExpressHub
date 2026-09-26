@@ -3,6 +3,11 @@ import {
   type AutomationFlowDocument,
 } from "../domain/automationFlow";
 
+import {
+  normalizeMovementDocument,
+  type MovementDocument,
+} from "../domain/movement";
+
 export const AUTOMATION_STORAGE_VERSION = 1;
 
 export type AutomationScriptDefinition = {
@@ -32,6 +37,7 @@ export type AutomationStoragePayload = {
   scripts: AutomationScriptDefinition[];
   timetable?: TimetableEntryDefinition[];
   visualFlow?: AutomationFlowDocument;
+  movement?: MovementDocument;
 };
 
 export function createAutomationId(): string {
@@ -156,7 +162,8 @@ export function normalizeTimetableEntries(
 export function createAutomationPayload(
   scripts: AutomationScriptDefinition[],
   timetable?: TimetableEntryDefinition[],
-  visualFlow?: AutomationFlowDocument
+  visualFlow?: AutomationFlowDocument,
+  movement?: MovementDocument
 ): AutomationStoragePayload {
   return {
     version: AUTOMATION_STORAGE_VERSION,
@@ -175,6 +182,14 @@ export function createAutomationPayload(
               visualFlow
             ),
         }),
+    ...(movement === undefined
+      ? {}
+      : {
+          movement:
+            normalizeMovementDocument(
+              movement
+            ),
+        }),
   };
 }
 
@@ -182,6 +197,7 @@ type LoadedAutomationStorage = {
   scripts: AutomationScriptDefinition[];
   timetable: TimetableEntryDefinition[];
   visualFlow: AutomationFlowDocument;
+  movement: MovementDocument;
 };
 
 async function loadAutomationStorage(): Promise<LoadedAutomationStorage> {
@@ -238,6 +254,10 @@ async function loadAutomationStorage(): Promise<LoadedAutomationStorage> {
     visualFlow:
       normalizeAutomationFlowDocument(
         payload.visualFlow
+      ),
+    movement:
+      normalizeMovementDocument(
+        payload.movement
       ),
   };
 }
@@ -305,7 +325,8 @@ export async function saveAutomationScripts(
     createAutomationPayload(
       scripts,
       current.timetable,
-      current.visualFlow
+      current.visualFlow,
+      current.movement
     )
   );
 }
@@ -330,7 +351,8 @@ export async function saveAutomationTimetable(
     createAutomationPayload(
       current.scripts,
       timetable,
-      current.visualFlow
+      current.visualFlow,
+      current.movement
     )
   );
 }
@@ -351,7 +373,30 @@ export async function saveAutomationFlow(
     createAutomationPayload(
       current.scripts,
       current.timetable,
-      visualFlow
+      visualFlow,
+      current.movement
+    )
+  );
+}
+
+export async function loadAutomationMovement(): Promise<MovementDocument> {
+  return (
+    await loadAutomationStorage()
+  ).movement;
+}
+
+export async function saveAutomationMovement(
+  movement: MovementDocument
+): Promise<void> {
+  const current =
+    await loadAutomationStorage();
+
+  await saveAutomationStorage(
+    createAutomationPayload(
+      current.scripts,
+      current.timetable,
+      current.visualFlow,
+      movement
     )
   );
 }
