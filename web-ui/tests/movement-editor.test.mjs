@@ -1213,3 +1213,127 @@ test("Movement stepper and PhysicalRoute headers share route-role colors", () =>
     /movement-physical-route-header\.is-to/
   );
 });
+
+
+test("Movement block actions support before-depart and after-leave lifecycle phases", () => {
+  const domain =
+    read(
+      "src/domain/movement.ts"
+    );
+
+  const actionEditor =
+    read(
+      "src/components/movement/MovementActionEditor.tsx"
+    );
+
+  const routeRow =
+    read(
+      "src/components/movement/MovementRouteRow.tsx"
+    );
+
+  const engine =
+    read(
+      "src/services/movementEngine.ts"
+    );
+
+  assert.match(
+    domain,
+    /\| "beforeDepart"/
+  );
+
+  assert.match(
+    domain,
+    /\| "afterLeave"/
+  );
+
+  assert.match(
+    domain,
+    /"beforeDepart"[\s\S]*"afterLeave"/
+  );
+
+  assert.match(
+    actionEditor,
+    /label:\s*"BEFORE DEPART"/
+  );
+
+  assert.match(
+    actionEditor,
+    /label:\s*"AFTER LEAVE"/
+  );
+
+  assert.match(
+    actionEditor,
+    /isSource\?: boolean/
+  );
+
+  assert.match(
+    actionEditor,
+    /isDestination\?: boolean/
+  );
+
+  assert.match(
+    actionEditor,
+    /isDestination[\s\S]*return \[[\s\S]*"arrived"/
+  );
+
+  assert.match(
+    routeRow,
+    /isSource=\{[\s\S]*isSource/
+  );
+
+  assert.match(
+    routeRow,
+    /isDestination=\{[\s\S]*isDestination/
+  );
+
+  assert.match(
+    engine,
+    /waitForPreDepartureAvailability/
+  );
+
+  assert.match(
+    engine,
+    /"beforeDepart"/
+  );
+
+  assert.match(
+    engine,
+    /"afterLeave"/
+  );
+
+  const preDepart =
+    engine.indexOf(
+      '"beforeDepart"'
+    );
+
+  const acquire =
+    engine.indexOf(
+      "waitForLegClearance",
+      preDepart
+    );
+
+  assert.ok(
+    preDepart >= 0 &&
+    acquire >
+      preDepart,
+    "BEFORE DEPART must run before route/turnout lock acquisition"
+  );
+
+  const sourceRelease =
+    engine.indexOf(
+      "wsApi.setBlockRemove"
+    );
+
+  const afterLeave =
+    engine.indexOf(
+      '"afterLeave"',
+      sourceRelease
+    );
+
+  assert.ok(
+    sourceRelease >= 0 &&
+    afterLeave >
+      sourceRelease,
+    "AFTER LEAVE must run after source block runtime release"
+  );
+});
