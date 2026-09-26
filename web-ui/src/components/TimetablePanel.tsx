@@ -34,6 +34,10 @@ import {
 import {
   enumerateTimetableCronOccurrences,
 } from "@/domain/timetableCron";
+
+import type {
+  MovementPage,
+} from "@/domain/movement";
 import {
   loadAutomationTimetable,
   type AutomationScriptDefinition,
@@ -55,6 +59,7 @@ import {
 
 type TimetablePanelProps = {
   scripts: AutomationScriptDefinition[];
+  movements: MovementPage[];
   onOpenTimetable: () => void;
   timetableRevision?: number;
 };
@@ -64,8 +69,11 @@ type ExpandedTimetableRow = {
   time: string;
   absoluteMinute: number;
   dayOffset: number;
-  scriptName: string;
-  scriptMissing: boolean;
+  targetName: string;
+  targetMissing: boolean;
+  targetType:
+    "script" |
+    "movement";
   isCurrent: boolean;
   activeRun: TimetableActiveRun | null;
 };
@@ -99,6 +107,7 @@ function formatTimetableTime(
 
 export default function TimetablePanel({
   scripts,
+  movements,
   onOpenTimetable,
   timetableRevision = 0,
 }: TimetablePanelProps) {
@@ -167,8 +176,16 @@ export default function TimetablePanel({
   }, [timetableRevision]);
 
   useEffect(() => {
-    timetableScheduler.configure(scripts, timetable);
-  }, [scripts, timetable]);
+    timetableScheduler.configure(
+      scripts,
+      movements,
+      timetable
+    );
+  }, [
+    scripts,
+    movements,
+    timetable,
+  ]);
 
   const snapshot = clockState.snapshot;
 
@@ -192,6 +209,16 @@ export default function TimetablePanel({
       scripts.map(script => [script.id, script] as const)
     );
 
+    const movementsById =
+      new Map(
+        movements.map(
+          movement => [
+            movement.id,
+            movement,
+          ] as const
+        )
+      );
+
     const rows: ExpandedTimetableRow[] = [];
     const representedRunIds = new Set<string>();
 
@@ -200,7 +227,16 @@ export default function TimetablePanel({
         continue;
       }
 
-      const script = scriptsById.get(entry.scriptId);
+      const target =
+        entry.targetType ===
+          "movement"
+          ? movementsById.get(
+              entry.targetId
+            )
+          : scriptsById.get(
+              entry.targetId
+            );
+
       const occurrences = enumerateTimetableCronOccurrences(
         entry.cron,
         snapshot.timeMs,
@@ -229,8 +265,20 @@ export default function TimetablePanel({
           ),
           absoluteMinute: occurrence.absoluteMinute,
           dayOffset: occurrence.dayOffset,
-          scriptName: script?.name ?? t("ui.missingScript"),
-          scriptMissing: !script,
+          targetName:
+            target?.name ??
+            (
+              entry.targetType ===
+                "movement"
+                ? "Missing Movement"
+                : t(
+                    "ui.missingScript"
+                  )
+            ),
+          targetMissing:
+            !target,
+          targetType:
+            entry.targetType,
           isCurrent:
             occurrence.dayOffset === 0 &&
             occurrence.absoluteMinute === fastClockMinute,
@@ -259,8 +307,12 @@ export default function TimetablePanel({
         time: activeRun.scheduledTime,
         absoluteMinute,
         dayOffset: 0,
-        scriptName: activeRun.scriptName,
-        scriptMissing: false,
+        targetName:
+          activeRun.targetName,
+        targetMissing:
+          false,
+        targetType:
+          activeRun.targetType,
         isCurrent:
           activeRun.scheduledMinuteOfDay === fastClockMinute,
         activeRun,
@@ -280,7 +332,7 @@ export default function TimetablePanel({
         return 1;
       }
 
-      return left.scriptName.localeCompare(right.scriptName);
+      return left.targetName.localeCompare(right.targetName);
     });
 
     return rows;
@@ -288,6 +340,7 @@ export default function TimetablePanel({
     fastClockMinute,
     timetable,
     scripts,
+    movements,
     schedulerState.activeRuns,
     snapshot !== null,
     t,
@@ -518,7 +571,7 @@ export default function TimetablePanel({
                 <Table.Thead>
                   <Table.Tr>
                     <Table.Th w={82}>{t("ui.timeColumn")}</Table.Th>
-                    <Table.Th>{t("ui.scriptColumn")}</Table.Th>
+                    <Table.Th>Target</Table.Th>
                   </Table.Tr>
                 </Table.Thead>
 
@@ -569,17 +622,35 @@ export default function TimetablePanel({
                           <Group gap={6} wrap="wrap">
                             <Text
                               size="sm"
-                              {...(row.scriptMissing
+                              {...(row.targetMissing
                                 ? { c: "red" as const }
                                 : {})}
                               fw={
-                                row.activeRun || row.isCurrent || row.scriptMissing
+                                row.activeRun || row.isCurrent || row.targetMissing
                                   ? 700
                                   : 500
                               }
                             >
-                              {row.scriptName}
+                              {row.targetName}
                             </Text>
+
+                            <Badge
+                              size="xs"
+                              variant="light"
+                              color={
+                                row.targetType ===
+                                  "movement"
+                                  ? "violet"
+                                  : "blue"
+                              }
+                            >
+                              {
+                                row.targetType ===
+                                  "movement"
+                                  ? "Movement"
+                                  : "Script"
+                              }
+                            </Badge>
 
                             {row.activeRun && (
                               <Badge
@@ -608,7 +679,17 @@ export default function TimetablePanel({
                               c="dimmed"
                               style={{ whiteSpace: "pre-wrap" }}
                             >
-                              {row.activeRun.message || t("ui.scriptRunning")}
+                              {
+                                row.activeRun.message ||
+                                (
+                                  row.activeRun.targetType ===
+                                    "movement"
+                                    ? "Movement running"
+                                    : t(
+                                        "ui.scriptRunning"
+                                      )
+                                )
+                              }
                             </Text>
                           )}
                         </Stack>
@@ -641,10 +722,10 @@ export default function TimetablePanel({
               </Group>
 
               {schedulerState.lastTriggeredAt &&
-                schedulerState.lastTriggeredScriptName && (
+                schedulerState.lastTriggeredTargetName && (
                   <Text size="xs" c="dimmed">
                     {t("ui.lastStart")} {schedulerState.lastTriggeredAt} ·{" "}
-                    {schedulerState.lastTriggeredScriptName}
+                    {schedulerState.lastTriggeredTargetName}
                   </Text>
                 )}
             </Group>
