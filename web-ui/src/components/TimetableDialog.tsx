@@ -27,6 +27,10 @@ import { useEffect, useMemo, useState } from "react";
 
 import AppModal from "@/components/common/AppModal";
 import { isValidTimetableCron } from "@/domain/timetableCron";
+
+import type {
+  MovementPage,
+} from "@/domain/movement";
 export { isValidTimetableCron };
 import {
   createTimetableEntryId,
@@ -34,6 +38,7 @@ import {
   saveAutomationTimetable,
   type AutomationScriptDefinition,
   type TimetableEntryDefinition,
+  type TimetableTargetType,
 } from "@/services/automationApi";
 
 type TimetableDialogProps = {
@@ -41,6 +46,7 @@ type TimetableDialogProps = {
   onClose: () => void;
   onSaved?: () => void;
   scripts: AutomationScriptDefinition[];
+  movements: MovementPage[];
 };
 
 type ScheduleMode =
@@ -171,14 +177,29 @@ function toEditorRow(
 }
 
 function createEditorRow(
-  scripts: AutomationScriptDefinition[]
+  scripts:
+    AutomationScriptDefinition[],
+  movements:
+    MovementPage[]
 ): EditorRow {
+  const targetType:
+    TimetableTargetType =
+    scripts.length > 0
+      ? "script"
+      : "movement";
+
   return {
     id:
       createTimetableEntryId(),
     enabled: true,
-    scriptId:
-      scripts[0]?.id ?? "",
+    targetType,
+    targetId:
+      targetType ===
+        "script"
+        ? scripts[0]?.id ??
+          ""
+        : movements[0]?.id ??
+          "",
     cron: "0 8",
     editor: {
       mode: "time",
@@ -194,6 +215,7 @@ export default function TimetableDialog({
   onClose,
   onSaved,
   scripts,
+  movements,
 }: TimetableDialogProps) {
   const [rows, setRows] =
     useState<EditorRow[]>([]);
@@ -216,6 +238,23 @@ export default function TimetableDialog({
           })
         ),
       [scripts]
+    );
+
+
+  const movementOptions =
+    useMemo(
+      () =>
+        movements.map(
+          movement => ({
+            value:
+              movement.id,
+            label:
+              movement.name,
+          })
+        ),
+      [
+        movements,
+      ]
     );
 
   useEffect(
@@ -305,8 +344,10 @@ export default function TimetableDialog({
               row.id,
             enabled:
               row.enabled,
-            scriptId:
-              row.scriptId,
+            targetType:
+              row.targetType,
+            targetId:
+              row.targetId,
             cron:
               cronFromEditor(
                 row.editor
@@ -333,23 +374,30 @@ export default function TimetableDialog({
         return;
       }
 
-      const invalidScript =
+      const invalidTarget =
         normalized.find(
           entry =>
-            !scripts.some(
-              script =>
-                script.id ===
-                entry.scriptId
-            )
+            entry.targetType ===
+              "movement"
+              ? !movements.some(
+                  movement =>
+                    movement.id ===
+                    entry.targetId
+                )
+              : !scripts.some(
+                  script =>
+                    script.id ===
+                    entry.targetId
+                )
         );
 
-      if (invalidScript) {
+      if (invalidTarget) {
         showNotification({
           color: "red",
           title:
-            "Hiányzó script",
+            "Hiányzó menetrendi cél",
           message:
-            "Minden menetrendi sorhoz válassz létező automation scriptet.",
+            "Minden menetrendi sorhoz válassz létező scriptet vagy Movementet.",
         });
         return;
       }
@@ -410,7 +458,7 @@ export default function TimetableDialog({
           <Text size="sm">
             Az időzítés FastClock-alapú, kétmezős cron formátumot használ: <Code>PERC ÓRA</Code>.
             Példák: <Code>*/5 *</Code> = minden 5. percben, <Code>15 8</Code> = 08:15-kor.
-            Ebben az első körben a dialog csak a menetrendet szerkeszti és menti; automatikus script-indítás még nincs bekapcsolva.
+            A menetrendi sor célja lehet automation script vagy Movement; a FastClock a megadott időpontban automatikusan elindítja a kiválasztott célt.
           </Text>
         </Alert>
 
@@ -427,9 +475,10 @@ export default function TimetableDialog({
           </Alert>
         )}
 
-        {scripts.length === 0 && (
+        {scripts.length === 0 &&
+          movements.length === 0 && (
           <Alert color="yellow">
-            Előbb hozz létre legalább egy automation scriptet, hogy menetrendi sort lehessen hozzá rendelni.
+            Előbb hozz létre legalább egy automation scriptet vagy Movementet, hogy menetrendi sort lehessen hozzá rendelni.
           </Alert>
         )}
 
@@ -450,15 +499,16 @@ export default function TimetableDialog({
               highlightOnHover
               withTableBorder
               withColumnBorders
-              miw={920}
+              miw={1180}
               verticalSpacing="xs"
             >
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th w={90}>Enable</Table.Th>
-                  <Table.Th w={150}>Típus</Table.Th>
+                  <Table.Th w={150}>Időzítés típusa</Table.Th>
                   <Table.Th w={235}>Időzítés</Table.Th>
-                  <Table.Th>Script</Table.Th>
+                  <Table.Th w={135}>Cél típusa</Table.Th>
+                  <Table.Th>Cél</Table.Th>
                   <Table.Th w={52}></Table.Th>
                 </Table.Tr>
               </Table.Thead>
@@ -466,7 +516,7 @@ export default function TimetableDialog({
               <Table.Tbody>
                 {rows.length === 0 ? (
                   <Table.Tr>
-                    <Table.Td colSpan={5}>
+                    <Table.Td colSpan={6}>
                       <Text
                         ta="center"
                         c="dimmed"
@@ -650,23 +700,90 @@ export default function TimetableDialog({
                         <Table.Td>
                           <Select
                             size="xs"
+                            clearable={
+                              false
+                            }
+                            searchable={
+                              false
+                            }
+                            data={[
+                              {
+                                value:
+                                  "script",
+                                label:
+                                  "Script",
+                              },
+                              {
+                                value:
+                                  "movement",
+                                label:
+                                  "Movement",
+                              },
+                            ]}
+                            value={
+                              row.targetType
+                            }
+                            onChange={
+                              value => {
+                                const targetType =
+                                  (
+                                    value ===
+                                    "movement"
+                                      ? "movement"
+                                      : "script"
+                                  ) as TimetableTargetType;
+
+                                updateRow(
+                                  row.id,
+                                  current => ({
+                                    ...current,
+                                    targetType,
+                                    targetId:
+                                      targetType ===
+                                        "movement"
+                                        ? movements[0]?.id ??
+                                          ""
+                                        : scripts[0]?.id ??
+                                          "",
+                                  })
+                                );
+                              }
+                            }
+                          />
+                        </Table.Td>
+
+                        <Table.Td>
+                          <Select
+                            size="xs"
                             searchable
-                            clearable={false}
+                            clearable={
+                              false
+                            }
                             data={
-                              scriptOptions
+                              row.targetType ===
+                                "movement"
+                                ? movementOptions
+                                : scriptOptions
                             }
                             value={
-                              row.scriptId || null
+                              row.targetId ||
+                              null
                             }
-                            placeholder="Válassz scriptet"
+                            placeholder={
+                              row.targetType ===
+                                "movement"
+                                ? "Válassz Movementet"
+                                : "Válassz scriptet"
+                            }
                             onChange={
                               value =>
                                 updateRow(
                                   row.id,
                                   current => ({
                                     ...current,
-                                    scriptId:
-                                      value ?? "",
+                                    targetId:
+                                      value ??
+                                      "",
                                   })
                                 )
                             }
@@ -717,7 +834,10 @@ export default function TimetableDialog({
             disabled={
               loading ||
               saving ||
-              scripts.length === 0
+              (
+                scripts.length === 0 &&
+                movements.length === 0
+              )
             }
             onClick={
               () =>
@@ -725,7 +845,8 @@ export default function TimetableDialog({
                   current => [
                     ...current,
                     createEditorRow(
-                      scripts
+                      scripts,
+                      movements
                     ),
                   ]
                 )
@@ -752,7 +873,11 @@ export default function TimetableDialog({
               loading={saving}
               disabled={
                 loading ||
-                scripts.length === 0 && rows.length > 0
+                (
+                  scripts.length === 0 &&
+                  movements.length === 0 &&
+                  rows.length > 0
+                )
               }
               onClick={
                 () => {
