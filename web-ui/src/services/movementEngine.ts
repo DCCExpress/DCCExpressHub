@@ -1188,6 +1188,73 @@ function arrivalSatisfied(
   );
 }
 
+async function waitForHeldLegReady(
+  execution:
+    MovementExecution,
+  leg:
+    MovementPlanLeg
+): Promise<void> {
+  while (
+    !execution.cancelled
+  ) {
+    const turnout =
+      turnoutRequirementsMatch(
+        leg
+      );
+
+    let reason =
+      "";
+
+    if (
+      !blockIsFree(
+        leg.to
+      )
+    ) {
+      reason =
+        `Waiting for block ${leg.to.name}`;
+    } else if (
+      !aheadSegmentsAreFree(
+        leg
+      )
+    ) {
+      reason =
+        "Waiting for route segment to become free";
+    } else if (
+      !turnout.ok
+    ) {
+      reason =
+        turnout.mismatch ??
+        "Waiting for turnout state";
+    }
+
+    if (!reason) {
+      return;
+    }
+
+    execution.moving =
+      false;
+
+    applyDesiredSpeed(
+      execution
+    );
+
+    setInfo(
+      execution,
+      reason,
+      leg.from.key
+    );
+
+    await controlledDelay(
+      execution,
+      100
+    );
+  }
+
+  throw new Error(
+    "Movement cancelled."
+  );
+}
+
 async function waitForArrival(
   execution:
     MovementExecution,
@@ -1336,6 +1403,15 @@ async function traverseLeg(
       execution,
       leg.from.key,
       "depart"
+    );
+
+    /*
+     * DEPART actions may contain delays/audio. Revalidate the already locked
+     * movement authority immediately before applying non-zero speed.
+     */
+    await waitForHeldLegReady(
+      execution,
+      leg
     );
 
     execution.moving =
