@@ -1832,20 +1832,70 @@ async function waitForLegClearance(
   );
 }
 
-function arrivalSatisfied(
-  leg:
-    MovementPlanLeg
+function conditionsSatisfied(
+  conditions:
+    MovementPlanLeg["arrivedWhen"]
 ): boolean {
   return (
-    leg.arrivedWhen.length >
+    conditions.length >
       0 &&
-    leg.arrivedWhen.every(
+    conditions.every(
       condition =>
         sensorStates.get(
           condition.sensor
         ) ===
           condition.state
     )
+  );
+}
+
+function arrivalSatisfied(
+  leg:
+    MovementPlanLeg
+): boolean {
+  return conditionsSatisfied(
+    leg.arrivedWhen
+  );
+}
+
+async function waitForDepartureConditions(
+  execution:
+    MovementExecution,
+  leg:
+    MovementPlanLeg
+): Promise<void> {
+  if (
+    leg.departWhen.length ===
+    0
+  ) {
+    return;
+  }
+
+  setInfo(
+    execution,
+    `Waiting for departure: ${leg.from.name}`,
+    leg.from.key
+  );
+
+  while (
+    !execution.cancelled
+  ) {
+    if (
+      conditionsSatisfied(
+        leg.departWhen
+      )
+    ) {
+      return;
+    }
+
+    await controlledDelay(
+      execution,
+      100
+    );
+  }
+
+  throw new Error(
+    "Movement cancelled."
   );
 }
 
@@ -1878,42 +1928,56 @@ async function maybeRunBlockLeave(
     BlockLeaveState
 ): Promise<void> {
   if (
-    state.fired
+    state.fired ||
+    leg.leaveWhen.length ===
+      0
   ) {
     return;
   }
 
-  const sensorAddress =
-    leg.from.sensorAddress;
-
   if (
-    sensorAddress ===
-    null
+    leg.leaveWhenExplicit
   ) {
-    return;
-  }
+    if (
+      !conditionsSatisfied(
+        leg.leaveWhen
+      )
+    ) {
+      return;
+    }
+  } else {
+    const sensorAddress =
+      leg.from.sensorAddress;
 
-  const occupied =
-    sensorStates.get(
-      sensorAddress
-    );
+    if (
+      sensorAddress ===
+      null
+    ) {
+      return;
+    }
 
-  if (
-    occupied ===
-    true
-  ) {
-    state.seenOccupied =
-      true;
+    const occupied =
+      sensorStates.get(
+        sensorAddress
+      );
 
-    return;
-  }
+    if (
+      occupied ===
+        true
+    ) {
+      state.seenOccupied =
+        true;
 
-  if (
-    occupied !==
-      false ||
-    !state.seenOccupied
-  ) {
-    return;
+      return;
+    }
+
+    if (
+      occupied !==
+        false ||
+      !state.seenOccupied
+    ) {
+      return;
+    }
   }
 
   state.fired =
@@ -1929,6 +1993,54 @@ async function maybeRunBlockLeave(
     execution,
     `Left block: ${leg.from.name}`,
     leg.from.key
+  );
+}
+
+async function waitForBlockLeave(
+  execution:
+    MovementExecution,
+  leg:
+    MovementPlanLeg,
+  state:
+    BlockLeaveState
+): Promise<void> {
+  if (
+    state.fired ||
+    leg.leaveWhen.length ===
+      0
+  ) {
+    return;
+  }
+
+  setInfo(
+    execution,
+    `Waiting for leave: ${leg.from.name}`,
+    leg.from.key
+  );
+
+  while (
+    !execution.cancelled
+  ) {
+    await maybeRunBlockLeave(
+      execution,
+      leg,
+      state
+    );
+
+    if (
+      state.fired
+    ) {
+      return;
+    }
+
+    await controlledDelay(
+      execution,
+      100
+    );
+  }
+
+  throw new Error(
+    "Movement cancelled."
   );
 }
 
@@ -2135,6 +2247,15 @@ async function traverseLeg(
   leg:
     MovementPlanLeg
 ): Promise<void> {
+  /*
+   * Do not reserve the next leg while a custom DEPART condition is still
+   * false. This keeps rolling authority local to the actual movement.
+   */
+  await waitForDepartureConditions(
+    execution,
+    leg
+  );
+
   const leases =
     await waitForLegClearance(
       execution,
@@ -2142,6 +2263,14 @@ async function traverseLeg(
     );
 
   try {
+    /*
+     * Revalidate the state-based departure condition after authority is held.
+     */
+    await waitForDepartureConditions(
+      execution,
+      leg
+    );
+
     await runActions(
       execution,
       leg.from.key,
@@ -2277,6 +2406,16 @@ async function traverseLeg(
       blockLeaveState
     );
 
+    /*
+     * An explicit/default LEAVE condition is authoritative for releasing the
+     * source block. If configured, wait until it really becomes true.
+     */
+    await waitForBlockLeave(
+      execution,
+      leg,
+      blockLeaveState
+    );
+
     for (
       const turnout of
       pendingTurnouts.splice(
@@ -2303,14 +2442,19 @@ async function traverseLeg(
     }
 
     /*
-     * Without a reliable occupancy transition, runtime block release is the
-     * fallback LEAVE boundary. With occupancy, this is already fired above.
+     * No configured/default LEAVE sensor means runtime block release is the
+     * fallback boundary.
      */
-    await runBlockLeaveFallback(
-      execution,
-      leg,
-      blockLeaveState
-    );
+    if (
+      leg.leaveWhen.length ===
+        0
+    ) {
+      await runBlockLeaveFallback(
+        execution,
+        leg,
+        blockLeaveState
+      );
+    }
 
     if (
       leg.to.blockId !==
