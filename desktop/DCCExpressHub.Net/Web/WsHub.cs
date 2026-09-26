@@ -763,6 +763,15 @@ public sealed class WsHub
                 changed = true;
                 break;
 
+            case "setTime":
+                snapshot = FastClock.SetTime(
+                    D(
+                        data,
+                        "timeMs",
+                        0d));
+                changed = true;
+                break;
+
             default:
                 await Send(
                     ws,
