@@ -25,10 +25,8 @@ import {
 } from "@/DeviceConfigurationPage";
 
 import {
-  createAutomationPayload,
-  loadAutomationScripts,
-  normalizeAutomationScripts,
-  saveAutomationScripts,
+  loadAutomationPayload,
+  saveAutomationPayload,
   type AutomationStoragePayload,
 } from "@/services/automationApi";
 
@@ -266,16 +264,14 @@ export async function exportFullBackup(): Promise<BackupOperationResult> {
 
     (async () => {
       try {
-        const scripts =
-          await loadAutomationScripts();
+        const automations =
+          await loadAutomationPayload();
 
         backup.automations =
-          createAutomationPayload(
-            scripts
-          );
+          automations;
 
         completed.push(
-          `${scripts.length} automations`
+          `${automations.scripts.length} automations`
         );
       } catch (error) {
         warnings.push(
@@ -448,9 +444,7 @@ export async function importFullBackup(
     Array.isArray(
       parsed.automations.scripts
     )
-      ? normalizeAutomationScripts(
-          parsed.automations.scripts
-        )
+      ? parsed.automations as unknown as AutomationStoragePayload
       : null;
 
   if (
@@ -548,12 +542,12 @@ export async function importFullBackup(
     automations !== null
   ) {
     try {
-      await saveAutomationScripts(
+      await saveAutomationPayload(
         automations
       );
 
       completed.push(
-        `${automations.length} automations`
+        `${automations.scripts.length} automations`
       );
     } catch (error) {
       warnings.push(
