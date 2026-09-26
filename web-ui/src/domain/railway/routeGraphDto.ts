@@ -4,6 +4,7 @@ import type {
   SectionDetector,
   SectionSignal,
   TurnoutStateRequirement,
+  RouteTurnoutPassage,
 } from "./graph.js";
 import type { TravelDirection } from "./topology.js";
 
@@ -30,6 +31,7 @@ export type RouteGraphEdgeDto = {
   from: string;
   to: string;
   turnoutStates: TurnoutStateRequirement[];
+  turnoutPath: RouteTurnoutPassage[];
   locoDirection: TravelDirection;
 };
 
