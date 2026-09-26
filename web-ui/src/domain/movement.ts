@@ -11,6 +11,46 @@ export type MovementBlockRule = {
   arrivedWhen: MovementSensorCondition[];
 };
 
+export type MovementWhen =
+  | "start"
+  | "complete"
+  | "depart"
+  | "arrived"
+  | "enter"
+  | "leave"
+  | "approach";
+
+export type MovementActionKind =
+  | "speed"
+  | "function"
+  | "horn"
+  | "delay"
+  | "randomDelay"
+  | "playAudio"
+  | "log";
+
+export type MovementAction = {
+  id: string;
+  resourceKey: string;
+  when: MovementWhen;
+  kind: MovementActionKind;
+
+  speed: number;
+
+  functionNumber: number;
+  functionActive: boolean;
+  pulseMs: number;
+
+  delayMs: number;
+  minDelayMs: number;
+  maxDelayMs: number;
+
+  audioName: string;
+  audioWaitForEnd: boolean;
+
+  message: string;
+};
+
 export type MovementPage = {
   id: string;
   name: string;
@@ -20,6 +60,7 @@ export type MovementPage = {
   viaBlockIds: number[];
   toBlockId: number | null;
   blockRules: MovementBlockRule[];
+  actions: MovementAction[];
 };
 
 export type MovementDocument = {
@@ -46,6 +87,32 @@ export function createMovementId(
   );
 }
 
+export function createMovementAction(
+  resourceKey: string,
+  when: MovementWhen = "arrived",
+  kind: MovementActionKind = "speed"
+): MovementAction {
+  return {
+    id:
+      createMovementId(
+        "movement-action"
+      ),
+    resourceKey,
+    when,
+    kind,
+    speed: 20,
+    functionNumber: 2,
+    functionActive: true,
+    pulseMs: 700,
+    delayMs: 500,
+    minDelayMs: 500,
+    maxDelayMs: 1500,
+    audioName: "",
+    audioWaitForEnd: false,
+    message: "",
+  };
+}
+
 export function createMovementPage(
   name = "Movement 1"
 ): MovementPage {
@@ -61,6 +128,7 @@ export function createMovementPage(
     viaBlockIds: [],
     toBlockId: null,
     blockRules: [],
+    actions: [],
   };
 }
 
@@ -77,6 +145,40 @@ export function createEmptyMovementDocument(): MovementDocument {
     activePageId:
       page.id,
   };
+}
+
+function finiteNumber(
+  value: unknown,
+  fallback: number
+): number {
+  const numeric =
+    Number(value);
+
+  return Number.isFinite(
+    numeric
+  )
+    ? numeric
+    : fallback;
+}
+
+function integerRange(
+  value: unknown,
+  fallback: number,
+  min: number,
+  max: number
+): number {
+  return Math.max(
+    min,
+    Math.min(
+      max,
+      Math.round(
+        finiteNumber(
+          value,
+          fallback
+        )
+      )
+    )
+  );
 }
 
 function positiveInteger(
@@ -208,6 +310,178 @@ function normalizeBlockRules(
   ];
 }
 
+const MOVEMENT_WHEN =
+  new Set<MovementWhen>([
+    "start",
+    "complete",
+    "depart",
+    "arrived",
+    "enter",
+    "leave",
+    "approach",
+  ]);
+
+const MOVEMENT_ACTION_KINDS =
+  new Set<MovementActionKind>([
+    "speed",
+    "function",
+    "horn",
+    "delay",
+    "randomDelay",
+    "playAudio",
+    "log",
+  ]);
+
+function normalizeActions(
+  value: unknown
+): MovementAction[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const result:
+    MovementAction[] = [];
+
+  const usedIds =
+    new Set<string>();
+
+  for (const raw of value) {
+    if (
+      !raw ||
+      typeof raw !== "object"
+    ) {
+      continue;
+    }
+
+    const candidate =
+      raw as Record<string, unknown>;
+
+    const resourceKey =
+      String(
+        candidate.resourceKey ??
+        ""
+      ).trim();
+
+    const requestedWhen =
+      String(
+        candidate.when ??
+        ""
+      ) as MovementWhen;
+
+    const requestedKind =
+      String(
+        candidate.kind ??
+        ""
+      ) as MovementActionKind;
+
+    if (
+      !resourceKey ||
+      !MOVEMENT_WHEN.has(
+        requestedWhen
+      ) ||
+      !MOVEMENT_ACTION_KINDS.has(
+        requestedKind
+      )
+    ) {
+      continue;
+    }
+
+    let id =
+      String(
+        candidate.id ??
+        ""
+      ).trim();
+
+    if (
+      !id ||
+      usedIds.has(id)
+    ) {
+      id =
+        createMovementId(
+          "movement-action"
+        );
+    }
+
+    usedIds.add(id);
+
+    const minDelayMs =
+      integerRange(
+        candidate.minDelayMs,
+        500,
+        0,
+        600000
+      );
+
+    const maxDelayMs =
+      Math.max(
+        minDelayMs,
+        integerRange(
+          candidate.maxDelayMs,
+          1500,
+          0,
+          600000
+        )
+      );
+
+    result.push({
+      id,
+      resourceKey,
+      when:
+        requestedWhen,
+      kind:
+        requestedKind,
+      speed:
+        integerRange(
+          candidate.speed,
+          20,
+          0,
+          126
+        ),
+      functionNumber:
+        integerRange(
+          candidate.functionNumber,
+          2,
+          0,
+          28
+        ),
+      functionActive:
+        candidate.functionActive !==
+        false,
+      pulseMs:
+        integerRange(
+          candidate.pulseMs,
+          700,
+          1,
+          600000
+        ),
+      delayMs:
+        integerRange(
+          candidate.delayMs,
+          500,
+          0,
+          600000
+        ),
+      minDelayMs,
+      maxDelayMs,
+      audioName:
+        String(
+          candidate.audioName ??
+          ""
+        ).trim(),
+      audioWaitForEnd:
+        candidate.audioWaitForEnd ===
+        true,
+      message:
+        String(
+          candidate.message ??
+          ""
+        ),
+    });
+  }
+
+  return result;
+}
+
 function normalizeMovementPage(
   raw: unknown,
   fallbackName: string
@@ -279,18 +553,11 @@ function normalizeMovementPage(
       candidate.enabled !==
       false,
     speed:
-      Math.max(
+      integerRange(
+        candidate.speed,
+        20,
         0,
-        Math.min(
-          126,
-          Math.round(
-            Number(
-              candidate.speed ??
-              20
-            ) ||
-            0
-          )
-        )
+        126
       ),
     fromBlockId,
     viaBlockIds,
@@ -302,6 +569,10 @@ function normalizeMovementPage(
     blockRules:
       normalizeBlockRules(
         candidate.blockRules
+      ),
+    actions:
+      normalizeActions(
+        candidate.actions
       ),
   };
 }
