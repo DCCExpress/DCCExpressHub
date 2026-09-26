@@ -21,6 +21,8 @@ public:
     FastClockSnapshot reset();
     FastClockSnapshot setSpeed(
         double speed);
+    FastClockSnapshot setTime(
+        double timeMs);
 
 private:
     double _timeMs = 0.0;
