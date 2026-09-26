@@ -2256,6 +2256,12 @@ async function traverseLeg(
     leg
   );
 
+  await runActions(
+    execution,
+    leg.from.key,
+    "beforeDepart"
+  );
+
   const leases =
     await waitForLegClearance(
       execution,
@@ -2455,6 +2461,12 @@ async function traverseLeg(
         blockLeaveState
       );
     }
+
+    await runActions(
+      execution,
+      leg.from.key,
+      "afterLeave"
+    );
 
     if (
       leg.to.blockId !==
