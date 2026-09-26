@@ -1,5 +1,8 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { wsClient } from "../services/wsClient";
+import {
+  setTrackPowerRuntimeState,
+} from "../services/trackPowerRuntime";
 
 import type {
   CommandCenterInfoPayload,
@@ -107,6 +110,9 @@ export function CommandCenterProvider({
       }));
 
       setPowerInfo(null);
+      setTrackPowerRuntimeState(
+        false
+      );
       setZ21SystemState(null);
       setLockState(emptyLockState);
     };
@@ -150,6 +156,10 @@ export function CommandCenterProvider({
       "powerInfo",
       (data) => {
         setPowerInfo(data);
+        setTrackPowerRuntimeState(
+          data.trackVoltageOn ===
+          true
+        );
       }
     );
 
@@ -158,6 +168,10 @@ export function CommandCenterProvider({
       (data) => {
         setZ21SystemState(data);
         setPowerInfo(data.powerInfo);
+        setTrackPowerRuntimeState(
+          data.powerInfo.trackVoltageOn ===
+          true
+        );
 
         setCommandCenterInfo((prev) => ({
           ...prev,
