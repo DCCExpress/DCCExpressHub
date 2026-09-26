@@ -1054,5 +1054,7 @@
   "timetableAddAction": "Akció hozzáadása",
   "timetableDeleteRow": "Sor törlése",
   "timetableAddRow": "Új sor",
-  "timetableMissingMovement": "Hiányzó Movement"
+  "timetableMissingMovement": "Hiányzó Movement",
+  "timetableNextRowsDescription": "Mindig a következő {{value1}} menetrendi sor látszik · a futó sorok fölöttük maradnak",
+  "noUpcomingTimetableRows": "Nincs következő menetrendi sor."
 }
