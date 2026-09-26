@@ -296,6 +296,8 @@ export default function MovementRouteRow({
               ) : undefined
             }
             cardPadding="xs"
+            headerClassName="movement-collapsible-header movement-collapsible-header-condition"
+            bodyClassName="movement-collapsible-body movement-collapsible-body-condition"
           >
         {
           resource.kind !==
@@ -640,6 +642,8 @@ export default function MovementRouteRow({
               </Badge>
             }
             cardPadding="xs"
+            headerClassName="movement-collapsible-header movement-collapsible-header-actions"
+            bodyClassName="movement-collapsible-body movement-collapsible-body-actions"
           >
         <MovementActionEditor
           resourceKey={
