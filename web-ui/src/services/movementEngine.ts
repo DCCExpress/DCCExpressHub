@@ -135,6 +135,8 @@ type MovementExecution = {
   emergencyAbort: boolean;
   state:
     MovementEngineState;
+  backgroundTasks:
+    Set<Promise<void>>;
 };
 
 const states =
@@ -848,23 +850,24 @@ async function executeAction(
   }
 }
 
-async function runActions(
+async function runActionSequence(
   execution:
     MovementExecution,
   resourceKey: string,
   when:
-    MovementWhen
+    MovementWhen,
+  actions:
+    MovementAction[]
 ): Promise<void> {
-  const actions =
-    execution.page.actions.filter(
-      action =>
-        action.resourceKey ===
-          resourceKey &&
-        action.when ===
-          when
-    );
-
   for (const action of actions) {
+    if (
+      execution.cancelled
+    ) {
+      throw new Error(
+        "Movement cancelled."
+      );
+    }
+
     setInfo(
       execution,
       `${when.toUpperCase()}: ${action.kind}`,
@@ -874,6 +877,151 @@ async function runActions(
     await executeAction(
       execution,
       action
+    );
+  }
+}
+
+function startBackgroundSequence(
+  execution:
+    MovementExecution,
+  resourceKey: string,
+  when:
+    MovementWhen,
+  actions:
+    MovementAction[]
+): void {
+  let task:
+    Promise<void>;
+
+  task =
+    runActionSequence(
+      execution,
+      resourceKey,
+      when,
+      actions
+    )
+      .catch(
+        error => {
+          if (
+            execution.cancelled
+          ) {
+            return;
+          }
+
+          console.error(
+            "[Movement] Background sequence failed",
+            execution.page.name,
+            resourceKey,
+            when,
+            error
+          );
+
+          setInfo(
+            execution,
+            `Background sequence failed: ${
+              error instanceof Error
+                ? error.message
+                : String(error)
+            }`,
+            resourceKey
+          );
+        }
+      )
+      .finally(
+        () => {
+          execution.backgroundTasks.delete(
+            task
+          );
+        }
+      );
+
+  execution.backgroundTasks.add(
+    task
+  );
+}
+
+async function runActions(
+  execution:
+    MovementExecution,
+  resourceKey: string,
+  when:
+    MovementWhen
+): Promise<void> {
+  const matching =
+    execution.page.actions.filter(
+      action =>
+        action.resourceKey ===
+          resourceKey &&
+        action.when ===
+          when
+    );
+
+  const sequences:
+    Array<{
+      id: string;
+      mode:
+        "blocking" |
+        "background";
+      actions:
+        MovementAction[];
+    }> = [];
+
+  const byId =
+    new Map<
+      string,
+      typeof sequences[number]
+    >();
+
+  for (const action of matching) {
+    let sequence =
+      byId.get(
+        action.sequenceId
+      );
+
+    if (!sequence) {
+      sequence = {
+        id:
+          action.sequenceId,
+        mode:
+          action.sequenceMode,
+        actions: [],
+      };
+
+      byId.set(
+        action.sequenceId,
+        sequence
+      );
+
+      sequences.push(
+        sequence
+      );
+    }
+
+    sequence.actions.push(
+      action
+    );
+  }
+
+  for (const sequence of sequences) {
+    if (
+      sequence.mode ===
+      "background"
+    ) {
+      startBackgroundSequence(
+        execution,
+        resourceKey,
+        when,
+        sequence.actions
+      );
+
+      continue;
+    }
+
+    await runActionSequence(
+      execution,
+      resourceKey,
+      when,
+      sequence.actions
     );
   }
 }
@@ -2379,6 +2527,37 @@ async function traverseLeg(
       execution
     );
 
+    const approachSegments =
+      leg.resources.filter(
+        resource =>
+          resource.kind ===
+          "segment"
+      );
+
+    const approachSegment =
+      approachSegments.length >
+        0
+        ? approachSegments[
+            approachSegments.length -
+              1
+          ] ??
+          null
+        : null;
+
+    let targetApproachFired =
+      false;
+
+    if (!approachSegment) {
+      await runActions(
+        execution,
+        leg.to.key,
+        "approach"
+      );
+
+      targetApproachFired =
+        true;
+    }
+
     const blockLeaveState =
       createBlockLeaveState(
         leg
@@ -2473,6 +2652,21 @@ async function traverseLeg(
         resource.key,
         "enter"
       );
+
+      if (
+        !targetApproachFired &&
+        approachSegment?.key ===
+          resource.key
+      ) {
+        await runActions(
+          execution,
+          leg.to.key,
+          "approach"
+        );
+
+        targetApproachFired =
+          true;
+      }
 
       previousSegment =
         resource;
@@ -2648,6 +2842,17 @@ async function executeMovement(
     "movement",
     "complete"
   );
+
+  if (
+    execution.backgroundTasks.size >
+      0
+  ) {
+    await Promise.allSettled(
+      [
+        ...execution.backgroundTasks,
+      ]
+    );
+  }
 }
 
 export function getMovementEngineState(
@@ -2870,6 +3075,10 @@ export async function startMovement(
     emergencyAbort:
       false,
     state,
+    backgroundTasks:
+      new Set<
+        Promise<void>
+      >(),
   };
 
   executions.set(
