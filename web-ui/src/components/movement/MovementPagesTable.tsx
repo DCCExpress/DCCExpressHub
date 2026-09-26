@@ -480,6 +480,27 @@ function MovementCard({
           }
 
           {
+            state.info && (
+              <Text
+                size="xs"
+                c={
+                  state.status ===
+                    "error"
+                    ? "red"
+                    : state.status ===
+                        "running"
+                      ? "blue"
+                      : "dimmed"
+                }
+              >
+                {
+                  state.info
+                }
+              </Text>
+            )
+          }
+
+          {
             state.error && (
               <Text
                 size="xs"
