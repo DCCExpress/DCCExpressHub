@@ -32,6 +32,7 @@ import type {
 import AutomationFlowPayloadEditor from "./AutomationFlowPayloadEditor";
 import AutomationFlowTurnoutEditor from "./AutomationFlowTurnoutEditor";
 import AutomationFlowBlockEditor from "./AutomationFlowBlockEditor";
+import AutomationFlowLocoInputEditor from "./AutomationFlowLocoInputEditor";
 import { AudioFileInput } from "../../layout/property-panel/AudioFilePropertyEditor";
 import { audioManager } from "../../services/audioManager";
 
@@ -693,8 +694,115 @@ export default function AutomationFlowPropertiesPanel({
       )}
 
       {data.kind ===
+        "blockInput" && (
+        <>
+          <AutomationFlowBlockEditor
+            data={
+              data
+            }
+            onChange={
+              onChange
+            }
+          />
+
+          <Text
+            size="xs"
+            c="dimmed"
+          >
+            {
+              t(
+                "ui.flowBlockInputDescription",
+                "Runs when the selected block state changes. The new block state is passed in payload."
+              )
+            }
+          </Text>
+        </>
+      )}
+
+      {data.kind ===
+        "turnoutInput" && (
+        <>
+          <AutomationFlowTurnoutEditor
+            data={
+              data
+            }
+            onChange={
+              onChange
+            }
+            inputOnly
+          />
+
+          <Text
+            size="xs"
+            c="dimmed"
+          >
+            {
+              t(
+                "ui.flowTurnoutInputDescription",
+                "Runs when any DCC address belonging to this turnout changes. The changed address and state are passed in payload."
+              )
+            }
+          </Text>
+        </>
+      )}
+
+      {data.kind ===
         "setTurnout" && (
         <AutomationFlowTurnoutEditor
+          data={
+            data
+          }
+          onChange={
+            onChange
+          }
+        />
+      )}
+
+      {data.kind ===
+        "accessoryInput" && (
+        <>
+          <NumberInput
+            label={
+              t(
+                "ui.flowAccessoryAddress",
+                "Accessory address"
+              )
+            }
+            value={
+              data.accessoryAddress ??
+              1
+            }
+            min={1}
+            max={2048}
+            onChange={
+              value =>
+                onChange({
+                  accessoryAddress:
+                    Number(
+                      value
+                    ) ||
+                    1,
+                })
+            }
+          />
+
+          <Text
+            size="xs"
+            c="dimmed"
+          >
+            {
+              t(
+                "ui.flowAccessoryInputDescription",
+                "Runs whenever this accessory changes. The new active state is passed in payload."
+              )
+            }
+          </Text>
+        </>
+      )}
+
+      {data.kind ===
+        "locoInput" && (
+        <AutomationFlowLocoInputEditor
           data={
             data
           }

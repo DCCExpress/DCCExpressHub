@@ -5,6 +5,7 @@ import {
 
 import {
   generateAutomationFlowPageScript,
+  isAutomationFlowInputNodeKind,
   type AutomationFlowDocument,
   type AutomationFlowNode,
 } from "../../domain/automationFlow";
@@ -172,7 +173,8 @@ function runInputBranch(
     AutomationFlowDocument,
   pageId: string,
   input:
-    AutomationFlowNode
+    AutomationFlowNode,
+  inputPayload?: unknown
 ): void {
   const page =
     document.pages.find(
@@ -209,6 +211,14 @@ function runInputBranch(
         testRun: true,
         inputNodeId:
           currentInput.id,
+        ...(
+          inputPayload ===
+            undefined
+            ? {}
+            : {
+                inputPayload,
+              }
+        ),
       }
     );
 
@@ -286,10 +296,9 @@ function runtimeConfigSignature(
       document.nodes
         .filter(
           node =>
-            node.data.kind ===
-              "trigger" ||
-            node.data.kind ===
-              "sensorInput"
+            isAutomationFlowInputNodeKind(
+              node.data.kind
+            )
         )
         .map(
           node => ({
@@ -307,6 +316,16 @@ function runtimeConfigSignature(
               node.data.sensorAddress,
             sensorState:
               node.data.sensorState,
+            blockElementId:
+              node.data.blockElementId,
+            turnoutElementId:
+              node.data.turnoutElementId,
+            turnoutAddresses:
+              node.data.turnoutAddresses,
+            accessoryAddress:
+              node.data.accessoryAddress,
+            locoAddress:
+              node.data.locoAddress,
           })
         )
         .sort(
@@ -335,6 +354,16 @@ export function useAutomationFlowRuntime(
   const runtimeEnabledRef =
     useRef(
       runtimeEnabled
+    );
+
+  const blockStateSignaturesRef =
+    useRef(
+      new Map<string, string>()
+    );
+
+  const locoStateSignaturesRef =
+    useRef(
+      new Map<number, string>()
     );
 
   documentRef.current =
@@ -491,7 +520,459 @@ export function useAutomationFlowRuntime(
               runInputBranch(
                 current,
                 page.id,
-                input
+                input,
+                {
+                  eventType:
+                    "sensorChanged",
+                  address,
+                  on:
+                    state,
+                  sensorAddress:
+                    address,
+                  sensorState:
+                    state,
+                }
+              );
+            }
+          }
+        }
+      ),
+    []
+  );
+
+  useEffect(
+    () =>
+      wsClient.on(
+        "turnoutChanged",
+        data => {
+          const current =
+            documentRef.current;
+
+          if (
+            !runtimeEnabledRef.current
+          ) {
+            return;
+          }
+
+          const address =
+            Number(
+              data.address
+            );
+
+          if (
+            !Number.isInteger(
+              address
+            )
+          ) {
+            return;
+          }
+
+          for (
+            const page of
+            current.pages
+          ) {
+            if (
+              !page.enabled
+            ) {
+              continue;
+            }
+
+            const inputs =
+              current.nodes.filter(
+                node => {
+                  if (
+                    node.data.pageId !==
+                      page.id ||
+                    node.data.kind !==
+                      "turnoutInput"
+                  ) {
+                    return false;
+                  }
+
+                  const configured =
+                    node.data.turnoutAddresses ??
+                    [];
+
+                  if (
+                    configured.includes(
+                      address
+                    )
+                  ) {
+                    return true;
+                  }
+
+                  return (
+                    Math.round(
+                      node.data.turnoutAddress ??
+                      0
+                    ) ===
+                    address
+                  );
+                }
+              );
+
+            for (
+              const input of
+              inputs
+            ) {
+              runInputBranch(
+                current,
+                page.id,
+                input,
+                {
+                  eventType:
+                    "turnoutChanged",
+                  turnoutElementId:
+                    input.data.turnoutElementId ??
+                    0,
+                  turnoutLabel:
+                    input.data.turnoutLabel ??
+                    "",
+                  ...data,
+                }
+              );
+            }
+          }
+        }
+      ),
+    []
+  );
+
+  useEffect(
+    () =>
+      wsClient.on(
+        "accessoryChanged",
+        data => {
+          const current =
+            documentRef.current;
+
+          if (
+            !runtimeEnabledRef.current
+          ) {
+            return;
+          }
+
+          const address =
+            Number(
+              data.address
+            );
+
+          if (
+            !Number.isInteger(
+              address
+            )
+          ) {
+            return;
+          }
+
+          for (
+            const page of
+            current.pages
+          ) {
+            if (
+              !page.enabled
+            ) {
+              continue;
+            }
+
+            const inputs =
+              current.nodes.filter(
+                node =>
+                  node.data.pageId ===
+                    page.id &&
+                  node.data.kind ===
+                    "accessoryInput" &&
+                  Math.round(
+                    node.data.accessoryAddress ??
+                    0
+                  ) ===
+                    address
+              );
+
+            for (
+              const input of
+              inputs
+            ) {
+              runInputBranch(
+                current,
+                page.id,
+                input,
+                {
+                  eventType:
+                    "accessoryChanged",
+                  address,
+                  active:
+                    Boolean(
+                      data.active
+                    ),
+                }
+              );
+            }
+          }
+        }
+      ),
+    []
+  );
+
+  useEffect(
+    () =>
+      wsClient.on(
+        "blockStateChanged",
+        data => {
+          const changed:
+            Array<{
+              blockId: string;
+              locoId: string | null;
+              locoAddress: number;
+            }> = [];
+
+          for (
+            const [
+              key,
+              state,
+            ] of Object.entries(
+              data ??
+              {}
+            )
+          ) {
+            const blockId =
+              String(
+                state?.blockId ??
+                key
+              );
+
+            const locoId =
+              state?.locoId
+                ? String(
+                    state.locoId
+                  )
+                : null;
+
+            const locoAddress =
+              Math.max(
+                0,
+                Math.round(
+                  Number(
+                    state?.locoAddress ??
+                    0
+                  ) ||
+                  0
+                )
+              );
+
+            const signature =
+              JSON.stringify({
+                locoId,
+                locoAddress,
+              });
+
+            const previous =
+              blockStateSignaturesRef.current.get(
+                blockId
+              );
+
+            blockStateSignaturesRef.current.set(
+              blockId,
+              signature
+            );
+
+            if (
+              previous ===
+                undefined ||
+              previous ===
+                signature
+            ) {
+              continue;
+            }
+
+            changed.push({
+              blockId,
+              locoId,
+              locoAddress,
+            });
+          }
+
+          if (
+            changed.length ===
+              0 ||
+            !runtimeEnabledRef.current
+          ) {
+            return;
+          }
+
+          const current =
+            documentRef.current;
+
+          for (
+            const change of
+            changed
+          ) {
+            for (
+              const page of
+              current.pages
+            ) {
+              if (
+                !page.enabled
+              ) {
+                continue;
+              }
+
+              const inputs =
+                current.nodes.filter(
+                  node =>
+                    node.data.pageId ===
+                      page.id &&
+                    node.data.kind ===
+                      "blockInput" &&
+                    String(
+                      Math.round(
+                        node.data.blockElementId ??
+                        0
+                      )
+                    ) ===
+                      change.blockId
+                );
+
+              for (
+                const input of
+                inputs
+              ) {
+                runInputBranch(
+                  current,
+                  page.id,
+                  input,
+                  {
+                    eventType:
+                      "blockStateChanged",
+                    blockId:
+                      change.blockId,
+                    blockName:
+                      input.data.blockName ??
+                      "",
+                    locoId:
+                      change.locoId,
+                    locoAddress:
+                      change.locoAddress,
+                    occupied:
+                      change.locoAddress >
+                        0 ||
+                      Boolean(
+                        change.locoId
+                      ),
+                  }
+                );
+              }
+            }
+          }
+        }
+      ),
+    []
+  );
+
+  useEffect(
+    () =>
+      wsClient.on(
+        "locoState",
+        data => {
+          const loco =
+            data.loco;
+
+          if (!loco) {
+            return;
+          }
+
+          const address =
+            Number(
+              loco.address
+            );
+
+          if (
+            !Number.isInteger(
+              address
+            ) ||
+            address < 1
+          ) {
+            return;
+          }
+
+          const signature =
+            JSON.stringify(
+              loco
+            );
+
+          const previous =
+            locoStateSignaturesRef.current.get(
+              address
+            );
+
+          locoStateSignaturesRef.current.set(
+            address,
+            signature
+          );
+
+          // locoState is sticky in WsClient. The first value received for an
+          // address seeds the comparison cache instead of firing a flow.
+          if (
+            previous ===
+              undefined ||
+            previous ===
+              signature ||
+            !runtimeEnabledRef.current
+          ) {
+            return;
+          }
+
+          const current =
+            documentRef.current;
+
+          for (
+            const page of
+            current.pages
+          ) {
+            if (
+              !page.enabled
+            ) {
+              continue;
+            }
+
+            const inputs =
+              current.nodes.filter(
+                node =>
+                  node.data.pageId ===
+                    page.id &&
+                  node.data.kind ===
+                    "locoInput" &&
+                  Math.round(
+                    node.data.locoAddress ??
+                    0
+                  ) ===
+                    address
+              );
+
+            for (
+              const input of
+              inputs
+            ) {
+              runInputBranch(
+                current,
+                page.id,
+                input,
+                {
+                  eventType:
+                    "locoState",
+                  locoAddress:
+                    address,
+                  speed:
+                    loco.speed,
+                  direction:
+                    loco.direction,
+                  functionsMask:
+                    loco.functionsMask,
+                  reservation:
+                    loco.reservation ??
+                    null,
+                  loco,
+                }
               );
             }
           }

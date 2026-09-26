@@ -3,6 +3,10 @@ export const AUTOMATION_FLOW_VERSION = 1 as const;
 export type AutomationFlowNodeKind =
   | "trigger"
   | "sensorInput"
+  | "blockInput"
+  | "turnoutInput"
+  | "accessoryInput"
+  | "locoInput"
   | "smartDispatcher"
   | "setSpeed"
   | "waitForBlock"
@@ -53,6 +57,8 @@ export type AutomationFlowNodeData = Record<string, unknown> & {
   arrivalRules?: AutomationArrivalRule[];
 
   speed?: number;
+  locoAddress?: number;
+  locoLabel?: string;
   locoDirection?:
     | "forward"
     | "reverse";
@@ -65,6 +71,7 @@ export type AutomationFlowNodeData = Record<string, unknown> & {
 
   turnoutAddress?: number;
   turnoutClosed?: boolean;
+  turnoutAddresses?: number[];
   turnoutElementId?: number;
   turnoutLabel?: string;
   turnoutStateKey?: string;
@@ -127,6 +134,10 @@ const NODE_KINDS =
   new Set<AutomationFlowNodeKind>([
     "trigger",
     "sensorInput",
+    "blockInput",
+    "turnoutInput",
+    "accessoryInput",
+    "locoInput",
     "smartDispatcher",
     "setSpeed",
     "waitForBlock",
@@ -147,6 +158,19 @@ const NODE_KINDS =
     "playAudio",
     "log",
   ]);
+
+export function isAutomationFlowInputNodeKind(
+  kind: AutomationFlowNodeKind
+): boolean {
+  return (
+    kind === "trigger" ||
+    kind === "sensorInput" ||
+    kind === "blockInput" ||
+    kind === "turnoutInput" ||
+    kind === "accessoryInput" ||
+    kind === "locoInput"
+  );
+}
 
 export function createAutomationFlowId(
   prefix: string
@@ -315,6 +339,40 @@ function normalizeArrivalRules(
   return result;
 }
 
+function normalizeAddressList(
+  value: unknown,
+  min: number,
+  max: number
+): number[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const result: number[] = [];
+
+  for (const raw of value) {
+    const address =
+      Math.round(
+        finiteNumber(
+          raw,
+          0
+        )
+      );
+
+    if (
+      address < min ||
+      address > max ||
+      result.includes(address)
+    ) {
+      continue;
+    }
+
+    result.push(address);
+  }
+
+  return result;
+}
+
 function normalizeTurnoutCommands(
   value: unknown
 ): AutomationFlowTurnoutCommand[] {
@@ -436,6 +494,24 @@ function normalizeNodeData(
           )
         )
       ),
+    locoAddress:
+      Math.max(
+        0,
+        Math.min(
+          10239,
+          Math.round(
+            finiteNumber(
+              candidate.locoAddress,
+              0
+            )
+          )
+        )
+      ),
+    locoLabel:
+      typeof candidate.locoLabel ===
+        "string"
+        ? candidate.locoLabel
+        : "",
     locoDirection:
       candidate.locoDirection ===
         "reverse"
@@ -495,6 +571,12 @@ function normalizeNodeData(
     turnoutClosed:
       candidate.turnoutClosed !==
       false,
+    turnoutAddresses:
+      normalizeAddressList(
+        candidate.turnoutAddresses,
+        1,
+        32767
+      ),
     turnoutElementId:
       Math.max(
         0,
@@ -1340,14 +1422,33 @@ export type GenerateAutomationFlowPageScriptOptions = {
   testRun?: boolean;
   triggerNodeId?: string;
   inputNodeId?: string;
+  inputPayload?: unknown;
 };
 
 function triggerPayloadSource(
   trigger:
     AutomationFlowNode |
     undefined,
-  warnings: string[]
+  warnings: string[],
+  runtimePayload: unknown,
+  runtimePayloadProvided: boolean
 ): string {
+  if (runtimePayloadProvided) {
+    try {
+      return (
+        JSON.stringify(
+          runtimePayload
+        ) ??
+        "null"
+      );
+    } catch {
+      warnings.push(
+        "Runtime input payload could not be serialized. Using null."
+      );
+      return "null";
+    }
+  }
+
   if (!trigger) {
     return "null";
   }
@@ -1371,6 +1472,82 @@ function triggerPayloadSource(
       sensorState:
         trigger.data.sensorState !==
         false,
+    });
+  }
+
+  if (
+    trigger.data.kind ===
+      "blockInput"
+  ) {
+    return JSON.stringify({
+      blockId:
+        String(
+          trigger.data.blockElementId ??
+          trigger.data.blockName ??
+          ""
+        ),
+      blockName:
+        trigger.data.blockName ??
+        "",
+      locoAddress:
+        0,
+      occupied:
+        false,
+    });
+  }
+
+  if (
+    trigger.data.kind ===
+      "turnoutInput"
+  ) {
+    return JSON.stringify({
+      turnoutElementId:
+        trigger.data.turnoutElementId ??
+        0,
+      turnoutLabel:
+        trigger.data.turnoutLabel ??
+        "",
+      addresses:
+        trigger.data.turnoutAddresses ??
+        [],
+    });
+  }
+
+  if (
+    trigger.data.kind ===
+      "accessoryInput"
+  ) {
+    return JSON.stringify({
+      address:
+        Math.max(
+          1,
+          Math.min(
+            2048,
+            Math.round(
+              trigger.data.accessoryAddress ??
+              1
+            )
+          )
+        ),
+    });
+  }
+
+  if (
+    trigger.data.kind ===
+      "locoInput"
+  ) {
+    return JSON.stringify({
+      locoAddress:
+        Math.max(
+          1,
+          Math.min(
+            10239,
+            Math.round(
+              trigger.data.locoAddress ??
+              1
+            )
+          )
+        ),
     });
   }
 
@@ -1442,10 +1619,17 @@ function withPayload(
   trigger:
     AutomationFlowNode |
     undefined,
-  warnings: string[]
+  warnings: string[],
+  runtimePayload: unknown,
+  runtimePayloadProvided: boolean
 ): string {
   return [
-    `let payload = ${triggerPayloadSource(trigger, warnings)};`,
+    `let payload = ${triggerPayloadSource(
+      trigger,
+      warnings,
+      runtimePayload,
+      runtimePayloadProvided
+    )};`,
     "",
     code,
   ].join("\n");
@@ -1511,6 +1695,12 @@ export function generateAutomationFlowPageScript(
 ): GeneratedAutomationFlowScript {
   const warnings:
     string[] = [];
+
+  const runtimePayloadProvided =
+    Object.prototype.hasOwnProperty.call(
+      options,
+      "inputPayload"
+    );
 
   const pageNodes =
     document.nodes.filter(
@@ -1584,10 +1774,9 @@ export function generateAutomationFlowPageScript(
   const inputNodes =
     pageNodes.filter(
       node =>
-        node.data.kind ===
-          "trigger" ||
-        node.data.kind ===
-          "sensorInput"
+        isAutomationFlowInputNodeKind(
+          node.data.kind
+        )
     );
 
   const requestedInputId =
@@ -1688,27 +1877,29 @@ export function generateAutomationFlowPageScript(
     const roots =
       pageNodes.filter(
         node =>
-          node.data.kind !==
-            "trigger" &&
-          node.data.kind !==
-            "sensorInput" &&
+          !isAutomationFlowInputNodeKind(
+            node.data.kind
+          ) &&
           (
             incoming.get(
               node.id
             ) ??
             []
           ).filter(
-            edge =>
-              (
+            edge => {
+              const sourceKind =
                 nodeById.get(
                   edge.source
-                )?.data.kind !==
-                  "trigger" &&
-                nodeById.get(
-                  edge.source
-                )?.data.kind !==
-                  "sensorInput"
-              )
+                )?.data.kind;
+
+              return (
+                sourceKind ===
+                  undefined ||
+                !isAutomationFlowInputNodeKind(
+                  sourceKind
+                )
+              );
+            }
           ).length ===
           0
       );
@@ -1847,7 +2038,9 @@ export function generateAutomationFlowPageScript(
           withPayload(
             code,
             trigger,
-            warnings
+            warnings,
+            options.inputPayload,
+            runtimePayloadProvided
           ),
           trigger,
           pageId,
@@ -2065,7 +2258,9 @@ export function generateAutomationFlowPageScript(
         withPayload(
           code,
           trigger,
-          warnings
+          warnings,
+          options.inputPayload,
+          runtimePayloadProvided
         ),
         trigger,
         pageId,

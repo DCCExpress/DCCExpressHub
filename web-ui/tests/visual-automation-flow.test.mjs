@@ -1497,3 +1497,107 @@ test("automation scripts use reorderable cards with grouped runtime controls", (
     /definition\.script\.split\("\\n"\)\.length/
   );
 });
+
+
+test("block turnout accessory and loco events are first-class flow inputs", () => {
+  const domain =
+    read(
+      "src/domain/automationFlow.ts"
+    );
+
+  const palette =
+    read(
+      "src/components/automation/AutomationFlowPalette.tsx"
+    );
+
+  const properties =
+    read(
+      "src/components/automation/AutomationFlowPropertiesPanel.tsx"
+    );
+
+  const node =
+    read(
+      "src/components/automation/AutomationFlowNode.tsx"
+    );
+
+  const runtime =
+    read(
+      "src/components/automation/useAutomationFlowRuntime.ts"
+    );
+
+  for (
+    const kind of [
+      "blockInput",
+      "turnoutInput",
+      "accessoryInput",
+      "locoInput",
+    ]
+  ) {
+    assert.match(
+      domain,
+      new RegExp(
+        `\\| "${kind}"`
+      )
+    );
+
+    assert.match(
+      palette,
+      new RegExp(
+        `kind: "${kind}"`
+      )
+    );
+
+    assert.match(
+      node,
+      new RegExp(
+        `${kind}:`
+      )
+    );
+  }
+
+  for (
+    const eventName of [
+      "blockStateChanged",
+      "turnoutChanged",
+      "accessoryChanged",
+      "locoState",
+    ]
+  ) {
+    assert.match(
+      runtime,
+      new RegExp(
+        `wsClient\\.on\\([\\s\\S]*"${eventName}"`
+      )
+    );
+  }
+
+  assert.match(
+    domain,
+    /inputPayload\?: unknown/
+  );
+
+  assert.match(
+    runtime,
+    /inputPayload/
+  );
+
+  assert.match(
+    runtime,
+    /blockStateSignaturesRef/
+  );
+
+  assert.match(
+    runtime,
+    /locoStateSignaturesRef/
+  );
+
+  assert.match(
+    properties,
+    /inputOnly/
+  );
+
+  assert.match(
+    properties,
+    /AutomationFlowLocoInputEditor/
+  );
+});

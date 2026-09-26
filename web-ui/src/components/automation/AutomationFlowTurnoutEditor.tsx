@@ -38,6 +38,7 @@ type Props = {
     patch:
       Partial<AutomationFlowNodeData>
   ) => void;
+  inputOnly?: boolean;
 };
 
 function t(
@@ -56,6 +57,7 @@ function t(
 export default function AutomationFlowTurnoutEditor({
   data,
   onChange,
+  inputOnly = false,
 }: Props) {
   const [
     catalog,
@@ -141,6 +143,41 @@ export default function AutomationFlowTurnoutEditor({
         return;
       }
 
+      if (inputOnly) {
+        const currentAddresses =
+          JSON.stringify(
+            data.turnoutAddresses ??
+            []
+          );
+
+        const nextAddresses =
+          JSON.stringify(
+            selected.addresses
+          );
+
+        if (
+          data.turnoutElementId ===
+            selected.id &&
+          data.turnoutLabel ===
+            selected.label &&
+          currentAddresses ===
+            nextAddresses
+        ) {
+          return;
+        }
+
+        onChange({
+          turnoutElementId:
+            selected.id,
+          turnoutLabel:
+            selected.label,
+          turnoutAddresses:
+            [...selected.addresses],
+        });
+
+        return;
+      }
+
       const state =
         selected.states.find(
           option =>
@@ -182,6 +219,8 @@ export default function AutomationFlowTurnoutEditor({
           selected.id,
         turnoutLabel:
           selected.label,
+        turnoutAddresses:
+          [...selected.addresses],
         turnoutStateKey:
           state.value,
         turnoutStateLabel:
@@ -196,10 +235,13 @@ export default function AutomationFlowTurnoutEditor({
     },
     [
       selected,
+      data.turnoutAddresses,
       data.turnoutCommands,
+      data.turnoutElementId,
       data.turnoutLabel,
       data.turnoutStateKey,
       data.turnoutStateLabel,
+      inputOnly,
       onChange,
     ]
   );
@@ -230,6 +272,19 @@ export default function AutomationFlowTurnoutEditor({
         return;
       }
 
+      if (inputOnly) {
+        onChange({
+          turnoutElementId:
+            legacy.id,
+          turnoutLabel:
+            legacy.label,
+          turnoutAddresses:
+            [...legacy.addresses],
+        });
+
+        return;
+      }
+
       const state =
         legacy.states.find(
           option =>
@@ -252,6 +307,8 @@ export default function AutomationFlowTurnoutEditor({
           legacy.id,
         turnoutLabel:
           legacy.label,
+        turnoutAddresses:
+          [...legacy.addresses],
         turnoutStateKey:
           state.value,
         turnoutStateLabel:
@@ -269,6 +326,7 @@ export default function AutomationFlowTurnoutEditor({
       data.turnoutAddress,
       data.turnoutClosed,
       data.turnoutElementId,
+      inputOnly,
       onChange,
     ]
   );
@@ -292,13 +350,27 @@ export default function AutomationFlowTurnoutEditor({
             id
         );
 
-      const state =
-        option?.states[0];
+      if (!option) {
+        return;
+      }
 
-      if (
-        !option ||
-        !state
-      ) {
+      if (inputOnly) {
+        onChange({
+          turnoutElementId:
+            option.id,
+          turnoutLabel:
+            option.label,
+          turnoutAddresses:
+            [...option.addresses],
+        });
+
+        return;
+      }
+
+      const state =
+        option.states[0];
+
+      if (!state) {
         return;
       }
 
@@ -307,6 +379,8 @@ export default function AutomationFlowTurnoutEditor({
           option.id,
         turnoutLabel:
           option.label,
+        turnoutAddresses:
+          [...option.addresses],
         turnoutStateKey:
           state.value,
         turnoutStateLabel:
@@ -481,6 +555,7 @@ export default function AutomationFlowTurnoutEditor({
 
       {selected && (
         <>
+          {!inputOnly && (
           <Select
             label={
               t(
@@ -510,6 +585,7 @@ export default function AutomationFlowTurnoutEditor({
               selectState
             }
           />
+          )}
 
           <Text
             size="xs"

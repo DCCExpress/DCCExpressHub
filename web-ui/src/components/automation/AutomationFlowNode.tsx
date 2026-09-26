@@ -20,9 +20,10 @@ import {
   type NodeTypes,
 } from "@xyflow/react";
 
-import type {
-  AutomationFlowNodeData,
-  AutomationFlowNodeKind,
+import {
+  isAutomationFlowInputNodeKind,
+  type AutomationFlowNodeData,
+  type AutomationFlowNodeKind,
 } from "../../domain/automationFlow";
 
 import {
@@ -59,7 +60,31 @@ const NODE_META:
       icon: "📡",
       color: "green",
       title:
-        "Sensor input",
+        "Sensor event",
+    },
+    blockInput: {
+      icon: "🧱",
+      color: "cyan",
+      title:
+        "Block event",
+    },
+    turnoutInput: {
+      icon: "↪",
+      color: "grape",
+      title:
+        "Turnout event",
+    },
+    accessoryInput: {
+      icon: "⚡",
+      color: "yellow",
+      title:
+        "Accessory event",
+    },
+    locoInput: {
+      icon: "🚂",
+      color: "blue",
+      title:
+        "Loco event",
     },
     smartDispatcher: {
       icon: "🚂",
@@ -207,6 +232,31 @@ function summary(
           false
             ? "ON"
             : "OFF"
+        )
+      );
+
+    case "blockInput":
+      return (
+        `${data.blockLabel || data.blockName || "Select block"} · any change`
+      );
+
+    case "turnoutInput":
+      return (
+        `${data.turnoutLabel || "Select turnout"} · any change`
+      );
+
+    case "accessoryInput":
+      return (
+        `#${data.accessoryAddress ?? 1} · any change`
+      );
+
+    case "locoInput":
+      return (
+        data.locoLabel ||
+        (
+          data.locoAddress
+            ? `#${data.locoAddress} · any change`
+            : "Select locomotive"
         )
       );
 
@@ -387,19 +437,18 @@ export default function AutomationFlowNode({
       data.kind
     ];
 
+  const isInput =
+    isAutomationFlowInputNodeKind(
+      data.kind
+    );
+
   const isWide =
     data.kind ===
       "smartDispatcher" ||
-    data.kind ===
-      "trigger" ||
-    data.kind ===
-      "sensorInput";
+    isInput;
 
   const hasTarget =
-    data.kind !==
-      "trigger" &&
-    data.kind !==
-      "sensorInput";
+    !isInput;
 
   return (
     <Card
@@ -501,9 +550,11 @@ export default function AutomationFlowNode({
             }
           >
             {
-              isWide
-                ? "FLOW"
-                : data.kind
+              isInput
+                ? "INPUT"
+                : isWide
+                  ? "FLOW"
+                  : data.kind
             }
           </Badge>
         </Group>

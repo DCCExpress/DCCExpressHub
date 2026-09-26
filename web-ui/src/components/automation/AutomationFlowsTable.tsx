@@ -171,6 +171,54 @@ function inputLabel(
   }
 
   if (
+    node.data.kind ===
+    "blockInput"
+  ) {
+    return {
+      label:
+        `Block: ${node.data.blockLabel || node.data.blockName || "not selected"}`,
+      color:
+        "cyan",
+    };
+  }
+
+  if (
+    node.data.kind ===
+    "turnoutInput"
+  ) {
+    return {
+      label:
+        `Turnout: ${node.data.turnoutLabel || "not selected"}`,
+      color:
+        "grape",
+    };
+  }
+
+  if (
+    node.data.kind ===
+    "accessoryInput"
+  ) {
+    return {
+      label:
+        `Accessory #${node.data.accessoryAddress ?? 1} · any change`,
+      color:
+        "yellow",
+    };
+  }
+
+  if (
+    node.data.kind ===
+    "locoInput"
+  ) {
+    return {
+      label:
+        `Loco: ${node.data.locoLabel || (node.data.locoAddress ? `#${node.data.locoAddress}` : "not selected")}`,
+      color:
+        "blue",
+    };
+  }
+
+  if (
     node.data.kind !==
     "trigger"
   ) {
@@ -984,7 +1032,7 @@ export default function AutomationFlowsTable({
                 "ui.flowRuntimeEnabledDescription",
                 {
                   defaultValue:
-                    "Enabled pages are live. Sensor and interval inputs can start their connected branches."
+                    "Enabled pages are live. Event and interval inputs can start their connected branches."
                 }
               )
             : i18next.t(

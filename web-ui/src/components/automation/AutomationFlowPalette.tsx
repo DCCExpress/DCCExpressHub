@@ -104,6 +104,46 @@ const ITEMS: PaletteItem[] = [
     color: "green",
   },
   {
+    kind: "sensorInput",
+    group: "trigger",
+    icon: <IconAntenna size={16} />,
+    labelKey: "ui.flowNodeSensorInput",
+    fallback: "Sensor event",
+    color: "green",
+  },
+  {
+    kind: "blockInput",
+    group: "trigger",
+    icon: <IconGitBranch size={16} />,
+    labelKey: "ui.flowNodeBlockInput",
+    fallback: "Block event",
+    color: "cyan",
+  },
+  {
+    kind: "turnoutInput",
+    group: "trigger",
+    icon: <IconGitBranch size={16} />,
+    labelKey: "ui.flowNodeTurnoutInput",
+    fallback: "Turnout event",
+    color: "grape",
+  },
+  {
+    kind: "accessoryInput",
+    group: "trigger",
+    icon: <IconBolt size={16} />,
+    labelKey: "ui.flowNodeAccessoryInput",
+    fallback: "Accessory event",
+    color: "yellow",
+  },
+  {
+    kind: "locoInput",
+    group: "trigger",
+    icon: <IconRoute size={16} />,
+    labelKey: "ui.flowNodeLocoInput",
+    fallback: "Loco event",
+    color: "blue",
+  },
+  {
     kind: "smartDispatcher",
     group: "railway",
     icon: <IconRoute size={16} />,
@@ -198,14 +238,6 @@ const ITEMS: PaletteItem[] = [
     labelKey: "ui.flowNodeHorn",
     fallback: "Horn",
     color: "orange",
-  },
-  {
-    kind: "sensorInput",
-    group: "sensors",
-    icon: <IconAntenna size={16} />,
-    labelKey: "ui.flowNodeSensorInput",
-    fallback: "Sensor input",
-    color: "green",
   },
   {
     kind: "waitForSensor",
@@ -341,6 +373,36 @@ export function createDefaultAutomationNodeData(
         ...base,
         sensorAddress: 1,
         sensorState: true,
+      };
+
+    case "blockInput":
+      return {
+        ...base,
+        blockElementId: 0,
+        blockLabel: "",
+        blockName: "",
+      };
+
+    case "turnoutInput":
+      return {
+        ...base,
+        turnoutAddress: 0,
+        turnoutElementId: 0,
+        turnoutLabel: "",
+        turnoutAddresses: [],
+      };
+
+    case "accessoryInput":
+      return {
+        ...base,
+        accessoryAddress: 1,
+      };
+
+    case "locoInput":
+      return {
+        ...base,
+        locoAddress: 0,
+        locoLabel: "",
       };
 
     case "waitForSensor":
