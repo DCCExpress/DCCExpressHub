@@ -436,3 +436,119 @@ test("timetable editor uses a fixed large scrollable layout with compact target 
     /label=\{[\s\S]*ui\.timetableTarget[\s\S]*searchable/
   );
 });
+
+
+test("FastClock supports explicit setTime on web ESP32 and .NET backends", () => {
+  const commands =
+    read(
+      "src/domain/clientWsCommands.ts"
+    );
+
+  const api =
+    read(
+      "src/api/fastClockApi.ts"
+    );
+
+  const espRuntime =
+    read(
+      "../src/FastClockRuntime.cpp"
+    );
+
+  const espWs =
+    read(
+      "../src/WsProtocol.cpp"
+    );
+
+  const dotnetRuntime =
+    read(
+      "../desktop/DCCExpressHub.Net/Web/FastClockRuntime.cs"
+    );
+
+  const dotnetWs =
+    read(
+      "../desktop/DCCExpressHub.Net/Web/WsHub.cs"
+    );
+
+  assert.match(
+    commands,
+    /"setTime"/
+  );
+
+  assert.match(
+    commands,
+    /timeMs\?:\s*number/
+  );
+
+  assert.match(
+    api,
+    /export async function setFastClockTime/
+  );
+
+  assert.match(
+    api,
+    /"setTime"/
+  );
+
+  assert.match(
+    espRuntime,
+    /FastClockRuntime::setTime/
+  );
+
+  assert.match(
+    espWs,
+    /action ==[\s\S]*"setTime"[\s\S]*_fastClock\.setTime/
+  );
+
+  assert.match(
+    dotnetRuntime,
+    /FastClockSnapshot SetTime/
+  );
+
+  assert.match(
+    dotnetWs,
+    /case "setTime":[\s\S]*FastClock\.SetTime/
+  );
+});
+
+
+test("timetable can jump FastClock to fifteen seconds before earliest runnable start", () => {
+  const panel =
+    read(
+      "src/components/TimetablePanel.tsx"
+    );
+
+  assert.match(
+    panel,
+    /FAST_CLOCK_TEST_LEAD_MS =[\s\S]*15 \* 1000/
+  );
+
+  assert.match(
+    panel,
+    /firstRunnableTimetableMinute/
+  );
+
+  assert.match(
+    panel,
+    /enumerateTimetableCronOccurrences\([\s\S]*entry\.cron,[\s\S]*0,[\s\S]*24 \* 60/
+  );
+
+  assert.match(
+    panel,
+    /firstStartMs -[\s\S]*FAST_CLOCK_TEST_LEAD_MS/
+  );
+
+  assert.match(
+    panel,
+    /setFastClockTime\([\s\S]*targetMs/
+  );
+
+  assert.match(
+    panel,
+    /executeClockCommand\([\s\S]*setFastClockTime[\s\S]*true/
+  );
+
+  assert.match(
+    panel,
+    /timetableJumpBeforeFirst/
+  );
+});
