@@ -16,14 +16,12 @@ import {
   Divider,
   Group,
   Modal,
-  NumberInput,
   ScrollArea,
   Select,
   Stack,
   Switch,
   Tabs,
   Text,
-  Textarea,
   TextInput,
   Tooltip,
 } from "@mantine/core";
@@ -34,18 +32,11 @@ import {
 
 import {
   IconAlertTriangle,
-  IconAntenna,
-  IconBolt,
-  IconClock,
   IconDeviceFloppy,
-  IconGitBranch,
-  IconNote,
   IconPlus,
   IconPlayerStop,
   IconRefresh,
-  IconRoute,
   IconTrash,
-  IconVolume,
 } from "@tabler/icons-react";
 
 import {
