@@ -1053,5 +1053,6 @@
   "timetableDeleteAction": "Aktion löschen",
   "timetableAddAction": "Aktion hinzufügen",
   "timetableDeleteRow": "Zeile löschen",
-  "timetableAddRow": "Zeile hinzufügen"
+  "timetableAddRow": "Zeile hinzufügen",
+  "timetableMissingMovement": "Fehlendes Movement"
 }
