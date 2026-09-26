@@ -199,7 +199,7 @@ test("Movement editor is split into reusable components", () => {
   );
 
   assert.match(
-    selector,
+    navigation,
     /nextByBlockId/
   );
 
