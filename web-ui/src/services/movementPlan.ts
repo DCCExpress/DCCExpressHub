@@ -916,17 +916,51 @@ export function buildMovementPlan(
 
     const legResources =
       resources.filter(
-        resource =>
-          resource.nodeIndex !==
-            null &&
-          resource.nodeIndex >=
-            from.nodeIndex! &&
-          resource.nodeIndex <=
-            to.nodeIndex! &&
-          resource.key !==
-            from.key &&
-          resource.key !==
-            to.key
+        resource => {
+          if (
+            resource.nodeIndex ===
+              null ||
+            resource.key ===
+              from.key ||
+            resource.key ===
+              to.key
+          ) {
+            return false;
+          }
+
+          if (
+            resource.kind ===
+            "segment"
+          ) {
+            /*
+             * The source block's section is already occupied/entered.
+             * Replaying ENTER on it at every new leg would duplicate actions.
+             */
+            return (
+              resource.nodeIndex >
+                from.nodeIndex! &&
+              resource.nodeIndex <=
+                to.nodeIndex!
+            );
+          }
+
+          if (
+            resource.kind ===
+            "turnout"
+          ) {
+            /*
+             * A turnout passage belongs to the edge leaving its node.
+             */
+            return (
+              resource.nodeIndex >=
+                from.nodeIndex! &&
+              resource.nodeIndex <
+                to.nodeIndex!
+            );
+          }
+
+          return false;
+        }
       );
 
     const turnoutStates =
