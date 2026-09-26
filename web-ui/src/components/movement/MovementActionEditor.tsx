@@ -576,6 +576,14 @@ export default function MovementActionEditor({
                   action.id
               );
 
+            const phaseLabel =
+              options.find(
+                option =>
+                  option.value ===
+                  action.when
+              )?.label ??
+              action.when;
+
             return (
             <Stack
               key={
@@ -670,7 +678,7 @@ export default function MovementActionEditor({
                     size="xs"
                     c="dimmed"
                   >
-                    {action.when.toUpperCase()} order
+                    {phaseLabel} order
                   </Text>
                 </Group>
 
