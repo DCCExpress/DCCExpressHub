@@ -246,12 +246,14 @@ export type FastClockCommandAction =
   | "run"
   | "pause"
   | "reset"
-  | "setSpeed";
+  | "setSpeed"
+  | "setTime";
 
 export type FastClockCommandPayload = {
   requestId: string;
   action: FastClockCommandAction;
   speed?: number;
+  timeMs?: number;
 };
 
 export type FileCommandAction =
