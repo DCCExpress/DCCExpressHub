@@ -725,9 +725,14 @@ export default function AutomationFlowPalette({
                   headerClassName="automation-flow-palette-group-header"
                   bodyClassName="automation-flow-palette-group-body"
                   cardPadding={0}
-                  collapseCommand={
-                    collapseCommand
-                  }
+                  {...(
+                    collapseCommand !==
+                    undefined
+                      ? {
+                          collapseCommand,
+                        }
+                      : {}
+                  )}
                 >
                   <Stack gap={6}>
                     {items.map(
