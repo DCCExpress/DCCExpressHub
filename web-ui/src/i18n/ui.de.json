@@ -1056,5 +1056,7 @@
   "timetableAddRow": "Zeile hinzufügen",
   "timetableMissingMovement": "Fehlendes Movement",
   "timetableNextRowsDescription": "Es werden immer die nächsten {{value1}} Fahrplanzeilen angezeigt · laufende Zeilen bleiben darüber angeheftet",
-  "noUpcomingTimetableRows": "Keine kommenden Fahrplanzeilen."
+  "noUpcomingTimetableRows": "Keine kommenden Fahrplanzeilen.",
+  "timetableJumpBeforeFirst": "{{seconds}} s vor den ersten Start",
+  "fastClockSetTimeFailed": "Die FastClock-Zeit konnte nicht gesetzt werden."
 }
