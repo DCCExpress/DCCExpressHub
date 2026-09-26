@@ -38,6 +38,8 @@ type Props = {
   resourceKey: string;
   resourceKind:
     MovementPlanResourceKind;
+  isSource?: boolean;
+  isDestination?: boolean;
   actions:
     MovementAction[];
   onChange: (
@@ -48,7 +50,9 @@ type Props = {
 
 function whenOptions(
   kind:
-    MovementPlanResourceKind
+    MovementPlanResourceKind,
+  isSource = false,
+  isDestination = false
 ): Array<{
   value:
     MovementWhen;
@@ -58,26 +62,63 @@ function whenOptions(
     kind ===
     "block"
   ) {
-    return [
-      {
+    if (
+      isDestination
+    ) {
+      return [
+        {
+          value:
+            "arrived",
+          label:
+            "ARRIVED",
+        },
+      ];
+    }
+
+    const options:
+      Array<{
         value:
-          "depart",
-        label:
-          "DEPART",
-      },
-      {
-        value:
-          "leave",
-        label:
-          "LEAVE",
-      },
-      {
+          MovementWhen;
+        label: string;
+      }> = [
+        {
+          value:
+            "beforeDepart",
+          label:
+            "BEFORE DEPART",
+        },
+        {
+          value:
+            "depart",
+          label:
+            "DEPART",
+        },
+        {
+          value:
+            "leave",
+          label:
+            "LEAVE",
+        },
+        {
+          value:
+            "afterLeave",
+          label:
+            "AFTER LEAVE",
+        },
+      ];
+
+    if (
+      !isSource
+    ) {
+      options.unshift({
         value:
           "arrived",
         label:
           "ARRIVED",
-      },
-    ];
+      });
+    }
+
+    return options;
   }
 
   if (
@@ -118,7 +159,9 @@ function whenOptions(
 
 function defaultWhen(
   kind:
-    MovementPlanResourceKind
+    MovementPlanResourceKind,
+  isSource = false,
+  isDestination = false
 ): MovementWhen {
   if (
     kind ===
@@ -132,6 +175,18 @@ function defaultWhen(
     "segment"
   ) {
     return "enter";
+  }
+
+  if (
+    isDestination
+  ) {
+    return "arrived";
+  }
+
+  if (
+    isSource
+  ) {
+    return "beforeDepart";
   }
 
   return "arrived";
@@ -190,12 +245,16 @@ const WHAT_OPTIONS:
 export default function MovementActionEditor({
   resourceKey,
   resourceKind,
+  isSource = false,
+  isDestination = false,
   actions,
   onChange,
 }: Props) {
   const options =
     whenOptions(
-      resourceKind
+      resourceKind,
+      isSource,
+      isDestination
     );
 
   const update =
@@ -248,7 +307,9 @@ export default function MovementActionEditor({
                 createMovementAction(
                   resourceKey,
                   defaultWhen(
-                    resourceKind
+                    resourceKind,
+                    isSource,
+                    isDestination
                   ),
                   "speed"
                 ),
