@@ -7,13 +7,15 @@ import {
   Tabs,
   Text,
   TextInput,
-  Image
+  Image,
+  ScrollArea,
 } from "@mantine/core";
 
 import type { LocoOccupancyDetectionPosition, LocoTrainType } from "@domain/types";
 import LocoActionsTab from "./LocoActionsTab";
 import LocoFunctionsTab from "./LocoFunctionsTab";
 import LocoGeneralTab from "./LocoGeneralTab";
+import LocoCounterSettingsPanel from "./LocoCounterSettingsPanel";
 import LocoListPanel from "./LocoListPanel";
 import type { useLocoDialogState } from "./useLocoDialogState";
 
@@ -138,8 +140,16 @@ export default function LocoDialogContent({
               />
             </Tabs.Panel>
 
-            <Tabs.Panel value="extended" pt="md">
-              <Stack gap="md" maw={520}>
+            <Tabs.Panel
+              value="extended"
+              pt="md"
+              style={{
+                flex: 1,
+                minHeight: 0,
+              }}
+            >
+              <ScrollArea h="100%">
+                <Stack gap="md" maw={620}>
 
                 {/* <Card withBorder radius="md" p="xs">
                   <Image
@@ -179,7 +189,14 @@ export default function LocoDialogContent({
                   disabled
                   readOnly
                 />
-              </Stack>
+
+                <LocoCounterSettingsPanel
+                  loco={selectedLoco}
+                  onPatch={updateSelectedLoco}
+                  t={t}
+                />
+                </Stack>
+              </ScrollArea>
             </Tabs.Panel>
           </Tabs>
         )}
