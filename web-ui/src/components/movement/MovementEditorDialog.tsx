@@ -118,6 +118,14 @@ export default function MovementEditorDialog({
       false
     );
 
+  const [
+    selectedRouteVectorKey,
+    setSelectedRouteVectorKey,
+  ] =
+    useState<string | null>(
+      null
+    );
+
   const activePage =
     document.pages.find(
       page =>
@@ -125,6 +133,32 @@ export default function MovementEditorDialog({
         document.activePageId
     ) ??
     document.pages[0];
+
+  const activeRouteSignature =
+    activePage
+      ? [
+          activePage.id,
+          activePage.routeKey,
+          activePage.fromBlockId ??
+            0,
+          ...activePage.viaBlockIds,
+          activePage.toBlockId ??
+            0,
+        ].join(
+          ":"
+        )
+      : "";
+
+  useEffect(
+    () => {
+      setSelectedRouteVectorKey(
+        null
+      );
+    },
+    [
+      activeRouteSignature,
+    ]
+  );
 
 
   const activeRouteNames =
@@ -734,6 +768,15 @@ export default function MovementEditorDialog({
                     page={
                       activePage
                     }
+                    selectedKey={
+                      selectedRouteVectorKey
+                    }
+                    onItemClick={
+                      item =>
+                        setSelectedRouteVectorKey(
+                          item.key
+                        )
+                    }
                   />
 
                   <MovementRouteSelectDialog
@@ -767,6 +810,9 @@ export default function MovementEditorDialog({
                   <MovementRouteEditor
                     page={
                       activePage
+                    }
+                    selectedResourceKey={
+                      selectedRouteVectorKey
                     }
                     onChange={
                       updatePage
