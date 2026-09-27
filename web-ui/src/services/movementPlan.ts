@@ -84,6 +84,7 @@ export type MovementPlanResource = {
   blockId: number | null;
   sensorAddress: number | null;
   nodeIndex: number | null;
+  elementIds: number[];
   detectors: number[];
   turnoutStates:
     RawTurnoutState[];
@@ -754,6 +755,7 @@ export function buildMovementPlan(
           null,
         nodeIndex:
           entry.nodeIndex,
+        elementIds: [],
         detectors: [],
         turnoutStates: [],
       };
@@ -814,6 +816,33 @@ export function buildMovementPlan(
       blockId: null,
       sensorAddress: null,
       nodeIndex,
+      elementIds:
+        [
+          ...new Set(
+            (
+              node?.elementIds ??
+              []
+            )
+              .map(
+                elementId =>
+                  asPositiveInteger(
+                    elementId
+                  ) ??
+                  0
+              )
+              .filter(
+                elementId =>
+                  elementId >
+                    0
+              )
+          ),
+        ].sort(
+          (
+            a,
+            b
+          ) =>
+            a - b
+        ),
       detectors:
         [
           ...new Set([
@@ -968,6 +997,13 @@ export function buildMovementPlan(
               null
             : null,
         nodeIndex,
+        elementIds:
+          elementId !==
+            null
+            ? [
+                elementId,
+              ]
+            : [],
         detectors:
           elementId !==
             null &&
