@@ -7,6 +7,7 @@ export type MovementBlockWaitingReason =
 
 export type MovementBlockRuntimePhase =
   | "moving"
+  | "executing"
   | "waiting"
   | "error";
 
@@ -161,6 +162,8 @@ export function hasBlinkingMovementBlockRuntime(): boolean {
     states.values()
   ) {
     if (
+      state.phase ===
+        "executing" ||
       state.phase ===
         "waiting" ||
       state.phase ===
