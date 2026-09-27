@@ -2960,3 +2960,70 @@ test("Movement direction marker is hidden on idle empty blocks but shown on acti
     /#a3e635/
   );
 });
+
+
+test("Movement stops immediately when final leg ARRIVED conditions become true", () => {
+  const engine =
+    read(
+      "src/services/movementEngine.ts"
+    );
+
+  const waitStart =
+    engine.indexOf(
+      "async function waitForArrival"
+    );
+
+  const waitEnd =
+    engine.indexOf(
+      "async function waitForResourceEntry",
+      waitStart
+    );
+
+  const waitForArrival =
+    engine.slice(
+      waitStart,
+      waitEnd
+    );
+
+  assert.match(
+    waitForArrival,
+    /arrivalSatisfied\([\s\S]*leg[\s\S]*\)/
+  );
+
+  assert.match(
+    waitForArrival,
+    /const isFinalLeg =[\s\S]*execution\.plan\.legs\[[\s\S]*execution\.plan\.legs\.length -[\s\S]*1/
+  );
+
+  assert.match(
+    waitForArrival,
+    /if \([\s\S]*isFinalLeg[\s\S]*\)[\s\S]*execution\.moving =[\s\S]*false/
+  );
+
+  assert.match(
+    waitForArrival,
+    /execution\.desiredSpeed =[\s\S]*0/
+  );
+
+  assert.match(
+    waitForArrival,
+    /applyDesiredSpeed\([\s\S]*execution[\s\S]*\)/
+  );
+
+  const stopIndex =
+    waitForArrival.indexOf(
+      "applyDesiredSpeed("
+    );
+
+  const returnIndex =
+    waitForArrival.indexOf(
+      "return;",
+      stopIndex
+    );
+
+  assert.ok(
+    stopIndex >= 0 &&
+    returnIndex > stopIndex,
+    "final ARRIVED must stop the locomotive before returning to post-arrival cleanup"
+  );
+});
