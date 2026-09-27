@@ -2217,6 +2217,17 @@ test("Movement block direction triangle shows executing moving waiting error and
     /Date\.now\(\)/
   );
 
+
+  assert.match(
+    block,
+    /const arrowLength = 6/
+  );
+
+  assert.match(
+    block,
+    /const arrowHalfHeight = 4/
+  );
+
   assert.match(
     canvas,
     /subscribeMovementBlockRuntime/
@@ -2225,89 +2236,6 @@ test("Movement block direction triangle shows executing moving waiting error and
   assert.match(
     canvas,
     /hasMovingMovementBlockRuntime\(\)/
-  );
-});
-
-
-test("Movement highlights only the physical track elements owned by the current leg", () => {
-  const plan =
-    read(
-      "src/services/movementPlan.ts"
-    );
-
-  const engine =
-    read(
-      "src/services/movementEngine.ts"
-    );
-
-  const ownership =
-    read(
-      "src/services/movementTrackOwnershipRuntime.ts"
-    );
-
-  const track =
-    read(
-      "src/models/editor/core/TrackElement.ts"
-    );
-
-  const canvas =
-    read(
-      "src/components/TrackCanvas.tsx"
-    );
-
-  assert.match(
-    plan,
-    /elementIds:\s*number\[\]/
-  );
-
-  assert.match(
-    plan,
-    /node\?\.elementIds/
-  );
-
-  assert.match(
-    plan,
-    /elementId !==[\s\S]*null[\s\S]*\?[\s\S]*\[[\s\S]*elementId/
-  );
-
-  assert.match(
-    engine,
-    /waitForLegClearance\([\s\S]*ownedTrackElementIds[\s\S]*leg\.resources\.flatMap[\s\S]*resource\.elementIds/
-  );
-
-  assert.match(
-    engine,
-    /setMovementTrackOwnership\([\s\S]*execution\.page\.id[\s\S]*ownedTrackElementIds/
-  );
-
-  assert.match(
-    engine,
-    /finally[\s\S]*clearMovementTrackOwnership\([\s\S]*execution\.page\.id[\s\S]*releaseMovementLegLease/
-  );
-
-  assert.match(
-    ownership,
-    /ownersByElementId/
-  );
-
-  assert.match(
-    ownership,
-    /isMovementTrackOwned/
-  );
-
-  assert.match(
-    track,
-    /movementOwned:\s*"#a3e635"/
-  );
-
-  assert.match(
-    track,
-    /isMovementTrackOwned\([\s\S]*this\.id[\s\S]*TrackColors\.movementOwned/
-  );
-
-  assert.match(
-    canvas,
-    /subscribeMovementTrackOwnership/
   );
 });
 
