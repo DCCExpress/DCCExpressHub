@@ -139,3 +139,61 @@ test("fleet statistics include an aggregate footer", () => {
     /totals\.totalHours/
   );
 });
+
+
+test("fleet statistics include locomotive images summary cards and metric chart", () => {
+  const stats =
+    read(
+      "src/components/loco-dialog/LocoStatisticsTable.tsx"
+    );
+
+  assert.match(
+    stats,
+    /LocoImage/
+  );
+
+  assert.match(
+    stats,
+    /SimpleGrid/
+  );
+
+  assert.match(
+    stats,
+    /statistics_chart_title/
+  );
+
+  assert.match(
+    stats,
+    /SegmentedControl/
+  );
+
+  assert.match(
+    stats,
+    /dailyKm/
+  );
+
+  assert.match(
+    stats,
+    /totalKm/
+  );
+
+  assert.match(
+    stats,
+    /dailyHours/
+  );
+
+  assert.match(
+    stats,
+    /totalHours/
+  );
+
+  assert.match(
+    stats,
+    /Progress/
+  );
+
+  assert.match(
+    stats,
+    /statistics_image/
+  );
+});
