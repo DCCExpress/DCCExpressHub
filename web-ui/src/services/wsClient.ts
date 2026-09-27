@@ -279,6 +279,17 @@ class WsClient {
         return this.status;
     }
 
+    public getLatestLocoState(
+        address: number
+    ): ServerWsPayloadMap["locoState"]["loco"] | null {
+        const data =
+            this.latestLocoStates.get(
+                address
+            );
+
+        return data?.loco ?? null;
+    }
+
     public send(message: ClientWsMessage): boolean {
         const socket = this.socket;
 
