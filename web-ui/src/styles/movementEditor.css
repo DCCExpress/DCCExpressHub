@@ -112,6 +112,22 @@
   padding-top: 8px;
 }
 
+.movement-route-candidate-used td {
+  background: color-mix(
+    in srgb,
+    var(--mantine-color-red-6) 10%,
+    var(--mantine-color-body)
+  ) !important;
+}
+
+.movement-route-candidate-used:hover td {
+  background: color-mix(
+    in srgb,
+    var(--mantine-color-red-6) 15%,
+    var(--mantine-color-body)
+  ) !important;
+}
+
 .movement-route-chain {
   display: flex;
   align-items: flex-end;
