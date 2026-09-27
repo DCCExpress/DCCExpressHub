@@ -89,6 +89,27 @@ export default function LocoPanelSettingsDialog({
                 })
             }
           />
+
+          <Switch
+            label={t(
+              "locopanel.counter_daily_mode"
+            )}
+            description={t(
+              "locopanel.counter_daily_mode_description"
+            )}
+            checked={
+              settings.daily
+            }
+            onChange={
+              event =>
+                onChange({
+                  daily:
+                    event
+                      .currentTarget
+                      .checked,
+                })
+            }
+          />
         </Stack>
 
         <Stack gap="xs">
@@ -222,14 +243,6 @@ export default function LocoPanelSettingsDialog({
           />
         </Stack>
 
-        <Text
-          size="xs"
-          c="dimmed"
-        >
-          {t(
-            "locopanel.counter_daily_hint"
-          )}
-        </Text>
       </Stack>
     </Modal>
   );
