@@ -7,6 +7,7 @@
 #include "FastClockRuntime.h"
 #include "ICommandCenter.h"
 #include "LayoutRuntime.h"
+#include "LocoCounterRuntime.h"
 #include "RuntimeStateStore.h"
 
 class WsProtocol {
@@ -15,7 +16,8 @@ public:
       AsyncWebSocket& ws,
       ICommandCenter& commandCenter,
       LayoutRuntime& runtime,
-      RuntimeStateStore& stateStore);
+      RuntimeStateStore& stateStore,
+      LocoCounterRuntime& locoCounters);
 
   void begin();
   void loop();
@@ -130,6 +132,7 @@ private:
   ICommandCenter& _commandCenter;
   LayoutRuntime& _runtime;
   RuntimeStateStore& _stateStore;
+  LocoCounterRuntime& _locoCounters;
   FastClockRuntime _fastClock;
 
   bool _trackPower = false;
@@ -286,6 +289,11 @@ private:
 
   void broadcastDccExStatus();
   void broadcastPowerInfo();
+
+  void sendLocoCounterSnapshot(
+      AsyncWebSocketClient* client);
+
+  void broadcastLocoCounterSnapshot();
 
   void appendDccExStatus(
       JsonDocument& data);
