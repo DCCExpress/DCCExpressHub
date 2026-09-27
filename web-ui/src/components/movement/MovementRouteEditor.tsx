@@ -129,6 +129,7 @@ export default function MovementRouteEditor({
 
   const routeSignature =
     [
+      page.routeKey,
       page.fromBlockId ??
         0,
       ...page.viaBlockIds,
