@@ -19,7 +19,7 @@ import { useCommandCenter } from "../context/CommandCenterContext";
 import { useEditorSettings } from "../context/EditorSettingsContext";
 import { fastClockStore } from "../services/fastClockStore";
 import {
-  hasBlinkingMovementBlockRuntime,
+  hasMovingMovementBlockRuntime,
   subscribeMovementBlockRuntime,
 } from "../services/movementBlockRuntime";
 import { wsClient } from "../services/wsClient";
@@ -397,7 +397,7 @@ export default function TrackCanvas({
   useEffect(() => {
     const timer = window.setInterval(() => {
       const needsBlinkRedraw =
-        hasBlinkingMovementBlockRuntime() ||
+        hasMovingMovementBlockRuntime() ||
         layoutRef.current
           .getAllElements()
           .some(
