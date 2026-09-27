@@ -243,86 +243,98 @@ function graphNodeMap(
   return result;
 }
 
-function segmentSensors(
+function segmentSensor(
   node:
     RawGraphNode | undefined,
   trackAddresses:
     Map<number, number>
-): number[] {
+): number | null {
   if (!node) {
-    return [];
+    return null;
   }
 
-  const sensors =
-    new Set<number>();
-
-  for (
-    const detector of
-    Array.isArray(
-      node.detectors
-    )
-      ? node.detectors
-      : []
-  ) {
-    const address =
-      positiveInteger(
-        detector?.address
-      );
-
-    if (
-      address !==
-        null
-    ) {
-      sensors.add(
-        address
-      );
-    }
-  }
-
-  for (
-    const rawId of
-    Array.isArray(
-      node.elementIds
-    )
-      ? node.elementIds
-      : []
-  ) {
-    const id =
-      positiveInteger(
-        rawId
-      );
-
-    if (
-      id ===
-        null
-    ) {
-      continue;
-    }
-
-    const address =
-      trackAddresses.get(
-        id
-      );
-
-    if (
-      address !==
-        undefined
-    ) {
-      sensors.add(
-        address
-      );
-    }
-  }
-
-  return [
-    ...sensors,
-  ].sort(
+  const explicitDetector =
     (
-      left,
-      right
-    ) =>
-      left -
-      right
+      Array.isArray(
+        node.detectors
+      )
+        ? node.detectors
+        : []
+    )
+      .map(
+        detector =>
+          positiveInteger(
+            detector?.address
+          )
+      )
+      .filter(
+        (
+          address
+        ): address is number =>
+          address !==
+          null
+      )
+      .sort(
+        (
+          left,
+          right
+        ) =>
+          left -
+          right
+      )[0];
+
+  if (
+    explicitDetector !==
+      undefined
+  ) {
+    return explicitDetector;
+  }
+
+  const trackSensor =
+    (
+      Array.isArray(
+        node.elementIds
+      )
+        ? node.elementIds
+        : []
+    )
+      .map(
+        rawId =>
+          positiveInteger(
+            rawId
+          )
+      )
+      .filter(
+        (
+          id
+        ): id is number =>
+          id !==
+          null
+      )
+      .map(
+        id =>
+          trackAddresses.get(
+            id
+          ) ??
+          0
+      )
+      .filter(
+        address =>
+          address >
+          0
+      )
+      .sort(
+        (
+          left,
+          right
+        ) =>
+          left -
+          right
+      )[0];
+
+  return (
+    trackSensor ??
+    null
   );
 }
 
@@ -413,8 +425,8 @@ export function buildMovementIntermediateArrivalDefaults(
               ]
             : undefined;
 
-        const previousSensors =
-          segmentSensors(
+        const previousSensor =
+          segmentSensor(
             previousNodeName
               ? graphNodes.get(
                   previousNodeName
@@ -423,8 +435,8 @@ export function buildMovementIntermediateArrivalDefaults(
             trackAddresses
           );
 
-        const nextSensors =
-          segmentSensors(
+        const nextSensor =
+          segmentSensor(
             nextNodeName
               ? graphNodes.get(
                   nextNodeName
@@ -440,26 +452,19 @@ export function buildMovementIntermediateArrivalDefaults(
         const seen =
           new Set<number>();
 
-        for (
-          const sensor of
-          previousSensors
+        if (
+          previousSensor !==
+            null &&
+          previousSensor !==
+            blockSensor
         ) {
-          if (
-            sensor ===
-              blockSensor ||
-            seen.has(
-              sensor
-            )
-          ) {
-            continue;
-          }
-
           seen.add(
-            sensor
+            previousSensor
           );
 
           conditions.push({
-            sensor,
+            sensor:
+              previousSensor,
             state:
               false,
           });
@@ -481,26 +486,18 @@ export function buildMovementIntermediateArrivalDefaults(
           });
         }
 
-        for (
-          const sensor of
-          nextSensors
+        if (
+          nextSensor !==
+            null &&
+          nextSensor !==
+            blockSensor &&
+          !seen.has(
+            nextSensor
+          )
         ) {
-          if (
-            sensor ===
-              blockSensor ||
-            seen.has(
-              sensor
-            )
-          ) {
-            continue;
-          }
-
-          seen.add(
-            sensor
-          );
-
           conditions.push({
-            sensor,
+            sensor:
+              nextSensor,
             state:
               false,
           });
