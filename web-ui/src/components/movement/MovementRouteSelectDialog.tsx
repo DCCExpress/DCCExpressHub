@@ -576,9 +576,12 @@ export default function MovementRouteSelectDialog({
                           variant="light"
                           color={
                             candidate.locoDirection ===
-                              "unknown"
-                              ? "gray"
-                              : "blue"
+                              "forward"
+                              ? "blue"
+                              : candidate.locoDirection ===
+                                  "reverse"
+                                ? "orange"
+                                : "gray"
                           }
                         >
                           {candidate.locoDirection ===
