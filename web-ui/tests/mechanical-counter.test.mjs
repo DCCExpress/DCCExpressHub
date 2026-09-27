@@ -146,12 +146,17 @@ test("ESP32 backend owns locomotive counter integration and checkpoint saves", (
 
   assert.match(
     ws,
-    /wasMainOn[\s\S]*!_trackPower[\s\S]*_locoCounters\.save/
+    /wasMainOn[\s\S]*!_trackPower[\s\S]*_locoCounters\.requestSave/
   );
 
   assert.match(
     api,
-    /Layout saved[\s\S]*loco counters/
+    /_locoCounters\.requestSave/
+  );
+
+  assert.match(
+    runtime,
+    /_saveRequested[\s\S]*save\(\)/
   );
 
   assert.match(
