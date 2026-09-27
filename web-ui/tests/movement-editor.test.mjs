@@ -2044,7 +2044,7 @@ test("Movement stores run timing and cards show live elapsed duration", () => {
 });
 
 
-test("Movement block direction triangle shows moving waiting and error runtime phases", () => {
+test("Movement block direction triangle shows executing moving waiting error and target runtime states", () => {
   const engine =
     read(
       "src/services/movementEngine.ts"
@@ -2077,6 +2077,11 @@ test("Movement block direction triangle shows moving waiting and error runtime p
 
   assert.match(
     runtime,
+    /\| "executing"/
+  );
+
+  assert.match(
+    runtime,
     /\| "waiting"/
   );
 
@@ -2087,7 +2092,27 @@ test("Movement block direction triangle shows moving waiting and error runtime p
 
   assert.match(
     engine,
-    /syncMovementMotionRuntime/
+    /targetBlockId:\s*number \| null/
+  );
+
+  assert.match(
+    engine,
+    /execution\.targetBlockId =[\s\S]*leg\.to\.blockId/
+  );
+
+  assert.match(
+    engine,
+    /syncMovementMotionRuntime[\s\S]*execution\.currentBlockId[\s\S]*"moving"[\s\S]*execution\.targetBlockId[\s\S]*"moving"/
+  );
+
+  assert.match(
+    engine,
+    /setMovementExecuting/
+  );
+
+  assert.match(
+    engine,
+    /reportInfo[\s\S]*actions\.length[\s\S]*setMovementExecuting/
   );
 
   assert.match(
@@ -2137,7 +2162,12 @@ test("Movement block direction triangle shows moving waiting and error runtime p
 
   assert.match(
     block,
-    /movementRuntime\.phase ===[\s\S]*"moving"/
+    /movementRuntime\.phase !==[\s\S]*"moving"/
+  );
+
+  assert.match(
+    block,
+    /movementRuntime\.phase ===[\s\S]*"moving"[\s\S]*movementRuntime\.phase ===[\s\S]*"executing"/
   );
 
   assert.match(
