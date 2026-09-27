@@ -54,6 +54,7 @@ import {
 
 import MovementRouteEditor from "./MovementRouteEditor";
 import MovementRouteSelectDialog from "./MovementRouteSelectDialog";
+import MovementRouteVectorPreview from "./MovementRouteVectorPreview";
 import MovementSidebarCard from "./MovementSidebarCard";
 
 import "../../styles/movementEditor.css";
@@ -728,6 +729,12 @@ export default function MovementEditorDialog({
                       }
                     </Text>
                   </Group>
+
+                  <MovementRouteVectorPreview
+                    page={
+                      activePage
+                    }
+                  />
 
                   <MovementRouteSelectDialog
                     opened={
