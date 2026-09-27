@@ -696,17 +696,12 @@ test("Movement generated route selector filters routes already used by another M
 
   assert.match(
     catalog,
-    /page\.id ===[\s\S]*currentPageId/
-  );
-
-  assert.match(
-    catalog,
     /usedRouteKeys\.add/
   );
 
   assert.match(
     catalog,
-    /usedLegacySequences\.add/
+    /usedLegacySequences\.push/
   );
 
   assert.match(
@@ -716,7 +711,12 @@ test("Movement generated route selector filters routes already used by another M
 
   assert.match(
     catalog,
-    /!usedLegacySequences\.has/
+    /usedLegacySequences\.some/
+  );
+
+  assert.match(
+    catalog,
+    /containsCheckpointsInOrder/
   );
 
   assert.match(
@@ -2331,5 +2331,95 @@ test("Movement waiting indicator survives stopped-speed polling loops", () => {
   assert.match(
     engine,
     /setMovementWaiting/
+  );
+});
+
+
+test("Movement editor no longer uses FROM VIA TO combobox route builder", () => {
+  const dialog =
+    read(
+      "src/components/movement/MovementEditorDialog.tsx"
+    );
+
+  const chooser =
+    read(
+      "src/components/movement/MovementRouteSelectDialog.tsx"
+    );
+
+  assert.doesNotMatch(
+    dialog,
+    /MovementRouteSelector/
+  );
+
+  assert.doesNotMatch(
+    dialog,
+    /movementRouteNavigation/
+  );
+
+  assert.match(
+    dialog,
+    /movementSelectRoute/
+  );
+
+  assert.match(
+    dialog,
+    /activeRouteNames/
+  );
+
+  assert.match(
+    chooser,
+    /loadMovementRouteCandidates\([\s\S]*document/
+  );
+
+  assert.match(
+    chooser,
+    /candidate\.fromBlockName/
+  );
+
+  assert.match(
+    chooser,
+    /candidate\.toBlockName/
+  );
+
+  assert.match(
+    chooser,
+    /candidate\.blockPath/
+  );
+});
+
+test("selected Movement route stores full graph block path and exact route key", () => {
+  const catalog =
+    read(
+      "src/services/movementRouteCatalog.ts"
+    );
+
+  const plan =
+    read(
+      "src/services/movementPlan.ts"
+    );
+
+  assert.match(
+    catalog,
+    /routeKey:[\s\S]*candidate\.key/
+  );
+
+  assert.match(
+    catalog,
+    /viaBlockIds:[\s\S]*blockIds\.slice/
+  );
+
+  assert.match(
+    plan,
+    /const exact =/
+  );
+
+  assert.match(
+    plan,
+    /createMovementRouteKey\([\s\S]*route/
+  );
+
+  assert.match(
+    plan,
+    /return exact/
   );
 });
