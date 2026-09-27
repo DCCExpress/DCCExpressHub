@@ -347,15 +347,12 @@ void ApiServer::handleLayoutBody(
         "Layout saved, but signal automation reload failed");
   }
 
-  const bool locoCountersSaved =
-      _locoCounters.save();
+  _locoCounters.requestSave();
 
   Logger::info(
       "Layout saved: " +
       String(total) +
-      " bytes; loco counters=" +
-      String(locoCountersSaved ? "saved" : "save-failed") +
-      "; runtime " +
+      " bytes; loco counters=checkpoint-queued; runtime " +
       String(_runtime.accessoryCount()) +
       " accessories / " +
       String(_runtime.sensorCount()) +
@@ -423,8 +420,7 @@ void ApiServer::handleLocosBody(
     return;
   }
 
-  _locoCounters.reloadConfiguration(
-      true);
+  _locoCounters.requestReload();
 
   Logger::info("Locomotives saved and runtime configuration reloaded: " + String(total) + " bytes");
   response["ok"] = true;
