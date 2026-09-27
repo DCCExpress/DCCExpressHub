@@ -142,7 +142,10 @@ export class BlockElement extends TrackElement {
     ctx.lineWidth = 1;
     ctx.fillRect(blockX, blockY, blockW, blockH);
     ctx.strokeRect(blockX, blockY, blockW, blockH);
-    if (occupied) {
+    if (
+      occupied ||
+      inTransit
+    ) {
       this.drawForwardDirectionTriangle(
         ctx,
         blockX,
