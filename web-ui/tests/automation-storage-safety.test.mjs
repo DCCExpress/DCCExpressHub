@@ -129,3 +129,31 @@ test(".NET keeps a persistent previous automation snapshot", () => {
     /File\.Copy[\s\S]*File\.Move\(tempPath, finalPath, true\)/
   );
 });
+
+
+test("project export and import include timetable data", () => {
+  const page =
+    read(
+      "src/LiteLayoutPage.tsx"
+    );
+
+  assert.match(
+    page,
+    /loadAutomationTimetable/
+  );
+
+  assert.match(
+    page,
+    /createProjectExport\([\s\S]*timetable/
+  );
+
+  assert.match(
+    page,
+    /normalizeTimetableEntries\([\s\S]*automations\.timetable/
+  );
+
+  assert.match(
+    page,
+    /saveAutomationTimetable\(imported\.timetable\)/
+  );
+});
