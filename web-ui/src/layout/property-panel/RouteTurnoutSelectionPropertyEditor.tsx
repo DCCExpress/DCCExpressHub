@@ -2,13 +2,18 @@ import { useTranslation } from "react-i18next";
 import i18next from "i18next";
 import {
   ActionIcon,
+  Alert,
+  Badge,
   Box,
   Button,
   Group,
+  Modal,
+  ScrollArea,
   Stack,
+  Table,
   Text,
 } from "@mantine/core";
-import { IconPlayerPlay, IconTrash } from "@tabler/icons-react";
+import { IconListCheck, IconPlayerPlay, IconTrash } from "@tabler/icons-react";
 
 import type { LayoutElementId } from "@domain/layout/layoutDto";
 import type { BaseElement } from "../../models/editor/core/BaseElement";
@@ -24,8 +29,14 @@ import {
 } from "../../models/editor/elements/TrackTurnoutThreeWayElement";
 import ElementPreview from "../../models/editor/rendering/ElementPreviewRenderer";
 import { useCommandCenter } from "../../context/CommandCenterContext";
+import { useState } from "react";
 import { showWarningMessage } from "../../helpers";
 import { executeLegacyRouteButton } from "../../services/routeButtonExecutor";
+import {
+  applyGeneratedRouteButtonCandidate,
+  getAvailableGeneratedRouteButtonCandidates,
+  type GeneratedRouteButtonCandidate,
+} from "../../services/routeButtonRouteGenerator";
 import type {
   LayoutSetter,
   SelectedElementUpdateHandler,
@@ -129,6 +140,99 @@ export default function RouteTurnoutSelectionPropertyEditor({
   const items = getItems(selectedElement, prop);
   const hasTurnouts = items.length > 0;
 
+  const [
+    routeSelectOpened,
+    setRouteSelectOpened,
+  ] = useState(false);
+
+  const [
+    routeCandidates,
+    setRouteCandidates,
+  ] = useState<
+    GeneratedRouteButtonCandidate[]
+  >([]);
+
+  const [
+    routeSelectError,
+    setRouteSelectError,
+  ] = useState<string | null>(
+    null
+  );
+
+  const openRouteSelect = (): void => {
+    if (
+      !(selectedElement instanceof
+        RouteButtonElement)
+    ) {
+      return;
+    }
+
+    try {
+      setRouteSelectError(
+        null
+      );
+
+      setRouteCandidates(
+        getAvailableGeneratedRouteButtonCandidates(
+          layout,
+          selectedElement.id
+        )
+      );
+
+      setRouteSelectOpened(
+        true
+      );
+    } catch (error) {
+      setRouteCandidates(
+        []
+      );
+
+      setRouteSelectError(
+        error instanceof Error
+          ? error.message
+          : String(error)
+      );
+
+      setRouteSelectOpened(
+        true
+      );
+    }
+  };
+
+  const applyRouteCandidate = (
+    candidate:
+      GeneratedRouteButtonCandidate
+  ): void => {
+    if (
+      !(selectedElement instanceof
+        RouteButtonElement)
+    ) {
+      return;
+    }
+
+    applyGeneratedRouteButtonCandidate(
+      selectedElement,
+      candidate
+    );
+
+    setTurnoutSelectionMode(
+      false
+    );
+
+    onUpdateSelectedElement(
+      selectedElement
+    );
+
+    onLayoutChange(
+      previous =>
+        previous
+    );
+
+    setRouteSelectOpened(
+      false
+    );
+  };
+
   const setRouteTurnoutState = (
     turnoutId: LayoutElementId,
     firstClosed: boolean,
@@ -137,6 +241,13 @@ export default function RouteTurnoutSelectionPropertyEditor({
     const routeItems = getItems(selectedElement, prop);
     const item = routeItems.find(routeItem => routeItem.turnoutId === turnoutId);
     if (!item) return;
+
+    if (
+      selectedElement instanceof
+        RouteButtonElement
+    ) {
+      selectedElement.clearGeneratedRoute();
+    }
 
     item.closed = firstClosed;
 
@@ -215,7 +326,24 @@ export default function RouteTurnoutSelectionPropertyEditor({
 
   return (
     <Stack gap="xs">
-      <Group gap="xs" grow>
+      <Group gap="xs">
+        <Button
+          size="xs"
+          variant="light"
+          leftSection={
+            <IconListCheck
+              size={14}
+            />
+          }
+          onClick={
+            openRouteSelect
+          }
+        >
+          {i18next.t(
+            "ui.selectGeneratedRoute"
+          )}
+        </Button>
+
         <Button
           size="xs"
           variant={turnoutSelectionMode ? "filled" : "light"}
@@ -223,6 +351,7 @@ export default function RouteTurnoutSelectionPropertyEditor({
         >
           {turnoutSelectionMode ? i18next.t("ui.finishSelection") : i18next.t("ui.addTurnouts")}
         </Button>
+
         <Button
           size="xs"
           variant="light"
@@ -231,6 +360,208 @@ export default function RouteTurnoutSelectionPropertyEditor({
           onClick={() => void testRouteButton()}
         > {i18next.t("ui.testRoute")} </Button>
       </Group>
+
+      <Modal
+        opened={
+          routeSelectOpened
+        }
+        onClose={
+          () =>
+            setRouteSelectOpened(
+              false
+            )
+        }
+        title={
+          i18next.t(
+            "ui.selectGeneratedRouteTitle"
+          )
+        }
+        centered
+        size="min(980px, 94vw)"
+      >
+        <Stack gap="sm">
+          <Text
+            size="sm"
+            c="dimmed"
+          >
+            {i18next.t(
+              "ui.selectGeneratedRouteDescription"
+            )}
+          </Text>
+
+          {routeSelectError && (
+            <Alert
+              color="red"
+              title={
+                i18next.t(
+                  "ui.error"
+                )
+              }
+            >
+              {routeSelectError}
+            </Alert>
+          )}
+
+          {!routeSelectError &&
+            routeCandidates.length ===
+              0 && (
+              <Text
+                c="dimmed"
+                ta="center"
+                py="md"
+              >
+                {i18next.t(
+                  "ui.noUnusedGeneratedRoutes"
+                )}
+              </Text>
+            )}
+
+          {!routeSelectError &&
+            routeCandidates.length >
+              0 && (
+              <ScrollArea.Autosize
+                mah="60dvh"
+              >
+                <Table
+                  striped
+                  highlightOnHover
+                  withTableBorder
+                  withColumnBorders
+                  verticalSpacing="xs"
+                >
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>
+                        {i18next.t(
+                          "ui.path"
+                        )}
+                      </Table.Th>
+
+                      <Table.Th>
+                        {i18next.t(
+                          "ui.blockPath"
+                        )}
+                      </Table.Th>
+
+                      <Table.Th
+                        ta="center"
+                      >
+                        {i18next.t(
+                          "ui.direction"
+                        )}
+                      </Table.Th>
+
+                      <Table.Th
+                        ta="center"
+                      >
+                        {i18next.t(
+                          "ui.turnouts"
+                        )}
+                      </Table.Th>
+
+                      <Table.Th
+                        style={{
+                          width:
+                            96,
+                        }}
+                      />
+                    </Table.Tr>
+                  </Table.Thead>
+
+                  <Table.Tbody>
+                    {routeCandidates.map(
+                      candidate => (
+                        <Table.Tr
+                          key={
+                            candidate.key
+                          }
+                        >
+                          <Table.Td>
+                            <Text
+                              fw={700}
+                              size="sm"
+                            >
+                              {
+                                candidate.label
+                              }
+                            </Text>
+                          </Table.Td>
+
+                          <Table.Td>
+                            <Text
+                              size="xs"
+                              c="dimmed"
+                            >
+                              {
+                                candidate.blockPath.join(
+                                  " → "
+                                ) ||
+                                candidate.label
+                              }
+                            </Text>
+                          </Table.Td>
+
+                          <Table.Td
+                            ta="center"
+                          >
+                            <Badge
+                              variant="light"
+                              color={
+                                candidate.locoDirection ===
+                                  "unknown"
+                                  ? "gray"
+                                  : "blue"
+                              }
+                            >
+                              {candidate.locoDirection ===
+                              "forward"
+                                ? i18next.t(
+                                    "ui.forward"
+                                  )
+                                : candidate.locoDirection ===
+                                    "reverse"
+                                  ? i18next.t(
+                                      "ui.reverse"
+                                    )
+                                  : i18next.t(
+                                      "ui.unknown"
+                                    )}
+                            </Badge>
+                          </Table.Td>
+
+                          <Table.Td
+                            ta="center"
+                          >
+                            {
+                              candidate.routeTurnouts.length
+                            }
+                          </Table.Td>
+
+                          <Table.Td>
+                            <Button
+                              size="xs"
+                              fullWidth
+                              onClick={
+                                () =>
+                                  applyRouteCandidate(
+                                    candidate
+                                  )
+                              }
+                            >
+                              {i18next.t(
+                                "ui.select"
+                              )}
+                            </Button>
+                          </Table.Td>
+                        </Table.Tr>
+                      )
+                    )}
+                  </Table.Tbody>
+                </Table>
+              </ScrollArea.Autosize>
+            )}
+        </Stack>
+      </Modal>
 
       <Text size="xs" c="dimmed">
         {turnoutSelectionMode
