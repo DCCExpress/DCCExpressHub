@@ -327,6 +327,52 @@ type LoadedAutomationStorage = {
   movement: MovementDocument;
 };
 
+
+let automationWriteQueue:
+  Promise<void> =
+  Promise.resolve();
+
+function enqueueAutomationWrite(
+  work: () => Promise<void>
+): Promise<void> {
+  const queued =
+    automationWriteQueue
+      .catch(
+        () => {
+          // Keep the queue alive after an earlier failed save.
+        }
+      )
+      .then(
+        work
+      );
+
+  automationWriteQueue =
+    queued;
+
+  return queued;
+}
+
+function mutateAutomationStorage(
+  mutate: (
+    current:
+      LoadedAutomationStorage
+  ) =>
+    AutomationStoragePayload
+): Promise<void> {
+  return enqueueAutomationWrite(
+    async () => {
+      const current =
+        await loadAutomationStorage();
+
+      await saveAutomationStorage(
+        mutate(
+          current
+        )
+      );
+    }
+  );
+}
+
 async function loadAutomationStorage(): Promise<LoadedAutomationStorage> {
   const response =
     await fetch(
@@ -449,13 +495,16 @@ export async function loadAutomationPayload(): Promise<AutomationStoragePayload>
 export async function saveAutomationPayload(
   payload: AutomationStoragePayload
 ): Promise<void> {
-  await saveAutomationStorage(
-    createAutomationPayload(
-      payload.scripts,
-      payload.timetable,
-      payload.visualFlow,
-      payload.movement
-    )
+  await enqueueAutomationWrite(
+    () =>
+      saveAutomationStorage(
+        createAutomationPayload(
+          payload.scripts,
+          payload.timetable,
+          payload.visualFlow,
+          payload.movement
+        )
+      )
   );
 }
 
@@ -468,18 +517,14 @@ export async function loadAutomationScripts(): Promise<AutomationScriptDefinitio
 export async function saveAutomationScripts(
   scripts: AutomationScriptDefinition[]
 ): Promise<void> {
-  // Preserve timetable rows while the script editor updates the shared
-  // automations.json document.
-  const current =
-    await loadAutomationStorage();
-
-  await saveAutomationStorage(
-    createAutomationPayload(
-      scripts,
-      current.timetable,
-      current.visualFlow,
-      current.movement
-    )
+  await mutateAutomationStorage(
+    current =>
+      createAutomationPayload(
+        scripts,
+        current.timetable,
+        current.visualFlow,
+        current.movement
+      )
   );
 }
 
@@ -492,20 +537,14 @@ export async function loadAutomationTimetable(): Promise<TimetableEntryDefinitio
 export async function saveAutomationTimetable(
   timetable: TimetableEntryDefinition[]
 ): Promise<void> {
-  // Timetable and scripts intentionally share one persistent document. That
-  // keeps the selected script IDs and their schedules atomic from the user's
-  // point of view while remaining backward compatible with both native
-  // backends, which already preserve additional root properties.
-  const current =
-    await loadAutomationStorage();
-
-  await saveAutomationStorage(
-    createAutomationPayload(
-      current.scripts,
-      timetable,
-      current.visualFlow,
-      current.movement
-    )
+  await mutateAutomationStorage(
+    current =>
+      createAutomationPayload(
+        current.scripts,
+        timetable,
+        current.visualFlow,
+        current.movement
+      )
   );
 }
 
@@ -518,16 +557,14 @@ export async function loadAutomationFlow(): Promise<AutomationFlowDocument> {
 export async function saveAutomationFlow(
   visualFlow: AutomationFlowDocument
 ): Promise<void> {
-  const current =
-    await loadAutomationStorage();
-
-  await saveAutomationStorage(
-    createAutomationPayload(
-      current.scripts,
-      current.timetable,
-      visualFlow,
-      current.movement
-    )
+  await mutateAutomationStorage(
+    current =>
+      createAutomationPayload(
+        current.scripts,
+        current.timetable,
+        visualFlow,
+        current.movement
+      )
   );
 }
 
@@ -540,16 +577,14 @@ export async function loadAutomationMovement(): Promise<MovementDocument> {
 export async function saveAutomationMovement(
   movement: MovementDocument
 ): Promise<void> {
-  const current =
-    await loadAutomationStorage();
-
-  await saveAutomationStorage(
-    createAutomationPayload(
-      current.scripts,
-      current.timetable,
-      current.visualFlow,
-      movement
-    )
+  await mutateAutomationStorage(
+    current =>
+      createAutomationPayload(
+        current.scripts,
+        current.timetable,
+        current.visualFlow,
+        movement
+      )
   );
 }
 
@@ -559,55 +594,30 @@ export async function updateAutomationMovementTiming(
   startedAt: number | null,
   stoppedAt: number | null
 ): Promise<void> {
-  const current =
-    await loadAutomationStorage();
+  await mutateAutomationStorage(
+    current => {
+      const pages =
+        current.movement.pages.map(
+          page =>
+            page.id !==
+              pageId
+              ? page
+              : {
+                  ...page,
+                  startedAt,
+                  stoppedAt,
+                }
+        );
 
-  let changed =
-    false;
-
-  const pages =
-    current.movement.pages.map(
-      page => {
-        if (
-          page.id !==
-          pageId
-        ) {
-          return page;
+      return createAutomationPayload(
+        current.scripts,
+        current.timetable,
+        current.visualFlow,
+        {
+          ...current.movement,
+          pages,
         }
-
-        if (
-          page.startedAt ===
-            startedAt &&
-          page.stoppedAt ===
-            stoppedAt
-        ) {
-          return page;
-        }
-
-        changed =
-          true;
-
-        return {
-          ...page,
-          startedAt,
-          stoppedAt,
-        };
-      }
-    );
-
-  if (!changed) {
-    return;
-  }
-
-  await saveAutomationStorage(
-    createAutomationPayload(
-      current.scripts,
-      current.timetable,
-      current.visualFlow,
-      {
-        ...current.movement,
-        pages,
-      }
-    )
+      );
+    }
   );
 }
