@@ -270,6 +270,30 @@ void ConfiguredCommandCenter::onLocoFeedback(
                 physicalFeedback.address,
                 physicalFeedback.forward);
 
+        Logger::info(
+            "Loco direction RX #" +
+            String(
+                physicalFeedback.address) +
+            ": physical=" +
+            String(
+                physicalFeedback.forward
+                    ? "forward"
+                    : "reverse") +
+            " invert=" +
+            String(
+                locomotiveDirectionInverted(
+                    physicalFeedback.address)
+                    ? "true"
+                    : "false") +
+            " logical=" +
+            String(
+                logicalFeedback.forward
+                    ? "forward"
+                    : "reverse") +
+            " speed=" +
+            String(
+                physicalFeedback.speed));
+
         _locoFeedbackCallback(
             logicalFeedback);
       });
@@ -321,6 +345,30 @@ bool ConfiguredCommandCenter::setLoco(
       mapDirection(
           address,
           forward);
+
+  Logger::info(
+      "Loco direction TX #" +
+      String(
+          address) +
+      ": logical=" +
+      String(
+          forward
+              ? "forward"
+              : "reverse") +
+      " invert=" +
+      String(
+          locomotiveDirectionInverted(
+              address)
+              ? "true"
+              : "false") +
+      " physical=" +
+      String(
+          physicalForward
+              ? "forward"
+              : "reverse") +
+      " speed=" +
+      String(
+          speed));
 
   return
       _inner.setLoco(
