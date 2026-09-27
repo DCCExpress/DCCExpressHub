@@ -69,6 +69,7 @@ export type MovementPage = {
   speed: number;
   startedAt: number | null;
   stoppedAt: number | null;
+  routeKey: string;
   fromBlockId: number | null;
   viaBlockIds: number[];
   toBlockId: number | null;
@@ -148,6 +149,7 @@ export function createMovementPage(
     speed: 20,
     startedAt: null,
     stoppedAt: null,
+    routeKey: "",
     fromBlockId: null,
     viaBlockIds: [],
     toBlockId: null,
@@ -663,6 +665,11 @@ function normalizeMovementPage(
       timestampOrNull(
         candidate.stoppedAt
       ),
+    routeKey:
+      typeof candidate.routeKey ===
+        "string"
+        ? candidate.routeKey
+        : "",
     fromBlockId,
     viaBlockIds,
     toBlockId:
