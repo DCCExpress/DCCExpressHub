@@ -91,6 +91,10 @@ import {
 import {
   installBroadcastAudioRuntime,
 } from "@/services/broadcastAudioRuntime";
+import {
+  configureLocoCounterRuntime,
+  installLocoCounterRuntime,
+} from "@/services/locoCounterRuntime";
 
 const LiteLayoutPage = lazy(() => import("./LiteLayoutPage"));
 const AutomationFlowPage = lazy(() => import("./AutomationFlowPage"));
@@ -1395,6 +1399,24 @@ export default function App() {
       installBroadcastAudioRuntime();
     },
     []
+  );
+
+  useEffect(
+    () => {
+      return installLocoCounterRuntime();
+    },
+    []
+  );
+
+  useEffect(
+    () => {
+      configureLocoCounterRuntime(
+        locos
+      );
+    },
+    [
+      locos,
+    ]
   );
 
   useEffect(
