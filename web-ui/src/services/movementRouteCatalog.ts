@@ -549,14 +549,14 @@ export function applyMovementRouteCandidate(
         : "↔";
 
   const generatedName =
-    `${candidate.blockPath
+    candidate.blockPath
       .map(
         block =>
           block.name
       )
       .join(
-        " - "
-      )} ${directionArrow}`;
+        ` ${directionArrow} `
+      );
 
   return {
     ...page,
