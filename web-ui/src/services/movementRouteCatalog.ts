@@ -116,13 +116,58 @@ function pageSequence(
   ];
 }
 
-function sequenceKey(
-  sequence:
+
+function containsCheckpointsInOrder(
+  blockPath:
+    readonly number[],
+  checkpoints:
     readonly number[]
-): string {
-  return sequence.join(
-    ">"
-  );
+): boolean {
+  if (
+    checkpoints.length <
+      2 ||
+    blockPath.length <
+      checkpoints.length ||
+    blockPath[0] !==
+      checkpoints[0] ||
+    blockPath[
+      blockPath.length -
+        1
+    ] !==
+      checkpoints[
+        checkpoints.length -
+          1
+      ]
+  ) {
+    return false;
+  }
+
+  let checkpointIndex =
+    0;
+
+  for (
+    const blockId of
+    blockPath
+  ) {
+    if (
+      blockId ===
+      checkpoints[
+        checkpointIndex
+      ]
+    ) {
+      checkpointIndex +=
+        1;
+
+      if (
+        checkpointIndex ===
+        checkpoints.length
+      ) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 export function buildMovementRouteCandidates(
@@ -162,8 +207,8 @@ export function buildMovementRouteCandidates(
   const usedRouteKeys =
     new Set<string>();
 
-  const usedLegacySequences =
-    new Set<string>();
+  const usedLegacySequences:
+    number[][] = [];
 
   for (
     const page of
@@ -198,10 +243,8 @@ export function buildMovementRouteCandidates(
       sequence.length >=
         2
     ) {
-      usedLegacySequences.add(
-        sequenceKey(
-          sequence
-        )
+      usedLegacySequences.push(
+        sequence
       );
     }
   }
@@ -325,17 +368,22 @@ export function buildMovementRouteCandidates(
         identityRoute
       );
 
+    const candidateBlockIds =
+      blockPath.map(
+        block =>
+          block.id
+      );
+
     if (
       usedRouteKeys.has(
         key
       ) ||
-      usedLegacySequences.has(
-        sequenceKey(
-          blockPath.map(
-            block =>
-              block.id
+      usedLegacySequences.some(
+        checkpoints =>
+          containsCheckpointsInOrder(
+            candidateBlockIds,
+            checkpoints
           )
-        )
       )
     ) {
       continue;
