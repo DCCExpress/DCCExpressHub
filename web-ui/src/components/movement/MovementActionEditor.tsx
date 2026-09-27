@@ -523,7 +523,7 @@ export default function MovementActionEditor({
         createMovementAction(
           resourceKey,
           when,
-          "speed",
+          "log",
           sequenceId,
           "blocking"
         );
@@ -560,7 +560,7 @@ export default function MovementActionEditor({
                     createMovementAction(
                       resourceKey,
                       current.when,
-                      "speed",
+                      "log",
                       current.id,
                       current.mode
                     ),
