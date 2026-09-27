@@ -140,7 +140,7 @@ export default function MovementBlockConditionsEditor({
       badge:
         "ARRIVED",
       description:
-        "Default: destination occupancy ON and previous block occupancy OFF when both sensors exist.",
+        "Default for intermediate blocks: previous segment OFF, block occupancy ON, next segment OFF where sensors exist.",
     });
   }
 
