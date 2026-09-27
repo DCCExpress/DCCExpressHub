@@ -29,6 +29,17 @@ type RawGraphNode = {
   elementIds?: unknown;
 };
 
+type RouteVectorItem =
+  | {
+      kind: "segment";
+      sensor: number | null;
+    }
+  | {
+      kind: "block";
+      blockId: number;
+      sensor: number | null;
+    };
+
 function record(
   value: unknown
 ): Record<string, unknown> | null {
@@ -318,24 +329,123 @@ function segmentSensor(
           ) ??
           0
       )
-      .filter(
+      .find(
         address =>
           address >
           0
-      )
-      .sort(
-        (
-          left,
-          right
-        ) =>
-          left -
-          right
-      )[0];
+      );
 
   return (
     trackSensor ??
     null
   );
+}
+
+function buildRouteVector(
+  route:
+    MovementRouteDefaultEntry,
+  blockSensors:
+    Map<number, number>,
+  graphNodes:
+    Map<string, RawGraphNode>,
+  trackAddresses:
+    Map<number, number>
+): RouteVectorItem[] {
+  const result:
+    RouteVectorItem[] = [];
+
+  const source =
+    route.blockPath[0];
+
+  const sourceId =
+    positiveInteger(
+      source?.id
+    );
+
+  if (
+    sourceId !==
+      null
+  ) {
+    result.push({
+      kind: "block",
+      blockId:
+        sourceId,
+      sensor:
+        blockSensors.get(
+          sourceId
+        ) ??
+        null,
+    });
+  }
+
+  const nodeNames =
+    Array.isArray(
+      route.nodes
+    )
+      ? route.nodes
+      : [];
+
+  for (
+    let nodeIndex = 0;
+    nodeIndex <
+      nodeNames.length;
+    nodeIndex += 1
+  ) {
+    const nodeName =
+      nodeNames[
+        nodeIndex
+      ];
+
+    result.push({
+      kind:
+        "segment",
+      sensor:
+        nodeName
+          ? segmentSensor(
+              graphNodes.get(
+                nodeName
+              ),
+              trackAddresses
+            )
+          : null,
+    });
+
+    for (
+      const block of
+      route.blockPath
+    ) {
+      const blockId =
+        positiveInteger(
+          block.id
+        );
+
+      if (
+        blockId ===
+          null ||
+        blockId ===
+          sourceId ||
+        Number(
+          block.nodeIndex
+        ) !==
+          nodeIndex
+      ) {
+        continue;
+      }
+
+      result.push({
+        kind:
+          "block",
+        blockId,
+        sensor:
+          blockSensors.get(
+            blockId
+          ) ??
+          null,
+      });
+    }
+  }
+
+  return result;
 }
 
 export function buildMovementIntermediateArrivalDefaults(
@@ -346,7 +456,7 @@ export function buildMovementIntermediateArrivalDefaults(
 ): MovementIntermediateArrivalDefault[] {
   if (
     route.blockPath.length <
-      3
+      2
   ) {
     return [];
   }
@@ -366,154 +476,124 @@ export function buildMovementIntermediateArrivalDefaults(
       layout
     );
 
-  const nodeNames =
-    Array.isArray(
-      route.nodes
-    )
-      ? route.nodes
-      : [];
-
-  return route.blockPath
-    .slice(
-      1,
-      -1
-    )
-    .map(
-      block => {
-        const blockId =
-          positiveInteger(
-            block.id
-          );
-
-        if (
-          blockId ===
-            null
-        ) {
-          return null;
-        }
-
-        const nodeIndex =
-          Number(
-            block.nodeIndex
-          );
-
-        const blockSensor =
-          blockSensors.get(
-            blockId
-          );
-
-        const previousNodeName =
-          Number.isInteger(
-            nodeIndex
-          ) &&
-          nodeIndex >=
-            0
-            ? nodeNames[
-                nodeIndex
-              ]
-            : undefined;
-
-        const nextNodeName =
-          Number.isInteger(
-            nodeIndex
-          ) &&
-          nodeIndex >=
-            0
-            ? nodeNames[
-                nodeIndex +
-                  1
-              ]
-            : undefined;
-
-        const previousSensor =
-          segmentSensor(
-            previousNodeName
-              ? graphNodes.get(
-                  previousNodeName
-                )
-              : undefined,
-            trackAddresses
-          );
-
-        const nextSensor =
-          segmentSensor(
-            nextNodeName
-              ? graphNodes.get(
-                  nextNodeName
-                )
-              : undefined,
-            trackAddresses
-          );
-
-        const conditions:
-          MovementArrivalDefaultCondition[] =
-          [];
-
-        const seen =
-          new Set<number>();
-
-        if (
-          previousSensor !==
-            null &&
-          previousSensor !==
-            blockSensor
-        ) {
-          seen.add(
-            previousSensor
-          );
-
-          conditions.push({
-            sensor:
-              previousSensor,
-            state:
-              false,
-          });
-        }
-
-        if (
-          blockSensor !==
-            undefined
-        ) {
-          seen.add(
-            blockSensor
-          );
-
-          conditions.push({
-            sensor:
-              blockSensor,
-            state:
-              true,
-          });
-        }
-
-        if (
-          nextSensor !==
-            null &&
-          nextSensor !==
-            blockSensor &&
-          !seen.has(
-            nextSensor
-          )
-        ) {
-          conditions.push({
-            sensor:
-              nextSensor,
-            state:
-              false,
-          });
-        }
-
-        return {
-          blockId,
-          conditions,
-        };
-      }
-    )
-    .filter(
-      (
-        entry
-      ): entry is MovementIntermediateArrivalDefault =>
-        entry !==
-        null
+  const vector =
+    buildRouteVector(
+      route,
+      blockSensors,
+      graphNodes,
+      trackAddresses
     );
+
+  const sourceId =
+    positiveInteger(
+      route.blockPath[0]?.id
+    );
+
+  const result:
+    MovementIntermediateArrivalDefault[] =
+    [];
+
+  for (
+    let index = 0;
+    index <
+      vector.length;
+    index += 1
+  ) {
+    const current =
+      vector[
+        index
+      ];
+
+    if (
+      !current ||
+      current.kind !==
+        "block" ||
+      current.blockId ===
+        sourceId
+    ) {
+      continue;
+    }
+
+    const previous =
+      vector[
+        index -
+          1
+      ];
+
+    const next =
+      vector[
+        index +
+          1
+      ];
+
+    const conditions:
+      MovementArrivalDefaultCondition[] =
+      [];
+
+    const seen =
+      new Set<number>();
+
+    if (
+      previous?.sensor !==
+        null &&
+      previous?.sensor !==
+        undefined &&
+      previous.sensor !==
+        current.sensor
+    ) {
+      seen.add(
+        previous.sensor
+      );
+
+      conditions.push({
+        sensor:
+          previous.sensor,
+        state:
+          false,
+      });
+    }
+
+    if (
+      current.sensor !==
+        null
+    ) {
+      seen.add(
+        current.sensor
+      );
+
+      conditions.push({
+        sensor:
+          current.sensor,
+        state:
+          true,
+      });
+    }
+
+    if (
+      next?.sensor !==
+        null &&
+      next?.sensor !==
+        undefined &&
+      next.sensor !==
+        current.sensor &&
+      !seen.has(
+        next.sensor
+      )
+    ) {
+      conditions.push({
+        sensor:
+          next.sensor,
+        state:
+          false,
+      });
+    }
+
+    result.push({
+      blockId:
+        current.blockId,
+      conditions,
+    });
+  }
+
+  return result;
 }
