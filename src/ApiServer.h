@@ -15,6 +15,7 @@
 #include "ICommandCenter.h"
 #include "JsSandboxEndpoint.h"
 #include "LayoutRuntime.h"
+#include "LocoCounterRuntime.h"
 #include "RuntimeStateStore.h"
 #include "ScriptInfoEndpoint.h"
 #include "SignalAutomationEngine.h"
@@ -30,6 +31,7 @@ public:
       RuntimeStateStore& stateStore,
       HubConfigStore& config,
       WsProtocol& wsProtocol,
+      LocoCounterRuntime& locoCounters,
       SignalAutomationEngine& signalAutomation,
       std::function<bool()> onLocomotivesSaved = {})
       : _server(httpPort),
@@ -53,6 +55,7 @@ public:
         _stateStore(stateStore),
         _config(config),
         _wsProtocol(wsProtocol),
+        _locoCounters(locoCounters),
         _signalAutomation(signalAutomation),
         _onLocomotivesSaved(
             onLocomotivesSaved) {}
@@ -85,6 +88,7 @@ private:
   RuntimeStateStore& _stateStore;
   HubConfigStore& _config;
   WsProtocol& _wsProtocol;
+  LocoCounterRuntime& _locoCounters;
   SignalAutomationEngine& _signalAutomation;
 
   std::function<bool()>
