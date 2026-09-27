@@ -39,20 +39,24 @@ export type MovementRouteVectorItem =
         MovementRouteVectorRole;
     };
 
+export type MovementRouteVectorInput = {
+  blockPath: Array<{
+    id?: number;
+    name?: unknown;
+    nodeIndex?: number;
+  }>;
+  nodes?: unknown;
+};
+
 export type MovementRouteVectorRouteEntry =
   Omit<
     MovementRouteIdentityEntry,
     "blockPath" |
     "nodes"
-  > & {
+  > &
+  MovementRouteVectorInput & {
     fromBlockId: number;
     toBlockId: number;
-    blockPath: Array<{
-      id?: number;
-      name?: unknown;
-      nodeIndex?: number;
-    }>;
-    nodes?: unknown;
   };
 
 type RawGraphNode = {
@@ -554,7 +558,7 @@ export function buildMovementRouteVector(
   layout:
     SerializedLayoutDto,
   route:
-    MovementRouteVectorRouteEntry
+    MovementRouteVectorInput
 ): MovementRouteVectorItem[] {
   const blockSensors =
     blockSensorMap(
@@ -597,7 +601,7 @@ export function buildMovementRouteVector(
   const pushBlock =
     (
       block:
-        MovementRouteVectorRouteEntry["blockPath"][number],
+        MovementRouteVectorInput["blockPath"][number],
       nodeIndex: number
     ): void => {
       const blockId =
