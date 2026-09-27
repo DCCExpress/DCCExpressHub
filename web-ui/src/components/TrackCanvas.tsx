@@ -18,6 +18,10 @@ import { subscribeCanvasImageCache } from "../models/editor/rendering/ImageCache
 import { useCommandCenter } from "../context/CommandCenterContext";
 import { useEditorSettings } from "../context/EditorSettingsContext";
 import { fastClockStore } from "../services/fastClockStore";
+import {
+  hasMovementBlockWaiting,
+  subscribeMovementBlockRuntime,
+} from "../services/movementBlockRuntime";
 import { wsClient } from "../services/wsClient";
 import "../styles/TrackCanvas.css";
 
@@ -380,6 +384,12 @@ export default function TrackCanvas({
     });
   }, [invalidate]);
 
+  useEffect(() => {
+    return subscribeMovementBlockRuntime(() => {
+      invalidate();
+    });
+  }, [invalidate]);
+
   // Level-crossing lamps use Date.now() to calculate their blink phase.
   // The canvas itself is otherwise event-driven, so without a periodic redraw
   // the mobile runtime view only appears to blink when some unrelated runtime
@@ -387,6 +397,7 @@ export default function TrackCanvas({
   useEffect(() => {
     const timer = window.setInterval(() => {
       const needsBlinkRedraw =
+        hasMovementBlockWaiting() ||
         layoutRef.current
           .getAllElements()
           .some(
