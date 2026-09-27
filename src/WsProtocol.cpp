@@ -1439,6 +1439,9 @@ void WsProtocol::handleCommandCenterConnectionState(
 
     if (!connected)
     {
+        _locoCounters.setTrackPower(
+            false);
+
         _commandCenterConnectedSinceAt =
             0;
 
