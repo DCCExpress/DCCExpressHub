@@ -1,4 +1,4 @@
-import { ActionIcon, Badge, Card, Group, Stack, Text, Tooltip } from "@mantine/core";
+import { Badge, Card, Group, Stack, Text } from "@mantine/core";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type {
@@ -39,7 +39,6 @@ type LocoControlCardProps = {
   onEmergencyToggle: () => void;
   counterDisplaySettings:
     LocoPanelCounterDisplaySettings;
-  onToggleCounterDaily: () => void;
 };
 
 export default function LocoControlCard({
@@ -59,7 +58,6 @@ export default function LocoControlCard({
   onStop,
   onEmergencyToggle,
   counterDisplaySettings,
-  onToggleCounterDaily,
 }: LocoControlCardProps) {
   const { t } = useTranslation();
   const [
@@ -336,7 +334,7 @@ export default function LocoControlCard({
             }
             digits={3}
             decimals={0}
-            digitHeight={34}
+            digitHeight={30}
             unit="km/h"
             accentFraction={
               false
@@ -348,78 +346,13 @@ export default function LocoControlCard({
           counterDisplaySettings.showKm ||
           counterDisplaySettings.showWorktime
         ) && (
-          <div
+          <Group
+            gap={6}
+            justify="center"
+            wrap="wrap"
+            w="100%"
             className="loco-mechanical-counters"
-            style={{
-              width:
-                "100%",
-              display:
-                "grid",
-              gridTemplateColumns:
-                "1fr auto 1fr",
-              alignItems:
-                "center",
-            }}
           >
-            <div
-              style={{
-                justifySelf:
-                  "end",
-                paddingRight:
-                  6,
-              }}
-            >
-              <Tooltip
-              label={
-                counterDisplaySettings.daily
-                  ? t(
-                      "locopanel.counter_showing_daily"
-                    )
-                  : t(
-                      "locopanel.counter_showing_total"
-                    )
-              }
-            >
-              <ActionIcon
-                aria-label={t(
-                  "locopanel.counter_daily_toggle"
-                )}
-                size={24}
-                radius="sm"
-                variant={
-                  counterDisplaySettings.daily
-                    ? "filled"
-                    : "light"
-                }
-                color={
-                  counterDisplaySettings.daily
-                    ? "lime"
-                    : "gray"
-                }
-                onClick={
-                  onToggleCounterDaily
-                }
-              >
-                <Text
-                  fw={900}
-                  size="xs"
-                  lh={1}
-                >
-                  D
-                </Text>
-              </ActionIcon>
-              </Tooltip>
-            </div>
-
-            <Group
-              gap={6}
-              justify="center"
-              wrap="wrap"
-              style={{
-                gridColumn:
-                  2,
-              }}
-            >
             {counterDisplaySettings.showKm && (
               <MechanicalCounter
                 value={
@@ -434,7 +367,11 @@ export default function LocoControlCard({
                   counterDisplaySettings.distanceDecimals
                 }
                 digitHeight={
-                  counterDisplaySettings.digitHeight
+                  Math.max(
+                    18,
+                    counterDisplaySettings.digitHeight -
+                      4
+                  )
                 }
                 unit="km"
                 accentFraction={
@@ -457,7 +394,11 @@ export default function LocoControlCard({
                   counterDisplaySettings.operatingHoursDecimals
                 }
                 digitHeight={
-                  counterDisplaySettings.digitHeight
+                  Math.max(
+                    18,
+                    counterDisplaySettings.digitHeight -
+                      4
+                  )
                 }
                 unit="h"
                 accentFraction={
@@ -465,10 +406,7 @@ export default function LocoControlCard({
                 }
               />
             )}
-            </Group>
-
-            <div />
-          </div>
+          </Group>
         )}
 
         {!alive && (
