@@ -2120,6 +2120,17 @@ test("Waiting Movement flashes the current block direction triangle", () => {
     /#ffd43b/
   );
 
+
+  assert.match(
+    block,
+    /!movementRuntime[\s\S]*return/
+  );
+
+  assert.doesNotMatch(
+    block,
+    /gainsboro/
+  );
+
   assert.match(
     block,
     /Date\.now\(\)/
