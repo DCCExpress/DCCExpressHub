@@ -673,10 +673,15 @@ test("backend actual block assignment replaces target-only markers", () => {
 });
 
 
-test("Movement generated route selector filters routes already used by another Movement", () => {
+test("Movement generated route selector keeps used routes visible but marks them unavailable", () => {
   const catalog =
     read(
       "src/services/movementRouteCatalog.ts"
+    );
+
+  const dialog =
+    read(
+      "src/components/movement/MovementRouteSelectDialog.tsx"
     );
 
   const domain =
@@ -696,7 +701,7 @@ test("Movement generated route selector filters routes already used by another M
 
   assert.match(
     catalog,
-    /usedRouteKeys\.add/
+    /usedRouteKeys\.get/
   );
 
   assert.match(
@@ -706,17 +711,37 @@ test("Movement generated route selector filters routes already used by another M
 
   assert.match(
     catalog,
-    /!usedRouteKeys\.has/
+    /usedByMovementNames/
   );
 
   assert.match(
     catalog,
-    /usedLegacySequences\.some/
+    /used:[\s\S]*usedByMovementNames\.length/
   );
 
   assert.match(
     catalog,
     /containsCheckpointsInOrder/
+  );
+
+  assert.match(
+    dialog,
+    /candidate\.used/
+  );
+
+  assert.match(
+    dialog,
+    /disabled=\{[\s\S]*candidate\.used/
+  );
+
+  assert.match(
+    dialog,
+    /movement-route-candidate-used/
+  );
+
+  assert.match(
+    dialog,
+    /movementRouteAlreadyUsed/
   );
 
   assert.match(
@@ -2421,5 +2446,63 @@ test("selected Movement route stores full graph block path and exact route key",
   assert.match(
     plan,
     /return exact/
+  );
+});
+
+
+test("Movement route chooser has independent clearable FROM and TO filters", () => {
+  const dialog =
+    read(
+      "src/components/movement/MovementRouteSelectDialog.tsx"
+    );
+
+  const css =
+    read(
+      "src/styles/movementEditor.css"
+    );
+
+  assert.match(
+    dialog,
+    /fromFilter/
+  );
+
+  assert.match(
+    dialog,
+    /toFilter/
+  );
+
+  assert.match(
+    dialog,
+    /candidate\.fromBlockName[\s\S]*includes/
+  );
+
+  assert.match(
+    dialog,
+    /candidate\.toBlockName[\s\S]*includes/
+  );
+
+  assert.match(
+    dialog,
+    /setFromFilter\([\s\S]*""/
+  );
+
+  assert.match(
+    dialog,
+    /setToFilter\([\s\S]*""/
+  );
+
+  assert.match(
+    dialog,
+    /IconX/
+  );
+
+  assert.match(
+    dialog,
+    /movementNoRoutesMatchFilter/
+  );
+
+  assert.match(
+    css,
+    /movement-route-candidate-used[\s\S]*mantine-color-red-6/
   );
 });
