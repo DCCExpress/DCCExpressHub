@@ -2807,35 +2807,6 @@ async function waitForArrival(
         leg
       )
     ) {
-      const isFinalLeg =
-        execution.plan.legs[
-          execution.plan.legs.length -
-            1
-        ] ===
-        leg;
-
-      if (
-        isFinalLeg
-      ) {
-        execution.moving =
-          false;
-
-        execution.desiredSpeed =
-          0;
-
-        updateState(
-          execution,
-          {
-            desiredSpeed:
-              0,
-          }
-        );
-
-        applyDesiredSpeed(
-          execution
-        );
-      }
-
       return;
     }
 
@@ -3163,6 +3134,55 @@ async function traverseLeg(
       leg.to.key
     );
 
+    const isFinalLeg =
+      execution.plan.legs[
+        execution.plan.legs.length -
+          1
+      ] ===
+      leg;
+
+    let finalArrivedActionsRan =
+      false;
+
+    if (
+      isFinalLeg
+    ) {
+      /*
+       * ARRIVED is the configurable final positioning boundary.
+       *
+       * Blocking ARRIVED sequences intentionally run while the locomotive
+       * still has its current speed. This allows e.g. delay(500) to let the
+       * train roll a little farther into the platform. Background sequences
+       * are started by runActions() but do not delay the automatic stop.
+       */
+      await runActions(
+        execution,
+        leg.to.key,
+        "arrived"
+      );
+
+      finalArrivedActionsRan =
+        true;
+
+      execution.moving =
+        false;
+
+      execution.desiredSpeed =
+        0;
+
+      updateState(
+        execution,
+        {
+          desiredSpeed:
+            0,
+        }
+      );
+
+      applyDesiredSpeed(
+        execution
+      );
+    }
+
     await maybeRunBlockLeave(
       execution,
       leg,
@@ -3273,11 +3293,15 @@ async function traverseLeg(
       );
     }
 
-    await runActions(
-      execution,
-      leg.to.key,
-      "arrived"
-    );
+    if (
+      !finalArrivedActionsRan
+    ) {
+      await runActions(
+        execution,
+        leg.to.key,
+        "arrived"
+      );
+    }
 
     setInfo(
       execution,
