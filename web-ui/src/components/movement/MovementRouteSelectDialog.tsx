@@ -1,4 +1,5 @@
 import {
+  ActionIcon,
   Alert,
   Badge,
   Button,
@@ -9,14 +10,20 @@ import {
   Stack,
   Table,
   Text,
+  TextInput,
 } from "@mantine/core";
 
 import {
   useEffect,
+  useMemo,
   useState,
 } from "react";
 
 import i18next from "i18next";
+
+import {
+  IconX,
+} from "@tabler/icons-react";
 
 import type {
   MovementDocument,
@@ -71,6 +78,18 @@ export default function MovementRouteSelectDialog({
       null
     );
 
+  const [
+    fromFilter,
+    setFromFilter,
+  ] =
+    useState("");
+
+  const [
+    toFilter,
+    setToFilter,
+  ] =
+    useState("");
+
   useEffect(
     () => {
       if (!opened) {
@@ -86,6 +105,14 @@ export default function MovementRouteSelectDialog({
 
       setError(
         null
+      );
+
+      setFromFilter(
+        ""
+      );
+
+      setToFilter(
+        ""
       );
 
       void loadMovementRouteCandidates(
@@ -149,11 +176,57 @@ export default function MovementRouteSelectDialog({
     ]
   );
 
+  const filteredCandidates =
+    useMemo(
+      () => {
+        const fromNeedle =
+          fromFilter
+            .trim()
+            .toLocaleLowerCase();
+
+        const toNeedle =
+          toFilter
+            .trim()
+            .toLocaleLowerCase();
+
+        return candidates.filter(
+          candidate =>
+            (
+              !fromNeedle ||
+              candidate.fromBlockName
+                .toLocaleLowerCase()
+                .includes(
+                  fromNeedle
+                )
+            ) &&
+            (
+              !toNeedle ||
+              candidate.toBlockName
+                .toLocaleLowerCase()
+                .includes(
+                  toNeedle
+                )
+            )
+        );
+      },
+      [
+        candidates,
+        fromFilter,
+        toFilter,
+      ]
+    );
+
   const select =
     (
       candidate:
         MovementRouteCandidate
     ): void => {
+      if (
+        candidate.used
+      ) {
+        return;
+      }
+
       onSelect(
         applyMovementRouteCandidate(
           page,
@@ -189,6 +262,104 @@ export default function MovementRouteSelectDialog({
             "ui.movementSelectRouteDescription"
           )}
         </Text>
+
+        <Group
+          gap="sm"
+          grow
+          align="flex-end"
+        >
+          <TextInput
+            label={
+              i18next.t(
+                "ui.movementFromFilter"
+              )
+            }
+            placeholder={
+              i18next.t(
+                "ui.movementFilterPlaceholder"
+              )
+            }
+            value={
+              fromFilter
+            }
+            onChange={
+              event =>
+                setFromFilter(
+                  event.currentTarget.value
+                )
+            }
+            rightSection={
+              fromFilter ? (
+                <ActionIcon
+                  size="sm"
+                  variant="subtle"
+                  color="gray"
+                  aria-label={
+                    i18next.t(
+                      "ui.clearFilter"
+                    )
+                  }
+                  onClick={
+                    () =>
+                      setFromFilter(
+                        ""
+                      )
+                  }
+                >
+                  <IconX
+                    size={14}
+                  />
+                </ActionIcon>
+              ) : null
+            }
+          />
+
+          <TextInput
+            label={
+              i18next.t(
+                "ui.movementToFilter"
+              )
+            }
+            placeholder={
+              i18next.t(
+                "ui.movementFilterPlaceholder"
+              )
+            }
+            value={
+              toFilter
+            }
+            onChange={
+              event =>
+                setToFilter(
+                  event.currentTarget.value
+                )
+            }
+            rightSection={
+              toFilter ? (
+                <ActionIcon
+                  size="sm"
+                  variant="subtle"
+                  color="gray"
+                  aria-label={
+                    i18next.t(
+                      "ui.clearFilter"
+                    )
+                  }
+                  onClick={
+                    () =>
+                      setToFilter(
+                        ""
+                      )
+                  }
+                >
+                  <IconX
+                    size={14}
+                  />
+                </ActionIcon>
+              ) : null
+            }
+          />
+        </Group>
 
         {loading && (
           <Group
@@ -234,7 +405,7 @@ export default function MovementRouteSelectDialog({
             py="xl"
           >
             {i18next.t(
-              "ui.movementNoUnusedRoutes"
+              "ui.movementNoRoutes"
             )}
           </Text>
         )}
@@ -242,6 +413,23 @@ export default function MovementRouteSelectDialog({
         {!loading &&
           !error &&
           candidates.length >
+            0 &&
+          filteredCandidates.length ===
+            0 && (
+          <Text
+            c="dimmed"
+            ta="center"
+            py="xl"
+          >
+            {i18next.t(
+              "ui.movementNoRoutesMatchFilter"
+            )}
+          </Text>
+        )}
+
+        {!loading &&
+          !error &&
+          filteredCandidates.length >
             0 && (
           <ScrollArea.Autosize
             mah="65dvh"
@@ -293,11 +481,16 @@ export default function MovementRouteSelectDialog({
               </Table.Thead>
 
               <Table.Tbody>
-                {candidates.map(
+                {filteredCandidates.map(
                   candidate => (
                     <Table.Tr
                       key={
                         candidate.key
+                      }
+                      className={
+                        candidate.used
+                          ? "movement-route-candidate-used"
+                          : undefined
                       }
                     >
                       <Table.Td>
@@ -312,6 +505,19 @@ export default function MovementRouteSelectDialog({
                             candidate.toBlockName
                           }
                         </Text>
+
+                        {candidate.used && (
+                          <Badge
+                            mt={4}
+                            size="xs"
+                            color="red"
+                            variant="light"
+                          >
+                            {i18next.t(
+                              "ui.movementRouteAlreadyUsed"
+                            )}
+                          </Badge>
+                        )}
                       </Table.Td>
 
                       <Table.Td>
@@ -339,6 +545,24 @@ export default function MovementRouteSelectDialog({
                             {
                               candidate.nodePath.join(
                                 " → "
+                              )
+                            }
+                          </Text>
+                        )}
+
+                        {candidate.used &&
+                          candidate.usedByMovementNames.length >
+                            0 && (
+                          <Text
+                            size="xs"
+                            c="red"
+                          >
+                            {i18next.t(
+                              "ui.movementUsedBy"
+                            )}{" "}
+                            {
+                              candidate.usedByMovementNames.join(
+                                ", "
                               )
                             }
                           </Text>
@@ -385,6 +609,9 @@ export default function MovementRouteSelectDialog({
                         <Button
                           size="xs"
                           fullWidth
+                          disabled={
+                            candidate.used
+                          }
                           onClick={
                             () =>
                               select(
