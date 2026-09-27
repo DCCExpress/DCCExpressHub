@@ -1,4 +1,5 @@
-import { Badge, Card, Stack, Text, Title, useMantineColorScheme, useMantineTheme } from "@mantine/core";
+import { Badge, Card, Group, Stack, Text, Title, useMantineColorScheme, useMantineTheme } from "@mantine/core";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type {
   Direction,
@@ -7,6 +8,11 @@ import type {
 } from "@domain/types";
 import { resolveLocoCounterSettings } from "@domain/locoCounterSettings";
 import MechanicalCounter from "../../components/MechanicalCounter";
+import {
+  getLocoCounterSnapshot,
+  subscribeLocoCounterRuntime,
+  type LocoCounterSnapshot,
+} from "../../services/locoCounterRuntime";
 import LocoImage from "../../components/loco/LocoImage";
 import LocoDirectionControls from "./LocoDirectionControls";
 import LocoEmergencyButton from "./LocoEmergencyButton";
@@ -70,6 +76,63 @@ export default function LocoControlCard({
     resolveLocoCounterSettings(
       loco.counterSettings
     );
+
+  const [
+    counterSnapshot,
+    setCounterSnapshot,
+  ] =
+    useState<LocoCounterSnapshot | null>(
+      () =>
+        getLocoCounterSnapshot(
+          loco.address
+        )
+    );
+
+  useEffect(
+    () => {
+      const update =
+        () => {
+          setCounterSnapshot(
+            getLocoCounterSnapshot(
+              loco.address
+            )
+          );
+        };
+
+      update();
+
+      return subscribeLocoCounterRuntime(
+        update
+      );
+    },
+    [
+      loco.address,
+    ]
+  );
+
+  const liveCounter =
+    counterSnapshot?.address ===
+      loco.address
+      ? counterSnapshot
+      : null;
+
+  const totalKm =
+    liveCounter?.totalKm ??
+    loco.odometerKm ??
+    0;
+
+  const dailyKm =
+    liveCounter?.dailyKm ??
+    0;
+
+  const totalHours =
+    liveCounter?.totalHours ??
+    loco.operatingHours ??
+    0;
+
+  const dailyHours =
+    liveCounter?.dailyHours ??
+    0;
 
   return (
     <Card withBorder radius="sm" p="8">
@@ -145,52 +208,110 @@ export default function LocoControlCard({
 
         {counterSettings.enabled && (
           <Stack
-            gap={4}
+            gap={5}
             align="center"
             w="100%"
             className="loco-mechanical-counters"
           >
-            <MechanicalCounter
-              label="KM"
-              value={
-                loco.odometerKm ??
-                0
-              }
-              digits={
-                counterSettings.digits
-              }
-              decimals={
-                counterSettings.distanceDecimals
-              }
-              digitHeight={
-                counterSettings.digitHeight
-              }
-              unit="km"
-              accentFraction={
-                counterSettings.accentFraction
-              }
-            />
+            <Group
+              gap={6}
+              justify="center"
+              wrap="wrap"
+            >
+              <MechanicalCounter
+                label={t(
+                  "locodialog.counter_total_short"
+                )}
+                value={
+                  totalKm
+                }
+                digits={
+                  counterSettings.digits
+                }
+                decimals={
+                  counterSettings.distanceDecimals
+                }
+                digitHeight={
+                  counterSettings.digitHeight
+                }
+                unit="km"
+                accentFraction={
+                  counterSettings.accentFraction
+                }
+              />
 
-            <MechanicalCounter
-              label="H"
-              value={
-                loco.operatingHours ??
-                0
-              }
-              digits={
-                counterSettings.digits
-              }
-              decimals={
-                counterSettings.operatingHoursDecimals
-              }
-              digitHeight={
-                counterSettings.digitHeight
-              }
-              unit="h"
-              accentFraction={
-                counterSettings.accentFraction
-              }
-            />
+              <MechanicalCounter
+                label={t(
+                  "locodialog.counter_daily_short"
+                )}
+                value={
+                  dailyKm
+                }
+                digits={
+                  counterSettings.digits
+                }
+                decimals={
+                  counterSettings.distanceDecimals
+                }
+                digitHeight={
+                  counterSettings.digitHeight
+                }
+                unit="km"
+                accentFraction={
+                  counterSettings.accentFraction
+                }
+              />
+            </Group>
+
+            <Group
+              gap={6}
+              justify="center"
+              wrap="wrap"
+            >
+              <MechanicalCounter
+                label={t(
+                  "locodialog.counter_total_short"
+                )}
+                value={
+                  totalHours
+                }
+                digits={
+                  counterSettings.digits
+                }
+                decimals={
+                  counterSettings.operatingHoursDecimals
+                }
+                digitHeight={
+                  counterSettings.digitHeight
+                }
+                unit="h"
+                accentFraction={
+                  counterSettings.accentFraction
+                }
+              />
+
+              <MechanicalCounter
+                label={t(
+                  "locodialog.counter_daily_short"
+                )}
+                value={
+                  dailyHours
+                }
+                digits={
+                  counterSettings.digits
+                }
+                decimals={
+                  counterSettings.operatingHoursDecimals
+                }
+                digitHeight={
+                  counterSettings.digitHeight
+                }
+                unit="h"
+                accentFraction={
+                  counterSettings.accentFraction
+                }
+              />
+            </Group>
           </Stack>
         )}
 
