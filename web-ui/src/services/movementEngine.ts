@@ -148,6 +148,8 @@ type MovementExecution = {
   moving: boolean;
   currentBlockId:
     number | null;
+  targetBlockId:
+    number | null;
   cancelled: boolean;
   emergencyAbort: boolean;
   state:
@@ -649,17 +651,23 @@ function setMovementBlockPhase(
     number | null,
   phase:
     "moving" |
+    "executing" |
     "waiting" |
     "error",
   info: string,
   waitingReason:
     MovementBlockWaitingReason |
     null =
-      null
+      null,
+  replaceOwnerState = true
 ): void {
-  clearMovementBlockRuntimeByOwner(
-    execution.page.id
-  );
+  if (
+    replaceOwnerState
+  ) {
+    clearMovementBlockRuntimeByOwner(
+      execution.page.id
+    );
+  }
 
   if (
     blockId ===
@@ -713,6 +721,45 @@ function setMovementWaiting(
   );
 }
 
+function setMovementExecuting(
+  execution:
+    MovementExecution,
+  info: string
+): void {
+  if (
+    execution.cancelled ||
+    execution.physicalSpeed >
+      0
+  ) {
+    return;
+  }
+
+  setMovementBlockPhase(
+    execution,
+    execution.currentBlockId,
+    "executing",
+    info
+  );
+}
+
+function clearMovementExecuting(
+  execution:
+    MovementExecution
+): void {
+  if (
+    execution.currentBlockId ===
+      null
+  ) {
+    return;
+  }
+
+  clearMovementBlockRuntime(
+    execution.currentBlockId,
+    execution.page.id,
+    "executing"
+  );
+}
+
 function clearMovementWaiting(
   execution:
     MovementExecution,
@@ -737,27 +784,46 @@ function syncMovementMotionRuntime(
   execution:
     MovementExecution
 ): void {
-  if (
-    execution.moving &&
-    !execution.cancelled &&
-    execution.physicalSpeed >
-      0 &&
-    execution.currentBlockId !==
-      null
-  ) {
-    setMovementBlockPhase(
-      execution,
-      execution.currentBlockId,
-      "moving",
-      `Movement running: ${execution.page.name}`
-    );
-
-    return;
-  }
-
   clearMovementBlockRuntimeByOwner(
     execution.page.id
   );
+
+  if (
+    !execution.moving ||
+    execution.cancelled ||
+    execution.physicalSpeed <=
+      0
+  ) {
+    return;
+  }
+
+  const info =
+    `Movement running: ${execution.page.name}`;
+
+  setMovementBlockPhase(
+    execution,
+    execution.currentBlockId,
+    "moving",
+    info,
+    null,
+    false
+  );
+
+  if (
+    execution.targetBlockId !==
+      null &&
+    execution.targetBlockId !==
+      execution.currentBlockId
+  ) {
+    setMovementBlockPhase(
+      execution,
+      execution.targetBlockId,
+      "moving",
+      info,
+      null,
+      false
+    );
+  }
 }
 
 function setMovementError(
@@ -1058,29 +1124,50 @@ async function runActionSequence(
     MovementAction[],
   reportInfo = true
 ): Promise<void> {
-  for (const action of actions) {
-    if (
-      execution.cancelled
-    ) {
-      throw new Error(
-        "Movement cancelled."
+  if (
+    reportInfo &&
+    actions.length >
+      0
+  ) {
+    setMovementExecuting(
+      execution,
+      `${when.toUpperCase()}: sequence`
+    );
+  }
+
+  try {
+    for (const action of actions) {
+      if (
+        execution.cancelled
+      ) {
+        throw new Error(
+          "Movement cancelled."
+        );
+      }
+
+      if (
+        reportInfo
+      ) {
+        setInfo(
+          execution,
+          `${when.toUpperCase()}: ${action.kind}`,
+          resourceKey
+        );
+      }
+
+      await executeAction(
+        execution,
+        action
       );
     }
-
+  } finally {
     if (
       reportInfo
     ) {
-      setInfo(
-        execution,
-        `${when.toUpperCase()}: ${action.kind}`,
-        resourceKey
+      clearMovementExecuting(
+        execution
       );
     }
-
-    await executeAction(
-      execution,
-      action
-    );
   }
 }
 
@@ -1911,6 +1998,9 @@ function reserveBlockTarget(
     marker
   );
 
+  execution.targetBlockId =
+    leg.to.blockId;
+
   setInfo(
     execution,
     `Target ${leg.to.name}: loco ${execution.locoAddress}`,
@@ -1946,6 +2036,14 @@ function reserveBlockTarget(
         blockId,
         marker
       );
+
+      if (
+        execution.targetBlockId ===
+          leg.to.blockId
+      ) {
+        execution.targetBlockId =
+          null;
+      }
     },
   };
 }
@@ -3138,6 +3236,9 @@ async function traverseLeg(
       execution.currentBlockId =
         leg.to.blockId;
 
+      execution.targetBlockId =
+        null;
+
       syncMovementMotionRuntime(
         execution
       );
@@ -3443,6 +3544,8 @@ export async function startMovement(
       false,
     currentBlockId:
       source.blockId,
+    targetBlockId:
+      null,
     cancelled:
       false,
     emergencyAbort:
