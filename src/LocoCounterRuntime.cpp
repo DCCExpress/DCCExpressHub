@@ -133,6 +133,11 @@ bool LocoCounterRuntime::reloadConfiguration(
         static_cast<uint16_t>(
             rawAddress);
 
+    const bool existed =
+        find(
+            address) !=
+        nullptr;
+
     Entry* entry =
         findOrAllocate(
             address);
@@ -151,7 +156,7 @@ bool LocoCounterRuntime::reloadConfiguration(
 
     const bool hadRuntime =
         preserveRuntimeTotals &&
-        entry->lastUpdateAt != 0;
+        existed;
 
     if (!hadRuntime) {
       entry->totalKm =
@@ -230,9 +235,9 @@ void LocoCounterRuntime::integrate(
               static_cast<double>(
                   entry.speed) /
                   static_cast<double>(
-                      max<uint16_t>(
-                          1,
-                          entry.maxSpeedStep))));
+                      entry.maxSpeedStep > 0
+                          ? entry.maxSpeedStep
+                          : 1))));
 
   const double distanceKm =
       entry.maxScaleSpeedKmh *
