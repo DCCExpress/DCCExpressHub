@@ -28,14 +28,20 @@ import {
 } from "../../services/movementPlan";
 
 import MovementRouteRow from "./MovementRouteRow";
+import MovementSelectedResourceEditor from "./MovementSelectedResourceEditor";
 
 import {
   useMovementRuntimeState,
 } from "./MovementRuntimeControls";
 
+const SHOW_LEGACY_ROUTE_CARDS =
+  false;
+
 type Props = {
   page:
     MovementPage;
+  selectedResourceKey:
+    string | null;
   onChange: (
     page:
       MovementPage
@@ -44,6 +50,7 @@ type Props = {
 
 export default function MovementRouteEditor({
   page,
+  selectedResourceKey,
   onChange,
 }: Props) {
   const runtimeState =
@@ -280,6 +287,17 @@ export default function MovementRouteEditor({
       });
     };
 
+  const selectedResource =
+    plan &&
+    selectedResourceKey
+      ? plan.resources.find(
+          resource =>
+            resource.key ===
+            selectedResourceKey
+        ) ??
+        null
+      : null;
+
   return (
     <Stack
       gap="sm"
@@ -344,83 +362,163 @@ export default function MovementRouteEditor({
           )
           : plan && (
             <>
-              <div
-                className="movement-route-timeline"
-              >
-                {
-                  plan.resources.map(
-                    (
-                      resource,
-                      index
-                    ) => {
-                      const blockId =
-                        resource.blockId;
+              {
+                selectedResourceKey ===
+                  null && (
+                  <Alert
+                    color="blue"
+                    variant="light"
+                    className="movement-vector-selection-hint"
+                  >
+                    Click a block or segment in the route vector above to edit its conditions, events and actions.
+                  </Alert>
+                )
+              }
 
-                      return (
-                        <MovementRouteRow
-                          key={
-                            `${resource.key}:${index}`
-                          }
-                          pageId={
-                            page.id
-                          }
-                          resource={
-                            resource
-                          }
-                          index={
-                            index
-                          }
-                          isSource={
-                            resource.key ===
-                            `block:${page.fromBlockId}`
-                          }
-                          isDestination={
-                            resource.key ===
-                            `block:${page.toBlockId}`
-                          }
-                          isCurrent={
-                            runtimeState.status !==
-                              "idle" &&
-                            runtimeState.activeRouteResourceKey ===
-                              resource.key
-                          }
-                          rule={
-                            blockId ===
-                            null
-                              ? null
-                              : page.blockRules.find(
-                                  rule =>
-                                    rule.blockId ===
-                                    blockId
-                                ) ??
-                                null
-                          }
-                          sensorCatalog={
-                            sensorCatalog
-                          }
-                          actions={
-                            page.actions.filter(
-                              action =>
-                                action.resourceKey ===
-                                resource.key
-                            )
-                          }
-                          onRuleChange={
-                            updateRule
-                          }
-                          onActionsChange={
-                            actions =>
-                              updateActionsForResource(
-                                resource.key,
-                                actions
-                              )
-                          }
-                        />
-                      );
+              {
+                selectedResourceKey !==
+                  null &&
+                selectedResource ===
+                  null && (
+                  <Alert
+                    color="orange"
+                    variant="light"
+                  >
+                    The selected route-vector item is not available in the current movement plan. Select it again from the vector.
+                  </Alert>
+                )
+              }
+
+              {
+                selectedResource && (
+                  <MovementSelectedResourceEditor
+                    resource={
+                      selectedResource
                     }
-                  )
-                }
-              </div>
+                    isSource={
+                      selectedResource.key ===
+                      `block:${page.fromBlockId}`
+                    }
+                    isDestination={
+                      selectedResource.key ===
+                      `block:${page.toBlockId}`
+                    }
+                    rule={
+                      selectedResource.blockId ===
+                        null
+                        ? null
+                        : page.blockRules.find(
+                            rule =>
+                              rule.blockId ===
+                              selectedResource.blockId
+                          ) ??
+                          null
+                    }
+                    sensorCatalog={
+                      sensorCatalog
+                    }
+                    actions={
+                      page.actions.filter(
+                        action =>
+                          action.resourceKey ===
+                          selectedResource.key
+                      )
+                    }
+                    onRuleChange={
+                      updateRule
+                    }
+                    onActionsChange={
+                      actions =>
+                        updateActionsForResource(
+                          selectedResource.key,
+                          actions
+                        )
+                    }
+                  />
+                )
+              }
+
+              {
+                SHOW_LEGACY_ROUTE_CARDS && (
+                  <div
+                    className="movement-route-timeline movement-route-timeline-legacy"
+                  >
+                    {
+                      plan.resources.map(
+                        (
+                          resource,
+                          index
+                        ) => {
+                          const blockId =
+                            resource.blockId;
+
+                          return (
+                            <MovementRouteRow
+                              key={
+                                `${resource.key}:${index}`
+                              }
+                              pageId={
+                                page.id
+                              }
+                              resource={
+                                resource
+                              }
+                              index={
+                                index
+                              }
+                              isSource={
+                                resource.key ===
+                                `block:${page.fromBlockId}`
+                              }
+                              isDestination={
+                                resource.key ===
+                                `block:${page.toBlockId}`
+                              }
+                              isCurrent={
+                                runtimeState.status !==
+                                  "idle" &&
+                                runtimeState.activeRouteResourceKey ===
+                                  resource.key
+                              }
+                              rule={
+                                blockId ===
+                                null
+                                  ? null
+                                  : page.blockRules.find(
+                                      rule =>
+                                        rule.blockId ===
+                                        blockId
+                                    ) ??
+                                    null
+                              }
+                              sensorCatalog={
+                                sensorCatalog
+                              }
+                              actions={
+                                page.actions.filter(
+                                  action =>
+                                    action.resourceKey ===
+                                    resource.key
+                                )
+                              }
+                              onRuleChange={
+                                updateRule
+                              }
+                              onActionsChange={
+                                actions =>
+                                  updateActionsForResource(
+                                    resource.key,
+                                    actions
+                                  )
+                              }
+                            />
+                          );
+                        }
+                      )
+                    }
+                  </div>
+                )
+              }
             </>
           )
       }
