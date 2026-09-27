@@ -97,6 +97,7 @@ export type SerializedLayoutElementDto = {
   roadColor?: string;
 
   routeTurnouts?: SerializedRouteTurnoutItemDto[];
+  generatedRouteKey?: string;
 
   fromBlockId?: LayoutElementId | string;
   toBlockId?: LayoutElementId | string;
@@ -309,6 +310,7 @@ export interface RouteButtonElementDto extends BaseElementDto {
   colorOn: string;
   label: string;
   routeTurnouts: RouteTurnoutItemDto[];
+  generatedRouteKey?: string;
 }
 
 export interface ExtendedRouteButtonElementDto extends BaseElementDto {
