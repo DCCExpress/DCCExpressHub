@@ -96,6 +96,9 @@ const enTranslation = {
     counter_digit_height: "Digit height (px)",
     counter_distance_decimals: "Kilometre decimals",
     counter_hours_decimals: "Operating-hour decimals",
+    counter_max_scale_speed: "Calibrated maximum speed (km/h)",
+    counter_total_short: "TOTAL",
+    counter_daily_short: "DAY",
     counter_accent_fraction: "Red fractional drums",
     trainTypes: {
       passenger: "Passenger",
@@ -182,6 +185,9 @@ const huTranslation = {
     counter_digit_height: "Számjegy magasság (px)",
     counter_distance_decimals: "Kilométer tizedesek",
     counter_hours_decimals: "Üzemóra tizedesek",
+    counter_max_scale_speed: "Kalibrált max. sebesség (km/h)",
+    counter_total_short: "ÖSSZ",
+    counter_daily_short: "NAPI",
     counter_accent_fraction: "Piros tört-számdobok",
     trainTypes: {
       passenger: "Személy",
@@ -268,6 +274,9 @@ const deTranslation = {
     counter_digit_height: "Ziffernhöhe (px)",
     counter_distance_decimals: "Kilometer-Nachkommastellen",
     counter_hours_decimals: "Betriebsstunden-Nachkommastellen",
+    counter_max_scale_speed: "Kalibrierte Höchstgeschwindigkeit (km/h)",
+    counter_total_short: "GESAMT",
+    counter_daily_short: "TAG",
     counter_accent_fraction: "Rote Nachkommastellen",
     trainTypes: {
       passenger: "Personenzug",
