@@ -46,9 +46,9 @@ import {
 } from "./wsClient";
 
 import {
-  clearMovementBlockWaiting,
-  clearMovementBlockWaitingByOwner,
-  setMovementBlockWaiting,
+  clearMovementBlockRuntime,
+  clearMovementBlockRuntimeByOwner,
+  setMovementBlockRuntime,
   type MovementBlockWaitingReason,
 } from "./movementBlockRuntime";
 
@@ -146,6 +146,8 @@ type MovementExecution = {
   desiredSpeed: number;
   physicalSpeed: number;
   moving: boolean;
+  currentBlockId:
+    number | null;
   cancelled: boolean;
   emergencyAbort: boolean;
   state:
@@ -640,6 +642,50 @@ function setInfo(
   );
 }
 
+function setMovementBlockPhase(
+  execution:
+    MovementExecution,
+  blockId:
+    number | null,
+  phase:
+    "moving" |
+    "waiting" |
+    "error",
+  info: string,
+  waitingReason:
+    MovementBlockWaitingReason |
+    null =
+      null
+): void {
+  clearMovementBlockRuntimeByOwner(
+    execution.page.id
+  );
+
+  if (
+    blockId ===
+      null
+  ) {
+    return;
+  }
+
+  setMovementBlockRuntime(
+    blockId,
+    {
+      ownerId:
+        execution.page.id,
+      movementName:
+        execution.page.name,
+      locoAddress:
+        execution.locoAddress,
+      direction:
+        execution.direction,
+      phase,
+      waitingReason,
+      info,
+    }
+  );
+}
+
 function setMovementWaiting(
   execution:
     MovementExecution,
@@ -649,30 +695,16 @@ function setMovementWaiting(
     MovementBlockWaitingReason,
   info: string
 ): void {
-  clearMovementBlockWaitingByOwner(
-    execution.page.id
-  );
+  execution.currentBlockId =
+    leg.from.blockId;
 
-  if (
-    leg.from.blockId !==
-      null
-  ) {
-    setMovementBlockWaiting(
-      leg.from.blockId,
-      {
-        ownerId:
-          execution.page.id,
-        movementName:
-          execution.page.name,
-        locoAddress:
-          execution.locoAddress,
-        direction:
-          execution.direction,
-        waitingReason,
-        info,
-      }
-    );
-  }
+  setMovementBlockPhase(
+    execution,
+    leg.from.blockId,
+    "waiting",
+    info,
+    waitingReason
+  );
 
   setInfo(
     execution,
@@ -694,9 +726,50 @@ function clearMovementWaiting(
     return;
   }
 
-  clearMovementBlockWaiting(
+  clearMovementBlockRuntime(
     leg.from.blockId,
+    execution.page.id,
+    "waiting"
+  );
+}
+
+function syncMovementMotionRuntime(
+  execution:
+    MovementExecution
+): void {
+  if (
+    execution.moving &&
+    !execution.cancelled &&
+    execution.physicalSpeed >
+      0 &&
+    execution.currentBlockId !==
+      null
+  ) {
+    setMovementBlockPhase(
+      execution,
+      execution.currentBlockId,
+      "moving",
+      `Movement running: ${execution.page.name}`
+    );
+
+    return;
+  }
+
+  clearMovementBlockRuntimeByOwner(
     execution.page.id
+  );
+}
+
+function setMovementError(
+  execution:
+    MovementExecution,
+  message: string
+): void {
+  setMovementBlockPhase(
+    execution,
+    execution.currentBlockId,
+    "error",
+    message
   );
 }
 
@@ -771,6 +844,10 @@ function applyDesiredSpeed(
     !execution.cancelled
       ? execution.desiredSpeed
       : 0
+  );
+
+  syncMovementMotionRuntime(
+    execution
   );
 }
 
@@ -2296,6 +2373,13 @@ async function waitForDepartureConditions(
         waitingShown =
           true;
 
+        execution.moving =
+          false;
+
+        applyDesiredSpeed(
+          execution
+        );
+
         setMovementWaiting(
           execution,
           leg,
@@ -2700,6 +2784,17 @@ async function traverseLeg(
   leg:
     MovementPlanLeg
 ): Promise<void> {
+  execution.currentBlockId =
+    leg.from.blockId;
+
+  if (
+    execution.moving
+  ) {
+    syncMovementMotionRuntime(
+      execution
+    );
+  }
+
   setActiveRouteResource(
     execution,
     leg.from.key
@@ -3039,6 +3134,13 @@ async function traverseLeg(
         leases.target =
           null;
       }
+
+      execution.currentBlockId =
+        leg.to.blockId;
+
+      syncMovementMotionRuntime(
+        execution
+      );
     }
 
     await runActions(
@@ -3339,6 +3441,8 @@ export async function startMovement(
       0,
     moving:
       false,
+    currentBlockId:
+      source.blockId,
     cancelled:
       false,
     emergencyAbort:
@@ -3349,6 +3453,10 @@ export async function startMovement(
         Promise<void>
       >(),
   };
+
+  clearMovementBlockRuntimeByOwner(
+    page.id
+  );
 
   executions.set(
     page.id,
@@ -3459,6 +3567,11 @@ export async function startMovement(
     const stoppedAt =
       Date.now();
 
+    setMovementError(
+      execution,
+      message
+    );
+
     updateState(
       execution,
       {
@@ -3484,9 +3597,14 @@ export async function startMovement(
 
     throw error;
   } finally {
-    clearMovementBlockWaitingByOwner(
-      page.id
-    );
+    if (
+      execution.state.status !==
+        "error"
+    ) {
+      clearMovementBlockRuntimeByOwner(
+        page.id
+      );
+    }
 
     executions.delete(
       page.id
@@ -3514,6 +3632,10 @@ export function stopMovement(
 
   execution.desiredSpeed =
     0;
+
+  clearMovementBlockRuntimeByOwner(
+    pageId
+  );
 
   updateState(
     execution,
