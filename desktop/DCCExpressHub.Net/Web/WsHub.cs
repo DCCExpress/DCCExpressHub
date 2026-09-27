@@ -13,6 +13,7 @@ public sealed class WsHub
     private readonly CommandCenterConfigStore CommandCenterConfigStore;
     readonly LayoutRuntime LayoutRuntime;
     readonly RuntimeStateStore RuntimeStateStore;
+    readonly LocoCounterRuntime LocoCounters;
     readonly SwitchManManager SwitchMan = new();
     private readonly ILogger<WsHub> Logger;
     private readonly FastClockRuntime FastClock = new();
@@ -30,16 +31,22 @@ public sealed class WsHub
     private static readonly TimeSpan WebSocketSendTimeout = TimeSpan.FromSeconds(2);
     public int ClientCount => Clients.Count;
 
-    public WsHub(ICommandCenter cc, HubState state, LayoutRuntime runtime, RuntimeStateStore stateStore, CommandCenterConfigStore ccConfig, ILogger<WsHub> log)
+    public WsHub(ICommandCenter cc, HubState state, LayoutRuntime runtime, RuntimeStateStore stateStore, CommandCenterConfigStore ccConfig, LocoCounterRuntime locoCounters, ILogger<WsHub> log)
     {
         CommandCenter = cc;
         HubState = state;
         LayoutRuntime = runtime;
         RuntimeStateStore = stateStore;
+        LocoCounters = locoCounters;
         CommandCenterConfigStore = ccConfig;
         LayoutRuntime.Changed += (type, data) => _ = Broadcast(type, data);
         SwitchMan.Changed += snapshot => _ = Broadcast("switchManChanged", new { locks = snapshot ?? SwitchMan.Snapshot() });
         Logger = log;
+
+        LocoCounters.Changed += () =>
+            _ = Broadcast(
+                "locoCounterSnapshot",
+                LocoCounters.Snapshot());
 
         cc.RawInfo += raw =>
         {
@@ -59,10 +66,25 @@ public sealed class WsHub
         {
             var wasMainOn = HubState.TrackPower;
             ApplyPower(x);
-            if (wasMainOn && !HubState.TrackPower) _ = RuntimeStateStore.SaveAsync();
+
+            LocoCounters.SetTrackPower(
+                HubState.TrackPower);
+
+            if (wasMainOn && !HubState.TrackPower)
+            {
+                _ = RuntimeStateStore.SaveAsync();
+                _ = LocoCounters.SaveAsync();
+            }
+
             _ = BroadcastPower();
         };
-        cc.LocoFeedbackChanged += x => { HubState.Locos[x.Address] = x; _ = BroadcastLoco(x); };
+
+        cc.LocoFeedbackChanged += x =>
+        {
+            HubState.Locos[x.Address] = x;
+            LocoCounters.UpdateLoco(x);
+            _ = BroadcastLoco(x);
+        };
         cc.ConnectionChanged += connected =>
         {
             // The backend is the single source of truth for command-center
@@ -1101,6 +1123,11 @@ public sealed class WsHub
             ws,
             "fastClockChanged",
             FastClock.GetSnapshot());
+
+        await Send(
+            ws,
+            "locoCounterSnapshot",
+            LocoCounters.Snapshot());
 
         foreach (var l in HubState.Locos.Values)
         {
