@@ -2,15 +2,22 @@ import type {
   SerializedLayoutDto,
 } from "../domain/layout/layoutDto";
 
-import type {
-  MovementDocument,
-  MovementPage,
+import {
+  createMovementId,
+  type MovementBlockRule,
+  type MovementDocument,
+  type MovementPage,
 } from "../domain/movement";
 
 import {
   createMovementRouteKey,
   type MovementRouteIdentityEntry,
 } from "./movementRouteIdentity";
+
+import {
+  buildMovementIntermediateArrivalDefaults,
+  type MovementIntermediateArrivalDefault,
+} from "./movementRouteDefaults";
 
 export type MovementRouteCandidate = {
   key: string;
@@ -21,6 +28,7 @@ export type MovementRouteCandidate = {
   blockPath: Array<{
     id: number;
     name: string;
+    nodeIndex: number;
   }>;
   nodePath: string[];
   locoDirection:
@@ -28,6 +36,8 @@ export type MovementRouteCandidate = {
     | "forward"
     | "reverse";
   turnoutCount: number;
+  intermediateArrivalDefaults:
+    MovementIntermediateArrivalDefault[];
   used: boolean;
   usedByMovementNames: string[];
 };
@@ -330,6 +340,16 @@ export function buildMovementRouteCandidates(
                     `Block ${id}`
                 ).trim() ||
                 `Block ${id}`,
+              nodeIndex:
+                Number.isInteger(
+                  Number(
+                    block.nodeIndex
+                  )
+                )
+                  ? Number(
+                      block.nodeIndex
+                    )
+                  : 0,
             };
           }
         )
@@ -339,6 +359,7 @@ export function buildMovementRouteCandidates(
           ): block is {
             id: number;
             name: string;
+            nodeIndex: number;
           } =>
             block !==
             null
@@ -453,6 +474,25 @@ export function buildMovementRouteCandidates(
         )
       ).size;
 
+    const intermediateArrivalDefaults =
+      buildMovementIntermediateArrivalDefaults(
+        layout,
+        {
+          blockPath,
+          nodes:
+            Array.isArray(
+              raw.nodes
+            )
+              ? raw.nodes.map(
+                  value =>
+                    String(
+                      value
+                    )
+                )
+              : [],
+        }
+      );
+
     candidates.push({
       key,
       fromBlockId,
@@ -487,6 +527,7 @@ export function buildMovementRouteCandidates(
           raw.locoDirection
         ),
       turnoutCount,
+      intermediateArrivalDefaults,
       used:
         usedByMovementNames.length >
         0,
@@ -539,6 +580,53 @@ export function applyMovementRouteCandidate(
       blockIds
     );
 
+  const existingRules =
+    page.blockRules.filter(
+      rule =>
+        selected.has(
+          rule.blockId
+        )
+    );
+
+  const existingBlockIds =
+    new Set(
+      existingRules.map(
+        rule =>
+          rule.blockId
+      )
+    );
+
+  const generatedRules:
+    MovementBlockRule[] =
+    candidate.intermediateArrivalDefaults
+      .filter(
+        defaults =>
+          !existingBlockIds.has(
+            defaults.blockId
+          )
+      )
+      .map(
+        defaults => ({
+          blockId:
+            defaults.blockId,
+          departWhen: [],
+          leaveWhen: [],
+          arrivedWhen:
+            defaults.conditions.map(
+              condition => ({
+                id:
+                  createMovementId(
+                    "condition"
+                  ),
+                sensor:
+                  condition.sensor,
+                state:
+                  condition.state,
+              })
+            ),
+        })
+      );
+
   const directionArrow =
     candidate.locoDirection ===
       "forward"
@@ -583,13 +671,10 @@ export function applyMovementRouteCandidate(
               1
           ]!
         : null,
-    blockRules:
-      page.blockRules.filter(
-        rule =>
-          selected.has(
-            rule.blockId
-          )
-      ),
+    blockRules: [
+      ...existingRules,
+      ...generatedRules,
+    ],
   };
 }
 
