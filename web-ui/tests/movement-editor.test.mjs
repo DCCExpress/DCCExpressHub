@@ -2531,7 +2531,7 @@ test("Movement route direction badges use distinct forward reverse and unknown c
 });
 
 
-test("selected Movement route auto-fills name with block path and direction arrow", () => {
+test("selected Movement route auto-fills name with direction arrows between block names", () => {
   const catalog =
     read(
       "src/services/movementRouteCatalog.ts"
@@ -2559,7 +2559,12 @@ test("selected Movement route auto-fills name with block path and direction arro
 
   assert.match(
     catalog,
-    /candidate\.blockPath[\s\S]*join\([\s\S]*" - "/
+    /candidate\.blockPath[\s\S]*join\([\s\S]*directionArrow/
+  );
+
+  assert.doesNotMatch(
+    catalog,
+    /" - "/
   );
 
   assert.match(
