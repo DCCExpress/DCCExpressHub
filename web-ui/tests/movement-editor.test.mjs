@@ -2310,3 +2310,58 @@ test("Movement highlights only the physical track elements owned by the current 
     /subscribeMovementTrackOwnership/
   );
 });
+
+
+test("Movement waiting indicator survives stopped-speed polling loops", () => {
+  const engine =
+    read(
+      "src/services/movementEngine.ts"
+    );
+
+  const runtime =
+    read(
+      "src/services/movementBlockRuntime.ts"
+    );
+
+  assert.match(
+    runtime,
+    /clearMovementBlockRuntimeByOwnerPhase/
+  );
+
+  const syncStart =
+    engine.indexOf(
+      "function syncMovementMotionRuntime"
+    );
+
+  const syncEnd =
+    engine.indexOf(
+      "function setMovementError",
+      syncStart
+    );
+
+  const sync =
+    engine.slice(
+      syncStart,
+      syncEnd
+    );
+
+  assert.match(
+    sync,
+    /physicalSpeed <=[\s\S]*0[\s\S]*clearMovementBlockRuntimeByOwnerPhase\([\s\S]*"moving"/
+  );
+
+  assert.doesNotMatch(
+    sync,
+    /physicalSpeed <=[\s\S]*0[\s\S]*clearMovementBlockRuntimeByOwner\([\s\S]*return/
+  );
+
+  assert.match(
+    engine,
+    /Waiting for block/
+  );
+
+  assert.match(
+    engine,
+    /setMovementWaiting/
+  );
+});
