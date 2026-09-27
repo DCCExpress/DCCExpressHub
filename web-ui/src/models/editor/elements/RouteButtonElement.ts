@@ -15,13 +15,20 @@ export class RouteButtonElement extends ClickableBaseElement implements IRouteBu
   colorOn: string = "lime";
   active: boolean = false;
   routeTurnouts: RouteTurnoutItem[] = [];
+  generatedRouteKey: string = "";
   constructor(x: number, y: number) {
     super(x, y);
     this.type = ELEMENT_TYPES.BUTTON_ROUTE;
     this.rotationStep = 45;
     this.layerName = "buildings";
   }
+  clearGeneratedRoute(): void {
+    this.generatedRouteKey = "";
+  }
+
   addOrUpdateTurnout(turnoutId: LayoutElementId, closed: boolean, secondClosed?: boolean): void {
+    this.clearGeneratedRoute();
+
     const existing = this.routeTurnouts.find((x) => x.turnoutId === turnoutId);
     if (existing) {
       existing.closed = closed;
@@ -39,6 +46,7 @@ export class RouteButtonElement extends ClickableBaseElement implements IRouteBu
     this.routeTurnouts.push(item);
   }
   removeTurnout(turnoutId: LayoutElementId): void {
+    this.clearGeneratedRoute();
     this.routeTurnouts = this.routeTurnouts.filter((x) => x.turnoutId !== turnoutId);
   }
   drawArrowsSplit2(ctx: CanvasRenderingContext2D, x: number, y: number, size: number = 24): void {
@@ -116,6 +124,12 @@ export class RouteButtonElement extends ClickableBaseElement implements IRouteBu
       label: this.label,
       colorOn: this.colorOn,
       routeTurnouts: this.routeTurnouts ?? [],
+      ...(this.generatedRouteKey
+        ? {
+            generatedRouteKey:
+              this.generatedRouteKey,
+          }
+        : {}),
     };
   }
   static fromJSON(data: IRouteButtonElement): RouteButtonElement {
@@ -127,6 +141,10 @@ export class RouteButtonElement extends ClickableBaseElement implements IRouteBu
     e.fg = data.fg;
     e.colorOn = data.colorOn;
     e.label = data.label;
+    e.generatedRouteKey =
+      typeof data.generatedRouteKey === "string"
+        ? data.generatedRouteKey
+        : "";
     e.routeTurnouts = Array.isArray(data.routeTurnouts)
       ? data.routeTurnouts
           .filter((item) => Number.isInteger(item?.turnoutId) && item.turnoutId > 0)
@@ -152,6 +170,7 @@ export class RouteButtonElement extends ClickableBaseElement implements IRouteBu
     copy.selected = this.selected;
     copy.label = this.label;
     copy.colorOn = this.colorOn;
+    copy.generatedRouteKey = this.generatedRouteKey;
     copy.routeTurnouts = this.routeTurnouts.map((item) => ({ ...item }));
     return copy;
   }
