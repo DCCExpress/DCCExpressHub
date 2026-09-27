@@ -2962,7 +2962,7 @@ test("Movement direction marker is hidden on idle empty blocks but shown on acti
 });
 
 
-test("Movement stops immediately when final leg ARRIVED conditions become true", () => {
+test("Movement final ARRIVED blocking sequences run before the automatic stop", () => {
   const engine =
     read(
       "src/services/movementEngine.ts"
@@ -2987,43 +2987,73 @@ test("Movement stops immediately when final leg ARRIVED conditions become true",
 
   assert.match(
     waitForArrival,
-    /arrivalSatisfied\([\s\S]*leg[\s\S]*\)/
+    /arrivalSatisfied\([\s\S]*leg[\s\S]*\)[\s\S]*return;/
   );
 
-  assert.match(
+  assert.doesNotMatch(
     waitForArrival,
-    /const isFinalLeg =[\s\S]*execution\.plan\.legs\[[\s\S]*execution\.plan\.legs\.length -[\s\S]*1/
+    /applyDesiredSpeed/
   );
 
-  assert.match(
-    waitForArrival,
-    /if \([\s\S]*isFinalLeg[\s\S]*\)[\s\S]*execution\.moving =[\s\S]*false/
-  );
-
-  assert.match(
-    waitForArrival,
-    /execution\.desiredSpeed =[\s\S]*0/
-  );
-
-  assert.match(
-    waitForArrival,
-    /applyDesiredSpeed\([\s\S]*execution[\s\S]*\)/
-  );
-
-  const stopIndex =
-    waitForArrival.indexOf(
-      "applyDesiredSpeed("
+  const traverseStart =
+    engine.indexOf(
+      "async function traverseLeg"
     );
 
-  const returnIndex =
-    waitForArrival.indexOf(
-      "return;",
+  const traverseEnd =
+    engine.indexOf(
+      "async function executeMovement",
+      traverseStart
+    );
+
+  const traverse =
+    engine.slice(
+      traverseStart,
+      traverseEnd
+    );
+
+  assert.match(
+    traverse,
+    /const isFinalLeg =[\s\S]*execution\.plan\.legs/
+  );
+
+  assert.match(
+    traverse,
+    /if \([\s\S]*isFinalLeg[\s\S]*\)[\s\S]*await runActions\([\s\S]*leg\.to\.key,[\s\S]*"arrived"[\s\S]*\)/
+  );
+
+  const arrivedActionIndex =
+    traverse.indexOf(
+      '"arrived"'
+    );
+
+  const stopIndex =
+    traverse.indexOf(
+      "execution.moving =",
+      arrivedActionIndex
+    );
+
+  const applyStopIndex =
+    traverse.indexOf(
+      "applyDesiredSpeed(",
       stopIndex
     );
 
   assert.ok(
-    stopIndex >= 0 &&
-    returnIndex > stopIndex,
-    "final ARRIVED must stop the locomotive before returning to post-arrival cleanup"
+    arrivedActionIndex >= 0 &&
+    stopIndex > arrivedActionIndex &&
+    applyStopIndex > stopIndex,
+    "final blocking ARRIVED actions must run before automatic stop"
+  );
+
+  assert.match(
+    traverse,
+    /finalArrivedActionsRan/
+  );
+
+  assert.match(
+    traverse,
+    /if \([\s\S]*!finalArrivedActionsRan[\s\S]*\)[\s\S]*await runActions/
   );
 });
+
