@@ -28,6 +28,7 @@ builder.Services.AddSingleton<LayoutRuntime>();
 builder.Services.AddSingleton<SignalAutomationEngine>();
 builder.Services.AddSingleton<ScriptInfoStore>();
 builder.Services.AddSingleton<RuntimeStateStore>();
+builder.Services.AddSingleton<LocoCounterRuntime>();
 builder.Services.AddSingleton<HubFileStorage>();
 builder.Services.AddSingleton<CommandCenterConfigStore>();
 builder.Services.AddSingleton<IDccExTransport>(sp =>
@@ -69,6 +70,12 @@ Directory.CreateDirectory(Path.Combine(dataRoot, "config"));
 Directory.CreateDirectory(Path.Combine(dataRoot, "images"));
 Directory.CreateDirectory(Path.Combine(dataRoot, "state"));
 Directory.CreateDirectory(Path.Combine(sdRoot, "audio"));
+
+var locoCounterRuntime =
+    app.Services.GetRequiredService<LocoCounterRuntime>();
+
+if (!locoCounterRuntime.ReloadConfiguration(false))
+    Console.WriteLine("Locomotive counter configuration could not be loaded.");
 
 app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(30) });
 
@@ -338,7 +345,7 @@ app.MapGet("/api/locos", async (IWebHostEnvironment env) =>
     return Results.Text(File.Exists(p) ? await File.ReadAllTextAsync(p) : "[]", "application/json");
 });
 
-app.MapPost("/api/locos", async (HttpRequest req, IWebHostEnvironment env, ConfiguredCommandCenter configuredCc) =>
+app.MapPost("/api/locos", async (HttpRequest req, IWebHostEnvironment env, ConfiguredCommandCenter configuredCc, LocoCounterRuntime counters) =>
 {
     using var sr = new StreamReader(req.Body);
     var body = await sr.ReadToEndAsync();
@@ -361,6 +368,8 @@ app.MapPost("/api/locos", async (HttpRequest req, IWebHostEnvironment env, Confi
     if (!configuredCc.ReloadLocomotiveConfiguration())
         return Results.Json(new { ok = false, message = "Locomotive configuration committed but runtime reload failed" }, statusCode: 500);
 
+    counters.ReloadConfiguration(true);
+
     return Results.Json(new { ok = true, bytes = System.Text.Encoding.UTF8.GetByteCount(body) });
 });
 
@@ -370,7 +379,7 @@ app.MapGet("/api/layout", async (IWebHostEnvironment env) =>
     return Results.Text(File.Exists(p) ? await File.ReadAllTextAsync(p) : "{}", "application/json");
 });
 
-app.MapPost("/api/layout", async (HttpRequest req, IWebHostEnvironment env, LayoutRuntime runtime, SignalAutomationEngine automation, WsHub ws, ICommandCenter cc) =>
+app.MapPost("/api/layout", async (HttpRequest req, IWebHostEnvironment env, LayoutRuntime runtime, SignalAutomationEngine automation, WsHub ws, ICommandCenter cc, LocoCounterRuntime counters) =>
 {
     var finalPath = DataFile(env, "layout.json");
     var tempPath = finalPath + ".upload.tmp";
@@ -413,6 +422,9 @@ app.MapPost("/api/layout", async (HttpRequest req, IWebHostEnvironment env, Layo
         // is broadcast to the WebUI through the existing runtime coordinator.
         var sensorSnapshotRequested = await cc.RequestSensorSnapshotAsync(req.HttpContext.RequestAborted);
 
+        var locoCountersSaved =
+            await counters.SaveAsync();
+
         await ws.BroadcastRuntimeSnapshot();
         return Results.Json(new
         {
@@ -421,7 +433,8 @@ app.MapPost("/api/layout", async (HttpRequest req, IWebHostEnvironment env, Layo
             accessories = runtime.AccessoryCount,
             sensors = runtime.SensorCount,
             signalAutomationReloaded,
-            sensorSnapshotRequested
+            sensorSnapshotRequested,
+            locoCountersSaved
         });
     }
     catch (IOException)
