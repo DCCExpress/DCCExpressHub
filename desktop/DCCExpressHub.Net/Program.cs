@@ -475,6 +475,21 @@ app.MapGet("/api/automations", async (IWebHostEnvironment env) =>
         System.Text.Encoding.UTF8);
 });
 
+app.MapGet("/api/automations/previous", async (IWebHostEnvironment env) =>
+{
+    var path = DataFile(env, "automations.json.previous");
+
+    if (!File.Exists(path))
+        return Results.Json(
+            new { ok = false, message = "No previous automation snapshot" },
+            statusCode: StatusCodes.Status404NotFound);
+
+    return Results.Text(
+        await File.ReadAllTextAsync(path),
+        "application/json",
+        System.Text.Encoding.UTF8);
+});
+
 app.MapPost("/api/automations", async (HttpRequest req, IWebHostEnvironment env) =>
 {
     const int maxBytes = 512 * 1024;
@@ -577,6 +592,15 @@ app.MapPost("/api/automations", async (HttpRequest req, IWebHostEnvironment env)
             await memory.CopyToAsync(output);
             await output.FlushAsync();
         }
+
+        var previousPath =
+            DataFile(env, "automations.json.previous");
+
+        if (File.Exists(finalPath))
+            File.Copy(
+                finalPath,
+                previousPath,
+                true);
 
         File.Move(tempPath, finalPath, true);
 
