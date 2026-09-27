@@ -104,7 +104,7 @@ export function createMovementId(
 export function createMovementAction(
   resourceKey: string,
   when: MovementWhen = "arrived",
-  kind: MovementActionKind = "speed",
+  kind: MovementActionKind = "log",
   sequenceId =
     createMovementId(
       "movement-sequence"
