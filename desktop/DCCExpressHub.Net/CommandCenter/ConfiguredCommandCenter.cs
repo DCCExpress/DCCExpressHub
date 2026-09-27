@@ -27,7 +27,25 @@ public sealed class ConfiguredCommandCenter : ICommandCenter
         _inner.PowerFeedbackChanged+=x=>PowerFeedbackChanged?.Invoke(x);
         _inner.ConnectionChanged+=x=>ConnectionChanged?.Invoke(x);
         _inner.SensorFeedbackChanged+=(address,on)=>SensorFeedbackChanged?.Invoke(address,on);
-        _inner.LocoFeedbackChanged+=x=>LocoFeedbackChanged?.Invoke(x with { Forward=MapDirection(x.Address,x.Forward) });
+        _inner.LocoFeedbackChanged += x =>
+        {
+            var inverted = LocomotiveDirectionInverted(x.Address);
+            var logicalForward = MapDirection(x.Address, x.Forward);
+
+            _log.LogInformation(
+                "Loco direction RX #{Address}: physical={PhysicalDirection} invert={Invert} logical={LogicalDirection} speed={Speed}",
+                x.Address,
+                x.Forward ? "forward" : "reverse",
+                inverted,
+                logicalForward ? "forward" : "reverse",
+                x.Speed);
+
+            LocoFeedbackChanged?.Invoke(
+                x with
+                {
+                    Forward = logicalForward
+                });
+        };
     }
 
     public bool ReloadLocomotiveConfiguration()
@@ -81,7 +99,35 @@ public sealed class ConfiguredCommandCenter : ICommandCenter
     public Task<bool> SetTrackPowerAsync(bool on,bool includeProgramming=true,CancellationToken ct=default)=>_inner.SetTrackPowerAsync(on,includeProgramming,ct);
     public Task<bool> SetProgrammingPowerAsync(bool on,CancellationToken ct=default)=>_inner.SetProgrammingPowerAsync(on,ct);
     public Task<bool> EmergencyStopAsync(CancellationToken ct=default)=>_inner.EmergencyStopAsync(ct);
-    public Task<bool> SetLocoAsync(int address,int speed,bool forward,CancellationToken ct=default)=>_inner.SetLocoAsync(address,speed,MapDirection(address,forward),ct);
+    public Task<bool> SetLocoAsync(
+        int address,
+        int speed,
+        bool forward,
+        CancellationToken ct = default)
+    {
+        var inverted =
+            LocomotiveDirectionInverted(
+                address);
+
+        var physicalForward =
+            MapDirection(
+                address,
+                forward);
+
+        _log.LogInformation(
+            "Loco direction TX #{Address}: logical={LogicalDirection} invert={Invert} physical={PhysicalDirection} speed={Speed}",
+            address,
+            forward ? "forward" : "reverse",
+            inverted,
+            physicalForward ? "forward" : "reverse",
+            speed);
+
+        return _inner.SetLocoAsync(
+            address,
+            speed,
+            physicalForward,
+            ct);
+    }
     public Task<bool> RequestLocoAsync(int address,CancellationToken ct=default)=>_inner.RequestLocoAsync(address,ct);
     public Task<bool> SetLocoFunctionAsync(int address,int fn,bool active,CancellationToken ct=default)=>_inner.SetLocoFunctionAsync(address,fn,active,ct);
     public Task<bool> SetTurnoutAsync(int address,bool closed,CancellationToken ct=default)=>_inner.SetTurnoutAsync(address,closed,ct);
