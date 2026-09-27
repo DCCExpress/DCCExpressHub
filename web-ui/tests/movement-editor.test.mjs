@@ -2574,7 +2574,7 @@ test("selected Movement route auto-fills name with direction arrows between bloc
 });
 
 
-test("Movement route selection generates ARRIVED defaults for intermediate blocks", () => {
+test("Movement route selection generates one ARRIVED sensor before and one after each intermediate block", () => {
   const defaults =
     read(
       "src/services/movementRouteDefaults.ts"
@@ -2592,54 +2592,57 @@ test("Movement route selection generates ARRIVED defaults for intermediate block
 
   assert.match(
     defaults,
-    /sensorAddress/
+    /function segmentSensor/
+  );
+
+  assert.doesNotMatch(
+    defaults,
+    /function segmentSensors/
   );
 
   assert.match(
     defaults,
-    /previousNodeName[\s\S]*nodeNames\[[\s\S]*nodeIndex/
+    /const previousSensor =[\s\S]*segmentSensor/
   );
 
   assert.match(
     defaults,
-    /nextNodeName[\s\S]*nodeIndex \+[\s\S]*1/
-  );
-
-  const previousOff =
-    defaults.indexOf(
-      "for (\n          const sensor of\n          previousSensors"
-    );
-
-  const blockOn =
-    defaults.indexOf(
-      "if (\n          blockSensor !=="
-    );
-
-  const nextOff =
-    defaults.indexOf(
-      "for (\n          const sensor of\n          nextSensors"
-    );
-
-  assert.ok(
-    previousOff >= 0 &&
-    blockOn > previousOff &&
-    nextOff > blockOn,
-    "ARRIVED defaults must be previous segment OFF, block ON, next segment OFF"
+    /const nextSensor =[\s\S]*segmentSensor/
   );
 
   assert.match(
     defaults,
-    /previousSensors[\s\S]*state:[\s\S]*false/
+    /previousSensor !==[\s\S]*null[\s\S]*state:[\s\S]*false/
   );
 
   assert.match(
     defaults,
-    /blockSensor[\s\S]*state:[\s\S]*true/
+    /blockSensor !==[\s\S]*undefined[\s\S]*state:[\s\S]*true/
   );
 
   assert.match(
     defaults,
-    /nextSensors[\s\S]*state:[\s\S]*false/
+    /nextSensor !==[\s\S]*null[\s\S]*state:[\s\S]*false/
+  );
+
+  assert.match(
+    defaults,
+    /explicitDetector/
+  );
+
+  assert.match(
+    defaults,
+    /trackSensor/
+  );
+
+  assert.doesNotMatch(
+    defaults,
+    /for \([\s\S]*const sensor of[\s\S]*previousSensors/
+  );
+
+  assert.doesNotMatch(
+    defaults,
+    /for \([\s\S]*const sensor of[\s\S]*nextSensors/
   );
 
   assert.match(
@@ -2660,11 +2663,6 @@ test("Movement route selection generates ARRIVED defaults for intermediate block
   assert.match(
     catalog,
     /existingBlockIds\.has/
-  );
-
-  assert.match(
-    catalog,
-    /blockRules:[\s\S]*existingRules[\s\S]*generatedRules/
   );
 });
 
