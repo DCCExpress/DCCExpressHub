@@ -112,6 +112,195 @@
   padding-top: 8px;
 }
 
+.movement-route-vector-shell {
+  margin-top: 9px;
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-md);
+  background: color-mix(
+    in srgb,
+    var(--mantine-color-default-hover) 24%,
+    var(--mantine-color-body)
+  );
+  overflow: hidden;
+}
+
+.movement-route-vector-caption {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 7px 10px 5px;
+  border-bottom: 1px solid var(--mantine-color-default-border);
+}
+
+.movement-route-vector-scroll {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 4px 4px;
+}
+
+.movement-route-vector-svg {
+  display: block;
+  min-width: 100%;
+}
+
+.movement-route-vector-status {
+  min-height: 24px;
+}
+
+.movement-route-vector-link {
+  stroke: var(--mantine-color-gray-5);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  opacity: 0.72;
+}
+
+.movement-route-vector-link-arrow {
+  fill: var(--mantine-color-gray-5);
+  opacity: 0.82;
+}
+
+.movement-route-vector-card {
+  fill: var(--mantine-color-body);
+  stroke: var(--mantine-color-gray-5);
+  stroke-width: 1.5;
+  transition:
+    fill 120ms ease,
+    stroke 120ms ease,
+    filter 120ms ease;
+}
+
+.movement-route-vector-order-circle {
+  fill: var(--mantine-color-gray-7);
+  stroke: var(--mantine-color-body);
+  stroke-width: 2;
+}
+
+.movement-route-vector-order {
+  fill: white;
+  font-size: 10px;
+  font-weight: 800;
+  pointer-events: none;
+}
+
+.movement-route-vector-type {
+  fill: var(--mantine-color-dimmed);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.7px;
+  pointer-events: none;
+}
+
+.movement-route-vector-name {
+  fill: var(--mantine-color-text);
+  font-size: 13px;
+  font-weight: 800;
+  pointer-events: none;
+}
+
+.movement-route-vector-detail {
+  fill: var(--mantine-color-dimmed);
+  font-size: 9px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.movement-route-vector-sensor {
+  fill: var(--mantine-color-teal-6);
+  font-size: 10px;
+  font-weight: 800;
+  pointer-events: none;
+}
+
+.movement-route-vector-sensor.is-missing {
+  fill: var(--mantine-color-red-6);
+}
+
+.movement-route-vector-node.is-source .movement-route-vector-card {
+  fill: color-mix(
+    in srgb,
+    var(--mantine-color-blue-6) 13%,
+    var(--mantine-color-body)
+  );
+  stroke: var(--mantine-color-blue-5);
+}
+
+.movement-route-vector-node.is-source .movement-route-vector-order-circle {
+  fill: var(--mantine-color-blue-7);
+}
+
+.movement-route-vector-node.is-block .movement-route-vector-card {
+  fill: color-mix(
+    in srgb,
+    var(--mantine-color-violet-6) 12%,
+    var(--mantine-color-body)
+  );
+  stroke: var(--mantine-color-violet-5);
+}
+
+.movement-route-vector-node.is-block .movement-route-vector-order-circle {
+  fill: var(--mantine-color-violet-7);
+}
+
+.movement-route-vector-node.is-destination .movement-route-vector-card {
+  fill: color-mix(
+    in srgb,
+    var(--mantine-color-green-6) 13%,
+    var(--mantine-color-body)
+  );
+  stroke: var(--mantine-color-green-5);
+}
+
+.movement-route-vector-node.is-destination .movement-route-vector-order-circle {
+  fill: var(--mantine-color-green-7);
+}
+
+.movement-route-vector-node.is-segment .movement-route-vector-card {
+  fill: color-mix(
+    in srgb,
+    var(--mantine-color-gray-6) 10%,
+    var(--mantine-color-body)
+  );
+  stroke: var(--mantine-color-gray-6);
+}
+
+.movement-route-vector-node.is-segment .movement-route-vector-order-circle {
+  fill: var(--mantine-color-gray-7);
+}
+
+.movement-route-vector-node.is-no-sensor .movement-route-vector-card {
+  stroke: var(--mantine-color-red-5);
+  stroke-width: 2;
+  stroke-dasharray: 5 3;
+}
+
+.movement-route-vector-node.is-selected .movement-route-vector-card {
+  stroke: var(--mantine-color-yellow-5);
+  stroke-width: 3;
+  filter: drop-shadow(
+    0 0 5px
+    color-mix(
+      in srgb,
+      var(--mantine-color-yellow-5) 45%,
+      transparent
+    )
+  );
+}
+
+.movement-route-vector-node.is-clickable {
+  cursor: pointer;
+}
+
+.movement-route-vector-node.is-clickable:hover .movement-route-vector-card {
+  filter: brightness(1.08);
+  stroke-width: 2.5;
+}
+
+.movement-route-vector-node.is-clickable:focus .movement-route-vector-card {
+  stroke: var(--mantine-color-yellow-5);
+  stroke-width: 3;
+}
+
 .movement-route-candidate-used td {
   background: color-mix(
     in srgb,
