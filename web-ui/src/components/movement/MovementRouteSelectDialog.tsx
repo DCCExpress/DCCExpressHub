@@ -89,8 +89,7 @@ export default function MovementRouteSelectDialog({
       );
 
       void loadMovementRouteCandidates(
-        document,
-        page.id
+        document
       )
         .then(
           result => {
