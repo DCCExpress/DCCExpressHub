@@ -15,6 +15,9 @@ private:
   static constexpr const char* FINAL_PATH =
       "/config/automations.json";
 
+  static constexpr const char* PREVIOUS_PATH =
+      "/config/automations.json.previous";
+
   static constexpr size_t MAX_UPLOAD_BYTES =
       512 * 1024;
 
@@ -33,6 +36,8 @@ private:
 
   bool verifyTemp(
       String& error);
+
+  bool backupCurrent();
 
   static void sendJson(
       AsyncWebServerRequest* request,
