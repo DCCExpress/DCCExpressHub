@@ -117,12 +117,16 @@ import {
   createAutomationPayload,
   loadAutomationMovement,
   loadAutomationScripts,
+  loadAutomationTimetable,
   normalizeAutomationScripts,
+  normalizeTimetableEntries,
   saveAutomationFlow,
   saveAutomationMovement,
   saveAutomationScripts,
+  saveAutomationTimetable,
   type AutomationScriptDefinition,
   type AutomationStoragePayload,
+  type TimetableEntryDefinition,
 } from "@/services/automationApi";
 import {
   createEmptyAutomationFlowDocument,
@@ -279,6 +283,7 @@ function serializeLayoutOnly(layout: LayoutView): string {
 function createProjectExport(
   layout: LayoutView,
   automationScripts: AutomationScriptDefinition[],
+  timetable: TimetableEntryDefinition[],
   visualFlow: AutomationFlowDocument,
   movement: MovementDocument
 ): DccExpressProjectExport {
@@ -290,7 +295,7 @@ function createProjectExport(
     automations:
       createAutomationPayload(
         automationScripts,
-        undefined,
+        timetable,
         visualFlow,
         movement
       ),
@@ -300,6 +305,7 @@ function createProjectExport(
 function parseImportedProject(raw: unknown): {
   layoutData: unknown;
   automationScripts: AutomationScriptDefinition[];
+  timetable: TimetableEntryDefinition[];
   visualFlow: AutomationFlowDocument;
   movement: MovementDocument;
 } {
@@ -324,6 +330,10 @@ function parseImportedProject(raw: unknown): {
           importedScripts.length > 0
             ? importedScripts
             : prepared.legacyAutomationScripts,
+        timetable:
+          normalizeTimetableEntries(
+            automations.timetable
+          ),
         visualFlow:
           normalizeAutomationFlowDocument(
             automations.visualFlow
@@ -341,6 +351,7 @@ function parseImportedProject(raw: unknown): {
   return {
     layoutData: prepared.layoutData,
     automationScripts: prepared.legacyAutomationScripts,
+    timetable: [],
     visualFlow:
       createEmptyAutomationFlowDocument(),
     movement:
@@ -1313,10 +1324,14 @@ export default function LiteLayoutPage({
         invalidate();
       }
 
+      const timetable =
+        await loadAutomationTimetable();
+
       const project =
         createProjectExport(
           layout,
           automationScripts,
+          timetable,
           automationFlow,
           movementDocument
         );
@@ -1396,6 +1411,7 @@ export default function LiteLayoutPage({
         }
 
         await saveAutomationScripts(imported.automationScripts);
+        await saveAutomationTimetable(imported.timetable);
         await saveAutomationFlow(imported.visualFlow);
         await saveAutomationMovement(imported.movement);
         setLayout(nextLayout);
