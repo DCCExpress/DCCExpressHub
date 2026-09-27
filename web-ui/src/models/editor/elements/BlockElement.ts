@@ -5,6 +5,7 @@ import { generateId } from "../../../helpers";
 import i18n from "../../../i18n";
 import { getBlockTargetLocoAddress } from "../../../services/blockTargetLocoRuntime";
 import { getMovementBlockRuntime } from "../../../services/movementBlockRuntime";
+import { wsClient } from "../../../services/wsClient";
 import { TrackElement } from "../core/TrackElement";
 import { getCanvasImage } from "../rendering/ImageCache";
 import { DrawOptions, IBlockElement } from "../types/EditorTypes";
@@ -151,7 +152,9 @@ export class BlockElement extends TrackElement {
         blockX,
         blockY,
         blockW,
-        blockH
+        blockH,
+        displayLocoAddress,
+        inTransit
       );
     }
     const withReadableOverlayAt180 = (drawFn: () => void): void => {
@@ -227,15 +230,44 @@ export class BlockElement extends TrackElement {
     blockY: number,
     blockW: number,
     blockH: number,
+    displayLocoAddress: number,
+    inTransit: boolean,
   ): void {
     const movementRuntime =
       getMovementBlockRuntime(
         this.id
       );
 
-    if (
-      !movementRuntime
-    ) {
+    const liveLocoState =
+      displayLocoAddress > 0
+        ? wsClient.getLatestLocoState(
+            displayLocoAddress
+          )
+        : null;
+
+    /*
+     * A real locomotive already assigned to this block owns the direction
+     * visualization. Movement runtime is only the fallback for a target block
+     * that the locomotive has not physically entered yet.
+     */
+    const liveDirection =
+      this.locoAddress > 0
+        ? liveLocoState?.direction ??
+          null
+        : null;
+
+    const fallbackDirection =
+      inTransit
+        ? movementRuntime?.direction ??
+          null
+        : movementRuntime?.direction ??
+          null;
+
+    const direction =
+      liveDirection ??
+      fallbackDirection;
+
+    if (!direction) {
       return;
     }
 
@@ -252,7 +284,7 @@ export class BlockElement extends TrackElement {
       normalizeRotation(
         baseForwardRotation +
         (
-          movementRuntime.direction ===
+          direction ===
             "reverse"
             ? 180
             : 0
@@ -311,9 +343,23 @@ export class BlockElement extends TrackElement {
     );
     ctx.closePath();
 
+    const liveMoving =
+      this.locoAddress > 0 &&
+      liveLocoState !==
+        null
+        ? liveLocoState.speed >
+          0
+        : null;
+
+    const moving =
+      liveMoving ??
+      (
+        movementRuntime?.phase ===
+          "moving"
+      );
+
     const blinking =
-      movementRuntime.phase ===
-        "moving";
+      moving;
 
     const blinkOn =
       !blinking ||
@@ -329,19 +375,14 @@ export class BlockElement extends TrackElement {
         ? 1
         : 0.22;
 
-    if (
-      movementRuntime.phase ===
-        "moving" ||
-      movementRuntime.phase ===
-        "executing"
-    ) {
+    if (moving) {
       ctx.fillStyle =
         "#a3e635";
 
       ctx.strokeStyle =
         "#365314";
     } else if (
-      movementRuntime.phase ===
+      movementRuntime?.phase ===
         "error"
     ) {
       ctx.fillStyle =
