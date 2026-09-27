@@ -5,6 +5,8 @@ import type {
   Loco,
   LocoReservation,
 } from "@domain/types";
+import { resolveLocoCounterSettings } from "@domain/locoCounterSettings";
+import MechanicalCounter from "../../components/MechanicalCounter";
 import LocoImage from "../../components/loco/LocoImage";
 import LocoDirectionControls from "./LocoDirectionControls";
 import LocoEmergencyButton from "./LocoEmergencyButton";
@@ -63,6 +65,11 @@ export default function LocoControlCard({
     colorScheme === "dark"
       ? theme.colors.blue[1]
       : theme.colors.blue[8];
+
+  const counterSettings =
+    resolveLocoCounterSettings(
+      loco.counterSettings
+    );
 
   return (
     <Card withBorder radius="sm" p="8">
@@ -135,6 +142,57 @@ export default function LocoControlCard({
             {speed}
           </Title>
         </Badge>
+
+        {counterSettings.enabled && (
+          <Stack
+            gap={4}
+            align="center"
+            w="100%"
+            className="loco-mechanical-counters"
+          >
+            <MechanicalCounter
+              label="KM"
+              value={
+                loco.odometerKm ??
+                0
+              }
+              digits={
+                counterSettings.digits
+              }
+              decimals={
+                counterSettings.distanceDecimals
+              }
+              digitHeight={
+                counterSettings.digitHeight
+              }
+              unit="km"
+              accentFraction={
+                counterSettings.accentFraction
+              }
+            />
+
+            <MechanicalCounter
+              label="H"
+              value={
+                loco.operatingHours ??
+                0
+              }
+              digits={
+                counterSettings.digits
+              }
+              decimals={
+                counterSettings.operatingHoursDecimals
+              }
+              digitHeight={
+                counterSettings.digitHeight
+              }
+              unit="h"
+              accentFraction={
+                counterSettings.accentFraction
+              }
+            />
+          </Stack>
+        )}
 
         {!alive && (
           <Badge color="red" variant="light">
