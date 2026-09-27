@@ -48,6 +48,7 @@ import {
 import {
   clearMovementBlockRuntime,
   clearMovementBlockRuntimeByOwner,
+  clearMovementBlockRuntimeByOwnerPhase,
   setMovementBlockRuntime,
   type MovementBlockWaitingReason,
 } from "./movementBlockRuntime";
@@ -789,18 +790,23 @@ function syncMovementMotionRuntime(
   execution:
     MovementExecution
 ): void {
-  clearMovementBlockRuntimeByOwner(
-    execution.page.id
-  );
-
   if (
     !execution.moving ||
     execution.cancelled ||
     execution.physicalSpeed <=
       0
   ) {
+    clearMovementBlockRuntimeByOwnerPhase(
+      execution.page.id,
+      "moving"
+    );
+
     return;
   }
+
+  clearMovementBlockRuntimeByOwner(
+    execution.page.id
+  );
 
   const info =
     `Movement running: ${execution.page.name}`;
