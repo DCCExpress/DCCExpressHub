@@ -2506,3 +2506,26 @@ test("Movement route chooser has independent clearable FROM and TO filters", () 
     /movement-route-candidate-used[\s\S]*mantine-color-red-6/
   );
 });
+
+
+test("Movement route direction badges use distinct forward reverse and unknown colors", () => {
+  const dialog =
+    read(
+      "src/components/movement/MovementRouteSelectDialog.tsx"
+    );
+
+  assert.match(
+    dialog,
+    /candidate\.locoDirection ===[\s\S]*"forward"[\s\S]*\? "blue"/
+  );
+
+  assert.match(
+    dialog,
+    /candidate\.locoDirection ===[\s\S]*"reverse"[\s\S]*\? "orange"/
+  );
+
+  assert.match(
+    dialog,
+    /: "gray"/
+  );
+});
