@@ -156,18 +156,14 @@ export function clearMovementBlockRuntimeByOwner(
   }
 }
 
-export function hasBlinkingMovementBlockRuntime(): boolean {
+export function hasMovingMovementBlockRuntime(): boolean {
   for (
     const state of
     states.values()
   ) {
     if (
       state.phase ===
-        "executing" ||
-      state.phase ===
-        "waiting" ||
-      state.phase ===
-        "error"
+        "moving"
     ) {
       return true;
     }
