@@ -255,3 +255,21 @@ test("generated route selector button lives in RouteButton property panel header
     /IconListCheck/
   );
 });
+
+
+test("generated RouteButton name uses hyphen-separated block path", () => {
+  const generator =
+    read(
+      "src/services/routeButtonRouteGenerator.ts"
+    );
+
+  assert.match(
+    generator,
+    /routeButton\.name/
+  );
+
+  assert.match(
+    generator,
+    /candidate\.blockPath\.join\([\s\S]*" - "/
+  );
+});
