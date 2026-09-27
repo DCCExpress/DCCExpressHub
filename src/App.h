@@ -10,6 +10,7 @@
 #include "HubConfigStore.h"
 #include "HubDisplay.h"
 #include "LayoutRuntime.h"
+#include "LocoCounterRuntime.h"
 #include "RuntimeStateStore.h"
 #include "SerialConfigurator.h"
 #include "SignalAutomationEngine.h"
@@ -31,6 +32,7 @@ private:
 
   LayoutRuntime _runtime;
   RuntimeStateStore _stateStore;
+  LocoCounterRuntime _locoCounters;
   HubDisplay _display;
 
   bool _lastCommandCenterConnected = false;
@@ -42,7 +44,8 @@ private:
       static_cast<ICommandCenter&>(
           _commandCenter),
       _runtime,
-      _stateStore};
+      _stateStore,
+      _locoCounters};
 
   SerialConfigurator _serialConfigurator{
       _config,
