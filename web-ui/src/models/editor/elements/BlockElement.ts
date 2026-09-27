@@ -142,7 +142,15 @@ export class BlockElement extends TrackElement {
     ctx.lineWidth = 1;
     ctx.fillRect(blockX, blockY, blockW, blockH);
     ctx.strokeRect(blockX, blockY, blockW, blockH);
-    this.drawForwardDirectionTriangle(ctx, blockX, blockY, blockW, blockH);
+    if (occupied) {
+      this.drawForwardDirectionTriangle(
+        ctx,
+        blockX,
+        blockY,
+        blockW,
+        blockH
+      );
+    }
     const withReadableOverlayAt180 = (drawFn: () => void): void => {
       if (this.rotation === 180) {
         ctx.translate(this.centerX, this.centerY);
