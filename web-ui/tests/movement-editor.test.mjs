@@ -2529,3 +2529,41 @@ test("Movement route direction badges use distinct forward reverse and unknown c
     /: "gray"/
   );
 });
+
+
+test("selected Movement route auto-fills name with block path and direction arrow", () => {
+  const catalog =
+    read(
+      "src/services/movementRouteCatalog.ts"
+    );
+
+  assert.match(
+    catalog,
+    /const directionArrow/
+  );
+
+  assert.match(
+    catalog,
+    /"forward"[\s\S]*\? "→"/
+  );
+
+  assert.match(
+    catalog,
+    /"reverse"[\s\S]*\? "←"/
+  );
+
+  assert.match(
+    catalog,
+    /: "↔"/
+  );
+
+  assert.match(
+    catalog,
+    /candidate\.blockPath[\s\S]*join\([\s\S]*" - "/
+  );
+
+  assert.match(
+    catalog,
+    /name:[\s\S]*generatedName/
+  );
+});
