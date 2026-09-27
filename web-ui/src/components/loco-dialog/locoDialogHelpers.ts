@@ -1,5 +1,6 @@
 import i18next from "i18next";
 import type { Loco, LocoAction, LocoActionHook, LocoFunction } from "@domain/types";
+import { DEFAULT_LOCO_COUNTER_SETTINGS } from "@domain/locoCounterSettings";
 
 import { generateId } from "../../helpers";
 
@@ -39,12 +40,7 @@ export const createEmptyLoco = (): Loco => ({
   odometerKm: 0,
   operatingHours: 0,
   counterSettings: {
-    enabled: true,
-    digits: 6,
-    digitHeight: 28,
-    distanceDecimals: 1,
-    operatingHoursDecimals: 1,
-    accentFraction: true,
+    ...DEFAULT_LOCO_COUNTER_SETTINGS,
   },
   functions: [],
   actions: createEmptyLocoActions(),
