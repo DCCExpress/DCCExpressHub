@@ -46,6 +46,13 @@ import {
 } from "./wsClient";
 
 import {
+  clearMovementBlockWaiting,
+  clearMovementBlockWaitingByOwner,
+  setMovementBlockWaiting,
+  type MovementBlockWaitingReason,
+} from "./movementBlockRuntime";
+
+import {
   isTrackPowerOn,
 } from "./trackPowerRuntime";
 
@@ -630,6 +637,66 @@ function setInfo(
       currentResourceKey:
         resourceKey,
     }
+  );
+}
+
+function setMovementWaiting(
+  execution:
+    MovementExecution,
+  leg:
+    MovementPlanLeg,
+  waitingReason:
+    MovementBlockWaitingReason,
+  info: string
+): void {
+  clearMovementBlockWaitingByOwner(
+    execution.page.id
+  );
+
+  if (
+    leg.from.blockId !==
+      null
+  ) {
+    setMovementBlockWaiting(
+      leg.from.blockId,
+      {
+        ownerId:
+          execution.page.id,
+        movementName:
+          execution.page.name,
+        locoAddress:
+          execution.locoAddress,
+        direction:
+          execution.direction,
+        waitingReason,
+        info,
+      }
+    );
+  }
+
+  setInfo(
+    execution,
+    info,
+    leg.from.key
+  );
+}
+
+function clearMovementWaiting(
+  execution:
+    MovementExecution,
+  leg:
+    MovementPlanLeg
+): void {
+  if (
+    leg.from.blockId ===
+      null
+  ) {
+    return;
+  }
+
+  clearMovementBlockWaiting(
+    leg.from.blockId,
+    execution.page.id
   );
 }
 
@@ -1840,64 +1907,84 @@ async function waitForPreDepartureAvailability(
   let lastInfo =
     "";
 
-  while (
-    !execution.cancelled
-  ) {
-    let reason =
-      "";
-
-    if (
-      !blockAvailableForTarget(
-        leg.to
-      )
+  try {
+    while (
+      !execution.cancelled
     ) {
-      reason =
-        `Waiting for block ${leg.to.name}`;
-    } else if (
-      !aheadSegmentsAreFree(
-        leg
-      )
-    ) {
-      reason =
-        "Waiting for route segment to become free";
-    }
+      let reason =
+        "";
 
-    if (
-      !reason
-    ) {
-      return;
-    }
+      let waitingReason:
+        MovementBlockWaitingReason |
+        null =
+        null;
 
-    execution.moving =
-      false;
+      if (
+        !blockAvailableForTarget(
+          leg.to
+        )
+      ) {
+        reason =
+          `Waiting for block ${leg.to.name}`;
 
-    applyDesiredSpeed(
-      execution
-    );
+        waitingReason =
+          "targetBlock";
+      } else if (
+        !aheadSegmentsAreFree(
+          leg
+        )
+      ) {
+        reason =
+          "Waiting for route segment to become free";
 
-    if (
-      reason !==
-        lastInfo
-    ) {
-      lastInfo =
-        reason;
+        waitingReason =
+          "segment";
+      }
 
-      setInfo(
+      if (
+        !reason ||
+        !waitingReason
+      ) {
+        return;
+      }
+
+      execution.moving =
+        false;
+
+      applyDesiredSpeed(
+        execution
+      );
+
+      if (
+        reason !==
+          lastInfo
+      ) {
+        lastInfo =
+          reason;
+
+        setMovementWaiting(
+          execution,
+          leg,
+          waitingReason,
+          reason
+        );
+      }
+
+      await controlledDelay(
         execution,
-        reason,
-        leg.from.key
+        150
       );
     }
 
-    await controlledDelay(
+    throw new Error(
+      "Movement cancelled."
+    );
+  } finally {
+    clearMovementWaiting(
       execution,
-      150
+      leg
     );
   }
-
-  throw new Error(
-    "Movement cancelled."
-  );
 }
 
 async function waitForLegClearance(
@@ -1909,204 +1996,244 @@ async function waitForLegClearance(
   let lastInfo =
     "";
 
-  while (
-    !execution.cancelled
-  ) {
-    let reason =
-      "";
-
-    if (
-      !blockAvailableForTarget(
-        leg.to
-      )
-    ) {
-      reason =
-        `Waiting for block ${leg.to.name}`;
-    } else if (
-      !aheadSegmentsAreFree(
-        leg
-      )
-    ) {
-      reason =
-        "Waiting for route segment to become free";
-    }
-
-    if (
-      reason
-    ) {
-      execution.moving =
-        false;
-
-      applyDesiredSpeed(
-        execution
-      );
-
+  const showWaiting =
+    (
+      waitingReason:
+        MovementBlockWaitingReason,
+      info: string
+    ): void => {
       if (
-        reason !==
-        lastInfo
+        info ===
+          lastInfo
       ) {
-        lastInfo =
-          reason;
-
-        setInfo(
-          execution,
-          reason,
-          leg.from.key
-        );
+        return;
       }
 
-      await controlledDelay(
+      lastInfo =
+        info;
+
+      setMovementWaiting(
         execution,
-        150
+        leg,
+        waitingReason,
+        info
       );
+    };
 
-      continue;
-    }
+  const clearWaiting =
+    (): void => {
+      lastInfo =
+        "";
 
-    const resources =
-      await tryAcquireLeg(
+      clearMovementWaiting(
+        execution,
         leg
       );
+    };
 
-    if (
-      !resources
+  try {
+    while (
+      !execution.cancelled
     ) {
-      execution.moving =
-        false;
+      let reason =
+        "";
 
-      applyDesiredSpeed(
-        execution
-      );
+      let waitingReason:
+        MovementBlockWaitingReason |
+        null =
+        null;
 
-      setInfo(
-        execution,
-        "Waiting for Movement resource lock",
-        leg.from.key
-      );
+      if (
+        !blockAvailableForTarget(
+          leg.to
+        )
+      ) {
+        reason =
+          `Waiting for block ${leg.to.name}`;
 
-      await controlledDelay(
-        execution,
-        150
-      );
+        waitingReason =
+          "targetBlock";
+      } else if (
+        !aheadSegmentsAreFree(
+          leg
+        )
+      ) {
+        reason =
+          "Waiting for route segment to become free";
 
-      continue;
-    }
+        waitingReason =
+          "segment";
+      }
 
-    if (
-      !blockAvailableForTarget(
-        leg.to
-      ) ||
-      !aheadSegmentsAreFree(
-        leg
-      )
-    ) {
-      await releaseLeases(
-        resources
-      );
+      if (
+        reason &&
+        waitingReason
+      ) {
+        execution.moving =
+          false;
 
-      continue;
-    }
+        applyDesiredSpeed(
+          execution
+        );
 
-    let turnouts:
-      TurnoutLease |
-      null =
-      null;
+        showWaiting(
+          waitingReason,
+          reason
+        );
 
-    try {
-      turnouts =
-        await tryAcquireAndSetTurnouts(
+        await controlledDelay(
           execution,
+          150
+        );
+
+        continue;
+      }
+
+      clearWaiting();
+
+      const resources =
+        await tryAcquireLeg(
           leg
         );
-    } catch (error) {
-      await releaseLeases(
-        resources
-      );
 
-      throw error;
-    }
+      if (
+        !resources
+      ) {
+        execution.moving =
+          false;
 
-    if (
-      leg.turnoutStates.length >
-        0 &&
-      !turnouts
-    ) {
-      await releaseLeases(
-        resources
-      );
+        applyDesiredSpeed(
+          execution
+        );
 
-      execution.moving =
-        false;
+        showWaiting(
+          "resourceLock",
+          "Waiting for Movement resource lock"
+        );
 
-      applyDesiredSpeed(
-        execution
-      );
+        await controlledDelay(
+          execution,
+          150
+        );
 
-      setInfo(
-        execution,
-        "Waiting for turnout lock",
-        leg.from.key
-      );
+        continue;
+      }
 
-      await controlledDelay(
-        execution,
-        150
-      );
+      if (
+        !blockAvailableForTarget(
+          leg.to
+        ) ||
+        !aheadSegmentsAreFree(
+          leg
+        )
+      ) {
+        await releaseLeases(
+          resources
+        );
 
-      continue;
-    }
+        continue;
+      }
 
-    /*
-     * Turnouts are now locked and in the route-required state.
-     * Recheck occupancy one last time before granting movement authority.
-     */
-    if (
-      blockAvailableForTarget(
-        leg.to
-      ) &&
-      aheadSegmentsAreFree(
-        leg
-      )
-    ) {
-      let target:
-        BlockTargetLease |
+      let turnouts:
+        TurnoutLease |
         null =
         null;
 
       try {
-        target =
-          reserveBlockTarget(
+        turnouts =
+          await tryAcquireAndSetTurnouts(
             execution,
             leg
           );
-
-        return {
-          resources,
-          turnouts,
-          target,
-        };
       } catch (error) {
-        await releaseMovementLegLease({
-          resources,
-          turnouts,
-          target,
-        });
+        await releaseLeases(
+          resources
+        );
 
         throw error;
       }
+
+      if (
+        leg.turnoutStates.length >
+          0 &&
+        !turnouts
+      ) {
+        await releaseLeases(
+          resources
+        );
+
+        execution.moving =
+          false;
+
+        applyDesiredSpeed(
+          execution
+        );
+
+        showWaiting(
+          "turnoutLock",
+          "Waiting for turnout lock"
+        );
+
+        await controlledDelay(
+          execution,
+          150
+        );
+
+        continue;
+      }
+
+      if (
+        blockAvailableForTarget(
+          leg.to
+        ) &&
+        aheadSegmentsAreFree(
+          leg
+        )
+      ) {
+        let target:
+          BlockTargetLease |
+          null =
+          null;
+
+        try {
+          target =
+            reserveBlockTarget(
+              execution,
+              leg
+            );
+
+          clearWaiting();
+
+          return {
+            resources,
+            turnouts,
+            target,
+          };
+        } catch (error) {
+          await releaseMovementLegLease({
+            resources,
+            turnouts,
+            target,
+          });
+
+          throw error;
+        }
+      }
+
+      await releaseMovementLegLease({
+        resources,
+        turnouts,
+        target:
+          null,
+      });
     }
 
-    await releaseMovementLegLease({
-      resources,
-      turnouts,
-      target:
-        null,
-    });
+    throw new Error(
+      "Movement cancelled."
+    );
+  } finally {
+    clearWaiting();
   }
-
-  throw new Error(
-    "Movement cancelled."
-  );
 }
 
 function conditionsSatisfied(
@@ -2143,37 +2270,55 @@ async function waitForDepartureConditions(
 ): Promise<void> {
   if (
     leg.departWhen.length ===
-    0
+      0
   ) {
     return;
   }
 
-  setInfo(
-    execution,
-    `Waiting for departure: ${leg.from.name}`,
-    leg.from.key
-  );
+  let waitingShown =
+    false;
 
-  while (
-    !execution.cancelled
-  ) {
-    if (
-      conditionsSatisfied(
-        leg.departWhen
-      )
+  try {
+    while (
+      !execution.cancelled
     ) {
-      return;
+      if (
+        conditionsSatisfied(
+          leg.departWhen
+        )
+      ) {
+        return;
+      }
+
+      if (
+        !waitingShown
+      ) {
+        waitingShown =
+          true;
+
+        setMovementWaiting(
+          execution,
+          leg,
+          "departureCondition",
+          `Waiting for departure: ${leg.from.name}`
+        );
+      }
+
+      await controlledDelay(
+        execution,
+        100
+      );
     }
 
-    await controlledDelay(
+    throw new Error(
+      "Movement cancelled."
+    );
+  } finally {
+    clearMovementWaiting(
       execution,
-      100
+      leg
     );
   }
-
-  throw new Error(
-    "Movement cancelled."
-  );
 }
 
 function createBlockLeaveState(
@@ -2359,57 +2504,88 @@ async function waitForHeldLegReady(
   targetMarker:
     string | null
 ): Promise<void> {
-  while (
-    !execution.cancelled
-  ) {
-    let reason =
-      "";
+  let lastInfo =
+    "";
 
-    if (
-      !blockAvailableForTarget(
-        leg.to,
-        targetMarker
-      )
+  try {
+    while (
+      !execution.cancelled
     ) {
-      reason =
-        `Waiting for block ${leg.to.name}`;
-    } else if (
-      !aheadSegmentsAreFree(
-        leg
-      )
-    ) {
-      reason =
-        "Waiting for route segment to become free";
+      let reason =
+        "";
+
+      let waitingReason:
+        MovementBlockWaitingReason |
+        null =
+        null;
+
+      if (
+        !blockAvailableForTarget(
+          leg.to,
+          targetMarker
+        )
+      ) {
+        reason =
+          `Waiting for block ${leg.to.name}`;
+
+        waitingReason =
+          "targetBlock";
+      } else if (
+        !aheadSegmentsAreFree(
+          leg
+        )
+      ) {
+        reason =
+          "Waiting for route segment to become free";
+
+        waitingReason =
+          "segment";
+      }
+
+      if (
+        !reason ||
+        !waitingReason
+      ) {
+        return;
+      }
+
+      execution.moving =
+        false;
+
+      applyDesiredSpeed(
+        execution
+      );
+
+      if (
+        reason !==
+          lastInfo
+      ) {
+        lastInfo =
+          reason;
+
+        setMovementWaiting(
+          execution,
+          leg,
+          waitingReason,
+          reason
+        );
+      }
+
+      await controlledDelay(
+        execution,
+        100
+      );
     }
 
-    if (
-      !reason
-    ) {
-      return;
-    }
-
-    execution.moving =
-      false;
-
-    applyDesiredSpeed(
-      execution
+    throw new Error(
+      "Movement cancelled."
     );
-
-    setInfo(
+  } finally {
+    clearMovementWaiting(
       execution,
-      reason,
-      leg.from.key
-    );
-
-    await controlledDelay(
-      execution,
-      100
+      leg
     );
   }
-
-  throw new Error(
-    "Movement cancelled."
-  );
 }
 
 async function waitForArrival(
@@ -3308,6 +3484,10 @@ export async function startMovement(
 
     throw error;
   } finally {
+    clearMovementBlockWaitingByOwner(
+      page.id
+    );
+
     executions.delete(
       page.id
     );
