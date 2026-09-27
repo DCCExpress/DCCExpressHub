@@ -297,7 +297,12 @@ export class BlockElement extends TrackElement {
     );
     ctx.closePath();
 
+    const blinking =
+      movementRuntime.phase !==
+        "moving";
+
     const blinkOn =
+      !blinking ||
       Math.floor(
         Date.now() /
           350
@@ -310,12 +315,33 @@ export class BlockElement extends TrackElement {
         ? 1
         : 0.22;
 
-    ctx.fillStyle =
-      "#ffd43b";
+    if (
+      movementRuntime.phase ===
+        "moving"
+    ) {
+      ctx.fillStyle =
+        "#a3e635";
+
+      ctx.strokeStyle =
+        "#365314";
+    } else if (
+      movementRuntime.phase ===
+        "error"
+    ) {
+      ctx.fillStyle =
+        "#ff6b6b";
+
+      ctx.strokeStyle =
+        "#7f1d1d";
+    } else {
+      ctx.fillStyle =
+        "#ffd43b";
+
+      ctx.strokeStyle =
+        "#5f3d00";
+    }
 
     ctx.fill();
-    ctx.strokeStyle =
-      "#5f3d00";
     ctx.lineWidth = 1;
     ctx.stroke();
     ctx.restore();
