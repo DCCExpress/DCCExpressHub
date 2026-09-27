@@ -390,22 +390,50 @@ export default function TrackCanvas({
     });
   }, [invalidate]);
 
+  useEffect(() => {
+    return wsClient.on("locoState", () => {
+      /*
+       * Block direction markers use the authoritative locomotive runtime
+       * speed/direction cache. Redraw immediately when that live state changes
+       * so manual throttle changes are reflected without waiting for an
+       * unrelated layout/runtime event.
+       */
+      invalidate();
+    });
+  }, [invalidate]);
+
   // Level-crossing lamps use Date.now() to calculate their blink phase.
   // The canvas itself is otherwise event-driven, so without a periodic redraw
   // the mobile runtime view only appears to blink when some unrelated runtime
   // event (for example sensorSnapshot) happens.
   useEffect(() => {
     const timer = window.setInterval(() => {
+      const elements =
+        layoutRef.current
+          .getAllElements();
+
+      const liveLocoMoving =
+        elements.some(
+          element =>
+            element instanceof BlockElement &&
+            element.locoAddress > 0 &&
+            (
+              wsClient.getLatestLocoState(
+                element.locoAddress
+              )?.speed ??
+              0
+            ) > 0
+        );
+
       const needsBlinkRedraw =
         hasMovingMovementBlockRuntime() ||
-        layoutRef.current
-          .getAllElements()
-          .some(
-            element =>
-              element instanceof TrackLevelCrossingElement &&
-              element.lightsEnabled &&
-              element.blinkingEnabled
-          );
+        liveLocoMoving ||
+        elements.some(
+          element =>
+            element instanceof TrackLevelCrossingElement &&
+            element.lightsEnabled &&
+            element.blinkingEnabled
+        );
 
       if (needsBlinkRedraw) {
         requestDraw();
