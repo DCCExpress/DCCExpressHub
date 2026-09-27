@@ -291,11 +291,13 @@ WsProtocol::WsProtocol(
     AsyncWebSocket &ws,
     ICommandCenter &commandCenter,
     LayoutRuntime &runtime,
-    RuntimeStateStore &stateStore)
+    RuntimeStateStore &stateStore,
+    LocoCounterRuntime &locoCounters)
     : _ws(ws),
       _commandCenter(commandCenter),
       _runtime(runtime),
-      _stateStore(stateStore) {}
+      _stateStore(stateStore),
+      _locoCounters(locoCounters) {}
 
 void WsProtocol::begin()
 {
@@ -435,6 +437,15 @@ void WsProtocol::loop()
         millis();
 
     updateCpuUsage();
+
+    _locoCounters.loop();
+
+    if (
+        _locoCounters.consumeChanged() &&
+        _wsClientCount > 0)
+    {
+        broadcastLocoCounterSnapshot();
+    }
 
     handleCommandCenterConnectionState(
         now);
@@ -1637,6 +1648,9 @@ void WsProtocol::sendRuntimeSnapshot(
 
     sendBlockStateSnapshot(
         client);
+
+    sendLocoCounterSnapshot(
+        client);
 }
 
 void WsProtocol::broadcastRuntimeSnapshot()
@@ -1987,6 +2001,40 @@ WsProtocol::getLoco(
     return &loco;
 }
 
+void WsProtocol::sendLocoCounterSnapshot(
+    AsyncWebSocketClient *client)
+{
+    JsonDocument data;
+
+    JsonArray items =
+        data["items"]
+            .to<JsonArray>();
+
+    _locoCounters.appendSnapshot(
+        items);
+
+    send(
+        client,
+        "locoCounterSnapshot",
+        data.as<JsonVariantConst>());
+}
+
+void WsProtocol::broadcastLocoCounterSnapshot()
+{
+    JsonDocument data;
+
+    JsonArray items =
+        data["items"]
+            .to<JsonArray>();
+
+    _locoCounters.appendSnapshot(
+        items);
+
+    broadcast(
+        "locoCounterSnapshot",
+        data);
+}
+
 void WsProtocol::broadcastLoco(
     const LocoState &loco)
 {
@@ -2254,11 +2302,15 @@ void WsProtocol::handlePowerFeedback(
     _emergencyStop =
         false;
 
+    _locoCounters.setTrackPower(
+        _trackPower);
+
     if (
         wasMainOn &&
         !_trackPower)
     {
         _stateStore.save();
+        _locoCounters.save();
     }
 
     if (
@@ -2310,6 +2362,10 @@ void WsProtocol::handleLocoFeedback(
 
     loco->functionsMask =
         info.functionsMask;
+
+    _locoCounters.updateLoco(
+        info.address,
+        info.speed);
 
     if (
         _emergencyStop &&
