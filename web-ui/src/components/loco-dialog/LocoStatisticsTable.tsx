@@ -568,18 +568,6 @@ export default function LocoStatisticsTable({
             <Table.Tr>
               <Table.Th>
                 {t(
-                  "locodialog.statistics_image"
-                )}
-              </Table.Th>
-
-              <Table.Th>
-                {t(
-                  "locodialog.statistics_address"
-                )}
-              </Table.Th>
-
-              <Table.Th>
-                {t(
                   "locodialog.statistics_loco"
                 )}
               </Table.Th>
@@ -619,36 +607,42 @@ export default function LocoStatisticsTable({
                   }
                 >
                   <Table.Td>
-                    <LocoImage
-                      locoId={
-                        row.id
-                      }
-                      image={
-                        row.image
-                      }
-                      name={
-                        row.name
-                      }
-                      width={72}
-                      height={32}
-                    />
-                  </Table.Td>
-
-                  <Table.Td>
-                    <Text
-                      ff="monospace"
-                      fw={700}
+                    <Group
+                      gap="sm"
+                      wrap="nowrap"
                     >
-                      #{row.address}
-                    </Text>
-                  </Table.Td>
+                      <LocoImage
+                        locoId={
+                          row.id
+                        }
+                        image={
+                          row.image
+                        }
+                        name={
+                          row.name
+                        }
+                        width={76}
+                        height={34}
+                      />
 
-                  <Table.Td>
-                    <Text
-                      fw={600}
-                    >
-                      {row.name}
-                    </Text>
+                      <Stack gap={0}>
+                        <Text
+                          fw={700}
+                          size="sm"
+                        >
+                          {row.name}
+                        </Text>
+
+                        <Text
+                          ff="monospace"
+                          size="xs"
+                          c="dimmed"
+                          fw={700}
+                        >
+                          #{row.address}
+                        </Text>
+                      </Stack>
+                    </Group>
                   </Table.Td>
 
                   <Table.Td ta="right">
@@ -681,10 +675,7 @@ export default function LocoStatisticsTable({
 
           <Table.Tfoot>
             <Table.Tr>
-              <Table.Th />
-              <Table.Th
-                colSpan={2}
-              >
+              <Table.Th>
                 <Group
                   gap="xs"
                 >
