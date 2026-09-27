@@ -700,7 +700,7 @@ export function buildMovementRouteVector(
 
     result.push({
       key:
-        `segment:${nodeName}:${nodeIndex}`,
+        `segment:${nodeName}`,
       kind:
         "segment",
       order:
