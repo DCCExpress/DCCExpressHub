@@ -217,3 +217,41 @@ test("generated route selector labels are translated in all UI languages", () =>
     );
   }
 });
+
+
+test("generated route selector button lives in RouteButton property panel header", () => {
+  const page =
+    read(
+      "src/LiteLayoutPage.tsx"
+    );
+
+  const editor =
+    read(
+      "src/layout/property-panel/RouteTurnoutSelectionPropertyEditor.tsx"
+    );
+
+  assert.match(
+    page,
+    /selectedElement instanceof[\s\S]*RouteButtonElement[\s\S]*selectGeneratedRoute/
+  );
+
+  assert.match(
+    page,
+    /routeSelectRequest/
+  );
+
+  assert.match(
+    editor,
+    /routeSelectRequest/
+  );
+
+  assert.match(
+    editor,
+    /useEffect[\s\S]*openRouteSelect/
+  );
+
+  assert.doesNotMatch(
+    editor,
+    /IconListCheck/
+  );
+});
