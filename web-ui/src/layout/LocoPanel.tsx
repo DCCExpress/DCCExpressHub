@@ -1,6 +1,7 @@
-import { Card, Stack, Text } from "@mantine/core";
+import { ActionIcon, Card, Text, Tooltip } from "@mantine/core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { IconSettings } from "@tabler/icons-react";
 
 import type {
   Direction,
@@ -14,6 +15,13 @@ import { showErrorMessage } from "../helpers";
 import { wsApi } from "../services/wsApi";
 import { wsClient } from "../services/wsClient";
 import LocoControlCard from "./loco-panel/LocoControlCard";
+import LocoPanelSettingsDialog from "./loco-panel/LocoPanelSettingsDialog";
+import {
+  getLocoPanelCounterDisplaySettings,
+  setLocoPanelCounterDisplaySettings,
+  subscribeLocoPanelCounterDisplaySettings,
+  type LocoPanelCounterDisplaySettings,
+} from "../services/locoPanelCounterDisplaySettings";
 import LocoFunctionGrid from "./loco-panel/LocoFunctionGrid";
 import { useGamepadAction } from "../context/GamepadContext";
 
@@ -86,6 +94,21 @@ export default function LocoPanel({
   const [pickerOpened, setPickerOpened] =
     useState(false);
 
+  const [
+    settingsOpened,
+    setSettingsOpened,
+  ] =
+    useState(false);
+
+  const [
+    counterDisplaySettings,
+    setCounterDisplaySettingsState,
+  ] =
+    useState<LocoPanelCounterDisplaySettings>(
+      () =>
+        getLocoPanelCounterDisplaySettings()
+    );
+
   const [speed, setSpeed] =
     useState(0);
 
@@ -109,6 +132,44 @@ export default function LocoPanel({
   useEffect(() => {
     aliveRef.current = alive;
   }, [alive]);
+
+  useEffect(
+    () => {
+      return subscribeLocoPanelCounterDisplaySettings(
+        settings => {
+          setCounterDisplaySettingsState(
+            settings
+          );
+        }
+      );
+    },
+    []
+  );
+
+  const updateCounterDisplaySettings =
+    useCallback(
+      (
+        patch:
+          Partial<LocoPanelCounterDisplaySettings>
+      ) => {
+        setLocoPanelCounterDisplaySettings(
+          patch
+        );
+      },
+      []
+    );
+
+  const toggleDailyCounters =
+    useCallback(
+      () => {
+        setLocoPanelCounterDisplaySettings({
+          daily:
+            !getLocoPanelCounterDisplaySettings()
+              .daily,
+        });
+      },
+      []
+    );
 
   const clearSpeedTimers = useCallback(() => {
     if (speedSendTimerRef.current !== null) {
@@ -750,6 +811,57 @@ export default function LocoPanel({
           onSelect={handleSelectLoco}
         />
 
+        <LocoPanelSettingsDialog
+          opened={
+            settingsOpened
+          }
+          settings={
+            counterDisplaySettings
+          }
+          onClose={
+            () =>
+              setSettingsOpened(
+                false
+              )
+          }
+          onChange={
+            updateCounterDisplaySettings
+          }
+          t={t}
+        />
+
+        <Tooltip
+          label={t(
+            "locopanel.counter_settings_title"
+          )}
+        >
+          <ActionIcon
+            aria-label={t(
+              "locopanel.counter_settings_title"
+            )}
+            size="sm"
+            variant="subtle"
+            color="gray"
+            onClick={
+              () =>
+                setSettingsOpened(
+                  true
+                )
+            }
+            style={{
+              position:
+                "absolute",
+              left: 2,
+              bottom: 2,
+              zIndex: 20,
+            }}
+          >
+            <IconSettings
+              size={15}
+            />
+          </ActionIcon>
+        </Tooltip>
+
         {/* <Stack gap="xs" h="100%">
           {!currentLoco ? (
             <Text size="sm" c="dimmed">
@@ -847,6 +959,12 @@ export default function LocoPanel({
                     onStop={handleStop}
                     onEmergencyToggle={
                       handleEmergencyToggle
+                    }
+                    counterDisplaySettings={
+                      counterDisplaySettings
+                    }
+                    onToggleCounterDaily={
+                      toggleDailyCounters
                     }
                   />
                 </div>
