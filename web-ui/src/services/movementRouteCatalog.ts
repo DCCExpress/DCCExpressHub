@@ -28,6 +28,8 @@ export type MovementRouteCandidate = {
     | "forward"
     | "reverse";
   turnoutCount: number;
+  used: boolean;
+  usedByMovementNames: string[];
 };
 
 type RawRouteEntry =
@@ -207,10 +209,16 @@ export function buildMovementRouteCandidates(
   }
 
   const usedRouteKeys =
-    new Set<string>();
+    new Map<
+      string,
+      string[]
+    >();
 
   const usedLegacySequences:
-    number[][] = [];
+    Array<{
+      checkpoints: number[];
+      movementName: string;
+    }> = [];
 
   for (
     const page of
@@ -222,8 +230,19 @@ export function buildMovementRouteCandidates(
         .length >
         0
     ) {
-      usedRouteKeys.add(
-        page.routeKey
+      const names =
+        usedRouteKeys.get(
+          page.routeKey
+        ) ??
+        [];
+
+      names.push(
+        page.name
+      );
+
+      usedRouteKeys.set(
+        page.routeKey,
+        names
       );
 
       continue;
@@ -238,9 +257,12 @@ export function buildMovementRouteCandidates(
       sequence.length >=
         2
     ) {
-      usedLegacySequences.push(
-        sequence
-      );
+      usedLegacySequences.push({
+        checkpoints:
+          sequence,
+        movementName:
+          page.name,
+      });
     }
   }
 
@@ -369,20 +391,37 @@ export function buildMovementRouteCandidates(
           block.id
       );
 
-    if (
-      usedRouteKeys.has(
-        key
-      ) ||
-      usedLegacySequences.some(
-        checkpoints =>
-          containsCheckpointsInOrder(
-            candidateBlockIds,
-            checkpoints
+    const usedByMovementNames =
+      [
+        ...(
+          usedRouteKeys.get(
+            key
+          ) ??
+          []
+        ),
+        ...usedLegacySequences
+          .filter(
+            entry =>
+              containsCheckpointsInOrder(
+                candidateBlockIds,
+                entry.checkpoints
+              )
           )
-      )
-    ) {
-      continue;
-    }
+          .map(
+            entry =>
+              entry.movementName
+          ),
+      ].filter(
+        (
+          name,
+          index,
+          all
+        ) =>
+          all.indexOf(
+            name
+          ) ===
+          index
+      );
 
     const turnoutCount =
       new Set(
@@ -448,6 +487,10 @@ export function buildMovementRouteCandidates(
           raw.locoDirection
         ),
       turnoutCount,
+      used:
+        usedByMovementNames.length >
+        0,
+      usedByMovementNames,
     });
   }
 
