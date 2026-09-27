@@ -79,84 +79,23 @@ test("LocoPanel shows live daily and total counters below speed readout", () => 
 });
 
 
-test("locomotive counter runtime integrates motion and persists totals on stop", () => {
+test("frontend counter runtime only mirrors backend snapshots", () => {
   const runtime = read("src/services/locoCounterRuntime.ts");
   const app = read("src/App.tsx");
 
   assert.match(
     runtime,
-    /elapsedMs[\s\S]*3_600_000/
+    /wsClient\.on\([\s\S]*"locoCounterSnapshot"/
   );
 
   assert.match(
     runtime,
-    /state\.speed[\s\S]*state\.maxSpeedStep/
+    /snapshots\.set/
   );
 
-  assert.match(
+  assert.doesNotMatch(
     runtime,
-    /state\.maxScaleSpeedKmh[\s\S]*speedRatio/
-  );
-
-  assert.match(
-    runtime,
-    /distanceKm[\s\S]*speedKmh[\s\S]*elapsedHours/
-  );
-
-  assert.match(
-    runtime,
-    /state\.pendingHours \+=/
-  );
-
-  assert.match(
-    runtime,
-    /state\.dailyHours \+=/
-  );
-
-  assert.match(
-    runtime,
-    /state\.pendingKm \+=/
-  );
-
-  assert.match(
-    runtime,
-    /state\.dailyKm \+=/
-  );
-
-  assert.match(
-    runtime,
-    /wasMoving[\s\S]*!isMoving[\s\S]*queuePersist/
-  );
-
-  assert.match(
-    runtime,
-    /await getLocos\(\)[\s\S]*await saveLocos/
-  );
-
-
-  assert.match(
-    runtime,
-    /calculatedTotalKm[\s\S]*Math\.max\([\s\S]*persistedKm/
-  );
-
-  assert.match(
-    runtime,
-    /calculatedTotalHours[\s\S]*Math\.max\([\s\S]*persistedHours/
-  );
-
-  assert.match(
-    runtime,
-    /odometerKm:[\s\S]*nextTotalKm/
-  );
-
-  assert.match(
-    runtime,
-    /operatingHours:[\s\S]*nextTotalHours/
-  );
-
-  assert.match(
-    runtime,
-    /lastRunAt:[\s\S]*toISOString/
+    /setInterval|saveLocos|getLocos|elapsedHours|speedRatio/
   );
 
   assert.match(
@@ -164,8 +103,110 @@ test("locomotive counter runtime integrates motion and persists totals on stop",
     /installLocoCounterRuntime/
   );
 
-  assert.match(
+  assert.doesNotMatch(
     app,
-    /configureLocoCounterRuntime\([\s\S]*locos/
+    /configureLocoCounterRuntime/
+  );
+});
+
+test("ESP32 backend owns locomotive counter integration and checkpoint saves", () => {
+  const runtime = read("../src/LocoCounterRuntime.cpp");
+  const ws = read("../src/WsProtocol.cpp");
+  const api = read("../src/ApiServer.cpp");
+
+  assert.match(
+    runtime,
+    /elapsedMs[\s\S]*3600000\.0/
+  );
+
+  assert.match(
+    runtime,
+    /maxScaleSpeedKmh[\s\S]*speedRatio[\s\S]*elapsedHours/
+  );
+
+  assert.match(
+    runtime,
+    /dailyHours \+=/
+  );
+
+  assert.match(
+    runtime,
+    /dailyKm \+=/
+  );
+
+  assert.match(
+    ws,
+    /_locoCounters\.updateLoco/
+  );
+
+  assert.match(
+    ws,
+    /_locoCounters\.setTrackPower/
+  );
+
+  assert.match(
+    ws,
+    /wasMainOn[\s\S]*!_trackPower[\s\S]*_locoCounters\.save/
+  );
+
+  assert.match(
+    api,
+    /Layout saved[\s\S]*loco counters/
+  );
+
+  assert.match(
+    ws,
+    /"locoCounterSnapshot"/
+  );
+});
+
+test(".NET backend owns locomotive counter integration and checkpoint saves", () => {
+  const runtime = read("../desktop/DCCExpressHub.Net/Web/LocoCounterRuntime.cs");
+  const ws = read("../desktop/DCCExpressHub.Net/Web/WsHub.cs");
+  const program = read("../desktop/DCCExpressHub.Net/Program.cs");
+
+  assert.match(
+    runtime,
+    /elapsedMs[\s\S]*3_600_000\.0/
+  );
+
+  assert.match(
+    runtime,
+    /MaxScaleSpeedKmh[\s\S]*speedRatio[\s\S]*elapsedHours/
+  );
+
+  assert.match(
+    runtime,
+    /DailyHours \+=/
+  );
+
+  assert.match(
+    runtime,
+    /DailyKm \+=/
+  );
+
+  assert.match(
+    ws,
+    /LocoCounters\.UpdateLoco/
+  );
+
+  assert.match(
+    ws,
+    /LocoCounters\.SetTrackPower/
+  );
+
+  assert.match(
+    ws,
+    /wasMainOn[\s\S]*!HubState\.TrackPower[\s\S]*LocoCounters\.SaveAsync/
+  );
+
+  assert.match(
+    program,
+    /locoCountersSaved[\s\S]*counters\.SaveAsync/
+  );
+
+  assert.match(
+    ws,
+    /"locoCounterSnapshot"/
   );
 });
