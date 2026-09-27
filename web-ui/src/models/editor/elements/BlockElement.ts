@@ -266,8 +266,8 @@ export class BlockElement extends TrackElement {
         localForwardRad
       ) >= 0;
 
-    const arrowLength = 4;
-    const arrowHalfHeight = 3;
+    const arrowLength = 6;
+    const arrowHalfHeight = 4;
     const centerY = blockY + blockH / 2;
     const edgePadding = 2;
 
