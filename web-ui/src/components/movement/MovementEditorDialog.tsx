@@ -4,6 +4,8 @@ import {
   useState,
 } from "react";
 
+import i18next from "i18next";
+
 import {
   Button,
   Divider,
