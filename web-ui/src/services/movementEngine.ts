@@ -870,7 +870,8 @@ function setActiveRouteResource(
 function setPhysicalSpeed(
   execution:
     MovementExecution,
-  speed: number
+  speed: number,
+  force = false
 ): void {
   const safeSpeed =
     Math.max(
@@ -884,8 +885,9 @@ function setPhysicalSpeed(
     );
 
   if (
+    !force &&
     execution.physicalSpeed ===
-    safeSpeed
+      safeSpeed
   ) {
     return;
   }
@@ -934,6 +936,110 @@ function applyDesiredSpeed(
 
   syncMovementMotionRuntime(
     execution
+  );
+}
+
+async function armMovementDirection(
+  execution:
+    MovementExecution
+): Promise<void> {
+  const before =
+    wsClient.getLatestLocoState(
+      execution.locoAddress
+    );
+
+  console.info(
+    "[Movement] arm direction",
+    {
+      page:
+        execution.page.name,
+      locoAddress:
+        execution.locoAddress,
+      requestedLogicalDirection:
+        execution.direction,
+      previousLogicalDirection:
+        before?.direction ??
+        null,
+      previousSpeed:
+        before?.speed ??
+        null,
+    }
+  );
+
+  execution.moving =
+    false;
+
+  /*
+   * Always send an explicit STOP with the requested LOGICAL direction.
+   *
+   * Do not rely on execution.physicalSpeed here: a freshly created Movement
+   * execution starts with physicalSpeed=0 as an internal cache value, but the
+   * decoder may still hold the direction from the previous run. The backend is
+   * the only layer that applies locomotive inversion.
+   */
+  setPhysicalSpeed(
+    execution,
+    0,
+    true
+  );
+
+  /*
+   * Give the command station/decoder a short stopped interval to accept the
+   * direction before any non-zero speed command can be emitted.
+   */
+  await controlledDelay(
+    execution,
+    150
+  );
+
+  wsApi.getLoco(
+    execution.locoAddress
+  );
+
+  const deadline =
+    Date.now() +
+    1200;
+
+  while (
+    !execution.cancelled &&
+    Date.now() <
+      deadline
+  ) {
+    const current =
+      wsClient.getLatestLocoState(
+        execution.locoAddress
+      );
+
+    if (
+      current &&
+      current.speed ===
+        0 &&
+      current.direction ===
+        execution.direction
+    ) {
+      console.info(
+        "[Movement] direction armed",
+        {
+          page:
+            execution.page.name,
+          locoAddress:
+            execution.locoAddress,
+          logicalDirection:
+            current.direction,
+        }
+      );
+
+      return;
+    }
+
+    await controlledDelay(
+      execution,
+      50
+    );
+  }
+
+  throw new Error(
+    `Movement could not confirm stopped locomotive direction "${execution.direction}" for DCC address ${execution.locoAddress}.`
   );
 }
 
@@ -3651,6 +3757,10 @@ export async function startMovement(
   );
 
   try {
+    await armMovementDirection(
+      execution
+    );
+
     await executeMovement(
       execution
     );
