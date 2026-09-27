@@ -539,8 +539,29 @@ export function applyMovementRouteCandidate(
       blockIds
     );
 
+  const directionArrow =
+    candidate.locoDirection ===
+      "forward"
+      ? "→"
+      : candidate.locoDirection ===
+          "reverse"
+        ? "←"
+        : "↔";
+
+  const generatedName =
+    `${candidate.blockPath
+      .map(
+        block =>
+          block.name
+      )
+      .join(
+        " - "
+      )} ${directionArrow}`;
+
   return {
     ...page,
+    name:
+      generatedName,
     routeKey:
       candidate.key,
     fromBlockId:
