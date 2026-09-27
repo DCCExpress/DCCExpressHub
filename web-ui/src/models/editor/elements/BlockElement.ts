@@ -317,7 +317,9 @@ export class BlockElement extends TrackElement {
 
     if (
       movementRuntime.phase ===
-        "moving"
+        "moving" ||
+      movementRuntime.phase ===
+        "executing"
     ) {
       ctx.fillStyle =
         "#a3e635";
