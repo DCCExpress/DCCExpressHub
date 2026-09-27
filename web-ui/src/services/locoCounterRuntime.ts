@@ -448,6 +448,10 @@ async function persistStoppedLoco(
         calculatedTotalHours
       );
 
+    const stoppedAt =
+      new Date()
+        .toISOString();
+
     locos[
       targetIndex
     ] = {
@@ -457,8 +461,7 @@ async function persistStoppedLoco(
       operatingHours:
         nextTotalHours,
       lastRunAt:
-        new Date()
-          .toISOString(),
+        stoppedAt,
     };
 
     await saveLocos(
@@ -502,9 +505,7 @@ async function persistStoppedLoco(
           operatingHours:
             nextTotalHours,
           lastRunAt:
-            locos[
-              targetIndex
-            ]?.lastRunAt,
+            stoppedAt,
         }
       );
     }
