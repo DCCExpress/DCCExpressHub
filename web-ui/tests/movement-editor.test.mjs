@@ -3057,3 +3057,59 @@ test("Movement final ARRIVED blocking sequences run before the automatic stop", 
   );
 });
 
+
+
+test("Movement never guesses forward when route direction is unknown", () => {
+  const engine =
+    read(
+      "src/services/movementEngine.ts"
+    );
+
+  assert.match(
+    engine,
+    /plan\.direction ===[\s\S]*"unknown"[\s\S]*throw new Error/
+  );
+
+  assert.match(
+    engine,
+    /const direction =[\s\S]*plan\.direction/
+  );
+
+  assert.doesNotMatch(
+    engine,
+    /plan\.direction ===[\s\S]*"reverse"[\s\S]*\?[\s\S]*"reverse"[\s\S]*:[\s\S]*"forward"/
+  );
+});
+
+
+test("Configured command centers apply locomotive direction inversion", () => {
+  const windows =
+    read(
+      "../desktop/DCCExpressHub.Net/CommandCenter/ConfiguredCommandCenter.cs"
+    );
+
+  const esp32 =
+    read(
+      "../src/ConfiguredCommandCenter.cpp"
+    );
+
+  assert.match(
+    windows,
+    /MapDirection\(int address,bool forward\)=>LocomotiveDirectionInverted\(address\)\?!forward:forward/
+  );
+
+  assert.match(
+    windows,
+    /SetLocoAsync\(address,speed,MapDirection\(address,forward\),ct\)/
+  );
+
+  assert.match(
+    esp32,
+    /const bool physicalForward =[\s\S]*mapDirection\([\s\S]*address,[\s\S]*forward/
+  );
+
+  assert.match(
+    esp32,
+    /_inner\.setLoco\([\s\S]*address,[\s\S]*speed,[\s\S]*physicalForward/
+  );
+});
