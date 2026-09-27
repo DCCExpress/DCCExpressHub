@@ -911,6 +911,16 @@ export default function LiteLayoutPage({
               (
                 isSwitchManTurnoutElement(element) &&
                 element.locked
+              ) ||
+              (
+                element instanceof BlockElement &&
+                element.locoAddress > 0 &&
+                (
+                  wsClient.getLatestLocoState(
+                    element.locoAddress
+                  )?.speed ??
+                  0
+                ) > 0
               )
           );
 
@@ -1227,6 +1237,10 @@ export default function LiteLayoutPage({
     }
     invalidate();
   }), [layout, invalidate]);
+
+  useEffect(() => wsClient.on("locoState", () => {
+    invalidate();
+  }), [invalidate]);
 
   useEffect(() => wsClient.on("accessoryChanged", data => {
     for (const element of layout.getAllElements()) {
