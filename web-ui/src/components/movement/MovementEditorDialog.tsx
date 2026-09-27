@@ -23,6 +23,7 @@ import {
 
 import {
   IconDeviceFloppy,
+  IconListCheck,
   IconPlus,
   IconRefresh,
   IconTrash,
@@ -46,16 +47,11 @@ import {
 } from "../../services/automationBlockCatalog";
 
 import {
-  loadMovementRouteNavigation,
-  type MovementRouteNavigation,
-} from "../../services/movementRouteNavigation";
-
-import {
   getMovementEngineState,
 } from "../../services/movementEngine";
 
 import MovementRouteEditor from "./MovementRouteEditor";
-import MovementRouteSelector from "./MovementRouteSelector";
+import MovementRouteSelectDialog from "./MovementRouteSelectDialog";
 import MovementSidebarCard from "./MovementSidebarCard";
 
 import "../../styles/movementEditor.css";
@@ -96,25 +92,6 @@ export default function MovementEditorDialog({
     >([]);
 
   const [
-    navigation,
-    setNavigation,
-  ] =
-    useState<
-      MovementRouteNavigation |
-      null
-    >(
-      null
-    );
-
-  const [
-    routeLoadError,
-    setRouteLoadError,
-  ] =
-    useState<string | null>(
-      null
-    );
-
-  const [
     loading,
     setLoading,
   ] =
@@ -130,6 +107,14 @@ export default function MovementEditorDialog({
       false
     );
 
+  const [
+    routeSelectOpened,
+    setRouteSelectOpened,
+  ] =
+    useState(
+      false
+    );
+
   const activePage =
     document.pages.find(
       page =>
@@ -138,15 +123,39 @@ export default function MovementEditorDialog({
     ) ??
     document.pages[0];
 
+
+  const activeRouteNames =
+    activePage
+      ? [
+          ...(activePage.fromBlockId ===
+            null
+            ? []
+            : [
+                activePage.fromBlockId,
+              ]),
+          ...activePage.viaBlockIds,
+          ...(activePage.toBlockId ===
+            null
+            ? []
+            : [
+                activePage.toBlockId,
+              ]),
+        ].map(
+          blockId =>
+            catalog.find(
+              block =>
+                block.id ===
+                blockId
+            )?.name ??
+            `Block #${blockId}`
+        )
+      : [];
+
   const load =
     useCallback(
       async (): Promise<void> => {
         setLoading(
           true
-        );
-
-        setRouteLoadError(
-          null
         );
 
         try {
@@ -183,23 +192,6 @@ export default function MovementEditorDialog({
             blocks
           );
 
-          try {
-            setNavigation(
-              await loadMovementRouteNavigation()
-            );
-          } catch (error) {
-            setNavigation(
-              null
-            );
-
-            setRouteLoadError(
-              error instanceof Error
-                ? error.message
-                : String(
-                    error
-                  )
-            );
-          }
         } catch (error) {
           showNotification({
             color: "red",
@@ -635,6 +627,28 @@ export default function MovementEditorDialog({
                       }
                     />
 
+                    <Button
+                      size="xs"
+                      variant="light"
+                      leftSection={
+                        <IconListCheck
+                          size={14}
+                        />
+                      }
+                      onClick={
+                        () =>
+                          setRouteSelectOpened(
+                            true
+                          )
+                      }
+                    >
+                      {
+                        i18next.t(
+                          "ui.movementSelectRoute"
+                        )
+                      }
+                    </Button>
+
                     <div
                       className="movement-editor-header-spacer"
                     />
@@ -679,31 +693,57 @@ export default function MovementEditorDialog({
                     </Button>
                   </Group>
 
-                  {
-                    routeLoadError && (
-                      <Text
-                        size="xs"
-                        c="red"
-                        mt={6}
-                      >
-                        {
-                          routeLoadError
-                        }
-                      </Text>
-                    )
-                  }
+                  <Group
+                    gap="xs"
+                    mt="sm"
+                    wrap="wrap"
+                  >
+                    <Text
+                      size="xs"
+                      fw={700}
+                      c="dimmed"
+                    >
+                      {
+                        i18next.t(
+                          "ui.movementRoute"
+                        )
+                      }
+                    </Text>
 
-                  <MovementRouteSelector
+                    <Text
+                      size="sm"
+                      fw={700}
+                    >
+                      {
+                        activeRouteNames.length >
+                          0
+                          ? activeRouteNames.join(
+                              " → "
+                            )
+                          : i18next.t(
+                              "ui.movementNoRouteSelected"
+                            )
+                      }
+                    </Text>
+                  </Group>
+
+                  <MovementRouteSelectDialog
+                    opened={
+                      routeSelectOpened
+                    }
+                    document={
+                      document
+                    }
                     page={
                       activePage
                     }
-                    catalog={
-                      catalog
+                    onClose={
+                      () =>
+                        setRouteSelectOpened(
+                          false
+                        )
                     }
-                    navigation={
-                      navigation
-                    }
-                    onChange={
+                    onSelect={
                       updatePage
                     }
                   />
