@@ -2044,7 +2044,7 @@ test("Movement stores run timing and cards show live elapsed duration", () => {
 });
 
 
-test("Waiting Movement flashes the current block direction triangle", () => {
+test("Movement block direction triangle shows moving waiting and error runtime phases", () => {
   const engine =
     read(
       "src/services/movementEngine.ts"
@@ -2066,8 +2066,38 @@ test("Waiting Movement flashes the current block direction triangle", () => {
     );
 
   assert.match(
+    runtime,
+    /MovementBlockRuntimePhase/
+  );
+
+  assert.match(
+    runtime,
+    /\| "moving"/
+  );
+
+  assert.match(
+    runtime,
+    /\| "waiting"/
+  );
+
+  assert.match(
+    runtime,
+    /\| "error"/
+  );
+
+  assert.match(
     engine,
-    /setMovementBlockWaiting/
+    /syncMovementMotionRuntime/
+  );
+
+  assert.match(
+    engine,
+    /physicalSpeed >[\s\S]*0/
+  );
+
+  assert.match(
+    engine,
+    /setMovementError/
   );
 
   assert.match(
@@ -2096,16 +2126,6 @@ test("Waiting Movement flashes the current block direction triangle", () => {
   );
 
   assert.match(
-    runtime,
-    /MovementBlockWaitingReason/
-  );
-
-  assert.match(
-    runtime,
-    /direction:[\s\S]*"forward"[\s\S]*"reverse"/
-  );
-
-  assert.match(
     block,
     /getMovementBlockRuntime/
   );
@@ -2117,9 +2137,23 @@ test("Waiting Movement flashes the current block direction triangle", () => {
 
   assert.match(
     block,
+    /movementRuntime\.phase ===[\s\S]*"moving"/
+  );
+
+  assert.match(
+    block,
+    /#a3e635/
+  );
+
+  assert.match(
+    block,
     /#ffd43b/
   );
 
+  assert.match(
+    block,
+    /#ff6b6b/
+  );
 
   assert.match(
     block,
@@ -2143,6 +2177,6 @@ test("Waiting Movement flashes the current block direction triangle", () => {
 
   assert.match(
     canvas,
-    /hasMovementBlockWaiting\(\)/
+    /hasBlinkingMovementBlockRuntime\(\)/
   );
 });
