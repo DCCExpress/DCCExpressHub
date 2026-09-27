@@ -22,9 +22,6 @@ import {
   hasMovingMovementBlockRuntime,
   subscribeMovementBlockRuntime,
 } from "../services/movementBlockRuntime";
-import {
-  subscribeMovementTrackOwnership,
-} from "../services/movementTrackOwnershipRuntime";
 import { wsClient } from "../services/wsClient";
 import "../styles/TrackCanvas.css";
 
@@ -389,12 +386,6 @@ export default function TrackCanvas({
 
   useEffect(() => {
     return subscribeMovementBlockRuntime(() => {
-      invalidate();
-    });
-  }, [invalidate]);
-
-  useEffect(() => {
-    return subscribeMovementTrackOwnership(() => {
       invalidate();
     });
   }, [invalidate]);
