@@ -2927,3 +2927,26 @@ test("Focused Movement Actions tab preserves sequence-capable action editor", ()
     /background/
   );
 });
+
+
+test("Movement direction marker is hidden when a block is empty", () => {
+  const block =
+    read(
+      "src/models/editor/elements/BlockElement.ts"
+    );
+
+  assert.match(
+    block,
+    /const occupied =[sS]*hasAssignedLoco[sS]*sensorOccupied/
+  );
+
+  assert.match(
+    block,
+    /if \(occupied\) \{[sS]*drawForwardDirectionTriangle/
+  );
+
+  assert.doesNotMatch(
+    block,
+    /drawForwardDirectionTriangle\(ctx, blockX, blockY, blockW, blockH\);/
+  );
+});
