@@ -174,9 +174,7 @@ export function buildMovementRouteCandidates(
   layout:
     SerializedLayoutDto,
   document:
-    MovementDocument,
-  currentPageId:
-    string
+    MovementDocument
 ): MovementRouteCandidate[] {
   const rawLayout =
     layout as unknown as
@@ -214,13 +212,6 @@ export function buildMovementRouteCandidates(
     const page of
     document.pages
   ) {
-    if (
-      page.id ===
-        currentPageId
-    ) {
-      continue;
-    }
-
     if (
       page.routeKey
         .trim()
@@ -536,9 +527,7 @@ export function applyMovementRouteCandidate(
 
 export async function loadMovementRouteCandidates(
   document:
-    MovementDocument,
-  currentPageId:
-    string
+    MovementDocument
 ): Promise<MovementRouteCandidate[]> {
   const response =
     await fetch(
@@ -563,7 +552,6 @@ export async function loadMovementRouteCandidates(
 
   return buildMovementRouteCandidates(
     layout,
-    document,
-    currentPageId
+    document
   );
 }
