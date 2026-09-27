@@ -1,6 +1,11 @@
 import {
+  Card,
   Group,
+  Progress,
   ScrollArea,
+  SegmentedControl,
+  SimpleGrid,
+  Stack,
   Table,
   Text,
 } from "@mantine/core";
@@ -13,6 +18,8 @@ import {
 import type {
   Loco,
 } from "@domain/types";
+
+import LocoImage from "../loco/LocoImage";
 
 import {
   getLocoCounterSnapshot,
@@ -31,11 +38,18 @@ type StatisticsRow = {
   id: string;
   address: number;
   name: string;
+  image?: string;
   dailyKm: number;
   totalKm: number;
   dailyHours: number;
   totalHours: number;
 };
+
+type StatisticsMetric =
+  | "dailyKm"
+  | "totalKm"
+  | "dailyHours"
+  | "totalHours";
 
 function safeNumber(
   value: unknown
@@ -56,7 +70,7 @@ function safeNumber(
     : 0;
 }
 
-function formatKm(
+function formatNumber(
   value: number
 ): string {
   return new Intl.NumberFormat(
@@ -72,20 +86,16 @@ function formatKm(
   );
 }
 
-function formatHours(
-  value: number
+function metricUnit(
+  metric:
+    StatisticsMetric
 ): string {
-  return new Intl.NumberFormat(
-    undefined,
-    {
-      minimumFractionDigits:
-        1,
-      maximumFractionDigits:
-        2,
-    }
-  ).format(
-    value
-  );
+  return metric ===
+      "dailyKm" ||
+    metric ===
+      "totalKm"
+    ? "km"
+    : "h";
 }
 
 export default function LocoStatisticsTable({
@@ -97,6 +107,14 @@ export default function LocoStatisticsTable({
     setRevision,
   ] =
     useState(0);
+
+  const [
+    metric,
+    setMetric,
+  ] =
+    useState<StatisticsMetric>(
+      "dailyKm"
+    );
 
   useEffect(
     () => {
@@ -146,6 +164,12 @@ export default function LocoStatisticsTable({
                   t(
                     "loco.unnamed"
                   ),
+                ...(loco.image
+                  ? {
+                      image:
+                        loco.image,
+                    }
+                  : {}),
                 dailyKm:
                   safeNumber(
                     runtime?.dailyKm
@@ -209,6 +233,41 @@ export default function LocoStatisticsTable({
       ]
     );
 
+  const chartRows =
+    useMemo(
+      () => {
+        return [
+          ...rows,
+        ].sort(
+          (
+            left,
+            right
+          ) =>
+            right[
+              metric
+            ] -
+            left[
+              metric
+            ]
+        );
+      },
+      [
+        rows,
+        metric,
+      ]
+    );
+
+  const chartMax =
+    Math.max(
+      0,
+      ...chartRows.map(
+        row =>
+          row[
+            metric
+          ]
+      )
+    );
+
   if (
     rows.length ===
       0
@@ -226,162 +285,451 @@ export default function LocoStatisticsTable({
     );
   }
 
+  const summaryCards = [
+    {
+      label:
+        t(
+          "locodialog.statistics_daily_km"
+        ),
+      value:
+        formatNumber(
+          totals.dailyKm
+        ),
+      unit: "km",
+    },
+    {
+      label:
+        t(
+          "locodialog.statistics_total_km"
+        ),
+      value:
+        formatNumber(
+          totals.totalKm
+        ),
+      unit: "km",
+    },
+    {
+      label:
+        t(
+          "locodialog.statistics_daily_hours"
+        ),
+      value:
+        formatNumber(
+          totals.dailyHours
+        ),
+      unit: "h",
+    },
+    {
+      label:
+        t(
+          "locodialog.statistics_total_hours"
+        ),
+      value:
+        formatNumber(
+          totals.totalHours
+        ),
+      unit: "h",
+    },
+  ];
+
   return (
     <ScrollArea
       h="100%"
       type="auto"
     >
-      <Table
-        striped
-        highlightOnHover
-        withTableBorder
-        withColumnBorders
-        stickyHeader
-        verticalSpacing="xs"
-        horizontalSpacing="sm"
-      >
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>
-              {t(
-                "locodialog.statistics_address"
-              )}
-            </Table.Th>
-
-            <Table.Th>
-              {t(
-                "locodialog.statistics_loco"
-              )}
-            </Table.Th>
-
-            <Table.Th ta="right">
-              {t(
-                "locodialog.statistics_daily_km"
-              )}
-            </Table.Th>
-
-            <Table.Th ta="right">
-              {t(
-                "locodialog.statistics_total_km"
-              )}
-            </Table.Th>
-
-            <Table.Th ta="right">
-              {t(
-                "locodialog.statistics_daily_hours"
-              )}
-            </Table.Th>
-
-            <Table.Th ta="right">
-              {t(
-                "locodialog.statistics_total_hours"
-              )}
-            </Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-
-        <Table.Tbody>
-          {rows.map(
-            row => (
-              <Table.Tr
+      <Stack gap="md" pr="xs">
+        <SimpleGrid
+          cols={{
+            base: 2,
+            md: 4,
+          }}
+          spacing="sm"
+        >
+          {summaryCards.map(
+            card => (
+              <Card
                 key={
-                  row.id
+                  card.label
                 }
+                withBorder
+                radius="sm"
+                p="sm"
               >
-                <Table.Td>
-                  <Text
-                    ff="monospace"
-                    fw={700}
-                  >
-                    #{row.address}
-                  </Text>
-                </Table.Td>
-
-                <Table.Td>
-                  <Text
-                    fw={600}
-                  >
-                    {row.name}
-                  </Text>
-                </Table.Td>
-
-                <Table.Td ta="right">
-                  {formatKm(
-                    row.dailyKm
-                  )}
-                </Table.Td>
-
-                <Table.Td ta="right">
-                  {formatKm(
-                    row.totalKm
-                  )}
-                </Table.Td>
-
-                <Table.Td ta="right">
-                  {formatHours(
-                    row.dailyHours
-                  )}
-                </Table.Td>
-
-                <Table.Td ta="right">
-                  {formatHours(
-                    row.totalHours
-                  )}
-                </Table.Td>
-              </Table.Tr>
-            )
-          )}
-        </Table.Tbody>
-
-        <Table.Tfoot>
-          <Table.Tr>
-            <Table.Th
-              colSpan={2}
-            >
-              <Group
-                gap="xs"
-              >
-                <Text fw={800}>
-                  {t(
-                    "locodialog.statistics_total"
-                  )}
-                </Text>
-
                 <Text
                   size="xs"
                   c="dimmed"
+                  fw={700}
                 >
-                  ({rows.length})
+                  {card.label}
                 </Text>
-              </Group>
-            </Table.Th>
 
-            <Table.Th ta="right">
-              {formatKm(
-                totals.dailyKm
-              )}
-            </Table.Th>
+                <Group
+                  gap={5}
+                  align="baseline"
+                  mt={4}
+                >
+                  <Text
+                    fw={800}
+                    size="xl"
+                  >
+                    {card.value}
+                  </Text>
 
-            <Table.Th ta="right">
-              {formatKm(
-                totals.totalKm
-              )}
-            </Table.Th>
+                  <Text
+                    size="sm"
+                    c="dimmed"
+                    fw={700}
+                  >
+                    {card.unit}
+                  </Text>
+                </Group>
+              </Card>
+            )
+          )}
+        </SimpleGrid>
 
-            <Table.Th ta="right">
-              {formatHours(
-                totals.dailyHours
+        <Card
+          withBorder
+          radius="sm"
+          p="sm"
+        >
+          <Group
+            justify="space-between"
+            align="center"
+            mb="md"
+            wrap="wrap"
+          >
+            <Text fw={800}>
+              {t(
+                "locodialog.statistics_chart_title"
               )}
-            </Table.Th>
+            </Text>
 
-            <Table.Th ta="right">
-              {formatHours(
-                totals.totalHours
-              )}
-            </Table.Th>
-          </Table.Tr>
-        </Table.Tfoot>
-      </Table>
+            <SegmentedControl
+              size="xs"
+              value={
+                metric
+              }
+              onChange={
+                value =>
+                  setMetric(
+                    value as
+                      StatisticsMetric
+                  )
+              }
+              data={[
+                {
+                  value:
+                    "dailyKm",
+                  label:
+                    t(
+                      "locodialog.statistics_daily_km"
+                    ),
+                },
+                {
+                  value:
+                    "totalKm",
+                  label:
+                    t(
+                      "locodialog.statistics_total_km"
+                    ),
+                },
+                {
+                  value:
+                    "dailyHours",
+                  label:
+                    t(
+                      "locodialog.statistics_daily_hours"
+                    ),
+                },
+                {
+                  value:
+                    "totalHours",
+                  label:
+                    t(
+                      "locodialog.statistics_total_hours"
+                    ),
+                },
+              ]}
+            />
+          </Group>
+
+          <Stack gap="xs">
+            {chartRows.map(
+              row => {
+                const value =
+                  row[
+                    metric
+                  ];
+
+                const percent =
+                  chartMax >
+                    0
+                    ? Math.max(
+                        0,
+                        Math.min(
+                          100,
+                          (
+                            value /
+                            chartMax
+                          ) *
+                            100
+                        )
+                      )
+                    : 0;
+
+                return (
+                  <Group
+                    key={
+                      row.id
+                    }
+                    gap="sm"
+                    wrap="nowrap"
+                    align="center"
+                  >
+                    <LocoImage
+                      locoId={
+                        row.id
+                      }
+                      image={
+                        row.image
+                      }
+                      name={
+                        row.name
+                      }
+                      width={64}
+                      height={30}
+                    />
+
+                    <Stack
+                      gap={3}
+                      style={{
+                        flex: 1,
+                        minWidth: 0,
+                      }}
+                    >
+                      <Group
+                        justify="space-between"
+                        gap="sm"
+                        wrap="nowrap"
+                      >
+                        <Text
+                          size="sm"
+                          fw={700}
+                          truncate
+                        >
+                          #{row.address}{" "}
+                          {row.name}
+                        </Text>
+
+                        <Text
+                          size="sm"
+                          fw={800}
+                          ff="monospace"
+                        >
+                          {formatNumber(
+                            value
+                          )}{" "}
+                          {metricUnit(
+                            metric
+                          )}
+                        </Text>
+                      </Group>
+
+                      <Progress
+                        value={
+                          percent
+                        }
+                        size="md"
+                        radius="sm"
+                        animated={
+                          value >
+                          0
+                        }
+                      />
+                    </Stack>
+                  </Group>
+                );
+              }
+            )}
+          </Stack>
+        </Card>
+
+        <Table
+          striped
+          highlightOnHover
+          withTableBorder
+          withColumnBorders
+          stickyHeader
+          verticalSpacing="xs"
+          horizontalSpacing="sm"
+        >
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>
+                {t(
+                  "locodialog.statistics_image"
+                )}
+              </Table.Th>
+
+              <Table.Th>
+                {t(
+                  "locodialog.statistics_address"
+                )}
+              </Table.Th>
+
+              <Table.Th>
+                {t(
+                  "locodialog.statistics_loco"
+                )}
+              </Table.Th>
+
+              <Table.Th ta="right">
+                {t(
+                  "locodialog.statistics_daily_km"
+                )}
+              </Table.Th>
+
+              <Table.Th ta="right">
+                {t(
+                  "locodialog.statistics_total_km"
+                )}
+              </Table.Th>
+
+              <Table.Th ta="right">
+                {t(
+                  "locodialog.statistics_daily_hours"
+                )}
+              </Table.Th>
+
+              <Table.Th ta="right">
+                {t(
+                  "locodialog.statistics_total_hours"
+                )}
+              </Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+
+          <Table.Tbody>
+            {rows.map(
+              row => (
+                <Table.Tr
+                  key={
+                    row.id
+                  }
+                >
+                  <Table.Td>
+                    <LocoImage
+                      locoId={
+                        row.id
+                      }
+                      image={
+                        row.image
+                      }
+                      name={
+                        row.name
+                      }
+                      width={72}
+                      height={32}
+                    />
+                  </Table.Td>
+
+                  <Table.Td>
+                    <Text
+                      ff="monospace"
+                      fw={700}
+                    >
+                      #{row.address}
+                    </Text>
+                  </Table.Td>
+
+                  <Table.Td>
+                    <Text
+                      fw={600}
+                    >
+                      {row.name}
+                    </Text>
+                  </Table.Td>
+
+                  <Table.Td ta="right">
+                    {formatNumber(
+                      row.dailyKm
+                    )}
+                  </Table.Td>
+
+                  <Table.Td ta="right">
+                    {formatNumber(
+                      row.totalKm
+                    )}
+                  </Table.Td>
+
+                  <Table.Td ta="right">
+                    {formatNumber(
+                      row.dailyHours
+                    )}
+                  </Table.Td>
+
+                  <Table.Td ta="right">
+                    {formatNumber(
+                      row.totalHours
+                    )}
+                  </Table.Td>
+                </Table.Tr>
+              )
+            )}
+          </Table.Tbody>
+
+          <Table.Tfoot>
+            <Table.Tr>
+              <Table.Th />
+              <Table.Th
+                colSpan={2}
+              >
+                <Group
+                  gap="xs"
+                >
+                  <Text fw={800}>
+                    {t(
+                      "locodialog.statistics_total"
+                    )}
+                  </Text>
+
+                  <Text
+                    size="xs"
+                    c="dimmed"
+                  >
+                    ({rows.length})
+                  </Text>
+                </Group>
+              </Table.Th>
+
+              <Table.Th ta="right">
+                {formatNumber(
+                  totals.dailyKm
+                )}
+              </Table.Th>
+
+              <Table.Th ta="right">
+                {formatNumber(
+                  totals.totalKm
+                )}
+              </Table.Th>
+
+              <Table.Th ta="right">
+                {formatNumber(
+                  totals.dailyHours
+                )}
+              </Table.Th>
+
+              <Table.Th ta="right">
+                {formatNumber(
+                  totals.totalHours
+                )}
+              </Table.Th>
+            </Table.Tr>
+          </Table.Tfoot>
+        </Table>
+      </Stack>
     </ScrollArea>
   );
 }
