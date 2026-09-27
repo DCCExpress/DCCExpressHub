@@ -16,6 +16,7 @@ import LocoActionsTab from "./LocoActionsTab";
 import LocoFunctionsTab from "./LocoFunctionsTab";
 import LocoGeneralTab from "./LocoGeneralTab";
 import LocoCounterSettingsPanel from "./LocoCounterSettingsPanel";
+import LocoStatisticsTable from "./LocoStatisticsTable";
 import LocoListPanel from "./LocoListPanel";
 import type { useLocoDialogState } from "./useLocoDialogState";
 
@@ -108,6 +109,7 @@ export default function LocoDialogContent({
               <Tabs.Tab value="functions">{t("locodialog.tabs.functions")}</Tabs.Tab>
               <Tabs.Tab value="actions">{t("locodialog.tabs.actions")}</Tabs.Tab>
               <Tabs.Tab value="extended">{t("locodialog.extended_params")}</Tabs.Tab>
+              <Tabs.Tab value="statistics">{t("locodialog.tabs.statistics")}</Tabs.Tab>
             </Tabs.List>
 
             <Tabs.Panel value="general" pt="md" style={{ flex: 1, minHeight: 0 }}>
@@ -197,6 +199,20 @@ export default function LocoDialogContent({
                 />
                 </Stack>
               </ScrollArea>
+            </Tabs.Panel>
+
+            <Tabs.Panel
+              value="statistics"
+              pt="md"
+              style={{
+                flex: 1,
+                minHeight: 0,
+              }}
+            >
+              <LocoStatisticsTable
+                locos={locos}
+                t={t}
+              />
             </Tabs.Panel>
           </Tabs>
         )}
