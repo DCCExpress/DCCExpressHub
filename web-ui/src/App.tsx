@@ -92,7 +92,6 @@ import {
   installBroadcastAudioRuntime,
 } from "@/services/broadcastAudioRuntime";
 import {
-  configureLocoCounterRuntime,
   installLocoCounterRuntime,
 } from "@/services/locoCounterRuntime";
 
@@ -1406,17 +1405,6 @@ export default function App() {
       return installLocoCounterRuntime();
     },
     []
-  );
-
-  useEffect(
-    () => {
-      configureLocoCounterRuntime(
-        locos
-      );
-    },
-    [
-      locos,
-    ]
   );
 
   useEffect(
