@@ -223,8 +223,7 @@ export class BlockElement extends TrackElement {
       );
 
     if (
-      !movementRuntime ||
-      this.runtimeForwardRotation === null
+      !movementRuntime
     ) {
       return;
     }
@@ -234,11 +233,15 @@ export class BlockElement extends TrackElement {
       return result < 0 ? result + 360 : result;
     };
 
+    const baseForwardRotation =
+      this.runtimeForwardRotation ??
+      this.rotation;
+
     const effectiveForwardRotation =
       normalizeRotation(
-        this.runtimeForwardRotation +
+        baseForwardRotation +
         (
-          movementRuntime?.direction ===
+          movementRuntime.direction ===
             "reverse"
             ? 180
             : 0
