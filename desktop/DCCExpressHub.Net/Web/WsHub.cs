@@ -87,6 +87,9 @@ public sealed class WsHub
         };
         cc.ConnectionChanged += connected =>
         {
+            if (!connected)
+                LocoCounters.SetTrackPower(false);
+
             // The backend is the single source of truth for command-center
             // connectivity. Push the authoritative state immediately when the
             // TCP/Serial transport changes instead of waiting for the next
