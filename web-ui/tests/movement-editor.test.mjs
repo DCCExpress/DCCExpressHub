@@ -2155,6 +2155,17 @@ test("Movement block direction triangle shows executing moving waiting error and
     /getMovementBlockRuntime/
   );
 
+
+  assert.match(
+    block,
+    /baseForwardRotation =[\s\S]*runtimeForwardRotation[\s\S]*\?\?[\s\S]*this\.rotation/
+  );
+
+  assert.doesNotMatch(
+    block,
+    /!movementRuntime[\s\S]*runtimeForwardRotation === null[\s\S]*return/
+  );
+
   assert.match(
     block,
     /movementRuntime\?\.direction ===[\s\S]*"reverse"[\s\S]*180/
