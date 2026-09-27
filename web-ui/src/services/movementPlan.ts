@@ -7,6 +7,10 @@ import type {
   MovementSensorCondition,
 } from "../domain/movement";
 
+import {
+  createMovementRouteKey,
+} from "./movementRouteIdentity";
+
 type RawTurnoutState = {
   address: number;
   closed: boolean;
@@ -397,6 +401,32 @@ function selectRoute(
   topology:
     RawRouteTopology
 ): RawRouteEntry {
+  const routeTable =
+    topology.routeTable ??
+    [];
+
+  if (
+    page.routeKey.trim().length >
+      0
+  ) {
+    const exact =
+      routeTable.find(
+        route =>
+          createMovementRouteKey(
+            route
+          ) ===
+          page.routeKey
+      );
+
+    if (exact) {
+      return exact;
+    }
+
+    throw new Error(
+      "The selected Movement route no longer exists in the saved route topology. Select the route again."
+    );
+  }
+
   const checkpoints =
     checkpointIds(
       page
@@ -412,10 +442,7 @@ function selectRoute(
     ]!;
 
   const candidates =
-    (
-      topology.routeTable ??
-      []
-    ).filter(
+    routeTable.filter(
       route =>
         route.fromBlockId ===
           first &&
@@ -441,7 +468,7 @@ function selectRoute(
     1
   ) {
     throw new Error(
-      "Movement route is ambiguous. Add VIA blocks until exactly one physical route remains."
+      "Movement route is ambiguous. Select an exact generated route in the Movement editor."
     );
   }
 
