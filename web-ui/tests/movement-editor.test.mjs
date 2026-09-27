@@ -2929,7 +2929,7 @@ test("Focused Movement Actions tab preserves sequence-capable action editor", ()
 });
 
 
-test("Movement direction marker is hidden when a block is empty", () => {
+test("Movement direction marker is hidden on idle empty blocks but shown on active target blocks", () => {
   const block =
     read(
       "src/models/editor/elements/BlockElement.ts"
@@ -2942,11 +2942,21 @@ test("Movement direction marker is hidden when a block is empty", () => {
 
   assert.match(
     block,
-    /if \(occupied\) \{[sS]*drawForwardDirectionTriangle/
+    /const inTransit =[sS]*!occupied[sS]*runtimeTransitLocoAddress > 0/
   );
 
-  assert.doesNotMatch(
+  assert.match(
     block,
-    /drawForwardDirectionTriangle\(ctx, blockX, blockY, blockW, blockH\);/
+    /occupied \|\|[sS]*inTransit/
+  );
+
+  assert.match(
+    block,
+    /movementRuntime\.phase ===[sS]*"moving"/
+  );
+
+  assert.match(
+    block,
+    /#a3e635/
   );
 });
