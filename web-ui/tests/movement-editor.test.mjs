@@ -2162,7 +2162,7 @@ test("Movement block direction triangle shows executing moving waiting error and
 
   assert.match(
     block,
-    /movementRuntime\.phase !==[\s\S]*"moving"/
+    /movementRuntime\.phase ===[\s\S]*"moving"/
   );
 
   assert.match(
@@ -2183,6 +2183,12 @@ test("Movement block direction triangle shows executing moving waiting error and
   assert.match(
     block,
     /#ff6b6b/
+  );
+
+
+  assert.match(
+    runtime,
+    /hasMovingMovementBlockRuntime[\s\S]*state\.phase ===[\s\S]*"moving"/
   );
 
   assert.match(
@@ -2207,6 +2213,6 @@ test("Movement block direction triangle shows executing moving waiting error and
 
   assert.match(
     canvas,
-    /hasBlinkingMovementBlockRuntime\(\)/
+    /hasMovingMovementBlockRuntime\(\)/
   );
 });
