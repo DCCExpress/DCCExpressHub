@@ -217,7 +217,15 @@ export class BlockElement extends TrackElement {
     blockW: number,
     blockH: number,
   ): void {
-    if (this.runtimeForwardRotation === null) {
+    const movementRuntime =
+      getMovementBlockRuntime(
+        this.id
+      );
+
+    if (
+      !movementRuntime ||
+      this.runtimeForwardRotation === null
+    ) {
       return;
     }
 
@@ -225,11 +233,6 @@ export class BlockElement extends TrackElement {
       const result = angle % 360;
       return result < 0 ? result + 360 : result;
     };
-
-    const movementRuntime =
-      getMovementBlockRuntime(
-        this.id
-      );
 
     const effectiveForwardRotation =
       normalizeRotation(
@@ -294,34 +297,25 @@ export class BlockElement extends TrackElement {
     );
     ctx.closePath();
 
-    if (
-      movementRuntime
-    ) {
-      const blinkOn =
-        Math.floor(
-          Date.now() /
-            350
-        ) %
-          2 ===
-        0;
+    const blinkOn =
+      Math.floor(
+        Date.now() /
+          350
+      ) %
+        2 ===
+      0;
 
-      ctx.globalAlpha =
-        blinkOn
-          ? 1
-          : 0.22;
+    ctx.globalAlpha =
+      blinkOn
+        ? 1
+        : 0.22;
 
-      ctx.fillStyle =
-        "#ffd43b";
-    } else {
-      ctx.fillStyle =
-        "gainsboro";
-    }
+    ctx.fillStyle =
+      "#ffd43b";
 
     ctx.fill();
     ctx.strokeStyle =
-      movementRuntime
-        ? "#5f3d00"
-        : "black";
+      "#5f3d00";
     ctx.lineWidth = 1;
     ctx.stroke();
     ctx.restore();
