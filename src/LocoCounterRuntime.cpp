@@ -2,6 +2,8 @@
 
 #include "Logger.h"
 
+#include <math.h>
+
 namespace {
 constexpr unsigned long COUNTER_TICK_MS = 500;
 }
