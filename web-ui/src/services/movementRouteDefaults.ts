@@ -394,11 +394,10 @@ export function buildMovementIntermediateArrivalDefaults(
           Number.isInteger(
             nodeIndex
           ) &&
-          nodeIndex >
+          nodeIndex >=
             0
             ? nodeNames[
-                nodeIndex -
-                  1
+                nodeIndex
               ]
             : undefined;
 
