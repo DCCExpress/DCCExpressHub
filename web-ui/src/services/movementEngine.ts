@@ -2089,8 +2089,6 @@ async function waitForLegClearance(
         continue;
       }
 
-      clearWaiting();
-
       const resources =
         await tryAcquireLeg(
           leg
@@ -2118,6 +2116,8 @@ async function waitForLegClearance(
 
         continue;
       }
+
+      clearWaiting();
 
       if (
         !blockAvailableForTarget(
