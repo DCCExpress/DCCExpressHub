@@ -133,6 +133,17 @@ test("locomotive counter runtime integrates motion and persists totals on stop",
     /await getLocos\(\)[\s\S]*await saveLocos/
   );
 
+
+  assert.match(
+    runtime,
+    /calculatedTotalKm[\s\S]*Math\.max\([\s\S]*persistedKm/
+  );
+
+  assert.match(
+    runtime,
+    /calculatedTotalHours[\s\S]*Math\.max\([\s\S]*persistedHours/
+  );
+
   assert.match(
     runtime,
     /odometerKm:[\s\S]*nextTotalKm/
