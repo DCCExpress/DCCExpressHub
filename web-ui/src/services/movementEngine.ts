@@ -3546,11 +3546,17 @@ export async function startMovement(
     );
   }
 
-  const direction =
+  if (
     plan.direction ===
-    "reverse"
-      ? "reverse"
-      : "forward";
+      "unknown"
+  ) {
+    throw new Error(
+      `Movement route direction is unknown for "${page.name}". Regenerate/save the route graph and verify the track direction markers.`
+    );
+  }
+
+  const direction =
+    plan.direction;
 
   const startedAt =
     Date.now();
