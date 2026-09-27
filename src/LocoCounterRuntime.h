@@ -24,6 +24,9 @@ public:
 
   void loop();
 
+  void requestSave();
+  void requestReload();
+
   bool save();
 
   bool consumeChanged();
@@ -50,6 +53,8 @@ private:
   Entry _entries[MAX_LOCOS];
   bool _trackPowerOn = false;
   bool _changed = false;
+  volatile bool _saveRequested = false;
+  volatile bool _reloadRequested = false;
   unsigned long _nextTickAt = 0;
 
   Entry* find(
