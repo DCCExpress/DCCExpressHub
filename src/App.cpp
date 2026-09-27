@@ -230,6 +230,14 @@ void App::begin() {
         "Locomotive direction configuration could not be loaded");
   }
 
+  if (
+      !_locoCounters.begin(
+          LittleFS)
+  ) {
+    Logger::warn(
+        "Locomotive counter configuration could not be loaded");
+  }
+
   _runtime.begin(LittleFS);
 
   _stateStore.begin(
@@ -259,6 +267,7 @@ void App::begin() {
           _stateStore,
           _config,
           _wsProtocol,
+          _locoCounters,
           _signalAutomation,
           [this]() {
             return
