@@ -4,6 +4,7 @@ import type { IRect } from "../../../domain/Rect";
 import { generateId } from "../../../helpers";
 import i18n from "../../../i18n";
 import { getBlockTargetLocoAddress } from "../../../services/blockTargetLocoRuntime";
+import { getMovementBlockRuntime } from "../../../services/movementBlockRuntime";
 import { TrackElement } from "../core/TrackElement";
 import { getCanvasImage } from "../rendering/ImageCache";
 import { DrawOptions, IBlockElement } from "../types/EditorTypes";
@@ -219,17 +220,51 @@ export class BlockElement extends TrackElement {
     if (this.runtimeForwardRotation === null) {
       return;
     }
+
     const normalizeRotation = (angle: number): number => {
       const result = angle % 360;
       return result < 0 ? result + 360 : result;
     };
-    const localForwardRotation = normalizeRotation(this.runtimeForwardRotation - this.rotation);
-    const localForwardRad = (localForwardRotation * Math.PI) / 180;
-    const pointsRight = Math.cos(localForwardRad) >= 0;
+
+    const movementRuntime =
+      getMovementBlockRuntime(
+        this.id
+      );
+
+    const effectiveForwardRotation =
+      normalizeRotation(
+        this.runtimeForwardRotation +
+        (
+          movementRuntime?.direction ===
+            "reverse"
+            ? 180
+            : 0
+        )
+      );
+
+    const localForwardRotation =
+      normalizeRotation(
+        effectiveForwardRotation -
+        this.rotation
+      );
+
+    const localForwardRad =
+      (
+        localForwardRotation *
+        Math.PI
+      ) /
+      180;
+
+    const pointsRight =
+      Math.cos(
+        localForwardRad
+      ) >= 0;
+
     const arrowLength = 4;
     const arrowHalfHeight = 3;
     const centerY = blockY + blockH / 2;
     const edgePadding = 2;
+
     const points = pointsRight
       ? {
           tipX: blockX + blockW - edgePadding,
@@ -239,19 +274,59 @@ export class BlockElement extends TrackElement {
           tipX: blockX + edgePadding,
           backX: blockX + edgePadding + arrowLength,
         };
+
     ctx.save();
+
     ctx.beginPath();
-    ctx.moveTo(points.tipX, centerY);
-    ctx.lineTo(points.backX, centerY - arrowHalfHeight);
-    ctx.lineTo(points.backX, centerY + arrowHalfHeight);
+    ctx.moveTo(
+      points.tipX,
+      centerY
+    );
+    ctx.lineTo(
+      points.backX,
+      centerY -
+        arrowHalfHeight
+    );
+    ctx.lineTo(
+      points.backX,
+      centerY +
+        arrowHalfHeight
+    );
     ctx.closePath();
-    ctx.fillStyle = "gainsboro";
+
+    if (
+      movementRuntime
+    ) {
+      const blinkOn =
+        Math.floor(
+          Date.now() /
+            350
+        ) %
+          2 ===
+        0;
+
+      ctx.globalAlpha =
+        blinkOn
+          ? 1
+          : 0.22;
+
+      ctx.fillStyle =
+        "#ffd43b";
+    } else {
+      ctx.fillStyle =
+        "gainsboro";
+    }
+
     ctx.fill();
-    ctx.strokeStyle = "black";
+    ctx.strokeStyle =
+      movementRuntime
+        ? "#5f3d00"
+        : "black";
     ctx.lineWidth = 1;
     ctx.stroke();
     ctx.restore();
   }
+
   override clone(): BlockElement {
     const copy = new BlockElement(this.x, this.y);
     copy.id = generateId();
