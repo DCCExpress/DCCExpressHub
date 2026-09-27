@@ -890,6 +890,20 @@ function setPhysicalSpeed(
     return;
   }
 
+  console.info(
+    "[Movement] throttle",
+    {
+      page:
+        execution.page.name,
+      locoAddress:
+        execution.locoAddress,
+      speed:
+        safeSpeed,
+      logicalDirection:
+        execution.direction,
+    }
+  );
+
   if (
     !wsApi.setLoco(
       execution.locoAddress,
