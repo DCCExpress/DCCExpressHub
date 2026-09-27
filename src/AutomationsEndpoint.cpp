@@ -28,6 +28,76 @@ void AutomationsEndpoint::sendJson(
       response);
 }
 
+bool AutomationsEndpoint::backupCurrent() {
+  File source =
+      _files.openRead(
+          FINAL_PATH);
+
+  if (!source) {
+    // First save: there is no previous committed document yet.
+    return true;
+  }
+
+  LittleFS.remove(
+      PREVIOUS_PATH);
+
+  File target =
+      LittleFS.open(
+          PREVIOUS_PATH,
+          "w");
+
+  if (!target) {
+    source.close();
+
+    Logger::error(
+        "Automations backup could not be opened");
+
+    return false;
+  }
+
+  uint8_t buffer[512];
+  bool ok = true;
+
+  while (source.available()) {
+    const size_t read =
+        source.read(
+            buffer,
+            sizeof(buffer));
+
+    if (read == 0) {
+      break;
+    }
+
+    if (
+        target.write(
+            buffer,
+            read) != read
+    ) {
+      ok = false;
+      break;
+    }
+  }
+
+  target.flush();
+  target.close();
+  source.close();
+
+  if (!ok) {
+    LittleFS.remove(
+        PREVIOUS_PATH);
+
+    Logger::error(
+        "Automations backup copy failed");
+
+    return false;
+  }
+
+  Logger::info(
+      "Automations previous snapshot saved");
+
+  return true;
+}
+
 bool AutomationsEndpoint::verifyTemp(
     String& error) {
   const String path =
@@ -212,6 +282,16 @@ void AutomationsEndpoint::handleBody(
     return;
   }
 
+  if (!backupCurrent()) {
+    _upload.abort();
+
+    sendJson(
+        request,
+        500,
+        "{\"ok\":false,\"message\":\"Automation previous-version backup failed\"}");
+    return;
+  }
+
   if (!_upload.commit()) {
     sendJson(
         request,
@@ -269,6 +349,41 @@ void AutomationsEndpoint::setupRoutes() {
             request->beginResponse(
                 LittleFS,
                 FINAL_PATH,
+                "application/json",
+                false);
+
+        response->addHeader(
+            "Cache-Control",
+            "no-store");
+
+        request->send(
+            response);
+      });
+
+  _server.on(
+      "/api/automations/previous",
+      HTTP_GET,
+      [this](
+          AsyncWebServerRequest* request) {
+        File previous =
+            LittleFS.open(
+                PREVIOUS_PATH,
+                "r");
+
+        if (!previous) {
+          sendJson(
+              request,
+              404,
+              "{\"ok\":false,\"message\":\"No previous automation snapshot\"}");
+          return;
+        }
+
+        previous.close();
+
+        auto* response =
+            request->beginResponse(
+                LittleFS,
+                PREVIOUS_PATH,
                 "application/json",
                 false);
 
