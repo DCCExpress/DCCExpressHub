@@ -113,14 +113,19 @@ test("Movement editor is split into reusable components", () => {
       "src/components/movement/MovementRouteEditor.tsx"
     );
 
-  const selector =
+  const routeDialog =
     read(
-      "src/components/movement/MovementRouteSelector.tsx"
+      "src/components/movement/MovementRouteSelectDialog.tsx"
     );
 
-  const navigation =
+  const routeCatalog =
     read(
-      "src/services/movementRouteNavigation.ts"
+      "src/services/movementRouteCatalog.ts"
+    );
+
+  const routeIdentity =
+    read(
+      "src/services/movementRouteIdentity.ts"
     );
 
   const row =
@@ -175,77 +180,67 @@ test("Movement editor is split into reusable components", () => {
 
   assert.match(
     dialog,
+    /MovementRouteSelectDialog/
+  );
+
+  assert.doesNotMatch(
+    dialog,
     /MovementRouteSelector/
   );
 
   assert.match(
-    selector,
-    /FROM BLOCK/
+    dialog,
+    /movementSelectRoute/
   );
 
   assert.match(
-    selector,
-    /VIA BLOCK/
+    dialog,
+    /activeRouteNames/
   );
 
   assert.match(
-    selector,
-    /TO BLOCK/
+    routeDialog,
+    /loadMovementRouteCandidates/
   );
 
   assert.match(
-    selector,
-    /Add block/
+    routeDialog,
+    /candidates\.map/
   );
 
   assert.match(
-    navigation,
-    /nextByBlockId/
+    routeDialog,
+    /candidate\.blockPath/
   );
 
   assert.match(
-    selector,
-    /slice\(\s*0,\s*viaIndex/
+    routeDialog,
+    /candidate\.locoDirection/
   );
 
   assert.match(
-    navigation,
-    /routeTable/
+    routeCatalog,
+    /routeTopology/
   );
 
   assert.match(
-    navigation,
-    /blockIds\[\s*index \+ 1/
+    routeCatalog,
+    /usedRouteKeys/
   );
 
   assert.match(
-    navigation,
-    /locoDirection/
+    routeCatalog,
+    /usedLegacySequences/
   );
 
   assert.match(
-    navigation,
-    /mergeDirection/
+    routeCatalog,
+    /applyMovementRouteCandidate/
   );
 
   assert.match(
-    navigation,
-    /getMovementSequenceDirections/
-  );
-
-  assert.match(
-    navigation,
-    /getCompatibleMovementNextBlockIds/
-  );
-
-  assert.match(
-    selector,
-    /getCompatibleMovementNextBlockIds/
-  );
-
-  assert.match(
-    selector,
-    /direction mismatch/
+    routeIdentity,
+    /createMovementRouteKey/
   );
 
   assert.match(
@@ -678,30 +673,75 @@ test("backend actual block assignment replaces target-only markers", () => {
 });
 
 
-test("Movement route selector rejects reverse-direction continuation", () => {
-  const navigation =
+test("Movement generated route selector filters routes already used by another Movement", () => {
+  const catalog =
     read(
-      "src/services/movementRouteNavigation.ts"
+      "src/services/movementRouteCatalog.ts"
+    );
+
+  const domain =
+    read(
+      "src/domain/movement.ts"
+    );
+
+  const plan =
+    read(
+      "src/services/movementPlan.ts"
     );
 
   assert.match(
-    navigation,
-    /current ===[\s\S]*"unknown"[\s\S]*return next/
+    catalog,
+    /document\.pages/
   );
 
   assert.match(
-    navigation,
-    /next ===[\s\S]*"unknown"[\s\S]*return current/
+    catalog,
+    /page\.id ===[\s\S]*currentPageId/
   );
 
   assert.match(
-    navigation,
-    /current ===[\s\S]*next[\s\S]*\?[\s\S]*current[\s\S]*:[\s\S]*null/
+    catalog,
+    /usedRouteKeys\.add/
   );
 
   assert.match(
-    navigation,
-    /getMovementSequenceDirections\([\s\S]*\[\s*\.\.\.sequence,[\s\S]*option\.blockId/
+    catalog,
+    /usedLegacySequences\.add/
+  );
+
+  assert.match(
+    catalog,
+    /!usedRouteKeys\.has/
+  );
+
+  assert.match(
+    catalog,
+    /!usedLegacySequences\.has/
+  );
+
+  assert.match(
+    domain,
+    /routeKey:\s*string/
+  );
+
+  assert.match(
+    domain,
+    /routeKey:\s*""/
+  );
+
+  assert.match(
+    plan,
+    /page\.routeKey\.trim/
+  );
+
+  assert.match(
+    plan,
+    /createMovementRouteKey/
+  );
+
+  assert.match(
+    plan,
+    /Select an exact generated route/
   );
 });
 
