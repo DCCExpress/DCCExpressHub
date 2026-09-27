@@ -1,4 +1,4 @@
-import { Badge, Card, Group, Stack, Text, Title, useMantineColorScheme, useMantineTheme } from "@mantine/core";
+import { ActionIcon, Badge, Card, Group, Stack, Text, Title, Tooltip, useMantineColorScheme, useMantineTheme } from "@mantine/core";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type {
@@ -6,8 +6,10 @@ import type {
   Loco,
   LocoReservation,
 } from "@domain/types";
-import { resolveLocoCounterSettings } from "@domain/locoCounterSettings";
 import MechanicalCounter from "../../components/MechanicalCounter";
+import type {
+  LocoPanelCounterDisplaySettings,
+} from "../../services/locoPanelCounterDisplaySettings";
 import {
   getLocoCounterSnapshot,
   subscribeLocoCounterRuntime,
@@ -34,6 +36,9 @@ type LocoControlCardProps = {
   onReverse: () => void;
   onStop: () => void;
   onEmergencyToggle: () => void;
+  counterDisplaySettings:
+    LocoPanelCounterDisplaySettings;
+  onToggleCounterDaily: () => void;
 };
 
 export default function LocoControlCard({
@@ -52,6 +57,8 @@ export default function LocoControlCard({
   onReverse,
   onStop,
   onEmergencyToggle,
+  counterDisplaySettings,
+  onToggleCounterDaily,
 }: LocoControlCardProps) {
   const { t } = useTranslation();
   const theme = useMantineTheme();
@@ -71,11 +78,6 @@ export default function LocoControlCard({
     colorScheme === "dark"
       ? theme.colors.blue[1]
       : theme.colors.blue[8];
-
-  const counterSettings =
-    resolveLocoCounterSettings(
-      loco.counterSettings
-    );
 
   const [
     counterSnapshot,
@@ -206,113 +208,104 @@ export default function LocoControlCard({
           </Title>
         </Badge>
 
-        {counterSettings.enabled && (
-          <Stack
-            gap={5}
-            align="center"
+        {(
+          counterDisplaySettings.showKm ||
+          counterDisplaySettings.showWorktime
+        ) && (
+          <Group
+            gap={6}
+            justify="center"
+            wrap="wrap"
             w="100%"
             className="loco-mechanical-counters"
           >
-            <Group
-              gap={6}
-              justify="center"
-              wrap="wrap"
+            <Tooltip
+              label={
+                counterDisplaySettings.daily
+                  ? t(
+                      "locopanel.counter_showing_daily"
+                    )
+                  : t(
+                      "locopanel.counter_showing_total"
+                    )
+              }
             >
-              <MechanicalCounter
-                label={t(
-                  "locodialog.counter_total_short"
+              <ActionIcon
+                aria-label={t(
+                  "locopanel.counter_daily_toggle"
                 )}
+                size={24}
+                radius="sm"
+                variant={
+                  counterDisplaySettings.daily
+                    ? "filled"
+                    : "light"
+                }
+                color={
+                  counterDisplaySettings.daily
+                    ? "lime"
+                    : "gray"
+                }
+                onClick={
+                  onToggleCounterDaily
+                }
+              >
+                <Text
+                  fw={900}
+                  size="xs"
+                  lh={1}
+                >
+                  D
+                </Text>
+              </ActionIcon>
+            </Tooltip>
+
+            {counterDisplaySettings.showKm && (
+              <MechanicalCounter
                 value={
-                  totalKm
+                  counterDisplaySettings.daily
+                    ? dailyKm
+                    : totalKm
                 }
                 digits={
-                  counterSettings.digits
+                  counterDisplaySettings.digits
                 }
                 decimals={
-                  counterSettings.distanceDecimals
+                  counterDisplaySettings.distanceDecimals
                 }
                 digitHeight={
-                  counterSettings.digitHeight
+                  counterDisplaySettings.digitHeight
                 }
                 unit="km"
                 accentFraction={
-                  counterSettings.accentFraction
+                  counterDisplaySettings.accentFraction
                 }
               />
+            )}
 
+            {counterDisplaySettings.showWorktime && (
               <MechanicalCounter
-                label={t(
-                  "locodialog.counter_daily_short"
-                )}
                 value={
-                  dailyKm
+                  counterDisplaySettings.daily
+                    ? dailyHours
+                    : totalHours
                 }
                 digits={
-                  counterSettings.digits
+                  counterDisplaySettings.digits
                 }
                 decimals={
-                  counterSettings.distanceDecimals
+                  counterDisplaySettings.operatingHoursDecimals
                 }
                 digitHeight={
-                  counterSettings.digitHeight
-                }
-                unit="km"
-                accentFraction={
-                  counterSettings.accentFraction
-                }
-              />
-            </Group>
-
-            <Group
-              gap={6}
-              justify="center"
-              wrap="wrap"
-            >
-              <MechanicalCounter
-                label={t(
-                  "locodialog.counter_total_short"
-                )}
-                value={
-                  totalHours
-                }
-                digits={
-                  counterSettings.digits
-                }
-                decimals={
-                  counterSettings.operatingHoursDecimals
-                }
-                digitHeight={
-                  counterSettings.digitHeight
+                  counterDisplaySettings.digitHeight
                 }
                 unit="h"
                 accentFraction={
-                  counterSettings.accentFraction
+                  counterDisplaySettings.accentFraction
                 }
               />
-
-              <MechanicalCounter
-                label={t(
-                  "locodialog.counter_daily_short"
-                )}
-                value={
-                  dailyHours
-                }
-                digits={
-                  counterSettings.digits
-                }
-                decimals={
-                  counterSettings.operatingHoursDecimals
-                }
-                digitHeight={
-                  counterSettings.digitHeight
-                }
-                unit="h"
-                accentFraction={
-                  counterSettings.accentFraction
-                }
-              />
-            </Group>
-          </Stack>
+            )}
+          </Group>
         )}
 
         {!alive && (
