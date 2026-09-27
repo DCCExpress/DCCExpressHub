@@ -39,6 +39,7 @@ test("locomotive model persists mechanical counter values and settings", () => {
   assert.match(settings, /digitHeight:\s*28/);
   assert.match(settings, /distanceDecimals:\s*1/);
   assert.match(settings, /operatingHoursDecimals:\s*1/);
+  assert.match(settings, /maxScaleSpeedKmh:\s*120/);
 
   assert.match(helpers, /odometerKm:\s*0/);
   assert.match(helpers, /operatingHours:\s*0/);
@@ -49,10 +50,11 @@ test("locomotive model persists mechanical counter values and settings", () => {
   assert.match(editor, /counter_digit_height/);
   assert.match(editor, /counter_distance_decimals/);
   assert.match(editor, /counter_hours_decimals/);
+  assert.match(editor, /counter_max_scale_speed/);
   assert.match(editor, /counter_accent_fraction/);
 });
 
-test("LocoPanel shows kilometre and operating-hour counters below speed readout", () => {
+test("LocoPanel shows live daily and total counters below speed readout", () => {
   const card = read("src/layout/loco-panel/LocoControlCard.tsx");
 
   const speedReadout = card.indexOf("<Title");
@@ -62,9 +64,97 @@ test("LocoPanel shows kilometre and operating-hour counters below speed readout"
   assert.ok(counters > speedReadout);
 
   assert.match(card, /resolveLocoCounterSettings/);
+  assert.match(card, /getLocoCounterSnapshot/);
+  assert.match(card, /subscribeLocoCounterRuntime/);
   assert.match(card, /counterSettings\.enabled/);
-  assert.match(card, /loco\.odometerKm/);
-  assert.match(card, /loco\.operatingHours/);
-  assert.match(card, /label="KM"/);
-  assert.match(card, /label="H"/);
+  assert.match(card, /totalKm/);
+  assert.match(card, /dailyKm/);
+  assert.match(card, /totalHours/);
+  assert.match(card, /dailyHours/);
+
+  assert.equal(
+    (card.match(/<MechanicalCounter/g) || []).length,
+    4
+  );
+});
+
+
+test("locomotive counter runtime integrates motion and persists totals on stop", () => {
+  const runtime = read("src/services/locoCounterRuntime.ts");
+  const app = read("src/App.tsx");
+
+  assert.match(
+    runtime,
+    /elapsedMs[\s\S]*3_600_000/
+  );
+
+  assert.match(
+    runtime,
+    /state\.speed[\s\S]*state\.maxSpeedStep/
+  );
+
+  assert.match(
+    runtime,
+    /state\.maxScaleSpeedKmh[\s\S]*speedRatio/
+  );
+
+  assert.match(
+    runtime,
+    /distanceKm[\s\S]*speedKmh[\s\S]*elapsedHours/
+  );
+
+  assert.match(
+    runtime,
+    /state\.pendingHours \+=/
+  );
+
+  assert.match(
+    runtime,
+    /state\.dailyHours \+=/
+  );
+
+  assert.match(
+    runtime,
+    /state\.pendingKm \+=/
+  );
+
+  assert.match(
+    runtime,
+    /state\.dailyKm \+=/
+  );
+
+  assert.match(
+    runtime,
+    /wasMoving[\s\S]*!isMoving[\s\S]*queuePersist/
+  );
+
+  assert.match(
+    runtime,
+    /await getLocos\(\)[\s\S]*await saveLocos/
+  );
+
+  assert.match(
+    runtime,
+    /odometerKm:[\s\S]*nextTotalKm/
+  );
+
+  assert.match(
+    runtime,
+    /operatingHours:[\s\S]*nextTotalHours/
+  );
+
+  assert.match(
+    runtime,
+    /lastRunAt:[\s\S]*toISOString/
+  );
+
+  assert.match(
+    app,
+    /installLocoCounterRuntime/
+  );
+
+  assert.match(
+    app,
+    /configureLocoCounterRuntime\([\s\S]*locos/
+  );
 });
