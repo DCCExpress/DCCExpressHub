@@ -367,11 +367,7 @@ export default function LocoControlCard({
                   counterDisplaySettings.distanceDecimals
                 }
                 digitHeight={
-                  Math.max(
-                    18,
-                    counterDisplaySettings.digitHeight -
-                      4
-                  )
+                  counterDisplaySettings.digitHeight
                 }
                 unit="km"
                 accentFraction={
@@ -394,11 +390,7 @@ export default function LocoControlCard({
                   counterDisplaySettings.operatingHoursDecimals
                 }
                 digitHeight={
-                  Math.max(
-                    18,
-                    counterDisplaySettings.digitHeight -
-                      4
-                  )
+                  counterDisplaySettings.digitHeight
                 }
                 unit="h"
                 accentFraction={
