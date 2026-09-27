@@ -2786,3 +2786,144 @@ test("Movement route vector preview is styled by type and prepared for future it
     /movement-route-vector-node\.is-no-sensor/
   );
 });
+
+
+test("Movement SVG selection opens one focused resource editor and keeps legacy cards hidden", () => {
+  const dialog =
+    read(
+      "src/components/movement/MovementEditorDialog.tsx"
+    );
+
+  const routeEditor =
+    read(
+      "src/components/movement/MovementRouteEditor.tsx"
+    );
+
+  const focused =
+    read(
+      "src/components/movement/MovementSelectedResourceEditor.tsx"
+    );
+
+  const vector =
+    read(
+      "src/services/movementRouteVector.ts"
+    );
+
+  assert.match(
+    dialog,
+    /selectedRouteVectorKey/
+  );
+
+  assert.match(
+    dialog,
+    /onItemClick=[\s\S]*setSelectedRouteVectorKey/
+  );
+
+  assert.match(
+    dialog,
+    /selectedResourceKey=[\s\S]*selectedRouteVectorKey/
+  );
+
+  assert.match(
+    vector,
+    /`segment:\$\{nodeName\}`/
+  );
+
+  assert.match(
+    routeEditor,
+    /const SHOW_LEGACY_ROUTE_CARDS =[\s\S]*false/
+  );
+
+  assert.match(
+    routeEditor,
+    /SHOW_LEGACY_ROUTE_CARDS &&/
+  );
+
+  assert.match(
+    routeEditor,
+    /MovementRouteRow/
+  );
+
+  assert.match(
+    routeEditor,
+    /selectedResourceKey/
+  );
+
+  assert.match(
+    routeEditor,
+    /plan\.resources\.find/
+  );
+
+  assert.match(
+    routeEditor,
+    /MovementSelectedResourceEditor/
+  );
+
+  assert.match(
+    focused,
+    /<Tabs/
+  );
+
+  assert.match(
+    focused,
+    /value="conditions"/
+  );
+
+  assert.match(
+    focused,
+    /Conditions \/ Events/
+  );
+
+  assert.match(
+    focused,
+    /value="actions"/
+  );
+});
+
+
+test("Focused Movement Actions tab preserves sequence-capable action editor", () => {
+  const focused =
+    read(
+      "src/components/movement/MovementSelectedResourceEditor.tsx"
+    );
+
+  const actions =
+    read(
+      "src/components/movement/MovementActionEditor.tsx"
+    );
+
+  assert.match(
+    focused,
+    /MovementActionEditor/
+  );
+
+  assert.match(
+    focused,
+    /resourceKey=[\s\S]*resource\.key/
+  );
+
+  assert.match(
+    actions,
+    /type SequenceGroup/
+  );
+
+  assert.match(
+    actions,
+    /sequenceId/
+  );
+
+  assert.match(
+    actions,
+    /MovementSequenceMode/
+  );
+
+  assert.match(
+    actions,
+    /blocking/
+  );
+
+  assert.match(
+    actions,
+    /background/
+  );
+});
