@@ -71,6 +71,16 @@ export type LocoAction =
 export type LocoActionHooks =
   Partial<Record<LocoActionHook, LocoAction[]>>;
 
+
+export type LocoCounterSettings = {
+  enabled: boolean;
+  digits: number;
+  digitHeight: number;
+  distanceDecimals: number;
+  operatingHoursDecimals: number;
+  accentFraction: boolean;
+};
+
 export type BlockActionHook =
   | "onTrainEnter"
   | "onTrainLeave";
@@ -101,6 +111,9 @@ export type Loco = {
   trainType?: LocoTrainType;
   occupancyDetectionPosition?: LocoOccupancyDetectionPosition;
   lastRunAt?: string;
+  odometerKm?: number;
+  operatingHours?: number;
+  counterSettings?: Partial<LocoCounterSettings>;
   functions: LocoFunction[];
   actions?: LocoActionHooks;
 };
