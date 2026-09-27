@@ -9,6 +9,7 @@ export const DEFAULT_LOCO_COUNTER_SETTINGS:
     digitHeight: 28,
     distanceDecimals: 1,
     operatingHoursDecimals: 1,
+    maxScaleSpeedKmh: 120,
     accentFraction: true,
   };
 
@@ -79,6 +80,13 @@ export function resolveLocoCounterSettings(
         DEFAULT_LOCO_COUNTER_SETTINGS.operatingHoursDecimals,
         0,
         2
+      ),
+    maxScaleSpeedKmh:
+      clampInteger(
+        settings?.maxScaleSpeedKmh,
+        DEFAULT_LOCO_COUNTER_SETTINGS.maxScaleSpeedKmh,
+        1,
+        400
       ),
     accentFraction:
       settings?.accentFraction ??
