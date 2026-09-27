@@ -4,13 +4,7 @@ import type {
 
 export const DEFAULT_LOCO_COUNTER_SETTINGS:
   LocoCounterSettings = {
-    enabled: true,
-    digits: 6,
-    digitHeight: 28,
-    distanceDecimals: 1,
-    operatingHoursDecimals: 1,
     maxScaleSpeedKmh: 120,
-    accentFraction: true,
   };
 
 function clampInteger(
@@ -50,37 +44,6 @@ export function resolveLocoCounterSettings(
     undefined
 ): LocoCounterSettings {
   return {
-    enabled:
-      settings?.enabled ??
-      DEFAULT_LOCO_COUNTER_SETTINGS.enabled,
-    digits:
-      clampInteger(
-        settings?.digits,
-        DEFAULT_LOCO_COUNTER_SETTINGS.digits,
-        3,
-        9
-      ),
-    digitHeight:
-      clampInteger(
-        settings?.digitHeight,
-        DEFAULT_LOCO_COUNTER_SETTINGS.digitHeight,
-        18,
-        48
-      ),
-    distanceDecimals:
-      clampInteger(
-        settings?.distanceDecimals,
-        DEFAULT_LOCO_COUNTER_SETTINGS.distanceDecimals,
-        0,
-        2
-      ),
-    operatingHoursDecimals:
-      clampInteger(
-        settings?.operatingHoursDecimals,
-        DEFAULT_LOCO_COUNTER_SETTINGS.operatingHoursDecimals,
-        0,
-        2
-      ),
     maxScaleSpeedKmh:
       clampInteger(
         settings?.maxScaleSpeedKmh,
@@ -88,8 +51,5 @@ export function resolveLocoCounterSettings(
         1,
         400
       ),
-    accentFraction:
-      settings?.accentFraction ??
-      DEFAULT_LOCO_COUNTER_SETTINGS.accentFraction,
   };
 }
