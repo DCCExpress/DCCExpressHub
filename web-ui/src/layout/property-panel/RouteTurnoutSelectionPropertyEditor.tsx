@@ -13,7 +13,7 @@ import {
   Table,
   Text,
 } from "@mantine/core";
-import { IconListCheck, IconPlayerPlay, IconTrash } from "@tabler/icons-react";
+import { IconPlayerPlay, IconTrash } from "@tabler/icons-react";
 
 import type { LayoutElementId } from "@domain/layout/layoutDto";
 import type { BaseElement } from "../../models/editor/core/BaseElement";
@@ -29,7 +29,7 @@ import {
 } from "../../models/editor/elements/TrackTurnoutThreeWayElement";
 import ElementPreview from "../../models/editor/rendering/ElementPreviewRenderer";
 import { useCommandCenter } from "../../context/CommandCenterContext";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { showWarningMessage } from "../../helpers";
 import { executeLegacyRouteButton } from "../../services/routeButtonExecutor";
 import {
@@ -51,6 +51,7 @@ type RouteTurnoutSelectionPropertyEditorProps = {
   onLayoutChange: LayoutSetter;
   onUpdateSelectedElement: SelectedElementUpdateHandler;
   setBusy?: (busy: boolean, text?: string) => void;
+  routeSelectRequest?: number;
 };
 
 function findElementById(layout: LayoutView, id: LayoutElementId) {
@@ -134,6 +135,7 @@ export default function RouteTurnoutSelectionPropertyEditor({
   onLayoutChange,
   onUpdateSelectedElement,
   setBusy,
+  routeSelectRequest = 0,
 }: RouteTurnoutSelectionPropertyEditorProps) {
   useTranslation();
   const commandCenter = useCommandCenter();
@@ -198,6 +200,22 @@ export default function RouteTurnoutSelectionPropertyEditor({
       );
     }
   };
+
+  useEffect(
+    () => {
+      if (
+        routeSelectRequest <=
+          0
+      ) {
+        return;
+      }
+
+      openRouteSelect();
+    },
+    [
+      routeSelectRequest,
+    ]
+  );
 
   const applyRouteCandidate = (
     candidate:
@@ -327,23 +345,6 @@ export default function RouteTurnoutSelectionPropertyEditor({
   return (
     <Stack gap="xs">
       <Group gap="xs">
-        <Button
-          size="xs"
-          variant="light"
-          leftSection={
-            <IconListCheck
-              size={14}
-            />
-          }
-          onClick={
-            openRouteSelect
-          }
-        >
-          {i18next.t(
-            "ui.selectGeneratedRoute"
-          )}
-        </Button>
-
         <Button
           size="xs"
           variant={turnoutSelectionMode ? "filled" : "light"}
