@@ -67,7 +67,7 @@ test("LocoPanel uses global visibility and one Daily-or-Total value per counter"
 
   assert.match(panel, /IconSettings/);
   assert.match(panel, /LocoPanelSettingsDialog/);
-  assert.match(panel, /bottom:\s*2/);
+  assert.match(panel, /top:\s*2/);
   assert.match(panel, /counterDisplaySettings/);
   assert.match(panel, /toggleDailyCounters/);
 
@@ -92,7 +92,7 @@ test("LocoPanel uses global visibility and one Daily-or-Total value per counter"
 
   assert.equal(
     (card.match(/<MechanicalCounter/g) || []).length,
-    2
+    3
   );
 
   assert.match(
@@ -105,9 +105,39 @@ test("LocoPanel uses global visibility and one Daily-or-Total value per counter"
     /counterDisplaySettings\.daily[\s\S]*\? dailyHours[\s\S]*: totalHours/
   );
 
-  assert.doesNotMatch(
+  assert.match(
+    card,
+    /gridTemplateColumns:[\s\S]*"1fr auto 1fr"/
+  );
+
+  assert.match(
     card,
     /resolveLocoCounterSettings/
+  );
+
+  assert.match(
+    card,
+    /targetSpeedKmh/
+  );
+
+  assert.match(
+    card,
+    /displayedSpeedKmh/
+  );
+
+  assert.match(
+    card,
+    /requestAnimationFrame/
+  );
+
+  assert.match(
+    card,
+    /digits=\{3\}/
+  );
+
+  assert.match(
+    card,
+    /unit="km\/h"/
   );
 });
 
