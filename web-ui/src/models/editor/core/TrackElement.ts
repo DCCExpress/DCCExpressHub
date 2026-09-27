@@ -1,6 +1,7 @@
 import i18next from "i18next";
 import type { TrackElementDto } from "../../../domain/layout/layoutDto";
 import { drawTextWithRoundedBackground } from "../../../graphics";
+import { isMovementTrackOwned } from "../../../services/movementTrackOwnershipRuntime";
 import { wsClient } from "../../../services/wsClient";
 import type { IEditableProperty } from "../elements/PropertyDescriptor";
 import type { DrawOptions } from "../types/EditorTypes";
@@ -22,6 +23,7 @@ export const TrackColors = {
   routeOccupied: "#ff3333",
   busy: "orange",
   transit: "#fd2020",
+  movementOwned: "#a3e635",
 };
 
 // Central occupancy cache fed by the existing Hub sensorChanged /
@@ -127,6 +129,14 @@ export abstract class TrackElement extends BaseElement {
      *
      * All normal track elements and turnouts call this same function.
      */
+    if (
+      isMovementTrackOwned(
+        this.id
+      )
+    ) {
+      return TrackColors.movementOwned;
+    }
+
     if (occupied && isRoute) {
       return TrackColors.routeOccupied;
     }
