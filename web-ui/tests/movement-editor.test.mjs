@@ -2572,3 +2572,111 @@ test("selected Movement route auto-fills name with direction arrows between bloc
     /name:[\s\S]*generatedName/
   );
 });
+
+
+test("Movement route selection generates ARRIVED defaults for intermediate blocks", () => {
+  const defaults =
+    read(
+      "src/services/movementRouteDefaults.ts"
+    );
+
+  const catalog =
+    read(
+      "src/services/movementRouteCatalog.ts"
+    );
+
+  assert.match(
+    defaults,
+    /route\.blockPath[\s\S]*\.slice\([\s\S]*1,[\s\S]*-1/
+  );
+
+  assert.match(
+    defaults,
+    /sensorAddress/
+  );
+
+  assert.match(
+    defaults,
+    /previousNodeName[\s\S]*nodeNames\[[\s\S]*nodeIndex/
+  );
+
+  assert.match(
+    defaults,
+    /nextNodeName[\s\S]*nodeIndex \+[\s\S]*1/
+  );
+
+  const previousOff =
+    defaults.indexOf(
+      "for (\n          const sensor of\n          previousSensors"
+    );
+
+  const blockOn =
+    defaults.indexOf(
+      "if (\n          blockSensor !=="
+    );
+
+  const nextOff =
+    defaults.indexOf(
+      "for (\n          const sensor of\n          nextSensors"
+    );
+
+  assert.ok(
+    previousOff >= 0 &&
+    blockOn > previousOff &&
+    nextOff > blockOn,
+    "ARRIVED defaults must be previous segment OFF, block ON, next segment OFF"
+  );
+
+  assert.match(
+    defaults,
+    /previousSensors[\s\S]*state:[\s\S]*false/
+  );
+
+  assert.match(
+    defaults,
+    /blockSensor[\s\S]*state:[\s\S]*true/
+  );
+
+  assert.match(
+    defaults,
+    /nextSensors[\s\S]*state:[\s\S]*false/
+  );
+
+  assert.match(
+    catalog,
+    /intermediateArrivalDefaults/
+  );
+
+  assert.match(
+    catalog,
+    /generatedRules/
+  );
+
+  assert.match(
+    catalog,
+    /arrivedWhen:[\s\S]*defaults\.conditions\.map/
+  );
+
+  assert.match(
+    catalog,
+    /existingBlockIds\.has/
+  );
+
+  assert.match(
+    catalog,
+    /blockRules:[\s\S]*existingRules[\s\S]*generatedRules/
+  );
+});
+
+
+test("Movement physical plan reloads when exact route key changes", () => {
+  const editor =
+    read(
+      "src/components/movement/MovementRouteEditor.tsx"
+    );
+
+  assert.match(
+    editor,
+    /const routeSignature =[\s\S]*page\.routeKey/
+  );
+});
