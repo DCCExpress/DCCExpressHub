@@ -3113,3 +3113,41 @@ test("Configured command centers apply locomotive direction inversion", () => {
     /_inner\.setLoco\([\s\S]*address,[\s\S]*speed,[\s\S]*physicalForward/
   );
 });
+
+
+test("New Movement sequences and actions never default to a driving speed command", () => {
+  const editor =
+    read(
+      "src/components/movement/MovementActionEditor.tsx"
+    );
+
+  const domain =
+    read(
+      "src/domain/movement.ts"
+    );
+
+  assert.match(
+    domain,
+    /kind: MovementActionKind = "log"/
+  );
+
+  assert.doesNotMatch(
+    editor,
+    /createMovementAction\([\s\S]*resourceKey,[\s\S]*when,[\s\S]*"speed",[\s\S]*sequenceId/
+  );
+
+  assert.doesNotMatch(
+    editor,
+    /createMovementAction\([\s\S]*resourceKey,[\s\S]*current\.when,[\s\S]*"speed",[\s\S]*current\.id/
+  );
+
+  assert.match(
+    editor,
+    /createMovementAction\([\s\S]*resourceKey,[\s\S]*when,[\s\S]*"log",[\s\S]*sequenceId/
+  );
+
+  assert.match(
+    editor,
+    /createMovementAction\([\s\S]*resourceKey,[\s\S]*current\.when,[\s\S]*"log",[\s\S]*current\.id/
+  );
+});
