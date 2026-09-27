@@ -289,6 +289,12 @@
 
 .movement-route-vector-node.is-clickable {
   cursor: pointer;
+  outline: none;
+}
+
+.movement-route-vector-node.is-clickable:focus,
+.movement-route-vector-node.is-clickable:focus-visible {
+  outline: none;
 }
 
 .movement-route-vector-node.is-clickable:hover .movement-route-vector-card {
