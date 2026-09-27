@@ -69,7 +69,7 @@ test("LocoPanel uses global visibility and one Daily-or-Total value per counter"
   assert.match(panel, /LocoPanelSettingsDialog/);
   assert.match(panel, /top:\s*2/);
   assert.match(panel, /counterDisplaySettings/);
-  assert.match(panel, /toggleDailyCounters/);
+  assert.doesNotMatch(panel, /toggleDailyCounters/);
 
   assert.match(dialog, /show_km/);
   assert.match(dialog, /show_worktime/);
@@ -78,17 +78,23 @@ test("LocoPanel uses global visibility and one Daily-or-Total value per counter"
   assert.match(dialog, /counter_km_decimals/);
   assert.match(dialog, /counter_worktime_decimals/);
   assert.match(dialog, /counter_accent_fraction/);
+  assert.match(dialog, /counter_daily_mode/);
+  assert.match(dialog, /settings\.daily/);
 
   assert.match(displaySettings, /showKm:\s*true/);
   assert.match(displaySettings, /showWorktime:\s*true/);
   assert.match(displaySettings, /daily:\s*false/);
+  assert.match(displaySettings, /digitHeight:\s*24/);
+  assert.match(displaySettings, /counter-display-settings\.v2/);
+  assert.match(displaySettings, /LEGACY_STORAGE_KEY/);
+  assert.match(displaySettings, /digitHeight:[\s\S]*-\s*4/);
   assert.match(displaySettings, /localStorage/);
 
   assert.match(card, /counterDisplaySettings\.showKm/);
   assert.match(card, /counterDisplaySettings\.showWorktime/);
   assert.match(card, /counterDisplaySettings\.daily/);
-  assert.match(card, />\s*D\s*</);
-  assert.match(card, /onToggleCounterDaily/);
+  assert.doesNotMatch(card, />\s*D\s*</);
+  assert.doesNotMatch(card, /onToggleCounterDaily/);
 
   assert.equal(
     (card.match(/<MechanicalCounter/g) || []).length,
@@ -103,11 +109,6 @@ test("LocoPanel uses global visibility and one Daily-or-Total value per counter"
   assert.match(
     card,
     /counterDisplaySettings\.daily[\s\S]*\? dailyHours[\s\S]*: totalHours/
-  );
-
-  assert.match(
-    card,
-    /gridTemplateColumns:[\s\S]*"1fr auto 1fr"/
   );
 
   assert.match(
@@ -133,6 +134,11 @@ test("LocoPanel uses global visibility and one Daily-or-Total value per counter"
   assert.match(
     card,
     /digits=\{3\}/
+  );
+
+  assert.match(
+    card,
+    /digitHeight=\{30\}/
   );
 
   assert.match(
