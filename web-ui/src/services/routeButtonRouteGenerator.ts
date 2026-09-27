@@ -362,4 +362,15 @@ export function applyGeneratedRouteButtonCandidate(
 
   routeButton.label =
     candidate.label;
+
+  routeButton.name =
+    candidate.blockPath.length >
+      0
+      ? candidate.blockPath.join(
+          " - "
+        )
+      : candidate.label.replace(
+          " → ",
+          " - "
+        );
 }
