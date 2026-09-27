@@ -54,11 +54,6 @@ import {
 } from "./movementBlockRuntime";
 
 import {
-  clearMovementTrackOwnership,
-  setMovementTrackOwnership,
-} from "./movementTrackOwnershipRuntime";
-
-import {
   isTrackPowerOn,
 } from "./trackPowerRuntime";
 
@@ -2933,21 +2928,6 @@ async function traverseLeg(
       leg
     );
 
-  const ownedTrackElementIds =
-    [
-      ...new Set(
-        leg.resources.flatMap(
-          resource =>
-            resource.elementIds
-        )
-      ),
-    ];
-
-  setMovementTrackOwnership(
-    execution.page.id,
-    ownedTrackElementIds
-  );
-
   try {
     /*
      * Revalidate the state-based departure condition after authority is held.
@@ -3276,10 +3256,6 @@ async function traverseLeg(
       leg.to.key
     );
   } finally {
-    clearMovementTrackOwnership(
-      execution.page.id
-    );
-
     await releaseMovementLegLease(
       leases
     );
