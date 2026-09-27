@@ -45,7 +45,7 @@ export type MovementRouteVectorInput = {
     name?: unknown;
     nodeIndex?: number;
   }>;
-  nodes?: unknown;
+  nodes?: string[];
 };
 
 export type MovementRouteVectorRouteEntry =
