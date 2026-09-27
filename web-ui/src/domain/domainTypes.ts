@@ -78,6 +78,7 @@ export type LocoCounterSettings = {
   digitHeight: number;
   distanceDecimals: number;
   operatingHoursDecimals: number;
+  maxScaleSpeedKmh: number;
   accentFraction: boolean;
 };
 
