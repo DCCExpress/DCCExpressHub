@@ -1,10 +1,7 @@
 import {
-  Card,
-  Group,
   NumberInput,
   SimpleGrid,
   Stack,
-  Switch,
   Text,
 } from "@mantine/core";
 
@@ -16,8 +13,6 @@ import type {
 import {
   resolveLocoCounterSettings,
 } from "@domain/locoCounterSettings";
-
-import MechanicalCounter from "../MechanicalCounter";
 
 type Props = {
   loco: Loco;
@@ -59,87 +54,6 @@ export default function LocoCounterSettingsPanel({
           "locodialog.counters_title"
         )}
       </Text>
-
-      <Card
-        withBorder
-        radius="sm"
-        p="sm"
-      >
-        <Text
-          size="xs"
-          c="dimmed"
-          mb="xs"
-        >
-          {t(
-            "locodialog.counters_preview"
-          )}
-        </Text>
-
-        <Stack
-          gap={6}
-          align="center"
-        >
-          <MechanicalCounter
-            label="KM"
-            value={
-              loco.odometerKm ??
-              0
-            }
-            digits={
-              settings.digits
-            }
-            decimals={
-              settings.distanceDecimals
-            }
-            digitHeight={
-              settings.digitHeight
-            }
-            unit="km"
-            accentFraction={
-              settings.accentFraction
-            }
-          />
-
-          <MechanicalCounter
-            label="H"
-            value={
-              loco.operatingHours ??
-              0
-            }
-            digits={
-              settings.digits
-            }
-            decimals={
-              settings.operatingHoursDecimals
-            }
-            digitHeight={
-              settings.digitHeight
-            }
-            unit="h"
-            accentFraction={
-              settings.accentFraction
-            }
-          />
-        </Stack>
-      </Card>
-
-      <Switch
-        label={t(
-          "locodialog.counters_enabled"
-        )}
-        checked={
-          settings.enabled
-        }
-        onChange={
-          event =>
-            patchSettings({
-              enabled:
-                event
-                  .currentTarget
-                  .checked,
-            })
-        }
-      />
 
       <SimpleGrid
         cols={{
@@ -206,102 +120,6 @@ export default function LocoCounterSettingsPanel({
 
         <NumberInput
           label={t(
-            "locodialog.counter_digits"
-          )}
-          value={
-            settings.digits
-          }
-          min={3}
-          max={9}
-          allowDecimal={
-            false
-          }
-          onChange={
-            value =>
-              patchSettings({
-                digits:
-                  Number(
-                    value
-                  ) ||
-                  3,
-              })
-          }
-        />
-
-        <NumberInput
-          label={t(
-            "locodialog.counter_digit_height"
-          )}
-          value={
-            settings.digitHeight
-          }
-          min={18}
-          max={48}
-          allowDecimal={
-            false
-          }
-          onChange={
-            value =>
-              patchSettings({
-                digitHeight:
-                  Number(
-                    value
-                  ) ||
-                  18,
-              })
-          }
-        />
-
-        <NumberInput
-          label={t(
-            "locodialog.counter_distance_decimals"
-          )}
-          value={
-            settings.distanceDecimals
-          }
-          min={0}
-          max={2}
-          allowDecimal={
-            false
-          }
-          onChange={
-            value =>
-              patchSettings({
-                distanceDecimals:
-                  Number(
-                    value
-                  ) ||
-                  0,
-              })
-          }
-        />
-
-        <NumberInput
-          label={t(
-            "locodialog.counter_hours_decimals"
-          )}
-          value={
-            settings.operatingHoursDecimals
-          }
-          min={0}
-          max={2}
-          allowDecimal={
-            false
-          }
-          onChange={
-            value =>
-              patchSettings({
-                operatingHoursDecimals:
-                  Number(
-                    value
-                  ) ||
-                  0,
-              })
-          }
-        />
-
-        <NumberInput
-          label={t(
             "locodialog.counter_max_scale_speed"
           )}
           value={
@@ -326,23 +144,14 @@ export default function LocoCounterSettingsPanel({
         />
       </SimpleGrid>
 
-      <Switch
-        label={t(
-          "locodialog.counter_accent_fraction"
+      <Text
+        size="xs"
+        c="dimmed"
+      >
+        {t(
+          "locodialog.counter_display_global_hint"
         )}
-        checked={
-          settings.accentFraction
-        }
-        onChange={
-          event =>
-            patchSettings({
-              accentFraction:
-                event
-                  .currentTarget
-                  .checked,
-            })
-        }
-      />
+      </Text>
     </Stack>
   );
 }
