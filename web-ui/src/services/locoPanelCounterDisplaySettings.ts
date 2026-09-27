@@ -10,6 +10,9 @@ export type LocoPanelCounterDisplaySettings = {
 };
 
 const STORAGE_KEY =
+  "dcc-express.loco-panel.counter-display-settings.v2";
+
+const LEGACY_STORAGE_KEY =
   "dcc-express.loco-panel.counter-display-settings.v1";
 
 export const DEFAULT_LOCO_PANEL_COUNTER_DISPLAY_SETTINGS:
@@ -18,7 +21,7 @@ export const DEFAULT_LOCO_PANEL_COUNTER_DISPLAY_SETTINGS:
     showWorktime: true,
     daily: false,
     digits: 6,
-    digitHeight: 28,
+    digitHeight: 24,
     distanceDecimals: 1,
     operatingHoursDecimals: 1,
     accentFraction: true,
@@ -121,17 +124,54 @@ function readStored():
         STORAGE_KEY
       );
 
-    if (!raw) {
-      return {
-        ...DEFAULT_LOCO_PANEL_COUNTER_DISPLAY_SETTINGS,
-      };
+    if (raw) {
+      return normalize(
+        JSON.parse(
+          raw
+        ) as Partial<LocoPanelCounterDisplaySettings>
+      );
     }
 
-    return normalize(
-      JSON.parse(
-        raw
-      ) as Partial<LocoPanelCounterDisplaySettings>
-    );
+    const legacyRaw =
+      window.localStorage.getItem(
+        LEGACY_STORAGE_KEY
+      );
+
+    if (legacyRaw) {
+      const legacy =
+        JSON.parse(
+          legacyRaw
+        ) as Partial<LocoPanelCounterDisplaySettings>;
+
+      const migrated =
+        normalize({
+          ...legacy,
+          digitHeight:
+            Math.max(
+              18,
+              (
+                Number(
+                  legacy.digitHeight
+                ) ||
+                28
+              ) -
+                4
+            ),
+        });
+
+      window.localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(
+          migrated
+        )
+      );
+
+      return migrated;
+    }
+
+    return {
+      ...DEFAULT_LOCO_PANEL_COUNTER_DISPLAY_SETTINGS,
+    };
   } catch {
     return {
       ...DEFAULT_LOCO_PANEL_COUNTER_DISPLAY_SETTINGS,
