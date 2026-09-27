@@ -1,11 +1,12 @@
-import { ActionIcon, Badge, Card, Group, Stack, Text, Title, Tooltip, useMantineColorScheme, useMantineTheme } from "@mantine/core";
-import { useEffect, useState } from "react";
+import { ActionIcon, Badge, Card, Group, Stack, Text, Tooltip } from "@mantine/core";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type {
   Direction,
   Loco,
   LocoReservation,
 } from "@domain/types";
+import { resolveLocoCounterSettings } from "@domain/locoCounterSettings";
 import MechanicalCounter from "../../components/MechanicalCounter";
 import type {
   LocoPanelCounterDisplaySettings,
@@ -61,24 +62,6 @@ export default function LocoControlCard({
   onToggleCounterDaily,
 }: LocoControlCardProps) {
   const { t } = useTranslation();
-  const theme = useMantineTheme();
-  const { colorScheme } = useMantineColorScheme();
-
-  const badgeBg =
-    colorScheme === "dark"
-      ? theme.colors.dark[5]
-      : theme.colors.blue[0];
-
-  const badgeBorder =
-    colorScheme === "dark"
-      ? theme.colors.dark[3]
-      : theme.colors.blue[2];
-
-  const badgeText =
-    colorScheme === "dark"
-      ? theme.colors.blue[1]
-      : theme.colors.blue[8];
-
   const [
     counterSnapshot,
     setCounterSnapshot,
@@ -136,6 +119,169 @@ export default function LocoControlCard({
     liveCounter?.dailyHours ??
     0;
 
+  const speedCalibration =
+    resolveLocoCounterSettings(
+      loco.counterSettings
+    );
+
+  const targetSpeedKmh =
+    useMemo(
+      () => {
+        const maxSpeedStep =
+          Math.max(
+            1,
+            loco.maxSpeed ||
+              100
+          );
+
+        const ratio =
+          Math.max(
+            0,
+            Math.min(
+              1,
+              speed /
+                maxSpeedStep
+            )
+          );
+
+        return Math.round(
+          ratio *
+            speedCalibration.maxScaleSpeedKmh
+        );
+      },
+      [
+        loco.maxSpeed,
+        speed,
+        speedCalibration.maxScaleSpeedKmh,
+      ]
+    );
+
+  const [
+    displayedSpeedKmh,
+    setDisplayedSpeedKmh,
+  ] =
+    useState(
+      targetSpeedKmh
+    );
+
+  const displayedSpeedRef =
+    useRef(
+      targetSpeedKmh
+    );
+
+  useEffect(
+    () => {
+      displayedSpeedRef.current =
+        displayedSpeedKmh;
+    },
+    [
+      displayedSpeedKmh,
+    ]
+  );
+
+  useEffect(
+    () => {
+      const startValue =
+        displayedSpeedRef.current;
+
+      if (
+        startValue ===
+        targetSpeedKmh
+      ) {
+        return;
+      }
+
+      const difference =
+        Math.abs(
+          targetSpeedKmh -
+            startValue
+        );
+
+      const duration =
+        Math.max(
+          220,
+          Math.min(
+            650,
+            220 +
+              difference *
+                3.5
+          )
+        );
+
+      const startedAt =
+        performance.now();
+
+      let frame = 0;
+
+      const animateSpeed =
+        (
+          now: number
+        ) => {
+          const progress =
+            Math.max(
+              0,
+              Math.min(
+                1,
+                (
+                  now -
+                  startedAt
+                ) /
+                  duration
+              )
+            );
+
+          const eased =
+            1 -
+            Math.pow(
+              1 -
+                progress,
+              3
+            );
+
+          const nextValue =
+            Math.round(
+              startValue +
+                (
+                  targetSpeedKmh -
+                  startValue
+                ) *
+                  eased
+            );
+
+          displayedSpeedRef.current =
+            nextValue;
+
+          setDisplayedSpeedKmh(
+            nextValue
+          );
+
+          if (
+            progress <
+            1
+          ) {
+            frame =
+              window.requestAnimationFrame(
+                animateSpeed
+              );
+          }
+        };
+
+      frame =
+        window.requestAnimationFrame(
+          animateSpeed
+        );
+
+      return () => {
+        window.cancelAnimationFrame(
+          frame
+        );
+      };
+    },
+    [
+      targetSpeedKmh,
+    ]
+  );
+
   return (
     <Card withBorder radius="sm" p="8">
       <Stack align="center" gap={0}>
@@ -172,54 +318,58 @@ export default function LocoControlCard({
           </Badge>
         )} */}
 
-        <Badge
-          radius={4}
-          m={4}
-          size="xs"
-          w={120}
-          h="auto"
-          px="md"
-          py={2}
-          styles={{
-            root: {
-              backgroundColor: badgeBg,
-              border: `1px solid ${badgeBorder}`,
-            },
-            label: {
-              height: "auto",
-              lineHeight: 1,
-              textTransform: "none",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            },
+        <div
+          style={{
+            minHeight:
+              44,
+            display:
+              "flex",
+            alignItems:
+              "center",
+            justifyContent:
+              "center",
           }}
         >
-          <Title
-            order={1}
-            fw={700}
-            lh={1}
-            style={{
-              color: badgeText,
-              fontVariantNumeric: "tabular-nums",
-            }}
-          >
-            {speed}
-          </Title>
-        </Badge>
+          <MechanicalCounter
+            value={
+              displayedSpeedKmh
+            }
+            digits={3}
+            decimals={0}
+            digitHeight={34}
+            unit="km/h"
+            accentFraction={
+              false
+            }
+          />
+        </div>
 
         {(
           counterDisplaySettings.showKm ||
           counterDisplaySettings.showWorktime
         ) && (
-          <Group
-            gap={6}
-            justify="center"
-            wrap="wrap"
-            w="100%"
+          <div
             className="loco-mechanical-counters"
+            style={{
+              width:
+                "100%",
+              display:
+                "grid",
+              gridTemplateColumns:
+                "1fr auto 1fr",
+              alignItems:
+                "center",
+            }}
           >
-            <Tooltip
+            <div
+              style={{
+                justifySelf:
+                  "end",
+                paddingRight:
+                  6,
+              }}
+            >
+              <Tooltip
               label={
                 counterDisplaySettings.daily
                   ? t(
@@ -258,8 +408,18 @@ export default function LocoControlCard({
                   D
                 </Text>
               </ActionIcon>
-            </Tooltip>
+              </Tooltip>
+            </div>
 
+            <Group
+              gap={6}
+              justify="center"
+              wrap="wrap"
+              style={{
+                gridColumn:
+                  2,
+              }}
+            >
             {counterDisplaySettings.showKm && (
               <MechanicalCounter
                 value={
@@ -305,7 +465,10 @@ export default function LocoControlCard({
                 }
               />
             )}
-          </Group>
+            </Group>
+
+            <div />
+          </div>
         )}
 
         {!alive && (
