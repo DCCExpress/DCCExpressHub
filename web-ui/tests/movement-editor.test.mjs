@@ -3151,3 +3151,46 @@ test("New Movement sequences and actions never default to a driving speed comman
     /createMovementAction\([\s\S]*resourceKey,[\s\S]*current\.when,[\s\S]*"log",[\s\S]*current\.id/
   );
 });
+
+
+test("Block direction blinking follows live locomotive runtime state", () => {
+  const block =
+    read(
+      "src/models/editor/elements/BlockElement.ts"
+    );
+
+  const canvas =
+    read(
+      "src/components/TrackCanvas.tsx"
+    );
+
+  assert.match(
+    block,
+    /wsClient\.getLatestLocoState\([\s\S]*displayLocoAddress/
+  );
+
+  assert.match(
+    block,
+    /liveLocoState\.speed >[\s\S]*0/
+  );
+
+  assert.match(
+    canvas,
+    /wsClient\.on\("locoState",[\s\S]*invalidate\(\)/
+  );
+
+  assert.match(
+    canvas,
+    /wsClient\.getLatestLocoState\([\s\S]*element\.locoAddress[\s\S]*\?\.speed/
+  );
+
+  assert.match(
+    canvas,
+    /liveLocoMoving/
+  );
+
+  assert.match(
+    canvas,
+    /hasMovingMovementBlockRuntime\(\) \|\|[\s\S]*liveLocoMoving/
+  );
+});
