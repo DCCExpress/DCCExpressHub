@@ -2807,6 +2807,35 @@ async function waitForArrival(
         leg
       )
     ) {
+      const isFinalLeg =
+        execution.plan.legs[
+          execution.plan.legs.length -
+            1
+        ] ===
+        leg;
+
+      if (
+        isFinalLeg
+      ) {
+        execution.moving =
+          false;
+
+        execution.desiredSpeed =
+          0;
+
+        updateState(
+          execution,
+          {
+            desiredSpeed:
+              0,
+          }
+        );
+
+        applyDesiredSpeed(
+          execution
+        );
+      }
+
       return;
     }
 
