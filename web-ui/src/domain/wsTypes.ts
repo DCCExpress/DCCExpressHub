@@ -357,6 +357,17 @@ export type ServerWsPayloadMap = {
   signalAspectChanged: SignalAspectChangedPayload;
   blockStateChanged: BlockStateChangedPayload;
   locoState: LocoStateChangedPayload;
+  locoCounterSnapshot: {
+    items: Array<{
+      address: number;
+      totalKm: number;
+      dailyKm: number;
+      totalHours: number;
+      dailyHours: number;
+      speed: number;
+      moving: boolean;
+    }>;
+  };
   locoReservationChanged: LocoReservationChangedPayload;
 
   routeReservationChanged: RouteReservationChangedPayload;
