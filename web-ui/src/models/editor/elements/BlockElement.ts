@@ -298,7 +298,7 @@ export class BlockElement extends TrackElement {
     ctx.closePath();
 
     const blinking =
-      movementRuntime.phase !==
+      movementRuntime.phase ===
         "moving";
 
     const blinkOn =
