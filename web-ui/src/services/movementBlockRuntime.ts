@@ -122,6 +122,44 @@ export function clearMovementBlockRuntime(
   emit();
 }
 
+export function clearMovementBlockRuntimeByOwnerPhase(
+  ownerId: string,
+  phase:
+    MovementBlockRuntimePhase
+): void {
+  let changed =
+    false;
+
+  for (
+    const [
+      blockId,
+      state,
+    ] of states
+  ) {
+    if (
+      state.ownerId !==
+        ownerId ||
+      state.phase !==
+        phase
+    ) {
+      continue;
+    }
+
+    states.delete(
+      blockId
+    );
+
+    changed =
+      true;
+  }
+
+  if (
+    changed
+  ) {
+    emit();
+  }
+}
+
 export function clearMovementBlockRuntimeByOwner(
   ownerId: string
 ): void {
