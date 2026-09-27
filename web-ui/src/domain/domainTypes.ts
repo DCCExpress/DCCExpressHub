@@ -73,13 +73,7 @@ export type LocoActionHooks =
 
 
 export type LocoCounterSettings = {
-  enabled: boolean;
-  digits: number;
-  digitHeight: number;
-  distanceDecimals: number;
-  operatingHoursDecimals: number;
   maxScaleSpeedKmh: number;
-  accentFraction: boolean;
 };
 
 export type BlockActionHook =
