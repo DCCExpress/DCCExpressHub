@@ -1124,17 +1124,6 @@ async function runActionSequence(
     MovementAction[],
   reportInfo = true
 ): Promise<void> {
-  if (
-    reportInfo &&
-    actions.length >
-      0
-  ) {
-    setMovementExecuting(
-      execution,
-      `${when.toUpperCase()}: sequence`
-    );
-  }
-
   try {
     for (const action of actions) {
       if (
@@ -1148,6 +1137,11 @@ async function runActionSequence(
       if (
         reportInfo
       ) {
+        setMovementExecuting(
+          execution,
+          `${when.toUpperCase()}: ${action.kind}`
+        );
+
         setInfo(
           execution,
           `${when.toUpperCase()}: ${action.kind}`,
