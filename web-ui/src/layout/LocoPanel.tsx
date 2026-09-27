@@ -852,7 +852,7 @@ export default function LocoPanel({
               position:
                 "absolute",
               left: 2,
-              bottom: 2,
+              top: 2,
               zIndex: 20,
             }}
           >
