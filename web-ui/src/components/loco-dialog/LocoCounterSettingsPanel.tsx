@@ -299,6 +299,31 @@ export default function LocoCounterSettingsPanel({
               })
           }
         />
+
+        <NumberInput
+          label={t(
+            "locodialog.counter_max_scale_speed"
+          )}
+          value={
+            settings.maxScaleSpeedKmh
+          }
+          min={1}
+          max={400}
+          suffix=" km/h"
+          allowDecimal={
+            false
+          }
+          onChange={
+            value =>
+              patchSettings({
+                maxScaleSpeedKmh:
+                  Number(
+                    value
+                  ) ||
+                  1,
+              })
+          }
+        />
       </SimpleGrid>
 
       <Switch
