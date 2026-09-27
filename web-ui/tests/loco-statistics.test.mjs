@@ -192,8 +192,59 @@ test("fleet statistics include locomotive images summary cards and metric chart"
     /Progress/
   );
 
-  assert.match(
+  assert.doesNotMatch(
     stats,
     /statistics_image/
   );
+
+  assert.doesNotMatch(
+    stats,
+    /statistics_address/
+  );
+
+  assert.match(
+    stats,
+    /<LocoImage[\s\S]*#\{row\.address\}[\s\S]*\{row\.name\}/
+  );
+});
+
+
+test("statistics translations live in locodialog namespace with localized wording", () => {
+  const i18n =
+    read(
+      "src/i18n.ts"
+    );
+
+  assert.match(
+    i18n,
+    /locodialog:[\s\S]*statistics_total_km: "Összes km"/
+  );
+
+  assert.match(
+    i18n,
+    /locodialog:[\s\S]*statistics_daily_hours: "Napi üzemóra"/
+  );
+
+  assert.match(
+    i18n,
+    /locodialog:[\s\S]*statistics_total_hours: "Összes üzemóra"/
+  );
+
+  const locopanelBlocks =
+    [...i18n.matchAll(/locopanel:\s*\{[\s\S]*?\n\s*\},\n\s*locodialog:/g)]
+      .map(match => match[0]);
+
+  assert.ok(
+    locopanelBlocks.length >= 3
+  );
+
+  for (
+    const block of
+    locopanelBlocks
+  ) {
+    assert.doesNotMatch(
+      block,
+      /statistics_daily_km|statistics_total_km|statistics_daily_hours|statistics_total_hours/
+    );
+  }
 });
