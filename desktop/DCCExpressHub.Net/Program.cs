@@ -77,6 +77,11 @@ var locoCounterRuntime =
 if (!locoCounterRuntime.ReloadConfiguration(false))
     Console.WriteLine("Locomotive counter configuration could not be loaded.");
 
+// WsHub owns the command-center event fan-out, including feeding the backend
+// locomotive counter runtime. Resolve it at process startup so counters keep
+// running even when no browser/WebSocket client is connected.
+_ = app.Services.GetRequiredService<WsHub>();
+
 app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(30) });
 
 app.Map("/ws", async ctx =>
