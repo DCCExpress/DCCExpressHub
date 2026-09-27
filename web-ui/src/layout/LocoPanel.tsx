@@ -159,18 +159,6 @@ export default function LocoPanel({
       []
     );
 
-  const toggleDailyCounters =
-    useCallback(
-      () => {
-        setLocoPanelCounterDisplaySettings({
-          daily:
-            !getLocoPanelCounterDisplaySettings()
-              .daily,
-        });
-      },
-      []
-    );
-
   const clearSpeedTimers = useCallback(() => {
     if (speedSendTimerRef.current !== null) {
       window.clearTimeout(speedSendTimerRef.current);
@@ -962,9 +950,6 @@ export default function LocoPanel({
                     }
                     counterDisplaySettings={
                       counterDisplaySettings
-                    }
-                    onToggleCounterDaily={
-                      toggleDailyCounters
                     }
                   />
                 </div>
