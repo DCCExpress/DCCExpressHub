@@ -2112,7 +2112,7 @@ test("Movement block direction triangle shows executing moving waiting error and
 
   assert.match(
     engine,
-    /reportInfo[\s\S]*actions\.length[\s\S]*setMovementExecuting/
+    /for \(const action of actions\)[\s\S]*reportInfo[\s\S]*setMovementExecuting/
   );
 
   assert.match(
