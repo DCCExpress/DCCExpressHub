@@ -40,6 +40,7 @@ import {
   IconBrandGithub,
   IconBug,
   IconLockOpen,
+  IconListCheck,
   IconRoute,
   IconVolume,
 } from "@tabler/icons-react";
@@ -571,6 +572,12 @@ function LitePropertyPanel({
   invalidate: () => void;
 }) {
   useTranslation();
+
+  const [
+    routeSelectRequest,
+    setRouteSelectRequest,
+  ] = useState(0);
+
   const properties = useMemo(
     () => selectedElement?.getEditableProperties() ?? [],
     [selectedElement, i18next.resolvedLanguage],
@@ -588,7 +595,45 @@ function LitePropertyPanel({
   return (
     <ScrollArea h="100%">
       <Stack gap="xs">
-        <Text fw={800}>{selectedElement.name || selectedElement.type}</Text>
+        <Group
+          justify="space-between"
+          align="center"
+          wrap="nowrap"
+        >
+          <Text
+            fw={800}
+            truncate
+          >
+            {selectedElement.name ||
+              selectedElement.type}
+          </Text>
+
+          {selectedElement instanceof
+            RouteButtonElement && (
+            <Button
+              size="xs"
+              variant="light"
+              leftSection={
+                <IconListCheck
+                  size={14}
+                />
+              }
+              onClick={
+                () =>
+                  setRouteSelectRequest(
+                    value =>
+                      value +
+                      1
+                  )
+              }
+            >
+              {i18next.t(
+                "ui.selectGeneratedRoute"
+              )}
+            </Button>
+          )}
+        </Group>
+
         {properties.map(property => (
           <Card key={property.key} withBorder p="xs">
             {property.type === "turnoutSelection" ? (
@@ -601,6 +646,9 @@ function LitePropertyPanel({
                 onLayoutChange={setLayout}
                 onUpdateSelectedElement={() => invalidate()}
                 setBusy={setBusy}
+                routeSelectRequest={
+                  routeSelectRequest
+                }
               />
             ) : property.type === "bittoggle" ? (
               <TurnoutBitPropertyEditor
