@@ -5,6 +5,11 @@ export type MovementBlockWaitingReason =
   | "resourceLock"
   | "turnoutLock";
 
+export type MovementBlockRuntimePhase =
+  | "moving"
+  | "waiting"
+  | "error";
+
 export type MovementBlockRuntimeState = {
   ownerId: string;
   movementName: string;
@@ -12,8 +17,11 @@ export type MovementBlockRuntimeState = {
   direction:
     | "forward"
     | "reverse";
+  phase:
+    MovementBlockRuntimePhase;
   waitingReason:
-    MovementBlockWaitingReason;
+    MovementBlockWaitingReason |
+    null;
   info: string;
 };
 
@@ -55,7 +63,7 @@ export function getMovementBlockRuntime(
     : null;
 }
 
-export function setMovementBlockWaiting(
+export function setMovementBlockRuntime(
   blockId: number,
   state:
     MovementBlockRuntimeState
@@ -79,9 +87,13 @@ export function setMovementBlockWaiting(
   emit();
 }
 
-export function clearMovementBlockWaiting(
+export function clearMovementBlockRuntime(
   blockId: number,
-  ownerId: string
+  ownerId: string,
+  phase:
+    MovementBlockRuntimePhase |
+    null =
+      null
 ): void {
   const current =
     states.get(
@@ -91,7 +103,13 @@ export function clearMovementBlockWaiting(
   if (
     !current ||
     current.ownerId !==
-      ownerId
+      ownerId ||
+    (
+      phase !==
+        null &&
+      current.phase !==
+        phase
+    )
   ) {
     return;
   }
@@ -103,7 +121,7 @@ export function clearMovementBlockWaiting(
   emit();
 }
 
-export function clearMovementBlockWaitingByOwner(
+export function clearMovementBlockRuntimeByOwner(
   ownerId: string
 ): void {
   let changed =
@@ -137,9 +155,22 @@ export function clearMovementBlockWaitingByOwner(
   }
 }
 
-export function hasMovementBlockWaiting(): boolean {
-  return states.size >
-    0;
+export function hasBlinkingMovementBlockRuntime(): boolean {
+  for (
+    const state of
+    states.values()
+  ) {
+    if (
+      state.phase ===
+        "waiting" ||
+      state.phase ===
+        "error"
+    ) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 export function subscribeMovementBlockRuntime(
