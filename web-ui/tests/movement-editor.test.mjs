@@ -2574,10 +2574,25 @@ test("selected Movement route auto-fills name with direction arrows between bloc
 });
 
 
-test("Movement ARRIVED defaults use direct route-vector neighbours and include destination block", () => {
+test("Movement ARRIVED defaults and header preview share one route-vector builder", () => {
+  const vector =
+    read(
+      "src/services/movementRouteVector.ts"
+    );
+
   const defaults =
     read(
       "src/services/movementRouteDefaults.ts"
+    );
+
+  const preview =
+    read(
+      "src/components/movement/MovementRouteVectorPreview.tsx"
+    );
+
+  const dialog =
+    read(
+      "src/components/movement/MovementEditorDialog.tsx"
     );
 
   const catalog =
@@ -2586,18 +2601,43 @@ test("Movement ARRIVED defaults use direct route-vector neighbours and include d
     );
 
   assert.match(
-    defaults,
-    /type RouteVectorItem/
+    vector,
+    /export function buildMovementRouteVector/
+  );
+
+  assert.match(
+    vector,
+    /kind:[\s\S]*"segment"/
+  );
+
+  assert.match(
+    vector,
+    /kind:[\s\S]*"block"/
+  );
+
+  assert.match(
+    vector,
+    /role:[\s\S]*"source"/
+  );
+
+  assert.match(
+    vector,
+    /"destination"/
+  );
+
+  assert.match(
+    vector,
+    /sensor:[\s\S]*segmentSensor/
+  );
+
+  assert.match(
+    vector,
+    /sensor:[\s\S]*blockSensors\.get/
   );
 
   assert.match(
     defaults,
-    /function buildRouteVector/
-  );
-
-  assert.match(
-    defaults,
-    /const vector =[\s\S]*buildRouteVector/
+    /buildMovementRouteVector/
   );
 
   assert.match(
@@ -2612,17 +2652,7 @@ test("Movement ARRIVED defaults use direct route-vector neighbours and include d
 
   assert.match(
     defaults,
-    /current\.kind !==[\s\S]*"block"/
-  );
-
-  assert.match(
-    defaults,
-    /current\.blockId ===[\s\S]*sourceId/
-  );
-
-  assert.doesNotMatch(
-    defaults,
-    /\.slice\([\s\S]*1,[\s\S]*-1/
+    /current\.role ===[\s\S]*"source"/
   );
 
   assert.match(
@@ -2638,6 +2668,36 @@ test("Movement ARRIVED defaults use direct route-vector neighbours and include d
   assert.match(
     defaults,
     /next\?\.sensor[\s\S]*state:[\s\S]*false/
+  );
+
+  assert.match(
+    preview,
+    /loadMovementRouteVector/
+  );
+
+  assert.match(
+    preview,
+    /<svg/
+  );
+
+  assert.match(
+    preview,
+    /movement-route-vector-node/
+  );
+
+  assert.match(
+    preview,
+    /NO SENSOR/
+  );
+
+  assert.match(
+    preview,
+    /data-route-vector-key/
+  );
+
+  assert.match(
+    dialog,
+    /MovementRouteVectorPreview/
   );
 
   assert.match(
@@ -2661,5 +2721,68 @@ test("Movement physical plan reloads when exact route key changes", () => {
   assert.match(
     editor,
     /const routeSignature =[\s\S]*page\.routeKey/
+  );
+});
+
+
+test("Movement route vector preview is styled by type and prepared for future item clicks", () => {
+  const preview =
+    read(
+      "src/components/movement/MovementRouteVectorPreview.tsx"
+    );
+
+  const css =
+    read(
+      "src/styles/movementEditor.css"
+    );
+
+  assert.match(
+    preview,
+    /onItemClick\?:/
+  );
+
+  assert.match(
+    preview,
+    /selectedKey\?:/
+  );
+
+  assert.match(
+    preview,
+    /SOURCE BLOCK/
+  );
+
+  assert.match(
+    preview,
+    /DESTINATION/
+  );
+
+  assert.match(
+    preview,
+    /SEGMENT/
+  );
+
+  assert.match(
+    css,
+    /movement-route-vector-node\.is-source/
+  );
+
+  assert.match(
+    css,
+    /movement-route-vector-node\.is-block/
+  );
+
+  assert.match(
+    css,
+    /movement-route-vector-node\.is-destination/
+  );
+
+  assert.match(
+    css,
+    /movement-route-vector-node\.is-segment/
+  );
+
+  assert.match(
+    css,
+    /movement-route-vector-node\.is-no-sensor/
   );
 });
