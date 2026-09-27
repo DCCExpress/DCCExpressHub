@@ -31,7 +31,11 @@ export type MovementRouteCandidate = {
 };
 
 type RawRouteEntry =
-  MovementRouteIdentityEntry & {
+  Omit<
+    MovementRouteIdentityEntry,
+    "blockPath" |
+    "nodes"
+  > & {
     fromBlockName?: unknown;
     toBlockName?: unknown;
     blockPath?: Array<{
