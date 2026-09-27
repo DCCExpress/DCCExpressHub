@@ -36,6 +36,16 @@ export const createEmptyLoco = (): Loco => ({
   length: 200,
   trainType: "passenger",
   occupancyDetectionPosition: "forward",
+  odometerKm: 0,
+  operatingHours: 0,
+  counterSettings: {
+    enabled: true,
+    digits: 6,
+    digitHeight: 28,
+    distanceDecimals: 1,
+    operatingHoursDecimals: 1,
+    accentFraction: true,
+  },
   functions: [],
   actions: createEmptyLocoActions(),
 });
