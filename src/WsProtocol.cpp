@@ -2314,7 +2314,7 @@ void WsProtocol::handlePowerFeedback(
         !_trackPower)
     {
         _stateStore.save();
-        _locoCounters.save();
+        _locoCounters.requestSave();
     }
 
     if (
