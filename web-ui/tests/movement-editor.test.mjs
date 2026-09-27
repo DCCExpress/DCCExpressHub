@@ -1480,7 +1480,12 @@ test("Movement action drag uses a dedicated handle and darker card headers", () 
 
   assert.match(
     css,
-    /movement-action-card-header[\s\S]*black 24%/
+    /movement-action-card[\s\S]*mantine-color-blue-0/
+  );
+
+  assert.match(
+    css,
+    /movement-action-card-header[\s\S]*background:\s*inherit/
   );
 
   assert.match(
@@ -2035,5 +2040,98 @@ test("Movement stores run timing and cards show live elapsed duration", () => {
   assert.match(
     editor,
     /runtime\.stoppedAt/
+  );
+});
+
+
+test("Waiting Movement flashes the current block direction triangle", () => {
+  const engine =
+    read(
+      "src/services/movementEngine.ts"
+    );
+
+  const runtime =
+    read(
+      "src/services/movementBlockRuntime.ts"
+    );
+
+  const block =
+    read(
+      "src/models/editor/elements/BlockElement.ts"
+    );
+
+  const canvas =
+    read(
+      "src/components/TrackCanvas.tsx"
+    );
+
+  assert.match(
+    engine,
+    /setMovementBlockWaiting/
+  );
+
+  assert.match(
+    engine,
+    /"departureCondition"/
+  );
+
+  assert.match(
+    engine,
+    /"targetBlock"/
+  );
+
+  assert.match(
+    engine,
+    /"segment"/
+  );
+
+  assert.match(
+    engine,
+    /"resourceLock"/
+  );
+
+  assert.match(
+    engine,
+    /"turnoutLock"/
+  );
+
+  assert.match(
+    runtime,
+    /MovementBlockWaitingReason/
+  );
+
+  assert.match(
+    runtime,
+    /direction:[\s\S]*"forward"[\s\S]*"reverse"/
+  );
+
+  assert.match(
+    block,
+    /getMovementBlockRuntime/
+  );
+
+  assert.match(
+    block,
+    /movementRuntime\?\.direction ===[\s\S]*"reverse"[\s\S]*180/
+  );
+
+  assert.match(
+    block,
+    /#ffd43b/
+  );
+
+  assert.match(
+    block,
+    /Date\.now\(\)/
+  );
+
+  assert.match(
+    canvas,
+    /subscribeMovementBlockRuntime/
+  );
+
+  assert.match(
+    canvas,
+    /hasMovementBlockWaiting\(\)/
   );
 });
