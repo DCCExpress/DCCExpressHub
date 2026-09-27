@@ -3194,3 +3194,51 @@ test("Block direction blinking follows live locomotive runtime state", () => {
     /hasMovingMovementBlockRuntime\(\) \|\|[\s\S]*liveLocoMoving/
   );
 });
+
+
+test("Movement arms the requested logical direction at zero speed before departure", () => {
+  const engine =
+    read(
+      "src/services/movementEngine.ts"
+    );
+
+  assert.match(
+    engine,
+    /async function armMovementDirection/
+  );
+
+  assert.match(
+    engine,
+    /setPhysicalSpeed\([\s\S]*execution,[\s\S]*0,[\s\S]*true[\s\S]*\)/
+  );
+
+  assert.match(
+    engine,
+    /await controlledDelay\([\s\S]*execution,[\s\S]*150[\s\S]*\)/
+  );
+
+  assert.match(
+    engine,
+    /wsApi\.getLoco\([\s\S]*execution\.locoAddress/
+  );
+
+  assert.match(
+    engine,
+    /current\.speed ===[\s\S]*0[\s\S]*current\.direction ===[\s\S]*execution\.direction/
+  );
+
+  assert.match(
+    engine,
+    /await armMovementDirection\([\s\S]*execution[\s\S]*\)[\s\S]*await executeMovement/
+  );
+
+  assert.match(
+    engine,
+    /function setPhysicalSpeed\([\s\S]*force = false/
+  );
+
+  assert.match(
+    engine,
+    /!force &&[\s\S]*execution\.physicalSpeed ===[\s\S]*safeSpeed/
+  );
+});
