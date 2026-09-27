@@ -1,3 +1,8 @@
+type MovementRouteIdentityState = {
+  address?: number;
+  closed?: boolean;
+};
+
 export type MovementRouteIdentityEntry = {
   fromBlockId: number;
   toBlockId: number;
@@ -10,16 +15,10 @@ export type MovementRouteIdentityEntry = {
     from?: string;
     to?: string;
     locoDirection?: string;
-    turnoutStates?: Array<{
-      address?: number;
-      closed?: boolean;
-    }>;
+    turnoutStates?: MovementRouteIdentityState[];
     turnoutPath?: Array<{
       elementId?: number;
-      turnoutStates?: Array<{
-        address?: number;
-        closed?: boolean;
-      }>;
+      turnoutStates?: MovementRouteIdentityState[];
     }>;
   }>;
   locoDirection?: string;
@@ -27,11 +26,8 @@ export type MovementRouteIdentityEntry = {
 
 function normalizedStates(
   states:
-    MovementRouteIdentityEntry["edgePath"] extends Array<infer T>
-      ? T extends { turnoutStates?: infer S }
-        ? S
-        : never
-      : never
+    MovementRouteIdentityState[] |
+    undefined
 ): string[] {
   return (
     Array.isArray(
