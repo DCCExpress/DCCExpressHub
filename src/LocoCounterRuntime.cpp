@@ -313,6 +313,16 @@ void LocoCounterRuntime::updateLoco(
 }
 
 void LocoCounterRuntime::loop() {
+  if (_reloadRequested) {
+    _reloadRequested = false;
+    reloadConfiguration(true);
+  }
+
+  if (_saveRequested) {
+    _saveRequested = false;
+    save();
+  }
+
   const unsigned long now =
       millis();
 
@@ -346,6 +356,14 @@ void LocoCounterRuntime::loop() {
 
   _nextTickAt =
       now + COUNTER_TICK_MS;
+}
+
+void LocoCounterRuntime::requestSave() {
+  _saveRequested = true;
+}
+
+void LocoCounterRuntime::requestReload() {
+  _reloadRequested = true;
 }
 
 bool LocoCounterRuntime::consumeChanged() {
