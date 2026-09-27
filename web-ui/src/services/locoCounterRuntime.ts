@@ -423,13 +423,30 @@ async function persistStoppedLoco(
         target.operatingHours
       );
 
-    const nextTotalKm =
-      persistedKm +
+    const calculatedTotalKm =
+      state.baseTotalKm +
       capturedKm;
 
-    const nextTotalHours =
-      persistedHours +
+    const calculatedTotalHours =
+      state.baseTotalHours +
       capturedHours;
+
+    /*
+     * Persist absolute monotonic totals instead of blindly adding a delta to
+     * the file value. Multiple connected browsers observe the same locoState
+     * stream; using max() makes duplicate stop saves effectively idempotent.
+     */
+    const nextTotalKm =
+      Math.max(
+        persistedKm,
+        calculatedTotalKm
+      );
+
+    const nextTotalHours =
+      Math.max(
+        persistedHours,
+        calculatedTotalHours
+      );
 
     locos[
       targetIndex
