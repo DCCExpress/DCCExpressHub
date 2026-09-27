@@ -1783,6 +1783,7 @@ void WsProtocol::broadcastRuntimeSnapshot()
     }
 
     broadcastBlockStateSnapshot();
+    broadcastLocoCounterSnapshot();
 }
 
 void WsProtocol::sendProgrammingResponse(
