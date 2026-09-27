@@ -25,7 +25,7 @@ test("mechanical counter renders configurable rolling drums", () => {
   assert.match(css, /prefers-reduced-motion/);
 });
 
-test("locomotive model persists mechanical counter values and settings", () => {
+test("locomotive model keeps only locomotive-specific counter calibration", () => {
   const domain = read("src/domain/domainTypes.ts");
   const settings = read("src/domain/locoCounterSettings.ts");
   const helpers = read("src/components/loco-dialog/locoDialogHelpers.ts");
@@ -34,47 +34,80 @@ test("locomotive model persists mechanical counter values and settings", () => {
   assert.match(domain, /odometerKm\?: number/);
   assert.match(domain, /operatingHours\?: number/);
   assert.match(domain, /counterSettings\?: Partial<LocoCounterSettings>/);
+  assert.match(
+    domain,
+    /export type LocoCounterSettings = \{[\s\S]*maxScaleSpeedKmh: number;[\s\S]*\};/
+  );
 
-  assert.match(settings, /digits:\s*6/);
-  assert.match(settings, /digitHeight:\s*28/);
-  assert.match(settings, /distanceDecimals:\s*1/);
-  assert.match(settings, /operatingHoursDecimals:\s*1/);
+  assert.doesNotMatch(
+    domain,
+    /export type LocoCounterSettings = \{[\s\S]*digits: number/
+  );
+
   assert.match(settings, /maxScaleSpeedKmh:\s*120/);
+  assert.doesNotMatch(settings, /digitHeight|distanceDecimals|accentFraction/);
 
   assert.match(helpers, /odometerKm:\s*0/);
   assert.match(helpers, /operatingHours:\s*0/);
   assert.match(helpers, /DEFAULT_LOCO_COUNTER_SETTINGS/);
 
-  assert.match(editor, /<MechanicalCounter/);
-  assert.match(editor, /counter_digits/);
-  assert.match(editor, /counter_digit_height/);
-  assert.match(editor, /counter_distance_decimals/);
-  assert.match(editor, /counter_hours_decimals/);
   assert.match(editor, /counter_max_scale_speed/);
-  assert.match(editor, /counter_accent_fraction/);
+  assert.match(editor, /odometer_km/);
+  assert.match(editor, /operating_hours/);
+  assert.match(editor, /counter_display_global_hint/);
+
+  assert.doesNotMatch(editor, /counters_enabled|counter_digits|counter_digit_height|counter_accent_fraction/);
 });
 
-test("LocoPanel shows live daily and total counters below speed readout", () => {
+test("LocoPanel uses global visibility and one Daily-or-Total value per counter", () => {
+  const panel = read("src/layout/LocoPanel.tsx");
   const card = read("src/layout/loco-panel/LocoControlCard.tsx");
+  const dialog = read("src/layout/loco-panel/LocoPanelSettingsDialog.tsx");
+  const displaySettings = read("src/services/locoPanelCounterDisplaySettings.ts");
 
-  const speedReadout = card.indexOf("<Title");
-  const counters = card.indexOf('className="loco-mechanical-counters"');
+  assert.match(panel, /IconSettings/);
+  assert.match(panel, /LocoPanelSettingsDialog/);
+  assert.match(panel, /bottom:\s*2/);
+  assert.match(panel, /counterDisplaySettings/);
+  assert.match(panel, /toggleDailyCounters/);
 
-  assert.ok(speedReadout >= 0);
-  assert.ok(counters > speedReadout);
+  assert.match(dialog, /show_km/);
+  assert.match(dialog, /show_worktime/);
+  assert.match(dialog, /counter_digits/);
+  assert.match(dialog, /counter_digit_height/);
+  assert.match(dialog, /counter_km_decimals/);
+  assert.match(dialog, /counter_worktime_decimals/);
+  assert.match(dialog, /counter_accent_fraction/);
 
-  assert.match(card, /resolveLocoCounterSettings/);
-  assert.match(card, /getLocoCounterSnapshot/);
-  assert.match(card, /subscribeLocoCounterRuntime/);
-  assert.match(card, /counterSettings\.enabled/);
-  assert.match(card, /totalKm/);
-  assert.match(card, /dailyKm/);
-  assert.match(card, /totalHours/);
-  assert.match(card, /dailyHours/);
+  assert.match(displaySettings, /showKm:\s*true/);
+  assert.match(displaySettings, /showWorktime:\s*true/);
+  assert.match(displaySettings, /daily:\s*false/);
+  assert.match(displaySettings, /localStorage/);
+
+  assert.match(card, /counterDisplaySettings\.showKm/);
+  assert.match(card, /counterDisplaySettings\.showWorktime/);
+  assert.match(card, /counterDisplaySettings\.daily/);
+  assert.match(card, />\s*D\s*</);
+  assert.match(card, /onToggleCounterDaily/);
 
   assert.equal(
     (card.match(/<MechanicalCounter/g) || []).length,
-    4
+    2
+  );
+
+  assert.match(
+    card,
+    /counterDisplaySettings\.daily[\s\S]*\? dailyKm[\s\S]*: totalKm/
+  );
+
+  assert.match(
+    card,
+    /counterDisplaySettings\.daily[\s\S]*\? dailyHours[\s\S]*: totalHours/
+  );
+
+  assert.doesNotMatch(
+    card,
+    /resolveLocoCounterSettings/
   );
 });
 
