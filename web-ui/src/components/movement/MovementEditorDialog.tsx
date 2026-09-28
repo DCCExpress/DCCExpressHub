@@ -59,6 +59,74 @@ import MovementSidebarCard from "./MovementSidebarCard";
 
 import "../../styles/movementEditor.css";
 
+function duplicateSegmentEventName(
+  document:
+    MovementDocument
+): {
+  movementName: string;
+  resourceKey: string;
+  eventName: string;
+} | null {
+  for (const page of document.pages) {
+    const namesByResource =
+      new Map<
+        string,
+        Set<string>
+      >();
+
+    for (
+      const event of
+      page.segmentEvents
+    ) {
+      const name =
+        event.name.trim();
+
+      if (!name) {
+        continue;
+      }
+
+      let names =
+        namesByResource.get(
+          event.resourceKey
+        );
+
+      if (!names) {
+        names =
+          new Set<string>();
+
+        namesByResource.set(
+          event.resourceKey,
+          names
+        );
+      }
+
+      const folded =
+        name.toLocaleLowerCase();
+
+      if (
+        names.has(
+          folded
+        )
+      ) {
+        return {
+          movementName:
+            page.name,
+          resourceKey:
+            event.resourceKey,
+          eventName:
+            name,
+        };
+      }
+
+      names.add(
+        folded
+      );
+    }
+  }
+
+  return null;
+}
+
 type Props = {
   opened: boolean;
   onClose: () => void;
@@ -273,6 +341,17 @@ export default function MovementEditorDialog({
       );
 
       try {
+        const duplicate =
+          duplicateSegmentEventName(
+            document
+          );
+
+        if (duplicate) {
+          throw new Error(
+            `Segment event name "${duplicate.eventName}" is duplicated in ${duplicate.movementName} / ${duplicate.resourceKey}. Event names must be unique inside one segment.`
+          );
+        }
+
         const normalized =
           normalizeMovementDocument({
             ...document,
