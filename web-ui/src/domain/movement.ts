@@ -8,9 +8,10 @@ export type MovementSensorCondition = {
 
 export type MovementBlockRule = {
   blockId: number;
+  approachWhen: MovementSensorCondition[];
+  arrivedWhen: MovementSensorCondition[];
   departWhen: MovementSensorCondition[];
   leaveWhen: MovementSensorCondition[];
-  arrivedWhen: MovementSensorCondition[];
 };
 
 export type MovementResourceEventName =
@@ -357,6 +358,14 @@ function normalizeBlockRules(
       blockId,
       {
         blockId,
+        approachWhen:
+          normalizeConditions(
+            candidate.approachWhen
+          ),
+        arrivedWhen:
+          normalizeConditions(
+            candidate.arrivedWhen
+          ),
         departWhen:
           normalizeConditions(
             candidate.departWhen
@@ -364,10 +373,6 @@ function normalizeBlockRules(
         leaveWhen:
           normalizeConditions(
             candidate.leaveWhen
-          ),
-        arrivedWhen:
-          normalizeConditions(
-            candidate.arrivedWhen
           ),
       }
     );
