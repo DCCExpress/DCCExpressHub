@@ -246,22 +246,19 @@ export class BlockElement extends TrackElement {
         : null;
 
     /*
-     * A real locomotive already assigned to this block owns the direction
-     * visualization. Movement runtime is only the fallback for a target block
-     * that the locomotive has not physically entered yet.
+     * The live locomotive runtime is authoritative for direction regardless of
+     * whether the locomotive is already assigned to this block or is only the
+     * target locomotive heading toward it. This is critical for secondary
+     * clients: Movement runtime is local to the controller that started the
+     * Movement, while locoState is broadcast by the backend to every client.
      */
     const liveDirection =
-      this.locoAddress > 0
-        ? liveLocoState?.direction ??
-          null
-        : null;
+      liveLocoState?.direction ??
+      null;
 
     const fallbackDirection =
-      inTransit
-        ? movementRuntime?.direction ??
-          null
-        : movementRuntime?.direction ??
-          null;
+      movementRuntime?.direction ??
+      null;
 
     const direction =
       liveDirection ??
@@ -344,7 +341,6 @@ export class BlockElement extends TrackElement {
     ctx.closePath();
 
     const liveMoving =
-      this.locoAddress > 0 &&
       liveLocoState !==
         null
         ? liveLocoState.speed >
