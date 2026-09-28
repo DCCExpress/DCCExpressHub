@@ -320,7 +320,7 @@ export default function MovementEditorDialog({
             "Movement saved",
           message:
             activePage?.name ??
-            "",
+            "0 Movements saved",
         });
       } catch (error) {
         showNotification({
@@ -602,19 +602,42 @@ export default function MovementEditorDialog({
                   Create a Movement when you need one. An empty Movement list is valid.
                 </Text>
 
-                <Button
-                  size="sm"
-                  leftSection={
-                    <IconPlus
-                      size={16}
-                    />
-                  }
-                  onClick={
-                    addPage
-                  }
+                <Group
+                  gap="sm"
                 >
-                  New movement
-                </Button>
+                  <Button
+                    size="sm"
+                    leftSection={
+                      <IconPlus
+                        size={16}
+                      />
+                    }
+                    onClick={
+                      addPage
+                    }
+                  >
+                    New movement
+                  </Button>
+
+                  <Button
+                    size="sm"
+                    color="teal"
+                    leftSection={
+                      <IconDeviceFloppy
+                        size={16}
+                      />
+                    }
+                    loading={
+                      saving
+                    }
+                    onClick={
+                      () =>
+                        void save()
+                    }
+                  >
+                    Save empty list
+                  </Button>
+                </Group>
               </Stack>
             )
           }
