@@ -318,6 +318,52 @@ export default function MovementRouteEditor({
         null
       : null;
 
+  const selectedDefaultRule:
+    MovementBlockRule | null =
+    selectedResource?.blockId !==
+      null &&
+    selectedResource?.blockId !==
+      undefined &&
+    plan
+      ? {
+          blockId:
+            selectedResource.blockId,
+          departWhen:
+            plan.legs.find(
+              leg =>
+                leg.from.blockId ===
+                selectedResource.blockId
+            )?.departWhen.map(
+              condition => ({
+                ...condition,
+              })
+            ) ??
+            [],
+          leaveWhen:
+            plan.legs.find(
+              leg =>
+                leg.from.blockId ===
+                selectedResource.blockId
+            )?.leaveWhen.map(
+              condition => ({
+                ...condition,
+              })
+            ) ??
+            [],
+          arrivedWhen:
+            plan.legs.find(
+              leg =>
+                leg.to.blockId ===
+                selectedResource.blockId
+            )?.arrivedWhen.map(
+              condition => ({
+                ...condition,
+              })
+            ) ??
+            [],
+        }
+      : null;
+
   return (
     <Stack
       gap="sm"
@@ -433,6 +479,9 @@ export default function MovementRouteEditor({
                               selectedResource.blockId
                           ) ??
                           null
+                    }
+                    defaultRule={
+                      selectedDefaultRule
                     }
                     sensorCatalog={
                       sensorCatalog
