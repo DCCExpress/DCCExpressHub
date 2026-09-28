@@ -654,8 +654,6 @@ function arrivalRuleFor(
   page:
     MovementPage,
   blockId: number,
-  previousBlockId:
-    number | null,
   sensors:
     Map<number, number>
 ): MovementSensorCondition[] {
@@ -689,41 +687,13 @@ function arrivalRuleFor(
     return [];
   }
 
-  const result:
-    MovementSensorCondition[] = [{
-      id:
-        `auto-arrival-${blockId}-on`,
-      sensor:
-        destinationSensor,
-      state: true,
-    }];
-
-  if (
-    previousBlockId !==
-    null
-  ) {
-    const previousSensor =
-      sensors.get(
-        previousBlockId
-      );
-
-    if (
-      previousSensor !==
-        undefined &&
-      previousSensor !==
-        destinationSensor
-    ) {
-      result.push({
-        id:
-          `auto-arrival-${previousBlockId}-off`,
-        sensor:
-          previousSensor,
-        state: false,
-      });
-    }
-  }
-
-  return result;
+  return [{
+    id:
+      `auto-arrival-${blockId}-on`,
+    sensor:
+      destinationSensor,
+    state: true,
+  }];
 }
 
 export function buildMovementPlan(
@@ -1170,7 +1140,6 @@ export function buildMovementPlan(
         arrivalRuleFor(
           page,
           to.blockId!,
-          from.blockId,
           sensors
         ),
     });
