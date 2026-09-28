@@ -13,7 +13,7 @@ export type MovementBlockRule = {
   arrivedWhen: MovementSensorCondition[];
 };
 
-export type MovementWhen =
+export type MovementBuiltinWhen =
   | "start"
   | "complete"
   | "beforeDepart"
@@ -23,6 +23,24 @@ export type MovementWhen =
   | "leave"
   | "afterLeave"
   | "approach";
+
+export type MovementWhen =
+  | MovementBuiltinWhen
+  | `event:${string}`;
+
+export type MovementSegmentEvent = {
+  id: string;
+  resourceKey: string;
+  name: string;
+  conditions:
+    MovementSensorCondition[];
+};
+
+export function movementSegmentEventWhen(
+  eventId: string
+): MovementWhen {
+  return `event:${eventId}`;
+}
 
 export type MovementSequenceMode =
   | "blocking"
@@ -74,6 +92,8 @@ export type MovementPage = {
   viaBlockIds: number[];
   toBlockId: number | null;
   blockRules: MovementBlockRule[];
+  segmentEvents:
+    MovementSegmentEvent[];
   actions: MovementAction[];
 };
 
@@ -154,6 +174,7 @@ export function createMovementPage(
     viaBlockIds: [],
     toBlockId: null,
     blockRules: [],
+    segmentEvents: [],
     actions: [],
   };
 }
@@ -356,8 +377,8 @@ function normalizeBlockRules(
   ];
 }
 
-const MOVEMENT_WHEN =
-  new Set<MovementWhen>([
+const MOVEMENT_BUILTIN_WHEN =
+  new Set<MovementBuiltinWhen>([
     "start",
     "complete",
     "beforeDepart",
@@ -368,6 +389,154 @@ const MOVEMENT_WHEN =
     "afterLeave",
     "approach",
   ]);
+
+function isMovementWhen(
+  value: string
+): value is MovementWhen {
+  return (
+    MOVEMENT_BUILTIN_WHEN.has(
+      value as MovementBuiltinWhen
+    ) ||
+    (
+      value.startsWith(
+        "event:"
+      ) &&
+      value.length >
+        "event:".length
+    )
+  );
+}
+
+function normalizeSegmentEvents(
+  value: unknown
+): MovementSegmentEvent[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const result:
+    MovementSegmentEvent[] =
+    [];
+
+  const usedIds =
+    new Set<string>();
+
+  const usedNamesByResource =
+    new Map<
+      string,
+      Set<string>
+    >();
+
+  for (const raw of value) {
+    if (
+      !raw ||
+      typeof raw !==
+        "object"
+    ) {
+      continue;
+    }
+
+    const candidate =
+      raw as
+        Record<string, unknown>;
+
+    const resourceKey =
+      String(
+        candidate.resourceKey ??
+        ""
+      ).trim();
+
+    if (!resourceKey) {
+      continue;
+    }
+
+    let id =
+      String(
+        candidate.id ??
+        ""
+      ).trim();
+
+    if (
+      !id ||
+      usedIds.has(id)
+    ) {
+      id =
+        createMovementId(
+          "segment-event"
+        );
+    }
+
+    usedIds.add(id);
+
+    const conditions =
+      normalizeConditions(
+        candidate.conditions
+      )
+        .sort(
+          (
+            left,
+            right
+          ) =>
+            left.sensor -
+            right.sensor
+        );
+
+    if (
+      conditions.length ===
+      0
+    ) {
+      continue;
+    }
+
+    let name =
+      String(
+        candidate.name ??
+        ""
+      ).trim();
+
+    if (name) {
+      let usedNames =
+        usedNamesByResource.get(
+          resourceKey
+        );
+
+      if (!usedNames) {
+        usedNames =
+          new Set<string>();
+
+        usedNamesByResource.set(
+          resourceKey,
+          usedNames
+        );
+      }
+
+      const folded =
+        name.toLocaleLowerCase();
+
+      if (
+        usedNames.has(
+          folded
+        )
+      ) {
+        name =
+          "";
+      } else {
+        usedNames.add(
+          folded
+        );
+      }
+    }
+
+    result.push({
+      id,
+      resourceKey,
+      name,
+      conditions,
+    });
+  }
+
+  return result;
+}
 
 const MOVEMENT_ACTION_KINDS =
   new Set<MovementActionKind>([
@@ -430,7 +599,7 @@ function normalizeActions(
 
     if (
       !resourceKey ||
-      !MOVEMENT_WHEN.has(
+      !isMovementWhen(
         requestedWhen
       ) ||
       !MOVEMENT_ACTION_KINDS.has(
@@ -674,6 +843,10 @@ function normalizeMovementPage(
     blockRules:
       normalizeBlockRules(
         candidate.blockRules
+      ),
+    segmentEvents:
+      normalizeSegmentEvents(
+        candidate.segmentEvents
       ),
     actions:
       normalizeActions(
