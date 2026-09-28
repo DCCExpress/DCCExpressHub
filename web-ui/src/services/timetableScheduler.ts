@@ -122,6 +122,12 @@ class TimetableScheduler {
           movement.blockRules.map(
             rule => ({
               ...rule,
+              approachWhen:
+                rule.approachWhen.map(
+                  condition => ({
+                    ...condition,
+                  })
+                ),
               departWhen:
                 rule.departWhen.map(
                   condition => ({

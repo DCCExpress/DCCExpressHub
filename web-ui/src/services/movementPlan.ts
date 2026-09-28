@@ -103,6 +103,8 @@ export type MovementPlanLeg = {
     MovementPlanResource[];
   turnoutStates:
     RawTurnoutState[];
+  approachWhen:
+    MovementSensorCondition[];
   departWhen:
     MovementSensorCondition[];
   leaveWhen:
@@ -546,6 +548,24 @@ function explicitBlockRuleFor(
     rule =>
       rule.blockId ===
       blockId
+  );
+}
+
+function approachRuleFor(
+  page:
+    MovementPage,
+  blockId: number
+): MovementSensorCondition[] {
+  return (
+    explicitBlockRuleFor(
+      page,
+      blockId
+    )?.approachWhen ??
+    []
+  ).map(
+    condition => ({
+      ...condition,
+    })
   );
 }
 
@@ -1132,6 +1152,11 @@ export function buildMovementPlan(
       resources:
         legResources,
       turnoutStates,
+      approachWhen:
+        approachRuleFor(
+          page,
+          to.blockId!
+        ),
       departWhen:
         departureRuleFor(
           page,

@@ -31,9 +31,10 @@ import type {
 } from "../../services/automationSensorCatalog";
 
 type ConditionField =
+  | "approachWhen"
+  | "arrivedWhen"
   | "departWhen"
-  | "leaveWhen"
-  | "arrivedWhen";
+  | "leaveWhen";
 
 type Props = {
   blockId: number;
@@ -64,9 +65,10 @@ function emptyRule(
 ): MovementBlockRule {
   return {
     blockId,
+    approachWhen: [],
+    arrivedWhen: [],
     departWhen: [],
     leaveWhen: [],
-    arrivedWhen: [],
   };
 }
 
@@ -135,6 +137,17 @@ export default function MovementBlockConditionsEditor({
   if (
     !isSource
   ) {
+    sections.push({
+      field:
+        "approachWhen",
+      title:
+        "Approach when",
+      badge:
+        "APPROACH",
+      description:
+        "Default: the Movement route boundary triggers APPROACH. Add sensor conditions here when a physical approach sensor should trigger it instead.",
+    });
+
     sections.push({
       field:
         "arrivedWhen",

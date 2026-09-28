@@ -136,6 +136,10 @@ type MovementLegLease = {
     BlockTargetLease | null;
 };
 
+type BlockApproachState = {
+  fired: boolean;
+};
+
 type BlockLeaveState = {
   seenOccupied: boolean;
   fired: boolean;
@@ -2861,6 +2865,41 @@ async function waitForDepartureConditions(
   }
 }
 
+async function maybeRunBlockApproach(
+  execution:
+    MovementExecution,
+  leg:
+    MovementPlanLeg,
+  state:
+    BlockApproachState
+): Promise<void> {
+  if (
+    state.fired ||
+    leg.approachWhen.length ===
+      0 ||
+    !conditionsSatisfied(
+      leg.approachWhen
+    )
+  ) {
+    return;
+  }
+
+  state.fired =
+    true;
+
+  await runActions(
+    execution,
+    leg.to.key,
+    "approach"
+  );
+
+  setInfo(
+    execution,
+    `Approaching block: ${leg.to.name}`,
+    leg.to.key
+  );
+}
+
 function createBlockLeaveState(
   leg:
     MovementPlanLeg
@@ -3138,7 +3177,9 @@ async function waitForArrival(
   leg:
     MovementPlanLeg,
   blockLeaveState:
-    BlockLeaveState
+    BlockLeaveState,
+  blockApproachState:
+    BlockApproachState
 ): Promise<void> {
   if (
     leg.arrivedWhen.length ===
@@ -3168,6 +3209,12 @@ async function waitForArrival(
       blockLeaveState
     );
 
+    await maybeRunBlockApproach(
+      execution,
+      leg,
+      blockApproachState
+    );
+
     if (
       arrivalSatisfied(
         leg
@@ -3195,7 +3242,9 @@ async function waitForResourceEntry(
   resource:
     MovementPlanResource,
   blockLeaveState:
-    BlockLeaveState
+    BlockLeaveState,
+  blockApproachState:
+    BlockApproachState
 ): Promise<void> {
   const entryEvent =
     resourceEntryEvent(
@@ -3233,6 +3282,12 @@ async function waitForResourceEntry(
       execution,
       leg,
       blockLeaveState
+    );
+
+    await maybeRunBlockApproach(
+      execution,
+      leg,
+      blockApproachState
     );
 
     if (
@@ -3345,6 +3400,18 @@ async function traverseLeg(
       execution
     );
 
+    const blockApproachState:
+      BlockApproachState = {
+        fired:
+          false,
+      };
+
+    await maybeRunBlockApproach(
+      execution,
+      leg,
+      blockApproachState
+    );
+
     const approachSegments =
       leg.resources.filter(
         resource =>
@@ -3362,17 +3429,18 @@ async function traverseLeg(
           null
         : null;
 
-    let targetApproachFired =
-      false;
-
-    if (!approachSegment) {
+    if (
+      !approachSegment &&
+      leg.approachWhen.length ===
+        0
+    ) {
       await runActions(
         execution,
         leg.to.key,
         "approach"
       );
 
-      targetApproachFired =
+      blockApproachState.fired =
         true;
     }
 
@@ -3417,7 +3485,8 @@ async function traverseLeg(
           execution,
           leg,
           resource,
-          blockLeaveState
+          blockLeaveState,
+          blockApproachState
         );
 
         setActiveRouteResource(
@@ -3454,7 +3523,8 @@ async function traverseLeg(
         execution,
         leg,
         resource,
-        blockLeaveState
+        blockLeaveState,
+        blockApproachState
       );
 
       setActiveRouteResource(
@@ -3500,8 +3570,16 @@ async function traverseLeg(
         "enter"
       );
 
+      await maybeRunBlockApproach(
+        execution,
+        leg,
+        blockApproachState
+      );
+
       if (
-        !targetApproachFired &&
+        !blockApproachState.fired &&
+        leg.approachWhen.length ===
+          0 &&
         approachSegment?.key ===
           resource.key
       ) {
@@ -3511,7 +3589,7 @@ async function traverseLeg(
           "approach"
         );
 
-        targetApproachFired =
+        blockApproachState.fired =
           true;
       }
 
@@ -3522,7 +3600,8 @@ async function traverseLeg(
     await waitForArrival(
       execution,
       leg,
-      blockLeaveState
+      blockLeaveState,
+      blockApproachState
     );
 
     await drainReadyResourceLeaves(
