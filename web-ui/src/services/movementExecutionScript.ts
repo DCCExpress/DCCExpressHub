@@ -479,12 +479,20 @@ function renderAuthority(
   return lines;
 }
 
-function renderLocks(
+function renderLegClearance(
   leg:
     MovementPlanLeg
 ): string[] {
-  const segmentLocks =
-    leg.resources
+  const resourceLocks = [
+    "BLOCK " +
+      q(
+        leg.from.name
+      ),
+    "BLOCK " +
+      q(
+        leg.to.name
+      ),
+    ...leg.resources
       .filter(
         resource =>
           resource.kind ===
@@ -496,7 +504,8 @@ function renderLocks(
           q(
             resource.name
           )
-      );
+      ),
+  ];
 
   const turnoutLines =
     leg.turnoutStates.map(
@@ -514,33 +523,45 @@ function renderLocks(
     );
 
   return [
-    "ACQUIRE_LEG {",
+    "WAIT_LEG_CLEARANCE {",
     ...indent([
-      "LOCK BLOCK " +
-        q(
-          leg.from.name
-        ),
-      "LOCK BLOCK " +
-        q(
-          leg.to.name
-        ),
-      ...segmentLocks.map(
-        value =>
-          "LOCK " +
-          value
+      "REQUIRE ROUTE_AUTHORITY",
+      "ACQUIRE RESOURCE_LOCKS [",
+      ...indent(
+        resourceLocks
       ),
-      "RESERVE TARGET_BLOCK " +
-        q(
-          leg.to.name
-        ),
+      "]",
+      "RECHECK ROUTE_AUTHORITY",
       ...(
         turnoutLines.length ===
           0
           ? [
-              "TURNOUTS NONE",
+              "TURNOUT_LOCKS = NONE",
             ]
-          : turnoutLines
+          : [
+              "ACQUIRE TURNOUT_LOCKS [",
+              ...indent(
+                turnoutLines.map(
+                  line =>
+                    line.split(
+                      " = "
+                    )[0]!
+                )
+              ),
+              "]",
+              "SET_TURNOUTS [",
+              ...indent(
+                turnoutLines
+              ),
+              "]",
+            ]
       ),
+      "RECHECK ROUTE_AUTHORITY",
+      "RESERVE TARGET_BLOCK " +
+        q(
+          leg.to.name
+        ),
+      "// Any failed check releases acquired resources and retries.",
     ]),
     "}",
   ];
@@ -725,6 +746,79 @@ function renderBlockApproach(
   ];
 }
 
+function renderSourceBlockLeaveWatch(
+  page:
+    MovementPage,
+  leg:
+    MovementPlanLeg
+): string[] {
+  if (
+    leg.leaveWhen.length ===
+      0
+  ) {
+    return [
+      "SOURCE_BLOCK_LEAVE_WATCH = NONE",
+      "// LEAVE actions will run at runtime-release fallback after arrival.",
+    ];
+  }
+
+  const lines = [
+    "WATCH SOURCE_BLOCK_LEAVE {",
+  ];
+
+  if (
+    leg.leaveWhenExplicit
+  ) {
+    lines.push(
+      ...indent([
+        "MODE = EXPLICIT",
+        ...conditionBlock(
+          "TRIGGER",
+          leg.leaveWhen,
+          "all"
+        ),
+      ])
+    );
+  } else {
+    const sensor =
+      leg.from.sensorAddress;
+
+    lines.push(
+      ...indent([
+        "MODE = DEFAULT_OCCUPANCY_EDGE",
+        sensor ===
+          null
+          ? "ERROR SOURCE_BLOCK_SENSOR = NONE"
+          : (
+            "SENSOR " +
+            String(
+              sensor
+            ) +
+            " MUST_BE_SEEN ON THEN OFF"
+          ),
+      ])
+    );
+  }
+
+  lines.push(
+    ...indent([
+      ...renderActions(
+        page,
+        leg.from.key,
+        "leave",
+        "ON SOURCE_BLOCK_LEAVE"
+      ),
+      "// Evaluated while waiting for resources/arrival and again at the post-arrival leave barrier.",
+    ])
+  );
+
+  lines.push(
+    "}"
+  );
+
+  return lines;
+}
+
 function renderLeg(
   page:
     MovementPage,
@@ -789,7 +883,7 @@ function renderLeg(
 
   lines.push(
     ...indent(
-      renderLocks(
+      renderLegClearance(
         leg
       )
     )
@@ -830,6 +924,11 @@ function renderLeg(
       "THROTTLE = CURRENT_DESIRED_SPEED",
       "",
       ...renderBlockApproach(
+        page,
+        leg
+      ),
+      "",
+      ...renderSourceBlockLeaveWatch(
         page,
         leg
       ),
@@ -888,17 +987,11 @@ function renderLeg(
   }
 
   lines.push(
-    ...indent(
-      conditionBlock(
-        "WAIT SOURCE_BLOCK_LEAVE",
-        leg.leaveWhen,
-        "all"
-      )
-    )
-  );
-
-  lines.push(
     ...indent([
+      leg.leaveWhen.length ===
+        0
+        ? "SOURCE_BLOCK_LEAVE_BARRIER = SKIPPED"
+        : "WAIT SOURCE_BLOCK_LEAVE_WATCH TO FIRE",
       "REMOVE SOURCE_BLOCK_RUNTIME " +
         q(
           leg.from.name
@@ -912,7 +1005,13 @@ function renderLeg(
   ) {
     lines.push(
       ...indent([
-        "SOURCE_BLOCK_LEAVE = RUNTIME_RELEASE_FALLBACK",
+        "RUN SOURCE_BLOCK_LEAVE RUNTIME_RELEASE_FALLBACK",
+        ...renderActions(
+          page,
+          leg.from.key,
+          "leave",
+          "ON SOURCE_BLOCK_LEAVE"
+        ),
       ])
     );
   }
