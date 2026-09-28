@@ -542,9 +542,6 @@ namespace DCCExpressHub.Net.CommandCenter
                     _txQueue.ToList();
 
                 _txQueue.Clear();
-
-                _lastNormalTxAt =
-                    DateTimeOffset.MinValue;
             }
 
             foreach (var item in removed)
