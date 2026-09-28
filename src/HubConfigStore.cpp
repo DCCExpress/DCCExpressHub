@@ -262,6 +262,14 @@ bool HubConfigStore::saveCommandCenter(
         CommandCenterBuild::defaultPort();
   }
 
+  if (
+      _commandCenter.commandIntervalMs >
+      1000
+  ) {
+    _commandCenter.commandIntervalMs =
+        1000;
+  }
+
   bool ok = true;
 
   ok &=
