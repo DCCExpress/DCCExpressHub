@@ -10,6 +10,7 @@ import {
 import type {
   MovementAction,
   MovementBlockRule,
+  MovementSegmentEvent,
 } from "../../domain/movement";
 
 import type {
@@ -22,6 +23,7 @@ import type {
 
 import MovementActionEditor from "./MovementActionEditor";
 import MovementBlockConditionsEditor from "./MovementBlockConditionsEditor";
+import MovementSegmentEventMatrix from "./MovementSegmentEventMatrix";
 
 type Props = {
   resource:
@@ -32,6 +34,12 @@ type Props = {
     MovementBlockRule | null;
   sensorCatalog:
     AutomationSensorOption[];
+  segmentEvents:
+    MovementSegmentEvent[];
+  onSegmentEventsChange: (
+    events:
+      MovementSegmentEvent[]
+  ) => void;
   actions:
     MovementAction[];
   onRuleChange: (
@@ -104,6 +112,8 @@ export default function MovementSelectedResourceEditor({
   isDestination,
   rule,
   sensorCatalog,
+  segmentEvents,
+  onSegmentEventsChange,
   actions,
   onRuleChange,
   onActionsChange,
@@ -306,30 +316,43 @@ export default function MovementSelectedResourceEditor({
                   }
                 />
               )
-              : (
-                <Stack
-                  gap={6}
-                >
-                  <Text
-                    fw={700}
-                    size="sm"
-                  >
-                    Runtime event source
-                  </Text>
-
-                  <Text
-                    size="sm"
-                    c="dimmed"
-                  >
-                    {
-                      resource.kind ===
-                        "segment"
-                        ? "This physical segment exposes ENTER and LEAVE events. Configure the actions that react to those events on the Actions tab."
-                        : "This route resource exposes runtime movement events."
+              : resource.kind ===
+                  "segment"
+                ? (
+                  <MovementSegmentEventMatrix
+                    resourceKey={
+                      resource.key
                     }
-                  </Text>
-                </Stack>
-              )
+                    sensors={
+                      resource.detectors
+                    }
+                    events={
+                      segmentEvents
+                    }
+                    onChange={
+                      onSegmentEventsChange
+                    }
+                  />
+                )
+                : (
+                  <Stack
+                    gap={6}
+                  >
+                    <Text
+                      fw={700}
+                      size="sm"
+                    >
+                      Runtime event source
+                    </Text>
+
+                    <Text
+                      size="sm"
+                      c="dimmed"
+                    >
+                      This route resource exposes runtime movement events.
+                    </Text>
+                  </Stack>
+                )
           }
         </Tabs.Panel>
 
@@ -349,6 +372,9 @@ export default function MovementSelectedResourceEditor({
             }
             isDestination={
               isDestination
+            }
+            segmentEvents={
+              segmentEvents
             }
             actions={
               actions
