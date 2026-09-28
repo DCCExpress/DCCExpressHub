@@ -203,6 +203,41 @@ bool parseBooleanValue(
   return false;
 }
 
+bool parseCommandIntervalMs(
+    String value,
+    uint16_t& result) {
+  value.trim();
+
+  if (value.isEmpty()) {
+    return false;
+  }
+
+  char* end =
+      nullptr;
+
+  const long parsed =
+      strtol(
+          value.c_str(),
+          &end,
+          10);
+
+  if (
+      end ==
+          value.c_str() ||
+      *end != '\0' ||
+      parsed < 0 ||
+      parsed > 1000
+  ) {
+    return false;
+  }
+
+  result =
+      static_cast<uint16_t>(
+          parsed);
+
+  return true;
+}
+
 }
 
 void ApiServer::sendJson(
@@ -520,6 +555,7 @@ void ApiServer::setupApi() {
         doc["host"] = _dcc.host();
         doc["port"] = _dcc.port();
         doc["powerIncludesProgramming"] = _wsProtocol.powerIncludesProgramming();
+        doc["commandIntervalMs"] = _dcc.commandIntervalMs();
         doc["connected"] = _dcc.connected();
         sendJson(request, 200, doc);
       });
@@ -550,13 +586,35 @@ void ApiServer::setupApi() {
           return;
         }
 
+        uint16_t commandIntervalMs =
+            _dcc.commandIntervalMs();
+
+        String intervalText;
+
+        if (
+            readPostValue(
+                request,
+                "commandIntervalMs",
+                intervalText) &&
+            !parseCommandIntervalMs(
+                intervalText,
+                commandIntervalMs)
+        ) {
+          doc["ok"] = false;
+          doc["message"] = "Command interval must be between 0 and 1000 ms";
+          sendJson(request, 400, doc);
+          return;
+        }
+
         CommandCenterSettings settings = _config.commandCenter();
         settings.host = host;
         settings.port = port;
         settings.powerIncludesProgramming = powerIncludesProgramming;
+        settings.commandIntervalMs = commandIntervalMs;
 
         const bool persisted = _config.saveCommandCenter(settings);
         _wsProtocol.setPowerIncludesProgramming(powerIncludesProgramming);
+        _dcc.setCommandIntervalMs(commandIntervalMs);
 
         const bool endpointChanged = host != _dcc.host() || port != _dcc.port();
         if (endpointChanged) {
@@ -569,6 +627,7 @@ void ApiServer::setupApi() {
         doc["host"] = _dcc.host();
         doc["port"] = _dcc.port();
         doc["powerIncludesProgramming"] = _wsProtocol.powerIncludesProgramming();
+        doc["commandIntervalMs"] = _dcc.commandIntervalMs();
         doc["connected"] = _dcc.connected();
         if (!persisted) doc["message"] = "Command center settings were applied but persistence reported an error";
         sendJson(request, persisted ? 200 : 500, doc);
