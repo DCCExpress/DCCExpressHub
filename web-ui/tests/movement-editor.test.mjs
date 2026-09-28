@@ -3513,3 +3513,56 @@ test("Movement action event tabs follow physical event order for each resource k
     /"enter"[\s\S]*"leave"/
   );
 });
+
+
+test("Movement sequence mode is fixed by its add button", () => {
+  const actionEditor =
+    read(
+      "src/components/movement/MovementActionEditor.tsx"
+    );
+
+  assert.match(
+    actionEditor,
+    /hasBlockingSequence/
+  );
+
+  assert.match(
+    actionEditor,
+    /hasBackgroundSequence/
+  );
+
+  assert.match(
+    actionEditor,
+    /Add blocking sequence/
+  );
+
+  assert.match(
+    actionEditor,
+    /Add background sequence/
+  );
+
+  assert.match(
+    actionEditor,
+    /BLOCKING SEQUENCE/
+  );
+
+  assert.match(
+    actionEditor,
+    /BACKGROUND SEQUENCE/
+  );
+
+  assert.match(
+    actionEditor,
+    /sequence\.when ===[\s\S]*selectedWhen[\s\S]*sequence\.mode ===[\s\S]*mode/
+  );
+
+  assert.doesNotMatch(
+    actionEditor,
+    /SEQUENCE_MODE_OPTIONS/
+  );
+
+  assert.doesNotMatch(
+    actionEditor,
+    /label="MODE"/
+  );
+});
