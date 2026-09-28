@@ -3,8 +3,6 @@ import type {
 } from "../domain/layout/layoutDto";
 
 import {
-  createMovementId,
-  type MovementBlockRule,
   type MovementDocument,
   type MovementPage,
 } from "../domain/movement";
@@ -588,46 +586,6 @@ export function applyMovementRouteCandidate(
         )
     );
 
-  const existingBlockIds =
-    new Set(
-      existingRules.map(
-        rule =>
-          rule.blockId
-      )
-    );
-
-  const generatedRules:
-    MovementBlockRule[] =
-    candidate.intermediateArrivalDefaults
-      .filter(
-        defaults =>
-          !existingBlockIds.has(
-            defaults.blockId
-          )
-      )
-      .map(
-        defaults => ({
-          blockId:
-            defaults.blockId,
-          approachWhen: [],
-          arrivedWhen:
-            defaults.conditions.map(
-              condition => ({
-                id:
-                  createMovementId(
-                    "condition"
-                  ),
-                sensor:
-                  condition.sensor,
-                state:
-                  condition.state,
-              })
-            ),
-          departWhen: [],
-          leaveWhen: [],
-        })
-      );
-
   const directionArrow =
     candidate.locoDirection ===
       "forward"
@@ -672,10 +630,14 @@ export function applyMovementRouteCandidate(
               1
           ]!
         : null,
-    blockRules: [
-      ...existingRules,
-      ...generatedRules,
-    ],
+    /*
+     * Keep only user-authored block rules. Default ARRIVED must stay implicit:
+     * movementPlan.arrivalRuleFor() derives it from the target block's own
+     * occupancy sensor. Materializing a default here turns it into a custom
+     * rule and can leave stale/extra sensors behind after route edits.
+     */
+    blockRules:
+      existingRules,
   };
 }
 
