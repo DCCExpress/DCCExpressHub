@@ -1236,6 +1236,21 @@ test("Movement block conditions support APPROACH ARRIVED DEPART and LEAVE sensor
 
   assert.match(
     plan,
+    /auto-arrival-\$\{blockId\}-on/
+  );
+
+  assert.doesNotMatch(
+    plan,
+    /previousBlockId/
+  );
+
+  assert.doesNotMatch(
+    plan,
+    /auto-arrival-\$\{previousBlockId\}-off/
+  );
+
+  assert.match(
+    plan,
     /leaveWhenExplicit/
   );
 
@@ -1306,7 +1321,7 @@ test("Movement block conditions support APPROACH ARRIVED DEPART and LEAVE sensor
 
   assert.match(
     editor,
-    /Default: destination occupancy ON/
+    /Default: this block's own occupancy sensor ON/
   );
 });
 
@@ -2703,7 +2718,7 @@ test("selected Movement route auto-fills name with direction arrows between bloc
 });
 
 
-test("Movement ARRIVED defaults keep their builder while header preview follows the runtime plan", () => {
+test("Movement ARRIVED defaults use only the block's own occupancy sensor", () => {
   const vector =
     read(
       "src/services/movementRouteVector.ts"
@@ -2786,32 +2801,32 @@ test("Movement ARRIVED defaults keep their builder while header preview follows 
 
   assert.match(
     defaults,
-    /const previous =[\s\S]*vector\[[\s\S]*index -[\s\S]*1/
-  );
-
-  assert.match(
-    defaults,
-    /const next =[\s\S]*vector\[[\s\S]*index \+[\s\S]*1/
-  );
-
-  assert.match(
-    defaults,
     /current\.role ===[\s\S]*"source"/
   );
 
   assert.match(
     defaults,
-    /previous\?\.sensor[\s\S]*state:[\s\S]*false/
+    /current\.sensor ===[\s\S]*null[\s\S]*\? \[\][\s\S]*state:[\s\S]*true/
   );
 
-  assert.match(
+  assert.doesNotMatch(
     defaults,
-    /current\.sensor !==[\s\S]*null[\s\S]*state:[\s\S]*true/
+    /const previous =/
   );
 
-  assert.match(
+  assert.doesNotMatch(
     defaults,
-    /next\?\.sensor[\s\S]*state:[\s\S]*false/
+    /const next =/
+  );
+
+  assert.doesNotMatch(
+    defaults,
+    /previous\?\.sensor/
+  );
+
+  assert.doesNotMatch(
+    defaults,
+    /next\?\.sensor/
   );
 
   assert.match(
