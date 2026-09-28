@@ -850,10 +850,15 @@ namespace DCCExpressHub.Net.CommandCenter
 
             CancelPendingMotionCommands();
 
-            await _tx.WaitAsync(ct);
+            var txHeld =
+                false;
 
             try
             {
+                await _tx.WaitAsync(ct);
+                txHeld =
+                    true;
+
                 if (!_transport.IsConnected)
                     return false;
 
@@ -893,11 +898,14 @@ namespace DCCExpressHub.Net.CommandCenter
             {
                 // Also discard motion commands that raced with the priority
                 // transaction before the barrier became visible to their
-                // producer. The barrier stays active until the writer lock has
-                // been released.
+                // producer. Keep the barrier active until the writer lock is
+                // released, even when cancellation happens while waiting for it.
                 CancelPendingMotionCommands();
 
-                _tx.Release();
+                if (txHeld)
+                {
+                    _tx.Release();
+                }
 
                 Volatile.Write(
                     ref _motionBarrier,
