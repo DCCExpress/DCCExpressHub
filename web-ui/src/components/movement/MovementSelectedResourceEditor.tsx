@@ -201,7 +201,7 @@ export default function MovementSelectedResourceEditor({
                           : "Physical turnout passage",
                         resource.detectors.length >
                           0
-                          ? `Detectors: ${resource.detectors.join(", ")}`
+                          ? `${resource.detectors.length === 1 ? "Sensor" : "Sensors"}: ${resource.detectors.join(", ")}`
                           : null,
                       ]
                         .filter(
@@ -214,8 +214,8 @@ export default function MovementSelectedResourceEditor({
                         )
                     : resource.detectors.length >
                         0
-                      ? `Detectors: ${resource.detectors.join(", ")}`
-                      : "No detector in this segment"
+                      ? `${resource.detectors.length === 1 ? "Sensor" : "Sensors"}: ${resource.detectors.join(", ")}`
+                      : "No sensor in this segment"
               }
             </Text>
           </Stack>
