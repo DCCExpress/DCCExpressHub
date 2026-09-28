@@ -1208,7 +1208,11 @@ function renderLeg(
           "arrived",
           "ARRIVED_ACTIONS"
         ),
-        "STOP LOCO",
+        "SET MOVING = FALSE",
+        "SET DESIRED_SPEED = 0",
+        stopLocoCommand(
+          "final ARRIVED automatic stop"
+        ),
       ])
     );
   }
@@ -1327,6 +1331,12 @@ export function renderMovementExecutionScript(
           source?.name ??
           "?"
         ),
+      "INITIAL_DESIRED_SPEED = " +
+        String(
+          page.speed
+        ),
+      "ALL SPEED COMMANDS USE ROUTE_DIRECTION = " +
+        plan.direction.toUpperCase(),
       "",
       "PRECHECK {",
       ...indent([
@@ -1340,10 +1350,14 @@ export function renderMovementExecutionScript(
       "",
       "ARM_DIRECTION {",
       ...indent([
-        "SEND SPEED 0 WITH ROUTE_DIRECTION",
+        "ROUTE_DIRECTION = " +
+          plan.direction.toUpperCase(),
+        stopLocoCommand(
+          "force stopped route direction before departure"
+        ),
         "WAIT 150ms",
-        "REQUEST LIVE LOCO STATE",
-        "CONFIRM SPEED 0 AND DIRECTION (timeout 1200ms)",
+        "REQUEST LIVE LOCO STATE address=RUNTIME_SOURCE_LOCO",
+        "CONFIRM LIVE_LOCO speed=0 direction=ROUTE_DIRECTION (timeout 1200ms)",
       ]),
       "}",
       "",
@@ -1376,7 +1390,11 @@ export function renderMovementExecutionScript(
     "",
     ...indent([
       "DRAIN READY RESOURCE LEAVES",
-      "STOP LOCO",
+      "SET DESIRED_SPEED = 0",
+      "SET MOVING = FALSE",
+      stopLocoCommand(
+        "normal Movement completion"
+      ),
       ...renderActions(
         page,
         "movement",
@@ -1384,6 +1402,20 @@ export function renderMovementExecutionScript(
         "COMPLETE_ACTIONS"
       ),
       "WAIT ALL BACKGROUND SEQUENCES",
+      "",
+      "RUNTIME_STOP_PATHS {",
+      ...indent([
+        "STOP_REQUEST -> SET CANCELLED=TRUE; SET MOVING=FALSE; SET DESIRED_SPEED=0; " +
+          stopLocoCommand(
+            "user stop/cancel"
+          ),
+        "RUNTIME_ERROR -> SET MOVING=FALSE; SET DESIRED_SPEED=0; " +
+          stopLocoCommand(
+            "runtime failure cleanup"
+          ),
+        "EMERGENCY_ABORT -> STOP_REQUEST plus GLOBAL_EMERGENCY_STOP when requested",
+      ]),
+      "}",
     ]),
     "}",
   );
