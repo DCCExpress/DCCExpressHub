@@ -12,6 +12,14 @@ import {
 } from "@mantine/core";
 
 import type {
+  LayoutView,
+} from "../../models/editor/core/LayoutView";
+
+import {
+  createCurrentClientLayoutSnapshot,
+} from "../../services/clientRouteGraphCache";
+
+import type {
   MovementAction,
   MovementBlockRule,
   MovementPage,
@@ -43,6 +51,8 @@ type Props = {
     MovementPage;
   selectedResourceKey:
     string | null;
+  layout:
+    LayoutView;
   onChange: (
     page:
       MovementPage
@@ -52,6 +62,7 @@ type Props = {
 export default function MovementRouteEditor({
   page,
   selectedResourceKey,
+  layout,
   onChange,
 }: Props) {
   const runtimeState =
@@ -184,8 +195,14 @@ export default function MovementRouteEditor({
         null
       );
 
+      const layoutSnapshot =
+        createCurrentClientLayoutSnapshot(
+          layout
+        );
+
       void loadMovementPlan(
-        page
+        page,
+        layoutSnapshot
       )
         .then(
           nextPlan => {
@@ -236,6 +253,7 @@ export default function MovementRouteEditor({
     },
     [
       routeSignature,
+      layout,
     ]
   );
 
