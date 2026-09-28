@@ -182,6 +182,10 @@ export default function MovementRouteRow({
 
   const conditionCount =
     (
+      rule?.approachWhen.length ??
+      0
+    ) +
+    (
       rule?.departWhen.length ??
       0
     ) +
