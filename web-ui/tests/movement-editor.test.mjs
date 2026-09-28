@@ -3441,6 +3441,63 @@ test("New Movement sequences and actions never default to a driving speed comman
 });
 
 
+test("Target locomotive arrows use broadcast live loco state on secondary clients", () => {
+  const block =
+    read(
+      "src/models/editor/elements/BlockElement.ts"
+    );
+
+  const canvas =
+    read(
+      "src/components/TrackCanvas.tsx"
+    );
+
+  assert.match(
+    block,
+    /getBlockTargetLocoAddress\(this\.id\)/
+  );
+
+  assert.match(
+    block,
+    /getLatestLocoState\([\s\S]*displayLocoAddress/
+  );
+
+  assert.match(
+    block,
+    /const liveDirection =[\s\S]*liveLocoState\?\.direction/
+  );
+
+  assert.doesNotMatch(
+    block,
+    /const liveDirection =[\s\S]*this\.locoAddress > 0[\s\S]*liveLocoState\?\.direction/
+  );
+
+  assert.match(
+    block,
+    /const liveMoving =[\s\S]*liveLocoState !==[\s\S]*null[\s\S]*liveLocoState\.speed >/
+  );
+
+  assert.doesNotMatch(
+    block,
+    /const liveMoving =[\s\S]*this\.locoAddress > 0/
+  );
+
+  assert.match(
+    canvas,
+    /getBlockTargetLocoAddress/
+  );
+
+  assert.match(
+    canvas,
+    /const displayLocoAddress =[\s\S]*element\.locoAddress > 0[\s\S]*getBlockTargetLocoAddress\([\s\S]*element\.id/
+  );
+
+  assert.match(
+    canvas,
+    /getLatestLocoState\([\s\S]*displayLocoAddress[\s\S]*\?\.speed/
+  );
+});
+
 test("Block direction blinking follows live locomotive runtime state", () => {
   const block =
     read(
