@@ -3337,3 +3337,101 @@ test("Global Movement abort requests E-STOP at most once", () => {
     "Abort All must request command-station E-STOP only once"
   );
 });
+
+
+test("Movement action WHEN choices are event tabs with sequence-only creation", () => {
+  const editor =
+    read(
+      "src/components/movement/MovementActionEditor.tsx"
+    );
+
+  assert.match(
+    editor,
+    /<Tabs[\s\S]*value=\{[\s\S]*selectedWhen/
+  );
+
+  assert.match(
+    editor,
+    /options\.map\([\s\S]*<Tabs\.Tab/
+  );
+
+  assert.match(
+    editor,
+    /sequence\.when ===[\s\S]*selectedWhen/
+  );
+
+  assert.doesNotMatch(
+    editor,
+    /label="WHEN"/
+  );
+
+  assert.match(
+    editor,
+    /Add blocking sequence/
+  );
+
+  assert.match(
+    editor,
+    /addSequence\([\s\S]*"blocking"/
+  );
+
+  assert.match(
+    editor,
+    /Add background sequence/
+  );
+
+  assert.match(
+    editor,
+    /addSequence\([\s\S]*"background"/
+  );
+
+  assert.match(
+    editor,
+    /createMovementAction\([\s\S]*resourceKey,[\s\S]*selectedWhen,[\s\S]*"log",[\s\S]*sequenceId,[\s\S]*mode/
+  );
+
+  assert.match(
+    editor,
+    /visibleSequences\.map/
+  );
+});
+
+
+test("Movement action event tabs follow physical event order for each resource kind", () => {
+  const editor =
+    read(
+      "src/components/movement/MovementActionEditor.tsx"
+    );
+
+  const approach =
+    editor.indexOf(
+      '"approach"'
+    );
+
+  const arrived =
+    editor.indexOf(
+      '"arrived"',
+      approach
+    );
+
+  assert.ok(
+    approach >= 0 &&
+    arrived > approach,
+    "Block action tabs must expose APPROACH before ARRIVED"
+  );
+
+  assert.match(
+    editor,
+    /"beforeDepart"[\s\S]*"depart"[\s\S]*"leave"[\s\S]*"afterLeave"/
+  );
+
+  assert.match(
+    editor,
+    /kind ===[\s\S]*"turnout"[\s\S]*"approach"[\s\S]*"leave"/
+  );
+
+  assert.match(
+    editor,
+    /"enter"[\s\S]*"leave"/
+  );
+});
