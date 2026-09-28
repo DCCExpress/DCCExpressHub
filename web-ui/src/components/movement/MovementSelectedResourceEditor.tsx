@@ -185,10 +185,37 @@ export default function MovementSelectedResourceEditor({
                       ? `Block #${resource.blockId} · occupancy sensor ${resource.sensorAddress}`
                       : `Block #${resource.blockId} · no occupancy sensor`
                   )
-                  : resource.detectors.length >
-                      0
-                    ? `Detectors: ${resource.detectors.join(", ")}`
-                    : "No detector in this segment"
+                  : resource.kind ===
+                      "turnout"
+                    ? [
+                        resource.turnoutStates.length >
+                          0
+                          ? resource.turnoutStates
+                              .map(
+                                state =>
+                                  `#${state.address} ${state.closed ? "CLOSED" : "THROWN"}`
+                              )
+                              .join(
+                                " · "
+                              )
+                          : "Physical turnout passage",
+                        resource.detectors.length >
+                          0
+                          ? `Detectors: ${resource.detectors.join(", ")}`
+                          : null,
+                      ]
+                        .filter(
+                          value =>
+                            value !==
+                            null
+                        )
+                        .join(
+                          " · "
+                        )
+                    : resource.detectors.length >
+                        0
+                      ? `Detectors: ${resource.detectors.join(", ")}`
+                      : "No detector in this segment"
               }
             </Text>
           </Stack>
