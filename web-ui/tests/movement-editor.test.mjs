@@ -69,6 +69,54 @@ test("Movement data is stored beside scripts, timetable and flows", () => {
   );
 });
 
+test("Movement documents may be empty and the final Movement can be deleted", () => {
+  const domain =
+    read(
+      "src/domain/movement.ts"
+    );
+
+  const dialog =
+    read(
+      "src/components/movement/MovementEditorDialog.tsx"
+    );
+
+  assert.match(
+    domain,
+    /pages:\s*\[\]/
+  );
+
+  assert.match(
+    domain,
+    /pages\[0\]\?\.id[\s\S]*""/
+  );
+
+  assert.doesNotMatch(
+    domain,
+    /pages\.push\([\s\S]*createMovementPage/
+  );
+
+  assert.doesNotMatch(
+    dialog,
+    /The last movement cannot be deleted/
+  );
+
+  assert.doesNotMatch(
+    dialog,
+    /document\.pages\.length <=[\s\S]*1/
+  );
+
+  assert.match(
+    dialog,
+    /pages\[[\s\S]*nextIndex[\s\S]*\]\?\.id[\s\S]*""/
+  );
+
+  assert.match(
+    dialog,
+    /No Movement configured/
+  );
+});
+
+
 test("Automation panel places Movement after Flows", () => {
   const source =
     read(
