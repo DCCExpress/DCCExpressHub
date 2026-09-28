@@ -114,6 +114,16 @@ test("Movement documents may be empty and the final Movement can be deleted", ()
     dialog,
     /No Movement configured/
   );
+
+  assert.match(
+    dialog,
+    /Save empty list/
+  );
+
+  assert.match(
+    dialog,
+    /onClick=[\s\S]*void save\(\)/
+  );
 });
 
 
