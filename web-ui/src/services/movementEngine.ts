@@ -2983,6 +2983,10 @@ async function waitForBlockLeave(
   while (
     !execution.cancelled
   ) {
+    await drainReadyResourceLeaves(
+      execution
+    );
+
     await maybeRunBlockLeave(
       execution,
       leg,
