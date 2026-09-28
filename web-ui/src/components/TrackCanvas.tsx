@@ -22,6 +22,9 @@ import {
   hasMovingMovementBlockRuntime,
   subscribeMovementBlockRuntime,
 } from "../services/movementBlockRuntime";
+import {
+  getBlockTargetLocoAddress,
+} from "../services/blockTargetLocoRuntime";
 import { wsClient } from "../services/wsClient";
 import "../styles/TrackCanvas.css";
 
@@ -414,15 +417,30 @@ export default function TrackCanvas({
 
       const liveLocoMoving =
         elements.some(
-          element =>
-            element instanceof BlockElement &&
-            element.locoAddress > 0 &&
-            (
-              wsClient.getLatestLocoState(
-                element.locoAddress
-              )?.speed ??
-              0
-            ) > 0
+          element => {
+            if (
+              !(element instanceof BlockElement)
+            ) {
+              return false;
+            }
+
+            const displayLocoAddress =
+              element.locoAddress > 0
+                ? element.locoAddress
+                : getBlockTargetLocoAddress(
+                    element.id
+                  );
+
+            return (
+              displayLocoAddress > 0 &&
+              (
+                wsClient.getLatestLocoState(
+                  displayLocoAddress
+                )?.speed ??
+                0
+              ) > 0
+            );
+          }
         );
 
       const needsBlinkRedraw =
