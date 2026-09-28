@@ -1163,6 +1163,63 @@ test("Movement block LEAVE fires from source occupancy release", () => {
 });
 
 
+test("Movement default ARRIVED always comes from the block own occupancy sensor", () => {
+  const plan =
+    read(
+      "src/services/movementPlan.ts"
+    );
+
+  const catalog =
+    read(
+      "src/services/movementRouteCatalog.ts"
+    );
+
+  const defaults =
+    read(
+      "src/services/movementRouteDefaults.ts"
+    );
+
+  assert.match(
+    plan,
+    /const destinationSensor =[\s\S]*sensors\.get\([\s\S]*blockId[\s\S]*\)/
+  );
+
+  assert.match(
+    plan,
+    /auto-arrival-\$\{blockId\}-on/
+  );
+
+  assert.match(
+    plan,
+    /sensor:[\s\S]*destinationSensor[\s\S]*state:\s*true/
+  );
+
+  assert.match(
+    defaults,
+    /current\.kind !==[\s\S]*"block"/
+  );
+
+  assert.match(
+    defaults,
+    /current\.sensor ===[\s\S]*null[\s\S]*\? \[\][\s\S]*sensor:[\s\S]*current\.sensor/
+  );
+
+  assert.doesNotMatch(
+    catalog,
+    /generatedRules/
+  );
+
+  assert.doesNotMatch(
+    catalog,
+    /createMovementId\(\s*"condition"\s*\)/
+  );
+
+  assert.match(
+    catalog,
+    /blockRules:[\s\S]*existingRules/
+  );
+});
+
 test("Movement block conditions support APPROACH ARRIVED DEPART and LEAVE sensor rules", () => {
   const domain =
     read(
