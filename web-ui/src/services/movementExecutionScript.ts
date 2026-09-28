@@ -479,89 +479,211 @@ function renderAuthority(
   return lines;
 }
 
+function normalizedTurnoutRequirements(
+  leg:
+    MovementPlanLeg
+): Array<{
+  address: number;
+  closed: boolean;
+}> {
+  const byAddress =
+    new Map<
+      number,
+      boolean
+    >();
+
+  for (
+    const state of
+    leg.turnoutStates
+  ) {
+    if (
+      !Number.isInteger(
+        state.address
+      ) ||
+      state.address <
+        1 ||
+      state.address >
+        2048
+    ) {
+      throw new Error(
+        "Movement route contains invalid turnout address: " +
+        String(
+          state.address
+        ) +
+        "."
+      );
+    }
+
+    const existing =
+      byAddress.get(
+        state.address
+      );
+
+    if (
+      existing !==
+        undefined &&
+      existing !==
+        state.closed
+    ) {
+      throw new Error(
+        "Movement route contains conflicting turnout state for #" +
+        String(
+          state.address
+        ) +
+        "."
+      );
+    }
+
+    byAddress.set(
+      state.address,
+      state.closed
+    );
+  }
+
+  return [
+    ...byAddress.entries(),
+  ]
+    .sort(
+      (
+        [left],
+        [right]
+      ) =>
+        left -
+        right
+    )
+    .map(
+      ([
+        address,
+        closed,
+      ]) => ({
+        address,
+        closed,
+      })
+    );
+}
+
+function resourceLockNames(
+  leg:
+    MovementPlanLeg
+): string[] {
+  const names =
+    new Set<string>();
+
+  if (
+    leg.from.blockId !==
+      null
+  ) {
+    names.add(
+      "dcc-express-dispatcher-block:" +
+      String(
+        leg.from.blockId
+      )
+    );
+  }
+
+  if (
+    leg.to.blockId !==
+      null
+  ) {
+    names.add(
+      "dcc-express-dispatcher-block:" +
+      String(
+        leg.to.blockId
+      )
+    );
+  }
+
+  for (
+    const resource of
+    leg.resources
+  ) {
+    if (
+      resource.kind ===
+        "segment"
+    ) {
+      names.add(
+        "dcc-express-movement-segment:" +
+        resource.name
+      );
+    }
+  }
+
+  return [
+    ...names,
+  ].sort();
+}
+
 function renderLegClearance(
   leg:
     MovementPlanLeg
 ): string[] {
-  const resourceLocks = [
-    "BLOCK " +
-      q(
-        leg.from.name
-      ),
-    "BLOCK " +
-      q(
-        leg.to.name
-      ),
-    ...leg.resources
-      .filter(
-        resource =>
-          resource.kind ===
-            "segment"
-      )
-      .map(
-        resource =>
-          "SEGMENT " +
-          q(
-            resource.name
-          )
-      ),
-  ];
+  const locks =
+    resourceLockNames(
+      leg
+    );
 
-  const turnoutLines =
-    leg.turnoutStates.map(
-      state =>
-        "TURNOUT " +
-        String(
-          state.address
-        ) +
-        " = " +
-        (
-          state.closed
-            ? "CLOSED"
-            : "THROWN"
-        )
+  const turnouts =
+    normalizedTurnoutRequirements(
+      leg
     );
 
   return [
     "WAIT_LEG_CLEARANCE {",
     ...indent([
-      "REQUIRE ROUTE_AUTHORITY",
-      "ACQUIRE RESOURCE_LOCKS [",
-      ...indent(
-        resourceLocks
-      ),
-      "]",
-      "RECHECK ROUTE_AUTHORITY",
-      ...(
-        turnoutLines.length ===
-          0
-          ? [
-              "TURNOUT_LOCKS = NONE",
-            ]
-          : [
-              "ACQUIRE TURNOUT_LOCKS [",
-              ...indent(
-                turnoutLines.map(
-                  line =>
-                    line.split(
-                      " = "
-                    )[0]!
-                )
-              ),
-              "]",
-              "SET_TURNOUTS [",
-              ...indent(
-                turnoutLines
-              ),
-              "]",
-            ]
-      ),
-      "RECHECK ROUTE_AUTHORITY",
-      "RESERVE TARGET_BLOCK " +
-        q(
-          leg.to.name
+      "LOOP UNTIL ACQUIRED {",
+      ...indent([
+        "REQUIRE ROUTE_AUTHORITY",
+        "TRY_ACQUIRE RESOURCE_LOCKS [",
+        ...indent(
+          locks.map(
+            value =>
+              q(
+                value
+              )
+          )
         ),
-      "// Any failed check releases acquired resources and retries.",
+        "]",
+        "RECHECK ROUTE_AUTHORITY",
+        ...(
+          turnouts.length ===
+            0
+            ? [
+                "TURNOUT_LOCKS = NONE",
+              ]
+            : [
+                "TRY_ACQUIRE TURNOUT_LOCKS [",
+                ...indent(
+                  turnouts.map(
+                    state =>
+                      String(
+                        state.address
+                      )
+                  )
+                ),
+                "]",
+                "FOR_EACH TURNOUT_REQUIREMENT {",
+                ...indent([
+                  "IF CURRENT_STATE != REQUIRED_STATE {",
+                  ...indent([
+                    "STOP LOCO",
+                    "SET TURNOUT",
+                    "WAIT BACKEND ACK",
+                    "WAIT 250ms BETWEEN REQUIRED SET OPERATIONS",
+                  ]),
+                  "}",
+                ]),
+                "}",
+              ]
+        ),
+        "RECHECK ROUTE_AUTHORITY",
+        "RESERVE TARGET_BLOCK " +
+          q(
+            leg.to.name
+          ),
+        "SUCCESS -> RETURN HELD AUTHORITY",
+        "FAILURE -> RELEASE ACQUIRED RESOURCES AND RETRY",
+      ]),
+      "}",
     ]),
     "}",
   ];
@@ -921,7 +1043,7 @@ function renderLeg(
 
   lines.push(
     ...indent([
-      "THROTTLE = CURRENT_DESIRED_SPEED",
+      "ENSURE THROTTLE = CURRENT_DESIRED_SPEED  // no-op if already at that physical speed",
       "",
       ...renderBlockApproach(
         page,
@@ -968,6 +1090,24 @@ function renderLeg(
       )
     )
   );
+
+  if (
+    leg.arrivedWhen.length ===
+      0
+  ) {
+    lines.push(
+      ...indent([
+        "RUNTIME_ERROR = " +
+          q(
+            "Block " +
+            q(
+              leg.to.name
+            ) +
+            " has no arrival condition or occupancy sensor."
+          ),
+      ])
+    );
+  }
 
   if (
     isFinal
@@ -1038,14 +1178,15 @@ function renderLeg(
 
   if (!isFinal) {
     lines.push(
-      ...indent(
-        renderActions(
+      ...indent([
+        "// Non-final leg: ARRIVED actions run after target commit; movement may still be rolling.",
+        ...renderActions(
           page,
           leg.to.key,
           "arrived",
           "ARRIVED_ACTIONS"
-        )
-      )
+        ),
+      ])
     );
   }
 
@@ -1105,7 +1246,7 @@ export function renderMovementExecutionScript(
         "REQUIRE MOVEMENT ENABLED",
         "REQUIRE TRACK_POWER ON",
         "REQUIRE ACTIVE_CONTROL_STATION",
-        "REQUIRE SOURCE_BLOCK_LOCO_ADDRESS > 0",
+        "WAIT SOURCE_BLOCK_LOCO_ADDRESS > 0 (timeout 3000ms)",
         "REQUIRE ROUTE_DIRECTION != UNKNOWN",
       ]),
       "}",
