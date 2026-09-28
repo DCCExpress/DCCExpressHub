@@ -24,6 +24,7 @@ import {
 } from "@mantine/notifications";
 
 import {
+  IconCode,
   IconDeviceFloppy,
   IconListCheck,
   IconPlus,
@@ -56,6 +57,7 @@ import {
   getMovementEngineState,
 } from "../../services/movementEngine";
 
+import MovementExecutionScriptDialog from "./MovementExecutionScriptDialog";
 import MovementRouteEditor from "./MovementRouteEditor";
 import MovementRouteSelectDialog from "./MovementRouteSelectDialog";
 import MovementRouteVectorPreview from "./MovementRouteVectorPreview";
@@ -120,6 +122,14 @@ export default function MovementEditorDialog({
   const [
     routeSelectOpened,
     setRouteSelectOpened,
+  ] =
+    useState(
+      false
+    );
+
+  const [
+    executionScriptOpened,
+    setExecutionScriptOpened,
   ] =
     useState(
       false
@@ -747,6 +757,31 @@ export default function MovementEditorDialog({
                       }
                     </Button>
 
+                    <Button
+                      size="xs"
+                      variant="light"
+                      color="violet"
+                      leftSection={
+                        <IconCode
+                          size={14}
+                        />
+                      }
+                      disabled={
+                        activePage.fromBlockId ===
+                          null ||
+                        activePage.toBlockId ===
+                          null
+                      }
+                      onClick={
+                        () =>
+                          setExecutionScriptOpened(
+                            true
+                          )
+                      }
+                    >
+                      Script
+                    </Button>
+
                     <div
                       className="movement-editor-header-spacer"
                     />
@@ -839,6 +874,21 @@ export default function MovementEditorDialog({
                       item =>
                         setSelectedRouteVectorKey(
                           item.key
+                        )
+                    }
+                  />
+
+                  <MovementExecutionScriptDialog
+                    opened={
+                      executionScriptOpened
+                    }
+                    page={
+                      activePage
+                    }
+                    onClose={
+                      () =>
+                        setExecutionScriptOpened(
+                          false
                         )
                     }
                   />
