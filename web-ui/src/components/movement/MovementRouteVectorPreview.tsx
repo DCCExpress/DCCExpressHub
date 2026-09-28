@@ -670,7 +670,7 @@ export default function MovementRouteVectorPreview({
                             ? (
                               item.kind ===
                                 "turnout"
-                                ? "No detector"
+                                ? "NO SENSOR"
                                 : "NO SENSOR"
                             )
                             : `Sensor ${item.sensor}`
