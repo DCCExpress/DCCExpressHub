@@ -10,6 +10,7 @@ import {
 import type {
   MovementAction,
   MovementBlockRule,
+  MovementResourceEventRule,
 } from "../../domain/movement";
 
 import type {
@@ -22,6 +23,7 @@ import type {
 
 import MovementActionEditor from "./MovementActionEditor";
 import MovementBlockConditionsEditor from "./MovementBlockConditionsEditor";
+import MovementResourceEventConditionsEditor from "./MovementResourceEventConditionsEditor";
 
 type Props = {
   resource:
@@ -30,8 +32,16 @@ type Props = {
   isDestination: boolean;
   rule:
     MovementBlockRule | null;
+  defaultRule:
+    MovementBlockRule | null;
   sensorCatalog:
     AutomationSensorOption[];
+  resourceEventRules:
+    MovementResourceEventRule[];
+  onResourceEventRulesChange: (
+    rules:
+      MovementResourceEventRule[]
+  ) => void;
   actions:
     MovementAction[];
   onRuleChange: (
@@ -103,7 +113,10 @@ export default function MovementSelectedResourceEditor({
   isSource,
   isDestination,
   rule,
+  defaultRule,
   sensorCatalog,
+  resourceEventRules,
+  onResourceEventRulesChange,
   actions,
   onRuleChange,
   onActionsChange,
@@ -298,6 +311,9 @@ export default function MovementSelectedResourceEditor({
                   rule={
                     rule
                   }
+                  defaultRule={
+                    defaultRule
+                  }
                   sensorCatalog={
                     sensorCatalog
                   }
@@ -307,28 +323,20 @@ export default function MovementSelectedResourceEditor({
                 />
               )
               : (
-                <Stack
-                  gap={6}
-                >
-                  <Text
-                    fw={700}
-                    size="sm"
-                  >
-                    Runtime event source
-                  </Text>
-
-                  <Text
-                    size="sm"
-                    c="dimmed"
-                  >
-                    {
-                      resource.kind ===
-                        "segment"
-                        ? "This physical segment exposes ENTER and LEAVE events. Configure the actions that react to those events on the Actions tab."
-                        : "This route resource exposes runtime movement events."
-                    }
-                  </Text>
-                </Stack>
+                <MovementResourceEventConditionsEditor
+                  resource={
+                    resource
+                  }
+                  rules={
+                    resourceEventRules
+                  }
+                  sensorCatalog={
+                    sensorCatalog
+                  }
+                  onChange={
+                    onResourceEventRulesChange
+                  }
+                />
               )
           }
         </Tabs.Panel>

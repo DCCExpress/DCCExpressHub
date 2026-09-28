@@ -8,6 +8,7 @@ import type {
 import type {
   MovementAction,
   MovementPage,
+  MovementResourceEventName,
   MovementWhen,
 } from "../domain/movement";
 
@@ -36,6 +37,11 @@ import {
   type MovementPlanLeg,
   type MovementPlanResource,
 } from "./movementPlan";
+
+import {
+  effectiveMovementResourceEventRule,
+  movementResourceRuleSatisfied,
+} from "./movementResourceEvents";
 
 import {
   wsApi,
@@ -135,6 +141,12 @@ type BlockLeaveState = {
   fired: boolean;
 };
 
+type ResourceLeaveState = {
+  resource:
+    MovementPlanResource;
+  ready: boolean;
+};
+
 type MovementExecution = {
   page:
     MovementPage;
@@ -157,6 +169,13 @@ type MovementExecution = {
     MovementEngineState;
   backgroundTasks:
     Set<Promise<void>>;
+  resourceLeaves:
+    Map<
+      string,
+      ResourceLeaveState
+    >;
+  resourceLeaveFired:
+    Set<string>;
 };
 
 const states =
@@ -291,6 +310,219 @@ function updateState(
   );
 }
 
+function resourceEntryEvent(
+  resource:
+    MovementPlanResource
+): MovementResourceEventName {
+  return resource.kind ===
+    "turnout"
+    ? "approach"
+    : "enter";
+}
+
+function resourceEventSatisfied(
+  execution:
+    MovementExecution,
+  resource:
+    MovementPlanResource,
+  event:
+    MovementResourceEventName
+): boolean {
+  const rule =
+    effectiveMovementResourceEventRule(
+      execution.page.resourceEventRules,
+      resource,
+      event
+    );
+
+  if (
+    rule.conditions.length ===
+      0
+  ) {
+    return false;
+  }
+
+  return movementResourceRuleSatisfied(
+    rule,
+    sensor =>
+      sensorStates.get(
+        sensor
+      )
+  );
+}
+
+function captureResourceLeaveTransitions(
+  changedSensor:
+    number | null =
+      null
+): void {
+  for (
+    const execution of
+    executions.values()
+  ) {
+    for (
+      const state of
+      execution.resourceLeaves.values()
+    ) {
+      if (state.ready) {
+        continue;
+      }
+
+      const rule =
+        effectiveMovementResourceEventRule(
+          execution.page.resourceEventRules,
+          state.resource,
+          "leave"
+        );
+
+      if (
+        rule.conditions.length ===
+        0
+      ) {
+        continue;
+      }
+
+      if (
+        changedSensor !==
+          null &&
+        !rule.conditions.some(
+          condition =>
+            condition.sensor ===
+            changedSensor
+        )
+      ) {
+        continue;
+      }
+
+      if (
+        movementResourceRuleSatisfied(
+          rule,
+          sensor =>
+            sensorStates.get(
+              sensor
+            )
+        )
+      ) {
+        state.ready =
+          true;
+      }
+    }
+  }
+}
+
+function armResourceLeave(
+  execution:
+    MovementExecution,
+  resource:
+    MovementPlanResource
+): boolean {
+  execution.resourceLeaveFired.delete(
+    resource.key
+  );
+
+  const rule =
+    effectiveMovementResourceEventRule(
+      execution.page.resourceEventRules,
+      resource,
+      "leave"
+    );
+
+  if (
+    rule.conditions.length ===
+      0
+  ) {
+    return false;
+  }
+
+  execution.resourceLeaves.set(
+    resource.key,
+    {
+      resource,
+      ready:
+        movementResourceRuleSatisfied(
+          rule,
+          sensor =>
+            sensorStates.get(
+              sensor
+            )
+        ),
+    }
+  );
+
+  return true;
+}
+
+async function drainReadyResourceLeaves(
+  execution:
+    MovementExecution
+): Promise<void> {
+  const ready =
+    [
+      ...execution.resourceLeaves.entries(),
+    ].filter(
+      (
+        [
+          ,
+          state,
+        ]
+      ) =>
+        state.ready
+    );
+
+  for (
+    const [
+      key,
+      state,
+    ] of ready
+  ) {
+    execution.resourceLeaves.delete(
+      key
+    );
+
+    execution.resourceLeaveFired.add(
+      key
+    );
+
+    await runActions(
+      execution,
+      state.resource.key,
+      "leave"
+    );
+  }
+}
+
+async function runLegacyLeaveIfNeeded(
+  execution:
+    MovementExecution,
+  resource:
+    MovementPlanResource
+): Promise<void> {
+  await drainReadyResourceLeaves(
+    execution
+  );
+
+  if (
+    execution.resourceLeaveFired.has(
+      resource.key
+    ) ||
+    execution.resourceLeaves.has(
+      resource.key
+    )
+  ) {
+    return;
+  }
+
+  execution.resourceLeaveFired.add(
+    resource.key
+  );
+
+  await runActions(
+    execution,
+    resource.key,
+    "leave"
+  );
+}
+
 function installTracking():
   void {
   if (
@@ -319,6 +551,10 @@ function installTracking():
           Boolean(
             data.on
           )
+        );
+
+        captureResourceLeaveTransitions(
+          data.address
         );
       }
     }
@@ -366,6 +602,8 @@ function installTracking():
           );
         }
       }
+
+      captureResourceLeaveTransitions();
     }
   );
 
@@ -2745,6 +2983,10 @@ async function waitForBlockLeave(
   while (
     !execution.cancelled
   ) {
+    await drainReadyResourceLeaves(
+      execution
+    );
+
     await maybeRunBlockLeave(
       execution,
       leg,
@@ -2916,6 +3158,10 @@ async function waitForArrival(
   while (
     !execution.cancelled
   ) {
+    await drainReadyResourceLeaves(
+      execution
+    );
+
     await maybeRunBlockLeave(
       execution,
       leg,
@@ -2951,8 +3197,20 @@ async function waitForResourceEntry(
   blockLeaveState:
     BlockLeaveState
 ): Promise<void> {
+  const entryEvent =
+    resourceEntryEvent(
+      resource
+    );
+
+  const entryRule =
+    effectiveMovementResourceEventRule(
+      execution.page.resourceEventRules,
+      resource,
+      entryEvent
+    );
+
   if (
-    resource.detectors.length ===
+    entryRule.conditions.length ===
     0
   ) {
     return;
@@ -2967,6 +3225,10 @@ async function waitForResourceEntry(
   while (
     !execution.cancelled
   ) {
+    await drainReadyResourceLeaves(
+      execution
+    );
+
     await maybeRunBlockLeave(
       execution,
       leg,
@@ -2974,12 +3236,10 @@ async function waitForResourceEntry(
     );
 
     if (
-      resource.detectors.some(
-        address =>
-          sensorStates.get(
-            address
-          ) ===
-            true
+      resourceEventSatisfied(
+        execution,
+        resource,
+        entryEvent
       )
     ) {
       return;
@@ -3004,6 +3264,10 @@ async function traverseLeg(
 ): Promise<void> {
   execution.currentBlockId =
     leg.from.blockId;
+
+  await drainReadyResourceLeaves(
+    execution
+  );
 
   if (
     execution.moving
@@ -3161,6 +3425,11 @@ async function traverseLeg(
           resource.key
         );
 
+        armResourceLeave(
+          execution,
+          resource
+        );
+
         await runActions(
           execution,
           resource.key,
@@ -3193,16 +3462,24 @@ async function traverseLeg(
         resource.key
       );
 
+      armResourceLeave(
+        execution,
+        resource
+      );
+
+      await drainReadyResourceLeaves(
+        execution
+      );
+
       for (
         const turnout of
         pendingTurnouts.splice(
           0
         )
       ) {
-        await runActions(
+        await runLegacyLeaveIfNeeded(
           execution,
-          turnout.key,
-          "leave"
+          turnout
         );
       }
 
@@ -3211,10 +3488,9 @@ async function traverseLeg(
         previousSegment.key !==
           resource.key
       ) {
-        await runActions(
+        await runLegacyLeaveIfNeeded(
           execution,
-          previousSegment.key,
-          "leave"
+          previousSegment
         );
       }
 
@@ -3247,6 +3523,10 @@ async function traverseLeg(
       execution,
       leg,
       blockLeaveState
+    );
+
+    await drainReadyResourceLeaves(
+      execution
     );
 
     setActiveRouteResource(
@@ -3325,10 +3605,9 @@ async function traverseLeg(
         0
       )
     ) {
-      await runActions(
+      await runLegacyLeaveIfNeeded(
         execution,
-        turnout.key,
-        "leave"
+        turnout
       );
     }
 
@@ -3465,6 +3744,10 @@ async function executeMovement(
       leg
     );
   }
+
+  await drainReadyResourceLeaves(
+    execution
+  );
 
   execution.desiredSpeed =
     0;
@@ -3705,6 +3988,18 @@ export async function startMovement(
     MovementExecution = {
     page: {
       ...page,
+      resourceEventRules:
+        page.resourceEventRules.map(
+          rule => ({
+            ...rule,
+            conditions:
+              rule.conditions.map(
+                condition => ({
+                  ...condition,
+                })
+              ),
+          })
+        ),
       actions:
         page.actions.map(
           action => ({
@@ -3734,6 +4029,10 @@ export async function startMovement(
       new Set<
         Promise<void>
       >(),
+    resourceLeaves:
+      new Map(),
+    resourceLeaveFired:
+      new Set(),
   };
 
   clearMovementBlockRuntimeByOwner(

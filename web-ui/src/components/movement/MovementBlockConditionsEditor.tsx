@@ -41,6 +41,8 @@ type Props = {
   isDestination: boolean;
   rule:
     MovementBlockRule | null;
+  defaultRule?:
+    MovementBlockRule | null;
   sensorCatalog:
     AutomationSensorOption[];
   onChange: (
@@ -73,6 +75,7 @@ export default function MovementBlockConditionsEditor({
   isSource,
   isDestination,
   rule,
+  defaultRule = null,
   sensorCatalog,
   onChange,
 }: Props) {
@@ -181,7 +184,19 @@ export default function MovementBlockConditionsEditor({
         ...current,
         blockId,
         [field]:
-          conditions,
+          conditions.map(
+            condition => ({
+              ...condition,
+              id:
+                condition.id.startsWith(
+                  "auto-"
+                )
+                  ? createMovementId(
+                      "condition"
+                    )
+                  : condition.id,
+            })
+          ),
       });
     };
 
@@ -195,10 +210,22 @@ export default function MovementBlockConditionsEditor({
             section,
             sectionIndex
           ) => {
-            const conditions =
+            const configuredConditions =
               current[
                 section.field
               ];
+
+            const usingDefault =
+              configuredConditions.length ===
+              0;
+
+            const conditions =
+              usingDefault
+                ? defaultRule?.[
+                    section.field
+                  ] ??
+                  []
+                : configuredConditions;
 
             const used =
               new Set(
@@ -279,6 +306,22 @@ export default function MovementBlockConditionsEditor({
                     >
                       {
                         section.badge
+                      }
+                    </Badge>
+
+                    <Badge
+                      size="xs"
+                      variant="light"
+                      color={
+                        usingDefault
+                          ? "gray"
+                          : "blue"
+                      }
+                    >
+                      {
+                        usingDefault
+                          ? "DEFAULT"
+                          : "CUSTOM"
                       }
                     </Badge>
                   </Group>
@@ -371,14 +414,28 @@ export default function MovementBlockConditionsEditor({
                 {
                   conditions.length ===
                     0 && (
-                    <Text
-                      size="xs"
-                      c="dimmed"
+                    <Group
+                      gap="xs"
+                      p={6}
+                      className="movement-default-condition-row"
                     >
-                      {
-                        section.description
-                      }
-                    </Text>
+                      <Badge
+                        size="xs"
+                        variant="light"
+                        color="gray"
+                      >
+                        DEFAULT
+                      </Badge>
+
+                      <Text
+                        size="xs"
+                        c="dimmed"
+                      >
+                        {
+                          section.description
+                        }
+                      </Text>
+                    </Group>
                   )
                 }
 

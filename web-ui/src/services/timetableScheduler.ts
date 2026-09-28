@@ -142,6 +142,18 @@ class TimetableScheduler {
                 ),
             })
           ),
+        resourceEventRules:
+          movement.resourceEventRules.map(
+            rule => ({
+              ...rule,
+              conditions:
+                rule.conditions.map(
+                  condition => ({
+                    ...condition,
+                  })
+                ),
+            })
+          ),
         actions:
           movement.actions.map(
             action => ({

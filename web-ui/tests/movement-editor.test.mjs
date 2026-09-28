@@ -114,6 +114,16 @@ test("Movement documents may be empty and the final Movement can be deleted", ()
     dialog,
     /No Movement configured/
   );
+
+  assert.match(
+    dialog,
+    /Save empty list/
+  );
+
+  assert.match(
+    dialog,
+    /onClick=[\s\S]*void save\(\)/
+  );
 });
 
 
@@ -3564,5 +3574,128 @@ test("Movement sequence mode is fixed by its add button", () => {
   assert.doesNotMatch(
     actionEditor,
     /label="MODE"/
+  );
+});
+
+
+test("Movement editor uses the current in-memory route graph while runtime keeps saved layout authority", () => {
+  const layoutPage =
+    read(
+      "src/LiteLayoutPage.tsx"
+    );
+
+  const dialog =
+    read(
+      "src/components/movement/MovementEditorDialog.tsx"
+    );
+
+  const selector =
+    read(
+      "src/components/movement/MovementRouteSelectDialog.tsx"
+    );
+
+  const routeEditor =
+    read(
+      "src/components/movement/MovementRouteEditor.tsx"
+    );
+
+  const preview =
+    read(
+      "src/components/movement/MovementRouteVectorPreview.tsx"
+    );
+
+  const cache =
+    read(
+      "src/services/clientRouteGraphCache.ts"
+    );
+
+  const catalog =
+    read(
+      "src/services/movementRouteCatalog.ts"
+    );
+
+  const plan =
+    read(
+      "src/services/movementPlan.ts"
+    );
+
+  const engine =
+    read(
+      "src/services/movementEngine.ts"
+    );
+
+  assert.match(
+    layoutPage,
+    /<MovementEditorDialog[\s\S]*layout=\{layout\}/
+  );
+
+  assert.match(
+    dialog,
+    /layout:[\s\S]*LayoutView/
+  );
+
+  assert.match(
+    dialog,
+    /<MovementRouteSelectDialog[\s\S]*layout=\{[\s\S]*layout/
+  );
+
+  assert.match(
+    dialog,
+    /<MovementRouteVectorPreview[\s\S]*layout=\{[\s\S]*layout/
+  );
+
+  assert.match(
+    dialog,
+    /<MovementRouteEditor[\s\S]*layout=\{[\s\S]*layout/
+  );
+
+  assert.match(
+    cache,
+    /export function createCurrentClientLayoutSnapshot/
+  );
+
+  assert.match(
+    cache,
+    /ensureClientRouteGraph\([\s\S]*layout[\s\S]*\)[\s\S]*attachClientRouteTopologyToLayoutJson/
+  );
+
+  assert.match(
+    selector,
+    /createCurrentClientLayoutSnapshot\([\s\S]*layout/
+  );
+
+  assert.match(
+    selector,
+    /loadMovementRouteCandidates\([\s\S]*document,[\s\S]*layoutSnapshot/
+  );
+
+  assert.match(
+    routeEditor,
+    /loadMovementPlan\([\s\S]*page,[\s\S]*layoutSnapshot/
+  );
+
+  assert.match(
+    preview,
+    /loadMovementRouteVector\([\s\S]*page,[\s\S]*layoutSnapshot/
+  );
+
+  assert.match(
+    catalog,
+    /layoutOverride\?:[\s\S]*SerializedLayoutDto/
+  );
+
+  assert.match(
+    plan,
+    /layoutOverride\?:[\s\S]*SerializedLayoutDto/
+  );
+
+  assert.match(
+    engine,
+    /await loadMovementPlan\([\s\S]*page[\s\S]*\)/
+  );
+
+  assert.doesNotMatch(
+    engine,
+    /createCurrentClientLayoutSnapshot/
   );
 });

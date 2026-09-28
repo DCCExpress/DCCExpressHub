@@ -1235,6 +1235,34 @@ export function ensureClientRouteGraph(
  * Save calls ensureClientRouteGraph() first, therefore this function normally
  * always has a fresh cache entry.
  */
+export function createCurrentClientLayoutSnapshot(
+  layout: LayoutView
+): SerializedLayoutDto {
+  // Movement editing must use the same in-memory topology as the Paths panel.
+  // Ensure the cache is current, then attach that exact generated topology to
+  // a plain JSON snapshot without persisting anything to the backend.
+  ensureClientRouteGraph(
+    layout
+  );
+
+  const plainLayout =
+    JSON.parse(
+      JSON.stringify(
+        layout
+      )
+    ) as
+      Record<string, unknown>;
+
+  attachClientRouteTopologyToLayoutJson(
+    layout,
+    plainLayout
+  );
+
+  return plainLayout as
+    unknown as
+      SerializedLayoutDto;
+}
+
 export function attachClientRouteTopologyToLayoutJson(
   layout: LayoutView,
   plainLayout:

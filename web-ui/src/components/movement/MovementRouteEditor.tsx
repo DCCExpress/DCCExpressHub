@@ -12,9 +12,18 @@ import {
 } from "@mantine/core";
 
 import type {
+  LayoutView,
+} from "../../models/editor/core/LayoutView";
+
+import {
+  createCurrentClientLayoutSnapshot,
+} from "../../services/clientRouteGraphCache";
+
+import type {
   MovementAction,
   MovementBlockRule,
   MovementPage,
+  MovementResourceEventRule,
 } from "../../domain/movement";
 
 import {
@@ -42,6 +51,8 @@ type Props = {
     MovementPage;
   selectedResourceKey:
     string | null;
+  layout:
+    LayoutView;
   onChange: (
     page:
       MovementPage
@@ -51,6 +62,7 @@ type Props = {
 export default function MovementRouteEditor({
   page,
   selectedResourceKey,
+  layout,
   onChange,
 }: Props) {
   const runtimeState =
@@ -183,8 +195,14 @@ export default function MovementRouteEditor({
         null
       );
 
+      const layoutSnapshot =
+        createCurrentClientLayoutSnapshot(
+          layout
+        );
+
       void loadMovementPlan(
-        page
+        page,
+        layoutSnapshot
       )
         .then(
           nextPlan => {
@@ -235,8 +253,28 @@ export default function MovementRouteEditor({
     },
     [
       routeSignature,
+      layout,
     ]
   );
+
+  const updateResourceEventRules =
+    (
+      resourceKey: string,
+      rules:
+        MovementResourceEventRule[]
+    ): void => {
+      onChange({
+        ...page,
+        resourceEventRules: [
+          ...page.resourceEventRules.filter(
+            rule =>
+              rule.resourceKey !==
+              resourceKey
+          ),
+          ...rules,
+        ],
+      });
+    };
 
   const updateRule =
     (
@@ -296,6 +334,52 @@ export default function MovementRouteEditor({
             selectedResourceKey
         ) ??
         null
+      : null;
+
+  const selectedDefaultRule:
+    MovementBlockRule | null =
+    selectedResource?.blockId !==
+      null &&
+    selectedResource?.blockId !==
+      undefined &&
+    plan
+      ? {
+          blockId:
+            selectedResource.blockId,
+          departWhen:
+            plan.legs.find(
+              leg =>
+                leg.from.blockId ===
+                selectedResource.blockId
+            )?.departWhen.map(
+              condition => ({
+                ...condition,
+              })
+            ) ??
+            [],
+          leaveWhen:
+            plan.legs.find(
+              leg =>
+                leg.from.blockId ===
+                selectedResource.blockId
+            )?.leaveWhen.map(
+              condition => ({
+                ...condition,
+              })
+            ) ??
+            [],
+          arrivedWhen:
+            plan.legs.find(
+              leg =>
+                leg.to.blockId ===
+                selectedResource.blockId
+            )?.arrivedWhen.map(
+              condition => ({
+                ...condition,
+              })
+            ) ??
+            [],
+        }
       : null;
 
   return (
@@ -414,8 +498,25 @@ export default function MovementRouteEditor({
                           ) ??
                           null
                     }
+                    defaultRule={
+                      selectedDefaultRule
+                    }
                     sensorCatalog={
                       sensorCatalog
+                    }
+                    resourceEventRules={
+                      page.resourceEventRules.filter(
+                        rule =>
+                          rule.resourceKey ===
+                          selectedResource.key
+                      )
+                    }
+                    onResourceEventRulesChange={
+                      rules =>
+                        updateResourceEventRules(
+                          selectedResource.key,
+                          rules
+                        )
                     }
                     actions={
                       page.actions.filter(

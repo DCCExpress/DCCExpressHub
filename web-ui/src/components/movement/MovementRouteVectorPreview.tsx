@@ -14,6 +14,14 @@ import type {
   MovementPage,
 } from "../../domain/movement";
 
+import type {
+  LayoutView,
+} from "../../models/editor/core/LayoutView";
+
+import {
+  createCurrentClientLayoutSnapshot,
+} from "../../services/clientRouteGraphCache";
+
 import {
   loadMovementRouteVector,
   type MovementRouteVectorItem,
@@ -22,6 +30,8 @@ import {
 type Props = {
   page:
     MovementPage;
+  layout:
+    LayoutView;
   selectedKey?:
     string | null;
   onItemClick?: (
@@ -137,6 +147,7 @@ function itemClassName(
 
 export default function MovementRouteVectorPreview({
   page,
+  layout,
   selectedKey = null,
   onItemClick,
 }: Props) {
@@ -211,8 +222,14 @@ export default function MovementRouteVectorPreview({
         null
       );
 
+      const layoutSnapshot =
+        createCurrentClientLayoutSnapshot(
+          layout
+        );
+
       void loadMovementRouteVector(
-        page
+        page,
+        layoutSnapshot
       )
         .then(
           next => {
@@ -265,6 +282,7 @@ export default function MovementRouteVectorPreview({
     },
     [
       routeSignature,
+      layout,
     ]
   );
 

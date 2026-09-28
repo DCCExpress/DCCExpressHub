@@ -31,6 +31,10 @@ import {
   IconTrash,
 } from "@tabler/icons-react";
 
+import type {
+  LayoutView,
+} from "../../models/editor/core/LayoutView";
+
 import {
   createMovementPage,
   normalizeMovementDocument,
@@ -63,6 +67,8 @@ type Props = {
   opened: boolean;
   onClose: () => void;
   initialPageId?: string | null;
+  layout:
+    LayoutView;
   onSaved?: (
     document:
       MovementDocument
@@ -73,6 +79,7 @@ export default function MovementEditorDialog({
   opened,
   onClose,
   initialPageId,
+  layout,
   onSaved,
 }: Props) {
   const [
@@ -320,7 +327,7 @@ export default function MovementEditorDialog({
             "Movement saved",
           message:
             activePage?.name ??
-            "",
+            "0 Movements saved",
         });
       } catch (error) {
         showNotification({
@@ -602,19 +609,42 @@ export default function MovementEditorDialog({
                   Create a Movement when you need one. An empty Movement list is valid.
                 </Text>
 
-                <Button
-                  size="sm"
-                  leftSection={
-                    <IconPlus
-                      size={16}
-                    />
-                  }
-                  onClick={
-                    addPage
-                  }
+                <Group
+                  gap="sm"
                 >
-                  New movement
-                </Button>
+                  <Button
+                    size="sm"
+                    leftSection={
+                      <IconPlus
+                        size={16}
+                      />
+                    }
+                    onClick={
+                      addPage
+                    }
+                  >
+                    New movement
+                  </Button>
+
+                  <Button
+                    size="sm"
+                    color="teal"
+                    leftSection={
+                      <IconDeviceFloppy
+                        size={16}
+                      />
+                    }
+                    loading={
+                      saving
+                    }
+                    onClick={
+                      () =>
+                        void save()
+                    }
+                  >
+                    Save empty list
+                  </Button>
+                </Group>
               </Stack>
             )
           }
@@ -799,6 +829,9 @@ export default function MovementEditorDialog({
                     page={
                       activePage
                     }
+                    layout={
+                      layout
+                    }
                     selectedKey={
                       selectedRouteVectorKey
                     }
@@ -819,6 +852,9 @@ export default function MovementEditorDialog({
                     }
                     page={
                       activePage
+                    }
+                    layout={
+                      layout
                     }
                     onClose={
                       () =>
@@ -841,6 +877,9 @@ export default function MovementEditorDialog({
                   <MovementRouteEditor
                     page={
                       activePage
+                    }
+                    layout={
+                      layout
                     }
                     selectedResourceKey={
                       selectedRouteVectorKey

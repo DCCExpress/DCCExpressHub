@@ -2019,6 +2019,7 @@ export default function LiteLayoutPage({
       <MovementEditorDialog
         opened={movementEditorOpened}
         initialPageId={movementEditorPageId}
+        layout={layout}
         onSaved={setMovementDocument}
         onClose={() => {
           setMovementEditorOpened(false);
