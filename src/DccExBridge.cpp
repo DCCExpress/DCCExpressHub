@@ -3,11 +3,22 @@
 #include "Logger.h"
 #include "CommandCenterEndpoint.h"
 
+#include <algorithm>
 #include <stdlib.h>
 
 void DccExBridge::begin(
     const String& host,
     uint16_t port) {
+  if (!_txQueueMutex) {
+    _txQueueMutex =
+        xSemaphoreCreateMutex();
+
+    if (!_txQueueMutex) {
+      Logger::error(
+          "DCC-EX TX queue mutex allocation failed");
+    }
+  }
+
   setEndpoint(
       host,
       port);
@@ -29,11 +40,27 @@ void DccExBridge::setEndpoint(
   _host = host;
   _port = port;
 
+  clearTxQueue();
+  _nextCommandTxAt = 0;
+
   _client.stop();
 
   resetHeartbeatState();
 
   _nextReconnectAt = 0;
+}
+
+void DccExBridge::setCommandIntervalMs(
+    uint16_t intervalMs) {
+  _commandIntervalMs =
+      intervalMs > MAX_COMMAND_INTERVAL_MS
+          ? MAX_COMMAND_INTERVAL_MS
+          : intervalMs;
+
+  Logger::info(
+      "DCC-EX TX pacing set to " +
+      String(_commandIntervalMs) +
+      " ms");
 }
 
 bool DccExBridge::connected() {
@@ -48,6 +75,9 @@ bool DccExBridge::ensureConnected() {
   }
 
   _client.stop();
+
+  clearTxQueue();
+  _nextCommandTxAt = 0;
 
   resetHeartbeatState();
 
@@ -99,8 +129,9 @@ bool DccExBridge::ensureConnected() {
   Logger::info(
       "DCC-EX TCP connected; waiting for heartbeat");
 
-  _client.print(
-      "<s>");
+  writeDirect(
+      "<s>",
+      false);
 
   sendHeartbeat();
 
@@ -112,11 +143,9 @@ void DccExBridge::sendHeartbeat() {
     return;
   }
 
-  const size_t written =
-      _client.print(
-          "<#>");
-
-  if (written != 3) {
+  if (!writeDirect(
+          "<#>",
+          false)) {
     Logger::warn(
         "DCC-EX heartbeat TX failed");
   }
@@ -126,13 +155,12 @@ void DccExBridge::sendHeartbeat() {
       HEARTBEAT_INTERVAL_MS;
 }
 
-bool DccExBridge::sendCommand(
-    String command,
-    bool logCommand) {
+void DccExBridge::normalizeCommand(
+    String& command) {
   command.trim();
 
   if (command.isEmpty()) {
-    return false;
+    return;
   }
 
   if (!command.startsWith("<")) {
@@ -145,8 +173,15 @@ bool DccExBridge::sendCommand(
     command +=
         ">";
   }
+}
 
-  if (!ensureConnected()) {
+bool DccExBridge::writeDirect(
+    const String& command,
+    bool logCommand) {
+  if (
+      command.isEmpty() ||
+      !_client.connected()
+  ) {
     return false;
   }
 
@@ -174,6 +209,231 @@ bool DccExBridge::sendCommand(
   return true;
 }
 
+bool DccExBridge::enqueueCommand(
+    String command,
+    bool logCommand,
+    bool priority) {
+  normalizeCommand(
+      command);
+
+  if (
+      command.isEmpty() ||
+      !_client.connected() ||
+      !_txQueueMutex
+  ) {
+    return false;
+  }
+
+  if (
+      xSemaphoreTake(
+          _txQueueMutex,
+          portMAX_DELAY) !=
+      pdTRUE
+  ) {
+    return false;
+  }
+
+  bool accepted =
+      false;
+
+  const size_t totalDepth =
+      _priorityTxQueue.size() +
+      _txQueue.size();
+
+  if (
+      totalDepth <
+      MAX_TX_QUEUE_DEPTH
+  ) {
+    if (priority) {
+      // Emergency/priority traffic must never be followed by stale pending
+      // locomotive speed commands. Otherwise a quick RESUME could allow a
+      // pre-ESTOP throttle command to restart a train.
+      _txQueue.erase(
+          std::remove_if(
+              _txQueue.begin(),
+              _txQueue.end(),
+              [](
+                  const PendingTxCommand& item) {
+                return
+                    item.command.startsWith(
+                        "<t ");
+              }),
+          _txQueue.end());
+
+      _priorityTxQueue.push_back(
+          PendingTxCommand{
+              std::move(command),
+              logCommand});
+    } else {
+      _txQueue.push_back(
+          PendingTxCommand{
+              std::move(command),
+              logCommand});
+    }
+
+    accepted =
+        true;
+  }
+
+  xSemaphoreGive(
+      _txQueueMutex);
+
+  if (!accepted) {
+    Logger::warn(
+        "DCC-EX TX queue full; command rejected");
+  }
+
+  return accepted;
+}
+
+bool DccExBridge::sendPriorityCommand(
+    String command,
+    bool logCommand) {
+  return enqueueCommand(
+      std::move(command),
+      logCommand,
+      true);
+}
+
+void DccExBridge::discardPendingLocoCommands() {
+  if (!_txQueueMutex) {
+    return;
+  }
+
+  if (
+      xSemaphoreTake(
+          _txQueueMutex,
+          portMAX_DELAY) !=
+      pdTRUE
+  ) {
+    return;
+  }
+
+  _txQueue.erase(
+      std::remove_if(
+          _txQueue.begin(),
+          _txQueue.end(),
+          [](
+              const PendingTxCommand& item) {
+            return
+                item.command.startsWith(
+                    "<t ");
+          }),
+      _txQueue.end());
+
+  xSemaphoreGive(
+      _txQueueMutex);
+}
+
+void DccExBridge::clearTxQueue() {
+  if (!_txQueueMutex) {
+    _priorityTxQueue.clear();
+    _txQueue.clear();
+    return;
+  }
+
+  if (
+      xSemaphoreTake(
+          _txQueueMutex,
+          portMAX_DELAY) !=
+      pdTRUE
+  ) {
+    return;
+  }
+
+  _priorityTxQueue.clear();
+  _txQueue.clear();
+
+  xSemaphoreGive(
+      _txQueueMutex);
+}
+
+void DccExBridge::processTxQueue() {
+  if (
+      !_client.connected() ||
+      !_txQueueMutex
+  ) {
+    return;
+  }
+
+  if (
+      xSemaphoreTake(
+          _txQueueMutex,
+          portMAX_DELAY) !=
+      pdTRUE
+  ) {
+    return;
+  }
+
+  const unsigned long now =
+      millis();
+
+  const bool normalDue =
+      _nextCommandTxAt == 0 ||
+      static_cast<long>(
+          now -
+          _nextCommandTxAt) >= 0;
+
+  PendingTxCommand command;
+  bool hasCommand =
+      false;
+  bool priority =
+      false;
+
+  if (!_priorityTxQueue.empty()) {
+    command =
+        std::move(
+            _priorityTxQueue.front());
+
+    _priorityTxQueue.pop_front();
+    hasCommand =
+        true;
+    priority =
+        true;
+  } else if (
+      normalDue &&
+      !_txQueue.empty()
+  ) {
+    command =
+        std::move(
+            _txQueue.front());
+
+    _txQueue.pop_front();
+    hasCommand =
+        true;
+  }
+
+  if (hasCommand) {
+    const bool sent =
+        writeDirect(
+            command.command,
+            command.logCommand);
+
+    if (
+        sent &&
+        !priority
+    ) {
+      _nextCommandTxAt =
+          _commandIntervalMs == 0
+              ? 0
+              : millis() +
+                    _commandIntervalMs;
+    }
+  }
+
+  xSemaphoreGive(
+      _txQueueMutex);
+}
+
+bool DccExBridge::sendCommand(
+    String command,
+    bool logCommand) {
+  return enqueueCommand(
+      std::move(command),
+      logCommand,
+      false);
+}
+
 bool DccExBridge::setTrackPower(
     bool on,
     bool includeProgramming) {
@@ -192,7 +452,7 @@ bool DccExBridge::setProgrammingPower(
 }
 
 bool DccExBridge::emergencyStop() {
-  return sendCommand(
+  return sendPriorityCommand(
       "<!>");
 }
 
@@ -1051,6 +1311,9 @@ void DccExBridge::loop() {
           "DCC-EX heartbeat OFFLINE: TCP disconnected");
     }
 
+    clearTxQueue();
+    _nextCommandTxAt = 0;
+
     resetHeartbeatState();
 
     const unsigned long now =
@@ -1075,6 +1338,8 @@ void DccExBridge::loop() {
         static_cast<char>(
             _client.read()));
   }
+
+  processTxQueue();
 
   const unsigned long now =
       millis();
@@ -1118,6 +1383,9 @@ void DccExBridge::loop() {
         "DCC-EX heartbeat stale; forcing TCP reconnect");
 
     _client.stop();
+
+    clearTxQueue();
+    _nextCommandTxAt = 0;
 
     resetHeartbeatState();
 
