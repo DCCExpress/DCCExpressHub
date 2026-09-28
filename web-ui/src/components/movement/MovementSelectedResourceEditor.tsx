@@ -32,6 +32,8 @@ type Props = {
   isDestination: boolean;
   rule:
     MovementBlockRule | null;
+  defaultRule:
+    MovementBlockRule | null;
   sensorCatalog:
     AutomationSensorOption[];
   resourceEventRules:
@@ -111,6 +113,7 @@ export default function MovementSelectedResourceEditor({
   isSource,
   isDestination,
   rule,
+  defaultRule,
   sensorCatalog,
   resourceEventRules,
   onResourceEventRulesChange,
@@ -307,6 +310,9 @@ export default function MovementSelectedResourceEditor({
                   }
                   rule={
                     rule
+                  }
+                  defaultRule={
+                    defaultRule
                   }
                   sensorCatalog={
                     sensorCatalog
