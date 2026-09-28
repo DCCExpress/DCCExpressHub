@@ -51,6 +51,7 @@ export type MovementRouteVectorItem =
       blockId: number;
       name: string;
       sensor: number | null;
+      mergedSegmentNames: string[];
       role:
         MovementRouteVectorRole;
     };
@@ -654,6 +655,7 @@ export function buildMovementRouteVector(
             blockId
           ) ??
           null,
+        mergedSegmentNames: [],
         role:
           blockId ===
             sourceId
@@ -805,7 +807,77 @@ export async function loadMovementRouteVector(
       layoutOverride
     );
 
-  return plan.resources.map(
+  const hiddenSegmentKeys =
+    new Set<string>();
+
+  const mergedSegmentNamesByBlockKey =
+    new Map<
+      string,
+      string[]
+    >();
+
+  for (
+    const block of
+    plan.resources
+  ) {
+    if (
+      block.kind !==
+        "block" ||
+      block.sensorAddress ===
+        null ||
+      block.nodeIndex ===
+        null
+    ) {
+      continue;
+    }
+
+    const matchingSegments =
+      plan.resources.filter(
+        resource =>
+          resource.kind ===
+            "segment" &&
+          resource.nodeIndex ===
+            block.nodeIndex &&
+          resource.detectors.length ===
+            1 &&
+          resource.detectors[0] ===
+            block.sensorAddress
+      );
+
+    if (
+      matchingSegments.length ===
+        0
+    ) {
+      continue;
+    }
+
+    mergedSegmentNamesByBlockKey.set(
+      block.key,
+      matchingSegments.map(
+        segment =>
+          segment.name
+      )
+    );
+
+    for (
+      const segment of
+      matchingSegments
+    ) {
+      hiddenSegmentKeys.add(
+        segment.key
+      );
+    }
+  }
+
+  const visibleResources =
+    plan.resources.filter(
+      resource =>
+        !hiddenSegmentKeys.has(
+          resource.key
+        )
+    );
+
+  return visibleResources.map(
     (
       resource,
       index
@@ -847,6 +919,11 @@ export async function loadMovementRouteVector(
           name:
             resource.name,
           sensor,
+          mergedSegmentNames:
+            mergedSegmentNamesByBlockKey.get(
+              resource.key
+            ) ??
+            [],
           role:
             blockId ===
               page.fromBlockId
