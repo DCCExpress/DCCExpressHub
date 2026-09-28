@@ -167,7 +167,7 @@ test(".NET DCC-EX ESTOP bypasses pacing and closes the motion race", () => {
 
   assert.match(
     source,
-    /Volatile\.Write\([\s\S]*ref _motionBarrier,[\s\S]*1/
+    /Interlocked\.Increment\([\s\S]*ref _motionBarrier/
   );
 
   assert.match(
@@ -182,7 +182,7 @@ test(".NET DCC-EX ESTOP bypasses pacing and closes the motion race", () => {
 
   assert.match(
     source,
-    /finally[\s\S]*if \(txHeld\)[\s\S]*_tx\.Release\(\)[\s\S]*_motionBarrier,[\s\S]*0/
+    /finally[\s\S]*if \(txHeld\)[\s\S]*_tx\.Release\(\)[\s\S]*Interlocked\.Decrement\([\s\S]*ref _motionBarrier/
   );
 
   assert.match(
