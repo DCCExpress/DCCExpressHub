@@ -1,8 +1,12 @@
 #pragma once
 
 #include <Arduino.h>
+#include <deque>
 #include <utility>
 #include <WiFiClient.h>
+
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 
 #include "ICommandCenter.h"
 
@@ -36,6 +40,13 @@ public:
 
   const char* name() const override {
     return "DCC-EX CommandStation";
+  }
+
+  void setCommandIntervalMs(
+      uint16_t intervalMs) override;
+
+  uint16_t commandIntervalMs() const override {
+    return _commandIntervalMs;
   }
 
   void onRawInfo(
@@ -149,8 +160,35 @@ public:
       String command,
       bool logCommand = true) override;
 
+protected:
+  bool sendPriorityCommand(
+      String command,
+      bool logCommand = true);
+
+  void discardPendingLocoCommands();
+
 private:
+  struct PendingTxCommand {
+    String command;
+    bool logCommand = true;
+  };
+
   WiFiClient _client;
+
+  SemaphoreHandle_t _txQueueMutex =
+      nullptr;
+
+  std::deque<PendingTxCommand>
+      _priorityTxQueue;
+
+  std::deque<PendingTxCommand>
+      _txQueue;
+
+  uint16_t _commandIntervalMs =
+      25;
+
+  unsigned long _nextCommandTxAt =
+      0;
 
   String _host;
   uint16_t _port = 2560;
@@ -204,6 +242,12 @@ private:
   static constexpr unsigned long
       HEARTBEAT_RECONNECT_MS = 6000;
 
+  static constexpr size_t
+      MAX_TX_QUEUE_DEPTH = 128;
+
+  static constexpr uint16_t
+      MAX_COMMAND_INTERVAL_MS = 1000;
+
   void processByte(char c);
   void processFrame(
       const String& frame);
@@ -212,6 +256,21 @@ private:
 
   void sendHeartbeat();
   void resetHeartbeatState();
+
+  bool enqueueCommand(
+      String command,
+      bool logCommand,
+      bool priority);
+
+  bool writeDirect(
+      const String& command,
+      bool logCommand);
+
+  void processTxQueue();
+  void clearTxQueue();
+
+  static void normalizeCommand(
+      String& command);
 
   static size_t parseIntegerList(
       const String& text,
