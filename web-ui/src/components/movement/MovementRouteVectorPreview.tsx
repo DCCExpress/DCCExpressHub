@@ -667,12 +667,7 @@ export default function MovementRouteVectorPreview({
                         {
                           item.sensor ===
                             null
-                            ? (
-                              item.kind ===
-                                "turnout"
-                                ? "NO SENSOR"
-                                : "NO SENSOR"
-                            )
+                            ? "NO SENSOR"
                             : `Sensor ${item.sensor}`
                         }
                       </text>
