@@ -208,3 +208,63 @@ test("Timetable snapshots deep-clone resource event rules", () => {
     /rule\.conditions\.map/
   );
 });
+
+
+test("Block Conditions / Events renders calculated defaults instead of hiding them in help text", () => {
+  const blockEditor =
+    read(
+      "src/components/movement/MovementBlockConditionsEditor.tsx"
+    );
+
+  const routeEditor =
+    read(
+      "src/components/movement/MovementRouteEditor.tsx"
+    );
+
+  assert.match(
+    blockEditor,
+    /defaultRule\?/
+  );
+
+  assert.match(
+    blockEditor,
+    /usingDefault[\s\S]*"DEFAULT"/
+  );
+
+  assert.match(
+    blockEditor,
+    /condition\.id\.startsWith\([\s\S]*"auto-"/
+  );
+
+  assert.match(
+    routeEditor,
+    /selectedDefaultRule[\s\S]*plan\.legs\.find/
+  );
+});
+
+test("Simplified resource event branch contains no matrix/custom-event model", () => {
+  const domain =
+    read(
+      "src/domain/movement.ts"
+    );
+
+  const selected =
+    read(
+      "src/components/movement/MovementSelectedResourceEditor.tsx"
+    );
+
+  assert.doesNotMatch(
+    domain,
+    /MovementSegmentEvent/
+  );
+
+  assert.doesNotMatch(
+    domain,
+    /event:\$\{string\}/
+  );
+
+  assert.doesNotMatch(
+    selected,
+    /MovementSegmentEventMatrix/
+  );
+});
