@@ -123,14 +123,29 @@ function sectionTitle(
   );
 }
 
-function sectionSensor(
+function sectionSensors(
   section:
     SectionPreview
-): number | null {
-  return (
-    section.segment?.sensor ??
-    null
-  );
+): number[] {
+  const configured =
+    section.segment?.sensors ??
+    [];
+
+  if (
+    configured.length >
+      0
+  ) {
+    return configured;
+  }
+
+  return section.segment?.sensor ===
+    null ||
+    section.segment?.sensor ===
+      undefined
+    ? []
+    : [
+        section.segment.sensor,
+      ];
 }
 
 function selectedItemForSection(
@@ -350,10 +365,14 @@ export default function MovementLocalSectionPreview({
                   );
                 }
 
-                const sensor =
-                  sectionSensor(
+                const sensors =
+                  sectionSensors(
                     section
                   );
+
+                const hasSensor =
+                  sensors.length >
+                    0;
 
                 const localSelected =
                   selectedItemForSection(
@@ -431,8 +450,7 @@ export default function MovementLocalSectionPreview({
                       className={
                         "movement-local-preview-sensor" +
                         (
-                          sensor ===
-                            null
+                          !hasSensor
                             ? " is-missing"
                             : ""
                         ) +
