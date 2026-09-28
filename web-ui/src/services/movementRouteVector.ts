@@ -817,56 +817,67 @@ export async function loadMovementRouteVector(
     >();
 
   for (
-    const block of
+    const segment of
     plan.resources
   ) {
     if (
-      block.kind !==
-        "block" ||
-      block.sensorAddress ===
+      segment.kind !==
+        "segment" ||
+      segment.nodeIndex ===
         null ||
-      block.nodeIndex ===
-        null
+      segment.detectors.length !==
+        1
     ) {
       continue;
     }
 
-    const matchingSegments =
+    const detector =
+      segment.detectors[0];
+
+    if (
+      detector ===
+        undefined
+    ) {
+      continue;
+    }
+
+    const matchingBlocks =
       plan.resources.filter(
         resource =>
           resource.kind ===
-            "segment" &&
+            "block" &&
           resource.nodeIndex ===
-            block.nodeIndex &&
-          resource.detectors.length ===
-            1 &&
-          resource.detectors[0] ===
-            block.sensorAddress
+            segment.nodeIndex &&
+          resource.sensorAddress ===
+            detector
       );
 
     if (
-      matchingSegments.length ===
-        0
+      matchingBlocks.length !==
+        1
     ) {
       continue;
     }
 
-    mergedSegmentNamesByBlockKey.set(
-      block.key,
-      matchingSegments.map(
-        segment =>
-          segment.name
-      )
+    const block =
+      matchingBlocks[0]!;
+
+    hiddenSegmentKeys.add(
+      segment.key
     );
 
-    for (
-      const segment of
-      matchingSegments
-    ) {
-      hiddenSegmentKeys.add(
-        segment.key
-      );
-    }
+    mergedSegmentNamesByBlockKey.set(
+      block.key,
+      [
+        ...(
+          mergedSegmentNamesByBlockKey.get(
+            block.key
+          ) ??
+          []
+        ),
+        segment.name,
+      ]
+    );
   }
 
   const visibleResources =
