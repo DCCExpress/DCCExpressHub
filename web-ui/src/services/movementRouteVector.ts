@@ -467,7 +467,7 @@ export function resolveMovementRouteVectorEntry(
     )
   ) {
     throw new Error(
-      "No saved route topology. Generate and save the route graph first."
+      "No route topology is available. Generate the route graph first."
     );
   }
 
