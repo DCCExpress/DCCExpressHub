@@ -236,40 +236,37 @@ bool DccExBridge::enqueueCommand(
   bool accepted =
       false;
 
-  const size_t totalDepth =
-      _priorityTxQueue.size() +
-      _txQueue.size();
+  if (priority) {
+    // Priority traffic is deliberately independent from the normal queue
+    // capacity. An ESTOP must remain enqueueable even when automation has
+    // saturated the normal queue.
+    _txQueue.erase(
+        std::remove_if(
+            _txQueue.begin(),
+            _txQueue.end(),
+            [](
+                const PendingTxCommand& item) {
+              return
+                  item.command.startsWith(
+                      "<t ");
+            }),
+        _txQueue.end());
 
-  if (
-      totalDepth <
+    _priorityTxQueue.push_back(
+        PendingTxCommand{
+            std::move(command),
+            logCommand});
+
+    accepted =
+        true;
+  } else if (
+      _txQueue.size() <
       MAX_TX_QUEUE_DEPTH
   ) {
-    if (priority) {
-      // Emergency/priority traffic must never be followed by stale pending
-      // locomotive speed commands. Otherwise a quick RESUME could allow a
-      // pre-ESTOP throttle command to restart a train.
-      _txQueue.erase(
-          std::remove_if(
-              _txQueue.begin(),
-              _txQueue.end(),
-              [](
-                  const PendingTxCommand& item) {
-                return
-                    item.command.startsWith(
-                        "<t ");
-              }),
-          _txQueue.end());
-
-      _priorityTxQueue.push_back(
-          PendingTxCommand{
-              std::move(command),
-              logCommand});
-    } else {
-      _txQueue.push_back(
-          PendingTxCommand{
-              std::move(command),
-              logCommand});
-    }
+    _txQueue.push_back(
+        PendingTxCommand{
+            std::move(command),
+            logCommand});
 
     accepted =
         true;
