@@ -99,7 +99,7 @@ public:
         !_paused
     ) {
       if (
-          !DccExBridge::sendRawCommand(
+          !DccExBridge::sendPriorityCommand(
               "<!P>")
       ) {
         return false;
@@ -119,14 +119,14 @@ public:
     // ESTOPALL first forces every loco reminder to speed=0. Only after that
     // do we release the pause lock, preventing an automatic restart.
     if (
-        !DccExBridge::sendRawCommand(
+        !DccExBridge::sendPriorityCommand(
             "<!>")
     ) {
       return false;
     }
 
     if (
-        !DccExBridge::sendRawCommand(
+        !DccExBridge::sendPriorityCommand(
             "<!R>")
     ) {
       // ESTOPALL succeeded but the layout is still paused. Keep the UI red.
