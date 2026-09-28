@@ -344,8 +344,8 @@ export default function MovementRouteRow({
                   {
                     resource.detectors.length >
                       0
-                      ? `Detectors: ${resource.detectors.join(", ")}`
-                      : "No detector in this segment"
+                      ? `${resource.detectors.length === 1 ? "Sensor" : "Sensors"}: ${resource.detectors.join(", ")}`
+                      : "No sensor in this segment"
                   }
                 </Text>
               )
@@ -372,7 +372,7 @@ export default function MovementRouteRow({
                   {
                     resource.detectors.length >
                       0
-                      ? ` · Detectors: ${resource.detectors.join(", ")}`
+                      ? ` · ${resource.detectors.length === 1 ? "Sensor" : "Sensors"}: ${resource.detectors.join(", ")}`
                       : ""
                   }
                 </Text>
