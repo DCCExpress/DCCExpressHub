@@ -5,10 +5,11 @@ import type {
   TurnoutChangedPayload,
 } from "../domain/railwayRuntimeEvents";
 
-import type {
-  MovementAction,
-  MovementPage,
-  MovementWhen,
+import {
+  movementSegmentEventWhen,
+  type MovementAction,
+  type MovementPage,
+  type MovementWhen,
 } from "../domain/movement";
 
 import {
@@ -36,6 +37,11 @@ import {
   type MovementPlanLeg,
   type MovementPlanResource,
 } from "./movementPlan";
+
+import {
+  findSegmentEventForMask,
+  segmentEventStateMask,
+} from "./movementSegmentEvents";
 
 import {
   wsApi,
@@ -135,6 +141,12 @@ type BlockLeaveState = {
   fired: boolean;
 };
 
+type PendingSegmentState = {
+  resource:
+    MovementPlanResource;
+  mask: number;
+};
+
 type MovementExecution = {
   page:
     MovementPage;
@@ -157,6 +169,18 @@ type MovementExecution = {
     MovementEngineState;
   backgroundTasks:
     Set<Promise<void>>;
+  activeSegmentResources:
+    Map<
+      string,
+      MovementPlanResource
+    >;
+  segmentCapturedMasks:
+    Map<
+      string,
+      number
+    >;
+  pendingSegmentStates:
+    PendingSegmentState[];
 };
 
 const states =
@@ -291,6 +315,169 @@ function updateState(
   );
 }
 
+function captureSegmentState(
+  execution:
+    MovementExecution,
+  resource:
+    MovementPlanResource
+): void {
+  const mask =
+    segmentEventStateMask(
+      resource.detectors,
+      sensor =>
+        sensorStates.get(
+          sensor
+        )
+    );
+
+  if (mask === null) {
+    return;
+  }
+
+  const previous =
+    execution.segmentCapturedMasks.get(
+      resource.key
+    );
+
+  if (previous === mask) {
+    return;
+  }
+
+  execution.segmentCapturedMasks.set(
+    resource.key,
+    mask
+  );
+
+  execution.pendingSegmentStates.push({
+    resource,
+    mask,
+  });
+}
+
+function captureActiveSegmentStates(
+  changedSensor:
+    number | null =
+      null
+): void {
+  for (
+    const execution of
+    executions.values()
+  ) {
+    for (
+      const resource of
+      execution.activeSegmentResources.values()
+    ) {
+      if (
+        changedSensor !==
+          null &&
+        !resource.detectors.includes(
+          changedSensor
+        )
+      ) {
+        continue;
+      }
+
+      captureSegmentState(
+        execution,
+        resource
+      );
+    }
+  }
+}
+
+function activateSegmentStateTracking(
+  execution:
+    MovementExecution,
+  resource:
+    MovementPlanResource
+): void {
+  execution.activeSegmentResources.set(
+    resource.key,
+    resource
+  );
+
+  execution.segmentCapturedMasks.delete(
+    resource.key
+  );
+
+  captureSegmentState(
+    execution,
+    resource
+  );
+}
+
+async function drainSegmentStateEvents(
+  execution:
+    MovementExecution
+): Promise<void> {
+  while (
+    execution.pendingSegmentStates.length >
+      0
+  ) {
+    const pending =
+      execution.pendingSegmentStates.shift();
+
+    if (!pending) {
+      continue;
+    }
+
+    const event =
+      findSegmentEventForMask(
+        execution.page.segmentEvents,
+        pending.resource.key,
+        pending.resource.detectors,
+        pending.mask
+      );
+
+    if (
+      event &&
+      event.name.trim().length >
+        0
+    ) {
+      console.info(
+        "[Movement] segment event",
+        {
+          page:
+            execution.page.name,
+          segment:
+            pending.resource.name,
+          event:
+            event.name,
+          eventId:
+            event.id,
+          stateMask:
+            pending.mask,
+        }
+      );
+
+      await runActions(
+        execution,
+        pending.resource.key,
+        movementSegmentEventWhen(
+          event.id
+        )
+      );
+    }
+
+    if (
+      pending.mask ===
+        0 &&
+      execution.activeSegmentResources.get(
+        pending.resource.key
+      ) ===
+        pending.resource
+    ) {
+      execution.activeSegmentResources.delete(
+        pending.resource.key
+      );
+
+      execution.segmentCapturedMasks.delete(
+        pending.resource.key
+      );
+    }
+  }
+}
+
 function installTracking():
   void {
   if (
@@ -319,6 +506,10 @@ function installTracking():
           Boolean(
             data.on
           )
+        );
+
+        captureActiveSegmentStates(
+          data.address
         );
       }
     }
@@ -366,6 +557,8 @@ function installTracking():
           );
         }
       }
+
+      captureActiveSegmentStates();
     }
   );
 
@@ -3734,6 +3927,12 @@ export async function startMovement(
       new Set<
         Promise<void>
       >(),
+    activeSegmentResources:
+      new Map(),
+    segmentCapturedMasks:
+      new Map(),
+    pendingSegmentStates:
+      [],
   };
 
   clearMovementBlockRuntimeByOwner(
