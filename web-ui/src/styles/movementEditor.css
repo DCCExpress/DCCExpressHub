@@ -268,6 +268,19 @@
   fill: var(--mantine-color-gray-7);
 }
 
+.movement-route-vector-node.is-turnout .movement-route-vector-card {
+  fill: color-mix(
+    in srgb,
+    var(--mantine-color-orange-6) 14%,
+    var(--mantine-color-body)
+  );
+  stroke: var(--mantine-color-orange-6);
+}
+
+.movement-route-vector-node.is-turnout .movement-route-vector-order-circle {
+  fill: var(--mantine-color-orange-7);
+}
+
 .movement-route-vector-node.is-no-sensor .movement-route-vector-card {
   stroke: var(--mantine-color-red-5);
   stroke-width: 2;
