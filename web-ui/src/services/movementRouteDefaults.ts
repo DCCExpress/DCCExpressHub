@@ -58,79 +58,17 @@ export function buildMovementIntermediateArrivalDefaults(
       continue;
     }
 
-    const previous =
-      vector[
-        index -
-          1
-      ];
-
-    const next =
-      vector[
-        index +
-          1
-      ];
-
     const conditions:
       MovementArrivalDefaultCondition[] =
-      [];
-
-    const seen =
-      new Set<number>();
-
-    if (
-      previous?.sensor !==
-        null &&
-      previous?.sensor !==
-        undefined &&
-      previous.sensor !==
-        current.sensor
-    ) {
-      seen.add(
-        previous.sensor
-      );
-
-      conditions.push({
-        sensor:
-          previous.sensor,
-        state:
-          false,
-      });
-    }
-
-    if (
-      current.sensor !==
+      current.sensor ===
         null
-    ) {
-      seen.add(
-        current.sensor
-      );
-
-      conditions.push({
-        sensor:
-          current.sensor,
-        state:
-          true,
-      });
-    }
-
-    if (
-      next?.sensor !==
-        null &&
-      next?.sensor !==
-        undefined &&
-      next.sensor !==
-        current.sensor &&
-      !seen.has(
-        next.sensor
-      )
-    ) {
-      conditions.push({
-        sensor:
-          next.sensor,
-        state:
-          false,
-      });
-    }
+        ? []
+        : [{
+            sensor:
+              current.sensor,
+            state:
+              true,
+          }];
 
     result.push({
       blockId:
