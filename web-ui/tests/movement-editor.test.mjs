@@ -2574,7 +2574,7 @@ test("selected Movement route auto-fills name with direction arrows between bloc
 });
 
 
-test("Movement ARRIVED defaults and header preview share one route-vector builder", () => {
+test("Movement ARRIVED defaults keep their builder while header preview follows the runtime plan", () => {
   const vector =
     read(
       "src/services/movementRouteVector.ts"
@@ -2613,6 +2613,21 @@ test("Movement ARRIVED defaults and header preview share one route-vector builde
   assert.match(
     vector,
     /kind:[\s\S]*"block"/
+  );
+
+  assert.match(
+    vector,
+    /loadMovementPlan/
+  );
+
+  assert.match(
+    vector,
+    /plan\.resources\.map/
+  );
+
+  assert.match(
+    vector,
+    /resource\.kind ===[\s\S]*"turnout"/
   );
 
   assert.match(
@@ -2762,6 +2777,16 @@ test("Movement route vector preview is styled by type and prepared for future it
   );
 
   assert.match(
+    preview,
+    /TURNOUT/
+  );
+
+  assert.match(
+    preview,
+    /turnoutStates/
+  );
+
+  assert.match(
     css,
     /movement-route-vector-node\.is-source/
   );
@@ -2779,6 +2804,11 @@ test("Movement route vector preview is styled by type and prepared for future it
   assert.match(
     css,
     /movement-route-vector-node\.is-segment/
+  );
+
+  assert.match(
+    css,
+    /movement-route-vector-node\.is-turnout/
   );
 
   assert.match(
