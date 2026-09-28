@@ -6,6 +6,7 @@ import {
   Button,
   Group,
   Modal,
+  NumberInput,
   Stack,
   Switch,
   Text,
@@ -75,6 +76,7 @@ type CommandCenterConfigDto = {
   serialPort?: string;
   baudRate?: number;
   powerIncludesProgramming: boolean;
+  commandIntervalMs?: number;
   connected: boolean;
   message?: string;
 };
@@ -171,6 +173,11 @@ export default function CommandCenterSettingsDialog(
     powerIncludesProgramming,
     setPowerIncludesProgramming,
   ] = useState(true);
+
+  const [
+    commandIntervalMs,
+    setCommandIntervalMs,
+  ] = useState(25);
 
   const [connected, setConnected] =
     useState(false);
@@ -316,6 +323,20 @@ export default function CommandCenterSettingsDialog(
               ? config
                   .powerIncludesProgramming
               : false,
+          );
+
+          setCommandIntervalMs(
+            Number.isInteger(
+              config.commandIntervalMs,
+            )
+              ? Math.max(
+                  0,
+                  Math.min(
+                    1000,
+                    config.commandIntervalMs ?? 25,
+                  ),
+                )
+              : 25,
           );
 
           setConnected(
@@ -573,6 +594,11 @@ export default function CommandCenterSettingsDialog(
                 effectivePowerIncludesProgramming
                   ? "true"
                   : "false",
+
+              commandIntervalMs:
+                String(
+                  commandIntervalMs,
+                ),
             }
           : {
               host:
@@ -587,6 +613,11 @@ export default function CommandCenterSettingsDialog(
                 effectivePowerIncludesProgramming
                   ? "true"
                   : "false",
+
+              commandIntervalMs:
+                String(
+                  commandIntervalMs,
+                ),
             };
 
       const response =
@@ -799,14 +830,30 @@ export default function CommandCenterSettingsDialog(
           height:
             info?.capabilities
               .programmingTrackPower
-              ? 570
-              : 500,
+              ? (
+                isZ21
+                  ? 570
+                  : 650
+              )
+              : (
+                isZ21
+                  ? 500
+                  : 580
+              ),
 
           maxHeight:
             info?.capabilities
               .programmingTrackPower
-              ? 570
-              : 500,
+              ? (
+                isZ21
+                  ? 570
+                  : 650
+              )
+              : (
+                isZ21
+                  ? 500
+                  : 580
+              ),
         },
 
         body: {
@@ -922,6 +969,37 @@ export default function CommandCenterSettingsDialog(
                 }
               />
             </>
+          )
+        }
+
+        {
+          !isZ21 && (
+            <NumberInput
+              label="DCC-EX command interval"
+              description="Minimum spacing between queued normal commands. Emergency stop bypasses this delay."
+              value={
+                commandIntervalMs
+              }
+              min={0}
+              max={1000}
+              step={5}
+              suffix=" ms"
+              clampBehavior="strict"
+              onChange={
+                value =>
+                  setCommandIntervalMs(
+                    typeof value ===
+                      "number"
+                      ? value
+                      : 25,
+                  )
+              }
+              disabled={
+                loading ||
+                saving ||
+                testing
+              }
+            />
           )
         }
 

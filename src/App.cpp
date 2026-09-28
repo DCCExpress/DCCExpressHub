@@ -78,6 +78,9 @@ void App::loadConfiguration() {
   _wsProtocol.setPowerIncludesProgramming(
       commandCenter.powerIncludesProgramming);
 
+  _commandCenter.setCommandIntervalMs(
+      commandCenter.commandIntervalMs);
+
   _commandCenter.begin(
       commandCenter.host,
       commandCenter.port);

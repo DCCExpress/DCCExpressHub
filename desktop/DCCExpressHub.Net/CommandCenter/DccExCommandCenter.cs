@@ -9,6 +9,49 @@ namespace DCCExpressHub.Net.CommandCenter
         private readonly DccExProtocol _protocol = new();
         private readonly SemaphoreSlim _tx = new(1, 1);
 
+        private readonly object _txQueueGate = new();
+        private readonly LinkedList<TxQueueItem> _txQueue = new();
+        private readonly SemaphoreSlim _txQueueSignal = new(0);
+
+        private const int MaxQueuedCommands = 128;
+        private const int MaxCommandIntervalMs = 1000;
+
+        private int _commandIntervalMs = 25;
+        private long _queueGeneration;
+        private long _motionEpoch;
+        private int _motionBarrier;
+        private DateTimeOffset _lastNormalTxAt =
+            DateTimeOffset.MinValue;
+
+        private sealed class TxQueueItem
+        {
+            public TxQueueItem(
+                string command,
+                bool log,
+                bool cancelOnEmergency,
+                long generation,
+                long motionEpoch,
+                CancellationToken cancellationToken)
+            {
+                Command = command;
+                Log = log;
+                CancelOnEmergency = cancelOnEmergency;
+                Generation = generation;
+                MotionEpoch = motionEpoch;
+                CancellationToken = cancellationToken;
+            }
+
+            public string Command { get; }
+            public bool Log { get; }
+            public bool CancelOnEmergency { get; }
+            public long Generation { get; }
+            public long MotionEpoch { get; }
+            public CancellationToken CancellationToken { get; }
+
+            public TaskCompletionSource<bool> Completion { get; } =
+                new(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
+
         private volatile bool _alive;
         private DateTimeOffset _lastHeartbeat = DateTimeOffset.MinValue;
         private volatile bool _paused;
@@ -33,6 +76,28 @@ namespace DCCExpressHub.Net.CommandCenter
 
         public string Endpoint =>
             _transport.Endpoint;
+
+        public int CommandIntervalMs =>
+            Volatile.Read(
+                ref _commandIntervalMs);
+
+        public void SetCommandIntervalMs(
+            int intervalMs)
+        {
+            var normalized =
+                Math.Clamp(
+                    intervalMs,
+                    0,
+                    MaxCommandIntervalMs);
+
+            Volatile.Write(
+                ref _commandIntervalMs,
+                normalized);
+
+            _log.LogInformation(
+                "DCC-EX TX pacing set to {IntervalMs} ms",
+                normalized);
+        }
 
         public bool EmergencyPauseStateKnown =>
             _pauseKnown;
@@ -65,6 +130,8 @@ namespace DCCExpressHub.Net.CommandCenter
 
             if (!accepted)
                 return false;
+
+            InvalidateTxQueue();
 
             _alive = false;
             _pauseKnown = false;
@@ -170,6 +237,10 @@ namespace DCCExpressHub.Net.CommandCenter
         protected override async Task ExecuteAsync(
             CancellationToken stoppingToken)
         {
+            var txQueueTask =
+                RunTxQueueAsync(
+                    stoppingToken);
+
             var buffer = new byte[2048];
             var frame = new StringBuilder();
             bool inside = false;
@@ -341,6 +412,8 @@ namespace DCCExpressHub.Net.CommandCenter
 
                     if (!_transport.IsConnected)
                     {
+                        InvalidateTxQueue();
+
                         _alive = false;
                         PublishConnectionState();
                     }
@@ -358,6 +431,8 @@ namespace DCCExpressHub.Net.CommandCenter
                         Type,
                         _transport.Endpoint);
 
+                    InvalidateTxQueue();
+
                     await _transport.DisconnectAsync();
 
                     _alive = false;
@@ -370,10 +445,21 @@ namespace DCCExpressHub.Net.CommandCenter
                 }
             }
 
+            InvalidateTxQueue();
+
             await _transport.DisconnectAsync();
 
             _alive = false;
             PublishConnectionState();
+
+            try
+            {
+                await txQueueTask;
+            }
+            catch (OperationCanceledException)
+                when (stoppingToken.IsCancellationRequested)
+            {
+            }
         }
 
         private async Task WriteCoreAsync(
@@ -394,15 +480,14 @@ namespace DCCExpressHub.Net.CommandCenter
             }
         }
 
-        public async Task<bool> SendRawAsync(
-            string command,
-            bool log = true,
-            CancellationToken ct = default)
+        private static string NormalizeCommand(
+            string command)
         {
-            command = command.Trim();
+            command =
+                command.Trim();
 
             if (command.Length == 0)
-                return false;
+                return "";
 
             if (!command.StartsWith('<'))
                 command = "<" + command;
@@ -410,36 +495,440 @@ namespace DCCExpressHub.Net.CommandCenter
             if (!command.EndsWith('>'))
                 command += ">";
 
-            if (!_transport.IsConnected)
+            return command;
+        }
+
+        private static bool IsLocoSpeedCommand(
+            string command)
+        {
+            if (!command.StartsWith(
+                    "<t ",
+                    StringComparison.OrdinalIgnoreCase))
+            {
                 return false;
+            }
+
+            var body =
+                command.Length >= 2 &&
+                command[0] == '<' &&
+                command[^1] == '>'
+                    ? command[1..^1]
+                    : command;
+
+            var parts =
+                body.Split(
+                    ' ',
+                    StringSplitOptions.RemoveEmptyEntries);
+
+            // <t address> is only a state query.
+            // <t address speed direction> changes motion.
+            return
+                parts.Length >= 4 &&
+                string.Equals(
+                    parts[0],
+                    "t",
+                    StringComparison.OrdinalIgnoreCase);
+        }
+
+        private void InvalidateTxQueue()
+        {
+            Interlocked.Increment(
+                ref _queueGeneration);
+
+            List<TxQueueItem> removed;
+
+            lock (_txQueueGate)
+            {
+                removed =
+                    _txQueue.ToList();
+
+                _txQueue.Clear();
+            }
+
+            foreach (var item in removed)
+                item.Completion.TrySetResult(false);
+        }
+
+        private void CancelPendingMotionCommands()
+        {
+            Interlocked.Increment(
+                ref _motionEpoch);
+
+            var removed =
+                new List<TxQueueItem>();
+
+            lock (_txQueueGate)
+            {
+                var node =
+                    _txQueue.First;
+
+                while (node is not null)
+                {
+                    var next =
+                        node.Next;
+
+                    if (node.Value.CancelOnEmergency)
+                    {
+                        removed.Add(
+                            node.Value);
+
+                        _txQueue.Remove(
+                            node);
+                    }
+
+                    node = next;
+                }
+            }
+
+            foreach (var item in removed)
+                item.Completion.TrySetResult(false);
+        }
+
+        private async Task<bool> QueueRawAsync(
+            string command,
+            bool log,
+            CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            command =
+                NormalizeCommand(
+                    command);
+
+            if (
+                command.Length == 0 ||
+                !_transport.IsConnected)
+            {
+                return false;
+            }
+
+            var cancelOnEmergency =
+                IsLocoSpeedCommand(
+                    command);
+
+            if (
+                cancelOnEmergency &&
+                Volatile.Read(
+                    ref _motionBarrier) != 0)
+            {
+                _log.LogWarning(
+                    "DCC-EX loco command rejected while ESTOP priority transaction is active: {Command}",
+                    command);
+
+                return false;
+            }
+
+            var item =
+                new TxQueueItem(
+                    command,
+                    log,
+                    cancelOnEmergency,
+                    Volatile.Read(
+                        ref _queueGeneration),
+                    Volatile.Read(
+                        ref _motionEpoch),
+                    ct);
+
+            lock (_txQueueGate)
+            {
+                if (
+                    !_transport.IsConnected ||
+                    _txQueue.Count >=
+                        MaxQueuedCommands)
+                {
+                    if (
+                        _txQueue.Count >=
+                        MaxQueuedCommands)
+                    {
+                        _log.LogWarning(
+                            "DCC-EX TX queue full ({Depth}); command rejected {Command}",
+                            _txQueue.Count,
+                            command);
+                    }
+
+                    return false;
+                }
+
+                _txQueue.AddLast(
+                    item);
+            }
+
+            _txQueueSignal.Release();
 
             try
             {
-                await WriteCoreAsync(
-                    command,
-                    ct);
+                return await item
+                    .Completion
+                    .Task
+                    .WaitAsync(ct);
+            }
+            catch (OperationCanceledException)
+            {
+                return false;
+            }
+        }
 
-                if (log)
+        private bool ItemStillValid(
+            TxQueueItem item)
+        {
+            if (
+                item.CancellationToken.IsCancellationRequested ||
+                item.Generation !=
+                    Volatile.Read(
+                        ref _queueGeneration))
+            {
+                return false;
+            }
+
+            if (
+                item.CancelOnEmergency &&
+                item.MotionEpoch !=
+                    Volatile.Read(
+                        ref _motionEpoch))
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        private async Task<bool> WriteQueuedItemAsync(
+            TxQueueItem item,
+            CancellationToken stoppingToken)
+        {
+            await _tx.WaitAsync(
+                stoppingToken);
+
+            try
+            {
+                // Re-check after acquiring the physical writer lock. ESTOP can
+                // invalidate a loco command while it is waiting behind another
+                // write, and that stale speed must never leak out afterwards.
+                if (
+                    !ItemStillValid(item) ||
+                    !_transport.IsConnected)
+                {
+                    return false;
+                }
+
+                await _transport.WriteAsync(
+                    Encoding.ASCII.GetBytes(
+                        item.Command),
+                    stoppingToken);
+
+                if (item.Log)
                 {
                     _log.LogInformation(
                         "DCC-EX TX {Command}",
+                        item.Command);
+                }
+
+                return true;
+            }
+            finally
+            {
+                _tx.Release();
+            }
+        }
+
+        private async Task RunTxQueueAsync(
+            CancellationToken stoppingToken)
+        {
+            try
+            {
+                while (!stoppingToken.IsCancellationRequested)
+                {
+                    await _txQueueSignal.WaitAsync(
+                        stoppingToken);
+
+                    TxQueueItem? item =
+                        null;
+
+                    lock (_txQueueGate)
+                    {
+                        if (_txQueue.First is not null)
+                        {
+                            item =
+                                _txQueue.First.Value;
+
+                            _txQueue.RemoveFirst();
+                        }
+                    }
+
+                    if (item is null)
+                        continue;
+
+                    if (!ItemStillValid(item))
+                    {
+                        item.Completion.TrySetResult(false);
+                        continue;
+                    }
+
+                    var intervalMs =
+                        Volatile.Read(
+                            ref _commandIntervalMs);
+
+                    var lastTx =
+                        _lastNormalTxAt;
+
+                    if (
+                        intervalMs > 0 &&
+                        lastTx !=
+                            DateTimeOffset.MinValue)
+                    {
+                        var remaining =
+                            lastTx
+                                .AddMilliseconds(
+                                    intervalMs) -
+                            DateTimeOffset.UtcNow;
+
+                        if (remaining > TimeSpan.Zero)
+                        {
+                            await Task.Delay(
+                                remaining,
+                                stoppingToken);
+                        }
+                    }
+
+                    if (!ItemStillValid(item))
+                    {
+                        item.Completion.TrySetResult(false);
+                        continue;
+                    }
+
+                    bool sent;
+
+                    try
+                    {
+                        sent =
+                            await WriteQueuedItemAsync(
+                                item,
+                                stoppingToken);
+                    }
+                    catch (OperationCanceledException)
+                        when (stoppingToken.IsCancellationRequested)
+                    {
+                        item.Completion.TrySetResult(false);
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        _log.LogWarning(
+                            ex,
+                            "DCC-EX queued TX failed {Type} {Endpoint} {Command}",
+                            Type,
+                            _transport.Endpoint,
+                            item.Command);
+
+                        sent =
+                            false;
+                    }
+
+                    if (sent)
+                    {
+                        _lastNormalTxAt =
+                            DateTimeOffset.UtcNow;
+                    }
+
+                    item.Completion.TrySetResult(
+                        sent);
+                }
+            }
+            catch (OperationCanceledException)
+                when (stoppingToken.IsCancellationRequested)
+            {
+            }
+            finally
+            {
+                InvalidateTxQueue();
+            }
+        }
+
+        private async Task<bool> SendEmergencySequenceAsync(
+            string[] commands,
+            CancellationToken ct)
+        {
+            if (!_transport.IsConnected)
+                return false;
+
+            Interlocked.Increment(
+                ref _motionBarrier);
+
+            CancelPendingMotionCommands();
+
+            var txHeld =
+                false;
+
+            try
+            {
+                await _tx.WaitAsync(ct);
+                txHeld =
+                    true;
+
+                if (!_transport.IsConnected)
+                    return false;
+
+                foreach (var raw in commands)
+                {
+                    var command =
+                        NormalizeCommand(
+                            raw);
+
+                    if (command.Length == 0)
+                        continue;
+
+                    await _transport.WriteAsync(
+                        Encoding.ASCII.GetBytes(
+                            command),
+                        ct);
+
+                    _log.LogWarning(
+                        "DCC-EX PRIORITY TX {Command}",
                         command);
                 }
 
                 return true;
             }
+            catch (OperationCanceledException)
+            {
+                return false;
+            }
             catch (Exception ex)
             {
                 _log.LogWarning(
                     ex,
-                    "DCC-EX TX failed {Type} {Endpoint} {Command}",
+                    "DCC-EX priority TX failed {Type} {Endpoint}",
                     Type,
-                    _transport.Endpoint,
-                    command);
+                    _transport.Endpoint);
 
                 return false;
             }
+            finally
+            {
+                // Also discard motion commands that raced with the priority
+                // transaction before the barrier became visible to their
+                // producer. Keep the barrier active until the writer lock is
+                // released, even when cancellation happens while waiting for it.
+                CancelPendingMotionCommands();
+
+                if (txHeld)
+                {
+                    _tx.Release();
+                }
+
+                Interlocked.Decrement(
+                    ref _motionBarrier);
+            }
         }
+
+        public Task<bool> SendRawAsync(
+            string command,
+            bool log = true,
+            CancellationToken ct = default) =>
+            QueueRawAsync(
+                command,
+                log,
+                ct);
 
         public Task<bool> SetTrackPowerAsync(
             bool on,
@@ -466,9 +955,8 @@ namespace DCCExpressHub.Net.CommandCenter
             if (!_pauseKnown ||
                 !_paused)
             {
-                if (!await SendRawAsync(
-                        "<!P>",
-                        true,
+                if (!await SendEmergencySequenceAsync(
+                        ["<!P>"],
                         ct))
                 {
                     return false;
@@ -479,17 +967,12 @@ namespace DCCExpressHub.Net.CommandCenter
                 return true;
             }
 
-            if (!await SendRawAsync(
-                    "<!>",
-                    true,
-                    ct))
-            {
-                return false;
-            }
-
-            if (!await SendRawAsync(
-                    "<!R>",
-                    true,
+            // Safe release is one priority transaction under the same physical
+            // writer lock. No queued command can slip between ESTOPALL and
+            // RESUME, and all pending locomotive speed commands were invalidated
+            // before the sequence started.
+            if (!await SendEmergencySequenceAsync(
+                    ["<!>", "<!R>"],
                     ct))
             {
                 _paused = true;
