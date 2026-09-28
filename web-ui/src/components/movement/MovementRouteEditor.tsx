@@ -346,6 +346,17 @@ export default function MovementRouteEditor({
       ? {
           blockId:
             selectedResource.blockId,
+          approachWhen:
+            plan.legs.find(
+              leg =>
+                leg.to.blockId ===
+                selectedResource.blockId
+            )?.approachWhen.map(
+              condition => ({
+                ...condition,
+              })
+            ) ??
+            [],
           departWhen:
             plan.legs.find(
               leg =>
