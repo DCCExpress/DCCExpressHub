@@ -469,6 +469,24 @@ export default function MovementLocalSectionPreview({
                     }
                   >
                     {
+                      isCurrent && (
+                        <rect
+                          className="movement-local-preview-current-bg"
+                          x={
+                            x + 7
+                          }
+                          y={8}
+                          width={
+                            SLOT_WIDTH -
+                            14
+                          }
+                          height={166}
+                          rx={12}
+                        />
+                      )
+                    }
+
+                    {
                       slotIndex >
                         0 && (
                         <line
