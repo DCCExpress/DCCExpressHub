@@ -36,8 +36,10 @@ import {
 import {
   createMovementAction,
   createMovementId,
+  movementSegmentEventWhen,
   type MovementAction,
   type MovementActionKind,
+  type MovementSegmentEvent,
   type MovementSequenceMode,
   type MovementWhen,
 } from "../../domain/movement";
@@ -60,6 +62,8 @@ type Props = {
     MovementPlanResourceKind;
   isSource?: boolean;
   isDestination?: boolean;
+  segmentEvents?:
+    MovementSegmentEvent[];
   actions:
     MovementAction[];
   onChange: (
@@ -81,7 +85,13 @@ function whenOptions(
   kind:
     MovementPlanResourceKind,
   isSource = false,
-  isDestination = false
+  isDestination = false,
+  segmentEvents:
+    MovementSegmentEvent[] =
+      [],
+  actions:
+    MovementAction[] =
+      []
 ): Array<{
   value:
     MovementWhen;
@@ -184,6 +194,73 @@ function whenOptions(
         label:
           "LEAVE",
       },
+    ];
+  }
+
+  const matrixOptions =
+    segmentEvents
+      .filter(
+        event =>
+          event.name.trim().length >
+          0
+      )
+      .map(
+        event => ({
+          value:
+            movementSegmentEventWhen(
+              event.id
+            ),
+          label:
+            event.name.trim(),
+        })
+      );
+
+  const legacyOptions:
+    Array<{
+      value:
+        MovementWhen;
+      label: string;
+    }> = [];
+
+  if (
+    actions.some(
+      action =>
+        action.when ===
+        "enter"
+    )
+  ) {
+    legacyOptions.push({
+      value:
+        "enter",
+      label:
+        "LEGACY ENTER",
+    });
+  }
+
+  if (
+    actions.some(
+      action =>
+        action.when ===
+        "leave"
+    )
+  ) {
+    legacyOptions.push({
+      value:
+        "leave",
+      label:
+        "LEGACY LEAVE",
+    });
+  }
+
+  if (
+    matrixOptions.length >
+      0 ||
+    legacyOptions.length >
+      0
+  ) {
+    return [
+      ...matrixOptions,
+      ...legacyOptions,
     ];
   }
 
@@ -326,6 +403,7 @@ export default function MovementActionEditor({
   resourceKind,
   isSource = false,
   isDestination = false,
+  segmentEvents = [],
   actions,
   onChange,
 }: Props) {
@@ -333,8 +411,20 @@ export default function MovementActionEditor({
     whenOptions(
       resourceKind,
       isSource,
-      isDestination
+      isDestination,
+      segmentEvents,
+      actions
     );
+
+  const optionsSignature =
+    options
+      .map(
+        option =>
+          `${option.value}:${option.label}`
+      )
+      .join(
+        "|"
+      );
 
   const sequences =
     useMemo(
@@ -369,6 +459,7 @@ export default function MovementActionEditor({
       resourceKind,
       isSource,
       isDestination,
+      optionsSignature,
     ]
   );
 
