@@ -230,3 +230,21 @@ test("Duplicate segment event names are rejected at save time", () => {
     /Event names must be unique inside one segment/
   );
 });
+
+
+test("Timetable scheduler deep-clones segment event matrices", () => {
+  const source =
+    read(
+      "src/services/timetableScheduler.ts"
+    );
+
+  assert.match(
+    source,
+    /segmentEvents:[\s\S]*movement\.segmentEvents\.map/
+  );
+
+  assert.match(
+    source,
+    /event\.conditions\.map/
+  );
+});
