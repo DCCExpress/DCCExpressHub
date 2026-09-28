@@ -12,6 +12,7 @@ public sealed class CommandCenterSettings
     public int TcpPort { get; init; } = 2560;
     public string SerialPort { get; init; } = "COM3";
     public bool PowerIncludesProgramming { get; init; } = true;
+    public int CommandIntervalMs { get; init; } = 25;
 
     [JsonIgnore]
     public bool IsSerial =>
@@ -135,6 +136,9 @@ public sealed class CommandCenterConfigStore
             var persistedPower =
                 ReadPersistedPowerPreference();
 
+            var persistedInterval =
+                ReadPersistedCommandIntervalPreference();
+
             return new CommandCenterSettings
             {
                 Transport = configured.Transport,
@@ -143,7 +147,10 @@ public sealed class CommandCenterConfigStore
                 SerialPort = configured.SerialPort,
                 PowerIncludesProgramming =
                     persistedPower ??
-                    configured.PowerIncludesProgramming
+                    configured.PowerIncludesProgramming,
+                CommandIntervalMs =
+                    persistedInterval ??
+                    configured.CommandIntervalMs
             };
         }
 
@@ -265,6 +272,33 @@ public sealed class CommandCenterConfigStore
         }
     }
 
+    private int? ReadPersistedCommandIntervalPreference()
+    {
+        try
+        {
+            if (!File.Exists(_path))
+                return null;
+
+            using var document =
+                JsonDocument.Parse(
+                    File.ReadAllText(_path));
+
+            var value =
+                GetNullableInt(
+                    document.RootElement,
+                    "commandIntervalMs",
+                    "CommandIntervalMs");
+
+            return value is >= 0 and <= 1000
+                ? value
+                : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     private bool IsCompatibleWithRuntime(
         CommandCenterSettings? settings) =>
         settings is not null &&
@@ -294,7 +328,12 @@ public sealed class CommandCenterConfigStore
                     _configuration["DccEx:SerialPort"] ??
                     "COM3",
 
-                PowerIncludesProgramming = true
+                PowerIncludesProgramming = true,
+
+                CommandIntervalMs =
+                    _configuration.GetValue(
+                        "DccEx:CommandIntervalMs",
+                        25)
             };
 
         return Normalize(settings) ??
@@ -396,7 +435,13 @@ public sealed class CommandCenterConfigStore
             SerialPort = serialPort,
 
             PowerIncludesProgramming =
-                value.PowerIncludesProgramming
+                value.PowerIncludesProgramming,
+
+            CommandIntervalMs =
+                Math.Clamp(
+                    value.CommandIntervalMs,
+                    0,
+                    1000)
         };
     }
 
@@ -453,6 +498,26 @@ public sealed class CommandCenterConfigStore
         }
 
         return 0;
+    }
+
+    private static int? GetNullableInt(
+        JsonElement root,
+        params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (
+                root.TryGetProperty(
+                    name,
+                    out var value) &&
+                value.TryGetInt32(
+                    out var number))
+            {
+                return number;
+            }
+        }
+
+        return null;
     }
 
     private static bool? GetNullableBool(

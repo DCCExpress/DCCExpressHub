@@ -43,6 +43,11 @@ public:
   const char* type() const override;
   const char* name() const override;
 
+  void setCommandIntervalMs(
+      uint16_t intervalMs) override;
+
+  uint16_t commandIntervalMs() const override;
+
   void onRawInfo(
       RawInfoCallback callback) override;
 

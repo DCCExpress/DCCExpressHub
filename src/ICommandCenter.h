@@ -124,6 +124,17 @@ public:
   virtual const char* type() const = 0;
   virtual const char* name() const = 0;
 
+  // Optional transport pacing. Command centers that do not need host-side
+  // pacing can keep the no-op/default implementation.
+  virtual void setCommandIntervalMs(
+      uint16_t intervalMs) {
+    (void)intervalMs;
+  }
+
+  virtual uint16_t commandIntervalMs() const {
+    return 0;
+  }
+
   virtual void onRawInfo(
       RawInfoCallback callback) = 0;
 

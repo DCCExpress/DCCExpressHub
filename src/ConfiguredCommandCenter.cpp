@@ -207,6 +207,17 @@ const char* ConfiguredCommandCenter::name() const {
       _inner.name();
 }
 
+void ConfiguredCommandCenter::setCommandIntervalMs(
+    uint16_t intervalMs) {
+  _inner.setCommandIntervalMs(
+      intervalMs);
+}
+
+uint16_t ConfiguredCommandCenter::commandIntervalMs() const {
+  return
+      _inner.commandIntervalMs();
+}
+
 void ConfiguredCommandCenter::onRawInfo(
     RawInfoCallback callback) {
   _inner.onRawInfo(

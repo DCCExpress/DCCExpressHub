@@ -32,6 +32,9 @@ struct CommandCenterSettings {
 
   bool powerIncludesProgramming =
       true;
+
+  uint16_t commandIntervalMs =
+      25;
 };
 
 class HubConfigStore {

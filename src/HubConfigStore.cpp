@@ -177,6 +177,19 @@ void HubConfigStore::loadCommandCenter() {
       _prefs.getBool(
           "powerProg",
           true);
+
+  _commandCenter.commandIntervalMs =
+      _prefs.getUShort(
+          "csbTxMs",
+          25);
+
+  if (
+      _commandCenter.commandIntervalMs >
+      1000
+  ) {
+    _commandCenter.commandIntervalMs =
+        25;
+  }
 }
 
 bool HubConfigStore::saveNetwork(
@@ -249,6 +262,14 @@ bool HubConfigStore::saveCommandCenter(
         CommandCenterBuild::defaultPort();
   }
 
+  if (
+      _commandCenter.commandIntervalMs >
+      1000
+  ) {
+    _commandCenter.commandIntervalMs =
+        1000;
+  }
+
   bool ok = true;
 
   ok &=
@@ -270,6 +291,11 @@ bool HubConfigStore::saveCommandCenter(
       _prefs.putBool(
           "powerProg",
           _commandCenter.powerIncludesProgramming) == 1;
+
+  ok &=
+      _prefs.putUShort(
+          "csbTxMs",
+          _commandCenter.commandIntervalMs) == 2;
 
   return ok;
 }

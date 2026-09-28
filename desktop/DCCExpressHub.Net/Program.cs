@@ -45,7 +45,10 @@ builder.Services.AddHostedService<WsRuntimeCoordinator>();
 var app = builder.Build();
 var ccConfigStore = app.Services.GetRequiredService<CommandCenterConfigStore>();
 var persistedCc = ccConfigStore.Current;
-app.Services.GetRequiredService<DccExCommandCenter>().SetEndpoint(
+var physicalCommandCenter = app.Services.GetRequiredService<DccExCommandCenter>();
+physicalCommandCenter.SetCommandIntervalMs(
+    persistedCc.CommandIntervalMs);
+physicalCommandCenter.SetEndpoint(
     persistedCc.IsSerial
         ? persistedCc.SerialPort
         : persistedCc.TcpHost,
@@ -106,6 +109,7 @@ app.MapGet("/api/command-center-config", (CommandCenterConfigStore store, IComma
         serialPort = x.IsSerial ? x.SerialPort : "",
         baudRate = x.IsSerial ? CommandCenterSettings.DccExSerialBaudRate : 0,
         powerIncludesProgramming = x.PowerIncludesProgramming,
+        commandIntervalMs = x.CommandIntervalMs,
         connected = cc.Connected
     });
 });
@@ -135,6 +139,22 @@ app.MapPost("/api/command-center-config", async (HttpRequest req, CommandCenterC
         else
         {
             return Results.Json(new { ok = false, message = "Invalid powerIncludesProgramming" }, statusCode: 400);
+        }
+    }
+
+    var commandIntervalMs =
+        current.CommandIntervalMs;
+
+    if (form.TryGetValue("commandIntervalMs", out var intervalValue))
+    {
+        if (!int.TryParse(
+                intervalValue.ToString(),
+                out commandIntervalMs) ||
+            commandIntervalMs is < 0 or > 1000)
+        {
+            return Results.Json(
+                new { ok = false, message = "Command interval must be between 0 and 1000 ms" },
+                statusCode: 400);
         }
     }
 
@@ -172,7 +192,8 @@ app.MapPost("/api/command-center-config", async (HttpRequest req, CommandCenterC
             TcpHost = current.TcpHost,
             TcpPort = current.TcpPort,
             SerialPort = serialPort,
-            PowerIncludesProgramming = powerProg
+            PowerIncludesProgramming = powerProg,
+            CommandIntervalMs = commandIntervalMs
         };
 
         endpoint = serialPort;
@@ -218,7 +239,8 @@ app.MapPost("/api/command-center-config", async (HttpRequest req, CommandCenterC
             TcpHost = host,
             TcpPort = port,
             SerialPort = current.SerialPort,
-            PowerIncludesProgramming = powerProg
+            PowerIncludesProgramming = powerProg,
+            CommandIntervalMs = commandIntervalMs
         };
 
         endpoint = host;
@@ -231,6 +253,9 @@ app.MapPost("/api/command-center-config", async (HttpRequest req, CommandCenterC
             new { ok = false, message = "Command center configuration could not be saved" },
             statusCode: 500);
     }
+
+    physical.SetCommandIntervalMs(
+        next.CommandIntervalMs);
 
     if (!physical.SetEndpoint(
             endpoint,
@@ -255,6 +280,7 @@ app.MapPost("/api/command-center-config", async (HttpRequest req, CommandCenterC
         serialPort = saved.IsSerial ? saved.SerialPort : "",
         baudRate = saved.IsSerial ? CommandCenterSettings.DccExSerialBaudRate : 0,
         powerIncludesProgramming = saved.PowerIncludesProgramming,
+        commandIntervalMs = saved.CommandIntervalMs,
         connected = physical.Connected
     });
 });
