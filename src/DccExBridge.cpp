@@ -260,6 +260,16 @@ bool DccExBridge::enqueueCommand(
     accepted =
         true;
   } else if (
+      command.startsWith(
+          "<t ") &&
+      !_priorityTxQueue.empty()
+  ) {
+    // While an ESTOP/RESUME priority transaction is pending, do not allow a
+    // locomotive command to line up immediately behind it. This prevents a
+    // racing automation command from restarting a train after RESUME.
+    accepted =
+        false;
+  } else if (
       _txQueue.size() <
       MAX_TX_QUEUE_DEPTH
   ) {
@@ -277,7 +287,7 @@ bool DccExBridge::enqueueCommand(
 
   if (!accepted) {
     Logger::warn(
-        "DCC-EX TX queue full; command rejected");
+        "DCC-EX TX command rejected (queue full or ESTOP priority barrier)");
   }
 
   return accepted;
