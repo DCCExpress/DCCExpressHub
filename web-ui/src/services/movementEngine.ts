@@ -547,6 +547,8 @@ function installTracking():
         status ===
           "connected"
       ) {
+        wsApi.getBlocks();
+        wsApi.getLayoutRuntimeSnapshot();
         return;
       }
 
