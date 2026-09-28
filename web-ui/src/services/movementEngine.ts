@@ -3947,7 +3947,8 @@ export function stopMovement(
 }
 
 export function abortMovement(
-  pageId: string
+  pageId: string,
+  requestEmergencyStop = true
 ): boolean {
   const execution =
     executions.get(
@@ -3966,7 +3967,11 @@ export function abortMovement(
       pageId
     );
 
-  wsApi.emergencyStop();
+  if (
+    requestEmergencyStop
+  ) {
+    wsApi.emergencyStop();
+  }
 
   return stopped;
 }
