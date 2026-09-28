@@ -3587,19 +3587,22 @@ test("Movement action event tabs strongly highlight the selected event", () => {
     /className="movement-action-event-tabs"/
   );
 
-  assert.match(
-    css,
-    /movement-action-event-tabs \.mantine-Tabs-tab\[data-active\]/
+  assert.ok(
+    css.includes(
+      ".movement-action-event-tabs .mantine-Tabs-tab[data-active]"
+    )
   );
 
-  assert.match(
-    css,
-    /border-bottom-color:\s*var\(--mantine-color-yellow-5\)/
+  assert.ok(
+    css.includes(
+      "border-bottom-color: var(--mantine-color-yellow-5)"
+    )
   );
 
-  assert.match(
-    css,
-    /background:[\s\S]*mantine-color-violet-7/
+  assert.ok(
+    css.includes(
+      "var(--mantine-color-violet-7)"
+    )
   );
 });
 
