@@ -822,76 +822,6 @@ export default function MovementPagesTable({
           <Button
             size="xs"
             variant="light"
-            color="yellow"
-            leftSection={
-              <IconPlayerStop
-                size={14}
-              />
-            }
-            disabled={
-              activeCount ===
-              0
-            }
-            onClick={
-              stopAll
-            }
-          >
-            Stop All
-          </Button>
-
-          <Button
-            size="xs"
-            variant="light"
-            color="red"
-            leftSection={
-              <IconX
-                size={14}
-              />
-            }
-            disabled={
-              activeCount ===
-              0
-            }
-            onClick={
-              abortAll
-            }
-          >
-            Abort All
-          </Button>
-
-          <Button
-            size="xs"
-            variant={
-              commandCenter.powerInfo
-                ?.emergencyStop
-                ? "filled"
-                : "light"
-            }
-            color="red"
-            leftSection={
-              <IconAlertTriangle
-                size={14}
-              />
-            }
-            disabled={
-              !commandCenter.alive ||
-              !commandCenter.powerInfo
-            }
-            onClick={
-              toggleEmergencyStop
-            }
-          >
-            {
-              commandCenter.powerInfo
-                ?.emergencyStop
-                ? "Clear E-Stop"
-                : "Emergency Stop"
-            }
-          </Button>
-
-          <Button
-            size="xs"
-            variant="light"
             color="violet"
             leftSection={
               <IconEdit
@@ -930,6 +860,81 @@ export default function MovementPagesTable({
       >
         Play runs the dedicated MovementEngine. Stop All stops every active Movement. Abort All aborts every active Movement and requests E-STOP once. Emergency Stop controls the command-station pause state directly.
       </Text>
+
+      <Group
+        gap="xs"
+        wrap="wrap"
+      >
+        <Button
+          size="xs"
+          variant="light"
+          color="yellow"
+          leftSection={
+            <IconPlayerStop
+              size={14}
+            />
+          }
+          disabled={
+            activeCount ===
+            0
+          }
+          onClick={
+            stopAll
+          }
+        >
+          Stop All
+        </Button>
+
+        <Button
+          size="xs"
+          variant="light"
+          color="red"
+          leftSection={
+            <IconX
+              size={14}
+            />
+          }
+          disabled={
+            activeCount ===
+            0
+          }
+          onClick={
+            abortAll
+          }
+        >
+          Abort All
+        </Button>
+
+        <Button
+          size="xs"
+          variant={
+            commandCenter.powerInfo
+              ?.emergencyStop
+              ? "filled"
+              : "light"
+          }
+          color="red"
+          leftSection={
+            <IconAlertTriangle
+              size={14}
+            />
+          }
+          disabled={
+            !commandCenter.alive ||
+            !commandCenter.powerInfo
+          }
+          onClick={
+            toggleEmergencyStop
+          }
+        >
+          {
+            commandCenter.powerInfo
+              ?.emergencyStop
+              ? "Clear E-Stop"
+              : "Emergency Stop"
+          }
+        </Button>
+      </Group>
 
       <ScrollArea
         style={{
