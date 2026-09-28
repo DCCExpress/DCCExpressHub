@@ -646,11 +646,19 @@ export default function MovementRouteVectorPreview({
                           centerX
                         }
                         y={
-                          item.kind ===
-                            "segment" &&
-                          item.trackName &&
-                          item.trackName !==
-                            item.nodeName
+                          (
+                            item.kind ===
+                              "segment" &&
+                            item.trackName &&
+                            item.trackName !==
+                              item.nodeName
+                          ) ||
+                          (
+                            item.kind ===
+                              "turnout" &&
+                            item.turnoutStates.length >
+                              0
+                          )
                             ? 100
                             : 90
                         }
