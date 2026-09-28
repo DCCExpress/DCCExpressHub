@@ -30,6 +30,14 @@ import type {
   MovementPage,
 } from "../../domain/movement";
 
+import type {
+  LayoutView,
+} from "../../models/editor/core/LayoutView";
+
+import {
+  createCurrentClientLayoutSnapshot,
+} from "../../services/clientRouteGraphCache";
+
 import {
   applyMovementRouteCandidate,
   loadMovementRouteCandidates,
@@ -42,6 +50,8 @@ type Props = {
     MovementDocument;
   page:
     MovementPage;
+  layout:
+    LayoutView;
   onClose: () => void;
   onSelect: (
     page:
@@ -53,6 +63,7 @@ export default function MovementRouteSelectDialog({
   opened,
   document,
   page,
+  layout,
   onClose,
   onSelect,
 }: Props) {
@@ -115,8 +126,14 @@ export default function MovementRouteSelectDialog({
         ""
       );
 
+      const layoutSnapshot =
+        createCurrentClientLayoutSnapshot(
+          layout
+        );
+
       void loadMovementRouteCandidates(
-        document
+        document,
+        layoutSnapshot
       )
         .then(
           result => {
@@ -173,6 +190,7 @@ export default function MovementRouteSelectDialog({
       opened,
       document,
       page.id,
+      layout,
     ]
   );
 
