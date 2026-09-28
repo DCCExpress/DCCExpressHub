@@ -271,7 +271,7 @@ test("ESP32 runtime snapshot never turns unknown sensors into OFF", () => {
     sliceBetween(
       protocol,
       "void WsProtocol::broadcastRuntimeSnapshot",
-      "void WsProtocol::sendBlockStateSnapshot"
+      "void WsProtocol::sendProgrammingResponse"
     );
 
   for (
