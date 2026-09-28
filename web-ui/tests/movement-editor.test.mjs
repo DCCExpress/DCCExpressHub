@@ -3242,3 +3242,98 @@ test("Movement arms the requested logical direction at zero speed before departu
     /!force &&[\s\S]*execution\.physicalSpeed ===[\s\S]*safeSpeed/
   );
 });
+
+
+test("Movements tab exposes global Stop All, Abort All and Emergency Stop controls", () => {
+  const table =
+    read(
+      "src/components/movement/MovementPagesTable.tsx"
+    );
+
+  assert.match(
+    table,
+    />\s*Stop All\s*</
+  );
+
+  assert.match(
+    table,
+    />\s*Abort All\s*</
+  );
+
+  assert.match(
+    table,
+    /Emergency Stop/
+  );
+
+  assert.match(
+    table,
+    /Clear E-Stop/
+  );
+
+  assert.match(
+    table,
+    /subscribeMovementEngineState/
+  );
+
+  assert.match(
+    table,
+    /activeCount/
+  );
+});
+
+
+test("Global Movement abort requests E-STOP at most once", () => {
+  const engine =
+    read(
+      "src/services/movementEngine.ts"
+    );
+
+  const table =
+    read(
+      "src/components/movement/MovementPagesTable.tsx"
+    );
+
+  assert.match(
+    engine,
+    /export function abortMovement\([\s\S]*requestEmergencyStop = true/
+  );
+
+  assert.match(
+    engine,
+    /if \([\s\S]*requestEmergencyStop[\s\S]*\)[\s\S]*wsApi\.emergencyStop\(\)/
+  );
+
+  assert.match(
+    table,
+    /abortMovement\([\s\S]*page\.id,[\s\S]*false[\s\S]*\)/
+  );
+
+  const abortAllStart =
+    table.indexOf(
+      "const abortAll"
+    );
+
+  const emergencyToggleStart =
+    table.indexOf(
+      "const toggleEmergencyStop",
+      abortAllStart
+    );
+
+  const abortAll =
+    table.slice(
+      abortAllStart,
+      emergencyToggleStart
+    );
+
+  const emergencyCalls =
+    abortAll.match(
+      /wsApi\.emergencyStop\(\)/g
+    ) ??
+    [];
+
+  assert.equal(
+    emergencyCalls.length,
+    1,
+    "Abort All must request command-station E-STOP only once"
+  );
+});
