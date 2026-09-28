@@ -13,7 +13,7 @@ namespace DCCExpressHub.Net.CommandCenter
         private readonly LinkedList<TxQueueItem> _txQueue = new();
         private readonly SemaphoreSlim _txQueueSignal = new(0);
 
-        private const int MaxQueuedCommands = 512;
+        private const int MaxQueuedCommands = 128;
         private const int MaxCommandIntervalMs = 1000;
 
         private int _commandIntervalMs = 25;
