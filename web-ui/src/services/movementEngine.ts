@@ -2938,6 +2938,10 @@ async function waitForBlockLeave(
   while (
     !execution.cancelled
   ) {
+    await drainSegmentStateEvents(
+      execution
+    );
+
     await maybeRunBlockLeave(
       execution,
       leg,
@@ -3109,6 +3113,10 @@ async function waitForArrival(
   while (
     !execution.cancelled
   ) {
+    await drainSegmentStateEvents(
+      execution
+    );
+
     await maybeRunBlockLeave(
       execution,
       leg,
@@ -3160,6 +3168,10 @@ async function waitForResourceEntry(
   while (
     !execution.cancelled
   ) {
+    await drainSegmentStateEvents(
+      execution
+    );
+
     await maybeRunBlockLeave(
       execution,
       leg,
@@ -3197,6 +3209,10 @@ async function traverseLeg(
 ): Promise<void> {
   execution.currentBlockId =
     leg.from.blockId;
+
+  await drainSegmentStateEvents(
+    execution
+  );
 
   if (
     execution.moving
@@ -3386,6 +3402,15 @@ async function traverseLeg(
         resource.key
       );
 
+      activateSegmentStateTracking(
+        execution,
+        resource
+      );
+
+      await drainSegmentStateEvents(
+        execution
+      );
+
       for (
         const turnout of
         pendingTurnouts.splice(
@@ -3440,6 +3465,10 @@ async function traverseLeg(
       execution,
       leg,
       blockLeaveState
+    );
+
+    await drainSegmentStateEvents(
+      execution
     );
 
     setActiveRouteResource(
