@@ -851,9 +851,8 @@ namespace DCCExpressHub.Net.CommandCenter
             if (!_transport.IsConnected)
                 return false;
 
-            Volatile.Write(
-                ref _motionBarrier,
-                1);
+            Interlocked.Increment(
+                ref _motionBarrier);
 
             CancelPendingMotionCommands();
 
@@ -917,9 +916,8 @@ namespace DCCExpressHub.Net.CommandCenter
                     _tx.Release();
                 }
 
-                Volatile.Write(
-                    ref _motionBarrier,
-                    0);
+                Interlocked.Decrement(
+                    ref _motionBarrier);
             }
         }
 
