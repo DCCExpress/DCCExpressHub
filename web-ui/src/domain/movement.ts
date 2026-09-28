@@ -13,6 +13,25 @@ export type MovementBlockRule = {
   arrivedWhen: MovementSensorCondition[];
 };
 
+export type MovementResourceEventName =
+  | "enter"
+  | "approach"
+  | "leave";
+
+export type MovementConditionMatch =
+  | "all"
+  | "any";
+
+export type MovementResourceEventRule = {
+  resourceKey: string;
+  event:
+    MovementResourceEventName;
+  match:
+    MovementConditionMatch;
+  conditions:
+    MovementSensorCondition[];
+};
+
 export type MovementWhen =
   | "start"
   | "complete"
@@ -74,6 +93,8 @@ export type MovementPage = {
   viaBlockIds: number[];
   toBlockId: number | null;
   blockRules: MovementBlockRule[];
+  resourceEventRules:
+    MovementResourceEventRule[];
   actions: MovementAction[];
 };
 
@@ -154,6 +175,7 @@ export function createMovementPage(
     viaBlockIds: [],
     toBlockId: null,
     blockRules: [],
+    resourceEventRules: [],
     actions: [],
   };
 }
@@ -354,6 +376,86 @@ function normalizeBlockRules(
   return [
     ...byBlock.values(),
   ];
+}
+
+function normalizeResourceEventRules(
+  value: unknown
+): MovementResourceEventRule[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const result:
+    MovementResourceEventRule[] =
+    [];
+
+  const used =
+    new Set<string>();
+
+  for (const raw of value) {
+    if (
+      !raw ||
+      typeof raw !==
+        "object"
+    ) {
+      continue;
+    }
+
+    const candidate =
+      raw as
+        Record<string, unknown>;
+
+    const resourceKey =
+      String(
+        candidate.resourceKey ??
+        ""
+      ).trim();
+
+    const event =
+      String(
+        candidate.event ??
+        ""
+      ) as
+        MovementResourceEventName;
+
+    if (
+      !resourceKey ||
+      ![
+        "enter",
+        "approach",
+        "leave",
+      ].includes(
+        event
+      )
+    ) {
+      continue;
+    }
+
+    const key =
+      `${resourceKey}::${event}`;
+
+    if (used.has(key)) {
+      continue;
+    }
+
+    used.add(key);
+
+    result.push({
+      resourceKey,
+      event,
+      match:
+        candidate.match ===
+          "any"
+          ? "any"
+          : "all",
+      conditions:
+        normalizeConditions(
+          candidate.conditions
+        ),
+    });
+  }
+
+  return result;
 }
 
 const MOVEMENT_WHEN =
@@ -674,6 +776,10 @@ function normalizeMovementPage(
     blockRules:
       normalizeBlockRules(
         candidate.blockRules
+      ),
+    resourceEventRules:
+      normalizeResourceEventRules(
+        candidate.resourceEventRules
       ),
     actions:
       normalizeActions(
