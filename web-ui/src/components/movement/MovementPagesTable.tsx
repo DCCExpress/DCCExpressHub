@@ -22,9 +22,12 @@ import {
 } from "@mantine/notifications";
 
 import {
+  IconAlertTriangle,
   IconEdit,
+  IconPlayerStop,
   IconPlus,
   IconRoute,
+  IconX,
 } from "@tabler/icons-react";
 
 import {
@@ -43,9 +46,20 @@ import {
 } from "../../services/automationBlockCatalog";
 
 import {
+  abortMovement,
   getMovementEngineState,
   stopMovement,
+  subscribeMovementEngineState,
+  type MovementEngineState,
 } from "../../services/movementEngine";
+
+import {
+  useCommandCenter,
+} from "../../context/CommandCenterContext";
+
+import {
+  wsApi,
+} from "../../services/wsApi";
 
 import MovementElapsedBadge from "./MovementElapsedBadge";
 
@@ -386,6 +400,9 @@ export default function MovementPagesTable({
   onDocumentChange,
   onOpenEditor,
 }: Props) {
+  const commandCenter =
+    useCommandCenter();
+
   const [
     catalog,
     setCatalog,
@@ -393,6 +410,17 @@ export default function MovementPagesTable({
     useState<
       AutomationBlockOption[]
     >([]);
+
+  const [
+    runtimeStates,
+    setRuntimeStates,
+  ] =
+    useState<
+      Record<
+        string,
+        MovementEngineState
+      >
+    >({});
 
   useEffect(
     () => {
@@ -425,6 +453,62 @@ export default function MovementPagesTable({
     []
   );
 
+  const movementSignature =
+    document.pages
+      .map(
+        page =>
+          page.id
+      )
+      .join(
+        "\u001f"
+      );
+
+  useEffect(
+    () => {
+      const unsubscribes =
+        document.pages.map(
+          page =>
+            subscribeMovementEngineState(
+              page.id,
+              state => {
+                setRuntimeStates(
+                  current => ({
+                    ...current,
+                    [page.id]:
+                      state,
+                  })
+                );
+              }
+            )
+        );
+
+      setRuntimeStates(
+        Object.fromEntries(
+          document.pages.map(
+            page => [
+              page.id,
+              getMovementEngineState(
+                page.id
+              ),
+            ]
+          )
+        )
+      );
+
+      return () => {
+        for (
+          const unsubscribe of
+          unsubscribes
+        ) {
+          unsubscribe();
+        }
+      };
+    },
+    [
+      movementSignature,
+    ]
+  );
+
   const pageCount =
     document.pages.length;
 
@@ -439,6 +523,156 @@ export default function MovementPagesTable({
         document.pages,
       ]
     );
+
+  const activeCount =
+    document.pages.filter(
+      page => {
+        const status =
+          runtimeStates[
+            page.id
+          ]?.status ??
+          "idle";
+
+        return (
+          status !==
+            "idle" &&
+          status !==
+            "error"
+        );
+      }
+    ).length;
+
+  const stopAll =
+    (): void => {
+      let stopped =
+        0;
+
+      for (
+        const page of
+        document.pages
+      ) {
+        if (
+          stopMovement(
+            page.id
+          )
+        ) {
+          stopped +=
+            1;
+        }
+      }
+
+      showNotification({
+        color:
+          stopped > 0
+            ? "yellow"
+            : "gray",
+        title:
+          "Stop All",
+        message:
+          stopped > 0
+            ? `Stopping ${stopped} Movement(s).`
+            : "No running Movements.",
+      });
+    };
+
+  const abortAll =
+    (): void => {
+      let aborted =
+        0;
+
+      for (
+        const page of
+        document.pages
+      ) {
+        if (
+          abortMovement(
+            page.id,
+            false
+          )
+        ) {
+          aborted +=
+            1;
+        }
+      }
+
+      const emergencyAlreadyOn =
+        commandCenter.powerInfo
+          ?.emergencyStop ===
+        true;
+
+      const emergencyKnownOff =
+        commandCenter.powerInfo
+          ?.emergencyStop ===
+        false;
+
+      const emergencySent =
+        aborted > 0 &&
+        emergencyKnownOff
+          ? wsApi.emergencyStop()
+          : false;
+
+      showNotification({
+        color:
+          "red",
+        title:
+          "Abort All",
+        message:
+          aborted ===
+            0
+            ? "No running Movements."
+            : emergencyAlreadyOn
+              ? `Aborted ${aborted} Movement(s). E-STOP was already active.`
+              : emergencySent
+                ? `Aborted ${aborted} Movement(s) and requested E-STOP.`
+                : `Aborted ${aborted} Movement(s).`,
+      });
+    };
+
+  const toggleEmergencyStop =
+    (): void => {
+      if (
+        !commandCenter.alive ||
+        !commandCenter.powerInfo
+      ) {
+        showNotification({
+          color:
+            "red",
+          title:
+            "Emergency Stop",
+          message:
+            "Command-center state is not available.",
+        });
+
+        return;
+      }
+
+      const clearing =
+        commandCenter.powerInfo
+          .emergencyStop ===
+        true;
+
+      const sent =
+        wsApi.emergencyStop();
+
+      showNotification({
+        color:
+          sent
+            ? clearing
+              ? "yellow"
+              : "red"
+            : "red",
+        title:
+          clearing
+            ? "Clear E-Stop"
+            : "Emergency Stop",
+        message:
+          sent
+            ? clearing
+              ? "Resume requested."
+              : "Emergency stop requested."
+            : "Command could not be sent.",
+      });
+    };
 
   const persist =
     async (
@@ -583,7 +817,78 @@ export default function MovementPagesTable({
 
         <Group
           gap="xs"
+          wrap="wrap"
         >
+          <Button
+            size="xs"
+            variant="light"
+            color="yellow"
+            leftSection={
+              <IconPlayerStop
+                size={14}
+              />
+            }
+            disabled={
+              activeCount ===
+              0
+            }
+            onClick={
+              stopAll
+            }
+          >
+            Stop All
+          </Button>
+
+          <Button
+            size="xs"
+            variant="light"
+            color="red"
+            leftSection={
+              <IconX
+                size={14}
+              />
+            }
+            disabled={
+              activeCount ===
+              0
+            }
+            onClick={
+              abortAll
+            }
+          >
+            Abort All
+          </Button>
+
+          <Button
+            size="xs"
+            variant={
+              commandCenter.powerInfo
+                ?.emergencyStop
+                ? "filled"
+                : "light"
+            }
+            color="red"
+            leftSection={
+              <IconAlertTriangle
+                size={14}
+              />
+            }
+            disabled={
+              !commandCenter.alive ||
+              !commandCenter.powerInfo
+            }
+            onClick={
+              toggleEmergencyStop
+            }
+          >
+            {
+              commandCenter.powerInfo
+                ?.emergencyStop
+                ? "Clear E-Stop"
+                : "Emergency Stop"
+            }
+          </Button>
+
           <Button
             size="xs"
             variant="light"
@@ -623,7 +928,7 @@ export default function MovementPagesTable({
         size="xs"
         c="dimmed"
       >
-        Play runs the dedicated MovementEngine. The engine locks and sets route turnouts automatically after the next leg is clear. Stop ends only this Movement; Abort also requests emergency stop.
+        Play runs the dedicated MovementEngine. Stop All stops every active Movement. Abort All aborts every active Movement and requests E-STOP once. Emergency Stop controls the command-station pause state directly.
       </Text>
 
       <ScrollArea
