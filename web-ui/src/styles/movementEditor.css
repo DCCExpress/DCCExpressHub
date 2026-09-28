@@ -148,6 +148,32 @@
   min-height: 24px;
 }
 
+.movement-execution-script-scroll {
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-md);
+  background: color-mix(
+    in srgb,
+    var(--mantine-color-dark-9) 92%,
+    black
+  );
+}
+
+.movement-execution-script-code {
+  margin: 0;
+  padding: 14px 16px 20px;
+  min-width: max-content;
+  color: var(--mantine-color-gray-1);
+  font-family:
+    "Cascadia Code",
+    "Consolas",
+    "SFMono-Regular",
+    monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre;
+  tab-size: 2;
+}
+
 .movement-route-vector-link {
   stroke: var(--mantine-color-gray-5);
   stroke-width: 2.5;
