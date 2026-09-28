@@ -125,7 +125,7 @@ test(".NET DCC-EX normal TX waits for actual worker write completion", () => {
 
   assert.match(
     source,
-    /private const int MaxQueuedCommands = 512/
+    /private const int MaxQueuedCommands = 128/
   );
 
   assert.match(
