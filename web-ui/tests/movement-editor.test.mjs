@@ -3571,6 +3571,38 @@ test("Movement action WHEN choices are event tabs with sequence-only creation", 
 });
 
 
+test("Movement action event tabs strongly highlight the selected event", () => {
+  const editor =
+    read(
+      "src/components/movement/MovementActionEditor.tsx"
+    );
+
+  const css =
+    read(
+      "src/styles/movementEditor.css"
+    );
+
+  assert.match(
+    editor,
+    /className="movement-action-event-tabs"/
+  );
+
+  assert.match(
+    css,
+    /movement-action-event-tabs \.mantine-Tabs-tab\[data-active\]/
+  );
+
+  assert.match(
+    css,
+    /border-bottom-color:\s*var\(--mantine-color-yellow-5\)/
+  );
+
+  assert.match(
+    css,
+    /background:[\s\S]*mantine-color-violet-7/
+  );
+});
+
 test("Movement action event tabs follow physical event order for each resource kind", () => {
   const editor =
     read(
