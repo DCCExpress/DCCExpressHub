@@ -142,6 +142,18 @@ class TimetableScheduler {
                 ),
             })
           ),
+        segmentEvents:
+          movement.segmentEvents.map(
+            event => ({
+              ...event,
+              conditions:
+                event.conditions.map(
+                  condition => ({
+                    ...condition,
+                  })
+                ),
+            })
+          ),
         actions:
           movement.actions.map(
             action => ({
