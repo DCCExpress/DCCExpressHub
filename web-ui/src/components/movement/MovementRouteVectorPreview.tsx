@@ -38,6 +38,10 @@ type Props = {
     item:
       MovementRouteVectorItem
   ) => void;
+  onItemsChange?: (
+    items:
+      MovementRouteVectorItem[]
+  ) => void;
 };
 
 const ITEM_WIDTH =
@@ -150,6 +154,7 @@ export default function MovementRouteVectorPreview({
   layout,
   selectedKey = null,
   onItemClick,
+  onItemsChange,
 }: Props) {
   const [
     items,
@@ -172,6 +177,18 @@ export default function MovementRouteVectorPreview({
     useState<string | null>(
       null
     );
+
+  useEffect(
+    () => {
+      onItemsChange?.(
+        items
+      );
+    },
+    [
+      items,
+      onItemsChange,
+    ]
+  );
 
   const routeSignature =
     [
