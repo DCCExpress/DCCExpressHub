@@ -298,7 +298,10 @@ test("Movement execution script preserves action sequence mode and action semant
   for (
     const marker of
     [
-      "sequence.mode.toUpperCase()",
+      "START_BACKGROUND SEQUENCE ",
+      "RUN_BLOCKING SEQUENCE ",
+      "MAIN_FLOW CONTINUES IMMEDIATELY",
+      "MAIN_FLOW WAITS FOR SEQUENCE",
       "SET DESIRED_SPEED ",
       "SET_LOCO_FUNCTION address=RUNTIME_SOURCE_LOCO F",
       "ON; WAIT ",
@@ -433,6 +436,54 @@ test("Movement script speed/function/horn actions show their physical loco comma
       " OFF"
     )
   );
+});
+
+test("Movement execution script makes background task behavior explicit", () => {
+  const engine =
+    read(
+      "src/services/movementEngine.ts"
+    );
+
+  const script =
+    read(
+      "src/services/movementExecutionScript.ts"
+    );
+
+  assert.ok(
+    engine.includes(
+      'sequence.mode ===\n      "background"'
+    )
+  );
+
+  assert.ok(
+    engine.includes(
+      "startBackgroundSequence("
+    )
+  );
+
+  assert.ok(
+    engine.includes(
+      "await Promise.allSettled("
+    )
+  );
+
+  for (
+    const marker of
+    [
+      "START_BACKGROUND SEQUENCE ",
+      "MAIN_FLOW CONTINUES IMMEDIATELY",
+      "RUN_BLOCKING SEQUENCE ",
+      "MAIN_FLOW WAITS FOR SEQUENCE",
+      "JOIN ALL STARTED_BACKGROUND SEQUENCES",
+    ]
+  ) {
+    assert.ok(
+      script.includes(
+        marker
+      ),
+      marker
+    );
+  }
 });
 
 test("Movement editor exposes a small read-only Script dialog", () => {
