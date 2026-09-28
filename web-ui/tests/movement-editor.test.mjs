@@ -2921,9 +2921,9 @@ test("Movement ARRIVED defaults use only the block's own occupancy sensor", () =
     /intermediateArrivalDefaults/
   );
 
-  assert.match(
+  assert.doesNotMatch(
     catalog,
-    /arrivedWhen:[\s\S]*defaults\.conditions\.map/
+    /generatedRules/
   );
 });
 
@@ -2940,6 +2940,63 @@ test("Movement physical plan reloads when exact route key changes", () => {
   );
 });
 
+
+test("Movement route vector merges only an identical single-sensor segment into its block", () => {
+  const vector =
+    read(
+      "src/services/movementRouteVector.ts"
+    );
+
+  const preview =
+    read(
+      "src/components/movement/MovementRouteVectorPreview.tsx"
+    );
+
+  assert.match(
+    vector,
+    /segment\.detectors\.length !==[\s\S]*1/
+  );
+
+  assert.match(
+    vector,
+    /resource\.sensorAddress ===[\s\S]*detector/
+  );
+
+  assert.match(
+    vector,
+    /matchingBlocks\.length !==[\s\S]*1/
+  );
+
+  assert.match(
+    vector,
+    /hiddenSegmentKeys\.add\([\s\S]*segment\.key/
+  );
+
+  assert.match(
+    vector,
+    /mergedSegmentNamesByBlockKey/
+  );
+
+  assert.match(
+    vector,
+    /visibleResources =[\s\S]*!hiddenSegmentKeys\.has/
+  );
+
+  assert.match(
+    vector,
+    /mergedSegmentNames:[\s\S]*mergedSegmentNamesByBlockKey\.get/
+  );
+
+  assert.match(
+    preview,
+    /SEG:\$\{item\.mergedSegmentNames\.join\(","\)\}/
+  );
+
+  assert.match(
+    preview,
+    /"BLOCK" \+[\s\S]*mergedSegments/
+  );
+});
 
 test("Movement route vector preview is styled by type and prepared for future item clicks", () => {
   const preview =
