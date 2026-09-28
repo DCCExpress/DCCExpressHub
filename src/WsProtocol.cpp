@@ -1635,13 +1635,24 @@ void WsProtocol::sendRuntimeSnapshot(
         const auto &sensor :
         _runtime.sensors())
     {
+        bool on =
+            false;
+
+        if (
+            !_runtime.getSensorState(
+                sensor.address,
+                on))
+        {
+            continue;
+        }
+
         JsonDocument data;
 
         data["address"] =
             sensor.address;
 
         data["on"] =
-            sensor.on;
+            on;
 
         send(
             client,
@@ -1772,13 +1783,24 @@ void WsProtocol::broadcastRuntimeSnapshot()
         const auto &sensor :
         _runtime.sensors())
     {
+        bool on =
+            false;
+
+        if (
+            !_runtime.getSensorState(
+                sensor.address,
+                on))
+        {
+            continue;
+        }
+
         JsonDocument data;
 
         data["address"] =
             sensor.address;
 
         data["on"] =
-            sensor.on;
+            on;
 
         broadcast(
             "sensorChanged",

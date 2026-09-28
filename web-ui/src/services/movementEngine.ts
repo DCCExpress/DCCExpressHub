@@ -216,6 +216,9 @@ let blockStates:
   BlockStateChangedPayload =
   {};
 
+let blockSnapshotKnown =
+  false;
+
 let trackingInstalled =
   false;
 
@@ -538,6 +541,25 @@ function installTracking():
   trackingInstalled =
     true;
 
+  wsClient.subscribeStatus(
+    status => {
+      if (
+        status ===
+          "connected"
+      ) {
+        wsApi.getBlocks();
+        wsApi.getLayoutRuntimeSnapshot();
+        return;
+      }
+
+      sensorStates.clear();
+      turnoutStates.clear();
+      blockStates = {};
+      blockSnapshotKnown =
+        false;
+    }
+  );
+
   wsClient.on(
     "sensorChanged",
     (
@@ -619,6 +641,9 @@ function installTracking():
     ) => {
       blockStates =
         data;
+
+      blockSnapshotKnown =
+        true;
     }
   );
 
@@ -1701,20 +1726,34 @@ function blockIsFree(
   block:
     MovementPlanResource
 ): boolean {
+  if (
+    !blockSnapshotKnown
+  ) {
+    return false;
+  }
+
   const state =
     blockStateFor(
       block.blockId
     );
 
+  if (!state) {
+    return false;
+  }
+
   if (
-    state &&
     (
-      (
-        state.locoAddress ??
-        0
-      ) > 0 ||
+      state.locoAddress ??
+      0
+    ) >
+      0 ||
+    (
       state.locoId !==
-        null
+        null &&
+      state.locoId !==
+        undefined &&
+      state.locoId !==
+        ""
     )
   ) {
     return false;
@@ -1725,8 +1764,8 @@ function blockIsFree(
       null &&
     sensorStates.get(
       block.sensorAddress
-    ) ===
-      true
+    ) !==
+      false
   ) {
     return false;
   }
@@ -1734,7 +1773,7 @@ function blockIsFree(
   return true;
 }
 
-function aheadSegmentsAreFree(
+function aheadPathSensorsAreFree(
   leg:
     MovementPlanLeg
 ): boolean {
@@ -1744,12 +1783,18 @@ function aheadSegmentsAreFree(
   return leg.resources
     .filter(
       resource =>
-        resource.kind ===
-          "segment" &&
-        resource.nodeIndex !==
-          null &&
-        resource.nodeIndex !==
-          sourceNode
+        (
+          resource.kind ===
+            "turnout"
+        ) ||
+        (
+          resource.kind ===
+            "segment" &&
+          resource.nodeIndex !==
+            null &&
+          resource.nodeIndex !==
+            sourceNode
+        )
     )
     .every(
       resource =>
@@ -1757,8 +1802,8 @@ function aheadSegmentsAreFree(
           address =>
             sensorStates.get(
               address
-            ) !==
-              true
+            ) ===
+              false
         )
     );
 }
@@ -2262,24 +2307,30 @@ function blockAvailableForTarget(
     string | null =
       null
 ): boolean {
+  if (
+    !blockSnapshotKnown
+  ) {
+    return false;
+  }
+
   const state =
     blockStateFor(
       block.blockId
     );
+
+  if (!state) {
+    return false;
+  }
 
   if (
     block.sensorAddress !==
       null &&
     sensorStates.get(
       block.sensorAddress
-    ) ===
-      true
+    ) !==
+      false
   ) {
     return false;
-  }
-
-  if (!state) {
-    return true;
   }
 
   if (
@@ -2467,12 +2518,12 @@ async function waitForPreDepartureAvailability(
         waitingReason =
           "targetBlock";
       } else if (
-        !aheadSegmentsAreFree(
+        !aheadPathSensorsAreFree(
           leg
         )
       ) {
         reason =
-          "Waiting for route segment to become free";
+          "Waiting for route sensors to become safely free";
 
         waitingReason =
           "segment";
@@ -2591,12 +2642,12 @@ async function waitForLegClearance(
         waitingReason =
           "targetBlock";
       } else if (
-        !aheadSegmentsAreFree(
+        !aheadPathSensorsAreFree(
           leg
         )
       ) {
         reason =
-          "Waiting for route segment to become free";
+          "Waiting for route sensors to become safely free";
 
         waitingReason =
           "segment";
@@ -2660,7 +2711,7 @@ async function waitForLegClearance(
         !blockAvailableForTarget(
           leg.to
         ) ||
-        !aheadSegmentsAreFree(
+        !aheadPathSensorsAreFree(
           leg
         )
       ) {
@@ -2723,7 +2774,7 @@ async function waitForLegClearance(
         blockAvailableForTarget(
           leg.to
         ) &&
-        aheadSegmentsAreFree(
+        aheadPathSensorsAreFree(
           leg
         )
       ) {
@@ -3114,12 +3165,12 @@ async function waitForHeldLegReady(
         waitingReason =
           "targetBlock";
       } else if (
-        !aheadSegmentsAreFree(
+        !aheadPathSensorsAreFree(
           leg
         )
       ) {
         reason =
-          "Waiting for route segment to become free";
+          "Waiting for route sensors to become safely free";
 
         waitingReason =
           "segment";
