@@ -176,7 +176,7 @@ test("Movement execution script mirrors the core runtime leg order", () => {
       '"RECHECK DEPART_CONDITION"',
       '"depart"',
       "renderAuthority(",
-      '"THROTTLE = CURRENT_DESIRED_SPEED"',
+      '"ENSURE THROTTLE = CURRENT_DESIRED_SPEED',
       "renderSourceBlockLeaveWatch(",
       '"WAIT ARRIVED"',
       '"WAIT SOURCE_BLOCK_LEAVE_WATCH TO FIRE"',
@@ -230,6 +230,24 @@ test("Movement execution script includes fail-closed route authority", () => {
   assert.ok(
     script.includes(
       "RECHECK_HELD_AUTHORITY"
+    )
+  );
+
+  assert.ok(
+    script.includes(
+      "TRY_ACQUIRE RESOURCE_LOCKS"
+    )
+  );
+
+  assert.ok(
+    script.includes(
+      "TRY_ACQUIRE TURNOUT_LOCKS"
+    )
+  );
+
+  assert.ok(
+    script.includes(
+      "RESERVE TARGET_BLOCK"
     )
   );
 });
