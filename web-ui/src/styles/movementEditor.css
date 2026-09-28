@@ -148,6 +148,141 @@
   min-height: 24px;
 }
 
+.movement-local-preview-shell {
+  margin-top: 8px;
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-md);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(
+        in srgb,
+        var(--mantine-color-violet-6) 7%,
+        var(--mantine-color-body)
+      ),
+      color-mix(
+        in srgb,
+        var(--mantine-color-default-hover) 14%,
+        var(--mantine-color-body)
+      )
+    );
+  overflow: hidden;
+}
+
+.movement-local-preview-caption {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 7px 10px 5px;
+  border-bottom: 1px solid var(--mantine-color-default-border);
+}
+
+.movement-local-preview-scroll {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.movement-local-preview-svg {
+  display: block;
+  min-width: 840px;
+}
+
+.movement-local-preview-divider {
+  stroke: var(--mantine-color-default-border);
+  stroke-width: 1;
+  stroke-dasharray: 4 5;
+  opacity: 0.85;
+}
+
+.movement-local-preview-track {
+  stroke: var(--mantine-color-gray-5);
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+
+.movement-local-preview-track.is-empty {
+  stroke-dasharray: 7 6;
+  opacity: 0.35;
+}
+
+.movement-local-preview-section.is-current .movement-local-preview-track {
+  stroke: var(--mantine-color-violet-5);
+  stroke-width: 5;
+}
+
+.movement-local-preview-sensor {
+  fill: var(--mantine-color-body);
+  stroke: var(--mantine-color-teal-5);
+  stroke-width: 4;
+}
+
+.movement-local-preview-sensor.is-current {
+  stroke: var(--mantine-color-yellow-5);
+  stroke-width: 5;
+  filter:
+    drop-shadow(
+      0 0 5px
+      color-mix(
+        in srgb,
+        var(--mantine-color-yellow-5) 45%,
+        transparent
+      )
+    );
+}
+
+.movement-local-preview-sensor.is-missing {
+  stroke: var(--mantine-color-red-5);
+  stroke-dasharray: 4 3;
+}
+
+.movement-local-preview-section-name {
+  fill: var(--mantine-color-text);
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.3px;
+}
+
+.movement-local-preview-section.is-current .movement-local-preview-section-name {
+  fill: var(--mantine-color-yellow-5);
+}
+
+.movement-local-preview-sensor-label {
+  fill: var(--mantine-color-teal-6);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.movement-local-preview-sensor-label.is-missing {
+  fill: var(--mantine-color-red-6);
+}
+
+.movement-local-preview-detail {
+  fill: var(--mantine-color-dimmed);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.movement-local-preview-detail.is-block {
+  fill: var(--mantine-color-violet-5);
+}
+
+.movement-local-preview-detail.is-turnout {
+  fill: var(--mantine-color-orange-5);
+}
+
+.movement-local-preview-detail.is-selected {
+  fill: var(--mantine-color-yellow-5);
+  font-weight: 900;
+}
+
+.movement-local-preview-empty-label {
+  fill: var(--mantine-color-dimmed);
+  font-size: 10px;
+  font-weight: 700;
+  opacity: 0.6;
+}
+
 .movement-route-vector-link {
   stroke: var(--mantine-color-gray-5);
   stroke-width: 2.5;
