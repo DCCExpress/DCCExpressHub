@@ -668,7 +668,7 @@ function renderLegClearance(
                     "STOP LOCO",
                     "SET TURNOUT",
                     "WAIT BACKEND ACK",
-                    "WAIT 250ms BETWEEN REQUIRED SET OPERATIONS",
+                    "WAIT 250ms AFTER A SET WHEN MORE TURNOUT REQUIREMENTS REMAIN",
                   ]),
                   "}",
                 ]),
@@ -1099,11 +1099,9 @@ function renderLeg(
       ...indent([
         "RUNTIME_ERROR = " +
           q(
-            "Block " +
-            q(
-              leg.to.name
-            ) +
-            " has no arrival condition or occupancy sensor."
+            "Block \"" +
+            leg.to.name +
+            "\" has no arrival condition or occupancy sensor."
           ),
       ])
     );
