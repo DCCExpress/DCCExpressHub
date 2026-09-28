@@ -174,6 +174,8 @@ type MovementExecution = {
       string,
       ResourceLeaveState
     >;
+  resourceLeaveFired:
+    Set<string>;
 };
 
 const states =
@@ -414,6 +416,10 @@ function armResourceLeave(
   resource:
     MovementPlanResource
 ): boolean {
+  execution.resourceLeaveFired.delete(
+    resource.key
+  );
+
   const rule =
     effectiveMovementResourceEventRule(
       execution.page.resourceEventRules,
@@ -473,6 +479,10 @@ async function drainReadyResourceLeaves(
       key
     );
 
+    execution.resourceLeaveFired.add(
+      key
+    );
+
     await runActions(
       execution,
       state.resource.key,
@@ -492,12 +502,19 @@ async function runLegacyLeaveIfNeeded(
   );
 
   if (
+    execution.resourceLeaveFired.has(
+      resource.key
+    ) ||
     execution.resourceLeaves.has(
       resource.key
     )
   ) {
     return;
   }
+
+  execution.resourceLeaveFired.add(
+    resource.key
+  );
 
   await runActions(
     execution,
@@ -4003,6 +4020,8 @@ export async function startMovement(
       >(),
     resourceLeaves:
       new Map(),
+    resourceLeaveFired:
+      new Set(),
   };
 
   clearMovementBlockRuntimeByOwner(
