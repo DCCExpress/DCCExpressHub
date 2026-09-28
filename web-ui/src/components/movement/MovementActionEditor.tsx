@@ -2,6 +2,7 @@ import {
   type DragEvent,
   type Dispatch,
   type SetStateAction,
+  useEffect,
   useMemo,
   useState,
 } from "react";
@@ -16,6 +17,7 @@ import {
   NumberInput,
   Select,
   Stack,
+  Tabs,
   Switch,
   Text,
   TextInput,
@@ -201,41 +203,6 @@ function whenOptions(
   ];
 }
 
-function defaultWhen(
-  kind:
-    MovementPlanResourceKind,
-  isSource = false,
-  isDestination = false
-): MovementWhen {
-  if (
-    kind ===
-    "turnout"
-  ) {
-    return "approach";
-  }
-
-  if (
-    kind ===
-    "segment"
-  ) {
-    return "enter";
-  }
-
-  if (
-    isDestination
-  ) {
-    return "approach";
-  }
-
-  if (
-    isSource
-  ) {
-    return "beforeDepart";
-  }
-
-  return "approach";
-}
-
 const WHAT_OPTIONS:
   Array<{
     value:
@@ -401,6 +368,38 @@ export default function MovementActionEditor({
     );
 
   const [
+    selectedWhen,
+    setSelectedWhen,
+  ] =
+    useState<MovementWhen>(
+      () =>
+        options[0]?.value ??
+        "arrived"
+    );
+
+  useEffect(
+    () => {
+      setSelectedWhen(
+        options[0]?.value ??
+        "arrived"
+      );
+    },
+    [
+      resourceKey,
+      resourceKind,
+      isSource,
+      isDestination,
+    ]
+  );
+
+  const visibleSequences =
+    sequences.filter(
+      sequence =>
+        sequence.when ===
+        selectedWhen
+    );
+
+  const [
     draggedActionId,
     setDraggedActionId,
   ] =
@@ -486,7 +485,6 @@ export default function MovementActionEditor({
         Partial<
           Pick<
             SequenceGroup,
-            "when" |
             "mode"
           >
         >
@@ -506,26 +504,22 @@ export default function MovementActionEditor({
     };
 
   const addSequence =
-    (): void => {
+    (
+      mode:
+        MovementSequenceMode
+    ): void => {
       const sequenceId =
         createMovementId(
           "movement-sequence"
         );
 
-      const when =
-        defaultWhen(
-          resourceKind,
-          isSource,
-          isDestination
-        );
-
       const action =
         createMovementAction(
           resourceKey,
-          when,
+          selectedWhen,
           "log",
           sequenceId,
-          "blocking"
+          mode
         );
 
       commitSequences([
@@ -533,9 +527,9 @@ export default function MovementActionEditor({
         {
           id:
             sequenceId,
-          when,
-          mode:
-            "blocking",
+          when:
+            selectedWhen,
+          mode,
           actions: [
             action,
           ],
@@ -587,49 +581,86 @@ export default function MovementActionEditor({
 
   const moveSequence =
     (
-      sequenceIndex:
-        number,
+      sequenceId:
+        string,
       offset:
         number
     ): void => {
-      const toIndex =
-        Math.max(
-          0,
-          Math.min(
-            sequenceIndex +
-              offset,
-            sequences.length -
-              1
-          )
+      const currentIndex =
+        sequences.findIndex(
+          sequence =>
+            sequence.id ===
+            sequenceId
         );
 
       if (
-        toIndex ===
-        sequenceIndex
+        currentIndex <
+        0
       ) {
         return;
       }
 
-      const next =
-        [...sequences];
+      const current =
+        sequences[
+          currentIndex
+        ]!;
 
-      const [
-        moved,
-      ] =
-        next.splice(
-          sequenceIndex,
-          1
+      const siblingIndexes =
+        sequences
+          .map(
+            (
+              sequence,
+              index
+            ) => ({
+              sequence,
+              index,
+            })
+          )
+          .filter(
+            item =>
+              item.sequence.when ===
+              current.when
+          )
+          .map(
+            item =>
+              item.index
+          );
+
+      const siblingIndex =
+        siblingIndexes.indexOf(
+          currentIndex
         );
 
-      if (!moved) {
+      const targetSiblingIndex =
+        siblingIndex +
+        offset;
+
+      if (
+        siblingIndex <
+          0 ||
+        targetSiblingIndex <
+          0 ||
+        targetSiblingIndex >=
+          siblingIndexes.length
+      ) {
         return;
       }
 
-      next.splice(
-        toIndex,
-        0,
-        moved
-      );
+      const targetIndex =
+        siblingIndexes[
+          targetSiblingIndex
+        ]!;
+
+      const next =
+        [...sequences];
+
+      [
+        next[currentIndex],
+        next[targetIndex],
+      ] = [
+        next[targetIndex]!,
+        next[currentIndex]!,
+      ];
 
       commitSequences(
         next
@@ -840,57 +871,145 @@ export default function MovementActionEditor({
     <Stack
       gap="sm"
     >
-      <Group
-        justify="space-between"
-        align="center"
-        className="movement-action-editor-toolbar"
+      <Stack
+        gap={6}
       >
-        <div>
-          <Text
-            size="sm"
-            fw={700}
-          >
-            Sequences
-          </Text>
-
-          <Text
-            size="xs"
-            c="dimmed"
-          >
-            Blocking waits for the sequence. Background keeps the train moving while its actions still run in order.
-          </Text>
-        </div>
-
-        <Button
-          size="compact-xs"
-          variant="light"
-          leftSection={
-            <IconPlus
-              size={13}
-            />
-          }
-          onClick={
-            addSequence
-          }
+        <Text
+          size="sm"
+          fw={700}
         >
-          Sequence
-        </Button>
-      </Group>
+          Action event
+        </Text>
+
+        <Tabs
+          value={
+            selectedWhen
+          }
+          onChange={
+            value => {
+              if (
+                value
+              ) {
+                setSelectedWhen(
+                  value as MovementWhen
+                );
+              }
+            }
+          }
+          variant="outline"
+          radius="md"
+        >
+          <Tabs.List>
+            {
+              options.map(
+                option => {
+                  const count =
+                    sequences.filter(
+                      sequence =>
+                        sequence.when ===
+                        option.value
+                    ).length;
+
+                  return (
+                    <Tabs.Tab
+                      key={
+                        option.value
+                      }
+                      value={
+                        option.value
+                      }
+                      rightSection={
+                        count >
+                          0
+                          ? (
+                            <Badge
+                              size="xs"
+                              variant="light"
+                            >
+                              {
+                                count
+                              }
+                            </Badge>
+                          )
+                          : undefined
+                      }
+                    >
+                      {
+                        option.label
+                      }
+                    </Tabs.Tab>
+                  );
+                }
+              )
+            }
+          </Tabs.List>
+        </Tabs>
+
+        <Text
+          size="xs"
+          c="dimmed"
+        >
+          Select the movement event above, then add one or more sequences. Blocking waits for completion; Background runs alongside the movement.
+        </Text>
+
+        <Group
+          gap="xs"
+          wrap="wrap"
+        >
+          <Button
+            size="compact-xs"
+            variant="light"
+            color="violet"
+            leftSection={
+              <IconPlus
+                size={13}
+              />
+            }
+            onClick={
+              () =>
+                addSequence(
+                  "blocking"
+                )
+            }
+          >
+            Add blocking sequence
+          </Button>
+
+          <Button
+            size="compact-xs"
+            variant="light"
+            color="cyan"
+            leftSection={
+              <IconPlus
+                size={13}
+              />
+            }
+            onClick={
+              () =>
+                addSequence(
+                  "background"
+                )
+            }
+          >
+            Add background sequence
+          </Button>
+        </Group>
+      </Stack>
 
       {
-        sequences.length ===
+        visibleSequences.length ===
           0 && (
           <Text
             size="xs"
             c="dimmed"
           >
-            No action sequences for this route resource.
+            No sequences for this event.
           </Text>
         )
       }
 
       {
-        sequences.map(
+        visibleSequences.map(
           (
             sequence,
             sequenceIndex
@@ -928,36 +1047,6 @@ export default function MovementActionEditor({
                   >
                     Sequence {sequenceIndex + 1}
                   </Badge>
-
-                  <Select
-                    label="WHEN"
-                    size="xs"
-                    allowDeselect={
-                      false
-                    }
-                    data={
-                      options
-                    }
-                    value={
-                      sequence.when
-                    }
-                    onChange={
-                      value => {
-                        if (
-                          value
-                        ) {
-                          updateSequence(
-                            sequence.id,
-                            {
-                              when:
-                                value as MovementWhen,
-                            }
-                          );
-                        }
-                      }
-                    }
-                    w={180}
-                  />
 
                   <Select
                     label="MODE"
@@ -1047,7 +1136,7 @@ export default function MovementActionEditor({
                       onClick={
                         () =>
                           moveSequence(
-                            sequenceIndex,
+                            sequence.id,
                             -1
                           )
                       }
@@ -1068,13 +1157,13 @@ export default function MovementActionEditor({
                       variant="light"
                       disabled={
                         sequenceIndex >=
-                        sequences.length -
+                        visibleSequences.length -
                           1
                       }
                       onClick={
                         () =>
                           moveSequence(
-                            sequenceIndex,
+                            sequence.id,
                             1
                           )
                       }
