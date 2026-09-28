@@ -194,7 +194,7 @@ test("Movement local preview has no escaped template-string artifacts", () => {
 
   assert.equal(
     preview.includes(
-      "sensor ==="
+      "const sensor ="
     ),
     false
   );
