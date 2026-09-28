@@ -775,6 +775,83 @@
   );
 }
 
+.movement-action-event-tabs .mantine-Tabs-list {
+  gap: 4px;
+  border-bottom-color: color-mix(
+    in srgb,
+    var(--mantine-color-violet-6) 26%,
+    var(--mantine-color-default-border)
+  );
+}
+
+.movement-action-event-tabs .mantine-Tabs-tab {
+  min-height: 34px;
+  padding-inline: 11px;
+  border: 1px solid transparent;
+  border-bottom-width: 2px;
+  border-radius:
+    var(--mantine-radius-sm)
+    var(--mantine-radius-sm)
+    0
+    0;
+  color: var(--mantine-color-dimmed);
+  background: color-mix(
+    in srgb,
+    var(--mantine-color-default-hover) 34%,
+    var(--mantine-color-body)
+  );
+  font-weight: 700;
+  transition:
+    color 120ms ease,
+    background-color 120ms ease,
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    transform 120ms ease;
+}
+
+.movement-action-event-tabs .mantine-Tabs-tab:hover {
+  color: var(--mantine-color-text);
+  background: color-mix(
+    in srgb,
+    var(--mantine-color-violet-6) 8%,
+    var(--mantine-color-body)
+  );
+}
+
+.movement-action-event-tabs .mantine-Tabs-tab[data-active] {
+  color: var(--mantine-color-violet-1);
+  background: color-mix(
+    in srgb,
+    var(--mantine-color-violet-7) 72%,
+    var(--mantine-color-body)
+  );
+  border-color: var(--mantine-color-violet-5);
+  border-bottom-color: var(--mantine-color-yellow-5);
+  box-shadow:
+    0 -1px 0
+      color-mix(
+        in srgb,
+        var(--mantine-color-violet-4) 35%,
+        transparent
+      ),
+    0 3px 10px
+      color-mix(
+        in srgb,
+        var(--mantine-color-violet-8) 24%,
+        transparent
+      );
+  transform: translateY(-1px);
+}
+
+.movement-action-event-tabs .mantine-Tabs-tab[data-active] .mantine-Badge-root {
+  color: var(--mantine-color-yellow-2);
+  background: color-mix(
+    in srgb,
+    var(--mantine-color-dark-9) 34%,
+    transparent
+  );
+}
+
 .movement-action-editor-toolbar {
   margin: -2px -2px 2px;
   padding: 7px 8px;
