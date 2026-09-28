@@ -680,8 +680,17 @@ export function applyMovementRouteCandidate(
 
 export async function loadMovementRouteCandidates(
   document:
-    MovementDocument
+    MovementDocument,
+  layoutOverride?:
+    SerializedLayoutDto
 ): Promise<MovementRouteCandidate[]> {
+  if (layoutOverride) {
+    return buildMovementRouteCandidates(
+      layoutOverride,
+      document
+    );
+  }
+
   const response =
     await fetch(
       "/api/layout",
