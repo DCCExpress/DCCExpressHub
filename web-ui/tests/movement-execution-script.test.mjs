@@ -176,7 +176,7 @@ test("Movement execution script mirrors the core runtime leg order", () => {
       '"RECHECK DEPART_CONDITION"',
       '"depart"',
       "renderAuthority(",
-      '"ENSURE THROTTLE = CURRENT_DESIRED_SPEED',
+      '"APPLY_LOCO_SPEED -> "',
       "renderSourceBlockLeaveWatch(",
       '"WAIT ARRIVED"',
       '"WAIT SOURCE_BLOCK_LEAVE_WATCH TO FIRE"',
@@ -300,8 +300,8 @@ test("Movement execution script preserves action sequence mode and action semant
     [
       "sequence.mode.toUpperCase()",
       "SET DESIRED_SPEED ",
-      "FUNCTION F",
-      "PULSE FUNCTION F",
+      "SET_LOCO_FUNCTION address=RUNTIME_SOURCE_LOCO F",
+      "ON; WAIT ",
       "WAIT_RANDOM ",
       "PLAY_AUDIO ",
       "WAIT_FOR_END",
@@ -316,6 +316,123 @@ test("Movement execution script preserves action sequence mode and action semant
       marker
     );
   }
+});
+
+test("Movement execution script exposes concrete locomotive interventions", () => {
+  const engine =
+    read(
+      "src/services/movementEngine.ts"
+    );
+
+  const script =
+    read(
+      "src/services/movementExecutionScript.ts"
+    );
+
+  const physicalSpeed =
+    sliceBetween(
+      engine,
+      "function setPhysicalSpeed",
+      "function applyDesiredSpeed"
+    );
+
+  assert.ok(
+    physicalSpeed.includes(
+      "wsApi.setLoco("
+    )
+  );
+
+  assert.ok(
+    physicalSpeed.includes(
+      "execution.direction"
+    )
+  );
+
+  for (
+    const marker of
+    [
+      "address=RUNTIME_SOURCE_LOCO direction=ROUTE_DIRECTION",
+      "INITIAL_DESIRED_SPEED = ",
+      "ALL SPEED COMMANDS USE ROUTE_DIRECTION = ",
+      "force stopped route direction before departure",
+      "CONFIRM LIVE_LOCO speed=0 direction=ROUTE_DIRECTION",
+      "ON WAIT DEPART_CONDITION:",
+      "ON_WAIT_ROUTE_AUTHORITY:",
+      "ON ANY WAIT/LOCK CONFLICT:",
+      "turnout must be changed before movement",
+      "ON_BLOCKED_HELD_AUTHORITY:",
+      "SET MOVING = TRUE",
+      "APPLY_LOCO_SPEED -> ",
+      "final ARRIVED automatic stop",
+      "normal Movement completion",
+      "STOP_REQUEST -> SET CANCELLED=TRUE",
+      "RUNTIME_ERROR -> SET MOVING=FALSE",
+      "EMERGENCY_ABORT -> STOP_REQUEST plus GLOBAL_EMERGENCY_STOP",
+    ]
+  ) {
+    assert.ok(
+      script.includes(
+        marker
+      ),
+      marker
+    );
+  }
+});
+
+test("Movement script speed/function/horn actions show their physical loco commands", () => {
+  const script =
+    read(
+      "src/services/movementExecutionScript.ts"
+    );
+
+  const actionRenderer =
+    sliceBetween(
+      script,
+      "function renderAction(",
+      "function renderActions("
+    );
+
+  assert.ok(
+    actionRenderer.includes(
+      "SET DESIRED_SPEED "
+    )
+  );
+
+  assert.ok(
+    actionRenderer.includes(
+      "IF MOVING THEN "
+    )
+  );
+
+  assert.ok(
+    actionRenderer.includes(
+      "movingSpeedCommand("
+    )
+  );
+
+  assert.ok(
+    actionRenderer.includes(
+      "Movement is not moving"
+    )
+  );
+
+  assert.ok(
+    actionRenderer.includes(
+      "SET_LOCO_FUNCTION address=RUNTIME_SOURCE_LOCO F"
+    )
+  );
+
+  assert.ok(
+    actionRenderer.includes(
+      " ON; WAIT "
+    )
+  );
+
+  assert.ok(
+    actionRenderer.includes(
+      " OFF"
+    )
+  );
 });
 
 test("Movement editor exposes a small read-only Script dialog", () => {
