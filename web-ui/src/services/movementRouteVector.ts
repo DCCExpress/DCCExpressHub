@@ -30,6 +30,7 @@ export type MovementRouteVectorItem =
       name: string;
       trackName: string;
       sensor: number | null;
+      sensors?: number[];
     }
   | {
       key: string;
@@ -38,6 +39,7 @@ export type MovementRouteVectorItem =
       nodeIndex: number;
       name: string;
       sensor: number | null;
+      sensors?: number[];
       turnoutStates: Array<{
         address: number;
         closed: boolean;
@@ -873,6 +875,19 @@ export async function loadMovementRouteVector(
           name:
             resource.name,
           sensor,
+          sensors:
+            [
+              ...new Set(
+                resource.detectors
+              ),
+            ].sort(
+              (
+                left,
+                right
+              ) =>
+                left -
+                right
+            ),
           turnoutStates:
             resource.turnoutStates.map(
               state => ({
@@ -907,6 +922,19 @@ export async function loadMovementRouteVector(
           resource.name,
         trackName,
         sensor,
+        sensors:
+          [
+            ...new Set(
+              resource.detectors
+            ),
+          ].sort(
+            (
+              left,
+              right
+            ) =>
+              left -
+              right
+          ),
       };
     }
   );
