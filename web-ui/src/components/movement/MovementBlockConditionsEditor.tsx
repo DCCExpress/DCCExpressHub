@@ -156,7 +156,7 @@ export default function MovementBlockConditionsEditor({
       badge:
         "ARRIVED",
       description:
-        "Default for route blocks after the source: previous vector sensor OFF, block occupancy ON, next vector sensor OFF when that neighbour exists.",
+        "Default: this block's own occupancy sensor ON.",
     });
   }
 
