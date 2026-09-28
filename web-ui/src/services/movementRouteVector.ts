@@ -777,7 +777,9 @@ export function buildMovementRouteVector(
 
 export async function loadMovementRouteVector(
   page:
-    MovementPage
+    MovementPage,
+  layoutOverride?:
+    SerializedLayoutDto
 ): Promise<MovementRouteVectorItem[]> {
   if (
     page.fromBlockId ===
@@ -799,7 +801,8 @@ export async function loadMovementRouteVector(
    */
   const plan =
     await loadMovementPlan(
-      page
+      page,
+      layoutOverride
     );
 
   return plan.resources.map(
