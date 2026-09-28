@@ -54,6 +54,13 @@ function typeLabel(
   }
 
   if (
+    item.kind ===
+      "turnout"
+  ) {
+    return "TURNOUT";
+  }
+
+  if (
     item.role ===
       "source"
   ) {
@@ -83,18 +90,23 @@ function itemClassName(
     item.kind ===
       "segment"
       ? "is-segment"
-      : item.role ===
-          "source"
-        ? "is-source"
+      : item.kind ===
+          "turnout"
+        ? "is-turnout"
         : item.role ===
-            "destination"
-          ? "is-destination"
-          : "is-block",
+            "source"
+          ? "is-source"
+          : item.role ===
+              "destination"
+            ? "is-destination"
+            : "is-block",
   ];
 
   if (
     item.sensor ===
-      null
+      null &&
+    item.kind !==
+      "turnout"
   ) {
     classes.push(
       "is-no-sensor"
@@ -381,7 +393,7 @@ export default function MovementRouteVectorPreview({
           size="xs"
           c="dimmed"
         >
-          Blocks and graph segments in physical movement order
+          Blocks, graph segments and turnouts in physical movement order
         </Text>
       </div>
 
@@ -591,12 +603,41 @@ export default function MovementRouteVectorPreview({
                         )
                       }
 
+                      {
+                        item.kind ===
+                          "turnout" &&
+                        item.turnoutStates.length >
+                          0 && (
+                          <text
+                            className="movement-route-vector-detail"
+                            x={
+                              centerX
+                            }
+                            y={86}
+                            textAnchor="middle"
+                          >
+                            {
+                              item.turnoutStates
+                                .map(
+                                  state =>
+                                    `#${state.address} ${state.closed ? "CLOSED" : "THROWN"}`
+                                )
+                                .join(
+                                  " · "
+                                )
+                            }
+                          </text>
+                        )
+                      }
+
                       <text
                         className={
                           "movement-route-vector-sensor" +
                           (
                             item.sensor ===
-                              null
+                              null &&
+                            item.kind !==
+                              "turnout"
                               ? " is-missing"
                               : ""
                           )
@@ -605,11 +646,19 @@ export default function MovementRouteVectorPreview({
                           centerX
                         }
                         y={
-                          item.kind ===
-                            "segment" &&
-                          item.trackName &&
-                          item.trackName !==
-                            item.nodeName
+                          (
+                            item.kind ===
+                              "segment" &&
+                            item.trackName &&
+                            item.trackName !==
+                              item.nodeName
+                          ) ||
+                          (
+                            item.kind ===
+                              "turnout" &&
+                            item.turnoutStates.length >
+                              0
+                          )
                             ? 100
                             : 90
                         }
@@ -618,7 +667,12 @@ export default function MovementRouteVectorPreview({
                         {
                           item.sensor ===
                             null
-                            ? "NO SENSOR"
+                            ? (
+                              item.kind ===
+                                "turnout"
+                                ? "No detector"
+                                : "NO SENSOR"
+                            )
                             : `Sensor ${item.sensor}`
                         }
                       </text>

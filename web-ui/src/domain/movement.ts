@@ -159,17 +159,11 @@ export function createMovementPage(
 }
 
 export function createEmptyMovementDocument(): MovementDocument {
-  const page =
-    createMovementPage();
-
   return {
     version:
       MOVEMENT_DOCUMENT_VERSION,
-    pages: [
-      page,
-    ],
-    activePageId:
-      page.id,
+    pages: [],
+    activePageId: "",
   };
 }
 
@@ -741,15 +735,6 @@ export function normalizeMovementDocument(
     );
   }
 
-  if (
-    pages.length ===
-    0
-  ) {
-    pages.push(
-      createMovementPage()
-    );
-  }
-
   const requestedActive =
     typeof candidate.activePageId ===
       "string"
@@ -763,7 +748,8 @@ export function normalizeMovementDocument(
         requestedActive
     )
       ? requestedActive
-      : pages[0]!.id;
+      : pages[0]?.id ??
+        "";
 
   return {
     version:

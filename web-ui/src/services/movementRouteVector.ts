@@ -7,6 +7,10 @@ import type {
 } from "../domain/movement";
 
 import {
+  loadMovementPlan,
+} from "./movementPlan";
+
+import {
   createMovementRouteKey,
   type MovementRouteIdentityEntry,
 } from "./movementRouteIdentity";
@@ -26,6 +30,18 @@ export type MovementRouteVectorItem =
       name: string;
       trackName: string;
       sensor: number | null;
+    }
+  | {
+      key: string;
+      kind: "turnout";
+      order: number;
+      nodeIndex: number;
+      name: string;
+      sensor: number | null;
+      turnoutStates: Array<{
+        address: number;
+        closed: boolean;
+      }>;
     }
   | {
       key: string;
@@ -772,35 +788,123 @@ export async function loadMovementRouteVector(
     return [];
   }
 
-  const response =
-    await fetch(
-      "/api/layout",
-      {
-        cache:
-          "no-store",
-      }
-    );
-
-  if (
-    !response.ok
-  ) {
-    throw new Error(
-      `Layout could not be loaded (${response.status}).`
-    );
-  }
-
-  const layout =
-    await response.json() as
-      SerializedLayoutDto;
-
-  const route =
-    resolveMovementRouteVectorEntry(
-      layout,
+  /*
+   * The Movement plan is the authoritative physical route representation.
+   * Deriving the preview from plan.resources keeps block / segment / turnout
+   * ordering and resource keys exactly aligned with the runtime engine.
+   *
+   * buildMovementRouteVector() intentionally remains the legacy
+   * block/segment-only helper used by movementRouteDefaults so adding turnout
+   * cards to the UI does not silently change generated arrival conditions.
+   */
+  const plan =
+    await loadMovementPlan(
       page
     );
 
-  return buildMovementRouteVector(
-    layout,
-    route
+  return plan.resources.map(
+    (
+      resource,
+      index
+    ): MovementRouteVectorItem => {
+      const nodeIndex =
+        resource.nodeIndex ??
+        0;
+
+      const sensor =
+        resource.sensorAddress ??
+        resource.detectors[0] ??
+        null;
+
+      if (
+        resource.kind ===
+          "block"
+      ) {
+        const blockId =
+          resource.blockId;
+
+        if (
+          blockId ===
+            null
+        ) {
+          throw new Error(
+            `Movement block resource "${resource.key}" has no block id.`
+          );
+        }
+
+        return {
+          key:
+            resource.key,
+          kind:
+            "block",
+          order:
+            index + 1,
+          nodeIndex,
+          blockId,
+          name:
+            resource.name,
+          sensor,
+          role:
+            blockId ===
+              page.fromBlockId
+              ? "source"
+              : blockId ===
+                  page.toBlockId
+                ? "destination"
+                : "intermediate",
+        };
+      }
+
+      if (
+        resource.kind ===
+          "turnout"
+      ) {
+        return {
+          key:
+            resource.key,
+          kind:
+            "turnout",
+          order:
+            index + 1,
+          nodeIndex,
+          name:
+            resource.name,
+          sensor,
+          turnoutStates:
+            resource.turnoutStates.map(
+              state => ({
+                ...state,
+              })
+            ),
+        };
+      }
+
+      const trackName =
+        resource.label.startsWith(
+          `${resource.name} · `
+        )
+          ? resource.label.slice(
+              resource.name.length +
+                3
+            )
+          : "";
+
+      return {
+        key:
+          resource.key,
+        kind:
+          "segment",
+        order:
+          index + 1,
+        nodeIndex,
+        nodeName:
+          resource.name,
+        name:
+          trackName ||
+          resource.name,
+        trackName,
+        sensor,
+      };
+    }
   );
 }

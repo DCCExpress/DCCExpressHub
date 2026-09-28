@@ -69,6 +69,54 @@ test("Movement data is stored beside scripts, timetable and flows", () => {
   );
 });
 
+test("Movement documents may be empty and the final Movement can be deleted", () => {
+  const domain =
+    read(
+      "src/domain/movement.ts"
+    );
+
+  const dialog =
+    read(
+      "src/components/movement/MovementEditorDialog.tsx"
+    );
+
+  assert.match(
+    domain,
+    /pages:\s*\[\]/
+  );
+
+  assert.match(
+    domain,
+    /pages\[0\]\?\.id[\s\S]*""/
+  );
+
+  assert.doesNotMatch(
+    domain,
+    /pages\.push\([\s\S]*createMovementPage/
+  );
+
+  assert.doesNotMatch(
+    dialog,
+    /The last movement cannot be deleted/
+  );
+
+  assert.doesNotMatch(
+    dialog,
+    /document\.pages\.length <=[\s\S]*1/
+  );
+
+  assert.match(
+    dialog,
+    /pages\[[\s\S]*nextIndex[\s\S]*\]\?\.id[\s\S]*""/
+  );
+
+  assert.match(
+    dialog,
+    /No Movement configured/
+  );
+});
+
+
 test("Automation panel places Movement after Flows", () => {
   const source =
     read(
@@ -2574,7 +2622,7 @@ test("selected Movement route auto-fills name with direction arrows between bloc
 });
 
 
-test("Movement ARRIVED defaults and header preview share one route-vector builder", () => {
+test("Movement ARRIVED defaults keep their builder while header preview follows the runtime plan", () => {
   const vector =
     read(
       "src/services/movementRouteVector.ts"
@@ -2613,6 +2661,21 @@ test("Movement ARRIVED defaults and header preview share one route-vector builde
   assert.match(
     vector,
     /kind:[\s\S]*"block"/
+  );
+
+  assert.match(
+    vector,
+    /loadMovementPlan/
+  );
+
+  assert.match(
+    vector,
+    /plan\.resources\.map/
+  );
+
+  assert.match(
+    vector,
+    /resource\.kind ===[\s\S]*"turnout"/
   );
 
   assert.match(
@@ -2762,6 +2825,16 @@ test("Movement route vector preview is styled by type and prepared for future it
   );
 
   assert.match(
+    preview,
+    /TURNOUT/
+  );
+
+  assert.match(
+    preview,
+    /turnoutStates/
+  );
+
+  assert.match(
     css,
     /movement-route-vector-node\.is-source/
   );
@@ -2779,6 +2852,11 @@ test("Movement route vector preview is styled by type and prepared for future it
   assert.match(
     css,
     /movement-route-vector-node\.is-segment/
+  );
+
+  assert.match(
+    css,
+    /movement-route-vector-node\.is-turnout/
   );
 
   assert.match(

@@ -384,18 +384,8 @@ export default function MovementEditorDialog({
   const deletePage =
     (): void => {
       if (
-        !activePage ||
-        document.pages.length <=
-          1
+        !activePage
       ) {
-        showNotification({
-          color: "orange",
-          title:
-            "The last movement cannot be deleted",
-          message:
-            "",
-        });
-
         return;
       }
 
@@ -460,8 +450,13 @@ export default function MovementEditorDialog({
           activePageId:
             pages[
               nextIndex
-            ]!.id,
+            ]?.id ??
+            "",
         })
+      );
+
+      setSelectedRouteVectorKey(
+        null
       );
     };
 
@@ -572,10 +567,6 @@ export default function MovementEditorDialog({
                   size={14}
                 />
               }
-              disabled={
-                document.pages.length <=
-                1
-              }
               onClick={
                 deletePage
               }
@@ -588,6 +579,46 @@ export default function MovementEditorDialog({
         <section
           className="movement-editor-main"
         >
+          {
+            !activePage && (
+              <Stack
+                align="center"
+                justify="center"
+                gap="sm"
+                h="100%"
+                p="xl"
+              >
+                <Text
+                  fw={700}
+                >
+                  No Movement configured
+                </Text>
+
+                <Text
+                  size="sm"
+                  c="dimmed"
+                  ta="center"
+                >
+                  Create a Movement when you need one. An empty Movement list is valid.
+                </Text>
+
+                <Button
+                  size="sm"
+                  leftSection={
+                    <IconPlus
+                      size={16}
+                    />
+                  }
+                  onClick={
+                    addPage
+                  }
+                >
+                  New movement
+                </Button>
+              </Stack>
+            )
+          }
+
           {
             activePage && (
               <>
