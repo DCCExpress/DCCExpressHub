@@ -1169,8 +1169,17 @@ export function buildMovementPlan(
 
 export async function loadMovementPlan(
   page:
-    MovementPage
+    MovementPage,
+  layoutOverride?:
+    SerializedLayoutDto
 ): Promise<MovementPlan> {
+  if (layoutOverride) {
+    return buildMovementPlan(
+      page,
+      layoutOverride
+    );
+  }
+
   const response =
     await fetch(
       "/api/layout",
