@@ -609,8 +609,7 @@ export function applyMovementRouteCandidate(
         defaults => ({
           blockId:
             defaults.blockId,
-          departWhen: [],
-          leaveWhen: [],
+          approachWhen: [],
           arrivedWhen:
             defaults.conditions.map(
               condition => ({
@@ -624,6 +623,8 @@ export function applyMovementRouteCandidate(
                   condition.state,
               })
             ),
+          departWhen: [],
+          leaveWhen: [],
         })
       );
 
