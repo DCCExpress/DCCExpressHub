@@ -390,15 +390,38 @@ function renderActions(
         index
       ]!;
 
+    if (
+      sequence.mode ===
+        "background"
+    ) {
+      lines.push(
+        ...indent([
+          "START_BACKGROUND SEQUENCE " +
+            String(
+              index +
+                1
+            ) +
+            " {",
+          ...indent(
+            sequence.actions.map(
+              renderAction
+            )
+          ),
+          "}",
+          "MAIN_FLOW CONTINUES IMMEDIATELY",
+        ])
+      );
+
+      continue;
+    }
+
     lines.push(
       ...indent([
-        "SEQUENCE " +
+        "RUN_BLOCKING SEQUENCE " +
           String(
             index +
               1
           ) +
-          " " +
-          sequence.mode.toUpperCase() +
           " {",
         ...indent(
           sequence.actions.map(
@@ -406,6 +429,7 @@ function renderActions(
           )
         ),
         "}",
+        "MAIN_FLOW WAITS FOR SEQUENCE",
       ])
     );
   }
@@ -1401,7 +1425,7 @@ export function renderMovementExecutionScript(
         "complete",
         "COMPLETE_ACTIONS"
       ),
-      "WAIT ALL BACKGROUND SEQUENCES",
+      "JOIN ALL STARTED_BACKGROUND SEQUENCES  // Movement completion waits here",
       "",
       "RUNTIME_STOP_PATHS {",
       ...indent([
