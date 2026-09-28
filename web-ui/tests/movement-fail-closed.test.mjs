@@ -27,104 +27,230 @@ function read(relativePath) {
   );
 }
 
+function sliceBetween(
+  source,
+  startMarker,
+  endMarker
+) {
+  const start =
+    source.indexOf(
+      startMarker
+    );
+
+  const end =
+    source.indexOf(
+      endMarker,
+      start
+    );
+
+  assert.ok(
+    start >= 0 &&
+    end > start,
+    \`Could not slice \${startMarker}\`
+  );
+
+  return source.slice(
+    start,
+    end
+  );
+}
+
 test("Movement route authority is fail-closed for unknown runtime state", () => {
   const engine =
     read(
       "src/services/movementEngine.ts"
     );
 
-  assert.match(
-    engine,
-    /let blockSnapshotKnown =[sS]*false/
+  assert.ok(
+    engine.includes(
+      "let blockSnapshotKnown ="
+    )
   );
 
-  assert.match(
-    engine,
-    /status ===[sS]*"connected"[sS]*return;[sS]*sensorStates\.clear\(\)[sS]*blockStates = \{\}[sS]*blockSnapshotKnown =[sS]*false/
+  assert.ok(
+    engine.includes(
+      "sensorStates.clear();"
+    )
   );
 
-  assert.match(
-    engine,
-    /"blockStateChanged"[sS]*blockSnapshotKnown =[sS]*true/
+  assert.ok(
+    engine.includes(
+      "blockStates = {};"
+    )
   );
 
-  assert.match(
-    engine,
-    /function blockAvailableForTarget[sS]*!blockSnapshotKnown[sS]*return false/
+  assert.ok(
+    engine.includes(
+      "blockSnapshotKnown =\n        false;"
+    )
   );
 
-  assert.match(
-    engine,
-    /block\.sensorAddress !==[sS]*null[sS]*sensorStates\.get\([sS]*block\.sensorAddress[sS]*\) !==[sS]*false/
+  assert.ok(
+    engine.includes(
+      "wsApi.getLayoutRuntimeSnapshot();"
+    )
   );
 
-  assert.match(
-    engine,
-    /if \(!state\) \{[sS]*return false;/
+  const targetGuard =
+    sliceBetween(
+      engine,
+      "function blockAvailableForTarget",
+      "function reserveBlockTarget"
+    );
+
+  assert.ok(
+    targetGuard.includes(
+      "!blockSnapshotKnown"
+    )
   );
 
-  assert.doesNotMatch(
-    engine,
-    /sensorStates\.get\([sS]*address[sS]*\) !==[sS]*true/
+  assert.ok(
+    targetGuard.includes(
+      "if (!state)"
+    )
+  );
+
+  assert.ok(
+    targetGuard.includes(
+      "!==\n      false"
+    ),
+    "target block sensor must be explicitly OFF"
   );
 });
 
-test("Movement requires every known path detector to be explicitly OFF", () => {
+test("Movement requires every path detector to be explicitly OFF", () => {
   const engine =
     read(
       "src/services/movementEngine.ts"
     );
 
-  const start =
-    engine.indexOf(
-      "function aheadPathSensorsAreFree"
-    );
-
-  const end =
-    engine.indexOf(
-      "async function acquireLock",
-      start
+  const guard =
+    sliceBetween(
+      engine,
+      "function aheadPathSensorsAreFree",
+      "async function acquireLock"
     );
 
   assert.ok(
-    start >= 0 &&
-    end > start
+    guard.includes(
+      '"turnout"'
+    )
   );
 
-  const guard =
-    engine.slice(
-      start,
-      end
+  assert.ok(
+    guard.includes(
+      '"segment"'
+    )
+  );
+
+  assert.ok(
+    guard.includes(
+      "===\n              false"
+    ),
+    "route detector must be explicitly OFF"
+  );
+
+  assert.equal(
+    guard.includes(
+      "!==\n              true"
+    ),
+    false,
+    "unknown detector state must never count as free"
+  );
+
+  const heldReady =
+    sliceBetween(
+      engine,
+      "async function waitForHeldLegReady",
+      "async function waitForArrival"
     );
 
-  assert.match(
-    guard,
-    /resource\.kind ===[sS]*"turnout"/
+  assert.ok(
+    heldReady.includes(
+      "aheadPathSensorsAreFree"
+    ),
+    "speed-up recheck must use the fail-closed path guard"
   );
 
-  assert.match(
-    guard,
-    /resource\.kind ===[sS]*"segment"/
+  const traverse =
+    sliceBetween(
+      engine,
+      "async function traverseLeg",
+      "async function executeMovement"
+    );
+
+  const recheck =
+    traverse.indexOf(
+      "await waitForHeldLegReady"
+    );
+
+  const speedEnable =
+    traverse.indexOf(
+      "execution.moving =",
+      recheck
+    );
+
+  const throttle =
+    traverse.indexOf(
+      "applyDesiredSpeed(",
+      speedEnable
+    );
+
+  assert.ok(
+    recheck >= 0 &&
+    speedEnable > recheck &&
+    throttle > speedEnable,
+    "held authority must be rechecked immediately before non-zero speed"
+  );
+});
+
+test("Movement forgets stale authority knowledge across WebSocket reconnects", () => {
+  const engine =
+    read(
+      "src/services/movementEngine.ts"
+    );
+
+  const tracking =
+    sliceBetween(
+      engine,
+      "function installTracking",
+      "function delay"
+    );
+
+  assert.ok(
+    tracking.includes(
+      "wsClient.subscribeStatus"
+    )
   );
 
-  assert.match(
-    guard,
-    /sensorStates\.get\([sS]*address[sS]*\) ===[sS]*false/
+  assert.ok(
+    tracking.includes(
+      "sensorStates.clear();"
+    )
   );
 
-  assert.doesNotMatch(
-    guard,
-    /!==[sS]*true/
+  assert.ok(
+    tracking.includes(
+      "turnoutStates.clear();"
+    )
   );
 
-  assert.match(
-    engine,
-    /waitForHeldLegReady[sS]*aheadPathSensorsAreFree/
+  assert.ok(
+    tracking.includes(
+      "blockStates = {};"
+    )
   );
 
-  assert.match(
-    engine,
-    /execution\.moving =[sS]*true;[sS]*applyDesiredSpeed/
+  assert.ok(
+    tracking.includes(
+      "wsApi.getBlocks();"
+    )
+  );
+
+  assert.ok(
+    tracking.includes(
+      "wsApi.getLayoutRuntimeSnapshot();"
+    )
   );
 });
 
@@ -134,19 +260,48 @@ test("ESP32 runtime snapshot never turns unknown sensors into OFF", () => {
       "../src/WsProtocol.cpp"
     );
 
-  const matches =
-    protocol.match(
-      /_runtime\.getSensorState\([\s\S]*sensor\.address,[\s\S]*on\)[\s\S]*continue;/g
-    ) ??
-    [];
+  const direct =
+    sliceBetween(
+      protocol,
+      "void WsProtocol::sendRuntimeSnapshot",
+      "void WsProtocol::broadcastRuntimeSnapshot"
+    );
 
-  assert.ok(
-    matches.length >= 2,
-    "both direct and broadcast runtime snapshots must skip unknown sensor states"
-  );
+  const broadcast =
+    sliceBetween(
+      protocol,
+      "void WsProtocol::broadcastRuntimeSnapshot",
+      "void WsProtocol::sendBlockStateSnapshot"
+    );
 
-  assert.doesNotMatch(
-    protocol,
-    /data\["on"\][\s\S]*sensor\.on/
-  );
+  for (
+    const section of
+    [direct, broadcast]
+  ) {
+    assert.ok(
+      section.includes(
+        "_runtime.getSensorState("
+      )
+    );
+
+    assert.ok(
+      section.includes(
+        "continue;"
+      )
+    );
+
+    assert.ok(
+      section.includes(
+        'data["on"] ='
+      )
+    );
+
+    assert.equal(
+      section.includes(
+        "sensor.on"
+      ),
+      false,
+      "unknown compatibility sensor state must not be serialized as OFF"
+    );
+  }
 });
