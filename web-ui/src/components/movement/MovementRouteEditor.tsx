@@ -15,6 +15,7 @@ import type {
   MovementAction,
   MovementBlockRule,
   MovementPage,
+  MovementSegmentEvent,
 } from "../../domain/movement";
 
 import {
@@ -26,6 +27,10 @@ import {
   loadMovementPlan,
   type MovementPlan,
 } from "../../services/movementPlan";
+
+import {
+  syncMovementSegmentEventMatrix,
+} from "../../services/movementSegmentEvents";
 
 import MovementRouteRow from "./MovementRouteRow";
 import MovementSelectedResourceEditor from "./MovementSelectedResourceEditor";
@@ -238,6 +243,76 @@ export default function MovementRouteEditor({
     ]
   );
 
+  useEffect(
+    () => {
+      if (!plan) {
+        return;
+      }
+
+      let nextEvents =
+        page.segmentEvents;
+
+      for (
+        const resource of
+        plan.resources
+      ) {
+        if (
+          resource.kind !==
+            "segment"
+        ) {
+          continue;
+        }
+
+        nextEvents =
+          syncMovementSegmentEventMatrix(
+            nextEvents,
+            resource.key,
+            resource.detectors
+          );
+      }
+
+      if (
+        JSON.stringify(
+          nextEvents
+        ) ===
+        JSON.stringify(
+          page.segmentEvents
+        )
+      ) {
+        return;
+      }
+
+      onChange({
+        ...page,
+        segmentEvents:
+          nextEvents,
+      });
+    },
+    [
+      plan,
+      page.segmentEvents,
+    ]
+  );
+
+  const updateSegmentEventsForResource =
+    (
+      resourceKey: string,
+      events:
+        MovementSegmentEvent[]
+    ): void => {
+      onChange({
+        ...page,
+        segmentEvents: [
+          ...page.segmentEvents.filter(
+            event =>
+              event.resourceKey !==
+              resourceKey
+          ),
+          ...events,
+        ],
+      });
+    };
+
   const updateRule =
     (
       rule:
@@ -416,6 +491,20 @@ export default function MovementRouteEditor({
                     }
                     sensorCatalog={
                       sensorCatalog
+                    }
+                    segmentEvents={
+                      page.segmentEvents.filter(
+                        event =>
+                          event.resourceKey ===
+                          selectedResource.key
+                      )
+                    }
+                    onSegmentEventsChange={
+                      events =>
+                        updateSegmentEventsForResource(
+                          selectedResource.key,
+                          events
+                        )
                     }
                     actions={
                       page.actions.filter(
