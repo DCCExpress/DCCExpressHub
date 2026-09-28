@@ -15,6 +15,7 @@ import type {
   MovementAction,
   MovementBlockRule,
   MovementPage,
+  MovementResourceEventRule,
 } from "../../domain/movement";
 
 import {
@@ -238,6 +239,25 @@ export default function MovementRouteEditor({
     ]
   );
 
+  const updateResourceEventRules =
+    (
+      resourceKey: string,
+      rules:
+        MovementResourceEventRule[]
+    ): void => {
+      onChange({
+        ...page,
+        resourceEventRules: [
+          ...page.resourceEventRules.filter(
+            rule =>
+              rule.resourceKey !==
+              resourceKey
+          ),
+          ...rules,
+        ],
+      });
+    };
+
   const updateRule =
     (
       rule:
@@ -416,6 +436,20 @@ export default function MovementRouteEditor({
                     }
                     sensorCatalog={
                       sensorCatalog
+                    }
+                    resourceEventRules={
+                      page.resourceEventRules.filter(
+                        rule =>
+                          rule.resourceKey ===
+                          selectedResource.key
+                      )
+                    }
+                    onResourceEventRulesChange={
+                      rules =>
+                        updateResourceEventRules(
+                          selectedResource.key,
+                          rules
+                        )
                     }
                     actions={
                       page.actions.filter(
