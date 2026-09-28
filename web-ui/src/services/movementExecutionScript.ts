@@ -52,6 +52,35 @@ function indent(
   );
 }
 
+function locoTarget(): string {
+  return "address=RUNTIME_SOURCE_LOCO direction=ROUTE_DIRECTION";
+}
+
+function stopLocoCommand(
+  reason: string
+): string {
+  return (
+    "SET_LOCO " +
+    locoTarget() +
+    " speed=0  // " +
+    reason
+  );
+}
+
+function movingSpeedCommand(
+  speed:
+    number | string
+): string {
+  return (
+    "SET_LOCO " +
+    locoTarget() +
+    " speed=" +
+    String(
+      speed
+    )
+  );
+}
+
 function sensorState(
   condition:
     MovementSensorCondition
@@ -215,12 +244,19 @@ function renderAction(
         String(
           action.speed
         ) +
-        "  // applied immediately only while moving"
+        "; APPLY_LOCO_SPEED -> IF MOVING THEN " +
+        movingSpeedCommand(
+          action.speed
+        ) +
+        " ELSE " +
+        stopLocoCommand(
+          "Movement is not moving"
+        )
       );
 
     case "function":
       return (
-        "FUNCTION F" +
+        "SET_LOCO_FUNCTION address=RUNTIME_SOURCE_LOCO F" +
         String(
           action.functionNumber
         ) +
@@ -234,15 +270,19 @@ function renderAction(
 
     case "horn":
       return (
-        "PULSE FUNCTION F" +
+        "SET_LOCO_FUNCTION address=RUNTIME_SOURCE_LOCO F" +
         String(
           action.functionNumber
         ) +
-        " FOR " +
+        " ON; WAIT " +
         String(
           action.pulseMs
         ) +
-        "ms"
+        "ms; SET_LOCO_FUNCTION address=RUNTIME_SOURCE_LOCO F" +
+        String(
+          action.functionNumber
+        ) +
+        " OFF"
       );
 
     case "delay":
@@ -472,6 +512,16 @@ function renderAuthority(
           ) +
           "]"
         ),
+      (
+        held
+          ? "ON_BLOCKED_HELD_AUTHORITY: "
+          : "ON_WAIT_ROUTE_AUTHORITY: "
+      ) +
+        stopLocoCommand(
+          held
+            ? "held authority became unsafe"
+            : "route authority unavailable"
+        ),
     ]),
     "}",
   ];
@@ -633,6 +683,10 @@ function renderLegClearance(
       "LOOP UNTIL ACQUIRED {",
       ...indent([
         "REQUIRE ROUTE_AUTHORITY",
+        "ON ANY WAIT/LOCK CONFLICT: " +
+          stopLocoCommand(
+            "route/resource/turnout authority not ready"
+          ),
         "TRY_ACQUIRE RESOURCE_LOCKS [",
         ...indent(
           locks.map(
@@ -665,7 +719,9 @@ function renderLegClearance(
                 ...indent([
                   "IF CURRENT_STATE != REQUIRED_STATE {",
                   ...indent([
-                    "STOP LOCO",
+                    stopLocoCommand(
+                      "turnout must be changed before movement"
+                    ),
                     "SET TURNOUT",
                     "WAIT BACKEND ACK",
                     "WAIT 250ms AFTER A SET WHEN MORE TURNOUT REQUIREMENTS REMAIN",
@@ -983,6 +1039,20 @@ function renderLeg(
     )
   );
 
+  if (
+    leg.departWhen.length >
+      0
+  ) {
+    lines.push(
+      ...indent([
+        "ON WAIT DEPART_CONDITION: " +
+          stopLocoCommand(
+            "departure condition is false"
+          ),
+      ])
+    );
+  }
+
   lines.push(
     ...indent(
       renderAuthority(
@@ -1021,6 +1091,20 @@ function renderLeg(
     )
   );
 
+  if (
+    leg.departWhen.length >
+      0
+  ) {
+    lines.push(
+      ...indent([
+        "ON WAIT RECHECK_DEPART_CONDITION: " +
+          stopLocoCommand(
+            "departure condition changed while authority is held"
+          ),
+      ])
+    );
+  }
+
   lines.push(
     ...indent(
       renderActions(
@@ -1043,7 +1127,12 @@ function renderLeg(
 
   lines.push(
     ...indent([
-      "ENSURE THROTTLE = CURRENT_DESIRED_SPEED  // no-op if already at that physical speed",
+      "SET MOVING = TRUE",
+      "APPLY_LOCO_SPEED -> " +
+        movingSpeedCommand(
+          "CURRENT_DESIRED_SPEED"
+        ) +
+        "  // no-op if physical speed already matches",
       "",
       ...renderBlockApproach(
         page,
@@ -1119,7 +1208,11 @@ function renderLeg(
           "arrived",
           "ARRIVED_ACTIONS"
         ),
-        "STOP LOCO",
+        "SET MOVING = FALSE",
+        "SET DESIRED_SPEED = 0",
+        stopLocoCommand(
+          "final ARRIVED automatic stop"
+        ),
       ])
     );
   }
@@ -1238,6 +1331,12 @@ export function renderMovementExecutionScript(
           source?.name ??
           "?"
         ),
+      "INITIAL_DESIRED_SPEED = " +
+        String(
+          page.speed
+        ),
+      "ALL SPEED COMMANDS USE ROUTE_DIRECTION = " +
+        plan.direction.toUpperCase(),
       "",
       "PRECHECK {",
       ...indent([
@@ -1251,10 +1350,14 @@ export function renderMovementExecutionScript(
       "",
       "ARM_DIRECTION {",
       ...indent([
-        "SEND SPEED 0 WITH ROUTE_DIRECTION",
+        "ROUTE_DIRECTION = " +
+          plan.direction.toUpperCase(),
+        stopLocoCommand(
+          "force stopped route direction before departure"
+        ),
         "WAIT 150ms",
-        "REQUEST LIVE LOCO STATE",
-        "CONFIRM SPEED 0 AND DIRECTION (timeout 1200ms)",
+        "REQUEST LIVE LOCO STATE address=RUNTIME_SOURCE_LOCO",
+        "CONFIRM LIVE_LOCO speed=0 direction=ROUTE_DIRECTION (timeout 1200ms)",
       ]),
       "}",
       "",
@@ -1287,7 +1390,11 @@ export function renderMovementExecutionScript(
     "",
     ...indent([
       "DRAIN READY RESOURCE LEAVES",
-      "STOP LOCO",
+      "SET DESIRED_SPEED = 0",
+      "SET MOVING = FALSE",
+      stopLocoCommand(
+        "normal Movement completion"
+      ),
       ...renderActions(
         page,
         "movement",
@@ -1295,6 +1402,20 @@ export function renderMovementExecutionScript(
         "COMPLETE_ACTIONS"
       ),
       "WAIT ALL BACKGROUND SEQUENCES",
+      "",
+      "RUNTIME_STOP_PATHS {",
+      ...indent([
+        "STOP_REQUEST -> SET CANCELLED=TRUE; SET MOVING=FALSE; SET DESIRED_SPEED=0; " +
+          stopLocoCommand(
+            "user stop/cancel"
+          ),
+        "RUNTIME_ERROR -> SET MOVING=FALSE; SET DESIRED_SPEED=0; " +
+          stopLocoCommand(
+            "runtime failure cleanup"
+          ),
+        "EMERGENCY_ABORT -> STOP_REQUEST plus GLOBAL_EMERGENCY_STOP when requested",
+      ]),
+      "}",
     ]),
     "}",
   );
