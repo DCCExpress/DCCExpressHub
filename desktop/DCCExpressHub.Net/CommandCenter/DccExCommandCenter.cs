@@ -655,10 +655,17 @@ namespace DCCExpressHub.Net.CommandCenter
 
             _txQueueSignal.Release();
 
-            return await item
-                .Completion
-                .Task
-                .WaitAsync(ct);
+            try
+            {
+                return await item
+                    .Completion
+                    .Task
+                    .WaitAsync(ct);
+            }
+            catch (OperationCanceledException)
+            {
+                return false;
+            }
         }
 
         private bool ItemStillValid(
@@ -883,8 +890,11 @@ namespace DCCExpressHub.Net.CommandCenter
 
                 return true;
             }
+            catch (OperationCanceledException)
+            {
+                return false;
+            }
             catch (Exception ex)
-                when (ex is not OperationCanceledException)
             {
                 _log.LogWarning(
                     ex,
