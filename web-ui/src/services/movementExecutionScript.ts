@@ -52,6 +52,35 @@ function indent(
   );
 }
 
+function locoTarget(): string {
+  return "address=RUNTIME_SOURCE_LOCO direction=ROUTE_DIRECTION";
+}
+
+function stopLocoCommand(
+  reason: string
+): string {
+  return (
+    "SET_LOCO " +
+    locoTarget() +
+    " speed=0  // " +
+    reason
+  );
+}
+
+function movingSpeedCommand(
+  speed:
+    number | string
+): string {
+  return (
+    "SET_LOCO " +
+    locoTarget() +
+    " speed=" +
+    String(
+      speed
+    )
+  );
+}
+
 function sensorState(
   condition:
     MovementSensorCondition
@@ -215,12 +244,19 @@ function renderAction(
         String(
           action.speed
         ) +
-        "  // applied immediately only while moving"
+        "; APPLY_LOCO_SPEED -> IF MOVING THEN " +
+        movingSpeedCommand(
+          action.speed
+        ) +
+        " ELSE " +
+        stopLocoCommand(
+          "Movement is not moving"
+        )
       );
 
     case "function":
       return (
-        "FUNCTION F" +
+        "SET_LOCO_FUNCTION address=RUNTIME_SOURCE_LOCO F" +
         String(
           action.functionNumber
         ) +
@@ -234,15 +270,19 @@ function renderAction(
 
     case "horn":
       return (
-        "PULSE FUNCTION F" +
+        "SET_LOCO_FUNCTION address=RUNTIME_SOURCE_LOCO F" +
         String(
           action.functionNumber
         ) +
-        " FOR " +
+        " ON; WAIT " +
         String(
           action.pulseMs
         ) +
-        "ms"
+        "ms; SET_LOCO_FUNCTION address=RUNTIME_SOURCE_LOCO F" +
+        String(
+          action.functionNumber
+        ) +
+        " OFF"
       );
 
     case "delay":
