@@ -119,7 +119,13 @@ function sectionTitle(
 ): string {
   return (
     section.segment?.nodeName ??
-    \`S\${section.nodeIndex + 1}\`
+    (
+      "S" +
+      String(
+        section.nodeIndex +
+          1
+      )
+    )
   );
 }
 
@@ -184,7 +190,12 @@ function blockLabel(
     >
 ): string {
   return (
-    \`B\${block.blockId}: \${block.name}\`
+    "B" +
+    String(
+      block.blockId
+    ) +
+    ": " +
+    block.name
   );
 }
 
@@ -196,7 +207,39 @@ function turnoutLabel(
     >
 ): string {
   return (
-    \`Turnout: \${turnout.name}\`
+    "Turnout: " +
+    turnout.name
+  );
+}
+
+function sensorLabel(
+  sensors:
+    number[]
+): string {
+  if (
+    sensors.length ===
+      0
+  ) {
+    return "NO SECTION SENSOR";
+  }
+
+  if (
+    sensors.length ===
+      1
+  ) {
+    return (
+      "Sensor " +
+      String(
+        sensors[0]
+      )
+    );
+  }
+
+  return (
+    "Sensors " +
+    sensors.join(
+      " · "
+    )
   );
 }
 
@@ -300,7 +343,14 @@ export default function MovementLocalSectionPreview({
             SVG_HEIGHT
           }
           viewBox={
-            \`0 0 \${width} \${SVG_HEIGHT}\`
+            [
+              0,
+              0,
+              width,
+              SVG_HEIGHT,
+            ].join(
+              " "
+            )
           }
           aria-label="Movement local section preview"
         >
@@ -329,7 +379,10 @@ export default function MovementLocalSectionPreview({
                   return (
                     <g
                       key={
-                        \`empty-\${slotIndex}\`
+                        "empty-" +
+                        String(
+                          slotIndex
+                        )
                       }
                       className="movement-local-preview-section is-empty"
                     >
@@ -392,16 +445,16 @@ export default function MovementLocalSectionPreview({
                     1
                   );
 
-                const sensorY =
-                  116;
-
                 const detailStartY =
                   136;
 
                 return (
                   <g
                     key={
-                      \`section-\${section.nodeIndex}\`
+                      "section-" +
+                      String(
+                        section.nodeIndex
+                      )
                     }
                     className={
                       "movement-local-preview-section" +
@@ -492,8 +545,7 @@ export default function MovementLocalSectionPreview({
                       className={
                         "movement-local-preview-sensor-label" +
                         (
-                          sensor ===
-                            null
+                          !hasSensor
                             ? " is-missing"
                             : ""
                         )
@@ -501,16 +553,13 @@ export default function MovementLocalSectionPreview({
                       x={
                         centerX
                       }
-                      y={
-                        sensorY
-                      }
+                      y={116}
                       textAnchor="middle"
                     >
                       {
-                        sensor ===
-                          null
-                          ? "NO SECTION SENSOR"
-                          : \`Sensor \${sensor}\`
+                        sensorLabel(
+                          sensors
+                        )
                       }
                     </text>
 
@@ -596,7 +645,11 @@ export default function MovementLocalSectionPreview({
 
                     {
                       localSelected?.kind ===
-                        "segment" && (
+                        "segment" &&
+                      blockLines.length ===
+                        0 &&
+                      turnoutLines.length ===
+                        0 && (
                         <text
                           className="movement-local-preview-detail is-selected"
                           x={
