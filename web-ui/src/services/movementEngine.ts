@@ -8,6 +8,7 @@ import type {
 import type {
   MovementAction,
   MovementPage,
+  MovementResourceEventName,
   MovementWhen,
 } from "../domain/movement";
 
@@ -36,6 +37,11 @@ import {
   type MovementPlanLeg,
   type MovementPlanResource,
 } from "./movementPlan";
+
+import {
+  effectiveMovementResourceEventRule,
+  movementResourceRuleSatisfied,
+} from "./movementResourceEvents";
 
 import {
   wsApi,
@@ -135,6 +141,12 @@ type BlockLeaveState = {
   fired: boolean;
 };
 
+type ResourceLeaveState = {
+  resource:
+    MovementPlanResource;
+  ready: boolean;
+};
+
 type MovementExecution = {
   page:
     MovementPage;
@@ -157,6 +169,11 @@ type MovementExecution = {
     MovementEngineState;
   backgroundTasks:
     Set<Promise<void>>;
+  resourceLeaves:
+    Map<
+      string,
+      ResourceLeaveState
+    >;
 };
 
 const states =
@@ -291,6 +308,204 @@ function updateState(
   );
 }
 
+function resourceEntryEvent(
+  resource:
+    MovementPlanResource
+): MovementResourceEventName {
+  return resource.kind ===
+    "turnout"
+    ? "approach"
+    : "enter";
+}
+
+function resourceEventSatisfied(
+  execution:
+    MovementExecution,
+  resource:
+    MovementPlanResource,
+  event:
+    MovementResourceEventName
+): boolean {
+  const rule =
+    effectiveMovementResourceEventRule(
+      execution.page.resourceEventRules,
+      resource,
+      event
+    );
+
+  if (
+    rule.conditions.length ===
+      0
+  ) {
+    return false;
+  }
+
+  return movementResourceRuleSatisfied(
+    rule,
+    sensor =>
+      sensorStates.get(
+        sensor
+      )
+  );
+}
+
+function captureResourceLeaveTransitions(
+  changedSensor:
+    number | null =
+      null
+): void {
+  for (
+    const execution of
+    executions.values()
+  ) {
+    for (
+      const state of
+      execution.resourceLeaves.values()
+    ) {
+      if (state.ready) {
+        continue;
+      }
+
+      const rule =
+        effectiveMovementResourceEventRule(
+          execution.page.resourceEventRules,
+          state.resource,
+          "leave"
+        );
+
+      if (
+        rule.conditions.length ===
+        0
+      ) {
+        continue;
+      }
+
+      if (
+        changedSensor !==
+          null &&
+        !rule.conditions.some(
+          condition =>
+            condition.sensor ===
+            changedSensor
+        )
+      ) {
+        continue;
+      }
+
+      if (
+        movementResourceRuleSatisfied(
+          rule,
+          sensor =>
+            sensorStates.get(
+              sensor
+            )
+        )
+      ) {
+        state.ready =
+          true;
+      }
+    }
+  }
+}
+
+function armResourceLeave(
+  execution:
+    MovementExecution,
+  resource:
+    MovementPlanResource
+): boolean {
+  const rule =
+    effectiveMovementResourceEventRule(
+      execution.page.resourceEventRules,
+      resource,
+      "leave"
+    );
+
+  if (
+    rule.conditions.length ===
+      0
+  ) {
+    return false;
+  }
+
+  execution.resourceLeaves.set(
+    resource.key,
+    {
+      resource,
+      ready:
+        movementResourceRuleSatisfied(
+          rule,
+          sensor =>
+            sensorStates.get(
+              sensor
+            )
+        ),
+    }
+  );
+
+  return true;
+}
+
+async function drainReadyResourceLeaves(
+  execution:
+    MovementExecution
+): Promise<void> {
+  const ready =
+    [
+      ...execution.resourceLeaves.entries(),
+    ].filter(
+      (
+        [
+          ,
+          state,
+        ]
+      ) =>
+        state.ready
+    );
+
+  for (
+    const [
+      key,
+      state,
+    ] of ready
+  ) {
+    execution.resourceLeaves.delete(
+      key
+    );
+
+    await runActions(
+      execution,
+      state.resource.key,
+      "leave"
+    );
+  }
+}
+
+async function runLegacyLeaveIfNeeded(
+  execution:
+    MovementExecution,
+  resource:
+    MovementPlanResource
+): Promise<void> {
+  await drainReadyResourceLeaves(
+    execution
+  );
+
+  if (
+    execution.resourceLeaves.has(
+      resource.key
+    )
+  ) {
+    return;
+  }
+
+  await runActions(
+    execution,
+    resource.key,
+    "leave"
+  );
+}
+
 function installTracking():
   void {
   if (
@@ -319,6 +534,10 @@ function installTracking():
           Boolean(
             data.on
           )
+        );
+
+        captureResourceLeaveTransitions(
+          data.address
         );
       }
     }
@@ -366,6 +585,8 @@ function installTracking():
           );
         }
       }
+
+      captureResourceLeaveTransitions();
     }
   );
 
@@ -2973,13 +3194,16 @@ async function waitForResourceEntry(
       blockLeaveState
     );
 
+    const entryEvent =
+      resourceEntryEvent(
+        resource
+      );
+
     if (
-      resource.detectors.some(
-        address =>
-          sensorStates.get(
-            address
-          ) ===
-            true
+      resourceEventSatisfied(
+        execution,
+        resource,
+        entryEvent
       )
     ) {
       return;
@@ -3705,6 +3929,18 @@ export async function startMovement(
     MovementExecution = {
     page: {
       ...page,
+      resourceEventRules:
+        page.resourceEventRules.map(
+          rule => ({
+            ...rule,
+            conditions:
+              rule.conditions.map(
+                condition => ({
+                  ...condition,
+                })
+              ),
+          })
+        ),
       actions:
         page.actions.map(
           action => ({
@@ -3734,6 +3970,8 @@ export async function startMovement(
       new Set<
         Promise<void>
       >(),
+    resourceLeaves:
+      new Map(),
   };
 
   clearMovementBlockRuntimeByOwner(
