@@ -348,6 +348,16 @@ test("Movement editor is split into reusable components", () => {
 
   assert.match(
     blockConditions,
+    /Approach when/
+  );
+
+  assert.match(
+    blockConditions,
+    /Arrived when/
+  );
+
+  assert.match(
+    blockConditions,
     /Depart when/
   );
 
@@ -356,9 +366,35 @@ test("Movement editor is split into reusable components", () => {
     /Leave when/
   );
 
-  assert.match(
-    blockConditions,
-    /Arrived when/
+  const approachIndex =
+    blockConditions.indexOf(
+      '"Approach when"'
+    );
+
+  const arrivedIndex =
+    blockConditions.indexOf(
+      '"Arrived when"'
+    );
+
+  const departIndex =
+    blockConditions.indexOf(
+      '"Depart when"'
+    );
+
+  const leaveIndex =
+    blockConditions.indexOf(
+      '"Leave when"'
+    );
+
+  assert.ok(
+    approachIndex >= 0 &&
+    arrivedIndex >
+      approachIndex &&
+    departIndex >
+      arrivedIndex &&
+    leaveIndex >
+      departIndex,
+    "Block event cards must follow APPROACH -> ARRIVED -> DEPART -> LEAVE"
   );
 
   assert.match(
@@ -1127,7 +1163,7 @@ test("Movement block LEAVE fires from source occupancy release", () => {
 });
 
 
-test("Movement block conditions support DEPART LEAVE and ARRIVED sensor rules", () => {
+test("Movement block conditions support APPROACH ARRIVED DEPART and LEAVE sensor rules", () => {
   const domain =
     read(
       "src/domain/movement.ts"
@@ -1150,6 +1186,11 @@ test("Movement block conditions support DEPART LEAVE and ARRIVED sensor rules", 
 
   assert.match(
     domain,
+    /approachWhen:\s*MovementSensorCondition\[\]/
+  );
+
+  assert.match(
+    domain,
     /departWhen:\s*MovementSensorCondition\[\]/
   );
 
@@ -1165,12 +1206,22 @@ test("Movement block conditions support DEPART LEAVE and ARRIVED sensor rules", 
 
   assert.match(
     domain,
+    /candidate\.approachWhen/
+  );
+
+  assert.match(
+    domain,
     /candidate\.departWhen/
   );
 
   assert.match(
     domain,
     /candidate\.leaveWhen/
+  );
+
+  assert.match(
+    plan,
+    /approachRuleFor/
   );
 
   assert.match(
@@ -1186,6 +1237,16 @@ test("Movement block conditions support DEPART LEAVE and ARRIVED sensor rules", 
   assert.match(
     plan,
     /leaveWhenExplicit/
+  );
+
+  assert.match(
+    engine,
+    /maybeRunBlockApproach/
+  );
+
+  assert.match(
+    engine,
+    /leg\.approachWhen\.length/
   );
 
   assert.match(
@@ -1210,6 +1271,11 @@ test("Movement block conditions support DEPART LEAVE and ARRIVED sensor rules", 
 
   assert.match(
     editor,
+    /"approachWhen"/
+  );
+
+  assert.match(
+    editor,
     /"departWhen"/
   );
 
@@ -1221,6 +1287,11 @@ test("Movement block conditions support DEPART LEAVE and ARRIVED sensor rules", 
   assert.match(
     editor,
     /"arrivedWhen"/
+  );
+
+  assert.match(
+    editor,
+    /Default: the Movement route boundary triggers APPROACH/
   );
 
   assert.match(
