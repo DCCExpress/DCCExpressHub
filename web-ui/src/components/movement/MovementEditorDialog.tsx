@@ -31,6 +31,10 @@ import {
   IconTrash,
 } from "@tabler/icons-react";
 
+import type {
+  LayoutView,
+} from "../../models/editor/core/LayoutView";
+
 import {
   createMovementPage,
   normalizeMovementDocument,
@@ -63,6 +67,8 @@ type Props = {
   opened: boolean;
   onClose: () => void;
   initialPageId?: string | null;
+  layout:
+    LayoutView;
   onSaved?: (
     document:
       MovementDocument
@@ -73,6 +79,7 @@ export default function MovementEditorDialog({
   opened,
   onClose,
   initialPageId,
+  layout,
   onSaved,
 }: Props) {
   const [
@@ -822,6 +829,9 @@ export default function MovementEditorDialog({
                     page={
                       activePage
                     }
+                    layout={
+                      layout
+                    }
                     selectedKey={
                       selectedRouteVectorKey
                     }
@@ -842,6 +852,9 @@ export default function MovementEditorDialog({
                     }
                     page={
                       activePage
+                    }
+                    layout={
+                      layout
                     }
                     onClose={
                       () =>
@@ -864,6 +877,9 @@ export default function MovementEditorDialog({
                   <MovementRouteEditor
                     page={
                       activePage
+                    }
+                    layout={
+                      layout
                     }
                     selectedResourceKey={
                       selectedRouteVectorKey
