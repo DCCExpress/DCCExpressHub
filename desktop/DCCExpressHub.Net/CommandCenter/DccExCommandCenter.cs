@@ -19,6 +19,7 @@ namespace DCCExpressHub.Net.CommandCenter
         private int _commandIntervalMs = 25;
         private long _queueGeneration;
         private long _motionEpoch;
+        private int _motionBarrier;
         private DateTimeOffset _lastNormalTxAt =
             DateTimeOffset.MinValue;
 
@@ -605,6 +606,18 @@ namespace DCCExpressHub.Net.CommandCenter
                 IsLocoSpeedCommand(
                     command);
 
+            if (
+                cancelOnEmergency &&
+                Volatile.Read(
+                    ref _motionBarrier) != 0)
+            {
+                _log.LogWarning(
+                    "DCC-EX loco command rejected while ESTOP priority transaction is active: {Command}",
+                    command);
+
+                return false;
+            }
+
             var item =
                 new TxQueueItem(
                     command,
@@ -831,6 +844,10 @@ namespace DCCExpressHub.Net.CommandCenter
             if (!_transport.IsConnected)
                 return false;
 
+            Volatile.Write(
+                ref _motionBarrier,
+                1);
+
             CancelPendingMotionCommands();
 
             await _tx.WaitAsync(ct);
@@ -874,7 +891,17 @@ namespace DCCExpressHub.Net.CommandCenter
             }
             finally
             {
+                // Also discard motion commands that raced with the priority
+                // transaction before the barrier became visible to their
+                // producer. The barrier stays active until the writer lock has
+                // been released.
+                CancelPendingMotionCommands();
+
                 _tx.Release();
+
+                Volatile.Write(
+                    ref _motionBarrier,
+                    0);
             }
         }
 
