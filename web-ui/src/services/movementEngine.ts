@@ -3197,8 +3197,20 @@ async function waitForResourceEntry(
   blockLeaveState:
     BlockLeaveState
 ): Promise<void> {
+  const entryEvent =
+    resourceEntryEvent(
+      resource
+    );
+
+  const entryRule =
+    effectiveMovementResourceEventRule(
+      execution.page.resourceEventRules,
+      resource,
+      entryEvent
+    );
+
   if (
-    resource.detectors.length ===
+    entryRule.conditions.length ===
     0
   ) {
     return;
@@ -3222,11 +3234,6 @@ async function waitForResourceEntry(
       leg,
       blockLeaveState
     );
-
-    const entryEvent =
-      resourceEntryEvent(
-        resource
-      );
 
     if (
       resourceEventSatisfied(
