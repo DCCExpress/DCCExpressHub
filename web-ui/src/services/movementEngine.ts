@@ -3137,6 +3137,10 @@ async function waitForArrival(
   while (
     !execution.cancelled
   ) {
+    await drainReadyResourceLeaves(
+      execution
+    );
+
     await maybeRunBlockLeave(
       execution,
       leg,
@@ -3188,6 +3192,10 @@ async function waitForResourceEntry(
   while (
     !execution.cancelled
   ) {
+    await drainReadyResourceLeaves(
+      execution
+    );
+
     await maybeRunBlockLeave(
       execution,
       leg,
@@ -3228,6 +3236,10 @@ async function traverseLeg(
 ): Promise<void> {
   execution.currentBlockId =
     leg.from.blockId;
+
+  await drainReadyResourceLeaves(
+    execution
+  );
 
   if (
     execution.moving
@@ -3385,6 +3397,11 @@ async function traverseLeg(
           resource.key
         );
 
+        armResourceLeave(
+          execution,
+          resource
+        );
+
         await runActions(
           execution,
           resource.key,
@@ -3417,16 +3434,24 @@ async function traverseLeg(
         resource.key
       );
 
+      armResourceLeave(
+        execution,
+        resource
+      );
+
+      await drainReadyResourceLeaves(
+        execution
+      );
+
       for (
         const turnout of
         pendingTurnouts.splice(
           0
         )
       ) {
-        await runActions(
+        await runLegacyLeaveIfNeeded(
           execution,
-          turnout.key,
-          "leave"
+          turnout
         );
       }
 
@@ -3435,10 +3460,9 @@ async function traverseLeg(
         previousSegment.key !==
           resource.key
       ) {
-        await runActions(
+        await runLegacyLeaveIfNeeded(
           execution,
-          previousSegment.key,
-          "leave"
+          previousSegment
         );
       }
 
@@ -3471,6 +3495,10 @@ async function traverseLeg(
       execution,
       leg,
       blockLeaveState
+    );
+
+    await drainReadyResourceLeaves(
+      execution
     );
 
     setActiveRouteResource(
@@ -3549,10 +3577,9 @@ async function traverseLeg(
         0
       )
     ) {
-      await runActions(
+      await runLegacyLeaveIfNeeded(
         execution,
-        turnout.key,
-        "leave"
+        turnout
       );
     }
 
@@ -3689,6 +3716,10 @@ async function executeMovement(
       leg
     );
   }
+
+  await drainReadyResourceLeaves(
+    execution
+  );
 
   execution.desiredSpeed =
     0;
