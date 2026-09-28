@@ -866,6 +866,7 @@ export default function MovementActionEditor({
         </Text>
 
         <Tabs
+          className="movement-action-event-tabs"
           value={
             selectedWhen
           }
