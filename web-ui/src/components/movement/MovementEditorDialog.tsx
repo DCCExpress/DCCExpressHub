@@ -42,6 +42,10 @@ import {
   type MovementPage,
 } from "../../domain/movement";
 
+import type {
+  MovementRouteVectorItem,
+} from "../../services/movementRouteVector";
+
 import {
   loadAutomationMovement,
   saveAutomationMovement,
@@ -56,6 +60,7 @@ import {
   getMovementEngineState,
 } from "../../services/movementEngine";
 
+import MovementLocalSectionPreview from "./MovementLocalSectionPreview";
 import MovementRouteEditor from "./MovementRouteEditor";
 import MovementRouteSelectDialog from "./MovementRouteSelectDialog";
 import MovementRouteVectorPreview from "./MovementRouteVectorPreview";
@@ -133,6 +138,27 @@ export default function MovementEditorDialog({
       null
     );
 
+  const [
+    routeVectorItems,
+    setRouteVectorItems,
+  ] =
+    useState<
+      MovementRouteVectorItem[]
+    >([]);
+
+  const handleRouteVectorItemsChange =
+    useCallback(
+      (
+        items:
+          MovementRouteVectorItem[]
+      ) => {
+        setRouteVectorItems(
+          items
+        );
+      },
+      []
+    );
+
   const activePage =
     document.pages.find(
       page =>
@@ -160,6 +186,10 @@ export default function MovementEditorDialog({
     () => {
       setSelectedRouteVectorKey(
         null
+      );
+
+      setRouteVectorItems(
+        []
       );
     },
     [
@@ -840,6 +870,18 @@ export default function MovementEditorDialog({
                         setSelectedRouteVectorKey(
                           item.key
                         )
+                    }
+                    onItemsChange={
+                      handleRouteVectorItemsChange
+                    }
+                  />
+
+                  <MovementLocalSectionPreview
+                    items={
+                      routeVectorItems
+                    }
+                    selectedKey={
+                      selectedRouteVectorKey
                     }
                   />
 
