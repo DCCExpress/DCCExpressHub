@@ -253,26 +253,6 @@ const WHAT_OPTIONS:
     },
   ];
 
-const SEQUENCE_MODE_OPTIONS:
-  Array<{
-    value:
-      MovementSequenceMode;
-    label: string;
-  }> = [
-    {
-      value:
-        "blocking",
-      label:
-        "Blocking",
-    },
-    {
-      value:
-        "background",
-      label:
-        "Background",
-    },
-  ];
-
 function groupSequences(
   actions:
     MovementAction[]
@@ -399,6 +379,20 @@ export default function MovementActionEditor({
         selectedWhen
     );
 
+  const hasBlockingSequence =
+    visibleSequences.some(
+      sequence =>
+        sequence.mode ===
+        "blocking"
+    );
+
+  const hasBackgroundSequence =
+    visibleSequences.some(
+      sequence =>
+        sequence.mode ===
+        "background"
+    );
+
   const [
     draggedActionId,
     setDraggedActionId,
@@ -478,36 +472,26 @@ export default function MovementActionEditor({
       );
     };
 
-  const updateSequence =
-    (
-      sequenceId: string,
-      patch:
-        Partial<
-          Pick<
-            SequenceGroup,
-            "mode"
-          >
-        >
-    ): void => {
-      commitSequences(
-        sequences.map(
-          sequence =>
-            sequence.id ===
-            sequenceId
-              ? {
-                  ...sequence,
-                  ...patch,
-                }
-              : sequence
-        )
-      );
-    };
-
   const addSequence =
     (
       mode:
         MovementSequenceMode
     ): void => {
+      const alreadyExists =
+        sequences.some(
+          sequence =>
+            sequence.when ===
+              selectedWhen &&
+            sequence.mode ===
+              mode
+        );
+
+      if (
+        alreadyExists
+      ) {
+        return;
+      }
+
       const sequenceId =
         createMovementId(
           "movement-sequence"
@@ -949,7 +933,7 @@ export default function MovementActionEditor({
           size="xs"
           c="dimmed"
         >
-          Select the movement event above, then add one or more sequences. Blocking waits for completion; Background runs alongside the movement.
+          Each movement event can have one Blocking and one Background sequence. Blocking waits for completion; Background runs alongside the movement.
         </Text>
 
         <Group
@@ -964,6 +948,9 @@ export default function MovementActionEditor({
               <IconPlus
                 size={13}
               />
+            }
+            disabled={
+              hasBlockingSequence
             }
             onClick={
               () =>
@@ -983,6 +970,9 @@ export default function MovementActionEditor({
               <IconPlus
                 size={13}
               />
+            }
+            disabled={
+              hasBackgroundSequence
             }
             onClick={
               () =>
@@ -1045,38 +1035,13 @@ export default function MovementActionEditor({
                         : "violet"
                     }
                   >
-                    Sequence {sequenceIndex + 1}
+                    {
+                      sequence.mode ===
+                        "background"
+                        ? "BACKGROUND SEQUENCE"
+                        : "BLOCKING SEQUENCE"
+                    }
                   </Badge>
-
-                  <Select
-                    label="MODE"
-                    size="xs"
-                    allowDeselect={
-                      false
-                    }
-                    data={
-                      SEQUENCE_MODE_OPTIONS
-                    }
-                    value={
-                      sequence.mode
-                    }
-                    onChange={
-                      value => {
-                        if (
-                          value
-                        ) {
-                          updateSequence(
-                            sequence.id,
-                            {
-                              mode:
-                                value as MovementSequenceMode,
-                            }
-                          );
-                        }
-                      }
-                    }
-                    w={150}
-                  />
                 </Group>
 
                 <Group
