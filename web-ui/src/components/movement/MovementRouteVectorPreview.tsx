@@ -70,21 +70,36 @@ function typeLabel(
     return "TURNOUT";
   }
 
+  const mergedSegments =
+    item.mergedSegmentNames.length >
+      0
+      ? ` + SEG:${item.mergedSegmentNames.join(",")}`
+      : "";
+
   if (
     item.role ===
       "source"
   ) {
-    return "SOURCE BLOCK";
+    return (
+      "SOURCE BLOCK" +
+      mergedSegments
+    );
   }
 
   if (
     item.role ===
       "destination"
   ) {
-    return "DESTINATION";
+    return (
+      "DESTINATION" +
+      mergedSegments
+    );
   }
 
-  return "BLOCK";
+  return (
+    "BLOCK" +
+    mergedSegments
+  );
 }
 
 function itemClassName(

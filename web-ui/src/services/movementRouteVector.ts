@@ -51,6 +51,7 @@ export type MovementRouteVectorItem =
       blockId: number;
       name: string;
       sensor: number | null;
+      mergedSegmentNames: string[];
       role:
         MovementRouteVectorRole;
     };
@@ -654,6 +655,7 @@ export function buildMovementRouteVector(
             blockId
           ) ??
           null,
+        mergedSegmentNames: [],
         role:
           blockId ===
             sourceId
@@ -792,8 +794,10 @@ export async function loadMovementRouteVector(
 
   /*
    * The Movement plan is the authoritative physical route representation.
-   * Deriving the preview from plan.resources keeps block / segment / turnout
-   * ordering and resource keys exactly aligned with the runtime engine.
+   * The preview follows that order, but visually coalesces a segment into its
+   * block when the segment has exactly one detector and that detector is the
+   * same as the block's own occupancy sensor. In that case the separate segment
+   * node adds no physical information, so the block is labelled BLOCK + SEG:Sx.
    *
    * buildMovementRouteVector() intentionally remains the legacy
    * block/segment-only helper used by movementRouteDefaults so adding turnout
@@ -805,7 +809,88 @@ export async function loadMovementRouteVector(
       layoutOverride
     );
 
-  return plan.resources.map(
+  const hiddenSegmentKeys =
+    new Set<string>();
+
+  const mergedSegmentNamesByBlockKey =
+    new Map<
+      string,
+      string[]
+    >();
+
+  for (
+    const segment of
+    plan.resources
+  ) {
+    if (
+      segment.kind !==
+        "segment" ||
+      segment.nodeIndex ===
+        null ||
+      segment.detectors.length !==
+        1
+    ) {
+      continue;
+    }
+
+    const detector =
+      segment.detectors[0];
+
+    if (
+      detector ===
+        undefined
+    ) {
+      continue;
+    }
+
+    const matchingBlocks =
+      plan.resources.filter(
+        resource =>
+          resource.kind ===
+            "block" &&
+          resource.nodeIndex ===
+            segment.nodeIndex &&
+          resource.sensorAddress ===
+            detector
+      );
+
+    if (
+      matchingBlocks.length !==
+        1
+    ) {
+      continue;
+    }
+
+    const block =
+      matchingBlocks[0]!;
+
+    hiddenSegmentKeys.add(
+      segment.key
+    );
+
+    mergedSegmentNamesByBlockKey.set(
+      block.key,
+      [
+        ...(
+          mergedSegmentNamesByBlockKey.get(
+            block.key
+          ) ??
+          []
+        ),
+        segment.name,
+      ]
+    );
+  }
+
+  const visibleResources =
+    plan.resources.filter(
+      resource =>
+        !hiddenSegmentKeys.has(
+          resource.key
+        )
+    );
+
+  return visibleResources.map(
     (
       resource,
       index
@@ -847,6 +932,11 @@ export async function loadMovementRouteVector(
           name:
             resource.name,
           sensor,
+          mergedSegmentNames:
+            mergedSegmentNamesByBlockKey.get(
+              resource.key
+            ) ??
+            [],
           role:
             blockId ===
               page.fromBlockId
