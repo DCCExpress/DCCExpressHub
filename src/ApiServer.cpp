@@ -1282,6 +1282,15 @@ void ApiServer::setupApi() {
             200,
             doc);
       });
+}
+
+void ApiServer::setupStaticFiles() {
+  _server.on(
+      "/",
+      HTTP_GET,
+      [](AsyncWebServerRequest* request) {
+        sendFsFile(request, "/index.html");
+      });
 
   _server.onNotFound(
       [](AsyncWebServerRequest* request) {
