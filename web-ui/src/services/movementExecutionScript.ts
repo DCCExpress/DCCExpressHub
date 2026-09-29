@@ -356,7 +356,20 @@ function renderAction(
       }
 
       return (
-        "IF RANDOM_EVEN_50_PERCENT THEN PLAY_AUDIO " +
+        "IF RANDOM_1_TO_10 <= " +
+        String(
+          Math.max(
+            1,
+            Math.min(
+              9,
+              Math.round(
+                action.randomPlayChancePercent /
+                10
+              )
+            )
+          )
+        ) +
+        " THEN PLAY_AUDIO " +
         q(
           source
         ) +
