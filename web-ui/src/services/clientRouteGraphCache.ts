@@ -257,14 +257,10 @@ function stableValue(
   return result;
 }
 
-function topologyProjection(
-  layout: LayoutView
+function topologyProjectionFromSerialized(
+  serialized:
+    SerializedLayoutDto
 ): unknown {
-  const serialized =
-    JSON.parse(
-      JSON.stringify(layout)
-    ) as SerializedLayoutDto;
-
   return (
     serialized.layers ?? []
   ).map(layer => ({
@@ -319,13 +315,16 @@ function hash32(
   return hash >>> 0;
 }
 
-export function computeClientTopologyFingerprint(
-  layout: LayoutView
+export function computeSerializedTopologyFingerprint(
+  layout:
+    SerializedLayoutDto
 ): string {
   const canonical =
     JSON.stringify(
       stableValue(
-        topologyProjection(layout)
+        topologyProjectionFromSerialized(
+          layout
+        )
       )
     );
 
@@ -1402,6 +1401,22 @@ function resultFromPersisted(
  * graph is NOT trusted. We only carry its revision forward so the next build
  * receives a newer topology revision.
  */
+export function computeClientTopologyFingerprint(
+  layout:
+    LayoutView
+): string {
+  const serialized =
+    JSON.parse(
+      JSON.stringify(
+        layout
+      )
+    ) as SerializedLayoutDto;
+
+  return computeSerializedTopologyFingerprint(
+    serialized
+  );
+}
+
 export function hydrateClientRouteGraphCache(
   layout: LayoutView,
   rawLayout: unknown
