@@ -4595,3 +4595,117 @@ test("WebSocket sensor state is sticky for late Movement subscribers", () => {
     /latestSensorStates\.clear\(\)/
   );
 });
+
+
+test("route graph splits physical sections into sensor-addressed section parts", () => {
+  const graph =
+    read(
+      "src/domain/railway/routeGraphBuilder.ts"
+    );
+
+  assert.match(
+    graph,
+    /buildSectionParts/
+  );
+
+  assert.match(
+    graph,
+    /seenBoundarySensors/
+  );
+
+  assert.match(
+    graph,
+    /circular/
+  );
+
+  assert.match(
+    graph,
+    /fromSensor/
+  );
+
+  assert.match(
+    graph,
+    /toSensor/
+  );
+});
+
+test("route topology persists section-part paths and supports cyclic same-node routes", () => {
+  const cache =
+    read(
+      "src/services/clientRouteGraphCache.ts"
+    );
+
+  assert.match(
+    cache,
+    /ROUTE_TOPOLOGY_VERSION = 4/
+  );
+
+  assert.match(
+    cache,
+    /partPath: PersistedRoutePartEntry\[\]/
+  );
+
+  assert.match(
+    cache,
+    /sameNodeSectionPartRoutes/
+  );
+
+  assert.match(
+    cache,
+    /walk\([\s\S]*false[\s\S]*walk\([\s\S]*true/
+  );
+});
+
+test("Movement plan uses ordered section parts for oval routes", () => {
+  const plan =
+    read(
+      "src/services/movementPlan.ts"
+    );
+
+  const safety =
+    read(
+      "src/services/movementSafety.ts"
+    );
+
+  assert.match(
+    plan,
+    /usesSectionParts/
+  );
+
+  assert.match(
+    plan,
+    /part:\$\{part\.nodeName\}:\$\{part\.partKey\}/
+  );
+
+  assert.match(
+    plan,
+    /resource\.routeOrder >[\s\S]*from\.routeOrder[\s\S]*resource\.routeOrder <[\s\S]*to\.routeOrder/
+  );
+
+  assert.match(
+    safety,
+    /resource\.partIndex !==[\s\S]*null/
+  );
+});
+
+test("Movement route identity distinguishes oval section-part variants", () => {
+  const identity =
+    read(
+      "src/services/movementRouteIdentity.ts"
+    );
+
+  const catalog =
+    read(
+      "src/services/movementRouteCatalog.ts"
+    );
+
+  assert.match(
+    identity,
+    /partPath/
+  );
+
+  assert.match(
+    catalog,
+    /partPath/
+  );
+});
