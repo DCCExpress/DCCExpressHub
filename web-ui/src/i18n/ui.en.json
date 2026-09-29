@@ -1149,7 +1149,7 @@
   "movementEventEnter": "ENTER",
   "movementActionSetSpeed": "Set speed",
   "movementActionLocoFunction": "Loco function",
-  "movementActionHornPulse": "Horn pulse",
+  "movementActionHornPulse": "Loco function pulse",
   "movementActionDelay": "Delay",
   "movementActionRandomDelay": "Random delay",
   "movementActionPlayAudio": "Play audio",
