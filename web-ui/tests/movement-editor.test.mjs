@@ -4557,3 +4557,41 @@ test("Movement supports random audio and DCC accessory actions", () => {
     /SET_EXTENDED_ACCESSORY/
   );
 });
+
+
+test("WebSocket sensor state is sticky for late Movement subscribers", () => {
+  const wsClient =
+    read(
+      "src/services/wsClient.ts"
+    );
+
+  assert.match(
+    wsClient,
+    /latestSensorStates/
+  );
+
+  assert.match(
+    wsClient,
+    /message\.type === "sensorChanged"[\s\S]*latestSensorStates\.set/
+  );
+
+  assert.match(
+    wsClient,
+    /message\.type === "sensorSnapshot"[\s\S]*latestSensorStates\.set/
+  );
+
+  assert.match(
+    wsClient,
+    /type === "sensorChanged"[\s\S]*latestSensorStates/
+  );
+
+  assert.match(
+    wsClient,
+    /type ===[\s\S]*"sensorSnapshot"[\s\S]*latestSensorStates/
+  );
+
+  assert.match(
+    wsClient,
+    /latestSensorStates\.clear\(\)/
+  );
+});
