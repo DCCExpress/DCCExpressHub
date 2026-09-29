@@ -1476,31 +1476,6 @@ export function hydrateClientRouteGraphCache(
       result
     );
 
-  if (
-    hydrationErrors.length >
-      0
-  ) {
-    cache.set(
-      layout,
-      {
-        fingerprint:
-          currentFingerprint,
-        topologyRevision:
-          persisted.topologyRevision,
-        graphRevision:
-          persisted.graphRevision,
-        result: null,
-        persisted: null,
-        error:
-          hydrationErrors.join(
-            "\n"
-          ),
-      }
-    );
-
-    return false;
-  }
-
   /*
    * Restore section / travelDirection from the graph as well. The element DTO
    * already persists these fields, but this makes the persisted graph
@@ -1522,7 +1497,13 @@ export function hydrateClientRouteGraphCache(
         persisted.graphRevision,
       result,
       persisted,
-      error: null,
+      error:
+        hydrationErrors.length >
+          0
+          ? hydrationErrors.join(
+              "\n"
+            )
+          : null,
     }
   );
 
@@ -1861,35 +1842,6 @@ export function ensureClientRouteGraph(
       result
     );
 
-  if (
-    validationErrors.length >
-      0
-  ) {
-    const message =
-      validationErrors.join(
-        "\n"
-      );
-
-    cache.set(
-      layout,
-      {
-        fingerprint,
-        topologyRevision,
-        graphRevision:
-          previous?.graphRevision ??
-          0,
-        result: null,
-        persisted: null,
-        error:
-          message,
-      }
-    );
-
-    throw new Error(
-      message
-    );
-  }
-
   const persisted =
     createPersistedState(
       result,
@@ -1906,7 +1858,13 @@ export function ensureClientRouteGraph(
         topologyRevision,
       result,
       persisted,
-      error: null,
+      error:
+        validationErrors.length >
+          0
+          ? validationErrors.join(
+              "\n"
+            )
+          : null,
     }
   );
 
