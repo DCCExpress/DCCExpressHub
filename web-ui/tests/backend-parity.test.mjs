@@ -230,3 +230,159 @@ test("ESP32 exposes the frontend-required HTTP parity endpoints", () => {
     /AsyncEventSource/
   );
 });
+
+
+test("ESP32 runtime snapshot matches the Windows authoritative state contract", () => {
+  const nativeRuntime =
+    read(
+      "desktop/DCCExpressHub.Net/Web/LayoutRuntime.cs"
+    );
+
+  const nativeWs =
+    read(
+      "desktop/DCCExpressHub.Net/Web/WsHub.cs"
+    );
+
+  const espWs =
+    read(
+      "src/WsProtocol.cpp"
+    );
+
+  assert.match(
+    nativeRuntime,
+    /"runtimePhysicalSnapshot"/
+  );
+
+  assert.match(
+    espWs,
+    /"runtimePhysicalSnapshot"/
+  );
+
+  assert.match(
+    nativeRuntime,
+    /"sensorSnapshot"/
+  );
+
+  assert.match(
+    espWs,
+    /"sensorSnapshot"/
+  );
+
+  assert.match(
+    nativeWs,
+    /foreach \(var l in HubState\.Locos\.Values\)[\s\S]*"locoState"/
+  );
+
+  assert.match(
+    espWs,
+    /_locoCount[\s\S]*"locoState"/
+  );
+
+  assert.match(
+    nativeRuntime,
+    /logicalClosed/
+  );
+
+  assert.match(
+    espWs,
+    /data\["logicalClosed"\]/
+  );
+
+  assert.match(
+    espWs,
+    /data\["outputMode"\]/
+  );
+
+  assert.match(
+    espWs,
+    /data\["closedAspect"\]/
+  );
+
+  assert.match(
+    espWs,
+    /data\["openedAspect"\]/
+  );
+});
+
+test("ESP32 HTTP runtime and status contracts retain Windows canonical fields", () => {
+  const espApi =
+    read(
+      "src/ApiServer.cpp"
+    );
+
+  assert.match(
+    espApi,
+    /doc\["blockState"\]/
+  );
+
+  assert.match(
+    espApi,
+    /doc\["sensorSnapshot"\]/
+  );
+
+  assert.match(
+    espApi,
+    /doc\["csbTransport"\]/
+  );
+
+  assert.match(
+    espApi,
+    /doc\["csbSerialPort"\]/
+  );
+
+  assert.match(
+    espApi,
+    /doc\["csbBaudRate"\]/
+  );
+
+  assert.match(
+    espApi,
+    /"\/version\.json"/
+  );
+
+  assert.match(
+    espApi,
+    /requestSensorSnapshot\([\s\S]*false/
+  );
+});
+
+test("ESP32 manual turnout lock is held until runtime state has been broadcast", () => {
+  const espWs =
+    read(
+      "src/WsProtocol.cpp"
+    );
+
+  const turnoutStart =
+    espWs.indexOf(
+      '"setTurnout"'
+    );
+
+  const turnoutEnd =
+    espWs.indexOf(
+      '"setSignalAspect"',
+      turnoutStart
+    );
+
+  const turnoutBlock =
+    espWs.slice(
+      turnoutStart,
+      turnoutEnd
+    );
+
+  assert.ok(
+    turnoutBlock.indexOf(
+      "broadcastTurnoutState("
+    ) >=
+      0
+  );
+
+  assert.ok(
+    turnoutBlock.indexOf(
+      "broadcastTurnoutState("
+    ) <
+      turnoutBlock.lastIndexOf(
+        "switchManRelease("
+      ),
+    "manual turnout lock must remain held through the state broadcast"
+  );
+});
