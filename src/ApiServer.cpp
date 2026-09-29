@@ -527,8 +527,20 @@ void ApiServer::setupApi() {
         doc["ok"] = true;
         doc["type"] = CommandCenterBuild::type();
         doc["name"] = CommandCenterBuild::name();
+        doc["transport"] =
+            CommandCenterBuild::isDccEx()
+                ? "tcp"
+                : "udp";
         doc["defaultPort"] = CommandCenterBuild::defaultPort();
+        doc["defaultBaudRate"] =
+            CommandCenterBuild::isDccEx()
+                ? 115200
+                : 0;
         doc["connected"] = _dcc.connected();
+        doc["host"] = _dcc.host();
+        doc["port"] = _dcc.port();
+        doc["serialPort"] = "";
+        doc["baudRate"] = 0;
 
         JsonObject capabilities = doc["capabilities"].to<JsonObject>();
         capabilities["trackPower"] = true;
@@ -552,8 +564,14 @@ void ApiServer::setupApi() {
       [this](AsyncWebServerRequest* request) {
         JsonDocument doc;
         doc["ok"] = true;
+        doc["transport"] =
+            CommandCenterBuild::isDccEx()
+                ? "tcp"
+                : "udp";
         doc["host"] = _dcc.host();
         doc["port"] = _dcc.port();
+        doc["serialPort"] = "";
+        doc["baudRate"] = 0;
         doc["powerIncludesProgramming"] = _wsProtocol.powerIncludesProgramming();
         doc["commandIntervalMs"] = _dcc.commandIntervalMs();
         doc["connected"] = _dcc.connected();
