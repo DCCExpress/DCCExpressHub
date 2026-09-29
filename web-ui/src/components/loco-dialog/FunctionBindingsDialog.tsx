@@ -1,3 +1,4 @@
+import i18next from "i18next";
 import {
   ActionIcon,
   Button,
@@ -195,7 +196,7 @@ export default function FunctionBindingsDialog({
       onClose={
         onClose
       }
-      title="Function Bindings"
+      title={i18next.t("ui.functionBindings")}
       size="lg"
       centered
       draggable
@@ -210,7 +211,7 @@ export default function FunctionBindingsDialog({
             size="sm"
             c="dimmed"
           >
-            Select the logical function used by automation and Movement.
+            {i18next.t("ui.functionBindingHint")}
           </Text>
 
           <Button
@@ -224,7 +225,7 @@ export default function FunctionBindingsDialog({
               addBinding
             }
           >
-            Add
+            {i18next.t("ui.functionBindingAdd")}
           </Button>
         </Group>
 
@@ -246,7 +247,7 @@ export default function FunctionBindingsDialog({
                 </Table.Th>
 
                 <Table.Th>
-                  Name
+                  {i18next.t("locodialog.functionname")}
                 </Table.Th>
 
                 <Table.Th
@@ -379,7 +380,7 @@ export default function FunctionBindingsDialog({
               size="xs"
               c="red"
             >
-              Binding IDs must be unique positive integers and names cannot be empty.
+              {i18next.t("ui.functionBindingInvalid")}
             </Text>
           )
         }
@@ -393,7 +394,7 @@ export default function FunctionBindingsDialog({
               onClose
             }
           >
-            Cancel
+            {i18next.t("common.cancel")}
           </Button>
 
           <Button
