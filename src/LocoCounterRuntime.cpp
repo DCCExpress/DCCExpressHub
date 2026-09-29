@@ -239,7 +239,7 @@ void LocoCounterRuntime::integrate(
                   static_cast<double>(
                       entry.maxSpeedStep > 0
                           ? entry.maxSpeedStep
-                          : 1))));
+                          : 1)));
 
   const double distanceKm =
       entry.maxScaleSpeedKmh *
