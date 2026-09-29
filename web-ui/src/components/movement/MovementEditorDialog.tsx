@@ -584,9 +584,11 @@ export default function MovementEditorDialog({
         false
       }
     >
-      <div
-        className="movement-editor-header-help"
-      >
+      {
+        !helpOpened && (
+          <div
+            className="movement-editor-header-help"
+          >
         <Tooltip
           label={mt("movementGeneralHelpButton")}
         >
@@ -594,6 +596,12 @@ export default function MovementEditorDialog({
             size="sm"
             variant="subtle"
             color="gray"
+            styles={{
+              root: {
+                color:
+                  "white",
+              },
+            }}
             aria-label={mt("movementGeneralHelpButton")}
             onClick={
               () =>
@@ -607,7 +615,9 @@ export default function MovementEditorDialog({
             />
           </ActionIcon>
         </Tooltip>
-      </div>
+          </div>
+        )
+      }
 
       <div
         className="movement-editor-shell"
