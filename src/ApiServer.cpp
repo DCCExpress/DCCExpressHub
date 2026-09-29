@@ -472,6 +472,181 @@ void ApiServer::handleLocosBody(
   sendJson(request, 200, response);
 }
 
+bool ApiServer::verifyFunctionBindingsTemp() {
+  const String tempPath =
+      _functionBindingsUpload.tempPath();
+
+  File file =
+      _files.openRead(
+          tempPath.c_str());
+
+  if (!file) {
+    return false;
+  }
+
+  JsonDocument document;
+
+  const DeserializationError error =
+      deserializeJson(
+          document,
+          file);
+
+  file.close();
+
+  if (
+      error ||
+      !document.is<JsonArray>()
+  ) {
+    return false;
+  }
+
+  std::vector<uint16_t> usedIds;
+
+  for (
+      JsonVariantConst item :
+      document.as<JsonArrayConst>()
+  ) {
+    if (
+        !item.is<JsonObjectConst>()
+    ) {
+      return false;
+    }
+
+    JsonObjectConst object =
+        item.as<JsonObjectConst>();
+
+    const int id =
+        object["id"] |
+        0;
+
+    const String name =
+        object["name"] |
+        "";
+
+    if (
+        id <= 0 ||
+        id > 65535 ||
+        name.isEmpty()
+    ) {
+      return false;
+    }
+
+    if (
+        std::find(
+            usedIds.begin(),
+            usedIds.end(),
+            static_cast<uint16_t>(
+                id)) !=
+        usedIds.end()
+    ) {
+      return false;
+    }
+
+    usedIds.push_back(
+        static_cast<uint16_t>(
+            id));
+  }
+
+  return true;
+}
+
+void ApiServer::handleFunctionBindingsBody(
+    AsyncWebServerRequest* request,
+    uint8_t* data,
+    size_t len,
+    size_t index,
+    size_t total) {
+  if (index == 0) {
+    _functionBindingsUpload.begin(
+        _files,
+        FUNCTION_BINDINGS_PATH,
+        total);
+  }
+
+  if (
+      !_functionBindingsUpload.failed()
+  ) {
+    _functionBindingsUpload.write(
+        data,
+        len);
+  }
+
+  if (
+      index + len !=
+      total
+  ) {
+    return;
+  }
+
+  JsonDocument response;
+
+  if (
+      !_functionBindingsUpload.finish()
+  ) {
+    _functionBindingsUpload.abort();
+
+    response["ok"] =
+        false;
+
+    response["message"] =
+        "Function binding upload failed";
+
+    sendJson(
+        request,
+        507,
+        response);
+
+    return;
+  }
+
+  if (
+      !verifyFunctionBindingsTemp()
+  ) {
+    _functionBindingsUpload.abort();
+
+    response["ok"] =
+        false;
+
+    response["message"] =
+        "Function bindings require unique positive numeric id and non-empty name";
+
+    sendJson(
+        request,
+        400,
+        response);
+
+    return;
+  }
+
+  if (
+      !_functionBindingsUpload.commit()
+  ) {
+    response["ok"] =
+        false;
+
+    response["message"] =
+        "Function binding atomic rename failed";
+
+    sendJson(
+        request,
+        500,
+        response);
+
+    return;
+  }
+
+  response["ok"] =
+      true;
+
+  response["bytes"] =
+      total;
+
+  sendJson(
+      request,
+      200,
+      response);
+}
+
 bool ApiServer::verifySignalLogicTemp() {
   const String tempPath = _signalLogicUpload.tempPath();
   return _signalAutomation.validateFile(tempPath.c_str());
@@ -927,6 +1102,64 @@ void ApiServer::setupApi() {
       nullptr,
       [this](AsyncWebServerRequest* request, uint8_t* data, size_t len, size_t index, size_t total) {
         handleLocosBody(request, data, len, index, total);
+      });
+
+  _server.on(
+      "/api/function-bindings",
+      HTTP_GET,
+      [this](AsyncWebServerRequest* request) {
+        if (
+            !_files.exists(
+                FUNCTION_BINDINGS_PATH)
+        ) {
+          auto* response =
+              request->beginResponse(
+                  200,
+                  "application/json",
+                  "[]");
+
+          response->addHeader(
+              "Cache-Control",
+              "no-store");
+
+          request->send(
+              response);
+
+          return;
+        }
+
+        auto* response =
+            request->beginResponse(
+                LittleFS,
+                FUNCTION_BINDINGS_PATH,
+                "application/json",
+                false);
+
+        response->addHeader(
+            "Cache-Control",
+            "no-store");
+
+        request->send(
+            response);
+      });
+
+  _server.on(
+      "/api/function-bindings",
+      HTTP_POST,
+      [](AsyncWebServerRequest*) {},
+      nullptr,
+      [this](
+          AsyncWebServerRequest* request,
+          uint8_t* data,
+          size_t len,
+          size_t index,
+          size_t total) {
+        handleFunctionBindingsBody(
+            request,
+            data,
+            len,
+            index,
+            total);
       });
 
   _server.on(
