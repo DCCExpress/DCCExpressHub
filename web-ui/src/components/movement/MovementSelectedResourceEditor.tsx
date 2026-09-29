@@ -285,6 +285,28 @@ export default function MovementSelectedResourceEditor({
           </Tabs.Tab>
 
           <Tabs.Tab
+            value="actions"
+            rightSection={
+              <Badge
+                size="xs"
+                variant="light"
+                color={
+                  actions.length >
+                    0
+                    ? "violet"
+                    : "gray"
+                }
+              >
+                {
+                  actions.length
+                }
+              </Badge>
+            }
+          >
+            Actions
+          </Tabs.Tab>
+
+          <Tabs.Tab
             value="safety"
             rightSection={
               <Badge
@@ -309,27 +331,6 @@ export default function MovementSelectedResourceEditor({
             Safety
           </Tabs.Tab>
 
-          <Tabs.Tab
-            value="actions"
-            rightSection={
-              <Badge
-                size="xs"
-                variant="light"
-                color={
-                  actions.length >
-                    0
-                    ? "violet"
-                    : "gray"
-                }
-              >
-                {
-                  actions.length
-                }
-              </Badge>
-            }
-          >
-            Actions
-          </Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel
@@ -386,32 +387,6 @@ export default function MovementSelectedResourceEditor({
         </Tabs.Panel>
 
         <Tabs.Panel
-          value="safety"
-          p="md"
-        >
-          <MovementSafetyEditor
-            targetName={
-              safetyTargetName
-            }
-            targetSensor={
-              safetyTargetSensor
-            }
-            sensors={
-              safetySensors
-            }
-            ignoredSensors={
-              ignoredSafetySensors
-            }
-            sensorCatalog={
-              sensorCatalog
-            }
-            onIgnoredSensorsChange={
-              onIgnoredSafetySensorsChange
-            }
-          />
-        </Tabs.Panel>
-
-        <Tabs.Panel
           value="actions"
           p="md"
         >
@@ -433,6 +408,32 @@ export default function MovementSelectedResourceEditor({
             }
             onChange={
               onActionsChange
+            }
+          />
+        </Tabs.Panel>
+
+        <Tabs.Panel
+          value="safety"
+          p="md"
+        >
+          <MovementSafetyEditor
+            targetName={
+              safetyTargetName
+            }
+            targetSensor={
+              safetyTargetSensor
+            }
+            sensors={
+              safetySensors
+            }
+            ignoredSensors={
+              ignoredSafetySensors
+            }
+            sensorCatalog={
+              sensorCatalog
+            }
+            onIgnoredSensorsChange={
+              onIgnoredSafetySensorsChange
             }
           />
         </Tabs.Panel>
