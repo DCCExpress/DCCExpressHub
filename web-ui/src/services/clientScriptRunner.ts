@@ -1,4 +1,8 @@
 import {
+  getLocos,
+} from "../api/domainApi";
+
+import {
   wsApi,
 } from "./wsApi";
 
@@ -93,6 +97,97 @@ type ExecutionControl = {
 
 const executions =
   new Map<ClientScriptExecutionId, ExecutionControl>();
+
+const locoFunctionBindings =
+  new Map<
+    number,
+    Map<number, number>
+  >();
+
+async function refreshLocoFunctionBindings(): Promise<void> {
+  const locos =
+    await getLocos();
+
+  const next =
+    new Map<
+      number,
+      Map<number, number>
+    >();
+
+  for (
+    const loco of
+    locos
+  ) {
+    const bindings =
+      new Map<number, number>();
+
+    for (
+      const fn of
+      loco.functions
+    ) {
+      if (
+        fn.bindingId ===
+          undefined ||
+        fn.bindingId ===
+          null ||
+        bindings.has(
+          fn.bindingId
+        )
+      ) {
+        continue;
+      }
+
+      bindings.set(
+        fn.bindingId,
+        fn.number
+      );
+    }
+
+    next.set(
+      loco.address,
+      bindings
+    );
+  }
+
+  locoFunctionBindings.clear();
+
+  for (
+    const [
+      locoAddress,
+      bindings,
+    ] of next
+  ) {
+    locoFunctionBindings.set(
+      locoAddress,
+      bindings
+    );
+  }
+}
+
+function resolveLocoFunctionBinding(
+  locoAddress: number,
+  bindingId: number
+): number {
+  const functionNumber =
+    locoFunctionBindings
+      .get(
+        locoAddress
+      )
+      ?.get(
+        bindingId
+      );
+
+  if (
+    functionNumber ===
+      undefined
+  ) {
+    throw new Error(
+      `Locomotive ${locoAddress} has no function binding #${bindingId}.`
+    );
+  }
+
+  return functionNumber;
+}
 
 const scriptAudioRequests =
   new Map<
@@ -2699,12 +2794,45 @@ function executeDccCommand(
             args,
             1
           ),
-          booleanArg(            args,
+          booleanArg(
+            args,
             2
           )
         ),
         "dcc.setLocoFunction"
       );
+
+    case "setLocoFunctionBinding": {
+      const locoAddress =
+        numberArg(
+          args,
+          0
+        );
+
+      const bindingId =
+        numberArg(
+          args,
+          1
+        );
+
+      const functionNumber =
+        resolveLocoFunctionBinding(
+          locoAddress,
+          bindingId
+        );
+
+      return requireSend(
+        wsApi.setLocoFunction(
+          locoAddress,
+          functionNumber,
+          booleanArg(
+            args,
+            2
+          )
+        ),
+        "dcc.setLocoFunctionBinding"
+      );
+    }
 
     case "setTurnoutState":
     case "setSignalState": {
@@ -3373,7 +3501,10 @@ export async function runClientScript(
     );
   }
 
-  await refreshBlockCatalog();
+  await Promise.all([
+    refreshBlockCatalog(),
+    refreshLocoFunctionBindings(),
+  ]);
 
   const worker =
     ensureWorker();
