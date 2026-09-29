@@ -1254,5 +1254,6 @@
   "movementNoSequencesForEvent": "Keine Sequenzen für dieses Ereignis.",
   "movementRouteSelectionHint": "Klicke oben im Fahrstraßenvektor auf einen Block oder Abschnitt, um Bedingungen, Ereignisse und Aktionen zu bearbeiten.",
   "movementRouteVectorSubtitle": "Blöcke, Graphabschnitte und Weichen in physischer Fahrreihenfolge",
-  "movementRouteVectorError": "Fahrstraßenvektor: {{error}}"
+  "movementRouteVectorError": "Fahrstraßenvektor: {{error}}",
+  "movementSafetySensorsTo": "Safety-Sensoren → {{target}}"
 }
