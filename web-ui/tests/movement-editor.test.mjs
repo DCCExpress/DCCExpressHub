@@ -4322,3 +4322,46 @@ test("Movement editor uses the current in-memory route graph while runtime keeps
     /createCurrentClientLayoutSnapshot/
   );
 });
+
+
+test("New Movement station blocks get blocking dwell defaults only on first route selection", () => {
+  const catalog =
+    read(
+      "src/services/movementRouteCatalog.ts"
+    );
+
+  assert.match(
+    catalog,
+    /applyNewMovementDefaults[\s\S]*page\.routeKey\.trim\(\)\.length[\s\S]*page\.fromBlockId[\s\S]*page\.toBlockId[\s\S]*page\.actions\.length/
+  );
+
+  assert.match(
+    catalog,
+    /block\.blockType !==[\s\S]*"station"/
+  );
+
+  assert.match(
+    catalog,
+    /createMovementAction\([\s\S]*"arrived"[\s\S]*"delay"[\s\S]*"blocking"/
+  );
+
+  assert.match(
+    catalog,
+    /fixedWait\.delayMs =[\s\S]*10000/
+  );
+
+  assert.match(
+    catalog,
+    /createMovementAction\([\s\S]*"arrived"[\s\S]*"randomDelay"[\s\S]*"blocking"/
+  );
+
+  assert.match(
+    catalog,
+    /randomWait\.minDelayMs =[\s\S]*0/
+  );
+
+  assert.match(
+    catalog,
+    /randomWait\.maxDelayMs =[\s\S]*5000/
+  );
+});
