@@ -24,7 +24,8 @@ export function createClientGraphFromRouteGraphDto(
       nodeDto.detectors,
       nodeDto.signals,
       nodeDto.blocks,
-      nodeDto.elementIds
+      nodeDto.elementIds,
+      nodeDto.sectionParts ?? []
     );
 
     node.isVirtual = nodeDto.isVirtual;
