@@ -17,10 +17,16 @@ export interface AccessoryInfo {
   active: boolean;
 }
 
+export type FunctionBinding = {
+  id: number;
+  name: string;
+};
+
 export type LocoFunction = {
   id: string;
   number: number;
   name: string;
+  bindingId?: number;
   icon: string;
   momentary: boolean;
   active?: boolean;
