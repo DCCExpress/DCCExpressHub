@@ -30,6 +30,7 @@ import {
   IconChevronDown,
   IconGripVertical,
   IconPlus,
+  IconQuestionMark,
   IconTrash,
 } from "@tabler/icons-react";
 
@@ -53,6 +54,8 @@ import {
 import {
   audioManager,
 } from "../../services/audioManager";
+
+import AppModal from "../common/AppModal";
 
 import {
   movementText,
@@ -206,6 +209,58 @@ function whenOptions(
         movementText("movementEventLeave"),
     },
   ];
+}
+
+function eventHelpKey(
+  when:
+    MovementWhen
+): string {
+  switch (
+    when
+  ) {
+    case "approach":
+      return "movementEventHelpApproach";
+    case "arrived":
+      return "movementEventHelpArrived";
+    case "beforeDepart":
+      return "movementEventHelpBeforeDepart";
+    case "depart":
+      return "movementEventHelpDepart";
+    case "enter":
+      return "movementEventHelpEnter";
+    case "leave":
+      return "movementEventHelpLeave";
+    case "afterLeave":
+      return "movementEventHelpAfterLeave";
+    default:
+      return "movementEventHelpArrived";
+  }
+}
+
+function eventExampleKey(
+  when:
+    MovementWhen
+): string {
+  switch (
+    when
+  ) {
+    case "approach":
+      return "movementEventExampleApproach";
+    case "arrived":
+      return "movementEventExampleArrived";
+    case "beforeDepart":
+      return "movementEventExampleBeforeDepart";
+    case "depart":
+      return "movementEventExampleDepart";
+    case "enter":
+      return "movementEventExampleEnter";
+    case "leave":
+      return "movementEventExampleLeave";
+    case "afterLeave":
+      return "movementEventExampleAfterLeave";
+    default:
+      return "movementEventExampleArrived";
+  }
 }
 
 function whatOptions():
@@ -381,6 +436,12 @@ export default function MovementActionEditor({
       isDestination,
     ]
   );
+
+  const [
+    quickHelpOpened,
+    setQuickHelpOpened,
+  ] =
+    useState(false);
 
   const visibleSequences =
     sequences.filter(
@@ -862,6 +923,93 @@ export default function MovementActionEditor({
     };
 
   return (
+    <>
+      <AppModal
+        opened={
+          quickHelpOpened
+        }
+        onClose={
+          () =>
+            setQuickHelpOpened(
+              false
+            )
+        }
+        title={mt("movementActionEventQuickHelpTitle")}
+        size="lg"
+        centered
+        draggable
+      >
+        <Stack
+          gap="md"
+        >
+          <Text
+            size="sm"
+            c="dimmed"
+          >
+            {mt("movementActionEventQuickHelpIntro")}
+          </Text>
+
+          {
+            options.map(
+              option => (
+                <Card
+                  key={
+                    option.value
+                  }
+                  withBorder
+                  padding="sm"
+                >
+                  <Stack
+                    gap={5}
+                  >
+                    <Text
+                      fw={700}
+                      size="sm"
+                    >
+                      {
+                        option.label
+                      }
+                    </Text>
+
+                    <Text
+                      size="sm"
+                    >
+                      {
+                        mt(
+                          eventHelpKey(
+                            option.value
+                          )
+                        )
+                      }
+                    </Text>
+
+                    <Text
+                      size="xs"
+                      c="dimmed"
+                    >
+                      <strong>
+                        {
+                          mt(
+                            "movementActionEventExampleLabel"
+                          )
+                        }
+                      </strong>{" "}
+                      {
+                        mt(
+                          eventExampleKey(
+                            option.value
+                          )
+                        )
+                      }
+                    </Text>
+                  </Stack>
+                </Card>
+              )
+            )
+          }
+        </Stack>
+      </AppModal>
+
     <Stack
       gap="sm"
     >
@@ -939,6 +1087,49 @@ export default function MovementActionEditor({
             }
           </Tabs.List>
         </Tabs>
+
+        <Group
+          gap="xs"
+          align="flex-start"
+          wrap="nowrap"
+        >
+          <Text
+            size="xs"
+            c="dimmed"
+            style={{
+              flex: 1,
+            }}
+          >
+            {
+              mt(
+                eventHelpKey(
+                  selectedWhen
+                )
+              )
+            }
+          </Text>
+
+          <Tooltip
+            label={mt("movementActionEventQuickHelp")}
+          >
+            <ActionIcon
+              size="sm"
+              variant="light"
+              color="blue"
+              aria-label={mt("movementActionEventQuickHelp")}
+              onClick={
+                () =>
+                  setQuickHelpOpened(
+                    true
+                  )
+              }
+            >
+              <IconQuestionMark
+                size={15}
+              />
+            </ActionIcon>
+          </Tooltip>
+        </Group>
 
         <Text
           size="xs"
@@ -1891,5 +2082,6 @@ export default function MovementActionEditor({
         )
       }
     </Stack>
+    </>
   );
 }
