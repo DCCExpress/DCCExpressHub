@@ -272,12 +272,16 @@ export default function MovementRouteVectorPreview({
         null
       );
 
-      const layoutSnapshot =
-        createCurrentClientLayoutSnapshot(
-          layout
-        );
-
-      void loadMovementRouteVector(
+      void Promise.resolve()
+        .then(
+          () =>
+            createCurrentClientLayoutSnapshot(
+              layout
+            )
+        )
+        .then(
+          layoutSnapshot =>
+loadMovementRouteVector(
         page,
         layoutSnapshot
       )
