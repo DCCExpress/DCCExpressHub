@@ -306,30 +306,35 @@ export default function MovementSelectedResourceEditor({
             Actions
           </Tabs.Tab>
 
-          <Tabs.Tab
-            value="safety"
-            rightSection={
-              <Badge
-                size="xs"
-                variant="light"
-                color={
-                  ignoredSafetySensors.length >
-                    0
-                    ? "orange"
-                    : "teal"
+          {
+            resource.kind ===
+              "block" && (
+              <Tabs.Tab
+                value="safety"
+                rightSection={
+                  <Badge
+                    size="xs"
+                    variant="light"
+                    color={
+                      ignoredSafetySensors.length >
+                        0
+                        ? "orange"
+                        : "teal"
+                    }
+                  >
+                    {
+                      ignoredSafetySensors.length >
+                        0
+                        ? `${safetySensors.length - ignoredSafetySensors.filter(sensor => safetySensors.includes(sensor)).length}/${safetySensors.length}`
+                        : safetySensors.length
+                    }
+                  </Badge>
                 }
               >
-                {
-                  ignoredSafetySensors.length >
-                    0
-                    ? `${safetySensors.length - ignoredSafetySensors.filter(sensor => safetySensors.includes(sensor)).length}/${safetySensors.length}`
-                    : safetySensors.length
-                }
-              </Badge>
-            }
-          >
-            Safety
-          </Tabs.Tab>
+                Safety
+              </Tabs.Tab>
+            )
+          }
 
         </Tabs.List>
 
@@ -412,31 +417,36 @@ export default function MovementSelectedResourceEditor({
           />
         </Tabs.Panel>
 
-        <Tabs.Panel
-          value="safety"
-          p="md"
-        >
-          <MovementSafetyEditor
-            targetName={
-              safetyTargetName
-            }
-            targetSensor={
-              safetyTargetSensor
-            }
-            sensors={
-              safetySensors
-            }
-            ignoredSensors={
-              ignoredSafetySensors
-            }
-            sensorCatalog={
-              sensorCatalog
-            }
-            onIgnoredSensorsChange={
-              onIgnoredSafetySensorsChange
-            }
-          />
-        </Tabs.Panel>
+        {
+          resource.kind ===
+            "block" && (
+            <Tabs.Panel
+              value="safety"
+              p="md"
+            >
+              <MovementSafetyEditor
+                targetName={
+                  safetyTargetName
+                }
+                targetSensor={
+                  safetyTargetSensor
+                }
+                sensors={
+                  safetySensors
+                }
+                ignoredSensors={
+                  ignoredSafetySensors
+                }
+                sensorCatalog={
+                  sensorCatalog
+                }
+                onIgnoredSensorsChange={
+                  onIgnoredSafetySensorsChange
+                }
+              />
+            </Tabs.Panel>
+          )
+        }
       </Tabs>
     </Card>
   );
