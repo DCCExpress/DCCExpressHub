@@ -558,6 +558,17 @@ void WsProtocol::sendCommandCenterInfo(
     data["name"] =
         _commandCenter.name();
 
+    data["transport"] =
+        CommandCenterBuild::isDccEx()
+            ? "tcp"
+            : "udp";
+
+    data["serialPort"] =
+        "";
+
+    data["baudRate"] =
+        0;
+
     data["ip"] =
         _commandCenter.host();
 
