@@ -1277,5 +1277,11 @@
   "movementSelectedResourceMissing": "Das ausgewählte Element des Fahrstraßenvektors ist im aktuellen Movement-Plan nicht verfügbar. Wähle es erneut im Vektor aus.",
   "movementExecutionScriptDescription": "Schreibgeschützte Projektion, die aus demselben gespeicherten Movement-Fahrwegplan aufgelöst wird, den auch die Laufzeit-Engine verwendet.",
   "movementGeneralHelpButton": "Movement-Hilfe",
-  "movementGeneralHelpTitle": "Movement-Hilfe"
+  "movementGeneralHelpTitle": "Movement-Hilfe",
+  "movementActionRandomPlay": "Zufällige Wiedergabe",
+  "movementRandomPlayHelp": "50 % Chance: eine zufällige Gerade/Ungerade-Entscheidung wird erzeugt; bei geradem Ergebnis wird das Audio abgespielt.",
+  "movementActionSetBasicAccessory": "Basic Accessory setzen",
+  "movementActionSetExtendedAccessory": "Extended Accessory setzen",
+  "movementAccessoryAddress": "Accessory-Adresse",
+  "movementAccessoryAspect": "Aspect (0–255)"
 }
