@@ -139,8 +139,13 @@ export default function MovementExecutionScriptDialog({
         onClose
       }
       title={
-        "Movement execution script — " +
-        page.name
+        mt(
+          "movementExecutionScriptTitle",
+          {
+            name:
+              page.name,
+          }
+        )
       }
       size="xl"
       centered
