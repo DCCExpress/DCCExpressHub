@@ -1254,5 +1254,6 @@
   "movementNoSequencesForEvent": "Ehhez az eseményhez nincs szekvencia.",
   "movementRouteSelectionHint": "Kattints a fenti útvonalvektor egyik blokkjára vagy szakaszára a feltételek, események és műveletek szerkesztéséhez.",
   "movementRouteVectorSubtitle": "Blokkok, gráfszakaszok és váltók fizikai haladási sorrendben",
-  "movementRouteVectorError": "Útvonalvektor: {{error}}"
+  "movementRouteVectorError": "Útvonalvektor: {{error}}",
+  "movementSafetySensorsTo": "Safety szenzorok → {{target}}"
 }
