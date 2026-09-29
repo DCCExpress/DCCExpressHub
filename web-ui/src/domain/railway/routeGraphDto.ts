@@ -26,7 +26,7 @@ export type RouteGraphNodeDto = {
   signals: SectionSignal[];
   blocks: SectionBlock[];
   elementIds: LayoutElementId[];
-  sectionParts: SectionPart[];
+  sectionParts?: SectionPart[];
 };
 
 export type RouteGraphEdgeDto = {
