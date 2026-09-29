@@ -176,7 +176,7 @@ export default function MovementExecutionScriptDialog({
                 size="sm"
                 c="dimmed"
               >
-                Resolving execution plan...
+                {mt("movementResolvingExecutionPlan")}
               </Text>
             </Stack>
           )
