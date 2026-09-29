@@ -29,6 +29,19 @@ export type SectionBlock = {
   name: string;
   trackName: string;
   label: string;
+  sensorAddress?: number;
+};
+
+export type SectionPart = {
+  key: string;
+  index: number;
+  elementIds: LayoutElementId[];
+  fromSensor: number | null;
+  toSensor: number | null;
+  detectors: number[];
+  blockIds: LayoutElementId[];
+  circular: boolean;
+  locoDirection: TravelDirection;
 };
 
 export type RouteSolution = {
@@ -67,6 +80,7 @@ export class GraphNode {
   signals: SectionSignal[] = [];
   blocks: SectionBlock[] = [];
   elementIds: LayoutElementId[] = [];
+  sectionParts: SectionPart[] = [];
 
   constructor(
     name: string,
@@ -76,7 +90,8 @@ export class GraphNode {
     detectors: SectionDetector[] = [],
     signals: SectionSignal[] = [],
     blocks: SectionBlock[] = [],
-    elementIds: LayoutElementId[] = []
+    elementIds: LayoutElementId[] = [],
+    sectionParts: SectionPart[] = []
   ) {
     this.name = name;
     this.trackName = trackName;
@@ -86,6 +101,7 @@ export class GraphNode {
     this.signals = signals;
     this.blocks = blocks;
     this.elementIds = elementIds;
+    this.sectionParts = sectionParts;
   }
 }
 
