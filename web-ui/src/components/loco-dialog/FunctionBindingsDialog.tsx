@@ -3,7 +3,6 @@ import {
   ActionIcon,
   Button,
   Group,
-  NumberInput,
   ScrollArea,
   Stack,
   Table,
@@ -135,16 +134,6 @@ export default function FunctionBindingsDialog({
           )
       );
 
-      if (
-        patch.id !==
-          undefined &&
-        selectedId ===
-          originalId
-      ) {
-        setSelectedId(
-          patch.id
-        );
-      }
     };
 
   const deleteBinding =
@@ -180,14 +169,7 @@ export default function FunctionBindingsDialog({
           0 ||
         binding.id >
           65535 ||
-        !binding.name.trim() ||
-        draft.some(
-          other =>
-            other !==
-              binding &&
-            other.id ===
-              binding.id
-        )
+        !binding.name.trim()
     );
 
   return (
@@ -293,42 +275,12 @@ export default function FunctionBindingsDialog({
                         }}
                       >
                         <Table.Td>
-                          <NumberInput
-                            value={
-                              binding.id
-                            }
-                            min={1}
-                            max={65535}
-                            allowDecimal={
-                              false
-                            }
-                            allowNegative={
-                              false
-                            }
-                            onClick={
-                              event =>
-                                event.stopPropagation()
-                            }
-                            onChange={
-                              value => {
-                                const next =
-                                  Math.round(
-                                    Number(
-                                      value
-                                    ) ||
-                                    0
-                                  );
-
-                                updateBinding(
-                                  binding.id,
-                                  {
-                                    id:
-                                      next,
-                                  }
-                                );
-                              }
-                            }
-                          />
+                          <Text
+                            size="sm"
+                            fw={600}
+                          >
+                            {binding.id}
+                          </Text>
                         </Table.Td>
 
                         <Table.Td>
