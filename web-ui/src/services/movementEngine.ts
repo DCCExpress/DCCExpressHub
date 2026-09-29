@@ -1505,13 +1505,28 @@ async function executeAction(
     }
 
     case "randomPlay": {
-      if (
+      const roll =
         Math.floor(
           Math.random() *
-          2
-        ) %
-          2 !==
-        0
+          10
+        ) +
+        1;
+
+      const threshold =
+        Math.max(
+          1,
+          Math.min(
+            9,
+            Math.round(
+              action.randomPlayChancePercent /
+              10
+            )
+          )
+        );
+
+      if (
+        roll >
+        threshold
       ) {
         return;
       }
