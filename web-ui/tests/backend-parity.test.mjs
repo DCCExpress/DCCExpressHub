@@ -124,14 +124,14 @@ test("ESP32 implements the Windows-authoritative SwitchMan safety contract", () 
     assert.match(
       windows,
       new RegExp(
-        `case "\${action}"`
+        `case "${action}"`
       )
     );
 
     assert.match(
       esp,
       new RegExp(
-        `action\\s*==\\s*"\${action}"`
+        `action\\s*==\\s*"${action}"`
       )
     );
   }
