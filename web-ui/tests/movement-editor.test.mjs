@@ -3045,7 +3045,12 @@ test("Movement route vector merges only an identical single-sensor segment into 
   );
 });
 
-test("Movement vector shows physical detectors while focused header shows actual next-leg safety sensors", () => {
+test("Movement vector keeps physical sensors while selected nodes expose a configurable Safety tab", () => {
+  const domain =
+    read(
+      "src/domain/movement.ts"
+    );
+
   const vector =
     read(
       "src/services/movementRouteVector.ts"
@@ -3066,10 +3071,30 @@ test("Movement vector shows physical detectors while focused header shows actual
       "src/components/movement/MovementSelectedResourceEditor.tsx"
     );
 
+  const safetyEditor =
+    read(
+      "src/components/movement/MovementSafetyEditor.tsx"
+    );
+
   const safety =
     read(
       "src/services/movementSafety.ts"
     );
+
+  assert.match(
+    domain,
+    /export type MovementSafetyRule/
+  );
+
+  assert.match(
+    domain,
+    /ignoredSensors:\s*number\[\]/
+  );
+
+  assert.match(
+    domain,
+    /safetyRules:\s*MovementSafetyRule\[\]/
+  );
 
   assert.match(
     vector,
@@ -3079,16 +3104,6 @@ test("Movement vector shows physical detectors while focused header shows actual
   assert.doesNotMatch(
     vector,
     /safetySensors/
-  );
-
-  assert.match(
-    vector,
-    /resource\.detectors/
-  );
-
-  assert.match(
-    preview,
-    /item\.sensors\.join\(" · "\)/
   );
 
   assert.match(
@@ -3108,17 +3123,17 @@ test("Movement vector shows physical detectors while focused header shows actual
 
   assert.match(
     safety,
-    /movementLegPathSafetySensors/
-  );
-
-  assert.match(
-    safety,
     /export function movementLegSafetySensors/
   );
 
   assert.match(
     safety,
-    /const targetSensor =[\s\S]*leg\.to\.sensorAddress/
+    /export function movementLegIgnoredSafetySensors/
+  );
+
+  assert.match(
+    safety,
+    /export function movementLegEffectivePathSafetySensors/
   );
 
   assert.match(
@@ -3132,18 +3147,95 @@ test("Movement vector shows physical detectors while focused header shows actual
   );
 
   assert.match(
-    focused,
-    /Safety sensors →/
+    routeEditor,
+    /updateIgnoredSafetySensors/
   );
 
   assert.match(
     focused,
-    /safetyTargetName/
+    /value="safety"/
   );
 
   assert.match(
     focused,
-    /safetySensors\.join/
+    /<MovementSafetyEditor/
+  );
+
+  assert.match(
+    safetyEditor,
+    /label="Check sensor"/
+  );
+
+  assert.match(
+    safetyEditor,
+    /REQUIRED OFF/
+  );
+
+  assert.match(
+    safetyEditor,
+    /IGNORED/
+  );
+});
+
+test("Movement runtime honors ignored safety sensors but keeps logical target block checks", () => {
+  const engine =
+    read(
+      "src/services/movementEngine.ts"
+    );
+
+  const script =
+    read(
+      "src/services/movementExecutionScript.ts"
+    );
+
+  const routeCatalog =
+    read(
+      "src/services/movementRouteCatalog.ts"
+    );
+
+  assert.match(
+    engine,
+    /movementLegEffectivePathSafetySensors\([\s\S]*execution\.page/
+  );
+
+  assert.match(
+    engine,
+    /movementLegSensorIsChecked\([\s\S]*execution\.page/
+  );
+
+  assert.match(
+    engine,
+    /function targetBlockAvailableForLeg/
+  );
+
+  assert.match(
+    engine,
+    /blockAvailableForTarget\([\s\S]*checkOccupancySensor/
+  );
+
+  assert.match(
+    engine,
+    /state\.locoAddress/
+  );
+
+  assert.match(
+    engine,
+    /state\.locoId/
+  );
+
+  assert.match(
+    script,
+    /IGNORED_BY_SAFETY_OVERRIDE/
+  );
+
+  assert.match(
+    script,
+    /movementLegEffectivePathSafetySensors/
+  );
+
+  assert.match(
+    routeCatalog,
+    /safetyRules:\s*\[\]/
   );
 });
 
