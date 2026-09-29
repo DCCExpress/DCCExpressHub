@@ -36,6 +36,10 @@ import {
   type MovementPlan,
 } from "../../services/movementPlan";
 
+import {
+  movementLegSafetySensors,
+} from "../../services/movementSafety";
+
 import MovementRouteRow from "./MovementRouteRow";
 import MovementSelectedResourceEditor from "./MovementSelectedResourceEditor";
 
@@ -336,6 +340,46 @@ export default function MovementRouteEditor({
         null
       : null;
 
+  const selectedSafetyLeg =
+    selectedResource ===
+      null ||
+    plan ===
+      null
+      ? null
+      : selectedResource.kind ===
+          "block"
+        ? (
+            plan.legs.find(
+              leg =>
+                leg.from.key ===
+                selectedResource.key
+            ) ??
+            null
+          )
+        : (
+            plan.legs.find(
+              leg =>
+                leg.resources.some(
+                  resource =>
+                    resource.key ===
+                    selectedResource.key
+                )
+            ) ??
+            null
+          );
+
+  const selectedSafetySensors =
+    selectedSafetyLeg ===
+      null
+      ? []
+      : movementLegSafetySensors(
+          selectedSafetyLeg
+        );
+
+  const selectedSafetyTargetName =
+    selectedSafetyLeg?.to.name ??
+    null;
+
   const selectedDefaultRule:
     MovementBlockRule | null =
     selectedResource?.blockId !==
@@ -511,6 +555,12 @@ export default function MovementRouteEditor({
                     }
                     defaultRule={
                       selectedDefaultRule
+                    }
+                    safetySensors={
+                      selectedSafetySensors
+                    }
+                    safetyTargetName={
+                      selectedSafetyTargetName
                     }
                     sensorCatalog={
                       sensorCatalog
