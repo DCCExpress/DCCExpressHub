@@ -15,6 +15,10 @@ import type {
   MovementEngineState,
 } from "../../services/movementEngine";
 
+import {
+  useMovementTranslation,
+} from "./movementI18n";
+
 export function movementElapsedSeconds(
   page:
     MovementPage,
@@ -222,8 +226,8 @@ export default function MovementElapsedBadge({
       }
       title={
         live
-          ? "Elapsed Movement time"
-          : "Last Movement duration"
+          ? mt("movementElapsedTime")
+          : mt("movementLastDuration")
       }
     >
       {
