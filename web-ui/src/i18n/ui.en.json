@@ -1247,5 +1247,12 @@
   "movementSaveEmptyList": "Save empty list",
   "movementScript": "Script",
   "movementReload": "Reload",
-  "movementSave": "Save"
+  "movementSave": "Save",
+  "movementActionSequencesHelp": "Each movement event can have one Blocking and one Background sequence. Blocking waits for completion; Background runs alongside the movement.",
+  "movementAddBlockingSequence": "Add blocking sequence",
+  "movementAddBackgroundSequence": "Add background sequence",
+  "movementNoSequencesForEvent": "No sequences for this event.",
+  "movementRouteSelectionHint": "Click a block or segment in the route vector above to edit its conditions, events and actions.",
+  "movementRouteVectorSubtitle": "Blocks, graph segments and turnouts in physical movement order",
+  "movementRouteVectorError": "Route vector: {{error}}"
 }
