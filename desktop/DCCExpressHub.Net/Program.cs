@@ -404,6 +404,66 @@ app.MapPost("/api/locos", async (HttpRequest req, IWebHostEnvironment env, Confi
     return Results.Json(new { ok = true, bytes = System.Text.Encoding.UTF8.GetByteCount(body) });
 });
 
+app.MapGet("/api/function-bindings", async (IWebHostEnvironment env) =>
+{
+    var p = DataFile(env, "function-bindings.json");
+    return Results.Text(
+        File.Exists(p) ? await File.ReadAllTextAsync(p) : "[]",
+        "application/json");
+});
+
+app.MapPost("/api/function-bindings", async (HttpRequest req, IWebHostEnvironment env) =>
+{
+    using var sr = new StreamReader(req.Body);
+    var body = await sr.ReadToEndAsync();
+
+    try
+    {
+        using var doc = JsonDocument.Parse(body);
+
+        if (doc.RootElement.ValueKind != JsonValueKind.Array)
+            return Results.Json(
+                new { ok = false, message = "Expected function binding JSON array" },
+                statusCode: 400);
+
+        var usedIds = new HashSet<int>();
+
+        foreach (var item in doc.RootElement.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object ||
+                !item.TryGetProperty("id", out var idElement) ||
+                !idElement.TryGetInt32(out var id) ||
+                id <= 0 ||
+                !usedIds.Add(id) ||
+                !item.TryGetProperty("name", out var nameElement) ||
+                nameElement.ValueKind != JsonValueKind.String ||
+                string.IsNullOrWhiteSpace(nameElement.GetString()))
+            {
+                return Results.Json(
+                    new { ok = false, message = "Function bindings require unique positive numeric id and non-empty name" },
+                    statusCode: 400);
+            }
+        }
+    }
+    catch
+    {
+        return Results.Json(
+            new { ok = false, message = "Expected function binding JSON array" },
+            statusCode: 400);
+    }
+
+    var path = DataFile(env, "function-bindings.json");
+    var temp = path + ".tmp";
+    await File.WriteAllTextAsync(temp, body);
+    File.Move(temp, path, true);
+
+    return Results.Json(new
+    {
+        ok = true,
+        bytes = System.Text.Encoding.UTF8.GetByteCount(body)
+    });
+});
+
 app.MapGet("/api/layout", async (IWebHostEnvironment env) =>
 {
     var p = DataFile(env, "layout.json");
