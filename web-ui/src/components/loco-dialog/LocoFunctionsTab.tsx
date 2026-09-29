@@ -272,7 +272,7 @@ export default function LocoFunctionsTab({
                   />
 
                   <TextInput
-                    label="Binding"
+                    label={i18next.t("ui.functionBinding")}
                     value={
                       fn.bindingId ===
                         undefined ||
@@ -292,7 +292,7 @@ export default function LocoFunctionsTab({
                       <ActionIcon
                         size="sm"
                         variant="subtle"
-                        aria-label="Function bindings"
+                        aria-label={i18next.t("ui.functionBindings")}
                         onClick={
                           () =>
                             setBindingFunctionId(
