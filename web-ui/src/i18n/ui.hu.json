@@ -1149,7 +1149,7 @@
   "movementEventEnter": "BELÉPÉS",
   "movementActionSetSpeed": "Sebesség beállítása",
   "movementActionLocoFunction": "Mozdonyfunkció",
-  "movementActionHornPulse": "Kürtimpulzus",
+  "movementActionHornPulse": "Mozdonyfunkció impulzus",
   "movementActionDelay": "Várakozás",
   "movementActionRandomDelay": "Véletlen várakozás",
   "movementActionPlayAudio": "Hang lejátszása",
