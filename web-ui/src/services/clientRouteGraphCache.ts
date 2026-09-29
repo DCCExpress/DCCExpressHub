@@ -350,6 +350,21 @@ function graphToDto(
           elementIds: [
             ...node.elementIds,
           ],
+          sectionParts:
+            node.sectionParts.map(
+              part => ({
+                ...part,
+                elementIds: [
+                  ...part.elementIds,
+                ],
+                detectors: [
+                  ...part.detectors,
+                ],
+                blockIds: [
+                  ...part.blockIds,
+                ],
+              })
+            ),
         })
       ),
     edges:
