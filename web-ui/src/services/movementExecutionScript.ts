@@ -17,7 +17,8 @@ import {
 } from "./movementResourceEvents";
 
 import {
-  movementLegPathSafetySensors,
+  movementLegEffectivePathSafetySensors,
+  movementLegSensorIsChecked,
 } from "./movementSafety";
 
 type ActionSequence = {
@@ -446,14 +447,26 @@ function renderActions(
 }
 
 function renderAuthority(
+  page:
+    MovementPage,
   leg:
     MovementPlanLeg,
   held:
     boolean
 ): string[] {
   const sensors =
-    movementLegPathSafetySensors(
+    movementLegEffectivePathSafetySensors(
+      page,
       leg
+    );
+
+  const targetSensorChecked =
+    leg.to.sensorAddress ===
+      null ||
+    movementLegSensorIsChecked(
+      page,
+      leg,
+      leg.to.sensorAddress
     );
 
   const lines = [
@@ -475,11 +488,21 @@ function renderAuthority(
         null
         ? "NEXT_BLOCK OCCUPANCY_SENSOR = NONE"
         : (
-          "NEXT_BLOCK SENSOR " +
-          String(
-            leg.to.sensorAddress
-          ) +
-          " = KNOWN_OFF"
+          targetSensorChecked
+            ? (
+                "NEXT_BLOCK SENSOR " +
+                String(
+                  leg.to.sensorAddress
+                ) +
+                " = KNOWN_OFF"
+              )
+            : (
+                "NEXT_BLOCK SENSOR " +
+                String(
+                  leg.to.sensorAddress
+                ) +
+                " = IGNORED_BY_SAFETY_OVERRIDE"
+              )
         ),
       sensors.length ===
         0
@@ -1035,6 +1058,7 @@ function renderLeg(
   lines.push(
     ...indent(
       renderAuthority(
+        page,
         leg,
         false
       )
@@ -1098,6 +1122,7 @@ function renderLeg(
   lines.push(
     ...indent(
       renderAuthority(
+        page,
         leg,
         true
       )
