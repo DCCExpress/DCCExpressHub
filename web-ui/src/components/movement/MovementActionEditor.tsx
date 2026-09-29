@@ -1896,12 +1896,45 @@ export default function MovementActionEditor({
                                   {
                                     action.kind ===
                                       "randomPlay" && (
-                                      <Text
-                                        size="xs"
-                                        c="dimmed"
-                                      >
-                                        {mt("movementRandomPlayHelp")}
-                                      </Text>
+                                      <>
+                                        <NumberInput
+                                          size="xs"
+                                          label={mt("movementRandomPlayChance")}
+                                          description={mt("movementRandomPlayHelp")}
+                                          min={10}
+                                          max={90}
+                                          step={10}
+                                          value={
+                                            action.randomPlayChancePercent
+                                          }
+                                          onChange={
+                                            value =>
+                                              updateAction(
+                                                sequence.id,
+                                                action.id,
+                                                {
+                                                  randomPlayChancePercent:
+                                                    Math.max(
+                                                      10,
+                                                      Math.min(
+                                                        90,
+                                                        Math.round(
+                                                          (
+                                                            Number(
+                                                              value
+                                                            ) ||
+                                                            30
+                                                          ) /
+                                                          10
+                                                        ) *
+                                                        10
+                                                      )
+                                                    ),
+                                                }
+                                              )
+                                          }
+                                        />
+                                      </>
                                     )
                                   }
 
