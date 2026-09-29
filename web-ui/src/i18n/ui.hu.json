@@ -1275,5 +1275,20 @@
   "movementRouteVectorError": "Útvonalvektor: {{error}}",
   "movementSafetySensorsTo": "Biztonsági szenzorok → {{target}}",
   "movementSelectedResourceMissing": "A kiválasztott útvonalvektor-elem nem található a jelenlegi Movement tervben. Válaszd ki újra a vektorból.",
-  "movementExecutionScriptDescription": "Csak olvasható nézet, amely ugyanabból a mentett Movement útvonaltervből készül, amelyet a futásidejű motor is használ."
+  "movementExecutionScriptDescription": "Csak olvasható nézet, amely ugyanabból a mentett Movement útvonaltervből készül, amelyet a futásidejű motor is használ.",
+  "movementGeneralHelpButton": "Movement súgó",
+  "movementGeneralHelpTitle": "Movement súgó",
+  "movementGeneralHelpIntro": "A Movement azt írja le, hogyan haladjon végig egy mozdony a kiválasztott fizikai útvonalon. Az útvonalvektor futási sorrendben mutatja az erőforrásokat; minden elemhez eseményfeltételek és akciók rendelhetők.",
+  "movementGeneralHelpRouteTitle": "1. Útvonal és útvonalvektor",
+  "movementGeneralHelpRouteBody": "Először válassz egy generált útvonalat. Az útvonalvektor ezután pontosan abban a sorrendben mutatja a blokkokat, pályaszakaszokat és váltóátmeneteket, ahogyan a Movement motor használja őket. A vektor egyik elemére kattintva annak a fizikai erőforrásnak a beállításait szerkesztheted.",
+  "movementGeneralHelpBlocksTitle": "2. Blokkok és megállási pontok",
+  "movementGeneralHelpBlocksBody": "A blokkok ellenőrzési pontok a mozgás során. Az átmenő blokkokon a vonat alapból áthalad. A megálló/állomás blokkok természetes megállási pontok; új Movementnél alapból 10 másodperc fix és további véletlen 0–5 másodperc várakozás kerül az indulás elé.",
+  "movementGeneralHelpEventsTitle": "3. Események",
+  "movementGeneralHelpEventsBody": "Az események határozzák meg, mikor fussanak az akciók. A MEGKÖZELÍTÉS a megérkezés előtt történik, a MEGÉRKEZÉS az érkezés feldolgozásának része, az INDULÁS ELŐTT már a megérkezés után, de a következő indulás előtt fut, az INDULÁS az elindulás kezdetén történik, a BELÉPÉS/ELHAGYÁS fizikai erőforrásokhoz tartozik, az ELHAGYÁS UTÁN pedig a blokk teljes felszabadítása után fut.",
+  "movementGeneralHelpSequencesTitle": "4. Blokkoló és háttérszekvenciák",
+  "movementGeneralHelpSequencesBody": "A blokkoló szekvenciának teljesen be kell fejeződnie, mielőtt a Movement továbbhaladhat az adott eseményen. A háttérszekvencia elindul az eseménynél, de párhuzamosan fut tovább. Várakozáshoz vagy kötelező lépésekhez blokkoló, hangokhoz és nem kötelező effektekhez háttérszekvenciát használj.",
+  "movementGeneralHelpSafetyTitle": "5. Biztonsági szenzorok",
+  "movementGeneralHelpSafetyBody": "Egy szakasz indulása előtt a Movement ellenőrzi az adott szakasz fizikai biztonsági szenzorait. A szabadnak elvárt szenzorok állapotának ismertnek és KI állapotúnak kell lennie. Csak olyan szenzort hagyj figyelmen kívül, amelyet a jelenlegi vonat szándékosan foglalva tarthat.",
+  "movementGeneralHelpExampleTitle": "Példa: állomási megállás",
+  "movementGeneralHelpExampleBody": "A vonat belép egy állomási blokkba, majd bekövetkezik a MEGÉRKEZÉS. Először lefutnak az érkezési akciók. Ezután jön az INDULÁS ELŐTT esemény; itt a 10 másodperc fix és 0–5 másodperc véletlen blokkoló várakozás állva tartja a vonatot. A szekvencia befejezése után jöhet az INDULÁS, és a vonat továbbhalad."
 }
