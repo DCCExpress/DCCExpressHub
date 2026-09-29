@@ -259,12 +259,26 @@ function renderAction(
         )
       );
 
-    case "function":
+    case "function": {
+      const target =
+        action.functionBindingId ===
+          null
+          ? (
+              "F" +
+              String(
+                action.functionNumber
+              )
+            )
+          : (
+              "BINDING#" +
+              String(
+                action.functionBindingId
+              )
+            );
+
       return (
-        "SET_LOCO_FUNCTION address=RUNTIME_SOURCE_LOCO F" +
-        String(
-          action.functionNumber
-        ) +
+        "SET_LOCO_FUNCTION address=RUNTIME_SOURCE_LOCO " +
+        target +
         " " +
         (
           action.functionActive
@@ -272,23 +286,37 @@ function renderAction(
             : "OFF"
         )
       );
+    }
 
-    case "horn":
+    case "horn": {
+      const target =
+        action.functionBindingId ===
+          null
+          ? (
+              "F" +
+              String(
+                action.functionNumber
+              )
+            )
+          : (
+              "BINDING#" +
+              String(
+                action.functionBindingId
+              )
+            );
+
       return (
-        "SET_LOCO_FUNCTION address=RUNTIME_SOURCE_LOCO F" +
-        String(
-          action.functionNumber
-        ) +
+        "SET_LOCO_FUNCTION address=RUNTIME_SOURCE_LOCO " +
+        target +
         " ON; WAIT " +
         String(
           action.pulseMs
         ) +
-        "ms; SET_LOCO_FUNCTION address=RUNTIME_SOURCE_LOCO F" +
-        String(
-          action.functionNumber
-        ) +
+        "ms; SET_LOCO_FUNCTION address=RUNTIME_SOURCE_LOCO " +
+        target +
         " OFF"
       );
+    }
 
     case "delay":
       return (
