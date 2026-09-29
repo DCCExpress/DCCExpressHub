@@ -169,6 +169,12 @@ protected:
 
 private:
   struct PendingTxCommand {
+    PendingTxCommand()
+        : command(),
+          logCommand(
+              true) {
+    }
+
     PendingTxCommand(
         String commandValue,
         bool logCommandValue)
