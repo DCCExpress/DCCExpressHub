@@ -5,6 +5,10 @@ import {
 
 import i18next from "i18next";
 
+import {
+  useState,
+} from "react";
+
 import type {
   AutomationFlowDocument,
 } from "../domain/automationFlow";
@@ -20,6 +24,37 @@ import type {
 import AutomationFlowsTable from "./automation/AutomationFlowsTable";
 import AutomationScriptsTable from "./automation/AutomationScriptsTable";
 import MovementPagesTable from "./movement/MovementPagesTable";
+
+type AutomationPanelTab =
+  | "scripts"
+  | "flows"
+  | "movement";
+
+const AUTOMATION_PANEL_TAB_STORAGE_KEY =
+  "dcc-express-hub.automation.activeTab";
+
+function loadAutomationPanelTab(): AutomationPanelTab {
+  if (
+    typeof window ===
+      "undefined"
+  ) {
+    return "scripts";
+  }
+
+  const stored =
+    window.localStorage.getItem(
+      AUTOMATION_PANEL_TAB_STORAGE_KEY
+    );
+
+  return stored ===
+      "flows" ||
+    stored ===
+      "movement" ||
+    stored ===
+      "scripts"
+    ? stored
+    : "scripts";
+}
 
 type AutomationPanelProps = {
   scripts:
@@ -60,9 +95,53 @@ export default function AutomationPanel({
   onMovementsChange,
   onOpenMovementEditor,
 }: AutomationPanelProps) {
+  const [
+    activeTab,
+    setActiveTab,
+  ] =
+    useState<AutomationPanelTab>(
+      loadAutomationPanelTab
+    );
+
+  const changeTab =
+    (
+      value:
+        string | null
+    ): void => {
+      if (
+        value !==
+          "scripts" &&
+        value !==
+          "flows" &&
+        value !==
+          "movement"
+      ) {
+        return;
+      }
+
+      setActiveTab(
+        value
+      );
+
+      if (
+        typeof window !==
+          "undefined"
+      ) {
+        window.localStorage.setItem(
+          AUTOMATION_PANEL_TAB_STORAGE_KEY,
+          value
+        );
+      }
+    };
+
   return (
     <Tabs
-      defaultValue="scripts"
+      value={
+        activeTab
+      }
+      onChange={
+        changeTab
+      }
       h="100%"
       keepMounted={
         false
