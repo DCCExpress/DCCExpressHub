@@ -511,6 +511,7 @@ export default function MovementEditorDialog({
         size="lg"
         centered
         draggable
+        zIndex={4200}
         styles={{
           content: {
             maxHeight:
@@ -551,12 +552,24 @@ export default function MovementEditorDialog({
                   "movementGeneralHelpRouteBody",
                 ],
                 [
+                  "movementGeneralHelpVectorTitle",
+                  "movementGeneralHelpVectorBody",
+                ],
+                [
                   "movementGeneralHelpBlocksTitle",
                   "movementGeneralHelpBlocksBody",
                 ],
                 [
+                  "movementGeneralHelpConditionsTitle",
+                  "movementGeneralHelpConditionsBody",
+                ],
+                [
                   "movementGeneralHelpEventsTitle",
                   "movementGeneralHelpEventsBody",
+                ],
+                [
+                  "movementGeneralHelpActionsTitle",
+                  "movementGeneralHelpActionsBody",
                 ],
                 [
                   "movementGeneralHelpSequencesTitle",
@@ -565,6 +578,10 @@ export default function MovementEditorDialog({
                 [
                   "movementGeneralHelpSafetyTitle",
                   "movementGeneralHelpSafetyBody",
+                ],
+                [
+                  "movementGeneralHelpSafetyExampleTitle",
+                  "movementGeneralHelpSafetyExampleBody",
                 ],
                 [
                   "movementGeneralHelpExampleTitle",
