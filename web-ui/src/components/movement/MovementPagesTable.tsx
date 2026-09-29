@@ -240,7 +240,15 @@ function MovementCard({
                 }
               >
                 {
-                  state.status
+                  mt(
+                    state.status === "running"
+                      ? "movementStatusRunning"
+                      : state.status === "stopping"
+                        ? "movementStatusStopping"
+                        : state.status === "error"
+                          ? "movementStatusError"
+                          : "movementStatusIdle"
+                  )
                 }
               </Badge>
 
