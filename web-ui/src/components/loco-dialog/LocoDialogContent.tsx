@@ -57,6 +57,8 @@ export default function LocoDialogContent({
 }: LocoDialogContentProps) {
   const {
     locos,
+    functionBindings,
+    setFunctionBindings,
     selectedId,
     setSelectedId,
     selectedLoco,
@@ -124,6 +126,8 @@ export default function LocoDialogContent({
             <Tabs.Panel value="functions" pt="md" style={{ flex: 1, minHeight: 0 }}>
               <LocoFunctionsTab
                 functions={selectedLoco.functions}
+                functionBindings={functionBindings}
+                onFunctionBindingsChange={setFunctionBindings}
                 onAddFunction={addFunction}
                 onUpdateFunction={updateFunction}
                 onDeleteFunction={deleteFunction}
