@@ -55,6 +55,7 @@ export type MovementRouteVectorItem =
       sensor: number | null;
       sensors: number[];
       mergedSegmentNames: string[];
+      blockType: string;
       role:
         MovementRouteVectorRole;
     };
@@ -170,6 +171,62 @@ function blockSensorMap(
           sensor
         );
       }
+    }
+  }
+
+  return result;
+}
+
+function blockTypeMap(
+  layout:
+    SerializedLayoutDto
+): Map<number, string> {
+  const result =
+    new Map<
+      number,
+      string
+    >();
+
+  for (
+    const layer of
+    layout.layers ??
+    []
+  ) {
+    for (
+      const element of
+      layer.elements ??
+      []
+    ) {
+      if (
+        element.type !==
+          "trackblock"
+      ) {
+        continue;
+      }
+
+      const id =
+        positiveInteger(
+          element.id
+        );
+
+      if (
+        id ===
+          null
+      ) {
+        continue;
+      }
+
+      const blockType =
+        String(
+          element.blockType ??
+            "normal"
+        ).trim() ||
+        "normal";
+
+      result.set(
+        id,
+        blockType
+      );
     }
   }
 
@@ -585,6 +642,11 @@ export function buildMovementRouteVector(
       layout
     );
 
+  const blockTypes =
+    blockTypeMap(
+      layout
+    );
+
   const trackAddresses =
     trackAddressMap(
       layout
@@ -669,6 +731,11 @@ export function buildMovementRouteVector(
               ]
             : [],
         mergedSegmentNames: [],
+        blockType:
+          blockTypes.get(
+            blockId
+          ) ??
+          "normal",
         role:
           blockId ===
             sourceId
@@ -908,6 +975,16 @@ export async function loadMovementRouteVector(
     );
   }
 
+  const blockTypes =
+    layoutOverride
+      ? blockTypeMap(
+          layoutOverride
+        )
+      : new Map<
+          number,
+          string
+        >();
+
   const visibleResources =
     plan.resources.filter(
       resource =>
@@ -979,6 +1056,11 @@ export async function loadMovementRouteVector(
               resource.key
             ) ??
             [],
+          blockType:
+            blockTypes.get(
+              blockId
+            ) ??
+            "normal",
           role:
             blockId ===
               page.fromBlockId
