@@ -1247,5 +1247,12 @@
   "movementSaveEmptyList": "Leere Liste speichern",
   "movementScript": "Skript",
   "movementReload": "Neu laden",
-  "movementSave": "Speichern"
+  "movementSave": "Speichern",
+  "movementActionSequencesHelp": "Jedes Movement-Ereignis kann eine blockierende und eine Hintergrundsequenz haben. Blockierend wartet auf den Abschluss; Hintergrund läuft parallel zum Movement.",
+  "movementAddBlockingSequence": "Blockierende Sequenz hinzufügen",
+  "movementAddBackgroundSequence": "Hintergrundsequenz hinzufügen",
+  "movementNoSequencesForEvent": "Keine Sequenzen für dieses Ereignis.",
+  "movementRouteSelectionHint": "Klicke oben im Fahrstraßenvektor auf einen Block oder Abschnitt, um Bedingungen, Ereignisse und Aktionen zu bearbeiten.",
+  "movementRouteVectorSubtitle": "Blöcke, Graphabschnitte und Weichen in physischer Fahrreihenfolge",
+  "movementRouteVectorError": "Fahrstraßenvektor: {{error}}"
 }
