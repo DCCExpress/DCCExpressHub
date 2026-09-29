@@ -275,7 +275,9 @@ export default function LocoFunctionsTab({
                     label="Binding"
                     value={
                       fn.bindingId ===
-                        undefined
+                        undefined ||
+                      fn.bindingId ===
+                        null
                         ? ""
                         : (
                             bindingNameById.get(
@@ -537,7 +539,7 @@ export default function LocoFunctionsTab({
                   null
                   ? {
                       bindingId:
-                        undefined,
+                        null,
                     }
                   : {
                       bindingId:
