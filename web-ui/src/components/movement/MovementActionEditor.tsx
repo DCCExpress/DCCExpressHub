@@ -33,6 +33,14 @@ import {
   IconTrash,
 } from "@tabler/icons-react";
 
+import type {
+  FunctionBinding,
+} from "@domain/types";
+
+import {
+  getFunctionBindings,
+} from "../../api/domainApi";
+
 import {
   createMovementAction,
   createMovementId,
@@ -382,6 +390,62 @@ export default function MovementActionEditor({
 }: Props) {
   const mt =
     useMovementTranslation();
+
+  const [
+    functionBindings,
+    setFunctionBindings,
+  ] =
+    useState<FunctionBinding[]>([]);
+
+  useEffect(
+    () => {
+      let active =
+        true;
+
+      void getFunctionBindings()
+        .then(
+          bindings => {
+            if (active) {
+              setFunctionBindings(
+                bindings
+              );
+            }
+          }
+        )
+        .catch(
+          error => {
+            console.warn(
+              "[Movement] Could not load function bindings",
+              error
+            );
+          }
+        );
+
+      return () => {
+        active =
+          false;
+      };
+    },
+    []
+  );
+
+  const functionBindingOptions =
+    useMemo(
+      () =>
+        functionBindings.map(
+          binding => ({
+            value:
+              String(
+                binding.id
+              ),
+            label:
+              binding.name,
+          })
+        ),
+      [
+        functionBindings,
+      ]
+    );
 
   const options =
     whenOptions(
@@ -1595,33 +1659,35 @@ export default function MovementActionEditor({
                                   gap="xs"
                                   align="flex-end"
                                 >
-                                  <NumberInput
+                                  <Select
                                     size="xs"
-                                    label={mt("movementFunction")}
-                                    min={0}
-                                    max={68}
-                                    value={
-                                      action.functionNumber
+                                    label="Function binding"
+                                    data={
+                                      functionBindingOptions
                                     }
+                                    value={
+                                      action.functionBindingId ===
+                                        null
+                                        ? null
+                                        : String(
+                                            action.functionBindingId
+                                          )
+                                    }
+                                    searchable
+                                    clearable
                                     onChange={
                                       value =>
                                         updateAction(
                                           sequence.id,
                                           action.id,
                                           {
-                                            functionNumber:
-                                              Math.max(
-                                                0,
-                                                Math.min(
-                                                  68,
-                                                  Math.round(
-                                                    Number(
-                                                      value
-                                                    ) ||
-                                                    0
-                                                  )
-                                                )
-                                              ),
+                                            functionBindingId:
+                                              value ===
+                                                null
+                                                ? null
+                                                : Number(
+                                                    value
+                                                  ),
                                           }
                                         )
                                     }
@@ -1661,33 +1727,35 @@ export default function MovementActionEditor({
                                 <Group
                                   gap="xs"
                                 >
-                                  <NumberInput
+                                  <Select
                                     size="xs"
-                                    label={mt("movementFunction")}
-                                    min={0}
-                                    max={68}
-                                    value={
-                                      action.functionNumber
+                                    label="Function binding"
+                                    data={
+                                      functionBindingOptions
                                     }
+                                    value={
+                                      action.functionBindingId ===
+                                        null
+                                        ? null
+                                        : String(
+                                            action.functionBindingId
+                                          )
+                                    }
+                                    searchable
+                                    clearable
                                     onChange={
                                       value =>
                                         updateAction(
                                           sequence.id,
                                           action.id,
                                           {
-                                            functionNumber:
-                                              Math.max(
-                                                0,
-                                                Math.min(
-                                                  68,
-                                                  Math.round(
-                                                    Number(
-                                                      value
-                                                    ) ||
-                                                    0
-                                                  )
-                                                )
-                                              ),
+                                            functionBindingId:
+                                              value ===
+                                                null
+                                                ? null
+                                                : Number(
+                                                    value
+                                                  ),
                                           }
                                         )
                                     }
