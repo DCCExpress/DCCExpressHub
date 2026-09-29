@@ -48,6 +48,10 @@ import {
   useMovementRuntimeState,
 } from "./MovementRuntimeControls";
 
+import {
+  useMovementTranslation,
+} from "./movementI18n";
+
 const SHOW_LEGACY_ROUTE_CARDS =
   false;
 
@@ -70,6 +74,9 @@ export default function MovementRouteEditor({
   layout,
   onChange,
 }: Props) {
+  const mt =
+    useMovementTranslation();
+
   const runtimeState =
     useMovementRuntimeState(
       page.id
@@ -531,7 +538,7 @@ export default function MovementRouteEditor({
               size="sm"
               c="dimmed"
             >
-              Building physical movement plan...
+              {mt("movementBuildingPlan")}
             </Text>
           </Group>
         )
@@ -557,7 +564,7 @@ export default function MovementRouteEditor({
             color="yellow"
             variant="light"
           >
-            Legacy route topology: generate and save the route graph once to store exact turnout passage order.
+            {mt("movementLegacyTopologyHint")}
           </Alert>
         )
       }
@@ -572,7 +579,7 @@ export default function MovementRouteEditor({
               color="blue"
               variant="light"
             >
-              Select the route blocks in the page header.
+              {mt("movementSelectRouteBlocks")}
             </Alert>
           )
           : plan && (
@@ -585,7 +592,7 @@ export default function MovementRouteEditor({
                     variant="light"
                     className="movement-vector-selection-hint"
                   >
-                    Click a block or segment in the route vector above to edit its conditions, events and actions.
+                    {mt("movementRouteSelectionHint")}
                   </Alert>
                 )
               }
