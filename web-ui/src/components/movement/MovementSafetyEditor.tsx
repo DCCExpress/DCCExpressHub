@@ -14,6 +14,8 @@ import type {
 type Props = {
   targetName:
     string | null;
+  targetSensor:
+    number | null;
   sensors:
     number[];
   ignoredSensors:
@@ -28,6 +30,7 @@ type Props = {
 
 export default function MovementSafetyEditor({
   targetName,
+  targetSensor,
   sensors,
   ignoredSensors,
   sensorCatalog,
@@ -157,8 +160,15 @@ export default function MovementSafetyEditor({
                           fw={700}
                         >
                           {
-                            option?.label ??
-                            `Sensor ${address}`
+                            address ===
+                              targetSensor &&
+                            targetName !==
+                              null
+                              ? `Sensor ${address} · ${targetName} occupancy`
+                              : (
+                                  option?.label ??
+                                  `Sensor ${address}`
+                                )
                           }
                         </Text>
 
