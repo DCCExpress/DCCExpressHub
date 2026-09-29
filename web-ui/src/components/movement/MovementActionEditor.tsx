@@ -872,7 +872,7 @@ export default function MovementActionEditor({
           size="sm"
           fw={700}
         >
-          Action event
+          {mt("movementActionEvent")}
         </Text>
 
         <Tabs
@@ -944,7 +944,7 @@ export default function MovementActionEditor({
           size="xs"
           c="dimmed"
         >
-          Each movement event can have one Blocking and one Background sequence. Blocking waits for completion; Background runs alongside the movement.
+          {mt("movementActionSequencesHelp")}
         </Text>
 
         <Group
@@ -970,7 +970,7 @@ export default function MovementActionEditor({
                 )
             }
           >
-            Add blocking sequence
+            {mt("movementAddBlockingSequence")}
           </Button>
 
           <Button
@@ -992,7 +992,7 @@ export default function MovementActionEditor({
                 )
             }
           >
-            Add background sequence
+            {mt("movementAddBackgroundSequence")}
           </Button>
         </Group>
       </Stack>
@@ -1004,7 +1004,7 @@ export default function MovementActionEditor({
             size="xs"
             c="dimmed"
           >
-            No sequences for this event.
+            {mt("movementNoSequencesForEvent")}
           </Text>
         )
       }
@@ -1049,8 +1049,8 @@ export default function MovementActionEditor({
                     {
                       sequence.mode ===
                         "background"
-                        ? "BACKGROUND SEQUENCE"
-                        : "BLOCKING SEQUENCE"
+                        ? mt("movementBackgroundSequence")
+                        : mt("movementBlockingSequence")
                     }
                   </Badge>
                 </Group>
@@ -1065,8 +1065,8 @@ export default function MovementActionEditor({
                       collapsedSequenceIds.has(
                         sequence.id
                       )
-                        ? "Expand sequence"
-                        : "Collapse sequence"
+                        ? mt("movementExpandSequence")
+                        : mt("movementCollapseSequence")
                     }
                   >
                     <ActionIcon
@@ -1345,8 +1345,8 @@ export default function MovementActionEditor({
                                   collapsedActionIds.has(
                                     action.id
                                   )
-                                    ? "Expand action"
-                                    : "Collapse action"
+                                    ? mt("movementExpandAction")
+                                    : mt("movementCollapseAction")
                                 }
                               >
                                 <ActionIcon
@@ -1579,8 +1579,8 @@ export default function MovementActionEditor({
                                     }
                                     label={
                                       action.functionActive
-                                        ? "ON"
-                                        : "OFF"
+                                        ? mt("movementOn")
+                                        : mt("movementOff")
                                     }
                                     onChange={
                                       event =>
