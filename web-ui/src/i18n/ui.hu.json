@@ -1255,5 +1255,7 @@
   "movementRouteSelectionHint": "Kattints a fenti útvonalvektor egyik blokkjára vagy szakaszára a feltételek, események és műveletek szerkesztéséhez.",
   "movementRouteVectorSubtitle": "Blokkok, gráfszakaszok és váltók fizikai haladási sorrendben",
   "movementRouteVectorError": "Útvonalvektor: {{error}}",
-  "movementSafetySensorsTo": "Safety szenzorok → {{target}}"
+  "movementSafetySensorsTo": "Safety szenzorok → {{target}}",
+  "movementSelectedResourceMissing": "A kiválasztott útvonalvektor-elem nem található a jelenlegi Movement tervben. Válaszd ki újra a vektorból.",
+  "movementExecutionScriptDescription": "Csak olvasható vetület, amely ugyanabból a mentett Movement útvonaltervből készül, amelyet a runtime motor is használ."
 }
