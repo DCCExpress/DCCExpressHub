@@ -5,6 +5,7 @@ import {
   type SectionBlock,
   type SectionDetector,
   type SectionSignal,
+  type SectionPart,
   type TurnoutStateRequirement,
   type RouteTurnoutPassage,
 } from "./graph";
@@ -313,7 +314,12 @@ export class RouteGraphBuilder {
       detectors,
       signals,
       blocks,
-      sectionElements.map(elem => elem.id)
+      sectionElements.map(elem => elem.id),
+      this.buildSectionParts(
+        section,
+        sectionElements,
+        blocks
+      )
     );
   }
 
@@ -404,8 +410,409 @@ export class RouteGraphBuilder {
           label: resolvedTrackName
             ? `${resolvedTrackName}: ${blockName}`
             : blockName,
+          sensorAddress:
+            block.sensorAddress > 0
+              ? block.sensorAddress
+              : undefined,
         };
       });
+  }
+
+
+  private sectionSensorAddressesAt(
+    element: TopologyTrackElement
+  ): number[] {
+    const result =
+      new Set<number>();
+
+    if (
+      Number.isInteger(
+        element.address
+      ) &&
+      element.address >
+        0
+    ) {
+      result.add(
+        element.address
+      );
+    }
+
+    for (
+      const sensor of
+      this.topology.getSensors()
+    ) {
+      if (
+        sensor.x ===
+          element.x &&
+        sensor.y ===
+          element.y &&
+        Number.isInteger(
+          sensor.address
+        ) &&
+        sensor.address >
+          0
+      ) {
+        result.add(
+          sensor.address
+        );
+      }
+    }
+
+    return [
+      ...result,
+    ].sort(
+      (
+        left,
+        right
+      ) =>
+        left -
+        right
+    );
+  }
+
+  private sectionPathDirection(
+    elements:
+      TopologyTrackElement[]
+  ): TravelDirection {
+    const first =
+      elements[0];
+
+    const second =
+      elements[1];
+
+    if (!first) {
+      return "unknown";
+    }
+
+    if (!second) {
+      return first.travelDirection;
+    }
+
+    const side =
+      this.getLinearConnectionSideTowards(
+        first,
+        second.pos
+      );
+
+    if (
+      side ===
+        "next"
+    ) {
+      return first.travelDirection;
+    }
+
+    if (
+      side ===
+        "prev"
+    ) {
+      return first.travelDirection ===
+        "forward"
+        ? "reverse"
+        : first.travelDirection ===
+            "reverse"
+          ? "forward"
+          : "unknown";
+    }
+
+    return "unknown";
+  }
+
+  private buildSectionParts(
+    section: number,
+    sectionElements:
+      TopologyTrackElement[],
+    blocks:
+      SectionBlock[]
+  ): SectionPart[] {
+    if (
+      sectionElements.length ===
+        0
+    ) {
+      return [];
+    }
+
+    const boundaries =
+      sectionElements.flatMap(
+        (
+          element,
+          elementIndex
+        ) =>
+          this.sectionSensorAddressesAt(
+            element
+          ).map(
+            sensor => ({
+              elementIndex,
+              sensor,
+            })
+          )
+      );
+
+    const circular =
+      sectionElements.length >
+        1 &&
+      this.hasTrackConnectionAt(
+        sectionElements[0]!,
+        sectionElements[
+          sectionElements.length -
+            1
+        ]!.pos
+      ) &&
+      this.hasTrackConnectionAt(
+        sectionElements[
+          sectionElements.length -
+            1
+        ]!,
+        sectionElements[0]!.pos
+      );
+
+    const blockIdsForSensor =
+      (
+        sensor:
+          number | null
+      ): number[] =>
+        sensor ===
+          null
+          ? []
+          : blocks
+              .filter(
+                block =>
+                  block.sensorAddress ===
+                    sensor
+              )
+              .map(
+                block =>
+                  block.id
+              );
+
+    const makePart =
+      (
+        index: number,
+        fromSensor:
+          number | null,
+        toSensor:
+          number | null,
+        elements:
+          TopologyTrackElement[]
+      ): SectionPart => ({
+        key:
+          `S${section}.${index + 1}`,
+        index,
+        elementIds:
+          elements.map(
+            element =>
+              element.id
+          ),
+        fromSensor,
+        toSensor,
+        detectors:
+          [
+            ...new Set(
+              [
+                fromSensor,
+                toSensor,
+              ].filter(
+                (
+                  value
+                ): value is number =>
+                  value !==
+                  null
+              )
+            ),
+          ],
+        blockIds:
+          blockIdsForSensor(
+            toSensor
+          ),
+        circular,
+        locoDirection:
+          this.sectionPathDirection(
+            elements
+          ),
+      });
+
+    if (
+      boundaries.length ===
+        0
+    ) {
+      return [
+        makePart(
+          0,
+          null,
+          null,
+          sectionElements
+        ),
+      ];
+    }
+
+    /*
+     * Multiple sensor objects may occupy one physical rail element. For
+     * topology slicing they are one boundary; keep the lowest address as the
+     * stable boundary key while all detector addresses remain available on
+     * the graph node itself.
+     */
+    const uniqueBoundaries:
+      Array<{
+        elementIndex: number;
+        sensor: number;
+      }> = [];
+
+    for (
+      const boundary of
+      boundaries
+    ) {
+      if (
+        uniqueBoundaries.some(
+          item =>
+            item.elementIndex ===
+              boundary.elementIndex
+        )
+      ) {
+        continue;
+      }
+
+      uniqueBoundaries.push(
+        boundary
+      );
+    }
+
+    if (circular) {
+      return uniqueBoundaries.map(
+        (
+          boundary,
+          index
+        ) => {
+          const next =
+            uniqueBoundaries[
+              (
+                index +
+                1
+              ) %
+              uniqueBoundaries.length
+            ]!;
+
+          const elements =
+            next.elementIndex >
+              boundary.elementIndex
+              ? sectionElements.slice(
+                  boundary.elementIndex,
+                  next.elementIndex +
+                    1
+                )
+              : [
+                  ...sectionElements.slice(
+                    boundary.elementIndex
+                  ),
+                  ...sectionElements.slice(
+                    0,
+                    next.elementIndex +
+                      1
+                  ),
+                ];
+
+          return makePart(
+            index,
+            boundary.sensor,
+            next.sensor,
+            elements
+          );
+        }
+      );
+    }
+
+    const parts:
+      SectionPart[] = [];
+
+    const first =
+      uniqueBoundaries[0]!;
+
+    if (
+      first.elementIndex >
+        0
+    ) {
+      parts.push(
+        makePart(
+          parts.length,
+          null,
+          first.sensor,
+          sectionElements.slice(
+            0,
+            first.elementIndex +
+              1
+          )
+        )
+      );
+    }
+
+    for (
+      let index = 0;
+      index <
+        uniqueBoundaries.length -
+          1;
+      index += 1
+    ) {
+      const current =
+        uniqueBoundaries[
+          index
+        ]!;
+
+      const next =
+        uniqueBoundaries[
+          index +
+            1
+        ]!;
+
+      parts.push(
+        makePart(
+          parts.length,
+          current.sensor,
+          next.sensor,
+          sectionElements.slice(
+            current.elementIndex,
+            next.elementIndex +
+              1
+          )
+        )
+      );
+    }
+
+    const last =
+      uniqueBoundaries[
+        uniqueBoundaries.length -
+          1
+      ]!;
+
+    if (
+      last.elementIndex <
+        sectionElements.length -
+          1
+    ) {
+      parts.push(
+        makePart(
+          parts.length,
+          last.sensor,
+          null,
+          sectionElements.slice(
+            last.elementIndex
+          )
+        )
+      );
+    }
+
+    if (
+      parts.length ===
+        0
+    ) {
+      parts.push(
+        makePart(
+          0,
+          first.sensor,
+          first.sensor,
+          sectionElements
+        )
+      );
+    }
+
+    return parts;
   }
 
   private isSectionElementInsideBlock(
