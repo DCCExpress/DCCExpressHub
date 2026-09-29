@@ -105,7 +105,31 @@ type RouteGraphCacheEntry = {
   graphRevision: number;
   result: ClientRouteGraphBuildResult | null;
   persisted: PersistedClientRouteTopology | null;
+  error: string | null;
 };
+
+export type ClientRouteGraphStatus =
+  | {
+      state: "valid";
+      movementReady: true;
+      errors: [];
+      topologyRevision: number;
+      graphRevision: number;
+    }
+  | {
+      state: "dirty";
+      movementReady: false;
+      errors: string[];
+      topologyRevision: number;
+      graphRevision: number;
+    }
+  | {
+      state: "invalid";
+      movementReady: false;
+      errors: string[];
+      topologyRevision: number;
+      graphRevision: number;
+    };
 
 export type ClientRouteGraphEnsureResult = {
   result: ClientRouteGraphBuildResult;
@@ -1420,6 +1444,7 @@ export function hydrateClientRouteGraphCache(
           persisted.graphRevision,
         result: null,
         persisted: null,
+        error: null,
       }
     );
 
@@ -1452,10 +1477,230 @@ export function hydrateClientRouteGraphCache(
         persisted.graphRevision,
       result,
       persisted,
+      error: null,
     }
   );
 
   return true;
+}
+
+
+function validateMovementReadyGraph(
+  result:
+    ClientRouteGraphBuildResult
+): string[] {
+  const errors:
+    string[] = [];
+
+  const blocks =
+    new Map<
+      number,
+      SectionBlock
+    >();
+
+  for (
+    const node of
+    result.graph.nodes
+  ) {
+    for (
+      const block of
+      node.blocks
+    ) {
+      blocks.set(
+        block.id,
+        block
+      );
+    }
+  }
+
+  const usableBlocks =
+    [
+      ...blocks.values(),
+    ].filter(
+      block =>
+        Number.isInteger(
+          block.sensorAddress
+        ) &&
+        (
+          block.sensorAddress ??
+          0
+        ) >
+          0
+    );
+
+  const sensorAddresses =
+    new Set(
+      usableBlocks.map(
+        block =>
+          block.sensorAddress!
+      )
+    );
+
+  if (
+    usableBlocks.length <
+      2
+  ) {
+    errors.push(
+      "Movement graph requires at least two blocks with occupancy sensors."
+    );
+  }
+
+  if (
+    sensorAddresses.size <
+      2
+  ) {
+    errors.push(
+      "Movement graph requires at least two distinct non-zero block occupancy sensor addresses."
+    );
+  }
+
+  const usableRoutes =
+    result.routes.filter(
+      route =>
+        route.fromBlock.id !==
+          route.toBlock.id &&
+        Number.isInteger(
+          route.fromBlock.sensorAddress
+        ) &&
+        (
+          route.fromBlock.sensorAddress ??
+          0
+        ) >
+          0 &&
+        Number.isInteger(
+          route.toBlock.sensorAddress
+        ) &&
+        (
+          route.toBlock.sensorAddress ??
+          0
+        ) >
+          0 &&
+        route.fromBlock.sensorAddress !==
+          route.toBlock.sensorAddress &&
+        route.solution.locoDirection !==
+          "unknown"
+    );
+
+  /*
+   * Same-section oval routes are stored in the persisted route table rather
+   * than Graph.getRunnableBlockRoutes(), so accept them after persistence is
+   * built as well. The base validation here only fails when neither the
+   * ordinary graph nor a sensor-part topology can possibly form Movement.
+   */
+  const hasSensorPartCandidate =
+    result.graph.nodes.some(
+      node =>
+        node.sectionParts.some(
+          part =>
+            part.circular
+        ) &&
+        node.blocks.filter(
+          block =>
+            (
+              block.sensorAddress ??
+              0
+            ) >
+              0
+        ).length >=
+          2
+    );
+
+  if (
+    usableRoutes.length ===
+      0 &&
+    !hasSensorPartCandidate
+  ) {
+    errors.push(
+      "Movement graph has no directed block-to-block route with a known locomotive direction."
+    );
+  }
+
+  return errors;
+}
+
+export function getClientRouteGraphStatus(
+  layout:
+    LayoutView
+): ClientRouteGraphStatus {
+  const entry =
+    cache.get(
+      layout
+    );
+
+  const fingerprint =
+    computeClientTopologyFingerprint(
+      layout
+    );
+
+  if (!entry) {
+    return {
+      state:
+        "dirty",
+      movementReady:
+        false,
+      errors: [
+        "Route graph has not been generated for the current layout.",
+      ],
+      topologyRevision:
+        0,
+      graphRevision:
+        0,
+    };
+  }
+
+  if (
+    entry.fingerprint !==
+      fingerprint ||
+    entry.graphRevision !==
+      entry.topologyRevision
+  ) {
+    return {
+      state:
+        "dirty",
+      movementReady:
+        false,
+      errors: [
+        "Layout topology changed after the last route graph generation.",
+      ],
+      topologyRevision:
+        entry.topologyRevision,
+      graphRevision:
+        entry.graphRevision,
+    };
+  }
+
+  if (
+    entry.error ||
+    !entry.result ||
+    !entry.persisted
+  ) {
+    return {
+      state:
+        "invalid",
+      movementReady:
+        false,
+      errors: [
+        entry.error ??
+        "Route graph is invalid.",
+      ],
+      topologyRevision:
+        entry.topologyRevision,
+      graphRevision:
+        entry.graphRevision,
+    };
+  }
+
+  return {
+    state:
+      "valid",
+    movementReady:
+      true,
+    errors: [],
+    topologyRevision:
+      entry.topologyRevision,
+    graphRevision:
+      entry.graphRevision,
+  };
 }
 
 export function isClientRouteGraphDirty(
@@ -1534,10 +1779,71 @@ export function ensureClientRouteGraph(
           );
   }
 
-  const result =
-    buildClientRouteGraph(
-      layout
+  let result:
+    ClientRouteGraphBuildResult;
+
+  try {
+    result =
+      buildClientRouteGraph(
+        layout
+      );
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : String(error);
+
+    cache.set(
+      layout,
+      {
+        fingerprint,
+        topologyRevision,
+        graphRevision:
+          previous?.graphRevision ??
+          0,
+        result: null,
+        persisted: null,
+        error:
+          message,
+      }
     );
+
+    throw error;
+  }
+
+  const validationErrors =
+    validateMovementReadyGraph(
+      result
+    );
+
+  if (
+    validationErrors.length >
+      0
+  ) {
+    const message =
+      validationErrors.join(
+        "\n"
+      );
+
+    cache.set(
+      layout,
+      {
+        fingerprint,
+        topologyRevision,
+        graphRevision:
+          previous?.graphRevision ??
+          0,
+        result: null,
+        persisted: null,
+        error:
+          message,
+      }
+    );
+
+    throw new Error(
+      message
+    );
+  }
 
   const persisted =
     createPersistedState(
@@ -1555,6 +1861,7 @@ export function ensureClientRouteGraph(
         topologyRevision,
       result,
       persisted,
+      error: null,
     }
   );
 
@@ -1578,12 +1885,20 @@ export function ensureClientRouteGraph(
 export function createCurrentClientLayoutSnapshot(
   layout: LayoutView
 ): SerializedLayoutDto {
-  // Movement editing must use the same in-memory topology as the Paths panel.
-  // Ensure the cache is current, then attach that exact generated topology to
-  // a plain JSON snapshot without persisting anything to the backend.
-  ensureClientRouteGraph(
-    layout
-  );
+  const status =
+    getClientRouteGraphStatus(
+      layout
+    );
+
+  if (
+    status.state !==
+      "valid"
+  ) {
+    throw new Error(
+      status.errors[0] ??
+      "Route graph is not valid for the current layout."
+    );
+  }
 
   const plainLayout =
     JSON.parse(
