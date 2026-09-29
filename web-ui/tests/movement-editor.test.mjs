@@ -3153,12 +3153,17 @@ test("Movement vector keeps physical sensors while selected nodes expose a confi
 
   assert.match(
     focused,
-    /value="safety"/
+    /resource\.kind ===[\s\S]*"block"[\s\S]*value="safety"/
   );
 
   assert.match(
     focused,
-    /<MovementSafetyEditor/
+    /resource\.kind ===[\s\S]*"block"[\s\S]*<MovementSafetyEditor/
+  );
+
+  assert.match(
+    focused,
+    /key={[\s\S]*resource\.key[\s\S]*}[\s\S]*defaultValue="conditions"/
   );
 
   assert.match(
