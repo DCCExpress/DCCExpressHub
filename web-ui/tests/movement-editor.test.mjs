@@ -4709,3 +4709,98 @@ test("Movement route identity distinguishes oval section-part variants", () => {
     /partPath/
   );
 });
+
+
+test("Movement graph lifecycle blocks stale topology without deleting Movement definitions", () => {
+  const cache =
+    read(
+      "src/services/clientRouteGraphCache.ts"
+    );
+
+  const editor =
+    read(
+      "src/components/movement/MovementEditorDialog.tsx"
+    );
+
+  const sidebar =
+    read(
+      "src/components/movement/MovementSidebarCard.tsx"
+    );
+
+  assert.match(
+    cache,
+    /ClientRouteGraphStatus/
+  );
+
+  assert.match(
+    cache,
+    /state:\s*"valid"/
+  );
+
+  assert.match(
+    cache,
+    /state:\s*"dirty"/
+  );
+
+  assert.match(
+    cache,
+    /state:\s*"invalid"/
+  );
+
+  assert.match(
+    cache,
+    /at least two blocks with occupancy sensors/
+  );
+
+  assert.match(
+    cache,
+    /at least two distinct non-zero block occupancy sensor addresses/
+  );
+
+  assert.match(
+    cache,
+    /Layout topology changed after the last route graph generation/
+  );
+
+  assert.doesNotMatch(
+    cache,
+    /createCurrentClientLayoutSnapshot[\s\S]{0,900}ensureClientRouteGraph/
+  );
+
+  assert.match(
+    editor,
+    /graphStatus\.state !==[\s\S]*"valid"/
+  );
+
+  assert.match(
+    editor,
+    /routeGraphReady/
+  );
+
+  assert.match(
+    sidebar,
+    /routeGraphReady &&/
+  );
+});
+
+test("Movement runtime rejects saved route topology whose fingerprint is stale", () => {
+  const plan =
+    read(
+      "src/services/movementPlan.ts"
+    );
+
+  assert.match(
+    plan,
+    /computeSerializedTopologyFingerprint/
+  );
+
+  assert.match(
+    plan,
+    /Saved route graph is out of date for the current layout/
+  );
+
+  assert.match(
+    plan,
+    /createMovementRouteKey/
+  );
+});
