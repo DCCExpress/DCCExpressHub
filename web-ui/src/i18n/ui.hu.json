@@ -1247,5 +1247,12 @@
   "movementSaveEmptyList": "Üres lista mentése",
   "movementScript": "Script",
   "movementReload": "Újratöltés",
-  "movementSave": "Mentés"
+  "movementSave": "Mentés",
+  "movementActionSequencesHelp": "Minden Movement eseményhez egy blokkoló és egy háttérszekvencia tartozhat. A blokkoló megvárja a befejezést; a háttérszekvencia a Movementtel párhuzamosan fut.",
+  "movementAddBlockingSequence": "Blokkoló szekvencia hozzáadása",
+  "movementAddBackgroundSequence": "Háttérszekvencia hozzáadása",
+  "movementNoSequencesForEvent": "Ehhez az eseményhez nincs szekvencia.",
+  "movementRouteSelectionHint": "Kattints a fenti útvonalvektor egyik blokkjára vagy szakaszára a feltételek, események és műveletek szerkesztéséhez.",
+  "movementRouteVectorSubtitle": "Blokkok, gráfszakaszok és váltók fizikai haladási sorrendben",
+  "movementRouteVectorError": "Útvonalvektor: {{error}}"
 }
