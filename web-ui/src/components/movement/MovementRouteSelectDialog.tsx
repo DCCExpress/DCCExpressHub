@@ -135,10 +135,11 @@ export default function MovementRouteSelectDialog({
         )
         .then(
           layoutSnapshot =>
-loadMovementRouteCandidates(
-        document,
-        layoutSnapshot
-      )
+            loadMovementRouteCandidates(
+              document,
+              layoutSnapshot
+            )
+        )
         .then(
           result => {
             if (
