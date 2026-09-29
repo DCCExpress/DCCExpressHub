@@ -1254,5 +1254,6 @@
   "movementNoSequencesForEvent": "No sequences for this event.",
   "movementRouteSelectionHint": "Click a block or segment in the route vector above to edit its conditions, events and actions.",
   "movementRouteVectorSubtitle": "Blocks, graph segments and turnouts in physical movement order",
-  "movementRouteVectorError": "Route vector: {{error}}"
+  "movementRouteVectorError": "Route vector: {{error}}",
+  "movementSafetySensorsTo": "Safety sensors → {{target}}"
 }
