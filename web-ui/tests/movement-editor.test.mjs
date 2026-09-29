@@ -4518,6 +4518,21 @@ test("Movement supports random audio and DCC accessory actions", () => {
   );
 
   assert.match(
+    domain,
+    /randomPlayChancePercent:\s*number/
+  );
+
+  assert.match(
+    domain,
+    /randomPlayChancePercent:\s*30/
+  );
+
+  assert.match(
+    editor,
+    /movementRandomPlayChance/
+  );
+
+  assert.match(
     engine,
     /case "setAccessory":[\s\S]*setBasicAccessory/
   );
@@ -4529,7 +4544,7 @@ test("Movement supports random audio and DCC accessory actions", () => {
 
   assert.match(
     script,
-    /RANDOM_EVEN_50_PERCENT/
+    /RANDOM_1_TO_10/
   );
 
   assert.match(
