@@ -126,12 +126,16 @@ export default function MovementRouteSelectDialog({
         ""
       );
 
-      const layoutSnapshot =
-        createCurrentClientLayoutSnapshot(
-          layout
-        );
-
-      void loadMovementRouteCandidates(
+      void Promise.resolve()
+        .then(
+          () =>
+            createCurrentClientLayoutSnapshot(
+              layout
+            )
+        )
+        .then(
+          layoutSnapshot =>
+loadMovementRouteCandidates(
         document,
         layoutSnapshot
       )
