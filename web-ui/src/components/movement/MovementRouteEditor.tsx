@@ -216,10 +216,11 @@ export default function MovementRouteEditor({
         )
         .then(
           layoutSnapshot =>
-loadMovementPlan(
-        page,
-        layoutSnapshot
-      )
+            loadMovementPlan(
+              page,
+              layoutSnapshot
+            )
+        )
         .then(
           nextPlan => {
             if (
