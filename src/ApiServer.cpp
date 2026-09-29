@@ -699,6 +699,93 @@ void ApiServer::setupApi() {
       });
 
   _server.on(
+      "/api/s88-status",
+      HTTP_GET,
+      [](
+          AsyncWebServerRequest* request) {
+        JsonDocument doc;
+
+        doc["enabled"] =
+            false;
+
+        doc["online"] =
+            false;
+
+        doc["snapshotKnown"] =
+            false;
+
+        doc["dataFresh"] =
+            false;
+
+        doc["ready"] =
+            false;
+
+        doc["adapterInfoKnown"] =
+            false;
+
+        doc["protocolVersion"] =
+            0;
+
+        doc["firmwareVersion"] =
+            "";
+
+        doc["firmwareMajor"] =
+            0;
+
+        doc["firmwareMinor"] =
+            0;
+
+        doc["firmwarePatch"] =
+            0;
+
+        doc["maxByteCount"] =
+            0;
+
+        doc["capabilities"] =
+            0;
+
+        doc["address"] =
+            0;
+
+        doc["addressHex"] =
+            "0x00";
+
+        doc["baseAddress"] =
+            0;
+
+        doc["groupCount"] =
+            0;
+
+        doc["byteCount"] =
+            0;
+
+        doc["sensorCount"] =
+            0;
+
+        doc["groups"]
+            .to<JsonArray>();
+
+        String body;
+
+        serializeJson(
+            doc,
+            body);
+
+        auto* response =
+            request->beginResponse(
+                200,
+                "application/json",
+                body);
+
+        response->addHeader(
+            "Cache-Control",
+            "no-store");
+
+        request->send(
+            response);
+      });
+
+  _server.on(
       "/api/status",
       HTTP_GET,
       [this](AsyncWebServerRequest* request) {
