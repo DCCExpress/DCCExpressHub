@@ -85,6 +85,7 @@ export type AutomationFlowNodeData = Record<string, unknown> & {
   accessoryAspect?: number;
 
   functionNumber?: number;
+  functionBindingId?: number | null;
   pulseMs?: number;
   delayMs?: number;
   audioName?: string;
@@ -680,6 +681,20 @@ function normalizeNodeData(
           )
         )
       ),
+    functionBindingId:
+      Number.isInteger(
+        Number(
+          candidate.functionBindingId
+        )
+      ) &&
+      Number(
+        candidate.functionBindingId
+      ) >
+        0
+        ? Number(
+            candidate.functionBindingId
+          )
+        : null,
     pulseMs:
       Math.max(
         1,
@@ -1403,6 +1418,19 @@ function generateStatement(
           )
         );
 
+      const bindingId =
+        Number.isInteger(
+          data.functionBindingId
+        ) &&
+        Number(
+          data.functionBindingId
+        ) >
+          0
+          ? Number(
+              data.functionBindingId
+            )
+          : null;
+
       const pulse =
         Math.max(
           1,
@@ -1412,15 +1440,27 @@ function generateStatement(
           )
         );
 
+      const onCommand =
+        bindingId ===
+          null
+          ? `dcc.setLocoFunction(locoAddress, ${fn}, true);`
+          : `dcc.setLocoFunctionBinding(locoAddress, ${bindingId}, true);`;
+
+      const offCommand =
+        bindingId ===
+          null
+          ? `dcc.setLocoFunction(locoAddress, ${fn}, false);`
+          : `dcc.setLocoFunctionBinding(locoAddress, ${bindingId}, false);`;
+
       return [
         "{",
         "  const locoAddress = Number(payload && typeof payload === \"object\" ? payload.locoAddress : NaN);",
         "  if (!Number.isInteger(locoAddress) || locoAddress < 1 || locoAddress > 10239) {",
         '    throw new Error("Loco Function requires payload.locoAddress (1..10239).");',
         "  }",
-        `  dcc.setLocoFunction(locoAddress, ${fn}, true);`,
+        `  ${onCommand}`,
         `  await delay(${pulse});`,
-        `  dcc.setLocoFunction(locoAddress, ${fn}, false);`,
+        `  ${offCommand}`,
         "}",
       ].join("\n");
     }
@@ -1438,6 +1478,19 @@ function generateStatement(
           )
         );
 
+      const bindingId =
+        Number.isInteger(
+          data.functionBindingId
+        ) &&
+        Number(
+          data.functionBindingId
+        ) >
+          0
+          ? Number(
+              data.functionBindingId
+            )
+          : null;
+
       const pulse =
         Math.max(
           1,
@@ -1447,10 +1500,22 @@ function generateStatement(
           )
         );
 
+      const onCommand =
+        bindingId ===
+          null
+          ? `dcc.setLocoFunction(loco, ${fn}, true);`
+          : `dcc.setLocoFunctionBinding(loco, ${bindingId}, true);`;
+
+      const offCommand =
+        bindingId ===
+          null
+          ? `dcc.setLocoFunction(loco, ${fn}, false);`
+          : `dcc.setLocoFunctionBinding(loco, ${bindingId}, false);`;
+
       return [
-        `dcc.setLocoFunction(loco, ${fn}, true);`,
+        onCommand,
         `await delay(${pulse});`,
-        `dcc.setLocoFunction(loco, ${fn}, false);`,
+        offCommand,
       ].join("\n");
     }
 
