@@ -1,9 +1,9 @@
 
 .movement-editor-header-help {
   position: fixed;
-  top: 6px;
-  right: 50px;
-  z-index: 410;
+  top: 9px;
+  right: 52px;
+  z-index: 5000;
   display: flex;
   align-items: center;
   justify-content: center;
