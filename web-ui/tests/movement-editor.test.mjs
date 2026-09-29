@@ -4365,3 +4365,36 @@ test("New Movement station blocks get blocking dwell defaults only on first rout
     /randomWait\.maxDelayMs =[\s\S]*5000/
   );
 });
+
+
+test("Automation panel remembers the active Scripts Flows Movement tab", () => {
+  const source =
+    read(
+      "src/components/AutomationPanel.tsx"
+    );
+
+  assert.match(
+    source,
+    /dcc-express-hub\.automation\.activeTab/
+  );
+
+  assert.match(
+    source,
+    /useState<AutomationPanelTab>\(\s*loadAutomationPanelTab/
+  );
+
+  assert.match(
+    source,
+    /localStorage\.getItem/
+  );
+
+  assert.match(
+    source,
+    /localStorage\.setItem/
+  );
+
+  assert.match(
+    source,
+    /value=\{[\s\S]*activeTab[\s\S]*\}[\s\S]*onChange=\{[\s\S]*changeTab/
+  );
+});
