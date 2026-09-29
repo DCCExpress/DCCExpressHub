@@ -917,6 +917,78 @@ function setInfo(
   );
 }
 
+function actionStatusText(
+  action:
+    MovementAction
+): string {
+  switch (
+    action.kind
+  ) {
+    case "speed":
+      return `Sebesség beállítása: ${action.speed}`;
+
+    case "function":
+      return (
+        `Mozdonyfunkció F${action.functionNumber} → ` +
+        (
+          action.functionActive
+            ? "BE"
+            : "KI"
+        )
+      );
+
+    case "horn":
+      return (
+        `Mozdonyfunkció impulzus F${action.functionNumber} · ` +
+        `${action.pulseMs} ms`
+      );
+
+    case "delay":
+      return `Várakozás: ${action.delayMs} ms`;
+
+    case "randomDelay":
+      return (
+        `Véletlen várakozás: ${Math.min(
+          action.minDelayMs,
+          action.maxDelayMs
+        )}–${Math.max(
+          action.minDelayMs,
+          action.maxDelayMs
+        )} ms`
+      );
+
+    case "playAudio":
+      return `Hang lejátszása: ${action.audioName || "nincs fájl"}`;
+
+    case "randomPlay":
+      return (
+        `Véletlen hang: ${action.randomPlayChancePercent}% · ` +
+        `${action.audioName || "nincs fájl"}`
+      );
+
+    case "setAccessory":
+      return (
+        `Basic Accessory #${action.accessoryAddress} → ` +
+        (
+          action.accessoryActive
+            ? "BE"
+            : "KI"
+        )
+      );
+
+    case "setExtendedAccessory":
+      return (
+        `Extended Accessory #${action.accessoryAddress} → ` +
+        `aspect ${action.accessoryAspect}`
+      );
+
+    case "log":
+      return action.message
+        ? `Log: ${action.message}`
+        : "Log";
+  }
+}
+
 function setMovementBlockPhase(
   execution:
     MovementExecution,
@@ -1628,14 +1700,19 @@ async function runActionSequence(
       if (
         reportInfo
       ) {
+        const actionInfo =
+          actionStatusText(
+            action
+          );
+
         setMovementExecuting(
           execution,
-          `${when.toUpperCase()}: ${action.kind}`
+          actionInfo
         );
 
         setInfo(
           execution,
-          `${when.toUpperCase()}: ${action.kind}`,
+          actionInfo,
           resourceKey
         );
       }
@@ -2366,7 +2443,7 @@ async function tryAcquireAndSetTurnouts(
 
       setInfo(
         execution,
-        `Setting turnout #${requirement.address} → ${requirement.closed ? "CLOSED" : "THROWN"}`,
+        `Váltó állítása #${requirement.address} → ${requirement.closed ? "ZÁRT" : "KITÉRŐ"}`,
         leg.from.key
       );
 
@@ -2569,7 +2646,7 @@ function reserveBlockTarget(
 
   setInfo(
     execution,
-    `Target ${leg.to.name}: loco ${execution.locoAddress}`,
+    `Célblokk foglalása: ${leg.to.name} · mozdony ${execution.locoAddress}`,
     leg.to.key
   );
 
@@ -2667,7 +2744,7 @@ async function waitForPreDepartureAvailability(
         )
       ) {
         reason =
-          `Waiting for block ${leg.to.name}`;
+          `Várakozás szabad célblokkra: ${leg.to.name}`;
 
         waitingReason =
           "targetBlock";
@@ -2678,7 +2755,7 @@ async function waitForPreDepartureAvailability(
         )
       ) {
         reason =
-          `Waiting for safety: ${blockedPathSafetySensorSummary(
+          `Biztonsági szenzorra vár: ${blockedPathSafetySensorSummary(
             execution,
             leg
           )}`;
@@ -3168,7 +3245,7 @@ async function waitForDepartureConditions(
           execution,
           leg,
           "departureCondition",
-          `Waiting for departure: ${leg.from.name}`
+          `Indulási feltételre vár: ${leg.from.name}`
         );
       }
 
@@ -3219,7 +3296,7 @@ async function maybeRunBlockApproach(
 
   setInfo(
     execution,
-    `Approaching block: ${leg.to.name}`,
+    `Blokk megközelítése: ${leg.to.name}`,
     leg.to.key
   );
 }
@@ -3316,7 +3393,7 @@ async function maybeRunBlockLeave(
 
   setInfo(
     execution,
-    `Left block: ${leg.from.name}`,
+    `Blokk elhagyva: ${leg.from.name}`,
     leg.from.key
   );
 }
@@ -3339,7 +3416,7 @@ async function waitForBlockLeave(
 
   setInfo(
     execution,
-    `Waiting for leave: ${leg.from.name}`,
+    `Blokk elhagyására vár: ${leg.from.name}`,
     leg.from.key
   );
 
@@ -3521,7 +3598,7 @@ async function waitForArrival(
 
   setInfo(
     execution,
-    `Waiting for arrival: ${leg.to.name}`,
+    `Érkezésre vár: ${leg.to.name}`,
     leg.to.key
   );
 
@@ -3596,7 +3673,7 @@ async function waitForResourceEntry(
 
   setInfo(
     execution,
-    `Waiting for ${resource.kind} ${resource.name}`,
+    `Erőforrás belépésére vár: ${resource.name}`,
     resource.key
   );
 
@@ -4127,7 +4204,7 @@ async function traverseLeg(
 
     setInfo(
       execution,
-      `Arrived: ${leg.to.name}`,
+      `Megérkezett: ${leg.to.name}`,
       leg.to.key
     );
   } finally {
