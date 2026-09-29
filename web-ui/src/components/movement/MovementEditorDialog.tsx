@@ -5,7 +5,9 @@ import {
 } from "react";
 
 import {
+  ActionIcon,
   Button,
+  Card,
   Divider,
   Group,
   Modal,
@@ -15,6 +17,7 @@ import {
   Switch,
   Text,
   TextInput,
+  Tooltip,
 } from "@mantine/core";
 
 import {
@@ -26,6 +29,7 @@ import {
   IconDeviceFloppy,
   IconListCheck,
   IconPlus,
+  IconQuestionMark,
   IconRefresh,
   IconTrash,
 } from "@tabler/icons-react";
@@ -54,6 +58,8 @@ import {
 import {
   getMovementEngineState,
 } from "../../services/movementEngine";
+
+import AppModal from "../common/AppModal";
 
 import MovementExecutionScriptDialog from "./MovementExecutionScriptDialog";
 import MovementRouteEditor from "./MovementRouteEditor";
@@ -134,6 +140,14 @@ export default function MovementEditorDialog({
   const [
     executionScriptOpened,
     setExecutionScriptOpened,
+  ] =
+    useState(
+      false
+    );
+
+  const [
+    helpOpened,
+    setHelpOpened,
   ] =
     useState(
       false
@@ -482,14 +496,161 @@ export default function MovementEditorDialog({
     };
 
   return (
-    <Modal
+    <>
+      <AppModal
+        opened={
+          helpOpened
+        }
+        onClose={
+          () =>
+            setHelpOpened(
+              false
+            )
+        }
+        title={mt("movementGeneralHelpTitle")}
+        size="lg"
+        centered
+        draggable
+        styles={{
+          content: {
+            maxHeight:
+              "min(800px, 90vh)",
+            overflow:
+              "hidden",
+          },
+          body: {
+            display:
+              "flex",
+            flexDirection:
+              "column",
+            minHeight:
+              0,
+          },
+        }}
+      >
+        <ScrollArea
+          type="auto"
+          h="min(690px, 74vh)"
+          offsetScrollbars
+        >
+          <Stack
+            gap="md"
+            pr="xs"
+          >
+            <Text
+              size="sm"
+              c="dimmed"
+            >
+              {mt("movementGeneralHelpIntro")}
+            </Text>
+
+            {
+              [
+                [
+                  "movementGeneralHelpRouteTitle",
+                  "movementGeneralHelpRouteBody",
+                ],
+                [
+                  "movementGeneralHelpBlocksTitle",
+                  "movementGeneralHelpBlocksBody",
+                ],
+                [
+                  "movementGeneralHelpEventsTitle",
+                  "movementGeneralHelpEventsBody",
+                ],
+                [
+                  "movementGeneralHelpSequencesTitle",
+                  "movementGeneralHelpSequencesBody",
+                ],
+                [
+                  "movementGeneralHelpSafetyTitle",
+                  "movementGeneralHelpSafetyBody",
+                ],
+                [
+                  "movementGeneralHelpExampleTitle",
+                  "movementGeneralHelpExampleBody",
+                ],
+              ].map(
+                ([titleKey, bodyKey]) => (
+                  <Card
+                    key={
+                      titleKey
+                    }
+                    withBorder
+                    padding="sm"
+                  >
+                    <Stack
+                      gap={6}
+                    >
+                      <Text
+                        fw={700}
+                        size="sm"
+                      >
+                        {
+                          mt(
+                            titleKey
+                          )
+                        }
+                      </Text>
+
+                      <Text
+                        size="sm"
+                      >
+                        {
+                          mt(
+                            bodyKey
+                          )
+                        }
+                      </Text>
+                    </Stack>
+                  </Card>
+                )
+              )
+            }
+          </Stack>
+        </ScrollArea>
+      </AppModal>
+
+      <Modal
       opened={
         opened
       }
       onClose={
         onClose
       }
-      title={mt("movementEditorTitle")}
+      title={
+        <Group
+          gap="xs"
+          wrap="nowrap"
+        >
+          <Text
+            fw={700}
+          >
+            {mt("movementEditorTitle")}
+          </Text>
+
+          <Tooltip
+            label={mt("movementGeneralHelpButton")}
+          >
+            <ActionIcon
+              size="sm"
+              variant="subtle"
+              color="gray"
+              aria-label={mt("movementGeneralHelpButton")}
+              onClick={
+                () =>
+                  setHelpOpened(
+                    true
+                  )
+              }
+            >
+              <IconQuestionMark
+                size={16}
+              />
+            </ActionIcon>
+          </Tooltip>
+        </Group>
+      }
       fullScreen
       classNames={{
         header:
@@ -953,5 +1114,6 @@ export default function MovementEditorDialog({
         </section>
       </div>
     </Modal>
+    </>
   );
 }
