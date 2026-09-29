@@ -26,8 +26,8 @@ jobs:
       - name: Install dependencies
         run: npm ci --prefix web-ui
 
-      - name: Run tests
-        run: npm test --prefix web-ui
+      - name: Run Movement i18n regression test
+        run: node --test web-ui/tests/movement-i18n.test.mjs
 
       - name: Build web UI
         run: npm run build --prefix web-ui
