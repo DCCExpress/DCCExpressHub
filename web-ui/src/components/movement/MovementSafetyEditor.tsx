@@ -105,8 +105,14 @@ export default function MovementSafetyEditor({
           size="sm"
           fw={700}
         >
-          Safety sensors → {
-            targetName
+          {
+            mt(
+              "movementSafetySensorsTo",
+              {
+                target:
+                  targetName,
+              }
+            )
           }
         </Text>
 
@@ -127,7 +133,7 @@ export default function MovementSafetyEditor({
               size="sm"
               c="dimmed"
             >
-              No physical safety sensors are used for this leg.
+              {mt("movementNoPhysicalSafetySensors")}
             </Text>
           )
           : sensors.map(
