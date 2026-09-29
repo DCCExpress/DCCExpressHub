@@ -252,7 +252,7 @@ export default function MovementSelectedResourceEditor({
                         )
                     : resource.detectors.length >
                         0
-                      ? `${resource.detectors.length === 1 ? "Sensor" : "Sensors"}: ${resource.detectors.join(", ")}`
+                      ? `${resource.detectors.length === 1 ? mt("movementSensorWord") : mt("movementSensorsWord")}: ${resource.detectors.join(", ")}`
                       : mt("movementNoSensorInSegment")
               }
             </Text>
