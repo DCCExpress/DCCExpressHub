@@ -188,6 +188,9 @@ export default function MovementElapsedBadge({
   state,
   compact = false,
 }: Props) {
+  const mt =
+    useMovementTranslation();
+
   const elapsed =
     useMovementElapsedSeconds(
       page,
