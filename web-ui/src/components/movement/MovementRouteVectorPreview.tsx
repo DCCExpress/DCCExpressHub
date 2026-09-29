@@ -4,6 +4,8 @@ import {
   Text,
 } from "@mantine/core";
 
+import i18next from "i18next";
+
 import {
   useEffect,
   useState,
@@ -105,6 +107,31 @@ function typeLabel(
     movementText("movementBlockUpper") +
     mergedSegments
   );
+}
+
+function blockTypeLabel(
+  item:
+    MovementRouteVectorItem
+): string {
+  if (
+    item.kind !==
+      "block"
+  ) {
+    return "";
+  }
+
+  const key =
+    `block.types.${item.blockType}`;
+
+  const translated =
+    i18next.t(
+      key
+    );
+
+  return translated ===
+    key
+    ? item.blockType
+    : translated;
 }
 
 function itemClassName(
@@ -627,6 +654,26 @@ export default function MovementRouteVectorPreview({
                             : item.name
                         }
                       </text>
+
+                      {
+                        item.kind ===
+                          "block" && (
+                          <text
+                            className="movement-route-vector-detail"
+                            x={
+                              centerX
+                            }
+                            y={86}
+                            textAnchor="middle"
+                          >
+                            {
+                              blockTypeLabel(
+                                item
+                              )
+                            }
+                          </text>
+                        )
+                      }
 
                       {
                         item.kind ===
