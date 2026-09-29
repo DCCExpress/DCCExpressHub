@@ -61,6 +61,9 @@ export type MovementActionKind =
   | "delay"
   | "randomDelay"
   | "playAudio"
+  | "randomPlay"
+  | "setAccessory"
+  | "setExtendedAccessory"
   | "log";
 
 export type MovementAction = {
@@ -84,6 +87,10 @@ export type MovementAction = {
 
   audioName: string;
   audioWaitForEnd: boolean;
+
+  accessoryAddress: number;
+  accessoryActive: boolean;
+  accessoryAspect: number;
 
   message: string;
 };
@@ -162,6 +169,9 @@ export function createMovementAction(
     maxDelayMs: 1500,
     audioName: "",
     audioWaitForEnd: false,
+    accessoryAddress: 1,
+    accessoryActive: true,
+    accessoryAspect: 0,
     message: "",
   };
 }
@@ -586,6 +596,9 @@ const MOVEMENT_ACTION_KINDS =
     "delay",
     "randomDelay",
     "playAudio",
+    "randomPlay",
+    "setAccessory",
+    "setExtendedAccessory",
     "log",
   ]);
 
@@ -772,6 +785,23 @@ function normalizeActions(
       audioWaitForEnd:
         candidate.audioWaitForEnd ===
         true,
+      accessoryAddress:
+        integerRange(
+          candidate.accessoryAddress,
+          1,
+          1,
+          2048
+        ),
+      accessoryActive:
+        candidate.accessoryActive !==
+        false,
+      accessoryAspect:
+        integerRange(
+          candidate.accessoryAspect,
+          0,
+          0,
+          255
+        ),
       message:
         String(
           candidate.message ??
