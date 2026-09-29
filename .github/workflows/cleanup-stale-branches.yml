@@ -1,0 +1,33 @@
+name: Cleanup stale branches
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/cleanup-stale-branches.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Delete every remote branch except main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
+          git for-each-ref --format='%(refname:short)' refs/remotes/origin/ |
+          while IFS= read -r ref; do
+            branch="${ref#origin/}"
+            if [[ "$branch" == "main" || "$branch" == "HEAD" ]]; then
+              continue
+            fi
+            git push origin --delete "$branch"
+          done
