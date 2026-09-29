@@ -1193,7 +1193,7 @@
   "movementEditorTitle": "Movement / Diszpécser szerkesztő",
   "movementName": "Movement neve",
   "movementCruiseSpeed": "Utazósebesség",
-  "movementNoNextLegSafety": "Ehhez az erőforráshoz nincs következő Movement-szakasz, ezért nincs beállítható indulási safety szenzor.",
+  "movementNoNextLegSafety": "Ehhez az erőforráshoz nincs következő Movement-szakasz, ezért nincs beállítható indulási biztonsági szenzor.",
   "movementSafetyTargetOccupancy": "Szenzor {{address}} · {{target}} foglaltság",
   "movementSafetySensor": "Szenzor {{address}}",
   "movementSafetyRequiredOff": "KÖTELEZŐEN KI",
