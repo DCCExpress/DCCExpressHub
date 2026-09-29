@@ -410,10 +410,14 @@ export class RouteGraphBuilder {
           label: resolvedTrackName
             ? `${resolvedTrackName}: ${blockName}`
             : blockName,
-          sensorAddress:
+          ...(
             block.sensorAddress > 0
-              ? block.sensorAddress
-              : undefined,
+              ? {
+                  sensorAddress:
+                    block.sensorAddress,
+                }
+              : {}
+          ),
         };
       });
   }
