@@ -1277,5 +1277,11 @@
   "movementSelectedResourceMissing": "A kiválasztott útvonalvektor-elem nem található a jelenlegi Movement tervben. Válaszd ki újra a vektorból.",
   "movementExecutionScriptDescription": "Csak olvasható nézet, amely ugyanabból a mentett Movement útvonaltervből készül, amelyet a futásidejű motor is használ.",
   "movementGeneralHelpButton": "Movement súgó",
-  "movementGeneralHelpTitle": "Movement súgó"
+  "movementGeneralHelpTitle": "Movement súgó",
+  "movementActionRandomPlay": "Véletlen lejátszás",
+  "movementRandomPlayHelp": "50% esély: készül egy véletlen páros/páratlan döntés; páros eredménynél lejátssza a hangot.",
+  "movementActionSetBasicAccessory": "Basic Accessory beállítása",
+  "movementActionSetExtendedAccessory": "Extended Accessory beállítása",
+  "movementAccessoryAddress": "Accessory cím",
+  "movementAccessoryAspect": "Aspect (0–255)"
 }
