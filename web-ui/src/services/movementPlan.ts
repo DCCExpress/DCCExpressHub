@@ -972,6 +972,8 @@ export function buildMovementPlan(
             a - b
         ),
       turnoutStates: [],
+      routeOrder: 0,
+      partIndex: null,
     });
 
     for (
