@@ -1676,9 +1676,7 @@ export function getClientRouteGraphStatus(
 
   if (
     entry.fingerprint !==
-      fingerprint ||
-    entry.graphRevision !==
-      entry.topologyRevision
+      fingerprint
   ) {
     return {
       state:
@@ -1708,6 +1706,25 @@ export function getClientRouteGraphStatus(
       errors: [
         entry.error ??
         "Route graph is invalid.",
+      ],
+      topologyRevision:
+        entry.topologyRevision,
+      graphRevision:
+        entry.graphRevision,
+    };
+  }
+
+  if (
+    entry.graphRevision !==
+      entry.topologyRevision
+  ) {
+    return {
+      state:
+        "dirty",
+      movementReady:
+        false,
+      errors: [
+        "Route graph must be regenerated for the current topology revision.",
       ],
       topologyRevision:
         entry.topologyRevision,
