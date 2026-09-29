@@ -279,6 +279,24 @@ function whatOptions():
     },
     {
       value:
+        "randomPlay",
+      label:
+        movementText("movementActionRandomPlay"),
+    },
+    {
+      value:
+        "setAccessory",
+      label:
+        movementText("movementActionSetBasicAccessory"),
+    },
+    {
+      value:
+        "setExtendedAccessory",
+      label:
+        movementText("movementActionSetExtendedAccessory"),
+    },
+    {
+      value:
         "log",
       label:
         movementText("movementActionLog"),
@@ -1833,8 +1851,12 @@ export default function MovementActionEditor({
                             }
 
                             {
-                              action.kind ===
-                                "playAudio" && (
+                              (
+                                action.kind ===
+                                  "playAudio" ||
+                                action.kind ===
+                                  "randomPlay"
+                              ) && (
                                 <>
                                   <AudioFileInput
                                     label={mt("movementAudioFile")}
@@ -1871,6 +1893,18 @@ export default function MovementActionEditor({
                                     }
                                   />
 
+                                  {
+                                    action.kind ===
+                                      "randomPlay" && (
+                                      <Text
+                                        size="xs"
+                                        c="dimmed"
+                                      >
+                                        {mt("movementRandomPlayHelp")}
+                                      </Text>
+                                    )
+                                  }
+
                                   <Switch
                                     size="sm"
                                     checked={
@@ -1890,6 +1924,152 @@ export default function MovementActionEditor({
                                     }
                                   />
                                 </>
+                              )
+                            }
+
+                            {
+                              action.kind ===
+                                "setAccessory" && (
+                                <Group
+                                  gap="xs"
+                                  align="flex-end"
+                                >
+                                  <NumberInput
+                                    size="xs"
+                                    label={mt("movementAccessoryAddress")}
+                                    min={1}
+                                    max={2048}
+                                    value={
+                                      action.accessoryAddress
+                                    }
+                                    onChange={
+                                      value =>
+                                        updateAction(
+                                          sequence.id,
+                                          action.id,
+                                          {
+                                            accessoryAddress:
+                                              Math.max(
+                                                1,
+                                                Math.min(
+                                                  2048,
+                                                  Math.round(
+                                                    Number(
+                                                      value
+                                                    ) ||
+                                                    1
+                                                  )
+                                                )
+                                              ),
+                                          }
+                                        )
+                                    }
+                                    style={{
+                                      flex: 1,
+                                    }}
+                                  />
+
+                                  <Switch
+                                    checked={
+                                      action.accessoryActive
+                                    }
+                                    label={
+                                      action.accessoryActive
+                                        ? mt("movementOn")
+                                        : mt("movementOff")
+                                    }
+                                    onChange={
+                                      event =>
+                                        updateAction(
+                                          sequence.id,
+                                          action.id,
+                                          {
+                                            accessoryActive:
+                                              event.currentTarget.checked,
+                                          }
+                                        )
+                                    }
+                                  />
+                                </Group>
+                              )
+                            }
+
+                            {
+                              action.kind ===
+                                "setExtendedAccessory" && (
+                                <Group
+                                  gap="xs"
+                                >
+                                  <NumberInput
+                                    size="xs"
+                                    label={mt("movementAccessoryAddress")}
+                                    min={1}
+                                    max={2048}
+                                    value={
+                                      action.accessoryAddress
+                                    }
+                                    onChange={
+                                      value =>
+                                        updateAction(
+                                          sequence.id,
+                                          action.id,
+                                          {
+                                            accessoryAddress:
+                                              Math.max(
+                                                1,
+                                                Math.min(
+                                                  2048,
+                                                  Math.round(
+                                                    Number(
+                                                      value
+                                                    ) ||
+                                                    1
+                                                  )
+                                                )
+                                              ),
+                                          }
+                                        )
+                                    }
+                                    style={{
+                                      flex: 1,
+                                    }}
+                                  />
+
+                                  <NumberInput
+                                    size="xs"
+                                    label={mt("movementAccessoryAspect")}
+                                    min={0}
+                                    max={255}
+                                    value={
+                                      action.accessoryAspect
+                                    }
+                                    onChange={
+                                      value =>
+                                        updateAction(
+                                          sequence.id,
+                                          action.id,
+                                          {
+                                            accessoryAspect:
+                                              Math.max(
+                                                0,
+                                                Math.min(
+                                                  255,
+                                                  Math.round(
+                                                    Number(
+                                                      value
+                                                    ) ||
+                                                    0
+                                                  )
+                                                )
+                                              ),
+                                          }
+                                        )
+                                    }
+                                    style={{
+                                      flex: 1,
+                                    }}
+                                  />
+                                </Group>
                               )
                             }
 
