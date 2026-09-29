@@ -5,6 +5,9 @@ on:
     branches:
       - "fix/movement-editor-i18n-20260929"
     paths:
+      - "web-ui/src/components/movement/**"
+      - "web-ui/src/i18n/ui.*.json"
+      - "web-ui/tests/movement-*.test.mjs"
       - ".github/workflows/movement-i18n-check.yml"
 
 permissions:
