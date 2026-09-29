@@ -62,6 +62,7 @@ import {
 type TimetablePanelProps = {
   scripts: AutomationScriptDefinition[];
   movements: MovementPage[];
+  controlStationActive: boolean;
   onOpenTimetable: () => void;
   timetableRevision?: number;
 };
@@ -119,6 +120,7 @@ function formatTimetableTime(
 export default function TimetablePanel({
   scripts,
   movements,
+  controlStationActive,
   onOpenTimetable,
   timetableRevision = 0,
 }: TimetablePanelProps) {
@@ -960,6 +962,12 @@ export default function TimetablePanel({
                     {t("ui.finishingNoNewStarts")}
                   </Badge>
                 )}
+
+                {!controlStationActive && (
+                  <Badge size="sm" variant="light" color="orange">
+                    {t("ui.timetableControlStationRequired")}
+                  </Badge>
+                )}
               </Group>
 
               {schedulerState.lastTriggeredAt &&
@@ -1013,6 +1021,7 @@ export default function TimetablePanel({
                 variant="light"
                 leftSection={<IconPlayerPlay size={16} />}
                 disabled={
+                  !controlStationActive ||
                   schedulerState.running ||
                   !clockState.connected ||
                   !snapshot ||
