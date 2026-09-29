@@ -343,6 +343,57 @@ function renderAction(
       );
     }
 
+    case "randomPlay": {
+      const source =
+        audioPath(
+          action.audioName
+        );
+
+      if (!source) {
+        return (
+          "RANDOM_PLAY SKIPPED  // empty audio name"
+        );
+      }
+
+      return (
+        "IF RANDOM_EVEN_50_PERCENT THEN PLAY_AUDIO " +
+        q(
+          source
+        ) +
+        (
+          action.audioWaitForEnd
+            ? " WAIT_FOR_END"
+            : " NO_WAIT"
+        )
+      );
+    }
+
+    case "setAccessory":
+      return (
+        "SET_BASIC_ACCESSORY address=" +
+        String(
+          action.accessoryAddress
+        ) +
+        " state=" +
+        (
+          action.accessoryActive
+            ? "ON"
+            : "OFF"
+        )
+      );
+
+    case "setExtendedAccessory":
+      return (
+        "SET_EXTENDED_ACCESSORY address=" +
+        String(
+          action.accessoryAddress
+        ) +
+        " aspect=" +
+        String(
+          action.accessoryAspect
+        )
+      );
+
     case "log":
       return (
         "LOG " +
