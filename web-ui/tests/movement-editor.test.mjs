@@ -923,10 +923,20 @@ test("Movement editor sidebar cards expose runtime controls without changing pag
 });
 
 
-test("All Mantine modals have a consistent blue title bar", () => {
+test("Mantine modals keep the blue title bar while fullscreen editors use a slimmer header", () => {
   const css =
     read(
       "src/styles.css"
+    );
+
+  const movementDialog =
+    read(
+      "src/components/movement/MovementEditorDialog.tsx"
+    );
+
+  const flowDialog =
+    read(
+      "src/components/automation/AutomationFlowDialog.tsx"
     );
 
   assert.match(
@@ -942,6 +952,21 @@ test("All Mantine modals have a consistent blue title bar", () => {
   assert.match(
     css,
     /\.mantine-Modal-close[\s\S]*color:\s*white/
+  );
+
+  assert.match(
+    css,
+    /\.app-fullscreen-modal-header[\s\S]*min-height:\s*40px/
+  );
+
+  assert.match(
+    movementDialog,
+    /fullScreen[\s\S]*app-fullscreen-modal-header/
+  );
+
+  assert.match(
+    flowDialog,
+    /fullScreen[\s\S]*app-fullscreen-modal-header/
   );
 });
 
@@ -3020,7 +3045,7 @@ test("Movement route vector merges only an identical single-sensor segment into 
   );
 });
 
-test("Movement route vector shows all detectors and effective safety sensors", () => {
+test("Movement vector shows physical detectors while focused header shows actual next-leg safety sensors", () => {
   const vector =
     read(
       "src/services/movementRouteVector.ts"
@@ -3029,6 +3054,16 @@ test("Movement route vector shows all detectors and effective safety sensors", (
   const preview =
     read(
       "src/components/movement/MovementRouteVectorPreview.tsx"
+    );
+
+  const routeEditor =
+    read(
+      "src/components/movement/MovementRouteEditor.tsx"
+    );
+
+  const focused =
+    read(
+      "src/components/movement/MovementSelectedResourceEditor.tsx"
     );
 
   const safety =
@@ -3041,14 +3076,9 @@ test("Movement route vector shows all detectors and effective safety sensors", (
     /sensors: number\[\]/
   );
 
-  assert.match(
+  assert.doesNotMatch(
     vector,
-    /safetySensors: number\[\]/
-  );
-
-  assert.match(
-    vector,
-    /movementResourceSafetySensors/
+    /safetySensors/
   );
 
   assert.match(
@@ -3071,19 +3101,49 @@ test("Movement route vector shows all detectors and effective safety sensors", (
     /OCC \$\{item\.sensors/
   );
 
-  assert.match(
+  assert.doesNotMatch(
     preview,
-    /MUST BE FREE/
-  );
-
-  assert.match(
-    preview,
-    /item\.kind !==[\s\S]*"block"[\s\S]*SAFETY \$\{item\.safetySensors\.join\(" · "\)/
+    /SAFETY|MUST BE FREE|safetySensors/
   );
 
   assert.match(
     safety,
     /movementLegPathSafetySensors/
+  );
+
+  assert.match(
+    safety,
+    /export function movementLegSafetySensors/
+  );
+
+  assert.match(
+    safety,
+    /const targetSensor =[\s\S]*leg\.to\.sensorAddress/
+  );
+
+  assert.match(
+    routeEditor,
+    /const selectedSafetyLeg =/
+  );
+
+  assert.match(
+    routeEditor,
+    /movementLegSafetySensors\([\s\S]*selectedSafetyLeg/
+  );
+
+  assert.match(
+    focused,
+    /Safety sensors →/
+  );
+
+  assert.match(
+    focused,
+    /safetyTargetName/
+  );
+
+  assert.match(
+    focused,
+    /safetySensors\.join/
   );
 });
 
