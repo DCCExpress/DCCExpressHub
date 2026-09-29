@@ -20,6 +20,10 @@ import {
   loadMovementExecutionScript,
 } from "../../services/movementExecutionScript";
 
+import {
+  useMovementTranslation,
+} from "./movementI18n";
+
 type Props = {
   opened: boolean;
   onClose: () => void;
@@ -32,6 +36,9 @@ export default function MovementExecutionScriptDialog({
   onClose,
   page,
 }: Props) {
+  const mt =
+    useMovementTranslation();
+
   const [
     script,
     setScript,
