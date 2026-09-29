@@ -80,6 +80,17 @@ class WsClient {
     private readonly latestLocoStates =
         new Map<number, ServerWsPayloadMap["locoState"]>();
 
+    /*
+     * Sticky sensor runtime cache.
+     *
+     * Sensor events are safety-critical for Movement/automation. A sensor
+     * snapshot or edge may arrive before a consumer mounts, so keep the latest
+     * authoritative state at the WebSocket transport boundary and replay it to
+     * late subscribers.
+     */
+    private readonly latestSensorStates =
+        new Map<number, boolean>();
+
     private reconnectTimer: number | null = null;
     private heartbeatTimer: number | null = null;
 
@@ -183,6 +194,75 @@ class WsClient {
                             address,
                             message.data
                         );
+                    }
+                }
+
+                if (message.type === "sensorChanged") {
+                    const address =
+                        Number(
+                            message.data.address
+                        );
+
+                    if (
+                        Number.isInteger(address) &&
+                        address > 0 &&
+                        address <= 65535
+                    ) {
+                        this.latestSensorStates.set(
+                            address,
+                            Boolean(
+                                message.data.on
+                            )
+                        );
+                    }
+                }
+
+                if (message.type === "sensorSnapshot") {
+                    for (
+                        const [
+                            baseAddress,
+                            activeBits,
+                            knownBits,
+                        ] of message.data.groups
+                    ) {
+                        for (
+                            let offset = 0;
+                            offset < 16;
+                            offset += 1
+                        ) {
+                            const bit =
+                                1 << offset;
+
+                            if (
+                                (
+                                    knownBits &
+                                    bit
+                                ) ===
+                                0
+                            ) {
+                                continue;
+                            }
+
+                            const address =
+                                baseAddress +
+                                offset;
+
+                            if (
+                                address < 1 ||
+                                address > 65535
+                            ) {
+                                continue;
+                            }
+
+                            this.latestSensorStates.set(
+                                address,
+                                (
+                                    activeBits &
+                                    bit
+                                ) !==
+                                    0
+                            );
+                        }
                     }
                 }
 
@@ -417,6 +497,131 @@ class WsClient {
             }
         }
 
+        if (type === "sensorChanged") {
+            for (
+                const [
+                    address,
+                    on,
+                ] of this.latestSensorStates
+            ) {
+                const data:
+                    ServerWsPayloadMap["sensorChanged"] = {
+                        address,
+                        on,
+                    };
+
+                const raw = {
+                    type:
+                        "sensorChanged",
+                    data,
+                } as TypedServerWsMessage;
+
+                listener(
+                    data as ServerWsPayloadMap[ServerWsMessageType],
+                    raw
+                );
+            }
+        }
+
+        if (
+            type ===
+                "sensorSnapshot" &&
+            this.latestSensorStates.size >
+                0
+        ) {
+            const grouped =
+                new Map<
+                    number,
+                    {
+                        activeBits: number;
+                        knownBits: number;
+                    }
+                >();
+
+            for (
+                const [
+                    address,
+                    on,
+                ] of this.latestSensorStates
+            ) {
+                const baseAddress =
+                    Math.floor(
+                        address /
+                            16
+                    ) *
+                    16;
+
+                const offset =
+                    address -
+                    baseAddress;
+
+                const group =
+                    grouped.get(
+                        baseAddress
+                    ) ?? {
+                        activeBits:
+                            0,
+                        knownBits:
+                            0,
+                    };
+
+                const bit =
+                    1 << offset;
+
+                group.knownBits |=
+                    bit;
+
+                if (on) {
+                    group.activeBits |=
+                        bit;
+                }
+
+                grouped.set(
+                    baseAddress,
+                    group
+                );
+            }
+
+            const data:
+                ServerWsPayloadMap["sensorSnapshot"] = {
+                    groups:
+                        [
+                            ...grouped.entries(),
+                        ]
+                            .sort(
+                                (
+                                    [left],
+                                    [right]
+                                ) =>
+                                    left -
+                                    right
+                            )
+                            .map(
+                                (
+                                    [
+                                        baseAddress,
+                                        group,
+                                    ]
+                                ) => [
+                                    baseAddress,
+                                    group.activeBits,
+                                    group.knownBits,
+                                ]
+                            ),
+                };
+
+            const raw = {
+                type:
+                    "sensorSnapshot",
+                data,
+            } as TypedServerWsMessage;
+
+            listener(
+                data as ServerWsPayloadMap[ServerWsMessageType],
+                raw
+            );
+        }
+
         return () => {
             const current =
                 this.typedListeners.get(type);
@@ -548,6 +753,12 @@ class WsClient {
         }
 
         this.stopHeartbeat();
+
+        /*
+         * Never carry stale sensor FREE/OCCUPIED state across a broken
+         * connection. A fresh snapshot/live edge will repopulate this cache.
+         */
+        this.latestSensorStates.clear();
 
         this.socket = null;
 
