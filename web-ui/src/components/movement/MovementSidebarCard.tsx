@@ -28,6 +28,7 @@ type Props = {
   catalog:
     AutomationBlockOption[];
   active: boolean;
+  routeGraphReady?: boolean;
   onSelect: () => void;
 };
 
@@ -79,6 +80,7 @@ export default function MovementSidebarCard({
   page,
   catalog,
   active,
+  routeGraphReady = true,
   onSelect,
 }: Props) {
   useMovementTranslation();
@@ -101,6 +103,7 @@ export default function MovementSidebarCard({
   );
 
   const routeResolved =
+    routeGraphReady &&
     page.fromBlockId !==
       null &&
     page.toBlockId !==
