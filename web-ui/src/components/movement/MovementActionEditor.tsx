@@ -54,6 +54,11 @@ import {
   audioManager,
 } from "../../services/audioManager";
 
+import {
+  movementText,
+  useMovementTranslation,
+} from "./movementI18n";
+
 type Props = {
   resourceKey: string;
   resourceKind:
@@ -99,13 +104,13 @@ function whenOptions(
           value:
             "approach",
           label:
-            "APPROACH",
+            movementText("movementEventApproach"),
         },
         {
           value:
             "arrived",
           label:
-            "ARRIVED",
+            movementText("movementEventArrived"),
         },
       ];
     }
@@ -120,25 +125,25 @@ function whenOptions(
           value:
             "beforeDepart",
           label:
-            "BEFORE DEPART",
+            movementText("movementEventBeforeDepart"),
         },
         {
           value:
             "depart",
           label:
-            "DEPART",
+            movementText("movementEventDepart"),
         },
         {
           value:
             "leave",
           label:
-            "LEAVE",
+            movementText("movementEventLeave"),
         },
         {
           value:
             "afterLeave",
           label:
-            "AFTER LEAVE",
+            movementText("movementEventAfterLeave"),
         },
       ];
 
@@ -150,7 +155,7 @@ function whenOptions(
           value:
             "arrived",
           label:
-            "ARRIVED",
+            movementText("movementEventArrived"),
         }
       );
 
@@ -159,7 +164,7 @@ function whenOptions(
           value:
             "approach",
           label:
-            "APPROACH",
+            movementText("movementEventApproach"),
         }
       );
     }
@@ -176,13 +181,13 @@ function whenOptions(
         value:
           "approach",
         label:
-          "APPROACH",
+          movementText("movementEventApproach"),
       },
       {
         value:
           "leave",
         label:
-          "LEAVE",
+          movementText("movementEventLeave"),
       },
     ];
   }
@@ -192,66 +197,68 @@ function whenOptions(
       value:
         "enter",
       label:
-        "ENTER",
+        movementText("movementEventEnter"),
     },
     {
       value:
         "leave",
       label:
-        "LEAVE",
+        movementText("movementEventLeave"),
     },
   ];
 }
 
-const WHAT_OPTIONS:
+function whatOptions():
   Array<{
     value:
       MovementActionKind;
     label: string;
-  }> = [
+  }> {
+  return [
     {
       value:
         "speed",
       label:
-        "Set speed",
+        movementText("movementActionSetSpeed"),
     },
     {
       value:
         "function",
       label:
-        "Loco function",
+        movementText("movementActionLocoFunction"),
     },
     {
       value:
         "horn",
       label:
-        "Horn pulse",
+        movementText("movementActionHornPulse"),
     },
     {
       value:
         "delay",
       label:
-        "Delay",
+        movementText("movementActionDelay"),
     },
     {
       value:
         "randomDelay",
       label:
-        "Random delay",
+        movementText("movementActionRandomDelay"),
     },
     {
       value:
         "playAudio",
       label:
-        "Play audio",
+        movementText("movementActionPlayAudio"),
     },
     {
       value:
         "log",
       label:
-        "Log",
+        movementText("movementActionLog"),
     },
   ];
+}
 
 function groupSequences(
   actions:
@@ -329,6 +336,9 @@ export default function MovementActionEditor({
   actions,
   onChange,
 }: Props) {
+  const mt =
+    useMovementTranslation();
+
   const options =
     whenOptions(
       resourceKind,
@@ -1089,7 +1099,7 @@ export default function MovementActionEditor({
 
                   <Tooltip
                     withArrow
-                    label="Move sequence up"
+                    label={mt("movementMoveSequenceUp")}
                   >
                     <ActionIcon
                       size="sm"
@@ -1115,7 +1125,7 @@ export default function MovementActionEditor({
 
                   <Tooltip
                     withArrow
-                    label="Move sequence down"
+                    label={mt("movementMoveSequenceDown")}
                   >
                     <ActionIcon
                       size="sm"
@@ -1142,7 +1152,7 @@ export default function MovementActionEditor({
 
                   <Tooltip
                     withArrow
-                    label="Add action"
+                    label={mt("movementAddAction")}
                   >
                     <ActionIcon
                       size="sm"
@@ -1163,7 +1173,7 @@ export default function MovementActionEditor({
 
                   <Tooltip
                     withArrow
-                    label="Delete sequence"
+                    label={mt("movementDeleteSequence")}
                   >
                     <ActionIcon
                       size="sm"
@@ -1294,12 +1304,12 @@ export default function MovementActionEditor({
                             >
                               <div
                                 className="movement-action-drag-handle"
-                                title="Drag to reorder"
+                                title={mt("movementDragToReorder")}
                               >
                                 <ActionIcon
                                   variant="subtle"
                                   color="gray"
-                                  aria-label="Reorder action"
+                                  aria-label={mt("movementReorderAction")}
                                   tabIndex={-1}
                                   draggable={false}
                                 >
@@ -1315,7 +1325,7 @@ export default function MovementActionEditor({
                                 color="gray"
                               >
                                 {
-                                  WHAT_OPTIONS.find(
+                                  whatOptions().find(
                                     option =>
                                       option.value ===
                                       action.kind
@@ -1371,7 +1381,7 @@ export default function MovementActionEditor({
 
                               <Tooltip
                                 withArrow
-                                label="Move up"
+                                label={mt("movementMoveUp")}
                               >
                                 <ActionIcon
                                   size="sm"
@@ -1398,7 +1408,7 @@ export default function MovementActionEditor({
 
                               <Tooltip
                                 withArrow
-                                label="Move down"
+                                label={mt("movementMoveDown")}
                               >
                                 <ActionIcon
                                   size="sm"
@@ -1455,13 +1465,13 @@ export default function MovementActionEditor({
                             className="movement-action-card-body"
                           >
                             <Select
-                              label="WHAT"
+                              label={mt("movementWhat")}
                               size="xs"
                               allowDeselect={
                                 false
                               }
                               data={
-                                WHAT_OPTIONS
+                                whatOptions()
                               }
                               value={
                                 action.kind
@@ -1489,7 +1499,7 @@ export default function MovementActionEditor({
                                 "speed" && (
                                 <NumberInput
                                   size="xs"
-                                  label="Speed"
+                                  label={mt("movementSpeed")}
                                   min={0}
                                   max={126}
                                   value={
@@ -1530,7 +1540,7 @@ export default function MovementActionEditor({
                                 >
                                   <NumberInput
                                     size="xs"
-                                    label="Function"
+                                    label={mt("movementFunction")}
                                     min={0}
                                     max={68}
                                     value={
@@ -1596,7 +1606,7 @@ export default function MovementActionEditor({
                                 >
                                   <NumberInput
                                     size="xs"
-                                    label="Function"
+                                    label={mt("movementFunction")}
                                     min={0}
                                     max={68}
                                     value={
@@ -1631,7 +1641,7 @@ export default function MovementActionEditor({
 
                                   <NumberInput
                                     size="xs"
-                                    label="Pulse (ms)"
+                                    label={mt("movementPulseMs")}
                                     min={1}
                                     max={600000}
                                     value={
@@ -1672,7 +1682,7 @@ export default function MovementActionEditor({
                                 "delay" && (
                                 <NumberInput
                                   size="xs"
-                                  label="Delay (ms)"
+                                  label={mt("movementDelayMs")}
                                   min={0}
                                   max={600000}
                                   value={
@@ -1712,7 +1722,7 @@ export default function MovementActionEditor({
                                 >
                                   <NumberInput
                                     size="xs"
-                                    label="Min (ms)"
+                                    label={mt("movementMinMs")}
                                     min={0}
                                     max={600000}
                                     value={
@@ -1747,7 +1757,7 @@ export default function MovementActionEditor({
 
                                   <NumberInput
                                     size="xs"
-                                    label="Max (ms)"
+                                    label={mt("movementMaxMs")}
                                     min={0}
                                     max={600000}
                                     value={
@@ -1788,8 +1798,8 @@ export default function MovementActionEditor({
                                 "playAudio" && (
                                 <>
                                   <AudioFileInput
-                                    label="Audio file"
-                                    description="Choose an audio file from the Hub SD card."
+                                    label={mt("movementAudioFile")}
+                                    description={mt("movementAudioFileDescription")}
                                     value={
                                       action.audioName
                                     }
@@ -1827,7 +1837,7 @@ export default function MovementActionEditor({
                                     checked={
                                       action.audioWaitForEnd
                                     }
-                                    label="Wait for audio end"
+                                    label={mt("movementWaitAudioEnd")}
                                     onChange={
                                       event =>
                                         updateAction(
@@ -1849,7 +1859,7 @@ export default function MovementActionEditor({
                                 "log" && (
                                 <TextInput
                                   size="xs"
-                                  label="Message"
+                                  label={mt("movementMessage")}
                                   value={
                                     action.message
                                   }
