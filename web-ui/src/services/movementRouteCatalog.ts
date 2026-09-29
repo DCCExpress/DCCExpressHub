@@ -32,6 +32,7 @@ export type MovementRouteCandidate = {
     blockType: string;
   }>;
   nodePath: string[];
+  partPath: string[];
   locoDirection:
     | "unknown"
     | "forward"
@@ -58,6 +59,14 @@ type RawRouteEntry =
     }>;
     nodes?: unknown;
     turnoutStates?: unknown;
+    partPath?: Array<{
+      nodeName?: string;
+      partKey?: string;
+      partIndex?: number;
+      fromSensor?: number | null;
+      toSensor?: number | null;
+      locoDirection?: string;
+    }>;
   };
 
 function record(
@@ -261,7 +270,9 @@ export function buildMovementRouteCandidates(
       topology.version !==
         2 &&
       topology.version !==
-        3
+        3 &&
+      topology.version !==
+        4
     ) ||
     !Array.isArray(
       topology.routeTable
@@ -454,6 +465,12 @@ export function buildMovementRouteCandidates(
                   )
               )
             : [],
+        partPath:
+          Array.isArray(
+            raw.partPath
+          )
+            ? raw.partPath
+            : [],
         edgePath:
           Array.isArray(
             raw.edgePath
@@ -585,6 +602,22 @@ export function buildMovementRouteCandidates(
                 String(
                   value
                 )
+            )
+          : [],
+      partPath:
+        Array.isArray(
+          raw.partPath
+        )
+          ? raw.partPath.map(
+              part =>
+                String(
+                  part.partKey ??
+                    ""
+                )
+            ).filter(
+              value =>
+                value.length >
+                  0
             )
           : [],
       locoDirection:
