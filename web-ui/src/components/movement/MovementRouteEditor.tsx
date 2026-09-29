@@ -429,16 +429,23 @@ export default function MovementRouteEditor({
             )
         );
 
+      const effectiveIgnoredSensors =
+        ignoredSensors.filter(
+          sensor =>
+            selectedSafetySensors.includes(
+              sensor
+            )
+        );
+
       if (
-        ignoredSensors.length >
+        effectiveIgnoredSensors.length >
           0
       ) {
         nextRules.push({
           fromBlockId,
           toBlockId,
-          ignoredSensors: [
-            ...ignoredSensors,
-          ],
+          ignoredSensors:
+            effectiveIgnoredSensors,
         });
       }
 
