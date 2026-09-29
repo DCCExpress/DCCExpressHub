@@ -25,6 +25,10 @@ import MovementActionEditor from "./MovementActionEditor";
 import MovementBlockConditionsEditor from "./MovementBlockConditionsEditor";
 import MovementResourceEventConditionsEditor from "./MovementResourceEventConditionsEditor";
 import MovementSafetyEditor from "./MovementSafetyEditor";
+import {
+  movementText,
+  useMovementTranslation,
+} from "./movementI18n";
 
 type Props = {
   resource:
@@ -74,20 +78,20 @@ function resourceBadge(
   isDestination: boolean
 ): string {
   if (isSource) {
-    return "SOURCE BLOCK";
+    return movementText("movementSourceBlock");
   }
 
   if (isDestination) {
-    return "DESTINATION";
+    return movementText("movementDestination");
   }
 
   return resource.kind ===
     "block"
-    ? "BLOCK"
+    ? movementText("movementBlockUpper")
     : resource.kind ===
         "segment"
-      ? "SEGMENT"
-      : "TURNOUT";
+      ? movementText("movementSegmentUpper")
+      : movementText("movementTurnoutUpper");
 }
 
 function resourceColor(
@@ -139,6 +143,9 @@ export default function MovementSelectedResourceEditor({
   onRuleChange,
   onActionsChange,
 }: Props) {
+  const mt =
+    useMovementTranslation();
+
   const conditionCount =
     (
       rule?.departWhen.length ??
@@ -213,8 +220,8 @@ export default function MovementSelectedResourceEditor({
                   "block"
                   ? (
                     resource.sensorAddress
-                      ? `Block #${resource.blockId} · occupancy sensor ${resource.sensorAddress}`
-                      : `Block #${resource.blockId} · no occupancy sensor`
+                      ? mt("movementOccupancySensorDetail", { block: resource.blockId ?? 0, sensor: resource.sensorAddress })
+                      : mt("movementNoOccupancySensorDetail", { block: resource.blockId ?? 0 })
                   )
                   : resource.kind ===
                       "turnout"
@@ -224,15 +231,15 @@ export default function MovementSelectedResourceEditor({
                           ? resource.turnoutStates
                               .map(
                                 state =>
-                                  `#${state.address} ${state.closed ? "CLOSED" : "THROWN"}`
+                                  `#${state.address} ${state.closed ? mt("movementClosed") : mt("movementThrown")}`
                               )
                               .join(
                                 " · "
                               )
-                          : "Physical turnout passage",
+                          : mt("movementPhysicalTurnoutPassage"),
                         resource.detectors.length >
                           0
-                          ? `${resource.detectors.length === 1 ? "Sensor" : "Sensors"}: ${resource.detectors.join(", ")}`
+                          ? `${resource.detectors.length === 1 ? mt("movementSensorWord") : mt("movementSensorsWord")}: ${resource.detectors.join(", ")}`
                           : null,
                       ]
                         .filter(
@@ -246,7 +253,7 @@ export default function MovementSelectedResourceEditor({
                     : resource.detectors.length >
                         0
                       ? `${resource.detectors.length === 1 ? "Sensor" : "Sensors"}: ${resource.detectors.join(", ")}`
-                      : "No sensor in this segment"
+                      : mt("movementNoSensorInSegment")
               }
             </Text>
 
@@ -279,12 +286,12 @@ export default function MovementSelectedResourceEditor({
                   resource.kind ===
                     "block"
                     ? conditionCount
-                    : "EVENT"
+                    : mt("movementEventUpper")
                 }
               </Badge>
             }
           >
-            Conditions / Events
+            {mt("movementConditionsEvents")}
           </Tabs.Tab>
 
           <Tabs.Tab
@@ -306,7 +313,7 @@ export default function MovementSelectedResourceEditor({
               </Badge>
             }
           >
-            Actions
+            {mt("movementActionsLabel")}
           </Tabs.Tab>
 
           {
@@ -334,7 +341,7 @@ export default function MovementSelectedResourceEditor({
                   </Badge>
                 }
               >
-                Safety
+                {mt("movementSafetyLabel")}
               </Tabs.Tab>
             )
           }
