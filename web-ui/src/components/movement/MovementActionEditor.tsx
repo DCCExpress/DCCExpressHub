@@ -1661,7 +1661,7 @@ export default function MovementActionEditor({
                                 >
                                   <Select
                                     size="xs"
-                                    label="Function binding"
+                                    label={mt("flowFunctionBinding")}
                                     data={
                                       functionBindingOptions
                                     }
@@ -1729,7 +1729,7 @@ export default function MovementActionEditor({
                                 >
                                   <Select
                                     size="xs"
-                                    label="Function binding"
+                                    label={mt("flowFunctionBinding")}
                                     data={
                                       functionBindingOptions
                                     }
