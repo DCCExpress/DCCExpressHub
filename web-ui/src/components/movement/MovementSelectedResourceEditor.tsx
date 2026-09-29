@@ -34,6 +34,10 @@ type Props = {
     MovementBlockRule | null;
   defaultRule:
     MovementBlockRule | null;
+  safetySensors:
+    number[];
+  safetyTargetName:
+    string | null;
   sensorCatalog:
     AutomationSensorOption[];
   resourceEventRules:
@@ -114,6 +118,8 @@ export default function MovementSelectedResourceEditor({
   isDestination,
   rule,
   defaultRule,
+  safetySensors,
+  safetyTargetName,
   sensorCatalog,
   resourceEventRules,
   onResourceEventRulesChange,
@@ -231,6 +237,40 @@ export default function MovementSelectedResourceEditor({
                       : "No sensor in this segment"
               }
             </Text>
+
+            {
+              safetyTargetName !==
+                null && (
+                <Group
+                  gap={6}
+                  wrap="wrap"
+                >
+                  <Text
+                    size="xs"
+                    fw={800}
+                    c="yellow.6"
+                  >
+                    Safety sensors → {
+                      safetyTargetName
+                    }:
+                  </Text>
+
+                  <Text
+                    size="xs"
+                    c="dimmed"
+                  >
+                    {
+                      safetySensors.length >
+                        0
+                        ? safetySensors.join(
+                            " · "
+                          )
+                        : "none"
+                    }
+                  </Text>
+                </Group>
+              )
+            }
           </Stack>
         </Group>
       </div>
