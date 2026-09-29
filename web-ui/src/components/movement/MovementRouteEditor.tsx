@@ -37,6 +37,7 @@ import {
 } from "../../services/movementPlan";
 
 import {
+  movementLegIgnoredSafetySensors,
   movementLegSafetySensors,
 } from "../../services/movementSafety";
 
@@ -380,6 +381,70 @@ export default function MovementRouteEditor({
     selectedSafetyLeg?.to.name ??
     null;
 
+  const selectedIgnoredSafetySensors =
+    selectedSafetyLeg ===
+      null
+      ? []
+      : movementLegIgnoredSafetySensors(
+          page,
+          selectedSafetyLeg
+        );
+
+  const updateIgnoredSafetySensors =
+    (
+      ignoredSensors:
+        number[]
+    ): void => {
+      if (
+        selectedSafetyLeg?.from.blockId ===
+          null ||
+        selectedSafetyLeg?.from.blockId ===
+          undefined ||
+        selectedSafetyLeg.to.blockId ===
+          null ||
+        selectedSafetyLeg.to.blockId ===
+          undefined
+      ) {
+        return;
+      }
+
+      const fromBlockId =
+        selectedSafetyLeg.from.blockId;
+
+      const toBlockId =
+        selectedSafetyLeg.to.blockId;
+
+      const nextRules =
+        page.safetyRules.filter(
+          rule =>
+            !(
+              rule.fromBlockId ===
+                fromBlockId &&
+              rule.toBlockId ===
+                toBlockId
+            )
+        );
+
+      if (
+        ignoredSensors.length >
+          0
+      ) {
+        nextRules.push({
+          fromBlockId,
+          toBlockId,
+          ignoredSensors: [
+            ...ignoredSensors,
+          ],
+        });
+      }
+
+      onChange({
+        ...page,
+        safetyRules:
+          nextRules,
+      });
+    };
+
   const selectedDefaultRule:
     MovementBlockRule | null =
     selectedResource?.blockId !==
@@ -561,6 +626,12 @@ export default function MovementRouteEditor({
                     }
                     safetyTargetName={
                       selectedSafetyTargetName
+                    }
+                    ignoredSafetySensors={
+                      selectedIgnoredSafetySensors
+                    }
+                    onIgnoredSafetySensorsChange={
+                      updateIgnoredSafetySensors
                     }
                     sensorCatalog={
                       sensorCatalog
