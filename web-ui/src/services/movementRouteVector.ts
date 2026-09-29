@@ -11,10 +11,6 @@ import {
 } from "./movementPlan";
 
 import {
-  movementResourceSafetySensors,
-} from "./movementSafety";
-
-import {
   createMovementRouteKey,
   type MovementRouteIdentityEntry,
 } from "./movementRouteIdentity";
@@ -35,7 +31,6 @@ export type MovementRouteVectorItem =
       trackName: string;
       sensor: number | null;
       sensors: number[];
-      safetySensors: number[];
     }
   | {
       key: string;
@@ -45,7 +40,6 @@ export type MovementRouteVectorItem =
       name: string;
       sensor: number | null;
       sensors: number[];
-      safetySensors: number[];
       turnoutStates: Array<{
         address: number;
         closed: boolean;
@@ -60,7 +54,6 @@ export type MovementRouteVectorItem =
       name: string;
       sensor: number | null;
       sensors: number[];
-      safetySensors: number[];
       mergedSegmentNames: string[];
       role:
         MovementRouteVectorRole;
@@ -675,7 +668,6 @@ export function buildMovementRouteVector(
                 )!,
               ]
             : [],
-        safetySensors: [],
         mergedSegmentNames: [],
         role:
           blockId ===
@@ -768,7 +760,6 @@ export function buildMovementRouteVector(
             ? []
             : [value];
         })(),
-      safetySensors: [],
     });
 
     for (
@@ -917,56 +908,6 @@ export async function loadMovementRouteVector(
     );
   }
 
-  const safetySensorsByResourceKey =
-    new Map<
-      string,
-      number[]
-    >();
-
-  const targetBlockSafetySensors =
-    new Map<
-      string,
-      number[]
-    >();
-
-  for (
-    const leg of
-    plan.legs
-  ) {
-    for (
-      const resource of
-      leg.resources
-    ) {
-      const effective =
-        movementResourceSafetySensors(
-          leg,
-          resource
-        );
-
-      if (
-        effective.length >
-          0
-      ) {
-        safetySensorsByResourceKey.set(
-          resource.key,
-          effective
-        );
-      }
-    }
-
-    if (
-      leg.to.sensorAddress !==
-        null
-    ) {
-      targetBlockSafetySensors.set(
-        leg.to.key,
-        [
-          leg.to.sensorAddress,
-        ]
-      );
-    }
-  }
-
   const visibleResources =
     plan.resources.filter(
       resource =>
@@ -1004,22 +945,6 @@ export async function loadMovementRouteVector(
               ...resource.detectors,
             ];
 
-      const safetySensors =
-        resource.kind ===
-          "block"
-          ? (
-              targetBlockSafetySensors.get(
-                resource.key
-              ) ??
-              []
-            )
-          : (
-              safetySensorsByResourceKey.get(
-                resource.key
-              ) ??
-              []
-            );
-
       if (
         resource.kind ===
           "block"
@@ -1049,7 +974,6 @@ export async function loadMovementRouteVector(
             resource.name,
           sensor,
           sensors,
-          safetySensors,
           mergedSegmentNames:
             mergedSegmentNamesByBlockKey.get(
               resource.key
@@ -1082,7 +1006,6 @@ export async function loadMovementRouteVector(
             resource.name,
           sensor,
           sensors,
-          safetySensors,
           turnoutStates:
             resource.turnoutStates.map(
               state => ({
@@ -1118,7 +1041,6 @@ export async function loadMovementRouteVector(
         trackName,
         sensor,
         sensors,
-        safetySensors,
       };
     }
   );

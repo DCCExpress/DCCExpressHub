@@ -1309,6 +1309,10 @@ export default function AutomationFlowDialog({
         )
       }
       fullScreen
+      classNames={{
+        header:
+          "app-fullscreen-modal-header",
+      }}
       closeOnEscape={
         false
       }

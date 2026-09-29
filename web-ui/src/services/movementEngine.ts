@@ -44,7 +44,8 @@ import {
 } from "./movementResourceEvents";
 
 import {
-  movementLegPathSafetySensors,
+  movementLegEffectivePathSafetySensors,
+  movementLegSensorIsChecked,
 } from "./movementSafety";
 
 import {
@@ -1778,10 +1779,13 @@ function blockIsFree(
 }
 
 function aheadPathSensorsAreFree(
+  execution:
+    MovementExecution,
   leg:
     MovementPlanLeg
 ): boolean {
-  return movementLegPathSafetySensors(
+  return movementLegEffectivePathSafetySensors(
+    execution.page,
     leg
   ).every(
     address =>
@@ -1793,10 +1797,13 @@ function aheadPathSensorsAreFree(
 }
 
 function blockedPathSafetySensorSummary(
+  execution:
+    MovementExecution,
   leg:
     MovementPlanLeg
 ): string {
-  return movementLegPathSafetySensors(
+  return movementLegEffectivePathSafetySensors(
+    execution.page,
     leg
   )
     .filter(
@@ -2326,7 +2333,9 @@ function blockAvailableForTarget(
     MovementPlanResource,
   ownMarker:
     string | null =
-      null
+      null,
+  checkOccupancySensor =
+    true
 ): boolean {
   if (
     !blockSnapshotKnown
@@ -2344,6 +2353,7 @@ function blockAvailableForTarget(
   }
 
   if (
+    checkOccupancySensor &&
     block.sensorAddress !==
       null &&
     sensorStates.get(
@@ -2380,6 +2390,35 @@ function blockAvailableForTarget(
       null &&
     state.locoId ===
       ownMarker
+  );
+}
+
+
+function targetBlockAvailableForLeg(
+  execution:
+    MovementExecution,
+  leg:
+    MovementPlanLeg,
+  ownMarker:
+    string | null =
+      null
+): boolean {
+  const targetSensor =
+    leg.to.sensorAddress;
+
+  const checkOccupancySensor =
+    targetSensor ===
+      null ||
+    movementLegSensorIsChecked(
+      execution.page,
+      leg,
+      targetSensor
+    );
+
+  return blockAvailableForTarget(
+    leg.to,
+    ownMarker,
+    checkOccupancySensor
   );
 }
 
@@ -2529,8 +2568,9 @@ async function waitForPreDepartureAvailability(
         null;
 
       if (
-        !blockAvailableForTarget(
-          leg.to
+        !targetBlockAvailableForLeg(
+          execution,
+          leg
         )
       ) {
         reason =
@@ -2540,11 +2580,13 @@ async function waitForPreDepartureAvailability(
           "targetBlock";
       } else if (
         !aheadPathSensorsAreFree(
+          execution,
           leg
         )
       ) {
         reason =
           `Waiting for safety: ${blockedPathSafetySensorSummary(
+            execution,
             leg
           )}`;
 
@@ -2655,8 +2697,9 @@ async function waitForLegClearance(
         null;
 
       if (
-        !blockAvailableForTarget(
-          leg.to
+        !targetBlockAvailableForLeg(
+          execution,
+          leg
         )
       ) {
         reason =
@@ -2666,11 +2709,13 @@ async function waitForLegClearance(
           "targetBlock";
       } else if (
         !aheadPathSensorsAreFree(
+          execution,
           leg
         )
       ) {
         reason =
           `Waiting for safety: ${blockedPathSafetySensorSummary(
+            execution,
             leg
           )}`;
 
@@ -2733,10 +2778,12 @@ async function waitForLegClearance(
       clearWaiting();
 
       if (
-        !blockAvailableForTarget(
-          leg.to
+        !targetBlockAvailableForLeg(
+          execution,
+          leg
         ) ||
         !aheadPathSensorsAreFree(
+          execution,
           leg
         )
       ) {
@@ -2796,10 +2843,12 @@ async function waitForLegClearance(
       }
 
       if (
-        blockAvailableForTarget(
-          leg.to
+        targetBlockAvailableForLeg(
+          execution,
+          leg
         ) &&
         aheadPathSensorsAreFree(
+          execution,
           leg
         )
       ) {
@@ -3179,8 +3228,9 @@ async function waitForHeldLegReady(
         null;
 
       if (
-        !blockAvailableForTarget(
-          leg.to,
+        !targetBlockAvailableForLeg(
+          execution,
+          leg,
           targetMarker
         )
       ) {
@@ -3191,11 +3241,13 @@ async function waitForHeldLegReady(
           "targetBlock";
       } else if (
         !aheadPathSensorsAreFree(
+          execution,
           leg
         )
       ) {
         reason =
           `Waiting for safety: ${blockedPathSafetySensorSummary(
+            execution,
             leg
           )}`;
 
@@ -4155,6 +4207,15 @@ export async function startMovement(
                   ...condition,
                 })
               ),
+          })
+        ),
+      safetyRules:
+        page.safetyRules.map(
+          rule => ({
+            ...rule,
+            ignoredSensors: [
+              ...rule.ignoredSensors,
+            ],
           })
         ),
       actions:

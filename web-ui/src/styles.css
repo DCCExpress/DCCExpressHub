@@ -61,6 +61,16 @@ button,
   );
 }
 
+.app-fullscreen-modal-header {
+  min-height: 40px;
+  padding: 5px 10px;
+}
+
+.app-fullscreen-modal-header .mantine-Modal-title {
+  font-size: var(--mantine-font-size-sm);
+  line-height: 1.2;
+}
+
 .mobile-shell {
   width: min(100%, 760px);
   min-height: 100dvh;

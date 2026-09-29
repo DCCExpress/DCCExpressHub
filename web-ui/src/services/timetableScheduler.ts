@@ -160,6 +160,15 @@ class TimetableScheduler {
                 ),
             })
           ),
+        safetyRules:
+          movement.safetyRules.map(
+            rule => ({
+              ...rule,
+              ignoredSensors: [
+                ...rule.ignoredSensors,
+              ],
+            })
+          ),
         actions:
           movement.actions.map(
             action => ({

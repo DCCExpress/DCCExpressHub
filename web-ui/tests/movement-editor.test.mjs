@@ -923,10 +923,20 @@ test("Movement editor sidebar cards expose runtime controls without changing pag
 });
 
 
-test("All Mantine modals have a consistent blue title bar", () => {
+test("Mantine modals keep the blue title bar while fullscreen editors use a slimmer header", () => {
   const css =
     read(
       "src/styles.css"
+    );
+
+  const movementDialog =
+    read(
+      "src/components/movement/MovementEditorDialog.tsx"
+    );
+
+  const flowDialog =
+    read(
+      "src/components/automation/AutomationFlowDialog.tsx"
     );
 
   assert.match(
@@ -942,6 +952,21 @@ test("All Mantine modals have a consistent blue title bar", () => {
   assert.match(
     css,
     /\.mantine-Modal-close[\s\S]*color:\s*white/
+  );
+
+  assert.match(
+    css,
+    /\.app-fullscreen-modal-header[\s\S]*min-height:\s*40px/
+  );
+
+  assert.match(
+    movementDialog,
+    /fullScreen[\s\S]*app-fullscreen-modal-header/
+  );
+
+  assert.match(
+    flowDialog,
+    /fullScreen[\s\S]*app-fullscreen-modal-header/
   );
 });
 
@@ -3020,7 +3045,12 @@ test("Movement route vector merges only an identical single-sensor segment into 
   );
 });
 
-test("Movement route vector shows all detectors and effective safety sensors", () => {
+test("Movement vector keeps physical sensors while selected nodes expose a configurable Safety tab", () => {
+  const domain =
+    read(
+      "src/domain/movement.ts"
+    );
+
   const vector =
     read(
       "src/services/movementRouteVector.ts"
@@ -3031,34 +3061,49 @@ test("Movement route vector shows all detectors and effective safety sensors", (
       "src/components/movement/MovementRouteVectorPreview.tsx"
     );
 
+  const routeEditor =
+    read(
+      "src/components/movement/MovementRouteEditor.tsx"
+    );
+
+  const focused =
+    read(
+      "src/components/movement/MovementSelectedResourceEditor.tsx"
+    );
+
+  const safetyEditor =
+    read(
+      "src/components/movement/MovementSafetyEditor.tsx"
+    );
+
   const safety =
     read(
       "src/services/movementSafety.ts"
     );
 
   assert.match(
+    domain,
+    /export type MovementSafetyRule/
+  );
+
+  assert.match(
+    domain,
+    /ignoredSensors:\s*number\[\]/
+  );
+
+  assert.match(
+    domain,
+    /safetyRules:\s*MovementSafetyRule\[\]/
+  );
+
+  assert.match(
     vector,
     /sensors: number\[\]/
   );
 
-  assert.match(
+  assert.doesNotMatch(
     vector,
-    /safetySensors: number\[\]/
-  );
-
-  assert.match(
-    vector,
-    /movementResourceSafetySensors/
-  );
-
-  assert.match(
-    vector,
-    /resource\.detectors/
-  );
-
-  assert.match(
-    preview,
-    /item\.sensors\.join\(" · "\)/
+    /safetySensors/
   );
 
   assert.match(
@@ -3071,19 +3116,126 @@ test("Movement route vector shows all detectors and effective safety sensors", (
     /OCC \$\{item\.sensors/
   );
 
-  assert.match(
+  assert.doesNotMatch(
     preview,
-    /MUST BE FREE/
-  );
-
-  assert.match(
-    preview,
-    /item\.kind !==[\s\S]*"block"[\s\S]*SAFETY \$\{item\.safetySensors\.join\(" · "\)/
+    /SAFETY|MUST BE FREE|safetySensors/
   );
 
   assert.match(
     safety,
-    /movementLegPathSafetySensors/
+    /export function movementLegSafetySensors/
+  );
+
+  assert.match(
+    safety,
+    /export function movementLegIgnoredSafetySensors/
+  );
+
+  assert.match(
+    safety,
+    /export function movementLegEffectivePathSafetySensors/
+  );
+
+  assert.match(
+    routeEditor,
+    /const selectedSafetyLeg =/
+  );
+
+  assert.match(
+    routeEditor,
+    /movementLegSafetySensors\([\s\S]*selectedSafetyLeg/
+  );
+
+  assert.match(
+    routeEditor,
+    /updateIgnoredSafetySensors/
+  );
+
+  assert.match(
+    focused,
+    /value="safety"/
+  );
+
+  assert.match(
+    focused,
+    /<MovementSafetyEditor/
+  );
+
+  assert.match(
+    safetyEditor,
+    /label="Check sensor"/
+  );
+
+  assert.match(
+    safetyEditor,
+    /REQUIRED OFF/
+  );
+
+  assert.match(
+    safetyEditor,
+    /IGNORED/
+  );
+});
+
+test("Movement runtime honors ignored safety sensors but keeps logical target block checks", () => {
+  const engine =
+    read(
+      "src/services/movementEngine.ts"
+    );
+
+  const script =
+    read(
+      "src/services/movementExecutionScript.ts"
+    );
+
+  const routeCatalog =
+    read(
+      "src/services/movementRouteCatalog.ts"
+    );
+
+  assert.match(
+    engine,
+    /movementLegEffectivePathSafetySensors\([\s\S]*execution\.page/
+  );
+
+  assert.match(
+    engine,
+    /movementLegSensorIsChecked\([\s\S]*execution\.page/
+  );
+
+  assert.match(
+    engine,
+    /function targetBlockAvailableForLeg/
+  );
+
+  assert.match(
+    engine,
+    /blockAvailableForTarget\([\s\S]*checkOccupancySensor/
+  );
+
+  assert.match(
+    engine,
+    /state\.locoAddress/
+  );
+
+  assert.match(
+    engine,
+    /state\.locoId/
+  );
+
+  assert.match(
+    script,
+    /IGNORED_BY_SAFETY_OVERRIDE/
+  );
+
+  assert.match(
+    script,
+    /movementLegEffectivePathSafetySensors/
+  );
+
+  assert.match(
+    routeCatalog,
+    /safetyRules:\s*\[\]/
   );
 });
 

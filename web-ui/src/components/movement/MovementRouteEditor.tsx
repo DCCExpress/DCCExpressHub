@@ -36,6 +36,11 @@ import {
   type MovementPlan,
 } from "../../services/movementPlan";
 
+import {
+  movementLegIgnoredSafetySensors,
+  movementLegSafetySensors,
+} from "../../services/movementSafety";
+
 import MovementRouteRow from "./MovementRouteRow";
 import MovementSelectedResourceEditor from "./MovementSelectedResourceEditor";
 
@@ -336,6 +341,121 @@ export default function MovementRouteEditor({
         null
       : null;
 
+  const selectedSafetyLeg =
+    selectedResource ===
+      null ||
+    plan ===
+      null
+      ? null
+      : selectedResource.kind ===
+          "block"
+        ? (
+            plan.legs.find(
+              leg =>
+                leg.from.key ===
+                selectedResource.key
+            ) ??
+            null
+          )
+        : (
+            plan.legs.find(
+              leg =>
+                leg.resources.some(
+                  resource =>
+                    resource.key ===
+                    selectedResource.key
+                )
+            ) ??
+            null
+          );
+
+  const selectedSafetySensors =
+    selectedSafetyLeg ===
+      null
+      ? []
+      : movementLegSafetySensors(
+          selectedSafetyLeg
+        );
+
+  const selectedSafetyTargetName =
+    selectedSafetyLeg?.to.name ??
+    null;
+
+  const selectedSafetyTargetSensor =
+    selectedSafetyLeg?.to.sensorAddress ??
+    null;
+
+  const selectedIgnoredSafetySensors =
+    selectedSafetyLeg ===
+      null
+      ? []
+      : movementLegIgnoredSafetySensors(
+          page,
+          selectedSafetyLeg
+        );
+
+  const updateIgnoredSafetySensors =
+    (
+      ignoredSensors:
+        number[]
+    ): void => {
+      if (
+        selectedSafetyLeg?.from.blockId ===
+          null ||
+        selectedSafetyLeg?.from.blockId ===
+          undefined ||
+        selectedSafetyLeg.to.blockId ===
+          null ||
+        selectedSafetyLeg.to.blockId ===
+          undefined
+      ) {
+        return;
+      }
+
+      const fromBlockId =
+        selectedSafetyLeg.from.blockId;
+
+      const toBlockId =
+        selectedSafetyLeg.to.blockId;
+
+      const nextRules =
+        page.safetyRules.filter(
+          rule =>
+            !(
+              rule.fromBlockId ===
+                fromBlockId &&
+              rule.toBlockId ===
+                toBlockId
+            )
+        );
+
+      const effectiveIgnoredSensors =
+        ignoredSensors.filter(
+          sensor =>
+            selectedSafetySensors.includes(
+              sensor
+            )
+        );
+
+      if (
+        effectiveIgnoredSensors.length >
+          0
+      ) {
+        nextRules.push({
+          fromBlockId,
+          toBlockId,
+          ignoredSensors:
+            effectiveIgnoredSensors,
+        });
+      }
+
+      onChange({
+        ...page,
+        safetyRules:
+          nextRules,
+      });
+    };
+
   const selectedDefaultRule:
     MovementBlockRule | null =
     selectedResource?.blockId !==
@@ -511,6 +631,21 @@ export default function MovementRouteEditor({
                     }
                     defaultRule={
                       selectedDefaultRule
+                    }
+                    safetySensors={
+                      selectedSafetySensors
+                    }
+                    safetyTargetName={
+                      selectedSafetyTargetName
+                    }
+                    safetyTargetSensor={
+                      selectedSafetyTargetSensor
+                    }
+                    ignoredSafetySensors={
+                      selectedIgnoredSafetySensors
+                    }
+                    onIgnoredSafetySensorsChange={
+                      updateIgnoredSafetySensors
                     }
                     sensorCatalog={
                       sensorCatalog

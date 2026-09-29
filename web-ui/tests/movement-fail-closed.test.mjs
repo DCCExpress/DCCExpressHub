@@ -112,9 +112,29 @@ test("Movement route authority is fail-closed for unknown runtime state", () => 
 
   assert.ok(
     targetGuard.includes(
+      "checkOccupancySensor &&"
+    )
+  );
+
+  assert.ok(
+    targetGuard.includes(
       "!==\n      false"
     ),
-    "target block sensor must be explicitly OFF"
+    "checked target block sensor must be explicitly OFF"
+  );
+
+  const targetLegGuard =
+    sliceBetween(
+      engine,
+      "function targetBlockAvailableForLeg",
+      "function reserveBlockTarget"
+    );
+
+  assert.ok(
+    targetLegGuard.includes(
+      "movementLegSensorIsChecked("
+    ),
+    "target occupancy sensor may only be bypassed by an explicit safety override"
   );
 });
 
@@ -138,9 +158,9 @@ test("Movement requires every effective path safety detector to be explicitly OF
 
   assert.ok(
     guard.includes(
-      "movementLegPathSafetySensors("
+      "movementLegEffectivePathSafetySensors("
     ),
-    "runtime guard must use the shared safety sensor selector"
+    "runtime guard must use the effective safety selector with explicit overrides"
   );
 
   assert.ok(

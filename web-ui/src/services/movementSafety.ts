@@ -1,4 +1,8 @@
 import type {
+  MovementPage,
+} from "../domain/movement";
+
+import type {
   MovementPlanLeg,
   MovementPlanResource,
 } from "./movementPlan";
@@ -89,25 +93,96 @@ export function movementLegPathSafetySensors(
   );
 }
 
-export function movementResourceSafetySensors(
+export function movementLegSafetySensors(
   leg:
-    MovementPlanLeg,
-  resource:
-    MovementPlanResource
+    MovementPlanLeg
 ): number[] {
-  const effective =
+  const sensors =
     new Set(
       movementLegPathSafetySensors(
         leg
       )
     );
 
-  return resource.detectors
+  const targetSensor =
+    leg.to.sensorAddress;
+
+  if (
+    targetSensor !==
+      null &&
+    Number.isInteger(
+      targetSensor
+    ) &&
+    targetSensor >
+      0
+  ) {
+    sensors.add(
+      targetSensor
+    );
+  }
+
+  return [
+    ...sensors,
+  ].sort(
+    (
+      left,
+      right
+    ) =>
+      left -
+      right
+  );
+}
+
+
+function movementSafetyRuleKey(
+  leg:
+    MovementPlanLeg
+): string | null {
+  if (
+    leg.from.blockId ===
+      null ||
+    leg.to.blockId ===
+      null
+  ) {
+    return null;
+  }
+
+  return `${leg.from.blockId}->${leg.to.blockId}`;
+}
+
+export function movementLegIgnoredSafetySensors(
+  page:
+    MovementPage,
+  leg:
+    MovementPlanLeg
+): number[] {
+  const key =
+    movementSafetyRuleKey(
+      leg
+    );
+
+  if (key === null) {
+    return [];
+  }
+
+  const rule =
+    page.safetyRules.find(
+      candidate =>
+        `${candidate.fromBlockId}->${candidate.toBlockId}` ===
+          key
+    );
+
+  return (
+    rule?.ignoredSensors ??
+    []
+  )
     .filter(
       address =>
-        effective.has(
+        Number.isInteger(
           address
-        )
+        ) &&
+        address >
+          0
     )
     .sort(
       (
@@ -117,4 +192,68 @@ export function movementResourceSafetySensors(
         left -
         right
     );
+}
+
+export function movementLegSensorIsChecked(
+  page:
+    MovementPage,
+  leg:
+    MovementPlanLeg,
+  address:
+    number
+): boolean {
+  return !movementLegIgnoredSafetySensors(
+    page,
+    leg
+  ).includes(
+    address
+  );
+}
+
+export function movementLegEffectivePathSafetySensors(
+  page:
+    MovementPage,
+  leg:
+    MovementPlanLeg
+): number[] {
+  const ignored =
+    new Set(
+      movementLegIgnoredSafetySensors(
+        page,
+        leg
+      )
+    );
+
+  return movementLegPathSafetySensors(
+    leg
+  ).filter(
+    address =>
+      !ignored.has(
+        address
+      )
+  );
+}
+
+export function movementLegEffectiveSafetySensors(
+  page:
+    MovementPage,
+  leg:
+    MovementPlanLeg
+): number[] {
+  const ignored =
+    new Set(
+      movementLegIgnoredSafetySensors(
+        page,
+        leg
+      )
+    );
+
+  return movementLegSafetySensors(
+    leg
+  ).filter(
+    address =>
+      !ignored.has(
+        address
+      )
+  );
 }
