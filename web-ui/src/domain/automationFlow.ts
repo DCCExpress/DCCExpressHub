@@ -1420,7 +1420,9 @@ function generateStatement(
 
       const bindingId =
         Number.isInteger(
-          data.functionBindingId
+          Number(
+            data.functionBindingId
+          )
         ) &&
         Number(
           data.functionBindingId
@@ -1480,7 +1482,9 @@ function generateStatement(
 
       const bindingId =
         Number.isInteger(
-          data.functionBindingId
+          Number(
+            data.functionBindingId
+          )
         ) &&
         Number(
           data.functionBindingId
