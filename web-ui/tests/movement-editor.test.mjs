@@ -4398,3 +4398,36 @@ test("Automation panel remembers the active Scripts Flows Movement tab", () => {
     /value=\{[\s\S]*activeTab[\s\S]*\}[\s\S]*onChange=\{[\s\S]*changeTab/
   );
 });
+
+
+test("Movement action tabs expose contextual quick help", () => {
+  const editor =
+    read(
+      "src/components/movement/MovementActionEditor.tsx"
+    );
+
+  assert.match(
+    editor,
+    /IconQuestionMark/
+  );
+
+  assert.match(
+    editor,
+    /movementActionEventQuickHelpTitle/
+  );
+
+  assert.match(
+    editor,
+    /eventHelpKey\(\s*selectedWhen/
+  );
+
+  assert.match(
+    editor,
+    /movementActionEventExampleLabel/
+  );
+
+  assert.match(
+    editor,
+    /movementEventHelpBeforeDepart/
+  );
+});
