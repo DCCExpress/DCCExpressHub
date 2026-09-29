@@ -34,7 +34,7 @@ button,
  * that have not yet migrated to AppModal.
  */
 .mantine-Modal-header {
-  min-height: 56px;
+  min-height: 48px;
   background: var(--mantine-primary-color-filled);
   border-bottom: 1px solid color-mix(
     in srgb,
