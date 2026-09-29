@@ -545,7 +545,7 @@ export default function MovementEditorDialog({
             </Text>
 
             {
-              [
+              ([
                 [
                   "movementGeneralHelpRouteTitle",
                   "movementGeneralHelpRouteBody",
@@ -570,7 +570,9 @@ export default function MovementEditorDialog({
                   "movementGeneralHelpExampleTitle",
                   "movementGeneralHelpExampleBody",
                 ],
-              ].map(
+              ] as Array<
+                [string, string]
+              >).map(
                 ([titleKey, bodyKey]) => (
                   <Card
                     key={
