@@ -26,7 +26,7 @@ export type LocoFunction = {
   id: string;
   number: number;
   name: string;
-  bindingId?: number;
+  bindingId?: number | null;
   icon: string;
   momentary: boolean;
   active?: boolean;
