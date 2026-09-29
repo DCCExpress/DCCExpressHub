@@ -1471,6 +1471,36 @@ export function hydrateClientRouteGraphCache(
       persisted
     );
 
+  const hydrationErrors =
+    validateMovementReadyGraph(
+      result
+    );
+
+  if (
+    hydrationErrors.length >
+      0
+  ) {
+    cache.set(
+      layout,
+      {
+        fingerprint:
+          currentFingerprint,
+        topologyRevision:
+          persisted.topologyRevision,
+        graphRevision:
+          persisted.graphRevision,
+        result: null,
+        persisted: null,
+        error:
+          hydrationErrors.join(
+            "\n"
+          ),
+      }
+    );
+
+    return false;
+  }
+
   /*
    * Restore section / travelDirection from the graph as well. The element DTO
    * already persists these fields, but this makes the persisted graph
