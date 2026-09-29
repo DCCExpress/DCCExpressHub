@@ -1279,9 +1279,10 @@
   "movementGeneralHelpButton": "Movement súgó",
   "movementGeneralHelpTitle": "Movement súgó",
   "movementActionRandomPlay": "Véletlen lejátszás",
-  "movementRandomPlayHelp": "50% esély: készül egy véletlen páros/páratlan döntés; páros eredménynél lejátssza a hangot.",
+  "movementRandomPlayHelp": "Véletlen szám 1–10 között. Akkor játssza le a hangot, ha az eredmény belefér a beállított esélybe. Példa: 30%-nál az 1, 2 vagy 3 eredmény játszik le.",
   "movementActionSetBasicAccessory": "Basic Accessory beállítása",
   "movementActionSetExtendedAccessory": "Extended Accessory beállítása",
   "movementAccessoryAddress": "Accessory cím",
-  "movementAccessoryAspect": "Aspect (0–255)"
+  "movementAccessoryAspect": "Aspect (0–255)",
+  "movementRandomPlayChance": "Lejátszási esély (%)"
 }
