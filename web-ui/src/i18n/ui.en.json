@@ -1316,5 +1316,8 @@
   "movementRuntimeArrived": "Arrived: {{block}}",
   "movementRuntimeWaitDeparture": "Waiting for departure condition: {{block}}",
   "movementRuntimeRandomPlaySkipped": "Random audio skipped · roll {{roll}}/10, threshold {{threshold}}",
-  "movementRuntimeRandomPlayPlaying": "Random audio playing · roll {{roll}}/10, threshold {{threshold}}"
+  "movementRuntimeRandomPlayPlaying": "Random audio playing · roll {{roll}}/10, threshold {{threshold}}",
+  "graphStatusValid": "GRAPH VALID",
+  "graphStatusDirty": "GRAPH OUT OF DATE",
+  "graphStatusInvalid": "GRAPH INVALID"
 }
