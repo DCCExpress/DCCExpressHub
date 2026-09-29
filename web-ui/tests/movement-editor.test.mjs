@@ -4342,7 +4342,7 @@ test("New Movement station blocks get blocking dwell defaults only on first rout
 
   assert.match(
     catalog,
-    /createMovementAction\([\s\S]*"arrived"[\s\S]*"delay"[\s\S]*"blocking"/
+    /createMovementAction\\([\\s\\S]*"beforeDepart"[\\s\\S]*"delay"[\s\S]*"blocking"/
   );
 
   assert.match(
@@ -4352,7 +4352,7 @@ test("New Movement station blocks get blocking dwell defaults only on first rout
 
   assert.match(
     catalog,
-    /createMovementAction\([\s\S]*"arrived"[\s\S]*"randomDelay"[\s\S]*"blocking"/
+    /createMovementAction\\([\\s\\S]*"beforeDepart"[\\s\\S]*"randomDelay"[\s\S]*"blocking"/
   );
 
   assert.match(
