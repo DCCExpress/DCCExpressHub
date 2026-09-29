@@ -169,8 +169,18 @@ protected:
 
 private:
   struct PendingTxCommand {
+    PendingTxCommand(
+        String commandValue,
+        bool logCommandValue)
+        : command(
+              std::move(
+                  commandValue)),
+          logCommand(
+              logCommandValue) {
+    }
+
     String command;
-    bool logCommand = true;
+    bool logCommand;
   };
 
   WiFiClient _client;
