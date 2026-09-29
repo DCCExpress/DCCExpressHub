@@ -44,6 +44,10 @@ import {
 } from "./movementResourceEvents";
 
 import {
+  movementLegPathSafetySensors,
+} from "./movementSafety";
+
+import {
   wsApi,
 } from "./wsApi";
 
@@ -1777,35 +1781,15 @@ function aheadPathSensorsAreFree(
   leg:
     MovementPlanLeg
 ): boolean {
-  const sourceNode =
-    leg.from.nodeIndex;
-
-  return leg.resources
-    .filter(
-      resource =>
-        (
-          resource.kind ===
-            "turnout"
-        ) ||
-        (
-          resource.kind ===
-            "segment" &&
-          resource.nodeIndex !==
-            null &&
-          resource.nodeIndex !==
-            sourceNode
-        )
-    )
-    .every(
-      resource =>
-        resource.detectors.every(
-          address =>
-            sensorStates.get(
-              address
-            ) ===
-              false
-        )
-    );
+  return movementLegPathSafetySensors(
+    leg
+  ).every(
+    address =>
+      sensorStates.get(
+        address
+      ) ===
+        false
+  );
 }
 
 async function acquireLock(
