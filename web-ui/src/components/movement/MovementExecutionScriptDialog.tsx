@@ -158,7 +158,7 @@ export default function MovementExecutionScriptDialog({
           size="xs"
           c="dimmed"
         >
-          Read-only projection resolved from the same persisted Movement route plan used by the runtime engine.
+          {mt("movementExecutionScriptDescription")}
         </Text>
 
         {
