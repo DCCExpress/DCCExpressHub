@@ -281,10 +281,11 @@ export default function MovementRouteVectorPreview({
         )
         .then(
           layoutSnapshot =>
-loadMovementRouteVector(
-        page,
-        layoutSnapshot
-      )
+            loadMovementRouteVector(
+              page,
+              layoutSnapshot
+            )
+        )
         .then(
           next => {
             if (
