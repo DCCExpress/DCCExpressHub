@@ -1255,5 +1255,7 @@
   "movementRouteSelectionHint": "Klicke oben im Fahrstraßenvektor auf einen Block oder Abschnitt, um Bedingungen, Ereignisse und Aktionen zu bearbeiten.",
   "movementRouteVectorSubtitle": "Blöcke, Graphabschnitte und Weichen in physischer Fahrreihenfolge",
   "movementRouteVectorError": "Fahrstraßenvektor: {{error}}",
-  "movementSafetySensorsTo": "Safety-Sensoren → {{target}}"
+  "movementSafetySensorsTo": "Safety-Sensoren → {{target}}",
+  "movementSelectedResourceMissing": "Das ausgewählte Element des Fahrstraßenvektors ist im aktuellen Movement-Plan nicht verfügbar. Wähle es erneut im Vektor aus.",
+  "movementExecutionScriptDescription": "Schreibgeschützte Projektion, die aus demselben gespeicherten Movement-Fahrwegplan aufgelöst wird, den auch die Laufzeit-Engine verwendet."
 }
