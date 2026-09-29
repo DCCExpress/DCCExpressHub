@@ -89,32 +89,42 @@ export function movementLegPathSafetySensors(
   );
 }
 
-export function movementResourceSafetySensors(
+export function movementLegSafetySensors(
   leg:
-    MovementPlanLeg,
-  resource:
-    MovementPlanResource
+    MovementPlanLeg
 ): number[] {
-  const effective =
+  const sensors =
     new Set(
       movementLegPathSafetySensors(
         leg
       )
     );
 
-  return resource.detectors
-    .filter(
-      address =>
-        effective.has(
-          address
-        )
-    )
-    .sort(
-      (
-        left,
-        right
-      ) =>
-        left -
-        right
+  const targetSensor =
+    leg.to.sensorAddress;
+
+  if (
+    targetSensor !==
+      null &&
+    Number.isInteger(
+      targetSensor
+    ) &&
+    targetSensor >
+      0
+  ) {
+    sensors.add(
+      targetSensor
     );
+  }
+
+  return [
+    ...sensors,
+  ].sort(
+    (
+      left,
+      right
+    ) =>
+      left -
+      right
+  );
 }
