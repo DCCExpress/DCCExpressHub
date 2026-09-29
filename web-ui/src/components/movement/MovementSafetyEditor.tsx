@@ -108,7 +108,7 @@ export default function MovementSafetyEditor({
           c="dimmed"
           mt={2}
         >
-          Checked sensors must be known and OFF before this movement leg may start. Disable Check sensor only for detectors that are intentionally allowed to remain occupied by this train.
+          Checked sensors must be known and OFF before this movement leg may start. Disable Check sensor only for detectors that are intentionally allowed to remain occupied by this train. Target block locomotive/target ownership checks remain active even when its occupancy sensor is ignored.
         </Text>
       </div>
 
