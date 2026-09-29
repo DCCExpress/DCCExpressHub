@@ -24,6 +24,7 @@ import type {
 import MovementActionEditor from "./MovementActionEditor";
 import MovementBlockConditionsEditor from "./MovementBlockConditionsEditor";
 import MovementResourceEventConditionsEditor from "./MovementResourceEventConditionsEditor";
+import MovementSafetyEditor from "./MovementSafetyEditor";
 
 type Props = {
   resource:
@@ -38,6 +39,12 @@ type Props = {
     number[];
   safetyTargetName:
     string | null;
+  ignoredSafetySensors:
+    number[];
+  onIgnoredSafetySensorsChange: (
+    sensors:
+      number[]
+  ) => void;
   sensorCatalog:
     AutomationSensorOption[];
   resourceEventRules:
@@ -120,6 +127,8 @@ export default function MovementSelectedResourceEditor({
   defaultRule,
   safetySensors,
   safetyTargetName,
+  ignoredSafetySensors,
+  onIgnoredSafetySensorsChange,
   sensorCatalog,
   resourceEventRules,
   onResourceEventRulesChange,
@@ -238,39 +247,6 @@ export default function MovementSelectedResourceEditor({
               }
             </Text>
 
-            {
-              safetyTargetName !==
-                null && (
-                <Group
-                  gap={6}
-                  wrap="wrap"
-                >
-                  <Text
-                    size="xs"
-                    fw={800}
-                    c="yellow.6"
-                  >
-                    Safety sensors → {
-                      safetyTargetName
-                    }:
-                  </Text>
-
-                  <Text
-                    size="xs"
-                    c="dimmed"
-                  >
-                    {
-                      safetySensors.length >
-                        0
-                        ? safetySensors.join(
-                            " · "
-                          )
-                        : "none"
-                    }
-                  </Text>
-                </Group>
-              )
-            }
           </Stack>
         </Group>
       </div>
@@ -303,6 +279,31 @@ export default function MovementSelectedResourceEditor({
             }
           >
             Conditions / Events
+          </Tabs.Tab>
+
+          <Tabs.Tab
+            value="safety"
+            rightSection={
+              <Badge
+                size="xs"
+                variant="light"
+                color={
+                  ignoredSafetySensors.length >
+                    0
+                    ? "orange"
+                    : "teal"
+                }
+              >
+                {
+                  ignoredSafetySensors.length >
+                    0
+                    ? `${safetySensors.length - ignoredSafetySensors.filter(sensor => safetySensors.includes(sensor)).length}/${safetySensors.length}`
+                    : safetySensors.length
+                }
+              </Badge>
+            }
+          >
+            Safety
           </Tabs.Tab>
 
           <Tabs.Tab
@@ -379,6 +380,29 @@ export default function MovementSelectedResourceEditor({
                 />
               )
           }
+        </Tabs.Panel>
+
+        <Tabs.Panel
+          value="safety"
+          p="md"
+        >
+          <MovementSafetyEditor
+            targetName={
+              safetyTargetName
+            }
+            sensors={
+              safetySensors
+            }
+            ignoredSensors={
+              ignoredSafetySensors
+            }
+            sensorCatalog={
+              sensorCatalog
+            }
+            onIgnoredSensorsChange={
+              onIgnoredSafetySensorsChange
+            }
+          />
         </Tabs.Panel>
 
         <Tabs.Panel
