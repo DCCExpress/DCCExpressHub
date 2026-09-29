@@ -1,3 +1,5 @@
+import i18next from "i18next";
+
 import type {
   BlockStateChangedPayload,
   SensorChangedPayload,
@@ -917,6 +919,17 @@ function setInfo(
   );
 }
 
+function runtimeText(
+  key: string,
+  values?:
+    Record<string, unknown>
+): string {
+  return i18next.t(
+    `ui.${key}`,
+    values
+  );
+}
+
 function actionStatusText(
   action:
     MovementAction
@@ -925,67 +938,122 @@ function actionStatusText(
     action.kind
   ) {
     case "speed":
-      return `Sebesség beállítása: ${action.speed}`;
+      return runtimeText(
+        "movementRuntimeSetSpeed",
+        {
+          speed:
+            action.speed,
+        }
+      );
 
     case "function":
-      return (
-        `Mozdonyfunkció F${action.functionNumber} → ` +
-        (
-          action.functionActive
-            ? "BE"
-            : "KI"
-        )
+      return runtimeText(
+        "movementRuntimeFunction",
+        {
+          fn:
+            action.functionNumber,
+          state:
+            action.functionActive
+              ? runtimeText("movementOn")
+              : runtimeText("movementOff"),
+        }
       );
 
     case "horn":
-      return (
-        `Mozdonyfunkció impulzus F${action.functionNumber} · ` +
-        `${action.pulseMs} ms`
+      return runtimeText(
+        "movementRuntimeFunctionPulse",
+        {
+          fn:
+            action.functionNumber,
+          ms:
+            action.pulseMs,
+        }
       );
 
     case "delay":
-      return `Várakozás: ${action.delayMs} ms`;
+      return runtimeText(
+        "movementRuntimeDelay",
+        {
+          ms:
+            action.delayMs,
+        }
+      );
 
     case "randomDelay":
-      return (
-        `Véletlen várakozás: ${Math.min(
-          action.minDelayMs,
-          action.maxDelayMs
-        )}–${Math.max(
-          action.minDelayMs,
-          action.maxDelayMs
-        )} ms`
+      return runtimeText(
+        "movementRuntimeRandomDelay",
+        {
+          min:
+            Math.min(
+              action.minDelayMs,
+              action.maxDelayMs
+            ),
+          max:
+            Math.max(
+              action.minDelayMs,
+              action.maxDelayMs
+            ),
+        }
       );
 
     case "playAudio":
-      return `Hang lejátszása: ${action.audioName || "nincs fájl"}`;
+      return runtimeText(
+        "movementRuntimePlayAudio",
+        {
+          name:
+            action.audioName ||
+            runtimeText("movementRuntimeNoAudio"),
+        }
+      );
 
     case "randomPlay":
-      return (
-        `Véletlen hang: ${action.randomPlayChancePercent}% · ` +
-        `${action.audioName || "nincs fájl"}`
+      return runtimeText(
+        "movementRuntimeRandomPlay",
+        {
+          chance:
+            action.randomPlayChancePercent,
+          name:
+            action.audioName ||
+            runtimeText("movementRuntimeNoAudio"),
+        }
       );
 
     case "setAccessory":
-      return (
-        `Basic Accessory #${action.accessoryAddress} → ` +
-        (
-          action.accessoryActive
-            ? "BE"
-            : "KI"
-        )
+      return runtimeText(
+        "movementRuntimeBasicAccessory",
+        {
+          address:
+            action.accessoryAddress,
+          state:
+            action.accessoryActive
+              ? runtimeText("movementOn")
+              : runtimeText("movementOff"),
+        }
       );
 
     case "setExtendedAccessory":
-      return (
-        `Extended Accessory #${action.accessoryAddress} → ` +
-        `aspect ${action.accessoryAspect}`
+      return runtimeText(
+        "movementRuntimeExtendedAccessory",
+        {
+          address:
+            action.accessoryAddress,
+          aspect:
+            action.accessoryAspect,
+        }
       );
 
     case "log":
       return action.message
-        ? `Log: ${action.message}`
-        : "Log";
+        ? runtimeText(
+            "movementRuntimeLog",
+            {
+              message:
+                action.message,
+            }
+          )
+        : runtimeText(
+            "movementActionLog"
+          );
   }
 }
 
@@ -2443,7 +2511,17 @@ async function tryAcquireAndSetTurnouts(
 
       setInfo(
         execution,
-        `Váltó állítása #${requirement.address} → ${requirement.closed ? "ZÁRT" : "KITÉRŐ"}`,
+        runtimeText(
+          "movementRuntimeSettingTurnout",
+          {
+            address:
+              requirement.address,
+            state:
+              requirement.closed
+                ? runtimeText("movementRuntimeTurnoutClosed")
+                : runtimeText("movementRuntimeTurnoutThrown"),
+          }
+        ),
         leg.from.key
       );
 
@@ -2646,7 +2724,15 @@ function reserveBlockTarget(
 
   setInfo(
     execution,
-    `Célblokk foglalása: ${leg.to.name} · mozdony ${execution.locoAddress}`,
+    runtimeText(
+      "movementRuntimeReserveTarget",
+      {
+        block:
+          leg.to.name,
+        loco:
+          execution.locoAddress,
+      }
+    ),
     leg.to.key
   );
 
@@ -2744,7 +2830,13 @@ async function waitForPreDepartureAvailability(
         )
       ) {
         reason =
-          `Várakozás szabad célblokkra: ${leg.to.name}`;
+          runtimeText(
+          "movementRuntimeWaitTargetBlock",
+          {
+            block:
+              leg.to.name,
+          }
+        );
 
         waitingReason =
           "targetBlock";
@@ -2755,10 +2847,16 @@ async function waitForPreDepartureAvailability(
         )
       ) {
         reason =
-          `Biztonsági szenzorra vár: ${blockedPathSafetySensorSummary(
-            execution,
-            leg
-          )}`;
+          runtimeText(
+          "movementRuntimeWaitSafety",
+          {
+            sensors:
+              blockedPathSafetySensorSummary(
+                execution,
+                leg
+              ),
+          }
+        );
 
         waitingReason =
           "segment";
@@ -3245,7 +3343,13 @@ async function waitForDepartureConditions(
           execution,
           leg,
           "departureCondition",
-          `Indulási feltételre vár: ${leg.from.name}`
+          runtimeText(
+          "movementRuntimeWaitDeparture",
+          {
+            block:
+              leg.from.name,
+          }
+        )
         );
       }
 
@@ -3296,7 +3400,13 @@ async function maybeRunBlockApproach(
 
   setInfo(
     execution,
-    `Blokk megközelítése: ${leg.to.name}`,
+    runtimeText(
+      "movementRuntimeApproachingBlock",
+      {
+        block:
+          leg.to.name,
+      }
+    ),
     leg.to.key
   );
 }
@@ -3393,7 +3503,13 @@ async function maybeRunBlockLeave(
 
   setInfo(
     execution,
-    `Blokk elhagyva: ${leg.from.name}`,
+    runtimeText(
+      "movementRuntimeLeftBlock",
+      {
+        block:
+          leg.from.name,
+      }
+    ),
     leg.from.key
   );
 }
@@ -3416,7 +3532,13 @@ async function waitForBlockLeave(
 
   setInfo(
     execution,
-    `Blokk elhagyására vár: ${leg.from.name}`,
+    runtimeText(
+    "movementRuntimeWaitLeave",
+    {
+      block:
+        leg.from.name,
+    }
+  ),
     leg.from.key
   );
 
@@ -3598,7 +3720,13 @@ async function waitForArrival(
 
   setInfo(
     execution,
-    `Érkezésre vár: ${leg.to.name}`,
+    runtimeText(
+    "movementRuntimeWaitArrival",
+    {
+      block:
+        leg.to.name,
+    }
+  ),
     leg.to.key
   );
 
@@ -3673,7 +3801,13 @@ async function waitForResourceEntry(
 
   setInfo(
     execution,
-    `Erőforrás belépésére vár: ${resource.name}`,
+    runtimeText(
+    "movementRuntimeWaitResource",
+    {
+      resource:
+        resource.name,
+    }
+  ),
     resource.key
   );
 
@@ -4204,7 +4338,13 @@ async function traverseLeg(
 
     setInfo(
       execution,
-      `Megérkezett: ${leg.to.name}`,
+      runtimeText(
+      "movementRuntimeArrived",
+      {
+        block:
+          leg.to.name,
+      }
+    ),
       leg.to.key
     );
   } finally {
