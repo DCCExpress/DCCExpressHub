@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <ESPAsyncWebServer.h>
+#include <vector>
 
 #include "FastClockRuntime.h"
 #include "ICommandCenter.h"
@@ -213,6 +214,21 @@ private:
   PendingProgrammingRequest
       _pendingProgramming;
 
+  struct SwitchManLock {
+    uint16_t address = 0;
+    String ownerId;
+    String ownerName;
+    unsigned long acquiredAtMs = 0;
+  };
+
+  std::vector<SwitchManLock>
+      _switchManLocks;
+
+  std::vector<String>
+      _switchManRevokedOwners;
+
+  uint32_t _switchManManualSequence = 0;
+
   void sendProgrammingResponse(
       const String& requestId,
       const String& action,
@@ -222,6 +238,44 @@ private:
       const String& raw = "");
 
   void clearPendingProgramming();
+
+  void handleSwitchManCommand(
+      AsyncWebSocketClient* client,
+      JsonVariantConst data);
+
+  void sendSwitchManSnapshot(
+      AsyncWebSocketClient* client);
+
+  void broadcastSwitchManSnapshot();
+
+  bool switchManAcquire(
+      const std::vector<uint16_t>& addresses,
+      const String& ownerId,
+      const String& ownerName,
+      std::vector<SwitchManLock>* conflicts = nullptr);
+
+  size_t switchManRelease(
+      const String& ownerId,
+      const std::vector<uint16_t>* addresses = nullptr);
+
+  bool switchManOwns(
+      uint16_t address,
+      const String& ownerId) const;
+
+  const SwitchManLock* switchManFind(
+      uint16_t address) const;
+
+  bool switchManOwnerRevoked(
+      const String& ownerId) const;
+
+  bool acquireManualTurnoutOperation(
+      AsyncWebSocketClient* client,
+      uint16_t address,
+      String& ownerId);
+
+  void appendSwitchManLocks(
+      JsonArray array,
+      const std::vector<SwitchManLock>& locks) const;
 
   void handleProgrammingRawResponse(
       const String& raw);
