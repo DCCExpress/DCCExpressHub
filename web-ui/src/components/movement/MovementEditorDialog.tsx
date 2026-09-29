@@ -487,6 +487,10 @@ export default function MovementEditorDialog({
       }
       title="Movement / Dispatcher Editor"
       fullScreen
+      classNames={{
+        header:
+          "app-fullscreen-modal-header",
+      }}
       returnFocus={
         false
       }
