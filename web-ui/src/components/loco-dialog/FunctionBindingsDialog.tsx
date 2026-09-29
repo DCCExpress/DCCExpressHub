@@ -280,12 +280,16 @@ export default function FunctionBindingsDialog({
                         style={{
                           cursor:
                             "pointer",
-                          outline:
+                          ...(
                             selected
-                              ? "2px solid var(--mantine-color-blue-6)"
-                              : undefined,
-                          outlineOffset:
-                            -2,
+                              ? {
+                                  outline:
+                                    "2px solid var(--mantine-color-blue-6)",
+                                  outlineOffset:
+                                    -2,
+                                }
+                              : {}
+                          ),
                         }}
                       >
                         <Table.Td>
