@@ -251,7 +251,15 @@ export default function MovementRuntimeControls({
             }
           >
             {
-              state.status
+              mt(
+                state.status === "running"
+                  ? "movementStatusRunning"
+                  : state.status === "stopping"
+                    ? "movementStatusStopping"
+                    : state.status === "error"
+                      ? "movementStatusError"
+                      : "movementStatusIdle"
+              )
             }
           </Badge>
         )
@@ -261,8 +269,8 @@ export default function MovementRuntimeControls({
         withArrow
         label={
           trackPowerOn
-            ? "Start movement"
-            : "Track power is OFF"
+            ? mt("movementStart")
+            : mt("movementTrackPowerOff")
         }
       >
         <span
