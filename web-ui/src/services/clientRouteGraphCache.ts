@@ -613,9 +613,21 @@ function persistedPart(
     detectors: [
       ...part.detectors,
     ],
-    blockIds: [
-      ...part.blockIds,
-    ],
+    blockIds:
+      node.blocks
+        .filter(
+          block =>
+            block.sensorAddress ===
+              (
+                reverse
+                  ? part.fromSensor
+                  : part.toSensor
+              )
+        )
+        .map(
+          block =>
+            block.id
+        ),
     locoDirection:
       reverse
         ? oppositeRouteDirection(
