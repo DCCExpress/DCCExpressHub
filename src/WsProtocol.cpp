@@ -1,6 +1,7 @@
 #include "WsProtocol.h"
 
 #include "Logger.h"
+#include "CommandCenterBuild.h"
 #include "FileStore.h"
 #include "config.h"
 
@@ -1560,6 +1561,18 @@ void WsProtocol::sendRuntimeSnapshot(
             data.as<JsonVariantConst>());
     }
 
+    {
+        JsonDocument physical;
+
+        appendRuntimePhysicalSnapshot(
+            physical);
+
+        send(
+            client,
+            "runtimePhysicalSnapshot",
+            physical.as<JsonVariantConst>());
+    }
+
     for (
         const auto &item :
         _runtime.accessories())
@@ -1570,11 +1583,59 @@ void WsProtocol::sendRuntimeSnapshot(
             item.kind)
         {
         case RuntimeAccessoryKind::Turnout:
+        {
+            bool logicalClosed =
+                false;
+
+            const bool logicalKnown =
+                _runtime.getTurnoutClosed(
+                    item.address,
+                    logicalClosed);
+
             data["address"] =
                 item.address;
 
             data["closed"] =
                 item.closed;
+
+            if (logicalKnown)
+            {
+                data["logicalClosed"] =
+                    logicalClosed;
+            }
+            else
+            {
+                data["logicalClosed"] =
+                    nullptr;
+            }
+
+            data["outputMode"] =
+                item.turnoutExtended
+                    ? "extended"
+                    : (
+                          item.turnoutVPin
+                              ? "vpin"
+                              : "accessory");
+
+            if (
+                item.turnoutExtended &&
+                item.aspect >=
+                    0)
+            {
+                data["aspect"] =
+                    item.aspect;
+            }
+            else
+            {
+                data["aspect"] =
+                    nullptr;
+            }
+
+            data["closedAspect"] =
+                item.turnoutClosedAspect;
+
+            data["openedAspect"] =
+                item.turnoutOpenedAspect;
 
             send(
                 client,
@@ -1582,6 +1643,7 @@ void WsProtocol::sendRuntimeSnapshot(
                 data.as<JsonVariantConst>());
 
             break;
+        }
 
         case RuntimeAccessoryKind::Signal:
             if (
@@ -1661,6 +1723,40 @@ void WsProtocol::sendRuntimeSnapshot(
             data.as<JsonVariantConst>());
     }
 
+    for (
+        size_t index = 0;
+        index <
+            _locoCount;
+        ++index)
+    {
+        const LocoState &loco =
+            _locos[index];
+
+        JsonDocument data;
+        JsonObject out =
+            data["loco"]
+                .to<JsonObject>();
+
+        out["address"] =
+            loco.address;
+        out["speed"] =
+            loco.speed;
+        out["direction"] =
+            loco.forward
+                ? "forward"
+                : "reverse";
+        out["functionsMask"] =
+            loco.functionsMask;
+
+        send(
+            client,
+            "locoState",
+            data.as<JsonVariantConst>());
+    }
+
+    sendSensorSnapshot(
+        client);
+
     sendBlockStateSnapshot(
         client);
 
@@ -1683,6 +1779,17 @@ void WsProtocol::broadcastRuntimeSnapshot()
 
     cc["name"] =
         _commandCenter.name();
+
+    cc["transport"] =
+        CommandCenterBuild::isDccEx()
+            ? "tcp"
+            : "udp";
+
+    cc["serialPort"] =
+        "";
+
+    cc["baudRate"] =
+        0;
 
     cc["ip"] =
         _commandCenter.host();
@@ -1712,6 +1819,17 @@ void WsProtocol::broadcastRuntimeSnapshot()
             data);
     }
 
+    {
+        JsonDocument physical;
+
+        appendRuntimePhysicalSnapshot(
+            physical);
+
+        broadcast(
+            "runtimePhysicalSnapshot",
+            physical);
+    }
+
     for (
         const auto &item :
         _runtime.accessories())
@@ -1722,15 +1840,8 @@ void WsProtocol::broadcastRuntimeSnapshot()
             item.kind)
         {
         case RuntimeAccessoryKind::Turnout:
-            data["address"] =
-                item.address;
-
-            data["closed"] =
-                item.closed;
-
-            broadcast(
-                "turnoutChanged",
-                data);
+            broadcastTurnoutState(
+                item.address);
 
             break;
 
@@ -1808,6 +1919,7 @@ void WsProtocol::broadcastRuntimeSnapshot()
             data);
     }
 
+    broadcastSensorSnapshot();
     broadcastBlockStateSnapshot();
     broadcastLocoCounterSnapshot();
 }
@@ -2059,6 +2171,268 @@ void WsProtocol::broadcastLocoCounterSnapshot()
 
     broadcast(
         "locoCounterSnapshot",
+        data);
+}
+
+void WsProtocol::appendSensorSnapshot(
+    JsonDocument &data)
+{
+    JsonArray groups =
+        data["groups"].to<JsonArray>();
+
+    struct GroupState
+    {
+        uint16_t baseAddress = 0;
+        uint16_t activeBits = 0;
+        uint16_t knownBits = 0;
+    };
+
+    std::vector<GroupState> grouped;
+
+    for (
+        const auto &sensor :
+        _runtime.sensorStates())
+    {
+        const uint16_t baseAddress =
+            static_cast<uint16_t>(
+                (sensor.address / 16) *
+                16);
+
+        auto found =
+            std::find_if(
+                grouped.begin(),
+                grouped.end(),
+                [baseAddress](
+                    const GroupState &group)
+                {
+                    return
+                        group.baseAddress ==
+                        baseAddress;
+                });
+
+        if (
+            found ==
+            grouped.end())
+        {
+            GroupState group;
+            group.baseAddress =
+                baseAddress;
+
+            grouped.push_back(
+                group);
+
+            found =
+                grouped.end() -
+                1;
+        }
+
+        const uint8_t bit =
+            static_cast<uint8_t>(
+                sensor.address -
+                baseAddress);
+
+        if (
+            bit >=
+            16)
+        {
+            continue;
+        }
+
+        found->knownBits |=
+            static_cast<uint16_t>(
+                1U <<
+                bit);
+
+        if (sensor.on)
+        {
+            found->activeBits |=
+                static_cast<uint16_t>(
+                    1U <<
+                    bit);
+        }
+    }
+
+    std::sort(
+        grouped.begin(),
+        grouped.end(),
+        [](
+            const GroupState &left,
+            const GroupState &right)
+        {
+            return
+                left.baseAddress <
+                right.baseAddress;
+        });
+
+    for (
+        const auto &group :
+        grouped)
+    {
+        JsonArray row =
+            groups.add<JsonArray>();
+
+        row.add(
+            group.baseAddress);
+        row.add(
+            group.activeBits);
+        row.add(
+            group.knownBits);
+    }
+}
+
+void WsProtocol::sendSensorSnapshot(
+    AsyncWebSocketClient *client)
+{
+    JsonDocument data;
+
+    appendSensorSnapshot(
+        data);
+
+    send(
+        client,
+        "sensorSnapshot",
+        data.as<JsonVariantConst>());
+}
+
+void WsProtocol::broadcastSensorSnapshot()
+{
+    JsonDocument data;
+
+    appendSensorSnapshot(
+        data);
+
+    broadcast(
+        "sensorSnapshot",
+        data);
+}
+
+void WsProtocol::appendRuntimePhysicalSnapshot(
+    JsonDocument &data)
+{
+    JsonArray basic =
+        data["basicAccessories"]
+            .to<JsonArray>();
+
+    for (
+        const auto &state :
+        _runtime.basicAccessories())
+    {
+        JsonObject item =
+            basic.add<JsonObject>();
+
+        item["address"] =
+            state.address;
+        item["active"] =
+            state.active;
+    }
+
+    JsonArray extended =
+        data["extendedAccessories"]
+            .to<JsonArray>();
+
+    for (
+        const auto &state :
+        _runtime.extendedAccessories())
+    {
+        JsonObject item =
+            extended.add<JsonObject>();
+
+        item["address"] =
+            state.address;
+        item["aspect"] =
+            state.aspect;
+    }
+}
+
+void WsProtocol::broadcastTurnoutState(
+    uint16_t address)
+{
+    const RuntimeAccessory *turnout =
+        _runtime.findAccessory(
+            RuntimeAccessoryKind::Turnout,
+            address);
+
+    if (!turnout)
+    {
+        return;
+    }
+
+    bool logicalClosed =
+        false;
+
+    const bool logicalKnown =
+        _runtime.getTurnoutClosed(
+            address,
+            logicalClosed);
+
+    const bool physicalValue =
+        logicalKnown
+            ? (
+                  logicalClosed
+                      ? turnout->closedValue
+                      : !turnout->closedValue)
+            : false;
+
+    JsonDocument data;
+
+    data["address"] =
+        address;
+
+    data["closed"] =
+        physicalValue;
+
+    if (logicalKnown)
+    {
+        data["logicalClosed"] =
+            logicalClosed;
+    }
+    else
+    {
+        data["logicalClosed"] =
+            nullptr;
+    }
+
+    data["outputMode"] =
+        turnout->turnoutExtended
+            ? "extended"
+            : (
+                  turnout->turnoutVPin
+                      ? "vpin"
+                      : "accessory");
+
+    if (turnout->turnoutExtended)
+    {
+        int16_t aspect =
+            0;
+
+        if (
+            _runtime.getSignalValue(
+                address,
+                aspect))
+        {
+            data["aspect"] =
+                aspect;
+        }
+        else
+        {
+            data["aspect"] =
+                nullptr;
+        }
+    }
+    else
+    {
+        data["aspect"] =
+            nullptr;
+    }
+
+    data["closedAspect"] =
+        turnout->turnoutClosedAspect;
+
+    data["openedAspect"] =
+        turnout->turnoutOpenedAspect;
+
+    broadcast(
+        "turnoutChanged",
         data);
 }
 
