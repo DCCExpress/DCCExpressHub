@@ -246,6 +246,33 @@ test("Movement safety selector excludes a duplicated source occupancy detector",
   );
 });
 
+test("Movement safety waiting message names blocking sensor addresses and states", () => {
+  const engine =
+    read(
+      "src/services/movementEngine.ts"
+    );
+
+  assert.match(
+    engine,
+    /function blockedPathSafetySensorSummary/
+  );
+
+  assert.match(
+    engine,
+    /state ===[\s\S]*true[\s\S]*\? "ON"[\s\S]*: "UNKNOWN"/
+  );
+
+  assert.match(
+    engine,
+    /Waiting for safety: \$\{blockedPathSafetySensorSummary\(/
+  );
+
+  assert.doesNotMatch(
+    engine,
+    /Waiting for route sensors to become safely free/
+  );
+});
+
 test("Movement forgets stale authority knowledge across WebSocket reconnects", () => {
   const engine =
     read(
