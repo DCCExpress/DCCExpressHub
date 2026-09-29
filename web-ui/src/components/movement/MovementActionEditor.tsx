@@ -15,6 +15,7 @@ import {
   Collapse,
   Group,
   NumberInput,
+  ScrollArea,
   Select,
   Stack,
   Tabs,
@@ -938,10 +939,32 @@ export default function MovementActionEditor({
         size="lg"
         centered
         draggable
+        styles={{
+          content: {
+            maxHeight:
+              "min(760px, 88vh)",
+            overflow:
+              "hidden",
+          },
+          body: {
+            display:
+              "flex",
+            flexDirection:
+              "column",
+            minHeight:
+              0,
+          },
+        }}
       >
-        <Stack
-          gap="md"
+        <ScrollArea
+          type="auto"
+          h="min(650px, 72vh)"
+          offsetScrollbars
         >
+          <Stack
+            gap="md"
+            pr="xs"
+          >
           <Text
             size="sm"
             c="dimmed"
@@ -1007,7 +1030,8 @@ export default function MovementActionEditor({
               )
             )
           }
-        </Stack>
+          </Stack>
+        </ScrollArea>
       </AppModal>
 
     <Stack
