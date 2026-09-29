@@ -3659,6 +3659,18 @@ void WsProtocol::handleSwitchManCommand(
                 _runtime.setSignal(
                     address,
                     aspect);
+
+                JsonDocument event;
+
+                event["address"] =
+                    address;
+
+                event["aspect"] =
+                    aspect;
+
+                broadcast(
+                    "signalAspectChanged",
+                    event);
             }
         }
         else if (
@@ -3675,6 +3687,18 @@ void WsProtocol::handleSwitchManCommand(
                 _runtime.setVPin(
                     address,
                     physicalValue);
+
+                JsonDocument event;
+
+                event["vpin"] =
+                    address;
+
+                event["active"] =
+                    physicalValue;
+
+                broadcast(
+                    "vpinChanged",
+                    event);
             }
         }
         else
@@ -3690,7 +3714,25 @@ void WsProtocol::handleSwitchManCommand(
                 _runtime.setTurnout(
                     address,
                     physicalValue);
+
+                JsonDocument event;
+
+                event["address"] =
+                    address;
+
+                event["active"] =
+                    physicalValue;
+
+                broadcast(
+                    "accessoryChanged",
+                    event);
             }
+        }
+
+        if (ok)
+        {
+            broadcastTurnoutState(
+                address);
         }
 
         reply(
