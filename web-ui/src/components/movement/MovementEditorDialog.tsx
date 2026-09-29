@@ -683,6 +683,10 @@ export default function MovementEditorDialog({
                         page.id ===
                         document.activePageId
                       }
+                      routeGraphReady={
+                        graphStatus.state ===
+                          "valid"
+                      }
                       onSelect={
                         () =>
                           setDocument(
