@@ -1792,6 +1792,43 @@ function aheadPathSensorsAreFree(
   );
 }
 
+function blockedPathSafetySensorSummary(
+  leg:
+    MovementPlanLeg
+): string {
+  return movementLegPathSafetySensors(
+    leg
+  )
+    .filter(
+      address =>
+        sensorStates.get(
+          address
+        ) !==
+          false
+    )
+    .map(
+      address => {
+        const state =
+          sensorStates.get(
+            address
+          );
+
+        return (
+          `#${address}=` +
+          (
+            state ===
+              true
+              ? "ON"
+              : "UNKNOWN"
+          )
+        );
+      }
+    )
+    .join(
+      ", "
+    );
+}
+
 async function acquireLock(
   name: string
 ): Promise<ResourceLease | null> {
@@ -2507,7 +2544,9 @@ async function waitForPreDepartureAvailability(
         )
       ) {
         reason =
-          "Waiting for route sensors to become safely free";
+          `Waiting for safety: ${blockedPathSafetySensorSummary(
+            leg
+          )}`;
 
         waitingReason =
           "segment";
@@ -2631,7 +2670,9 @@ async function waitForLegClearance(
         )
       ) {
         reason =
-          "Waiting for route sensors to become safely free";
+          `Waiting for safety: ${blockedPathSafetySensorSummary(
+            leg
+          )}`;
 
         waitingReason =
           "segment";
@@ -3154,7 +3195,9 @@ async function waitForHeldLegReady(
         )
       ) {
         reason =
-          "Waiting for route sensors to become safely free";
+          `Waiting for safety: ${blockedPathSafetySensorSummary(
+            leg
+          )}`;
 
         waitingReason =
           "segment";
