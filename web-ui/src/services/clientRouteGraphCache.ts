@@ -11,6 +11,7 @@ import type {
   Edge,
   GraphNode,
   SectionBlock,
+  SectionPart,
   TurnoutStateRequirement,
   RouteTurnoutPassage,
 } from "@domain/railway/graph";
@@ -28,7 +29,7 @@ import {
   createClientGraphFromRouteGraphDto,
 } from "@/services/routeGraphDtoMapper";
 
-const ROUTE_TOPOLOGY_VERSION = 3;
+const ROUTE_TOPOLOGY_VERSION = 4;
 
 const ROUTE_TOPOLOGY_FIELD =
   "routeTopology";
@@ -37,6 +38,20 @@ export type PersistedRouteBlockEntry = {
   id: number;
   name: string;
   nodeIndex: number;
+};
+
+export type PersistedRoutePartEntry = {
+  nodeName: string;
+  partKey: string;
+  partIndex: number;
+  fromSensor: number | null;
+  toSensor: number | null;
+  detectors: number[];
+  blockIds: number[];
+  locoDirection:
+    | "unknown"
+    | "forward"
+    | "reverse";
 };
 
 export type PersistedRouteEdgeEntry = {
@@ -66,6 +81,7 @@ export type PersistedRouteTableEntry = {
    */
   blockPath: PersistedRouteBlockEntry[];
   nodes: string[];
+  partPath: PersistedRoutePartEntry[];
   edgePath: PersistedRouteEdgeEntry[];
   turnoutStates: TurnoutStateRequirement[];
   locoDirection:
@@ -552,6 +568,261 @@ function buildPersistedBlockPath(
   return result;
 }
 
+
+function oppositeRouteDirection(
+  direction:
+    | "unknown"
+    | "forward"
+    | "reverse"
+):
+  | "unknown"
+  | "forward"
+  | "reverse" {
+  return direction ===
+    "forward"
+    ? "reverse"
+    : direction ===
+        "reverse"
+      ? "forward"
+      : "unknown";
+}
+
+function persistedPart(
+  node:
+    GraphNode,
+  part:
+    SectionPart,
+  reverse:
+    boolean
+): PersistedRoutePartEntry {
+  return {
+    nodeName:
+      node.name,
+    partKey:
+      part.key,
+    partIndex:
+      part.index,
+    fromSensor:
+      reverse
+        ? part.toSensor
+        : part.fromSensor,
+    toSensor:
+      reverse
+        ? part.fromSensor
+        : part.toSensor,
+    detectors: [
+      ...part.detectors,
+    ],
+    blockIds: [
+      ...part.blockIds,
+    ],
+    locoDirection:
+      reverse
+        ? oppositeRouteDirection(
+            part.locoDirection
+          )
+        : part.locoDirection,
+  };
+}
+
+function sameNodeSectionPartRoutes(
+  node:
+    GraphNode,
+  fromBlock:
+    SectionBlock,
+  toBlock:
+    SectionBlock
+): Array<{
+  partPath:
+    PersistedRoutePartEntry[];
+  locoDirection:
+    | "unknown"
+    | "forward"
+    | "reverse";
+}> {
+  const fromSensor =
+    fromBlock.sensorAddress;
+
+  const toSensor =
+    toBlock.sensorAddress;
+
+  if (
+    fromSensor ===
+      undefined ||
+    toSensor ===
+      undefined ||
+    fromSensor <=
+      0 ||
+    toSensor <=
+      0 ||
+    fromSensor ===
+      toSensor ||
+    node.sectionParts.length ===
+      0
+  ) {
+    return [];
+  }
+
+  const result:
+    Array<{
+      partPath:
+        PersistedRoutePartEntry[];
+      locoDirection:
+        | "unknown"
+        | "forward"
+        | "reverse";
+    }> = [];
+
+  const walk =
+    (
+      reverse:
+        boolean
+    ): void => {
+      const path:
+        PersistedRoutePartEntry[] =
+        [];
+
+      const visited =
+        new Set<string>();
+
+      let current =
+        fromSensor;
+
+      let direction:
+        | "unknown"
+        | "forward"
+        | "reverse" =
+        "unknown";
+
+      for (
+        let guard = 0;
+        guard <
+          node.sectionParts.length;
+        guard += 1
+      ) {
+        const part =
+          node.sectionParts.find(
+            candidate =>
+              reverse
+                ? candidate.toSensor ===
+                    current
+                : candidate.fromSensor ===
+                    current
+          );
+
+        if (
+          !part ||
+          visited.has(
+            part.key
+          )
+        ) {
+          return;
+        }
+
+        visited.add(
+          part.key
+        );
+
+        const entry =
+          persistedPart(
+            node,
+            part,
+            reverse
+          );
+
+        const mergedDirection =
+          mergeRouteDirection(
+            direction,
+            entry.locoDirection
+          );
+
+        if (
+          mergedDirection ===
+            null
+        ) {
+          return;
+        }
+
+        direction =
+          mergedDirection;
+
+        path.push(
+          entry
+        );
+
+        current =
+          entry.toSensor ??
+          0;
+
+        if (
+          current ===
+            toSensor
+        ) {
+          result.push({
+            partPath:
+              path,
+            locoDirection:
+              direction,
+          });
+
+          return;
+        }
+
+        if (
+          current <=
+            0
+        ) {
+          return;
+        }
+      }
+    };
+
+  walk(
+    false
+  );
+
+  if (
+    node.sectionParts.some(
+      part =>
+        part.circular
+    )
+  ) {
+    walk(
+      true
+    );
+  }
+
+  return result.filter(
+    (
+      route,
+      index,
+      all
+    ) =>
+      all.findIndex(
+        candidate =>
+          JSON.stringify(
+            candidate.partPath.map(
+              part => [
+                part.partKey,
+                part.fromSensor,
+                part.toSensor,
+              ]
+            )
+          ) ===
+          JSON.stringify(
+            route.partPath.map(
+              part => [
+                part.partKey,
+                part.fromSensor,
+                part.toSensor,
+              ]
+            )
+          )
+      ) ===
+      index
+  );
+}
+
 function enumerateRouteVariantsForBlockPair(
   graph: ClientRouteGraphBuildResult["graph"],
   fromBlock: SectionBlock,
@@ -585,6 +856,46 @@ function enumerateRouteVariantsForBlockPair(
   if (
     fromNode === toNode
   ) {
+    const partRoutes =
+      sameNodeSectionPartRoutes(
+        fromNode,
+        fromBlock,
+        toBlock
+      );
+
+    if (
+      partRoutes.length >
+        0
+    ) {
+      return partRoutes.map(
+        route => ({
+          fromBlockId:
+            fromBlock.id,
+          fromBlockName:
+            fromBlock.name,
+          toBlockId:
+            toBlock.id,
+          toBlockName:
+            toBlock.name,
+          blockPath:
+            buildPersistedBlockPath(
+              [fromNode],
+              fromBlock,
+              toBlock
+            ),
+          nodes: [
+            fromNode.name,
+          ],
+          partPath:
+            route.partPath,
+          edgePath: [],
+          turnoutStates: [],
+          locoDirection:
+            route.locoDirection,
+        })
+      );
+    }
+
     return [{
       fromBlockId:
         fromBlock.id,
@@ -603,6 +914,7 @@ function enumerateRouteVariantsForBlockPair(
       nodes: [
         fromNode.name,
       ],
+      partPath: [],
       edgePath: [],
       turnoutStates: [],
       locoDirection:
@@ -785,6 +1097,7 @@ function enumerateRouteVariantsForBlockPair(
               node =>
                 node.name
             ),
+          partPath: [],
           edgePath:
             edges.map(
               routeEdge => ({
