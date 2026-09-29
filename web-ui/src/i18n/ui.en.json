@@ -1278,7 +1278,7 @@
   "movementExecutionScriptDescription": "Read-only projection resolved from the same persisted Movement route plan used by the runtime engine.",
   "movementGeneralHelpButton": "Movement help",
   "movementGeneralHelpTitle": "Movement help",
-  "movementGeneralHelpIntro": "Movement defines how a locomotive travels along a selected physical route. The route vector shows the resources in running order; each resource can have event conditions and actions.",
+  "movementGeneralHelpIntro": "This help covers the complete Movement model: route, route vector, blocks, event conditions, actions, sequences and safety sensors.",
   "movementGeneralHelpRouteTitle": "1. Route and route vector",
   "movementGeneralHelpRouteBody": "Select a generated route first. The route vector then shows blocks, track segments and turnout passages in the exact order used by the Movement engine. Click a vector item to edit that physical resource.",
   "movementGeneralHelpBlocksTitle": "2. Blocks and stopping points",
@@ -1290,5 +1290,13 @@
   "movementGeneralHelpSafetyTitle": "5. Safety sensors",
   "movementGeneralHelpSafetyBody": "Before a leg starts, Movement checks the physical safety sensors of that leg. Sensors that must be free are required to be known and OFF. Ignore a sensor only when the current train is expected to occupy it intentionally.",
   "movementGeneralHelpExampleTitle": "Example: station stop",
-  "movementGeneralHelpExampleBody": "A train enters a station block and ARRIVED is detected. Arrival actions run first. Then BEFORE DEPART runs; a Blocking delay of 10 seconds plus random 0–5 seconds keeps the train stopped. When that sequence finishes, DEPART can run and the train continues."
+  "movementGeneralHelpExampleBody": "A train enters a station block and ARRIVED is detected. Arrival actions run first. Then BEFORE DEPART runs; a Blocking delay of 10 seconds plus random 0–5 seconds keeps the train stopped. When that sequence finishes, DEPART can run and the train continues.",
+  "movementGeneralHelpVectorTitle": "2. Route vector",
+  "movementGeneralHelpVectorBody": "The route vector shows the physical resources of the Movement in execution order. Blocks, segments and turnout passages may appear as separate items. Blocks show their type and occupancy sensor; segments show their related sensors. Click an item to edit its conditions, actions or safety settings.",
+  "movementGeneralHelpConditionsTitle": "4. Conditions and event detection",
+  "movementGeneralHelpConditionsBody": "A block can have separate APPROACH, ARRIVED, DEPART and LEAVE conditions made from sensor states. If no custom condition exists, Movement uses its built-in default, such as the block occupancy sensor for ARRIVED. Add custom conditions when you have multiple sensors, a dedicated approach point or need more precise physical detection.",
+  "movementGeneralHelpActionsTitle": "6. Actions",
+  "movementGeneralHelpActionsBody": "Actions perform work when an event occurs. Available actions include speed, locomotive function, horn pulse, fixed delay, random delay, audio playback and log messages. Action order matters: in a Blocking sequence they run from top to bottom.",
+  "movementGeneralHelpSafetyExampleTitle": "9. Safety example",
+  "movementGeneralHelpSafetyExampleBody": "For an A1 → B1 move, check the sensors of the physical section leading to B1. Do not reserve the later B1 → C1 section yet. This keeps reservation rolling forward one required leg at a time and avoids unnecessarily blocking other trains."
 }
