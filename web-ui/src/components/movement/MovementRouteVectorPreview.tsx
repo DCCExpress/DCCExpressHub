@@ -749,7 +749,7 @@ export default function MovementRouteVectorPreview({
                                 item.kind ===
                                   "block"
                                   ? `OCC ${item.sensors.join(" · ")}`
-                                  : `DET ${item.sensors.join(" · ")}`
+                                  : `SEN ${item.sensors.join(" · ")}`
                               )
                         }
                       </text>
