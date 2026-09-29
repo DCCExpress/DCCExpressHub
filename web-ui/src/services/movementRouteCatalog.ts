@@ -706,7 +706,7 @@ export function applyMovementRouteCandidate(
             const fixedWait =
               createMovementAction(
                 `block:${block.id}`,
-                "arrived",
+                "beforeDepart",
                 "delay",
                 sequenceId,
                 "blocking"
@@ -718,7 +718,7 @@ export function applyMovementRouteCandidate(
             const randomWait =
               createMovementAction(
                 `block:${block.id}`,
-                "arrived",
+                "beforeDepart",
                 "randomDelay",
                 sequenceId,
                 "blocking"
