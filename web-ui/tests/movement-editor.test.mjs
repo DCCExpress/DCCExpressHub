@@ -4400,34 +4400,49 @@ test("Automation panel remembers the active Scripts Flows Movement tab", () => {
 });
 
 
-test("Movement action tabs expose contextual quick help", () => {
-  const editor =
+test("Movement keeps contextual event help inline and exposes general help in the editor header", () => {
+  const actionEditor =
     read(
       "src/components/movement/MovementActionEditor.tsx"
     );
 
+  const editorDialog =
+    read(
+      "src/components/movement/MovementEditorDialog.tsx"
+    );
+
   assert.match(
-    editor,
+    actionEditor,
+    /eventHelpKey\(\s*selectedWhen/
+  );
+
+  assert.doesNotMatch(
+    actionEditor,
     /IconQuestionMark/
   );
 
   assert.match(
-    editor,
-    /movementActionEventQuickHelpTitle/
+    editorDialog,
+    /IconQuestionMark/
   );
 
   assert.match(
-    editor,
-    /eventHelpKey\(\s*selectedWhen/
+    editorDialog,
+    /movementGeneralHelpTitle/
   );
 
   assert.match(
-    editor,
-    /movementActionEventExampleLabel/
+    editorDialog,
+    /movementGeneralHelpRouteTitle/
   );
 
   assert.match(
-    editor,
-    /movementEventHelpBeforeDepart/
+    editorDialog,
+    /movementGeneralHelpSequencesTitle/
+  );
+
+  assert.match(
+    editorDialog,
+    /movementGeneralHelpSafetyTitle/
   );
 });
