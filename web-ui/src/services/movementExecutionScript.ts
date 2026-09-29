@@ -16,6 +16,10 @@ import {
   effectiveMovementResourceEventRule,
 } from "./movementResourceEvents";
 
+import {
+  movementLegPathSafetySensors,
+} from "./movementSafety";
+
 type ActionSequence = {
   id: string;
   mode:
@@ -441,55 +445,6 @@ function renderActions(
   return lines;
 }
 
-function pathDetectorAddresses(
-  leg:
-    MovementPlanLeg
-): number[] {
-  const sourceNode =
-    leg.from.nodeIndex;
-
-  const result:
-    number[] = [];
-
-  for (
-    const resource of
-    leg.resources
-  ) {
-    const checked =
-      resource.kind ===
-        "turnout" ||
-      (
-        resource.kind ===
-          "segment" &&
-        resource.nodeIndex !==
-          null &&
-        resource.nodeIndex !==
-          sourceNode
-      );
-
-    if (!checked) {
-      continue;
-    }
-
-    for (
-      const address of
-      resource.detectors
-    ) {
-      if (
-        !result.includes(
-          address
-        )
-      ) {
-        result.push(
-          address
-        );
-      }
-    }
-  }
-
-  return result;
-}
-
 function renderAuthority(
   leg:
     MovementPlanLeg,
@@ -497,7 +452,7 @@ function renderAuthority(
     boolean
 ): string[] {
   const sensors =
-    pathDetectorAddresses(
+    movementLegPathSafetySensors(
       leg
     );
 
