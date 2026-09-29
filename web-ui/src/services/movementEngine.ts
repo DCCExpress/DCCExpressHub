@@ -1196,14 +1196,17 @@ function setPhysicalSpeed(
 
 function applyDesiredSpeed(
   execution:
-    MovementExecution
+    MovementExecution,
+  force =
+    false
 ): void {
   setPhysicalSpeed(
     execution,
     execution.moving &&
     !execution.cancelled
       ? execution.desiredSpeed
-      : 0
+      : 0,
+    force
   );
 
   syncMovementMotionRuntime(
@@ -2924,6 +2927,112 @@ function arrivalSatisfied(
   );
 }
 
+function nextLegAtArrival(
+  execution:
+    MovementExecution,
+  leg:
+    MovementPlanLeg
+): MovementPlanLeg | null {
+  return execution.plan.legs[
+    leg.index +
+      1
+  ] ??
+    null;
+}
+
+function nextLegMayKeepRolling(
+  execution:
+    MovementExecution,
+  leg:
+    MovementPlanLeg
+): boolean {
+  const nextLeg =
+    nextLegAtArrival(
+      execution,
+      leg
+    );
+
+  if (!nextLeg) {
+    return false;
+  }
+
+  if (
+    nextLeg.departWhen.length >
+      0 &&
+    !conditionsSatisfied(
+      nextLeg.departWhen
+    )
+  ) {
+    return false;
+  }
+
+  return (
+    targetBlockAvailableForLeg(
+      execution,
+      nextLeg
+    ) &&
+    aheadPathSensorsAreFree(
+      execution,
+      nextLeg
+    )
+  );
+}
+
+function applyIntermediateArrivalSpeedPolicy(
+  execution:
+    MovementExecution,
+  leg:
+    MovementPlanLeg
+): void {
+  execution.desiredSpeed =
+    execution.page.speed;
+
+  updateState(
+    execution,
+    {
+      desiredSpeed:
+        execution.desiredSpeed,
+    }
+  );
+
+  const mayKeepRolling =
+    nextLegMayKeepRolling(
+      execution,
+      leg
+    );
+
+  if (!mayKeepRolling) {
+    execution.moving =
+      false;
+  }
+
+  console.info(
+    "[Movement] ARRIVED speed policy",
+    {
+      page:
+        execution.page.name,
+      locoAddress:
+        execution.locoAddress,
+      block:
+        leg.to.name,
+      cruiseSpeed:
+        execution.desiredSpeed,
+      mayKeepRolling,
+    }
+  );
+
+  /*
+   * Force the command even when Movement's physicalSpeed cache still equals
+   * cruiseSpeed. Manual or secondary-client throttle changes happen outside
+   * this cache. Safety/departure readiness wins: if the next leg is not ready,
+   * execution.moving is false and this forced command is STOP.
+   */
+  applyDesiredSpeed(
+    execution,
+    true
+  );
+}
+
 async function waitForDepartureConditions(
   execution:
     MovementExecution,
@@ -3904,6 +4013,21 @@ async function traverseLeg(
     if (
       !finalArrivedActionsRan
     ) {
+      /*
+       * ARRIVED is the point where Movement takes speed ownership back from
+       * any manual/secondary-client throttle change.
+       *
+       * Safety first: only keep rolling at cruise speed when the next leg's
+       * departure condition, target block and effective safety sensors are
+       * already ready. Otherwise force STOP. ARRIVED speed actions run next,
+       * so they may replace desiredSpeed; while stopped they cannot bypass the
+       * next leg authority check.
+       */
+      applyIntermediateArrivalSpeedPolicy(
+        execution,
+        leg
+      );
+
       await runActions(
         execution,
         leg.to.key,

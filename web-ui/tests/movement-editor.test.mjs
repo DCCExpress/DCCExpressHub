@@ -3239,6 +3239,91 @@ test("Movement runtime honors ignored safety sensors but keeps logical target bl
   );
 });
 
+test("Movement intermediate ARRIVED restores cruise only after safety readiness, then ARRIVED actions may override desired speed", () => {
+  const engine =
+    read(
+      "src/services/movementEngine.ts"
+    );
+
+  const script =
+    read(
+      "src/services/movementExecutionScript.ts"
+    );
+
+  assert.match(
+    engine,
+    /function nextLegMayKeepRolling/
+  );
+
+  assert.match(
+    engine,
+    /nextLeg\.departWhen\.length[\s\S]*conditionsSatisfied/
+  );
+
+  assert.match(
+    engine,
+    /targetBlockAvailableForLeg\([\s\S]*nextLeg/
+  );
+
+  assert.match(
+    engine,
+    /aheadPathSensorsAreFree\([\s\S]*nextLeg/
+  );
+
+  assert.match(
+    engine,
+    /function applyIntermediateArrivalSpeedPolicy/
+  );
+
+  assert.match(
+    engine,
+    /execution\.desiredSpeed =[\s\S]*execution\.page\.speed/
+  );
+
+  assert.match(
+    engine,
+    /if \(!mayKeepRolling\)[\s\S]*execution\.moving =[\s\S]*false/
+  );
+
+  assert.match(
+    engine,
+    /applyDesiredSpeed\([\s\S]*execution,[\s\S]*true/
+  );
+
+  const policyIndex =
+    engine.lastIndexOf(
+      "applyIntermediateArrivalSpeedPolicy("
+    );
+
+  const arrivedActionIndex =
+    engine.indexOf(
+      'leg.to.key,\n        "arrived"',
+      policyIndex
+    );
+
+  assert.ok(
+    policyIndex >= 0 &&
+    arrivedActionIndex >
+      policyIndex,
+    "ARRIVED safety/cruise policy must run before ARRIVED actions"
+  );
+
+  assert.match(
+    engine,
+    /case "speed":[\s\S]*execution\.desiredSpeed =[\s\S]*action\.speed/
+  );
+
+  assert.match(
+    script,
+    /safety\/departure readiness wins before cruise resync/
+  );
+
+  assert.match(
+    script,
+    /ARRIVED speed actions run after the policy and may replace DESIRED_SPEED/
+  );
+});
+
 test("Movement route vector preview is styled by type and prepared for future item clicks", () => {
   const preview =
     read(

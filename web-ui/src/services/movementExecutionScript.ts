@@ -1014,6 +1014,13 @@ function renderLeg(
     ] ===
     leg;
 
+  const nextLeg =
+    plan.legs[
+      leg.index +
+        1
+    ] ??
+    null;
+
   const lines = [
     "LEG " +
       String(
@@ -1274,7 +1281,18 @@ function renderLeg(
   if (!isFinal) {
     lines.push(
       ...indent([
-        "// Non-final leg: ARRIVED actions run after target commit; movement may still be rolling.",
+        "// Non-final ARRIVED speed ownership: safety/departure readiness wins before cruise resync.",
+        "SET DESIRED_SPEED = CRUISE_SPEED",
+        "CHECK NEXT_LEG " +
+          q(
+            nextLeg
+              ? `${nextLeg.from.name} -> ${nextLeg.to.name}`
+              : "NONE"
+          ) +
+          " DEPART_CONDITION + TARGET_BLOCK + EFFECTIVE_SAFETY",
+        "IF NEXT_LEG_NOT_READY: SET MOVING = FALSE; FORCE_APPLY_LOCO_SPEED = 0",
+        "ELSE: FORCE_APPLY_LOCO_SPEED = CRUISE_SPEED",
+        "// ARRIVED speed actions run after the policy and may replace DESIRED_SPEED.",
         ...renderActions(
           page,
           leg.to.key,
