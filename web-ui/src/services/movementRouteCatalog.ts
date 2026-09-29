@@ -638,6 +638,12 @@ export function applyMovementRouteCandidate(
      */
     blockRules:
       existingRules,
+    /*
+     * Safety overrides describe the exact physical leg path. Selecting a new
+     * generated route must fail closed instead of carrying ignored sensors
+     * over to a potentially different path.
+     */
+    safetyRules: [],
   };
 }
 
