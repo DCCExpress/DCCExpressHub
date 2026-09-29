@@ -64,7 +64,6 @@ import {
 import MovementElapsedBadge from "./MovementElapsedBadge";
 
 import {
-  movementText,
   useMovementTranslation,
 } from "./movementI18n";
 
