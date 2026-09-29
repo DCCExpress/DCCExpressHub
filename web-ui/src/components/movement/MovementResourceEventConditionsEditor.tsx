@@ -72,7 +72,9 @@ function eventLabel(
         "movementEventLeave"
       );
     default:
-      return event.toUpperCase();
+      return String(
+        event
+      ).toUpperCase();
   }
 }
 
