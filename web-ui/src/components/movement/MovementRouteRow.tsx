@@ -33,6 +33,10 @@ import {
 } from "../../hooks/usePersistentCollapsedState";
 import MovementActionEditor from "./MovementActionEditor";
 import MovementBlockConditionsEditor from "./MovementBlockConditionsEditor";
+import {
+  movementText,
+  useMovementTranslation,
+} from "./movementI18n";
 
 type Props = {
   pageId: string;
@@ -96,28 +100,28 @@ function resourceBadge(
   isDestination: boolean
 ): string {
   if (isSource) {
-    return "FROM";
+    return movementText("movementFrom");
   }
 
   if (isDestination) {
-    return "TO";
+    return movementText("movementTo");
   }
 
   if (
     resource.kind ===
     "block"
   ) {
-    return "VIA";
+    return movementText("movementVia");
   }
 
   if (
     resource.kind ===
     "turnout"
   ) {
-    return "TURNOUT";
+    return movementText("movementTurnoutUpper");
   }
 
-  return "SEGMENT";
+  return movementText("movementSegmentUpper");
 }
 
 function routeRoleClass(
@@ -158,6 +162,9 @@ export default function MovementRouteRow({
   onRuleChange,
   onActionsChange,
 }: Props) {
+  const mt =
+    useMovementTranslation();
+
   const roleClass =
     routeRoleClass(
       resource,
@@ -328,10 +335,26 @@ export default function MovementRouteRow({
                   size="xs"
                   c="dimmed"
                 >
-                  Block ID #{resource.blockId}
+                  {
+                    mt(
+                      "movementBlockId",
+                      {
+                        id:
+                          resource.blockId ??
+                          0,
+                      }
+                    )
+                  }
                   {
                     resource.sensorAddress
-                      ? ` · occupancy sensor ${resource.sensorAddress}`
+                      ? " " +
+                        mt(
+                          "movementOccupancySensorSuffix",
+                          {
+                            sensor:
+                              resource.sensorAddress,
+                          }
+                        )
                       : ""
                   }
                 </Text>
@@ -348,8 +371,8 @@ export default function MovementRouteRow({
                   {
                     resource.detectors.length >
                       0
-                      ? `${resource.detectors.length === 1 ? "Sensor" : "Sensors"}: ${resource.detectors.join(", ")}`
-                      : "No sensor in this segment"
+                      ? `${resource.detectors.length === 1 ? mt("movementSensorWord") : mt("movementSensorsWord")}: ${resource.detectors.join(", ")}`
+                      : mt("movementNoSensorInSegment")
                   }
                 </Text>
               )
@@ -368,15 +391,15 @@ export default function MovementRouteRow({
                       ? resource.turnoutStates
                           .map(
                             state =>
-                              `#${state.address} ${state.closed ? "CLOSED" : "THROWN"}`
+                              `#${state.address} ${state.closed ? mt("movementClosed") : mt("movementThrown")}`
                           )
                           .join(" · ")
-                      : "Physical turnout passage"
+                      : mt("movementPhysicalTurnoutPassage")
                   }
                   {
                     resource.detectors.length >
                       0
-                      ? ` · ${resource.detectors.length === 1 ? "Sensor" : "Sensors"}: ${resource.detectors.join(", ")}`
+                      ? ` · ${resource.detectors.length === 1 ? mt("movementSensorWord") : mt("movementSensorsWord")}: ${resource.detectors.join(", ")}`
                       : ""
                   }
                 </Text>
@@ -387,8 +410,8 @@ export default function MovementRouteRow({
           <Tooltip
             label={
               routeCollapsed
-                ? "Expand route card"
-                : "Collapse route card"
+                ? mt("movementExpandRouteCard")
+                : mt("movementCollapseRouteCard")
             }
           >
             <ActionIcon
@@ -428,7 +451,7 @@ export default function MovementRouteRow({
           className="movement-physical-route-body"
         >
           <CollapsiblePanelCard
-            title="Condition / Event"
+            title={mt("movementConditionEvent")}
             collapsedStorageKey={
               "movement:" +
               pageId +
@@ -436,8 +459,8 @@ export default function MovementRouteRow({
               resource.key +
               ":condition"
             }
-            expandTooltip="Expand condition / event"
-            collapseTooltip="Collapse condition / event"
+            expandTooltip={mt("movementExpandConditionEvent")}
+            collapseTooltip={mt("movementCollapseConditionEvent")}
             clickableHeader
             defaultCollapsed={
               resource.kind !==
@@ -458,12 +481,13 @@ export default function MovementRouteRow({
                     }
                   >
                     {
-                      conditionCount
-                    } condition{
-                      conditionCount ===
-                        1
-                        ? ""
-                        : "s"
+                      mt(
+                        "movementConditionCount",
+                        {
+                          count:
+                            conditionCount,
+                        }
+                      )
                     }
                   </Badge>
                 )
@@ -508,7 +532,7 @@ export default function MovementRouteRow({
                       size="sm"
                       fw={600}
                     >
-                      Runtime event source
+                      {mt("movementRuntimeEventSource")}
                     </Text>
 
                     <Text
@@ -518,8 +542,8 @@ export default function MovementRouteRow({
                       {
                         resource.kind ===
                         "segment"
-                          ? "Segment ENTER / LEAVE actions are tied to this physical route section."
-                          : "The engine sets and locks the route-required turnout state automatically. APPROACH / LEAVE actions are only train/audio/timing actions."
+                          ? mt("movementSegmentActionsHint")
+                          : mt("movementTurnoutActionsHint")
                       }
                     </Text>
                   </Stack>
@@ -528,7 +552,7 @@ export default function MovementRouteRow({
           </CollapsiblePanelCard>
 
           <CollapsiblePanelCard
-            title="Actions"
+            title={mt("movementActionsLabel")}
             collapsedStorageKey={
               "movement:" +
               pageId +
@@ -536,8 +560,8 @@ export default function MovementRouteRow({
               resource.key +
               ":actions"
             }
-            expandTooltip="Expand actions"
-            collapseTooltip="Collapse actions"
+            expandTooltip={mt("movementExpandActions")}
+            collapseTooltip={mt("movementCollapseActions")}
             clickableHeader
             defaultCollapsed={
               actions.length ===

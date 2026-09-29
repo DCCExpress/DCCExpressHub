@@ -13,6 +13,10 @@ import type {
 } from "../../services/automationBlockCatalog";
 
 import MovementElapsedBadge from "./MovementElapsedBadge";
+import {
+  movementText,
+  useMovementTranslation,
+} from "./movementI18n";
 
 import MovementRuntimeControls, {
   useMovementRuntimeState,
@@ -53,7 +57,7 @@ function routeLabel(
     ids.length ===
     0
   ) {
-    return "No route";
+    return movementText("movementNoRoute");
   }
 
   return ids
@@ -77,6 +81,8 @@ export default function MovementSidebarCard({
   active,
   onSelect,
 }: Props) {
+  useMovementTranslation();
+
   const state =
     useMovementRuntimeState(
       page.id

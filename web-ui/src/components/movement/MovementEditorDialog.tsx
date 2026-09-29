@@ -4,8 +4,6 @@ import {
   useState,
 } from "react";
 
-import i18next from "i18next";
-
 import {
   Button,
   Divider,
@@ -62,6 +60,9 @@ import MovementRouteEditor from "./MovementRouteEditor";
 import MovementRouteSelectDialog from "./MovementRouteSelectDialog";
 import MovementRouteVectorPreview from "./MovementRouteVectorPreview";
 import MovementSidebarCard from "./MovementSidebarCard";
+import {
+  useMovementTranslation,
+} from "./movementI18n";
 
 import "../../styles/movementEditor.css";
 
@@ -84,6 +85,9 @@ export default function MovementEditorDialog({
   layout,
   onSaved,
 }: Props) {
+  const mt =
+    useMovementTranslation();
+
   const [
     document,
     setDocument,
@@ -201,7 +205,7 @@ export default function MovementEditorDialog({
                 block.id ===
                 blockId
             )?.name ??
-            `Block #${blockId}`
+            mt("movementBlockNumber", { id: blockId })
         )
       : [];
 
@@ -250,7 +254,7 @@ export default function MovementEditorDialog({
           showNotification({
             color: "red",
             title:
-              "Movement load failed",
+              mt("movementLoadFailed"),
             message:
               error instanceof Error
                 ? error.message
@@ -334,16 +338,16 @@ export default function MovementEditorDialog({
         showNotification({
           color: "teal",
           title:
-            "Movement saved",
+            mt("movementSaved"),
           message:
             activePage?.name ??
-            "0 Movements saved",
+            mt("movementSavedCount", { count: 0 }),
         });
       } catch (error) {
         showNotification({
           color: "red",
           title:
-            "Movement save failed",
+            mt("movementSaveFailed"),
           message:
             error instanceof Error
               ? error.message
@@ -382,7 +386,7 @@ export default function MovementEditorDialog({
     (): void => {
       const page =
         createMovementPage(
-          `Movement ${document.pages.length + 1}`
+          mt("movementDefaultName", { number: document.pages.length + 1 })
         );
 
       setDocument(
@@ -420,9 +424,9 @@ export default function MovementEditorDialog({
         showNotification({
           color: "orange",
           title:
-            "Movement is running",
+            mt("movementRunningTitle"),
           message:
-            "Stop or abort the movement before deleting it.",
+            mt("movementStopBeforeDelete"),
         });
 
         return;
@@ -430,7 +434,7 @@ export default function MovementEditorDialog({
 
       if (
         !window.confirm(
-          `Delete movement "${activePage.name}"?`
+          mt("movementDeleteConfirm", { name: activePage.name })
         )
       ) {
         return;
@@ -485,7 +489,7 @@ export default function MovementEditorDialog({
       onClose={
         onClose
       }
-      title="Movement / Dispatcher Editor"
+      title={mt("movementEditorTitle")}
       fullScreen
       classNames={{
         header:
@@ -505,7 +509,7 @@ export default function MovementEditorDialog({
             size="sm"
             fw={700}
           >
-            Movements
+            {mt("movementMovementsTitle")}
           </Text>
 
           <Text
@@ -513,8 +517,14 @@ export default function MovementEditorDialog({
             c="dimmed"
           >
             {
-              document.pages.length
-            } saved
+              mt(
+                "movementSavedShort",
+                {
+                  count:
+                    document.pages.length,
+                }
+              )
+            }
           </Text>
 
           <ScrollArea
@@ -576,7 +586,7 @@ export default function MovementEditorDialog({
                 addPage
               }
             >
-              New movement
+              {mt("movementNewMovement")}
             </Button>
 
             <Button
@@ -592,7 +602,7 @@ export default function MovementEditorDialog({
                 deletePage
               }
             >
-              Delete
+              {mt("movementDelete")}
             </Button>
           </Group>
         </aside>
@@ -612,7 +622,7 @@ export default function MovementEditorDialog({
                 <Text
                   fw={700}
                 >
-                  No Movement configured
+                  {mt("movementNoConfigured")}
                 </Text>
 
                 <Text
@@ -620,7 +630,7 @@ export default function MovementEditorDialog({
                   c="dimmed"
                   ta="center"
                 >
-                  Create a Movement when you need one. An empty Movement list is valid.
+                  {mt("movementEmptyListValid")}
                 </Text>
 
                 <Group
@@ -637,7 +647,7 @@ export default function MovementEditorDialog({
                       addPage
                     }
                   >
-                    New movement
+                    {mt("movementNewMovement")}
                   </Button>
 
                   <Button
@@ -656,7 +666,7 @@ export default function MovementEditorDialog({
                         void save()
                     }
                   >
-                    Save empty list
+                    {mt("movementSaveEmptyList")}
                   </Button>
                 </Group>
               </Stack>
@@ -675,7 +685,7 @@ export default function MovementEditorDialog({
                     gap="sm"
                   >
                     <TextInput
-                      label="Movement name"
+                      label={mt("movementName")}
                       value={
                         activePage.name
                       }
@@ -691,7 +701,7 @@ export default function MovementEditorDialog({
                     />
 
                     <NumberInput
-                      label="Cruise speed"
+                      label={mt("movementCruiseSpeed")}
                       min={0}
                       max={126}
                       value={
@@ -726,8 +736,8 @@ export default function MovementEditorDialog({
                       color="green"
                       label={
                         activePage.enabled
-                          ? "Enabled"
-                          : "Disabled"
+                          ? mt("enabled")
+                          : mt("disabled")
                       }
                       onChange={
                         event =>
@@ -755,9 +765,7 @@ export default function MovementEditorDialog({
                       }
                     >
                       {
-                        i18next.t(
-                          "ui.movementSelectRoute"
-                        )
+                        mt("movementSelectRoute")
                       }
                     </Button>
 
@@ -783,7 +791,7 @@ export default function MovementEditorDialog({
                           )
                       }
                     >
-                      Script
+                      {mt("movementScript")}
                     </Button>
 
                     <div
@@ -807,7 +815,7 @@ export default function MovementEditorDialog({
                           void load()
                       }
                     >
-                      Reload
+                      {mt("movementReload")}
                     </Button>
 
                     <Button
@@ -826,7 +834,7 @@ export default function MovementEditorDialog({
                           void save()
                       }
                     >
-                      Save
+                      {mt("movementSave")}
                     </Button>
                   </Group>
 
@@ -841,9 +849,7 @@ export default function MovementEditorDialog({
                       c="dimmed"
                     >
                       {
-                        i18next.t(
-                          "ui.movementRoute"
-                        )
+                        mt("movementRoute")
                       }
                     </Text>
 
@@ -857,9 +863,7 @@ export default function MovementEditorDialog({
                           ? activeRouteNames.join(
                               " → "
                             )
-                          : i18next.t(
-                              "ui.movementNoRouteSelected"
-                            )
+                          : mt("movementNoRouteSelected")
                       }
                     </Text>
                   </Group>

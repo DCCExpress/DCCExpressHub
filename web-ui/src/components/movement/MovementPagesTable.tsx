@@ -63,6 +63,10 @@ import {
 
 import MovementElapsedBadge from "./MovementElapsedBadge";
 
+import {
+  useMovementTranslation,
+} from "./movementI18n";
+
 import MovementRuntimeControls, {
   movementRuntimeStatusColor,
   useMovementRuntimeState,
@@ -138,6 +142,9 @@ function MovementCard({
   ) => void;
   onOpenEditor: () => void;
 }) {
+  const mt =
+    useMovementTranslation();
+
   const state =
     useMovementRuntimeState(
       page.id
@@ -232,7 +239,15 @@ function MovementCard({
                 }
               >
                 {
-                  state.status
+                  mt(
+                    state.status === "running"
+                      ? "movementStatusRunning"
+                      : state.status === "stopping"
+                        ? "movementStatusStopping"
+                        : state.status === "error"
+                          ? "movementStatusError"
+                          : "movementStatusIdle"
+                  )
                 }
               </Badge>
 
@@ -279,7 +294,7 @@ function MovementCard({
 
             <Tooltip
               withArrow
-              label="Edit movement"
+              label={mt("movementEdit")}
             >
               <ActionIcon
                 size="sm"
@@ -310,7 +325,7 @@ function MovementCard({
             checked={
               page.enabled
             }
-            label="Enabled"
+            label={mt("movementEnabledLabel")}
             onChange={
               event => {
                 const enabled =
@@ -339,7 +354,7 @@ function MovementCard({
                 size="xs"
                 c="orange"
               >
-                FROM / TO missing
+                {mt("movementRouteEndpointsMissing")}
               </Text>
             )
           }
@@ -351,7 +366,7 @@ function MovementCard({
                 size="xs"
                 c="red"
               >
-                Route references a missing block
+                {mt("movementRouteMissingBlock")}
               </Text>
             )
           }
@@ -400,6 +415,9 @@ export default function MovementPagesTable({
   onDocumentChange,
   onOpenEditor,
 }: Props) {
+  const mt =
+    useMovementTranslation();
+
   const commandCenter =
     useCommandCenter();
 
@@ -567,11 +585,17 @@ export default function MovementPagesTable({
             ? "yellow"
             : "gray",
         title:
-          "Stop All",
+          mt("movementStopAll"),
         message:
           stopped > 0
-            ? `Stopping ${stopped} Movement(s).`
-            : "No running Movements.",
+            ? mt(
+                "movementStoppingCount",
+                {
+                  count:
+                    stopped,
+                }
+              )
+            : mt("movementNoRunning"),
       });
     };
 
@@ -615,16 +639,34 @@ export default function MovementPagesTable({
         color:
           "red",
         title:
-          "Abort All",
+          mt("movementAbortAll"),
         message:
           aborted ===
             0
-            ? "No running Movements."
+            ? mt("movementNoRunning")
             : emergencyAlreadyOn
-              ? `Aborted ${aborted} Movement(s). E-STOP was already active.`
+              ? mt(
+                  "movementAbortedEstopAlready",
+                  {
+                    count:
+                      aborted,
+                  }
+                )
               : emergencySent
-                ? `Aborted ${aborted} Movement(s) and requested E-STOP.`
-                : `Aborted ${aborted} Movement(s).`,
+                ? mt(
+                    "movementAbortedAndEstop",
+                    {
+                      count:
+                        aborted,
+                    }
+                  )
+                : mt(
+                    "movementAbortedCount",
+                    {
+                      count:
+                        aborted,
+                    }
+                  ),
       });
     };
 
@@ -638,9 +680,9 @@ export default function MovementPagesTable({
           color:
             "red",
           title:
-            "Emergency Stop",
+            mt("movementEmergencyStop"),
           message:
-            "Command-center state is not available.",
+            mt("movementCommandCenterUnavailable"),
         });
 
         return;
@@ -663,14 +705,14 @@ export default function MovementPagesTable({
             : "red",
         title:
           clearing
-            ? "Clear E-Stop"
-            : "Emergency Stop",
+            ? mt("movementClearEstop")
+            : mt("movementEmergencyStop"),
         message:
           sent
             ? clearing
-              ? "Resume requested."
-              : "Emergency stop requested."
-            : "Command could not be sent.",
+              ? mt("movementResumeRequested")
+              : mt("movementEstopRequested")
+            : mt("movementCommandFailed"),
       });
     };
 
@@ -722,7 +764,7 @@ export default function MovementPagesTable({
         showNotification({
           color: "red",
           title:
-            "Movement save failed",
+            mt("movementSaveFailed"),
           message:
             error instanceof Error
               ? error.message
@@ -739,7 +781,14 @@ export default function MovementPagesTable({
     (): void => {
       const page =
         createMovementPage(
-          `Movement ${pageCount + 1}`
+          mt(
+            "movementDefaultName",
+            {
+              number:
+                pageCount +
+                1,
+            }
+          )
         );
 
       const next = {
@@ -788,7 +837,7 @@ export default function MovementPagesTable({
             fw={700}
             size="sm"
           >
-            Saved movements
+            {mt("movementSavedMovements")}
           </Text>
 
           <Badge
@@ -810,8 +859,14 @@ export default function MovementPagesTable({
             }
           >
             {
-              enabledCount
-            } enabled
+              mt(
+                "movementEnabledCount",
+                {
+                  count:
+                    enabledCount,
+                }
+              )
+            }
           </Badge>
         </Group>
 
@@ -835,7 +890,7 @@ export default function MovementPagesTable({
                 )
             }
           >
-            Movement editor
+            {mt("movementEditorButton")}
           </Button>
 
           <Button
@@ -849,7 +904,7 @@ export default function MovementPagesTable({
               createPage
             }
           >
-            New
+            {mt("movementNew")}
           </Button>
         </Group>
       </Group>
@@ -858,7 +913,7 @@ export default function MovementPagesTable({
         size="xs"
         c="dimmed"
       >
-        Play runs the dedicated MovementEngine. Stop All stops every active Movement. Abort All aborts every active Movement and requests E-STOP once. Emergency Stop controls the command-station pause state directly.
+        {mt("movementPagesHelp")}
       </Text>
 
       <Group
@@ -882,7 +937,7 @@ export default function MovementPagesTable({
             stopAll
           }
         >
-          Stop All
+          {mt("movementStopAll")}
         </Button>
 
         <Button
@@ -902,7 +957,7 @@ export default function MovementPagesTable({
             abortAll
           }
         >
-          Abort All
+          {mt("movementAbortAll")}
         </Button>
 
         <Button
@@ -930,8 +985,8 @@ export default function MovementPagesTable({
           {
             commandCenter.powerInfo
               ?.emergencyStop
-              ? "Clear E-Stop"
-              : "Emergency Stop"
+              ? mt("movementClearEstop")
+              : mt("movementEmergencyStop")
           }
         </Button>
       </Group>

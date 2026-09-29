@@ -11,6 +11,10 @@ import type {
   AutomationSensorOption,
 } from "../../services/automationSensorCatalog";
 
+import {
+  useMovementTranslation,
+} from "./movementI18n";
+
 type Props = {
   targetName:
     string | null;
@@ -36,6 +40,9 @@ export default function MovementSafetyEditor({
   sensorCatalog,
   onIgnoredSensorsChange,
 }: Props) {
+  const mt =
+    useMovementTranslation();
+
   const ignored =
     new Set(
       ignoredSensors
@@ -84,7 +91,7 @@ export default function MovementSafetyEditor({
         size="sm"
         c="dimmed"
       >
-        This resource has no next movement leg, so there are no departure safety sensors to configure.
+        {mt("movementNoNextLegSafety")}
       </Text>
     );
   }
@@ -98,8 +105,14 @@ export default function MovementSafetyEditor({
           size="sm"
           fw={700}
         >
-          Safety sensors → {
-            targetName
+          {
+            mt(
+              "movementSafetySensorsTo",
+              {
+                target:
+                  targetName,
+              }
+            )
           }
         </Text>
 
@@ -108,7 +121,7 @@ export default function MovementSafetyEditor({
           c="dimmed"
           mt={2}
         >
-          Checked sensors must be known and OFF before this movement leg may start. Disable Check sensor only for detectors that are intentionally allowed to remain occupied by this train. Target block locomotive/target ownership checks remain active even when its occupancy sensor is ignored.
+          {mt("movementSafetyHelp")}
         </Text>
       </div>
 
@@ -120,7 +133,7 @@ export default function MovementSafetyEditor({
               size="sm"
               c="dimmed"
             >
-              No physical safety sensors are used for this leg.
+              {mt("movementNoPhysicalSafetySensors")}
             </Text>
           )
           : sensors.map(
@@ -164,10 +177,10 @@ export default function MovementSafetyEditor({
                               targetSensor &&
                             targetName !==
                               null
-                              ? `Sensor ${address} · ${targetName} occupancy`
+                              ? mt("movementSafetyTargetOccupancy", { address, target: targetName })
                               : (
                                   option?.label ??
-                                  `Sensor ${address}`
+                                  mt("movementSafetySensor", { address })
                                 )
                           }
                         </Text>
@@ -183,8 +196,8 @@ export default function MovementSafetyEditor({
                         >
                           {
                             checked
-                              ? "REQUIRED OFF"
-                              : "IGNORED"
+                              ? mt("movementSafetyRequiredOff")
+                              : mt("movementSafetyIgnored")
                           }
                         </Badge>
                       </Group>
@@ -193,7 +206,7 @@ export default function MovementSafetyEditor({
                         checked={
                           checked
                         }
-                        label="Check sensor"
+                        label={mt("movementCheckSensor")}
                         onChange={
                           event =>
                             setChecked(

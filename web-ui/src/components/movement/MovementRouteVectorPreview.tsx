@@ -27,6 +27,11 @@ import {
   type MovementRouteVectorItem,
 } from "../../services/movementRouteVector";
 
+import {
+  movementText,
+  useMovementTranslation,
+} from "./movementI18n";
+
 type Props = {
   page:
     MovementPage;
@@ -60,14 +65,14 @@ function typeLabel(
     item.kind ===
       "segment"
   ) {
-    return "SEGMENT";
+    return movementText("movementSegmentUpper");
   }
 
   if (
     item.kind ===
       "turnout"
   ) {
-    return "TURNOUT";
+    return movementText("movementTurnoutUpper");
   }
 
   const mergedSegments =
@@ -81,7 +86,7 @@ function typeLabel(
       "source"
   ) {
     return (
-      "SOURCE BLOCK" +
+      movementText("movementSourceBlock") +
       mergedSegments
     );
   }
@@ -91,13 +96,13 @@ function typeLabel(
       "destination"
   ) {
     return (
-      "DESTINATION" +
+      movementText("movementDestination") +
       mergedSegments
     );
   }
 
   return (
-    "BLOCK" +
+    movementText("movementBlockUpper") +
     mergedSegments
   );
 }
@@ -166,6 +171,9 @@ export default function MovementRouteVectorPreview({
   selectedKey = null,
   onItemClick,
 }: Props) {
+  const mt =
+    useMovementTranslation();
+
   const [
     items,
     setItems,
@@ -327,7 +335,7 @@ export default function MovementRouteVectorPreview({
           size="xs"
           c="dimmed"
         >
-          Building route vector...
+          {mt("movementBuildingRouteVector")}
         </Text>
       </Group>
     );
@@ -343,8 +351,13 @@ export default function MovementRouteVectorPreview({
         mt="xs"
         className="movement-route-vector-status"
       >
-        Route vector: {
-          error
+        {
+          mt(
+            "movementRouteVectorError",
+            {
+              error,
+            }
+          )
         }
       </Text>
     );
@@ -419,14 +432,14 @@ export default function MovementRouteVectorPreview({
           size="xs"
           fw={700}
         >
-          Route vector
+          {mt("movementRouteVectorCaption")}
         </Text>
 
         <Text
           size="xs"
           c="dimmed"
         >
-          Blocks, graph segments and turnouts in physical movement order
+          {mt("movementRouteVectorSubtitle")}
         </Text>
       </div>
 
@@ -444,7 +457,7 @@ export default function MovementRouteVectorPreview({
           viewBox={
             `0 0 ${width} ${SVG_HEIGHT}`
           }
-          aria-label="Movement route vector"
+          aria-label={mt("movementRouteVectorAria")}
         >
           {
             items.map(
@@ -653,7 +666,7 @@ export default function MovementRouteVectorPreview({
                               item.turnoutStates
                                 .map(
                                   state =>
-                                    `#${state.address} ${state.closed ? "CLOSED" : "THROWN"}`
+                                    `#${state.address} ${state.closed ? mt("movementClosed") : mt("movementThrown")}`
                                 )
                                 .join(
                                   " · "
@@ -684,7 +697,7 @@ export default function MovementRouteVectorPreview({
                         {
                           item.sensors.length ===
                             0
-                            ? "NO SENSOR"
+                            ? mt("movementNoSensorUpper")
                             : (
                                 item.kind ===
                                   "block"

@@ -20,6 +20,10 @@ import {
   loadMovementExecutionScript,
 } from "../../services/movementExecutionScript";
 
+import {
+  useMovementTranslation,
+} from "./movementI18n";
+
 type Props = {
   opened: boolean;
   onClose: () => void;
@@ -32,6 +36,9 @@ export default function MovementExecutionScriptDialog({
   onClose,
   page,
 }: Props) {
+  const mt =
+    useMovementTranslation();
+
   const [
     script,
     setScript,
@@ -139,8 +146,13 @@ export default function MovementExecutionScriptDialog({
         onClose
       }
       title={
-        "Movement execution script — " +
-        page.name
+        mt(
+          "movementExecutionScriptTitle",
+          {
+            name:
+              page.name,
+          }
+        )
       }
       size="xl"
       centered
@@ -153,7 +165,7 @@ export default function MovementExecutionScriptDialog({
           size="xs"
           c="dimmed"
         >
-          Read-only projection resolved from the same persisted Movement route plan used by the runtime engine.
+          {mt("movementExecutionScriptDescription")}
         </Text>
 
         {
@@ -171,7 +183,7 @@ export default function MovementExecutionScriptDialog({
                 size="sm"
                 c="dimmed"
               >
-                Resolving execution plan...
+                {mt("movementResolvingExecutionPlan")}
               </Text>
             </Stack>
           )

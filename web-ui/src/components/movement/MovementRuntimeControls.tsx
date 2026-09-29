@@ -39,6 +39,10 @@ import {
   subscribeTrackPower,
 } from "../../services/trackPowerRuntime";
 
+import {
+  useMovementTranslation,
+} from "./movementI18n";
+
 type Props = {
   page:
     MovementPage;
@@ -138,6 +142,9 @@ export default function MovementRuntimeControls({
   showInfo = false,
   onStateChange,
 }: Props) {
+  const mt =
+    useMovementTranslation();
+
   const state =
     useMovementRuntimeState(
       page.id
@@ -169,9 +176,9 @@ export default function MovementRuntimeControls({
       showNotification({
         color: "red",
         title:
-          "Track power is OFF",
+          mt("movementTrackPowerOff"),
         message:
-          "Turn on track power before starting Movement.",
+          mt("movementTurnPowerOnBeforeStart"),
       });
     };
 
@@ -193,7 +200,7 @@ export default function MovementRuntimeControls({
         showNotification({
           color: "green",
           title:
-            "Movement completed",
+            mt("movementCompleted"),
           message:
             page.name,
         });
@@ -201,7 +208,7 @@ export default function MovementRuntimeControls({
         showNotification({
           color: "red",
           title:
-            "Movement failed",
+            mt("movementFailed"),
           message:
             error instanceof Error
               ? error.message
@@ -244,7 +251,15 @@ export default function MovementRuntimeControls({
             }
           >
             {
-              state.status
+              mt(
+                state.status === "running"
+                  ? "movementStatusRunning"
+                  : state.status === "stopping"
+                    ? "movementStatusStopping"
+                    : state.status === "error"
+                      ? "movementStatusError"
+                      : "movementStatusIdle"
+              )
             }
           </Badge>
         )
@@ -254,8 +269,8 @@ export default function MovementRuntimeControls({
         withArrow
         label={
           trackPowerOn
-            ? "Start movement"
-            : "Track power is OFF"
+            ? mt("movementStart")
+            : mt("movementTrackPowerOff")
         }
       >
         <span
@@ -305,7 +320,7 @@ export default function MovementRuntimeControls({
 
       <Tooltip
         withArrow
-        label="Stop movement"
+        label={mt("movementStop")}
       >
         <ActionIcon
           size={
@@ -336,7 +351,7 @@ export default function MovementRuntimeControls({
 
       <Tooltip
         withArrow
-        label="Abort + emergency stop"
+        label={mt("movementAbortEstop")}
       >
         <ActionIcon
           size={

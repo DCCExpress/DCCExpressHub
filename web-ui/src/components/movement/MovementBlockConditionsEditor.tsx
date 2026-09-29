@@ -30,6 +30,10 @@ import type {
   AutomationSensorOption,
 } from "../../services/automationSensorCatalog";
 
+import {
+  useMovementTranslation,
+} from "./movementI18n";
+
 type ConditionField =
   | "approachWhen"
   | "arrivedWhen"
@@ -81,6 +85,9 @@ export default function MovementBlockConditionsEditor({
   sensorCatalog,
   onChange,
 }: Props) {
+  const mt =
+    useMovementTranslation();
+
   const [
     collapsedSections,
     setCollapsedSections,
@@ -141,22 +148,22 @@ export default function MovementBlockConditionsEditor({
       field:
         "approachWhen",
       title:
-        "Approach when",
+        mt("movementApproachWhen"),
       badge:
-        "APPROACH",
+        mt("movementEventApproach"),
       description:
-        "Default: the Movement route boundary triggers APPROACH. Add sensor conditions here when a physical approach sensor should trigger it instead.",
+        mt("movementApproachDefault"),
     });
 
     sections.push({
       field:
         "arrivedWhen",
       title:
-        "Arrived when",
+        mt("movementArrivedWhen"),
       badge:
-        "ARRIVED",
+        mt("movementEventArrived"),
       description:
-        "Default: this block's own occupancy sensor ON.",
+        mt("movementArrivedDefault"),
     });
   }
 
@@ -167,22 +174,22 @@ export default function MovementBlockConditionsEditor({
       field:
         "departWhen",
       title:
-        "Depart when",
+        mt("movementDepartWhen"),
       badge:
-        "DEPART",
+        mt("movementEventDepart"),
       description:
-        "Default: depart as soon as route authority is available.",
+        mt("movementDepartDefault"),
     });
 
     sections.push({
       field:
         "leaveWhen",
       title:
-        "Leave when",
+        mt("movementLeaveWhen"),
       badge:
-        "LEAVE",
+        mt("movementEventLeave"),
       description:
-        "Default: source block occupancy sensor OFF; without one, runtime block release is used.",
+        mt("movementLeaveDefault"),
     });
   }
 
@@ -333,8 +340,8 @@ export default function MovementBlockConditionsEditor({
                     >
                       {
                         usingDefault
-                          ? "DEFAULT"
-                          : "CUSTOM"
+                          ? mt("movementDefaultUpper")
+                          : mt("movementCustomUpper")
                       }
                     </Badge>
                   </Group>
@@ -409,7 +416,7 @@ export default function MovementBlockConditionsEditor({
                       }
                     }
                   >
-                    Sensor
+                    {mt("movementSensorWord")}
                   </Button>
                   </Group>
                 </Group>
@@ -437,7 +444,7 @@ export default function MovementBlockConditionsEditor({
                         variant="light"
                         color="gray"
                       >
-                        DEFAULT
+                        {mt("movementDefaultUpper")}
                       </Badge>
 
                       <Text
@@ -486,7 +493,7 @@ export default function MovementBlockConditionsEditor({
                                       name:
                                         "",
                                       label:
-                                        `Sensor ${condition.sensor} · missing from layout`,
+                                        mt("movementMissingSensor", { address: condition.sensor }),
                                     },
                                     ...sensorCatalog,
                                   ]
@@ -574,8 +581,8 @@ export default function MovementBlockConditionsEditor({
                           }
                           label={
                             condition.state
-                              ? "ON"
-                              : "OFF"
+                              ? mt("movementOn")
+                              : mt("movementOff")
                           }
                           onChange={
                             event =>
@@ -636,7 +643,7 @@ export default function MovementBlockConditionsEditor({
             size="xs"
             c="orange"
           >
-            No configured sensors are available in the layout.
+            {mt("movementNoConfiguredSensors")}
           </Text>
         )
       }

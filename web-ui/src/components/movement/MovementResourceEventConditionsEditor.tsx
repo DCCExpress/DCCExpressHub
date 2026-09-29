@@ -36,6 +36,11 @@ import type {
   MovementPlanResource,
 } from "../../services/movementPlan";
 
+import {
+  movementText,
+  useMovementTranslation,
+} from "./movementI18n";
+
 type Props = {
   resource:
     MovementPlanResource;
@@ -53,7 +58,24 @@ function eventLabel(
   event:
     MovementResourceEventName
 ): string {
-  return event.toUpperCase();
+  switch (event) {
+    case "approach":
+      return movementText(
+        "movementEventApproach"
+      );
+    case "enter":
+      return movementText(
+        "movementEventEnter"
+      );
+    case "leave":
+      return movementText(
+        "movementEventLeave"
+      );
+    default:
+      return String(
+        event
+      ).toUpperCase();
+  }
 }
 
 function eventDescription(
@@ -68,14 +90,14 @@ function eventDescription(
   ) {
     return resource.detectors.length >
       1
-      ? "Default: ALL assigned sensors are OFF."
-      : "Default: assigned sensor is OFF.";
+      ? movementText("movementResourceAllSensorsOff")
+      : movementText("movementResourceSensorOff");
   }
 
   return resource.detectors.length >
     1
-    ? "Default: ANY assigned sensor is ON."
-    : "Default: assigned sensor is ON.";
+    ? movementText("movementResourceAnySensorOn")
+    : movementText("movementResourceSensorOn");
 }
 
 export default function MovementResourceEventConditionsEditor({
@@ -84,6 +106,9 @@ export default function MovementResourceEventConditionsEditor({
   sensorCatalog,
   onChange,
 }: Props) {
+  const mt =
+    useMovementTranslation();
+
   const events =
     resourceEventNames(
       resource
@@ -212,8 +237,8 @@ export default function MovementResourceEventConditionsEditor({
                     >
                       {
                         explicit
-                          ? "CUSTOM"
-                          : "DEFAULT"
+                          ? mt("movementCustomUpper")
+                          : mt("movementDefaultUpper")
                       }
                     </Badge>
                   </Group>
@@ -235,13 +260,13 @@ export default function MovementResourceEventConditionsEditor({
                           value:
                             "all",
                           label:
-                            "ALL",
+                            mt("movementAllUpper"),
                         },
                         {
                           value:
                             "any",
                           label:
-                            "ANY",
+                            mt("movementAnyUpper"),
                         },
                       ]}
                       onChange={
@@ -303,7 +328,7 @@ export default function MovementResourceEventConditionsEditor({
                         }
                       }
                     >
-                      Sensor
+                      {mt("movementSensorWord")}
                     </Button>
                   </Group>
                 </Group>
@@ -327,7 +352,7 @@ export default function MovementResourceEventConditionsEditor({
                       size="xs"
                       c="orange"
                     >
-                      No sensor condition. The legacy Movement resource boundary is used.
+                      {mt("movementNoSensorConditionLegacyBoundary")}
                     </Text>
                   )
                 }
@@ -366,7 +391,7 @@ export default function MovementResourceEventConditionsEditor({
                                       name:
                                         "",
                                       label:
-                                        `Sensor ${condition.sensor} · missing from layout`,
+                                        mt("movementMissingSensor", { address: condition.sensor }),
                                     },
                                     ...sensorCatalog,
                                   ]
@@ -448,8 +473,8 @@ export default function MovementResourceEventConditionsEditor({
                           }
                           label={
                             condition.state
-                              ? "ON"
-                              : "OFF"
+                              ? mt("movementOn")
+                              : mt("movementOff")
                           }
                           onChange={
                             e =>
