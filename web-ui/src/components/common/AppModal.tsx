@@ -32,7 +32,7 @@ type DragState = {
 };
 
 const MIN_VISIBLE_HEADER_WIDTH = 180;
-const MODAL_HEADER_HEIGHT = 56;
+const MODAL_HEADER_HEIGHT = 48;
 const MODAL_BODY_TOP_GAP = "var(--mantine-spacing-sm)";
 
 export default function AppModal({
