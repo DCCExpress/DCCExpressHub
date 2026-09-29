@@ -178,6 +178,8 @@ export default function FunctionBindingsDialog({
         ) ||
         binding.id <=
           0 ||
+        binding.id >
+          65535 ||
         !binding.name.trim() ||
         draft.some(
           other =>
@@ -292,6 +294,7 @@ export default function FunctionBindingsDialog({
                               binding.id
                             }
                             min={1}
+                            max={65535}
                             allowDecimal={
                               false
                             }
