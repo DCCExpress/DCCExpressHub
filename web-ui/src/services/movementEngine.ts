@@ -1504,6 +1504,81 @@ async function executeAction(
       return;
     }
 
+    case "randomPlay": {
+      if (
+        Math.floor(
+          Math.random() *
+          2
+        ) %
+          2 !==
+        0
+      ) {
+        return;
+      }
+
+      const source =
+        audioPath(
+          action.audioName
+        );
+
+      if (!source) {
+        return;
+      }
+
+      if (
+        action.audioWaitForEnd
+      ) {
+        const ok =
+          await broadcastAudioPlayback(
+            source
+          );
+
+        if (!ok) {
+          throw new Error(
+            `Movement random audio playback failed: ${source}`
+          );
+        }
+      } else if (
+        !broadcastAudioPlaybackNoWait(
+          source
+        )
+      ) {
+        throw new Error(
+          `Movement random audio broadcast failed: ${source}`
+        );
+      }
+
+      return;
+    }
+
+    case "setAccessory":
+      if (
+        !wsApi.setBasicAccessory(
+          action.accessoryAddress,
+          action.accessoryActive
+        )
+      ) {
+        throw new Error(
+          "Movement could not set Basic Accessory."
+        );
+      }
+
+      return;
+
+    case "setExtendedAccessory":
+      if (
+        !wsApi.setSignalAspect(
+          action.accessoryAddress,
+          action.accessoryAspect
+        )
+      ) {
+        throw new Error(
+          "Movement could not set Extended Accessory."
+        );
+      }
+
+      return;
+
     case "log":
       console.info(
         "[Movement]",
