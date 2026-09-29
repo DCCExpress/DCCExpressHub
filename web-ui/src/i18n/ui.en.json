@@ -1255,5 +1255,7 @@
   "movementRouteSelectionHint": "Click a block or segment in the route vector above to edit its conditions, events and actions.",
   "movementRouteVectorSubtitle": "Blocks, graph segments and turnouts in physical movement order",
   "movementRouteVectorError": "Route vector: {{error}}",
-  "movementSafetySensorsTo": "Safety sensors → {{target}}"
+  "movementSafetySensorsTo": "Safety sensors → {{target}}",
+  "movementSelectedResourceMissing": "The selected route-vector item is not available in the current movement plan. Select it again from the vector.",
+  "movementExecutionScriptDescription": "Read-only projection resolved from the same persisted Movement route plan used by the runtime engine."
 }
