@@ -381,6 +381,10 @@ export default function MovementRouteEditor({
     selectedSafetyLeg?.to.name ??
     null;
 
+  const selectedSafetyTargetSensor =
+    selectedSafetyLeg?.to.sensorAddress ??
+    null;
+
   const selectedIgnoredSafetySensors =
     selectedSafetyLeg ===
       null
@@ -626,6 +630,9 @@ export default function MovementRouteEditor({
                     }
                     safetyTargetName={
                       selectedSafetyTargetName
+                    }
+                    safetyTargetSensor={
+                      selectedSafetyTargetSensor
                     }
                     ignoredSafetySensors={
                       selectedIgnoredSafetySensors
