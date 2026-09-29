@@ -78,6 +78,7 @@ export type MovementAction = {
   speed: number;
 
   functionNumber: number;
+  functionBindingId: number | null;
   functionActive: boolean;
   pulseMs: number;
 
@@ -163,6 +164,7 @@ export function createMovementAction(
     kind,
     speed: 20,
     functionNumber: 2,
+    functionBindingId: null,
     functionActive: true,
     pulseMs: 700,
     delayMs: 500,
@@ -759,6 +761,11 @@ function normalizeActions(
           2,
           0,
           68
+        ),
+      functionBindingId:
+        positiveInteger(
+          candidate.functionBindingId,
+          65535
         ),
       functionActive:
         candidate.functionActive !==
