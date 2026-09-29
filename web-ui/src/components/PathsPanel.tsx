@@ -1,5 +1,6 @@
 import {
   Alert,
+  Badge,
   Button,
   Group,
   ScrollArea,
@@ -30,6 +31,7 @@ import type {
 
 import {
   ensureClientRouteGraph,
+  getClientRouteGraphStatus,
   getFreshClientRouteGraphResult,
 } from "@/services/clientRouteGraphCache";
 
@@ -96,6 +98,11 @@ export default function PathsPanel({
 
   const routes =
     freshResult?.routes ?? [];
+
+  const graphStatus =
+    getClientRouteGraphStatus(
+      layout
+    );
 
   const generate = () => {
     try {
@@ -200,12 +207,41 @@ export default function PathsPanel({
         justify="space-between"
         wrap="nowrap"
       >
-        <Text
-          size="sm"
-          c="dimmed"
+        <Group
+          gap="xs"
+          wrap="wrap"
         >
-          {t("ui.quickBlockRouteTest")}
-        </Text>
+          <Text
+            size="sm"
+            c="dimmed"
+          >
+            {t("ui.quickBlockRouteTest")}
+          </Text>
+
+          <Badge
+            size="xs"
+            variant="light"
+            color={
+              graphStatus.state ===
+                "valid"
+                ? "green"
+                : graphStatus.state ===
+                    "dirty"
+                  ? "yellow"
+                  : "red"
+            }
+          >
+            {
+              graphStatus.state ===
+                "valid"
+                ? t("ui.graphStatusValid")
+                : graphStatus.state ===
+                    "dirty"
+                  ? t("ui.graphStatusDirty")
+                  : t("ui.graphStatusInvalid")
+            }
+          </Badge>
+        </Group>
 
         <Button
           size="xs"
@@ -229,6 +265,32 @@ export default function PathsPanel({
           title={t("ui.error")}
         >
           {error}
+        </Alert>
+      )}
+
+      {graphStatus.state !==
+        "valid" &&
+        graphStatus.errors.length >
+          0 && (
+        <Alert
+          color={
+            graphStatus.state ===
+              "dirty"
+              ? "yellow"
+              : "red"
+          }
+          title={
+            graphStatus.state ===
+              "dirty"
+              ? t("ui.graphStatusDirty")
+              : t("ui.graphStatusInvalid")
+          }
+        >
+          {
+            graphStatus.errors.join(
+              " "
+            )
+          }
         </Alert>
       )}
 
