@@ -2,13 +2,19 @@ import i18next from "i18next";
 import { useEffect, useMemo, useState } from "react";
 
 import type {
+  FunctionBinding,
   Loco,
   LocoAction,
   LocoActionHook,
   LocoFunction,
 } from "@domain/types";
 
-import { getLocos, saveLocos } from "../../api/domainApi";
+import {
+  getFunctionBindings,
+  getLocos,
+  saveFunctionBindings,
+  saveLocos,
+} from "../../api/domainApi";
 import { uploadLocoImage } from "../../api/imageApi";
 import { wsApi } from "../../services/wsApi";
 import {
@@ -25,6 +31,10 @@ export function useLocoDialogState(
   persistLocos: (locos: Loco[]) => Promise<void> = saveLocos
 ) {
   const [locos, setLocos] = useState<Loco[]>([]);
+  const [
+    functionBindings,
+    setFunctionBindings,
+  ] = useState<FunctionBinding[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -38,8 +48,16 @@ export function useLocoDialogState(
       try {
         setLoading(true);
         setMessage("");
-        const data = await loadLocos();
+        const [
+          data,
+          bindings,
+        ] = await Promise.all([
+          loadLocos(),
+          getFunctionBindings(),
+        ]);
+
         setLocos(data);
+        setFunctionBindings(bindings);
         setSelectedId(data[0]?.id ?? "");
       } catch (error) {
         console.error(error);
@@ -209,7 +227,12 @@ export function useLocoDialogState(
     try {
       setSaving(true);
       setMessage("");
-      await persistLocos(locos);
+      await Promise.all([
+        persistLocos(locos),
+        saveFunctionBindings(
+          functionBindings
+        ),
+      ]);
       setMessage(t("common.success"));
       onSaved?.();
     } catch (error) {
@@ -222,6 +245,8 @@ export function useLocoDialogState(
 
   return {
     locos,
+    functionBindings,
+    setFunctionBindings,
     selectedId,
     setSelectedId,
     loading,
