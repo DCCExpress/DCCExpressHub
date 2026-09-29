@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import i18next from "i18next";
 import {
   useEffect,
+  useMemo,
   useState,
 } from "react";
 
@@ -19,16 +20,24 @@ import {
 } from "@mantine/core";
 
 import {
+  IconDots,
   IconPlus,
   IconTrash,
 } from "@tabler/icons-react";
 
 import type {
+  FunctionBinding,
   LocoFunction,
 } from "@domain/types";
 
+import FunctionBindingsDialog from "./FunctionBindingsDialog";
+
 type LocoFunctionsTabProps = {
   functions: LocoFunction[];
+  functionBindings: FunctionBinding[];
+  onFunctionBindingsChange: (
+    bindings: FunctionBinding[]
+  ) => void;
   onAddFunction: () => void;
   onUpdateFunction: (
     fnId: string,
@@ -46,6 +55,8 @@ type LocoFunctionsTabProps = {
 
 export default function LocoFunctionsTab({
   functions,
+  functionBindings,
+  onFunctionBindingsChange,
   onAddFunction,
   onUpdateFunction,
   onDeleteFunction,
@@ -59,6 +70,45 @@ export default function LocoFunctionsTab({
   ] = useState<Set<string>>(
     () => new Set()
   );
+
+  const [
+    bindingFunctionId,
+    setBindingFunctionId,
+  ] =
+    useState<string | null>(
+      null
+    );
+
+  const bindingFunction =
+    useMemo(
+      () =>
+        functions.find(
+          fn =>
+            fn.id ===
+            bindingFunctionId
+        ) ??
+        null,
+      [
+        functions,
+        bindingFunctionId,
+      ]
+    );
+
+  const bindingNameById =
+    useMemo(
+      () =>
+        new Map(
+          functionBindings.map(
+            binding => [
+              binding.id,
+              binding.name,
+            ] as const
+          )
+        ),
+      [
+        functionBindings,
+      ]
+    );
 
   // Drop stale editor-only test states when functions are
   // deleted or another locomotive is selected.
@@ -218,6 +268,40 @@ export default function LocoFunctionsTab({
                                 .value,
                           }
                         )
+                    }
+                  />
+
+                  <TextInput
+                    label="Binding"
+                    value={
+                      fn.bindingId ===
+                        undefined
+                        ? ""
+                        : (
+                            bindingNameById.get(
+                              fn.bindingId
+                            ) ??
+                            `#${fn.bindingId}`
+                          )
+                    }
+                    readOnly
+                    w={210}
+                    rightSection={
+                      <ActionIcon
+                        size="sm"
+                        variant="subtle"
+                        aria-label="Function bindings"
+                        onClick={
+                          () =>
+                            setBindingFunctionId(
+                              fn.id
+                            )
+                        }
+                      >
+                        <IconDots
+                          size={16}
+                        />
+                      </ActionIcon>
                     }
                   />
 
@@ -417,6 +501,57 @@ export default function LocoFunctionsTab({
           )}
         </Stack>
       </ScrollArea>
+      <FunctionBindingsDialog
+        opened={
+          bindingFunction !==
+          null
+        }
+        bindings={
+          functionBindings
+        }
+        selectedBindingId={
+          bindingFunction?.bindingId ??
+          null
+        }
+        onClose={
+          () =>
+            setBindingFunctionId(
+              null
+            )
+        }
+        onCommit={
+          (
+            bindings,
+            selectedBindingId
+          ) => {
+            onFunctionBindingsChange(
+              bindings
+            );
+
+            if (
+              bindingFunction
+            ) {
+              onUpdateFunction(
+                bindingFunction.id,
+                selectedBindingId ===
+                  null
+                  ? {
+                      bindingId:
+                        undefined,
+                    }
+                  : {
+                      bindingId:
+                        selectedBindingId,
+                    }
+              );
+            }
+
+            setBindingFunctionId(
+              null
+            );
+          }
+        }
+      />
     </Stack>
   );
 }
