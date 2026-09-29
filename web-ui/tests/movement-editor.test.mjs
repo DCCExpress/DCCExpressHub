@@ -112,12 +112,12 @@ test("Movement documents may be empty and the final Movement can be deleted", ()
 
   assert.match(
     dialog,
-    /No Movement configured/
+    /movementNoConfigured/
   );
 
   assert.match(
     dialog,
-    /Save empty list/
+    /movementSaveEmptyList/
   );
 
   assert.match(
@@ -664,7 +664,7 @@ test("Movement uses a dedicated physical-route engine with JMRI-style actions", 
 
   assert.match(
     runtimeControls,
-    /Track power is OFF/
+    /movementTrackPowerOff/
   );
 
   assert.match(
@@ -1410,22 +1410,22 @@ test("Movement block conditions support APPROACH ARRIVED DEPART and LEAVE sensor
 
   assert.match(
     editor,
-    /Default: the Movement route boundary triggers APPROACH/
+    /movementApproachDefault/
   );
 
   assert.match(
     editor,
-    /Default: depart as soon as route authority is available/
+    /movementDepartDefault/
   );
 
   assert.match(
     editor,
-    /Default: source block occupancy sensor OFF/
+    /movementLeaveDefault/
   );
 
   assert.match(
     editor,
-    /Default: this block's own occupancy sensor ON/
+    /movementArrivedDefault/
   );
 });
 
@@ -4043,7 +4043,7 @@ test("Movement action WHEN choices are event tabs with sequence-only creation", 
 
   assert.match(
     editor,
-    /Add blocking sequence/
+    /movementAddBlockingSequence/
   );
 
   assert.match(
@@ -4053,7 +4053,7 @@ test("Movement action WHEN choices are event tabs with sequence-only creation", 
 
   assert.match(
     editor,
-    /Add background sequence/
+    /movementAddBackgroundSequence/
   );
 
   assert.match(
@@ -4166,22 +4166,22 @@ test("Movement sequence mode is fixed by its add button", () => {
 
   assert.match(
     actionEditor,
-    /Add blocking sequence/
+    /movementAddBlockingSequence/
   );
 
   assert.match(
     actionEditor,
-    /Add background sequence/
+    /movementAddBackgroundSequence/
   );
 
   assert.match(
     actionEditor,
-    /BLOCKING SEQUENCE/
+    /movementBlockingSequence/
   );
 
   assert.match(
     actionEditor,
-    /BACKGROUND SEQUENCE/
+    /movementBackgroundSequence/
   );
 
   assert.match(
