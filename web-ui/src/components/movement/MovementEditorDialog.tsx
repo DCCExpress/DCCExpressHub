@@ -7,7 +7,6 @@ import {
 import {
   ActionIcon,
   Button,
-  Card,
   Divider,
   Group,
   Modal,
@@ -23,6 +22,8 @@ import {
 import {
   showNotification,
 } from "@mantine/notifications";
+
+import i18next from "i18next";
 
 import {
   IconCode,
@@ -93,6 +94,30 @@ export default function MovementEditorDialog({
 }: Props) {
   const mt =
     useMovementTranslation();
+
+  const helpLanguage =
+    (
+      i18next.resolvedLanguage ??
+      i18next.language ??
+      "en"
+    )
+      .split("-")[0]
+      ?.toLowerCase() ===
+      "hu"
+      ? "hu"
+      : (
+          i18next.resolvedLanguage ??
+          i18next.language ??
+          "en"
+        )
+            .split("-")[0]
+            ?.toLowerCase() ===
+          "de"
+        ? "de"
+        : "en";
+
+  const helpUrl =
+    `/help/movement.${helpLanguage}.html`;
 
   const [
     document,
@@ -508,126 +533,38 @@ export default function MovementEditorDialog({
             )
         }
         title={mt("movementGeneralHelpTitle")}
-        size="lg"
+        size="xl"
         centered
         draggable
         zIndex={4200}
         styles={{
           content: {
-            maxHeight:
-              "min(800px, 90vh)",
+            height:
+              "min(820px, 90vh)",
             overflow:
               "hidden",
           },
           body: {
-            display:
-              "flex",
-            flexDirection:
-              "column",
-            minHeight:
+            height:
+              "calc(100% - 48px)",
+            padding:
               0,
+            overflow:
+              "hidden",
           },
         }}
       >
-        <ScrollArea
-          type="auto"
-          h="min(690px, 74vh)"
-          offsetScrollbars
-        >
-          <Stack
-            gap="md"
-            pr="xs"
-          >
-            <Text
-              size="sm"
-              c="dimmed"
-            >
-              {mt("movementGeneralHelpIntro")}
-            </Text>
-
-            {
-              ([
-                [
-                  "movementGeneralHelpRouteTitle",
-                  "movementGeneralHelpRouteBody",
-                ],
-                [
-                  "movementGeneralHelpVectorTitle",
-                  "movementGeneralHelpVectorBody",
-                ],
-                [
-                  "movementGeneralHelpBlocksTitle",
-                  "movementGeneralHelpBlocksBody",
-                ],
-                [
-                  "movementGeneralHelpConditionsTitle",
-                  "movementGeneralHelpConditionsBody",
-                ],
-                [
-                  "movementGeneralHelpEventsTitle",
-                  "movementGeneralHelpEventsBody",
-                ],
-                [
-                  "movementGeneralHelpActionsTitle",
-                  "movementGeneralHelpActionsBody",
-                ],
-                [
-                  "movementGeneralHelpSequencesTitle",
-                  "movementGeneralHelpSequencesBody",
-                ],
-                [
-                  "movementGeneralHelpSafetyTitle",
-                  "movementGeneralHelpSafetyBody",
-                ],
-                [
-                  "movementGeneralHelpSafetyExampleTitle",
-                  "movementGeneralHelpSafetyExampleBody",
-                ],
-                [
-                  "movementGeneralHelpExampleTitle",
-                  "movementGeneralHelpExampleBody",
-                ],
-              ] as Array<
-                [string, string]
-              >).map(
-                ([titleKey, bodyKey]) => (
-                  <Card
-                    key={
-                      titleKey
-                    }
-                    withBorder
-                    padding="sm"
-                  >
-                    <Stack
-                      gap={6}
-                    >
-                      <Text
-                        fw={700}
-                        size="sm"
-                      >
-                        {
-                          mt(
-                            titleKey
-                          )
-                        }
-                      </Text>
-
-                      <Text
-                        size="sm"
-                      >
-                        {
-                          mt(
-                            bodyKey
-                          )
-                        }
-                      </Text>
-                    </Stack>
-                  </Card>
-                )
-              )
-            }
-          </Stack>
-        </ScrollArea>
+        {
+          helpOpened && (
+            <iframe
+              title={mt("movementGeneralHelpTitle")}
+              src={
+                helpUrl
+              }
+              className="movement-help-frame"
+            />
+          )
+        }
       </AppModal>
 
       <Modal
@@ -637,39 +574,7 @@ export default function MovementEditorDialog({
       onClose={
         onClose
       }
-      title={
-        <Group
-          gap="xs"
-          wrap="nowrap"
-        >
-          <Text
-            fw={700}
-          >
-            {mt("movementEditorTitle")}
-          </Text>
-
-          <Tooltip
-            label={mt("movementGeneralHelpButton")}
-          >
-            <ActionIcon
-              size="sm"
-              variant="subtle"
-              color="gray"
-              aria-label={mt("movementGeneralHelpButton")}
-              onClick={
-                () =>
-                  setHelpOpened(
-                    true
-                  )
-              }
-            >
-              <IconQuestionMark
-                size={16}
-              />
-            </ActionIcon>
-          </Tooltip>
-        </Group>
-      }
+      title={mt("movementEditorTitle")}
       fullScreen
       classNames={{
         header:
@@ -679,6 +584,31 @@ export default function MovementEditorDialog({
         false
       }
     >
+      <div
+        className="movement-editor-header-help"
+      >
+        <Tooltip
+          label={mt("movementGeneralHelpButton")}
+        >
+          <ActionIcon
+            size="sm"
+            variant="subtle"
+            color="gray"
+            aria-label={mt("movementGeneralHelpButton")}
+            onClick={
+              () =>
+                setHelpOpened(
+                  true
+                )
+            }
+          >
+            <IconQuestionMark
+              size={16}
+            />
+          </ActionIcon>
+        </Tooltip>
+      </div>
+
       <div
         className="movement-editor-shell"
       >
