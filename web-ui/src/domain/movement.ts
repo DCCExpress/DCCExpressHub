@@ -33,6 +33,12 @@ export type MovementResourceEventRule = {
     MovementSensorCondition[];
 };
 
+export type MovementSafetyRule = {
+  fromBlockId: number;
+  toBlockId: number;
+  ignoredSensors: number[];
+};
+
 export type MovementWhen =
   | "start"
   | "complete"
@@ -96,6 +102,8 @@ export type MovementPage = {
   blockRules: MovementBlockRule[];
   resourceEventRules:
     MovementResourceEventRule[];
+  safetyRules:
+    MovementSafetyRule[];
   actions: MovementAction[];
 };
 
@@ -177,6 +185,7 @@ export function createMovementPage(
     toBlockId: null,
     blockRules: [],
     resourceEventRules: [],
+    safetyRules: [],
     actions: [],
   };
 }
@@ -380,6 +389,99 @@ function normalizeBlockRules(
 
   return [
     ...byBlock.values(),
+  ];
+}
+
+function normalizeSafetyRules(
+  value: unknown
+): MovementSafetyRule[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const byLeg =
+    new Map<
+      string,
+      MovementSafetyRule
+    >();
+
+  for (const raw of value) {
+    if (
+      !raw ||
+      typeof raw !==
+        "object"
+    ) {
+      continue;
+    }
+
+    const candidate =
+      raw as
+        Record<string, unknown>;
+
+    const fromBlockId =
+      positiveInteger(
+        candidate.fromBlockId
+      );
+
+    const toBlockId =
+      positiveInteger(
+        candidate.toBlockId
+      );
+
+    if (
+      fromBlockId === null ||
+      toBlockId === null ||
+      fromBlockId ===
+        toBlockId
+    ) {
+      continue;
+    }
+
+    const ignoredSensors =
+      [
+        ...new Set(
+          (
+            Array.isArray(
+              candidate.ignoredSensors
+            )
+              ? candidate.ignoredSensors
+              : []
+          )
+            .map(
+              sensor =>
+                positiveInteger(
+                  sensor
+                )
+            )
+            .filter(
+              (
+                sensor
+              ): sensor is number =>
+                sensor !==
+                null
+            )
+        ),
+      ].sort(
+        (
+          left,
+          right
+        ) =>
+          left -
+          right
+      );
+
+    byLeg.set(
+      `${fromBlockId}->${toBlockId}`,
+      {
+        fromBlockId,
+        toBlockId,
+        ignoredSensors,
+      }
+    );
+  }
+
+  return [
+    ...byLeg.values(),
   ];
 }
 
@@ -785,6 +887,10 @@ function normalizeMovementPage(
     resourceEventRules:
       normalizeResourceEventRules(
         candidate.resourceEventRules
+      ),
+    safetyRules:
+      normalizeSafetyRules(
+        candidate.safetyRules
       ),
     actions:
       normalizeActions(
