@@ -426,7 +426,7 @@ export default function MovementRouteVectorPreview({
           size="xs"
           c="dimmed"
         >
-          Blocks, graph segments and turnouts in physical movement order · SAFETY is calculated read-only from the route
+          Blocks, graph segments and turnouts in physical movement order
         </Text>
       </div>
 
@@ -688,37 +688,12 @@ export default function MovementRouteVectorPreview({
                             : (
                                 item.kind ===
                                   "block"
-                                  ? (
-                                      item.safetySensors.length >
-                                        0
-                                        ? `OCC ${item.sensors.join(" · ")} · MUST BE FREE`
-                                        : `OCC ${item.sensors.join(" · ")}`
-                                    )
+                                  ? `OCC ${item.sensors.join(" · ")}`
                                   : `DET ${item.sensors.join(" · ")}`
                               )
                         }
                       </text>
 
-                      {
-                        item.kind !==
-                          "block" && (
-                          <text
-                            className="movement-route-vector-safety"
-                            x={
-                              centerX
-                            }
-                            y={120}
-                            textAnchor="middle"
-                          >
-                            {
-                              item.safetySensors.length ===
-                                0
-                                ? "SAFETY —"
-                                : `SAFETY ${item.safetySensors.join(" · ")}`
-                            }
-                          </text>
-                        )
-                      }
                     </g>
                   </g>
                 );
