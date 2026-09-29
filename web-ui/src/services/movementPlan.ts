@@ -11,6 +11,10 @@ import {
   createMovementRouteKey,
 } from "./movementRouteIdentity";
 
+import {
+  computeSerializedTopologyFingerprint,
+} from "./clientRouteGraphCache";
+
 type RawTurnoutState = {
   address: number;
   closed: boolean;
@@ -392,6 +396,25 @@ function parseTopology(
   ) {
     throw new Error(
       "Unsupported route topology. Regenerate and save the route graph."
+    );
+  }
+
+  const expectedFingerprint =
+    String(
+      topology.fingerprint ??
+      ""
+    );
+
+  if (
+    expectedFingerprint.length >
+      0 &&
+    expectedFingerprint !==
+      computeSerializedTopologyFingerprint(
+        layout as SerializedLayoutDto
+      )
+  ) {
+    throw new Error(
+      "Saved route graph is out of date for the current layout. Regenerate and save the route graph before starting Movement."
     );
   }
 
