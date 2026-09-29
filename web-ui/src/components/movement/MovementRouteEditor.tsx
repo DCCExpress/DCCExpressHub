@@ -207,12 +207,16 @@ export default function MovementRouteEditor({
         null
       );
 
-      const layoutSnapshot =
-        createCurrentClientLayoutSnapshot(
-          layout
-        );
-
-      void loadMovementPlan(
+      void Promise.resolve()
+        .then(
+          () =>
+            createCurrentClientLayoutSnapshot(
+              layout
+            )
+        )
+        .then(
+          layoutSnapshot =>
+loadMovementPlan(
         page,
         layoutSnapshot
       )
