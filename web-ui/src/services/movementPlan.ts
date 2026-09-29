@@ -39,6 +39,20 @@ type RawBlockPathEntry = {
   nodeIndex: number;
 };
 
+type RawRoutePart = {
+  nodeName: string;
+  partKey: string;
+  partIndex: number;
+  fromSensor: number | null;
+  toSensor: number | null;
+  detectors?: number[];
+  blockIds?: number[];
+  locoDirection?:
+    | "unknown"
+    | "forward"
+    | "reverse";
+};
+
 type RawRouteEntry = {
   fromBlockId: number;
   fromBlockName: string;
@@ -46,6 +60,7 @@ type RawRouteEntry = {
   toBlockName: string;
   blockPath: RawBlockPathEntry[];
   nodes: string[];
+  partPath?: RawRoutePart[];
   edgePath: RawRouteEdge[];
   locoDirection:
     | "unknown"
@@ -91,6 +106,8 @@ export type MovementPlanResource = {
   detectors: number[];
   turnoutStates:
     RawTurnoutState[];
+  routeOrder: number;
+  partIndex: number | null;
 };
 
 export type MovementPlanLeg = {
@@ -369,7 +386,9 @@ function parseTopology(
     topology.version !==
       2 &&
     topology.version !==
-      3
+      3 &&
+    topology.version !==
+      4
   ) {
     throw new Error(
       "Unsupported route topology. Regenerate and save the route graph."
@@ -773,6 +792,8 @@ export function buildMovementPlan(
           entry.nodeIndex,
         detectors: [],
         turnoutStates: [],
+        routeOrder: 0,
+        partIndex: null,
       };
 
       resources.push(
@@ -797,6 +818,84 @@ export function buildMovementPlan(
     source
   );
 
+  const partPath =
+    Array.isArray(
+      route.partPath
+    )
+      ? route.partPath
+      : [];
+
+  const usesSectionParts =
+    partPath.length >
+      0;
+
+  if (
+    usesSectionParts
+  ) {
+    for (
+      const part of
+      partPath
+    ) {
+      const nodeIndex =
+        Math.max(
+          0,
+          route.nodes.indexOf(
+            part.nodeName
+          )
+        );
+
+      resources.push({
+        key:
+          `part:${part.nodeName}:${part.partKey}`,
+        kind:
+          "segment",
+        name:
+          part.partKey,
+        label:
+          `${part.nodeName} · ${part.partKey}`,
+        blockId:
+          null,
+        sensorAddress:
+          null,
+        nodeIndex,
+        detectors:
+          [
+            ...new Set(
+              (
+                part.detectors ??
+                [
+                  part.fromSensor,
+                  part.toSensor,
+                ]
+              ).filter(
+                (
+                  value
+                ): value is number =>
+                  Number.isInteger(
+                    value
+                  ) &&
+                  Number(
+                    value
+                  ) >
+                    0
+              ) as number[]
+            ),
+          ],
+        turnoutStates: [],
+        routeOrder: 0,
+        partIndex:
+          Number.isInteger(
+            part.partIndex
+          )
+            ? part.partIndex
+            : null,
+      });
+    }
+  }
+
+  if (
+    !usesSectionParts
+  ) {
   for (
     let nodeIndex = 0;
     nodeIndex <
@@ -1002,8 +1101,12 @@ export function buildMovementPlan(
               ]
             : [],
         turnoutStates,
+        routeOrder: 0,
+        partIndex: null,
       });
     }
+  }
+
   }
 
   const destination =
@@ -1023,6 +1126,23 @@ export function buildMovementPlan(
     pushBlock(
       destination
     );
+  }
+
+  for (
+    let routeOrder = 0;
+    routeOrder <
+      resources.length;
+    routeOrder += 1
+  ) {
+    const resource =
+      resources[
+        routeOrder
+      ];
+
+    if (resource) {
+      resource.routeOrder =
+        routeOrder;
+    }
   }
 
   const legs:
@@ -1055,12 +1175,28 @@ export function buildMovementPlan(
       resources.filter(
         resource => {
           if (
-            resource.nodeIndex ===
-              null ||
             resource.key ===
               from.key ||
             resource.key ===
               to.key
+          ) {
+            return false;
+          }
+
+          if (
+            usesSectionParts
+          ) {
+            return (
+              resource.routeOrder >
+                from.routeOrder &&
+              resource.routeOrder <
+                to.routeOrder
+            );
+          }
+
+          if (
+            resource.nodeIndex ===
+              null
           ) {
             return false;
           }
