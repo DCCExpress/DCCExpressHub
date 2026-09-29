@@ -9,6 +9,7 @@
 #include <esp_freertos_hooks.h>
 #include <esp_system.h>
 #include <stdlib.h>
+#include <algorithm>
 
 namespace
 {
@@ -2426,6 +2427,913 @@ void WsProtocol::handleLocoFeedback(
             loco->functionsMask));
 }
 
+
+const WsProtocol::SwitchManLock* WsProtocol::switchManFind(
+    uint16_t address) const
+{
+    for (const auto& item : _switchManLocks)
+    {
+        if (item.address == address)
+        {
+            return &item;
+        }
+    }
+
+    return nullptr;
+}
+
+bool WsProtocol::switchManOwnerRevoked(
+    const String& ownerId) const
+{
+    if (ownerId.isEmpty())
+    {
+        return false;
+    }
+
+    for (const auto& revoked : _switchManRevokedOwners)
+    {
+        if (revoked == ownerId)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool WsProtocol::switchManOwns(
+    uint16_t address,
+    const String& ownerId) const
+{
+    if (ownerId.isEmpty())
+    {
+        return false;
+    }
+
+    const SwitchManLock* item =
+        switchManFind(address);
+
+    return
+        item != nullptr &&
+        item->ownerId == ownerId;
+}
+
+void WsProtocol::appendSwitchManLocks(
+    JsonArray array,
+    const std::vector<SwitchManLock>& locks) const
+{
+    for (const auto& item : locks)
+    {
+        JsonObject out =
+            array.add<JsonObject>();
+
+        out["address"] =
+            item.address;
+
+        out["ownerId"] =
+            item.ownerId;
+
+        out["ownerName"] =
+            item.ownerName;
+
+        out["acquiredAtMs"] =
+            item.acquiredAtMs;
+    }
+}
+
+void WsProtocol::sendSwitchManSnapshot(
+    AsyncWebSocketClient* client)
+{
+    JsonDocument data;
+
+    appendSwitchManLocks(
+        data["locks"].to<JsonArray>(),
+        _switchManLocks);
+
+    send(
+        client,
+        "switchManChanged",
+        data.as<JsonVariantConst>());
+}
+
+void WsProtocol::broadcastSwitchManSnapshot()
+{
+    JsonDocument data;
+
+    appendSwitchManLocks(
+        data["locks"].to<JsonArray>(),
+        _switchManLocks);
+
+    broadcast(
+        "switchManChanged",
+        data);
+}
+
+bool WsProtocol::switchManAcquire(
+    const std::vector<uint16_t>& addresses,
+    const String& ownerId,
+    const String& ownerName,
+    std::vector<SwitchManLock>* conflicts)
+{
+    if (
+        addresses.empty() ||
+        ownerId.isEmpty() ||
+        ownerId.length() > 240 ||
+        switchManOwnerRevoked(ownerId))
+    {
+        return false;
+    }
+
+    if (conflicts)
+    {
+        conflicts->clear();
+    }
+
+    bool blocked =
+        false;
+
+    for (uint16_t address : addresses)
+    {
+        const SwitchManLock* existing =
+            switchManFind(address);
+
+        if (
+            existing != nullptr &&
+            existing->ownerId != ownerId)
+        {
+            blocked =
+                true;
+
+            if (conflicts)
+            {
+                conflicts->push_back(
+                    *existing);
+            }
+        }
+    }
+
+    if (blocked)
+    {
+        return false;
+    }
+
+    const unsigned long now =
+        millis();
+
+    for (uint16_t address : addresses)
+    {
+        if (
+            switchManFind(address) !=
+            nullptr)
+        {
+            continue;
+        }
+
+        SwitchManLock item;
+
+        item.address =
+            address;
+
+        item.ownerId =
+            ownerId;
+
+        item.ownerName =
+            ownerName.isEmpty()
+                ? ownerId
+                : ownerName;
+
+        item.acquiredAtMs =
+            now;
+
+        _switchManLocks.push_back(
+            std::move(item));
+    }
+
+    std::sort(
+        _switchManLocks.begin(),
+        _switchManLocks.end(),
+        [](
+            const SwitchManLock& a,
+            const SwitchManLock& b)
+        {
+            return
+                a.address <
+                b.address;
+        });
+
+    return true;
+}
+
+size_t WsProtocol::switchManRelease(
+    const String& ownerId,
+    const std::vector<uint16_t>* addresses)
+{
+    if (ownerId.isEmpty())
+    {
+        return 0;
+    }
+
+    size_t released =
+        0;
+
+    for (
+        auto it =
+            _switchManLocks.begin();
+        it !=
+            _switchManLocks.end();)
+    {
+        bool matchesAddress =
+            addresses ==
+                nullptr;
+
+        if (!matchesAddress)
+        {
+            matchesAddress =
+                std::find(
+                    addresses->begin(),
+                    addresses->end(),
+                    it->address) !=
+                addresses->end();
+        }
+
+        if (
+            it->ownerId ==
+                ownerId &&
+            matchesAddress)
+        {
+            it =
+                _switchManLocks.erase(
+                    it);
+
+            ++released;
+        }
+        else
+        {
+            ++it;
+        }
+    }
+
+    if (
+        released >
+        0)
+    {
+        broadcastSwitchManSnapshot();
+    }
+
+    return released;
+}
+
+bool WsProtocol::acquireManualTurnoutOperation(
+    AsyncWebSocketClient* client,
+    uint16_t address,
+    String& ownerId)
+{
+    ownerId =
+        "manual:" +
+        String(
+            client
+                ? client->id()
+                : 0) +
+        ":" +
+        String(
+            ++_switchManManualSequence);
+
+    std::vector<uint16_t>
+        addresses{
+            address
+        };
+
+    std::vector<SwitchManLock>
+        conflicts;
+
+    if (
+        switchManAcquire(
+            addresses,
+            ownerId,
+            "Manual/UI",
+            &conflicts))
+    {
+        broadcastSwitchManSnapshot();
+
+        return true;
+    }
+
+    JsonDocument error;
+
+    error["message"] =
+        "turnout_locked";
+
+    error["address"] =
+        address;
+
+    if (
+        !conflicts.empty())
+    {
+        error["ownerId"] =
+            conflicts[0].ownerId;
+
+        error["ownerName"] =
+            conflicts[0].ownerName;
+    }
+
+    send(
+        client,
+        "error",
+        error.as<JsonVariantConst>());
+
+    ownerId =
+        "";
+
+    return false;
+}
+
+void WsProtocol::handleSwitchManCommand(
+    AsyncWebSocketClient* client,
+    JsonVariantConst data)
+{
+    const String requestId =
+        data["requestId"] |
+        "";
+
+    const String action =
+        data["action"] |
+        "";
+
+    const String ownerId =
+        data["ownerId"] |
+        "";
+
+    const String ownerName =
+        data["ownerName"] |
+        "";
+
+    auto reply =
+        [this,
+         client,
+         &requestId,
+         &action](
+            bool ok,
+            const String& message,
+            const std::vector<SwitchManLock>* locks,
+            const std::vector<SwitchManLock>* conflicts,
+            int released,
+            int address,
+            bool hasClosed,
+            bool closed)
+        {
+            JsonDocument response;
+
+            response["requestId"] =
+                requestId;
+
+            response["action"] =
+                action;
+
+            response["ok"] =
+                ok;
+
+            if (
+                !message.isEmpty())
+            {
+                response["message"] =
+                    message;
+            }
+
+            JsonObject extra =
+                response["extra"]
+                    .to<JsonObject>();
+
+            if (locks)
+            {
+                appendSwitchManLocks(
+                    extra["locks"]
+                        .to<JsonArray>(),
+                    *locks);
+            }
+
+            if (conflicts)
+            {
+                appendSwitchManLocks(
+                    extra["conflicts"]
+                        .to<JsonArray>(),
+                    *conflicts);
+            }
+
+            if (
+                released >=
+                0)
+            {
+                extra["released"] =
+                    released;
+            }
+
+            if (
+                address >
+                0)
+            {
+                extra["address"] =
+                    address;
+            }
+
+            if (hasClosed)
+            {
+                extra["closed"] =
+                    closed;
+            }
+
+            send(
+                client,
+                "switchManResponse",
+                response.as<JsonVariantConst>());
+        };
+
+    auto readAddresses =
+        [&data]()
+        {
+            std::vector<uint16_t>
+                result;
+
+            JsonArrayConst raw =
+                data["addresses"]
+                    .as<JsonArrayConst>();
+
+            for (
+                JsonVariantConst value :
+                raw)
+            {
+                const int address =
+                    value |
+                    0;
+
+                if (
+                    address <
+                        1 ||
+                    address >
+                        2048)
+                {
+                    continue;
+                }
+
+                const uint16_t normalized =
+                    static_cast<uint16_t>(
+                        address);
+
+                if (
+                    std::find(
+                        result.begin(),
+                        result.end(),
+                        normalized) ==
+                    result.end())
+                {
+                    result.push_back(
+                        normalized);
+                }
+            }
+
+            std::sort(
+                result.begin(),
+                result.end());
+
+            return result;
+        };
+
+    if (
+        action ==
+        "snapshot")
+    {
+        reply(
+            true,
+            "",
+            &_switchManLocks,
+            nullptr,
+            -1,
+            0,
+            false,
+            false);
+
+        return;
+    }
+
+    if (
+        action ==
+        "acquire")
+    {
+        std::vector<uint16_t>
+            addresses =
+                readAddresses();
+
+        bool valid =
+            !addresses.empty();
+
+        if (valid)
+        {
+            for (
+                uint16_t address :
+                addresses)
+            {
+                if (
+                    !_runtime
+                         .findAccessory(
+                             RuntimeAccessoryKind::
+                                 Turnout,
+                             address))
+                {
+                    valid =
+                        false;
+
+                    break;
+                }
+            }
+        }
+
+        if (!valid)
+        {
+            reply(
+                false,
+                "invalid_turnout_addresses",
+                nullptr,
+                nullptr,
+                -1,
+                0,
+                false,
+                false);
+
+            return;
+        }
+
+        if (
+            ownerId.isEmpty() ||
+            ownerId.length() >
+                240)
+        {
+            reply(
+                false,
+                "invalid_owner",
+                nullptr,
+                nullptr,
+                -1,
+                0,
+                false,
+                false);
+
+            return;
+        }
+
+        if (
+            switchManOwnerRevoked(
+                ownerId))
+        {
+            reply(
+                false,
+                "switchman_owner_revoked",
+                nullptr,
+                nullptr,
+                -1,
+                0,
+                false,
+                false);
+
+            return;
+        }
+
+        std::vector<SwitchManLock>
+            conflicts;
+
+        const bool ok =
+            switchManAcquire(
+                addresses,
+                ownerId,
+                ownerName,
+                &conflicts);
+
+        if (!ok)
+        {
+            reply(
+                false,
+                "turnout_locked",
+                nullptr,
+                &conflicts,
+                -1,
+                0,
+                false,
+                false);
+
+            return;
+        }
+
+        std::vector<SwitchManLock>
+            acquired;
+
+        for (
+            uint16_t address :
+                addresses)
+        {
+            const SwitchManLock* item =
+                switchManFind(
+                    address);
+
+            if (item)
+            {
+                acquired.push_back(
+                    *item);
+            }
+        }
+
+        broadcastSwitchManSnapshot();
+
+        reply(
+            true,
+            "",
+            &acquired,
+            nullptr,
+            -1,
+            0,
+            false,
+            false);
+
+        return;
+    }
+
+    if (
+        action ==
+        "release")
+    {
+        if (
+            ownerId.isEmpty())
+        {
+            reply(
+                false,
+                "invalid_owner",
+                nullptr,
+                nullptr,
+                -1,
+                0,
+                false,
+                false);
+
+            return;
+        }
+
+        std::vector<uint16_t>
+            addresses =
+                readAddresses();
+
+        const size_t released =
+            switchManRelease(
+                ownerId,
+                addresses.empty()
+                    ? nullptr
+                    : &addresses);
+
+        reply(
+            true,
+            "",
+            &_switchManLocks,
+            nullptr,
+            static_cast<int>(
+                released),
+            0,
+            false,
+            false);
+
+        return;
+    }
+
+    if (
+        action ==
+        "forceReleaseAll")
+    {
+        _switchManRevokedOwners.clear();
+
+        for (
+            const auto& item :
+                _switchManLocks)
+        {
+            if (
+                std::find(
+                    _switchManRevokedOwners.begin(),
+                    _switchManRevokedOwners.end(),
+                    item.ownerId) ==
+                _switchManRevokedOwners.end())
+            {
+                _switchManRevokedOwners.push_back(
+                    item.ownerId);
+            }
+        }
+
+        const int released =
+            static_cast<int>(
+                _switchManLocks.size());
+
+        _switchManLocks.clear();
+
+        broadcastSwitchManSnapshot();
+
+        reply(
+            true,
+            "",
+            &_switchManLocks,
+            nullptr,
+            released,
+            0,
+            false,
+            false);
+
+        return;
+    }
+
+    if (
+        action ==
+        "set")
+    {
+        const int rawAddress =
+            data["address"] |
+            0;
+
+        if (
+            rawAddress <
+                1 ||
+            rawAddress >
+                2048)
+        {
+            reply(
+                false,
+                "invalid_turnout_address",
+                nullptr,
+                nullptr,
+                -1,
+                0,
+                false,
+                false);
+
+            return;
+        }
+
+        const uint16_t address =
+            static_cast<uint16_t>(
+                rawAddress);
+
+        RuntimeAccessory* turnout =
+            _runtime.findAccessory(
+                RuntimeAccessoryKind::
+                    Turnout,
+                address);
+
+        if (!turnout)
+        {
+            reply(
+                false,
+                "turnout_not_found",
+                nullptr,
+                nullptr,
+                -1,
+                0,
+                false,
+                false);
+
+            return;
+        }
+
+        if (
+            ownerId.isEmpty())
+        {
+            reply(
+                false,
+                "invalid_owner",
+                nullptr,
+                nullptr,
+                -1,
+                address,
+                false,
+                false);
+
+            return;
+        }
+
+        if (
+            !switchManOwns(
+                address,
+                ownerId))
+        {
+            std::vector<SwitchManLock>
+                conflicts;
+
+            const SwitchManLock* blocking =
+                switchManFind(
+                    address);
+
+            if (blocking)
+            {
+                conflicts.push_back(
+                    *blocking);
+            }
+
+            reply(
+                false,
+                "turnout_lock_required",
+                nullptr,
+                &conflicts,
+                -1,
+                address,
+                false,
+                false);
+
+            return;
+        }
+
+        const bool logicalClosed =
+            data["closed"] |
+            false;
+
+        const bool physicalValue =
+            logicalClosed
+                ? turnout->closedValue
+                : !turnout->closedValue;
+
+        bool ok =
+            false;
+
+        if (
+            turnout->turnoutExtended)
+        {
+            const uint8_t aspect =
+                logicalClosed
+                    ? turnout
+                          ->turnoutClosedAspect
+                    : turnout
+                          ->turnoutOpenedAspect;
+
+            ok =
+                _commandCenter
+                    .setSignalAspect(
+                        address,
+                        aspect);
+
+            if (ok)
+            {
+                _runtime.setSignal(
+                    address,
+                    aspect);
+            }
+        }
+        else if (
+            turnout->turnoutVPin)
+        {
+            ok =
+                _commandCenter
+                    .setVPin(
+                        address,
+                        physicalValue);
+
+            if (ok)
+            {
+                _runtime.setVPin(
+                    address,
+                    physicalValue);
+            }
+        }
+        else
+        {
+            ok =
+                _commandCenter
+                    .setTurnout(
+                        address,
+                        physicalValue);
+
+            if (ok)
+            {
+                _runtime.setTurnout(
+                    address,
+                    physicalValue);
+            }
+        }
+
+        reply(
+            ok,
+            ok
+                ? ""
+                : "turnout_command_failed",
+            nullptr,
+            nullptr,
+            -1,
+            address,
+            true,
+            logicalClosed);
+
+        return;
+    }
+
+    reply(
+        false,
+        "unknown_switchman_action",
+        nullptr,
+        nullptr,
+        -1,
+        0,
+        false,
+        false);
+}
+
 void WsProtocol::handleEvent(
     AsyncWebSocket *,
     AsyncWebSocketClient *client,
@@ -2467,6 +3375,9 @@ void WsProtocol::handleEvent(
             client);
 
         sendRuntimeSnapshot(
+            client);
+
+        sendSwitchManSnapshot(
             client);
 
         return;
@@ -2846,6 +3757,19 @@ void WsProtocol::handleMessage(
 
         sendPowerInfo(
             client);
+
+        return;
+    }
+
+    if (
+        strcmp(
+            type,
+            "switchManCommand") ==
+        0)
+    {
+        handleSwitchManCommand(
+            client,
+            data);
 
         return;
     }
@@ -3500,11 +4424,45 @@ void WsProtocol::handleMessage(
             data["closed"] |
             false;
 
+        RuntimeAccessory* turnout =
+            _runtime.findAccessory(
+                RuntimeAccessoryKind::Turnout,
+                address);
+
+        String manualOwner;
+
         if (
-            !_commandCenter
-                 .setTurnout(
-                     address,
-                     physicalValue))
+            turnout &&
+            !turnout->turnoutExtended &&
+            !turnout->turnoutVPin &&
+            !acquireManualTurnoutOperation(
+                client,
+                address,
+                manualOwner))
+        {
+            return;
+        }
+
+        const bool commandOk =
+            _commandCenter
+                .setTurnout(
+                    address,
+                    physicalValue);
+
+        if (
+            !manualOwner.isEmpty())
+        {
+            std::vector<uint16_t>
+                addresses{
+                    address
+                };
+
+            switchManRelease(
+                manualOwner,
+                &addresses);
+        }
+
+        if (!commandOk)
         {
             sendCommandFailure(
                 "setTurnout");
@@ -3563,11 +4521,44 @@ void WsProtocol::handleMessage(
             data["aspect"] |
             0;
 
+        RuntimeAccessory* turnout =
+            _runtime.findAccessory(
+                RuntimeAccessoryKind::Turnout,
+                address);
+
+        String manualOwner;
+
         if (
-            !_commandCenter
-                 .setSignalAspect(
-                     address,
-                     aspect))
+            turnout &&
+            turnout->turnoutExtended &&
+            !acquireManualTurnoutOperation(
+                client,
+                address,
+                manualOwner))
+        {
+            return;
+        }
+
+        const bool commandOk =
+            _commandCenter
+                .setSignalAspect(
+                    address,
+                    aspect);
+
+        if (
+            !manualOwner.isEmpty())
+        {
+            std::vector<uint16_t>
+                addresses{
+                    address
+                };
+
+            switchManRelease(
+                manualOwner,
+                &addresses);
+        }
+
+        if (!commandOk)
         {
             sendCommandFailure(
                 "setSignalAspect");
@@ -3633,11 +4624,45 @@ void WsProtocol::handleMessage(
             data["active"] |
             false;
 
+        RuntimeAccessory* turnout =
+            _runtime.findAccessory(
+                RuntimeAccessoryKind::Turnout,
+                address);
+
+        String manualOwner;
+
         if (
-            !_commandCenter
-                 .setAccessory(
-                     address,
-                     active))
+            turnout &&
+            !turnout->turnoutExtended &&
+            !turnout->turnoutVPin &&
+            !acquireManualTurnoutOperation(
+                client,
+                address,
+                manualOwner))
+        {
+            return;
+        }
+
+        const bool commandOk =
+            _commandCenter
+                .setAccessory(
+                    address,
+                    active);
+
+        if (
+            !manualOwner.isEmpty())
+        {
+            std::vector<uint16_t>
+                addresses{
+                    address
+                };
+
+            switchManRelease(
+                manualOwner,
+                &addresses);
+        }
+
+        if (!commandOk)
         {
             sendCommandFailure(
                 "setBasicAccessory");
@@ -3678,11 +4703,44 @@ void WsProtocol::handleMessage(
             data["active"] |
             false;
 
+        RuntimeAccessory* turnout =
+            _runtime.findAccessory(
+                RuntimeAccessoryKind::Turnout,
+                vpin);
+
+        String manualOwner;
+
         if (
-            !_commandCenter
-                 .setVPin(
-                     vpin,
-                     active))
+            turnout &&
+            turnout->turnoutVPin &&
+            !acquireManualTurnoutOperation(
+                client,
+                vpin,
+                manualOwner))
+        {
+            return;
+        }
+
+        const bool commandOk =
+            _commandCenter
+                .setVPin(
+                    vpin,
+                    active);
+
+        if (
+            !manualOwner.isEmpty())
+        {
+            std::vector<uint16_t>
+                addresses{
+                    vpin
+                };
+
+            switchManRelease(
+                manualOwner,
+                &addresses);
+        }
+
+        if (!commandOk)
         {
             sendCommandFailure(
                 "setVpin");

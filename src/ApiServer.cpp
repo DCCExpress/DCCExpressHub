@@ -527,8 +527,20 @@ void ApiServer::setupApi() {
         doc["ok"] = true;
         doc["type"] = CommandCenterBuild::type();
         doc["name"] = CommandCenterBuild::name();
+        doc["transport"] =
+            CommandCenterBuild::isDccEx()
+                ? "tcp"
+                : "udp";
         doc["defaultPort"] = CommandCenterBuild::defaultPort();
+        doc["defaultBaudRate"] =
+            CommandCenterBuild::isDccEx()
+                ? 115200
+                : 0;
         doc["connected"] = _dcc.connected();
+        doc["host"] = _dcc.host();
+        doc["port"] = _dcc.port();
+        doc["serialPort"] = "";
+        doc["baudRate"] = 0;
 
         JsonObject capabilities = doc["capabilities"].to<JsonObject>();
         capabilities["trackPower"] = true;
@@ -552,8 +564,14 @@ void ApiServer::setupApi() {
       [this](AsyncWebServerRequest* request) {
         JsonDocument doc;
         doc["ok"] = true;
+        doc["transport"] =
+            CommandCenterBuild::isDccEx()
+                ? "tcp"
+                : "udp";
         doc["host"] = _dcc.host();
         doc["port"] = _dcc.port();
+        doc["serialPort"] = "";
+        doc["baudRate"] = 0;
         doc["powerIncludesProgramming"] = _wsProtocol.powerIncludesProgramming();
         doc["commandIntervalMs"] = _dcc.commandIntervalMs();
         doc["connected"] = _dcc.connected();
@@ -696,6 +714,93 @@ void ApiServer::setupApi() {
                 ? 200
                 : 503,
             doc);
+      });
+
+  _server.on(
+      "/api/s88-status",
+      HTTP_GET,
+      [](
+          AsyncWebServerRequest* request) {
+        JsonDocument doc;
+
+        doc["enabled"] =
+            false;
+
+        doc["online"] =
+            false;
+
+        doc["snapshotKnown"] =
+            false;
+
+        doc["dataFresh"] =
+            false;
+
+        doc["ready"] =
+            false;
+
+        doc["adapterInfoKnown"] =
+            false;
+
+        doc["protocolVersion"] =
+            0;
+
+        doc["firmwareVersion"] =
+            "";
+
+        doc["firmwareMajor"] =
+            0;
+
+        doc["firmwareMinor"] =
+            0;
+
+        doc["firmwarePatch"] =
+            0;
+
+        doc["maxByteCount"] =
+            0;
+
+        doc["capabilities"] =
+            0;
+
+        doc["address"] =
+            0;
+
+        doc["addressHex"] =
+            "0x00";
+
+        doc["baseAddress"] =
+            0;
+
+        doc["groupCount"] =
+            0;
+
+        doc["byteCount"] =
+            0;
+
+        doc["sensorCount"] =
+            0;
+
+        doc["groups"]
+            .to<JsonArray>();
+
+        String body;
+
+        serializeJson(
+            doc,
+            body);
+
+        auto* response =
+            request->beginResponse(
+                200,
+                "application/json",
+                body);
+
+        response->addHeader(
+            "Cache-Control",
+            "no-store");
+
+        request->send(
+            response);
       });
 
   _server.on(
