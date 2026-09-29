@@ -41,7 +41,7 @@ type Props = {
 };
 
 const ITEM_WIDTH =
-  136;
+  164;
 
 const ITEM_GAP =
   42;
@@ -50,7 +50,7 @@ const START_X =
   24;
 
 const SVG_HEIGHT =
-  136;
+  154;
 
 function typeLabel(
   item:
@@ -128,8 +128,8 @@ function itemClassName(
   ];
 
   if (
-    item.sensor ===
-      null &&
+    item.sensors.length ===
+      0 &&
     item.kind !==
       "turnout"
   ) {
@@ -426,7 +426,7 @@ export default function MovementRouteVectorPreview({
           size="xs"
           c="dimmed"
         >
-          Blocks, graph segments and turnouts in physical movement order
+          Blocks, graph segments and turnouts in physical movement order · SAFETY is calculated read-only from the route
         </Text>
       </div>
 
@@ -492,17 +492,17 @@ export default function MovementRouteVectorPreview({
                               x +
                               ITEM_WIDTH
                             }
-                            y1={67}
+                            y1={77}
                             x2={
                               nextX
                             }
-                            y2={67}
+                            y2={77}
                           />
 
                           <path
                             className="movement-route-vector-link-arrow"
                             d={
-                              `M ${nextX - 9} 61 L ${nextX} 67 L ${nextX - 9} 73 Z`
+                              `M ${nextX - 9} 71 L ${nextX} 77 L ${nextX - 9} 83 Z`
                             }
                           />
                         </>
@@ -558,7 +558,7 @@ export default function MovementRouteVectorPreview({
                         width={
                           ITEM_WIDTH
                         }
-                        height={78}
+                        height={102}
                         rx={11}
                       />
 
@@ -667,8 +667,8 @@ export default function MovementRouteVectorPreview({
                         className={
                           "movement-route-vector-sensor" +
                           (
-                            item.sensor ===
-                              null &&
+                            item.sensors.length ===
+                              0 &&
                             item.kind !==
                               "turnout"
                               ? " is-missing"
@@ -678,30 +678,35 @@ export default function MovementRouteVectorPreview({
                         x={
                           centerX
                         }
-                        y={
-                          (
-                            item.kind ===
-                              "segment" &&
-                            item.trackName &&
-                            item.trackName !==
-                              item.nodeName
-                          ) ||
-                          (
-                            item.kind ===
-                              "turnout" &&
-                            item.turnoutStates.length >
-                              0
-                          )
-                            ? 100
-                            : 90
-                        }
+                        y={104}
                         textAnchor="middle"
                       >
                         {
-                          item.sensor ===
-                            null
+                          item.sensors.length ===
+                            0
                             ? "NO SENSOR"
-                            : `Sensor ${item.sensor}`
+                            : (
+                                item.kind ===
+                                  "block"
+                                  ? `OCC ${item.sensors.join(" · ")}`
+                                  : `DET ${item.sensors.join(" · ")}`
+                              )
+                        }
+                      </text>
+
+                      <text
+                        className="movement-route-vector-safety"
+                        x={
+                          centerX
+                        }
+                        y={120}
+                        textAnchor="middle"
+                      >
+                        {
+                          item.safetySensors.length ===
+                            0
+                            ? "SAFETY —"
+                            : `SAFETY ${item.safetySensors.join(" · ")}`
                         }
                       </text>
                     </g>
