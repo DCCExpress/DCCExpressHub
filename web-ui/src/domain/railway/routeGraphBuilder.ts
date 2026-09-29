@@ -660,19 +660,39 @@ export class RouteGraphBuilder {
         sensor: number;
       }> = [];
 
+    const seenBoundarySensors =
+      new Set<number>();
+
+    const seenBoundaryElements =
+      new Set<number>();
+
     for (
       const boundary of
       boundaries
     ) {
+      /*
+       * One feedback address may be assigned to several consecutive rail
+       * elements. That is one physical detector section, not several graph
+       * boundaries. Also keep at most one boundary on a single rail element.
+       */
       if (
-        uniqueBoundaries.some(
-          item =>
-            item.elementIndex ===
-              boundary.elementIndex
+        seenBoundarySensors.has(
+          boundary.sensor
+        ) ||
+        seenBoundaryElements.has(
+          boundary.elementIndex
         )
       ) {
         continue;
       }
+
+      seenBoundarySensors.add(
+        boundary.sensor
+      );
+
+      seenBoundaryElements.add(
+        boundary.elementIndex
+      );
 
       uniqueBoundaries.push(
         boundary
