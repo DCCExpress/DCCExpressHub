@@ -4809,17 +4809,20 @@ void WsProtocol::handleMessage(
             data["closed"] |
             false;
 
-        RuntimeAccessory* turnout =
+        String manualOwner;
+
+        RuntimeAccessory *turnout =
             _runtime.findAccessory(
                 RuntimeAccessoryKind::Turnout,
                 address);
 
-        String manualOwner;
-
-        if (
+        const bool protectWithSwitchMan =
             turnout &&
             !turnout->turnoutExtended &&
-            !turnout->turnoutVPin &&
+            !turnout->turnoutVPin;
+
+        if (
+            protectWithSwitchMan &&
             !acquireManualTurnoutOperation(
                 client,
                 address,
@@ -4828,11 +4831,51 @@ void WsProtocol::handleMessage(
             return;
         }
 
-        const bool commandOk =
+        const bool ok =
             _commandCenter
                 .setTurnout(
                     address,
                     physicalValue);
+
+        if (!ok)
+        {
+            if (
+                !manualOwner.isEmpty())
+            {
+                std::vector<uint16_t>
+                    addresses{
+                        address
+                    };
+
+                switchManRelease(
+                    manualOwner,
+                    &addresses);
+            }
+
+            sendCommandFailure(
+                "setTurnout");
+
+            return;
+        }
+
+        _runtime.setTurnout(
+            address,
+            physicalValue);
+
+        JsonDocument accessory;
+
+        accessory["address"] =
+            address;
+
+        accessory["active"] =
+            physicalValue;
+
+        broadcast(
+            "accessoryChanged",
+            accessory);
+
+        broadcastTurnoutState(
+            address);
 
         if (
             !manualOwner.isEmpty())
@@ -4846,48 +4889,6 @@ void WsProtocol::handleMessage(
                 manualOwner,
                 &addresses);
         }
-
-        if (!commandOk)
-        {
-            sendCommandFailure(
-                "setTurnout");
-
-            return;
-        }
-
-        // Runtime and UI follow the command only after the command center
-        // accepted the operation.
-        _runtime.setTurnout(
-            address,
-            physicalValue);
-
-        JsonDocument out;
-
-        out["address"] =
-            address;
-
-        out["closed"] =
-            physicalValue;
-
-        broadcast(
-            "turnoutChanged",
-            out);
-
-        // A normal turnout command is physically a Basic Accessory command.
-        // Mirror the physical endpoint as accessoryChanged as well so generic
-        // Basic Accessory consumers (including Flow inputs) receive the same
-        // accepted state change.
-        JsonDocument accessory;
-
-        accessory["address"] =
-            address;
-
-        accessory["active"] =
-            physicalValue;
-
-        broadcast(
-            "accessoryChanged",
-            accessory);
 
         return;
     }
@@ -4906,12 +4907,12 @@ void WsProtocol::handleMessage(
             data["aspect"] |
             0;
 
-        RuntimeAccessory* turnout =
+        String manualOwner;
+
+        RuntimeAccessory *turnout =
             _runtime.findAccessory(
                 RuntimeAccessoryKind::Turnout,
                 address);
-
-        String manualOwner;
 
         if (
             turnout &&
@@ -4924,27 +4925,27 @@ void WsProtocol::handleMessage(
             return;
         }
 
-        const bool commandOk =
+        const bool ok =
             _commandCenter
                 .setSignalAspect(
                     address,
                     aspect);
 
-        if (
-            !manualOwner.isEmpty())
+        if (!ok)
         {
-            std::vector<uint16_t>
-                addresses{
-                    address
-                };
+            if (
+                !manualOwner.isEmpty())
+            {
+                std::vector<uint16_t>
+                    addresses{
+                        address
+                    };
 
-            switchManRelease(
-                manualOwner,
-                &addresses);
-        }
+                switchManRelease(
+                    manualOwner,
+                    &addresses);
+            }
 
-        if (!commandOk)
-        {
             sendCommandFailure(
                 "setSignalAspect");
 
@@ -4978,18 +4979,25 @@ void WsProtocol::handleMessage(
             _runtime.setTurnout(
                 address,
                 physicalValue);
+        }
 
-            JsonDocument turnout;
+        if (turnout)
+        {
+            broadcastTurnoutState(
+                address);
+        }
 
-            turnout["address"] =
-                address;
+        if (
+            !manualOwner.isEmpty())
+        {
+            std::vector<uint16_t>
+                addresses{
+                    address
+                };
 
-            turnout["closed"] =
-                physicalValue;
-
-            broadcast(
-                "turnoutChanged",
-                turnout);
+            switchManRelease(
+                manualOwner,
+                &addresses);
         }
 
         return;
@@ -5009,17 +5017,20 @@ void WsProtocol::handleMessage(
             data["active"] |
             false;
 
-        RuntimeAccessory* turnout =
+        String manualOwner;
+
+        RuntimeAccessory *turnout =
             _runtime.findAccessory(
                 RuntimeAccessoryKind::Turnout,
                 address);
 
-        String manualOwner;
-
-        if (
+        const bool protectWithSwitchMan =
             turnout &&
             !turnout->turnoutExtended &&
-            !turnout->turnoutVPin &&
+            !turnout->turnoutVPin;
+
+        if (
+            protectWithSwitchMan &&
             !acquireManualTurnoutOperation(
                 client,
                 address,
@@ -5028,27 +5039,27 @@ void WsProtocol::handleMessage(
             return;
         }
 
-        const bool commandOk =
+        const bool ok =
             _commandCenter
                 .setAccessory(
                     address,
                     active);
 
-        if (
-            !manualOwner.isEmpty())
+        if (!ok)
         {
-            std::vector<uint16_t>
-                addresses{
-                    address
-                };
+            if (
+                !manualOwner.isEmpty())
+            {
+                std::vector<uint16_t>
+                    addresses{
+                        address
+                    };
 
-            switchManRelease(
-                manualOwner,
-                &addresses);
-        }
+                switchManRelease(
+                    manualOwner,
+                    &addresses);
+            }
 
-        if (!commandOk)
-        {
             sendCommandFailure(
                 "setBasicAccessory");
 
@@ -5071,6 +5082,25 @@ void WsProtocol::handleMessage(
             "accessoryChanged",
             out);
 
+        if (turnout)
+        {
+            broadcastTurnoutState(
+                address);
+        }
+
+        if (
+            !manualOwner.isEmpty())
+        {
+            std::vector<uint16_t>
+                addresses{
+                    address
+                };
+
+            switchManRelease(
+                manualOwner,
+                &addresses);
+        }
+
         return;
     }
 
@@ -5088,12 +5118,12 @@ void WsProtocol::handleMessage(
             data["active"] |
             false;
 
-        RuntimeAccessory* turnout =
+        String manualOwner;
+
+        RuntimeAccessory *turnout =
             _runtime.findAccessory(
                 RuntimeAccessoryKind::Turnout,
                 vpin);
-
-        String manualOwner;
 
         if (
             turnout &&
@@ -5106,27 +5136,27 @@ void WsProtocol::handleMessage(
             return;
         }
 
-        const bool commandOk =
+        const bool ok =
             _commandCenter
                 .setVPin(
                     vpin,
                     active);
 
-        if (
-            !manualOwner.isEmpty())
+        if (!ok)
         {
-            std::vector<uint16_t>
-                addresses{
-                    vpin
-                };
+            if (
+                !manualOwner.isEmpty())
+            {
+                std::vector<uint16_t>
+                    addresses{
+                        vpin
+                    };
 
-            switchManRelease(
-                manualOwner,
-                &addresses);
-        }
+                switchManRelease(
+                    manualOwner,
+                    &addresses);
+            }
 
-        if (!commandOk)
-        {
             sendCommandFailure(
                 "setVpin");
 
@@ -5148,6 +5178,25 @@ void WsProtocol::handleMessage(
         broadcast(
             "vpinChanged",
             out);
+
+        if (turnout)
+        {
+            broadcastTurnoutState(
+                vpin);
+        }
+
+        if (
+            !manualOwner.isEmpty())
+        {
+            std::vector<uint16_t>
+                addresses{
+                    vpin
+                };
+
+            switchManRelease(
+                manualOwner,
+                &addresses);
+        }
 
         return;
     }
