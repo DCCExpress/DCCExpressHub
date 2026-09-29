@@ -568,6 +568,20 @@ export default function MovementRouteSelectDialog({
                           </Text>
                         )}
 
+                        {candidate.partPath.length >
+                          0 && (
+                          <Text
+                            size="xs"
+                            c="dimmed"
+                          >
+                            {
+                              candidate.partPath.join(
+                                " → "
+                              )
+                            }
+                          </Text>
+                        )}
+
                         {candidate.used &&
                           candidate.usedByMovementNames.length >
                             0 && (
