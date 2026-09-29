@@ -3,6 +3,7 @@ import type {
   SectionBlock,
   SectionDetector,
   SectionSignal,
+  SectionPart,
   TurnoutStateRequirement,
   RouteTurnoutPassage,
 } from "./graph.js";
@@ -25,6 +26,7 @@ export type RouteGraphNodeDto = {
   signals: SectionSignal[];
   blocks: SectionBlock[];
   elementIds: LayoutElementId[];
+  sectionParts: SectionPart[];
 };
 
 export type RouteGraphEdgeDto = {
