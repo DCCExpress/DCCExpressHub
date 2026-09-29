@@ -87,6 +87,7 @@ export type MovementAction = {
 
   audioName: string;
   audioWaitForEnd: boolean;
+  randomPlayChancePercent: number;
 
   accessoryAddress: number;
   accessoryActive: boolean;
@@ -169,6 +170,7 @@ export function createMovementAction(
     maxDelayMs: 1500,
     audioName: "",
     audioWaitForEnd: false,
+    randomPlayChancePercent: 30,
     accessoryAddress: 1,
     accessoryActive: true,
     accessoryAspect: 0,
@@ -785,6 +787,23 @@ function normalizeActions(
       audioWaitForEnd:
         candidate.audioWaitForEnd ===
         true,
+      randomPlayChancePercent:
+        Math.max(
+          10,
+          Math.min(
+            90,
+            Math.round(
+              integerRange(
+                candidate.randomPlayChancePercent,
+                30,
+                10,
+                90
+              ) /
+              10
+            ) *
+            10
+          )
+        ),
       accessoryAddress:
         integerRange(
           candidate.accessoryAddress,
