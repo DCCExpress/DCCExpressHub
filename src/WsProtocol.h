@@ -349,6 +349,20 @@ private:
 
   void broadcastLocoCounterSnapshot();
 
+  void appendSensorSnapshot(
+      JsonDocument& data);
+
+  void sendSensorSnapshot(
+      AsyncWebSocketClient* client);
+
+  void broadcastSensorSnapshot();
+
+  void appendRuntimePhysicalSnapshot(
+      JsonDocument& data);
+
+  void broadcastTurnoutState(
+      uint16_t address);
+
   void appendDccExStatus(
       JsonDocument& data);
 
