@@ -1279,9 +1279,10 @@
   "movementGeneralHelpButton": "Movement-Hilfe",
   "movementGeneralHelpTitle": "Movement-Hilfe",
   "movementActionRandomPlay": "Zufällige Wiedergabe",
-  "movementRandomPlayHelp": "50 % Chance: eine zufällige Gerade/Ungerade-Entscheidung wird erzeugt; bei geradem Ergebnis wird das Audio abgespielt.",
+  "movementRandomPlayHelp": "Zufallszahl von 1–10. Das Audio wird abgespielt, wenn das Ergebnis innerhalb der eingestellten Chance liegt. Beispiel: 30 % spielt bei 1, 2 oder 3.",
   "movementActionSetBasicAccessory": "Basic Accessory setzen",
   "movementActionSetExtendedAccessory": "Extended Accessory setzen",
   "movementAccessoryAddress": "Accessory-Adresse",
-  "movementAccessoryAspect": "Aspect (0–255)"
+  "movementAccessoryAspect": "Aspect (0–255)",
+  "movementRandomPlayChance": "Wiedergabechance (%)"
 }
