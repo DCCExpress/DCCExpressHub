@@ -39,6 +39,8 @@ type Props = {
     number[];
   safetyTargetName:
     string | null;
+  safetyTargetSensor:
+    number | null;
   ignoredSafetySensors:
     number[];
   onIgnoredSafetySensorsChange: (
@@ -127,6 +129,7 @@ export default function MovementSelectedResourceEditor({
   defaultRule,
   safetySensors,
   safetyTargetName,
+  safetyTargetSensor,
   ignoredSafetySensors,
   onIgnoredSafetySensorsChange,
   sensorCatalog,
@@ -389,6 +392,9 @@ export default function MovementSelectedResourceEditor({
           <MovementSafetyEditor
             targetName={
               safetyTargetName
+            }
+            targetSensor={
+              safetyTargetSensor
             }
             sensors={
               safetySensors
