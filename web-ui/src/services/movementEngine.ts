@@ -1668,8 +1668,32 @@ async function executeAction(
         roll >
         threshold
       ) {
+        setInfo(
+          execution,
+          runtimeText(
+            "movementRuntimeRandomPlaySkipped",
+            {
+              roll,
+              threshold,
+            }
+          ),
+          action.resourceKey
+        );
+
         return;
       }
+
+      setInfo(
+        execution,
+        runtimeText(
+          "movementRuntimeRandomPlayPlaying",
+          {
+            roll,
+            threshold,
+          }
+        ),
+        action.resourceKey
+      );
 
       const source =
         audioPath(
