@@ -118,10 +118,15 @@ test("Movement route authority is fail-closed for unknown runtime state", () => 
   );
 });
 
-test("Movement requires every path detector to be explicitly OFF", () => {
+test("Movement requires every effective path safety detector to be explicitly OFF", () => {
   const engine =
     read(
       "src/services/movementEngine.ts"
+    );
+
+  const safety =
+    read(
+      "src/services/movementSafety.ts"
     );
 
   const guard =
@@ -133,29 +138,49 @@ test("Movement requires every path detector to be explicitly OFF", () => {
 
   assert.ok(
     guard.includes(
-      '"turnout"'
-    )
+      "movementLegPathSafetySensors("
+    ),
+    "runtime guard must use the shared safety sensor selector"
   );
 
   assert.ok(
     guard.includes(
-      '"segment"'
+      "===\n        false"
+    ),
+    "effective route detector must be explicitly OFF"
+  );
+
+  assert.ok(
+    safety.includes(
+      'resource.kind ===\n      "turnout"'
     )
   );
 
   assert.ok(
-    guard.includes(
-      "===\n              false"
-    ),
-    "route detector must be explicitly OFF"
+    safety.includes(
+      'resource.kind ===\n      "segment"'
+    )
   );
 
-  assert.equal(
-    guard.includes(
-      "!==\n              true"
+  assert.ok(
+    safety.includes(
+      "resource.nodeIndex !==\n      sourceNode"
     ),
-    false,
-    "unknown detector state must never count as free"
+    "source segment must not be rechecked as ahead-path safety"
+  );
+
+  assert.ok(
+    safety.includes(
+      "address ===\n            sourceSensor"
+    ),
+    "source block occupancy sensor must be excluded from ahead-path safety"
+  );
+
+  assert.ok(
+    safety.includes(
+      "new Set<number>()"
+    ),
+    "effective safety addresses must be deduplicated"
   );
 
   const heldReady =
@@ -201,6 +226,23 @@ test("Movement requires every path detector to be explicitly OFF", () => {
     speedEnable > recheck &&
     throttle > speedEnable,
     "held authority must be rechecked immediately before non-zero speed"
+  );
+});
+
+test("Movement safety selector excludes a duplicated source occupancy detector", () => {
+  const safety =
+    read(
+      "src/services/movementSafety.ts"
+    );
+
+  assert.match(
+    safety,
+    /const sourceSensor =[\s\S]*leg\.from\.sensorAddress/
+  );
+
+  assert.match(
+    safety,
+    /sourceSensor !==[\s\S]*null[\s\S]*address ===[\s\S]*sourceSensor[\s\S]*continue;/
   );
 });
 
