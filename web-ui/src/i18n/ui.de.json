@@ -1308,5 +1308,7 @@
   "movementRuntimeWaitArrival": "Warten auf Ankunft: {{block}}",
   "movementRuntimeWaitResource": "Warten auf Ressourceneinfahrt: {{resource}}",
   "movementRuntimeArrived": "Angekommen: {{block}}",
-  "movementRuntimeWaitDeparture": "Warten auf Abfahrtsbedingung: {{block}}"
+  "movementRuntimeWaitDeparture": "Warten auf Abfahrtsbedingung: {{block}}",
+  "movementRuntimeRandomPlaySkipped": "Zufälliges Audio übersprungen · Wurf {{roll}}/10, Grenze {{threshold}}",
+  "movementRuntimeRandomPlayPlaying": "Zufälliges Audio wird abgespielt · Wurf {{roll}}/10, Grenze {{threshold}}"
 }
