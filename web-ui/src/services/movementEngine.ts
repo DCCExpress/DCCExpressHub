@@ -1,5 +1,9 @@
 import i18next from "i18next";
 
+import {
+  getLocos,
+} from "../api/domainApi";
+
 import type {
   BlockStateChangedPayload,
   SensorChangedPayload,
@@ -187,6 +191,8 @@ type MovementExecution = {
     >;
   resourceLeaveFired:
     Set<string>;
+  functionNumbersByBindingId:
+    Map<number, number>;
 };
 
 const states =
@@ -1492,6 +1498,38 @@ function audioPath(
   return `/sd/audio/${source}.mp3`;
 }
 
+function movementFunctionNumber(
+  execution:
+    MovementExecution,
+  action:
+    MovementAction
+): number {
+  if (
+    action.functionBindingId ===
+      null
+  ) {
+    return action.functionNumber;
+  }
+
+  const functionNumber =
+    execution
+      .functionNumbersByBindingId
+      .get(
+        action.functionBindingId
+      );
+
+  if (
+    functionNumber ===
+      undefined
+  ) {
+    throw new Error(
+      `Movement locomotive ${execution.locoAddress} has no function binding #${action.functionBindingId}.`
+    );
+  }
+
+  return functionNumber;
+}
+
 async function executeAction(
   execution:
     MovementExecution,
@@ -1527,11 +1565,17 @@ async function executeAction(
 
       return;
 
-    case "function":
+    case "function": {
+      const functionNumber =
+        movementFunctionNumber(
+          execution,
+          action
+        );
+
       if (
         !wsApi.setLocoFunction(
           execution.locoAddress,
-          action.functionNumber,
+          functionNumber,
           action.functionActive
         )
       ) {
@@ -1541,12 +1585,19 @@ async function executeAction(
       }
 
       return;
+    }
 
-    case "horn":
+    case "horn": {
+      const functionNumber =
+        movementFunctionNumber(
+          execution,
+          action
+        );
+
       if (
         !wsApi.setLocoFunction(
           execution.locoAddress,
-          action.functionNumber,
+          functionNumber,
           true
         )
       ) {
@@ -1563,12 +1614,13 @@ async function executeAction(
       } finally {
         wsApi.setLocoFunction(
           execution.locoAddress,
-          action.functionNumber,
+          functionNumber,
           false
         );
       }
 
       return;
+    }
 
     case "delay":
       await controlledDelay(
@@ -4618,6 +4670,43 @@ export async function startMovement(
     );
   }
 
+  const configuredLocos =
+    await getLocos();
+
+  const configuredLoco =
+    configuredLocos.find(
+      loco =>
+        loco.address ===
+        locoAddress
+    ) ??
+    null;
+
+  const functionNumbersByBindingId =
+    new Map<number, number>();
+
+  for (
+    const fn of
+    configuredLoco?.functions ??
+    []
+  ) {
+    if (
+      fn.bindingId ===
+        undefined ||
+      fn.bindingId ===
+        null ||
+      functionNumbersByBindingId.has(
+        fn.bindingId
+      )
+    ) {
+      continue;
+    }
+
+    functionNumbersByBindingId.set(
+      fn.bindingId,
+      fn.number
+    );
+  }
+
   if (
     plan.direction ===
       "unknown"
@@ -4711,6 +4800,7 @@ export async function startMovement(
       new Map(),
     resourceLeaveFired:
       new Set(),
+    functionNumbersByBindingId,
   };
 
   clearMovementBlockRuntimeByOwner(
