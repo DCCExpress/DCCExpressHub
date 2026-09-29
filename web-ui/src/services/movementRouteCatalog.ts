@@ -3,6 +3,8 @@ import type {
 } from "../domain/layout/layoutDto";
 
 import {
+  createMovementAction,
+  createMovementId,
   type MovementDocument,
   type MovementPage,
 } from "../domain/movement";
@@ -27,6 +29,7 @@ export type MovementRouteCandidate = {
     id: number;
     name: string;
     nodeIndex: number;
+    blockType: string;
   }>;
   nodePath: string[];
   locoDirection:
@@ -92,6 +95,59 @@ function positiveInteger(
   )
     ? numeric
     : null;
+}
+
+function blockTypeById(
+  layout:
+    SerializedLayoutDto
+): Map<number, string> {
+  const result =
+    new Map<
+      number,
+      string
+    >();
+
+  for (
+    const layer of
+    layout.layers ??
+    []
+  ) {
+    for (
+      const element of
+      layer.elements ??
+      []
+    ) {
+      if (
+        element.type !==
+          "trackblock"
+      ) {
+        continue;
+      }
+
+      const id =
+        positiveInteger(
+          element.id
+        );
+
+      if (
+        id ===
+          null
+      ) {
+        continue;
+      }
+
+      result.set(
+        id,
+        String(
+          element.blockType ??
+            "normal"
+        ).trim() ||
+          "normal"
+      );
+    }
+  }
+
+  return result;
 }
 
 function routeDirection(
@@ -274,6 +330,11 @@ export function buildMovementRouteCandidates(
     }
   }
 
+  const blockTypes =
+    blockTypeById(
+      layout
+    );
+
   const candidates:
     MovementRouteCandidate[] = [];
 
@@ -348,6 +409,11 @@ export function buildMovementRouteCandidates(
                       block.nodeIndex
                     )
                   : 0,
+              blockType:
+                blockTypes.get(
+                  id
+                ) ??
+                "normal",
             };
           }
         )
@@ -358,6 +424,7 @@ export function buildMovementRouteCandidates(
             id: number;
             name: string;
             nodeIndex: number;
+            blockType: string;
           } =>
             block !==
             null
@@ -605,6 +672,71 @@ export function applyMovementRouteCandidate(
         ` ${directionArrow} `
       );
 
+  /*
+   * New Movement defaults are materialized only on the very first route
+   * selection. Existing Movements and later route changes must never gain
+   * waiting actions implicitly.
+   */
+  const applyNewMovementDefaults =
+    page.routeKey.trim().length ===
+      0 &&
+    page.fromBlockId ===
+      null &&
+    page.toBlockId ===
+      null &&
+    page.actions.length ===
+      0;
+
+  const defaultStationActions =
+    applyNewMovementDefaults
+      ? candidate.blockPath.flatMap(
+          block => {
+            if (
+              block.blockType !==
+                "station"
+            ) {
+              return [];
+            }
+
+            const sequenceId =
+              createMovementId(
+                "movement-sequence"
+              );
+
+            const fixedWait =
+              createMovementAction(
+                `block:${block.id}`,
+                "arrived",
+                "delay",
+                sequenceId,
+                "blocking"
+              );
+
+            fixedWait.delayMs =
+              10000;
+
+            const randomWait =
+              createMovementAction(
+                `block:${block.id}`,
+                "arrived",
+                "randomDelay",
+                sequenceId,
+                "blocking"
+              );
+
+            randomWait.minDelayMs =
+              0;
+            randomWait.maxDelayMs =
+              5000;
+
+            return [
+              fixedWait,
+              randomWait,
+            ];
+          }
+        )
+      : [];
+
   return {
     ...page,
     name:
@@ -644,6 +776,13 @@ export function applyMovementRouteCandidate(
      * over to a potentially different path.
      */
     safetyRules: [],
+    actions:
+      applyNewMovementDefaults
+        ? [
+            ...page.actions,
+            ...defaultStationActions,
+          ]
+        : page.actions,
   };
 }
 
