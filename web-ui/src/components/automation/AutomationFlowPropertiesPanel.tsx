@@ -1,4 +1,10 @@
 import {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
+import {
   ActionIcon,
   Alert,
   Badge,
@@ -22,6 +28,14 @@ import {
 } from "@tabler/icons-react";
 
 import i18next from "i18next";
+
+import type {
+  FunctionBinding,
+} from "@domain/types";
+
+import {
+  getFunctionBindings,
+} from "../../api/domainApi";
 
 import type {
   AutomationFlowNode,
@@ -67,6 +81,62 @@ export default function AutomationFlowPropertiesPanel({
   onChange,
   onDelete,
 }: Props) {
+  const [
+    functionBindings,
+    setFunctionBindings,
+  ] =
+    useState<FunctionBinding[]>([]);
+
+  useEffect(
+    () => {
+      let active =
+        true;
+
+      void getFunctionBindings()
+        .then(
+          bindings => {
+            if (active) {
+              setFunctionBindings(
+                bindings
+              );
+            }
+          }
+        )
+        .catch(
+          error => {
+            console.warn(
+              "[Automation] Could not load function bindings",
+              error
+            );
+          }
+        );
+
+      return () => {
+        active =
+          false;
+      };
+    },
+    []
+  );
+
+  const functionBindingOptions =
+    useMemo(
+      () =>
+        functionBindings.map(
+          binding => ({
+            value:
+              String(
+                binding.id
+              ),
+            label:
+              binding.name,
+          })
+        ),
+      [
+        functionBindings,
+      ]
+    );
+
   if (!node) {
     return (
       <Stack gap="sm">
@@ -913,27 +983,38 @@ export default function AutomationFlowPropertiesPanel({
             }
           </Alert>
 
-          <NumberInput
+          <Select
             label={
               t(
-                "ui.flowFunctionNumber",
-                "Function number"
+                "ui.flowFunctionBinding",
+                "Function binding"
               )
             }
-            value={
-              data.functionNumber ??
-              2
+            data={
+              functionBindingOptions
             }
-            min={0}
-            max={28}
+            value={
+              data.functionBindingId ===
+                undefined ||
+              data.functionBindingId ===
+                null
+                ? null
+                : String(
+                    data.functionBindingId
+                  )
+            }
+            searchable
+            clearable
             onChange={
               value =>
                 onChange({
-                  functionNumber:
-                    Number(
-                      value
-                    ) ||
-                    0,
+                  functionBindingId:
+                    value ===
+                      null
+                      ? null
+                      : Number(
+                          value
+                        ),
                 })
             }
           />
@@ -974,27 +1055,38 @@ export default function AutomationFlowPropertiesPanel({
       {data.kind ===
         "horn" && (
         <>
-          <NumberInput
+          <Select
             label={
               t(
-                "ui.flowFunctionNumber",
-                "Function number"
+                "ui.flowFunctionBinding",
+                "Function binding"
               )
             }
-            value={
-              data.functionNumber ??
-              2
+            data={
+              functionBindingOptions
             }
-            min={0}
-            max={28}
+            value={
+              data.functionBindingId ===
+                undefined ||
+              data.functionBindingId ===
+                null
+                ? null
+                : String(
+                    data.functionBindingId
+                  )
+            }
+            searchable
+            clearable
             onChange={
               value =>
                 onChange({
-                  functionNumber:
-                    Number(
-                      value
-                    ) ||
-                    0,
+                  functionBindingId:
+                    value ===
+                      null
+                      ? null
+                      : Number(
+                          value
+                        ),
                 })
             }
           />
