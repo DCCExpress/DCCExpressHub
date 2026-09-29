@@ -924,10 +924,15 @@ function runtimeText(
   values?:
     Record<string, unknown>
 ): string {
-  return i18next.t(
-    `ui.${key}`,
-    values
-  );
+  return values ===
+    undefined
+    ? i18next.t(
+        `ui.${key}`
+      )
+    : i18next.t(
+        `ui.${key}`,
+        values
+      );
 }
 
 function actionStatusText(
