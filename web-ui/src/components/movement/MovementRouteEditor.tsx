@@ -606,7 +606,7 @@ export default function MovementRouteEditor({
                     color="orange"
                     variant="light"
                   >
-                    The selected route-vector item is not available in the current movement plan. Select it again from the vector.
+                    {mt("movementSelectedResourceMissing")}
                   </Alert>
                 )
               }
