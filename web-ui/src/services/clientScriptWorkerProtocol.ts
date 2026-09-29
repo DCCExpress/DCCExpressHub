@@ -41,6 +41,7 @@ export type ClientScriptWorkerDccMethod =
   | "emergencyStop"
   | "setLoco"
   | "setLocoFunction"
+  | "setLocoFunctionBinding"
   | "setTurnoutRaw"
   | "setTurnoutState"
   | "setSensor"
