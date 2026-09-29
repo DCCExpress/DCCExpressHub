@@ -23,10 +23,16 @@ function isSafetyResource(
   return (
     resource.kind ===
       "segment" &&
-    resource.nodeIndex !==
-      null &&
-    resource.nodeIndex !==
-      sourceNode
+    (
+      resource.partIndex !==
+        null ||
+      (
+        resource.nodeIndex !==
+          null &&
+        resource.nodeIndex !==
+          sourceNode
+      )
+    )
   );
 }
 
