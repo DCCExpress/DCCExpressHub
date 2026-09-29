@@ -923,6 +923,28 @@ test("Movement editor sidebar cards expose runtime controls without changing pag
 });
 
 
+test("All Mantine modals have a consistent blue title bar", () => {
+  const css =
+    read(
+      "src/styles.css"
+    );
+
+  assert.match(
+    css,
+    /\.mantine-Modal-header[\s\S]*var\(--mantine-primary-color-filled\)/
+  );
+
+  assert.match(
+    css,
+    /\.mantine-Modal-title[\s\S]*color:\s*white[\s\S]*font-weight:\s*700/
+  );
+
+  assert.match(
+    css,
+    /\.mantine-Modal-close[\s\S]*color:\s*white/
+  );
+});
+
 test("Movement physical route uses one collapsible card instead of three columns", () => {
   const editor =
     read(
@@ -2995,6 +3017,68 @@ test("Movement route vector merges only an identical single-sensor segment into 
   assert.match(
     preview,
     /"BLOCK" \+[\s\S]*mergedSegments/
+  );
+});
+
+test("Movement route vector shows all detectors and effective safety sensors", () => {
+  const vector =
+    read(
+      "src/services/movementRouteVector.ts"
+    );
+
+  const preview =
+    read(
+      "src/components/movement/MovementRouteVectorPreview.tsx"
+    );
+
+  const safety =
+    read(
+      "src/services/movementSafety.ts"
+    );
+
+  assert.match(
+    vector,
+    /sensors: number\[\]/
+  );
+
+  assert.match(
+    vector,
+    /safetySensors: number\[\]/
+  );
+
+  assert.match(
+    vector,
+    /movementResourceSafetySensors/
+  );
+
+  assert.match(
+    vector,
+    /resource\.detectors/
+  );
+
+  assert.match(
+    preview,
+    /item\.sensors\.join\(" · "\)/
+  );
+
+  assert.match(
+    preview,
+    /DET \$\{item\.sensors/
+  );
+
+  assert.match(
+    preview,
+    /OCC \$\{item\.sensors/
+  );
+
+  assert.match(
+    preview,
+    /SAFETY \$\{item\.safetySensors\.join\(" · "\)/
+  );
+
+  assert.match(
+    safety,
+    /movementLegPathSafetySensors/
   );
 });
 

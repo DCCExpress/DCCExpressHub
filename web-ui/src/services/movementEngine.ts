@@ -44,6 +44,10 @@ import {
 } from "./movementResourceEvents";
 
 import {
+  movementLegPathSafetySensors,
+} from "./movementSafety";
+
+import {
   wsApi,
 } from "./wsApi";
 
@@ -1777,34 +1781,51 @@ function aheadPathSensorsAreFree(
   leg:
     MovementPlanLeg
 ): boolean {
-  const sourceNode =
-    leg.from.nodeIndex;
+  return movementLegPathSafetySensors(
+    leg
+  ).every(
+    address =>
+      sensorStates.get(
+        address
+      ) ===
+        false
+  );
+}
 
-  return leg.resources
+function blockedPathSafetySensorSummary(
+  leg:
+    MovementPlanLeg
+): string {
+  return movementLegPathSafetySensors(
+    leg
+  )
     .filter(
-      resource =>
-        (
-          resource.kind ===
-            "turnout"
-        ) ||
-        (
-          resource.kind ===
-            "segment" &&
-          resource.nodeIndex !==
-            null &&
-          resource.nodeIndex !==
-            sourceNode
-        )
+      address =>
+        sensorStates.get(
+          address
+        ) !==
+          false
     )
-    .every(
-      resource =>
-        resource.detectors.every(
-          address =>
-            sensorStates.get(
-              address
-            ) ===
-              false
-        )
+    .map(
+      address => {
+        const state =
+          sensorStates.get(
+            address
+          );
+
+        return (
+          `#${address}=` +
+          (
+            state ===
+              true
+              ? "ON"
+              : "UNKNOWN"
+          )
+        );
+      }
+    )
+    .join(
+      ", "
     );
 }
 
@@ -2523,7 +2544,9 @@ async function waitForPreDepartureAvailability(
         )
       ) {
         reason =
-          "Waiting for route sensors to become safely free";
+          `Waiting for safety: ${blockedPathSafetySensorSummary(
+            leg
+          )}`;
 
         waitingReason =
           "segment";
@@ -2647,7 +2670,9 @@ async function waitForLegClearance(
         )
       ) {
         reason =
-          "Waiting for route sensors to become safely free";
+          `Waiting for safety: ${blockedPathSafetySensorSummary(
+            leg
+          )}`;
 
         waitingReason =
           "segment";
@@ -3170,7 +3195,9 @@ async function waitForHeldLegReady(
         )
       ) {
         reason =
-          "Waiting for route sensors to become safely free";
+          `Waiting for safety: ${blockedPathSafetySensorSummary(
+            leg
+          )}`;
 
         waitingReason =
           "segment";

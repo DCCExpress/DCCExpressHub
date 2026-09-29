@@ -242,6 +242,14 @@
   fill: var(--mantine-color-red-6);
 }
 
+.movement-route-vector-safety {
+  fill: var(--mantine-color-yellow-5);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  pointer-events: none;
+}
+
 .movement-route-vector-node.is-source .movement-route-vector-card {
   fill: color-mix(
     in srgb,
