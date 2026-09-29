@@ -228,7 +228,7 @@ test("Movement editor is split into reusable components", () => {
 
   assert.match(
     dialog,
-    /New movement/
+    /movementNewMovement/
   );
 
   assert.doesNotMatch(
@@ -699,7 +699,7 @@ test("Movement uses a dedicated physical-route engine with JMRI-style actions", 
 
   assert.match(
     actionEditor,
-    /value:\s*"leave"[\s\S]*label:\s*"LEAVE"/
+    /value:\s*"leave"[\s\S]*movementEventLeave/
   );
 
   assert.doesNotMatch(
@@ -1576,12 +1576,12 @@ test("Movement block actions support before-depart and after-leave lifecycle pha
 
   assert.match(
     actionEditor,
-    /label:\s*"BEFORE DEPART"/
+    /movementEventBeforeDepart/
   );
 
   assert.match(
     actionEditor,
-    /label:\s*"AFTER LEAVE"/
+    /movementEventAfterLeave/
   );
 
   assert.match(
@@ -1730,12 +1730,12 @@ test("Movement actions are draggable inside their sequence order", () => {
 
   assert.match(
     actionEditor,
-    /BEFORE DEPART/
+    /movementEventBeforeDepart/
   );
 
   assert.match(
     actionEditor,
-    /AFTER LEAVE/
+    /movementEventAfterLeave/
   );
 
   assert.match(
@@ -3041,7 +3041,7 @@ test("Movement route vector merges only an identical single-sensor segment into 
 
   assert.match(
     preview,
-    /"BLOCK" \+[\s\S]*mergedSegments/
+    /movementBlockUpper[\s\S]*mergedSegments/
   );
 });
 
@@ -3168,12 +3168,12 @@ test("Movement vector keeps physical sensors while selected nodes expose a confi
 
   assert.match(
     safetyEditor,
-    /label="Check sensor"/
+    /movementCheckSensor/
   );
 
   assert.match(
     safetyEditor,
-    /REQUIRED OFF/
+    /movementSafetyRequiredOff/
   );
 
   assert.match(
@@ -3352,12 +3352,12 @@ test("Movement route vector preview is styled by type and prepared for future it
 
   assert.match(
     preview,
-    /SOURCE BLOCK/
+    /movementSourceBlock/
   );
 
   assert.match(
     preview,
-    /DESTINATION/
+    /movementDestination/
   );
 
   assert.match(
