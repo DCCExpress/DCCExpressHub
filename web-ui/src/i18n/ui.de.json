@@ -1149,7 +1149,7 @@
   "movementEventEnter": "EINFAHRT",
   "movementActionSetSpeed": "Geschwindigkeit setzen",
   "movementActionLocoFunction": "Lokfunktion",
-  "movementActionHornPulse": "Hornimpuls",
+  "movementActionHornPulse": "Lokfunktionsimpuls",
   "movementActionDelay": "Warten",
   "movementActionRandomDelay": "Zufällige Wartezeit",
   "movementActionPlayAudio": "Audio abspielen",
