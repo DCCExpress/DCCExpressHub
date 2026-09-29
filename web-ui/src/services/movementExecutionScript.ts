@@ -799,7 +799,7 @@ function renderResource(
   ) {
     lines.push(
       ...indent([
-        "ENTRY IMMEDIATE  // no detector rule",
+        "ENTRY IMMEDIATE  // no sensor rule",
       ])
     );
   } else {
