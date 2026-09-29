@@ -1581,6 +1581,34 @@ function createDccApi(
       );
     },
 
+    setLocoFunctionBinding(
+      address: number,
+      bindingId: number,
+      active: boolean
+    ): void {
+      check();
+
+      sendDcc(
+        executionId,
+        "setLocoFunctionBinding",
+        [
+          integer(
+            address,
+            1,
+            10239,
+            "Locomotive address"
+          ),
+          integer(
+            bindingId,
+            1,
+            65535,
+            "Function binding ID"
+          ),
+          Boolean(active),
+        ]
+      );
+    },
+
     setTurnout(
       address: number,
       closed: boolean
