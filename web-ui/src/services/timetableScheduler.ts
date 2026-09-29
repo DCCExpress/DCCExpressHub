@@ -18,6 +18,11 @@ import {
 } from "@/services/fastClockStore";
 
 import {
+  isControlStationRuntimeActive,
+  subscribeControlStationRuntime,
+} from "@/services/controlStationRuntime";
+
+import {
   getAutomationFinishing,
   getClientScriptState,
   runClientScript,
@@ -106,6 +111,19 @@ class TimetableScheduler {
 
   private lastTriggeredAt: string | null = null;
   private lastTriggeredTargetName: string | null = null;
+
+  constructor() {
+    subscribeControlStationRuntime(
+      active => {
+        if (
+          !active &&
+          this.running
+        ) {
+          this.stop();
+        }
+      }
+    );
+  }
 
   configure(
     scripts: AutomationScriptDefinition[],
@@ -212,7 +230,10 @@ class TimetableScheduler {
   }
 
   start(): void {
-    if (this.running) {
+    if (
+      this.running ||
+      !isControlStationRuntimeActive()
+    ) {
       return;
     }
 
@@ -264,6 +285,13 @@ class TimetableScheduler {
 
   private tick(): void {
     if (!this.running) {
+      return;
+    }
+
+    if (
+      !isControlStationRuntimeActive()
+    ) {
+      this.stop();
       return;
     }
 

@@ -1077,5 +1077,6 @@
   "timetableNextRowsDescription": "Always showing the next {{value1}} timetable rows · running rows stay pinned above them",
   "noUpcomingTimetableRows": "No upcoming timetable rows.",
   "timetableJumpBeforeFirst": "First start −{{seconds}}s",
-  "fastClockSetTimeFailed": "Failed to set FastClock time."
+  "fastClockSetTimeFailed": "Failed to set FastClock time.",
+  "timetableControlStationRequired": "Control Station required"
 }

@@ -133,6 +133,58 @@ test("timetable editor groups multiple actions in one schedule row", () => {
   );
 });
 
+test("timetable execution requires active Control Station ownership", () => {
+  const scheduler =
+    read(
+      "src/services/timetableScheduler.ts"
+    );
+
+  const panel =
+    read(
+      "src/components/TimetablePanel.tsx"
+    );
+
+  const layout =
+    read(
+      "src/LiteLayoutPage.tsx"
+    );
+
+  assert.match(
+    scheduler,
+    /isControlStationRuntimeActive/
+  );
+
+  assert.match(
+    scheduler,
+    /subscribeControlStationRuntime/
+  );
+
+  assert.match(
+    scheduler,
+    /!isControlStationRuntimeActive\(\)[\s\S]*return/
+  );
+
+  assert.match(
+    panel,
+    /controlStationActive:\s*boolean/
+  );
+
+  assert.match(
+    panel,
+    /!controlStationActive[\s\S]*schedulerState\.running/
+  );
+
+  assert.match(
+    panel,
+    /timetableControlStationRequired/
+  );
+
+  assert.match(
+    layout,
+    /controlStationActive={controlStationActive}/
+  );
+});
+
 test("timetable scheduler launches every action in a matching row", () => {
   const scheduler =
     read(
