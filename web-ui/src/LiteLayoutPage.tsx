@@ -1802,6 +1802,7 @@ export default function LiteLayoutPage({
                     <TimetablePanel
                       scripts={automationScripts}
                       movements={movementDocument.pages}
+                      controlStationActive={controlStationActive}
                       timetableRevision={timetableRevision}
                       onOpenTimetable={() => setTimetableOpened(true)}
                     />
