@@ -63,6 +63,11 @@ import {
 
 import MovementElapsedBadge from "./MovementElapsedBadge";
 
+import {
+  movementText,
+  useMovementTranslation,
+} from "./movementI18n";
+
 import MovementRuntimeControls, {
   movementRuntimeStatusColor,
   useMovementRuntimeState,
@@ -138,6 +143,9 @@ function MovementCard({
   ) => void;
   onOpenEditor: () => void;
 }) {
+  const mt =
+    useMovementTranslation();
+
   const state =
     useMovementRuntimeState(
       page.id
@@ -279,7 +287,7 @@ function MovementCard({
 
             <Tooltip
               withArrow
-              label="Edit movement"
+              label={mt("movementEdit")}
             >
               <ActionIcon
                 size="sm"
@@ -310,7 +318,7 @@ function MovementCard({
             checked={
               page.enabled
             }
-            label="Enabled"
+            label={mt("movementEnabledLabel")}
             onChange={
               event => {
                 const enabled =
@@ -339,7 +347,7 @@ function MovementCard({
                 size="xs"
                 c="orange"
               >
-                FROM / TO missing
+                {mt("movementRouteEndpointsMissing")}
               </Text>
             )
           }
@@ -351,7 +359,7 @@ function MovementCard({
                 size="xs"
                 c="red"
               >
-                Route references a missing block
+                {mt("movementRouteMissingBlock")}
               </Text>
             )
           }
@@ -400,6 +408,9 @@ export default function MovementPagesTable({
   onDocumentChange,
   onOpenEditor,
 }: Props) {
+  const mt =
+    useMovementTranslation();
+
   const commandCenter =
     useCommandCenter();
 
@@ -788,7 +799,7 @@ export default function MovementPagesTable({
             fw={700}
             size="sm"
           >
-            Saved movements
+            {mt("movementSavedMovements")}
           </Text>
 
           <Badge
@@ -810,8 +821,14 @@ export default function MovementPagesTable({
             }
           >
             {
-              enabledCount
-            } enabled
+              mt(
+                "movementEnabledCount",
+                {
+                  count:
+                    enabledCount,
+                }
+              )
+            }
           </Badge>
         </Group>
 
@@ -835,7 +852,7 @@ export default function MovementPagesTable({
                 )
             }
           >
-            Movement editor
+            {mt("movementEditorButton")}
           </Button>
 
           <Button
@@ -849,7 +866,7 @@ export default function MovementPagesTable({
               createPage
             }
           >
-            New
+            {mt("movementNew")}
           </Button>
         </Group>
       </Group>
@@ -858,7 +875,7 @@ export default function MovementPagesTable({
         size="xs"
         c="dimmed"
       >
-        Play runs the dedicated MovementEngine. Stop All stops every active Movement. Abort All aborts every active Movement and requests E-STOP once. Emergency Stop controls the command-station pause state directly.
+        {mt("movementPagesHelp")}
       </Text>
 
       <Group
@@ -882,7 +899,7 @@ export default function MovementPagesTable({
             stopAll
           }
         >
-          Stop All
+          {mt("movementStopAll")}
         </Button>
 
         <Button
@@ -902,7 +919,7 @@ export default function MovementPagesTable({
             abortAll
           }
         >
-          Abort All
+          {mt("movementAbortAll")}
         </Button>
 
         <Button
@@ -930,8 +947,8 @@ export default function MovementPagesTable({
           {
             commandCenter.powerInfo
               ?.emergencyStop
-              ? "Clear E-Stop"
-              : "Emergency Stop"
+              ? mt("movementClearEstop")
+              : mt("movementEmergencyStop")
           }
         </Button>
       </Group>
