@@ -931,7 +931,7 @@ test("All Mantine modals have a consistent blue title bar", () => {
 
   assert.match(
     css,
-    /\.mantine-Modal-header[\s\S]*var\(--mantine-primary-color-filled\)/
+    /\.mantine-Modal-header[\s\S]*min-height:\s*48px[\s\S]*var\(--mantine-primary-color-filled\)/
   );
 
   assert.match(
@@ -3073,7 +3073,12 @@ test("Movement route vector shows all detectors and effective safety sensors", (
 
   assert.match(
     preview,
-    /SAFETY \$\{item\.safetySensors\.join\(" · "\)/
+    /MUST BE FREE/
+  );
+
+  assert.match(
+    preview,
+    /item\.kind !==[\s\S]*"block"[\s\S]*SAFETY \$\{item\.safetySensors\.join\(" · "\)/
   );
 
   assert.match(

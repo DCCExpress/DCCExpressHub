@@ -688,27 +688,37 @@ export default function MovementRouteVectorPreview({
                             : (
                                 item.kind ===
                                   "block"
-                                  ? `OCC ${item.sensors.join(" · ")}`
+                                  ? (
+                                      item.safetySensors.length >
+                                        0
+                                        ? `OCC ${item.sensors.join(" · ")} · MUST BE FREE`
+                                        : `OCC ${item.sensors.join(" · ")}`
+                                    )
                                   : `DET ${item.sensors.join(" · ")}`
                               )
                         }
                       </text>
 
-                      <text
-                        className="movement-route-vector-safety"
-                        x={
-                          centerX
-                        }
-                        y={120}
-                        textAnchor="middle"
-                      >
-                        {
-                          item.safetySensors.length ===
-                            0
-                            ? "SAFETY —"
-                            : `SAFETY ${item.safetySensors.join(" · ")}`
-                        }
-                      </text>
+                      {
+                        item.kind !==
+                          "block" && (
+                          <text
+                            className="movement-route-vector-safety"
+                            x={
+                              centerX
+                            }
+                            y={120}
+                            textAnchor="middle"
+                          >
+                            {
+                              item.safetySensors.length ===
+                                0
+                                ? "SAFETY —"
+                                : `SAFETY ${item.safetySensors.join(" · ")}`
+                            }
+                          </text>
+                        )
+                      }
                     </g>
                   </g>
                 );
