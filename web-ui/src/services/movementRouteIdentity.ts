@@ -11,6 +11,14 @@ export type MovementRouteIdentityEntry = {
     nodeIndex?: number;
   }>;
   nodes?: string[];
+  partPath?: Array<{
+    nodeName?: string;
+    partKey?: string;
+    partIndex?: number;
+    fromSensor?: number | null;
+    toSensor?: number | null;
+    locoDirection?: string;
+  }>;
   edgePath?: Array<{
     from?: string;
     to?: string;
@@ -94,6 +102,51 @@ export function createMovementRouteKey(
         )
     );
 
+  const partPath =
+    (
+      route.partPath ??
+      []
+    ).map(
+      part => ({
+        nodeName:
+          String(
+            part.nodeName ??
+              ""
+          ),
+        partKey:
+          String(
+            part.partKey ??
+              ""
+          ),
+        partIndex:
+          Number(
+            part.partIndex ??
+              0
+          ),
+        fromSensor:
+          part.fromSensor ===
+            null
+            ? null
+            : Number(
+                part.fromSensor ??
+                  0
+              ),
+        toSensor:
+          part.toSensor ===
+            null
+            ? null
+            : Number(
+                part.toSensor ??
+                  0
+              ),
+        direction:
+          String(
+            part.locoDirection ??
+              "unknown"
+          ),
+      })
+    );
+
   const edgePath =
     (
       route.edgePath ??
@@ -150,6 +203,7 @@ export function createMovementRouteKey(
       ),
     blockPath,
     nodes,
+    partPath,
     edgePath,
     direction:
       String(
