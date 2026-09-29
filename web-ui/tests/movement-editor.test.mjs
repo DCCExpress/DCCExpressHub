@@ -3291,7 +3291,7 @@ test("Movement intermediate ARRIVED restores cruise only after safety readiness,
   );
 
   const policyIndex =
-    engine.indexOf(
+    engine.lastIndexOf(
       "applyIntermediateArrivalSpeedPolicy("
     );
 
