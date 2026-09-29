@@ -6,6 +6,8 @@ import {
 
 import {
   ActionIcon,
+  Alert,
+  Badge,
   Button,
   Divider,
   Group,
@@ -59,6 +61,10 @@ import {
 import {
   getMovementEngineState,
 } from "../../services/movementEngine";
+
+import {
+  getClientRouteGraphStatus,
+} from "../../services/clientRouteGraphCache";
 
 import AppModal from "../common/AppModal";
 
@@ -184,6 +190,11 @@ export default function MovementEditorDialog({
   ] =
     useState<string | null>(
       null
+    );
+
+  const graphStatus =
+    getClientRouteGraphStatus(
+      layout
     );
 
   const activePage =
@@ -877,6 +888,10 @@ export default function MovementEditorDialog({
                           size={14}
                         />
                       }
+                      disabled={
+                        graphStatus.state !==
+                          "valid"
+                      }
                       onClick={
                         () =>
                           setRouteSelectOpened(
@@ -987,6 +1002,57 @@ export default function MovementEditorDialog({
                       }
                     </Text>
                   </Group>
+
+                  <Group
+                    gap="xs"
+                    mt="xs"
+                    wrap="wrap"
+                  >
+                    <Badge
+                      size="xs"
+                      variant="light"
+                      color={
+                        graphStatus.state ===
+                          "valid"
+                          ? "green"
+                          : graphStatus.state ===
+                              "dirty"
+                            ? "yellow"
+                            : "red"
+                      }
+                    >
+                      {
+                        graphStatus.state ===
+                          "valid"
+                          ? mt("graphStatusValid")
+                          : graphStatus.state ===
+                              "dirty"
+                            ? mt("graphStatusDirty")
+                            : mt("graphStatusInvalid")
+                      }
+                    </Badge>
+                  </Group>
+
+                  {
+                    graphStatus.state !==
+                      "valid" && (
+                      <Alert
+                        mt="xs"
+                        color={
+                          graphStatus.state ===
+                            "dirty"
+                            ? "yellow"
+                            : "red"
+                        }
+                      >
+                        {
+                          graphStatus.errors.join(
+                            " "
+                          )
+                        }
+                      </Alert>
+                    )
+                  }
 
                   <MovementRouteVectorPreview
                     page={
