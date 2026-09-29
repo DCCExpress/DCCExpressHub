@@ -4400,7 +4400,7 @@ test("Automation panel remembers the active Scripts Flows Movement tab", () => {
 });
 
 
-test("Movement keeps contextual event help inline and exposes general help in the editor header", () => {
+test("Movement keeps contextual event help inline and loads general help from localized static HTML", () => {
   const actionEditor =
     read(
       "src/components/movement/MovementActionEditor.tsx"
@@ -4423,26 +4423,36 @@ test("Movement keeps contextual event help inline and exposes general help in th
 
   assert.match(
     editorDialog,
-    /IconQuestionMark/
+    /movement-editor-header-help/
   );
 
   assert.match(
     editorDialog,
-    /movementGeneralHelpTitle/
+    /\/help\/movement\.\$\{helpLanguage\}\.html/
   );
 
   assert.match(
     editorDialog,
-    /movementGeneralHelpRouteTitle/
+    /movement-help-frame/
   );
 
-  assert.match(
-    editorDialog,
-    /movementGeneralHelpSequencesTitle/
-  );
+  for (
+    const language of
+    ["hu", "en", "de"]
+  ) {
+    const html =
+      read(
+        `public/help/movement.${language}.html`
+      );
 
-  assert.match(
-    editorDialog,
-    /movementGeneralHelpSafetyTitle/
-  );
+    assert.match(
+      html,
+      /<!doctype html>/i
+    );
+
+    assert.match(
+      html,
+      /Safety|Biztonsági|Sicherheit/i
+    );
+  }
 });
