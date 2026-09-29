@@ -3377,6 +3377,9 @@ void WsProtocol::handleEvent(
         sendRuntimeSnapshot(
             client);
 
+        sendSwitchManSnapshot(
+            client);
+
         return;
     }
 
@@ -3754,6 +3757,19 @@ void WsProtocol::handleMessage(
 
         sendPowerInfo(
             client);
+
+        return;
+    }
+
+    if (
+        strcmp(
+            type,
+            "switchManCommand") ==
+        0)
+    {
+        handleSwitchManCommand(
+            client,
+            data);
 
         return;
     }
