@@ -433,7 +433,7 @@ app.MapPost("/api/function-bindings", async (HttpRequest req, IWebHostEnvironmen
             if (item.ValueKind != JsonValueKind.Object ||
                 !item.TryGetProperty("id", out var idElement) ||
                 !idElement.TryGetInt32(out var id) ||
-                id <= 0 ||
+                id is <= 0 or > 65535 ||
                 !usedIds.Add(id) ||
                 !item.TryGetProperty("name", out var nameElement) ||
                 nameElement.ValueKind != JsonValueKind.String ||
