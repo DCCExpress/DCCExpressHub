@@ -10,10 +10,17 @@ export function movementText(
     string | number
   >
 ): string {
-  return i18next.t(
-    `ui.${key}`,
-    values
-  );
+  const translationKey =
+    `ui.${key}`;
+
+  return values
+    ? i18next.t(
+        translationKey,
+        values
+      )
+    : i18next.t(
+        translationKey
+      );
 }
 
 export function useMovementTranslation(): (
