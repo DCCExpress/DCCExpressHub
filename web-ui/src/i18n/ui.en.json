@@ -1279,9 +1279,10 @@
   "movementGeneralHelpButton": "Movement help",
   "movementGeneralHelpTitle": "Movement help",
   "movementActionRandomPlay": "Random play",
-  "movementRandomPlayHelp": "50% chance: a random even/odd decision is made; the audio plays on the even result.",
+  "movementRandomPlayHelp": "Random roll 1–10. The audio plays when the roll is within the configured chance. Example: 30% plays on 1, 2 or 3.",
   "movementActionSetBasicAccessory": "Set Basic Accessory",
   "movementActionSetExtendedAccessory": "Set Extended Accessory",
   "movementAccessoryAddress": "Accessory address",
-  "movementAccessoryAspect": "Aspect (0–255)"
+  "movementAccessoryAspect": "Aspect (0–255)",
+  "movementRandomPlayChance": "Play chance (%)"
 }
