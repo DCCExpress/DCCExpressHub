@@ -1,4 +1,9 @@
 import {
+  useEffect,
+  useState,
+} from "react";
+
+import {
   Badge,
   Card,
   Group,
@@ -139,6 +144,32 @@ export default function MovementSelectedResourceEditor({
   onRuleChange,
   onActionsChange,
 }: Props) {
+  const [
+    activeTab,
+    setActiveTab,
+  ] = useState<string | null>(
+    "conditions"
+  );
+
+  useEffect(
+    () => {
+      if (
+        resource.kind !==
+          "block" &&
+        activeTab ===
+          "safety"
+      ) {
+        setActiveTab(
+          "conditions"
+        );
+      }
+    },
+    [
+      activeTab,
+      resource.kind,
+    ]
+  );
+
   const conditionCount =
     (
       rule?.departWhen.length ??
@@ -255,7 +286,12 @@ export default function MovementSelectedResourceEditor({
       </div>
 
       <Tabs
-        defaultValue="conditions"
+        value={
+          activeTab
+        }
+        onChange={
+          setActiveTab
+        }
         className="movement-selected-resource-tabs"
       >
         <Tabs.List>
