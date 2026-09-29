@@ -1316,5 +1316,8 @@
   "movementRuntimeArrived": "Angekommen: {{block}}",
   "movementRuntimeWaitDeparture": "Warten auf Abfahrtsbedingung: {{block}}",
   "movementRuntimeRandomPlaySkipped": "Zufälliges Audio übersprungen · Wurf {{roll}}/10, Grenze {{threshold}}",
-  "movementRuntimeRandomPlayPlaying": "Zufälliges Audio wird abgespielt · Wurf {{roll}}/10, Grenze {{threshold}}"
+  "movementRuntimeRandomPlayPlaying": "Zufälliges Audio wird abgespielt · Wurf {{roll}}/10, Grenze {{threshold}}",
+  "graphStatusValid": "GRAPH GÜLTIG",
+  "graphStatusDirty": "GRAPH VERALTET",
+  "graphStatusInvalid": "GRAPH UNGÜLTIG"
 }
