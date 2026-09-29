@@ -29,6 +29,38 @@ button,
   touch-action: manipulation;
 }
 
+/*
+ * Keep every Mantine modal visually identifiable, including older dialogs
+ * that have not yet migrated to AppModal.
+ */
+.mantine-Modal-header {
+  min-height: 56px;
+  background: var(--mantine-primary-color-filled);
+  border-bottom: 1px solid color-mix(
+    in srgb,
+    var(--mantine-color-blue-3) 38%,
+    transparent
+  );
+}
+
+.mantine-Modal-title {
+  color: white;
+  font-weight: 700;
+}
+
+.mantine-Modal-close {
+  color: white;
+}
+
+.mantine-Modal-close:hover {
+  color: white;
+  background: color-mix(
+    in srgb,
+    white 14%,
+    transparent
+  );
+}
+
 .mobile-shell {
   width: min(100%, 760px);
   min-height: 100dvh;
