@@ -1,6 +1,7 @@
 #include "ApiServer.h"
 
 #include <WiFi.h>
+#include <algorithm>
 #include <stdlib.h>
 
 #include "CommandCenterBuild.h"
@@ -384,6 +385,13 @@ void ApiServer::handleLayoutBody(
 
   _locoCounters.requestSave();
 
+  // Match the Windows backend: a committed layout may introduce sensor
+  // addresses that were not part of the previous runtime. Refresh the
+  // command-center-owned sensor state immediately.
+  const bool sensorSnapshotRequested =
+      _dcc.requestSensorSnapshot(
+          false);
+
   Logger::info(
       "Layout saved: " +
       String(total) +
@@ -399,6 +407,7 @@ void ApiServer::handleLayoutBody(
   response["accessories"] = _runtime.accessoryCount();
   response["sensors"] = _runtime.sensorCount();
   response["signalAutomationReloaded"] = signalAutomationReloaded;
+  response["sensorSnapshotRequested"] = sensorSnapshotRequested;
 
   sendJson(request, 200, response);
   _wsProtocol.broadcastRuntimeSnapshot();
@@ -518,6 +527,46 @@ void ApiServer::handleSignalLogicBody(
 void ApiServer::setupApi() {
   DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
   DefaultHeaders::Instance().addHeader("Access-Control-Allow-Headers", "Content-Type");
+
+  _server.on(
+      "/version.json",
+      HTTP_GET,
+      [](
+          AsyncWebServerRequest* request) {
+        if (
+            LittleFS.exists(
+                "/version.json")
+        ) {
+          auto* response =
+              request->beginResponse(
+                  LittleFS,
+                  "/version.json",
+                  "application/json",
+                  false);
+
+          response->addHeader(
+              "Cache-Control",
+              "no-store");
+
+          request->send(
+              response);
+
+          return;
+        }
+
+        JsonDocument doc;
+
+        doc["version"] =
+            "esp32-development";
+
+        doc["backend"] =
+            "esp32";
+
+        sendJson(
+            request,
+            200,
+            doc);
+      });
 
   _server.on(
       "/api/command-center-info",
@@ -814,8 +863,14 @@ void ApiServer::setupApi() {
         doc["deviceIp"] = WiFi.localIP().toString();
         doc["rssi"] = WiFi.RSSI();
         doc["csbConnected"] = _dcc.connected();
+        doc["csbTransport"] =
+            CommandCenterBuild::isDccEx()
+                ? "tcp"
+                : "udp";
         doc["csbHost"] = _dcc.host();
         doc["csbPort"] = _dcc.port();
+        doc["csbSerialPort"] = "";
+        doc["csbBaudRate"] = 0;
         doc["hubHostname"] = _config.network().hostname;
         doc["hubHttpPort"] = _config.network().httpPort;
         doc["hubDhcp"] = _config.network().dhcp;
@@ -995,52 +1050,237 @@ void ApiServer::setupApi() {
       [this](AsyncWebServerRequest* request) {
         JsonDocument doc;
         doc["ok"] = true;
-        JsonArray accessories = doc["accessories"].to<JsonArray>();
-        for (const auto& item : _runtime.accessories()) {
-          JsonObject out = accessories.add<JsonObject>();
-          out["id"] = item.id;
-          out["address"] = item.address;
+
+        JsonObject blockState =
+            doc["blockState"]
+                .to<JsonObject>();
+
+        for (
+            const auto& block :
+            _runtime.blocks())
+        {
+          JsonObject state =
+              blockState[
+                  String(
+                      block.id)]
+                  .to<JsonObject>();
+
+          state["blockId"] =
+              String(
+                  block.id);
+
+          if (
+              block.locoId.isEmpty())
+          {
+            state["locoId"] =
+                nullptr;
+          }
+          else
+          {
+            state["locoId"] =
+                block.locoId;
+          }
+
+          if (
+              block.locoAddress >
+              0)
+          {
+            state["locoAddress"] =
+                block.locoAddress;
+          }
+        }
+
+        struct SensorGroup {
+          uint16_t baseAddress = 0;
+          uint16_t activeBits = 0;
+          uint16_t knownBits = 0;
+        };
+
+        std::vector<SensorGroup>
+            groupedSensors;
+
+        for (
+            const auto& sensor :
+            _runtime.sensorStates())
+        {
+          const uint16_t baseAddress =
+              static_cast<uint16_t>(
+                  (sensor.address / 16) *
+                  16);
+
+          auto found =
+              std::find_if(
+                  groupedSensors.begin(),
+                  groupedSensors.end(),
+                  [baseAddress](
+                      const SensorGroup& group) {
+                    return
+                        group.baseAddress ==
+                        baseAddress;
+                  });
+
+          if (
+              found ==
+              groupedSensors.end())
+          {
+            SensorGroup group;
+
+            group.baseAddress =
+                baseAddress;
+
+            groupedSensors.push_back(
+                group);
+
+            found =
+                groupedSensors.end() -
+                1;
+          }
+
+          const uint8_t bit =
+              static_cast<uint8_t>(
+                  sensor.address -
+                  baseAddress);
+
+          if (
+              bit >=
+              16)
+          {
+            continue;
+          }
+
+          found->knownBits |=
+              static_cast<uint16_t>(
+                  1U <<
+                  bit);
+
+          if (sensor.on)
+          {
+            found->activeBits |=
+                static_cast<uint16_t>(
+                    1U <<
+                    bit);
+          }
+        }
+
+        std::sort(
+            groupedSensors.begin(),
+            groupedSensors.end(),
+            [](
+                const SensorGroup& left,
+                const SensorGroup& right) {
+              return
+                  left.baseAddress <
+                  right.baseAddress;
+            });
+
+        JsonArray sensorGroups =
+            doc["sensorSnapshot"]
+                ["groups"]
+                .to<JsonArray>();
+
+        for (
+            const auto& group :
+            groupedSensors)
+        {
+          JsonArray row =
+              sensorGroups.add<JsonArray>();
+
+          row.add(
+              group.baseAddress);
+
+          row.add(
+              group.activeBits);
+
+          row.add(
+              group.knownBits);
+        }
+
+        // Keep the existing ESP32 diagnostics as a backwards-compatible extension.
+        JsonArray accessories =
+            doc["accessories"]
+                .to<JsonArray>();
+
+        for (
+            const auto& item :
+            _runtime.accessories())
+        {
+          JsonObject out =
+              accessories.add<JsonObject>();
+
+          out["id"] =
+              item.id;
+
+          out["address"] =
+              item.address;
+
           switch (item.kind) {
             case RuntimeAccessoryKind::Turnout:
-              out["kind"] = "turnout";
-              out["closed"] = item.closed;
+              out["kind"] =
+                  "turnout";
+              out["closed"] =
+                  item.closed;
               break;
+
             case RuntimeAccessoryKind::Signal:
-              out["kind"] = "signal";
-              if (item.aspect >= 0) {
-                out["aspect"] = item.aspect;
-              } else {
-                out["aspect"] = nullptr;
+              out["kind"] =
+                  "signal";
+
+              if (
+                  item.aspect >=
+                  0)
+              {
+                out["aspect"] =
+                    item.aspect;
               }
+              else
+              {
+                out["aspect"] =
+                    nullptr;
+              }
+
               break;
+
             case RuntimeAccessoryKind::Accessory:
-              out["kind"] = "accessory";
-              out["active"] = item.active;
+              out["kind"] =
+                  "accessory";
+              out["active"] =
+                  item.active;
               break;
+
             case RuntimeAccessoryKind::VPin:
-              out["kind"] = "vpin";
-              out["active"] = item.active;
+              out["kind"] =
+                  "vpin";
+              out["active"] =
+                  item.active;
               break;
           }
         }
 
-        JsonArray sensors = doc["sensors"].to<JsonArray>();
-        for (const auto& item : _runtime.sensors()) {
-          JsonObject out = sensors.add<JsonObject>();
-          out["id"] = item.id;
-          out["address"] = item.address;
-          out["on"] = item.on;
-        }
-        sendJson(request, 200, doc);
-      });
-}
+        JsonArray sensors =
+            doc["sensors"]
+                .to<JsonArray>();
 
-void ApiServer::setupStaticFiles() {
-  _server.on(
-      "/",
-      HTTP_GET,
-      [](AsyncWebServerRequest* request) {
-        sendFsFile(request, "/index.html");
+        for (
+            const auto& item :
+            _runtime.sensors())
+        {
+          JsonObject out =
+              sensors.add<JsonObject>();
+
+          out["id"] =
+              item.id;
+
+          out["address"] =
+              item.address;
+
+          out["on"] =
+              item.on;
+        }
+
+        sendJson(
+            request,
+            200,
+            doc);
       });
 
   _server.onNotFound(

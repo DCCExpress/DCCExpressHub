@@ -69,6 +69,7 @@ import type {
 import type {
   AccessoryChangedPayload,
   BlockStateChangedPayload,
+  RuntimePhysicalSnapshotPayload,
   LocoReservationChangedPayload,
   LocoStateChangedPayload,
   SensorChangedPayload,
@@ -352,6 +353,7 @@ export type ServerWsPayloadMap = {
   turnoutChanged: TurnoutChangedPayload;
   sensorChanged: SensorChangedPayload;
   sensorSnapshot: SensorSnapshotPayload;
+  runtimePhysicalSnapshot: RuntimePhysicalSnapshotPayload;
   accessoryChanged: AccessoryChangedPayload;
   vpinChanged: VpinChangedPayload;
   signalAspectChanged: SignalAspectChangedPayload;
