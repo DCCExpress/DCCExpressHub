@@ -4456,3 +4456,89 @@ test("Movement keeps contextual event help inline and loads general help from lo
     );
   }
 });
+
+
+test("Movement supports random audio and DCC accessory actions", () => {
+  const domain =
+    read(
+      "src/domain/movement.ts"
+    );
+
+  const engine =
+    read(
+      "src/services/movementEngine.ts"
+    );
+
+  const editor =
+    read(
+      "src/components/movement/MovementActionEditor.tsx"
+    );
+
+  const script =
+    read(
+      "src/services/movementExecutionScript.ts"
+    );
+
+  for (
+    const kind of
+    [
+      "randomPlay",
+      "setAccessory",
+      "setExtendedAccessory",
+    ]
+  ) {
+    assert.match(
+      domain,
+      new RegExp(
+        `"${kind}"`
+      )
+    );
+
+    assert.match(
+      editor,
+      new RegExp(
+        `"${kind}"`
+      )
+    );
+  }
+
+  assert.match(
+    domain,
+    /accessoryAddress:\s*number/
+  );
+
+  assert.match(
+    domain,
+    /accessoryAspect:\s*number/
+  );
+
+  assert.match(
+    engine,
+    /case "randomPlay":[\s\S]*Math\.random/
+  );
+
+  assert.match(
+    engine,
+    /case "setAccessory":[\s\S]*setBasicAccessory/
+  );
+
+  assert.match(
+    engine,
+    /case "setExtendedAccessory":[\s\S]*setSignalAspect/
+  );
+
+  assert.match(
+    script,
+    /RANDOM_EVEN_50_PERCENT/
+  );
+
+  assert.match(
+    script,
+    /SET_BASIC_ACCESSORY/
+  );
+
+  assert.match(
+    script,
+    /SET_EXTENDED_ACCESSORY/
+  );
+});
