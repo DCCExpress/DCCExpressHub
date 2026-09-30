@@ -4469,6 +4469,38 @@ async function traverseLeg(
       leg.to
     );
 
+    /*
+     * ARRIVED is the leg authority handoff boundary for turnouts.
+     *
+     * The previous leg's turnout route is no longer needed once the train has
+     * reached the configured destination-block ARRIVED sensor. Release those
+     * turnout locks now instead of keeping them until traverseLeg() finally
+     * exits. This lets the following leg acquire/set its own turnout route as
+     * soon as the block transition completes.
+     */
+    if (leases.turnouts) {
+      const releasedAddresses = [
+        ...leases.turnouts.addresses,
+      ];
+
+      await leases.turnouts.release();
+
+      leases.turnouts =
+        null;
+
+      console.info(
+        "[Movement] ARRIVED released previous turnout authority",
+        {
+          page:
+            execution.page.name,
+          block:
+            leg.to.name,
+          addresses:
+            releasedAddresses,
+        }
+      );
+    }
+
     const isFinalLeg =
       execution.plan.legs[
         execution.plan.legs.length -

@@ -5394,3 +5394,27 @@ test("rolling movement does not block on its own newly occupied path sensor", ()
     /requirePathSensorsFree &&[\s\S]*!aheadPathSensorsAreFree/
   );
 });
+
+
+test("ARRIVED releases previous leg turnout authority before leg completion", () => {
+  const engine = read(
+    "src/services/movementEngine.ts"
+  );
+
+  const traverse = engine.slice(
+    engine.indexOf("async function traverseLeg"),
+    engine.indexOf("async function executeMovement")
+  );
+
+  const arrived = traverse.indexOf('"arrived"');
+  const release = traverse.indexOf("leases.turnouts.release()");
+  const leaveBarrier = traverse.indexOf("await waitForBlockLeave(");
+
+  assert.ok(arrived >= 0);
+  assert.ok(release > arrived);
+  assert.ok(leaveBarrier > release);
+  assert.match(
+    traverse,
+    /leases\.turnouts\s*=\s*null/
+  );
+});
