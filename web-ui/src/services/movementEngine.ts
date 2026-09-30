@@ -3055,7 +3055,6 @@ async function waitForPreDepartureAvailability(
         waitingReason =
           "targetBlock";
       } else if (
-        requirePathSensorsFree &&
         !aheadPathSensorsAreFree(
           execution,
           leg
@@ -3191,6 +3190,7 @@ async function waitForLegClearance(
         waitingReason =
           "targetBlock";
       } else if (
+        requirePathSensorsFree &&
         !aheadPathSensorsAreFree(
           execution,
           leg
