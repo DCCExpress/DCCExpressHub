@@ -898,8 +898,8 @@ function multiNodeSectionPartPath(
 
     if (
       !node ||
-      node.sectionParts.length <=
-        1
+      node.sectionParts.length ===
+        0
     ) {
       continue;
     }
@@ -996,7 +996,13 @@ function multiNodeSectionPartPath(
     }
 
     result.push(
-      ...entries
+      ...entries.filter(
+        entry =>
+          entry.toSensor !==
+            null &&
+          entry.toSensor >
+            0
+      )
     );
   }
 
