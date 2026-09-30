@@ -1339,46 +1339,50 @@ function renderLeg(
     );
   }
 
-  lines.push(
-    ...indent([
-      leg.leaveWhen.length ===
-        0
-        ? "SOURCE_BLOCK_LEAVE_BARRIER = SKIPPED"
-        : "WAIT SOURCE_BLOCK_LEAVE_WATCH TO FIRE",
-      "REMOVE SOURCE_BLOCK_RUNTIME " +
-        q(
-          leg.from.name
-        ),
-    ])
-  );
-
   if (
-    leg.leaveWhen.length ===
-      0
+    isFinal
   ) {
     lines.push(
       ...indent([
-        "RUN SOURCE_BLOCK_LEAVE RUNTIME_RELEASE_FALLBACK",
-        ...renderActions(
-          page,
-          leg.from.key,
-          "leave",
-          "ON SOURCE_BLOCK_LEAVE"
-        ),
+        leg.leaveWhen.length ===
+          0
+          ? "SOURCE_BLOCK_LEAVE_BARRIER = SKIPPED"
+          : "WAIT SOURCE_BLOCK_LEAVE_WATCH TO FIRE",
+        "REMOVE SOURCE_BLOCK_RUNTIME " +
+          q(
+            leg.from.name
+          ),
       ])
     );
-  }
 
-  lines.push(
-    ...indent(
-      renderActions(
-        page,
-        leg.from.key,
-        "afterLeave",
-        "AFTER_LEAVE_ACTIONS"
+    if (
+      leg.leaveWhen.length ===
+        0
+    ) {
+      lines.push(
+        ...indent([
+          "RUN SOURCE_BLOCK_LEAVE RUNTIME_RELEASE_FALLBACK",
+          ...renderActions(
+            page,
+            leg.from.key,
+            "leave",
+            "ON SOURCE_BLOCK_LEAVE"
+          ),
+        ])
+      );
+    }
+
+    lines.push(
+      ...indent(
+        renderActions(
+          page,
+          leg.from.key,
+          "afterLeave",
+          "AFTER_LEAVE_ACTIONS"
+        )
       )
-    )
-  );
+    );
+  }
 
   lines.push(
     ...indent([
@@ -1388,6 +1392,21 @@ function renderLeg(
         ),
     ])
   );
+
+  if (
+    !isFinal
+  ) {
+    lines.push(
+      ...indent([
+        "START_BACKGROUND SOURCE_BLOCK_LEAVE_WATCH -> REMOVE SOURCE_BLOCK_RUNTIME " +
+          q(
+            leg.from.name
+          ) +
+          " -> AFTER_LEAVE_ACTIONS",
+        "// Intermediate ARRIVED does not wait for the previous block tail to clear before the next leg may set turnouts.",
+      ])
+    );
+  }
 
   if (!isFinal) {
     lines.push(

@@ -151,10 +151,9 @@ test("Movement execution script mirrors the core runtime leg order", () => {
       "execution.moving =",
       "applyDesiredSpeed(",
       "await waitForArrival(",
-      "await waitForBlockLeave(",
-      "wsApi.setBlockRemove(",
-      '"afterLeave"',
+      '"arrived"',
       "wsApi.setBlock(",
+      "startBackgroundSourceBlockRelease(",
     ],
     "runtime traverseLeg"
   );
@@ -179,10 +178,8 @@ test("Movement execution script mirrors the core runtime leg order", () => {
       '"APPLY_LOCO_SPEED -> "',
       "renderSourceBlockLeaveWatch(",
       '"WAIT ARRIVED"',
-      '"WAIT SOURCE_BLOCK_LEAVE_WATCH TO FIRE"',
-      '"REMOVE SOURCE_BLOCK_RUNTIME "',
-      '"afterLeave"',
       '"COMMIT LOCO TO TARGET_BLOCK "',
+      '"START_BACKGROUND SOURCE_BLOCK_LEAVE_WATCH -> REMOVE SOURCE_BLOCK_RUNTIME "',
     ],
     "execution script renderLeg"
   );
@@ -531,5 +528,46 @@ test("Movement editor exposes a small read-only Script dialog", () => {
     dialog.includes(
       "Read-only projection"
     )
+  );
+});
+
+
+test("Intermediate ARRIVED advances before source block LEAVE finishes", () => {
+  const engine = read(
+    "src/services/movementEngine.ts"
+  );
+
+  const traverse =
+    sliceBetween(
+      engine,
+      "async function traverseLeg",
+      "async function executeMovement"
+    );
+
+  assert.match(
+    traverse,
+    /if \(\s*!isFinalLeg\s*\) \{[\s\S]*startBackgroundSourceBlockRelease/
+  );
+
+  assert.ok(
+    traverse.indexOf("wsApi.setBlock(") <
+      traverse.indexOf("startBackgroundSourceBlockRelease(")
+  );
+
+  const helper =
+    sliceBetween(
+      engine,
+      "async function finishSourceBlockRelease",
+      "function startBackgroundSourceBlockRelease"
+    );
+
+  assert.match(
+    helper,
+    /await waitForBlockLeave\(/
+  );
+
+  assert.match(
+    helper,
+    /wsApi\.setBlockRemove\(/
   );
 });

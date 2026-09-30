@@ -4086,6 +4086,123 @@ async function waitForResourceEntry(
   );
 }
 
+async function finishSourceBlockRelease(
+  execution:
+    MovementExecution,
+  leg:
+    MovementPlanLeg,
+  blockLeaveState:
+    BlockLeaveState,
+  pendingTurnouts:
+    MovementPlanResource[]
+): Promise<void> {
+  await maybeRunBlockLeave(
+    execution,
+    leg,
+    blockLeaveState
+  );
+
+  await waitForBlockLeave(
+    execution,
+    leg,
+    blockLeaveState
+  );
+
+  for (
+    const turnout of
+    pendingTurnouts
+  ) {
+    await runLegacyLeaveIfNeeded(
+      execution,
+      turnout
+    );
+  }
+
+  if (
+    leg.from.blockId !==
+      null
+  ) {
+    wsApi.setBlockRemove(
+      String(
+        leg.from.blockId
+      ),
+      null
+    );
+  }
+
+  if (
+    leg.leaveWhen.length ===
+      0
+  ) {
+    await runBlockLeaveFallback(
+      execution,
+      leg,
+      blockLeaveState
+    );
+  }
+
+  emitMovementTrainEvent(
+    execution,
+    "afterLeave",
+    leg.from
+  );
+
+  await runActions(
+    execution,
+    leg.from.key,
+    "afterLeave"
+  );
+}
+
+function startBackgroundSourceBlockRelease(
+  execution:
+    MovementExecution,
+  leg:
+    MovementPlanLeg,
+  blockLeaveState:
+    BlockLeaveState,
+  pendingTurnouts:
+    MovementPlanResource[]
+): void {
+  let task:
+    Promise<void>;
+
+  task =
+    finishSourceBlockRelease(
+      execution,
+      leg,
+      blockLeaveState,
+      pendingTurnouts
+    )
+      .catch(
+        error => {
+          if (
+            execution.cancelled
+          ) {
+            return;
+          }
+
+          console.error(
+            "[Movement] Background source block release failed",
+            execution.page.name,
+            leg.from.name,
+            error
+          );
+        }
+      )
+      .finally(
+        () => {
+          execution.backgroundTasks.delete(
+            task
+          );
+        }
+      );
+
+  execution.backgroundTasks.add(
+    task
+  );
+}
+
 async function traverseLeg(
   execution:
     MovementExecution,
@@ -4550,72 +4667,28 @@ async function traverseLeg(
       );
     }
 
-    await maybeRunBlockLeave(
-      execution,
-      leg,
-      blockLeaveState
-    );
-
-    /*
-     * An explicit/default LEAVE condition is authoritative for releasing the
-     * source block. If configured, wait until it really becomes true.
-     */
-    await waitForBlockLeave(
-      execution,
-      leg,
-      blockLeaveState
-    );
-
-    for (
-      const turnout of
+    const sourceReleaseTurnouts =
       pendingTurnouts.splice(
         0
-      )
-    ) {
-      await runLegacyLeaveIfNeeded(
-        execution,
-        turnout
       );
-    }
-
-    if (
-      leg.from.blockId !==
-        null
-    ) {
-      wsApi.setBlockRemove(
-        String(
-          leg.from.blockId
-        ),
-        null
-      );
-    }
 
     /*
-     * No configured/default LEAVE sensor means runtime block release is the
-     * fallback boundary.
+     * A final leg may wait for the previous block to be physically left.
+     * On intermediate legs ARRIVED is the authority handoff boundary: the
+     * previous block remains protected by its occupancy/LEAVE sensor in a
+     * background watcher, while the next leg is allowed to acquire and set
+     * its route immediately.
      */
     if (
-      leg.leaveWhen.length ===
-        0
+      isFinalLeg
     ) {
-      await runBlockLeaveFallback(
+      await finishSourceBlockRelease(
         execution,
         leg,
-        blockLeaveState
+        blockLeaveState,
+        sourceReleaseTurnouts
       );
     }
-
-    emitMovementTrainEvent(
-      execution,
-      "afterLeave",
-      leg.from
-    );
-
-    await runActions(
-      execution,
-      leg.from.key,
-      "afterLeave"
-    );
 
     if (
       leg.to.blockId !==
@@ -4662,6 +4735,17 @@ async function traverseLeg(
 
       syncMovementMotionRuntime(
         execution
+      );
+    }
+
+    if (
+      !isFinalLeg
+    ) {
+      startBackgroundSourceBlockRelease(
+        execution,
+        leg,
+        blockLeaveState,
+        sourceReleaseTurnouts
       );
     }
 
