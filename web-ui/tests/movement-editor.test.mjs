@@ -4908,3 +4908,51 @@ test("section-part canvas overlay assigns shared sensor boundary to outgoing par
     /sectionPartByElementId\.set\([\s\S]*elementId[\s\S]*part\.key/
   );
 });
+
+
+test("multi-node Movement routes persist and render section parts without losing turnouts", () => {
+  const cache =
+    read(
+      "src/services/clientRouteGraphCache.ts"
+    );
+
+  const plan =
+    read(
+      "src/services/movementPlan.ts"
+    );
+
+  const vector =
+    read(
+      "src/services/movementRouteVector.ts"
+    );
+
+  assert.match(
+    cache,
+    /multiNodeSectionPartPath/
+  );
+
+  assert.match(
+    cache,
+    /partPath,/
+  );
+
+  assert.match(
+    plan,
+    /nodeParts =[sS]*partPath\.filter/
+  );
+
+  assert.match(
+    plan,
+    /pushTurnouts\([\s\S]*route\.edgePath/
+  );
+
+  assert.match(
+    plan,
+    /part\.blockIds/
+  );
+
+  assert.match(
+    vector,
+    /segment\.partIndex !==[\s\S]*null/
+  );
+});
