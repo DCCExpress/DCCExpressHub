@@ -5,6 +5,14 @@ import {
 } from "../api/domainApi";
 
 import type {
+  Loco,
+} from "../domain/domainTypes";
+
+import type {
+  TrainEventName,
+} from "../domain/trainEvents";
+
+import type {
   BlockStateChangedPayload,
   SensorChangedPayload,
   SensorSnapshotPayload,
@@ -73,6 +81,10 @@ import {
 import {
   isTrackPowerOn,
 } from "./trackPowerRuntime";
+
+import {
+  emitTrainEvent,
+} from "./trainEventRuntime";
 
 export type MovementEngineStatus =
   | "idle"
@@ -168,6 +180,8 @@ type MovementExecution = {
   plan:
     MovementPlan;
   locoAddress: number;
+  configuredLoco:
+    Loco | null;
   direction:
     "forward" |
     "reverse";
@@ -328,6 +342,95 @@ function updateState(
     execution.page.id,
     execution.state
   );
+}
+
+
+function movementTrainEventId(): string {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
+    return crypto.randomUUID();
+  }
+
+  return (
+    "train-" +
+    Date.now().toString(36) +
+    "-" +
+    Math.random().toString(36).slice(2)
+  );
+}
+
+function emitMovementTrainEvent(
+  execution:
+    MovementExecution,
+  event:
+    TrainEventName,
+  resource:
+    MovementPlanResource
+): void {
+  const sensors =
+    [
+      resource.sensorAddress,
+      ...resource.detectors,
+    ]
+      .filter(
+        (
+          value
+        ): value is number =>
+          Number.isInteger(value) &&
+          (value ?? 0) > 0
+      )
+      .filter(
+        (
+          value,
+          index,
+          values
+        ) =>
+          values.indexOf(value) ===
+          index
+      );
+
+  emitTrainEvent({
+    id:
+      movementTrainEventId(),
+    timestamp:
+      Date.now(),
+    source:
+      "movement",
+    movementId:
+      execution.page.id,
+    movementName:
+      execution.page.name,
+    locoId:
+      execution.configuredLoco?.id ??
+      null,
+    locoAddress:
+      execution.locoAddress,
+    locoName:
+      execution.configuredLoco?.name ??
+      null,
+    trainType:
+      execution.configuredLoco?.trainType ??
+      null,
+    direction:
+      execution.direction,
+    event,
+    resourceType:
+      resource.kind,
+    resourceKey:
+      resource.key,
+    resourceId:
+      resource.blockId ??
+      resource.key,
+    resourceName:
+      resource.name,
+    resourceLabel:
+      resource.label,
+    sensorAddress:
+      resource.sensorAddress,
+    sensors,
+  });
 }
 
 function resourceEntryEvent(
@@ -503,6 +606,12 @@ async function drainReadyResourceLeaves(
       key
     );
 
+    emitMovementTrainEvent(
+      execution,
+      "leave",
+      state.resource
+    );
+
     await runActions(
       execution,
       state.resource.key,
@@ -534,6 +643,12 @@ async function runLegacyLeaveIfNeeded(
 
   execution.resourceLeaveFired.add(
     resource.key
+  );
+
+  emitMovementTrainEvent(
+    execution,
+    "leave",
+    resource
   );
 
   await runActions(
@@ -3491,6 +3606,12 @@ async function maybeRunBlockApproach(
   state.fired =
     true;
 
+  emitMovementTrainEvent(
+    execution,
+    "approach",
+    leg.to
+  );
+
   await runActions(
     execution,
     leg.to.key,
@@ -3594,6 +3715,12 @@ async function maybeRunBlockLeave(
   state.fired =
     true;
 
+  emitMovementTrainEvent(
+    execution,
+    "leave",
+    leg.from
+  );
+
   await runActions(
     execution,
     leg.from.key,
@@ -3687,6 +3814,12 @@ async function runBlockLeaveFallback(
 
   state.fired =
     true;
+
+  emitMovementTrainEvent(
+    execution,
+    "leave",
+    leg.from
+  );
 
   await runActions(
     execution,
@@ -3994,6 +4127,12 @@ async function traverseLeg(
     leg
   );
 
+  emitMovementTrainEvent(
+    execution,
+    "beforeDepart",
+    leg.from
+  );
+
   await runActions(
     execution,
     leg.from.key,
@@ -4013,6 +4152,12 @@ async function traverseLeg(
     await waitForDepartureConditions(
       execution,
       leg
+    );
+
+    emitMovementTrainEvent(
+      execution,
+      "depart",
+      leg.from
     );
 
     await runActions(
@@ -4113,6 +4258,12 @@ async function traverseLeg(
       leg.approachWhen.length ===
         0
     ) {
+      emitMovementTrainEvent(
+        execution,
+        "approach",
+        leg.to
+      );
+
       await runActions(
         execution,
         leg.to.key,
@@ -4163,6 +4314,12 @@ async function traverseLeg(
 
         armResourceLeave(
           execution,
+          resource
+        );
+
+        emitMovementTrainEvent(
+          execution,
+          "enter",
           resource
         );
 
@@ -4231,6 +4388,12 @@ async function traverseLeg(
         );
       }
 
+      emitMovementTrainEvent(
+        execution,
+        "enter",
+        resource
+      );
+
       await runActions(
         execution,
         resource.key,
@@ -4250,6 +4413,12 @@ async function traverseLeg(
         approachSegment?.key ===
           resource.key
       ) {
+        emitMovementTrainEvent(
+          execution,
+          "approach",
+          leg.to
+        );
+
         await runActions(
           execution,
           leg.to.key,
@@ -4278,6 +4447,12 @@ async function traverseLeg(
     setActiveRouteResource(
       execution,
       leg.to.key
+    );
+
+    emitMovementTrainEvent(
+      execution,
+      "arrived",
+      leg.to
     );
 
     const isFinalLeg =
@@ -4383,6 +4558,12 @@ async function traverseLeg(
         blockLeaveState
       );
     }
+
+    emitMovementTrainEvent(
+      execution,
+      "afterLeave",
+      leg.from
+    );
 
     await runActions(
       execution,
@@ -4822,6 +5003,7 @@ export async function startMovement(
     },
     plan,
     locoAddress,
+    configuredLoco,
     direction,
     desiredSpeed:
       page.speed,
