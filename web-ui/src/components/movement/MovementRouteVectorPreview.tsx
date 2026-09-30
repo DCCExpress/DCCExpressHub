@@ -125,6 +125,39 @@ function blockTypeLabel(
     : translated;
 }
 
+function blockDetailLabel(
+  item:
+    MovementRouteVectorItem
+): string {
+  if (
+    item.kind !==
+      "block"
+  ) {
+    return "";
+  }
+
+  const segmentLabel =
+    item.physicalSegmentNames.length >
+      0
+      ? `SEG ${item.physicalSegmentNames.join(", ")}`
+      : "";
+
+  return [
+    segmentLabel,
+    blockTypeLabel(
+      item
+    ),
+  ]
+    .filter(
+      value =>
+        value.length >
+          0
+    )
+    .join(
+      " · "
+    );
+}
+
 function itemClassName(
   item:
     MovementRouteVectorItem,
@@ -663,7 +696,7 @@ export default function MovementRouteVectorPreview({
                             textAnchor="middle"
                           >
                             {
-                              blockTypeLabel(
+                              blockDetailLabel(
                                 item
                               )
                             }
