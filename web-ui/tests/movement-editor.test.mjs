@@ -4842,3 +4842,46 @@ test("section parts physically order closed oval topology before sensor slicing"
     /orderedElements\.slice/
   );
 });
+
+
+test("Show segments overlay prefers generated section-part labels", () => {
+  const track =
+    read(
+      "src/models/editor/core/TrackElement.ts"
+    );
+
+  const builder =
+    read(
+      "src/services/clientRouteGraphBuilder.ts"
+    );
+
+  const layout =
+    read(
+      "src/models/editor/core/LayoutView.ts"
+    );
+
+  assert.match(
+    track,
+    /sectionPart: string/
+  );
+
+  assert.match(
+    track,
+    /this\.sectionPart \|\|/
+  );
+
+  assert.match(
+    builder,
+    /sectionPartByElementId/
+  );
+
+  assert.match(
+    builder,
+    /part\.key/
+  );
+
+  assert.match(
+    layout,
+    /runtime\.sectionPart/
+  );
+});
