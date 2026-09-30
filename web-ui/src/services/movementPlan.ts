@@ -915,85 +915,6 @@ export function buildMovementPlan(
         });
       };
 
-    const pushFallbackSegment =
-      (
-        nodeName:
-          string,
-        nodeIndex:
-          number
-      ): void => {
-        const node =
-          graphNodes.get(
-            nodeName
-          );
-
-        resources.push({
-          key:
-            `segment:${nodeName}`,
-          kind:
-            "segment",
-          name:
-            nodeName,
-          label:
-            node?.trackName?.trim()
-              ? `${nodeName} · ${node.trackName.trim()}`
-              : nodeName,
-          blockId:
-            null,
-          sensorAddress:
-            null,
-          nodeIndex,
-          detectors:
-            [
-              ...new Set([
-                ...(
-                  node?.detectors ??
-                  []
-                )
-                  .map(
-                    detector =>
-                      detector.address
-                  )
-                  .filter(
-                    address =>
-                      Number.isInteger(
-                        address
-                      ) &&
-                      address >
-                        0
-                  ),
-                ...(
-                  node?.elementIds ??
-                  []
-                )
-                  .map(
-                    elementId =>
-                      trackAddresses.get(
-                        elementId
-                      ) ??
-                      0
-                  )
-                  .filter(
-                    address =>
-                      address >
-                        0
-                  ),
-              ]),
-            ].sort(
-              (
-                a,
-                b
-              ) =>
-                a -
-                b
-            ),
-          turnoutStates: [],
-          routeOrder: 0,
-          partIndex:
-            null,
-        });
-      };
-
     const pushTurnouts =
       (
         edge:
@@ -1121,57 +1042,47 @@ export function buildMovementPlan(
               nodeName
         );
 
-      if (
-        nodeParts.length >
-          0
+      for (
+        const part of
+        nodeParts
       ) {
-        for (
-          const part of
-          nodeParts
-        ) {
-          pushPart(
-            part,
-            nodeIndex
-          );
-
-          for (
-            const blockId of
-            part.blockIds ??
-            []
-          ) {
-            const block =
-              route.blockPath.find(
-                entry =>
-                  entry.id ===
-                    blockId
-              );
-
-            if (
-              block &&
-              block.id !==
-                source.id &&
-              block.id !==
-                route.blockPath[
-                  route.blockPath.length -
-                    1
-                ]?.id &&
-              !blocks.some(
-                existing =>
-                  existing.blockId ===
-                    block.id
-              )
-            ) {
-              pushBlock(
-                block
-              );
-            }
-          }
-        }
-      } else {
-        pushFallbackSegment(
-          nodeName,
+        pushPart(
+          part,
           nodeIndex
         );
+
+        for (
+          const blockId of
+          part.blockIds ??
+          []
+        ) {
+          const block =
+            route.blockPath.find(
+              entry =>
+                entry.id ===
+                  blockId
+            );
+
+          if (
+            block &&
+            block.id !==
+              source.id &&
+            block.id !==
+              route.blockPath[
+                route.blockPath.length -
+                  1
+              ]?.id &&
+            !blocks.some(
+              existing =>
+                existing.blockId ===
+                  block.id
+            )
+          ) {
+            pushBlock(
+              block
+            );
+          }
+        }
       }
 
       for (
