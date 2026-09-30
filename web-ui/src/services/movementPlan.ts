@@ -1261,10 +1261,6 @@ export function buildMovementPlan(
       );
     }
   } else {
-    pushBlock(
-      source
-    );
-
     for (
       let nodeIndex = 0;
       nodeIndex <
@@ -1344,6 +1340,20 @@ export function buildMovementPlan(
         routeOrder: 0,
         partIndex: null,
       });
+
+      if (
+        nodeIndex ===
+          source.nodeIndex &&
+        !blocks.some(
+          block =>
+            block.blockId ===
+              source.id
+        )
+      ) {
+        pushBlock(
+          source
+        );
+      }
 
       for (
         const block of
@@ -1477,6 +1487,18 @@ export function buildMovementPlan(
         });
       }
     }
+  }
+
+  if (
+    !blocks.some(
+      block =>
+        block.blockId ===
+          source.id
+    )
+  ) {
+    pushBlock(
+      source
+    );
   }
 
   const destination =
