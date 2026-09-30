@@ -5118,7 +5118,7 @@ test("composite Movement blocks render a segment-colored backing card", () => {
 
   assert.match(
     preview,
-    /x={[\s\S]*x \+ 5[\s\S]*}[\s\S]*y={33}/
+    /x={[\s\S]*x \+ 7[\s\S]*}[\s\S]*y={35}/
   );
 
   assert.match(
@@ -5129,5 +5129,28 @@ test("composite Movement blocks render a segment-colored backing card", () => {
   assert.match(
     css,
     /pointer-events:\s*none/
+  );
+});
+
+
+test("destination block becomes composite when its incoming part uses the same sensor", () => {
+  const plan =
+    read(
+      "src/services/movementPlan.ts"
+    );
+
+  assert.match(
+    plan,
+    /block\.nodeIndex ===[\s\S]*nodeIndex[\s\S]*sensors\.get[\s\S]*part\.toSensor/
+  );
+
+  assert.match(
+    plan,
+    /destinationPart =[\s\S]*part\.nodeName ===[\s\S]*destinationNodeName[\s\S]*part\.toSensor ===[\s\S]*destinationSensor/
+  );
+
+  assert.match(
+    plan,
+    /pushBlock\([\s\S]*destination,[\s\S]*destinationPart\.partKey/
   );
 });
