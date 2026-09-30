@@ -77,19 +77,12 @@ function typeLabel(
     return movementText("movementTurnoutUpper");
   }
 
-  const mergedSegments =
-    item.mergedSegmentNames.length >
-      0
-      ? ` + SEG:${item.mergedSegmentNames.join(",")}`
-      : "";
-
   if (
     item.role ===
       "source"
   ) {
-    return (
-      movementText("movementSourceBlock") +
-      mergedSegments
+    return movementText(
+      "movementSourceBlock"
     );
   }
 
@@ -97,15 +90,13 @@ function typeLabel(
     item.role ===
       "destination"
   ) {
-    return (
-      movementText("movementDestination") +
-      mergedSegments
+    return movementText(
+      "movementDestination"
     );
   }
 
-  return (
-    movementText("movementBlockUpper") +
-    mergedSegments
+  return movementText(
+    "movementBlockUpper"
   );
 }
 
