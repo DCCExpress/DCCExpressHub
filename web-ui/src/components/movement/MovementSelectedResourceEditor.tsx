@@ -218,11 +218,23 @@ export default function MovementSelectedResourceEditor({
               {
                 resource.kind ===
                   "block"
-                  ? (
-                    resource.sensorAddress
-                      ? mt("movementOccupancySensorDetail", { block: resource.blockId ?? 0, sensor: resource.sensorAddress })
-                      : mt("movementNoOccupancySensorDetail", { block: resource.blockId ?? 0 })
-                  )
+                  ? [
+                      resource.sensorAddress
+                        ? mt("movementOccupancySensorDetail", { block: resource.blockId ?? 0, sensor: resource.sensorAddress })
+                        : mt("movementNoOccupancySensorDetail", { block: resource.blockId ?? 0 }),
+                      resource.physicalSegmentNames.length >
+                        0
+                        ? `SEG ${resource.physicalSegmentNames.join(", ")}`
+                        : null,
+                    ]
+                      .filter(
+                        value =>
+                          value !==
+                          null
+                      )
+                      .join(
+                        " · "
+                      )
                   : resource.kind ===
                       "turnout"
                     ? [
