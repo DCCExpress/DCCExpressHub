@@ -11,7 +11,6 @@ import {
 
 import {
   RailwayTopologyLayout,
-  type TopologyBlockElement,
   type TopologyPoint,
   type TopologyTrackElement,
   type TopologyTurnoutElement,
