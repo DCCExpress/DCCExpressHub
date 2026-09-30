@@ -72,6 +72,19 @@ type RawRouteEntry = {
     | "reverse";
 };
 
+type RawGraphSectionPart = {
+  key: string;
+  index: number;
+  fromSensor: number | null;
+  toSensor: number | null;
+  detectors?: number[];
+  blockIds?: number[];
+  locoDirection?:
+    | "unknown"
+    | "forward"
+    | "reverse";
+};
+
 type RawGraphNode = {
   name: string;
   trackName?: string;
@@ -81,6 +94,7 @@ type RawGraphNode = {
     address: number;
     label: string;
   }>;
+  sectionParts?: RawGraphSectionPart[];
 };
 
 type RawRouteTopology = {
@@ -837,10 +851,6 @@ export function buildMovementPlan(
     );
   }
 
-  pushBlock(
-    source
-  );
-
   const partPath =
     Array.isArray(
       route.partPath
@@ -914,6 +924,136 @@ export function buildMovementPlan(
               : null,
         });
       };
+
+    const sourceSensor =
+      sensors.get(
+        source.id
+      ) ??
+      null;
+
+    const sourceNodeName =
+      route.nodes[
+        source.nodeIndex
+      ] ??
+      route.nodes[0] ??
+      "";
+
+    const sourceNode =
+      graphNodes.get(
+        sourceNodeName
+      );
+
+    const firstRoutePart =
+      partPath.find(
+        part =>
+          part.nodeName ===
+            sourceNodeName
+      );
+
+    let sourceIncomingPart:
+      RawRoutePart |
+      null =
+      null;
+
+    if (
+      sourceSensor !==
+        null &&
+      sourceNode &&
+      firstRoutePart
+    ) {
+      const canonicalFirst =
+        (
+          sourceNode.sectionParts ??
+          []
+        ).find(
+          part =>
+            part.key ===
+              firstRoutePart.partKey
+        );
+
+      const reversed =
+        canonicalFirst
+          ? (
+              canonicalFirst.fromSensor ===
+                firstRoutePart.toSensor &&
+              canonicalFirst.toSensor ===
+                firstRoutePart.fromSensor
+            )
+          : false;
+
+      const incoming =
+        (
+          sourceNode.sectionParts ??
+          []
+        ).find(
+          part =>
+            reversed
+              ? part.fromSensor ===
+                  sourceSensor
+              : part.toSensor ===
+                  sourceSensor
+        );
+
+      if (incoming) {
+        sourceIncomingPart = {
+          nodeName:
+            sourceNodeName,
+          partKey:
+            incoming.key,
+          partIndex:
+            incoming.index,
+          fromSensor:
+            reversed
+              ? incoming.toSensor
+              : incoming.fromSensor,
+          toSensor:
+            sourceSensor,
+          detectors: [
+            sourceSensor,
+          ],
+          blockIds: [
+            source.id,
+          ],
+          locoDirection:
+            reversed
+              ? (
+                  incoming.locoDirection ===
+                    "forward"
+                    ? "reverse"
+                    : incoming.locoDirection ===
+                        "reverse"
+                      ? "forward"
+                      : "unknown"
+                )
+              : (
+                  incoming.locoDirection ??
+                  "unknown"
+                ),
+        };
+      }
+    }
+
+    if (
+      sourceIncomingPart &&
+      !partPath.some(
+        part =>
+          part.nodeName ===
+            sourceIncomingPart!.nodeName &&
+          part.partKey ===
+            sourceIncomingPart!.partKey &&
+          part.toSensor ===
+            sourceIncomingPart!.toSensor
+      )
+    ) {
+      pushPart(
+        sourceIncomingPart,
+        source.nodeIndex
+      );
+    }
+
+    pushBlock(
+      source
+    );
 
     const pushTurnouts =
       (
@@ -1121,6 +1261,10 @@ export function buildMovementPlan(
       );
     }
   } else {
+    pushBlock(
+      source
+    );
+
     for (
       let nodeIndex = 0;
       nodeIndex <
