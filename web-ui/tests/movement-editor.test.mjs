@@ -4950,7 +4950,7 @@ test("section-part canvas overlay assigns shared sensor boundary to outgoing par
 });
 
 
-test("multi-node Movement routes persist and render section parts without losing turnouts", () => {
+test("multi-node Movement routes persist physical section parts and turnouts in order", () => {
   const cache =
     read(
       "src/services/clientRouteGraphCache.ts"
@@ -4978,27 +4978,22 @@ test("multi-node Movement routes persist and render section parts without losing
 
   assert.match(
     plan,
-    /nodeParts =[\s\S]*partPath\.filter/
+    /partPath\.filter/
   );
 
   assert.match(
     plan,
-    /pushTurnouts\([\s\S]*route\.edgePath/
+    /pushPart\([\s\S]*pushTurnouts\([\s\S]*route\.edgePath/
   );
 
   assert.match(
     plan,
-    /blockForPart/
-  );
-
-  assert.doesNotMatch(
-    plan,
-    /part\.blockIds/
+    /Blocks are NOT inserted here/
   );
 
   assert.match(
     vector,
-    /segment\.partIndex !==[\s\S]*null/
+    /return plan\.resources\.map/
   );
 });
 
@@ -5042,7 +5037,7 @@ test("section parts preserve physical detector ownership in both directions", ()
   const pushPart =
     plan.slice(
       plan.indexOf("const pushPart"),
-      plan.indexOf("pushBlock(\n      source")
+      plan.indexOf("const pushTurnouts")
     );
 
   assert.doesNotMatch(
@@ -5150,37 +5145,7 @@ test("section-part physical element ownership does not overlap sensor boundaries
 });
 
 
-test("Movement source block resolves its composite part by sensor identity", () => {
-  const plan =
-    read(
-      "src/services/movementPlan.ts"
-    );
 
-  assert.match(
-    plan,
-    /sectionPartNamesForBlock =[\s\S]*const sensor =[\s\S]*sensors\.get/
-  );
-
-  assert.match(
-    plan,
-    /blockForPart/
-  );
-
-  assert.match(
-    plan,
-    /detectorSet\.has\([\s\S]*sensor/
-  );
-
-  assert.match(
-    plan,
-    /pushBlock\([\s\S]*source,[\s\S]*sectionPartNamesForBlock\([\s\S]*source/
-  );
-
-  assert.doesNotMatch(
-    plan,
-    /sourceIncomingPart/
-  );
-});
 
 
 test("composite Movement blocks render a segment-colored backing card", () => {
@@ -5563,38 +5528,7 @@ test("Movement start logs resolved physical resources and per-leg turnout requir
 
 
 
-test("multi-node persisted blockPath follows directional SectionPart order", () => {
-  const cache =
-    read(
-      "src/services/clientRouteGraphCache.ts"
-    );
 
-  const builder =
-    cache.slice(
-      cache.indexOf("function buildPersistedBlockPath"),
-      cache.indexOf("function buildSameNodePersistedBlockPath")
-    );
-
-  assert.match(
-    builder,
-    /for \([\s\S]*const part of[\s\S]*partPath/
-  );
-
-  assert.match(
-    builder,
-    /const sensor =[\s\S]*part\.toSensor/
-  );
-
-  assert.match(
-    builder,
-    /block\.sensorAddress !==[\s\S]*sensor/
-  );
-
-  assert.doesNotMatch(
-    builder,
-    /blocks\.filter\([\s\S]*candidate\.nodeName/
-  );
-});
 
 
 
@@ -5623,38 +5557,7 @@ test("Movement plan fails closed when block boundaries are not physically ordere
 });
 
 
-test("route checkpoint blocks are ordered by physical sensor position on partPath", () => {
-  const cache =
-    read(
-      "src/services/clientRouteGraphCache.ts"
-    );
 
-  const builder =
-    cache.slice(
-      cache.indexOf("function buildPersistedBlockPath"),
-      cache.indexOf("function buildSameNodePersistedBlockPath")
-    );
-
-  assert.match(
-    builder,
-    /part\.fromSensor ===[\s\S]*sensor/
-  );
-
-  assert.match(
-    builder,
-    /part\.detectors\.includes\([\s\S]*sensor/
-  );
-
-  assert.match(
-    builder,
-    /part\.toSensor ===[\s\S]*sensor/
-  );
-
-  assert.match(
-    builder,
-    /positioned\.sort/
-  );
-});
 
 
 
@@ -5834,5 +5737,48 @@ test("checkpoint blockPath follows physical SectionPart detector ownership", () 
   assert.doesNotMatch(
     builder,
     /part\.toSensor ===/
+  );
+});
+
+
+test("block overlays are resolved only after the physical resource vector is built", () => {
+  const plan =
+    read(
+      "src/services/movementPlan.ts"
+    );
+
+  const physicalBranch =
+    plan.slice(
+      plan.indexOf("if (\n    usesSectionParts"),
+      plan.indexOf("} else {", plan.indexOf("if (\n    usesSectionParts"))
+    );
+
+  assert.doesNotMatch(
+    physicalBranch,
+    /pushBlock\(/
+  );
+
+  const overlayStart =
+    plan.indexOf(
+      "for (\n      const blockEntry of\n      route.blockPath"
+    );
+
+  const routeOrderStart =
+    plan.indexOf(
+      "for (\n    let routeOrder = 0"
+    );
+
+  assert.ok(
+    routeOrderStart >= 0
+  );
+
+  assert.ok(
+    overlayStart >
+      routeOrderStart
+  );
+
+  assert.match(
+    plan,
+    /matchingSegments =[\s\S]*resource\.detectors\.includes\([\s\S]*sensor/
   );
 });
