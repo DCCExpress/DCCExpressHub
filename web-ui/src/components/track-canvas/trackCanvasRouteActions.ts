@@ -22,6 +22,10 @@ import type {
 } from "../../models/editor/elements/RouteButtonElement";
 
 import {
+  BlockElement,
+} from "../../models/editor/elements/BlockElement";
+
+import {
   routeGraphStore,
 } from "../../services/routeGraphStore";
 
@@ -117,10 +121,14 @@ export async function executeExtendedRouteButton(
     if (
       !fromBlock ||
       !toBlock ||
-      fromBlock.type !==
-        "trackblock" ||
-      toBlock.type !==
-        "trackblock"
+      !(
+        fromBlock instanceof
+          BlockElement
+      ) ||
+      !(
+        toBlock instanceof
+          BlockElement
+      )
     ) {
       showWarningMessage(
         t("common.error"),
