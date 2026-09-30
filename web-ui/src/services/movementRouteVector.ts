@@ -920,6 +920,8 @@ export async function loadMovementRouteVector(
         "segment" ||
       segment.nodeIndex ===
         null ||
+      segment.partIndex !==
+        null ||
       segment.detectors.length !==
         1
     ) {
