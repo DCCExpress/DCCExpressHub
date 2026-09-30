@@ -92,10 +92,60 @@ export function buildClientRouteGraph(
         id: element.id,
         section:
           element.section,
+        ...(
+          sectionPartByElementId.has(
+            element.id
+          )
+            ? {
+                sectionPart:
+                  sectionPartByElementId.get(
+                    element.id
+                  )!,
+              }
+            : {}
+        ),
         travelDirection:
           element.travelDirection,
       }
     );
+  }
+
+  const sectionPartByElementId =
+    new Map<
+      number,
+      string
+    >();
+
+  for (
+    const node of
+    graph.nodes
+  ) {
+    for (
+      const part of
+      node.sectionParts
+    ) {
+      for (
+        const elementId of
+        part.elementIds
+      ) {
+        const existing =
+          sectionPartByElementId.get(
+            elementId
+          );
+
+        /*
+         * Boundary elements belong to both adjacent parts. Prefer the
+         * first generated part deterministically so the canvas shows one
+         * stable label instead of flickering between two names.
+         */
+        if (!existing) {
+          sectionPartByElementId.set(
+            elementId,
+            part.key
+          );
+        }
+      }
+    }
   }
 
   const blockSections =
