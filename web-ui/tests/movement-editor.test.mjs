@@ -5022,3 +5022,46 @@ test("part-based Movement routes never fall back to whole sections or sensorless
     /pushFallbackSegment\(/
   );
 });
+
+
+test("section-part physical element ownership does not overlap sensor boundaries", () => {
+  const graph =
+    read(
+      "src/domain/railway/routeGraphBuilder.ts"
+    );
+
+  const builder =
+    read(
+      "src/services/clientRouteGraphBuilder.ts"
+    );
+
+  assert.match(
+    graph,
+    /boundary\.elementIndex \+[\s\S]*1,[\s\S]*next\.elementIndex \+[\s\S]*1/
+  );
+
+  assert.match(
+    graph,
+    /current\.elementIndex \+[\s\S]*1,[\s\S]*next\.elementIndex \+[\s\S]*1/
+  );
+
+  assert.match(
+    graph,
+    /last\.elementIndex \+[\s\S]*1/
+  );
+
+  assert.match(
+    graph,
+    /previous\.sensor ===[\s\S]*boundary\.sensor[\s\S]*previous\.elementIndex =/
+  );
+
+  assert.doesNotMatch(
+    builder,
+    /sensorAddressesAt/
+  );
+
+  assert.match(
+    builder,
+    /SectionPart\.elementIds are non-overlapping/
+  );
+});
