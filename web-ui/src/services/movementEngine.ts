@@ -4964,6 +4964,59 @@ export async function startMovement(
       page
     );
 
+  console.info(
+    "[Movement] resolved plan",
+    {
+      page:
+        page.name,
+      direction:
+        plan.direction,
+      resources:
+        plan.resources.map(
+          resource => ({
+            order:
+              resource.routeOrder,
+            kind:
+              resource.kind,
+            name:
+              resource.name,
+            sensors:
+              [
+                ...resource.detectors,
+              ],
+            blockSensor:
+              resource.sensorAddress,
+            turnouts:
+              resource.turnoutStates.map(
+                state => ({
+                  ...state,
+                })
+              ),
+          })
+        ),
+      legs:
+        plan.legs.map(
+          leg => ({
+            from:
+              leg.from.name,
+            to:
+              leg.to.name,
+            resources:
+              leg.resources.map(
+                resource =>
+                  resource.name
+              ),
+            turnoutStates:
+              leg.turnoutStates.map(
+                state => ({
+                  ...state,
+                })
+              ),
+          })
+        ),
+    }
+  );
+
   wsApi.getBlocks();
   wsApi.getLayoutRuntimeSnapshot();
 

@@ -1854,6 +1854,36 @@ export function buildMovementPlan(
     });
   }
 
+  const legResourceKeys =
+    new Set(
+      legs.flatMap(
+        leg =>
+          leg.resources.map(
+            resource =>
+              resource.key
+          )
+      )
+    );
+
+  const orphanTurnouts =
+    resources.filter(
+      resource =>
+        resource.kind ===
+          "turnout" &&
+        !legResourceKeys.has(
+          resource.key
+        )
+    );
+
+  if (
+    orphanTurnouts.length >
+      0
+  ) {
+    throw new Error(
+      `Movement Plan internal route-order error: turnout resources are outside every block-to-block leg (${orphanTurnouts.map(resource => resource.name).join(", ")}).`
+    );
+  }
+
   return {
     topologyVersion:
       topology.version,

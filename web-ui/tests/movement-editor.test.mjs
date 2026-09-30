@@ -5574,3 +5574,43 @@ test("Movement block placement uses physical part detectors instead of direction
     /part\.fromSensor/
   );
 });
+
+
+test("Movement plan fails closed when a turnout falls outside every leg", () => {
+  const plan =
+    read(
+      "src/services/movementPlan.ts"
+    );
+
+  assert.match(
+    plan,
+    /const legResourceKeys =/
+  );
+
+  assert.match(
+    plan,
+    /const orphanTurnouts =/
+  );
+
+  assert.match(
+    plan,
+    /Movement Plan internal route-order error: turnout resources are outside every block-to-block leg/
+  );
+});
+
+test("Movement start logs resolved physical resources and per-leg turnout requirements", () => {
+  const engine =
+    read(
+      "src/services/movementEngine.ts"
+    );
+
+  assert.match(
+    engine,
+    /\[Movement\] resolved plan/
+  );
+
+  assert.match(
+    engine,
+    /turnoutStates:[\s\S]*leg\.turnoutStates/
+  );
+});
