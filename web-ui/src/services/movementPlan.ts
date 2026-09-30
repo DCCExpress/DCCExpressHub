@@ -491,7 +491,9 @@ function parseTopology(
     topology.version !==
       5 &&
     topology.version !==
-      6
+      6 &&
+    topology.version !==
+      7
   ) {
     throw new Error(
       "Unsupported route topology. Regenerate and save the route graph."

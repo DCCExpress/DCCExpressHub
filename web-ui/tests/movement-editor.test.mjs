@@ -4672,7 +4672,7 @@ test("route topology persists section-part paths and supports cyclic same-node r
 
   assert.match(
     cache,
-    /ROUTE_TOPOLOGY_VERSION = 6/
+    /ROUTE_TOPOLOGY_VERSION = 7/
   );
 
   assert.match(
@@ -5041,7 +5041,7 @@ test("section parts expose exactly one directional Movement detector", () => {
 });
 
 
-test("part-based Movement routes never fall back to whole sections or sensorless parts", () => {
+test("part-based Movement routes preserve sensorless boundary parts without whole-section fallback", () => {
   const cache =
     read(
       "src/services/clientRouteGraphCache.ts"
@@ -5052,9 +5052,36 @@ test("part-based Movement routes never fall back to whole sections or sensorless
       "src/services/movementPlan.ts"
     );
 
+  const multiNodeStart =
+    cache.indexOf(
+      "function multiNodeSectionPartPath"
+    );
+
+  const multiNodeEnd =
+    cache.indexOf(
+      "function enumerateRouteVariantsForBlockPair",
+      multiNodeStart
+    );
+
+  const multiNode =
+    cache.slice(
+      multiNodeStart,
+      multiNodeEnd
+    );
+
   assert.match(
-    cache,
-    /entries\.filter\([\s\S]*entry\.toSensor !==[\s\S]*null[\s\S]*entry\.toSensor >/
+    multiNode,
+    /result\.push\([\s\S]*\.\.\.entries[\s\S]*\)/
+  );
+
+  assert.doesNotMatch(
+    multiNode,
+    /entries\.filter\([\s\S]*entry\.toSensor/
+  );
+
+  assert.match(
+    multiNode,
+    /Sensors describe detection; they do not define whether a physical/
   );
 
   assert.doesNotMatch(
@@ -5416,5 +5443,45 @@ test("ARRIVED releases previous leg turnout authority before leg completion", ()
   assert.match(
     traverse,
     /leases\.turnouts\s*=\s*null/
+  );
+});
+
+
+test("reverse multi-node routes keep a one-sided sensor boundary section", () => {
+  const cache =
+    read(
+      "src/services/clientRouteGraphCache.ts"
+    );
+
+  const persisted =
+    cache.slice(
+      cache.indexOf("function persistedPart"),
+      cache.indexOf("function sameNodeSectionPartRoutes")
+    );
+
+  const multiNode =
+    cache.slice(
+      cache.indexOf("function multiNodeSectionPartPath"),
+      cache.indexOf("function enumerateRouteVariantsForBlockPair")
+    );
+
+  assert.match(
+    persisted,
+    /fromSensor:[\s\S]*reverse[\s\S]*part\.toSensor[\s\S]*part\.fromSensor/
+  );
+
+  assert.match(
+    persisted,
+    /toSensor:[\s\S]*reverse[\s\S]*part\.fromSensor[\s\S]*part\.toSensor/
+  );
+
+  assert.match(
+    multiNode,
+    /result\.push\([\s\S]*\.\.\.entries/
+  );
+
+  assert.doesNotMatch(
+    multiNode,
+    /entry\.toSensor !==[\s\S]*null/
   );
 });

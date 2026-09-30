@@ -30,7 +30,7 @@ import {
   createClientGraphFromRouteGraphDto,
 } from "@/services/routeGraphDtoMapper";
 
-const ROUTE_TOPOLOGY_VERSION = 6;
+const ROUTE_TOPOLOGY_VERSION = 7;
 
 const ROUTE_TOPOLOGY_FIELD =
   "routeTopology";
@@ -1099,14 +1099,19 @@ function multiNodeSectionPartPath(
       }
     }
 
+    /*
+     * Preserve every physically traversed SectionPart.
+     *
+     * A boundary part may legitimately have a sensor only on one side.
+     * When the route is reversed persistedPart() swaps from/to sensors, so
+     * filtering by toSensor would make the same physical section disappear
+     * in one direction (for example 1005 -> null between two turnouts).
+     *
+     * Sensors describe detection; they do not define whether a physical
+     * section belongs to the route.
+     */
     result.push(
-      ...entries.filter(
-        entry =>
-          entry.toSensor !==
-            null &&
-          entry.toSensor >
-            0
-      )
+      ...entries
     );
   }
 
