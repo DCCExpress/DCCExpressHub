@@ -81,6 +81,7 @@ export async function executeRouteButton(
 
 export async function executeExtendedRouteButton(
   routeButton: ExtendedRouteButtonElement,
+  layout: LayoutView,
   context: TrackCanvasRouteActionContext
 ): Promise<void> {
   const { t, commandCenterLocked } =
