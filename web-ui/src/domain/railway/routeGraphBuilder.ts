@@ -474,6 +474,287 @@ export class RouteGraphBuilder {
     );
   }
 
+  private sectionPartNeighbors(
+    element:
+      TopologyTrackElement,
+    allowedIds:
+      Set<number>
+  ): TopologyTrackElement[] {
+    const result =
+      new Map<
+        number,
+        TopologyTrackElement
+      >();
+
+    for (
+      const group of
+      this.getTrackConnectionGroups(
+        element
+      )
+    ) {
+      for (
+        const endpoint of
+        group.endpoints
+      ) {
+        const candidate =
+          this.topology.getPhysicalTrackAt(
+            endpoint
+          );
+
+        if (
+          !candidate ||
+          candidate.id ===
+            element.id ||
+          !allowedIds.has(
+            candidate.id
+          ) ||
+          isTopologyTurnoutElement(
+            candidate
+          ) ||
+          !this.hasTrackConnectionAt(
+            candidate,
+            element.pos
+          )
+        ) {
+          continue;
+        }
+
+        result.set(
+          candidate.id,
+          candidate
+        );
+      }
+    }
+
+    return [
+      ...result.values(),
+    ];
+  }
+
+  private orderSectionElementsForParts(
+    sectionElements:
+      TopologyTrackElement[]
+  ): {
+    elements:
+      TopologyTrackElement[];
+    circular: boolean;
+  } {
+    if (
+      sectionElements.length <=
+        1
+    ) {
+      return {
+        elements: [
+          ...sectionElements,
+        ],
+        circular:
+          false,
+      };
+    }
+
+    const allowedIds =
+      new Set(
+        sectionElements.map(
+          element =>
+            element.id
+        )
+      );
+
+    const neighbors =
+      new Map<
+        number,
+        TopologyTrackElement[]
+      >();
+
+    for (
+      const element of
+      sectionElements
+    ) {
+      neighbors.set(
+        element.id,
+        this.sectionPartNeighbors(
+          element,
+          allowedIds
+        )
+      );
+    }
+
+    const isSimplePath =
+      sectionElements.every(
+        element =>
+          (
+            neighbors.get(
+              element.id
+            )?.length ??
+            0
+          ) <=
+            2
+      );
+
+    if (!isSimplePath) {
+      /*
+       * Crossings or other compound track elements may create a non-simple
+       * element graph. Keep the historical section order rather than guessing
+       * a physical traversal.
+       */
+      return {
+        elements: [
+          ...sectionElements,
+        ],
+        circular:
+          false,
+      };
+    }
+
+    const endpoints =
+      sectionElements
+        .filter(
+          element =>
+            (
+              neighbors.get(
+                element.id
+              )?.length ??
+              0
+            ) ===
+              1
+        )
+        .sort(
+          (
+            left,
+            right
+          ) =>
+            left.id -
+            right.id
+        );
+
+    const circular =
+      endpoints.length ===
+        0 &&
+      sectionElements.every(
+        element =>
+          (
+            neighbors.get(
+              element.id
+            )?.length ??
+            0
+          ) ===
+            2
+      );
+
+    const start =
+      (
+        endpoints[0] ??
+        [
+          ...sectionElements,
+        ].sort(
+          (
+            left,
+            right
+          ) =>
+            left.id -
+            right.id
+        )[0]
+      );
+
+    if (!start) {
+      return {
+        elements: [],
+        circular:
+          false,
+      };
+    }
+
+    const ordered:
+      TopologyTrackElement[] =
+      [];
+
+    const visited =
+      new Set<number>();
+
+    let previous:
+      TopologyTrackElement |
+      null =
+      null;
+
+    let current:
+      TopologyTrackElement |
+      null =
+      start;
+
+    while (
+      current &&
+      !visited.has(
+        current.id
+      )
+    ) {
+      ordered.push(
+        current
+      );
+
+      visited.add(
+        current.id
+      );
+
+      const candidates =
+        (
+          neighbors.get(
+            current.id
+          ) ??
+          []
+        )
+          .filter(
+            candidate =>
+              candidate.id !==
+                previous?.id &&
+              !visited.has(
+                candidate.id
+              )
+          )
+          .sort(
+            (
+              left,
+              right
+            ) =>
+              left.id -
+              right.id
+          );
+
+      const next =
+        candidates[0] ??
+        null;
+
+      previous =
+        current;
+
+      current =
+        next;
+    }
+
+    /*
+     * A proper linear/circular section must be traversable exactly once.
+     * Fall back instead of silently losing track elements if the topology is
+     * more complex than the simple section model.
+     */
+    if (
+      ordered.length !==
+        sectionElements.length
+    ) {
+      return {
+        elements: [
+          ...sectionElements,
+        ],
+        circular:
+          false,
+      };
+    }
+
+    return {
+      elements:
+        ordered,
+      circular,
+    };
+  }
+
   private sectionPathDirection(
     elements:
       TopologyTrackElement[]
@@ -529,14 +810,25 @@ export class RouteGraphBuilder {
       SectionBlock[]
   ): SectionPart[] {
     if (
-      sectionElements.length ===
+      orderedElements.length ===
         0
     ) {
       return [];
     }
 
+    const orderedSection =
+      this.orderSectionElementsForParts(
+        orderedElements
+      );
+
+    const orderedElements =
+      orderedSection.elements;
+
+    const circular =
+      orderedSection.circular;
+
     const boundaries =
-      sectionElements.flatMap(
+      orderedElements.flatMap(
         (
           element,
           elementIndex
@@ -549,24 +841,6 @@ export class RouteGraphBuilder {
               sensor,
             })
           )
-      );
-
-    const circular =
-      sectionElements.length >
-        1 &&
-      this.hasTrackConnectionAt(
-        sectionElements[0]!,
-        sectionElements[
-          sectionElements.length -
-            1
-        ]!.pos
-      ) &&
-      this.hasTrackConnectionAt(
-        sectionElements[
-          sectionElements.length -
-            1
-        ]!,
-        sectionElements[0]!.pos
       );
 
     const blockIdsForSensor =
@@ -643,7 +917,7 @@ export class RouteGraphBuilder {
           0,
           null,
           null,
-          sectionElements
+          orderedElements
         ),
       ];
     }
@@ -717,16 +991,16 @@ export class RouteGraphBuilder {
           const elements =
             next.elementIndex >
               boundary.elementIndex
-              ? sectionElements.slice(
+              ? orderedElements.slice(
                   boundary.elementIndex,
                   next.elementIndex +
                     1
                 )
               : [
-                  ...sectionElements.slice(
+                  ...orderedElements.slice(
                     boundary.elementIndex
                   ),
-                  ...sectionElements.slice(
+                  ...orderedElements.slice(
                     0,
                     next.elementIndex +
                       1
@@ -758,7 +1032,7 @@ export class RouteGraphBuilder {
           parts.length,
           null,
           first.sensor,
-          sectionElements.slice(
+          orderedElements.slice(
             0,
             first.elementIndex +
               1
@@ -790,7 +1064,7 @@ export class RouteGraphBuilder {
           parts.length,
           current.sensor,
           next.sensor,
-          sectionElements.slice(
+          orderedElements.slice(
             current.elementIndex,
             next.elementIndex +
               1
@@ -807,7 +1081,7 @@ export class RouteGraphBuilder {
 
     if (
       last.elementIndex <
-        sectionElements.length -
+        orderedElements.length -
           1
     ) {
       parts.push(
@@ -815,7 +1089,7 @@ export class RouteGraphBuilder {
           parts.length,
           last.sensor,
           null,
-          sectionElements.slice(
+          orderedElements.slice(
             last.elementIndex
           )
         )
@@ -831,7 +1105,7 @@ export class RouteGraphBuilder {
           0,
           first.sensor,
           first.sensor,
-          sectionElements
+          orderedElements
         )
       );
     }
