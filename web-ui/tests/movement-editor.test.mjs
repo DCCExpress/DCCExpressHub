@@ -5274,7 +5274,7 @@ test("block route overlay stores node identity outside the physical graph", () =
 });
 
 
-test("Movement rejects duplicate block occupancy sensor addresses", () => {
+test("Movement rejects duplicate block occupancy sensor addresses without coupling them to the physical graph", () => {
   const cache =
     read(
       "src/services/clientRouteGraphCache.ts"
@@ -5285,7 +5285,7 @@ test("Movement rejects duplicate block occupancy sensor addresses", () => {
       "src/services/movementPlan.ts"
     );
 
-  assert.match(
+  assert.doesNotMatch(
     cache,
     /Movement requires unique block occupancy sensors/
   );
