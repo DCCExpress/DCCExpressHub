@@ -12,8 +12,9 @@ import {
   Stack,
   Table,
   Text,
+  TextInput,
 } from "@mantine/core";
-import { IconPlayerPlay, IconTrash } from "@tabler/icons-react";
+import { IconPlayerPlay, IconTrash, IconX } from "@tabler/icons-react";
 
 import type { LayoutElementId } from "@domain/layout/layoutDto";
 import type { BaseElement } from "../../models/editor/core/BaseElement";
@@ -29,7 +30,7 @@ import {
 } from "../../models/editor/elements/TrackTurnoutThreeWayElement";
 import ElementPreview from "../../models/editor/rendering/ElementPreviewRenderer";
 import { useCommandCenter } from "../../context/CommandCenterContext";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { showWarningMessage } from "../../helpers";
 import { executeLegacyRouteButton } from "../../services/routeButtonExecutor";
 import {
@@ -161,6 +162,16 @@ export default function RouteTurnoutSelectionPropertyEditor({
     null
   );
 
+  const [
+    fromFilter,
+    setFromFilter,
+  ] = useState("");
+
+  const [
+    toFilter,
+    setToFilter,
+  ] = useState("");
+
   const openRouteSelect = (): void => {
     if (
       !(selectedElement instanceof
@@ -172,6 +183,14 @@ export default function RouteTurnoutSelectionPropertyEditor({
     try {
       setRouteSelectError(
         null
+      );
+
+      setFromFilter(
+        ""
+      );
+
+      setToFilter(
+        ""
       );
 
       setRouteCandidates(
@@ -216,6 +235,46 @@ export default function RouteTurnoutSelectionPropertyEditor({
       routeSelectRequest,
     ]
   );
+
+  const filteredRouteCandidates =
+    useMemo(
+      () => {
+        const fromNeedle =
+          fromFilter
+            .trim()
+            .toLocaleLowerCase();
+
+        const toNeedle =
+          toFilter
+            .trim()
+            .toLocaleLowerCase();
+
+        return routeCandidates.filter(
+          candidate =>
+            (
+              !fromNeedle ||
+              candidate.fromBlockName
+                .toLocaleLowerCase()
+                .includes(
+                  fromNeedle
+                )
+            ) &&
+            (
+              !toNeedle ||
+              candidate.toBlockName
+                .toLocaleLowerCase()
+                .includes(
+                  toNeedle
+                )
+            )
+        );
+      },
+      [
+        routeCandidates,
+        fromFilter,
+        toFilter,
+      ]
+    );
 
   const applyRouteCandidate = (
     candidate:
@@ -390,6 +449,104 @@ export default function RouteTurnoutSelectionPropertyEditor({
             )}
           </Text>
 
+          <Group
+            gap="sm"
+            grow
+            align="flex-end"
+          >
+            <TextInput
+              label={
+                i18next.t(
+                  "ui.movementFromFilter"
+                )
+              }
+              placeholder={
+                i18next.t(
+                  "ui.movementFilterPlaceholder"
+                )
+              }
+              value={
+                fromFilter
+              }
+              onChange={
+                event =>
+                  setFromFilter(
+                    event.currentTarget.value
+                  )
+              }
+              rightSection={
+                fromFilter ? (
+                  <ActionIcon
+                    size="sm"
+                    variant="subtle"
+                    color="gray"
+                    aria-label={
+                      i18next.t(
+                        "ui.clearFilter"
+                      )
+                    }
+                    onClick={
+                      () =>
+                        setFromFilter(
+                          ""
+                        )
+                    }
+                  >
+                    <IconX
+                      size={14}
+                    />
+                  </ActionIcon>
+                ) : null
+              }
+            />
+
+            <TextInput
+              label={
+                i18next.t(
+                  "ui.movementToFilter"
+                )
+              }
+              placeholder={
+                i18next.t(
+                  "ui.movementFilterPlaceholder"
+                )
+              }
+              value={
+                toFilter
+              }
+              onChange={
+                event =>
+                  setToFilter(
+                    event.currentTarget.value
+                  )
+              }
+              rightSection={
+                toFilter ? (
+                  <ActionIcon
+                    size="sm"
+                    variant="subtle"
+                    color="gray"
+                    aria-label={
+                      i18next.t(
+                        "ui.clearFilter"
+                      )
+                    }
+                    onClick={
+                      () =>
+                        setToFilter(
+                          ""
+                        )
+                    }
+                  >
+                    <IconX
+                      size={14}
+                    />
+                  </ActionIcon>
+                ) : null
+              }
+            />
+          </Group>
+
           {routeSelectError && (
             <Alert
               color="red"
@@ -419,6 +576,22 @@ export default function RouteTurnoutSelectionPropertyEditor({
 
           {!routeSelectError &&
             routeCandidates.length >
+              0 &&
+            filteredRouteCandidates.length ===
+              0 && (
+              <Text
+                c="dimmed"
+                ta="center"
+                py="md"
+              >
+                {i18next.t(
+                  "ui.movementNoRoutesMatchFilter"
+                )}
+              </Text>
+            )}
+
+          {!routeSelectError &&
+            filteredRouteCandidates.length >
               0 && (
               <ScrollArea.Autosize
                 mah="60dvh"
@@ -470,7 +643,7 @@ export default function RouteTurnoutSelectionPropertyEditor({
                   </Table.Thead>
 
                   <Table.Tbody>
-                    {routeCandidates.map(
+                    {filteredRouteCandidates.map(
                       candidate => (
                         <Table.Tr
                           key={
