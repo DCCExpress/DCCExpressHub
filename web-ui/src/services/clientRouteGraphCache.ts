@@ -1711,53 +1711,6 @@ function validateMovementReadyGraph(
       )
     );
 
-  const blocksBySensor =
-    new Map<
-      number,
-      SectionBlock[]
-    >();
-
-  for (
-    const block of
-    usableBlocks
-  ) {
-    const sensor =
-      block.sensorAddress!;
-
-    const items =
-      blocksBySensor.get(
-        sensor
-      ) ??
-      [];
-
-    items.push(
-      block
-    );
-
-    blocksBySensor.set(
-      sensor,
-      items
-    );
-  }
-
-  for (
-    const [
-      sensor,
-      sensorBlocks,
-    ] of blocksBySensor
-  ) {
-    if (
-      sensorBlocks.length <=
-        1
-    ) {
-      continue;
-    }
-
-    errors.push(
-      `Movement requires unique block occupancy sensors. Sensor ${sensor} is assigned to blocks ${sensorBlocks.map(block => `"${block.name}"`).join(", ")}.`
-    );
-  }
-
   if (
     usableBlocks.length <
       2
