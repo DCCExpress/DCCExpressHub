@@ -342,7 +342,7 @@ export default function MovementRouteEditor({
       });
     };
 
-  const selectedResource =
+  const selectedPhysicalResource =
     plan &&
     selectedResourceKey
       ? plan.resources.find(
@@ -352,6 +352,35 @@ export default function MovementRouteEditor({
         ) ??
         null
       : null;
+
+  /*
+   * Route-vector selection is keyed by the physical resource. A composite
+   * SectionPart+Block node therefore selects the SectionPart first, then the
+   * logical block overlay at the same physical routeOrder for editing block
+   * conditions/actions.
+   */
+  const selectedResource =
+    selectedPhysicalResource ===
+      null ||
+    plan ===
+      null
+      ? null
+      : selectedPhysicalResource.kind ===
+          "segment"
+        ? (
+            plan.blocks.find(
+              block =>
+                block.routeOrder ===
+                  selectedPhysicalResource.routeOrder &&
+                block.sensorAddress !==
+                  null &&
+                selectedPhysicalResource.detectors.includes(
+                  block.sensorAddress
+                )
+            ) ??
+            selectedPhysicalResource
+          )
+        : selectedPhysicalResource;
 
   const selectedSafetyLeg =
     selectedResource ===

@@ -5873,3 +5873,47 @@ test("Movement runtime recovers a changed routeKey from one exact checkpoint pat
     /recovered route from checkpoint sequence after routeKey change/
   );
 });
+
+
+test("composite Movement vector selection keeps the physical key and resolves the logical block overlay", () => {
+  const vector =
+    read(
+      "src/services/movementRouteVector.ts"
+    );
+
+  const editor =
+    read(
+      "src/components/movement/MovementRouteEditor.tsx"
+    );
+
+  const composite =
+    vector.slice(
+      vector.indexOf("if (block)"),
+      vector.indexOf("const trackName")
+    );
+
+  assert.match(
+    composite,
+    /key:[\s\S]*resource\.key/
+  );
+
+  assert.doesNotMatch(
+    composite,
+    /key:[\s\S]*block\.key/
+  );
+
+  assert.match(
+    editor,
+    /const selectedPhysicalResource =/
+  );
+
+  assert.match(
+    editor,
+    /plan\.blocks\.find\([\s\S]*block\.routeOrder ===[\s\S]*selectedPhysicalResource\.routeOrder/
+  );
+
+  assert.match(
+    editor,
+    /selectedPhysicalResource\.detectors\.includes\([\s\S]*block\.sensorAddress/
+  );
+});

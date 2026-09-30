@@ -785,8 +785,13 @@ export async function loadMovementRouteVector(
         }
 
         return {
+          /*
+           * Composite vector nodes keep the PHYSICAL SectionPart key.
+           * Selection must always resolve back to plan.resources; blockId and
+           * block metadata carry the logical overlay separately.
+           */
           key:
-            block.key,
+            resource.key,
           kind:
             "block",
           order:
