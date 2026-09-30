@@ -3190,7 +3190,6 @@ async function waitForLegClearance(
         waitingReason =
           "targetBlock";
       } else if (
-        requirePathSensorsFree &&
         !aheadPathSensorsAreFree(
           execution,
           leg
@@ -3873,6 +3872,7 @@ async function waitForHeldLegReady(
         waitingReason =
           "targetBlock";
       } else if (
+        requirePathSensorsFree &&
         !aheadPathSensorsAreFree(
           execution,
           leg
