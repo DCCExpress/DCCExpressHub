@@ -80,6 +80,35 @@ test("inherited coordinates use virtual grid getters and preserve centered block
   assert.deepEqual(block.getCollisionBounds(), { x: 2, y: 3, width: 1, height: 1 });
 });
 
+test("occupancy capability excludes sensor, signal and block overlays from bulk track editing", () => {
+  for (const [name, Class] of classes) {
+    const element = new Class(0, 0);
+
+    if (!(element instanceof TrackElement)) {
+      continue;
+    }
+
+    const expected =
+      name.startsWith("Track") &&
+      ![
+        "TrackSignalElement",
+        "TrackSensorElement",
+      ].includes(name);
+
+    assert.equal(
+      element.hasOccupancySensor,
+      expected,
+      name
+    );
+  }
+
+  assert.equal(
+    new Block(0, 0)
+      .hasOccupancySensor,
+    false
+  );
+});
+
 test("occupancy and output properties are available immediately without prototype installation", () => {
   for (const [name, Class] of classes) {
     const properties = new Class(0, 0).getEditableProperties();

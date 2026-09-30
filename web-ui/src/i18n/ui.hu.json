@@ -677,6 +677,7 @@
   "thisIsTheInternalSiliconTemperatureOfTheEsp32Not": "Ez az ESP32 belső szilíciumhőmérséklete, nem szobahőmérséklet és nem CPU-magonkénti külön mérés.",
   "acknowledge": "Nyugtázás",
   "occupancySensorAddress": "Foglaltságérzékelő címe",
+  "mixedValue": "Vegyes",
   "activeColor": "Aktív szín",
   "background": "Háttér",
   "foreground": "Előtér",

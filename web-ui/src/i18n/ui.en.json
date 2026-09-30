@@ -677,6 +677,7 @@
   "thisIsTheInternalSiliconTemperatureOfTheEsp32Not": "This is the internal silicon temperature of the ESP32, not the room temperature and not a separate reading for each CPU core.",
   "acknowledge": "Acknowledge",
   "occupancySensorAddress": "Occupancy sensor address",
+  "mixedValue": "Mixed",
   "activeColor": "Active color",
   "background": "Background",
   "foreground": "Foreground",

@@ -225,6 +225,14 @@ export abstract class TrackElement extends BaseElement {
     return true;
   }
 
+  /**
+   * Public capability flag for UI code that needs to distinguish physical
+   * occupancy-aware track elements from sensor/signal/block overlays.
+   */
+  get hasOccupancySensor(): boolean {
+    return this.hasOccupancySensorProperty;
+  }
+
   override getEditableProperties(): IEditableProperty[] {
     const properties = super.getEditableProperties();
     if (!this.hasOccupancySensorProperty) return properties;

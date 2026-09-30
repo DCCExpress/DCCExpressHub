@@ -677,6 +677,7 @@
   "thisIsTheInternalSiliconTemperatureOfTheEsp32Not": "Dies ist die interne Siliziumtemperatur des ESP32, nicht die Raumtemperatur und kein separater Messwert je CPU-Kern.",
   "acknowledge": "Bestätigen",
   "occupancySensorAddress": "Adresse des Belegtmelders",
+  "mixedValue": "Gemischt",
   "activeColor": "Aktive Farbe",
   "background": "Hintergrund",
   "foreground": "Vordergrund",
