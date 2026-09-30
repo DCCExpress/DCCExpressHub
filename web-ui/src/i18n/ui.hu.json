@@ -678,6 +678,7 @@
   "acknowledge": "Nyugtázás",
   "occupancySensorAddress": "Foglaltságérzékelő címe",
   "mixedValue": "Vegyes",
+  "noCommonEditableProperty": "Nincs közös szerkeszthető tulajdonság",
   "activeColor": "Aktív szín",
   "background": "Háttér",
   "foreground": "Előtér",

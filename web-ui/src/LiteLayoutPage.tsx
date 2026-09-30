@@ -752,6 +752,32 @@ function LitePropertyPanel({
       );
     }
 
+    if (
+      selectedElements.length >
+        1
+    ) {
+      return (
+        <Stack gap="xs">
+          <Text
+            fw={800}
+          >
+            {i18next.t(
+              "ui.properties"
+            )}
+          </Text>
+
+          <Text
+            size="sm"
+            c="dimmed"
+          >
+            {i18next.t(
+              "ui.noCommonEditableProperty"
+            )}
+          </Text>
+        </Stack>
+      );
+    }
+
     return <VisibilitySettings title={i18next.t("ui.layoutVisibility")} />;
   }
 

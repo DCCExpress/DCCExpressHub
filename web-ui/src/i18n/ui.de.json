@@ -678,6 +678,7 @@
   "acknowledge": "Bestätigen",
   "occupancySensorAddress": "Adresse des Belegtmelders",
   "mixedValue": "Gemischt",
+  "noCommonEditableProperty": "Keine gemeinsame bearbeitbare Eigenschaft",
   "activeColor": "Aktive Farbe",
   "background": "Hintergrund",
   "foreground": "Vordergrund",

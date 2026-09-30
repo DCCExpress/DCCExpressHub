@@ -678,6 +678,7 @@
   "acknowledge": "Acknowledge",
   "occupancySensorAddress": "Occupancy sensor address",
   "mixedValue": "Mixed",
+  "noCommonEditableProperty": "No common editable property",
   "activeColor": "Active color",
   "background": "Background",
   "foreground": "Foreground",
