@@ -5234,6 +5234,11 @@ test("physical route graph is block-free and Movement owns sensor composition", 
     /sensorAddress !==[\s\S]*null[\s\S]*node\.sectionParts\.some/
   );
 
+  assert.doesNotMatch(
+    clientBuilder,
+    /getBounds\(\)/
+  );
+
   assert.match(
     plan,
     /blockForSensor/
