@@ -54,6 +54,7 @@ export type MovementRouteVectorItem =
       name: string;
       sensor: number | null;
       sensors: number[];
+      physicalSegmentNames: string[];
       blockType: string;
       role:
         MovementRouteVectorRole;
@@ -962,6 +963,10 @@ export async function loadMovementRouteVector(
             resource.name,
           sensor,
           sensors,
+          physicalSegmentNames:
+            [
+              ...resource.physicalSegmentNames,
+            ],
           blockType:
             blockTypes.get(
               blockId
