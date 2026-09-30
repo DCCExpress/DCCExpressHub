@@ -126,6 +126,7 @@ export type MovementPlanResource = {
     RawTurnoutState[];
   routeOrder: number;
   partIndex: number | null;
+  physicalSegmentNames: string[];
 };
 
 export type MovementPlanLeg = {
@@ -806,8 +807,30 @@ export function buildMovementPlan(
   const pushBlock =
     (
       entry:
-        RawBlockPathEntry
-    ): void => {
+        RawBlockPathEntry,
+      physicalSegmentNames:
+        string[] =
+        []
+    ): MovementPlanResource => {
+      const existing =
+        blocks.find(
+          block =>
+            block.blockId ===
+              entry.id
+        );
+
+      if (existing) {
+        existing.physicalSegmentNames =
+          [
+            ...new Set([
+              ...existing.physicalSegmentNames,
+              ...physicalSegmentNames,
+            ]),
+          ];
+
+        return existing;
+      }
+
       const resource:
         MovementPlanResource = {
         key:
@@ -831,6 +854,12 @@ export function buildMovementPlan(
         turnoutStates: [],
         routeOrder: 0,
         partIndex: null,
+        physicalSegmentNames:
+          [
+            ...new Set(
+              physicalSegmentNames
+            ),
+          ],
       };
 
       resources.push(
@@ -840,6 +869,8 @@ export function buildMovementPlan(
       blocks.push(
         resource
       );
+
+      return resource;
     };
 
   const source =
@@ -922,6 +953,7 @@ export function buildMovementPlan(
             )
               ? part.partIndex
               : null,
+          physicalSegmentNames: [],
         });
       };
 
@@ -1033,26 +1065,13 @@ export function buildMovementPlan(
       }
     }
 
-    if (
-      sourceIncomingPart &&
-      !partPath.some(
-        part =>
-          part.nodeName ===
-            sourceIncomingPart!.nodeName &&
-          part.partKey ===
-            sourceIncomingPart!.partKey &&
-          part.toSensor ===
-            sourceIncomingPart!.toSensor
-      )
-    ) {
-      pushPart(
-        sourceIncomingPart,
-        source.nodeIndex
-      );
-    }
-
     pushBlock(
-      source
+      source,
+      sourceIncomingPart
+        ? [
+            sourceIncomingPart.partKey,
+          ]
+        : []
     );
 
     const pushTurnouts =
@@ -1156,6 +1175,7 @@ export function buildMovementPlan(
               0,
             partIndex:
               null,
+            physicalSegmentNames: [],
           });
         }
       };
@@ -1186,43 +1206,44 @@ export function buildMovementPlan(
         const part of
         nodeParts
       ) {
+        const matchingBlocks =
+          route.blockPath.filter(
+            block =>
+              (
+                part.blockIds ??
+                []
+              ).includes(
+                block.id
+              ) &&
+              sensors.get(
+                block.id
+              ) ===
+                part.toSensor
+          );
+
+        if (
+          matchingBlocks.length >
+            0
+        ) {
+          for (
+            const block of
+            matchingBlocks
+          ) {
+            pushBlock(
+              block,
+              [
+                part.partKey,
+              ]
+            );
+          }
+
+          continue;
+        }
+
         pushPart(
           part,
           nodeIndex
         );
-
-        for (
-          const blockId of
-          part.blockIds ??
-          []
-        ) {
-          const block =
-            route.blockPath.find(
-              entry =>
-                entry.id ===
-                  blockId
-            );
-
-          if (
-            block &&
-            block.id !==
-              source.id &&
-            block.id !==
-              route.blockPath[
-                route.blockPath.length -
-                  1
-              ]?.id &&
-            !blocks.some(
-              existing =>
-                existing.blockId ===
-                  block.id
-            )
-          ) {
-            pushBlock(
-              block
-            );
-          }
-        }
       }
 
       for (
@@ -1232,13 +1253,6 @@ export function buildMovementPlan(
         if (
           block.nodeIndex !==
             nodeIndex ||
-          block.id ===
-            source.id ||
-          block.id ===
-            route.blockPath[
-              route.blockPath.length -
-                1
-            ]?.id ||
           blocks.some(
             existing =>
               existing.blockId ===
@@ -1484,6 +1498,7 @@ export function buildMovementPlan(
           turnoutStates,
           routeOrder: 0,
           partIndex: null,
+          physicalSegmentNames: [],
         });
       }
     }
