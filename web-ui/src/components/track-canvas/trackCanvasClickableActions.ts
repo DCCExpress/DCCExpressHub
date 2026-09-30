@@ -95,6 +95,7 @@ export function handleTrackCanvasClickableDown(
   if (hitElement instanceof ExtendedRouteButtonElement) {
     void executeExtendedRouteButton(
       hitElement,
+      context.layout,
       {
         t: context.t,
         commandCenterLocked:
