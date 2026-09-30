@@ -5133,7 +5133,7 @@ test("composite Movement blocks render a segment-colored backing card", () => {
 });
 
 
-test("destination block becomes composite when its incoming part uses the same sensor", () => {
+test("destination block resolves its composite section part from graph topology", () => {
   const plan =
     read(
       "src/services/movementPlan.ts"
@@ -5141,16 +5141,21 @@ test("destination block becomes composite when its incoming part uses the same s
 
   assert.match(
     plan,
-    /block\.nodeIndex ===[\s\S]*nodeIndex[\s\S]*sensors\.get[\s\S]*part\.toSensor/
+    /sectionPartNameForBlock/
   );
 
   assert.match(
     plan,
-    /destinationPart =[\s\S]*part\.nodeName ===[\s\S]*destinationNodeName[\s\S]*part\.toSensor ===[\s\S]*destinationSensor/
+    /route\.locoDirection !==[\s\S]*knownDirection[\s\S]*part\.fromSensor ===[\s\S]*sensor[\s\S]*part\.toSensor ===[\s\S]*sensor/
   );
 
   assert.match(
     plan,
-    /pushBlock\([\s\S]*destination,[\s\S]*destinationPart\.partKey/
+    /destinationPartName =[\s\S]*sectionPartNameForBlock\([\s\S]*destination/
+  );
+
+  assert.match(
+    plan,
+    /pushBlock\([\s\S]*destination,[\s\S]*destinationPartName/
   );
 });
