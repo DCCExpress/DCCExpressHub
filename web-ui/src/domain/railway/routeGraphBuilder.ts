@@ -923,49 +923,71 @@ export class RouteGraphBuilder {
      * stable boundary key while all detector addresses remain available on
      * the graph node itself.
      */
+    const elementBoundaries =
+      boundaries
+        .filter(
+          (
+            boundary,
+            index,
+            all
+          ) =>
+            all.findIndex(
+              candidate =>
+                candidate.elementIndex ===
+                  boundary.elementIndex
+            ) ===
+              index
+        )
+        .sort(
+          (
+            left,
+            right
+          ) =>
+            left.elementIndex -
+              right.elementIndex ||
+            left.sensor -
+              right.sensor
+        );
+
+    /*
+     * If one detector address is assigned to several consecutive rail
+     * elements, treat that as one physical detector region. The boundary is
+     * the LAST element of that contiguous run, so the whole run belongs to
+     * the same destination-owned SectionPart.
+     */
     const uniqueBoundaries:
       Array<{
         elementIndex: number;
         sensor: number;
       }> = [];
 
-    const seenBoundarySensors =
-      new Set<number>();
-
-    const seenBoundaryElements =
-      new Set<number>();
-
     for (
       const boundary of
-      boundaries
+      elementBoundaries
     ) {
-      /*
-       * One feedback address may be assigned to several consecutive rail
-       * elements. That is one physical detector section, not several graph
-       * boundaries. Also keep at most one boundary on a single rail element.
-       */
+      const previous =
+        uniqueBoundaries[
+          uniqueBoundaries.length -
+            1
+        ];
+
       if (
-        seenBoundarySensors.has(
-          boundary.sensor
-        ) ||
-        seenBoundaryElements.has(
-          boundary.elementIndex
-        )
+        previous &&
+        previous.sensor ===
+          boundary.sensor &&
+        boundary.elementIndex ===
+          previous.elementIndex +
+            1
       ) {
+        previous.elementIndex =
+          boundary.elementIndex;
+
         continue;
       }
 
-      seenBoundarySensors.add(
-        boundary.sensor
-      );
-
-      seenBoundaryElements.add(
-        boundary.elementIndex
-      );
-
-      uniqueBoundaries.push(
-        boundary
-      );
+      uniqueBoundaries.push({
+        ...boundary,
+      });
     }
 
     if (circular) {
@@ -987,13 +1009,15 @@ export class RouteGraphBuilder {
             next.elementIndex >
               boundary.elementIndex
               ? orderedElements.slice(
-                  boundary.elementIndex,
+                  boundary.elementIndex +
+                    1,
                   next.elementIndex +
                     1
                 )
               : [
                   ...orderedElements.slice(
-                    boundary.elementIndex
+                    boundary.elementIndex +
+                      1
                   ),
                   ...orderedElements.slice(
                     0,
@@ -1018,23 +1042,18 @@ export class RouteGraphBuilder {
     const first =
       uniqueBoundaries[0]!;
 
-    if (
-      first.elementIndex >
-        0
-    ) {
-      parts.push(
-        makePart(
-          parts.length,
-          null,
-          first.sensor,
-          orderedElements.slice(
-            0,
-            first.elementIndex +
-              1
-          )
+    parts.push(
+      makePart(
+        parts.length,
+        null,
+        first.sensor,
+        orderedElements.slice(
+          0,
+          first.elementIndex +
+            1
         )
-      );
-    }
+      )
+    );
 
     for (
       let index = 0;
@@ -1060,7 +1079,8 @@ export class RouteGraphBuilder {
           current.sensor,
           next.sensor,
           orderedElements.slice(
-            current.elementIndex,
+            current.elementIndex +
+              1,
             next.elementIndex +
               1
           )
@@ -1085,22 +1105,9 @@ export class RouteGraphBuilder {
           last.sensor,
           null,
           orderedElements.slice(
-            last.elementIndex
+            last.elementIndex +
+              1
           )
-        )
-      );
-    }
-
-    if (
-      parts.length ===
-        0
-    ) {
-      parts.push(
-        makePart(
-          0,
-          first.sensor,
-          first.sensor,
-          orderedElements
         )
       );
     }
