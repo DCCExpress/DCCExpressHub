@@ -464,6 +464,69 @@ app.MapPost("/api/function-bindings", async (HttpRequest req, IWebHostEnvironmen
     });
 });
 
+
+app.MapGet("/api/train-types", async (IWebHostEnvironment env) =>
+{
+    var p = DataFile(env, "train-types.json");
+    return Results.Text(
+        File.Exists(p)
+            ? await File.ReadAllTextAsync(p)
+            : "[\"passenger\",\"freight\",\"mixed\",\"maintenance\",\"other\"]",
+        "application/json");
+});
+
+app.MapPost("/api/train-types", async (HttpRequest req, IWebHostEnvironment env) =>
+{
+    using var sr = new StreamReader(req.Body);
+    var body = await sr.ReadToEndAsync();
+
+    try
+    {
+        using var doc = JsonDocument.Parse(body);
+
+        if (doc.RootElement.ValueKind != JsonValueKind.Array)
+            return Results.Json(
+                new { ok = false, message = "Expected train type JSON array" },
+                statusCode: 400);
+
+        var usedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var item in doc.RootElement.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.String ||
+                string.IsNullOrWhiteSpace(item.GetString()) ||
+                !usedNames.Add(item.GetString()!.Trim()))
+            {
+                return Results.Json(
+                    new { ok = false, message = "Train types require unique non-empty names" },
+                    statusCode: 400);
+            }
+        }
+
+        if (usedNames.Count == 0)
+            return Results.Json(
+                new { ok = false, message = "At least one train type is required" },
+                statusCode: 400);
+    }
+    catch
+    {
+        return Results.Json(
+            new { ok = false, message = "Expected train type JSON array" },
+            statusCode: 400);
+    }
+
+    var path = DataFile(env, "train-types.json");
+    var temp = path + ".tmp";
+    await File.WriteAllTextAsync(temp, body);
+    File.Move(temp, path, true);
+
+    return Results.Json(new
+    {
+        ok = true,
+        bytes = System.Text.Encoding.UTF8.GetByteCount(body)
+    });
+});
+
 app.MapGet("/api/layout", async (IWebHostEnvironment env) =>
 {
     var p = DataFile(env, "layout.json");

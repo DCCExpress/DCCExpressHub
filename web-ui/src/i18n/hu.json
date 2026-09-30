@@ -65,6 +65,12 @@
     "newloco": "Új",
     "noimage": "Nincs kép",
     "save": "Mentés",
+    "trainTypesEditorTitle": "Vonattípusok szerkesztése",
+    "trainTypesEditorHint": "A lista a train-types.json fájlban tárolódik. A használt típusok átnevezhetők, de közvetlenül nem törölhetők.",
+    "trainTypesAdd": "Új típus",
+    "trainTypesName": "Vonattípus neve",
+    "trainTypesDeleteUsed": "Ezt a típust mozdony használja; előbb rendelj másik típust hozzá.",
+    "trainTypesInvalid": "Minden név legyen kitöltve és egyedi.",
     "selectimage": "Kép választása"
   },
   "locopanel": {

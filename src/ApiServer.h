@@ -72,6 +72,9 @@ private:
   static constexpr const char* FUNCTION_BINDINGS_PATH =
       "/config/function-bindings.json";
 
+  static constexpr const char* TRAIN_TYPES_PATH =
+      "/config/train-types.json";
+
   static constexpr const char* SIGNAL_LOGIC_PATH =
       "/config/signal-logic.ndjson";
 
@@ -103,6 +106,7 @@ private:
   AtomicFileUpload _layoutUpload;
   AtomicFileUpload _locosUpload;
   AtomicFileUpload _functionBindingsUpload;
+  AtomicFileUpload _trainTypesUpload;
   AtomicFileUpload _signalLogicUpload;
 
   void setupApi();
@@ -129,6 +133,13 @@ private:
       size_t index,
       size_t total);
 
+  void handleTrainTypesBody(
+      AsyncWebServerRequest* request,
+      uint8_t* data,
+      size_t len,
+      size_t index,
+      size_t total);
+
   void handleSignalLogicBody(
       AsyncWebServerRequest* request,
       uint8_t* data,
@@ -138,6 +149,7 @@ private:
 
   bool verifyLocosTemp();
   bool verifyFunctionBindingsTemp();
+  bool verifyTrainTypesTemp();
   bool verifySignalLogicTemp();
 
   static void sendJson(

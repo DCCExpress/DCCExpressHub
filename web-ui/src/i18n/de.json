@@ -65,6 +65,12 @@
     "newloco": "Neue Lokomotive",
     "noimage": "Kein Bild",
     "save": "Speichern",
+    "trainTypesEditorTitle": "Zugtypen bearbeiten",
+    "trainTypesEditorHint": "Die Liste wird in train-types.json gespeichert. Verwendete Typen können umbenannt, aber nicht direkt gelöscht werden.",
+    "trainTypesAdd": "Typ hinzufügen",
+    "trainTypesName": "Name des Zugtyps",
+    "trainTypesDeleteUsed": "Dieser Typ wird von einer Lok verwendet; zuerst einen anderen Typ zuweisen.",
+    "trainTypesInvalid": "Jeder Name muss ausgefüllt und eindeutig sein.",
     "selectimage": "Bild auswählen"
   },
   "locopanel": {

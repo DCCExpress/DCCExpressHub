@@ -65,6 +65,12 @@
     "newloco": "New locomotive",
     "noimage": "No image",
     "save": "Save",
+    "trainTypesEditorTitle": "Edit train types",
+    "trainTypesEditorHint": "The list is stored in train-types.json. Types in use can be renamed but cannot be deleted directly.",
+    "trainTypesAdd": "Add type",
+    "trainTypesName": "Train type name",
+    "trainTypesDeleteUsed": "This type is used by a locomotive; assign another type first.",
+    "trainTypesInvalid": "Every name must be non-empty and unique.",
     "selectimage": "Select image"
   },
   "locopanel": {

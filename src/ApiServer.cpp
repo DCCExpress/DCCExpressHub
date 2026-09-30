@@ -647,6 +647,121 @@ void ApiServer::handleFunctionBindingsBody(
       response);
 }
 
+
+bool ApiServer::verifyTrainTypesTemp() {
+  const String tempPath =
+      _trainTypesUpload.tempPath();
+
+  File file =
+      _files.openRead(
+          tempPath.c_str());
+
+  if (!file) {
+    return false;
+  }
+
+  JsonDocument document;
+  const DeserializationError error =
+      deserializeJson(
+          document,
+          file);
+
+  file.close();
+
+  if (
+      error ||
+      !document.is<JsonArray>()
+  ) {
+    return false;
+  }
+
+  std::vector<String> usedNames;
+
+  for (
+      JsonVariantConst item :
+      document.as<JsonArrayConst>()
+  ) {
+    if (!item.is<const char*>()) {
+      return false;
+    }
+
+    String name =
+        item.as<const char*>();
+    name.trim();
+
+    if (name.isEmpty()) {
+      return false;
+    }
+
+    if (
+        std::find(
+            usedNames.begin(),
+            usedNames.end(),
+            name) !=
+        usedNames.end()
+    ) {
+      return false;
+    }
+
+    usedNames.push_back(name);
+  }
+
+  return !usedNames.empty();
+}
+
+void ApiServer::handleTrainTypesBody(
+    AsyncWebServerRequest* request,
+    uint8_t* data,
+    size_t len,
+    size_t index,
+    size_t total) {
+  if (index == 0) {
+    _trainTypesUpload.begin(
+        _files,
+        TRAIN_TYPES_PATH,
+        total);
+  }
+
+  if (!_trainTypesUpload.failed()) {
+    _trainTypesUpload.write(
+        data,
+        len);
+  }
+
+  if (index + len != total) {
+    return;
+  }
+
+  JsonDocument response;
+
+  if (!_trainTypesUpload.finish()) {
+    _trainTypesUpload.abort();
+    response["ok"] = false;
+    response["message"] = "Train type upload failed";
+    sendJson(request, 507, response);
+    return;
+  }
+
+  if (!verifyTrainTypesTemp()) {
+    _trainTypesUpload.abort();
+    response["ok"] = false;
+    response["message"] = "Train types require a non-empty array of unique non-empty strings";
+    sendJson(request, 400, response);
+    return;
+  }
+
+  if (!_trainTypesUpload.commit()) {
+    response["ok"] = false;
+    response["message"] = "Train type atomic rename failed";
+    sendJson(request, 500, response);
+    return;
+  }
+
+  response["ok"] = true;
+  response["bytes"] = total;
+  sendJson(request, 200, response);
+}
+
 bool ApiServer::verifySignalLogicTemp() {
   const String tempPath = _signalLogicUpload.tempPath();
   return _signalAutomation.validateFile(tempPath.c_str());
@@ -1155,6 +1270,49 @@ void ApiServer::setupApi() {
           size_t index,
           size_t total) {
         handleFunctionBindingsBody(
+            request,
+            data,
+            len,
+            index,
+            total);
+      });
+
+
+  _server.on(
+      "/api/train-types",
+      HTTP_GET,
+      [this](AsyncWebServerRequest* request) {
+        if (!_files.exists(TRAIN_TYPES_PATH)) {
+          auto* response = request->beginResponse(
+              200,
+              "application/json",
+              "["passenger","freight","mixed","maintenance","other"]");
+          response->addHeader("Cache-Control", "no-store");
+          request->send(response);
+          return;
+        }
+
+        auto* response = request->beginResponse(
+            LittleFS,
+            TRAIN_TYPES_PATH,
+            "application/json",
+            false);
+        response->addHeader("Cache-Control", "no-store");
+        request->send(response);
+      });
+
+  _server.on(
+      "/api/train-types",
+      HTTP_POST,
+      [](AsyncWebServerRequest*) {},
+      nullptr,
+      [this](
+          AsyncWebServerRequest* request,
+          uint8_t* data,
+          size_t len,
+          size_t index,
+          size_t total) {
+        handleTrainTypesBody(
             request,
             data,
             len,
