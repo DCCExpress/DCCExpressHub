@@ -628,9 +628,9 @@ export default function MovementRouteVectorPreview({
                           <rect
                             className="movement-route-vector-composite-segment-card"
                             x={
-                              x + 5
+                              x + 7
                             }
-                            y={33}
+                            y={35}
                             width={
                               ITEM_WIDTH
                             }
