@@ -58,18 +58,6 @@ function buildBlockIndex(
   topology:
     RailwayTopologyLayout
 ): SectionBlock[] {
-  const physicalById =
-    new Map(
-      topology
-        .getPhysicalTrackElements()
-        .map(
-          element => [
-            element.id,
-            element,
-          ] as const
-        )
-    );
-
   const result:
     SectionBlock[] = [];
 
@@ -86,77 +74,44 @@ function buildBlockIndex(
         ? block.sensorAddress
         : null;
 
+    if (
+      sensorAddress ===
+        null
+    ) {
+      continue;
+    }
+
     /*
-     * Sensor-equipped blocks are located in the physical network by sensor
-     * identity only. Their visual rectangle is irrelevant to graph topology.
-     *
-     * Keep a geometry fallback solely for legacy non-sensor blocks used by
-     * RouteButton-style features; Movement never accepts those as checkpoints.
+     * Blocks are a logical overlay, never physical graph members.
+     * Locate them solely by occupancy-sensor identity. The block rectangle,
+     * size and visual position do not participate in route topology.
      */
     const matchingNodes =
-      sensorAddress !==
-        null
-        ? graph.nodes.filter(
-            node =>
-              node.sectionParts.some(
-                part =>
-                  part.detectors.includes(
-                    sensorAddress
-                  ) ||
-                  part.fromSensor ===
-                    sensorAddress ||
-                  part.toSensor ===
-                    sensorAddress
+      graph.nodes.filter(
+        node =>
+          node.sectionParts.some(
+            part =>
+              part.detectors.includes(
+                sensorAddress
               ) ||
-              node.detectors.some(
-                detector =>
-                  detector.address ===
-                    sensorAddress
-              )
+              part.fromSensor ===
+                sensorAddress ||
+              part.toSensor ===
+                sensorAddress
+          ) ||
+          node.detectors.some(
+            detector =>
+              detector.address ===
+                sensorAddress
           )
-        : (() => {
-            const bounds =
-              block.getBounds();
-
-            return graph.nodes.filter(
-              node =>
-                node.elementIds.some(
-                  elementId => {
-                    const element =
-                      physicalById.get(
-                        elementId
-                      );
-
-                    if (!element) {
-                      return false;
-                    }
-
-                    return (
-                      element.x >=
-                        bounds.x &&
-                      element.x <
-                        bounds.x +
-                          bounds.width &&
-                      element.y >=
-                        bounds.y &&
-                      element.y <
-                        bounds.y +
-                          bounds.height
-                    );
-                  }
-                )
-            );
-          })();
+      );
 
     if (
       matchingNodes.length >
         1
     ) {
       throw new Error(
-        sensorAddress !==
-          null
-          ? `Block "${block.name || block.id}" sensor ${sensorAddress} exists on more than one physical graph segment (${matchingNodes.map(node => node.name).join(", ")}).`
-          : `Block "${block.name || block.id}" spans more than one physical segment (${matchingNodes.map(node => node.name).join(", ")}).`
+        `Block "${block.name || block.id}" sensor ${sensorAddress} exists on more than one physical graph segment (${matchingNodes.map(node => node.name).join(", ")}).`
       );
     }
 
@@ -186,14 +141,7 @@ function buildBlockIndex(
           : name,
       nodeName:
         node.name,
-      ...(
-        sensorAddress !==
-          null
-          ? {
-              sensorAddress,
-            }
-          : {}
-      ),
+      sensorAddress,
     });
   }
 
