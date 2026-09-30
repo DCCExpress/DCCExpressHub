@@ -85,10 +85,81 @@ export function buildClientRouteGraph(
       string
     >();
 
+  const physicalTracksById =
+    new Map(
+      topology
+        .getPhysicalTrackElements()
+        .map(
+          element => [
+            element.id,
+            element,
+          ] as const
+        )
+    );
+
+  const sensorAddressesAt =
+    (
+      elementId:
+        number
+    ): number[] => {
+      const element =
+        physicalTracksById.get(
+          elementId
+        );
+
+      if (!element) {
+        return [];
+      }
+
+      const result =
+        new Set<number>();
+
+      if (
+        Number.isInteger(
+          element.address
+        ) &&
+        element.address >
+          0
+      ) {
+        result.add(
+          element.address
+        );
+      }
+
+      for (
+        const sensor of
+        topology.getSensors()
+      ) {
+        if (
+          sensor.x ===
+            element.x &&
+          sensor.y ===
+            element.y &&
+          Number.isInteger(
+            sensor.address
+          ) &&
+          sensor.address >
+            0
+        ) {
+          result.add(
+            sensor.address
+          );
+        }
+      }
+
+      return [
+        ...result,
+      ];
+    };
+
   for (
     const node of
     graph.nodes
   ) {
+    /*
+     * First assign every rail to a stable part. Shared sensor-boundary rails
+     * are resolved in the second pass below.
+     */
     for (
       const part of
       node.sectionParts
@@ -97,17 +168,47 @@ export function buildClientRouteGraph(
         const elementId of
         part.elementIds
       ) {
-        const existing =
-          sectionPartByElementId.get(
+        if (
+          !sectionPartByElementId.has(
             elementId
+          )
+        ) {
+          sectionPartByElementId.set(
+            elementId,
+            part.key
           );
+        }
+      }
+    }
 
-        /*
-         * Boundary elements belong to both adjacent parts. Prefer the
-         * first generated part deterministically so the canvas shows one
-         * stable label instead of flickering between two names.
-         */
-        if (!existing) {
+    /*
+     * A sensor boundary rail belongs structurally to both adjacent parts.
+     * For the canvas overlay, assign that boundary to the part that STARTS
+     * at the sensor. This makes S11.2 / 500 -> 503 visibly start on sensor
+     * 500 instead of appearing one rail element late.
+     */
+    for (
+      const part of
+      node.sectionParts
+    ) {
+      if (
+        part.fromSensor ===
+          null
+      ) {
+        continue;
+      }
+
+      for (
+        const elementId of
+        part.elementIds
+      ) {
+        if (
+          sensorAddressesAt(
+            elementId
+          ).includes(
+            part.fromSensor
+          )
+        ) {
           sectionPartByElementId.set(
             elementId,
             part.key
