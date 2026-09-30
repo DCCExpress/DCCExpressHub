@@ -1295,65 +1295,102 @@ export function buildMovementPlan(
           nodeName
         );
 
-      resources.push({
-        key:
-          `segment:${nodeName}`,
-        kind:
-          "segment",
-        name:
-          nodeName,
-        label:
-          node?.trackName?.trim()
-            ? `${nodeName} · ${node.trackName.trim()}`
-            : nodeName,
-        blockId: null,
-        sensorAddress: null,
-        nodeIndex,
-        detectors:
-          [
-            ...new Set([
-              ...(
-                node?.detectors ??
-                []
+      const segmentDetectors =
+        [
+          ...new Set([
+            ...(
+              node?.detectors ??
+              []
+            )
+              .map(
+                detector =>
+                  detector.address
               )
-                .map(
-                  detector =>
-                    detector.address
-                )
-                .filter(
-                  address =>
-                    Number.isInteger(
-                      address
-                    ) &&
-                    address > 0
-                ),
-              ...(
-                node?.elementIds ??
-                []
-              )
-                .map(
-                  elementId =>
-                    trackAddresses.get(
-                      elementId
-                    ) ??
+              .filter(
+                address =>
+                  Number.isInteger(
+                    address
+                  ) &&
+                  address >
                     0
-                )
-                .filter(
-                  address =>
-                    address > 0
-                ),
-            ]),
-          ].sort(
-            (
-              a,
-              b
-            ) =>
-              a - b
-          ),
-        turnoutStates: [],
-        routeOrder: 0,
-        partIndex: null,
-      });
+              ),
+            ...(
+              node?.elementIds ??
+              []
+            )
+              .map(
+                elementId =>
+                  trackAddresses.get(
+                    elementId
+                  ) ??
+                  0
+              )
+              .filter(
+                address =>
+                  address >
+                    0
+              ),
+          ]),
+        ].sort(
+          (
+            a,
+            b
+          ) =>
+            a - b
+        );
+
+      const matchingBlocks =
+        segmentDetectors.length ===
+          1
+          ? route.blockPath.filter(
+              block =>
+                block.nodeIndex ===
+                  nodeIndex &&
+                sensors.get(
+                  block.id
+                ) ===
+                  segmentDetectors[0]
+            )
+          : [];
+
+      if (
+        matchingBlocks.length >
+          0
+      ) {
+        for (
+          const block of
+          matchingBlocks
+        ) {
+          pushBlock(
+            block,
+            [
+              nodeName,
+            ]
+          );
+        }
+      } else {
+        resources.push({
+          key:
+            `segment:${nodeName}`,
+          kind:
+            "segment",
+          name:
+            nodeName,
+          label:
+            node?.trackName?.trim()
+              ? `${nodeName} · ${node.trackName.trim()}`
+              : nodeName,
+          blockId: null,
+          sensorAddress: null,
+          nodeIndex,
+          detectors:
+            segmentDetectors,
+          turnoutStates: [],
+          routeOrder: 0,
+          partIndex: null,
+          physicalSegmentNames: [],
+        });
+      }
 
       if (
         nodeIndex ===
