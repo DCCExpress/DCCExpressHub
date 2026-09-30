@@ -877,28 +877,38 @@ export function buildMovementPlan(
             null,
           nodeIndex,
           detectors:
-            [
-              ...new Set(
+            (
+              Array.isArray(
+                part.detectors
+              ) &&
+              part.detectors.length >
+                0
+                ? part.detectors
+                : (
+                    part.toSensor !==
+                      null
+                      ? [
+                          part.toSensor,
+                        ]
+                      : []
+                  )
+            )
+              .filter(
                 (
-                  part.detectors ??
-                  [
-                    part.fromSensor,
-                    part.toSensor,
-                  ]
-                ).filter(
-                  (
+                  value
+                ): value is number =>
+                  Number.isInteger(
                     value
-                  ): value is number =>
-                    Number.isInteger(
-                      value
-                    ) &&
-                    Number(
-                      value
-                    ) >
-                      0
-                ) as number[]
+                  ) &&
+                  Number(
+                    value
+                  ) >
+                    0
+              )
+              .slice(
+                0,
+                1
               ),
-            ],
           turnoutStates: [],
           routeOrder: 0,
           partIndex:
