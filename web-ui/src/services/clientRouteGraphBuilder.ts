@@ -79,37 +79,6 @@ export function buildClientRouteGraph(
       topology
     ).build();
 
-  const runtimeById =
-    new Map<number, RouteGraphTrackRuntimeDto>();
-
-  for (
-    const element
-    of topology.getPhysicalTrackElements()
-  ) {
-    runtimeById.set(
-      element.id,
-      {
-        id: element.id,
-        section:
-          element.section,
-        ...(
-          sectionPartByElementId.has(
-            element.id
-          )
-            ? {
-                sectionPart:
-                  sectionPartByElementId.get(
-                    element.id
-                  )!,
-              }
-            : {}
-        ),
-        travelDirection:
-          element.travelDirection,
-      }
-    );
-  }
-
   const sectionPartByElementId =
     new Map<
       number,
@@ -146,6 +115,37 @@ export function buildClientRouteGraph(
         }
       }
     }
+  }
+
+  const runtimeById =
+    new Map<number, RouteGraphTrackRuntimeDto>();
+
+  for (
+    const element
+    of topology.getPhysicalTrackElements()
+  ) {
+    runtimeById.set(
+      element.id,
+      {
+        id: element.id,
+        section:
+          element.section,
+        ...(
+          sectionPartByElementId.has(
+            element.id
+          )
+            ? {
+                sectionPart:
+                  sectionPartByElementId.get(
+                    element.id
+                  )!,
+              }
+            : {}
+        ),
+        travelDirection:
+          element.travelDirection,
+      }
+    );
   }
 
   const blockSections =
