@@ -5697,7 +5697,7 @@ test("Movement Vector composes block and SectionPart only for display", () => {
 });
 
 
-test("Vector only composes adjacent block and SectionPart resources", () => {
+test("Vector only composes the incoming SectionPart immediately before a block", () => {
   const vector =
     read(
       "src/services/movementRouteVector.ts"
@@ -5705,11 +5705,40 @@ test("Vector only composes adjacent block and SectionPart resources", () => {
 
   assert.match(
     vector,
-    /Math\.abs\([\s\S]*blockIndex[\s\S]*segmentIndex[\s\S]*\) !==[\s\S]*1/
+    /segmentIndex !==[\s\S]*blockIndex -[\s\S]*1/
   );
 
   assert.match(
     vector,
     /type MovementPlanResource/
+  );
+});
+
+
+test("part-based source block is not guessed onto an outgoing SectionPart", () => {
+  const plan =
+    read(
+      "src/services/movementPlan.ts"
+    );
+
+  const branch =
+    plan.slice(
+      plan.indexOf("if (\n    usesSectionParts"),
+      plan.indexOf("} else {", plan.indexOf("if (\n    usesSectionParts"))
+    );
+
+  assert.match(
+    branch,
+    /pushBlock\(\s*source\s*\)/
+  );
+
+  assert.match(
+    branch,
+    /pushBlock\([\s\S]*matchingBlock,[\s\S]*\[[\s\S]*part\.partKey/
+  );
+
+  assert.doesNotMatch(
+    branch,
+    /pushBlock\([\s\S]*source,[\s\S]*sectionPartNamesForBlock/
   );
 });

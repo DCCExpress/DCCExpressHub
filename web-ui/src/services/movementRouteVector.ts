@@ -782,11 +782,9 @@ export async function loadMovementRouteVector(
         0 ||
       segmentIndex <
         0 ||
-      Math.abs(
+      segmentIndex !==
         blockIndex -
-          segmentIndex
-      ) !==
-        1 ||
+          1 ||
       segmentCompositeBlock.has(
         segment.key
       )
@@ -981,9 +979,10 @@ export async function loadMovementRouteVector(
           );
 
         /*
-         * Render the composite at the physical segment's position. The block
-         * boundary remains separate in MovementPlan; only the Vector merges
-         * the two cards.
+         * Render a composite only at the ARRIVAL SectionPart position.
+         * Source blocks are never merged with an outgoing SectionPart. The
+         * block boundary remains separate in MovementPlan; only the Vector
+         * merges the two cards.
          */
         if (
           index <

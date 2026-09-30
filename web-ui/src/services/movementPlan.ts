@@ -1267,10 +1267,7 @@ export function buildMovementPlan(
      * but runtime authority/event/safety ordering must never collapse them.
      */
     pushBlock(
-      source,
-      sectionPartNamesForBlock(
-        source
-      )
+      source
     );
 
     for (
@@ -1323,9 +1320,9 @@ export function buildMovementPlan(
         ) {
           pushBlock(
             matchingBlock,
-            sectionPartNamesForBlock(
-              matchingBlock
-            )
+            [
+              part.partKey,
+            ]
           );
         }
       }
@@ -1632,10 +1629,7 @@ export function buildMovementPlan(
     destination
   ) {
     pushBlock(
-      destination,
-      sectionPartNamesForBlock(
-        destination
-      )
+      destination
     );
   }
 
