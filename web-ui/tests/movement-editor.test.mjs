@@ -5333,3 +5333,42 @@ test("same-section circular routes derive block order from the selected section-
     /partRoutes\.map\([\s\S]{0,900}buildPersistedBlockPath\(\s*\[fromNode\]/
   );
 });
+
+
+test("same-section route generation tries both physical directions", () => {
+  const source =
+    read(
+      "src/services/clientRouteGraphCache.ts"
+    );
+
+  const sameNodeStart =
+    source.indexOf(
+      "function sameNodeSectionPartRoutes"
+    );
+
+  const multiNodeStart =
+    source.indexOf(
+      "function multiNodeSectionPartPath"
+    );
+
+  assert.ok(
+    sameNodeStart >= 0 &&
+      multiNodeStart > sameNodeStart
+  );
+
+  const sameNodeSource =
+    source.slice(
+      sameNodeStart,
+      multiNodeStart
+    );
+
+  assert.match(
+    sameNodeSource,
+    /walk\(\s*false\s*\);[\s\S]*walk\(\s*true\s*\);/
+  );
+
+  assert.doesNotMatch(
+    sameNodeSource,
+    /part\.circular[\s\S]*walk\(\s*true\s*\)/
+  );
+});

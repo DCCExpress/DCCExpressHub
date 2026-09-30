@@ -927,20 +927,21 @@ function sameNodeSectionPartRoutes(
       }
     };
 
+  /*
+   * Section-part direction describes the locomotive command orientation, not
+   * a one-way traffic restriction. Try both physical traversal directions.
+   *
+   * On a linear section normally only one walk can reach the destination.
+   * On a circular section both walks may be valid and intentionally produce
+   * the two ways around the loop.
+   */
   walk(
     false
   );
 
-  if (
-    node.sectionParts.some(
-      part =>
-        part.circular
-    )
-  ) {
-    walk(
-      true
-    );
-  }
+  walk(
+    true
+  );
 
   return result.filter(
     (
