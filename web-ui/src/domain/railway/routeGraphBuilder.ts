@@ -2,7 +2,6 @@ import {
   Edge,
   Graph,
   GraphNode,
-  type SectionBlock,
   type SectionDetector,
   type SectionSignal,
   type SectionPart,
@@ -300,12 +299,6 @@ export class RouteGraphBuilder {
     const signals =
       this.collectSectionSignals(sectionElements);
 
-    const blocks =
-      this.collectSectionBlocks(
-        sectionElements,
-        trackName
-      );
-
     return new GraphNode(
       `S${section}`,
       trackName,
@@ -313,12 +306,10 @@ export class RouteGraphBuilder {
       y,
       detectors,
       signals,
-      blocks,
       sectionElements.map(elem => elem.id),
       this.buildSectionParts(
         section,
-        sectionElements,
-        blocks
+        sectionElements
       )
     );
   }
@@ -376,68 +367,6 @@ export class RouteGraphBuilder {
         label: `L${signal.address}`,
       }));
   }
-
-  private collectSectionBlocks(
-    sectionElements: TopologyTrackElement[],
-    trackName: string
-  ): SectionBlock[] {
-    return this.topology
-      .getBlocks()
-      .filter(block =>
-        sectionElements.some(sectionElem =>
-          this.isSectionElementInsideBlock(
-            sectionElem,
-            block
-          )
-        )
-      )
-      .sort((a, b) =>
-        (a.name ?? "").localeCompare(b.name ?? "")
-      )
-      .map(block => {
-        const blockName =
-          block.name?.trim()
-            ? block.name.trim()
-            : "Block";
-
-        const resolvedTrackName =
-          trackName.trim();
-
-        const coveredElementIds =
-          sectionElements
-            .filter(
-              sectionElem =>
-                this.isSectionElementInsideBlock(
-                  sectionElem,
-                  block
-                )
-            )
-            .map(
-              sectionElem =>
-                sectionElem.id
-            );
-
-        return {
-          id: block.id,
-          name: blockName,
-          trackName: resolvedTrackName,
-          label: resolvedTrackName
-            ? `${resolvedTrackName}: ${blockName}`
-            : blockName,
-          elementIds:
-            coveredElementIds,
-          ...(
-            block.sensorAddress > 0
-              ? {
-                  sensorAddress:
-                    block.sensorAddress,
-                }
-              : {}
-          ),
-        };
-      });
-  }
-
 
   private sectionSensorAddressesAt(
     element: TopologyTrackElement
@@ -824,9 +753,7 @@ export class RouteGraphBuilder {
   private buildSectionParts(
     section: number,
     sectionElements:
-      TopologyTrackElement[],
-    blocks:
-      SectionBlock[]
+      TopologyTrackElement[]
   ): SectionPart[] {
     if (
       sectionElements.length ===
@@ -862,35 +789,6 @@ export class RouteGraphBuilder {
           )
       );
 
-    const blockIdsForElements =
-      (
-        elements:
-          TopologyTrackElement[]
-      ): number[] => {
-        const elementIds =
-          new Set(
-            elements.map(
-              element =>
-                element.id
-            )
-          );
-
-        return blocks
-          .filter(
-            block =>
-              block.elementIds.some(
-                elementId =>
-                  elementIds.has(
-                    elementId
-                  )
-              )
-          )
-          .map(
-            block =>
-              block.id
-          );
-      };
-
     const makePart =
       (
         index: number,
@@ -918,10 +816,6 @@ export class RouteGraphBuilder {
                 toSensor,
               ]
             : [],
-        blockIds:
-          blockIdsForElements(
-            elements
-          ),
         circular,
         locoDirection:
           this.sectionPathDirection(
@@ -1139,20 +1033,6 @@ export class RouteGraphBuilder {
     }
 
     return parts;
-  }
-
-  private isSectionElementInsideBlock(
-    sectionElem: TopologyTrackElement,
-    block: TopologyBlockElement
-  ): boolean {
-    const bounds = block.getBounds();
-
-    return (
-      sectionElem.x >= bounds.x &&
-      sectionElem.x < bounds.x + bounds.width &&
-      sectionElem.y >= bounds.y &&
-      sectionElem.y < bounds.y + bounds.height
-    );
   }
 
   private createRouteEdges(): void {
