@@ -886,8 +886,9 @@ export async function loadMovementRouteVector(
 
   /*
    * The Movement plan is the authoritative physical route representation.
-   * Physical segments/SectionParts and logical blocks stay separate even when
-   * they use the same sensor, because their events and actions are independent.
+   * A SectionPart with the same sensor as a block is represented by one
+   * composite block node. The physical segment name remains visible metadata,
+   * while events/actions/safety use block semantics only.
    */
   const plan =
     await loadMovementPlan(
