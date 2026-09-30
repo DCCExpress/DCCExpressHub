@@ -160,7 +160,7 @@ function buildBlockIndex(
   return result;
 }
 
-function buildRunnableBlockRoutes(
+export function buildRunnableBlockRoutes(
   graph:
     Graph,
   blocks:
