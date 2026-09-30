@@ -163,6 +163,14 @@ const ITEMS: PaletteItem[] = [
     color: "blue",
   },
   {
+    kind: "trainEventInput",
+    group: "trigger",
+    icon: <IconRoute size={16} />,
+    labelKey: "ui.flowNodeTrainEventInput",
+    fallback: "Train event",
+    color: "violet",
+  },
+  {
     kind: "setSpeed",
     group: "railway",
     icon: <IconBolt size={16} />,
@@ -420,6 +428,16 @@ export function createDefaultAutomationNodeData(
         ...base,
         locoAddress: 0,
         locoLabel: "",
+      };
+
+    case "trainEventInput":
+      return {
+        ...base,
+        trainEventTypes: [],
+        trainTypeFilters: [],
+        trainResourceTypes: [],
+        trainResourceFilters: [],
+        trainLocoAddressFilters: [],
       };
 
     case "waitForSensor":

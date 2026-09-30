@@ -23,6 +23,10 @@ import {
 } from "../../services/wsClient";
 
 import {
+  subscribeTrainEvents,
+} from "../../services/trainEventRuntime";
+
+import {
   dispatchAutomationFlowRuntimeLog,
   hasAutomationFlowRuntimeLogSubscribers,
 } from "./automationFlowEvents";
@@ -397,6 +401,16 @@ function runtimeConfigSignature(
               node.data.accessoryAddress,
             locoAddress:
               node.data.locoAddress,
+            trainEventTypes:
+              node.data.trainEventTypes,
+            trainTypeFilters:
+              node.data.trainTypeFilters,
+            trainResourceTypes:
+              node.data.trainResourceTypes,
+            trainResourceFilters:
+              node.data.trainResourceFilters,
+            trainLocoAddressFilters:
+              node.data.trainLocoAddressFilters,
           })
         )
         .sort(
@@ -528,6 +542,92 @@ export function useAutomationFlowRuntime(
     [
       signature,
     ]
+  );
+
+
+  useEffect(
+    () =>
+      subscribeTrainEvents(
+        event => {
+          if (!controlStationActiveRef.current) {
+            return;
+          }
+
+          const current = documentRef.current;
+
+          for (const page of current.pages) {
+            if (!page.enabled) {
+              continue;
+            }
+
+            const inputs = current.nodes.filter(node => {
+              if (
+                node.data.pageId !== page.id ||
+                node.data.kind !== "trainEventInput"
+              ) {
+                return false;
+              }
+
+              const eventTypes = node.data.trainEventTypes ?? [];
+              if (eventTypes.length > 0 && !eventTypes.includes(event.event)) {
+                return false;
+              }
+
+              const trainTypes = node.data.trainTypeFilters ?? [];
+              if (
+                trainTypes.length > 0 &&
+                (!event.trainType || !trainTypes.includes(event.trainType))
+              ) {
+                return false;
+              }
+
+              const resourceTypes = node.data.trainResourceTypes ?? [];
+              if (
+                resourceTypes.length > 0 &&
+                !resourceTypes.includes(event.resourceType)
+              ) {
+                return false;
+              }
+
+              const resources = node.data.trainResourceFilters ?? [];
+              if (
+                resources.length > 0 &&
+                !resources.some(filter => {
+                  const normalized = filter.toLocaleLowerCase();
+
+                  return (
+                    normalized === event.resourceName.toLocaleLowerCase() ||
+                    normalized === event.resourceKey.toLocaleLowerCase() ||
+                    filter === String(event.resourceId ?? "")
+                  );
+                })
+              ) {
+                return false;
+              }
+
+              const locos = node.data.trainLocoAddressFilters ?? [];
+              if (locos.length > 0 && !locos.includes(event.locoAddress)) {
+                return false;
+              }
+
+              return true;
+            });
+
+            for (const input of inputs) {
+              runInputBranch(
+                current,
+                page.id,
+                input,
+                {
+                  eventType: "trainEvent",
+                  ...event,
+                }
+              );
+            }
+          }
+        }
+      ),
+    []
   );
 
   useEffect(

@@ -96,6 +96,12 @@ const NODE_META:
       title:
         "Loco event",
     },
+    trainEventInput: {
+      icon: "🚆",
+      color: "violet",
+      title:
+        "Train event",
+    },
     setSpeed: {
       icon: "⚡",
       color: "blue",
@@ -274,6 +280,16 @@ function summary(
             : "Select locomotive"
         )
       );
+
+    case "trainEventInput": {
+      const eventCount = data.trainEventTypes?.length ?? 0;
+      const typeCount = data.trainTypeFilters?.length ?? 0;
+
+      return (
+        `${eventCount ? `${eventCount} events` : "All events"} · ` +
+        `${typeCount ? `${typeCount} train types` : "All train types"}`
+      );
+    }
 
     case "setSpeed":
       return `${data.speed ?? 20}`;

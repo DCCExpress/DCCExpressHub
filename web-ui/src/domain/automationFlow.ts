@@ -8,6 +8,7 @@ export type AutomationFlowNodeKind =
   | "basicAccessoryInput"
   | "extendedAccessoryInput"
   | "locoInput"
+  | "trainEventInput"
   | "setSpeed"
   | "waitForBlock"
   | "waitForSensor"
@@ -64,6 +65,12 @@ export type AutomationFlowNodeData = Record<string, unknown> & {
   locoDirection?:
     | "forward"
     | "reverse";
+
+  trainEventTypes?: string[];
+  trainTypeFilters?: string[];
+  trainResourceTypes?: string[];
+  trainResourceFilters?: string[];
+  trainLocoAddressFilters?: number[];
 
   blockElementId?: number;
   blockLabel?: string;
@@ -143,6 +150,7 @@ const NODE_KINDS =
     "basicAccessoryInput",
     "extendedAccessoryInput",
     "locoInput",
+    "trainEventInput",
     "setSpeed",
     "waitForBlock",
     "waitForSensor",
@@ -174,7 +182,8 @@ export function isAutomationFlowInputNodeKind(
     kind === "turnoutInput" ||
     kind === "basicAccessoryInput" ||
     kind === "extendedAccessoryInput" ||
-    kind === "locoInput"
+    kind === "locoInput" ||
+    kind === "trainEventInput"
   );
 }
 
@@ -547,6 +556,20 @@ function normalizeNodeData(
         "reverse"
         ? "reverse"
         : "forward",
+    trainEventTypes:
+      normalizeRoute(candidate.trainEventTypes),
+    trainTypeFilters:
+      normalizeRoute(candidate.trainTypeFilters),
+    trainResourceTypes:
+      normalizeRoute(candidate.trainResourceTypes),
+    trainResourceFilters:
+      normalizeRoute(candidate.trainResourceFilters),
+    trainLocoAddressFilters:
+      normalizeAddressList(
+        candidate.trainLocoAddressFilters,
+        1,
+        10239
+      ),
     blockElementId:
       Math.max(
         0,
