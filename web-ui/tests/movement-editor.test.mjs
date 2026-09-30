@@ -5771,3 +5771,38 @@ test("Movement route selector exposes full checkpoint blockPath", () => {
     /candidate\.blockPath[\s\S]*\.map\([\s\S]*block[\s\S]*block\.name[\s\S]*\.join\([\s\S]*" → "/
   );
 });
+
+
+test("Movement route selector uses full checkpoint path as the primary route label", () => {
+  const dialog =
+    read(
+      "src/components/movement/MovementRouteSelectDialog.tsx"
+    );
+
+  const body =
+    dialog.slice(
+      dialog.indexOf("<Table.Tbody>"),
+      dialog.indexOf("</Table.Tbody>")
+    );
+
+  const blockPathIndex =
+    body.indexOf("candidate.blockPath");
+
+  const fromToIndex =
+    body.indexOf("candidate.fromBlockName");
+
+  assert.ok(
+    blockPathIndex >= 0
+  );
+
+  assert.ok(
+    fromToIndex < 0 ||
+    blockPathIndex <
+      fromToIndex
+  );
+
+  assert.match(
+    body,
+    /candidate\.blockPath[\s\S]*block\.name[\s\S]*" → "/
+  );
+});

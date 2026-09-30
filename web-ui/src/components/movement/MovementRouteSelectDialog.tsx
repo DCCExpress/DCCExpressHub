@@ -521,11 +521,14 @@ export default function MovementRouteSelectDialog({
                           fw={700}
                         >
                           {
-                            candidate.fromBlockName
-                          }
-                          {" → "}
-                          {
-                            candidate.toBlockName
+                            candidate.blockPath
+                              .map(
+                                block =>
+                                  block.name
+                              )
+                              .join(
+                                " → "
+                              )
                           }
                         </Text>
 
@@ -544,21 +547,6 @@ export default function MovementRouteSelectDialog({
                       </Table.Td>
 
                       <Table.Td>
-                        <Text
-                          size="sm"
-                        >
-                          {
-                            candidate.blockPath
-                              .map(
-                                block =>
-                                  block.name
-                              )
-                              .join(
-                                " → "
-                              )
-                          }
-                        </Text>
-
                         {candidate.nodePath.length >
                           0 && (
                           <Text
