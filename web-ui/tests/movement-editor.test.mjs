@@ -4672,7 +4672,7 @@ test("route topology persists section-part paths and supports cyclic same-node r
 
   assert.match(
     cache,
-    /ROUTE_TOPOLOGY_VERSION = 7/
+    /ROUTE_TOPOLOGY_VERSION = 8/
   );
 
   assert.match(
@@ -4988,7 +4988,7 @@ test("multi-node Movement routes persist and render section parts without losing
 
   assert.match(
     plan,
-    /blockForSensor/
+    /blockForPart/
   );
 
   assert.doesNotMatch(
@@ -5003,7 +5003,7 @@ test("multi-node Movement routes persist and render section parts without losing
 });
 
 
-test("section parts expose exactly one directional Movement detector", () => {
+test("section parts preserve physical detector ownership in both directions", () => {
   const graph =
     read(
       "src/domain/railway/routeGraphBuilder.ts"
@@ -5021,20 +5021,25 @@ test("section parts expose exactly one directional Movement detector", () => {
 
   assert.match(
     graph,
-    /detectors:[\s\S]*toSensor !==[\s\S]*null[\s\S]*\[[\s\S]*toSensor/
+    /elements\.flatMap\([\s\S]*sectionSensorAddressesAt/
   );
 
   assert.match(
     cache,
-    /reverse[\s\S]*part\.fromSensor[\s\S]*part\.toSensor/
+    /detectors:[\s\S]*new Set\([\s\S]*part\.detectors/
+  );
+
+  assert.match(
+    cache,
+    /Detector ownership belongs to the physical SectionPart/
   );
 
   assert.match(
     plan,
-    /part\.toSensor !==[\s\S]*null[\s\S]*\[[\s\S]*part\.toSensor/
+    /part\.detectors[\s\S]*new Set/
   );
 
-  assert.match(
+  assert.doesNotMatch(
     plan,
     /\.slice\([\s\S]*0,[\s\S]*1/
   );
@@ -5152,7 +5157,12 @@ test("Movement source block resolves its composite part by sensor identity", () 
 
   assert.match(
     plan,
-    /part\.detectors[\s\S]*includes\([\s\S]*sensor[\s\S]*part\.toSensor ===[\s\S]*sensor/
+    /blockForPart/
+  );
+
+  assert.match(
+    plan,
+    /detectorSet\.has\([\s\S]*sensor/
   );
 
   assert.match(
@@ -5495,6 +5505,72 @@ test("Movement route selector accepts current route topology version", () => {
 
   assert.match(
     catalog,
-    /topology\.version !==[\s\S]*6[\s\S]*topology\.version !==[\s\S]*7/
+    /topology\.version !==[\s\S]*6[\s\S]*topology\.version !==[\s\S]*7[\s\S]*topology\.version !==[\s\S]*8/
+  );
+});
+
+
+test("Movement composite target block keeps auxiliary physical sensors in safety", () => {
+  const plan =
+    read(
+      "src/services/movementPlan.ts"
+    );
+
+  const safety =
+    read(
+      "src/services/movementSafety.ts"
+    );
+
+  assert.match(
+    plan,
+    /existing\.detectors =[\s\S]*physicalDetectors/
+  );
+
+  assert.match(
+    plan,
+    /pushBlock\([\s\S]*matchingBlock[\s\S]*part\.partKey[\s\S]*part\.detectors/
+  );
+
+  assert.match(
+    safety,
+    /for \([\s\S]*const address of[\s\S]*leg\.to\.detectors/
+  );
+
+  assert.match(
+    safety,
+    /address ===[\s\S]*leg\.to\.sensorAddress/
+  );
+});
+
+test("Movement block placement uses physical part detectors instead of directional boundary sensor", () => {
+  const plan =
+    read(
+      "src/services/movementPlan.ts"
+    );
+
+  const helper =
+    plan.slice(
+      plan.indexOf("const blockForPart"),
+      plan.indexOf("if (\n    usesSectionParts")
+    );
+
+  assert.match(
+    helper,
+    /part\.detectors/
+  );
+
+  assert.match(
+    helper,
+    /detectorSet\.has/
+  );
+
+  assert.doesNotMatch(
+    helper,
+    /part\.toSensor/
+  );
+
+  assert.doesNotMatch(
+    helper,
+    /part\.fromSensor/
   );
 });

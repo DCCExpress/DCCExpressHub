@@ -493,7 +493,9 @@ function parseTopology(
     topology.version !==
       6 &&
     topology.version !==
-      7
+      7 &&
+    topology.version !==
+      8
   ) {
     throw new Error(
       "Unsupported route topology. Regenerate and save the route graph."
@@ -900,6 +902,9 @@ export function buildMovementPlan(
         RawBlockPathEntry,
       physicalSegmentNames:
         string[] =
+        [],
+      physicalDetectors:
+        number[] =
         []
     ): MovementPlanResource => {
       const existing =
@@ -917,6 +922,21 @@ export function buildMovementPlan(
               ...physicalSegmentNames,
             ]),
           ];
+
+        existing.detectors =
+          [
+            ...new Set([
+              ...existing.detectors,
+              ...physicalDetectors,
+            ]),
+          ].sort(
+            (
+              left,
+              right
+            ) =>
+              left -
+              right
+          );
 
         return existing;
       }
@@ -940,7 +960,19 @@ export function buildMovementPlan(
           null,
         nodeIndex:
           entry.nodeIndex,
-        detectors: [],
+        detectors:
+          [
+            ...new Set(
+              physicalDetectors
+            ),
+          ].sort(
+            (
+              left,
+              right
+            ) =>
+              left -
+              right
+          ),
         turnoutStates: [],
         routeOrder: 0,
         partIndex: null,
@@ -1047,26 +1079,62 @@ export function buildMovementPlan(
         );
     };
 
-  const blockForSensor =
+  const blockForPart =
     (
-      sensor:
-        number | null
+      part:
+        RawRoutePart
     ): RawBlockPathEntry | null => {
+      const detectorSet =
+        new Set(
+          (
+            part.detectors ??
+            []
+          ).filter(
+            detector =>
+              Number.isInteger(
+                detector
+              ) &&
+              detector >
+                0
+          )
+        );
+
       if (
-        sensor ===
-          null
+        detectorSet.size ===
+          0
       ) {
         return null;
       }
 
+      const matches =
+        route.blockPath.filter(
+          block => {
+            const sensor =
+              sensors.get(
+                block.id
+              );
+
+            return (
+              sensor !==
+                undefined &&
+              detectorSet.has(
+                sensor
+              )
+            );
+          }
+        );
+
+      if (
+        matches.length >
+          1
+      ) {
+        throw new Error(
+          `Movement Vector cannot place SectionPart "${part.partKey}": multiple block occupancy sensors are physically owned by the same part (${matches.map(block => block.name).join(", ")}).`
+        );
+      }
+
       return (
-        route.blockPath.find(
-          block =>
-            sensors.get(
-              block.id
-            ) ===
-              sensor
-        ) ??
+        matches[0] ??
         null
       );
     };
@@ -1096,33 +1164,32 @@ export function buildMovementPlan(
             null,
           nodeIndex,
           detectors:
-            (
-              part.toSensor !==
-                null
-                ? [
-                    part.toSensor,
-                  ]
-                : (
-                    part.detectors ??
-                    []
-                  )
-            )
-              .filter(
+            [
+              ...new Set(
                 (
-                  value
-                ): value is number =>
-                  Number.isInteger(
+                  part.detectors ??
+                  []
+                ).filter(
+                  (
                     value
-                  ) &&
-                  Number(
-                    value
-                  ) >
-                    0
-              )
-              .slice(
-                0,
-                1
+                  ): value is number =>
+                    Number.isInteger(
+                      value
+                    ) &&
+                    Number(
+                      value
+                    ) >
+                      0
+                )
               ),
+            ].sort(
+              (
+                left,
+                right
+              ) =>
+                left -
+                right
+            ),
           turnoutStates: [],
           routeOrder: 0,
           partIndex:
@@ -1274,16 +1341,9 @@ export function buildMovementPlan(
         const part of
         nodeParts
       ) {
-        const partSensor =
-          (
-            part.detectors ??
-            []
-          )[0] ??
-          part.toSensor;
-
         const matchingBlock =
-          blockForSensor(
-            partSensor
+          blockForPart(
+            part
           );
 
         if (
@@ -1293,6 +1353,12 @@ export function buildMovementPlan(
             matchingBlock,
             [
               part.partKey,
+            ],
+            [
+              ...(
+                part.detectors ??
+                []
+              ),
             ]
           );
 

@@ -808,13 +808,30 @@ export class RouteGraphBuilder {
           ),
         fromSensor,
         toSensor,
+        /*
+         * Detectors are PHYSICAL ownership, not traversal-boundary metadata.
+         * Keep every sensor that sits on one of this part's elements. This
+         * list must remain identical when the same part is traversed in the
+         * opposite direction; fromSensor/toSensor are directional boundaries.
+         */
         detectors:
-          toSensor !==
-            null
-            ? [
-                toSensor,
-              ]
-            : [],
+          [
+            ...new Set(
+              elements.flatMap(
+                element =>
+                  this.sectionSensorAddressesAt(
+                    element
+                  )
+              )
+            ),
+          ].sort(
+            (
+              left,
+              right
+            ) =>
+              left -
+              right
+          ),
         circular,
         locoDirection:
           this.sectionPathDirection(

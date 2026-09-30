@@ -30,7 +30,7 @@ import {
   createClientGraphFromRouteGraphDto,
 } from "@/services/routeGraphDtoMapper";
 
-const ROUTE_TOPOLOGY_VERSION = 7;
+const ROUTE_TOPOLOGY_VERSION = 8;
 
 const ROUTE_TOPOLOGY_FIELD =
   "routeTopology";
@@ -751,21 +751,23 @@ function persistedPart(
       reverse
         ? part.fromSensor
         : part.toSensor,
+    /*
+     * Detector ownership belongs to the physical SectionPart and therefore
+     * never flips with traversal direction. Only from/to boundaries flip.
+     */
     detectors:
-      (
-        reverse
-          ? part.fromSensor
-          : part.toSensor
-      ) !==
-        null
-        ? [
-            (
-              reverse
-                ? part.fromSensor
-                : part.toSensor
-            )!,
-          ]
-        : [],
+      [
+        ...new Set(
+          part.detectors
+        ),
+      ].sort(
+        (
+          left,
+          right
+        ) =>
+          left -
+          right
+      ),
     locoDirection:
       reverse
         ? oppositeRouteDirection(

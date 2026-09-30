@@ -813,6 +813,7 @@ const __dccDispatcherLoadLayout = async () => {
           5,
           6,
           7,
+          8,
         ].includes(
           Number(
             topology.version

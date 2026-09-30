@@ -87,6 +87,36 @@ export function movementLegPathSafetySensors(
     }
   }
 
+  /*
+   * A block may be a composite overlay on a physical SectionPart. Preserve
+   * auxiliary sensors owned by that part as path safety; the block's own
+   * occupancy sensor is added separately by movementLegSafetySensors().
+   */
+  for (
+    const address of
+    leg.to.detectors
+  ) {
+    if (
+      !Number.isInteger(
+        address
+      ) ||
+      address <=
+        0 ||
+      (
+        leg.to.sensorAddress !==
+          null &&
+        address ===
+          leg.to.sensorAddress
+      )
+    ) {
+      continue;
+    }
+
+    sensors.add(
+      address
+    );
+  }
+
   return [
     ...sensors,
   ].sort(
