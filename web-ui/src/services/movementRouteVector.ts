@@ -730,6 +730,7 @@ export function buildMovementRouteVector(
                 )!,
               ]
             : [],
+        physicalSegmentNames: [],
         blockType:
           blockTypes.get(
             blockId
