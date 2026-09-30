@@ -54,7 +54,6 @@ export type MovementRouteVectorItem =
       name: string;
       sensor: number | null;
       sensors: number[];
-      mergedSegmentNames: string[];
       blockType: string;
       role:
         MovementRouteVectorRole;
@@ -730,7 +729,6 @@ export function buildMovementRouteVector(
                 )!,
               ]
             : [],
-        mergedSegmentNames: [],
         blockType:
           blockTypes.get(
             blockId
@@ -887,95 +885,14 @@ export async function loadMovementRouteVector(
 
   /*
    * The Movement plan is the authoritative physical route representation.
-   * The preview follows that order, but visually coalesces a segment into its
-   * block when the segment has exactly one detector and that detector is the
-   * same as the block's own occupancy sensor. In that case the separate segment
-   * node adds no physical information, so the block is labelled BLOCK + SEG:Sx.
-   *
-   * buildMovementRouteVector() intentionally remains the legacy
-   * block/segment-only helper used by movementRouteDefaults so adding turnout
-   * cards to the UI does not silently change generated arrival conditions.
+   * Physical segments/SectionParts and logical blocks stay separate even when
+   * they use the same sensor, because their events and actions are independent.
    */
   const plan =
     await loadMovementPlan(
       page,
       layoutOverride
     );
-
-  const hiddenSegmentKeys =
-    new Set<string>();
-
-  const mergedSegmentNamesByBlockKey =
-    new Map<
-      string,
-      string[]
-    >();
-
-  for (
-    const segment of
-    plan.resources
-  ) {
-    if (
-      segment.kind !==
-        "segment" ||
-      segment.nodeIndex ===
-        null ||
-      segment.partIndex !==
-        null ||
-      segment.detectors.length !==
-        1
-    ) {
-      continue;
-    }
-
-    const detector =
-      segment.detectors[0];
-
-    if (
-      detector ===
-        undefined
-    ) {
-      continue;
-    }
-
-    const matchingBlocks =
-      plan.resources.filter(
-        resource =>
-          resource.kind ===
-            "block" &&
-          resource.nodeIndex ===
-            segment.nodeIndex &&
-          resource.sensorAddress ===
-            detector
-      );
-
-    if (
-      matchingBlocks.length !==
-        1
-    ) {
-      continue;
-    }
-
-    const block =
-      matchingBlocks[0]!;
-
-    hiddenSegmentKeys.add(
-      segment.key
-    );
-
-    mergedSegmentNamesByBlockKey.set(
-      block.key,
-      [
-        ...(
-          mergedSegmentNamesByBlockKey.get(
-            block.key
-          ) ??
-          []
-        ),
-        segment.name,
-      ]
-    );
-  }
 
   const blockTypes =
     layoutOverride
@@ -987,15 +904,7 @@ export async function loadMovementRouteVector(
           string
         >();
 
-  const visibleResources =
-    plan.resources.filter(
-      resource =>
-        !hiddenSegmentKeys.has(
-          resource.key
-        )
-    );
-
-  return visibleResources.map(
+  return plan.resources.map(
     (
       resource,
       index
@@ -1053,11 +962,6 @@ export async function loadMovementRouteVector(
             resource.name,
           sensor,
           sensors,
-          mergedSegmentNames:
-            mergedSegmentNamesByBlockKey.get(
-              resource.key
-            ) ??
-            [],
           blockType:
             blockTypes.get(
               blockId
