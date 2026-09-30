@@ -30,7 +30,7 @@ import {
   createClientGraphFromRouteGraphDto,
 } from "@/services/routeGraphDtoMapper";
 
-const ROUTE_TOPOLOGY_VERSION = 9;
+const ROUTE_TOPOLOGY_VERSION = 10;
 
 const ROUTE_TOPOLOGY_FIELD =
   "routeTopology";
@@ -512,12 +512,6 @@ function buildPersistedBlockPath(
   partPath:
     PersistedRoutePartEntry[]
 ): PersistedRouteBlockEntry[] {
-  const result:
-    PersistedRouteBlockEntry[] = [];
-
-  const seen =
-    new Set<number>();
-
   const nodeIndexByName =
     new Map(
       nodes.map(
@@ -531,110 +525,200 @@ function buildPersistedBlockPath(
       )
     );
 
-  const push =
-    (
-      block:
-        SectionBlock,
-      nodeIndex:
-        number
-    ): void => {
-      if (
-        seen.has(
-          block.id
-        )
-      ) {
-        return;
-      }
+  type PositionedBlock = {
+    block: SectionBlock;
+    nodeIndex: number;
+    position: number;
+  };
 
-      seen.add(
-        block.id
-      );
-
-      result.push({
-        id:
-          block.id,
-        name:
-          block.name,
-        nodeIndex,
-      });
-    };
+  const positioned:
+    PositionedBlock[] = [];
 
   /*
-   * Source is the boundary we are already standing on.
-   */
-  push(
-    fromBlock,
-    nodeIndexByName.get(
-      fromBlock.nodeName
-    ) ??
-      0
-  );
-
-  /*
-   * Intermediate blocks are ordered by the DIRECTIONAL SectionPart path.
-   * A block is reached after traversing the part whose toSensor is that
-   * block's occupancy sensor. Never use the arbitrary blocks[] order inside
-   * a graph node.
+   * Locate every intermediate block by occupancy-sensor identity on the
+   * DIRECTIONAL physical SectionPart path.
+   *
+   * A block sensor may appear as:
+   *   - fromSensor: boundary before this part,
+   *   - a detector physically owned by this part,
+   *   - toSensor: boundary after this part.
+   *
+   * Do not require only toSensor: that dropped valid checkpoint blocks such
+   * as B1/B2 from route alternatives.
    */
   for (
-    const part of
-    partPath
+    const block of
+    blocks
   ) {
-    const sensor =
-      part.toSensor;
-
     if (
-      sensor ===
-        null ||
-      sensor <=
+      block.id ===
+        fromBlock.id ||
+      block.id ===
+        toBlock.id ||
+      !Number.isInteger(
+        block.sensorAddress
+      ) ||
+      (
+        block.sensorAddress ??
+        0
+      ) <=
         0
     ) {
       continue;
     }
 
+    const sensor =
+      block.sensorAddress!;
+
+    let bestPosition:
+      number | null =
+      null;
+
     for (
-      const block of
-      blocks
+      let partIndex = 0;
+      partIndex <
+        partPath.length;
+      partIndex += 1
     ) {
+      const part =
+        partPath[
+          partIndex
+        ];
+
       if (
-        block.id ===
-          fromBlock.id ||
-        block.id ===
-          toBlock.id ||
-        block.nodeName !==
-          part.nodeName ||
-        block.sensorAddress !==
-          sensor
+        !part ||
+        part.nodeName !==
+          block.nodeName
       ) {
         continue;
       }
 
-      push(
-        block,
-        nodeIndexByName.get(
-          part.nodeName
-        ) ??
-          0
-      );
+      /*
+       * Three slots per part preserve physical order:
+       *   3*n     = before part (fromSensor)
+       *   3*n + 1 = on part (owned detector)
+       *   3*n + 2 = after part (toSensor)
+       */
+      const positions:
+        number[] = [];
+
+      if (
+        part.fromSensor ===
+          sensor
+      ) {
+        positions.push(
+          partIndex *
+            3
+        );
+      }
+
+      if (
+        part.detectors.includes(
+          sensor
+        )
+      ) {
+        positions.push(
+          partIndex *
+            3 +
+            1
+        );
+      }
+
+      if (
+        part.toSensor ===
+          sensor
+      ) {
+        positions.push(
+          partIndex *
+            3 +
+            2
+        );
+      }
+
+      for (
+        const position of
+        positions
+      ) {
+        if (
+          bestPosition ===
+            null ||
+          position <
+            bestPosition
+        ) {
+          bestPosition =
+            position;
+        }
+      }
     }
+
+    if (
+      bestPosition ===
+        null
+    ) {
+      continue;
+    }
+
+    positioned.push({
+      block,
+      nodeIndex:
+        nodeIndexByName.get(
+          block.nodeName
+        ) ??
+        0,
+      position:
+        bestPosition,
+    });
   }
 
-  /*
-   * Destination is always the final logical boundary.
-   */
-  push(
-    toBlock,
-    nodeIndexByName.get(
-      toBlock.nodeName
-    ) ??
-      Math.max(
-        0,
-        nodes.length -
-          1
-      )
+  positioned.sort(
+    (
+      left,
+      right
+    ) =>
+      left.position -
+        right.position ||
+      left.block.id -
+        right.block.id
   );
 
-  return result;
+  return [
+    {
+      id:
+        fromBlock.id,
+      name:
+        fromBlock.name,
+      nodeIndex:
+        nodeIndexByName.get(
+          fromBlock.nodeName
+        ) ??
+          0,
+    },
+    ...positioned.map(
+      item => ({
+        id:
+          item.block.id,
+        name:
+          item.block.name,
+        nodeIndex:
+          item.nodeIndex,
+      })
+    ),
+    {
+      id:
+        toBlock.id,
+      name:
+        toBlock.name,
+      nodeIndex:
+        nodeIndexByName.get(
+          toBlock.nodeName
+        ) ??
+          Math.max(
+            0,
+            nodes.length -
+              1
+          ),
+    },
+  ];
 }
 
 function buildSameNodePersistedBlockPath(

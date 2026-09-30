@@ -497,7 +497,9 @@ function parseTopology(
     topology.version !==
       8 &&
     topology.version !==
-      9
+      9 &&
+    topology.version !==
+      10
   ) {
     throw new Error(
       "Unsupported route topology. Regenerate and save the route graph."
@@ -1051,44 +1053,115 @@ export function buildMovementPlan(
         );
     };
 
-  const blockForPart =
+  const blocksAtPartBoundary =
+    (
+      part:
+        RawRoutePart,
+      side:
+        "before" |
+        "after"
+    ): RawBlockPathEntry[] => {
+      const sensor =
+        side ===
+          "before"
+          ? part.fromSensor
+          : part.toSensor;
+
+      if (
+        sensor ===
+          null ||
+        !Number.isInteger(
+          sensor
+        ) ||
+        sensor <=
+          0
+      ) {
+        return [];
+      }
+
+      return route.blockPath.filter(
+        block =>
+          block.id !==
+            source.id &&
+          sensors.get(
+            block.id
+          ) ===
+            sensor
+      );
+    };
+
+  const detectorBlocksForPart =
     (
       part:
         RawRoutePart
-    ): RawBlockPathEntry | null => {
-      /*
-       * Blocks are logical arrival boundaries. The physical detector list is
-       * direction-independent, but the block reached by this route part is
-       * the occupancy sensor at the DIRECTIONAL toSensor boundary.
-       *
-       * Never place a block from part.detectors here: in reverse traversal a
-       * detector physically owned by this part may sit at fromSensor and would
-       * move the block to the wrong side of the part.
-       */
-      const arrivalSensor =
-        part.toSensor;
+    ): RawBlockPathEntry[] => {
+      const boundarySensors =
+        new Set(
+          [
+            part.fromSensor,
+            part.toSensor,
+          ].filter(
+            (
+              value
+            ): value is number =>
+              Number.isInteger(
+                value
+              ) &&
+              (
+                value ??
+                0
+              ) >
+                0
+          )
+        );
+
+      const owned =
+        new Set(
+          (
+            part.detectors ??
+            []
+          ).filter(
+            detector =>
+              Number.isInteger(
+                detector
+              ) &&
+              detector >
+                0 &&
+              !boundarySensors.has(
+                detector
+              )
+          )
+        );
 
       if (
-        arrivalSensor ===
-          null ||
-        !Number.isInteger(
-          arrivalSensor
-        ) ||
-        arrivalSensor <=
+        owned.size ===
           0
       ) {
-        return null;
+        return [];
       }
 
-      return (
-        route.blockPath.find(
-          block =>
+      return route.blockPath.filter(
+        block => {
+          if (
+            block.id ===
+              source.id
+          ) {
+            return false;
+          }
+
+          const sensor =
             sensors.get(
               block.id
-            ) ===
-              arrivalSensor
-        ) ??
-        null
+            );
+
+          return (
+            sensor !==
+              undefined &&
+            owned.has(
+              sensor
+            )
+          );
+        }
       );
     };
 
@@ -1297,7 +1370,23 @@ export function buildMovementPlan(
         nodeParts
       ) {
         /*
-         * Traverse the physical part first...
+         * A block whose occupancy sensor is the directional FROM boundary is
+         * crossed before this physical part.
+         */
+        for (
+          const block of
+          blocksAtPartBoundary(
+            part,
+            "before"
+          )
+        ) {
+          pushBlock(
+            block
+          );
+        }
+
+        /*
+         * Traverse the physical SectionPart itself.
          */
         pushPart(
           part,
@@ -1305,21 +1394,36 @@ export function buildMovementPlan(
         );
 
         /*
-         * ...then cross the logical block boundary at that part's directional
-         * toSensor. This is the only way intermediate blocks enter the Plan.
+         * Detector-only block sensors still belong on this physical part even
+         * when they are not a slicing boundary.
          */
-        const matchingBlock =
-          blockForPart(
+        for (
+          const block of
+          detectorBlocksForPart(
             part
-          );
-
-        if (
-          matchingBlock &&
-          matchingBlock.id !==
-            source.id
+          )
         ) {
           pushBlock(
-            matchingBlock,
+            block,
+            [
+              part.partKey,
+            ]
+          );
+        }
+
+        /*
+         * A block whose occupancy sensor is the directional TO boundary is
+         * crossed after this part. This is the normal ARRIVED boundary.
+         */
+        for (
+          const block of
+          blocksAtPartBoundary(
+            part,
+            "after"
+          )
+        ) {
+          pushBlock(
+            block,
             [
               part.partKey,
             ]
@@ -1612,10 +1716,7 @@ export function buildMovementPlan(
     )
   ) {
     pushBlock(
-      source,
-      sectionPartNamesForBlock(
-        source
-      )
+      source
     );
   }
 

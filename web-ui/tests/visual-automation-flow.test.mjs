@@ -198,7 +198,7 @@ test("SmartDispatcher uses exact saved per-transition turnout plans", () => {
 
   assert.match(
     cache,
-    /ROUTE_TOPOLOGY_VERSION = 9/
+    /ROUTE_TOPOLOGY_VERSION = 10/
   );
 
   assert.match(
@@ -213,7 +213,7 @@ test("SmartDispatcher uses exact saved per-transition turnout plans", () => {
 
   assert.match(
     dispatcherPrelude,
-    /2,[\s\S]*3,[\s\S]*4,[\s\S]*5,[\s\S]*6,[\s\S]*7,[\s\S]*8,[\s\S]*9,[\s\S]*\.includes\([\s\S]*Number\([\s\S]*topology\.version/
+    /2,[\s\S]*3,[\s\S]*4,[\s\S]*5,[\s\S]*6,[\s\S]*7,[\s\S]*8,[\s\S]*9,[\s\S]*10,[\s\S]*\.includes\([\s\S]*Number\([\s\S]*topology\.version/
   );
 
   assert.match(

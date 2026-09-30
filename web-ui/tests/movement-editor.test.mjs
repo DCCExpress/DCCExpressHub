@@ -4672,7 +4672,7 @@ test("route topology persists section-part paths and supports cyclic same-node r
 
   assert.match(
     cache,
-    /ROUTE_TOPOLOGY_VERSION = 9/
+    /ROUTE_TOPOLOGY_VERSION = 10/
   );
 
   assert.match(
@@ -5511,51 +5511,14 @@ test("Movement route selector accepts current route topology version", () => {
 
   assert.match(
     catalog,
-    /topology\.version !==[\s\S]*7[\s\S]*topology\.version !==[\s\S]*8[\s\S]*topology\.version !==[\s\S]*9/
+    /topology\.version !==[\s\S]*8[\s\S]*topology\.version !==[\s\S]*9[\s\S]*topology\.version !==[\s\S]*10/
   );
 });
 
 
 
 
-test("Movement block placement uses the directional arrival boundary, not physical detector ownership", () => {
-  const plan =
-    read(
-      "src/services/movementPlan.ts"
-    );
 
-  const helper =
-    plan.slice(
-      plan.indexOf("const blockForPart"),
-      plan.indexOf("if (\n    usesSectionParts")
-    );
-
-  assert.match(
-    helper,
-    /const arrivalSensor =[\s\S]*part\.toSensor/
-  );
-
-  assert.match(
-    helper,
-    /sensors\.get\([\s\S]*block\.id[\s\S]*===\s*arrivalSensor/
-  );
-
-  const executableHelper =
-    helper.replace(
-      /\/\*[\s\S]*?\*\//g,
-      ""
-    );
-
-  assert.doesNotMatch(
-    executableHelper,
-    /part\.detectors/
-  );
-
-  assert.match(
-    helper,
-    /Blocks are logical arrival boundaries/
-  );
-});
 
 
 test("Movement plan fails closed when a turnout falls outside every leg", () => {
@@ -5715,33 +5678,7 @@ test("Vector only composes the incoming SectionPart immediately before a block",
 });
 
 
-test("part-based source block is not guessed onto an outgoing SectionPart", () => {
-  const plan =
-    read(
-      "src/services/movementPlan.ts"
-    );
 
-  const branch =
-    plan.slice(
-      plan.indexOf("if (\n    usesSectionParts"),
-      plan.indexOf("} else {", plan.indexOf("if (\n    usesSectionParts"))
-    );
-
-  assert.match(
-    branch,
-    /pushBlock\(\s*source\s*\)/
-  );
-
-  assert.match(
-    branch,
-    /pushBlock\([\s\S]*matchingBlock,[\s\S]*\[[\s\S]*part\.partKey/
-  );
-
-  assert.doesNotMatch(
-    branch,
-    /pushBlock\([\s\S]*source,[\s\S]*sectionPartNamesForBlock/
-  );
-});
 
 
 test("Movement plan fails closed when block boundaries are not physically ordered", () => {
@@ -5758,5 +5695,79 @@ test("Movement plan fails closed when block boundaries are not physically ordere
   assert.match(
     plan,
     /Movement Plan internal route-order error: block/
+  );
+});
+
+
+test("route checkpoint blocks are ordered by physical sensor position on partPath", () => {
+  const cache =
+    read(
+      "src/services/clientRouteGraphCache.ts"
+    );
+
+  const builder =
+    cache.slice(
+      cache.indexOf("function buildPersistedBlockPath"),
+      cache.indexOf("function buildSameNodePersistedBlockPath")
+    );
+
+  assert.match(
+    builder,
+    /part\.fromSensor ===[\s\S]*sensor/
+  );
+
+  assert.match(
+    builder,
+    /part\.detectors\.includes\([\s\S]*sensor/
+  );
+
+  assert.match(
+    builder,
+    /part\.toSensor ===[\s\S]*sensor/
+  );
+
+  assert.match(
+    builder,
+    /positioned\.sort/
+  );
+});
+
+test("Movement Plan materializes checkpoint blocks before, on, or after physical parts", () => {
+  const plan =
+    read(
+      "src/services/movementPlan.ts"
+    );
+
+  const branch =
+    plan.slice(
+      plan.indexOf("if (\n    usesSectionParts"),
+      plan.indexOf("} else {", plan.indexOf("if (\n    usesSectionParts"))
+    );
+
+  assert.match(
+    branch,
+    /blocksAtPartBoundary\([\s\S]*part,[\s\S]*"before"/
+  );
+
+  assert.match(
+    branch,
+    /detectorBlocksForPart\([\s\S]*part/
+  );
+
+  assert.match(
+    branch,
+    /blocksAtPartBoundary\([\s\S]*part,[\s\S]*"after"/
+  );
+});
+
+test("Movement route selector exposes full checkpoint blockPath", () => {
+  const dialog =
+    read(
+      "src/components/movement/MovementRouteSelectDialog.tsx"
+    );
+
+  assert.match(
+    dialog,
+    /candidate\.blockPath[\s\S]*\.map\([\s\S]*block[\s\S]*block\.name[\s\S]*\.join\([\s\S]*" → "/
   );
 });
