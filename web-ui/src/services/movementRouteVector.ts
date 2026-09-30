@@ -8,6 +8,7 @@ import type {
 
 import {
   loadMovementPlan,
+  type MovementPlanResource,
 } from "./movementPlan";
 
 export type MovementRouteVectorRole =
@@ -687,9 +688,9 @@ export async function loadMovementRouteVector(
 
   /*
    * The Movement plan is the authoritative physical route representation.
-   * A SectionPart with the same sensor as a block is represented by one
-   * composite block node. The physical segment name remains visible metadata,
-   * while events/actions/safety use block semantics only.
+   * MovementPlan keeps physical SectionParts and logical block boundaries
+   * separate. The Vector alone may render an adjacent block + SectionPart as
+   * one composite card so the physical route is not duplicated visually.
    */
   const plan =
     await loadMovementPlan(
@@ -762,8 +763,30 @@ export async function loadMovementRouteVector(
         ) ??
       null;
 
+    if (!segment) {
+      continue;
+    }
+
+    const blockIndex =
+      plan.resources.indexOf(
+        block
+      );
+
+    const segmentIndex =
+      plan.resources.indexOf(
+        segment
+      );
+
     if (
-      !segment ||
+      blockIndex <
+        0 ||
+      segmentIndex <
+        0 ||
+      Math.abs(
+        blockIndex -
+          segmentIndex
+      ) !==
+        1 ||
       segmentCompositeBlock.has(
         segment.key
       )

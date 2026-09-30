@@ -5695,3 +5695,21 @@ test("Movement Vector composes block and SectionPart only for display", () => {
     /plan\.resources\.indexOf/
   );
 });
+
+
+test("Vector only composes adjacent block and SectionPart resources", () => {
+  const vector =
+    read(
+      "src/services/movementRouteVector.ts"
+    );
+
+  assert.match(
+    vector,
+    /Math\.abs\([\s\S]*blockIndex[\s\S]*segmentIndex[\s\S]*\) !==[\s\S]*1/
+  );
+
+  assert.match(
+    vector,
+    /type MovementPlanResource/
+  );
+});
