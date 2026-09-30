@@ -12,6 +12,7 @@ import type { TravelDirection } from "./topology.js";
 export type RouteGraphTrackRuntimeDto = {
   id: LayoutElementId;
   section: number;
+  sectionPart?: string;
   travelDirection: TravelDirection;
 };
 
