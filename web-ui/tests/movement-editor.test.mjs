@@ -5485,3 +5485,16 @@ test("reverse multi-node routes keep a one-sided sensor boundary section", () =>
     /entry\.toSensor !==[\s\S]*null/
   );
 });
+
+
+test("Movement route selector accepts current route topology version", () => {
+  const catalog =
+    read(
+      "src/services/movementRouteCatalog.ts"
+    );
+
+  assert.match(
+    catalog,
+    /topology\.version !==[\s\S]*6[\s\S]*topology\.version !==[\s\S]*7/
+  );
+});
