@@ -23,7 +23,17 @@ export function createClientGraphFromRouteGraphDto(
       nodeDto.y,
       nodeDto.detectors,
       nodeDto.signals,
-      nodeDto.blocks,
+      nodeDto.blocks.map(
+        block => ({
+          ...block,
+          elementIds: [
+            ...(
+              block.elementIds ??
+              []
+            ),
+          ],
+        })
+      ),
       nodeDto.elementIds,
       nodeDto.sectionParts ?? []
     );
