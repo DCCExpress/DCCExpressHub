@@ -893,6 +893,75 @@ export function buildMovementPlan(
     partPath.length >
       0;
 
+  const sectionPartNameForBlock =
+    (
+      entry:
+        RawBlockPathEntry
+    ): string | null => {
+      const sensor =
+        sensors.get(
+          entry.id
+        ) ??
+        null;
+
+      const nodeName =
+        route.nodes[
+          entry.nodeIndex
+        ] ??
+        "";
+
+      const node =
+        graphNodes.get(
+          nodeName
+        );
+
+      if (
+        sensor ===
+          null ||
+        !node ||
+        !Array.isArray(
+          node.sectionParts
+        ) ||
+        node.sectionParts.length ===
+          0
+      ) {
+        return null;
+      }
+
+      const knownDirection =
+        node.sectionParts.find(
+          part =>
+            part.locoDirection !==
+              undefined &&
+            part.locoDirection !==
+              "unknown"
+        )?.locoDirection ??
+        "unknown";
+
+      const reverse =
+        route.locoDirection !==
+          "unknown" &&
+        knownDirection !==
+          "unknown" &&
+        route.locoDirection !==
+          knownDirection;
+
+      const matchingPart =
+        node.sectionParts.find(
+          part =>
+            reverse
+              ? part.fromSensor ===
+                  sensor
+              : part.toSensor ===
+                  sensor
+        );
+
+      return (
+        matchingPart?.key ??
+        null
+      );
+    };
+
   if (
     usesSectionParts
   ) {
@@ -1558,40 +1627,16 @@ export function buildMovementPlan(
   if (
     destination
   ) {
-    const destinationSensor =
-      sensors.get(
-        destination.id
-      ) ??
-      null;
-
-    const destinationNodeName =
-      route.nodes[
-        destination.nodeIndex
-      ] ??
-      "";
-
-    const destinationPart =
-      destinationSensor !==
-        null
-        ? [
-            ...partPath,
-          ]
-            .reverse()
-            .find(
-              part =>
-                part.nodeName ===
-                  destinationNodeName &&
-                part.toSensor ===
-                  destinationSensor
-            ) ??
-          null
-        : null;
+    const destinationPartName =
+      sectionPartNameForBlock(
+        destination
+      );
 
     pushBlock(
       destination,
-      destinationPart
+      destinationPartName
         ? [
-            destinationPart.partKey,
+            destinationPartName,
           ]
         : []
     );
