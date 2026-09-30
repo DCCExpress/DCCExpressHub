@@ -105,12 +105,23 @@ export async function executeExtendedRouteButton(
     }
 
     const fromBlock =
-      graph.findBlockById(routeButton.fromBlockId);
+      layout.getElementById(
+        routeButton.fromBlockId
+      );
 
     const toBlock =
-      graph.findBlockById(routeButton.toBlockId);
+      layout.getElementById(
+        routeButton.toBlockId
+      );
 
-    if (!fromBlock || !toBlock) {
+    if (
+      !fromBlock ||
+      !toBlock ||
+      fromBlock.type !==
+        "trackblock" ||
+      toBlock.type !==
+        "trackblock"
+    ) {
       showWarningMessage(
         t("common.error"),
         t("routesPanel.configuredBlocksMissing")
@@ -128,8 +139,8 @@ export async function executeExtendedRouteButton(
       showOkMessage(
         t("routesPanel.releaseRequest"),
         t("routesPanel.releaseRequested", {
-          from: fromBlock.label,
-          to: toBlock.label,
+          from: fromBlock.name || String(fromBlock.id),
+          to: toBlock.name || String(toBlock.id),
         })
       );
 
@@ -153,8 +164,8 @@ export async function executeExtendedRouteButton(
     showOkMessage(
       t("routesPanel.routeRequest"),
       t("routesPanel.reservationRequested", {
-        from: fromBlock.label,
-        to: toBlock.label,
+        from: fromBlock.name || String(fromBlock.id),
+        to: toBlock.name || String(toBlock.id),
       })
     );
   } catch (error) {
