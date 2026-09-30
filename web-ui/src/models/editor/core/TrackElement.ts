@@ -67,6 +67,9 @@ export abstract class TrackElement extends BaseElement {
 
   section: number = 0;
 
+  /** Runtime-only generated subsection label, e.g. S11.2. */
+  sectionPart: string = "";
+
   isRoute: boolean = false;
 
   /** Runtime indices of the traversed connection pairs (crossing lines). */
@@ -157,7 +160,13 @@ export abstract class TrackElement extends BaseElement {
     return this.getStateColor();
   }
   drawSectionInfo(ctx: CanvasRenderingContext2D, options?: DrawOptions): void {
-    if (!options?.showSection || this.section <= 0) {
+    if (
+      !options?.showSection ||
+      (
+        this.section <= 0 &&
+        !this.sectionPart
+      )
+    ) {
       return;
     }
 
@@ -167,7 +176,11 @@ export abstract class TrackElement extends BaseElement {
       ctx,
       this.centerX,
       this.centerY + 12,
-      "S" + this.section.toString(),
+      this.sectionPart ||
+      (
+        "S" +
+        this.section.toString()
+      ),
       "white",
       "black",
     );
