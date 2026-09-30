@@ -22,6 +22,7 @@ import type {
 
 import {
   buildClientRouteGraph,
+  buildRunnableBlockRoutes,
   type ClientRouteGraphBuildResult,
 } from "@/services/clientRouteGraphBuilder";
 
@@ -29,7 +30,7 @@ import {
   createClientGraphFromRouteGraphDto,
 } from "@/services/routeGraphDtoMapper";
 
-const ROUTE_TOPOLOGY_VERSION = 5;
+const ROUTE_TOPOLOGY_VERSION = 6;
 
 const ROUTE_TOPOLOGY_FIELD =
   "routeTopology";
@@ -47,7 +48,6 @@ export type PersistedRoutePartEntry = {
   fromSensor: number | null;
   toSensor: number | null;
   detectors: number[];
-  blockIds: number[];
   locoDirection:
     | "unknown"
     | "forward"
@@ -96,6 +96,7 @@ export type PersistedClientRouteTopology = {
   topologyRevision: number;
   graphRevision: number;
   graph: RouteGraphDto;
+  blocks: SectionBlock[];
   routeTable: PersistedRouteTableEntry[];
 };
 
@@ -380,12 +381,6 @@ function graphToDto(
                 ...signal,
               })
             ),
-          blocks:
-            node.blocks.map(
-              block => ({
-                ...block,
-              })
-            ),
           elementIds: [
             ...node.elementIds,
           ],
@@ -398,9 +393,6 @@ function graphToDto(
                 ],
                 detectors: [
                   ...part.detectors,
-                ],
-                blockIds: [
-                  ...part.blockIds,
                 ],
               })
             ),
@@ -514,6 +506,7 @@ function turnoutRequirementsToArray(
 
 function buildPersistedBlockPath(
   nodes: GraphNode[],
+  blocks: SectionBlock[],
   fromBlock: SectionBlock,
   toBlock: SectionBlock
 ): PersistedRouteBlockEntry[] {
@@ -565,7 +558,14 @@ function buildPersistedBlockPath(
       continue;
     }
 
-    for (const block of node.blocks) {
+    for (
+      const block of
+      blocks.filter(
+        candidate =>
+          candidate.nodeName ===
+            node.name
+      )
+    ) {
       if (
         block.id === fromBlock.id ||
         block.id === toBlock.id
@@ -648,9 +648,6 @@ function persistedPart(
             )!,
           ]
         : [],
-    blockIds: [
-      ...part.blockIds,
-    ],
     locoDirection:
       reverse
         ? oppositeRouteDirection(
@@ -999,25 +996,22 @@ function multiNodeSectionPartPath(
 
 function enumerateRouteVariantsForBlockPair(
   graph: ClientRouteGraphBuildResult["graph"],
+  blocks: SectionBlock[],
   fromBlock: SectionBlock,
   toBlock: SectionBlock
 ): PersistedRouteTableEntry[] {
   const fromNode =
     graph.nodes.find(
       node =>
-        node.blocks.some(
-          block =>
-            block.id === fromBlock.id
-        )
+        node.name ===
+          fromBlock.nodeName
     );
 
   const toNode =
     graph.nodes.find(
       node =>
-        node.blocks.some(
-          block =>
-            block.id === toBlock.id
-        )
+        node.name ===
+          toBlock.nodeName
     );
 
   if (
@@ -1054,6 +1048,7 @@ function enumerateRouteVariantsForBlockPair(
           blockPath:
             buildPersistedBlockPath(
               [fromNode],
+              blocks,
               fromBlock,
               toBlock
             ),
@@ -1082,6 +1077,7 @@ function enumerateRouteVariantsForBlockPair(
       blockPath:
         buildPersistedBlockPath(
           [fromNode],
+          blocks,
           fromBlock,
           toBlock
         ),
@@ -1200,6 +1196,7 @@ function enumerateRouteVariantsForBlockPair(
         const blockPath =
           buildPersistedBlockPath(
             nodes,
+            blocks,
             fromBlock,
             toBlock
           );
@@ -1362,10 +1359,7 @@ function routeTableFromResult(
   result: ClientRouteGraphBuildResult
 ): PersistedRouteTableEntry[] {
   const blocks =
-    result.graph.nodes.flatMap(
-      node =>
-        node.blocks
-    );
+    result.blocks;
 
   const table:
     PersistedRouteTableEntry[] = [];
@@ -1382,6 +1376,7 @@ function routeTableFromResult(
       const variants =
         enumerateRouteVariantsForBlockPair(
           result.graph,
+          blocks,
           fromBlock,
           toBlock
         );
@@ -1427,6 +1422,12 @@ function createPersistedState(
       topologyRevision,
     graph:
       graphToDto(result),
+    blocks:
+      result.blocks.map(
+        block => ({
+          ...block,
+        })
+      ),
     routeTable:
       routeTableFromResult(
         result
@@ -1497,6 +1498,17 @@ function parsePersistedState(
     return null;
   }
 
+  const blocks =
+    Array.isArray(
+      candidate.blocks
+    )
+      ? candidate.blocks
+      : null;
+
+  if (!blocks) {
+    return null;
+  }
+
   const routeTable =
     Array.isArray(
       candidate.routeTable
@@ -1515,6 +1527,8 @@ function parsePersistedState(
       candidate.graphRevision,
     graph:
       candidate.graph as RouteGraphDto,
+    blocks:
+      blocks as SectionBlock[],
     routeTable:
       routeTable as PersistedRouteTableEntry[],
   };
@@ -1528,8 +1542,16 @@ function resultFromPersisted(
       persisted.graph
     );
 
+  const blocks =
+    persisted.blocks.map(
+      block => ({
+        ...block,
+      })
+    );
+
   return {
     graph,
+    blocks,
     trackRuntime:
       persisted.graph.trackRuntime.map(
         item => ({
@@ -1537,7 +1559,10 @@ function resultFromPersisted(
         })
       ),
     routes:
-      graph.getRunnableBlockRoutes(),
+      buildRunnableBlockRoutes(
+        graph,
+        blocks
+      ),
   };
 }
 
@@ -1665,31 +1690,8 @@ function validateMovementReadyGraph(
   const errors:
     string[] = [];
 
-  const blocks =
-    new Map<
-      number,
-      SectionBlock
-    >();
-
-  for (
-    const node of
-    result.graph.nodes
-  ) {
-    for (
-      const block of
-      node.blocks
-    ) {
-      blocks.set(
-        block.id,
-        block
-      );
-    }
-  }
-
   const usableBlocks =
-    [
-      ...blocks.values(),
-    ].filter(
+    result.blocks.filter(
       block =>
         Number.isInteger(
           block.sensorAddress
@@ -1708,6 +1710,53 @@ function validateMovementReadyGraph(
           block.sensorAddress!
       )
     );
+
+  const blocksBySensor =
+    new Map<
+      number,
+      SectionBlock[]
+    >();
+
+  for (
+    const block of
+    usableBlocks
+  ) {
+    const sensor =
+      block.sensorAddress!;
+
+    const items =
+      blocksBySensor.get(
+        sensor
+      ) ??
+      [];
+
+    items.push(
+      block
+    );
+
+    blocksBySensor.set(
+      sensor,
+      items
+    );
+  }
+
+  for (
+    const [
+      sensor,
+      sensorBlocks,
+    ] of blocksBySensor
+  ) {
+    if (
+      sensorBlocks.length <=
+        1
+    ) {
+      continue;
+    }
+
+    errors.push(
+      `Movement requires unique block occupancy sensors. Sensor ${sensor} is assigned to blocks ${sensorBlocks.map(block => `"${block.name}"`).join(", ")}.`
+    );
+  }
 
   if (
     usableBlocks.length <
@@ -1767,8 +1816,10 @@ function validateMovementReadyGraph(
           part =>
             part.circular
         ) &&
-        node.blocks.filter(
+        result.blocks.filter(
           block =>
+            block.nodeName ===
+              node.name &&
             (
               block.sensorAddress ??
               0
