@@ -29,7 +29,7 @@ import {
   createClientGraphFromRouteGraphDto,
 } from "@/services/routeGraphDtoMapper";
 
-const ROUTE_TOPOLOGY_VERSION = 4;
+const ROUTE_TOPOLOGY_VERSION = 5;
 
 const ROUTE_TOPOLOGY_FIELD =
   "routeTopology";
@@ -648,21 +648,9 @@ function persistedPart(
             )!,
           ]
         : [],
-    blockIds:
-      node.blocks
-        .filter(
-          block =>
-            block.sensorAddress ===
-              (
-                reverse
-                  ? part.fromSensor
-                  : part.toSensor
-              )
-        )
-        .map(
-          block =>
-            block.id
-        ),
+    blockIds: [
+      ...part.blockIds,
+    ],
     locoDirection:
       reverse
         ? oppositeRouteDirection(
