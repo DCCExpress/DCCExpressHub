@@ -30,6 +30,7 @@ export type SectionBlock = {
   trackName: string;
   label: string;
   sensorAddress?: number;
+  elementIds: LayoutElementId[];
 };
 
 export type SectionPart = {
