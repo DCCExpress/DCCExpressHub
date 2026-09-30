@@ -5742,3 +5742,21 @@ test("part-based source block is not guessed onto an outgoing SectionPart", () =
     /pushBlock\([\s\S]*source,[\s\S]*sectionPartNamesForBlock/
   );
 });
+
+
+test("Movement plan fails closed when block boundaries are not physically ordered", () => {
+  const plan =
+    read(
+      "src/services/movementPlan.ts"
+    );
+
+  assert.match(
+    plan,
+    /previous\.routeOrder >=[\s\S]*current\.routeOrder/
+  );
+
+  assert.match(
+    plan,
+    /Movement Plan internal route-order error: block/
+  );
+});

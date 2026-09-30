@@ -1786,6 +1786,40 @@ export function buildMovementPlan(
     });
   }
 
+  for (
+    let index = 1;
+    index <
+      blocks.length;
+    index += 1
+  ) {
+    const previous =
+      blocks[
+        index -
+          1
+      ];
+
+    const current =
+      blocks[
+        index
+      ];
+
+    if (
+      !previous ||
+      !current
+    ) {
+      continue;
+    }
+
+    if (
+      previous.routeOrder >=
+        current.routeOrder
+    ) {
+      throw new Error(
+        `Movement Plan internal route-order error: block "${current.name}" is not after "${previous.name}" in the physical route.`
+      );
+    }
+  }
+
   const legResourceKeys =
     new Set(
       legs.flatMap(
