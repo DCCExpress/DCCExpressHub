@@ -30,7 +30,7 @@ import {
   createClientGraphFromRouteGraphDto,
 } from "@/services/routeGraphDtoMapper";
 
-const ROUTE_TOPOLOGY_VERSION = 10;
+const ROUTE_TOPOLOGY_VERSION = 11;
 
 const ROUTE_TOPOLOGY_FIELD =
   "routeTopology";
@@ -525,164 +525,8 @@ function buildPersistedBlockPath(
       )
     );
 
-  type PositionedBlock = {
-    block: SectionBlock;
-    nodeIndex: number;
-    position: number;
-  };
-
-  const positioned:
-    PositionedBlock[] = [];
-
-  /*
-   * Locate every intermediate block by occupancy-sensor identity on the
-   * DIRECTIONAL physical SectionPart path.
-   *
-   * A block sensor may appear as:
-   *   - fromSensor: boundary before this part,
-   *   - a detector physically owned by this part,
-   *   - toSensor: boundary after this part.
-   *
-   * Do not require only toSensor: that dropped valid checkpoint blocks such
-   * as B1/B2 from route alternatives.
-   */
-  for (
-    const block of
-    blocks
-  ) {
-    if (
-      block.id ===
-        fromBlock.id ||
-      block.id ===
-        toBlock.id ||
-      !Number.isInteger(
-        block.sensorAddress
-      ) ||
-      (
-        block.sensorAddress ??
-        0
-      ) <=
-        0
-    ) {
-      continue;
-    }
-
-    const sensor =
-      block.sensorAddress!;
-
-    let bestPosition:
-      number | null =
-      null;
-
-    for (
-      let partIndex = 0;
-      partIndex <
-        partPath.length;
-      partIndex += 1
-    ) {
-      const part =
-        partPath[
-          partIndex
-        ];
-
-      if (
-        !part ||
-        part.nodeName !==
-          block.nodeName
-      ) {
-        continue;
-      }
-
-      /*
-       * Three slots per part preserve physical order:
-       *   3*n     = before part (fromSensor)
-       *   3*n + 1 = on part (owned detector)
-       *   3*n + 2 = after part (toSensor)
-       */
-      const positions:
-        number[] = [];
-
-      if (
-        part.fromSensor ===
-          sensor
-      ) {
-        positions.push(
-          partIndex *
-            3
-        );
-      }
-
-      if (
-        part.detectors.includes(
-          sensor
-        )
-      ) {
-        positions.push(
-          partIndex *
-            3 +
-            1
-        );
-      }
-
-      if (
-        part.toSensor ===
-          sensor
-      ) {
-        positions.push(
-          partIndex *
-            3 +
-            2
-        );
-      }
-
-      for (
-        const position of
-        positions
-      ) {
-        if (
-          bestPosition ===
-            null ||
-          position <
-            bestPosition
-        ) {
-          bestPosition =
-            position;
-        }
-      }
-    }
-
-    if (
-      bestPosition ===
-        null
-    ) {
-      continue;
-    }
-
-    positioned.push({
-      block,
-      nodeIndex:
-        nodeIndexByName.get(
-          block.nodeName
-        ) ??
-        0,
-      position:
-        bestPosition,
-    });
-  }
-
-  positioned.sort(
-    (
-      left,
-      right
-    ) =>
-      left.position -
-        right.position ||
-      left.block.id -
-        right.block.id
-  );
-
-  return [
-    {
+  const result:
+    PersistedRouteBlockEntry[] = [{
       id:
         fromBlock.id,
       name:
@@ -692,33 +536,78 @@ function buildPersistedBlockPath(
           fromBlock.nodeName
         ) ??
           0,
-    },
-    ...positioned.map(
-      item => ({
+  }];
+
+  const seen =
+    new Set<number>([
+      fromBlock.id,
+      toBlock.id,
+    ]);
+
+  /*
+   * The route is an ordered vector of PHYSICAL SectionParts.
+   * A logical block is on that vector exactly where its occupancy sensor is
+   * physically owned by part.detectors. Nothing else participates in ordering.
+   */
+  for (
+    const part of
+    partPath
+  ) {
+    for (
+      const block of
+      blocks
+    ) {
+      if (
+        seen.has(
+          block.id
+        ) ||
+        block.nodeName !==
+          part.nodeName ||
+        !Number.isInteger(
+          block.sensorAddress
+        ) ||
+        !part.detectors.includes(
+          block.sensorAddress!
+        )
+      ) {
+        continue;
+      }
+
+      seen.add(
+        block.id
+      );
+
+      result.push({
         id:
-          item.block.id,
+          block.id,
         name:
-          item.block.name,
+          block.name,
         nodeIndex:
-          item.nodeIndex,
-      })
-    ),
-    {
-      id:
-        toBlock.id,
-      name:
-        toBlock.name,
-      nodeIndex:
-        nodeIndexByName.get(
-          toBlock.nodeName
-        ) ??
-          Math.max(
+          nodeIndexByName.get(
+            part.nodeName
+          ) ??
             0,
-            nodes.length -
-              1
-          ),
-    },
-  ];
+      });
+    }
+  }
+
+  result.push({
+    id:
+      toBlock.id,
+    name:
+      toBlock.name,
+    nodeIndex:
+      nodeIndexByName.get(
+        toBlock.nodeName
+      ) ??
+        Math.max(
+          0,
+          nodes.length -
+            1
+        ),
+  });
+
+  return result;
 }
 
 function buildSameNodePersistedBlockPath(
@@ -729,115 +618,71 @@ function buildSameNodePersistedBlockPath(
   partPath: PersistedRoutePartEntry[]
 ): PersistedRouteBlockEntry[] {
   const result:
-    PersistedRouteBlockEntry[] = [];
-
-  const seen =
-    new Set<number>();
-
-  const push = (
-    block:
-      SectionBlock
-  ): void => {
-    if (
-      seen.has(
-        block.id
-      )
-    ) {
-      return;
-    }
-
-    seen.add(
-      block.id
-    );
-
-    result.push({
+    PersistedRouteBlockEntry[] = [{
       id:
-        block.id,
+        fromBlock.id,
       name:
-        block.name,
+        fromBlock.name,
       nodeIndex:
         0,
-    });
-  };
+  }];
 
-  push(
-    fromBlock
-  );
-
-  const blockBySensor =
-    new Map<
-      number,
-      SectionBlock
-    >();
-
-  for (
-    const block of
-    blocks
-  ) {
-    if (
-      block.nodeName !==
-        node.name ||
-      !Number.isInteger(
-        block.sensorAddress
-      ) ||
-      (
-        block.sensorAddress ??
-        0
-      ) <=
-        0
-    ) {
-      continue;
-    }
-
-    blockBySensor.set(
-      block.sensorAddress!,
-      block
-    );
-  }
+  const seen =
+    new Set<number>([
+      fromBlock.id,
+      toBlock.id,
+    ]);
 
   for (
     const part of
     partPath
   ) {
-    const sensor =
-      part.toSensor;
-
-    if (
-      sensor ===
-        null ||
-      sensor <=
-        0
+    for (
+      const block of
+      blocks
     ) {
-      continue;
-    }
+      if (
+        seen.has(
+          block.id
+        ) ||
+        block.nodeName !==
+          node.name ||
+        !Number.isInteger(
+          block.sensorAddress
+        ) ||
+        !part.detectors.includes(
+          block.sensorAddress!
+        )
+      ) {
+        continue;
+      }
 
-    const block =
-      blockBySensor.get(
-        sensor
+      seen.add(
+        block.id
       );
 
-    if (
-      !block ||
-      block.id ===
-        fromBlock.id ||
-      block.id ===
-        toBlock.id
-    ) {
-      continue;
+      result.push({
+        id:
+          block.id,
+        name:
+          block.name,
+        nodeIndex:
+          0,
+      });
     }
-
-    push(
-      block
-    );
   }
 
-  push(
-    toBlock
-  );
+  result.push({
+    id:
+      toBlock.id,
+    name:
+      toBlock.name,
+    nodeIndex:
+      0,
+  });
 
   return result;
 }
-
 
 function oppositeRouteDirection(
   direction:
@@ -954,20 +799,89 @@ function sameNodeSectionPartRoutes(
         | "reverse";
     }> = [];
 
-  const walk =
+  const circular =
+    node.sectionParts.some(
+      part =>
+        part.circular
+    );
+
+  const build =
     (
       reverse:
         boolean
     ): void => {
-      const path:
-        PersistedRoutePartEntry[] =
-        [];
+      const entries =
+        (
+          reverse
+            ? [
+                ...node.sectionParts,
+              ].reverse()
+            : [
+                ...node.sectionParts,
+              ]
+        ).map(
+          part =>
+            persistedPart(
+              node,
+              part,
+              reverse
+            )
+        );
 
-      const visited =
-        new Set<string>();
+      const startIndex =
+        entries.findIndex(
+          entry =>
+            entry.detectors.includes(
+              fromSensor
+            )
+        );
 
-      let current =
-        fromSensor;
+      const endIndex =
+        entries.findIndex(
+          entry =>
+            entry.detectors.includes(
+              toSensor
+            )
+        );
+
+      if (
+        startIndex <
+          0 ||
+        endIndex <
+          0
+      ) {
+        return;
+      }
+
+      let path:
+        PersistedRoutePartEntry[];
+
+      if (
+        startIndex <=
+          endIndex
+      ) {
+        path =
+          entries.slice(
+            startIndex,
+            endIndex +
+              1
+          );
+      } else if (
+        circular
+      ) {
+        path = [
+          ...entries.slice(
+            startIndex
+          ),
+          ...entries.slice(
+            0,
+            endIndex +
+              1
+          ),
+        ];
+      } else {
+        return;
+      }
 
       let direction:
         | "unknown"
@@ -976,101 +890,39 @@ function sameNodeSectionPartRoutes(
         "unknown";
 
       for (
-        let guard = 0;
-        guard <
-          node.sectionParts.length;
-        guard += 1
+        const part of
+        path
       ) {
-        const part =
-          node.sectionParts.find(
-            candidate =>
-              reverse
-                ? candidate.toSensor ===
-                    current
-                : candidate.fromSensor ===
-                    current
-          );
-
-        if (
-          !part ||
-          visited.has(
-            part.key
-          )
-        ) {
-          return;
-        }
-
-        visited.add(
-          part.key
-        );
-
-        const entry =
-          persistedPart(
-            node,
-            part,
-            reverse
-          );
-
-        const mergedDirection =
+        const merged =
           mergeRouteDirection(
             direction,
-            entry.locoDirection
+            part.locoDirection
           );
 
         if (
-          mergedDirection ===
+          merged ===
             null
         ) {
           return;
         }
 
         direction =
-          mergedDirection;
-
-        path.push(
-          entry
-        );
-
-        current =
-          entry.toSensor ??
-          0;
-
-        if (
-          current ===
-            toSensor
-        ) {
-          result.push({
-            partPath:
-              path,
-            locoDirection:
-              direction,
-          });
-
-          return;
-        }
-
-        if (
-          current <=
-            0
-        ) {
-          return;
-        }
+          merged;
       }
+
+      result.push({
+        partPath:
+          path,
+        locoDirection:
+          direction,
+      });
     };
 
-  /*
-   * Section-part direction describes the locomotive command orientation, not
-   * a one-way traffic restriction. Try both physical traversal directions.
-   *
-   * On a linear section normally only one walk can reach the destination.
-   * On a circular section both walks may be valid and intentionally produce
-   * the two ways around the loop.
-   */
-  walk(
+  build(
     false
   );
 
-  walk(
+  build(
     true
   );
 
@@ -1084,27 +936,20 @@ function sameNodeSectionPartRoutes(
         candidate =>
           JSON.stringify(
             candidate.partPath.map(
-              part => [
-                part.partKey,
-                part.fromSensor,
-                part.toSensor,
-              ]
+              part =>
+                part.partKey
             )
           ) ===
           JSON.stringify(
             route.partPath.map(
-              part => [
-                part.partKey,
-                part.fromSensor,
-                part.toSensor,
-              ]
+              part =>
+                part.partKey
             )
           )
       ) ===
       index
   );
 }
-
 
 function multiNodeSectionPartPath(
   nodes:
@@ -1185,8 +1030,9 @@ function multiNodeSectionPartPath(
       const startIndex =
         entries.findIndex(
           entry =>
-            entry.fromSensor ===
-              fromBlock.sensorAddress
+            entry.detectors.includes(
+              fromBlock.sensorAddress!
+            )
         );
 
       if (
@@ -1213,8 +1059,9 @@ function multiNodeSectionPartPath(
       const endIndex =
         entries.findIndex(
           entry =>
-            entry.toSensor ===
-              toBlock.sensorAddress
+            entry.detectors.includes(
+              toBlock.sensorAddress!
+            )
         );
 
       if (

@@ -4672,7 +4672,7 @@ test("route topology persists section-part paths and supports cyclic same-node r
 
   assert.match(
     cache,
-    /ROUTE_TOPOLOGY_VERSION = 10/
+    /ROUTE_TOPOLOGY_VERSION = 11/
   );
 
   assert.match(
@@ -5511,7 +5511,7 @@ test("Movement route selector accepts current route topology version", () => {
 
   assert.match(
     catalog,
-    /topology\.version !==[\s\S]*8[\s\S]*topology\.version !==[\s\S]*9[\s\S]*topology\.version !==[\s\S]*10/
+    /topology\.version !==[\s\S]*9[\s\S]*topology\.version !==[\s\S]*10[\s\S]*topology\.version !==[\s\S]*11/
   );
 });
 
@@ -5561,43 +5561,7 @@ test("Movement start logs resolved physical resources and per-leg turnout requir
 });
 
 
-test("Movement Plan keeps SectionParts separate from logical block boundaries", () => {
-  const plan =
-    read(
-      "src/services/movementPlan.ts"
-    );
 
-  const partBranch =
-    plan.slice(
-      plan.indexOf("if (\n    usesSectionParts"),
-      plan.indexOf("} else {", plan.indexOf("if (\n    usesSectionParts"))
-    );
-
-  assert.match(
-    partBranch,
-    /pushPart\([\s\S]*part,[\s\S]*nodeIndex/
-  );
-
-  assert.match(
-    partBranch,
-    /const matchingBlock =[\s\S]*blockForPart/
-  );
-
-  assert.ok(
-    partBranch.indexOf("pushPart(") <
-      partBranch.indexOf("const matchingBlock =")
-  );
-
-  assert.doesNotMatch(
-    partBranch,
-    /part\.detectors[\s\S]*pushBlock\([\s\S]*matchingBlock/
-  );
-
-  assert.doesNotMatch(
-    partBranch,
-    /for \([\s\S]*const block of[\s\S]*route\.blockPath[\s\S]*blocks\.some/
-  );
-});
 
 test("multi-node persisted blockPath follows directional SectionPart order", () => {
   const cache =
@@ -5632,50 +5596,10 @@ test("multi-node persisted blockPath follows directional SectionPart order", () 
   );
 });
 
-test("Movement Vector composes block and SectionPart only for display", () => {
-  const vector =
-    read(
-      "src/services/movementRouteVector.ts"
-    );
-
-  assert.match(
-    vector,
-    /blockCompositeSegment/
-  );
-
-  assert.match(
-    vector,
-    /segmentCompositeBlock/
-  );
-
-  assert.match(
-    vector,
-    /Render the composite at the physical segment's position/
-  );
-
-  assert.match(
-    vector,
-    /plan\.resources\.indexOf/
-  );
-});
 
 
-test("Vector only composes the incoming SectionPart immediately before a block", () => {
-  const vector =
-    read(
-      "src/services/movementRouteVector.ts"
-    );
 
-  assert.match(
-    vector,
-    /segmentIndex !==[\s\S]*blockIndex -[\s\S]*1/
-  );
 
-  assert.match(
-    vector,
-    /type MovementPlanResource/
-  );
-});
 
 
 
@@ -5732,33 +5656,7 @@ test("route checkpoint blocks are ordered by physical sensor position on partPat
   );
 });
 
-test("Movement Plan materializes checkpoint blocks before, on, or after physical parts", () => {
-  const plan =
-    read(
-      "src/services/movementPlan.ts"
-    );
 
-  const branch =
-    plan.slice(
-      plan.indexOf("if (\n    usesSectionParts"),
-      plan.indexOf("} else {", plan.indexOf("if (\n    usesSectionParts"))
-    );
-
-  assert.match(
-    branch,
-    /blocksAtPartBoundary\([\s\S]*part,[\s\S]*"before"/
-  );
-
-  assert.match(
-    branch,
-    /detectorBlocksForPart\([\s\S]*part/
-  );
-
-  assert.match(
-    branch,
-    /blocksAtPartBoundary\([\s\S]*part,[\s\S]*"after"/
-  );
-});
 
 test("Movement route selector exposes full checkpoint blockPath", () => {
   const dialog =
@@ -5804,5 +5702,137 @@ test("Movement route selector uses full checkpoint path as the primary route lab
   assert.match(
     body,
     /candidate\.blockPath[\s\S]*block\.name[\s\S]*" → "/
+  );
+});
+
+
+test("Movement Vector is strictly the physical resource vector with sensor-equal block overlay", () => {
+  const vector =
+    read(
+      "src/services/movementRouteVector.ts"
+    );
+
+  assert.match(
+    vector,
+    /return plan\.resources\.map/
+  );
+
+  assert.match(
+    vector,
+    /resource\.detectors\.includes\([\s\S]*block\.sensorAddress/
+  );
+
+  assert.match(
+    vector,
+    /physicalSegmentNames:[\s\S]*resource\.name/
+  );
+
+  assert.doesNotMatch(
+    vector,
+    /plan\.resources\.indexOf/
+  );
+
+  assert.doesNotMatch(
+    vector,
+    /segmentCompositeBlock|blockCompositeSegment/
+  );
+});
+
+test("part-based Movement Plan keeps blocks out of physical resources", () => {
+  const plan =
+    read(
+      "src/services/movementPlan.ts"
+    );
+
+  const branch =
+    plan.slice(
+      plan.indexOf("if (\n    usesSectionParts"),
+      plan.indexOf("} else {", plan.indexOf("if (\n    usesSectionParts"))
+    );
+
+  assert.match(
+    branch,
+    /ordered SectionParts, with turnout passages/
+  );
+
+  assert.doesNotMatch(
+    branch,
+    /pushBlock\(/
+  );
+
+  assert.match(
+    plan,
+    /matchingSegments =[\s\S]*resource\.kind ===[\s\S]*"segment"[\s\S]*resource\.detectors\.includes/
+  );
+
+  assert.match(
+    plan,
+    /routeOrder:[\s\S]*segment\.routeOrder/
+  );
+});
+
+test("route partPath includes source and destination physical detector-owned parts", () => {
+  const cache =
+    read(
+      "src/services/clientRouteGraphCache.ts"
+    );
+
+  const multi =
+    cache.slice(
+      cache.indexOf("function multiNodeSectionPartPath"),
+      cache.indexOf("function enumerateRouteVariantsForBlockPair")
+    );
+
+  assert.match(
+    multi,
+    /entry\.detectors\.includes\([\s\S]*fromBlock\.sensorAddress/
+  );
+
+  assert.match(
+    multi,
+    /entry\.detectors\.includes\([\s\S]*toBlock\.sensorAddress/
+  );
+
+  assert.doesNotMatch(
+    multi,
+    /entry\.fromSensor ===[\s\S]*fromBlock\.sensorAddress/
+  );
+
+  assert.doesNotMatch(
+    multi,
+    /entry\.toSensor ===[\s\S]*toBlock\.sensorAddress/
+  );
+});
+
+test("checkpoint blockPath follows physical SectionPart detector ownership", () => {
+  const cache =
+    read(
+      "src/services/clientRouteGraphCache.ts"
+    );
+
+  const builder =
+    cache.slice(
+      cache.indexOf("function buildPersistedBlockPath"),
+      cache.indexOf("function buildSameNodePersistedBlockPath")
+    );
+
+  assert.match(
+    builder,
+    /for \([\s\S]*const part of[\s\S]*partPath/
+  );
+
+  assert.match(
+    builder,
+    /part\.detectors\.includes\([\s\S]*block\.sensorAddress/
+  );
+
+  assert.doesNotMatch(
+    builder,
+    /part\.fromSensor ===/
+  );
+
+  assert.doesNotMatch(
+    builder,
+    /part\.toSensor ===/
   );
 });

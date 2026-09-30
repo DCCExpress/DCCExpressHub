@@ -8,7 +8,6 @@ import type {
 
 import {
   loadMovementPlan,
-  type MovementPlanResource,
 } from "./movementPlan";
 
 export type MovementRouteVectorRole =
@@ -686,12 +685,6 @@ export async function loadMovementRouteVector(
     return [];
   }
 
-  /*
-   * The Movement plan is the authoritative physical route representation.
-   * MovementPlan keeps physical SectionParts and logical block boundaries
-   * separate. The Vector alone may render an adjacent block + SectionPart as
-   * one composite card so the physical route is not duplicated visually.
-   */
   const plan =
     await loadMovementPlan(
       page,
@@ -708,172 +701,126 @@ export async function loadMovementRouteVector(
           string
         >();
 
-  const segmentByName =
-    new Map(
-      plan.resources
-        .filter(
-          resource =>
-            resource.kind ===
-              "segment"
-        )
-        .map(
-          resource => [
-            resource.name,
-            resource,
-          ] as const
-        )
-    );
-
-  const blockCompositeSegment =
-    new Map<
-      string,
-      MovementPlanResource
-    >();
-
-  const segmentCompositeBlock =
-    new Map<
-      string,
-      MovementPlanResource
-    >();
-
-  for (
-    const block of
-    plan.resources
-  ) {
-    if (
-      block.kind !==
-        "block"
-    ) {
-      continue;
-    }
-
-    const segment =
-      block.physicalSegmentNames
-        .map(
-          name =>
-            segmentByName.get(
-              name
-            ) ??
-            null
-        )
-        .find(
-          candidate =>
-            candidate !==
-              null
-        ) ??
-      null;
-
-    if (!segment) {
-      continue;
-    }
-
-    const blockIndex =
-      plan.resources.indexOf(
-        block
-      );
-
-    const segmentIndex =
-      plan.resources.indexOf(
-        segment
-      );
-
-    if (
-      blockIndex <
-        0 ||
-      segmentIndex <
-        0 ||
-      segmentIndex !==
-        blockIndex -
-          1 ||
-      segmentCompositeBlock.has(
-        segment.key
-      )
-    ) {
-      continue;
-    }
-
-    blockCompositeSegment.set(
-      block.key,
-      segment
-    );
-
-    segmentCompositeBlock.set(
-      segment.key,
-      block
-    );
-  }
-
-  const toItem =
+  /*
+   * Movement Vector IS the ordered physical resource vector.
+   *
+   * For a SectionPart whose detector equals a block occupancy sensor, render
+   * exactly ONE composite block/section node in that SectionPart's position.
+   * Blocks never create an extra vector item and never change physical order.
+   */
+  return plan.resources.map(
     (
-      resource:
-        MovementPlanResource,
-      index:
-        number,
-      compositeSegment:
-        MovementPlanResource | null =
-          null
-    ): MovementRouteVectorItem => {
+      resource,
+      index
+    ):
+      MovementRouteVectorItem => {
       const nodeIndex =
         resource.nodeIndex ??
         0;
 
-      const sensor =
-        resource.sensorAddress ??
-        resource.detectors[0] ??
-        null;
-
-      const sensors =
-        resource.kind ===
-          "block"
-          ? (
-              resource.sensorAddress ===
-                null
-                ? []
-                : [
-                    resource.sensorAddress,
-                  ]
-            )
-          : [
-              ...resource.detectors,
-            ];
-
       if (
         resource.kind ===
-          "block"
+          "turnout"
       ) {
+        return {
+          key:
+            resource.key,
+          kind:
+            "turnout",
+          order:
+            index +
+            1,
+          nodeIndex,
+          name:
+            resource.name,
+          sensor:
+            resource.sensorAddress ??
+            resource.detectors[0] ??
+            null,
+          sensors: [
+            ...resource.detectors,
+          ],
+          turnoutStates:
+            resource.turnoutStates.map(
+              state => ({
+                ...state,
+              })
+            ),
+        };
+      }
+
+      const matchingBlocks =
+        plan.blocks.filter(
+          block =>
+            block.sensorAddress !==
+              null &&
+            resource.detectors.includes(
+              block.sensorAddress
+            )
+        );
+
+      if (
+        matchingBlocks.length >
+          1
+      ) {
+        throw new Error(
+          `Movement Vector internal error: SectionPart "${resource.name}" matches multiple blocks (${matchingBlocks.map(block => block.name).join(", ")}).`
+        );
+      }
+
+      const block =
+        matchingBlocks[0];
+
+      if (block) {
         const blockId =
-          resource.blockId;
+          block.blockId;
 
         if (
           blockId ===
             null
         ) {
           throw new Error(
-            `Movement block resource "${resource.key}" has no block id.`
+            `Movement block resource "${block.key}" has no block id.`
           );
         }
 
         return {
           key:
-            resource.key,
+            block.key,
           kind:
             "block",
           order:
-            index + 1,
+            index +
+            1,
           nodeIndex,
           blockId,
           name:
+            block.name,
+          sensor:
+            block.sensorAddress,
+          sensors: [
+            ...new Set([
+              ...resource.detectors,
+              ...(
+                block.sensorAddress ===
+                  null
+                  ? []
+                  : [
+                      block.sensorAddress,
+                    ]
+              ),
+            ]),
+          ].sort(
+            (
+              left,
+              right
+            ) =>
+              left -
+              right
+          ),
+          physicalSegmentNames: [
             resource.name,
-          sensor,
-          sensors,
-          physicalSegmentNames:
-            compositeSegment
-              ? [
-                  compositeSegment.name,
-                ]
-              : [
-                  ...resource.physicalSegmentNames,
-                ],
+          ],
           blockType:
             blockTypes.get(
               blockId
@@ -887,31 +834,6 @@ export async function loadMovementRouteVector(
                   page.toBlockId
                 ? "destination"
                 : "intermediate",
-        };
-      }
-
-      if (
-        resource.kind ===
-          "turnout"
-      ) {
-        return {
-          key:
-            resource.key,
-          kind:
-            "turnout",
-          order:
-            index + 1,
-          nodeIndex,
-          name:
-            resource.name,
-          sensor,
-          sensors,
-          turnoutStates:
-            resource.turnoutStates.map(
-              state => ({
-                ...state,
-              })
-            ),
         };
       }
 
@@ -931,7 +853,8 @@ export async function loadMovementRouteVector(
         kind:
           "segment",
         order:
-          index + 1,
+          index +
+            1,
         nodeIndex,
         nodeName:
           resource.name,
@@ -939,117 +862,13 @@ export async function loadMovementRouteVector(
           trackName ||
           resource.name,
         trackName,
-        sensor,
-        sensors,
+        sensor:
+          resource.detectors[0] ??
+          null,
+        sensors: [
+          ...resource.detectors,
+        ],
       };
-    };
-
-  const rendered:
-    MovementRouteVectorItem[] =
-    [];
-
-  for (
-    let index = 0;
-    index <
-      plan.resources.length;
-    index += 1
-  ) {
-    const resource =
-      plan.resources[
-        index
-      ];
-
-    if (!resource) {
-      continue;
     }
-
-    if (
-      resource.kind ===
-        "segment"
-    ) {
-      const block =
-        segmentCompositeBlock.get(
-          resource.key
-        );
-
-      if (block) {
-        const blockIndex =
-          plan.resources.indexOf(
-            block
-          );
-
-        /*
-         * Render a composite only at the ARRIVAL SectionPart position.
-         * Source blocks are never merged with an outgoing SectionPart. The
-         * block boundary remains separate in MovementPlan; only the Vector
-         * merges the two cards.
-         */
-        if (
-          index <
-            blockIndex
-        ) {
-          rendered.push(
-            toItem(
-              block,
-              rendered.length,
-              resource
-            )
-          );
-        }
-
-        continue;
-      }
-    }
-
-    if (
-      resource.kind ===
-        "block"
-    ) {
-      const segment =
-        blockCompositeSegment.get(
-          resource.key
-        );
-
-      if (segment) {
-        const segmentIndex =
-          plan.resources.indexOf(
-            segment
-          );
-
-        if (
-          index <
-            segmentIndex
-        ) {
-          rendered.push(
-            toItem(
-              resource,
-              rendered.length,
-              segment
-            )
-          );
-        }
-
-        continue;
-      }
-    }
-
-    rendered.push(
-      toItem(
-        resource,
-        rendered.length
-      )
-    );
-  }
-
-  return rendered.map(
-    (
-      item,
-      index
-    ) => ({
-      ...item,
-      order:
-        index +
-        1,
-    })
   );
 }

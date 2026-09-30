@@ -499,7 +499,9 @@ function parseTopology(
     topology.version !==
       9 &&
     topology.version !==
-      10
+      10 &&
+    topology.version !==
+      11
   ) {
     throw new Error(
       "Unsupported route topology. Regenerate and save the route graph."
@@ -1217,7 +1219,8 @@ export function buildMovementPlan(
                 right
             ),
           turnoutStates: [],
-          routeOrder: 0,
+          routeOrder:
+            0,
           partIndex:
             Number.isInteger(
               part.partIndex
@@ -1335,14 +1338,11 @@ export function buildMovementPlan(
       };
 
     /*
-     * Logical source boundary comes first. Physical SectionParts stay as
-     * separate resources; the Vector may visually compose them with a block,
-     * but runtime authority/event/safety ordering must never collapse them.
+     * Authoritative physical Movement vector:
+     * ordered SectionParts, with turnout passages between graph nodes.
+     * Blocks are NOT inserted here. They are logical overlays resolved later
+     * by block.sensorAddress === SectionPart.detectors[].
      */
-    pushBlock(
-      source
-    );
-
     for (
       let nodeIndex = 0;
       nodeIndex <
@@ -1358,82 +1358,20 @@ export function buildMovementPlan(
         continue;
       }
 
-      const nodeParts =
-        partPath.filter(
-          part =>
-            part.nodeName ===
-              nodeName
-        );
-
       for (
         const part of
-        nodeParts
+        partPath.filter(
+          candidate =>
+            candidate.nodeName ===
+              nodeName
+        )
       ) {
-        /*
-         * A block whose occupancy sensor is the directional FROM boundary is
-         * crossed before this physical part.
-         */
-        for (
-          const block of
-          blocksAtPartBoundary(
-            part,
-            "before"
-          )
-        ) {
-          pushBlock(
-            block
-          );
-        }
-
-        /*
-         * Traverse the physical SectionPart itself.
-         */
         pushPart(
           part,
           nodeIndex
         );
-
-        /*
-         * Detector-only block sensors still belong on this physical part even
-         * when they are not a slicing boundary.
-         */
-        for (
-          const block of
-          detectorBlocksForPart(
-            part
-          )
-        ) {
-          pushBlock(
-            block,
-            [
-              part.partKey,
-            ]
-          );
-        }
-
-        /*
-         * A block whose occupancy sensor is the directional TO boundary is
-         * crossed after this part. This is the normal ARRIVED boundary.
-         */
-        for (
-          const block of
-          blocksAtPartBoundary(
-            part,
-            "after"
-          )
-        ) {
-          pushBlock(
-            block,
-            [
-              part.partKey,
-            ]
-          );
-        }
       }
 
-      /*
-       * Turnouts belong to the edge AFTER this node's SectionParts.
-       */
       pushTurnouts(
         route.edgePath[
           nodeIndex
@@ -1709,30 +1647,35 @@ export function buildMovementPlan(
   }
 
   if (
-    !blocks.some(
-      block =>
-        block.blockId ===
-          source.id
-    )
+    !usesSectionParts
   ) {
-    pushBlock(
-      source
-    );
-  }
-
-  const destination =
-    route.blockPath[
-      route.blockPath.length -
-      1
-    ];
-
-  if (
-    destination
-  ) {
-    pushBlock(
+    if (
+      !blocks.some(
+        block =>
+          block.blockId ===
+            source.id
+      )
+    ) {
+      pushBlock(
+        source
+      );
+    }
+  
+    const destination =
+      route.blockPath[
+        route.blockPath.length -
+        1
+      ];
+  
+    if (
       destination
-    );
-  }
+    ) {
+      pushBlock(
+        destination
+      );
+    }
+  
+    }
 
   for (
     let routeOrder = 0;
@@ -1748,6 +1691,89 @@ export function buildMovementPlan(
     if (resource) {
       resource.routeOrder =
         routeOrder;
+    }
+  }
+
+  if (
+    usesSectionParts
+  ) {
+    for (
+      const blockEntry of
+      route.blockPath
+    ) {
+      const sensor =
+        sensors.get(
+          blockEntry.id
+        );
+
+      if (
+        sensor ===
+          undefined
+      ) {
+        throw new Error(
+          `Movement block "${blockEntry.name}" has no occupancy sensor.`
+        );
+      }
+
+      const matchingSegments =
+        resources.filter(
+          resource =>
+            resource.kind ===
+              "segment" &&
+            resource.detectors.includes(
+              sensor
+            )
+        );
+
+      if (
+        matchingSegments.length !==
+          1
+      ) {
+        throw new Error(
+          matchingSegments.length ===
+            0
+            ? `Movement block "${blockEntry.name}" sensor #${sensor} is not present on the selected physical SectionPart route.`
+            : `Movement block "${blockEntry.name}" sensor #${sensor} matches multiple SectionParts on the selected route.`
+        );
+      }
+
+      const segment =
+        matchingSegments[0]!;
+
+      const blockResource:
+        MovementPlanResource = {
+        key:
+          `block:${blockEntry.id}`,
+        kind:
+          "block",
+        name:
+          blockEntry.name,
+        label:
+          blockEntry.name,
+        blockId:
+          blockEntry.id,
+        sensorAddress:
+          sensor,
+        nodeIndex:
+          segment.nodeIndex,
+        detectors: [],
+        turnoutStates: [],
+        /*
+         * The block occupies the SAME physical vector position as its segment.
+         * It is an overlay, not another vector item.
+         */
+        routeOrder:
+          segment.routeOrder,
+        partIndex:
+          segment.partIndex,
+        physicalSegmentNames: [
+          segment.name,
+        ],
+      };
+
+      blocks.push(
+        blockResource
+      );
     }
   }
 
@@ -1795,7 +1821,7 @@ export function buildMovementPlan(
             return (
               resource.routeOrder >
                 from.routeOrder &&
-              resource.routeOrder <
+              resource.routeOrder <=
                 to.routeOrder
             );
           }
