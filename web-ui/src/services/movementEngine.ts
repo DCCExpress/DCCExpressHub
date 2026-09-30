@@ -3055,6 +3055,7 @@ async function waitForPreDepartureAvailability(
         waitingReason =
           "targetBlock";
       } else if (
+        requirePathSensorsFree &&
         !aheadPathSensorsAreFree(
           execution,
           leg
@@ -3840,7 +3841,9 @@ async function waitForHeldLegReady(
   leg:
     MovementPlanLeg,
   targetMarker:
-    string | null
+    string | null,
+  requirePathSensorsFree:
+    boolean
 ): Promise<void> {
   let lastInfo =
     "";
@@ -4139,6 +4142,9 @@ async function traverseLeg(
     "beforeDepart"
   );
 
+  const wasAlreadyMoving =
+    execution.moving;
+
   const leases =
     await waitForLegClearance(
       execution,
@@ -4169,12 +4175,20 @@ async function traverseLeg(
     /*
      * DEPART actions may contain delays/audio. Revalidate the already locked
      * movement authority immediately before applying non-zero speed.
+     *
+     * For a rolling block-to-block transition, do NOT require the entire path
+     * to remain FREE here. Clearance was acquired while it was free and the
+     * train may already have occupied the first detector of this leg itself.
+     * Rechecking that detector as "safety" would make the train block on its
+     * own occupancy (for example #1005 before destination block sensor #1007).
+     * A train that was stopped still gets the full path-sensor recheck.
      */
     await waitForHeldLegReady(
       execution,
       leg,
       leases.target?.marker ??
-      null
+      null,
+      !wasAlreadyMoving
     );
 
     let previousSegment:

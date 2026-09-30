@@ -5372,3 +5372,25 @@ test("same-section route generation tries both physical directions", () => {
     /part\.circular[\s\S]*walk\(\s*true\s*\)/
   );
 });
+
+
+test("rolling movement does not block on its own newly occupied path sensor", () => {
+  const engine = read(
+    "src/services/movementEngine.ts"
+  );
+
+  assert.match(
+    engine,
+    /const wasAlreadyMoving =[\s\S]*execution\.moving/
+  );
+
+  assert.match(
+    engine,
+    /waitForHeldLegReady\([\s\S]*!wasAlreadyMoving/
+  );
+
+  assert.match(
+    engine,
+    /requirePathSensorsFree &&[\s\S]*!aheadPathSensorsAreFree/
+  );
+});
