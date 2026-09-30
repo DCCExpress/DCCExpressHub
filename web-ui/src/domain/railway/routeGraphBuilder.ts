@@ -810,7 +810,7 @@ export class RouteGraphBuilder {
       SectionBlock[]
   ): SectionPart[] {
     if (
-      orderedElements.length ===
+      sectionElements.length ===
         0
     ) {
       return [];
@@ -818,7 +818,7 @@ export class RouteGraphBuilder {
 
     const orderedSection =
       this.orderSectionElementsForParts(
-        orderedElements
+        sectionElements
       );
 
     const orderedElements =
