@@ -4,11 +4,14 @@ import type {
 
 import {
   Graph,
+  type BlockRoutePathItem,
   type RunnableBlockRoute,
+  type SectionBlock,
 } from "@domain/railway/graph";
 
 import {
   buildRailwayTopologyFromLayout,
+  type RailwayTopologyLayout,
 } from "@domain/railway/topology";
 
 import {
@@ -29,6 +32,7 @@ import {
 
 export type ClientRouteGraphBuildResult = {
   graph: Graph;
+  blocks: SectionBlock[];
   trackRuntime: RouteGraphTrackRuntimeDto[];
   routes: RunnableBlockRoute[];
 };
@@ -49,12 +53,275 @@ function sectionFromNodeName(
     : 0;
 }
 
+function buildBlockIndex(
+  graph: Graph,
+  topology:
+    RailwayTopologyLayout
+): SectionBlock[] {
+  const physicalById =
+    new Map(
+      topology
+        .getPhysicalTrackElements()
+        .map(
+          element => [
+            element.id,
+            element,
+          ] as const
+        )
+    );
+
+  const result:
+    SectionBlock[] = [];
+
+  for (
+    const block of
+    topology.getBlocks()
+  ) {
+    const bounds =
+      block.getBounds();
+
+    const matchingNodes =
+      graph.nodes.filter(
+        node =>
+          node.elementIds.some(
+            elementId => {
+              const element =
+                physicalById.get(
+                  elementId
+                );
+
+              if (!element) {
+                return false;
+              }
+
+              return (
+                element.x >=
+                  bounds.x &&
+                element.x <
+                  bounds.x +
+                    bounds.width &&
+                element.y >=
+                  bounds.y &&
+                element.y <
+                  bounds.y +
+                    bounds.height
+              );
+            }
+          )
+      );
+
+    if (
+      matchingNodes.length >
+        1
+    ) {
+      throw new Error(
+        `Block "${block.name || block.id}" spans more than one physical segment (${matchingNodes.map(node => node.name).join(", ")}).`
+      );
+    }
+
+    const node =
+      matchingNodes[0];
+
+    if (!node) {
+      continue;
+    }
+
+    const name =
+      block.name?.trim()
+        ? block.name.trim()
+        : "Block";
+
+    const trackName =
+      node.trackName.trim();
+
+    result.push({
+      id:
+        block.id,
+      name,
+      trackName,
+      label:
+        trackName
+          ? `${trackName}: ${name}`
+          : name,
+      nodeName:
+        node.name,
+      ...(
+        block.sensorAddress >
+          0
+          ? {
+              sensorAddress:
+                block.sensorAddress,
+            }
+          : {}
+      ),
+    });
+  }
+
+  return result;
+}
+
+function buildRunnableBlockRoutes(
+  graph:
+    Graph,
+  blocks:
+    SectionBlock[]
+): RunnableBlockRoute[] {
+  const result:
+    RunnableBlockRoute[] = [];
+
+  const blocksByNode =
+    new Map<
+      string,
+      SectionBlock[]
+    >();
+
+  for (
+    const block of
+    blocks
+  ) {
+    const items =
+      blocksByNode.get(
+        block.nodeName
+      ) ??
+      [];
+
+    items.push(
+      block
+    );
+
+    blocksByNode.set(
+      block.nodeName,
+      items
+    );
+  }
+
+  for (
+    const fromBlock of
+    blocks
+  ) {
+    for (
+      const toBlock of
+      blocks
+    ) {
+      if (
+        fromBlock.id ===
+          toBlock.id
+      ) {
+        continue;
+      }
+
+      const fromNode =
+        graph.nodes.find(
+          node =>
+            node.name ===
+              fromBlock.nodeName
+        );
+
+      const toNode =
+        graph.nodes.find(
+          node =>
+            node.name ===
+              toBlock.nodeName
+        );
+
+      if (
+        !fromNode ||
+        !toNode
+      ) {
+        continue;
+      }
+
+      const physicalRoute =
+        graph.findRoute(
+          fromNode.name,
+          toNode.name
+        );
+
+      if (!physicalRoute) {
+        continue;
+      }
+
+      const path:
+        BlockRoutePathItem[] = [
+          {
+            type:
+              "block",
+            block:
+              fromBlock,
+            node:
+              fromNode,
+          },
+        ];
+
+      for (
+        const node of
+        physicalRoute.nodes
+      ) {
+        path.push({
+          type:
+            "segment",
+          node,
+        });
+
+        for (
+          const block of
+          blocksByNode.get(
+            node.name
+          ) ??
+          []
+        ) {
+          if (
+            block.id ===
+              fromBlock.id ||
+            block.id ===
+              toBlock.id
+          ) {
+            continue;
+          }
+
+          path.push({
+            type:
+              "block",
+            block,
+            node,
+          });
+        }
+      }
+
+      path.push({
+        type:
+          "block",
+        block:
+          toBlock,
+        node:
+          toNode,
+      });
+
+      result.push({
+        fromBlock,
+        toBlock,
+        solution: {
+          ...physicalRoute,
+          fromBlock,
+          toBlock,
+          path,
+        },
+      });
+    }
+  }
+
+  return result;
+}
+
 export function buildClientRouteGraph(
-  layout: LayoutView
+  layout:
+    LayoutView
 ): ClientRouteGraphBuildResult {
   const serialized =
     JSON.parse(
-      JSON.stringify(layout)
+      JSON.stringify(
+        layout
+      )
     ) as SerializedLayoutDto;
 
   const topology =
@@ -74,10 +341,20 @@ export function buildClientRouteGraph(
     topology
   );
 
+  /*
+   * Physical graph: sections, section-parts and turnout edges only.
+   * Blocks are indexed afterwards and never participate in graph creation.
+   */
   const graph =
     new RouteGraphBuilder(
       topology
     ).build();
+
+  const blocks =
+    buildBlockIndex(
+      graph,
+      topology
+    );
 
   const sectionPartByElementId =
     new Map<
@@ -85,12 +362,6 @@ export function buildClientRouteGraph(
       string
     >();
 
-  /*
-   * SectionPart.elementIds are non-overlapping: each physical rail belongs to
-   * exactly one generated part. The sensor boundary rail belongs to the part
-   * whose toSensor owns that detector, so no extra overlay boundary rewrite is
-   * needed here.
-   */
   for (
     const node of
     graph.nodes
@@ -112,16 +383,20 @@ export function buildClientRouteGraph(
   }
 
   const runtimeById =
-    new Map<number, RouteGraphTrackRuntimeDto>();
+    new Map<
+      number,
+      RouteGraphTrackRuntimeDto
+    >();
 
   for (
-    const element
-    of topology.getPhysicalTrackElements()
+    const element of
+    topology.getPhysicalTrackElements()
   ) {
     runtimeById.set(
       element.id,
       {
-        id: element.id,
+        id:
+          element.id,
         section:
           element.section,
         ...(
@@ -142,62 +417,19 @@ export function buildClientRouteGraph(
     );
   }
 
-  const blockSections =
-    new Map<
-      number,
-      Set<number>
-    >();
-
-  for (const node of graph.nodes) {
-    const section =
-      sectionFromNodeName(
-        node.name
-      );
-
-    if (section <= 0) {
-      continue;
-    }
-
-    for (const block of node.blocks) {
-      let sections =
-        blockSections.get(
-          block.id
-        );
-
-      if (!sections) {
-        sections =
-          new Set<number>();
-
-        blockSections.set(
-          block.id,
-          sections
-        );
-      }
-
-      sections.add(section);
-    }
-  }
-
-  for (const block of topology.getBlocks()) {
-    const sections =
-      blockSections.get(
-        block.id
-      ) ?? new Set<number>();
-
-    if (sections.size > 1) {
-      throw new Error(
-        `Block "${block.name || block.id}" spans more than one physical segment (${[...sections].map(value => `S${value}`).join(", ")}).`
-      );
-    }
-
+  for (
+    const block of
+    blocks
+  ) {
     runtimeById.set(
       block.id,
       {
-        id: block.id,
+        id:
+          block.id,
         section:
-          sections.size === 1
-            ? [...sections][0]!
-            : 0,
+          sectionFromNodeName(
+            block.nodeName
+          ),
         travelDirection:
           "unknown",
       }
@@ -205,19 +437,22 @@ export function buildClientRouteGraph(
   }
 
   const trackRuntime =
-    [...runtimeById.values()];
+    [
+      ...runtimeById.values(),
+    ];
 
-  // Apply generated section/direction metadata to the actual editor objects.
-  // TrackElement.toJSON persists section, therefore the next layout save
-  // stores the segmentation together with each rail/block element.
   layout.applyRouteGraphRuntime(
     trackRuntime
   );
 
   return {
     graph,
+    blocks,
     trackRuntime,
     routes:
-      graph.getRunnableBlockRoutes(),
+      buildRunnableBlockRoutes(
+        graph,
+        blocks
+      ),
   };
 }
