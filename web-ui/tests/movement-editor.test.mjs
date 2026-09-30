@@ -4956,3 +4956,41 @@ test("multi-node Movement routes persist and render section parts without losing
     /segment\.partIndex !==[\s\S]*null/
   );
 });
+
+
+test("section parts expose exactly one directional Movement detector", () => {
+  const graph =
+    read(
+      "src/domain/railway/routeGraphBuilder.ts"
+    );
+
+  const cache =
+    read(
+      "src/services/clientRouteGraphCache.ts"
+    );
+
+  const plan =
+    read(
+      "src/services/movementPlan.ts"
+    );
+
+  assert.match(
+    graph,
+    /detectors:[\s\S]*toSensor !==[\s\S]*null[\s\S]*\[[\s\S]*toSensor/
+  );
+
+  assert.match(
+    cache,
+    /reverse[\s\S]*part\.fromSensor[\s\S]*part\.toSensor/
+  );
+
+  assert.match(
+    plan,
+    /part\.toSensor !==[\s\S]*null[\s\S]*\[[\s\S]*part\.toSensor/
+  );
+
+  assert.match(
+    plan,
+    /\.slice\([\s\S]*0,[\s\S]*1/
+  );
+});
