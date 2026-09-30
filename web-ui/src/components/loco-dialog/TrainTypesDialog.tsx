@@ -139,15 +139,17 @@ export default function TrainTypesDialog({
                       <TextInput
                         value={row.value}
                         placeholder={i18next.t("locodialog.trainTypesName")}
-                        onChange={event =>
+                        onChange={event => {
+                          const value = event.currentTarget.value;
+
                           setDraft(current =>
                             current.map(item =>
                               item.key === row.key
-                                ? { ...item, value: event.currentTarget.value }
+                                ? { ...item, value }
                                 : item
                             )
-                          )
-                        }
+                          );
+                        }}
                       />
                     </Table.Td>
 
