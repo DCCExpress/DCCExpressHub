@@ -30,10 +30,15 @@ export default function LocoDialog({ opened, onClose, onSaved, loadLocos, saveLo
       draggable
       styles={{
         content: {
+          height: "min(820px, calc(100dvh - 32px))",
+          maxHeight: "calc(100dvh - 32px)",
+          display: "flex",
+          flexDirection: "column",
           overflow: "hidden",
         },
         body: {
-          height: "min(740px, calc(100vh - 120px))",
+          flex: 1,
+          minHeight: 0,
           display: "flex",
           flexDirection: "column",
           overflow: "hidden",
