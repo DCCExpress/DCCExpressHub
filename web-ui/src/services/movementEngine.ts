@@ -4014,6 +4014,35 @@ async function traverseLeg(
       null
     );
 
+    let previousSegment:
+      MovementPlanResource |
+      null =
+      execution.plan.resources.find(
+        resource =>
+          resource.kind ===
+            "segment" &&
+          resource.routeOrder <
+            leg.from.routeOrder &&
+          resource.nodeIndex ===
+            leg.from.nodeIndex
+      ) ??
+      null;
+
+    /*
+     * The source block may already sit on a SectionPart when Movement starts.
+     * Arm that part's LEAVE rule before the locomotive moves so an explicit
+     * sensor edge cannot be missed. ENTER is intentionally not replayed: the
+     * train is already inside this resource at startup.
+     */
+    if (
+      previousSegment
+    ) {
+      armResourceLeave(
+        execution,
+        previousSegment
+      );
+    }
+
     execution.moving =
       true;
 
@@ -4069,18 +4098,6 @@ async function traverseLeg(
       createBlockLeaveState(
         leg
       );
-
-    let previousSegment:
-      MovementPlanResource |
-      null =
-      execution.plan.resources.find(
-        resource =>
-          resource.kind ===
-            "segment" &&
-          resource.nodeIndex ===
-            leg.from.nodeIndex
-      ) ??
-      null;
 
     const pendingTurnouts:
       MovementPlanResource[] =
