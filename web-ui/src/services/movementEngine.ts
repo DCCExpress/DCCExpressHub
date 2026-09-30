@@ -4017,15 +4017,24 @@ async function traverseLeg(
     let previousSegment:
       MovementPlanResource |
       null =
-      execution.plan.resources.find(
-        resource =>
-          resource.kind ===
-            "segment" &&
-          resource.routeOrder <
-            leg.from.routeOrder &&
-          resource.nodeIndex ===
-            leg.from.nodeIndex
-      ) ??
+      execution.plan.resources
+        .filter(
+          resource =>
+            resource.kind ===
+              "segment" &&
+            resource.routeOrder <
+              leg.from.routeOrder &&
+            resource.nodeIndex ===
+              leg.from.nodeIndex
+        )
+        .sort(
+          (
+            left,
+            right
+          ) =>
+            right.routeOrder -
+            left.routeOrder
+        )[0] ??
       null;
 
     /*
@@ -4035,6 +4044,8 @@ async function traverseLeg(
      * train is already inside this resource at startup.
      */
     if (
+      leg.index ===
+        0 &&
       previousSegment
     ) {
       armResourceLeave(
