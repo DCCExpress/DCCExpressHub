@@ -403,6 +403,20 @@ export class RouteGraphBuilder {
         const resolvedTrackName =
           trackName.trim();
 
+        const coveredElementIds =
+          sectionElements
+            .filter(
+              sectionElem =>
+                this.isSectionElementInsideBlock(
+                  sectionElem,
+                  block
+                )
+            )
+            .map(
+              sectionElem =>
+                sectionElem.id
+            );
+
         return {
           id: block.id,
           name: blockName,
@@ -410,6 +424,8 @@ export class RouteGraphBuilder {
           label: resolvedTrackName
             ? `${resolvedTrackName}: ${blockName}`
             : blockName,
+          elementIds:
+            coveredElementIds,
           ...(
             block.sensorAddress > 0
               ? {
@@ -846,24 +862,34 @@ export class RouteGraphBuilder {
           )
       );
 
-    const blockIdsForSensor =
+    const blockIdsForElements =
       (
-        sensor:
-          number | null
-      ): number[] =>
-        sensor ===
-          null
-          ? []
-          : blocks
-              .filter(
-                block =>
-                  block.sensorAddress ===
-                    sensor
+        elements:
+          TopologyTrackElement[]
+      ): number[] => {
+        const elementIds =
+          new Set(
+            elements.map(
+              element =>
+                element.id
+            )
+          );
+
+        return blocks
+          .filter(
+            block =>
+              block.elementIds.some(
+                elementId =>
+                  elementIds.has(
+                    elementId
+                  )
               )
-              .map(
-                block =>
-                  block.id
-              );
+          )
+          .map(
+            block =>
+              block.id
+          );
+      };
 
     const makePart =
       (
@@ -893,8 +919,8 @@ export class RouteGraphBuilder {
               ]
             : [],
         blockIds:
-          blockIdsForSensor(
-            toSensor
+          blockIdsForElements(
+            elements
           ),
         circular,
         locoDirection:
