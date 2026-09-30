@@ -50,7 +50,6 @@ type RawRoutePart = {
   fromSensor: number | null;
   toSensor: number | null;
   detectors?: number[];
-  blockIds?: number[];
   locoDirection?:
     | "unknown"
     | "forward"
@@ -78,7 +77,6 @@ type RawGraphSectionPart = {
   fromSensor: number | null;
   toSensor: number | null;
   detectors?: number[];
-  blockIds?: number[];
   locoDirection?:
     | "unknown"
     | "forward"
@@ -316,6 +314,88 @@ function blockSensorMap(
   return result;
 }
 
+function validateUniqueBlockSensors(
+  layout:
+    SerializedLayoutDto
+): void {
+  const bySensor =
+    new Map<
+      number,
+      string[]
+    >();
+
+  for (
+    const layer of
+    layout.layers ??
+    []
+  ) {
+    for (
+      const element of
+      layer.elements ??
+      []
+    ) {
+      if (
+        element.type !==
+          "trackblock"
+      ) {
+        continue;
+      }
+
+      const sensor =
+        asPositiveInteger(
+          element.sensorAddress
+        );
+
+      if (
+        sensor ===
+          null
+      ) {
+        continue;
+      }
+
+      const label =
+        String(
+          element.name ??
+            `Block ${element.id ?? "?"}`
+        ).trim() ||
+        `Block ${element.id ?? "?"}`;
+
+      const items =
+        bySensor.get(
+          sensor
+        ) ??
+        [];
+
+      items.push(
+        label
+      );
+
+      bySensor.set(
+        sensor,
+        items
+      );
+    }
+  }
+
+  for (
+    const [
+      sensor,
+      blocks,
+    ] of bySensor
+  ) {
+    if (
+      blocks.length <=
+        1
+    ) {
+      continue;
+    }
+
+    throw new Error(
+      `Movement Vector cannot be built: sensor ${sensor} is assigned to multiple blocks (${blocks.join(", ")}).`
+    );
+  }
+}
+
 function checkpointIds(
   page:
     MovementPage
@@ -409,7 +489,9 @@ function parseTopology(
     topology.version !==
       4 &&
     topology.version !==
-      5
+      5 &&
+    topology.version !==
+      6
   ) {
     throw new Error(
       "Unsupported route topology. Regenerate and save the route graph."
@@ -761,6 +843,10 @@ export function buildMovementPlan(
   layout:
     SerializedLayoutDto
 ): MovementPlan {
+  validateUniqueBlockSensors(
+    layout
+  );
+
   const topology =
     parseTopology(
       layout
@@ -900,6 +986,19 @@ export function buildMovementPlan(
       entry:
         RawBlockPathEntry
     ): string[] => {
+      const sensor =
+        sensors.get(
+          entry.id
+        ) ??
+        null;
+
+      if (
+        sensor ===
+          null
+      ) {
+        return [];
+      }
+
       const nodeName =
         route.nodes[
           entry.nodeIndex
@@ -924,11 +1023,13 @@ export function buildMovementPlan(
         .filter(
           part =>
             (
-              part.blockIds ??
+              part.detectors ??
               []
             ).includes(
-              entry.id
-            )
+              sensor
+            ) ||
+            part.toSensor ===
+              sensor
         )
         .sort(
           (
@@ -942,6 +1043,30 @@ export function buildMovementPlan(
           part =>
             part.key
         );
+    };
+
+  const blockForSensor =
+    (
+      sensor:
+        number | null
+    ): RawBlockPathEntry | null => {
+      if (
+        sensor ===
+          null
+      ) {
+        return null;
+      }
+
+      return (
+        route.blockPath.find(
+          block =>
+            sensors.get(
+              block.id
+            ) ===
+              sensor
+        ) ??
+        null
+      );
     };
 
   if (
@@ -1147,34 +1272,27 @@ export function buildMovementPlan(
         const part of
         nodeParts
       ) {
-        const matchingBlocks =
-          route.blockPath.filter(
-            block =>
-              block.nodeIndex ===
-                nodeIndex &&
-              (
-                part.blockIds ??
-                []
-              ).includes(
-                block.id
-              )
+        const partSensor =
+          (
+            part.detectors ??
+            []
+          )[0] ??
+          part.toSensor;
+
+        const matchingBlock =
+          blockForSensor(
+            partSensor
           );
 
         if (
-          matchingBlocks.length >
-            0
+          matchingBlock
         ) {
-          for (
-            const block of
-            matchingBlocks
-          ) {
-            pushBlock(
-              block,
-              [
-                part.partKey,
-              ]
-            );
-          }
+          pushBlock(
+            matchingBlock,
+            [
+              part.partKey,
+            ]
+          );
 
           continue;
         }
