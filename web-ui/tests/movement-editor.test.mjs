@@ -3014,6 +3014,11 @@ test("Movement semantically merges a same-sensor section part into its block", (
       "src/services/movementEngine.ts"
     );
 
+  const script =
+    read(
+      "src/services/movementExecutionScript.ts"
+    );
+
   assert.match(
     plan,
     /matchingBlocks =[\s\S]*part\.blockIds[\s\S]*sensors\.get[\s\S]*part\.toSensor/
@@ -3046,6 +3051,11 @@ test("Movement semantically merges a same-sensor section part into its block", (
 
   assert.match(
     engine,
+    /resource\.physicalSegmentNames[\s\S]*dcc-express-movement-segment/
+  );
+
+  assert.match(
+    script,
     /resource\.physicalSegmentNames[\s\S]*dcc-express-movement-segment/
   );
 });
