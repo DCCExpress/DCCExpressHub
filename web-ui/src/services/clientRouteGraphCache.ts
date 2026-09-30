@@ -858,6 +858,139 @@ function sameNodeSectionPartRoutes(
   );
 }
 
+
+function multiNodeSectionPartPath(
+  nodes:
+    GraphNode[],
+  fromBlock:
+    SectionBlock,
+  toBlock:
+    SectionBlock,
+  routeDirection:
+    | "unknown"
+    | "forward"
+    | "reverse"
+): PersistedRoutePartEntry[] {
+  const result:
+    PersistedRoutePartEntry[] =
+    [];
+
+  for (
+    let nodeIndex = 0;
+    nodeIndex <
+      nodes.length;
+    nodeIndex += 1
+  ) {
+    const node =
+      nodes[nodeIndex];
+
+    if (
+      !node ||
+      node.sectionParts.length <=
+        1
+    ) {
+      continue;
+    }
+
+    const knownDirection =
+      node.sectionParts.find(
+        part =>
+          part.locoDirection !==
+            "unknown"
+      )?.locoDirection ??
+      "unknown";
+
+    const reverse =
+      routeDirection !==
+        "unknown" &&
+      knownDirection !==
+        "unknown" &&
+      routeDirection !==
+        knownDirection;
+
+    let entries =
+      (
+        reverse
+          ? [
+              ...node.sectionParts,
+            ].reverse()
+          : [
+              ...node.sectionParts,
+            ]
+      ).map(
+        part =>
+          persistedPart(
+            node,
+            part,
+            reverse
+          )
+      );
+
+    if (
+      nodeIndex ===
+        0 &&
+      (
+        fromBlock.sensorAddress ??
+        0
+      ) >
+        0
+    ) {
+      const startIndex =
+        entries.findIndex(
+          entry =>
+            entry.fromSensor ===
+              fromBlock.sensorAddress
+        );
+
+      if (
+        startIndex >=
+          0
+      ) {
+        entries =
+          entries.slice(
+            startIndex
+          );
+      }
+    }
+
+    if (
+      nodeIndex ===
+        nodes.length -
+          1 &&
+      (
+        toBlock.sensorAddress ??
+        0
+      ) >
+        0
+    ) {
+      const endIndex =
+        entries.findIndex(
+          entry =>
+            entry.toSensor ===
+              toBlock.sensorAddress
+        );
+
+      if (
+        endIndex >=
+          0
+      ) {
+        entries =
+          entries.slice(
+            0,
+            endIndex +
+              1
+          );
+      }
+    }
+
+    result.push(
+      ...entries
+    );
+  }
+
+  return result;
+}
+
 function enumerateRouteVariantsForBlockPair(
   graph: ClientRouteGraphBuildResult["graph"],
   fromBlock: SectionBlock,
@@ -1117,6 +1250,14 @@ function enumerateRouteVariantsForBlockPair(
           variantKey
         );
 
+        const partPath =
+          multiNodeSectionPartPath(
+            nodes,
+            fromBlock,
+            toBlock,
+            locoDirection
+          );
+
         result.push({
           fromBlockId:
             fromBlock.id,
@@ -1132,7 +1273,7 @@ function enumerateRouteVariantsForBlockPair(
               node =>
                 node.name
             ),
-          partPath: [],
+          partPath,
           edgePath:
             edges.map(
               routeEdge => ({
