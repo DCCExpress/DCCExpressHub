@@ -633,9 +633,21 @@ function persistedPart(
       reverse
         ? part.fromSensor
         : part.toSensor,
-    detectors: [
-      ...part.detectors,
-    ],
+    detectors:
+      (
+        reverse
+          ? part.fromSensor
+          : part.toSensor
+      ) !==
+        null
+        ? [
+            (
+              reverse
+                ? part.fromSensor
+                : part.toSensor
+            )!,
+          ]
+        : [],
     blockIds:
       node.blocks
         .filter(
