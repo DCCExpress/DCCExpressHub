@@ -1209,12 +1209,8 @@ export function buildMovementPlan(
         const matchingBlocks =
           route.blockPath.filter(
             block =>
-              (
-                part.blockIds ??
-                []
-              ).includes(
-                block.id
-              ) &&
+              block.nodeIndex ===
+                nodeIndex &&
               sensors.get(
                 block.id
               ) ===
@@ -1560,15 +1556,44 @@ export function buildMovementPlan(
     ];
 
   if (
-    destination &&
-    !blocks.some(
-      block =>
-        block.blockId ===
-        destination.id
-    )
+    destination
   ) {
+    const destinationSensor =
+      sensors.get(
+        destination.id
+      ) ??
+      null;
+
+    const destinationNodeName =
+      route.nodes[
+        destination.nodeIndex
+      ] ??
+      "";
+
+    const destinationPart =
+      destinationSensor !==
+        null
+        ? [
+            ...partPath,
+          ]
+            .reverse()
+            .find(
+              part =>
+                part.nodeName ===
+                  destinationNodeName &&
+                part.toSensor ===
+                  destinationSensor
+            ) ??
+          null
+        : null;
+
     pushBlock(
-      destination
+      destination,
+      destinationPart
+        ? [
+            destinationPart.partKey,
+          ]
+        : []
     );
   }
 
