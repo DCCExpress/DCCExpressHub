@@ -695,7 +695,8 @@ export class RouteGraphBuilder {
         current.id
       );
 
-      const candidates =
+      const candidates:
+        TopologyTrackElement[] =
         (
           neighbors.get(
             current.id
@@ -719,7 +720,9 @@ export class RouteGraphBuilder {
               right.id
           );
 
-      const next =
+      const next:
+        TopologyTrackElement |
+        null =
         candidates[0] ??
         null;
 
