@@ -495,7 +495,9 @@ function parseTopology(
     topology.version !==
       7 &&
     topology.version !==
-      8
+      8 &&
+    topology.version !==
+      9
   ) {
     throw new Error(
       "Unsupported route topology. Regenerate and save the route graph."
@@ -902,9 +904,6 @@ export function buildMovementPlan(
         RawBlockPathEntry,
       physicalSegmentNames:
         string[] =
-        [],
-      physicalDetectors:
-        number[] =
         []
     ): MovementPlanResource => {
       const existing =
@@ -922,21 +921,6 @@ export function buildMovementPlan(
               ...physicalSegmentNames,
             ]),
           ];
-
-        existing.detectors =
-          [
-            ...new Set([
-              ...existing.detectors,
-              ...physicalDetectors,
-            ]),
-          ].sort(
-            (
-              left,
-              right
-            ) =>
-              left -
-              right
-          );
 
         return existing;
       }
@@ -960,19 +944,7 @@ export function buildMovementPlan(
           null,
         nodeIndex:
           entry.nodeIndex,
-        detectors:
-          [
-            ...new Set(
-              physicalDetectors
-            ),
-          ].sort(
-            (
-              left,
-              right
-            ) =>
-              left -
-              right
-          ),
+        detectors: [],
         turnoutStates: [],
         routeOrder: 0,
         partIndex: null,
@@ -1183,13 +1155,6 @@ export function buildMovementPlan(
         });
       };
 
-    pushBlock(
-      source,
-      sectionPartNamesForBlock(
-        source
-      )
-    );
-
     const pushTurnouts =
       (
         edge:
@@ -1296,6 +1261,18 @@ export function buildMovementPlan(
         }
       };
 
+    /*
+     * Logical source boundary comes first. Physical SectionParts stay as
+     * separate resources; the Vector may visually compose them with a block,
+     * but runtime authority/event/safety ordering must never collapse them.
+     */
+    pushBlock(
+      source,
+      sectionPartNamesForBlock(
+        source
+      )
+    );
+
     for (
       let nodeIndex = 0;
       nodeIndex <
@@ -1322,60 +1299,40 @@ export function buildMovementPlan(
         const part of
         nodeParts
       ) {
+        /*
+         * Traverse the physical part first...
+         */
+        pushPart(
+          part,
+          nodeIndex
+        );
+
+        /*
+         * ...then cross the logical block boundary at that part's directional
+         * toSensor. This is the only way intermediate blocks enter the Plan.
+         */
         const matchingBlock =
           blockForPart(
             part
           );
 
         if (
-          matchingBlock
+          matchingBlock &&
+          matchingBlock.id !==
+            source.id
         ) {
           pushBlock(
             matchingBlock,
-            [
-              part.partKey,
-            ],
-            [
-              ...(
-                part.detectors ??
-                []
-              ),
-            ]
+            sectionPartNamesForBlock(
+              matchingBlock
+            )
           );
-
-          continue;
         }
-
-        pushPart(
-          part,
-          nodeIndex
-        );
       }
 
-      for (
-        const block of
-        route.blockPath
-      ) {
-        if (
-          block.nodeIndex !==
-            nodeIndex ||
-          blocks.some(
-            existing =>
-              existing.blockId ===
-                block.id
-          )
-        ) {
-          continue;
-        }
-
-        pushBlock(
-          block,
-          sectionPartNamesForBlock(
-            block
-          )
-        );
-      }
-
+      /*
+       * Turnouts belong to the edge AFTER this node's SectionParts.
+       */
       pushTurnouts(
         route.edgePath[
           nodeIndex

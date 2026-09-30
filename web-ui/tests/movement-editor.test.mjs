@@ -4672,7 +4672,7 @@ test("route topology persists section-part paths and supports cyclic same-node r
 
   assert.match(
     cache,
-    /ROUTE_TOPOLOGY_VERSION = 8/
+    /ROUTE_TOPOLOGY_VERSION = 9/
   );
 
   assert.match(
@@ -5511,42 +5511,12 @@ test("Movement route selector accepts current route topology version", () => {
 
   assert.match(
     catalog,
-    /topology\.version !==[\s\S]*6[\s\S]*topology\.version !==[\s\S]*7[\s\S]*topology\.version !==[\s\S]*8/
+    /topology\.version !==[\s\S]*7[\s\S]*topology\.version !==[\s\S]*8[\s\S]*topology\.version !==[\s\S]*9/
   );
 });
 
 
-test("Movement composite target block keeps auxiliary physical sensors in safety", () => {
-  const plan =
-    read(
-      "src/services/movementPlan.ts"
-    );
 
-  const safety =
-    read(
-      "src/services/movementSafety.ts"
-    );
-
-  assert.match(
-    plan,
-    /existing\.detectors =[\s\S]*physicalDetectors/
-  );
-
-  assert.match(
-    plan,
-    /pushBlock\([\s\S]*matchingBlock[\s\S]*part\.partKey[\s\S]*part\.detectors/
-  );
-
-  assert.match(
-    safety,
-    /for \([\s\S]*const address of[\s\S]*leg\.to\.detectors/
-  );
-
-  assert.match(
-    safety,
-    /address ===[\s\S]*leg\.to\.sensorAddress/
-  );
-});
 
 test("Movement block placement uses the directional arrival boundary, not physical detector ownership", () => {
   const plan =
@@ -5624,5 +5594,104 @@ test("Movement start logs resolved physical resources and per-leg turnout requir
   assert.match(
     engine,
     /turnoutStates:[\s\S]*leg\.turnoutStates/
+  );
+});
+
+
+test("Movement Plan keeps SectionParts separate from logical block boundaries", () => {
+  const plan =
+    read(
+      "src/services/movementPlan.ts"
+    );
+
+  const partBranch =
+    plan.slice(
+      plan.indexOf("if (\n    usesSectionParts"),
+      plan.indexOf("} else {", plan.indexOf("if (\n    usesSectionParts"))
+    );
+
+  assert.match(
+    partBranch,
+    /pushPart\([\s\S]*part,[\s\S]*nodeIndex/
+  );
+
+  assert.match(
+    partBranch,
+    /const matchingBlock =[\s\S]*blockForPart/
+  );
+
+  assert.ok(
+    partBranch.indexOf("pushPart(") <
+      partBranch.indexOf("const matchingBlock =")
+  );
+
+  assert.doesNotMatch(
+    partBranch,
+    /part\.detectors[\s\S]*pushBlock\([\s\S]*matchingBlock/
+  );
+
+  assert.doesNotMatch(
+    partBranch,
+    /for \([\s\S]*const block of[\s\S]*route\.blockPath[\s\S]*blocks\.some/
+  );
+});
+
+test("multi-node persisted blockPath follows directional SectionPart order", () => {
+  const cache =
+    read(
+      "src/services/clientRouteGraphCache.ts"
+    );
+
+  const builder =
+    cache.slice(
+      cache.indexOf("function buildPersistedBlockPath"),
+      cache.indexOf("function buildSameNodePersistedBlockPath")
+    );
+
+  assert.match(
+    builder,
+    /for \([\s\S]*const part of[\s\S]*partPath/
+  );
+
+  assert.match(
+    builder,
+    /const sensor =[\s\S]*part\.toSensor/
+  );
+
+  assert.match(
+    builder,
+    /block\.sensorAddress !==[\s\S]*sensor/
+  );
+
+  assert.doesNotMatch(
+    builder,
+    /blocks\.filter\([\s\S]*candidate\.nodeName/
+  );
+});
+
+test("Movement Vector composes block and SectionPart only for display", () => {
+  const vector =
+    read(
+      "src/services/movementRouteVector.ts"
+    );
+
+  assert.match(
+    vector,
+    /blockCompositeSegment/
+  );
+
+  assert.match(
+    vector,
+    /segmentCompositeBlock/
+  );
+
+  assert.match(
+    vector,
+    /Render the composite at the physical segment's position/
+  );
+
+  assert.match(
+    vector,
+    /plan\.resources\.indexOf/
   );
 });

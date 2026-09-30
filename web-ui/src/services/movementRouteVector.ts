@@ -707,10 +707,90 @@ export async function loadMovementRouteVector(
           string
         >();
 
-  return plan.resources.map(
+  const segmentByName =
+    new Map(
+      plan.resources
+        .filter(
+          resource =>
+            resource.kind ===
+              "segment"
+        )
+        .map(
+          resource => [
+            resource.name,
+            resource,
+          ] as const
+        )
+    );
+
+  const blockCompositeSegment =
+    new Map<
+      string,
+      MovementPlanResource
+    >();
+
+  const segmentCompositeBlock =
+    new Map<
+      string,
+      MovementPlanResource
+    >();
+
+  for (
+    const block of
+    plan.resources
+  ) {
+    if (
+      block.kind !==
+        "block"
+    ) {
+      continue;
+    }
+
+    const segment =
+      block.physicalSegmentNames
+        .map(
+          name =>
+            segmentByName.get(
+              name
+            ) ??
+            null
+        )
+        .find(
+          candidate =>
+            candidate !==
+              null
+        ) ??
+      null;
+
+    if (
+      !segment ||
+      segmentCompositeBlock.has(
+        segment.key
+      )
+    ) {
+      continue;
+    }
+
+    blockCompositeSegment.set(
+      block.key,
+      segment
+    );
+
+    segmentCompositeBlock.set(
+      segment.key,
+      block
+    );
+  }
+
+  const toItem =
     (
-      resource,
-      index
+      resource:
+        MovementPlanResource,
+      index:
+        number,
+      compositeSegment:
+        MovementPlanResource | null =
+          null
     ): MovementRouteVectorItem => {
       const nodeIndex =
         resource.nodeIndex ??
@@ -766,9 +846,13 @@ export async function loadMovementRouteVector(
           sensor,
           sensors,
           physicalSegmentNames:
-            [
-              ...resource.physicalSegmentNames,
-            ],
+            compositeSegment
+              ? [
+                  compositeSegment.name,
+                ]
+              : [
+                  ...resource.physicalSegmentNames,
+                ],
           blockType:
             blockTypes.get(
               blockId
@@ -837,6 +921,113 @@ export async function loadMovementRouteVector(
         sensor,
         sensors,
       };
+    };
+
+  const rendered:
+    MovementRouteVectorItem[] =
+    [];
+
+  for (
+    let index = 0;
+    index <
+      plan.resources.length;
+    index += 1
+  ) {
+    const resource =
+      plan.resources[
+        index
+      ];
+
+    if (!resource) {
+      continue;
     }
+
+    if (
+      resource.kind ===
+        "segment"
+    ) {
+      const block =
+        segmentCompositeBlock.get(
+          resource.key
+        );
+
+      if (block) {
+        const blockIndex =
+          plan.resources.indexOf(
+            block
+          );
+
+        /*
+         * Render the composite at the physical segment's position. The block
+         * boundary remains separate in MovementPlan; only the Vector merges
+         * the two cards.
+         */
+        if (
+          index <
+            blockIndex
+        ) {
+          rendered.push(
+            toItem(
+              block,
+              rendered.length,
+              resource
+            )
+          );
+        }
+
+        continue;
+      }
+    }
+
+    if (
+      resource.kind ===
+        "block"
+    ) {
+      const segment =
+        blockCompositeSegment.get(
+          resource.key
+        );
+
+      if (segment) {
+        const segmentIndex =
+          plan.resources.indexOf(
+            segment
+          );
+
+        if (
+          index <
+            segmentIndex
+        ) {
+          rendered.push(
+            toItem(
+              resource,
+              rendered.length,
+              segment
+            )
+          );
+        }
+
+        continue;
+      }
+    }
+
+    rendered.push(
+      toItem(
+        resource,
+        rendered.length
+      )
+    );
+  }
+
+  return rendered.map(
+    (
+      item,
+      index
+    ) => ({
+      ...item,
+      order:
+        index +
+        1,
+    })
   );
 }

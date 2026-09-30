@@ -30,7 +30,7 @@ import {
   createClientGraphFromRouteGraphDto,
 } from "@/services/routeGraphDtoMapper";
 
-const ROUTE_TOPOLOGY_VERSION = 8;
+const ROUTE_TOPOLOGY_VERSION = 9;
 
 const ROUTE_TOPOLOGY_FIELD =
   "routeTopology";
@@ -508,7 +508,9 @@ function buildPersistedBlockPath(
   nodes: GraphNode[],
   blocks: SectionBlock[],
   fromBlock: SectionBlock,
-  toBlock: SectionBlock
+  toBlock: SectionBlock,
+  partPath:
+    PersistedRoutePartEntry[]
 ): PersistedRouteBlockEntry[] {
   const result:
     PersistedRouteBlockEntry[] = [];
@@ -516,81 +518,124 @@ function buildPersistedBlockPath(
   const seen =
     new Set<number>();
 
-  const push = (
-    block: SectionBlock,
-    nodeIndex: number
-  ) => {
-    if (
-      seen.has(
-        block.id
+  const nodeIndexByName =
+    new Map(
+      nodes.map(
+        (
+          node,
+          index
+        ) => [
+          node.name,
+          index,
+        ] as const
       )
-    ) {
-      return;
-    }
-
-    seen.add(
-      block.id
     );
 
-    result.push({
-      id:
-        block.id,
-      name:
-        block.name,
-      nodeIndex,
-    });
-  };
+  const push =
+    (
+      block:
+        SectionBlock,
+      nodeIndex:
+        number
+    ): void => {
+      if (
+        seen.has(
+          block.id
+        )
+      ) {
+        return;
+      }
 
+      seen.add(
+        block.id
+      );
+
+      result.push({
+        id:
+          block.id,
+        name:
+          block.name,
+        nodeIndex,
+      });
+    };
+
+  /*
+   * Source is the boundary we are already standing on.
+   */
   push(
     fromBlock,
-    0
+    nodeIndexByName.get(
+      fromBlock.nodeName
+    ) ??
+      0
   );
 
+  /*
+   * Intermediate blocks are ordered by the DIRECTIONAL SectionPart path.
+   * A block is reached after traversing the part whose toSensor is that
+   * block's occupancy sensor. Never use the arbitrary blocks[] order inside
+   * a graph node.
+   */
   for (
-    let nodeIndex = 0;
-    nodeIndex < nodes.length;
-    nodeIndex += 1
+    const part of
+    partPath
   ) {
-    const node =
-      nodes[nodeIndex];
+    const sensor =
+      part.toSensor;
 
-    if (!node) {
+    if (
+      sensor ===
+        null ||
+      sensor <=
+        0
+    ) {
       continue;
     }
 
     for (
       const block of
-      blocks.filter(
-        candidate =>
-          candidate.nodeName ===
-            node.name
-      )
+      blocks
     ) {
       if (
-        block.id === fromBlock.id ||
-        block.id === toBlock.id
+        block.id ===
+          fromBlock.id ||
+        block.id ===
+          toBlock.id ||
+        block.nodeName !==
+          part.nodeName ||
+        block.sensorAddress !==
+          sensor
       ) {
         continue;
       }
 
       push(
         block,
-        nodeIndex
+        nodeIndexByName.get(
+          part.nodeName
+        ) ??
+          0
       );
     }
   }
 
+  /*
+   * Destination is always the final logical boundary.
+   */
   push(
     toBlock,
-    Math.max(
-      0,
-      nodes.length - 1
-    )
+    nodeIndexByName.get(
+      toBlock.nodeName
+    ) ??
+      Math.max(
+        0,
+        nodes.length -
+          1
+      )
   );
 
   return result;
 }
-
 
 function buildSameNodePersistedBlockPath(
   node: GraphNode,
@@ -1206,7 +1251,8 @@ function enumerateRouteVariantsForBlockPair(
           [fromNode],
           blocks,
           fromBlock,
-          toBlock
+          toBlock,
+          []
         ),
       nodes: [
         fromNode.name,
@@ -1320,12 +1366,21 @@ function enumerateRouteVariantsForBlockPair(
             turnoutRequirements
           );
 
+        const partPath =
+          multiNodeSectionPartPath(
+            nodes,
+            fromBlock,
+            toBlock,
+            locoDirection
+          );
+
         const blockPath =
           buildPersistedBlockPath(
             nodes,
             blocks,
             fromBlock,
-            toBlock
+            toBlock,
+            partPath
           );
 
         const variantKey =
@@ -1334,6 +1389,15 @@ function enumerateRouteVariantsForBlockPair(
               nodes.map(
                 node =>
                   node.name
+              ),
+            partPath:
+              partPath.map(
+                part => [
+                  part.nodeName,
+                  part.partKey,
+                  part.fromSensor,
+                  part.toSensor,
+                ]
               ),
             edgePath:
               edges.map(
@@ -1379,14 +1443,6 @@ function enumerateRouteVariantsForBlockPair(
         seenVariants.add(
           variantKey
         );
-
-        const partPath =
-          multiNodeSectionPartPath(
-            nodes,
-            fromBlock,
-            toBlock,
-            locoDirection
-          );
 
         result.push({
           fromBlockId:
