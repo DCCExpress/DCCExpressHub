@@ -30,7 +30,7 @@ export type SectionBlock = {
   trackName: string;
   label: string;
   sensorAddress?: number;
-  elementIds: LayoutElementId[];
+  nodeName: string;
 };
 
 export type SectionPart = {
@@ -40,7 +40,6 @@ export type SectionPart = {
   fromSensor: number | null;
   toSensor: number | null;
   detectors: number[];
-  blockIds: LayoutElementId[];
   circular: boolean;
   locoDirection: TravelDirection;
 };
@@ -79,7 +78,6 @@ export class GraphNode {
   busy = false;
   detectors: SectionDetector[] = [];
   signals: SectionSignal[] = [];
-  blocks: SectionBlock[] = [];
   elementIds: LayoutElementId[] = [];
   sectionParts: SectionPart[] = [];
 
@@ -90,7 +88,6 @@ export class GraphNode {
     y: number,
     detectors: SectionDetector[] = [],
     signals: SectionSignal[] = [],
-    blocks: SectionBlock[] = [],
     elementIds: LayoutElementId[] = [],
     sectionParts: SectionPart[] = []
   ) {
@@ -100,7 +97,6 @@ export class GraphNode {
     this.y = y;
     this.detectors = detectors;
     this.signals = signals;
-    this.blocks = blocks;
     this.elementIds = elementIds;
     this.sectionParts = sectionParts;
   }
@@ -231,75 +227,4 @@ export class Graph {
     return null;
   }
 
-  findNodeContainingBlock(blockId: LayoutElementId): GraphNode | null {
-    return this.nodes.find(node => node.blocks.some(block => block.id === blockId)) ?? null;
-  }
-
-  findBlockById(blockId: LayoutElementId): SectionBlock | null {
-    for (const node of this.nodes) {
-      const block = node.blocks.find(item => item.id === blockId);
-      if (block) return block;
-    }
-    return null;
-  }
-
-  findBlockByName(blockName: string): SectionBlock | null {
-    const normalized = blockName.trim();
-    for (const node of this.nodes) {
-      const block = node.blocks.find(item => item.name === normalized);
-      if (block) return block;
-    }
-    return null;
-  }
-
-  findRouteBetweenBlocks(fromBlockId: LayoutElementId, toBlockId: LayoutElementId): BlockRouteSolution | null {
-    const fromNode = this.findNodeContainingBlock(fromBlockId);
-    const toNode = this.findNodeContainingBlock(toBlockId);
-    const fromBlock = this.findBlockById(fromBlockId);
-    const toBlock = this.findBlockById(toBlockId);
-    if (!fromNode || !toNode || !fromBlock || !toBlock) return null;
-
-    const segmentRoute = this.findRoute(fromNode.name, toNode.name);
-    if (!segmentRoute) return null;
-
-    const path: BlockRoutePathItem[] = [{ type: "block", block: fromBlock, node: fromNode }];
-    for (const node of segmentRoute.nodes) {
-      path.push({ type: "segment", node });
-      for (const block of node.blocks) {
-        if (block.id === fromBlock.id || block.id === toBlock.id) continue;
-        path.push({ type: "block", block, node });
-      }
-    }
-    path.push({ type: "block", block: toBlock, node: toNode });
-
-    return { ...segmentRoute, fromBlock, toBlock, path };
-  }
-
-  findRouteBetweenBlockNames(fromBlockName: string, toBlockName: string): BlockRouteSolution | null {
-    const fromBlock = this.findBlockByName(fromBlockName);
-    const toBlock = this.findBlockByName(toBlockName);
-    if (!fromBlock || !toBlock) return null;
-    return this.findRouteBetweenBlocks(fromBlock.id, toBlock.id);
-  }
-
-  getRunnableBlockRoutes(): RunnableBlockRoute[] {
-    const result: RunnableBlockRoute[] = [];
-    const blocks = this.nodes.flatMap(node => node.blocks);
-    for (const fromBlock of blocks) {
-      for (const toBlock of blocks) {
-        if (fromBlock.id === toBlock.id) continue;
-        const solution = this.findRouteBetweenBlocks(fromBlock.id, toBlock.id);
-        if (solution) result.push({ fromBlock, toBlock, solution });
-      }
-    }
-    return result;
-  }
-
-  getRunnableBlockTransitions(): RunnableBlockTransition[] {
-    return this.getRunnableBlockRoutes().filter(route => {
-      const solution = route.solution;
-      if (solution.nodes.length < 2) return false;
-      return !solution.nodes.slice(1, -1).some(node => node.blocks.length > 0);
-    });
-  }
 }
