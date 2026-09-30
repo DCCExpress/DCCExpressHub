@@ -2988,7 +2988,7 @@ test("Movement physical plan reloads when exact route key changes", () => {
 });
 
 
-test("Movement keeps segment and block resources separate even when they share one sensor", () => {
+test("Movement semantically merges a same-sensor section part into its block", () => {
   const vector =
     read(
       "src/services/movementRouteVector.ts"
@@ -2999,29 +2999,54 @@ test("Movement keeps segment and block resources separate even when they share o
       "src/components/movement/MovementRouteVectorPreview.tsx"
     );
 
+  const focused =
+    read(
+      "src/components/movement/MovementSelectedResourceEditor.tsx"
+    );
+
   const plan =
     read(
       "src/services/movementPlan.ts"
     );
 
+  const engine =
+    read(
+      "src/services/movementEngine.ts"
+    );
+
   assert.match(
-    vector,
-    /return plan\.resources\.map/
-  );
-
-  assert.doesNotMatch(
-    vector,
-    /hiddenSegmentKeys|mergedSegmentNames|matchingBlocks/
-  );
-
-  assert.doesNotMatch(
-    preview,
-    /mergedSegmentNames|\+ SEG:/
+    plan,
+    /matchingBlocks =[\s\S]*part\.blockIds[\s\S]*sensors\.get[\s\S]*part\.toSensor/
   );
 
   assert.match(
     plan,
-    /pushPart\([\s\S]*part,[\s\S]*nodeIndex[\s\S]*\);[\s\S]*for \([\s\S]*const blockId of[\s\S]*part\.blockIds[\s\S]*pushBlock\(/
+    /pushBlock\([\s\S]*block,[\s\S]*\[[\s\S]*part\.partKey/
+  );
+
+  assert.match(
+    plan,
+    /physicalSegmentNames:\s*string\[\]/
+  );
+
+  assert.match(
+    vector,
+    /physicalSegmentNames:[\s\S]*resource\.physicalSegmentNames/
+  );
+
+  assert.match(
+    preview,
+    /SEG \$\{item\.physicalSegmentNames\.join/
+  );
+
+  assert.match(
+    focused,
+    /resource\.physicalSegmentNames/
+  );
+
+  assert.match(
+    engine,
+    /resource\.physicalSegmentNames[\s\S]*dcc-express-movement-segment/
   );
 });
 
@@ -5047,39 +5072,19 @@ test("section-part physical element ownership does not overlap sensor boundaries
 });
 
 
-test("Movement vector places the source segment before the source block", () => {
+test("Movement source block absorbs its same-sensor incoming section part", () => {
   const plan =
     read(
       "src/services/movementPlan.ts"
     );
 
-  const engine =
-    read(
-      "src/services/movementEngine.ts"
-    );
-
   assert.match(
     plan,
-    /sourceIncomingPart[\s\S]*pushPart\([\s\S]*sourceIncomingPart[\s\S]*pushBlock\([\s\S]*source/
+    /sourceIncomingPart[\s\S]*pushBlock\([\s\S]*source,[\s\S]*sourceIncomingPart\.partKey/
   );
 
-  assert.match(
+  assert.doesNotMatch(
     plan,
-    /nodeIndex ===[\s\S]*source\.nodeIndex[\s\S]*pushBlock\([\s\S]*source/
-  );
-
-  assert.match(
-    engine,
-    /resource\.routeOrder <[\s\S]*leg\.from\.routeOrder/
-  );
-
-  assert.match(
-    engine,
-    /right\.routeOrder -[\s\S]*left\.routeOrder/
-  );
-
-  assert.match(
-    engine,
-    /leg\.index ===[\s\S]*0[\s\S]*armResourceLeave\([\s\S]*previousSegment/
+    /pushPart\([\s\S]*sourceIncomingPart/
   );
 });
