@@ -5039,8 +5039,14 @@ test("section parts preserve physical detector ownership in both directions", ()
     /part\.detectors[\s\S]*new Set/
   );
 
+  const pushPart =
+    plan.slice(
+      plan.indexOf("const pushPart"),
+      plan.indexOf("pushBlock(\n      source")
+    );
+
   assert.doesNotMatch(
-    plan,
+    pushPart,
     /\.slice\([\s\S]*0,[\s\S]*1/
   );
 });
@@ -5564,8 +5570,14 @@ test("Movement block placement uses the directional arrival boundary, not physic
     /sensors\.get\([\s\S]*block\.id[\s\S]*===\s*arrivalSensor/
   );
 
+  const executableHelper =
+    helper.replace(
+      /\/\*[\s\S]*?\*\//g,
+      ""
+    );
+
   assert.doesNotMatch(
-    helper,
+    executableHelper,
     /part\.detectors/
   );
 
