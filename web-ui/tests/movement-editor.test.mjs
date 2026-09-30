@@ -4804,3 +4804,41 @@ test("Movement runtime rejects saved route topology whose fingerprint is stale",
     /createMovementRouteKey/
   );
 });
+
+
+test("section parts physically order closed oval topology before sensor slicing", () => {
+  const graph =
+    read(
+      "src/domain/railway/routeGraphBuilder.ts"
+    );
+
+  assert.match(
+    graph,
+    /orderSectionElementsForParts/
+  );
+
+  assert.match(
+    graph,
+    /sectionPartNeighbors/
+  );
+
+  assert.match(
+    graph,
+    /endpoints\.length ===[\s\S]*0[\s\S]*neighbors\.get[\s\S]*length[\s\S]*2/
+  );
+
+  assert.match(
+    graph,
+    /const orderedElements =[\s\S]*orderedSection\.elements/
+  );
+
+  assert.match(
+    graph,
+    /const circular =[\s\S]*orderedSection\.circular/
+  );
+
+  assert.match(
+    graph,
+    /orderedElements\.slice/
+  );
+});
