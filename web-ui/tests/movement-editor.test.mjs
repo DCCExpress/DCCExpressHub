@@ -2988,7 +2988,7 @@ test("Movement physical plan reloads when exact route key changes", () => {
 });
 
 
-test("Movement semantically merges a physically owned section part into its block", () => {
+test("Movement merges a section part into a block by sensor identity", () => {
   const vector =
     read(
       "src/services/movementRouteVector.ts"
@@ -3021,12 +3021,27 @@ test("Movement semantically merges a physically owned section part into its bloc
 
   assert.match(
     plan,
-    /matchingBlocks =[\s\S]*part\.blockIds[\s\S]*includes\([\s\S]*block\.id/
+    /const blockForSensor =[\s\S]*sensors\.get\([\s\S]*block\.id[\s\S]*===/
   );
 
   assert.match(
     plan,
-    /pushBlock\([\s\S]*block,[\s\S]*\[[\s\S]*part\.partKey/
+    /partSensor =[\s\S]*part\.detectors[\s\S]*part\.toSensor/
+  );
+
+  assert.match(
+    plan,
+    /matchingBlock =[\s\S]*blockForSensor\([\s\S]*partSensor/
+  );
+
+  assert.match(
+    plan,
+    /pushBlock\([\s\S]*matchingBlock,[\s\S]*part\.partKey/
+  );
+
+  assert.doesNotMatch(
+    plan,
+    /part\.blockIds/
   );
 
   assert.match(
@@ -4625,7 +4640,12 @@ test("route graph splits physical sections into sensor-addressed section parts",
 
   assert.match(
     graph,
-    /seenBoundarySensors/
+    /elementBoundaries/
+  );
+
+  assert.match(
+    graph,
+    /uniqueBoundaries/
   );
 
   assert.match(
@@ -4652,12 +4672,17 @@ test("route topology persists section-part paths and supports cyclic same-node r
 
   assert.match(
     cache,
-    /ROUTE_TOPOLOGY_VERSION = 5/
+    /ROUTE_TOPOLOGY_VERSION = 6/
   );
 
   assert.match(
     cache,
     /partPath: PersistedRoutePartEntry\[\]/
+  );
+
+  assert.match(
+    cache,
+    /blocks: SectionBlock\[\]/
   );
 
   assert.match(
@@ -4953,7 +4978,7 @@ test("multi-node Movement routes persist and render section parts without losing
 
   assert.match(
     plan,
-    /nodeParts =[sS]*partPath\.filter/
+    /nodeParts =[\s\S]*partPath\.filter/
   );
 
   assert.match(
@@ -4962,6 +4987,11 @@ test("multi-node Movement routes persist and render section parts without losing
   );
 
   assert.match(
+    plan,
+    /blockForSensor/
+  );
+
+  assert.doesNotMatch(
     plan,
     /part\.blockIds/
   );
@@ -5082,11 +5112,21 @@ test("section-part physical element ownership does not overlap sensor boundaries
 });
 
 
-test("Movement source block uses the same physical section-part ownership mapping", () => {
+test("Movement source block resolves its composite part by sensor identity", () => {
   const plan =
     read(
       "src/services/movementPlan.ts"
     );
+
+  assert.match(
+    plan,
+    /sectionPartNamesForBlock =[\s\S]*const sensor =[\s\S]*sensors\.get/
+  );
+
+  assert.match(
+    plan,
+    /part\.detectors[\s\S]*includes\([\s\S]*sensor[\s\S]*part\.toSensor ===[\s\S]*sensor/
+  );
 
   assert.match(
     plan,
@@ -5133,15 +5173,83 @@ test("composite Movement blocks render a segment-colored backing card", () => {
 });
 
 
-test("all Movement blocks resolve composite section parts from physical graph ownership", () => {
+test("physical route graph is block-free and Movement owns sensor composition", () => {
+  const graphType =
+    read(
+      "src/domain/railway/graph.ts"
+    );
+
+  const dto =
+    read(
+      "src/domain/railway/routeGraphDto.ts"
+    );
+
+  const graphBuilder =
+    read(
+      "src/domain/railway/routeGraphBuilder.ts"
+    );
+
+  const clientBuilder =
+    read(
+      "src/services/clientRouteGraphBuilder.ts"
+    );
+
   const plan =
     read(
       "src/services/movementPlan.ts"
     );
 
-  const graph =
+  assert.doesNotMatch(
+    graphType,
+    /blocks:\s*SectionBlock\[\]/
+  );
+
+  assert.doesNotMatch(
+    dto,
+    /blocks:\s*SectionBlock\[\]/
+  );
+
+  assert.doesNotMatch(
+    graphBuilder,
+    /collectSectionBlocks|getBlocks\(\)/
+  );
+
+  assert.doesNotMatch(
+    graphBuilder,
+    /blockIds/
+  );
+
+  assert.match(
+    clientBuilder,
+    /blocks:\s*SectionBlock\[\]/
+  );
+
+  assert.match(
+    clientBuilder,
+    /buildBlockIndex/
+  );
+
+  assert.match(
+    clientBuilder,
+    /sensorAddress !==[\s\S]*null[\s\S]*node\.sectionParts\.some/
+  );
+
+  assert.match(
+    plan,
+    /blockForSensor/
+  );
+
+  assert.doesNotMatch(
+    plan,
+    /blockIds/
+  );
+});
+
+
+test("block route overlay stores node identity outside the physical graph", () => {
+  const graphType =
     read(
-      "src/domain/railway/routeGraphBuilder.ts"
+      "src/domain/railway/graph.ts"
     );
 
   const cache =
@@ -5150,50 +5258,45 @@ test("all Movement blocks resolve composite section parts from physical graph ow
     );
 
   assert.match(
-    graph,
-    /coveredElementIds =[\s\S]*isSectionElementInsideBlock/
-  );
-
-  assert.match(
-    graph,
-    /blockIdsForElements[\s\S]*block\.elementIds\.some/
+    graphType,
+    /export type SectionBlock =[\s\S]*nodeName:\s*string/
   );
 
   assert.match(
     cache,
-    /blockIds:\s*\[[\s\S]*\.\.\.part\.blockIds/
+    /blocks:\s*SectionBlock\[\]/
   );
 
   assert.match(
-    plan,
-    /sectionPartNamesForBlock[\s\S]*part\.blockIds[\s\S]*includes\([\s\S]*entry\.id/
-  );
-
-  assert.match(
-    plan,
-    /pushBlock\([\s\S]*destination,[\s\S]*sectionPartNamesForBlock\([\s\S]*destination/
+    cache,
+    /result\.blocks/
   );
 });
 
 
-test("SectionBlock persists covered track element ids for physical composite ownership", () => {
-  const graphType =
+test("Movement rejects duplicate block occupancy sensor addresses", () => {
+  const cache =
     read(
-      "src/domain/railway/graph.ts"
+      "src/services/clientRouteGraphCache.ts"
     );
 
-  const builder =
+  const plan =
     read(
-      "src/domain/railway/routeGraphBuilder.ts"
+      "src/services/movementPlan.ts"
     );
 
   assert.match(
-    graphType,
-    /export type SectionBlock =[\s\S]*elementIds:\s*LayoutElementId\[\]/
+    cache,
+    /Movement requires unique block occupancy sensors/
   );
 
   assert.match(
-    builder,
-    /elementIds:[\s\S]*coveredElementIds/
+    plan,
+    /validateUniqueBlockSensors/
+  );
+
+  assert.match(
+    plan,
+    /Movement Vector cannot be built: sensor/
   );
 });
