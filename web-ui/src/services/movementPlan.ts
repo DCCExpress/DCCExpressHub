@@ -855,283 +855,568 @@ export function buildMovementPlan(
   if (
     usesSectionParts
   ) {
+    const pushPart =
+      (
+        part:
+          RawRoutePart,
+        nodeIndex:
+          number
+      ): void => {
+        resources.push({
+          key:
+            `part:${part.nodeName}:${part.partKey}`,
+          kind:
+            "segment",
+          name:
+            part.partKey,
+          label:
+            `${part.nodeName} · ${part.partKey}`,
+          blockId:
+            null,
+          sensorAddress:
+            null,
+          nodeIndex,
+          detectors:
+            [
+              ...new Set(
+                (
+                  part.detectors ??
+                  [
+                    part.fromSensor,
+                    part.toSensor,
+                  ]
+                ).filter(
+                  (
+                    value
+                  ): value is number =>
+                    Number.isInteger(
+                      value
+                    ) &&
+                    Number(
+                      value
+                    ) >
+                      0
+                ) as number[]
+              ),
+            ],
+          turnoutStates: [],
+          routeOrder: 0,
+          partIndex:
+            Number.isInteger(
+              part.partIndex
+            )
+              ? part.partIndex
+              : null,
+        });
+      };
+
+    const pushFallbackSegment =
+      (
+        nodeName:
+          string,
+        nodeIndex:
+          number
+      ): void => {
+        const node =
+          graphNodes.get(
+            nodeName
+          );
+
+        resources.push({
+          key:
+            `segment:${nodeName}`,
+          kind:
+            "segment",
+          name:
+            nodeName,
+          label:
+            node?.trackName?.trim()
+              ? `${nodeName} · ${node.trackName.trim()}`
+              : nodeName,
+          blockId:
+            null,
+          sensorAddress:
+            null,
+          nodeIndex,
+          detectors:
+            [
+              ...new Set([
+                ...(
+                  node?.detectors ??
+                  []
+                )
+                  .map(
+                    detector =>
+                      detector.address
+                  )
+                  .filter(
+                    address =>
+                      Number.isInteger(
+                        address
+                      ) &&
+                      address >
+                        0
+                  ),
+                ...(
+                  node?.elementIds ??
+                  []
+                )
+                  .map(
+                    elementId =>
+                      trackAddresses.get(
+                        elementId
+                      ) ??
+                      0
+                  )
+                  .filter(
+                    address =>
+                      address >
+                        0
+                  ),
+              ]),
+            ].sort(
+              (
+                a,
+                b
+              ) =>
+                a -
+                b
+            ),
+          turnoutStates: [],
+          routeOrder: 0,
+          partIndex:
+            null,
+        });
+      };
+
+    const pushTurnouts =
+      (
+        edge:
+          RawRouteEdge | undefined,
+        nodeIndex:
+          number
+      ): void => {
+        if (!edge) {
+          return;
+        }
+
+        const passages =
+          edge.turnoutPath &&
+          edge.turnoutPath.length >
+            0
+            ? edge.turnoutPath
+            : fallbackPassages(
+                edge
+              );
+
+        for (
+          let passageIndex = 0;
+          passageIndex <
+            passages.length;
+          passageIndex += 1
+        ) {
+          const passage =
+            passages[
+              passageIndex
+            ];
+
+          if (!passage) {
+            continue;
+          }
+
+          const elementId =
+            asPositiveInteger(
+              passage.elementId
+            );
+
+          const turnoutStates =
+            uniqueTurnoutStates(
+              passage.turnoutStates ??
+              []
+            );
+
+          const fallbackAddress =
+            turnoutStates[0]?.address ??
+            passageIndex +
+              1;
+
+          resources.push({
+            key:
+              elementId !==
+                null
+                ? `turnout:${elementId}`
+                : `turnout:${edge.from}:${edge.to}:${passageIndex}`,
+            kind:
+              "turnout",
+            name:
+              String(
+                passage.name ??
+                `Turnout ${fallbackAddress}`
+              ),
+            label:
+              String(
+                passage.name ??
+                `Turnout ${fallbackAddress}`
+              ),
+            blockId:
+              null,
+            sensorAddress:
+              elementId !==
+                null
+                ? trackAddresses.get(
+                    elementId
+                  ) ??
+                  null
+                : null,
+            nodeIndex,
+            detectors:
+              elementId !==
+                null &&
+              (
+                trackAddresses.get(
+                  elementId
+                ) ??
+                0
+              ) >
+                0
+                ? [
+                    trackAddresses.get(
+                      elementId
+                    )!,
+                  ]
+                : [],
+            turnoutStates,
+            routeOrder:
+              0,
+            partIndex:
+              null,
+          });
+        }
+      };
+
     for (
-      const part of
-      partPath
+      let nodeIndex = 0;
+      nodeIndex <
+        route.nodes.length;
+      nodeIndex += 1
     ) {
-      const nodeIndex =
-        Math.max(
-          0,
-          route.nodes.indexOf(
-            part.nodeName
+      const nodeName =
+        route.nodes[
+          nodeIndex
+        ];
+
+      if (!nodeName) {
+        continue;
+      }
+
+      const nodeParts =
+        partPath.filter(
+          part =>
+            part.nodeName ===
+              nodeName
+        );
+
+      if (
+        nodeParts.length >
+          0
+      ) {
+        for (
+          const part of
+          nodeParts
+        ) {
+          pushPart(
+            part,
+            nodeIndex
+          );
+
+          for (
+            const blockId of
+            part.blockIds ??
+            []
+          ) {
+            const block =
+              route.blockPath.find(
+                entry =>
+                  entry.id ===
+                    blockId
+              );
+
+            if (
+              block &&
+              block.id !==
+                source.id &&
+              block.id !==
+                route.blockPath[
+                  route.blockPath.length -
+                    1
+                ]?.id &&
+              !blocks.some(
+                existing =>
+                  existing.blockId ===
+                    block.id
+              )
+            ) {
+              pushBlock(
+                block
+              );
+            }
+          }
+        }
+      } else {
+        pushFallbackSegment(
+          nodeName,
+          nodeIndex
+        );
+      }
+
+      for (
+        const block of
+        route.blockPath
+      ) {
+        if (
+          block.nodeIndex !==
+            nodeIndex ||
+          block.id ===
+            source.id ||
+          block.id ===
+            route.blockPath[
+              route.blockPath.length -
+                1
+            ]?.id ||
+          blocks.some(
+            existing =>
+              existing.blockId ===
+                block.id
           )
+        ) {
+          continue;
+        }
+
+        pushBlock(
+          block
+        );
+      }
+
+      pushTurnouts(
+        route.edgePath[
+          nodeIndex
+        ],
+        nodeIndex
+      );
+    }
+  } else {
+    for (
+      let nodeIndex = 0;
+      nodeIndex <
+        route.nodes.length;
+      nodeIndex += 1
+    ) {
+      const nodeName =
+        route.nodes[
+          nodeIndex
+        ];
+
+      if (!nodeName) {
+        continue;
+      }
+
+      const node =
+        graphNodes.get(
+          nodeName
         );
 
       resources.push({
         key:
-          `part:${part.nodeName}:${part.partKey}`,
+          `segment:${nodeName}`,
         kind:
           "segment",
         name:
-          part.partKey,
+          nodeName,
         label:
-          `${part.nodeName} · ${part.partKey}`,
-        blockId:
-          null,
-        sensorAddress:
-          null,
+          node?.trackName?.trim()
+            ? `${nodeName} · ${node.trackName.trim()}`
+            : nodeName,
+        blockId: null,
+        sensorAddress: null,
         nodeIndex,
         detectors:
           [
-            ...new Set(
-              (
-                part.detectors ??
-                [
-                  part.fromSensor,
-                  part.toSensor,
-                ]
-              ).filter(
-                (
-                  value
-                ): value is number =>
-                  Number.isInteger(
-                    value
-                  ) &&
-                  Number(
-                    value
-                  ) >
+            ...new Set([
+              ...(
+                node?.detectors ??
+                []
+              )
+                .map(
+                  detector =>
+                    detector.address
+                )
+                .filter(
+                  address =>
+                    Number.isInteger(
+                      address
+                    ) &&
+                    address > 0
+                ),
+              ...(
+                node?.elementIds ??
+                []
+              )
+                .map(
+                  elementId =>
+                    trackAddresses.get(
+                      elementId
+                    ) ??
                     0
-              ) as number[]
-            ),
-          ],
+                )
+                .filter(
+                  address =>
+                    address > 0
+                ),
+            ]),
+          ].sort(
+            (
+              a,
+              b
+            ) =>
+              a - b
+          ),
         turnoutStates: [],
-        routeOrder: 0,
-        partIndex:
-          Number.isInteger(
-            part.partIndex
-          )
-            ? part.partIndex
-            : null,
-      });
-    }
-  }
-
-  if (
-    !usesSectionParts
-  ) {
-  for (
-    let nodeIndex = 0;
-    nodeIndex <
-      route.nodes.length;
-    nodeIndex += 1
-  ) {
-    const nodeName =
-      route.nodes[
-        nodeIndex
-      ];
-
-    if (!nodeName) {
-      continue;
-    }
-
-    const node =
-      graphNodes.get(
-        nodeName
-      );
-
-    resources.push({
-      key:
-        `segment:${nodeName}`,
-      kind:
-        "segment",
-      name:
-        nodeName,
-      label:
-        node?.trackName?.trim()
-          ? `${nodeName} · ${node.trackName.trim()}`
-          : nodeName,
-      blockId: null,
-      sensorAddress: null,
-      nodeIndex,
-      detectors:
-        [
-          ...new Set([
-            ...(
-              node?.detectors ??
-              []
-            )
-              .map(
-                detector =>
-                  detector.address
-              )
-              .filter(
-                address =>
-                  Number.isInteger(
-                    address
-                  ) &&
-                  address > 0
-              ),
-            ...(
-              node?.elementIds ??
-              []
-            )
-              .map(
-                elementId =>
-                  trackAddresses.get(
-                    elementId
-                  ) ??
-                  0
-              )
-              .filter(
-                address =>
-                  address > 0
-              ),
-          ]),
-        ].sort(
-          (
-            a,
-            b
-          ) =>
-            a - b
-        ),
-      turnoutStates: [],
-      routeOrder: 0,
-      partIndex: null,
-    });
-
-    for (
-      const block of
-      route.blockPath
-    ) {
-      if (
-        block.nodeIndex !==
-          nodeIndex ||
-        block.id ===
-          source.id ||
-        block.id ===
-          route.blockPath[
-            route.blockPath.length -
-            1
-          ]?.id
-      ) {
-        continue;
-      }
-
-      if (
-        blocks.some(
-          existing =>
-            existing.blockId ===
-            block.id
-        )
-      ) {
-        continue;
-      }
-
-      pushBlock(
-        block
-      );
-    }
-
-    const edge =
-      route.edgePath[
-        nodeIndex
-      ];
-
-    if (!edge) {
-      continue;
-    }
-
-    const passages =
-      edge.turnoutPath &&
-      edge.turnoutPath.length >
-        0
-        ? edge.turnoutPath
-        : fallbackPassages(
-            edge
-          );
-
-    for (
-      let passageIndex = 0;
-      passageIndex <
-        passages.length;
-      passageIndex += 1
-    ) {
-      const passage =
-        passages[
-          passageIndex
-        ];
-
-      if (!passage) {
-        continue;
-      }
-
-      const elementId =
-        asPositiveInteger(
-          passage.elementId
-        );
-
-      const turnoutStates =
-        uniqueTurnoutStates(
-          passage.turnoutStates ??
-          []
-        );
-
-      const fallbackAddress =
-        turnoutStates[0]?.address ??
-        passageIndex +
-          1;
-
-      resources.push({
-        key:
-          elementId !==
-          null
-            ? `turnout:${elementId}`
-            : `turnout:${edge.from}:${edge.to}:${passageIndex}`,
-        kind:
-          "turnout",
-        name:
-          String(
-            passage.name ??
-            `Turnout ${fallbackAddress}`
-          ),
-        label:
-          String(
-            passage.name ??
-            `Turnout ${fallbackAddress}`
-          ),
-        blockId: null,
-        sensorAddress:
-          elementId !==
-            null
-            ? trackAddresses.get(
-                elementId
-              ) ??
-              null
-            : null,
-        nodeIndex,
-        detectors:
-          elementId !==
-            null &&
-          (
-            trackAddresses.get(
-              elementId
-            ) ??
-            0
-          ) >
-            0
-            ? [
-                trackAddresses.get(
-                  elementId
-                )!,
-              ]
-            : [],
-        turnoutStates,
         routeOrder: 0,
         partIndex: null,
       });
-    }
-  }
 
+      for (
+        const block of
+        route.blockPath
+      ) {
+        if (
+          block.nodeIndex !==
+            nodeIndex ||
+          block.id ===
+            source.id ||
+          block.id ===
+            route.blockPath[
+              route.blockPath.length -
+                1
+            ]?.id
+        ) {
+          continue;
+        }
+
+        if (
+          blocks.some(
+            existing =>
+              existing.blockId ===
+                block.id
+          )
+        ) {
+          continue;
+        }
+
+        pushBlock(
+          block
+        );
+      }
+
+      const edge =
+        route.edgePath[
+          nodeIndex
+        ];
+
+      if (!edge) {
+        continue;
+      }
+
+      const passages =
+        edge.turnoutPath &&
+        edge.turnoutPath.length >
+          0
+          ? edge.turnoutPath
+          : fallbackPassages(
+              edge
+            );
+
+      for (
+        let passageIndex = 0;
+        passageIndex <
+          passages.length;
+        passageIndex += 1
+      ) {
+        const passage =
+          passages[
+            passageIndex
+          ];
+
+        if (!passage) {
+          continue;
+        }
+
+        const elementId =
+          asPositiveInteger(
+            passage.elementId
+          );
+
+        const turnoutStates =
+          uniqueTurnoutStates(
+            passage.turnoutStates ??
+            []
+          );
+
+        const fallbackAddress =
+          turnoutStates[0]?.address ??
+          passageIndex +
+            1;
+
+        resources.push({
+          key:
+            elementId !==
+            null
+              ? `turnout:${elementId}`
+              : `turnout:${edge.from}:${edge.to}:${passageIndex}`,
+          kind:
+            "turnout",
+          name:
+            String(
+              passage.name ??
+              `Turnout ${fallbackAddress}`
+            ),
+          label:
+            String(
+              passage.name ??
+              `Turnout ${fallbackAddress}`
+            ),
+          blockId: null,
+          sensorAddress:
+            elementId !==
+              null
+              ? trackAddresses.get(
+                  elementId
+                ) ??
+                null
+              : null,
+          nodeIndex,
+          detectors:
+            elementId !==
+              null &&
+            (
+              trackAddresses.get(
+                elementId
+              ) ??
+              0
+            ) >
+              0
+              ? [
+                  trackAddresses.get(
+                    elementId
+                  )!,
+                ]
+              : [],
+          turnoutStates,
+          routeOrder: 0,
+          partIndex: null,
+        });
+      }
+    }
   }
 
   const destination =
