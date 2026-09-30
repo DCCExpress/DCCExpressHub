@@ -5782,3 +5782,31 @@ test("block overlays are resolved only after the physical resource vector is bui
     /matchingSegments =[\s\S]*resource\.detectors\.includes\([\s\S]*sensor/
   );
 });
+
+
+test("Movement Plan enforces block overlays without inserting blocks into physical resources", () => {
+  const plan =
+    read(
+      "src/services/movementPlan.ts"
+    );
+
+  assert.match(
+    plan,
+    /const illegalPhysicalBlocks =[\s\S]*resource\.kind ===[\s\S]*"block"/
+  );
+
+  assert.match(
+    plan,
+    /resources\[[\s\S]*block\.routeOrder[\s\S]*\]/
+  );
+
+  assert.match(
+    plan,
+    /segment\.detectors\.includes\([\s\S]*block\.sensorAddress/
+  );
+
+  assert.match(
+    plan,
+    /SectionPart "[\s\S]*matches multiple blocks/
+  );
+});

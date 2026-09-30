@@ -1601,6 +1601,75 @@ export function buildMovementPlan(
     }
   }
 
+  if (
+    usesSectionParts
+  ) {
+    const illegalPhysicalBlocks =
+      resources.filter(
+        resource =>
+          resource.kind ===
+            "block"
+      );
+
+    if (
+      illegalPhysicalBlocks.length >
+        0
+    ) {
+      throw new Error(
+        `Movement Plan internal error: physical vector contains logical block resources (${illegalPhysicalBlocks.map(resource => resource.name).join(", ")}).`
+      );
+    }
+
+    const blockByRouteOrder =
+      new Map<
+        number,
+        MovementPlanResource
+      >();
+
+    for (
+      const block of
+      blocks
+    ) {
+      const segment =
+        resources[
+          block.routeOrder
+        ];
+
+      if (
+        !segment ||
+        segment.kind !==
+          "segment" ||
+        block.sensorAddress ===
+          null ||
+        !segment.detectors.includes(
+          block.sensorAddress
+        )
+      ) {
+        throw new Error(
+          `Movement Plan internal error: block "${block.name}" is not overlaid on its physical SectionPart.`
+        );
+      }
+
+      const existing =
+        blockByRouteOrder.get(
+          block.routeOrder
+        );
+
+      if (
+        existing
+      ) {
+        throw new Error(
+          `Movement Vector cannot be built: SectionPart "${segment.name}" matches multiple blocks (${existing.name}, ${block.name}).`
+        );
+      }
+
+      blockByRouteOrder.set(
+        block.routeOrder,
+        block
+      );
+    }
+  }
+
   const legs:
     MovementPlanLeg[] = [];
 
