@@ -465,10 +465,6 @@ export default function RoutesDialog({
                       </Table.Th>
 
                       <Table.Th>
-                        {t("ui.blocks")}
-                      </Table.Th>
-
-                      <Table.Th>
                         {t("ui.detectors")}
                       </Table.Th>
 
@@ -491,12 +487,6 @@ export default function RoutesDialog({
 
                         <Table.Td>
                           {node.elementIds.join(", ")}
-                        </Table.Td>
-
-                        <Table.Td>
-                          {node.blocks
-                            .map(block => block.name)
-                            .join(", ") || "—"}
                         </Table.Td>
 
                         <Table.Td>
