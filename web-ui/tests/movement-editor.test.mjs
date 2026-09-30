@@ -2988,7 +2988,7 @@ test("Movement physical plan reloads when exact route key changes", () => {
 });
 
 
-test("Movement route vector merges only an identical single-sensor segment into its block", () => {
+test("Movement keeps segment and block resources separate even when they share one sensor", () => {
   const vector =
     read(
       "src/services/movementRouteVector.ts"
@@ -2999,49 +2999,29 @@ test("Movement route vector merges only an identical single-sensor segment into 
       "src/components/movement/MovementRouteVectorPreview.tsx"
     );
 
-  assert.match(
-    vector,
-    /segment\.detectors\.length !==[\s\S]*1/
-  );
+  const plan =
+    read(
+      "src/services/movementPlan.ts"
+    );
 
   assert.match(
     vector,
-    /resource\.sensorAddress ===[\s\S]*detector/
+    /return plan\.resources\.map/
   );
 
-  assert.match(
+  assert.doesNotMatch(
     vector,
-    /matchingBlocks\.length !==[\s\S]*1/
+    /hiddenSegmentKeys|mergedSegmentNames|matchingBlocks/
   );
 
-  assert.match(
-    vector,
-    /hiddenSegmentKeys\.add\([\s\S]*segment\.key/
-  );
-
-  assert.match(
-    vector,
-    /mergedSegmentNamesByBlockKey/
-  );
-
-  assert.match(
-    vector,
-    /visibleResources =[\s\S]*!hiddenSegmentKeys\.has/
-  );
-
-  assert.match(
-    vector,
-    /mergedSegmentNames:[\s\S]*mergedSegmentNamesByBlockKey\.get/
-  );
-
-  assert.match(
+  assert.doesNotMatch(
     preview,
-    /SEG:\$\{item\.mergedSegmentNames\.join\(","\)\}/
+    /mergedSegmentNames|\+ SEG:/
   );
 
   assert.match(
-    preview,
-    /movementBlockUpper[\s\S]*mergedSegments/
+    plan,
+    /pushPart\([\s\S]*part,[\s\S]*nodeIndex[\s\S]*\);[\s\S]*for \([\s\S]*const blockId of[\s\S]*part\.blockIds[\s\S]*pushBlock\(/
   );
 });
 
