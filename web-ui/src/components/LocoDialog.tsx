@@ -28,7 +28,17 @@ export default function LocoDialog({ opened, onClose, onSaved, loadLocos, saveLo
       size="min(1480px, 95vw)"
       centered
       draggable
-      styles={{ body: { height: "min(740px, calc(100vh - 120px))", display: "flex", flexDirection: "column", overflow: "hidden" } }}
+      styles={{
+        content: {
+          overflow: "hidden",
+        },
+        body: {
+          height: "min(740px, calc(100vh - 120px))",
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+        },
+      }}
     >
       <Stack gap="md" style={{ flex: 1, minHeight: 0 }}>
         {state.loading ? (
