@@ -886,20 +886,12 @@ export class RouteGraphBuilder {
         fromSensor,
         toSensor,
         detectors:
-          [
-            ...new Set(
-              [
-                fromSensor,
+          toSensor !==
+            null
+            ? [
                 toSensor,
-              ].filter(
-                (
-                  value
-                ): value is number =>
-                  value !==
-                  null
-              )
-            ),
-          ],
+              ]
+            : [],
         blockIds:
           blockIdsForSensor(
             toSensor
