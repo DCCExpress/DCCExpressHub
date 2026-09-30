@@ -2988,7 +2988,7 @@ test("Movement physical plan reloads when exact route key changes", () => {
 });
 
 
-test("Movement semantically merges a same-sensor section part into its block", () => {
+test("Movement semantically merges a physically owned section part into its block", () => {
   const vector =
     read(
       "src/services/movementRouteVector.ts"
@@ -3021,7 +3021,7 @@ test("Movement semantically merges a same-sensor section part into its block", (
 
   assert.match(
     plan,
-    /matchingBlocks =[\s\S]*part\.blockIds[\s\S]*sensors\.get[\s\S]*part\.toSensor/
+    /matchingBlocks =[\s\S]*part\.blockIds[\s\S]*includes\([\s\S]*block\.id/
   );
 
   assert.match(
@@ -4652,7 +4652,7 @@ test("route topology persists section-part paths and supports cyclic same-node r
 
   assert.match(
     cache,
-    /ROUTE_TOPOLOGY_VERSION = 4/
+    /ROUTE_TOPOLOGY_VERSION = 5/
   );
 
   assert.match(
@@ -5082,7 +5082,7 @@ test("section-part physical element ownership does not overlap sensor boundaries
 });
 
 
-test("Movement source block absorbs its same-sensor incoming section part", () => {
+test("Movement source block uses the same physical section-part ownership mapping", () => {
   const plan =
     read(
       "src/services/movementPlan.ts"
@@ -5090,12 +5090,12 @@ test("Movement source block absorbs its same-sensor incoming section part", () =
 
   assert.match(
     plan,
-    /sourceIncomingPart[\s\S]*pushBlock\([\s\S]*source,[\s\S]*sourceIncomingPart\.partKey/
+    /pushBlock\([\s\S]*source,[\s\S]*sectionPartNamesForBlock\([\s\S]*source/
   );
 
   assert.doesNotMatch(
     plan,
-    /pushPart\([\s\S]*sourceIncomingPart/
+    /sourceIncomingPart/
   );
 });
 
@@ -5133,29 +5133,67 @@ test("composite Movement blocks render a segment-colored backing card", () => {
 });
 
 
-test("destination block resolves its composite section part from graph topology", () => {
+test("all Movement blocks resolve composite section parts from physical graph ownership", () => {
   const plan =
     read(
       "src/services/movementPlan.ts"
     );
 
+  const graph =
+    read(
+      "src/domain/railway/routeGraphBuilder.ts"
+    );
+
+  const cache =
+    read(
+      "src/services/clientRouteGraphCache.ts"
+    );
+
   assert.match(
-    plan,
-    /sectionPartNameForBlock/
+    graph,
+    /coveredElementIds =[\s\S]*isSectionElementInsideBlock/
+  );
+
+  assert.match(
+    graph,
+    /blockIdsForElements[\s\S]*block\.elementIds\.some/
+  );
+
+  assert.match(
+    cache,
+    /blockIds:\s*\[[\s\S]*\.\.\.part\.blockIds/
   );
 
   assert.match(
     plan,
-    /route\.locoDirection !==[\s\S]*knownDirection[\s\S]*part\.fromSensor ===[\s\S]*sensor[\s\S]*part\.toSensor ===[\s\S]*sensor/
+    /sectionPartNamesForBlock[\s\S]*part\.blockIds[\s\S]*includes\([\s\S]*entry\.id/
   );
 
   assert.match(
     plan,
-    /destinationPartName =[\s\S]*sectionPartNameForBlock\([\s\S]*destination/
+    /pushBlock\([\s\S]*destination,[\s\S]*sectionPartNamesForBlock\([\s\S]*destination/
+  );
+});
+
+
+test("SectionBlock persists covered track element ids for physical composite ownership", () => {
+  const graphType =
+    read(
+      "src/domain/railway/graph.ts"
+    );
+
+  const builder =
+    read(
+      "src/domain/railway/routeGraphBuilder.ts"
+    );
+
+  assert.match(
+    graphType,
+    /export type SectionBlock =[\s\S]*elementIds:\s*LayoutElementId\[\]/
   );
 
   assert.match(
-    plan,
-    /pushBlock\([\s\S]*destination,[\s\S]*destinationPartName/
+    builder,
+    /elementIds:[\s\S]*coveredElementIds/
   );
 });
