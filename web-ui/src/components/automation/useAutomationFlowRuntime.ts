@@ -409,6 +409,10 @@ function runtimeConfigSignature(
               node.data.trainResourceTypes,
             trainResourceFilters:
               node.data.trainResourceFilters,
+            trainBlockFilters:
+              node.data.trainBlockFilters,
+            trainSensorFilters:
+              node.data.trainSensorFilters,
             trainLocoAddressFilters:
               node.data.trainLocoAddressFilters,
           })
@@ -585,6 +589,29 @@ export function useAutomationFlowRuntime(
               if (
                 resourceTypes.length > 0 &&
                 !resourceTypes.includes(event.resourceType)
+              ) {
+                return false;
+              }
+
+              const blockFilters = node.data.trainBlockFilters ?? [];
+              if (
+                blockFilters.length > 0 &&
+                (
+                  event.resourceType !== "block" ||
+                  typeof event.resourceId !== "number" ||
+                  !blockFilters.includes(event.resourceId)
+                )
+              ) {
+                return false;
+              }
+
+              const sensorFilters = node.data.trainSensorFilters ?? [];
+              if (
+                sensorFilters.length > 0 &&
+                !sensorFilters.some(address =>
+                  event.sensorAddress === address ||
+                  event.sensors.includes(address)
+                )
               ) {
                 return false;
               }

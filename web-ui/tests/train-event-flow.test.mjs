@@ -16,10 +16,16 @@ test("Flow supports Train Event input nodes with multi-value filters", () => {
   assert.match(domain, /trainTypeFilters\?: string\[\]/);
   assert.match(domain, /trainEventTypes\?: string\[\]/);
   assert.match(domain, /trainResourceTypes\?: string\[\]/);
+  assert.match(domain, /trainBlockFilters\?: number\[\]/);
+  assert.match(domain, /trainSensorFilters\?: number\[\]/);
   assert.match(palette, /kind: "trainEventInput"/);
   assert.match(props, /MultiSelect[\s\S]*trainTypeFilters/);
+  assert.match(props, /loadAutomationBlockCatalog/);
+  assert.match(props, /loadAutomationSensorCatalog/);
   assert.match(runtime, /subscribeTrainEvents/);
   assert.match(runtime, /node\.data\.kind !== "trainEventInput"/);
   assert.match(runtime, /eventTypes\.length > 0/);
   assert.match(runtime, /trainTypes\.length > 0/);
+  assert.match(runtime, /blockFilters\.length > 0/);
+  assert.match(runtime, /sensorFilters\.length > 0/);
 });

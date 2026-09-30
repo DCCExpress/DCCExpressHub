@@ -70,6 +70,8 @@ export type AutomationFlowNodeData = Record<string, unknown> & {
   trainTypeFilters?: string[];
   trainResourceTypes?: string[];
   trainResourceFilters?: string[];
+  trainBlockFilters?: number[];
+  trainSensorFilters?: number[];
   trainLocoAddressFilters?: number[];
 
   blockElementId?: number;
@@ -564,6 +566,18 @@ function normalizeNodeData(
       normalizeRoute(candidate.trainResourceTypes),
     trainResourceFilters:
       normalizeRoute(candidate.trainResourceFilters),
+    trainBlockFilters:
+      normalizeAddressList(
+        candidate.trainBlockFilters,
+        1,
+        65535
+      ),
+    trainSensorFilters:
+      normalizeAddressList(
+        candidate.trainSensorFilters,
+        1,
+        65535
+      ),
     trainLocoAddressFilters:
       normalizeAddressList(
         candidate.trainLocoAddressFilters,

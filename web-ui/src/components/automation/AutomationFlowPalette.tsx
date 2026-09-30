@@ -437,6 +437,8 @@ export function createDefaultAutomationNodeData(
         trainTypeFilters: [],
         trainResourceTypes: [],
         trainResourceFilters: [],
+        trainBlockFilters: [],
+        trainSensorFilters: [],
         trainLocoAddressFilters: [],
       };
 

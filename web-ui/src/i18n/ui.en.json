@@ -1038,6 +1038,8 @@
   "flowTrainEventAllHint": "Empty selection means All.",
   "flowAll": "All",
   "flowTrainTypes": "Train types",
+  "flowTrainBlocks": "Blocks",
+  "flowTrainSensors": "Sensors",
   "flowTrainResourceTypes": "Resource types",
   "flowTrainResourceBlock": "Block",
   "flowTrainResourceSegment": "Segment",

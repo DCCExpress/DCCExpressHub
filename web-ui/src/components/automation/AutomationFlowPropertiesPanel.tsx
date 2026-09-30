@@ -54,6 +54,16 @@ import {
   dispatchAutomationFlowNodeCollapse,
 } from "./automationFlowEvents";
 
+import {
+  loadAutomationBlockCatalog,
+  type AutomationBlockOption,
+} from "../../services/automationBlockCatalog";
+
+import {
+  loadAutomationSensorCatalog,
+  type AutomationSensorOption,
+} from "../../services/automationSensorCatalog";
+
 type Props = {
   node: AutomationFlowNode | null;
   pageId: string;
@@ -92,6 +102,12 @@ export default function AutomationFlowPropertiesPanel({
   const [trainTypes, setTrainTypes] =
     useState<string[]>([]);
 
+  const [trainBlocks, setTrainBlocks] =
+    useState<AutomationBlockOption[]>([]);
+
+  const [trainSensors, setTrainSensors] =
+    useState<AutomationSensorOption[]>([]);
+
   useEffect(
     () => {
       let active =
@@ -106,6 +122,32 @@ export default function AutomationFlowPropertiesPanel({
         .catch(error => {
           console.warn(
             "[Automation] Could not load train types",
+            error
+          );
+        });
+
+      void loadAutomationBlockCatalog()
+        .then(blocks => {
+          if (active) {
+            setTrainBlocks(blocks);
+          }
+        })
+        .catch(error => {
+          console.warn(
+            "[Automation] Could not load block catalog for Train Event",
+            error
+          );
+        });
+
+      void loadAutomationSensorCatalog()
+        .then(sensors => {
+          if (active) {
+            setTrainSensors(sensors);
+          }
+        })
+        .catch(error => {
+          console.warn(
+            "[Automation] Could not load sensor catalog for Train Event",
             error
           );
         });
@@ -726,6 +768,47 @@ export default function AutomationFlowPropertiesPanel({
             value={data.trainResourceTypes ?? []}
             clearable
             onChange={value => onChange({ trainResourceTypes: value })}
+          />
+
+
+          <MultiSelect
+            label={t("ui.flowTrainBlocks", "Blocks")}
+            description={t("ui.flowTrainEventAllHint", "Empty selection means All.")}
+            placeholder={t("ui.flowAll", "All")}
+            data={trainBlocks.map(block => ({
+              value: String(block.id),
+              label: block.label,
+            }))}
+            value={(data.trainBlockFilters ?? []).map(String)}
+            searchable
+            clearable
+            onChange={value =>
+              onChange({
+                trainBlockFilters: value
+                  .map(item => Number(item))
+                  .filter(item => Number.isInteger(item) && item > 0),
+              })
+            }
+          />
+
+          <MultiSelect
+            label={t("ui.flowTrainSensors", "Sensors")}
+            description={t("ui.flowTrainEventAllHint", "Empty selection means All.")}
+            placeholder={t("ui.flowAll", "All")}
+            data={trainSensors.map(sensor => ({
+              value: String(sensor.address),
+              label: sensor.label,
+            }))}
+            value={(data.trainSensorFilters ?? []).map(String)}
+            searchable
+            clearable
+            onChange={value =>
+              onChange({
+                trainSensorFilters: value
+                  .map(item => Number(item))
+                  .filter(item => Number.isInteger(item) && item > 0),
+              })
+            }
           />
 
           <TextInput

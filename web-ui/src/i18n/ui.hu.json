@@ -1038,6 +1038,8 @@
   "flowTrainEventAllHint": "Az üres kiválasztás jelentése: Mind.",
   "flowAll": "Mind",
   "flowTrainTypes": "Vonattípusok",
+  "flowTrainBlocks": "Blokkok",
+  "flowTrainSensors": "Szenzorok",
   "flowTrainResourceTypes": "Erőforrástípusok",
   "flowTrainResourceBlock": "Blokk",
   "flowTrainResourceSegment": "Szegmens",
