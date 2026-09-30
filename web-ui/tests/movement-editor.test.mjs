@@ -4885,3 +4885,26 @@ test("Show segments overlay prefers generated section-part labels", () => {
     /runtime\.sectionPart/
   );
 });
+
+
+test("section-part canvas overlay assigns shared sensor boundary to outgoing part", () => {
+  const builder =
+    read(
+      "src/services/clientRouteGraphBuilder.ts"
+    );
+
+  assert.match(
+    builder,
+    /part\.fromSensor ===[\s\S]*null/
+  );
+
+  assert.match(
+    builder,
+    /sensorAddressesAt[\s\S]*includes[\s\S]*part\.fromSensor/
+  );
+
+  assert.match(
+    builder,
+    /sectionPartByElementId\.set\([\s\S]*elementId[\s\S]*part\.key/
+  );
+});
