@@ -5045,3 +5045,41 @@ test("section-part physical element ownership does not overlap sensor boundaries
     /SectionPart\.elementIds are non-overlapping/
   );
 });
+
+
+test("Movement vector places the source segment before the source block", () => {
+  const plan =
+    read(
+      "src/services/movementPlan.ts"
+    );
+
+  const engine =
+    read(
+      "src/services/movementEngine.ts"
+    );
+
+  assert.match(
+    plan,
+    /sourceIncomingPart[\s\S]*pushPart\([\s\S]*sourceIncomingPart[\s\S]*pushBlock\([\s\S]*source/
+  );
+
+  assert.match(
+    plan,
+    /nodeIndex ===[\s\S]*source\.nodeIndex[\s\S]*pushBlock\([\s\S]*source/
+  );
+
+  assert.match(
+    engine,
+    /resource\.routeOrder <[\s\S]*leg\.from\.routeOrder/
+  );
+
+  assert.match(
+    engine,
+    /right\.routeOrder -[\s\S]*left\.routeOrder/
+  );
+
+  assert.match(
+    engine,
+    /leg\.index ===[\s\S]*0[\s\S]*armResourceLeave\([\s\S]*previousSegment/
+  );
+});
