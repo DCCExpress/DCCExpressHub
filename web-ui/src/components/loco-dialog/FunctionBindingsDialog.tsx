@@ -289,8 +289,13 @@ export default function FunctionBindingsDialog({
                               binding.name
                             }
                             onClick={
-                              event =>
-                                event.stopPropagation()
+                              event => {
+                                setSelectedId(
+                                  binding.id
+                                );
+
+                                event.stopPropagation();
+                              }
                             }
                             onChange={
                               event =>
