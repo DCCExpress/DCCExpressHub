@@ -1,6 +1,5 @@
 import type { LayoutElementId } from "../layout/layoutDto.js";
 import type {
-  SectionBlock,
   SectionDetector,
   SectionSignal,
   SectionPart,
@@ -25,7 +24,6 @@ export type RouteGraphNodeDto = {
   busy: boolean;
   detectors: SectionDetector[];
   signals: SectionSignal[];
-  blocks: SectionBlock[];
   elementIds: LayoutElementId[];
   sectionParts?: SectionPart[];
 };
