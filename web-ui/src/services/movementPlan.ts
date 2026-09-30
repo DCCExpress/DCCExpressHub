@@ -558,6 +558,11 @@ function selectRoute(
     topology.routeTable ??
     [];
 
+  const checkpoints =
+    checkpointIds(
+      page
+    );
+
   if (
     page.routeKey.trim().length >
       0
@@ -575,15 +580,51 @@ function selectRoute(
       return exact;
     }
 
+    /*
+     * Route identity intentionally ignores generated topology metadata. During
+     * migration from an older routeKey schema, recover automatically from the
+     * Movement's persisted FROM / VIA / TO checkpoint sequence when that
+     * sequence identifies exactly one generated route.
+     */
+    const checkpointMatches =
+      routeTable.filter(
+        route =>
+          route.fromBlockId ===
+            checkpoints[0] &&
+          route.toBlockId ===
+            checkpoints[
+              checkpoints.length -
+                1
+            ] &&
+          containsCheckpointsInOrder(
+            route,
+            checkpoints
+          )
+      );
+
+    if (
+      checkpointMatches.length ===
+        1
+    ) {
+      console.info(
+        "[Movement] recovered route from checkpoint sequence after routeKey change",
+        {
+          movement:
+            page.name,
+          checkpoints,
+        }
+      );
+
+      return checkpointMatches[0]!;
+    }
+
     throw new Error(
-      "The selected Movement route no longer exists in the saved route topology. Select the route again."
+      checkpointMatches.length ===
+        0
+        ? "The selected Movement route no longer exists in the saved route topology."
+        : "The selected Movement route key changed and the checkpoint path is ambiguous. Select the exact generated route again."
     );
   }
-
-  const checkpoints =
-    checkpointIds(
-      page
-    );
 
   const first =
     checkpoints[0]!;

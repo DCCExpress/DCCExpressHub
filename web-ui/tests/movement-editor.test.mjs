@@ -5810,3 +5810,66 @@ test("Movement Plan enforces block overlays without inserting blocks into physic
     /SectionPart "[\s\S]*matches multiple blocks/
   );
 });
+
+
+test("Movement route identity ignores generated topology metadata", () => {
+  const identity =
+    read(
+      "src/services/movementRouteIdentity.ts"
+    );
+
+  const blockPath =
+    identity.slice(
+      identity.indexOf("const blockPath"),
+      identity.indexOf("const nodes")
+    );
+
+  const partPath =
+    identity.slice(
+      identity.indexOf("const partPath"),
+      identity.indexOf("const edgePath")
+    );
+
+  assert.doesNotMatch(
+    blockPath,
+    /nodeIndex/
+  );
+
+  assert.doesNotMatch(
+    partPath,
+    /partIndex|fromSensor|toSensor|locoDirection/
+  );
+
+  assert.match(
+    partPath,
+    /partKey/
+  );
+});
+
+test("Movement runtime recovers a changed routeKey from one exact checkpoint path", () => {
+  const plan =
+    read(
+      "src/services/movementPlan.ts"
+    );
+
+  const select =
+    plan.slice(
+      plan.indexOf("function selectRoute"),
+      plan.indexOf("function uniqueTurnoutStates")
+    );
+
+  assert.match(
+    select,
+    /const checkpointMatches =/
+  );
+
+  assert.match(
+    select,
+    /checkpointMatches\.length ===[\s\S]*1/
+  );
+
+  assert.match(
+    select,
+    /recovered route from checkpoint sequence after routeKey change/
+  );
+});

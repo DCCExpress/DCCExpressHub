@@ -88,7 +88,10 @@ export function createMovementRouteKey(
       []
     ).map(
       block =>
-        `${Number(block.id ?? 0)}@${Number(block.nodeIndex ?? 0)}`
+        Number(
+          block.id ??
+            0
+        )
     );
 
   const nodes =
@@ -118,32 +121,6 @@ export function createMovementRouteKey(
             part.partKey ??
               ""
           ),
-        partIndex:
-          Number(
-            part.partIndex ??
-              0
-          ),
-        fromSensor:
-          part.fromSensor ===
-            null
-            ? null
-            : Number(
-                part.fromSensor ??
-                  0
-              ),
-        toSensor:
-          part.toSensor ===
-            null
-            ? null
-            : Number(
-                part.toSensor ??
-                  0
-              ),
-        direction:
-          String(
-            part.locoDirection ??
-              "unknown"
-          ),
       })
     );
 
@@ -162,11 +139,6 @@ export function createMovementRouteKey(
           String(
             edge.to ??
               ""
-          ),
-        direction:
-          String(
-            edge.locoDirection ??
-              "unknown"
           ),
         turnoutStates:
           normalizedStates(
