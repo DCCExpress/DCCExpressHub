@@ -5098,3 +5098,36 @@ test("Movement source block absorbs its same-sensor incoming section part", () =
     /pushPart\([\s\S]*sourceIncomingPart/
   );
 });
+
+
+test("composite Movement blocks render a segment-colored backing card", () => {
+  const preview =
+    read(
+      "src/components/movement/MovementRouteVectorPreview.tsx"
+    );
+
+  const css =
+    read(
+      "src/styles/movementEditor.css"
+    );
+
+  assert.match(
+    preview,
+    /item\.kind ===[\s\S]*"block"[\s\S]*item\.physicalSegmentNames\.length >[\s\S]*0[\s\S]*movement-route-vector-composite-segment-card/
+  );
+
+  assert.match(
+    preview,
+    /x={[\s\S]*x \+ 5[\s\S]*}[\s\S]*y={33}/
+  );
+
+  assert.match(
+    css,
+    /\.movement-route-vector-composite-segment-card[\s\S]*var\(--mantine-color-gray-6\)/
+  );
+
+  assert.match(
+    css,
+    /pointer-events:\s*none/
+  );
+});
