@@ -878,19 +878,14 @@ export function buildMovementPlan(
           nodeIndex,
           detectors:
             (
-              Array.isArray(
-                part.detectors
-              ) &&
-              part.detectors.length >
-                0
-                ? part.detectors
+              part.toSensor !==
+                null
+                ? [
+                    part.toSensor,
+                  ]
                 : (
-                    part.toSensor !==
-                      null
-                      ? [
-                          part.toSensor,
-                        ]
-                      : []
+                    part.detectors ??
+                    []
                   )
             )
               .filter(
