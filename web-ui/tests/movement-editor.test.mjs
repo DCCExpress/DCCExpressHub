@@ -5542,7 +5542,7 @@ test("Movement composite target block keeps auxiliary physical sensors in safety
   );
 });
 
-test("Movement block placement uses physical part detectors instead of directional boundary sensor", () => {
+test("Movement block placement uses the directional arrival boundary, not physical detector ownership", () => {
   const plan =
     read(
       "src/services/movementPlan.ts"
@@ -5556,22 +5556,22 @@ test("Movement block placement uses physical part detectors instead of direction
 
   assert.match(
     helper,
+    /const arrivalSensor =[\s\S]*part\.toSensor/
+  );
+
+  assert.match(
+    helper,
+    /sensors\.get\([\s\S]*block\.id[\s\S]*===\s*arrivalSensor/
+  );
+
+  assert.doesNotMatch(
+    helper,
     /part\.detectors/
   );
 
   assert.match(
     helper,
-    /detectorSet\.has/
-  );
-
-  assert.doesNotMatch(
-    helper,
-    /part\.toSensor/
-  );
-
-  assert.doesNotMatch(
-    helper,
-    /part\.fromSensor/
+    /Blocks are logical arrival boundaries/
   );
 });
 

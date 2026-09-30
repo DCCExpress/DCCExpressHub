@@ -1084,57 +1084,38 @@ export function buildMovementPlan(
       part:
         RawRoutePart
     ): RawBlockPathEntry | null => {
-      const detectorSet =
-        new Set(
-          (
-            part.detectors ??
-            []
-          ).filter(
-            detector =>
-              Number.isInteger(
-                detector
-              ) &&
-              detector >
-                0
-          )
-        );
+      /*
+       * Blocks are logical arrival boundaries. The physical detector list is
+       * direction-independent, but the block reached by this route part is
+       * the occupancy sensor at the DIRECTIONAL toSensor boundary.
+       *
+       * Never place a block from part.detectors here: in reverse traversal a
+       * detector physically owned by this part may sit at fromSensor and would
+       * move the block to the wrong side of the part.
+       */
+      const arrivalSensor =
+        part.toSensor;
 
       if (
-        detectorSet.size ===
+        arrivalSensor ===
+          null ||
+        !Number.isInteger(
+          arrivalSensor
+        ) ||
+        arrivalSensor <=
           0
       ) {
         return null;
       }
 
-      const matches =
-        route.blockPath.filter(
-          block => {
-            const sensor =
-              sensors.get(
-                block.id
-              );
-
-            return (
-              sensor !==
-                undefined &&
-              detectorSet.has(
-                sensor
-              )
-            );
-          }
-        );
-
-      if (
-        matches.length >
-          1
-      ) {
-        throw new Error(
-          `Movement Vector cannot place SectionPart "${part.partKey}": multiple block occupancy sensors are physically owned by the same part (${matches.map(block => block.name).join(", ")}).`
-        );
-      }
-
       return (
-        matches[0] ??
+        route.blockPath.find(
+          block =>
+            sensors.get(
+              block.id
+            ) ===
+              arrivalSensor
+        ) ??
         null
       );
     };
