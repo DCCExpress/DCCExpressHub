@@ -2311,6 +2311,24 @@ function lockNamesForLeg(
 
   for (
     const resource of
+    [
+      leg.from,
+      ...leg.resources,
+      leg.to,
+    ]
+  ) {
+    for (
+      const segmentName of
+      resource.physicalSegmentNames
+    ) {
+      names.add(
+        `dcc-express-movement-segment:${segmentName}`
+      );
+    }
+  }
+
+  for (
+    const resource of
     leg.resources
   ) {
     if (
