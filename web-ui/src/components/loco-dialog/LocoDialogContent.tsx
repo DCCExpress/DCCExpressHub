@@ -1,4 +1,5 @@
 import {
+  ActionIcon,
   Card,
   Group,
   NumberInput,
@@ -10,6 +11,8 @@ import {
   Image,
   ScrollArea,
 } from "@mantine/core";
+import { IconDots } from "@tabler/icons-react";
+import { useMemo, useState } from "react";
 
 import type { LocoOccupancyDetectionPosition, LocoTrainType } from "@domain/types";
 import LocoActionsTab from "./LocoActionsTab";
@@ -18,6 +21,7 @@ import LocoGeneralTab from "./LocoGeneralTab";
 import LocoCounterSettingsPanel from "./LocoCounterSettingsPanel";
 import LocoStatisticsTable from "./LocoStatisticsTable";
 import LocoListPanel from "./LocoListPanel";
+import TrainTypesDialog from "./TrainTypesDialog";
 import type { useLocoDialogState } from "./useLocoDialogState";
 
 type TFunction = (key: string) => string;
@@ -27,14 +31,6 @@ type LocoDialogContentProps = {
   state: LocoDialogState;
   t: TFunction;
 };
-
-const TRAIN_TYPE_OPTIONS: LocoTrainType[] = [
-  "passenger",
-  "freight",
-  "mixed",
-  "maintenance",
-  "other",
-];
 
 const OCCUPANCY_DETECTION_POSITION_OPTIONS: LocoOccupancyDetectionPosition[] = [
   "forward",
@@ -59,6 +55,8 @@ export default function LocoDialogContent({
     locos,
     functionBindings,
     setFunctionBindings,
+    trainTypes,
+    commitTrainTypes,
     selectedId,
     setSelectedId,
     selectedLoco,
@@ -76,10 +74,36 @@ export default function LocoDialogContent({
     setImageFromFile,
   } = state;
 
-  const trainTypeOptions = TRAIN_TYPE_OPTIONS.map(value => ({
-    value,
-    label: t(`locodialog.trainTypes.${value}`),
-  }));
+  const [trainTypesOpened, setTrainTypesOpened] = useState(false);
+
+  const trainTypeOptions = useMemo(() => {
+    const values = [...trainTypes];
+    const current = selectedLoco?.trainType;
+
+    if (current && !values.includes(current)) {
+      values.push(current);
+    }
+
+    return values.map(value => {
+      const key = `locodialog.trainTypes.${value}`;
+      const translated = t(key);
+
+      return {
+        value,
+        label: translated === key ? value : translated,
+      };
+    });
+  }, [trainTypes, selectedLoco?.trainType, t]);
+
+  const usedTrainTypes = useMemo(
+    () =>
+      new Set(
+        locos
+          .map(loco => loco.trainType)
+          .filter((value): value is string => Boolean(value))
+      ),
+    [locos]
+  );
 
   const occupancyDetectionPositionOptions = OCCUPANCY_DETECTION_POSITION_OPTIONS.map(value => ({
     value,
@@ -172,13 +196,32 @@ export default function LocoDialogContent({
                   onChange={value => updateSelectedLoco({ length: Number(value) || 0 })}
                 />
 
-                <Select
-                  label={t("locodialog.train_type")}
-                  data={trainTypeOptions}
-                  value={selectedLoco.trainType ?? "passenger"}
-                  allowDeselect={false}
-                  onChange={value => updateSelectedLoco({ trainType: (value ?? "passenger") as LocoTrainType })}
-                />
+                <Group align="end" gap="xs" wrap="nowrap">
+                  <Select
+                    label={t("locodialog.train_type")}
+                    data={trainTypeOptions}
+                    value={selectedLoco.trainType ?? trainTypes[0] ?? null}
+                    allowDeselect={false}
+                    searchable
+                    style={{ flex: 1 }}
+                    onChange={value =>
+                      value &&
+                      updateSelectedLoco({
+                        trainType: value as LocoTrainType,
+                      })
+                    }
+                  />
+
+                  <ActionIcon
+                    variant="default"
+                    size={36}
+                    aria-label={t("locodialog.trainTypesEditorTitle")}
+                    title={t("locodialog.trainTypesEditorTitle")}
+                    onClick={() => setTrainTypesOpened(true)}
+                  >
+                    <IconDots size={18} />
+                  </ActionIcon>
+                </Group>
 
                 <Select
                   label={t("locodialog.occupancy_detection_position")}
@@ -221,6 +264,17 @@ export default function LocoDialogContent({
           </Tabs>
         )}
       </Card>
+
+      <TrainTypesDialog
+        opened={trainTypesOpened}
+        trainTypes={trainTypes}
+        usedTrainTypes={usedTrainTypes}
+        onClose={() => setTrainTypesOpened(false)}
+        onCommit={(nextTrainTypes, renames) => {
+          commitTrainTypes(nextTrainTypes, renames);
+          setTrainTypesOpened(false);
+        }}
+      />
     </Group>
   );
 }

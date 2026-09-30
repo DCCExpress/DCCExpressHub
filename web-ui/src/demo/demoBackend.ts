@@ -164,6 +164,33 @@ async function handleDemoFetch(
   }
 
   if (
+    url.pathname === "/api/train-types"
+  ) {
+    if (method === "GET") {
+      return jsonResponse(
+        JSON.parse(
+          storageGet(
+            "train-types",
+            '["passenger","freight","mixed","maintenance","other"]'
+          )
+        )
+      );
+    }
+
+    if (method === "POST") {
+      storageSet(
+        "train-types",
+        await requestBodyText(request)
+      );
+
+      return jsonResponse({
+        ok: true,
+        demo: true,
+      });
+    }
+  }
+
+  if (
     url.pathname === "/api/layout"
   ) {
     if (method === "GET") {

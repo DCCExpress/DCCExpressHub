@@ -32,12 +32,13 @@ export type LocoFunction = {
   active?: boolean;
 };
 
-export type LocoTrainType =
-  | "passenger"
-  | "freight"
-  | "mixed"
-  | "maintenance"
-  | "other";
+/**
+ * User-editable operational train category.
+ *
+ * Values are persisted in train-types.json. The historic built-in values
+ * (passenger/freight/mixed/maintenance/other) are only defaults now.
+ */
+export type LocoTrainType = string;
 
 export type LocoOccupancyDetectionPosition =
   | "forward"

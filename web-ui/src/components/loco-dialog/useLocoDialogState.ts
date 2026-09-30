@@ -12,8 +12,10 @@ import type {
 import {
   getFunctionBindings,
   getLocos,
+  getTrainTypes,
   saveFunctionBindings,
   saveLocos,
+  saveTrainTypes,
 } from "../../api/domainApi";
 import { uploadLocoImage } from "../../api/imageApi";
 import { wsApi } from "../../services/wsApi";
@@ -35,6 +37,7 @@ export function useLocoDialogState(
     functionBindings,
     setFunctionBindings,
   ] = useState<FunctionBinding[]>([]);
+  const [trainTypes, setTrainTypes] = useState<string[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -51,13 +54,16 @@ export function useLocoDialogState(
         const [
           data,
           bindings,
+          loadedTrainTypes,
         ] = await Promise.all([
           loadLocos(),
           getFunctionBindings(),
+          getTrainTypes(),
         ]);
 
         setLocos(data);
         setFunctionBindings(bindings);
+        setTrainTypes(loadedTrainTypes);
         setSelectedId(data[0]?.id ?? "");
       } catch (error) {
         console.error(error);
@@ -102,6 +108,32 @@ export function useLocoDialogState(
 
     return [...unique.values()];
   }, [selectedLoco?.functions]);
+
+  const commitTrainTypes = (
+    nextTrainTypes: string[],
+    renames: Array<{ from: string; to: string }>
+  ): void => {
+    const renameMap = new Map(
+      renames.map(item => [item.from, item.to] as const)
+    );
+
+    setTrainTypes(nextTrainTypes);
+
+    if (renameMap.size === 0) return;
+
+    setLocos(previous =>
+      previous.map(loco => {
+        const currentType = loco.trainType;
+        const nextType = currentType
+          ? renameMap.get(currentType)
+          : undefined;
+
+        return nextType
+          ? { ...loco, trainType: nextType }
+          : loco;
+      })
+    );
+  };
 
   const updateSelectedLoco = (patch: Partial<Loco>): void => {
     if (!selectedLoco) return;
@@ -232,6 +264,9 @@ export function useLocoDialogState(
         saveFunctionBindings(
           functionBindings
         ),
+        saveTrainTypes(
+          trainTypes
+        ),
       ]);
       setMessage(t("common.success"));
       onSaved?.();
@@ -247,6 +282,8 @@ export function useLocoDialogState(
     locos,
     functionBindings,
     setFunctionBindings,
+    trainTypes,
+    commitTrainTypes,
     selectedId,
     setSelectedId,
     loading,
