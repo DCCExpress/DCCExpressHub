@@ -4994,3 +4994,31 @@ test("section parts expose exactly one directional Movement detector", () => {
     /\.slice\([\s\S]*0,[\s\S]*1/
   );
 });
+
+
+test("part-based Movement routes never fall back to whole sections or sensorless parts", () => {
+  const cache =
+    read(
+      "src/services/clientRouteGraphCache.ts"
+    );
+
+  const plan =
+    read(
+      "src/services/movementPlan.ts"
+    );
+
+  assert.match(
+    cache,
+    /entries\.filter\([\s\S]*entry\.toSensor !==[\s\S]*null[\s\S]*entry\.toSensor >/
+  );
+
+  assert.doesNotMatch(
+    plan,
+    /const pushFallbackSegment/
+  );
+
+  assert.doesNotMatch(
+    plan,
+    /pushFallbackSegment\(/
+  );
+});
