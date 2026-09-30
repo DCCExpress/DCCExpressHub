@@ -592,6 +592,124 @@ function buildPersistedBlockPath(
 }
 
 
+function buildSameNodePersistedBlockPath(
+  node: GraphNode,
+  blocks: SectionBlock[],
+  fromBlock: SectionBlock,
+  toBlock: SectionBlock,
+  partPath: PersistedRoutePartEntry[]
+): PersistedRouteBlockEntry[] {
+  const result:
+    PersistedRouteBlockEntry[] = [];
+
+  const seen =
+    new Set<number>();
+
+  const push = (
+    block:
+      SectionBlock
+  ): void => {
+    if (
+      seen.has(
+        block.id
+      )
+    ) {
+      return;
+    }
+
+    seen.add(
+      block.id
+    );
+
+    result.push({
+      id:
+        block.id,
+      name:
+        block.name,
+      nodeIndex:
+        0,
+    });
+  };
+
+  push(
+    fromBlock
+  );
+
+  const blockBySensor =
+    new Map<
+      number,
+      SectionBlock
+    >();
+
+  for (
+    const block of
+    blocks
+  ) {
+    if (
+      block.nodeName !==
+        node.name ||
+      !Number.isInteger(
+        block.sensorAddress
+      ) ||
+      (
+        block.sensorAddress ??
+        0
+      ) <=
+        0
+    ) {
+      continue;
+    }
+
+    blockBySensor.set(
+      block.sensorAddress!,
+      block
+    );
+  }
+
+  for (
+    const part of
+    partPath
+  ) {
+    const sensor =
+      part.toSensor;
+
+    if (
+      sensor ===
+        null ||
+      sensor <=
+        0
+    ) {
+      continue;
+    }
+
+    const block =
+      blockBySensor.get(
+        sensor
+      );
+
+    if (
+      !block ||
+      block.id ===
+        fromBlock.id ||
+      block.id ===
+        toBlock.id
+    ) {
+      continue;
+    }
+
+    push(
+      block
+    );
+  }
+
+  push(
+    toBlock
+  );
+
+  return result;
+}
+
+
 function oppositeRouteDirection(
   direction:
     | "unknown"
@@ -1046,11 +1164,12 @@ function enumerateRouteVariantsForBlockPair(
           toBlockName:
             toBlock.name,
           blockPath:
-            buildPersistedBlockPath(
-              [fromNode],
+            buildSameNodePersistedBlockPath(
+              fromNode,
               blocks,
               fromBlock,
-              toBlock
+              toBlock,
+              route.partPath
             ),
           nodes: [
             fromNode.name,

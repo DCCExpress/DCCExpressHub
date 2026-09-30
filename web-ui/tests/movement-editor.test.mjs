@@ -5305,3 +5305,31 @@ test("Movement rejects duplicate block occupancy sensor addresses without coupli
     /Movement Vector cannot be built: sensor/
   );
 });
+
+
+test("same-section circular routes derive block order from the selected section-part path", () => {
+  const source =
+    read(
+      "src/services/clientRouteGraphCache.ts"
+    );
+
+  assert.match(
+    source,
+    /function buildSameNodePersistedBlockPath/
+  );
+
+  assert.match(
+    source,
+    /for \(\s*const part of\s*partPath\s*\)[\s\S]*part\.toSensor[\s\S]*blockBySensor\.get/
+  );
+
+  assert.match(
+    source,
+    /buildSameNodePersistedBlockPath\([\s\S]*route\.partPath/
+  );
+
+  assert.doesNotMatch(
+    source,
+    /partRoutes\.map\([\s\S]{0,900}buildPersistedBlockPath\(\s*\[fromNode\]/
+  );
+});
