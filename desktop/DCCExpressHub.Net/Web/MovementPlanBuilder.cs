@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Encodings.Web;
 
 namespace DCCExpressHub.Net.Web;
 
@@ -99,6 +100,56 @@ public sealed class MovementPlanBuilder
         return UniqueTurnoutStates(result);
     }
 
+    static string[] ReadIdentityStates(
+        JsonElement parent,
+        string propertyName)
+    {
+        if (!parent.TryGetProperty(propertyName, out var states) ||
+            states.ValueKind != JsonValueKind.Array)
+            return [];
+
+        return states
+            .EnumerateArray()
+            .Select(state =>
+            {
+                var address =
+                    state.TryGetProperty("address", out var addressElement) &&
+                    addressElement.TryGetDouble(out var numeric)
+                        ? numeric
+                        : 0d;
+
+                var closed =
+                    state.TryGetProperty("closed", out var rawClosed) &&
+                    rawClosed.ValueKind == JsonValueKind.True;
+
+                return new
+                {
+                    Address =
+                        address,
+                    Closed =
+                        closed
+                };
+            })
+            .Where(state =>
+                state.Address > 0 &&
+                Math.Abs(
+                    state.Address -
+                    Math.Round(
+                        state.Address)) <
+                    double.Epsilon)
+            .OrderBy(state =>
+                state.Address)
+            .Select(state =>
+                state.Address.ToString(
+                    "0",
+                    System.Globalization.CultureInfo.InvariantCulture) +
+                ":" +
+                (state.Closed
+                    ? "1"
+                    : "0"))
+            .ToArray();
+    }
+
     static string CanonicalRouteKey(
         JsonElement route)
     {
@@ -135,12 +186,9 @@ public sealed class MovementPlanBuilder
                     .Select(edge =>
                     {
                         var states =
-                            ReadTurnoutStates(
+                            ReadIdentityStates(
                                 edge,
-                                "turnoutStates")
-                            .Select(state =>
-                                $"{state.Address}:{(state.Closed ? 1 : 0)}")
-                            .ToArray();
+                                "turnoutStates");
 
                         object[] passages =
                             edge.TryGetProperty("turnoutPath", out var rawPassages) &&
@@ -155,12 +203,9 @@ public sealed class MovementPlanBuilder
                                                     passage,
                                                     "elementId"),
                                             states =
-                                                ReadTurnoutStates(
+                                                ReadIdentityStates(
                                                     passage,
                                                     "turnoutStates")
-                                                .Select(state =>
-                                                    $"{state.Address}:{(state.Closed ? 1 : 0)}")
-                                                .ToArray()
                                         })
                                     .ToArray()
                                 : [];
@@ -212,6 +257,13 @@ public sealed class MovementPlanBuilder
                         route,
                         "locoDirection",
                         "unknown")
+            },
+            new JsonSerializerOptions
+            {
+                Encoder =
+                    JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+                WriteIndented =
+                    false
             });
     }
 
