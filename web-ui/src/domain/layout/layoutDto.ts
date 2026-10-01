@@ -324,12 +324,30 @@ export interface ClockElementDto extends BaseElementDto {
   type: "clcok";
 }
 
+export type BlockEventSensorConditionDto = {
+  sensor: number;
+  state: boolean;
+};
+
+export type BlockDirectionEventConfigDto = {
+  beforeArrive: BlockEventSensorConditionDto[];
+  arrived: BlockEventSensorConditionDto[];
+  beforeLeave: BlockEventSensorConditionDto[];
+  afterLeave: BlockEventSensorConditionDto[];
+};
+
+export type BlockEventConfigDto = {
+  forward: BlockDirectionEventConfigDto;
+  reverse: BlockDirectionEventConfigDto;
+};
+
 export interface BlockElementDto extends TrackElementDto {
   type: "trackblock";
   length: number;
   locoAddress: number;
   sensorAddress: number;
   blockType: BlockType;
+  eventConfig?: BlockEventConfigDto;
 }
 
 export interface TreeElementDto extends BaseElementDto {
