@@ -1,3 +1,7 @@
+import {
+  wsClient,
+} from "./wsClient";
+
 export type MovementBlockWaitingReason =
   | "departureCondition"
   | "targetBlock"
@@ -40,6 +44,9 @@ const listeners =
     Listener
   >();
 
+let installed =
+  false;
+
 function emit(): void {
   for (
     const listener of
@@ -49,9 +56,300 @@ function emit(): void {
   }
 }
 
+function waitingReasonFor(
+  info: string
+): MovementBlockWaitingReason |
+  null {
+  const text =
+    info.toLowerCase();
+
+  if (
+    text.includes(
+      "departure condition"
+    )
+  ) {
+    return "departureCondition";
+  }
+
+  if (
+    text.includes(
+      "turnout lock"
+    )
+  ) {
+    return "turnoutLock";
+  }
+
+  if (
+    text.includes(
+      "safety sensor"
+    )
+  ) {
+    return "segment";
+  }
+
+  if (
+    text.includes(
+      "waiting for block"
+    )
+  ) {
+    return "targetBlock";
+  }
+
+  if (
+    text.includes(
+      "route authority"
+    )
+  ) {
+    return "resourceLock";
+  }
+
+  return null;
+}
+
+function clearOwner(
+  ownerId: string
+): boolean {
+  let changed =
+    false;
+
+  for (
+    const [
+      blockId,
+      state,
+    ] of states
+  ) {
+    if (
+      state.ownerId !==
+        ownerId
+    ) {
+      continue;
+    }
+
+    states.delete(
+      blockId
+    );
+
+    changed =
+      true;
+  }
+
+  return changed;
+}
+
+function install():
+  void {
+  if (installed) {
+    return;
+  }
+
+  installed =
+    true;
+
+  wsClient.on(
+    "movementStateChanged",
+    state => {
+      let changed =
+        clearOwner(
+          state.pageId
+        );
+
+      if (
+        (
+          state.status ===
+            "running" ||
+          state.status ===
+            "stopping" ||
+          state.status ===
+            "error"
+        ) &&
+        state.locoAddress !==
+          null &&
+        state.direction !==
+          null
+      ) {
+        const phase:
+          MovementBlockRuntimePhase =
+          state.status ===
+            "error"
+            ? "error"
+            : state.moving &&
+              state.desiredSpeed >
+                0
+              ? "moving"
+              : "waiting";
+
+        const info =
+          state.info ??
+          "";
+
+        const value:
+          MovementBlockRuntimeState = {
+          ownerId:
+            state.pageId,
+          movementName:
+            state.movementName,
+          locoAddress:
+            state.locoAddress,
+          direction:
+            state.direction,
+          phase,
+          waitingReason:
+            phase ===
+              "waiting"
+              ? waitingReasonFor(
+                  info
+                )
+              : null,
+          info,
+        };
+
+        if (
+          state.currentBlockId !==
+            null
+        ) {
+          states.set(
+            state.currentBlockId,
+            value
+          );
+
+          changed =
+            true;
+        }
+
+        if (
+          state.targetBlockId !==
+            null &&
+          state.targetBlockId !==
+            state.currentBlockId
+        ) {
+          states.set(
+            state.targetBlockId,
+            value
+          );
+
+          changed =
+            true;
+        }
+      }
+
+      if (changed) {
+        emit();
+      }
+    }
+  );
+
+  wsClient.on(
+    "movementSnapshot",
+    data => {
+      let changed =
+        false;
+
+      for (
+        const state of
+        data.states
+      ) {
+        changed =
+          clearOwner(
+            state.pageId
+          ) ||
+          changed;
+
+        if (
+          state.status !==
+            "running" &&
+          state.status !==
+            "stopping" &&
+          state.status !==
+            "error"
+        ) {
+          continue;
+        }
+
+        if (
+          state.locoAddress ===
+            null ||
+          state.direction ===
+            null
+        ) {
+          continue;
+        }
+
+        const phase:
+          MovementBlockRuntimePhase =
+          state.status ===
+            "error"
+            ? "error"
+            : state.moving &&
+              state.desiredSpeed >
+                0
+              ? "moving"
+              : "waiting";
+
+        const value:
+          MovementBlockRuntimeState = {
+          ownerId:
+            state.pageId,
+          movementName:
+            state.movementName,
+          locoAddress:
+            state.locoAddress,
+          direction:
+            state.direction,
+          phase,
+          waitingReason:
+            phase ===
+              "waiting"
+              ? waitingReasonFor(
+                  state.info ??
+                    ""
+                )
+              : null,
+          info:
+            state.info ??
+            "",
+        };
+
+        if (
+          state.currentBlockId !==
+            null
+        ) {
+          states.set(
+            state.currentBlockId,
+            value
+          );
+
+          changed =
+            true;
+        }
+
+        if (
+          state.targetBlockId !==
+            null &&
+          state.targetBlockId !==
+            state.currentBlockId
+        ) {
+          states.set(
+            state.targetBlockId,
+            value
+          );
+
+          changed =
+            true;
+        }
+      }
+
+      if (changed) {
+        emit();
+      }
+    }
+  );
+}
+
 export function getMovementBlockRuntime(
   blockId: number
 ): MovementBlockRuntimeState | null {
+  install();
+
   const state =
     states.get(
       blockId
@@ -64,11 +362,17 @@ export function getMovementBlockRuntime(
     : null;
 }
 
+/*
+ * Kept for source compatibility with older UI code. Runtime authority is now
+ * backend-only; these mutators affect the local rendering cache only.
+ */
 export function setMovementBlockRuntime(
   blockId: number,
   state:
     MovementBlockRuntimeState
 ): void {
+  install();
+
   if (
     !Number.isInteger(
       blockId
@@ -96,6 +400,8 @@ export function clearMovementBlockRuntime(
     null =
       null
 ): void {
+  install();
+
   const current =
     states.get(
       blockId
@@ -127,6 +433,8 @@ export function clearMovementBlockRuntimeByOwnerPhase(
   phase:
     MovementBlockRuntimePhase
 ): void {
+  install();
+
   let changed =
     false;
 
@@ -153,9 +461,7 @@ export function clearMovementBlockRuntimeByOwnerPhase(
       true;
   }
 
-  if (
-    changed
-  ) {
+  if (changed) {
     emit();
   }
 }
@@ -163,38 +469,20 @@ export function clearMovementBlockRuntimeByOwnerPhase(
 export function clearMovementBlockRuntimeByOwner(
   ownerId: string
 ): void {
-  let changed =
-    false;
-
-  for (
-    const [
-      blockId,
-      state,
-    ] of states
-  ) {
-    if (
-      state.ownerId !==
-        ownerId
-    ) {
-      continue;
-    }
-
-    states.delete(
-      blockId
-    );
-
-    changed =
-      true;
-  }
+  install();
 
   if (
-    changed
+    clearOwner(
+      ownerId
+    )
   ) {
     emit();
   }
 }
 
 export function hasMovingMovementBlockRuntime(): boolean {
+  install();
+
   for (
     const state of
     states.values()
@@ -214,6 +502,8 @@ export function subscribeMovementBlockRuntime(
   listener:
     Listener
 ): () => void {
+  install();
+
   listeners.add(
     listener
   );
@@ -224,3 +514,5 @@ export function subscribeMovementBlockRuntime(
     );
   };
 }
+
+install();
