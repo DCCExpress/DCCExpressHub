@@ -1372,5 +1372,8 @@
   "dispatcherAbortAll": "Alle Dispatcher-Bewegungen abbrechen",
   "dispatcherEmergencyStop": "Not-Halt",
   "dispatcherClearEstop": "Not-Halt aufheben",
-  "trainTrackingSectionParts": "Abschnittsteile"
+  "trainTrackingSectionParts": "Abschnittsteile",
+  "trainTrackingNextBlock": "Nächster Block",
+  "trainTrackingPathDialogTitle": "Sensorpfad — Lok #{{address}}",
+  "trainTrackingPathDialogDescription": "Die zuletzt von Train Tracking gespeicherten Sensoren."
 }
