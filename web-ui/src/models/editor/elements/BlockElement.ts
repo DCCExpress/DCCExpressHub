@@ -287,7 +287,7 @@ export class BlockElement extends TrackElement {
         phase *
           0.65;
       ctx.strokeStyle =
-        "#22d3ee";
+        "#ffd43b";
       ctx.lineWidth =
         1;
       ctx.setLineDash([
