@@ -76,7 +76,8 @@ export default function TrainTrackingPanel({
               state.enabled
             }
             disabled={
-              !controlStationActive
+              !controlStationActive ||
+              !state.ready
             }
             label={
               i18next.t(
@@ -155,7 +156,7 @@ export default function TrainTrackingPanel({
             size="xs"
             variant="light"
             disabled={
-              !state.active
+              !controlStationActive
             }
             onClick={
               refreshTrainTracking
@@ -231,6 +232,53 @@ export default function TrainTrackingPanel({
           }
         </Text>
       )}
+
+      {
+        controlStationActive &&
+        !state.ready &&
+        state.readinessIssues.length > 0 &&
+        (
+          <Card
+            withBorder
+            p="xs"
+            radius="sm"
+          >
+            <Stack gap={3}>
+              <Text
+                size="xs"
+                fw={700}
+                c="orange"
+              >
+                {
+                  i18next.t(
+                    "ui.trainTrackingRequirementsMissing",
+                    {
+                      defaultValue:
+                        "Tracking cannot be enabled yet:",
+                    }
+                  )
+                }
+              </Text>
+
+              {
+                state.readinessIssues.map(
+                  issue => (
+                    <Text
+                      key={
+                        issue
+                      }
+                      size="xs"
+                      ff="monospace"
+                    >
+                      • {issue}
+                    </Text>
+                  )
+                )
+              }
+            </Stack>
+          </Card>
+        )
+      }
 
       <Text
         size="xs"
