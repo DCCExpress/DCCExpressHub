@@ -152,6 +152,40 @@ public sealed class TimetableRuntime : BackgroundService
         Publish();
     }
 
+    public int FailDelegatedScripts(
+        string reason)
+    {
+        string[] runIds;
+
+        lock (_gate)
+        {
+            runIds =
+                _activeRuns
+                    .Where(pair =>
+                        pair.Value.TargetType ==
+                            "script")
+                    .Select(pair =>
+                        pair.Key)
+                    .ToArray();
+
+            foreach (var runId in runIds)
+                _activeRuns.Remove(
+                    runId);
+        }
+
+        if (runIds.Length > 0)
+        {
+            _log.LogWarning(
+                "Timetable removed {Count} delegated script run(s): {Reason}",
+                runIds.Length,
+                reason);
+
+            Publish();
+        }
+
+        return runIds.Length;
+    }
+
     public bool CompleteScript(
         string runId,
         bool ok,
