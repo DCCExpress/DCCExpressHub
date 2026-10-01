@@ -299,6 +299,22 @@ const ITEMS: PaletteItem[] = [
     color: "orange",
   },
   {
+    kind: "movementHold",
+    group: "railway",
+    icon: <IconRoute size={16} />,
+    labelKey: "ui.flowNodeMovementHold",
+    fallback: "Movement Hold",
+    color: "red",
+  },
+  {
+    kind: "movementRelease",
+    group: "railway",
+    icon: <IconRoute size={16} />,
+    labelKey: "ui.flowNodeMovementRelease",
+    fallback: "Movement Release",
+    color: "green",
+  },
+  {
     kind: "delay",
     group: "utility",
     icon: <IconClock size={16} />,
