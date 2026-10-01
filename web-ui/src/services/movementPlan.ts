@@ -969,7 +969,6 @@ function afterLeaveRuleFor(
     return configured.map(
       condition => ({
         ...condition,
-        state: !condition.state,
         id: condition.id.replace(
           "-leave-",
           "-afterLeave-"
