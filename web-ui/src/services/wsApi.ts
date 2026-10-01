@@ -307,6 +307,24 @@ class WebSocketApi {
     );
   }
 
+  timetableScriptStatus(
+    runId: string,
+    status:
+      | "running"
+      | "paused",
+    message:
+      string | null
+  ): boolean {
+    return this.send(
+      "timetableScriptStatus",
+      {
+        runId,
+        status,
+        message,
+      }
+    );
+  }
+
   timetableScriptComplete(
     runId: string,
     ok: boolean,
