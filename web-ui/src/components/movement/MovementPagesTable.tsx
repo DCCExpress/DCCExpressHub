@@ -46,12 +46,12 @@ import {
 } from "../../services/automationBlockCatalog";
 
 import {
-  abortMovement,
-  getMovementEngineState,
-  stopMovement,
-  subscribeMovementEngineState,
-  type MovementEngineState,
-} from "../../services/movementEngine";
+  abortDispatcherMovement,
+  getDispatcherState,
+  stopDispatcherMovement,
+  subscribeDispatcherState,
+  type DispatcherState,
+} from "../../services/dispatcherRuntime";
 
 import {
   useCommandCenter,
@@ -336,7 +336,7 @@ function MovementCard({
                   !enabled &&
                   !idle
                 ) {
-                  stopMovement(
+                  stopDispatcherMovement(
                     page.id
                   );
                 }
@@ -436,7 +436,7 @@ export default function MovementPagesTable({
     useState<
       Record<
         string,
-        MovementEngineState
+        DispatcherState
       >
     >({});
 
@@ -486,7 +486,7 @@ export default function MovementPagesTable({
       const unsubscribes =
         document.pages.map(
           page =>
-            subscribeMovementEngineState(
+            subscribeDispatcherState(
               page.id,
               state => {
                 setRuntimeStates(
@@ -505,7 +505,7 @@ export default function MovementPagesTable({
           document.pages.map(
             page => [
               page.id,
-              getMovementEngineState(
+              getDispatcherState(
                 page.id
               ),
             ]
@@ -570,7 +570,7 @@ export default function MovementPagesTable({
         document.pages
       ) {
         if (
-          stopMovement(
+          stopDispatcherMovement(
             page.id
           )
         ) {
@@ -609,7 +609,7 @@ export default function MovementPagesTable({
         document.pages
       ) {
         if (
-          abortMovement(
+          abortDispatcherMovement(
             page.id,
             false
           )
@@ -728,7 +728,7 @@ export default function MovementPagesTable({
           next.pages.map(
             page => {
               const runtime =
-                getMovementEngineState(
+                getDispatcherState(
                   page.id
                 );
 
