@@ -258,14 +258,12 @@ export class BlockElement extends TrackElement {
       ctx.strokeStyle =
         "#ffb000";
       ctx.lineWidth =
-        2 +
-        phase *
-          2;
+        1;
       ctx.strokeRect(
-        blockX - 2,
-        blockY - 2,
-        blockW + 4,
-        blockH + 4
+        blockX - 1,
+        blockY - 1,
+        blockW + 2,
+        blockH + 2
       );
       ctx.restore();
     } else if (
