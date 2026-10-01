@@ -35,10 +35,10 @@ import {
 } from "@/services/scriptInfoRuntime";
 
 import {
-  getMovementEngineState,
-  startMovement,
-  subscribeMovementEngineState,
-} from "@/services/movementEngine";
+  getDispatcherState,
+  startDispatcherMovement,
+  subscribeDispatcherState,
+} from "@/services/dispatcherRuntime";
 
 const MINUTE_MS = 60 * 1000;
 const MINUTES_PER_DAY = 24 * 60;
@@ -618,7 +618,7 @@ class TimetableScheduler {
       `movement:${movement.id}`;
 
     const currentState =
-      getMovementEngineState(
+      getDispatcherState(
         movement.id
       );
 
@@ -694,7 +694,7 @@ class TimetableScheduler {
     this.emit();
 
     const unsubscribeState =
-      subscribeMovementEngineState(
+      subscribeDispatcherState(
         movement.id,
         state => {
           const currentRun =
@@ -734,7 +734,7 @@ class TimetableScheduler {
         }
       );
 
-    void startMovement(
+    void startDispatcherMovement(
       movement
     )
       .catch(
