@@ -731,13 +731,15 @@ export default function AutomationFlowPropertiesPanel({
             description={t("ui.flowTrainEventAllHint", "Empty selection means All.")}
             placeholder={t("ui.flowAll", "All")}
             data={[
-              "approach",
-              "enter",
+              "arrival",
               "arrived",
-              "beforeDepart",
-              "depart",
+              "afterArrived",
+              "beforeLeave",
+              "starting",
               "leave",
               "afterLeave",
+              "approach",
+              "enter",
             ]}
             value={data.trainEventTypes ?? []}
             searchable
