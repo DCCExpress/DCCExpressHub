@@ -246,6 +246,61 @@ class WebSocketApi {
     );
   }
 
+  dispatcherCommand(
+    requestId: string,
+    action:
+      | "snapshot"
+      | "acquireLeg"
+      | "releaseLeg"
+      | "acquireRoute"
+      | "commitRoute"
+      | "releaseRoute"
+      | "releaseAll",
+    values:
+      Record<string, unknown> =
+        {}
+  ): boolean {
+    return this.send(
+      "dispatcherCommand",
+      {
+        requestId,
+        action,
+        ...values,
+      }
+    );
+  }
+
+  dispatcherRequest(
+    requestId: string,
+    action:
+      | "snapshot"
+      | "acquireLeg"
+      | "releaseLeg"
+      | "acquireRoute"
+      | "commitRoute"
+      | "releaseRoute"
+      | "releaseAll",
+    values:
+      Record<string, unknown> =
+        {},
+    timeoutMs =
+      15000
+  ) {
+    return this.request(
+      "dispatcherCommand",
+      {
+        requestId,
+        action,
+        ...values,
+      },
+      "dispatcherResponse",
+      response =>
+        response.requestId ===
+          requestId,
+      timeoutMs
+    );
+  }
+
   movementCommand(
     requestId: string,
     action:
