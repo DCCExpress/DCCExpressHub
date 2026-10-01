@@ -13,6 +13,7 @@ import {
 
 import {
   getTrainTrackingState,
+  installTrainTrackingRuntime,
   subscribeTrainTrackingState,
 } from "./trainTrackingRuntime";
 
@@ -391,6 +392,8 @@ function log(
 
 function ensureTrackingSubscription():
   void {
+  installTrainTrackingRuntime();
+
   if (
     trackingSubscriptionInstalled
   ) {
