@@ -872,6 +872,43 @@ public sealed class MovementRuntime
         }
     }
 
+    bool TargetBlockBasicallyFree(
+        MovementPlanLegModel leg)
+    {
+        if (leg.To.BlockId is null)
+            return false;
+
+        var block =
+            Block(
+                leg.To.BlockId.Value);
+
+        return block is not null &&
+               !block.HasRuntimeState;
+    }
+
+    async Task WaitPreDepartureAvailability(
+        Execution execution,
+        MovementPlanLegModel leg)
+    {
+        var sensors =
+            EffectiveSafetySensors(
+                execution.Page,
+                leg);
+
+        await WaitUntil(
+            execution,
+            () =>
+                TargetBlockBasicallyFree(
+                    leg) &&
+                SafetyFree(
+                    sensors),
+            "Waiting for next leg availability",
+            stopWhileWaiting:
+                true,
+            pollMs:
+                150);
+    }
+
     async Task<DispatcherLegLeaseInfo> AcquireLeg(
         Execution execution,
         MovementPlanLegModel leg)
@@ -910,6 +947,15 @@ public sealed class MovementRuntime
             if (result.Ok && result.Lease is not null)
             {
                 execution.TargetBlockId = leg.To.BlockId;
+
+                Patch(
+                    execution,
+                    info:
+                        "Route authority acquired to " +
+                        leg.To.Name,
+                    setInfo:
+                        true);
+
                 return result.Lease;
             }
 
@@ -956,7 +1002,12 @@ public sealed class MovementRuntime
         }
 
         // BEFORE DEPART intentionally runs before route authority is acquired:
-        // station dwell/audio must never hold turnouts for minutes.
+        // station dwell/audio must never hold turnouts for minutes. Wait only
+        // for basic block/sensor availability here, without taking any locks.
+        await WaitPreDepartureAvailability(
+            execution,
+            leg);
+
         await RunActions(
             execution,
             leg.From.Key,
@@ -1080,15 +1131,14 @@ public sealed class MovementRuntime
 
             await WaitBlockLeave(execution, leg);
 
+            await RunActions(
+                execution,
+                leg.From.Key,
+                "leave");
+
             if (leg.From.BlockId is >= 1 and <= 65535)
                 _layout.RemoveBlock(
                     (ushort)leg.From.BlockId.Value);
-
-            if (leg.LeaveWhen.Length == 0)
-                await RunActions(
-                    execution,
-                    leg.From.Key,
-                    "leave");
 
             await RunActions(
                 execution,
@@ -1121,6 +1171,8 @@ public sealed class MovementRuntime
                     next is not null &&
                     (next.DepartWhen.Length == 0 ||
                      ConditionsSatisfied(next.DepartWhen)) &&
+                    TargetBlockBasicallyFree(
+                        next) &&
                     EffectiveSafetySensors(
                         execution.Page,
                         next)
@@ -1232,6 +1284,9 @@ public sealed class MovementRuntime
                     Status = "idle",
                     StoppedAt = NowMs(),
                     DesiredSpeed = 0,
+                    Moving = false,
+                    CurrentBlockId = execution.CurrentBlockId,
+                    TargetBlockId = null,
                     CurrentResourceKey = null,
                     ActiveRouteResourceKey = null,
                     Info = execution.EmergencyAbort
@@ -1249,7 +1304,9 @@ public sealed class MovementRuntime
             {
                 await ApplySpeed(
                     execution,
-                    force: true);
+                    force: true,
+                    cancellationToken:
+                        CancellationToken.None);
             }
             catch
             {
