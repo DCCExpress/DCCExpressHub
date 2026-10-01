@@ -30,6 +30,7 @@ builder.Services.AddSingleton<ScriptInfoStore>();
 builder.Services.AddSingleton<RuntimeStateStore>();
 builder.Services.AddSingleton<LocoCounterRuntime>();
 builder.Services.AddSingleton<HubFileStorage>();
+builder.Services.AddSingleton<AutomationStorageCoordinator>();
 builder.Services.AddSingleton<CommandCenterConfigStore>();
 builder.Services.AddSingleton<IDccExTransport>(sp =>
     string.Equals(builder.Configuration["DccEx:Transport"], "Serial", StringComparison.OrdinalIgnoreCase)
@@ -583,7 +584,7 @@ app.MapGet("/api/automations/previous", async (IWebHostEnvironment env) =>
         System.Text.Encoding.UTF8);
 });
 
-app.MapPost("/api/automations", async (HttpRequest req, IWebHostEnvironment env) =>
+app.MapPost("/api/automations", async (HttpRequest req, IWebHostEnvironment env, AutomationStorageCoordinator automationStorage) =>
 {
     const int maxBytes = 512 * 1024;
 
@@ -668,49 +669,92 @@ app.MapPost("/api/automations", async (HttpRequest req, IWebHostEnvironment env)
         }
     }
 
-    var finalPath = DataFile(env, "automations.json");
-    var tempPath = finalPath + ".tmp";
-
-    try
-    {
-        Directory.CreateDirectory(Path.GetDirectoryName(finalPath)!);
-
-        // Write to a temporary file first, then atomically replace/move it,
-        // matching the firmware's AtomicFileUpload semantics.
-        memory.Position = 0;
-        await using (var output = new FileStream(
-            tempPath, FileMode.Create, FileAccess.Write, FileShare.None,
-            81920, FileOptions.Asynchronous | FileOptions.WriteThrough))
+    return await automationStorage.ExecuteAsync<IResult>(
+        async () =>
         {
-            await memory.CopyToAsync(output);
-            await output.FlushAsync();
-        }
+            var finalPath =
+                DataFile(
+                    env,
+                    "automations.json");
 
-        var previousPath =
-            DataFile(env, "automations.json.previous");
+            var tempPath =
+                finalPath +
+                ".tmp";
 
-        if (File.Exists(finalPath))
-            File.Copy(
-                finalPath,
-                previousPath,
-                true);
+            try
+            {
+                Directory.CreateDirectory(
+                    Path.GetDirectoryName(
+                        finalPath)!);
 
-        File.Move(tempPath, finalPath, true);
+                // Write to a temporary file first, then atomically replace/move it,
+                // matching the firmware's AtomicFileUpload semantics.
+                memory.Position = 0;
 
-        return Results.Json(new
-        {
-            ok = true,
-            bytes = memory.Length
+                await using (var output = new FileStream(
+                    tempPath,
+                    FileMode.Create,
+                    FileAccess.Write,
+                    FileShare.None,
+                    81920,
+                    FileOptions.Asynchronous |
+                    FileOptions.WriteThrough))
+                {
+                    await memory.CopyToAsync(
+                        output);
+
+                    await output.FlushAsync();
+                }
+
+                var previousPath =
+                    DataFile(
+                        env,
+                        "automations.json.previous");
+
+                if (File.Exists(
+                        finalPath))
+                    File.Copy(
+                        finalPath,
+                        previousPath,
+                        true);
+
+                File.Move(
+                    tempPath,
+                    finalPath,
+                    true);
+
+                return Results.Json(
+                    new
+                    {
+                        ok = true,
+                        bytes =
+                            memory.Length
+                    });
+            }
+            catch
+            {
+                try
+                {
+                    if (File.Exists(
+                            tempPath))
+                        File.Delete(
+                            tempPath);
+                }
+                catch
+                {
+                }
+
+                return Results.Json(
+                    new
+                    {
+                        ok = false,
+                        message =
+                            "Automation atomic rename failed"
+                    },
+                    statusCode:
+                        StatusCodes.Status500InternalServerError);
+            }
         });
-    }
-    catch
-    {
-        try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
-
-        return Results.Json(
-            new { ok = false, message = "Automation atomic rename failed" },
-            statusCode: StatusCodes.Status500InternalServerError);
-    }
 });
 
 
