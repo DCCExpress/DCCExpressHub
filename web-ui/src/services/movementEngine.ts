@@ -5144,6 +5144,70 @@ export function isLocoManagedByActiveMovement(
   );
 }
 
+export function getManagedMovementNextBlock(
+  locoAddress: number,
+  currentBlockId: number
+): {
+  blockId: number;
+  blockName: string;
+} | null {
+  const matches =
+    [
+      ...executions.values(),
+    ]
+      .filter(
+        execution =>
+          !execution.cancelled &&
+          execution.locoAddress ===
+            locoAddress
+      )
+      .flatMap(
+        execution =>
+          execution.plan.legs
+            .filter(
+              leg =>
+                leg.from.blockId ===
+                  currentBlockId &&
+                leg.to.blockId !==
+                  null
+            )
+            .map(
+              leg => ({
+                blockId:
+                  leg.to.blockId!,
+                blockName:
+                  leg.to.name,
+              })
+            )
+      );
+
+  const unique =
+    new Map<
+      number,
+      {
+        blockId: number;
+        blockName: string;
+      }
+    >();
+
+  for (
+    const match of
+    matches
+  ) {
+    unique.set(
+      match.blockId,
+      match
+    );
+  }
+
+  return unique.size ===
+      1
+    ? [
+        ...unique.values(),
+      ][0]!
+    : null;
+}
+
 export function getMovementHoldOwners(
   pageId: string
 ): string[] {
