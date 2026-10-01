@@ -880,8 +880,6 @@ function leaveRuleFor(
   page:
     MovementPage,
   blockId: number,
-  sensors:
-    Map<number, number>,
   layout:
     SerializedLayoutDto,
   direction:
@@ -1989,7 +1987,6 @@ export function buildMovementPlan(
       leaveRuleFor(
         page,
         from.blockId!,
-        sensors,
         layout,
         route.locoDirection
       );
