@@ -443,9 +443,20 @@ export default function TrackCanvas({
           }
         );
 
+      const hasTargetLoco =
+        elements.some(
+          element =>
+            element instanceof BlockElement &&
+            element.locoAddress <= 0 &&
+            getBlockTargetLocoAddress(
+              element.id
+            ) > 0
+        );
+
       const needsBlinkRedraw =
         hasMovingMovementBlockRuntime() ||
         liveLocoMoving ||
+        hasTargetLoco ||
         elements.some(
           element =>
             element instanceof TrackLevelCrossingElement &&
