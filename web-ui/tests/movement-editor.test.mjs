@@ -6008,3 +6008,56 @@ test("Movement turnout release remains retryable until backend ACK", () => {
     /Release is owner-safe and idempotent on both backends/
   );
 });
+
+
+test("Dispatcher and Movement both reject concurrent control of one locomotive", () => {
+  const dispatcher =
+    read(
+      "src/services/dispatcherRuntime.ts"
+    );
+
+  const engine =
+    read(
+      "src/services/movementEngine.ts"
+    );
+
+  assert.match(
+    dispatcher,
+    /const activeLocoOwners =/
+  );
+
+  assert.match(
+    dispatcher,
+    /activeLocoOwners\.get\([\s\S]*loco\.locoAddress/
+  );
+
+  assert.match(
+    dispatcher,
+    /already owned by Dispatcher movement/
+  );
+
+  assert.match(
+    dispatcher,
+    /activeLocoOwners\.set\([\s\S]*loco\.locoAddress,[\s\S]*page\.id/
+  );
+
+  assert.match(
+    dispatcher,
+    /activeLocoOwners\.delete\([\s\S]*loco\.locoAddress/
+  );
+
+  assert.match(
+    engine,
+    /const existingLocoExecution =/
+  );
+
+  assert.match(
+    engine,
+    /execution\.locoAddress ===[\s\S]*locoAddress/
+  );
+
+  assert.match(
+    engine,
+    /is already controlled by Movement/
+  );
+});
