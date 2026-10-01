@@ -12,8 +12,8 @@ import type {
 } from "../../domain/movement";
 
 import type {
-  MovementEngineState,
-} from "../../services/movementEngine";
+  DispatcherState,
+} from "../../services/dispatcherRuntime";
 
 import {
   useMovementTranslation,
@@ -23,7 +23,7 @@ export function movementElapsedSeconds(
   page:
     MovementPage,
   state:
-    MovementEngineState,
+    DispatcherState,
   now:
     number = Date.now()
 ): number | null {
@@ -116,7 +116,7 @@ export function useMovementElapsedSeconds(
   page:
     MovementPage,
   state:
-    MovementEngineState
+    DispatcherState
 ): number | null {
   const [
     now,
@@ -179,7 +179,7 @@ type Props = {
   page:
     MovementPage;
   state:
-    MovementEngineState;
+    DispatcherState;
   compact?: boolean;
 };
 
