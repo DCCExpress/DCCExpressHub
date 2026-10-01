@@ -1371,5 +1371,6 @@
   "dispatcherStopAll": "Stop all Dispatcher trains",
   "dispatcherAbortAll": "Abort all Dispatcher movements",
   "dispatcherEmergencyStop": "Emergency stop",
-  "dispatcherClearEstop": "Clear E-Stop"
+  "dispatcherClearEstop": "Clear E-Stop",
+  "trainTrackingSectionParts": "Section parts"
 }
