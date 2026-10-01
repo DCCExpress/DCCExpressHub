@@ -36,6 +36,7 @@ export type LocoTrackingState = {
   currentBlockId: number | null;
   currentBlockName: string | null;
   currentSensors: number[];
+  currentSectionParts: string[];
   lastSensor: number | null;
   recentSensorPath: number[];
   confidence: LocoTrackingConfidence;
@@ -245,6 +246,8 @@ function copyTracking(
     ...state,
     currentSensors:
       [...state.currentSensors],
+    currentSectionParts:
+      [...state.currentSectionParts],
     recentSensorPath:
       [...state.recentSensorPath],
   };
@@ -688,6 +691,13 @@ function seedTrackingFromBlocks(
       committedRoutes.delete(
         locoAddress
       );
+
+      if (
+        current
+      ) {
+        current.currentSectionParts =
+          [];
+      }
     }
 
     const next:
@@ -709,6 +719,8 @@ function seedTrackingFromBlocks(
               ) ??
               `Block ${blockId}`,
             currentSensors:
+              [],
+            currentSectionParts:
               [],
             lastSensor:
               null,
@@ -1310,6 +1322,75 @@ function routeSensorPath(
   );
 }
 
+function sectionPartsForSensors(
+  route:
+    RawRouteEntry,
+  sensors:
+    number[]
+): string[] {
+  const active =
+    new Set(
+      sensors
+    );
+
+  return (
+    route.partPath ??
+    []
+  )
+    .filter(
+      part => {
+        if (
+          part.fromSensor !==
+            null &&
+          part.fromSensor !==
+            undefined &&
+          active.has(
+            part.fromSensor
+          )
+        ) {
+          return true;
+        }
+
+        if (
+          part.toSensor !==
+            null &&
+          part.toSensor !==
+            undefined &&
+          active.has(
+            part.toSensor
+          )
+        ) {
+          return true;
+        }
+
+        return (
+          part.detectors ??
+          []
+        ).some(
+          detector =>
+            active.has(
+              detector
+            )
+        );
+      }
+    )
+    .map(
+      part =>
+        `${part.nodeName ?? "?"} / ${part.partKey ?? part.partIndex ?? "?"}`
+    )
+    .filter(
+      (
+        value,
+        index,
+        values
+      ) =>
+        values.indexOf(
+          value
+        ) ===
+          index
+    );
+}
+
 function candidateFromRoute(
   tracking:
     LocoTrackingState,
@@ -1615,6 +1696,12 @@ function handleSensorOn(
     );
   }
 
+  state.currentSectionParts =
+    sectionPartsForSensors(
+      candidate.route,
+      state.currentSensors
+    );
+
   state.lastSensor =
     sensor;
 
@@ -1657,6 +1744,9 @@ function handleSensorOn(
     committedRoutes.delete(
       state.locoAddress
     );
+
+    state.currentSectionParts =
+      [];
 
     const movementOwned =
       isLocoManagedByActiveMovement(
@@ -1725,6 +1815,19 @@ function handleSensorOff(
           value !==
             sensor
       );
+
+    const committed =
+      committedRoutes.get(
+        state.locoAddress
+      );
+
+    state.currentSectionParts =
+      committed
+        ? sectionPartsForSensors(
+            committed,
+            state.currentSensors
+          )
+        : [];
 
     state.updatedAt =
       Date.now();
