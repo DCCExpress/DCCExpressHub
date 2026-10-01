@@ -117,3 +117,14 @@ test("Tracking keeps all currently occupied sensors for a long train", () => {
   assert.match(runtime, /state\.currentSensors\.push\(\s*sensor/);
   assert.match(runtime, /state\.currentSensors\s*=\s*state\.currentSensors\.filter/);
 });
+
+
+test("Tracking recommendations stay collapsed by default", () => {
+  const panel = read("src/components/automation/TrainTrackingPanel.tsx");
+
+  assert.match(panel, /<Accordion/);
+  assert.match(panel, /<Accordion\.Item value="tracking-recommendations">/);
+  assert.match(panel, /<Accordion\.Control>/);
+  assert.match(panel, /<Accordion\.Panel>/);
+  assert.doesNotMatch(panel, /defaultValue=\{?["']tracking-recommendations/);
+});
