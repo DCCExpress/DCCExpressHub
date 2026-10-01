@@ -4482,12 +4482,6 @@ async function traverseLeg(
       leg
     );
 
-    emitMovementTrainEvent(
-      execution,
-      "starting",
-      leg.from
-    );
-
     await runActions(
       execution,
       leg.from.key,
@@ -4552,6 +4546,17 @@ async function traverseLeg(
         previousSegment
       );
     }
+
+    /*
+     * STARTING is emitted only at the real motion boundary: all held
+     * authority has been revalidated and the next operation is the non-zero
+     * locomotive speed command.
+     */
+    emitMovementTrainEvent(
+      execution,
+      "starting",
+      leg.from
+    );
 
     execution.moving =
       true;
