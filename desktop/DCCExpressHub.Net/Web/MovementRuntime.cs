@@ -36,6 +36,15 @@ public sealed class MovementResourceEventRule
     public MovementSensorCondition[] Conditions { get; set; } = [];
 }
 
+public sealed class MovementBlockRule
+{
+    public int BlockId { get; set; }
+    public MovementSensorCondition[] ApproachWhen { get; set; } = [];
+    public MovementSensorCondition[] ArrivedWhen { get; set; } = [];
+    public MovementSensorCondition[] DepartWhen { get; set; } = [];
+    public MovementSensorCondition[] LeaveWhen { get; set; } = [];
+}
+
 public sealed class MovementSafetyRule
 {
     public int FromBlockId { get; set; }
@@ -74,6 +83,11 @@ public sealed class MovementPageModel
     public string Name { get; set; } = "";
     public bool Enabled { get; set; } = true;
     public int Speed { get; set; } = 20;
+    public string RouteKey { get; set; } = "";
+    public int? FromBlockId { get; set; }
+    public int[] ViaBlockIds { get; set; } = [];
+    public int? ToBlockId { get; set; }
+    public MovementBlockRule[] BlockRules { get; set; } = [];
     public MovementResourceEventRule[] ResourceEventRules { get; set; } = [];
     public MovementSafetyRule[] SafetyRules { get; set; } = [];
     public MovementActionModel[] Actions { get; set; } = [];
@@ -115,8 +129,7 @@ public sealed class MovementPlanModel
 }
 
 public sealed record MovementStartRequest(
-    MovementPageModel Page,
-    MovementPlanModel Plan);
+    MovementPageModel Page);
 
 /// <summary>
 /// Windows authoritative Movement executor.
@@ -148,6 +161,7 @@ public sealed class MovementRuntime
     readonly object _gate = new();
     readonly LayoutRuntime _layout;
     readonly DispatcherRuntime _dispatcher;
+    readonly MovementPlanBuilder _planBuilder;
     readonly ICommandCenter _commandCenter;
     readonly HubState _hubState;
     readonly IWebHostEnvironment _env;
@@ -163,6 +177,7 @@ public sealed class MovementRuntime
     public MovementRuntime(
         LayoutRuntime layout,
         DispatcherRuntime dispatcher,
+        MovementPlanBuilder planBuilder,
         ICommandCenter commandCenter,
         HubState hubState,
         IWebHostEnvironment env,
@@ -170,6 +185,7 @@ public sealed class MovementRuntime
     {
         _layout = layout;
         _dispatcher = dispatcher;
+        _planBuilder = planBuilder;
         _commandCenter = commandCenter;
         _hubState = hubState;
         _env = env;
@@ -1230,7 +1246,23 @@ public sealed class MovementRuntime
         MovementStartRequest request)
     {
         var page = request.Page;
-        var plan = request.Plan;
+        MovementPlanModel plan;
+
+        try
+        {
+            plan = _planBuilder.Build(page);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(
+                ex,
+                "Movement plan build failed for {Movement}",
+                page.Name);
+
+            return (
+                false,
+                ex.Message);
+        }
 
         if (string.IsNullOrWhiteSpace(page.Id) ||
             string.IsNullOrWhiteSpace(page.Name))
