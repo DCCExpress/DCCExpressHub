@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using DCCExpressHub.Net.CommandCenter;
 
 namespace DCCExpressHub.Net.Web;
@@ -184,6 +185,8 @@ public sealed class MovementRuntime
     readonly Dictionary<string, MovementRuntimeState> _states = new(StringComparer.Ordinal);
     readonly ConcurrentDictionary<string, TaskCompletionSource<bool>> _pendingAudio = new(StringComparer.Ordinal);
     readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web);
+    readonly SemaphoreSlim _timingStorageGate =
+        new(1, 1);
 
     public event Action<MovementRuntimeState>? Changed;
     public event Action<MovementAudioRequest>? AudioRequested;
@@ -520,6 +523,112 @@ public sealed class MovementRuntime
         execution.Moving = false;
         await ApplySpeed(execution, force: true);
         await Task.Delay(150, execution.Cancellation.Token);
+    }
+
+    async Task PersistMovementTimingAsync(
+        string pageId,
+        long? startedAt,
+        long? stoppedAt)
+    {
+        var path =
+            Path.Combine(
+                _env.ContentRootPath,
+                "data",
+                "config",
+                "automations.json");
+
+        if (!File.Exists(path))
+            return;
+
+        await _timingStorageGate.WaitAsync();
+
+        try
+        {
+            var root =
+                JsonNode.Parse(
+                    await File.ReadAllTextAsync(
+                        path)) as
+                    JsonObject;
+
+            var pages =
+                root?["movement"]?["pages"] as
+                    JsonArray;
+
+            if (root is null ||
+                pages is null)
+                return;
+
+            JsonObject? target =
+                null;
+
+            foreach (var node in pages)
+            {
+                if (node is not JsonObject page)
+                    continue;
+
+                var id =
+                    page["id"]?
+                        .GetValue<string>();
+
+                if (string.Equals(
+                        id,
+                        pageId,
+                        StringComparison.Ordinal))
+                {
+                    target =
+                        page;
+                    break;
+                }
+            }
+
+            if (target is null)
+                return;
+
+            target["startedAt"] =
+                startedAt.HasValue
+                    ? JsonValue.Create(
+                        startedAt.Value)
+                    : null;
+
+            target["stoppedAt"] =
+                stoppedAt.HasValue
+                    ? JsonValue.Create(
+                        stoppedAt.Value)
+                    : null;
+
+            var tempPath =
+                path +
+                ".movement-timing.tmp";
+
+            Directory.CreateDirectory(
+                Path.GetDirectoryName(
+                    path)!);
+
+            await File.WriteAllTextAsync(
+                tempPath,
+                root.ToJsonString(
+                    new JsonSerializerOptions
+                    {
+                        WriteIndented =
+                            false
+                    }));
+
+            File.Move(
+                tempPath,
+                path,
+                true);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(
+                ex,
+                "Movement timing could not be persisted for {PageId}",
+                pageId);
+        }
+        finally
+        {
+            _timingStorageGate.Release();
+        }
     }
 
     Dictionary<int, int> LoadFunctionBindingMap(int locoAddress)
@@ -1580,6 +1689,11 @@ public sealed class MovementRuntime
         }
         finally
         {
+            await PersistMovementTimingAsync(
+                execution.Page.Id,
+                execution.State.StartedAt,
+                execution.State.StoppedAt);
+
             lock (_gate)
                 _executions.Remove(
                     execution.Page.Id);
@@ -1687,6 +1801,11 @@ public sealed class MovementRuntime
         }
 
         Changed?.Invoke(execution.State);
+
+        _ = PersistMovementTimingAsync(
+            page.Id,
+            execution.State.StartedAt,
+            null);
 
         _ = Task.Run(
             () => RunExecution(execution));
