@@ -8,8 +8,8 @@ import {
 } from "./controlStationRuntime";
 
 import {
-  isLocoManagedByActiveMovement,
-} from "./movementEngine";
+  isLocoManagedByDispatcherExecution,
+} from "./dispatcherExecutionRuntime";
 
 import {
   wsApi,
@@ -707,7 +707,7 @@ function seedTrackingFromBlocks(
     if (
       current &&
       blockChanged &&
-      isLocoManagedByActiveMovement(
+      isLocoManagedByDispatcherExecution(
         locoAddress
       ) &&
       (
@@ -1965,7 +1965,7 @@ function handleSensorOn(
       [];
 
     const movementOwned =
-      isLocoManagedByActiveMovement(
+      isLocoManagedByDispatcherExecution(
         state.locoAddress
       );
 
