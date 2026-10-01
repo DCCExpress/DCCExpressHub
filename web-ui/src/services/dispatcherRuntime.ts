@@ -684,7 +684,8 @@ export async function startDispatcherMovement(
    */
   try {
     await startMovement(
-      executionPage
+      executionPage,
+      loco.locoAddress
     );
 
     log(
