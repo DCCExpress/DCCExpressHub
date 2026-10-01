@@ -199,6 +199,7 @@ public sealed class MovementRuntime
     public event Action<MovementRuntimeState>? Changed;
     public event Action<MovementAudioRequest>? AudioRequested;
     public event Action<LocoFeedback>? LocoChanged;
+    public event Action? PowerStateChanged;
 
     public MovementRuntime(
         LayoutRuntime layout,
@@ -2637,6 +2638,23 @@ public sealed class MovementRuntime
         return true;
     }
 
+    async Task RequestEmergencyStopAsync()
+    {
+        var ok =
+            await _commandCenter.EmergencyStopAsync(
+                CancellationToken.None);
+
+        if (!ok)
+            return;
+
+        _hubState.EmergencyStop =
+            _commandCenter.EmergencyPauseStateKnown
+                ? _commandCenter.EmergencyPaused
+                : true;
+
+        PowerStateChanged?.Invoke();
+    }
+
     public bool Abort(
         string pageId,
         bool emergencyStop)
@@ -2657,7 +2675,7 @@ public sealed class MovementRuntime
             Stop(pageId);
 
         if (stopped && emergencyStop)
-            _ = _commandCenter.EmergencyStopAsync();
+            _ = RequestEmergencyStopAsync();
 
         return stopped;
     }
@@ -2694,7 +2712,7 @@ public sealed class MovementRuntime
 
         if (emergencyStop &&
             count > 0)
-            _ = _commandCenter.EmergencyStopAsync();
+            _ = RequestEmergencyStopAsync();
 
         return count;
     }
