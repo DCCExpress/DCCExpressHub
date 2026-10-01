@@ -464,9 +464,11 @@ public sealed class TimetableRuntime : BackgroundService
 
                 var cron =
                     entry.TryGetProperty("cron", out var cronElement) &&
-                    cronElement.ValueKind == JsonValueKind.String
-                        ? cronElement.GetString() ?? ""
-                        : "";
+                    cronElement.ValueKind == JsonValueKind.String &&
+                    !string.IsNullOrWhiteSpace(
+                        cronElement.GetString())
+                        ? cronElement.GetString()!.Trim()
+                        : "0 *";
 
                 var actions =
                     new List<TimetableAction>();
@@ -502,6 +504,55 @@ public sealed class TimetableRuntime : BackgroundService
                                     targetType,
                                     targetId));
                     }
+                }
+
+                if (actions.Count == 0)
+                {
+                    var legacyTargetType =
+                        entry.TryGetProperty(
+                            "targetType",
+                            out var legacyTypeElement) &&
+                        legacyTypeElement.ValueKind ==
+                            JsonValueKind.String &&
+                        string.Equals(
+                            legacyTypeElement.GetString(),
+                            "movement",
+                            StringComparison.Ordinal)
+                            ? "movement"
+                            : "script";
+
+                    var legacyTargetId =
+                        entry.TryGetProperty(
+                            "targetId",
+                            out var legacyTargetElement) &&
+                        legacyTargetElement.ValueKind ==
+                            JsonValueKind.String
+                            ? (
+                                legacyTargetElement.GetString() ??
+                                ""
+                              ).Trim()
+                            : "";
+
+                    if (legacyTargetId.Length == 0 &&
+                        legacyTargetType == "script" &&
+                        entry.TryGetProperty(
+                            "scriptId",
+                            out var legacyScriptElement) &&
+                        legacyScriptElement.ValueKind ==
+                            JsonValueKind.String)
+                        legacyTargetId =
+                            (
+                                legacyScriptElement.GetString() ??
+                                ""
+                            ).Trim();
+
+                    if (legacyTargetId.Length > 0)
+                        actions.Add(
+                            new(
+                                "legacy:" +
+                                    id,
+                                legacyTargetType,
+                                legacyTargetId));
                 }
 
                 if (id.Length > 0 &&
