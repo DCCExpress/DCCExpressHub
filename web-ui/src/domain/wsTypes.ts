@@ -128,6 +128,7 @@ export const CLIENT_WS_MESSAGE_TYPES = [
   "movementCommand",
   "movementAudioComplete",
   "timetableCommand",
+  "timetableScriptStatus",
   "timetableScriptComplete",
   "setTrackPower",
   "setProgrammingPower",
