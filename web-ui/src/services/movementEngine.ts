@@ -3435,6 +3435,31 @@ function arrivalSatisfied(
   leg:
     MovementPlanLeg
 ): boolean {
+  const destinationSensor =
+    leg.to.sensorAddress;
+
+  /*
+   * A configured ARRIVED rule may refine the exact stopping/arrival point,
+   * but it must never move the locomotive into a logical block by itself.
+   *
+   * Physical block membership is authoritative only when that block's own
+   * occupancy sensor is ON. Without this guard a stale/custom ARRIVED rule
+   * (for example one still referencing the previous block sensor) can make
+   * Movement commit the locomotive into the next block before it has
+   * physically reached it. Tracking then legitimately consumes that false
+   * block assignment and appears to "jump ahead".
+   */
+  if (
+    destinationSensor ===
+      null ||
+    sensorStates.get(
+      destinationSensor
+    ) !==
+      true
+  ) {
+    return false;
+  }
+
   return conditionsSatisfied(
     leg.arrivedWhen
   );
@@ -3949,7 +3974,7 @@ async function waitForArrival(
     0
   ) {
     throw new Error(
-      `Block "${leg.to.name}" has no arrival condition or occupancy sensor.`
+      `Block "${leg.to.name}" has no ARRIVED condition or occupancy sensor.`
     );
   }
 
