@@ -4,6 +4,7 @@ import {
   Button,
   Card,
   Group,
+  Modal,
   Table,
   ScrollArea,
   Stack,
@@ -59,6 +60,25 @@ export default function TrainTrackingPanel({
     useState<TrainTrackingState>(
       getTrainTrackingState
     );
+
+  const [
+    pathLocoAddress,
+    setPathLocoAddress,
+  ] =
+    useState<number | null>(
+      null
+    );
+
+  const pathLoco =
+    pathLocoAddress ===
+      null
+      ? null
+      : state.locos.find(
+          loco =>
+            loco.locoAddress ===
+              pathLocoAddress
+        ) ??
+        null;
 
   useEffect(
     () => {
@@ -436,6 +456,18 @@ export default function TrainTrackingPanel({
                     <Table.Th>
                       {
                         i18next.t(
+                          "ui.trainTrackingNextBlock",
+                          {
+                            defaultValue:
+                              "Next block",
+                          }
+                        )
+                      }
+                    </Table.Th>
+
+                    <Table.Th>
+                      {
+                        i18next.t(
                           "ui.trainTrackingActiveSensors",
                           {
                             defaultValue:
@@ -544,6 +576,13 @@ export default function TrainTrackingPanel({
                             }
                           </Table.Td>
 
+                          <Table.Td>
+                            {
+                              loco.predictedNextBlockName ??
+                              "-"
+                            }
+                          </Table.Td>
+
                           <Table.Td
                             ff="monospace"
                           >
@@ -605,19 +644,56 @@ export default function TrainTrackingPanel({
                             </Badge>
                           </Table.Td>
 
-                          <Table.Td
-                            ff="monospace"
-                            c="dimmed"
-                          >
+                          <Table.Td>
                             {
                               loco.recentSensorPath.length >
                                 0
-                                ? loco.recentSensorPath
-                                    .map(
-                                      sensor =>
-                                        `#${sensor}`
-                                    )
-                                    .join(" → ")
+                                ? (
+                                  <Button
+                                    size="compact-xs"
+                                    variant="subtle"
+                                    color="gray"
+                                    ff="monospace"
+                                    onClick={
+                                      () =>
+                                        setPathLocoAddress(
+                                          loco.locoAddress
+                                        )
+                                    }
+                                    styles={{
+                                      label: {
+                                        maxWidth:
+                                          180,
+                                        overflow:
+                                          "hidden",
+                                        textOverflow:
+                                          "ellipsis",
+                                        whiteSpace:
+                                          "nowrap",
+                                      },
+                                    }}
+                                  >
+                                    {
+                                      (
+                                        loco.recentSensorPath.length >
+                                          4
+                                          ? "… → "
+                                          : ""
+                                      ) +
+                                      loco.recentSensorPath
+                                        .slice(
+                                          -4
+                                        )
+                                        .map(
+                                          sensor =>
+                                            `#${sensor}`
+                                        )
+                                        .join(
+                                          " → "
+                                        )
+                                    }
+                                  </Button>
+                                )
                                 : "-"
                             }
                           </Table.Td>
@@ -743,6 +819,77 @@ export default function TrainTrackingPanel({
           }
         </Stack>
       </ScrollArea>
+
+      <Modal
+        opened={
+          pathLoco !==
+            null
+        }
+        onClose={
+          () =>
+            setPathLocoAddress(
+              null
+            )
+        }
+        title={
+          pathLoco
+            ? i18next.t(
+                "ui.trainTrackingPathDialogTitle",
+                {
+                  defaultValue:
+                    "Sensor path — locomotive #{{address}}",
+                  address:
+                    pathLoco.locoAddress,
+                }
+              )
+            : ""
+        }
+        centered
+        size="lg"
+      >
+        <Stack gap="xs">
+          <Text
+            size="xs"
+            c="dimmed"
+          >
+            {
+              i18next.t(
+                "ui.trainTrackingPathDialogDescription",
+                {
+                  defaultValue:
+                    "Recent sensors retained by Train Tracking.",
+                }
+              )
+            }
+          </Text>
+
+          <Text
+            ff="monospace"
+            size="sm"
+            style={{
+              whiteSpace:
+                "normal",
+              overflowWrap:
+                "anywhere",
+            }}
+          >
+            {
+              pathLoco &&
+              pathLoco.recentSensorPath.length >
+                0
+                ? pathLoco.recentSensorPath
+                    .map(
+                      sensor =>
+                        `#${sensor}`
+                    )
+                    .join(
+                      " → "
+                    )
+                : "-"
+            }
+          </Text>
+        </Stack>
+      </Modal>
     </Stack>
   );
 }
