@@ -11,57 +11,48 @@ function read(relativePath) {
   return fs.readFileSync(path.join(webUiRoot, relativePath), "utf8");
 }
 
-test("blocks persist direction-aware event sensor configuration", () => {
+test("blocks persist independent Forward and Reverse physical sensor groups", () => {
   const dto = read("src/domain/layout/layoutDto.ts");
   const block = read("src/models/editor/elements/BlockElement.ts");
 
   assert.match(dto, /BlockEventConfigDto/);
   assert.match(dto, /forward:\s*BlockDirectionEventConfigDto/);
   assert.match(dto, /reverse:\s*BlockDirectionEventConfigDto/);
-  assert.match(dto, /beforeArrive:\s*BlockEventSensorConditionDto\[\]/);
-  assert.match(dto, /afterLeave:\s*BlockEventSensorConditionDto\[\]/);
-  assert.match(dto, /eventConfig\?:\s*BlockEventConfigDto/);
+  assert.match(dto, /arrival:\s*BlockEventSensorConditionDto\[\]/);
+  assert.match(dto, /arrived:\s*BlockEventSensorConditionDto\[\]/);
+  assert.match(dto, /leave:\s*BlockEventSensorConditionDto\[\]/);
+  assert.doesNotMatch(dto, /beforeArrive:\s*BlockEventSensorConditionDto\[\]/);
+  assert.doesNotMatch(dto, /beforeLeave:\s*BlockEventSensorConditionDto\[\]/);
 
-  assert.match(block, /eventConfig:\s*BlockEventConfigDto\s*=\s*emptyBlockEventConfig\(\)/);
-  assert.match(block, /element\.eventConfig\s*=\s*normalizeBlockEventConfig\(data\.eventConfig\)/);
+  assert.match(block, /candidate\.arrival\s*\?\?\s*candidate\.beforeArrive/);
+  assert.match(block, /candidate\.leave\s*\?\?/);
   assert.match(block, /eventConfig:\s*normalizeBlockEventConfig\(this\.eventConfig\)/);
 });
 
-test("Movement uses explicit rules, then directional block events, then occupancy fallback", () => {
+test("Movement maps block sensor groups to physical lifecycle boundaries", () => {
   const plan = read("src/services/movementPlan.ts");
 
   assert.match(plan, /blockEventConditionsFor/);
-  assert.match(plan, /direction\s*===\s*"unknown"[\s\S]*return \[\]/);
-  assert.match(plan, /"beforeArrive"/);
+  assert.match(plan, /"arrival"/);
   assert.match(plan, /"arrived"/);
-  assert.match(plan, /"beforeLeave"/);
-  assert.match(plan, /"afterLeave"/);
-
-  assert.match(
-    plan,
-    /explicit\.arrivedWhen\.length[\s\S]*blockEventConditionsFor\([\s\S]*"arrived"[\s\S]*destinationSensor/
-  );
-
-  assert.match(
-    plan,
-    /explicit\.leaveWhen\.length[\s\S]*blockEventConditionsFor\([\s\S]*"afterLeave"[\s\S]*sensors\.get/
-  );
-
+  assert.match(plan, /"leave"/);
+  assert.match(plan, /afterLeaveRuleFor/);
+  assert.match(plan, /state:\s*false/);
   assert.match(plan, /route\.locoDirection/);
 });
 
-test("block property editor exposes Forward and Reverse with a directional SVG", () => {
+test("block property editor exposes exactly Arrival, Arrived and Leave per direction", () => {
   const page = read("src/LiteLayoutPage.tsx");
   const editor = read("src/layout/property-panel/BlockEventConfigPropertyEditor.tsx");
 
   assert.match(page, /BlockEventConfigPropertyEditor/);
   assert.match(page, /selectedElement instanceof BlockElement/);
 
-  assert.match(editor, /<svg/);
-  assert.match(editor, /FORWARD/);
-  assert.match(editor, /REVERSE/);
-  assert.match(editor, /BEFORE · LEFT/);
-  assert.match(editor, /AFTER · LEFT/);
+  assert.match(editor, /SENSOR_GROUP_ORDER/);
+  assert.match(editor, /"arrival"/);
+  assert.match(editor, /"arrived"/);
+  assert.match(editor, /"leave"/);
   assert.match(editor, /Tabs\.Tab value="forward"/);
   assert.match(editor, /Tabs\.Tab value="reverse"/);
+  assert.doesNotMatch(editor, /<Switch/);
 });
