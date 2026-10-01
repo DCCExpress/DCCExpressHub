@@ -298,12 +298,12 @@ function DirectionDiagram({
   return (
     <div>
       <svg
-        viewBox="0 0 360 158"
+        viewBox="0 0 360 176"
         role="img"
         aria-label={reverse ? text.directionHelpReverse : text.directionHelpForward}
         style={{
           width: "100%",
-          maxHeight: 185,
+          maxHeight: 195,
           display: "block",
         }}
       >
@@ -444,9 +444,9 @@ function DirectionDiagram({
 
         <SensorConditionMarker
           conditions={events.beforeArrive}
-          x={55}
+          x={reverse ? 305 : 55}
           y={116}
-          align="start"
+          align={reverse ? "end" : "start"}
         />
 
         <SensorConditionMarker
@@ -458,9 +458,9 @@ function DirectionDiagram({
 
         <SensorConditionMarker
           conditions={events.beforeLeave}
-          x={305}
+          x={reverse ? 55 : 305}
           y={116}
-          align="end"
+          align={reverse ? "start" : "end"}
         />
 
         {events.afterLeave.length > 0 && (
