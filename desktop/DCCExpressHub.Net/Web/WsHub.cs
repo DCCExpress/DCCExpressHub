@@ -812,24 +812,18 @@ public sealed class WsHub
             case "start":
                 {
                     if (data.ValueKind != JsonValueKind.Object ||
-                        !data.TryGetProperty("page", out var pageJson) ||
-                        !data.TryGetProperty("plan", out var planJson))
+                        !data.TryGetProperty("page", out var pageJson))
                     {
                         await Reply(false, "invalid_movement_start");
                         return;
                     }
 
                     MovementPageModel? page;
-                    MovementPlanModel? plan;
 
                     try
                     {
                         page = JsonSerializer.Deserialize<MovementPageModel>(
                             pageJson.GetRawText(),
-                            Json);
-
-                        plan = JsonSerializer.Deserialize<MovementPlanModel>(
-                            planJson.GetRawText(),
                             Json);
                     }
                     catch (JsonException)
@@ -838,7 +832,7 @@ public sealed class WsHub
                         return;
                     }
 
-                    if (page is null || plan is null)
+                    if (page is null)
                     {
                         await Reply(false, "invalid_movement_start");
                         return;
@@ -847,8 +841,7 @@ public sealed class WsHub
                     var result =
                         Movement.Start(
                             new MovementStartRequest(
-                                page,
-                                plan));
+                                page));
 
                     await Reply(
                         result.Ok,
