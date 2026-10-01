@@ -199,6 +199,7 @@ public sealed class MovementRuntime
 
     public event Action<MovementRuntimeState>? Changed;
     public event Action<MovementAudioRequest>? AudioRequested;
+    public event Action<LocoFeedback>? LocoChanged;
 
     public MovementRuntime(
         LayoutRuntime layout,
@@ -521,12 +522,59 @@ public sealed class MovementRuntime
                     execution.Cancellation.Token))
             throw new InvalidOperationException("movement_loco_command_failed");
 
-        _hubState.Locos[execution.LocoAddress] =
+        var updated =
             live with
             {
                 Speed = speed,
                 Forward = execution.Forward
             };
+
+        _hubState.Locos[
+            execution.LocoAddress] =
+            updated;
+
+        LocoChanged?.Invoke(
+            updated);
+    }
+
+    void ApplyFunctionState(
+        Execution execution,
+        int functionNumber,
+        bool active)
+    {
+        if (functionNumber is < 0 or > 31)
+            return;
+
+        var live =
+            _hubState.Locos.GetValueOrDefault(
+                execution.LocoAddress,
+                new(
+                    execution.LocoAddress,
+                    0,
+                    execution.Forward,
+                    0));
+
+        var bit =
+            1u <<
+            functionNumber;
+
+        var updated =
+            live with
+            {
+                FunctionsMask =
+                    active
+                        ? live.FunctionsMask |
+                          bit
+                        : live.FunctionsMask &
+                          ~bit
+            };
+
+        _hubState.Locos[
+            execution.LocoAddress] =
+            updated;
+
+        LocoChanged?.Invoke(
+            updated);
     }
 
     async Task ArmDirection(Execution execution)
@@ -920,12 +968,23 @@ public sealed class MovementRuntime
                             ? bound
                             : action.FunctionNumber;
 
+                    fn =
+                        Math.Clamp(
+                            fn,
+                            0,
+                            68);
+
                     if (!await _commandCenter.SetLocoFunctionAsync(
                             execution.LocoAddress,
-                            Math.Clamp(fn, 0, 68),
+                            fn,
                             action.FunctionActive,
                             execution.Cancellation.Token))
                         throw new InvalidOperationException("movement_function_command_failed");
+
+                    ApplyFunctionState(
+                        execution,
+                        fn,
+                        action.FunctionActive);
 
                     return;
                 }
@@ -949,6 +1008,11 @@ public sealed class MovementRuntime
                             execution.Cancellation.Token))
                         throw new InvalidOperationException("movement_horn_on_failed");
 
+                    ApplyFunctionState(
+                        execution,
+                        fn,
+                        true);
+
                     try
                     {
                         await Task.Delay(
@@ -957,11 +1021,15 @@ public sealed class MovementRuntime
                     }
                     finally
                     {
-                        await _commandCenter.SetLocoFunctionAsync(
-                            execution.LocoAddress,
-                            fn,
-                            false,
-                            CancellationToken.None);
+                        if (await _commandCenter.SetLocoFunctionAsync(
+                                execution.LocoAddress,
+                                fn,
+                                false,
+                                CancellationToken.None))
+                            ApplyFunctionState(
+                                execution,
+                                fn,
+                                false);
                     }
 
                     return;
@@ -2334,14 +2402,20 @@ public sealed class MovementRuntime
                                     execution.Forward,
                                     0));
 
-                        _hubState.Locos[
-                            execution.LocoAddress] =
+                        var updated =
                             old with
                             {
                                 Speed = 0,
                                 Forward =
                                     execution.Forward
                             };
+
+                        _hubState.Locos[
+                            execution.LocoAddress] =
+                            updated;
+
+                        LocoChanged?.Invoke(
+                            updated);
                     }
                 },
                 CancellationToken.None,
