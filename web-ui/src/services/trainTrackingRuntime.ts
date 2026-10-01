@@ -53,6 +53,7 @@ export type TrainTrackingState = {
   enabled: boolean;
   active: boolean;
   ready: boolean;
+  readinessIssues: string[];
   locos: LocoTrackingState[];
   logs: TrainTrackingLogEntry[];
 };
@@ -83,6 +84,19 @@ type RawRoutePart = {
   fromSensor?: number | null;
   toSensor?: number | null;
   detectors?: number[];
+};
+
+type RawGraphSectionPart = {
+  key?: string;
+  index?: number;
+  detectors?: number[];
+  fromSensor?: number | null;
+  toSensor?: number | null;
+};
+
+type RawGraphNode = {
+  name?: string;
+  sectionParts?: RawGraphSectionPart[];
 };
 
 type RawRouteEntry = {
@@ -136,6 +150,10 @@ let installed =
 
 let ready =
   false;
+
+let readinessIssues:
+  string[] =
+  [];
 
 let loading =
   false;
@@ -200,6 +218,7 @@ function trackingId(): string {
 function active(): boolean {
   return (
     enabled &&
+    ready &&
     isControlStationRuntimeActive()
   );
 }
@@ -223,6 +242,8 @@ function snapshot(): TrainTrackingState {
     active:
       active(),
     ready,
+    readinessIssues:
+      [...readinessIssues],
     locos:
       [...locoTracking.values()]
         .map(copyTracking)
@@ -760,6 +781,146 @@ function seedTrackingFromBlocks(
   }
 }
 
+function validateTrackingTopology(
+  layout:
+    Record<string, unknown>,
+  topology:
+    Record<string, unknown> | null
+): string[] {
+  const issues:
+    string[] =
+    [];
+
+  /*
+   * Every logical block must provide an occupancy sensor. Without this there
+   * is no reliable anchor when a locomotive is manually assigned to a block.
+   */
+  for (
+    const [
+      blockId,
+      name,
+    ] of blockNames
+  ) {
+    if (
+      !blockIdToSensor.has(
+        blockId
+      )
+    ) {
+      issues.push(
+        `Block "${name}" has no occupancy sensor.`
+      );
+    }
+  }
+
+  const graph =
+    objectValue(
+      topology?.graph
+    );
+
+  const nodes =
+    Array.isArray(
+      graph?.nodes
+    )
+      ? graph.nodes
+      : [];
+
+  let sectionPartCount =
+    0;
+
+  for (
+    const rawNode of
+    nodes
+  ) {
+    const node =
+      objectValue(
+        rawNode
+      ) as RawGraphNode | null;
+
+    if (!node) {
+      continue;
+    }
+
+    const parts =
+      Array.isArray(
+        node.sectionParts
+      )
+        ? node.sectionParts
+        : [];
+
+    for (
+      const rawPart of
+      parts
+    ) {
+      const part =
+        objectValue(
+          rawPart
+        ) as RawGraphSectionPart | null;
+
+      if (!part) {
+        continue;
+      }
+
+      sectionPartCount +=
+        1;
+
+      const sensors =
+        uniqueSensors([
+          part.fromSensor,
+          ...(
+            Array.isArray(
+              part.detectors
+            )
+              ? part.detectors
+              : []
+          ),
+          part.toSensor,
+        ]);
+
+      if (
+        sensors.length ===
+          0
+      ) {
+        const nodeName =
+          String(
+            node.name ??
+            "?"
+          );
+
+        const partName =
+          String(
+            part.key ??
+            part.index ??
+            "?"
+          );
+
+        issues.push(
+          `SectionPart "${nodeName} / ${partName}" has no sensor.`
+        );
+      }
+    }
+  }
+
+  if (
+    sectionPartCount ===
+      0
+  ) {
+    issues.push(
+      "Route graph has no SectionParts."
+    );
+  }
+
+  if (
+    routeTable.length ===
+      0
+  ) {
+    issues.push(
+      "Route graph has no routes."
+    );
+  }
+
+  return issues;
+}
+
 async function refreshTopology(): Promise<void> {
   if (loading) {
     return;
@@ -842,10 +1003,14 @@ async function refreshTopology(): Promise<void> {
       blockStates
     );
 
+    readinessIssues =
+      validateTrackingTopology(
+        layout,
+        topology
+      );
+
     ready =
-      routeTable.length >
-        0 &&
-      blockSensorToId.size >
+      readinessIssues.length ===
         0;
 
     log(
@@ -854,13 +1019,22 @@ async function refreshTopology(): Promise<void> {
         : "warn",
       ready
         ? `Tracking topology ready: ${routeTable.length} routes, ${blockSensorToId.size} block sensors.`
-        : "Tracking topology is incomplete. Generate/save the route graph and configure block occupancy sensors."
+        : `Tracking cannot start: ${readinessIssues.join(" ")}`
     );
   } catch (
     error
   ) {
     ready =
       false;
+
+    readinessIssues =
+      [
+        error instanceof Error
+          ? error.message
+          : String(
+              error
+            ),
+      ];
 
     log(
       "error",
@@ -1820,6 +1994,23 @@ export function setTrainTrackingEnabled(
     Boolean(
       value
     );
+
+  if (
+    next &&
+    !ready
+  ) {
+    log(
+      "warn",
+      readinessIssues.length >
+        0
+        ? `Tracking cannot be enabled: ${readinessIssues.join(" ")}`
+        : "Tracking cannot be enabled until the graph has been validated."
+    );
+
+    emit();
+
+    return;
+  }
 
   if (
     enabled ===
