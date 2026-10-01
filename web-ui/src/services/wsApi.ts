@@ -285,6 +285,49 @@ class WebSocketApi {
     );
   }
 
+  timetableCommand(
+    requestId: string,
+    action:
+      | "snapshot"
+      | "start"
+      | "stop"
+      | "rebase"
+      | "setFinishing",
+    finishing?: boolean
+  ): boolean {
+    return this.send(
+      "timetableCommand",
+      {
+        requestId,
+        action,
+        ...(finishing === undefined
+          ? {}
+          : {
+              finishing,
+            }),
+      }
+    );
+  }
+
+  timetableScriptComplete(
+    runId: string,
+    ok: boolean,
+    message?: string
+  ): boolean {
+    return this.send(
+      "timetableScriptComplete",
+      {
+        runId,
+        ok,
+        ...(message
+          ? {
+              message,
+            }
+          : {}),
+      }
+    );
+  }
+
   writeDccExDirectCommand(command: string): boolean {
     return this.send("writeDccExDirectCommand", { command });
   }
