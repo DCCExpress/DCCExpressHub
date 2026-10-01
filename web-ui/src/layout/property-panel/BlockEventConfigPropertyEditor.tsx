@@ -4,6 +4,7 @@ import {
   Button,
   Card,
   Group,
+  ScrollArea,
   Select,
   Stack,
   Switch,
@@ -562,46 +563,89 @@ export default function BlockEventConfigPropertyEditor({
         size="lg"
         centered
         draggable
+        styles={{
+          content: {
+            height: "82vh",
+            maxHeight: "82vh",
+            overflow: "hidden",
+          },
+          body: {
+            height: "calc(82vh - 48px)",
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
+          },
+        }}
       >
-        <Stack gap="sm">
+        <Stack
+          gap="sm"
+          h="100%"
+          style={{
+            minHeight: 0,
+          }}
+        >
           <Tabs
             value={direction}
             onChange={value => setDirection(value === "reverse" ? "reverse" : "forward")}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              flex: 1,
+              minHeight: 0,
+            }}
           >
             <Tabs.List grow>
               <Tabs.Tab value="forward">{text.forward} →</Tabs.Tab>
               <Tabs.Tab value="reverse">← {text.reverse}</Tabs.Tab>
             </Tabs.List>
+
+            <Stack
+              gap="sm"
+              mt="sm"
+              style={{
+                flex: 1,
+                minHeight: 0,
+              }}
+            >
+              <DirectionDiagram
+                direction={direction}
+                blockName={block.name}
+                occupancySensor={block.sensorAddress}
+              />
+
+              <Group justify="flex-end">
+                <Button
+                  size="compact-xs"
+                  variant="subtle"
+                  onClick={() =>
+                    copyDirection(
+                      direction,
+                      direction === "forward" ? "reverse" : "forward"
+                    )
+                  }
+                >
+                  {direction === "forward"
+                    ? text.copyToReverse
+                    : text.copyToForward}
+                </Button>
+              </Group>
+
+              <ScrollArea
+                style={{
+                  flex: 1,
+                  minHeight: 0,
+                }}
+                type="auto"
+                offsetScrollbars
+              >
+                <Stack gap="xs" pr="xs">
+                  {EVENT_ORDER.map(renderEvent)}
+                </Stack>
+              </ScrollArea>
+            </Stack>
           </Tabs>
 
-          <DirectionDiagram
-            direction={direction}
-            blockName={block.name}
-            occupancySensor={block.sensorAddress}
-          />
-
           <Group justify="flex-end">
-            <Button
-              size="compact-xs"
-              variant="subtle"
-              onClick={() =>
-                copyDirection(
-                  direction,
-                  direction === "forward" ? "reverse" : "forward"
-                )
-              }
-            >
-              {direction === "forward"
-                ? text.copyToReverse
-                : text.copyToForward}
-            </Button>
-          </Group>
-
-          <Stack gap="xs">
-            {EVENT_ORDER.map(renderEvent)}
-          </Stack>
-
-          <Group justify="flex-end" mt="xs">
             <Button variant="default" onClick={() => setOpened(false)}>
               {text.cancel}
             </Button>
