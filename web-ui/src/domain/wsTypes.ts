@@ -311,11 +311,16 @@ export type TaskManagerResponsePayload = WsCommandResponseMeta & {
 
 export type MovementRuntimeStatePayload = {
   pageId: string;
+  movementName: string;
   status: "idle" | "running" | "stopping" | "error";
   startedAt: number | null;
   stoppedAt: number | null;
   locoAddress: number | null;
+  direction: "forward" | "reverse" | null;
   desiredSpeed: number;
+  moving: boolean;
+  currentBlockId: number | null;
+  targetBlockId: number | null;
   currentResourceKey: string | null;
   activeRouteResourceKey: string | null;
   info: string | null;
