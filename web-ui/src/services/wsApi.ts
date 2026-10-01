@@ -246,6 +246,45 @@ class WebSocketApi {
     );
   }
 
+  movementCommand(
+    requestId: string,
+    action:
+      | "snapshot"
+      | "start"
+      | "stop"
+      | "abort"
+      | "stopAll"
+      | "abortAll",
+    values: {
+      pageId?: string;
+      page?: unknown;
+      plan?: unknown;
+      emergencyStop?: boolean;
+    } = {}
+  ): boolean {
+    return this.send(
+      "movementCommand",
+      {
+        requestId,
+        action,
+        ...values,
+      }
+    );
+  }
+
+  movementAudioComplete(
+    requestId: string,
+    ok: boolean
+  ): boolean {
+    return this.send(
+      "movementAudioComplete",
+      {
+        requestId,
+        ok,
+      }
+    );
+  }
+
   writeDccExDirectCommand(command: string): boolean {
     return this.send("writeDccExDirectCommand", { command });
   }
