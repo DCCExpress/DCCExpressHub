@@ -124,6 +124,75 @@ function routeBlocks(
   );
 }
 
+function remainingMovementPage(
+  page:
+    MovementPage,
+  currentBlockId:
+    number
+): MovementPage | null {
+  const requested =
+    routeBlocks(
+      page
+    );
+
+  const currentIndex =
+    requested.indexOf(
+      currentBlockId
+    );
+
+  if (
+    currentIndex <
+      0
+  ) {
+    return null;
+  }
+
+  const destination =
+    requested[
+      requested.length -
+        1
+    ];
+
+  if (
+    destination ===
+      undefined ||
+    currentBlockId ===
+      destination
+  ) {
+    return null;
+  }
+
+  const remaining =
+    requested.slice(
+      currentIndex
+    );
+
+  return {
+    ...page,
+    /*
+     * The persisted routeKey identifies the original full route. Once a
+     * Dispatcher resumes from an intermediate block, route selection must be
+     * regenerated from the remaining checkpoint sequence.
+     */
+    routeKey:
+      "",
+    fromBlockId:
+      remaining[0] ??
+      null,
+    viaBlockIds:
+      remaining.slice(
+        1,
+        -1
+      ),
+    toBlockId:
+      remaining[
+        remaining.length -
+          1
+      ] ??
+      null,
+  };
+}
+
 function currentTrackingBlock(
   locoAddress:
     number
@@ -403,43 +472,81 @@ export async function startDispatcherMovement(
     );
   }
 
-  const sourceLocos =
+  const requested =
+    routeBlocks(
+      page
+    );
+
+  const routeLocos =
     tracking.locos.filter(
       loco =>
-        loco.currentBlockId ===
-          page.fromBlockId
+        loco.currentBlockId !==
+          null &&
+        requested.includes(
+          loco.currentBlockId
+        )
     );
 
   if (
-    sourceLocos.length ===
+    routeLocos.length ===
       0
   ) {
     log(
       "warn",
-      `${page.name}: no tracked locomotive is assigned to the start block.`
+      `${page.name}: no tracked locomotive is currently on the requested route.`
     );
 
     throw new Error(
-      "Dispatcher cannot start: no tracked locomotive is assigned to the start block."
+      "Dispatcher cannot start: no tracked locomotive is currently on the requested route."
     );
   }
 
   if (
-    sourceLocos.length >
+    routeLocos.length >
       1
   ) {
     log(
       "warn",
-      `${page.name}: more than one tracked locomotive matches the start block.`
+      `${page.name}: more than one tracked locomotive is currently on the requested route.`
     );
 
     throw new Error(
-      "Dispatcher cannot start: more than one tracked locomotive matches the start block."
+      "Dispatcher cannot start: more than one tracked locomotive is currently on the requested route."
     );
   }
 
   const loco =
-    sourceLocos[0]!;
+    routeLocos[0]!;
+
+  const currentBlockId =
+    loco.currentBlockId;
+
+  if (
+    currentBlockId ===
+      null
+  ) {
+    throw new Error(
+      "Dispatcher cannot start: tracked locomotive has no current block."
+    );
+  }
+
+  const currentIndex =
+    requested.indexOf(
+      currentBlockId
+    );
+
+  const destinationBlockId =
+    requested[
+      requested.length -
+        1
+    ] ??
+    null;
+
+  const executionPage =
+    remainingMovementPage(
+      page,
+      currentBlockId
+    );
 
   taskPages.set(
     page.id,
@@ -455,21 +562,56 @@ export async function startDispatcherMovement(
     page
   );
 
+  if (
+    destinationBlockId !==
+      null &&
+    currentBlockId ===
+      destinationBlockId
+  ) {
+    log(
+      "match",
+      `"${page.name}" already completed for loco #${loco.locoAddress}: locomotive is already in destination block #${destinationBlockId}.`
+    );
+
+    emit();
+
+    return;
+  }
+
+  if (
+    executionPage ===
+      null ||
+    currentIndex <
+      0
+  ) {
+    throw new Error(
+      "Dispatcher cannot resume: tracked locomotive is outside the requested route."
+    );
+  }
+
+  const remaining =
+    routeBlocks(
+      executionPage
+    );
+
   log(
     "info",
-    `Starting "${page.name}" for loco #${loco.locoAddress}: ${routeBlocks(page).join(" -> ")}.`
+    currentIndex ===
+      0
+      ? `Starting "${page.name}" for loco #${loco.locoAddress}: ${requested.join(" -> ")}.`
+      : `Resuming "${page.name}" for loco #${loco.locoAddress} from block #${currentBlockId}: ${remaining.join(" -> ")}.`
   );
 
   /*
    * Compatibility executor.
    *
-   * The next Dispatcher phase will consume TrainTracking state directly for
-   * progress/arrival and will keep only safety, route authority, turnout and
-   * locomotive command responsibilities from the legacy Movement engine.
+   * The legacy executor receives only the remaining route. Dispatcher keeps
+   * the original Movement intent for UI/status purposes, while execution can
+   * resume from any tracked checkpoint on A -> B -> C.
    */
   try {
     await startMovement(
-      page
+      executionPage
     );
 
     log(
