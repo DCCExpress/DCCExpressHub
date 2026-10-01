@@ -26,13 +26,13 @@ import type {
 } from "../../domain/movement";
 
 import {
-  abortMovement,
-  getMovementEngineState,
-  startMovement,
-  stopMovement,
-  subscribeMovementEngineState,
-  type MovementEngineState,
-} from "../../services/movementEngine";
+  abortDispatcherMovement,
+  getDispatcherState,
+  startDispatcherMovement,
+  stopDispatcherMovement,
+  subscribeDispatcherState,
+  type DispatcherState,
+} from "../../services/dispatcherRuntime";
 
 import {
   isTrackPowerOn,
@@ -52,13 +52,13 @@ type Props = {
   showInfo?: boolean;
   onStateChange?: (
     state:
-      MovementEngineState
+      DispatcherState
   ) => void;
 };
 
 export function movementRuntimeStatusColor(
   state:
-    MovementEngineState
+    DispatcherState
 ): string {
   if (
     state.status ===
@@ -108,21 +108,21 @@ export function useTrackPowerOn(): boolean {
 
 export function useMovementRuntimeState(
   pageId: string
-): MovementEngineState {
+): DispatcherState {
   const [
     state,
     setState,
   ] =
-    useState<MovementEngineState>(
+    useState<DispatcherState>(
       () =>
-        getMovementEngineState(
+        getDispatcherState(
           pageId
         )
     );
 
   useEffect(
     () =>
-      subscribeMovementEngineState(
+      subscribeDispatcherState(
         pageId,
         setState
       ),
@@ -193,7 +193,7 @@ export default function MovementRuntimeControls({
       }
 
       try {
-        await startMovement(
+        await startDispatcherMovement(
           page
         );
 
@@ -335,7 +335,7 @@ export default function MovementRuntimeControls({
             event => {
               event.stopPropagation();
 
-              stopMovement(
+              stopDispatcherMovement(
                 page.id
               );
             }
@@ -366,7 +366,7 @@ export default function MovementRuntimeControls({
             event => {
               event.stopPropagation();
 
-              abortMovement(
+              abortDispatcherMovement(
                 page.id
               );
             }
