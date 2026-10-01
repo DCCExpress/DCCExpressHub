@@ -1371,5 +1371,6 @@
   "dispatcherStopAll": "Minden forgalmista által kezelt vonat megállítása",
   "dispatcherAbortAll": "Minden forgalmista mozgás megszakítása",
   "dispatcherEmergencyStop": "Vészleállítás",
-  "dispatcherClearEstop": "Vészleállítás feloldása"
+  "dispatcherClearEstop": "Vészleállítás feloldása",
+  "trainTrackingSectionParts": "Szakaszrészek"
 }
