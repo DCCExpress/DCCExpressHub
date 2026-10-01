@@ -53,6 +53,7 @@ public sealed class WsHub
         Movement.Changed += state => _ = Broadcast("movementStateChanged", state);
         Movement.AudioRequested += request => _ = Broadcast("playAudio", new { requestId = request.RequestId, fileName = request.FileName });
         Movement.LocoChanged += loco => _ = BroadcastLoco(loco);
+        Movement.PowerStateChanged += () => _ = BroadcastPower();
         Timetable.Changed += state => _ = Broadcast("timetableStateChanged", state);
         Timetable.ScriptRequested += request => _ = Broadcast("timetableScriptRequested", request);
         Logger = log;
