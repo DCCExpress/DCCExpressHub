@@ -1366,5 +1366,10 @@
   "dispatcherNextBlock": "Következő blokk",
   "dispatcherNoTasks": "Még nem indult forgalmista által kezelt mozgás.",
   "dispatcherLog": "Forgalmista napló",
-  "dispatcherNoLog": "Még nincs forgalmista esemény."
+  "dispatcherNoLog": "Még nincs forgalmista esemény.",
+  "dispatcherEnabled": "Engedélyezve",
+  "dispatcherStopAll": "Minden forgalmista által kezelt vonat megállítása",
+  "dispatcherAbortAll": "Minden forgalmista mozgás megszakítása",
+  "dispatcherEmergencyStop": "Vészleállítás",
+  "dispatcherClearEstop": "Vészleállítás feloldása"
 }
