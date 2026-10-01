@@ -199,14 +199,95 @@ const TEXT = {
   },
 } as const;
 
+function SensorConditionMarker({
+  conditions,
+  x,
+  y,
+  align = "middle",
+}: {
+  conditions: BlockEventSensorConditionDto[];
+  x: number;
+  y: number;
+  align?: "start" | "middle" | "end";
+}) {
+  if (conditions.length === 0) {
+    return null;
+  }
+
+  const textAnchor =
+    align === "start"
+      ? "start"
+      : align === "end"
+        ? "end"
+        : "middle";
+
+  const labelX =
+    align === "start"
+      ? x + 11
+      : align === "end"
+        ? x - 11
+        : x;
+
+  return (
+    <>
+      {conditions.map((condition, index) => {
+        const yy = y + index * 17;
+
+        return (
+          <g key={`${condition.sensor}-${condition.state}-${index}`}>
+            <circle
+              cx={x}
+              cy={yy}
+              r="5.5"
+              fill={
+                condition.state
+                  ? "var(--mantine-color-blue-filled)"
+                  : "var(--mantine-color-gray-3)"
+              }
+              stroke={
+                condition.state
+                  ? "var(--mantine-color-blue-8)"
+                  : "var(--mantine-color-gray-6)"
+              }
+              strokeWidth="1.2"
+            />
+
+            {!condition.state && (
+              <circle
+                cx={x}
+                cy={yy}
+                r="2.2"
+                fill="var(--mantine-color-body)"
+              />
+            )}
+
+            <text
+              x={labelX}
+              y={yy + 3.5}
+              textAnchor={textAnchor}
+              fontSize="10"
+              fontWeight="700"
+              fill="var(--mantine-color-text)"
+            >
+              {condition.sensor}
+            </text>
+          </g>
+        );
+      })}
+    </>
+  );
+}
+
 function DirectionDiagram({
   direction,
   blockName,
   occupancySensor,
+  events,
 }: {
   direction: Direction;
   blockName: string;
   occupancySensor: number;
+  events: BlockDirectionEventConfigDto;
 }) {
   const text = TEXT[language()];
   const reverse = direction === "reverse";
@@ -217,12 +298,12 @@ function DirectionDiagram({
   return (
     <div>
       <svg
-        viewBox="0 0 360 116"
+        viewBox="0 0 360 158"
         role="img"
         aria-label={reverse ? text.directionHelpReverse : text.directionHelpForward}
         style={{
           width: "100%",
-          maxHeight: 140,
+          maxHeight: 185,
           display: "block",
         }}
       >
@@ -249,9 +330,29 @@ function DirectionDiagram({
           </marker>
         </defs>
 
-        <line x1="20" y1="62" x2="340" y2="62" stroke="currentColor" strokeWidth="3" opacity="0.5" />
-        <circle cx="55" cy="62" r="8" fill="var(--mantine-color-blue-filled)" />
-        <circle cx="305" cy="62" r="8" fill="var(--mantine-color-blue-filled)" />
+        <line
+          x1="20"
+          y1="62"
+          x2="340"
+          y2="62"
+          stroke="currentColor"
+          strokeWidth="3"
+          opacity="0.5"
+        />
+
+        <circle
+          cx="55"
+          cy="62"
+          r="7"
+          fill="var(--mantine-color-blue-filled)"
+        />
+
+        <circle
+          cx="305"
+          cy="62"
+          r="7"
+          fill="var(--mantine-color-blue-filled)"
+        />
 
         <rect
           x="125"
@@ -263,6 +364,7 @@ function DirectionDiagram({
           stroke="var(--mantine-color-gray-6)"
           strokeWidth="1.5"
         />
+
         <text
           x="180"
           y="57"
@@ -273,6 +375,7 @@ function DirectionDiagram({
         >
           {blockName || "BLOCK"}
         </text>
+
         <text
           x="180"
           y="72"
@@ -292,6 +395,7 @@ function DirectionDiagram({
           strokeWidth="2"
           markerEnd={marker}
         />
+
         <text
           x="180"
           y="14"
@@ -303,12 +407,83 @@ function DirectionDiagram({
           {reverse ? "REVERSE" : "FORWARD"}
         </text>
 
-        <text x="55" y="103" textAnchor="middle" fontSize="10" fontWeight="700" fill="currentColor" opacity="0.78">
+        <text
+          x="55"
+          y="99"
+          textAnchor="middle"
+          fontSize="10"
+          fontWeight="700"
+          fill="currentColor"
+          opacity="0.78"
+        >
           {reverse ? "AFTER · LEFT" : "BEFORE · LEFT"}
         </text>
-        <text x="305" y="103" textAnchor="middle" fontSize="10" fontWeight="700" fill="currentColor" opacity="0.78">
+
+        <text
+          x="305"
+          y="99"
+          textAnchor="middle"
+          fontSize="10"
+          fontWeight="700"
+          fill="currentColor"
+          opacity="0.78"
+        >
           {reverse ? "BEFORE · RIGHT" : "AFTER · RIGHT"}
         </text>
+
+        <text
+          x="180"
+          y="99"
+          textAnchor="middle"
+          fontSize="9"
+          fontWeight="700"
+          fill="var(--mantine-color-dimmed)"
+        >
+          ARRIVED
+        </text>
+
+        <SensorConditionMarker
+          conditions={events.beforeArrive}
+          x={55}
+          y={116}
+          align="start"
+        />
+
+        <SensorConditionMarker
+          conditions={events.arrived}
+          x={180}
+          y={116}
+          align="start"
+        />
+
+        <SensorConditionMarker
+          conditions={events.beforeLeave}
+          x={305}
+          y={116}
+          align="end"
+        />
+
+        {events.afterLeave.length > 0 && (
+          <>
+            <text
+              x="180"
+              y="145"
+              textAnchor="middle"
+              fontSize="9"
+              fontWeight="700"
+              fill="var(--mantine-color-dimmed)"
+            >
+              AFTER LEAVE
+            </text>
+
+            <SensorConditionMarker
+              conditions={events.afterLeave}
+              x={180}
+              y={156}
+              align="start"
+            />
+          </>
+        )}
       </svg>
 
       <Text size="xs" c="dimmed" ta="center">
@@ -631,6 +806,7 @@ export default function BlockEventConfigPropertyEditor({
                 direction={direction}
                 blockName={block.name}
                 occupancySensor={block.sensorAddress}
+                events={draft[direction]}
               />
 
               <Group justify="flex-end">
