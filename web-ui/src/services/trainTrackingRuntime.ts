@@ -54,6 +54,7 @@ export type TrainTrackingState = {
   active: boolean;
   ready: boolean;
   readinessIssues: string[];
+  readinessWarnings: string[];
   locos: LocoTrackingState[];
   logs: TrainTrackingLogEntry[];
 };
@@ -155,6 +156,10 @@ let readinessIssues:
   string[] =
   [];
 
+let readinessWarnings:
+  string[] =
+  [];
+
 let loading =
   false;
 
@@ -244,6 +249,8 @@ function snapshot(): TrainTrackingState {
     ready,
     readinessIssues:
       [...readinessIssues],
+    readinessWarnings:
+      [...readinessWarnings],
     locos:
       [...locoTracking.values()]
         .map(copyTracking)
@@ -784,14 +791,21 @@ function seedTrackingFromBlocks(
 function validateTrackingTopology(
   topology:
     Record<string, unknown> | null
-): string[] {
+): {
+  issues: string[];
+  warnings: string[];
+} {
   const issues:
     string[] =
     [];
 
+  const warnings:
+    string[] =
+    [];
+
   /*
-   * Every logical block must provide an occupancy sensor. Without this there
-   * is no reliable anchor when a locomotive is manually assigned to a block.
+   * Hard requirement: every logical block must have an occupancy sensor.
+   * This is the authoritative anchor for assigning a locomotive to tracking.
    */
   for (
     const [
@@ -821,9 +835,6 @@ function validateTrackingTopology(
     )
       ? graph.nodes
       : [];
-
-  let sectionPartCount =
-    0;
 
   for (
     const rawNode of
@@ -858,9 +869,6 @@ function validateTrackingTopology(
         continue;
       }
 
-      sectionPartCount +=
-        1;
-
       const sensors =
         uniqueSensors(
           Array.isArray(
@@ -887,20 +895,51 @@ function validateTrackingTopology(
             "?"
           );
 
-        issues.push(
-          `SectionPart "${nodeName} / ${partName}" has no sensor.`
+        warnings.push(
+          `SectionPart "${nodeName} / ${partName}" has no sensor; tracking will be less precise there.`
         );
       }
     }
   }
 
-  if (
-    sectionPartCount ===
-      0
+  /*
+   * Recommended topology: avoid long turnout-only corridors between blocks.
+   * Tracking can still operate, but intermediate blocks improve certainty and
+   * give SafetyMan cleaner authority boundaries.
+   */
+  for (
+    const route of
+    routeTable
   ) {
-    issues.push(
-      "Route graph has no SectionParts."
-    );
+    const turnoutPassages =
+      (route.edgePath ?? [])
+        .reduce(
+          (
+            count,
+            edge
+          ) =>
+            count +
+            (
+              edge.turnoutPath?.length ??
+              (
+                edge.turnoutStates?.length
+                  ? 1
+                  : 0
+              )
+            ),
+          0
+        );
+
+    if (
+      turnoutPassages >
+        1 &&
+      route.blockPath?.length ===
+        2
+    ) {
+      warnings.push(
+        `Route "${route.fromBlockName ?? route.fromBlockId} -> ${route.toBlockName ?? route.toBlockId}" crosses multiple turnout passages without an intermediate block; adding a block between turnout groups is recommended.`
+      );
+    }
   }
 
   if (
@@ -912,7 +951,10 @@ function validateTrackingTopology(
     );
   }
 
-  return issues;
+  return {
+    issues,
+    warnings,
+  };
 }
 
 async function refreshTopology(): Promise<void> {
@@ -997,10 +1039,16 @@ async function refreshTopology(): Promise<void> {
       blockStates
     );
 
-    readinessIssues =
+    const validation =
       validateTrackingTopology(
         topology
       );
+
+    readinessIssues =
+      validation.issues;
+
+    readinessWarnings =
+      validation.warnings;
 
     ready =
       readinessIssues.length ===
@@ -1028,6 +1076,9 @@ async function refreshTopology(): Promise<void> {
               error
             ),
       ];
+
+    readinessWarnings =
+      [];
 
     log(
       "error",
