@@ -27,7 +27,6 @@ import type {
 } from "@domain/layout/layoutDto";
 import type { LayoutView } from "@/models/editor/core/LayoutView";
 import { TrackElement } from "@/models/editor/core/TrackElement";
-import { getFreshClientRouteGraphResult } from "@/services/clientRouteGraphCache";
 import {
   BlockElement,
   emptyBlockEventConfig,
@@ -200,220 +199,103 @@ const TEXT = {
   },
 } as const;
 
-type PhysicalDiagramNode = {
-  key: string;
-  sectionName: string;
-  sensors: number[];
-  composite: boolean;
-};
-
-function PhysicalRouteNode({
-  node,
-  blockName,
+function SensorConditionMarker({
+  conditions,
   x,
   y,
-  width,
+  align = "middle",
 }: {
-  node: PhysicalDiagramNode;
-  blockName: string;
+  conditions: BlockEventSensorConditionDto[];
   x: number;
   y: number;
-  width: number;
+  align?: "start" | "middle" | "end";
 }) {
-  const height =
-    node.composite
-      ? 42
-      : 34;
+  if (conditions.length === 0) {
+    return null;
+  }
 
-  const top =
-    y - height / 2;
+  const textAnchor =
+    align === "start"
+      ? "start"
+      : align === "end"
+        ? "end"
+        : "middle";
 
-  const sensorText =
-    node.sensors.length > 0
-      ? `Sensor ${node.sensors.join(", ")}`
-      : "No sensor";
+  const labelX =
+    align === "start"
+      ? x + 11
+      : align === "end"
+        ? x - 11
+        : x;
 
   return (
-    <g>
-      <rect
-        x={x}
-        y={top}
-        width={width}
-        height={height}
-        rx="6"
-        fill="var(--mantine-color-body)"
-        stroke={
-          node.composite
-            ? "var(--mantine-color-gray-7)"
-            : "var(--mantine-color-gray-5)"
-        }
-        strokeWidth={
-          node.composite
-            ? "1.6"
-            : "1.2"
-        }
-      />
-
-      <text
-        x={x + width / 2}
-        y={top + (node.composite ? 13 : 12)}
-        textAnchor="middle"
-        fontSize={node.composite ? "9.5" : "9"}
-        fontWeight="800"
-        fill="var(--mantine-color-text)"
-      >
-        {node.composite
-          ? `${node.sectionName} · ${blockName || "BLOCK"}`
-          : node.sectionName}
-      </text>
-
-      <text
-        x={x + width / 2}
-        y={top + (node.composite ? 28 : 24)}
-        textAnchor="middle"
-        fontSize="8"
-        fill="var(--mantine-color-dimmed)"
-      >
-        {sensorText}
-      </text>
-    </g>
-  );
-}
-
-function physicalDiagramNodes(
-  layout: LayoutView,
-  block: BlockElement
-): PhysicalDiagramNode[] {
-  const graphResult =
-    getFreshClientRouteGraphResult(
-      layout
-    );
-
-  if (!graphResult) {
-    return [{
-      key: `block:${block.id}`,
-      sectionName:
-        block.sectionPart ||
+    <>
+      {conditions.map(
         (
-          block.section > 0
-            ? `S${block.section}`
-            : "BLOCK"
-        ),
-      sensors:
-        block.sensorAddress > 0
-          ? [block.sensorAddress]
-          : [],
-      composite: true,
-    }];
-  }
+          condition,
+          index
+        ) => {
+          const yy =
+            y + index * 17;
 
-  const graphBlock =
-    graphResult.blocks.find(
-      candidate =>
-        candidate.id === block.id
-    );
+          return (
+            <g
+              key={`${condition.sensor}-${condition.state}-${index}`}
+            >
+              <circle
+                cx={x}
+                cy={yy}
+                r="5.5"
+                fill={
+                  condition.state
+                    ? "var(--mantine-color-blue-filled)"
+                    : "var(--mantine-color-gray-3)"
+                }
+                stroke={
+                  condition.state
+                    ? "var(--mantine-color-blue-8)"
+                    : "var(--mantine-color-gray-6)"
+                }
+                strokeWidth="1.2"
+              />
 
-  if (
-    !graphBlock ||
-    !Number.isInteger(
-      graphBlock.sensorAddress
-    )
-  ) {
-    return [{
-      key: `block:${block.id}`,
-      sectionName:
-        block.sectionPart ||
-        (
-          block.section > 0
-            ? `S${block.section}`
-            : "BLOCK"
-        ),
-      sensors:
-        block.sensorAddress > 0
-          ? [block.sensorAddress]
-          : [],
-      composite: true,
-    }];
-  }
+              {!condition.state && (
+                <circle
+                  cx={x}
+                  cy={yy}
+                  r="2.2"
+                  fill="var(--mantine-color-body)"
+                />
+              )}
 
-  const graphNode =
-    graphResult.graph.nodes.find(
-      node =>
-        node.name ===
-        graphBlock.nodeName
-    );
-
-  if (!graphNode) {
-    return [];
-  }
-
-  const parts =
-    [...graphNode.sectionParts].sort(
-      (
-        left,
-        right
-      ) =>
-        left.index -
-        right.index
-    );
-
-  const blockSensor =
-    graphBlock.sensorAddress!;
-
-  const compositeIndex =
-    parts.findIndex(
-      part =>
-        part.detectors.includes(
-          blockSensor
-        )
-    );
-
-  if (
-    compositeIndex <
-      0
-  ) {
-    return [];
-  }
-
-  const indexes = [
-    compositeIndex - 1,
-    compositeIndex,
-    compositeIndex + 1,
-  ].filter(
-    index =>
-      index >= 0 &&
-      index < parts.length
-  );
-
-  return indexes.map(
-    index => {
-      const part =
-        parts[index]!;
-
-      return {
-        key:
-          `${graphNode.name}:${part.key}`,
-        sectionName:
-          part.key,
-        sensors: [
-          ...part.detectors,
-        ],
-        composite:
-          index ===
-          compositeIndex,
-      };
-    }
+              <text
+                x={labelX}
+                y={yy + 3.5}
+                textAnchor={textAnchor}
+                fontSize="10"
+                fontWeight="700"
+                fill="var(--mantine-color-text)"
+              >
+                {condition.sensor}
+              </text>
+            </g>
+          );
+        }
+      )}
+    </>
   );
 }
 
 function DirectionDiagram({
   direction,
   blockName,
-  nodes,
+  occupancySensor,
+  events,
 }: {
   direction: Direction;
   blockName: string;
-  nodes: PhysicalDiagramNode[];
+  occupancySensor: number;
+  events: BlockDirectionEventConfigDto;
 }) {
   const text =
     TEXT[language()];
@@ -424,77 +306,23 @@ function DirectionDiagram({
 
   const arrowX1 =
     reverse
-      ? 312
-      : 48;
+      ? 314
+      : 46;
 
   const arrowX2 =
     reverse
-      ? 48
-      : 312;
+      ? 46
+      : 314;
 
   const marker =
     reverse
       ? "url(#block-event-arrow-left)"
       : "url(#block-event-arrow-right)";
 
-  const nodeCount =
-    Math.max(
-      1,
-      nodes.length
-    );
-
-  const totalWidth =
-    nodeCount === 1
-      ? 110
-      : nodeCount === 2
-        ? 218
-        : 310;
-
-  const startX =
-    (360 - totalWidth) / 2;
-
-  const gap =
-    nodeCount === 3
-      ? 10
-      : 14;
-
-  const widths =
-    nodes.map(
-      node =>
-        node.composite
-          ? 110
-          : 90
-    );
-
-  let currentX =
-    startX;
-
-  const positions =
-    widths.map(
-      width => {
-        const result = {
-          x: currentX,
-          width,
-        };
-
-        currentX +=
-          width +
-          gap;
-
-        return result;
-      }
-    );
-
-  const compositeIndex =
-    nodes.findIndex(
-      node =>
-        node.composite
-    );
-
   return (
     <div>
       <svg
-        viewBox="0 0 360 124"
+        viewBox="0 0 360 176"
         role="img"
         aria-label={
           reverse
@@ -503,7 +331,7 @@ function DirectionDiagram({
         }
         style={{
           width: "100%",
-          maxHeight: 138,
+          maxHeight: 195,
           display: "block",
         }}
       >
@@ -538,110 +366,179 @@ function DirectionDiagram({
         </defs>
 
         <line
-          x1={arrowX1}
-          y1="18"
-          x2={arrowX2}
-          y2="18"
+          x1="20"
+          y1="62"
+          x2="340"
+          y2="62"
           stroke="currentColor"
-          strokeWidth="1.8"
+          strokeWidth="3"
+          opacity="0.5"
+        />
+
+        <circle
+          cx="55"
+          cy="62"
+          r="7"
+          fill="var(--mantine-color-blue-filled)"
+        />
+
+        <circle
+          cx="305"
+          cy="62"
+          r="7"
+          fill="var(--mantine-color-blue-filled)"
+        />
+
+        <rect
+          x="125"
+          y="42"
+          width="110"
+          height="38"
+          rx="6"
+          fill="var(--mantine-color-body)"
+          stroke="var(--mantine-color-gray-6)"
+          strokeWidth="1.5"
+        />
+
+        <text
+          x="180"
+          y="57"
+          textAnchor="middle"
+          fontSize="12"
+          fontWeight="700"
+          fill="var(--mantine-color-text)"
+        >
+          {blockName || "BLOCK"}
+        </text>
+
+        <text
+          x="180"
+          y="72"
+          textAnchor="middle"
+          fontSize="10"
+          fill="var(--mantine-color-dimmed)"
+        >
+          {text.occupancy}: {occupancySensor > 0 ? occupancySensor : "—"}
+        </text>
+
+        <line
+          x1={arrowX1}
+          y1="20"
+          x2={arrowX2}
+          y2="20"
+          stroke="currentColor"
+          strokeWidth="2"
           markerEnd={marker}
         />
 
         <text
           x="180"
-          y="12"
+          y="14"
           textAnchor="middle"
-          fontSize="10"
+          fontSize="11"
           fontWeight="700"
           fill="currentColor"
         >
-          {reverse
-            ? "REVERSE"
-            : "FORWARD"}
+          {reverse ? "REVERSE" : "FORWARD"}
         </text>
 
-        {nodes.length > 1 && (
-          <line
-            x1={positions[0]!.x}
-            y1="70"
-            x2={
-              positions[
-                positions.length - 1
-              ]!.x +
-              positions[
-                positions.length - 1
-              ]!.width
-            }
-            y2="70"
-            stroke="var(--mantine-color-gray-5)"
-            strokeWidth="2"
-          />
-        )}
+        <text
+          x="55"
+          y="94"
+          textAnchor="middle"
+          fontSize="9"
+          fontWeight="700"
+          fill="var(--mantine-color-dimmed)"
+        >
+          {reverse ? "AFTER" : "BEFORE"}
+        </text>
 
-        {nodes.map(
-          (
-            node,
-            index
-          ) => (
-            <PhysicalRouteNode
-              key={node.key}
-              node={node}
-              blockName={blockName}
-              x={positions[index]!.x}
-              y={70}
-              width={
-                positions[index]!.width
-              }
-            />
-          )
-        )}
+        <text
+          x="55"
+          y="105"
+          textAnchor="middle"
+          fontSize="10"
+          fontWeight="800"
+          fill="currentColor"
+          opacity="0.84"
+        >
+          LEFT
+        </text>
 
-        {compositeIndex >= 0 && (
+        <text
+          x="305"
+          y="94"
+          textAnchor="middle"
+          fontSize="9"
+          fontWeight="700"
+          fill="var(--mantine-color-dimmed)"
+        >
+          {reverse ? "BEFORE" : "AFTER"}
+        </text>
+
+        <text
+          x="305"
+          y="105"
+          textAnchor="middle"
+          fontSize="10"
+          fontWeight="800"
+          fill="currentColor"
+          opacity="0.84"
+        >
+          RIGHT
+        </text>
+
+        <text
+          x="180"
+          y="99"
+          textAnchor="middle"
+          fontSize="9"
+          fontWeight="700"
+          fill="var(--mantine-color-dimmed)"
+        >
+          ARRIVED
+        </text>
+
+        <SensorConditionMarker
+          conditions={events.beforeArrive}
+          x={reverse ? 305 : 55}
+          y={116}
+          align={reverse ? "end" : "start"}
+        />
+
+        <SensorConditionMarker
+          conditions={events.arrived}
+          x={180}
+          y={116}
+          align="start"
+        />
+
+        <SensorConditionMarker
+          conditions={events.beforeLeave}
+          x={reverse ? 55 : 305}
+          y={116}
+          align={reverse ? "start" : "end"}
+        />
+
+        {events.afterLeave.length > 0 && (
           <>
-            {compositeIndex > 0 && (
-              <text
-                x={
-                  positions[
-                    compositeIndex - 1
-                  ]!.x +
-                  positions[
-                    compositeIndex - 1
-                  ]!.width /
-                    2
-                }
-                y="106"
-                textAnchor="middle"
-                fontSize="8"
-                fill="var(--mantine-color-dimmed)"
-              >
-                {reverse
-                  ? "AFTER"
-                  : "BEFORE"}
-              </text>
-            )}
+            <text
+              x="180"
+              y="145"
+              textAnchor="middle"
+              fontSize="9"
+              fontWeight="700"
+              fill="var(--mantine-color-dimmed)"
+            >
+              AFTER LEAVE
+            </text>
 
-            {compositeIndex <
-              nodes.length - 1 && (
-              <text
-                x={
-                  positions[
-                    compositeIndex + 1
-                  ]!.x +
-                  positions[
-                    compositeIndex + 1
-                  ]!.width /
-                    2
-                }
-                y="106"
-                textAnchor="middle"
-                fontSize="8"
-                fill="var(--mantine-color-dimmed)"
-              >
-                {reverse
-                  ? "BEFORE"
-                  : "AFTER"}
-              </text>
-            )}
+            <SensorConditionMarker
+              conditions={events.afterLeave}
+              x={180}
+              y={156}
+              align="start"
+            />
           </>
         )}
       </svg>
@@ -711,18 +608,6 @@ export default function BlockEventConfigPropertyEditor({
   }, [block, layout, opened]);
 
 
-  const diagramNodes = useMemo(
-    () =>
-      physicalDiagramNodes(
-        layout,
-        block
-      ),
-    [
-      layout,
-      block,
-      opened,
-    ]
-  );
 
   const configuredCount = EVENT_ORDER.reduce(
     (sum, event) =>
@@ -985,7 +870,8 @@ export default function BlockEventConfigPropertyEditor({
               <DirectionDiagram
                 direction={direction}
                 blockName={block.name}
-                nodes={diagramNodes}
+                occupancySensor={block.sensorAddress}
+                events={draft[direction]}
               />
 
               <Group justify="flex-end">
