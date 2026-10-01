@@ -125,6 +125,7 @@ export const CLIENT_WS_MESSAGE_TYPES = [
   "getControlStationStatus",
   "broadcastPlayAudio",
   "broadcastStopAudio",
+  "dispatcherCommand",
   "movementCommand",
   "movementAudioComplete",
   "timetableCommand",
@@ -310,6 +311,27 @@ export type TaskManagerResponsePayload = WsCommandResponseMeta & {
   addResult?: AddTrainTaskResult;
   actionResult?: TaskManagerActionResult;
   loadResult?: LoadTrainTasksResult;
+};
+
+export type DispatcherResponsePayload = {
+  requestId: string;
+  action: string;
+  ok: boolean;
+  message?: string | null;
+  extra?: {
+    lease?: unknown;
+    leases?: unknown[];
+    routes?: unknown[];
+    blockingSensor?: number | null;
+    blockingBlock?: number | null;
+    turnoutConflicts?: unknown[];
+    released?: number;
+  } | null;
+};
+
+export type DispatcherChangedPayload = {
+  leases: unknown[];
+  routes: unknown[];
 };
 
 export type MovementRuntimeStatePayload = {
@@ -499,6 +521,9 @@ export type ServerWsPayloadMap = {
   automationResponse: AutomationResponsePayload;
   fastClockResponse: FastClockResponsePayload;
   fileResponse: FileResponsePayload;
+
+  dispatcherChanged: DispatcherChangedPayload;
+  dispatcherResponse: DispatcherResponsePayload;
 
   playAudio: {
     requestId: string;
