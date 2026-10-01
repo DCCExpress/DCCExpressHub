@@ -46,6 +46,7 @@ export type DispatcherTaskState = {
 };
 
 export type DispatcherRuntimeSnapshot = {
+  enabled: boolean;
   tasks: DispatcherTaskState[];
   logs: DispatcherLogEntry[];
 };
@@ -85,6 +86,16 @@ const listeners =
 
 const MAX_LOGS =
   300;
+
+const STORAGE_KEY =
+  "dcc-express-hub.dispatcher.enabled";
+
+let enabled =
+  typeof window === "undefined"
+    ? true
+    : window.localStorage.getItem(
+        STORAGE_KEY
+      ) !== "false";
 
 let trackingSubscriptionInstalled =
   false;
@@ -298,6 +309,7 @@ function taskSnapshot(
 
 function snapshot(): DispatcherRuntimeSnapshot {
   return {
+    enabled,
     tasks:
       [
         ...taskPages.values(),
@@ -449,6 +461,14 @@ export async function startDispatcherMovement(
     MovementPage
 ): Promise<void> {
   ensureTrackingSubscription();
+
+  if (
+    !enabled
+  ) {
+    throw new Error(
+      "Dispatcher is disabled."
+    );
+  }
 
   if (
     page.fromBlockId ===
@@ -694,6 +714,128 @@ export function abortDispatcherMovement(
   }
 
   return aborted;
+}
+
+export function stopAllDispatcherMovements():
+  number {
+  let stopped =
+    0;
+
+  for (
+    const pageId of
+    taskPages.keys()
+  ) {
+    if (
+      stopMovement(
+        pageId
+      )
+    ) {
+      stopped +=
+        1;
+    }
+  }
+
+  if (
+    stopped >
+      0
+  ) {
+    log(
+      "info",
+      `Stop All requested for ${stopped} Dispatcher movement(s).`
+    );
+  }
+
+  return stopped;
+}
+
+export function abortAllDispatcherMovements(
+  emergency = false
+): number {
+  let aborted =
+    0;
+
+  for (
+    const pageId of
+    taskPages.keys()
+  ) {
+    if (
+      abortMovement(
+        pageId,
+        emergency
+      )
+    ) {
+      aborted +=
+        1;
+    }
+  }
+
+  if (
+    aborted >
+      0
+  ) {
+    log(
+      "warn",
+      `Abort All requested for ${aborted} Dispatcher movement(s).`
+    );
+  }
+
+  return aborted;
+}
+
+export function setDispatcherEnabled(
+  next:
+    boolean
+): void {
+  if (
+    enabled ===
+      next
+  ) {
+    return;
+  }
+
+  enabled =
+    next;
+
+  if (
+    typeof window !==
+      "undefined"
+  ) {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      enabled
+        ? "true"
+        : "false"
+    );
+  }
+
+  if (
+    !enabled
+  ) {
+    const aborted =
+      abortAllDispatcherMovements(
+        false
+      );
+
+    log(
+      "warn",
+      aborted >
+        0
+        ? `Dispatcher disabled; aborted ${aborted} managed movement(s).`
+        : "Dispatcher disabled."
+    );
+  } else {
+    log(
+      "info",
+      "Dispatcher enabled."
+    );
+  }
+
+  emit();
+}
+
+export function getDispatcherEnabled():
+  boolean {
+  return enabled;
 }
 
 export function getDispatcherState(
