@@ -218,7 +218,9 @@ export class BlockElement extends TrackElement {
     const displayLocoAddress =
       hasAssignedLoco
         ? this.locoAddress
-        : this.runtimeTransitLocoAddress;
+        : this.runtimeTransitLocoAddress > 0
+          ? this.runtimeTransitLocoAddress
+          : trackingPrediction?.locoAddress ?? 0;
 
     const showBlockName = options?.showBlockNames === true && this.name.trim().length > 0;
     const blockNameHeight = showBlockName ? 9 : 0;
@@ -287,32 +289,16 @@ export class BlockElement extends TrackElement {
       ctx.strokeStyle =
         "#22d3ee";
       ctx.lineWidth =
-        2 +
-        phase *
-          2;
+        1;
       ctx.setLineDash([
         5,
         3,
       ]);
       ctx.strokeRect(
-        blockX - 2,
-        blockY - 2,
-        blockW + 4,
-        blockH + 4
-      );
-      ctx.setLineDash([]);
-      ctx.fillStyle =
-        "#083344";
-      ctx.font =
-        "bold 8px Arial";
-      ctx.textAlign =
-        "left";
-      ctx.textBaseline =
-        "bottom";
-      ctx.fillText(
-        `→ #${trackingPrediction.locoAddress}`,
-        blockX + 2,
-        blockY - 3
+        blockX - 1,
+        blockY - 1,
+        blockW + 2,
+        blockH + 2
       );
       ctx.restore();
     }
