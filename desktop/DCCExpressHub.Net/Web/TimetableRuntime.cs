@@ -186,6 +186,37 @@ public sealed class TimetableRuntime : BackgroundService
         return runIds.Length;
     }
 
+    public bool UpdateScriptStatus(
+        string runId,
+        string status,
+        string? message)
+    {
+        if (status is not ("running" or "paused"))
+            return false;
+
+        lock (_gate)
+        {
+            if (!_activeRuns.TryGetValue(
+                    runId,
+                    out var run) ||
+                run.TargetType !=
+                    "script")
+                return false;
+
+            _activeRuns[runId] =
+                run with
+                {
+                    Status =
+                        status,
+                    Message =
+                        message
+                };
+        }
+
+        Publish();
+        return true;
+    }
+
     public bool CompleteScript(
         string runId,
         bool ok,
