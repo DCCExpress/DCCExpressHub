@@ -7,6 +7,7 @@ import {
   ScrollArea,
   Select,
   Stack,
+  Switch,
   Tabs,
   Text,
 } from "@mantine/core";
@@ -62,9 +63,9 @@ function cloneConfig(
   const cloneDirection = (
     direction: BlockDirectionEventConfigDto
   ): BlockDirectionEventConfigDto => ({
-    arrival: direction.arrival.map(item => ({ ...item, state: true })),
-    arrived: direction.arrived.map(item => ({ ...item, state: true })),
-    leave: direction.leave.map(item => ({ ...item, state: true })),
+    arrival: direction.arrival.map(item => ({ ...item })),
+    arrived: direction.arrived.map(item => ({ ...item })),
+    leave: direction.leave.map(item => ({ ...item })),
   });
 
   return {
@@ -115,6 +116,8 @@ const TEXT = {
     copyToForward: "Reverse → Forward másolás",
     cancel: "Mégse",
     save: "Mentés",
+    on: "ON",
+    off: "OFF",
     directionHelpForward:
       "A Forward csoport Arrival, Arrived és Leave szenzorait mutatja.",
     directionHelpReverse:
@@ -148,6 +151,8 @@ const TEXT = {
     copyToForward: "Copy Reverse → Forward",
     cancel: "Cancel",
     save: "Save",
+    on: "ON",
+    off: "OFF",
     directionHelpForward:
       "Shows the Forward group's Arrival, Arrived and Leave sensors.",
     directionHelpReverse:
@@ -181,6 +186,8 @@ const TEXT = {
     copyToForward: "Reverse → Forward kopieren",
     cancel: "Abbrechen",
     save: "Speichern",
+    on: "ON",
+    off: "OFF",
     directionHelpForward:
       "Zeigt die Arrival-, Arrived- und Leave-Sensoren der Forward-Gruppe.",
     directionHelpReverse:
@@ -240,8 +247,16 @@ function SensorConditionMarker({
                 width={badgeWidth}
                 height={badgeHeight}
                 rx="9"
-                fill="var(--mantine-color-green-7)"
-                stroke="var(--mantine-color-green-9)"
+                fill={
+                  condition.state
+                    ? "var(--mantine-color-green-7)"
+                    : "#000000"
+                }
+                stroke={
+                  condition.state
+                    ? "var(--mantine-color-green-9)"
+                    : "var(--mantine-color-gray-7)"
+                }
                 strokeWidth="1"
               />
 
@@ -601,9 +616,9 @@ export default function BlockEventConfigPropertyEditor({
     setDraft(current => ({
       ...current,
       [to]: {
-        arrival: current[from].arrival.map(item => ({ ...item, state: true })),
-        arrived: current[from].arrived.map(item => ({ ...item, state: true })),
-        leave: current[from].leave.map(item => ({ ...item, state: true })),
+        arrival: current[from].arrival.map(item => ({ ...item })),
+        arrived: current[from].arrived.map(item => ({ ...item })),
+        leave: current[from].leave.map(item => ({ ...item })),
       },
     }));
   };
@@ -699,7 +714,26 @@ export default function BlockEventConfigPropertyEditor({
                     }}
                   />
 
-
+                  <Switch
+                    mt={index === 0 ? 22 : 0}
+                    checked={condition.state}
+                    label={condition.state ? text.on : text.off}
+                    onChange={ev =>
+                      updateGroup(
+                        direction,
+                        group,
+                        conditions.map((item, itemIndex) =>
+                          itemIndex === index
+                            ? {
+                                ...item,
+                                state:
+                                  ev.currentTarget.checked,
+                              }
+                            : item
+                        )
+                      )
+                    }
+                  />
 
                   <ActionIcon
                     mt={index === 0 ? 22 : 0}
