@@ -6106,3 +6106,46 @@ test("Movement arrival requires the destination block occupancy sensor", () => {
     /conditionsSatisfied\([\s\S]*leg\.arrivedWhen/
   );
 });
+
+
+test("Dispatcher-selected locomotive identity reaches the Movement executor unchanged", () => {
+  const dispatcher =
+    read(
+      "src/services/dispatcherRuntime.ts"
+    );
+
+  const engine =
+    read(
+      "src/services/movementEngine.ts"
+    );
+
+  assert.match(
+    dispatcher,
+    /startMovement\([\s\S]*executionPage,[\s\S]*loco\.locoAddress/
+  );
+
+  assert.match(
+    engine,
+    /export async function startMovement\([\s\S]*expectedLocoAddress\?:/
+  );
+
+  assert.match(
+    engine,
+    /const requestedLocoAddress =/
+  );
+
+  assert.match(
+    engine,
+    /expectedLocoAddress/
+  );
+
+  assert.match(
+    engine,
+    /Movement engine must never[\s\S]*rediscover a different decoder/
+  );
+
+  assert.match(
+    engine,
+    /contains locomotive #[\s\S]*but Dispatcher selected/
+  );
+});
