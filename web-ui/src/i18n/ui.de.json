@@ -1356,5 +1356,15 @@
   "movementRuntimeRandomPlayPlaying": "Zufälliges Audio wird abgespielt · Wurf {{roll}}/10, Grenze {{threshold}}",
   "graphStatusValid": "GRAPH GÜLTIG",
   "graphStatusDirty": "GRAPH VERALTET",
-  "graphStatusInvalid": "GRAPH UNGÜLTIG"
+  "graphStatusInvalid": "GRAPH UNGÜLTIG",
+  "automationDispatcherTab": "Dispatcher",
+  "dispatcherTitle": "Dispatcher",
+  "dispatcherDescription": "Der Dispatcher führt gespeicherte A→B→C-Fahraufträge aus. Train Tracking liefert die Lokposition; der Dispatcher koordiniert Ausführung und Sicherheitsfreigaben.",
+  "dispatcherMovement": "Bewegung",
+  "dispatcherRoute": "Route",
+  "dispatcherCurrentBlock": "Aktueller Block",
+  "dispatcherNextBlock": "Nächster Block",
+  "dispatcherNoTasks": "Noch keine Dispatcher-Bewegung gestartet.",
+  "dispatcherLog": "Dispatcher-Protokoll",
+  "dispatcherNoLog": "Noch keine Dispatcher-Ereignisse."
 }
