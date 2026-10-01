@@ -1,0 +1,1383 @@
+using System.Collections.Concurrent;
+using System.Text.Json;
+using DCCExpressHub.Net.CommandCenter;
+
+namespace DCCExpressHub.Net.Web;
+
+public sealed record MovementRuntimeState(
+    string PageId,
+    string Status,
+    long? StartedAt,
+    long? StoppedAt,
+    int? LocoAddress,
+    int DesiredSpeed,
+    string? CurrentResourceKey,
+    string? ActiveRouteResourceKey,
+    string? Info,
+    string? Error);
+
+public sealed record MovementAudioRequest(
+    string RequestId,
+    string FileName,
+    bool WaitForEnd);
+
+public sealed class MovementSensorCondition
+{
+    public string Id { get; set; } = "";
+    public int Sensor { get; set; }
+    public bool State { get; set; } = true;
+}
+
+public sealed class MovementResourceEventRule
+{
+    public string ResourceKey { get; set; } = "";
+    public string Event { get; set; } = "";
+    public string Match { get; set; } = "all";
+    public MovementSensorCondition[] Conditions { get; set; } = [];
+}
+
+public sealed class MovementSafetyRule
+{
+    public int FromBlockId { get; set; }
+    public int ToBlockId { get; set; }
+    public int[] IgnoredSensors { get; set; } = [];
+}
+
+public sealed class MovementActionModel
+{
+    public string Id { get; set; } = "";
+    public string ResourceKey { get; set; } = "";
+    public string When { get; set; } = "";
+    public string SequenceId { get; set; } = "";
+    public string SequenceMode { get; set; } = "blocking";
+    public string Kind { get; set; } = "log";
+    public int Speed { get; set; } = 20;
+    public int FunctionNumber { get; set; } = 2;
+    public int? FunctionBindingId { get; set; }
+    public bool FunctionActive { get; set; } = true;
+    public int PulseMs { get; set; } = 700;
+    public int DelayMs { get; set; } = 500;
+    public int MinDelayMs { get; set; } = 500;
+    public int MaxDelayMs { get; set; } = 1500;
+    public string AudioName { get; set; } = "";
+    public bool AudioWaitForEnd { get; set; }
+    public int RandomPlayChancePercent { get; set; } = 30;
+    public int AccessoryAddress { get; set; } = 1;
+    public bool AccessoryActive { get; set; } = true;
+    public int AccessoryAspect { get; set; }
+    public string Message { get; set; } = "";
+}
+
+public sealed class MovementPageModel
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public bool Enabled { get; set; } = true;
+    public int Speed { get; set; } = 20;
+    public MovementResourceEventRule[] ResourceEventRules { get; set; } = [];
+    public MovementSafetyRule[] SafetyRules { get; set; } = [];
+    public MovementActionModel[] Actions { get; set; } = [];
+}
+
+public sealed class MovementPlanResourceModel
+{
+    public string Key { get; set; } = "";
+    public string Kind { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string Label { get; set; } = "";
+    public int? BlockId { get; set; }
+    public int? SensorAddress { get; set; }
+    public int? NodeIndex { get; set; }
+    public int[] Detectors { get; set; } = [];
+    public DispatcherTurnoutRequirement[] TurnoutStates { get; set; } = [];
+}
+
+public sealed class MovementPlanLegModel
+{
+    public int Index { get; set; }
+    public MovementPlanResourceModel From { get; set; } = new();
+    public MovementPlanResourceModel To { get; set; } = new();
+    public MovementPlanResourceModel[] Resources { get; set; } = [];
+    public DispatcherTurnoutRequirement[] TurnoutStates { get; set; } = [];
+    public MovementSensorCondition[] ApproachWhen { get; set; } = [];
+    public MovementSensorCondition[] DepartWhen { get; set; } = [];
+    public MovementSensorCondition[] LeaveWhen { get; set; } = [];
+    public bool LeaveWhenExplicit { get; set; }
+    public MovementSensorCondition[] ArrivedWhen { get; set; } = [];
+}
+
+public sealed class MovementPlanModel
+{
+    public string Direction { get; set; } = "unknown";
+    public MovementPlanResourceModel[] Resources { get; set; } = [];
+    public MovementPlanResourceModel[] Blocks { get; set; } = [];
+    public MovementPlanLegModel[] Legs { get; set; } = [];
+}
+
+public sealed record MovementStartRequest(
+    MovementPageModel Page,
+    MovementPlanModel Plan);
+
+/// <summary>
+/// Windows authoritative Movement executor.
+///
+/// The browser is intentionally NOT part of the safety loop. It may request
+/// start/stop/abort and render state, but route authority, turnout locking,
+/// sensor conditions, throttle, block transitions and action execution live
+/// here in the backend.
+/// </summary>
+public sealed class MovementRuntime
+{
+    sealed class Execution
+    {
+        public required MovementPageModel Page { get; init; }
+        public required MovementPlanModel Plan { get; init; }
+        public required int LocoAddress { get; init; }
+        public required bool Forward { get; init; }
+        public required CancellationTokenSource Cancellation { get; init; }
+        public required MovementRuntimeState State { get; set; }
+        public int DesiredSpeed { get; set; }
+        public bool Moving { get; set; }
+        public bool EmergencyAbort { get; set; }
+        public int? CurrentBlockId { get; set; }
+        public int? TargetBlockId { get; set; }
+        public ConcurrentBag<Task> BackgroundTasks { get; } = [];
+        public Dictionary<int, int> FunctionNumbersByBindingId { get; } = [];
+    }
+
+    readonly object _gate = new();
+    readonly LayoutRuntime _layout;
+    readonly DispatcherRuntime _dispatcher;
+    readonly ICommandCenter _commandCenter;
+    readonly HubState _hubState;
+    readonly IWebHostEnvironment _env;
+    readonly ILogger<MovementRuntime> _log;
+    readonly Dictionary<string, Execution> _executions = new(StringComparer.Ordinal);
+    readonly Dictionary<string, MovementRuntimeState> _states = new(StringComparer.Ordinal);
+    readonly ConcurrentDictionary<string, TaskCompletionSource<bool>> _pendingAudio = new(StringComparer.Ordinal);
+    readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web);
+
+    public event Action<MovementRuntimeState>? Changed;
+    public event Action<MovementAudioRequest>? AudioRequested;
+
+    public MovementRuntime(
+        LayoutRuntime layout,
+        DispatcherRuntime dispatcher,
+        ICommandCenter commandCenter,
+        HubState hubState,
+        IWebHostEnvironment env,
+        ILogger<MovementRuntime> log)
+    {
+        _layout = layout;
+        _dispatcher = dispatcher;
+        _commandCenter = commandCenter;
+        _hubState = hubState;
+        _env = env;
+        _log = log;
+    }
+
+    static long NowMs() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+    static MovementRuntimeState Idle(string pageId) =>
+        new(pageId, "idle", null, null, null, 0, null, null, null, null);
+
+    public MovementRuntimeState GetState(string pageId)
+    {
+        lock (_gate)
+            return _states.TryGetValue(pageId, out var state)
+                ? state
+                : Idle(pageId);
+    }
+
+    public MovementRuntimeState[] Snapshot()
+    {
+        lock (_gate)
+            return _states.Values
+                .OrderBy(x => x.PageId, StringComparer.Ordinal)
+                .ToArray();
+    }
+
+    void Publish(Execution execution, MovementRuntimeState state)
+    {
+        execution.State = state;
+
+        lock (_gate)
+            _states[execution.Page.Id] = state;
+
+        Changed?.Invoke(state);
+    }
+
+    void Patch(
+        Execution execution,
+        string? status = null,
+        int? desiredSpeed = null,
+        string? currentResourceKey = null,
+        bool setCurrentResource = false,
+        string? activeRouteResourceKey = null,
+        bool setActiveRoute = false,
+        string? info = null,
+        bool setInfo = false,
+        string? error = null,
+        bool setError = false,
+        long? stoppedAt = null,
+        bool setStoppedAt = false)
+    {
+        var s = execution.State;
+
+        Publish(
+            execution,
+            s with
+            {
+                Status = status ?? s.Status,
+                DesiredSpeed = desiredSpeed ?? s.DesiredSpeed,
+                CurrentResourceKey = setCurrentResource ? currentResourceKey : s.CurrentResourceKey,
+                ActiveRouteResourceKey = setActiveRoute ? activeRouteResourceKey : s.ActiveRouteResourceKey,
+                Info = setInfo ? info : s.Info,
+                Error = setError ? error : s.Error,
+                StoppedAt = setStoppedAt ? stoppedAt : s.StoppedAt
+            });
+    }
+
+    RuntimeBlock? Block(int id) =>
+        id is >= 1 and <= 65535
+            ? _layout.BlocksForPersistence()
+                .FirstOrDefault(x => x.Id == (ushort)id)
+            : null;
+
+    bool ConditionsSatisfied(IEnumerable<MovementSensorCondition> conditions)
+    {
+        var any = false;
+
+        foreach (var condition in conditions)
+        {
+            any = true;
+
+            if (condition.Sensor is < 1 or > 65535 ||
+                !_layout.TryGetSensorState((ushort)condition.Sensor, out var state) ||
+                state != condition.State)
+                return false;
+        }
+
+        return any;
+    }
+
+    bool ResourceEventSatisfied(
+        MovementPageModel page,
+        MovementPlanResourceModel resource,
+        string eventName)
+    {
+        var rule = page.ResourceEventRules.FirstOrDefault(x =>
+            string.Equals(x.ResourceKey, resource.Key, StringComparison.Ordinal) &&
+            string.Equals(x.Event, eventName, StringComparison.Ordinal));
+
+        if (rule is null || rule.Conditions.Length == 0)
+            return false;
+
+        if (string.Equals(rule.Match, "any", StringComparison.Ordinal))
+        {
+            foreach (var condition in rule.Conditions)
+            {
+                if (condition.Sensor is >= 1 and <= 65535 &&
+                    _layout.TryGetSensorState((ushort)condition.Sensor, out var state) &&
+                    state == condition.State)
+                    return true;
+            }
+
+            return false;
+        }
+
+        return ConditionsSatisfied(rule.Conditions);
+    }
+
+    ushort[] EffectiveSafetySensors(
+        MovementPageModel page,
+        MovementPlanLegModel leg)
+    {
+        var ignored = page.SafetyRules
+            .FirstOrDefault(x =>
+                x.FromBlockId == leg.From.BlockId &&
+                x.ToBlockId == leg.To.BlockId)?
+            .IgnoredSensors
+            .Where(x => x is >= 1 and <= 65535)
+            .ToHashSet() ?? [];
+
+        var sourceSensor = leg.From.SensorAddress;
+        var sourceNode = leg.From.NodeIndex;
+        var result = new HashSet<ushort>();
+
+        foreach (var resource in leg.Resources)
+        {
+            var safetyResource =
+                string.Equals(resource.Kind, "turnout", StringComparison.Ordinal) ||
+                (string.Equals(resource.Kind, "segment", StringComparison.Ordinal) &&
+                 resource.NodeIndex.HasValue &&
+                 resource.NodeIndex != sourceNode);
+
+            if (!safetyResource)
+                continue;
+
+            foreach (var detector in resource.Detectors)
+            {
+                if (detector is < 1 or > 65535 ||
+                    detector == sourceSensor ||
+                    ignored.Contains(detector))
+                    continue;
+
+                result.Add((ushort)detector);
+            }
+        }
+
+        if (leg.To.SensorAddress is >= 1 and <= 65535 &&
+            !ignored.Contains(leg.To.SensorAddress.Value))
+            result.Add((ushort)leg.To.SensorAddress.Value);
+
+        return result.OrderBy(x => x).ToArray();
+    }
+
+    bool SafetyFree(IEnumerable<ushort> sensors)
+    {
+        foreach (var sensor in sensors)
+            if (!_layout.TryGetSensorState(sensor, out var on) || on)
+                return false;
+
+        return true;
+    }
+
+    async Task WaitUntil(
+        Execution execution,
+        Func<bool> predicate,
+        string info,
+        int pollMs = 75)
+    {
+        while (!predicate())
+        {
+            execution.Cancellation.Token.ThrowIfCancellationRequested();
+
+            execution.Moving = false;
+            await ApplySpeed(execution, force: false);
+
+            Patch(
+                execution,
+                info: info,
+                setInfo: true);
+
+            await Task.Delay(
+                pollMs,
+                execution.Cancellation.Token);
+        }
+    }
+
+    async Task ApplySpeed(
+        Execution execution,
+        bool force)
+    {
+        var speed =
+            execution.Moving
+                ? Math.Clamp(execution.DesiredSpeed, 0, 126)
+                : 0;
+
+        var live = _hubState.Locos.GetValueOrDefault(
+            execution.LocoAddress,
+            new(execution.LocoAddress, 0, execution.Forward, 0));
+
+        if (!force &&
+            live.Speed == speed &&
+            live.Forward == execution.Forward)
+            return;
+
+        if (!await _commandCenter.SetLocoAsync(
+                execution.LocoAddress,
+                speed,
+                execution.Forward,
+                execution.Cancellation.Token))
+            throw new InvalidOperationException("movement_loco_command_failed");
+
+        _hubState.Locos[execution.LocoAddress] =
+            live with
+            {
+                Speed = speed,
+                Forward = execution.Forward
+            };
+    }
+
+    async Task ArmDirection(Execution execution)
+    {
+        execution.Moving = false;
+        await ApplySpeed(execution, force: true);
+        await Task.Delay(150, execution.Cancellation.Token);
+    }
+
+    Dictionary<int, int> LoadFunctionBindingMap(int locoAddress)
+    {
+        var result = new Dictionary<int, int>();
+        var path = Path.Combine(_env.ContentRootPath, "data", "config", "locos.json");
+
+        if (!File.Exists(path))
+            return result;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(File.ReadAllText(path));
+
+            if (doc.RootElement.ValueKind != JsonValueKind.Array)
+                return result;
+
+            foreach (var loco in doc.RootElement.EnumerateArray())
+            {
+                if (!loco.TryGetProperty("address", out var a) ||
+                    !a.TryGetInt32(out var address) ||
+                    address != locoAddress ||
+                    !loco.TryGetProperty("functions", out var functions) ||
+                    functions.ValueKind != JsonValueKind.Array)
+                    continue;
+
+                foreach (var fn in functions.EnumerateArray())
+                {
+                    if (!fn.TryGetProperty("bindingId", out var binding) ||
+                        !binding.TryGetInt32(out var bindingId) ||
+                        !fn.TryGetProperty("number", out var number) ||
+                        !number.TryGetInt32(out var functionNumber))
+                        continue;
+
+                    if (bindingId > 0 && functionNumber is >= 0 and <= 68)
+                        result.TryAdd(bindingId, functionNumber);
+                }
+
+                break;
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Movement could not load locomotive function bindings");
+        }
+
+        return result;
+    }
+
+    static string AudioPath(string name)
+    {
+        var value = (name ?? "").Trim();
+
+        if (value.Length == 0)
+            return "";
+
+        if (value.StartsWith("/", StringComparison.Ordinal))
+            return value;
+
+        return "/sd/audio/" + Uri.EscapeDataString(value);
+    }
+
+    async Task<bool> RequestAudio(
+        Execution execution,
+        string fileName,
+        bool waitForEnd)
+    {
+        var requestId =
+            "movement-backend:" +
+            execution.Page.Id +
+            ":" +
+            Guid.NewGuid().ToString("N");
+
+        if (!waitForEnd)
+        {
+            AudioRequested?.Invoke(
+                new MovementAudioRequest(
+                    requestId,
+                    fileName,
+                    false));
+
+            return true;
+        }
+
+        var tcs =
+            new TaskCompletionSource<bool>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+
+        if (!_pendingAudio.TryAdd(requestId, tcs))
+            return false;
+
+        using var registration =
+            execution.Cancellation.Token.Register(
+                () => tcs.TrySetCanceled(execution.Cancellation.Token));
+
+        AudioRequested?.Invoke(
+            new MovementAudioRequest(
+                requestId,
+                fileName,
+                true));
+
+        try
+        {
+            return await tcs.Task;
+        }
+        finally
+        {
+            _pendingAudio.TryRemove(requestId, out _);
+        }
+    }
+
+    public bool CompleteAudio(
+        string requestId,
+        bool ok)
+    {
+        return _pendingAudio.TryGetValue(requestId, out var pending) &&
+               pending.TrySetResult(ok);
+    }
+
+    async Task ExecuteAction(
+        Execution execution,
+        MovementActionModel action)
+    {
+        execution.Cancellation.Token.ThrowIfCancellationRequested();
+
+        switch (action.Kind)
+        {
+            case "speed":
+                execution.DesiredSpeed = Math.Clamp(action.Speed, 0, 126);
+                Patch(
+                    execution,
+                    desiredSpeed: execution.DesiredSpeed);
+                await ApplySpeed(execution, force: true);
+                return;
+
+            case "function":
+                {
+                    var fn =
+                        action.FunctionBindingId.HasValue &&
+                        execution.FunctionNumbersByBindingId.TryGetValue(
+                            action.FunctionBindingId.Value,
+                            out var bound)
+                            ? bound
+                            : action.FunctionNumber;
+
+                    if (!await _commandCenter.SetLocoFunctionAsync(
+                            execution.LocoAddress,
+                            Math.Clamp(fn, 0, 68),
+                            action.FunctionActive,
+                            execution.Cancellation.Token))
+                        throw new InvalidOperationException("movement_function_command_failed");
+
+                    return;
+                }
+
+            case "horn":
+                {
+                    var fn =
+                        action.FunctionBindingId.HasValue &&
+                        execution.FunctionNumbersByBindingId.TryGetValue(
+                            action.FunctionBindingId.Value,
+                            out var bound)
+                            ? bound
+                            : action.FunctionNumber;
+
+                    fn = Math.Clamp(fn, 0, 68);
+
+                    if (!await _commandCenter.SetLocoFunctionAsync(
+                            execution.LocoAddress,
+                            fn,
+                            true,
+                            execution.Cancellation.Token))
+                        throw new InvalidOperationException("movement_horn_on_failed");
+
+                    try
+                    {
+                        await Task.Delay(
+                            Math.Clamp(action.PulseMs, 1, 600000),
+                            execution.Cancellation.Token);
+                    }
+                    finally
+                    {
+                        await _commandCenter.SetLocoFunctionAsync(
+                            execution.LocoAddress,
+                            fn,
+                            false,
+                            CancellationToken.None);
+                    }
+
+                    return;
+                }
+
+            case "delay":
+                await Task.Delay(
+                    Math.Clamp(action.DelayMs, 0, 600000),
+                    execution.Cancellation.Token);
+                return;
+
+            case "randomDelay":
+                {
+                    var min = Math.Clamp(Math.Min(action.MinDelayMs, action.MaxDelayMs), 0, 600000);
+                    var max = Math.Clamp(Math.Max(action.MinDelayMs, action.MaxDelayMs), min, 600000);
+                    var ms = Random.Shared.Next(min, max + 1);
+                    await Task.Delay(ms, execution.Cancellation.Token);
+                    return;
+                }
+
+            case "playAudio":
+                {
+                    var path = AudioPath(action.AudioName);
+                    if (path.Length == 0)
+                        return;
+
+                    if (!await RequestAudio(
+                            execution,
+                            path,
+                            action.AudioWaitForEnd))
+                        throw new InvalidOperationException("movement_audio_failed");
+
+                    return;
+                }
+
+            case "randomPlay":
+                {
+                    var chance = Math.Clamp(action.RandomPlayChancePercent, 0, 100);
+                    if (Random.Shared.Next(1, 101) > chance)
+                        return;
+
+                    var path = AudioPath(action.AudioName);
+                    if (path.Length == 0)
+                        return;
+
+                    if (!await RequestAudio(
+                            execution,
+                            path,
+                            action.AudioWaitForEnd))
+                        throw new InvalidOperationException("movement_audio_failed");
+
+                    return;
+                }
+
+            case "setAccessory":
+                {
+                    var address = Math.Clamp(action.AccessoryAddress, 1, 2048);
+                    if (!await _commandCenter.SetAccessoryAsync(
+                            address,
+                            action.AccessoryActive,
+                            execution.Cancellation.Token))
+                        throw new InvalidOperationException("movement_accessory_command_failed");
+
+                    _layout.SetAccessory(
+                        (ushort)address,
+                        action.AccessoryActive);
+                    return;
+                }
+
+            case "setExtendedAccessory":
+                {
+                    var address = Math.Clamp(action.AccessoryAddress, 1, 2048);
+                    var aspect = Math.Clamp(action.AccessoryAspect, 0, 255);
+
+                    if (!await _commandCenter.SetSignalAspectAsync(
+                            address,
+                            aspect,
+                            execution.Cancellation.Token))
+                        throw new InvalidOperationException("movement_extended_accessory_command_failed");
+
+                    _layout.SetSignal(
+                        (ushort)address,
+                        aspect);
+                    return;
+                }
+
+            case "log":
+                _log.LogInformation(
+                    "Movement {Movement}: {Message}",
+                    execution.Page.Name,
+                    action.Message);
+                return;
+        }
+    }
+
+    async Task RunActionSequence(
+        Execution execution,
+        IEnumerable<MovementActionModel> actions)
+    {
+        foreach (var action in actions)
+            await ExecuteAction(execution, action);
+    }
+
+    async Task RunActions(
+        Execution execution,
+        string resourceKey,
+        string when)
+    {
+        var matching = execution.Page.Actions
+            .Where(x =>
+                string.Equals(x.ResourceKey, resourceKey, StringComparison.Ordinal) &&
+                string.Equals(x.When, when, StringComparison.Ordinal))
+            .ToArray();
+
+        var sequenceOrder = new List<string>();
+        var groups = new Dictionary<string, List<MovementActionModel>>(StringComparer.Ordinal);
+        var modes = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (var action in matching)
+        {
+            var id = string.IsNullOrWhiteSpace(action.SequenceId)
+                ? "legacy:" + resourceKey + ":" + when
+                : action.SequenceId;
+
+            if (!groups.TryGetValue(id, out var items))
+            {
+                items = [];
+                groups[id] = items;
+                modes[id] = action.SequenceMode;
+                sequenceOrder.Add(id);
+            }
+
+            items.Add(action);
+        }
+
+        foreach (var id in sequenceOrder)
+        {
+            var items = groups[id];
+
+            if (string.Equals(modes[id], "background", StringComparison.Ordinal))
+            {
+                var task = RunActionSequence(execution, items)
+                    .ContinueWith(
+                        t =>
+                        {
+                            if (t.IsFaulted)
+                                _log.LogError(
+                                    t.Exception,
+                                    "Movement background sequence failed: {Movement}",
+                                    execution.Page.Name);
+                        },
+                        CancellationToken.None,
+                        TaskContinuationOptions.ExecuteSynchronously,
+                        TaskScheduler.Default);
+
+                execution.BackgroundTasks.Add(task);
+            }
+            else
+            {
+                await RunActionSequence(execution, items);
+            }
+        }
+    }
+
+    async Task WaitResourceEntry(
+        Execution execution,
+        MovementPlanResourceModel resource)
+    {
+        var eventName =
+            string.Equals(resource.Kind, "turnout", StringComparison.Ordinal)
+                ? "approach"
+                : "enter";
+
+        var hasRule = execution.Page.ResourceEventRules.Any(x =>
+            string.Equals(x.ResourceKey, resource.Key, StringComparison.Ordinal) &&
+            string.Equals(x.Event, eventName, StringComparison.Ordinal) &&
+            x.Conditions.Length > 0);
+
+        if (!hasRule)
+            return;
+
+        await WaitUntil(
+            execution,
+            () => ResourceEventSatisfied(
+                execution.Page,
+                resource,
+                eventName),
+            "Waiting for " + resource.Name);
+    }
+
+    async Task WaitBlockLeave(
+        Execution execution,
+        MovementPlanLegModel leg)
+    {
+        if (leg.LeaveWhen.Length == 0)
+            return;
+
+        if (leg.LeaveWhenExplicit)
+        {
+            await WaitUntil(
+                execution,
+                () => ConditionsSatisfied(leg.LeaveWhen),
+                "Waiting to leave " + leg.From.Name);
+            return;
+        }
+
+        var sensor = leg.From.SensorAddress;
+
+        if (sensor is null)
+            return;
+
+        var seenOccupied =
+            _layout.TryGetSensorState((ushort)sensor.Value, out var initial) &&
+            initial;
+
+        while (true)
+        {
+            execution.Cancellation.Token.ThrowIfCancellationRequested();
+
+            if (_layout.TryGetSensorState((ushort)sensor.Value, out var occupied))
+            {
+                if (occupied)
+                    seenOccupied = true;
+                else if (seenOccupied)
+                    return;
+            }
+
+            await Task.Delay(75, execution.Cancellation.Token);
+        }
+    }
+
+    async Task<DispatcherLegLeaseInfo> AcquireLeg(
+        Execution execution,
+        MovementPlanLegModel leg)
+    {
+        if (leg.From.BlockId is null ||
+            leg.To.BlockId is null)
+            throw new InvalidOperationException("movement_leg_block_missing");
+
+        var ownerId =
+            "movement:" +
+            execution.Page.Id +
+            ":leg:" +
+            leg.Index +
+            ":" +
+            Guid.NewGuid().ToString("N");
+
+        while (true)
+        {
+            execution.Cancellation.Token.ThrowIfCancellationRequested();
+
+            var result =
+                await _dispatcher.AcquireLegAsync(
+                    new DispatcherLegRequest(
+                        ownerId,
+                        "Movement: " + execution.Page.Name,
+                        (ushort)execution.LocoAddress,
+                        (ushort)leg.From.BlockId.Value,
+                        (ushort)leg.To.BlockId.Value,
+                        leg.TurnoutStates,
+                        EffectiveSafetySensors(
+                            execution.Page,
+                            leg),
+                        0),
+                    execution.Cancellation.Token);
+
+            if (result.Ok && result.Lease is not null)
+            {
+                execution.TargetBlockId = leg.To.BlockId;
+                return result.Lease;
+            }
+
+            execution.Moving = false;
+            await ApplySpeed(execution, force: false);
+
+            Patch(
+                execution,
+                info:
+                    result.BlockingSensor.HasValue
+                        ? "Waiting for safety sensor #" + result.BlockingSensor.Value
+                        : result.BlockingBlock.HasValue
+                            ? "Waiting for block " + result.BlockingBlock.Value
+                            : result.Error == "turnout_locked"
+                                ? "Waiting for turnout lock"
+                                : "Waiting for route authority",
+                setInfo: true);
+
+            await Task.Delay(
+                150,
+                execution.Cancellation.Token);
+        }
+    }
+
+    async Task TraverseLeg(
+        Execution execution,
+        MovementPlanLegModel leg)
+    {
+        execution.CurrentBlockId = leg.From.BlockId;
+
+        Patch(
+            execution,
+            currentResourceKey: leg.From.Key,
+            setCurrentResource: true,
+            activeRouteResourceKey: leg.From.Key,
+            setActiveRoute: true);
+
+        if (leg.DepartWhen.Length > 0)
+        {
+            await WaitUntil(
+                execution,
+                () => ConditionsSatisfied(leg.DepartWhen),
+                "Waiting for departure condition at " + leg.From.Name);
+        }
+
+        // BEFORE DEPART intentionally runs before route authority is acquired:
+        // station dwell/audio must never hold turnouts for minutes.
+        await RunActions(
+            execution,
+            leg.From.Key,
+            "beforeDepart");
+
+        var lease = await AcquireLeg(execution, leg);
+
+        try
+        {
+            if (leg.DepartWhen.Length > 0)
+            {
+                await WaitUntil(
+                    execution,
+                    () => ConditionsSatisfied(leg.DepartWhen),
+                    "Waiting for departure condition at " + leg.From.Name);
+            }
+
+            await RunActions(
+                execution,
+                leg.From.Key,
+                "depart");
+
+            if (!SafetyFree(lease.SafetySensors))
+                throw new InvalidOperationException("movement_authority_lost_before_departure");
+
+            execution.Moving = true;
+            await ApplySpeed(execution, force: true);
+
+            var approachFired = false;
+
+            if (leg.ApproachWhen.Length > 0 &&
+                ConditionsSatisfied(leg.ApproachWhen))
+            {
+                await RunActions(
+                    execution,
+                    leg.To.Key,
+                    "approach");
+                approachFired = true;
+            }
+
+            foreach (var resource in leg.Resources)
+            {
+                execution.Cancellation.Token.ThrowIfCancellationRequested();
+
+                await WaitResourceEntry(
+                    execution,
+                    resource);
+
+                Patch(
+                    execution,
+                    activeRouteResourceKey: resource.Key,
+                    setActiveRoute: true);
+
+                if (string.Equals(resource.Kind, "turnout", StringComparison.Ordinal))
+                {
+                    await RunActions(
+                        execution,
+                        resource.Key,
+                        "approach");
+                }
+                else if (string.Equals(resource.Kind, "segment", StringComparison.Ordinal))
+                {
+                    await RunActions(
+                        execution,
+                        resource.Key,
+                        "enter");
+                }
+
+                if (!approachFired &&
+                    leg.ApproachWhen.Length > 0 &&
+                    ConditionsSatisfied(leg.ApproachWhen))
+                {
+                    await RunActions(
+                        execution,
+                        leg.To.Key,
+                        "approach");
+                    approachFired = true;
+                }
+            }
+
+            if (leg.ArrivedWhen.Length == 0)
+                throw new InvalidOperationException(
+                    "movement_destination_has_no_arrival_condition");
+
+            await WaitUntil(
+                execution,
+                () => ConditionsSatisfied(leg.ArrivedWhen),
+                "Waiting for arrival at " + leg.To.Name);
+
+            Patch(
+                execution,
+                activeRouteResourceKey: leg.To.Key,
+                setActiveRoute: true);
+
+            var finalLeg =
+                ReferenceEquals(
+                    execution.Plan.Legs.LastOrDefault(),
+                    leg) ||
+                leg.Index == execution.Plan.Legs.Length - 1;
+
+            if (finalLeg)
+            {
+                // ARRIVED blocking actions are allowed to roll the train a bit
+                // farther before the automatic final stop.
+                await RunActions(
+                    execution,
+                    leg.To.Key,
+                    "arrived");
+
+                execution.Moving = false;
+                execution.DesiredSpeed = 0;
+
+                Patch(
+                    execution,
+                    desiredSpeed: 0);
+
+                await ApplySpeed(execution, force: true);
+            }
+
+            await WaitBlockLeave(execution, leg);
+
+            if (leg.From.BlockId is >= 1 and <= 65535)
+                _layout.RemoveBlock(
+                    (ushort)leg.From.BlockId.Value);
+
+            if (leg.LeaveWhen.Length == 0)
+                await RunActions(
+                    execution,
+                    leg.From.Key,
+                    "leave");
+
+            await RunActions(
+                execution,
+                leg.From.Key,
+                "afterLeave");
+
+            if (leg.To.BlockId is >= 1 and <= 65535)
+            {
+                if (!_layout.SetBlock(
+                        (ushort)leg.To.BlockId.Value,
+                        "",
+                        (ushort)execution.LocoAddress))
+                    throw new InvalidOperationException(
+                        "movement_destination_commit_failed");
+
+                execution.CurrentBlockId =
+                    leg.To.BlockId;
+
+                execution.TargetBlockId =
+                    null;
+            }
+
+            if (!finalLeg)
+            {
+                var next =
+                    execution.Plan.Legs.ElementAtOrDefault(
+                        leg.Index + 1);
+
+                var mayKeepRolling =
+                    next is not null &&
+                    (next.DepartWhen.Length == 0 ||
+                     ConditionsSatisfied(next.DepartWhen)) &&
+                    EffectiveSafetySensors(
+                        execution.Page,
+                        next)
+                        .All(sensor =>
+                            _layout.TryGetSensorState(
+                                sensor,
+                                out var on) &&
+                            !on);
+
+                execution.DesiredSpeed =
+                    execution.Page.Speed;
+
+                execution.Moving =
+                    mayKeepRolling;
+
+                Patch(
+                    execution,
+                    desiredSpeed:
+                        execution.DesiredSpeed);
+
+                await ApplySpeed(
+                    execution,
+                    force: true);
+
+                await RunActions(
+                    execution,
+                    leg.To.Key,
+                    "arrived");
+            }
+
+            Patch(
+                execution,
+                info: "Arrived: " + leg.To.Name,
+                setInfo: true);
+        }
+        finally
+        {
+            _dispatcher.ReleaseLeg(
+                lease.OwnerId);
+        }
+    }
+
+    async Task RunExecution(Execution execution)
+    {
+        try
+        {
+            await ArmDirection(execution);
+
+            await RunActions(
+                execution,
+                "movement",
+                "start");
+
+            foreach (var leg in execution.Plan.Legs)
+                await TraverseLeg(execution, leg);
+
+            execution.Moving = false;
+            execution.DesiredSpeed = 0;
+            await ApplySpeed(execution, force: true);
+
+            await RunActions(
+                execution,
+                "movement",
+                "complete");
+
+            if (!execution.BackgroundTasks.IsEmpty)
+                await Task.WhenAll(
+                    execution.BackgroundTasks.ToArray());
+
+            var stoppedAt = NowMs();
+
+            Publish(
+                execution,
+                execution.State with
+                {
+                    Status = "idle",
+                    StoppedAt = stoppedAt,
+                    DesiredSpeed = 0,
+                    CurrentResourceKey = null,
+                    ActiveRouteResourceKey = null,
+                    Info = "Movement completed",
+                    Error = null
+                });
+        }
+        catch (OperationCanceledException)
+        {
+            execution.Moving = false;
+            execution.DesiredSpeed = 0;
+
+            try
+            {
+                await ApplySpeed(
+                    execution,
+                    force: true);
+            }
+            catch
+            {
+            }
+
+            Publish(
+                execution,
+                execution.State with
+                {
+                    Status = "idle",
+                    StoppedAt = NowMs(),
+                    DesiredSpeed = 0,
+                    CurrentResourceKey = null,
+                    ActiveRouteResourceKey = null,
+                    Info = execution.EmergencyAbort
+                        ? "Movement aborted"
+                        : "Movement stopped",
+                    Error = null
+                });
+        }
+        catch (Exception ex)
+        {
+            execution.Moving = false;
+            execution.DesiredSpeed = 0;
+
+            try
+            {
+                await ApplySpeed(
+                    execution,
+                    force: true);
+            }
+            catch
+            {
+            }
+
+            _log.LogError(
+                ex,
+                "Movement {Movement} failed",
+                execution.Page.Name);
+
+            Publish(
+                execution,
+                execution.State with
+                {
+                    Status = "error",
+                    StoppedAt = NowMs(),
+                    DesiredSpeed = 0,
+                    ActiveRouteResourceKey = null,
+                    Info = "Movement failed",
+                    Error = ex.Message
+                });
+        }
+        finally
+        {
+            lock (_gate)
+                _executions.Remove(
+                    execution.Page.Id);
+
+            execution.Cancellation.Dispose();
+        }
+    }
+
+    public (bool Ok, string? Error) Start(
+        MovementStartRequest request)
+    {
+        var page = request.Page;
+        var plan = request.Plan;
+
+        if (string.IsNullOrWhiteSpace(page.Id) ||
+            string.IsNullOrWhiteSpace(page.Name))
+            return (false, "invalid_movement");
+
+        if (!page.Enabled)
+            return (false, "movement_disabled");
+
+        if (!_hubState.TrackPower)
+            return (false, "track_power_off");
+
+        if (plan.Direction is not ("forward" or "reverse"))
+            return (false, "movement_direction_unknown");
+
+        var source =
+            plan.Blocks.FirstOrDefault();
+
+        if (source?.BlockId is null)
+            return (false, "movement_source_missing");
+
+        var sourceBlock =
+            Block(source.BlockId.Value);
+
+        if (sourceBlock is null ||
+            sourceBlock.LocoAddress == 0)
+            return (false, "movement_source_loco_missing");
+
+        lock (_gate)
+        {
+            if (_executions.ContainsKey(page.Id))
+                return (false, "movement_already_running");
+        }
+
+        var execution =
+            new Execution
+            {
+                Page = page,
+                Plan = plan,
+                LocoAddress =
+                    sourceBlock.LocoAddress,
+                Forward =
+                    plan.Direction == "forward",
+                Cancellation =
+                    new CancellationTokenSource(),
+                DesiredSpeed =
+                    Math.Clamp(page.Speed, 0, 126),
+                Moving = false,
+                CurrentBlockId =
+                    source.BlockId,
+                State =
+                    new MovementRuntimeState(
+                        page.Id,
+                        "running",
+                        NowMs(),
+                        null,
+                        sourceBlock.LocoAddress,
+                        Math.Clamp(page.Speed, 0, 126),
+                        source.Key,
+                        source.Key,
+                        "Starting from " + source.Name,
+                        null)
+            };
+
+        foreach (var pair in LoadFunctionBindingMap(execution.LocoAddress))
+            execution.FunctionNumbersByBindingId[pair.Key] = pair.Value;
+
+        lock (_gate)
+        {
+            _executions[page.Id] = execution;
+            _states[page.Id] = execution.State;
+        }
+
+        Changed?.Invoke(execution.State);
+
+        _ = Task.Run(
+            () => RunExecution(execution));
+
+        return (true, null);
+    }
+
+    public bool Stop(string pageId)
+    {
+        Execution? execution;
+
+        lock (_gate)
+            _executions.TryGetValue(
+                pageId,
+                out execution);
+
+        if (execution is null)
+            return false;
+
+        Patch(
+            execution,
+            status: "stopping",
+            desiredSpeed: 0,
+            info: "Stopping Movement...",
+            setInfo: true);
+
+        execution.Moving = false;
+        execution.DesiredSpeed = 0;
+        execution.Cancellation.Cancel();
+
+        return true;
+    }
+
+    public bool Abort(
+        string pageId,
+        bool emergencyStop)
+    {
+        Execution? execution;
+
+        lock (_gate)
+            _executions.TryGetValue(
+                pageId,
+                out execution);
+
+        if (execution is null)
+            return false;
+
+        execution.EmergencyAbort = true;
+
+        var stopped =
+            Stop(pageId);
+
+        if (stopped && emergencyStop)
+            _ = _commandCenter.EmergencyStopAsync();
+
+        return stopped;
+    }
+
+    public int StopAll(bool emergencyStop)
+    {
+        string[] pageIds;
+
+        lock (_gate)
+            pageIds =
+                _executions.Keys.ToArray();
+
+        var count = 0;
+
+        foreach (var pageId in pageIds)
+            if (emergencyStop
+                    ? Abort(pageId, true)
+                    : Stop(pageId))
+                count++;
+
+        return count;
+    }
+}
