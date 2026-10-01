@@ -6061,3 +6061,48 @@ test("Dispatcher and Movement both reject concurrent control of one locomotive",
     /is already controlled by Movement/
   );
 });
+
+
+test("Movement arrival requires the destination block occupancy sensor", () => {
+  const engine =
+    read(
+      "src/services/movementEngine.ts"
+    );
+
+  const start =
+    engine.indexOf(
+      "function arrivalSatisfied"
+    );
+
+  const end =
+    engine.indexOf(
+      "function prepareIntermediateArrivalCruise",
+      start
+    );
+
+  const arrival =
+    engine.slice(
+      start,
+      end
+    );
+
+  assert.match(
+    arrival,
+    /const destinationSensor =/
+  );
+
+  assert.match(
+    arrival,
+    /leg\.to\.sensorAddress/
+  );
+
+  assert.match(
+    arrival,
+    /sensorStates\.get\([\s\S]*destinationSensor[\s\S]*\) !==[\s\S]*true/
+  );
+
+  assert.match(
+    arrival,
+    /conditionsSatisfied\([\s\S]*leg\.arrivedWhen/
+  );
+});
