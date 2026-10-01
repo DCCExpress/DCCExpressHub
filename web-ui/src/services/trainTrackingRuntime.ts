@@ -687,8 +687,12 @@ function seedTrackingFromBlocks(
      * physical sensor is currently OFF (for example during setup).
      */
     if (
-      blockChanged &&
-      sensor
+      sensor &&
+      (
+        blockChanged ||
+        next.lastSensor ===
+          null
+      )
     ) {
       next.lastSensor =
         sensor;
