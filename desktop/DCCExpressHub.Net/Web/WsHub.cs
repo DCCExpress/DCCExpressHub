@@ -15,6 +15,7 @@ public sealed class WsHub
     readonly RuntimeStateStore RuntimeStateStore;
     readonly LocoCounterRuntime LocoCounters;
     readonly SwitchManManager SwitchMan;
+    readonly DispatcherRuntime Dispatcher;
     private readonly ILogger<WsHub> Logger;
     private readonly FastClockRuntime FastClock = new();
     private readonly ConcurrentDictionary<Guid, WebSocket> Clients = new();
@@ -31,7 +32,7 @@ public sealed class WsHub
     private static readonly TimeSpan WebSocketSendTimeout = TimeSpan.FromSeconds(2);
     public int ClientCount => Clients.Count;
 
-    public WsHub(ICommandCenter cc, HubState state, LayoutRuntime runtime, RuntimeStateStore stateStore, CommandCenterConfigStore ccConfig, LocoCounterRuntime locoCounters, SwitchManManager switchMan, ILogger<WsHub> log)
+    public WsHub(ICommandCenter cc, HubState state, LayoutRuntime runtime, RuntimeStateStore stateStore, CommandCenterConfigStore ccConfig, LocoCounterRuntime locoCounters, SwitchManManager switchMan, DispatcherRuntime dispatcher, ILogger<WsHub> log)
     {
         CommandCenter = cc;
         HubState = state;
@@ -39,9 +40,11 @@ public sealed class WsHub
         RuntimeStateStore = stateStore;
         LocoCounters = locoCounters;
         SwitchMan = switchMan;
+        Dispatcher = dispatcher;
         CommandCenterConfigStore = ccConfig;
         LayoutRuntime.Changed += (type, data) => _ = Broadcast(type, data);
         SwitchMan.Changed += snapshot => _ = Broadcast("switchManChanged", new { locks = snapshot ?? SwitchMan.Snapshot() });
+        Dispatcher.Changed += snapshot => _ = Broadcast("dispatcherChanged", new { leases = snapshot ?? Dispatcher.Snapshot() });
         Logger = log;
 
         LocoCounters.Changed += () =>
@@ -303,6 +306,9 @@ public sealed class WsHub
                     return;
                 case "switchManCommand":
                     await HandleSwitchManCommand(ws, data, ct);
+                    return;
+                case "dispatcherCommand":
+                    await HandleDispatcherCommand(ws, data, ct);
                     return;
                 case "setTrackPower":
                     ok = await CommandCenter.SetTrackPowerAsync(B(data, "on"), CommandCenterConfigStore.Current.PowerIncludesProgramming, ct);
@@ -751,6 +757,212 @@ public sealed class WsHub
         }
     }
 
+    private async Task HandleDispatcherCommand(
+        WebSocket ws,
+        JsonElement data,
+        CancellationToken ct)
+    {
+        var requestId = S(data, "requestId");
+        var action = S(data, "action");
+
+        async Task Reply(
+            bool ok,
+            string? message = null,
+            object? extra = null)
+        {
+            await Send(ws, "dispatcherResponse", new
+            {
+                requestId,
+                action,
+                ok,
+                message,
+                extra
+            });
+        }
+
+        static ushort[] ReadUShortArray(
+            JsonElement source,
+            string propertyName,
+            int maxValue = 65535)
+        {
+            if (source.ValueKind != JsonValueKind.Object ||
+                !source.TryGetProperty(propertyName, out var raw) ||
+                raw.ValueKind != JsonValueKind.Array)
+                return Array.Empty<ushort>();
+
+            return raw
+                .EnumerateArray()
+                .Select(x =>
+                    x.TryGetInt32(out var n) &&
+                    n is >= 1 &&
+                    n <= maxValue
+                        ? (ushort)n
+                        : (ushort)0)
+                .Where(x => x != 0)
+                .Distinct()
+                .OrderBy(x => x)
+                .ToArray();
+        }
+
+        static DispatcherTurnoutRequirement[] ReadTurnouts(
+            JsonElement source)
+        {
+            if (source.ValueKind != JsonValueKind.Object ||
+                !source.TryGetProperty("turnouts", out var raw) ||
+                raw.ValueKind != JsonValueKind.Array)
+                return Array.Empty<DispatcherTurnoutRequirement>();
+
+            var result =
+                new List<DispatcherTurnoutRequirement>();
+
+            foreach (var item in raw.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.Object ||
+                    !item.TryGetProperty("address", out var addressElement) ||
+                    !addressElement.TryGetInt32(out var address) ||
+                    address is < 1 or > 2048)
+                    continue;
+
+                var closed =
+                    item.TryGetProperty("closed", out var closedElement) &&
+                    closedElement.ValueKind == JsonValueKind.True;
+
+                result.Add(
+                    new DispatcherTurnoutRequirement(
+                        (ushort)address,
+                        closed));
+            }
+
+            return result.ToArray();
+        }
+
+        switch (action)
+        {
+            case "snapshot":
+                await Reply(
+                    true,
+                    extra: new
+                    {
+                        leases = Dispatcher.Snapshot()
+                    });
+                return;
+
+            case "acquireLeg":
+                {
+                    var ownerId = S(data, "ownerId");
+                    var ownerName = S(data, "ownerName");
+                    var loco = I(data, "locoAddress");
+                    var fromBlock = I(data, "fromBlockId");
+                    var toBlock = I(data, "toBlockId");
+
+                    if (loco is < 1 or > 10239 ||
+                        fromBlock is < 1 or > 65535 ||
+                        toBlock is < 1 or > 65535)
+                    {
+                        await Reply(false, "invalid_dispatcher_leg");
+                        return;
+                    }
+
+                    var request =
+                        new DispatcherLegRequest(
+                            ownerId,
+                            ownerName,
+                            (ushort)loco,
+                            (ushort)fromBlock,
+                            (ushort)toBlock,
+                            ReadTurnouts(data),
+                            ReadUShortArray(
+                                data,
+                                "safetySensors"),
+                            Math.Clamp(
+                                IOr(
+                                    data,
+                                    "timeoutMs",
+                                    0),
+                                0,
+                                600000));
+
+                    DispatcherAcquireResult result;
+
+                    try
+                    {
+                        result =
+                            await Dispatcher.AcquireLegAsync(
+                                request,
+                                ct);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        return;
+                    }
+
+                    await Reply(
+                        result.Ok,
+                        result.Error,
+                        new
+                        {
+                            lease = result.Lease,
+                            blockingSensor =
+                                result.BlockingSensor,
+                            blockingBlock =
+                                result.BlockingBlock,
+                            turnoutConflicts =
+                                result.TurnoutConflicts
+                        });
+                    return;
+                }
+
+            case "releaseLeg":
+                {
+                    var ownerId = S(data, "ownerId");
+
+                    if (string.IsNullOrWhiteSpace(ownerId))
+                    {
+                        await Reply(false, "invalid_owner");
+                        return;
+                    }
+
+                    var released =
+                        Dispatcher.ReleaseLeg(
+                            ownerId);
+
+                    await Reply(
+                        released,
+                        released
+                            ? null
+                            : "dispatcher_lease_not_found",
+                        new
+                        {
+                            leases =
+                                Dispatcher.Snapshot()
+                        });
+                    return;
+                }
+
+            case "releaseAll":
+                {
+                    var released =
+                        Dispatcher.ReleaseAll();
+
+                    await Reply(
+                        true,
+                        extra: new
+                        {
+                            released,
+                            leases =
+                                Dispatcher.Snapshot()
+                        });
+                    return;
+                }
+
+            default:
+                await Reply(
+                    false,
+                    "unknown_dispatcher_action");
+                return;
+        }
+    }
+
     private async Task HandleFastClockCommand(WebSocket ws, JsonElement data)
     {
         var requestId = S(data, "requestId");
@@ -1151,6 +1363,7 @@ public sealed class WsHub
             await Send(ws, item.Type, item.Data);
 
         await Send(ws, "switchManChanged", new { locks = SwitchMan.Snapshot() });
+        await Send(ws, "dispatcherChanged", new { leases = Dispatcher.Snapshot() });
     }
 
     private Task SendCommandCenterInfo(WebSocket ws)
