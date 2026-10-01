@@ -52,6 +52,7 @@ public sealed class TimetableRuntime : BackgroundService
         new(JsonSerializerDefaults.Web);
 
     bool _running;
+    bool _finishing;
     long? _previousFastClockTimeMs;
     string? _lastTriggeredAt;
     string? _lastTriggeredTargetName;
@@ -131,6 +132,14 @@ public sealed class TimetableRuntime : BackgroundService
 
         Publish();
         return true;
+    }
+
+    public void SetFinishing(
+        bool finishing)
+    {
+        lock (_gate)
+            _finishing =
+                finishing;
     }
 
     public void Rebase()
@@ -481,6 +490,12 @@ public sealed class TimetableRuntime : BackgroundService
     void ProcessMinute(
         long absoluteMinute)
     {
+        lock (_gate)
+        {
+            if (_finishing)
+                return;
+        }
+
         StorageSnapshot storage;
 
         try
