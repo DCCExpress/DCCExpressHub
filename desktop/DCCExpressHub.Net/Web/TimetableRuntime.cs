@@ -682,8 +682,7 @@ public sealed class TimetableRuntime : BackgroundService
 
         var result =
             _movement.Start(
-                new MovementStartRequest(
-                    movement));
+                movement.Id);
 
         if (!result.Ok)
         {
