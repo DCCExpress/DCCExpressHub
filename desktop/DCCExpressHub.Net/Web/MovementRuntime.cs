@@ -2638,8 +2638,28 @@ public sealed class MovementRuntime
         return true;
     }
 
-    async Task RequestEmergencyStopAsync()
+    async Task EnsureEmergencyStopAsync()
     {
+        /*
+         * DccExCommandCenter.EmergencyStopAsync() is deliberately a toggle:
+         * when pause is already active it performs the safe resume sequence.
+         * Movement Abort must NEVER resume an existing emergency stop.
+         */
+        if (
+            (
+                _commandCenter.EmergencyPauseStateKnown &&
+                _commandCenter.EmergencyPaused
+            ) ||
+            _hubState.EmergencyStop
+        )
+        {
+            _hubState.EmergencyStop =
+                true;
+
+            PowerStateChanged?.Invoke();
+            return;
+        }
+
         var ok =
             await _commandCenter.EmergencyStopAsync(
                 CancellationToken.None);
@@ -2675,7 +2695,7 @@ public sealed class MovementRuntime
             Stop(pageId);
 
         if (stopped && emergencyStop)
-            _ = RequestEmergencyStopAsync();
+            _ = EnsureEmergencyStopAsync();
 
         return stopped;
     }
@@ -2712,7 +2732,7 @@ public sealed class MovementRuntime
 
         if (emergencyStop &&
             count > 0)
-            _ = RequestEmergencyStopAsync();
+            _ = EnsureEmergencyStopAsync();
 
         return count;
     }
