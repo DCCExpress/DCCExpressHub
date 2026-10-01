@@ -1018,6 +1018,9 @@ function uniqueSensors(
     number[] =
     [];
 
+  const used =
+    new Set<number>();
+
   for (
     const value of
     values
@@ -1038,16 +1041,20 @@ function uniqueSensors(
       );
 
     if (
-      result[
-        result.length -
-          1
-      ] !==
+      used.has(
         sensor
+      )
     ) {
-      result.push(
-        sensor
-      );
+      continue;
     }
+
+    used.add(
+      sensor
+    );
+
+    result.push(
+      sensor
+    );
   }
 
   return result;
