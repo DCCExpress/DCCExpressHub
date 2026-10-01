@@ -329,7 +329,8 @@ public sealed class WsHub
                     await HandleTimetableCommand(connectionId, ws, data);
                     return;
                 case "timetableScriptComplete":
-                    Timetable.CompleteScript(S(data, "runId"), B(data, "ok"), S(data, "message"));
+                    if (IsControlStationOwner(connectionId))
+                        Timetable.CompleteScript(S(data, "runId"), B(data, "ok"), S(data, "message"));
                     return;
                 case "setTrackPower":
                     ok = await CommandCenter.SetTrackPowerAsync(B(data, "on"), CommandCenterConfigStore.Current.PowerIncludesProgramming, ct);
