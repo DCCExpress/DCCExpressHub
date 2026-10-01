@@ -105,6 +105,7 @@ export type SerializedLayoutElementDto = {
   locoAddress?: number;
   sensorAddress?: number;
   blockType?: BlockType | string;
+  eventConfig?: BlockEventConfigDto;
 
   text?: string;
   fontSize?: number;
