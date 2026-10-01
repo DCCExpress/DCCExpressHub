@@ -841,36 +841,9 @@ public sealed class WsHub
                 return;
 
             case "start":
-                {
-                    var pageId =
-                        S(
-                            data,
-                            "pageId");
-
-                    if (string.IsNullOrWhiteSpace(
-                            pageId))
-                    {
-                        await Reply(
-                            false,
-                            "invalid_movement_start");
-                        return;
-                    }
-
-                    var result =
-                        Movement.Start(
-                            pageId);
-
-                    await Reply(
-                        result.Ok,
-                        result.Error,
-                        new
-                        {
-                            state =
-                                Movement.GetState(
-                                    pageId)
-                        });
-                    return;
-                }
+                Timetable.StartScheduler();
+                await Reply(true);
+                return;
 
             case "stop":
                 Timetable.StopScheduler();
@@ -942,37 +915,23 @@ public sealed class WsHub
 
             case "start":
                 {
-                    if (data.ValueKind != JsonValueKind.Object ||
-                        !data.TryGetProperty("page", out var pageJson))
-                    {
-                        await Reply(false, "invalid_movement_start");
-                        return;
-                    }
+                    var pageId =
+                        S(
+                            data,
+                            "pageId");
 
-                    MovementPageModel? page;
-
-                    try
+                    if (string.IsNullOrWhiteSpace(
+                            pageId))
                     {
-                        page = JsonSerializer.Deserialize<MovementPageModel>(
-                            pageJson.GetRawText(),
-                            Json);
-                    }
-                    catch (JsonException)
-                    {
-                        await Reply(false, "invalid_movement_start");
-                        return;
-                    }
-
-                    if (page is null)
-                    {
-                        await Reply(false, "invalid_movement_start");
+                        await Reply(
+                            false,
+                            "invalid_movement_start");
                         return;
                     }
 
                     var result =
                         Movement.Start(
-                            new MovementStartRequest(
-                                page));
+                            pageId);
 
                     await Reply(
                         result.Ok,
@@ -981,7 +940,7 @@ public sealed class WsHub
                         {
                             state =
                                 Movement.GetState(
-                                    page.Id)
+                                    pageId)
                         });
                     return;
                 }
