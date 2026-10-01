@@ -59,8 +59,8 @@ import {
 } from "../../services/automationBlockCatalog";
 
 import {
-  getMovementEngineState,
-} from "../../services/movementEngine";
+  getDispatcherState,
+} from "../../services/dispatcherRuntime";
 
 import {
   getClientRouteGraphStatus,
@@ -351,7 +351,7 @@ export default function MovementEditorDialog({
               document.pages.map(
                 page => {
                   const runtime =
-                    getMovementEngineState(
+                    getDispatcherState(
                       page.id
                     );
 
@@ -461,7 +461,7 @@ export default function MovementEditorDialog({
       }
 
       const runtimeState =
-        getMovementEngineState(
+        getDispatcherState(
           activePage.id
         );
 
