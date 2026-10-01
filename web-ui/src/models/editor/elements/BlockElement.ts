@@ -169,6 +169,11 @@ export class BlockElement extends TrackElement {
     const hasAssignedLoco =
       this.locoAddress > 0;
 
+    const targetAddress =
+      getBlockTargetLocoAddress(
+        this.id
+      );
+
     const sensorOccupied =
       this.isSensorAddressOccupied(
         this.sensorAddress
