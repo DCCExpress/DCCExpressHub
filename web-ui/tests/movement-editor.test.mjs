@@ -6167,6 +6167,16 @@ test("Movement engine contains no physical execution authority", () => {
       "src/services/dispatcherExecutionRuntime.ts"
     );
 
+  const scripts =
+    read(
+      "src/services/clientScriptRunner.ts"
+    );
+
+  const movementEditor =
+    read(
+      "src/components/movement/MovementEditorDialog.tsx"
+    );
+
   assert.doesNotMatch(
     movementEngine,
     /wsApi|wsClient|setLoco|switchMan|targetLoco|startDispatcherExecution|stopDispatcherExecution/
@@ -6190,5 +6200,25 @@ test("Movement engine contains no physical execution authority", () => {
   assert.match(
     executor,
     /wsApi\.setLoco/
+  );
+
+  assert.match(
+    scripts,
+    /from "\.\/dispatcherRuntime"/
+  );
+
+  assert.doesNotMatch(
+    scripts,
+    /dispatcherExecutionRuntime|movementEngine/
+  );
+
+  assert.match(
+    movementEditor,
+    /getDispatcherState/
+  );
+
+  assert.doesNotMatch(
+    movementEditor,
+    /movementEngine/
   );
 });
