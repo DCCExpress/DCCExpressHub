@@ -902,46 +902,6 @@ function validateTrackingTopology(
     }
   }
 
-  /*
-   * Design recommendation only: tracking still runs without intermediate
-   * blocks, but multiple turnout passages between two blocks reduce certainty
-   * and make SafetyMan authority boundaries less explicit.
-   */
-  for (
-    const route of
-    routeTable
-  ) {
-    const turnoutPassages =
-      (route.edgePath ?? [])
-        .reduce(
-          (
-            count,
-            edge
-          ) =>
-            count +
-            (
-              edge.turnoutPath?.length ??
-              (
-                edge.turnoutStates?.length
-                  ? 1
-                  : 0
-              )
-            ),
-          0
-        );
-
-    if (
-      turnoutPassages >
-        1 &&
-      route.blockPath?.length ===
-        2
-    ) {
-      warnings.push(
-        `Route "${route.fromBlockName ?? route.fromBlockId} -> ${route.toBlockName ?? route.toBlockId}" crosses multiple turnout passages without an intermediate block; adding a block between turnout groups is recommended.`
-      );
-    }
-  }
-
   if (
     routeTable.length ===
       0
