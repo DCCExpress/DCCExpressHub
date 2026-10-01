@@ -94,16 +94,19 @@ test("Tracking exposes reverse lookup from sensor to one locomotive", () => {
 });
 
 
-test("Tracking requires every block and SectionPart to have sensor coverage", () => {
+test("Tracking requires block sensors but treats section coverage as recommendation", () => {
   const runtime = read("src/services/trainTrackingRuntime.ts");
   const panel = read("src/components/automation/TrainTrackingPanel.tsx");
 
   assert.match(runtime, /Block .* has no occupancy sensor/);
-  assert.match(runtime, /SectionPart .* has no sensor/);
-  assert.match(runtime, /readinessIssues\.length ===\s*0/);
+  assert.match(runtime, /SectionPart .* has no sensor; tracking will be less precise there/);
+  assert.match(runtime, /multiple turnout passages without an intermediate block/);
+  assert.match(runtime, /readinessWarnings/);
+  assert.match(runtime, /ready\s*=\s*readinessIssues\.length ===\s*0/);
   assert.match(runtime, /next\s*&&\s*!ready/);
   assert.match(panel, /!state\.ready/);
   assert.match(panel, /state\.readinessIssues\.map/);
+  assert.match(panel, /state\.readinessWarnings\.map/);
 });
 
 test("Tracking keeps all currently occupied sensors for a long train", () => {
