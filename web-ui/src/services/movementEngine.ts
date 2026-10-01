@@ -5278,7 +5278,9 @@ export function subscribeMovementEngineState(
 
 export async function startMovement(
   page:
-    MovementPage
+    MovementPage,
+  expectedLocoAddress?:
+    number
 ): Promise<void> {
   installTracking();
 
@@ -5390,51 +5392,99 @@ export async function startMovement(
     );
   }
 
-  const sourceDeadline =
-    Date.now() +
-    3000;
+  const requestedLocoAddress =
+    Number(
+      expectedLocoAddress ??
+      0
+    );
 
   let locoAddress =
-    0;
+    Number.isInteger(
+      requestedLocoAddress
+    ) &&
+    requestedLocoAddress >
+      0
+      ? requestedLocoAddress
+      : 0;
 
-  while (
-    Date.now() <
-      sourceDeadline
+  if (
+    locoAddress >
+      0
   ) {
+    /*
+     * Dispatcher/Tracking selected the locomotive already. Preserve that
+     * identity all the way into the executor. The Movement engine must never
+     * rediscover a different decoder from a stale source-block snapshot.
+     *
+     * A conflicting real source-block assignment is a hard error. An empty
+     * snapshot is tolerated because block-state delivery may lag Tracking.
+     */
     const sourceState =
       blockStateFor(
         source.blockId
       );
 
-    locoAddress =
+    const sourceLocoAddress =
       sourceState?.locoAddress ??
       0;
 
     if (
       Number.isInteger(
-        locoAddress
+        sourceLocoAddress
       ) &&
-      locoAddress >
-        0
+      sourceLocoAddress >
+        0 &&
+      sourceLocoAddress !==
+        locoAddress
     ) {
-      break;
+      throw new Error(
+        `Movement source block "${source.name}" contains locomotive #${sourceLocoAddress}, but Dispatcher selected #${locoAddress}.`
+      );
+    }
+  } else {
+    const sourceDeadline =
+      Date.now() +
+      3000;
+
+    while (
+      Date.now() <
+        sourceDeadline
+    ) {
+      const sourceState =
+        blockStateFor(
+          source.blockId
+        );
+
+      locoAddress =
+        sourceState?.locoAddress ??
+        0;
+
+      if (
+        Number.isInteger(
+          locoAddress
+        ) &&
+        locoAddress >
+          0
+      ) {
+        break;
+      }
+
+      await delay(
+        50
+      );
     }
 
-    await delay(
-      50
-    );
-  }
-
-  if (
-    !Number.isInteger(
-      locoAddress
-    ) ||
-    locoAddress <=
-      0
-  ) {
-    throw new Error(
-      `Movement source block "${source.name}" has no locomotive address.`
-    );
+    if (
+      !Number.isInteger(
+        locoAddress
+      ) ||
+      locoAddress <=
+        0
+    ) {
+      throw new Error(
+        `Movement source block "${source.name}" has no locomotive address.`
+      );
+    }
   }
 
   const configuredLocos =
