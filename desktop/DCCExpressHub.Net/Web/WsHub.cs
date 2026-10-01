@@ -842,6 +842,14 @@ public sealed class WsHub
                 await Reply(true);
                 return;
 
+            case "setFinishing":
+                Timetable.SetFinishing(
+                    B(
+                        data,
+                        "finishing"));
+                await Reply(true);
+                return;
+
             default:
                 await Reply(
                     false,
