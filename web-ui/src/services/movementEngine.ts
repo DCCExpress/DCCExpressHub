@@ -507,4 +507,28 @@ export function abortMovement(
   );
 }
 
+export function stopAllMovements():
+  boolean {
+  installTracking();
+
+  return wsApi.movementCommand(
+    requestId(
+      "stopAll"
+    ),
+    "stopAll"
+  );
+}
+
+export function abortAllMovements():
+  boolean {
+  installTracking();
+
+  return wsApi.movementCommand(
+    requestId(
+      "abortAll"
+    ),
+    "abortAll"
+  );
+}
+
 installTracking();
