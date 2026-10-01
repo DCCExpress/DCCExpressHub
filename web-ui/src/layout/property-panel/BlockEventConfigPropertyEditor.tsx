@@ -77,9 +77,14 @@ function cloneConfig(
 }
 
 function language(): "hu" | "de" | "en" {
-  const value = (i18next.resolvedLanguage ?? i18next.language ?? "en")
-    .split("-")[0]
-    .toLowerCase();
+  const value =
+    (
+      (i18next.resolvedLanguage ??
+        i18next.language ??
+        "en")
+        .split("-")[0] ??
+      "en"
+    ).toLowerCase();
 
   if (value === "hu" || value === "de") return value;
   return "en";
