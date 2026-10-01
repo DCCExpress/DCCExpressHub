@@ -487,9 +487,9 @@ export default function TrainTrackingPanel({
                                   );
 
                                 return (
-                                  <Group
-                                    gap={6}
-                                    wrap="nowrap"
+                                  <Stack
+                                    gap={2}
+                                    align="center"
                                   >
                                     <LocoImage
                                       locoId={
@@ -509,39 +509,17 @@ export default function TrainTrackingPanel({
                                       height={28}
                                     />
 
-                                    <div
-                                      style={{
-                                        minWidth:
-                                          0,
-                                      }}
+                                    <Text
+                                      size="xs"
+                                      fw={700}
+                                      ff="monospace"
+                                      ta="center"
                                     >
-                                      <Text
-                                        size="xs"
-                                        fw={700}
-                                        ff="monospace"
-                                      >
-                                        {
-                                          `#${loco.locoAddress}`
-                                        }
-                                      </Text>
-
                                       {
-                                        configured?.name &&
-                                        (
-                                          <Text
-                                            size="xs"
-                                            c="dimmed"
-                                            truncate
-                                            maw={120}
-                                          >
-                                            {
-                                              configured.name
-                                            }
-                                          </Text>
-                                        )
+                                        `#${loco.locoAddress}`
                                       }
-                                    </div>
-                                  </Group>
+                                    </Text>
+                                  </Stack>
                                 );
                               })()
                             }
