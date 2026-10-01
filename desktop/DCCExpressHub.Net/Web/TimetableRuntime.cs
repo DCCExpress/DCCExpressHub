@@ -737,6 +737,14 @@ public sealed class TimetableRuntime : BackgroundService
                 script.Name;
         }
 
+        lock (_gate)
+            _activeRuns[runId] =
+                active with
+                {
+                    Status =
+                        "running"
+                };
+
         Publish();
 
         ScriptRequested?.Invoke(
