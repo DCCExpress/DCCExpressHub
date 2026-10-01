@@ -27,6 +27,7 @@ import type {
 } from "@domain/layout/layoutDto";
 import type { LayoutView } from "@/models/editor/core/LayoutView";
 import { TrackElement } from "@/models/editor/core/TrackElement";
+import { getFreshClientRouteGraphResult } from "@/services/clientRouteGraphCache";
 import {
   BlockElement,
   emptyBlockEventConfig,
@@ -42,11 +43,6 @@ type EventKey =
 type SensorOption = {
   value: string;
   label: string;
-};
-
-type SensorMeta = {
-  title: string;
-  subtitle: string;
 };
 
 type Props = {
@@ -204,129 +200,227 @@ const TEXT = {
   },
 } as const;
 
-function SectionSideNode({
-  conditions,
+type PhysicalDiagramNode = {
+  key: string;
+  sectionName: string;
+  sensors: number[];
+  composite: boolean;
+};
+
+function PhysicalRouteNode({
+  node,
+  blockName,
   x,
   y,
   width,
-  role,
-  side,
-  sensorMetaByAddress,
 }: {
-  conditions: BlockEventSensorConditionDto[];
+  node: PhysicalDiagramNode;
+  blockName: string;
   x: number;
   y: number;
   width: number;
-  role: "BEFORE" | "AFTER";
-  side: "LEFT" | "RIGHT";
-  sensorMetaByAddress: Map<number, SensorMeta>;
 }) {
-  const primary =
-    conditions[0] ??
-    null;
+  const height =
+    node.composite
+      ? 42
+      : 34;
 
-  const meta =
-    primary
-      ? sensorMetaByAddress.get(
-          primary.sensor
-        )
-      : null;
+  const top =
+    y - height / 2;
 
-  const sectionName =
-    meta?.title ||
-    "Section";
+  const sensorText =
+    node.sensors.length > 0
+      ? `Sensor ${node.sensors.join(", ")}`
+      : "No sensor";
 
   return (
     <g>
-      <text
-        x={x + width / 2}
-        y={y - 8}
-        textAnchor="middle"
-        fontSize="8.5"
-        fontWeight="700"
-        fill="var(--mantine-color-dimmed)"
-      >
-        {role} · {side}
-      </text>
-
       <rect
         x={x}
-        y={y}
+        y={top}
         width={width}
-        height="34"
+        height={height}
         rx="6"
         fill="var(--mantine-color-body)"
-        stroke="var(--mantine-color-gray-5)"
-        strokeWidth="1.2"
+        stroke={
+          node.composite
+            ? "var(--mantine-color-gray-7)"
+            : "var(--mantine-color-gray-5)"
+        }
+        strokeWidth={
+          node.composite
+            ? "1.6"
+            : "1.2"
+        }
       />
 
       <text
         x={x + width / 2}
-        y={y + 14}
+        y={top + (node.composite ? 13 : 12)}
         textAnchor="middle"
-        fontSize="9.5"
+        fontSize={node.composite ? "9.5" : "9"}
         fontWeight="800"
         fill="var(--mantine-color-text)"
       >
-        {sectionName}
+        {node.composite
+          ? `${node.sectionName} · ${blockName || "BLOCK"}`
+          : node.sectionName}
       </text>
 
       <text
         x={x + width / 2}
-        y={y + 26}
+        y={top + (node.composite ? 28 : 24)}
         textAnchor="middle"
         fontSize="8"
         fill="var(--mantine-color-dimmed)"
       >
-        {primary
-          ? `Sensor ${primary.sensor}`
-          : "No sensor"}
+        {sensorText}
       </text>
-
-      {conditions.length > 1 && (
-        <text
-          x={x + width - 5}
-          y={y + 10}
-          textAnchor="end"
-          fontSize="7.5"
-          fontWeight="700"
-          fill="var(--mantine-color-dimmed)"
-        >
-          +{conditions.length - 1}
-        </text>
-      )}
     </g>
   );
 }
 
+function physicalDiagramNodes(
+  layout: LayoutView,
+  block: BlockElement
+): PhysicalDiagramNode[] {
+  const graphResult =
+    getFreshClientRouteGraphResult(
+      layout
+    );
+
+  if (!graphResult) {
+    return [{
+      key: `block:${block.id}`,
+      sectionName:
+        block.sectionPart ||
+        (
+          block.section > 0
+            ? `S${block.section}`
+            : "BLOCK"
+        ),
+      sensors:
+        block.sensorAddress > 0
+          ? [block.sensorAddress]
+          : [],
+      composite: true,
+    }];
+  }
+
+  const graphBlock =
+    graphResult.blocks.find(
+      candidate =>
+        candidate.id === block.id
+    );
+
+  if (
+    !graphBlock ||
+    !Number.isInteger(
+      graphBlock.sensorAddress
+    )
+  ) {
+    return [{
+      key: `block:${block.id}`,
+      sectionName:
+        block.sectionPart ||
+        (
+          block.section > 0
+            ? `S${block.section}`
+            : "BLOCK"
+        ),
+      sensors:
+        block.sensorAddress > 0
+          ? [block.sensorAddress]
+          : [],
+      composite: true,
+    }];
+  }
+
+  const graphNode =
+    graphResult.graph.nodes.find(
+      node =>
+        node.name ===
+        graphBlock.nodeName
+    );
+
+  if (!graphNode) {
+    return [];
+  }
+
+  const parts =
+    [...graphNode.sectionParts].sort(
+      (
+        left,
+        right
+      ) =>
+        left.index -
+        right.index
+    );
+
+  const blockSensor =
+    graphBlock.sensorAddress!;
+
+  const compositeIndex =
+    parts.findIndex(
+      part =>
+        part.detectors.includes(
+          blockSensor
+        )
+    );
+
+  if (
+    compositeIndex <
+      0
+  ) {
+    return [];
+  }
+
+  const indexes = [
+    compositeIndex - 1,
+    compositeIndex,
+    compositeIndex + 1,
+  ].filter(
+    index =>
+      index >= 0 &&
+      index < parts.length
+  );
+
+  return indexes.map(
+    index => {
+      const part =
+        parts[index]!;
+
+      return {
+        key:
+          `${graphNode.name}:${part.key}`,
+        sectionName:
+          part.key,
+        sensors: [
+          ...part.detectors,
+        ],
+        composite:
+          index ===
+          compositeIndex,
+      };
+    }
+  );
+}
 
 function DirectionDiagram({
   direction,
   blockName,
-  occupancySensor,
-  events,
-  sensorMetaByAddress,
+  nodes,
 }: {
   direction: Direction;
   blockName: string;
-  occupancySensor: number;
-  events: BlockDirectionEventConfigDto;
-  sensorMetaByAddress: Map<number, SensorMeta>;
+  nodes: PhysicalDiagramNode[];
 }) {
-  const text = TEXT[language()];
+  const text =
+    TEXT[language()];
+
   const reverse =
     direction ===
     "reverse";
-
-  const leftConditions =
-    reverse
-      ? events.beforeLeave
-      : events.beforeArrive;
-
-  const rightConditions =
-    reverse
-      ? events.beforeArrive
-      : events.beforeLeave;
 
   const arrowX1 =
     reverse
@@ -343,10 +437,64 @@ function DirectionDiagram({
       ? "url(#block-event-arrow-left)"
       : "url(#block-event-arrow-right)";
 
+  const nodeCount =
+    Math.max(
+      1,
+      nodes.length
+    );
+
+  const totalWidth =
+    nodeCount === 1
+      ? 110
+      : nodeCount === 2
+        ? 218
+        : 310;
+
+  const startX =
+    (360 - totalWidth) / 2;
+
+  const gap =
+    nodeCount === 3
+      ? 10
+      : 14;
+
+  const widths =
+    nodes.map(
+      node =>
+        node.composite
+          ? 110
+          : 90
+    );
+
+  let currentX =
+    startX;
+
+  const positions =
+    widths.map(
+      width => {
+        const result = {
+          x: currentX,
+          width,
+        };
+
+        currentX +=
+          width +
+          gap;
+
+        return result;
+      }
+    );
+
+  const compositeIndex =
+    nodes.findIndex(
+      node =>
+        node.composite
+    );
+
   return (
     <div>
       <svg
-        viewBox="0 0 360 132"
+        viewBox="0 0 360 124"
         role="img"
         aria-label={
           reverse
@@ -355,7 +503,7 @@ function DirectionDiagram({
         }
         style={{
           width: "100%",
-          maxHeight: 145,
+          maxHeight: 138,
           display: "block",
         }}
       >
@@ -407,103 +555,95 @@ function DirectionDiagram({
           fontWeight="700"
           fill="currentColor"
         >
-          {reverse ? "REVERSE" : "FORWARD"}
+          {reverse
+            ? "REVERSE"
+            : "FORWARD"}
         </text>
 
-        <line
-          x1="24"
-          y1="74"
-          x2="336"
-          y2="74"
-          stroke="var(--mantine-color-gray-5)"
-          strokeWidth="2"
-        />
+        {nodes.length > 1 && (
+          <line
+            x1={positions[0]!.x}
+            y1="70"
+            x2={
+              positions[
+                positions.length - 1
+              ]!.x +
+              positions[
+                positions.length - 1
+              ]!.width
+            }
+            y2="70"
+            stroke="var(--mantine-color-gray-5)"
+            strokeWidth="2"
+          />
+        )}
 
-        <SectionSideNode
-          conditions={leftConditions}
-          x={26}
-          y={57}
-          width={82}
-          role={reverse ? "AFTER" : "BEFORE"}
-          side="LEFT"
-          sensorMetaByAddress={sensorMetaByAddress}
-        />
+        {nodes.map(
+          (
+            node,
+            index
+          ) => (
+            <PhysicalRouteNode
+              key={node.key}
+              node={node}
+              blockName={blockName}
+              x={positions[index]!.x}
+              y={70}
+              width={
+                positions[index]!.width
+              }
+            />
+          )
+        )}
 
-        <rect
-          x="126"
-          y="54"
-          width="108"
-          height="40"
-          rx="7"
-          fill="var(--mantine-color-body)"
-          stroke="var(--mantine-color-gray-6)"
-          strokeWidth="1.5"
-        />
+        {compositeIndex >= 0 && (
+          <>
+            {compositeIndex > 0 && (
+              <text
+                x={
+                  positions[
+                    compositeIndex - 1
+                  ]!.x +
+                  positions[
+                    compositeIndex - 1
+                  ]!.width /
+                    2
+                }
+                y="106"
+                textAnchor="middle"
+                fontSize="8"
+                fill="var(--mantine-color-dimmed)"
+              >
+                {reverse
+                  ? "AFTER"
+                  : "BEFORE"}
+              </text>
+            )}
 
-        <text
-          x="180"
-          y="69"
-          textAnchor="middle"
-          fontSize="11"
-          fontWeight="800"
-          fill="var(--mantine-color-text)"
-        >
-          {blockName || "BLOCK"}
-        </text>
-
-        <text
-          x="180"
-          y="84"
-          textAnchor="middle"
-          fontSize="8.5"
-          fill="var(--mantine-color-dimmed)"
-        >
-          {occupancySensor > 0
-            ? `Sensor ${occupancySensor}`
-            : "No occupancy sensor"}
-        </text>
-
-        <SectionSideNode
-          conditions={rightConditions}
-          x={252}
-          y={57}
-          width={82}
-          role={reverse ? "BEFORE" : "AFTER"}
-          side="RIGHT"
-          sensorMetaByAddress={sensorMetaByAddress}
-        />
-
-        <text
-          x="180"
-          y="113"
-          textAnchor="middle"
-          fontSize="8.5"
-          fill="var(--mantine-color-dimmed)"
-        >
-          {events.arrived.length > 0
-            ? `Arrived: ${events.arrived.map(condition => `S${condition.sensor} ${condition.state ? "ON" : "OFF"}`).join(" + ")}`
-            : (
-                occupancySensor > 0
-                  ? `Arrived: Sensor ${occupancySensor} ON (default)`
-                  : "Arrived: no sensor"
-              )}
-        </text>
-
-        <text
-          x="180"
-          y="126"
-          textAnchor="middle"
-          fontSize="8.5"
-          fill="var(--mantine-color-dimmed)"
-        >
-          {events.afterLeave.length > 0
-            ? `After Leave: ${events.afterLeave.map(condition => `S${condition.sensor} ${condition.state ? "ON" : "OFF"}`).join(" + ")}`
-            : (
-                occupancySensor > 0
-                  ? `After Leave: Sensor ${occupancySensor} OFF (default)`
-                  : "After Leave: no sensor"
-              )}
-        </text>
+            {compositeIndex <
+              nodes.length - 1 && (
+              <text
+                x={
+                  positions[
+                    compositeIndex + 1
+                  ]!.x +
+                  positions[
+                    compositeIndex + 1
+                  ]!.width /
+                    2
+                }
+                y="106"
+                textAnchor="middle"
+                fontSize="8"
+                fill="var(--mantine-color-dimmed)"
+              >
+                {reverse
+                  ? "BEFORE"
+                  : "AFTER"}
+              </text>
+            )}
+          </>
+        )}
       </svg>
 
       <Text
@@ -570,80 +710,19 @@ export default function BlockEventConfigPropertyEditor({
     );
   }, [block, layout, opened]);
 
-  const sensorMetaByAddress = useMemo(() => {
-    const map = new Map<number, SensorMeta>();
 
-    const add = (
-      address: number,
-      title: string,
-      subtitle: string
-    ) => {
-      if (
-        !Number.isInteger(address) ||
-        address <= 0 ||
-        address > 65535 ||
-        map.has(address)
-      ) {
-        return;
-      }
-
-      map.set(address, {
-        title:
-          title.trim() ||
-          `Sensor ${address}`,
-        subtitle:
-          subtitle.trim() ||
-          `S${address}`,
-      });
-    };
-
-    for (const element of layout.getAllElements()) {
-      if (element instanceof BlockElement) {
-        add(
-          element.sensorAddress,
-          element.name || "Block occupancy",
-          `S${element.sensorAddress}`
-        );
-        continue;
-      }
-
-      if (
-        element instanceof TrackElement &&
-        element.hasOccupancySensor
-      ) {
-        const sectionLabel =
-          element.sectionPart ||
-          (
-            element.section > 0
-              ? `S${element.section}`
-              : ""
-          );
-
-        add(
-          element.address,
-          sectionLabel || element.name || "Track section",
-          `Sensor ${element.address}`
-        );
-      }
-    }
-
-    for (const dir of ["forward", "reverse"] as const) {
-      for (const event of EVENT_ORDER) {
-        for (const condition of draft[dir][event]) {
-          if (!map.has(condition.sensor)) {
-            map.set(condition.sensor, {
-              title:
-                `Sensor ${condition.sensor}`,
-              subtitle:
-                `S${condition.sensor}`,
-            });
-          }
-        }
-      }
-    }
-
-    return map;
-  }, [draft, layout]);
+  const diagramNodes = useMemo(
+    () =>
+      physicalDiagramNodes(
+        layout,
+        block
+      ),
+    [
+      layout,
+      block,
+      opened,
+    ]
+  );
 
   const configuredCount = EVENT_ORDER.reduce(
     (sum, event) =>
@@ -906,9 +985,7 @@ export default function BlockEventConfigPropertyEditor({
               <DirectionDiagram
                 direction={direction}
                 blockName={block.name}
-                occupancySensor={block.sensorAddress}
-                events={draft[direction]}
-                sensorMetaByAddress={sensorMetaByAddress}
+                nodes={diagramNodes}
               />
 
               <Group justify="flex-end">
