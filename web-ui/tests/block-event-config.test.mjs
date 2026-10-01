@@ -54,5 +54,6 @@ test("block property editor exposes exactly Arrival, Arrived and Leave per direc
   assert.match(editor, /"leave"/);
   assert.match(editor, /Tabs\.Tab value="forward"/);
   assert.match(editor, /Tabs\.Tab value="reverse"/);
-  assert.doesNotMatch(editor, /<Switch/);
+  assert.match(editor, /<Switch/);
+  assert.match(editor, /checked=\{condition\.state\}/);
 });
