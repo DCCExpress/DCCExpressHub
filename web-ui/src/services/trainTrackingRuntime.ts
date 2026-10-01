@@ -109,6 +109,7 @@ type RawRouteEntry = {
   blockPath: RawBlockPathEntry[];
   partPath?: RawRoutePart[];
   edgePath: RawRouteEdge[];
+  turnoutStates?: RawTurnoutState[];
   locoDirection:
     | "unknown"
     | "forward"
@@ -1100,6 +1101,26 @@ function routeTurnoutStates(
       number,
       boolean
     >();
+
+  for (
+    const state of
+    route.turnoutStates ??
+    []
+  ) {
+    if (
+      Number.isInteger(
+        state.address
+      ) &&
+      state.address >
+        0
+    ) {
+      byAddress.set(
+        state.address,
+        state.closed ===
+          true
+      );
+    }
+  }
 
   for (
     const edge of
