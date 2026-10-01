@@ -852,13 +852,7 @@ function approachRuleFor(
 function departureRuleFor(
   page:
     MovementPage,
-  blockId: number,
-  layout:
-    SerializedLayoutDto,
-  direction:
-    | "unknown"
-    | "forward"
-    | "reverse"
+  blockId: number
 ): MovementSensorCondition[] {
   const explicit =
     explicitBlockRuleFor(
@@ -2034,9 +2028,7 @@ export function buildMovementPlan(
       departWhen:
         departureRuleFor(
           page,
-          from.blockId!,
-          layout,
-          route.locoDirection
+          from.blockId!
         ),
       leaveWhen:
         leaveRule.conditions,
