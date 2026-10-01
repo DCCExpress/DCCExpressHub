@@ -241,7 +241,7 @@ export default function TrainTrackingPanel({
             "ui.trainTrackingDescription",
             {
               defaultValue:
-                "When a block occupancy sensor turns ON, the Hub uses the saved route graph, live turnout states and locomotive direction to identify a unique moving locomotive. Ambiguous matches are logged and never assigned automatically.",
+                "The Hub tracks each locomotive through route sensors using the saved graph, live turnout states and locomotive direction. A block assignment anchors the locomotive to that block's occupancy sensor. Ambiguous matches are logged and never assigned automatically.",
             }
           )
         }
