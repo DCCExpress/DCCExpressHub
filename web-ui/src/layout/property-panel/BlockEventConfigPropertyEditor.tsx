@@ -77,6 +77,56 @@ function cloneConfig(
   };
 }
 
+function normalizePhysicalSidePairs(
+  config: BlockEventConfigDto
+): BlockEventConfigDto {
+  const result =
+    cloneConfig(
+      config
+    );
+
+  const left =
+    result.forward.beforeArrive.length > 0
+      ? result.forward.beforeArrive
+      : result.reverse.afterLeave;
+
+  const right =
+    result.forward.afterLeave.length > 0
+      ? result.forward.afterLeave
+      : result.reverse.beforeArrive;
+
+  result.forward.beforeArrive =
+    left.map(
+      item => ({
+        ...item,
+      })
+    );
+
+  result.reverse.afterLeave =
+    left.map(
+      item => ({
+        ...item,
+      })
+    );
+
+  result.forward.afterLeave =
+    right.map(
+      item => ({
+        ...item,
+      })
+    );
+
+  result.reverse.beforeArrive =
+    right.map(
+      item => ({
+        ...item,
+      })
+    );
+
+  return result;
+}
+
+
 function language(): "hu" | "de" | "en" {
   const value =
     (
@@ -299,14 +349,9 @@ function DirectionDiagram({
     "reverse";
 
   /*
-   * LEFT / RIGHT are physical positions and never move.
-   *
-   * The same physical side changes semantic role with travel direction:
-   *   Forward: LEFT=Before Arrive, RIGHT=After Leave
-   *   Reverse: LEFT=After Leave, RIGHT=Before Arrive
-   *
-   * Keep the sensors fixed on their physical side and only swap the event
-   * meaning shown for that side.
+   * LEFT / RIGHT are physical positions and must never move.
+   * updateEvent() keeps the paired direction events synchronized, therefore
+   * either representation contains the same physical sensor set.
    */
   const leftSideConditions =
     reverse
@@ -579,7 +624,9 @@ export default function BlockEventConfigPropertyEditor({
   const [opened, setOpened] = useState(false);
   const [direction, setDirection] = useState<Direction>("forward");
   const [draft, setDraft] = useState<BlockEventConfigDto>(() =>
-    cloneConfig(block.eventConfig)
+    normalizePhysicalSidePairs(
+      block.eventConfig
+    )
   );
 
   const sensorOptions = useMemo(() => {
@@ -632,7 +679,11 @@ export default function BlockEventConfigPropertyEditor({
   );
 
   const openEditor = () => {
-    setDraft(cloneConfig(block.eventConfig));
+    setDraft(
+      normalizePhysicalSidePairs(
+        block.eventConfig
+      )
+    );
     setDirection("forward");
     setOpened(true);
   };
@@ -642,13 +693,74 @@ export default function BlockEventConfigPropertyEditor({
     event: EventKey,
     conditions: BlockEventSensorConditionDto[]
   ) => {
-    setDraft(current => ({
-      ...current,
-      [targetDirection]: {
-        ...current[targetDirection],
-        [event]: conditions,
-      },
-    }));
+    setDraft(current => {
+      const next =
+        cloneConfig(
+          current
+        );
+
+      next[targetDirection][event] =
+        conditions.map(
+          item => ({
+            ...item,
+          })
+        );
+
+      /*
+       * LEFT / RIGHT are physical sensor positions, not direction-specific
+       * resources. Mirror only the paired edge events so changing direction
+       * changes BEFORE/AFTER semantics without moving the physical sensors.
+       *
+       * LEFT:
+       *   Forward.beforeArrive <-> Reverse.afterLeave
+       *
+       * RIGHT:
+       *   Forward.afterLeave <-> Reverse.beforeArrive
+       */
+      if (
+        targetDirection === "forward" &&
+        event === "beforeArrive"
+      ) {
+        next.reverse.afterLeave =
+          conditions.map(
+            item => ({
+              ...item,
+            })
+          );
+      } else if (
+        targetDirection === "reverse" &&
+        event === "afterLeave"
+      ) {
+        next.forward.beforeArrive =
+          conditions.map(
+            item => ({
+              ...item,
+            })
+          );
+      } else if (
+        targetDirection === "forward" &&
+        event === "afterLeave"
+      ) {
+        next.reverse.beforeArrive =
+          conditions.map(
+            item => ({
+              ...item,
+            })
+          );
+      } else if (
+        targetDirection === "reverse" &&
+        event === "beforeArrive"
+      ) {
+        next.forward.afterLeave =
+          conditions.map(
+            item => ({
+              ...item,
+            })
+          );
+      }
+
+      return next;
+    });
   };
 
   const copyDirection = (from: Direction, to: Direction) => {
@@ -926,7 +1038,10 @@ export default function BlockEventConfigPropertyEditor({
             </Button>
             <Button
               onClick={() => {
-                block.eventConfig = cloneConfig(draft);
+                block.eventConfig =
+                  normalizePhysicalSidePairs(
+                    draft
+                  );
                 onChange();
                 setOpened(false);
               }}
