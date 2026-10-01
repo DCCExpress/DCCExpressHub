@@ -41,6 +41,7 @@ builder.Services.AddSingleton<ICommandCenter>(sp => sp.GetRequiredService<Config
 builder.Services.AddHostedService(sp => sp.GetRequiredService<DccExCommandCenter>());
 builder.Services.AddSingleton<SwitchManManager>();
 builder.Services.AddSingleton<DispatcherRuntime>();
+builder.Services.AddSingleton<MovementPlanBuilder>();
 builder.Services.AddSingleton<MovementRuntime>();
 builder.Services.AddSingleton<WsHub>();
 builder.Services.AddHostedService<WsRuntimeCoordinator>();
