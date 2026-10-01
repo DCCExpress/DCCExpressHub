@@ -1088,6 +1088,34 @@ public sealed class WsHub
                 .ToArray();
         }
 
+        static string[] ReadStringArray(
+            JsonElement source,
+            string propertyName)
+        {
+            if (source.ValueKind != JsonValueKind.Object ||
+                !source.TryGetProperty(propertyName, out var raw) ||
+                raw.ValueKind != JsonValueKind.Array)
+                return Array.Empty<string>();
+
+            return raw
+                .EnumerateArray()
+                .Where(item =>
+                    item.ValueKind ==
+                        JsonValueKind.String)
+                .Select(item =>
+                    (item.GetString() ?? "")
+                        .Trim())
+                .Where(value =>
+                    value.Length is
+                        > 0 and <= 240)
+                .Distinct(
+                    StringComparer.Ordinal)
+                .OrderBy(
+                    value => value,
+                    StringComparer.Ordinal)
+                .ToArray();
+        }
+
         static DispatcherTurnoutRequirement[] ReadTurnouts(
             JsonElement source)
         {
@@ -1158,6 +1186,9 @@ public sealed class WsHub
                             ReadUShortArray(
                                 data,
                                 "safetySensors"),
+                            ReadStringArray(
+                                data,
+                                "resourceKeys"),
                             Math.Clamp(
                                 IOr(
                                     data,
