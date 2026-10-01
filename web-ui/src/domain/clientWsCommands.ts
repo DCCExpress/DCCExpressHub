@@ -320,6 +320,25 @@ export type MovementAudioCompleteCommandPayload = {
   ok: boolean;
 };
 
+export type TimetableCommandAction =
+  | "snapshot"
+  | "start"
+  | "stop"
+  | "rebase"
+  | "setFinishing";
+
+export type TimetableCommandPayload = {
+  requestId: string;
+  action: TimetableCommandAction;
+  finishing?: boolean;
+};
+
+export type TimetableScriptCompleteCommandPayload = {
+  runId: string;
+  ok: boolean;
+  message?: string;
+};
+
 export type ClientWsPayloadMap = {
   heartbeat: EmptyClientWsCommandPayload;
   controlStationClaim: ControlStationClaimCommandPayload;
@@ -329,6 +348,8 @@ export type ClientWsPayloadMap = {
   broadcastStopAudio: BroadcastStopAudioCommandPayload;
   movementCommand: MovementCommandPayload;
   movementAudioComplete: MovementAudioCompleteCommandPayload;
+  timetableCommand: TimetableCommandPayload;
+  timetableScriptComplete: TimetableScriptCompleteCommandPayload;
   setTrackPower: SetTrackPowerCommandPayload;
   setProgrammingPower: SetProgrammingPowerCommandPayload;
   emergencyStop: EmptyClientWsCommandPayload;
