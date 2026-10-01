@@ -7,7 +7,6 @@ import {
   ScrollArea,
   Select,
   Stack,
-  Switch,
   Tabs,
   Text,
 } from "@mantine/core";
@@ -33,11 +32,10 @@ import {
 } from "@/models/editor/elements/BlockElement";
 
 type Direction = "forward" | "reverse";
-type EventKey =
-  | "beforeArrive"
+type SensorGroupKey =
+  | "arrival"
   | "arrived"
-  | "beforeLeave"
-  | "afterLeave";
+  | "leave";
 
 type SensorOption = {
   value: string;
@@ -50,11 +48,10 @@ type Props = {
   onChange: () => void;
 };
 
-const EVENT_ORDER: EventKey[] = [
-  "beforeArrive",
+const SENSOR_GROUP_ORDER: SensorGroupKey[] = [
+  "arrival",
   "arrived",
-  "beforeLeave",
-  "afterLeave",
+  "leave",
 ];
 
 function cloneConfig(
@@ -65,10 +62,9 @@ function cloneConfig(
   const cloneDirection = (
     direction: BlockDirectionEventConfigDto
   ): BlockDirectionEventConfigDto => ({
-    beforeArrive: direction.beforeArrive.map(item => ({ ...item })),
-    arrived: direction.arrived.map(item => ({ ...item })),
-    beforeLeave: direction.beforeLeave.map(item => ({ ...item })),
-    afterLeave: direction.afterLeave.map(item => ({ ...item })),
+    arrival: direction.arrival.map(item => ({ ...item, state: true })),
+    arrived: direction.arrived.map(item => ({ ...item, state: true })),
+    leave: direction.leave.map(item => ({ ...item, state: true })),
   });
 
   return {
@@ -103,11 +99,8 @@ const TEXT = {
     reverse: "Reverse",
     directionGroup: "Menetirány csoport",
     arrival: "Érkezés",
-    departure: "Elhagyás",
-    beforeArrive: "Before Arrive",
     arrived: "Arrived",
-    beforeLeave: "Before Leave",
-    afterLeave: "After Leave",
+    leave: "Leave",
     sensor: "Szenzor",
     addSensor: "Szenzor hozzáadása",
     empty: "Nincs külön feltétel.",
@@ -117,17 +110,15 @@ const TEXT = {
       "Üresen a blokk occupancy szenzorának OFF állapota az alapértelmezett.",
     noFallback:
       "Üresen ehhez az eseményhez nincs automatikus szenzorfeltétel.",
-    allMustMatch: "Az összes felsorolt feltételnek teljesülnie kell (AND).",
+    allMustMatch: "Az összes felsorolt szenzornak ON állapotban kell lennie (AND).",
     copyToReverse: "Forward → Reverse másolás",
     copyToForward: "Reverse → Forward másolás",
     cancel: "Mégse",
     save: "Mentés",
-    on: "ON",
-    off: "OFF",
     directionHelpForward:
-      "A nyíl a blokk Forward irányát mutatja. A bal oldali érzékelő ebben az irányban érkezés előtti érzékelő lehet.",
+      "A Forward csoport Arrival, Arrived és Leave szenzorait mutatja.",
     directionHelpReverse:
-      "Reverse irányban a fizikai oldalak szerepe felcserélődik: ami Forwardban előtte van, az visszafelé már utána lehet.",
+      "A Reverse csoport Arrival, Arrived és Leave szenzorait mutatja."
     configured: "beállított feltétel",
     occupancy: "occupancy",
   },
@@ -141,11 +132,8 @@ const TEXT = {
     reverse: "Reverse",
     directionGroup: "Direction group",
     arrival: "Arrival",
-    departure: "Leave",
-    beforeArrive: "Before Arrive",
     arrived: "Arrived",
-    beforeLeave: "Before Leave",
-    afterLeave: "After Leave",
+    leave: "Leave",
     sensor: "Sensor",
     addSensor: "Add sensor",
     empty: "No explicit condition.",
@@ -155,17 +143,15 @@ const TEXT = {
       "When empty, the block occupancy sensor OFF state is used as the default.",
     noFallback:
       "When empty, this event has no automatic sensor condition.",
-    allMustMatch: "All listed conditions must match (AND).",
+    allMustMatch: "All listed sensors must be ON (AND).",
     copyToReverse: "Copy Forward → Reverse",
     copyToForward: "Copy Reverse → Forward",
     cancel: "Cancel",
     save: "Save",
-    on: "ON",
-    off: "OFF",
     directionHelpForward:
-      "The arrow shows the block Forward direction. A sensor on the left can act as the approach sensor in this direction.",
+      "Shows the Forward group's Arrival, Arrived and Leave sensors.",
     directionHelpReverse:
-      "In Reverse the physical sides change roles: what is before the block in Forward can become after it in Reverse.",
+      "Shows the Reverse group's Arrival, Arrived and Leave sensors."
     configured: "configured condition",
     occupancy: "occupancy",
   },
@@ -179,11 +165,8 @@ const TEXT = {
     reverse: "Reverse",
     directionGroup: "Fahrtrichtungsgruppe",
     arrival: "Ankunft",
-    departure: "Verlassen",
-    beforeArrive: "Before Arrive",
     arrived: "Arrived",
-    beforeLeave: "Before Leave",
-    afterLeave: "After Leave",
+    leave: "Leave",
     sensor: "Sensor",
     addSensor: "Sensor hinzufügen",
     empty: "Keine explizite Bedingung.",
@@ -193,17 +176,15 @@ const TEXT = {
       "Leer: standardmäßig wird der OFF-Zustand des Block-Belegtmelders verwendet.",
     noFallback:
       "Leer: für dieses Ereignis gibt es keine automatische Sensorbedingung.",
-    allMustMatch: "Alle aufgeführten Bedingungen müssen erfüllt sein (AND).",
+    allMustMatch: "Alle aufgeführten Sensoren müssen ON sein (AND).",
     copyToReverse: "Forward → Reverse kopieren",
     copyToForward: "Reverse → Forward kopieren",
     cancel: "Abbrechen",
     save: "Speichern",
-    on: "ON",
-    off: "OFF",
     directionHelpForward:
-      "Der Pfeil zeigt die Forward-Richtung des Blocks. Ein Sensor links kann in dieser Richtung als Annäherungssensor dienen.",
+      "Zeigt die Arrival-, Arrived- und Leave-Sensoren der Forward-Gruppe.",
     directionHelpReverse:
-      "In Reverse tauschen die physischen Seiten ihre Rolle: was in Forward vor dem Block liegt, kann rückwärts danach liegen.",
+      "Zeigt die Arrival-, Arrived- und Leave-Sensoren der Reverse-Gruppe."
     configured: "konfigurierte Bedingung",
     occupancy: "Belegtmelder",
   },
@@ -251,7 +232,7 @@ function SensorConditionMarker({
 
           return (
             <g
-              key={`${condition.sensor}-${condition.state}-${index}`}
+              key={`${condition.sensor}-${index}`}
             >
               <rect
                 x={badgeX}
@@ -259,16 +240,8 @@ function SensorConditionMarker({
                 width={badgeWidth}
                 height={badgeHeight}
                 rx="9"
-                fill={
-                  condition.state
-                    ? "var(--mantine-color-green-7)"
-                    : "#000000"
-                }
-                stroke={
-                  condition.state
-                    ? "var(--mantine-color-green-9)"
-                    : "var(--mantine-color-gray-7)"
-                }
+                fill="var(--mantine-color-green-7)"
+                stroke="var(--mantine-color-green-9)"
                 strokeWidth="1"
               />
 
@@ -318,13 +291,13 @@ function DirectionDiagram({
    */
   const leftSideConditions =
     reverse
-      ? events.afterLeave
-      : events.beforeArrive;
+      ? events.leave
+      : events.arrival;
 
   const rightSideConditions =
     reverse
-      ? events.beforeArrive
-      : events.afterLeave;
+      ? events.arrival
+      : events.leave;
 
   const arrowX1 =
     reverse
@@ -472,7 +445,7 @@ function DirectionDiagram({
           fontWeight="700"
           fill="var(--mantine-color-dimmed)"
         >
-          {reverse ? text.departure : text.arrival}
+          {reverse ? text.leave : text.arrival}
         </text>
 
         <text
@@ -483,7 +456,7 @@ function DirectionDiagram({
           fontWeight="700"
           fill="var(--mantine-color-dimmed)"
         >
-          {reverse ? text.arrival : text.departure}
+          {reverse ? text.arrival : text.leave}
         </text>
 
         <text
@@ -518,27 +491,7 @@ function DirectionDiagram({
           align="middle"
         />
 
-        {events.beforeLeave.length > 0 && (
-          <>
-            <text
-              x="180"
-              y="148"
-              textAnchor="middle"
-              fontSize="9"
-              fontWeight="700"
-              fill="var(--mantine-color-dimmed)"
-            >
-              BEFORE LEAVE
-            </text>
 
-            <SensorConditionMarker
-              conditions={events.beforeLeave}
-              x={180}
-              y={162}
-              align="middle"
-            />
-          </>
-        )}
       </svg>
 
       <Text
@@ -593,8 +546,8 @@ export default function BlockEventConfigPropertyEditor({
     }
 
     for (const dir of ["forward", "reverse"] as const) {
-      for (const event of EVENT_ORDER) {
-        for (const condition of block.eventConfig[dir][event]) {
+      for (const group of SENSOR_GROUP_ORDER) {
+        for (const condition of block.eventConfig[dir][group]) {
           add(condition.sensor, "");
         }
       }
@@ -607,11 +560,11 @@ export default function BlockEventConfigPropertyEditor({
 
 
 
-  const configuredCount = EVENT_ORDER.reduce(
-    (sum, event) =>
+  const configuredCount = SENSOR_GROUP_ORDER.reduce(
+    (sum, group) =>
       sum +
-      block.eventConfig.forward[event].length +
-      block.eventConfig.reverse[event].length,
+      block.eventConfig.forward[group].length +
+      block.eventConfig.reverse[group].length,
     0
   );
 
@@ -625,16 +578,16 @@ export default function BlockEventConfigPropertyEditor({
     setOpened(true);
   };
 
-  const updateEvent = (
+  const updateGroup = (
     targetDirection: Direction,
-    event: EventKey,
+    group: SensorGroupKey,
     conditions: BlockEventSensorConditionDto[]
   ) => {
     setDraft(current => ({
       ...current,
       [targetDirection]: {
         ...current[targetDirection],
-        [event]:
+        [group]:
           conditions.map(
             item => ({
               ...item,
@@ -648,34 +601,31 @@ export default function BlockEventConfigPropertyEditor({
     setDraft(current => ({
       ...current,
       [to]: {
-        beforeArrive: current[from].beforeArrive.map(item => ({ ...item })),
-        arrived: current[from].arrived.map(item => ({ ...item })),
-        beforeLeave: current[from].beforeLeave.map(item => ({ ...item })),
-        afterLeave: current[from].afterLeave.map(item => ({ ...item })),
+        arrival: current[from].arrival.map(item => ({ ...item, state: true })),
+        arrived: current[from].arrived.map(item => ({ ...item, state: true })),
+        leave: current[from].leave.map(item => ({ ...item, state: true })),
       },
     }));
   };
 
-  const renderEvent = (event: EventKey) => {
-    const conditions = draft[direction][event];
+  const renderGroup = (group: SensorGroupKey) => {
+    const conditions = draft[direction][group];
     const used = new Set(conditions.map(item => item.sensor));
     const available = sensorOptions.filter(option => !used.has(Number(option.value)));
     const next = available[0] ?? null;
 
     const fallbackText =
-      event === "arrived"
+      group === "arrived"
         ? text.occupancyFallbackOn
-        : event === "afterLeave"
-          ? text.occupancyFallbackOff
-          : text.noFallback;
+        : text.noFallback;
 
     return (
-      <Card key={event} withBorder padding="sm">
+      <Card key={group} withBorder padding="sm">
         <Stack gap="xs">
           <Group justify="space-between" align="center">
             <Group gap="xs">
               <Text fw={700} size="sm">
-                {text[event]}
+                {text[group]}
               </Text>
               <Badge size="xs" variant="light">
                 {conditions.length}
@@ -689,7 +639,7 @@ export default function BlockEventConfigPropertyEditor({
               disabled={!next}
               onClick={() => {
                 if (!next) return;
-                updateEvent(direction, event, [
+                updateGroup(direction, group, [
                   ...conditions,
                   {
                     sensor: Number(next.value),
@@ -714,7 +664,7 @@ export default function BlockEventConfigPropertyEditor({
           ) : (
             <>
               {conditions.map((condition, index) => (
-                <Group key={`${event}-${condition.sensor}-${index}`} gap="xs" wrap="nowrap">
+                <Group key={`${group}-${condition.sensor}-${index}`} gap="xs" wrap="nowrap">
                   <Select
                     size="xs"
                     style={{ flex: 1 }}
@@ -737,9 +687,9 @@ export default function BlockEventConfigPropertyEditor({
                     ]}
                     onChange={value => {
                       if (!value) return;
-                      updateEvent(
+                      updateGroup(
                         direction,
-                        event,
+                        group,
                         conditions.map((item, itemIndex) =>
                           itemIndex === index
                             ? { ...item, sensor: Number(value) }
@@ -749,31 +699,16 @@ export default function BlockEventConfigPropertyEditor({
                     }}
                   />
 
-                  <Switch
-                    mt={index === 0 ? 22 : 0}
-                    checked={condition.state}
-                    label={condition.state ? text.on : text.off}
-                    onChange={ev =>
-                      updateEvent(
-                        direction,
-                        event,
-                        conditions.map((item, itemIndex) =>
-                          itemIndex === index
-                            ? { ...item, state: ev.currentTarget.checked }
-                            : item
-                        )
-                      )
-                    }
-                  />
+
 
                   <ActionIcon
                     mt={index === 0 ? 22 : 0}
                     variant="light"
                     color="red"
                     onClick={() =>
-                      updateEvent(
+                      updateGroup(
                         direction,
-                        event,
+                        group,
                         conditions.filter((_, itemIndex) => itemIndex !== index)
                       )
                     }
@@ -910,34 +845,10 @@ export default function BlockEventConfigPropertyEditor({
                 type="auto"
                 offsetScrollbars
               >
-                <Stack gap="sm" pr="xs">
-                  <Stack gap="xs">
-                    <Text
-                      size="xs"
-                      fw={800}
-                      tt="uppercase"
-                      c="dimmed"
-                    >
-                      {text.arrival}
-                    </Text>
-
-                    {renderEvent("beforeArrive")}
-                    {renderEvent("arrived")}
-                  </Stack>
-
-                  <Stack gap="xs">
-                    <Text
-                      size="xs"
-                      fw={800}
-                      tt="uppercase"
-                      c="dimmed"
-                    >
-                      {text.departure}
-                    </Text>
-
-                    {renderEvent("beforeLeave")}
-                    {renderEvent("afterLeave")}
-                  </Stack>
+                <Stack gap="xs" pr="xs">
+                  {renderGroup("arrival")}
+                  {renderGroup("arrived")}
+                  {renderGroup("leave")}
                 </Stack>
               </ScrollArea>
             </Stack>
