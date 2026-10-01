@@ -381,7 +381,7 @@ function DirectionDiagram({
   return (
     <div>
       <svg
-        viewBox="0 0 360 190"
+        viewBox="0 0 360 176"
         role="img"
         aria-label={
           reverse
@@ -390,7 +390,7 @@ function DirectionDiagram({
         }
         style={{
           width: "100%",
-          maxHeight: 198,
+          maxHeight: 185,
           display: "block",
         }}
       >
@@ -513,18 +513,6 @@ function DirectionDiagram({
         </text>
 
         <text
-          x="55"
-          y="120"
-          textAnchor="middle"
-          fontSize="10"
-          fontWeight="800"
-          fill="currentColor"
-          opacity="0.84"
-        >
-          LEFT
-        </text>
-
-        <text
           x="305"
           y="94"
           textAnchor="middle"
@@ -533,18 +521,6 @@ function DirectionDiagram({
           fill="var(--mantine-color-dimmed)"
         >
           {reverse ? "BEFORE" : "AFTER"}
-        </text>
-
-        <text
-          x="305"
-          y="120"
-          textAnchor="middle"
-          fontSize="10"
-          fontWeight="800"
-          fill="currentColor"
-          opacity="0.84"
-        >
-          RIGHT
         </text>
 
         <text
@@ -561,7 +537,7 @@ function DirectionDiagram({
         <SensorConditionMarker
           conditions={leftSideConditions}
           x={55}
-          y={136}
+          y={122}
           align="middle"
         />
 
@@ -575,7 +551,7 @@ function DirectionDiagram({
         <SensorConditionMarker
           conditions={rightSideConditions}
           x={305}
-          y={136}
+          y={122}
           align="middle"
         />
 
@@ -583,7 +559,7 @@ function DirectionDiagram({
           <>
             <text
               x="180"
-              y="162"
+              y="148"
               textAnchor="middle"
               fontSize="9"
               fontWeight="700"
@@ -595,7 +571,7 @@ function DirectionDiagram({
             <SensorConditionMarker
               conditions={events.beforeLeave}
               x={180}
-              y={176}
+              y={162}
               align="middle"
             />
           </>
