@@ -128,3 +128,26 @@ test("Tracking recommendations stay collapsed by default", () => {
   assert.match(panel, /<Accordion\.Panel>/);
   assert.doesNotMatch(panel, /defaultValue=\{?["']tracking-recommendations/);
 });
+
+
+test("Tracking commits the selected turnout route until the next block", () => {
+  const runtime = read("src/services/trainTrackingRuntime.ts");
+
+  assert.match(runtime, /const committedRoutes/);
+  assert.match(runtime, /routeMatchesTurnouts/);
+  assert.match(runtime, /committedRoutes\.get/);
+  assert.match(runtime, /candidateFromRoute/);
+  assert.match(runtime, /committedRoutes\.set/);
+  assert.match(runtime, /committedRoutes\.delete/);
+  assert.match(runtime, /Tracking route committed/);
+});
+
+test("Tracking exposes physical SectionParts selected by route and sensors", () => {
+  const runtime = read("src/services/trainTrackingRuntime.ts");
+  const panel = read("src/components/automation/TrainTrackingPanel.tsx");
+
+  assert.match(runtime, /currentSectionParts:\s*string\[\]/);
+  assert.match(runtime, /function sectionPartsForSensors/);
+  assert.match(runtime, /part\.detectors/);
+  assert.match(panel, /loco\.currentSectionParts/);
+});
