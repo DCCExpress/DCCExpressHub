@@ -26,33 +26,69 @@ test("Automation tabs end with Tracking after Scripts", () => {
   assert.match(panel, /<TrainTrackingPanel/);
 });
 
-test("Tracking runtime is Control Station gated and ignores active Movement locos", () => {
+test("Tracking keeps per-loco block and sensor runtime state", () => {
+  const runtime = read("src/services/trainTrackingRuntime.ts");
+
+  assert.match(runtime, /export type LocoTrackingState/);
+  assert.match(runtime, /currentBlockId:\s*number \| null/);
+  assert.match(runtime, /currentSensors:\s*number\[\]/);
+  assert.match(runtime, /lastSensor:\s*number \| null/);
+  assert.match(runtime, /recentSensorPath:\s*number\[\]/);
+  assert.match(runtime, /confidence:\s*LocoTrackingConfidence/);
+});
+
+test("Putting a loco into a block anchors it to the block occupancy sensor", () => {
+  const runtime = read("src/services/trainTrackingRuntime.ts");
+
+  assert.match(runtime, /function seedTrackingFromBlocks/);
+  assert.match(runtime, /blockIdToSensor\.get/);
+  assert.match(runtime, /next\.lastSensor\s*=\s*sensor/);
+  assert.match(runtime, /addRecentSensor\s*\(\s*next,\s*sensor/);
+});
+
+test("Sensor tracking uses graph, direction and live turnout state", () => {
   const runtime = read("src/services/trainTrackingRuntime.ts");
 
   assert.match(runtime, /enabled\s*&&\s*isControlStationRuntimeActive\(\)/);
-  assert.match(runtime, /isLocoManagedByActiveMovement/);
   assert.match(runtime, /route\.locoDirection\s*===\s*direction/);
   assert.match(runtime, /routeMatchesTurnouts/);
+  assert.match(runtime, /routeSensorPath/);
+  assert.match(runtime, /candidateForSensor/);
 });
 
-test("Tracking writes block assignment only for one unique candidate", () => {
+test("Ambiguous sensor candidates never move the block assignment", () => {
   const runtime = read("src/services/trainTrackingRuntime.ts");
 
-  assert.match(runtime, /if\s*\(\s*values\.length\s*===\s*0/);
-  assert.match(runtime, /if\s*\(\s*values\.length\s*>\s*1/);
+  const ambiguous = runtime.indexOf("uniqueCandidates.length >");
+  const unique = runtime.indexOf("const candidate =", ambiguous);
+  const setBlock = runtime.indexOf("wsApi.setBlock", unique);
 
-  const uniqueStart = runtime.indexOf("const candidate =");
-  const setBlock = runtime.indexOf("wsApi.setBlock", uniqueStart);
-
-  assert.ok(uniqueStart >= 0);
-  assert.ok(setBlock > uniqueStart);
+  assert.ok(ambiguous >= 0);
+  assert.ok(unique > ambiguous);
+  assert.ok(setBlock > unique);
 });
 
-test("Tracking reacts only to a real occupancy OFF to ON transition", () => {
+test("Active Movement locos are still sensor-tracked but Tracking does not own their block assignment", () => {
   const runtime = read("src/services/trainTrackingRuntime.ts");
 
-  assert.match(runtime, /previous\s*===\s*undefined/);
+  assert.match(runtime, /isLocoManagedByActiveMovement/);
+  assert.match(runtime, /if \(!movementOwned\) \{/);
+  assert.match(runtime, /active Movement owns block assignment/);
+});
+
+test("Tracking handles both sensor ON and OFF edges", () => {
+  const runtime = read("src/services/trainTrackingRuntime.ts");
+
+  assert.match(runtime, /handleSensorOn/);
+  assert.match(runtime, /handleSensorOff/);
+  assert.match(runtime, /currentSensors\.filter/);
   assert.match(runtime, /previous\s*===\s*data\.on/);
-  assert.match(runtime, /!data\.on/);
-  assert.match(runtime, /blockSensorToId\.get/);
+});
+
+test("Tracking exposes reverse lookup from sensor to one locomotive", () => {
+  const runtime = read("src/services/trainTrackingRuntime.ts");
+
+  assert.match(runtime, /export function getLocoAtSensor/);
+  assert.match(runtime, /state\.currentSensors\.includes/);
+  assert.match(runtime, /matches\.length ===\s*1/);
 });
