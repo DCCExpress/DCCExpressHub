@@ -251,13 +251,13 @@ function SensorConditionMarker({
                 rx="9"
                 fill={
                   condition.state
-                    ? "var(--mantine-color-blue-filled)"
-                    : "var(--mantine-color-gray-2)"
+                    ? "var(--mantine-color-green-7)"
+                    : "#000000"
                 }
                 stroke={
                   condition.state
-                    ? "var(--mantine-color-blue-7)"
-                    : "var(--mantine-color-gray-5)"
+                    ? "var(--mantine-color-green-9)"
+                    : "var(--mantine-color-gray-7)"
                 }
                 strokeWidth="1"
               />
@@ -268,11 +268,7 @@ function SensorConditionMarker({
                 textAnchor="middle"
                 fontSize="9"
                 fontWeight="700"
-                fill={
-                  condition.state
-                    ? "var(--mantine-color-white)"
-                    : "var(--mantine-color-text)"
-                }
+                fill="var(--mantine-color-white)"
               >
                 {condition.sensor}
               </text>
