@@ -3827,12 +3827,11 @@ async function runBlockLeaveFallback(
   state.fired =
     true;
 
-  emitMovementTrainEvent(
-    execution,
-    "leave",
-    leg.from
-  );
-
+  /*
+   * Compatibility only: legacy Movement "leave" actions still run when no
+   * physical Leave sensor group exists. Do not emit a TrainEvent Leave here:
+   * the new lifecycle defines Leave strictly as Leave sensors ON.
+   */
   await runActions(
     execution,
     leg.from.key,
