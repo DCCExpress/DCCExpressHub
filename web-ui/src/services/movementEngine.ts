@@ -5176,6 +5176,19 @@ export function releaseMovement(
   return true;
 }
 
+export function isLocoManagedByActiveMovement(
+  locoAddress: number
+): boolean {
+  return [
+    ...executions.values(),
+  ].some(
+    execution =>
+      !execution.cancelled &&
+      execution.locoAddress ===
+        locoAddress
+  );
+}
+
 export function getMovementHoldOwners(
   pageId: string
 ): string[] {
