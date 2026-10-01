@@ -5,6 +5,8 @@ import type {
 import {
   abortDispatcherExecution,
   getDispatcherExecutionState,
+  holdDispatcherExecution,
+  releaseDispatcherExecution,
   startDispatcherExecution,
   stopDispatcherExecution,
   subscribeDispatcherExecutionState,
@@ -85,7 +87,7 @@ const activeLocoOwners =
     string
   >();
 
-const engineUnsubscribes =
+const executionUnsubscribes =
   new Map<
     string,
     () => void
@@ -425,12 +427,12 @@ function ensureTrackingSubscription():
   );
 }
 
-function ensureEngineSubscription(
+function ensureExecutionSubscription(
   page:
     MovementPage
 ): void {
   if (
-    engineUnsubscribes.has(
+    executionUnsubscribes.has(
       page.id
     )
   ) {
@@ -456,7 +458,7 @@ function ensureEngineSubscription(
       }
     );
 
-  engineUnsubscribes.set(
+  executionUnsubscribes.set(
     page.id,
     unsubscribe
   );
@@ -468,11 +470,12 @@ function ensureEngineSubscription(
  * MovementPage is intentionally treated as an intent:
  *   block A -> block B -> ... -> block N + cruise speed.
  *
- * TrainTracking is authoritative for locating the locomotive. The existing
- * Movement engine remains the compatibility executor for turnout/resource
- * locking and safety while that logic is migrated behind this Dispatcher.
- * UI and timetable code must call this module rather than movementEngine
- * directly so the executor can be replaced without changing callers.
+ * TrainTracking is authoritative for locating the locomotive.
+ *
+ * MovementPage is declarative input only. Physical execution is Dispatcher
+ * authority and lives in dispatcherExecutionRuntime.ts behind this facade.
+ * UI, timetable, Flow and script code must call this module rather than the
+ * executor directly.
  */
 export async function startDispatcherMovement(
   page:
@@ -626,7 +629,7 @@ export async function startDispatcherMovement(
     loco.locoAddress
   );
 
-  ensureEngineSubscription(
+  ensureExecutionSubscription(
     page
   );
 
@@ -721,6 +724,26 @@ export async function startDispatcherMovement(
 
     emit();
   }
+}
+
+export function holdDispatcherMovement(
+  pageId: string,
+  ownerId = "external"
+): boolean {
+  return holdDispatcherExecution(
+    pageId,
+    ownerId
+  );
+}
+
+export function releaseDispatcherMovement(
+  pageId: string,
+  ownerId = "external"
+): boolean {
+  return releaseDispatcherExecution(
+    pageId,
+    ownerId
+  );
 }
 
 export function stopDispatcherMovement(
