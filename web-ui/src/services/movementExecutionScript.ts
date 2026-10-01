@@ -1125,13 +1125,6 @@ function renderLeg(
     ] ===
     leg;
 
-  const nextLeg =
-    plan.legs[
-      leg.index +
-        1
-    ] ??
-    null;
-
   const lines = [
     "LEG " +
       String(
@@ -1411,18 +1404,11 @@ function renderLeg(
   if (!isFinal) {
     lines.push(
       ...indent([
-        "// Non-final ARRIVED speed ownership: safety/departure readiness wins before cruise resync.",
+        "// Non-final ARRIVED restores the logical cruise target only.",
         "SET DESIRED_SPEED = CRUISE_SPEED",
-        "CHECK NEXT_LEG " +
-          q(
-            nextLeg
-              ? `${nextLeg.from.name} -> ${nextLeg.to.name}`
-              : "NONE"
-          ) +
-          " DEPART_CONDITION + TARGET_BLOCK + EFFECTIVE_SAFETY",
-        "IF NEXT_LEG_NOT_READY: SET MOVING = FALSE; FORCE_APPLY_LOCO_SPEED = 0",
-        "ELSE: FORCE_APPLY_LOCO_SPEED = CRUISE_SPEED",
-        "// ARRIVED speed actions run after the policy and may replace DESIRED_SPEED.",
+        "// Preserve current physical motion. Do not perform a one-shot STOP/GO decision here.",
+        "// The next LEG owns the authoritative DEPART + TARGET + SAFETY + RESOURCE + TURNOUT clearance.",
+        "// ARRIVED speed actions may replace DESIRED_SPEED before the next LEG starts.",
         ...renderActions(
           page,
           leg.to.key,
