@@ -18,6 +18,12 @@ import {
 
 import i18next from "i18next";
 
+import type {
+  Loco,
+} from "../../domain/domainTypes";
+
+import LocoImage from "../loco/LocoImage";
+
 import {
   clearTrainTrackingLogs,
   getTrainTrackingState,
@@ -31,6 +37,7 @@ import {
 
 type Props = {
   controlStationActive: boolean;
+  locos: Loco[];
 };
 
 function timeText(
@@ -43,6 +50,7 @@ function timeText(
 
 export default function TrainTrackingPanel({
   controlStationActive,
+  locos,
 }: Props) {
   const [
     state,
@@ -468,12 +476,74 @@ export default function TrainTrackingPanel({
                             loco.locoAddress
                           }
                         >
-                          <Table.Td
-                            fw={700}
-                            ff="monospace"
-                          >
+                          <Table.Td>
                             {
-                              `#${loco.locoAddress}`
+                              (() => {
+                                const configured =
+                                  locos.find(
+                                    item =>
+                                      item.address ===
+                                        loco.locoAddress
+                                  );
+
+                                return (
+                                  <Group
+                                    gap={6}
+                                    wrap="nowrap"
+                                  >
+                                    <LocoImage
+                                      locoId={
+                                        configured?.id ??
+                                        String(
+                                          loco.locoAddress
+                                        )
+                                      }
+                                      image={
+                                        configured?.image
+                                      }
+                                      name={
+                                        configured?.name ??
+                                        `#${loco.locoAddress}`
+                                      }
+                                      width={54}
+                                      height={28}
+                                    />
+
+                                    <div
+                                      style={{
+                                        minWidth:
+                                          0,
+                                      }}
+                                    >
+                                      <Text
+                                        size="xs"
+                                        fw={700}
+                                        ff="monospace"
+                                      >
+                                        {
+                                          `#${loco.locoAddress}`
+                                        }
+                                      </Text>
+
+                                      {
+                                        configured?.name &&
+                                        (
+                                          <Text
+                                            size="xs"
+                                            c="dimmed"
+                                            truncate
+                                            maw={120}
+                                          >
+                                            {
+                                              configured.name
+                                            }
+                                          </Text>
+                                        )
+                                      }
+                                    </div>
+                                  </Group>
+                                );
+                              })()
                             }
                           </Table.Td>
 
