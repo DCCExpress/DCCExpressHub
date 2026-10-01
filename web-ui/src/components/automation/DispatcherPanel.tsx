@@ -1,11 +1,14 @@
 import {
+  ActionIcon,
   Badge,
   Button,
   Group,
   ScrollArea,
   Stack,
+  Switch,
   Table,
   Text,
+  Tooltip,
 } from "@mantine/core";
 
 import {
@@ -15,6 +18,13 @@ import {
 } from "react";
 
 import i18next from "i18next";
+
+import {
+  IconAlertTriangle,
+  IconPlayerStop,
+  IconPower,
+  IconX,
+} from "@tabler/icons-react";
 
 import type {
   MovementDocument,
@@ -26,11 +36,22 @@ import {
 } from "../../services/automationBlockCatalog";
 
 import {
+  abortAllDispatcherMovements,
   clearDispatcherLog,
   getDispatcherRuntimeSnapshot,
+  setDispatcherEnabled,
+  stopAllDispatcherMovements,
   subscribeDispatcherRuntime,
   type DispatcherRuntimeSnapshot,
 } from "../../services/dispatcherRuntime";
+
+import {
+  useCommandCenter,
+} from "../../context/CommandCenterContext";
+
+import {
+  wsApi,
+} from "../../services/wsApi";
 
 type Props = {
   movements:
@@ -72,6 +93,9 @@ function blockName(
 export default function DispatcherPanel({
   movements,
 }: Props) {
+  const commandCenter =
+    useCommandCenter();
+
   const [
     state,
     setState,
@@ -182,8 +206,165 @@ export default function DispatcherPanel({
       <Group
         justify="space-between"
         align="center"
+        wrap="wrap"
       >
-        <Group gap="xs">
+        <Group
+          gap="xs"
+          wrap="wrap"
+        >
+          <Switch
+            size="sm"
+            color="green"
+            checked={
+              state.enabled
+            }
+            label={
+              i18next.t(
+                "ui.dispatcherEnabled",
+                {
+                  defaultValue:
+                    "Enabled",
+                }
+              )
+            }
+            onChange={
+              event =>
+                setDispatcherEnabled(
+                  event.currentTarget.checked
+                )
+            }
+          />
+
+          <Tooltip
+            withArrow
+            label={
+              i18next.t(
+                "ui.dispatcherStopAll",
+                {
+                  defaultValue:
+                    "Stop all Dispatcher trains",
+                }
+              )
+            }
+          >
+            <ActionIcon
+              size="sm"
+              variant="light"
+              color="yellow"
+              disabled={
+                !state.tasks.some(
+                  task =>
+                    task.status ===
+                      "running" ||
+                    task.status ===
+                      "stopping"
+                )
+              }
+              onClick={
+                stopAllDispatcherMovements
+              }
+            >
+              <IconPlayerStop
+                size={15}
+              />
+            </ActionIcon>
+          </Tooltip>
+
+          <Tooltip
+            withArrow
+            label={
+              i18next.t(
+                "ui.dispatcherAbortAll",
+                {
+                  defaultValue:
+                    "Abort all Dispatcher movements",
+                }
+              )
+            }
+          >
+            <ActionIcon
+              size="sm"
+              variant="light"
+              color="red"
+              disabled={
+                !state.tasks.some(
+                  task =>
+                    task.status ===
+                      "running" ||
+                    task.status ===
+                      "stopping"
+                )
+              }
+              onClick={
+                () =>
+                  abortAllDispatcherMovements(
+                    false
+                  )
+              }
+            >
+              <IconX
+                size={15}
+              />
+            </ActionIcon>
+          </Tooltip>
+
+          <Tooltip
+            withArrow
+            label={
+              commandCenter.powerInfo
+                ?.emergencyStop
+                ? i18next.t(
+                    "ui.dispatcherClearEstop",
+                    {
+                      defaultValue:
+                        "Clear E-Stop",
+                    }
+                  )
+                : i18next.t(
+                    "ui.dispatcherEmergencyStop",
+                    {
+                      defaultValue:
+                        "Emergency stop",
+                    }
+                  )
+            }
+          >
+            <ActionIcon
+              size="sm"
+              variant={
+                commandCenter.powerInfo
+                  ?.emergencyStop
+                  ? "filled"
+                  : "light"
+              }
+              color="red"
+              disabled={
+                !commandCenter.alive ||
+                !commandCenter.powerInfo
+              }
+              onClick={
+                () =>
+                  wsApi.emergencyStop()
+              }
+            >
+              {
+                commandCenter.powerInfo
+                  ?.emergencyStop
+                  ? (
+                    <IconPower
+                      size={15}
+                    />
+                  )
+                  : (
+                    <IconAlertTriangle
+                      size={15}
+                    />
+                  )
+              }
+            </ActionIcon>
+          </Tooltip>
+
+          <Group gap="xs">
           <Text
             fw={700}
             size="sm"
@@ -222,6 +403,7 @@ export default function DispatcherPanel({
               ).length
             }
           </Badge>
+          </Group>
         </Group>
 
         <Button
