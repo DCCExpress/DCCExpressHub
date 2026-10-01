@@ -4,6 +4,7 @@ import {
   Button,
   Card,
   Group,
+  Table,
   ScrollArea,
   Stack,
   Switch,
@@ -361,7 +362,7 @@ export default function TrainTrackingPanel({
         }
       </Text>
 
-      <Stack gap="xs">
+      <Stack gap={4}>
         <Text
           size="sm"
           fw={700}
@@ -397,36 +398,120 @@ export default function TrainTrackingPanel({
               </Text>
             )
             : (
-              <Group
-                gap="xs"
-                align="stretch"
+              <Table
+                withTableBorder
+                withColumnBorders
+                verticalSpacing={3}
+                horizontalSpacing="xs"
+                fz="xs"
+                striped
+                highlightOnHover
               >
-                {
-                  state.locos.map(
-                    loco => (
-                      <Card
-                        key={
-                          loco.locoAddress
-                        }
-                        withBorder
-                        p="xs"
-                        radius="sm"
-                        miw={250}
-                      >
-                        <Stack gap={4}>
-                          <Group
-                            justify="space-between"
-                            gap="xs"
-                          >
-                            <Text
-                              size="sm"
-                              fw={700}
-                            >
-                              {
-                                `#${loco.locoAddress}`
-                              }
-                            </Text>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>
+                      Loco
+                    </Table.Th>
 
+                    <Table.Th>
+                      {
+                        i18next.t(
+                          "ui.trainTrackingBlock",
+                          {
+                            defaultValue:
+                              "Block",
+                          }
+                        )
+                      }
+                    </Table.Th>
+
+                    <Table.Th>
+                      {
+                        i18next.t(
+                          "ui.trainTrackingActiveSensors",
+                          {
+                            defaultValue:
+                              "Active sensors",
+                          }
+                        )
+                      }
+                    </Table.Th>
+
+                    <Table.Th>
+                      {
+                        i18next.t(
+                          "ui.trainTrackingLastSensor",
+                          {
+                            defaultValue:
+                              "Last sensor",
+                          }
+                        )
+                      }
+                    </Table.Th>
+
+                    <Table.Th>
+                      Confidence
+                    </Table.Th>
+
+                    <Table.Th>
+                      Path
+                    </Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+
+                <Table.Tbody>
+                  {
+                    state.locos.map(
+                      loco => (
+                        <Table.Tr
+                          key={
+                            loco.locoAddress
+                          }
+                        >
+                          <Table.Td
+                            fw={700}
+                            ff="monospace"
+                          >
+                            {
+                              `#${loco.locoAddress}`
+                            }
+                          </Table.Td>
+
+                          <Table.Td>
+                            {
+                              loco.currentBlockName ??
+                              "-"
+                            }
+                          </Table.Td>
+
+                          <Table.Td
+                            ff="monospace"
+                          >
+                            {
+                              loco.currentSensors.length >
+                                0
+                                ? loco.currentSensors
+                                    .map(
+                                      sensor =>
+                                        `#${sensor}`
+                                    )
+                                    .join(", ")
+                                : "-"
+                            }
+                          </Table.Td>
+
+                          <Table.Td
+                            ff="monospace"
+                          >
+                            {
+                              loco.lastSensor ===
+                                null
+                                ? "-"
+                                : `#${loco.lastSensor}`
+                            }
+                          </Table.Td>
+
+                          <Table.Td>
                             <Badge
                               size="xs"
                               variant="light"
@@ -444,69 +529,11 @@ export default function TrainTrackingPanel({
                                 loco.confidence
                               }
                             </Badge>
-                          </Group>
+                          </Table.Td>
 
-                          <Text size="xs">
-                            {
-                              i18next.t(
-                                "ui.trainTrackingBlock",
-                                {
-                                  defaultValue:
-                                    "Block",
-                                }
-                              )
-                            }
-                            : {
-                              loco.currentBlockName ??
-                              "-"
-                            }
-                          </Text>
-
-                          <Text size="xs">
-                            {
-                              i18next.t(
-                                "ui.trainTrackingActiveSensors",
-                                {
-                                  defaultValue:
-                                    "Active sensors",
-                                }
-                              )
-                            }
-                            : {
-                              loco.currentSensors.length >
-                                0
-                                ? loco.currentSensors
-                                    .map(
-                                      sensor =>
-                                        `#${sensor}`
-                                    )
-                                    .join(", ")
-                                : "-"
-                            }
-                          </Text>
-
-                          <Text size="xs">
-                            {
-                              i18next.t(
-                                "ui.trainTrackingLastSensor",
-                                {
-                                  defaultValue:
-                                    "Last sensor",
-                                }
-                              )
-                            }
-                            : {
-                              loco.lastSensor ===
-                                null
-                                ? "-"
-                                : `#${loco.lastSensor}`
-                            }
-                          </Text>
-
-                          <Text
-                            size="xs"
-                            c="dimmed"
+                          <Table.Td
                             ff="monospace"
+                            c="dimmed"
                           >
                             {
                               loco.recentSensorPath.length >
@@ -519,13 +546,13 @@ export default function TrainTrackingPanel({
                                     .join(" → ")
                                 : "-"
                             }
-                          </Text>
-                        </Stack>
-                      </Card>
+                          </Table.Td>
+                        </Table.Tr>
+                      )
                     )
-                  )
-                }
-              </Group>
+                  }
+                </Table.Tbody>
+              </Table>
             )
         }
       </Stack>
