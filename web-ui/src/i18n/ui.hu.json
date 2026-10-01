@@ -1356,5 +1356,15 @@
   "movementRuntimeRandomPlayPlaying": "Véletlen hang lejátszása · dobás {{roll}}/10, határ {{threshold}}",
   "graphStatusValid": "GRÁF ÉRVÉNYES",
   "graphStatusDirty": "GRÁF ELAVULT",
-  "graphStatusInvalid": "GRÁF ÉRVÉNYTELEN"
+  "graphStatusInvalid": "GRÁF ÉRVÉNYTELEN",
+  "automationDispatcherTab": "Forgalmista",
+  "dispatcherTitle": "Forgalmista",
+  "dispatcherDescription": "A forgalmista hajtja végre a mentett A→B→C mozgási megbízásokat. A Train Tracking adja a mozdony helyzetét, a forgalmista pedig a végrehajtást és a biztonsági engedélyeket koordinálja.",
+  "dispatcherMovement": "Mozgás",
+  "dispatcherRoute": "Útvonal",
+  "dispatcherCurrentBlock": "Aktuális blokk",
+  "dispatcherNextBlock": "Következő blokk",
+  "dispatcherNoTasks": "Még nem indult forgalmista által kezelt mozgás.",
+  "dispatcherLog": "Forgalmista napló",
+  "dispatcherNoLog": "Még nincs forgalmista esemény."
 }
