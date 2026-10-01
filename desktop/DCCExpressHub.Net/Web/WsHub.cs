@@ -49,7 +49,16 @@ public sealed class WsHub
         CommandCenterConfigStore = ccConfig;
         LayoutRuntime.Changed += (type, data) => _ = Broadcast(type, data);
         SwitchMan.Changed += snapshot => _ = Broadcast("switchManChanged", new { locks = snapshot ?? SwitchMan.Snapshot() });
-        Dispatcher.Changed += snapshot => _ = Broadcast("dispatcherChanged", new { leases = snapshot ?? Dispatcher.Snapshot() });
+        Dispatcher.Changed += snapshot => _ = Broadcast(
+            "dispatcherChanged",
+            new
+            {
+                leases =
+                    snapshot ??
+                    Dispatcher.Snapshot(),
+                routes =
+                    Dispatcher.RouteSnapshot()
+            });
         Movement.Changed += state => _ = Broadcast("movementStateChanged", state);
         Movement.AudioRequested += request => _ = Broadcast("playAudio", new { requestId = request.RequestId, fileName = request.FileName });
         Movement.LocoChanged += loco => _ = BroadcastLoco(loco);
@@ -1147,6 +1156,56 @@ public sealed class WsHub
                 .ToArray();
         }
 
+        static DispatcherRouteBlockRequirement[] ReadRouteBlocks(
+            JsonElement source)
+        {
+            if (source.ValueKind != JsonValueKind.Object ||
+                !source.TryGetProperty(
+                    "downstreamBlocks",
+                    out var raw) ||
+                raw.ValueKind !=
+                    JsonValueKind.Array)
+                return [];
+
+            var result =
+                new List<DispatcherRouteBlockRequirement>();
+
+            foreach (var item in raw.EnumerateArray())
+            {
+                if (item.ValueKind !=
+                        JsonValueKind.Object ||
+                    !item.TryGetProperty(
+                        "blockId",
+                        out var blockIdElement) ||
+                    !blockIdElement.TryGetInt32(
+                        out var blockId) ||
+                    blockId is < 1 or > 65535)
+                    continue;
+
+                var sensorAddress =
+                    item.TryGetProperty(
+                        "sensorAddress",
+                        out var sensorElement) &&
+                    sensorElement.TryGetInt32(
+                        out var sensor) &&
+                    sensor is >= 1 and <= 65535
+                        ? sensor
+                        : 0;
+
+                result.Add(
+                    new DispatcherRouteBlockRequirement(
+                        (ushort)blockId,
+                        (ushort)sensorAddress));
+            }
+
+            return result
+                .GroupBy(item =>
+                    item.BlockId)
+                .Select(group =>
+                    group.First())
+                .ToArray();
+        }
+
         static DispatcherTurnoutRequirement[] ReadTurnouts(
             JsonElement source)
         {
@@ -1186,7 +1245,10 @@ public sealed class WsHub
                     true,
                     extra: new
                     {
-                        leases = Dispatcher.Snapshot()
+                        leases =
+                            Dispatcher.Snapshot(),
+                        routes =
+                            Dispatcher.RouteSnapshot()
                     });
                 return;
 
@@ -1285,6 +1347,144 @@ public sealed class WsHub
                     return;
                 }
 
+            case "acquireRoute":
+                {
+                    var ownerId =
+                        S(
+                            data,
+                            "ownerId");
+
+                    var ownerName =
+                        S(
+                            data,
+                            "ownerName");
+
+                    var loco =
+                        I(
+                            data,
+                            "locoAddress");
+
+                    var sourceBlock =
+                        I(
+                            data,
+                            "sourceBlockId");
+
+                    var downstream =
+                        ReadRouteBlocks(
+                            data);
+
+                    if (string.IsNullOrWhiteSpace(
+                            ownerId) ||
+                        loco is < 1 or > 10239 ||
+                        sourceBlock is < 1 or > 65535 ||
+                        downstream.Length == 0)
+                    {
+                        await Reply(
+                            false,
+                            "invalid_dispatcher_route");
+                        return;
+                    }
+
+                    DispatcherRouteAcquireResult result;
+
+                    try
+                    {
+                        result =
+                            await Dispatcher.AcquireRouteAsync(
+                                new DispatcherRouteRequest(
+                                    ownerId,
+                                    ownerName,
+                                    (ushort)loco,
+                                    (ushort)sourceBlock,
+                                    downstream,
+                                    ReadTurnouts(
+                                        data),
+                                    ReadStringArray(
+                                        data,
+                                        "resourceKeys"),
+                                    Math.Clamp(
+                                        IOr(
+                                            data,
+                                            "timeoutMs",
+                                            0),
+                                        0,
+                                        600000)),
+                                ct);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        return;
+                    }
+
+                    await Reply(
+                        result.Ok,
+                        result.Error,
+                        new
+                        {
+                            lease =
+                                result.Lease,
+                            blockingSensor =
+                                result.BlockingSensor,
+                            blockingBlock =
+                                result.BlockingBlock,
+                            turnoutConflicts =
+                                result.TurnoutConflicts
+                        });
+                    return;
+                }
+
+            case "commitRoute":
+                {
+                    var ownerId =
+                        S(
+                            data,
+                            "ownerId");
+
+                    var committed =
+                        Dispatcher.CommitRoute(
+                            ownerId);
+
+                    await Reply(
+                        committed,
+                        committed
+                            ? null
+                            : "dispatcher_route_commit_failed",
+                        new
+                        {
+                            leases =
+                                Dispatcher.Snapshot(),
+                            routes =
+                                Dispatcher.RouteSnapshot()
+                        });
+                    return;
+                }
+
+            case "releaseRoute":
+                {
+                    var ownerId =
+                        S(
+                            data,
+                            "ownerId");
+
+                    var released =
+                        Dispatcher.ReleaseRoute(
+                            ownerId);
+
+                    await Reply(
+                        released,
+                        released
+                            ? null
+                            : "dispatcher_route_lease_not_found",
+                        new
+                        {
+                            leases =
+                                Dispatcher.Snapshot(),
+                            routes =
+                                Dispatcher.RouteSnapshot()
+                        });
+                    return;
+                }
+
             case "releaseAll":
                 {
                     var released =
@@ -1296,7 +1496,9 @@ public sealed class WsHub
                         {
                             released,
                             leases =
-                                Dispatcher.Snapshot()
+                                Dispatcher.Snapshot(),
+                            routes =
+                                Dispatcher.RouteSnapshot()
                         });
                     return;
                 }
@@ -1709,7 +1911,16 @@ public sealed class WsHub
             await Send(ws, item.Type, item.Data);
 
         await Send(ws, "switchManChanged", new { locks = SwitchMan.Snapshot() });
-        await Send(ws, "dispatcherChanged", new { leases = Dispatcher.Snapshot() });
+        await Send(
+            ws,
+            "dispatcherChanged",
+            new
+            {
+                leases =
+                    Dispatcher.Snapshot(),
+                routes =
+                    Dispatcher.RouteSnapshot()
+            });
         await Send(ws, "movementSnapshot", new { states = Movement.Snapshot() });
         await Send(ws, "timetableStateChanged", Timetable.Snapshot());
     }
