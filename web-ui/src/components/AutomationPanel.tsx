@@ -18,6 +18,10 @@ import type {
 } from "../domain/movement";
 
 import type {
+  Loco,
+} from "../domain/domainTypes";
+
+import type {
   AutomationScriptDefinition,
 } from "../services/automationApi";
 
@@ -61,6 +65,8 @@ function loadAutomationPanelTab(): AutomationPanelTab {
 }
 
 type AutomationPanelProps = {
+  locos:
+    Loco[];
   scripts:
     AutomationScriptDefinition[];
   onScriptsChange: (
@@ -92,6 +98,7 @@ type AutomationPanelProps = {
 };
 
 export default function AutomationPanel({
+  locos,
   scripts,
   onScriptsChange,
   flows,
@@ -286,6 +293,9 @@ export default function AutomationPanel({
           <TrainTrackingPanel
             controlStationActive={
               controlStationActive
+            }
+            locos={
+              locos
             }
           />
         </Tabs.Panel>
