@@ -16,6 +16,7 @@ public sealed class WsHub
     readonly LocoCounterRuntime LocoCounters;
     readonly SwitchManManager SwitchMan;
     readonly DispatcherRuntime Dispatcher;
+    readonly MovementRuntime Movement;
     private readonly ILogger<WsHub> Logger;
     private readonly FastClockRuntime FastClock = new();
     private readonly ConcurrentDictionary<Guid, WebSocket> Clients = new();
@@ -32,7 +33,7 @@ public sealed class WsHub
     private static readonly TimeSpan WebSocketSendTimeout = TimeSpan.FromSeconds(2);
     public int ClientCount => Clients.Count;
 
-    public WsHub(ICommandCenter cc, HubState state, LayoutRuntime runtime, RuntimeStateStore stateStore, CommandCenterConfigStore ccConfig, LocoCounterRuntime locoCounters, SwitchManManager switchMan, DispatcherRuntime dispatcher, ILogger<WsHub> log)
+    public WsHub(ICommandCenter cc, HubState state, LayoutRuntime runtime, RuntimeStateStore stateStore, CommandCenterConfigStore ccConfig, LocoCounterRuntime locoCounters, SwitchManManager switchMan, DispatcherRuntime dispatcher, MovementRuntime movement, ILogger<WsHub> log)
     {
         CommandCenter = cc;
         HubState = state;
@@ -41,10 +42,13 @@ public sealed class WsHub
         LocoCounters = locoCounters;
         SwitchMan = switchMan;
         Dispatcher = dispatcher;
+        Movement = movement;
         CommandCenterConfigStore = ccConfig;
         LayoutRuntime.Changed += (type, data) => _ = Broadcast(type, data);
         SwitchMan.Changed += snapshot => _ = Broadcast("switchManChanged", new { locks = snapshot ?? SwitchMan.Snapshot() });
         Dispatcher.Changed += snapshot => _ = Broadcast("dispatcherChanged", new { leases = snapshot ?? Dispatcher.Snapshot() });
+        Movement.Changed += state => _ = Broadcast("movementStateChanged", state);
+        Movement.AudioRequested += request => _ = Broadcast("playAudio", new { requestId = request.RequestId, fileName = request.FileName });
         Logger = log;
 
         LocoCounters.Changed += () =>
@@ -309,6 +313,12 @@ public sealed class WsHub
                     return;
                 case "dispatcherCommand":
                     await HandleDispatcherCommand(ws, data, ct);
+                    return;
+                case "movementCommand":
+                    await HandleMovementCommand(connectionId, ws, data, ct);
+                    return;
+                case "movementAudioComplete":
+                    Movement.CompleteAudio(S(data, "requestId"), B(data, "ok"));
                     return;
                 case "setTrackPower":
                     ok = await CommandCenter.SetTrackPowerAsync(B(data, "on"), CommandCenterConfigStore.Current.PowerIncludesProgramming, ct);
@@ -753,6 +763,183 @@ public sealed class WsHub
 
             default:
                 await Reply(false, "unknown_switchman_action");
+                return;
+        }
+    }
+
+    private async Task HandleMovementCommand(
+        Guid connectionId,
+        WebSocket ws,
+        JsonElement data,
+        CancellationToken ct)
+    {
+        var requestId = S(data, "requestId");
+        var action = S(data, "action");
+
+        async Task Reply(
+            bool ok,
+            string? message = null,
+            object? extra = null)
+        {
+            await Send(ws, "movementResponse", new
+            {
+                requestId,
+                action,
+                ok,
+                message,
+                extra
+            });
+        }
+
+        if (action != "snapshot" &&
+            !IsControlStationOwner(connectionId))
+        {
+            await Reply(false, "control_station_required");
+            return;
+        }
+
+        switch (action)
+        {
+            case "snapshot":
+                await Reply(
+                    true,
+                    extra: new
+                    {
+                        states = Movement.Snapshot()
+                    });
+                return;
+
+            case "start":
+                {
+                    if (data.ValueKind != JsonValueKind.Object ||
+                        !data.TryGetProperty("page", out var pageJson) ||
+                        !data.TryGetProperty("plan", out var planJson))
+                    {
+                        await Reply(false, "invalid_movement_start");
+                        return;
+                    }
+
+                    MovementPageModel? page;
+                    MovementPlanModel? plan;
+
+                    try
+                    {
+                        page = JsonSerializer.Deserialize<MovementPageModel>(
+                            pageJson.GetRawText(),
+                            Json);
+
+                        plan = JsonSerializer.Deserialize<MovementPlanModel>(
+                            planJson.GetRawText(),
+                            Json);
+                    }
+                    catch (JsonException)
+                    {
+                        await Reply(false, "invalid_movement_start");
+                        return;
+                    }
+
+                    if (page is null || plan is null)
+                    {
+                        await Reply(false, "invalid_movement_start");
+                        return;
+                    }
+
+                    var result =
+                        Movement.Start(
+                            new MovementStartRequest(
+                                page,
+                                plan));
+
+                    await Reply(
+                        result.Ok,
+                        result.Error,
+                        new
+                        {
+                            state =
+                                Movement.GetState(
+                                    page.Id)
+                        });
+                    return;
+                }
+
+            case "stop":
+                {
+                    var pageId = S(data, "pageId");
+                    var ok = Movement.Stop(pageId);
+                    await Reply(
+                        ok,
+                        ok ? null : "movement_not_running",
+                        new
+                        {
+                            state =
+                                Movement.GetState(
+                                    pageId)
+                        });
+                    return;
+                }
+
+            case "abort":
+                {
+                    var pageId = S(data, "pageId");
+                    var emergency =
+                        !data.TryGetProperty(
+                            "emergencyStop",
+                            out var emergencyElement) ||
+                        emergencyElement.ValueKind != JsonValueKind.False;
+
+                    var ok =
+                        Movement.Abort(
+                            pageId,
+                            emergency);
+
+                    await Reply(
+                        ok,
+                        ok ? null : "movement_not_running",
+                        new
+                        {
+                            state =
+                                Movement.GetState(
+                                    pageId)
+                        });
+                    return;
+                }
+
+            case "stopAll":
+                {
+                    var count =
+                        Movement.StopAll(false);
+
+                    await Reply(
+                        true,
+                        extra: new
+                        {
+                            count,
+                            states =
+                                Movement.Snapshot()
+                        });
+                    return;
+                }
+
+            case "abortAll":
+                {
+                    var count =
+                        Movement.StopAll(true);
+
+                    await Reply(
+                        true,
+                        extra: new
+                        {
+                            count,
+                            states =
+                                Movement.Snapshot()
+                        });
+                    return;
+                }
+
+            default:
+                await Reply(
+                    false,
+                    "unknown_movement_action");
                 return;
         }
     }
@@ -1364,6 +1551,7 @@ public sealed class WsHub
 
         await Send(ws, "switchManChanged", new { locks = SwitchMan.Snapshot() });
         await Send(ws, "dispatcherChanged", new { leases = Dispatcher.Snapshot() });
+        await Send(ws, "movementSnapshot", new { states = Movement.Snapshot() });
     }
 
     private Task SendCommandCenterInfo(WebSocket ws)
