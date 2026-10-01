@@ -6,6 +6,7 @@ import { generateId } from "../../../helpers";
 import i18n from "../../../i18n";
 import { getBlockTargetLocoAddress } from "../../../services/blockTargetLocoRuntime";
 import { getMovementBlockRuntime } from "../../../services/movementBlockRuntime";
+import { getTrainTrackingPredictionForBlock } from "../../../services/trainTrackingPredictionRuntime";
 import { wsClient } from "../../../services/wsClient";
 import { TrackElement } from "../core/TrackElement";
 import { getCanvasImage } from "../rendering/ImageCache";
@@ -174,6 +175,11 @@ export class BlockElement extends TrackElement {
         this.id
       );
 
+    const trackingPrediction =
+      getTrainTrackingPredictionForBlock(
+        this.id
+      );
+
     const sensorOccupied =
       this.isSensorAddressOccupied(
         this.sensorAddress
@@ -258,6 +264,55 @@ export class BlockElement extends TrackElement {
         blockY - 2,
         blockW + 4,
         blockH + 4
+      );
+      ctx.restore();
+    } else if (
+      trackingPrediction
+    ) {
+      const phase =
+        (
+          Math.sin(
+            Date.now() /
+              180
+          ) +
+          1
+        ) /
+        2;
+
+      ctx.save();
+      ctx.globalAlpha =
+        0.35 +
+        phase *
+          0.65;
+      ctx.strokeStyle =
+        "#22d3ee";
+      ctx.lineWidth =
+        2 +
+        phase *
+          2;
+      ctx.setLineDash([
+        5,
+        3,
+      ]);
+      ctx.strokeRect(
+        blockX - 2,
+        blockY - 2,
+        blockW + 4,
+        blockH + 4
+      );
+      ctx.setLineDash([]);
+      ctx.fillStyle =
+        "#083344";
+      ctx.font =
+        "bold 8px Arial";
+      ctx.textAlign =
+        "left";
+      ctx.textBaseline =
+        "bottom";
+      ctx.fillText(
+        `→ #${trackingPrediction.locoAddress}`,
+        blockX + 2,
+        blockY - 3
       );
       ctx.restore();
     }
