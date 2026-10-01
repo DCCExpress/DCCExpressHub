@@ -2037,6 +2037,7 @@ export default function LiteLayoutPage({
 
                       <div style={{ flex: 1, minHeight: 0 }}>
                         <AutomationPanel
+                          locos={locos}
                           scripts={automationScripts}
                           onScriptsChange={setAutomationScripts}
                           flows={automationFlow}
