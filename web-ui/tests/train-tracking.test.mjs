@@ -263,6 +263,16 @@ test("Tracking predicts a unique next block from direction and live turnout stat
   );
 
   assert.match(
+    block,
+    /ctx\.lineWidth =\s*1/
+  );
+
+  assert.match(
+    block,
+    /trackingPrediction\?\.locoAddress/
+  );
+
+  assert.match(
     canvas,
     /subscribeTrainTrackingPredictions/
   );
