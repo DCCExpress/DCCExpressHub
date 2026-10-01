@@ -90,12 +90,30 @@ test("ESP32 WebSocket command contract matches the Windows backend", () => {
       "src/WsProtocol.cpp"
     );
 
+  const windowsCommands =
+    windowsTopLevelWsCommands(
+      windows
+    );
+
+  /*
+   * Windows-first migration: Dispatcher is intentionally native-only until
+   * the .NET implementation is stable and tested. Keep every other WS command
+   * under strict ESP32 parity and make the temporary exception explicit.
+   */
+  assert.ok(
+    windowsCommands.includes(
+      "dispatcherCommand"
+    )
+  );
+
   assert.deepEqual(
     espTopLevelWsCommands(
       esp
     ),
-    windowsTopLevelWsCommands(
-      windows
+    windowsCommands.filter(
+      command =>
+        command !==
+          "dispatcherCommand"
     )
   );
 });
@@ -384,5 +402,68 @@ test("ESP32 manual turnout lock is held until runtime state has been broadcast",
         "switchManRelease("
       ),
     "manual turnout lock must remain held through the state broadcast"
+  );
+});
+
+
+test("Windows Dispatcher owns one block-to-block leg and fails closed on safety", () => {
+  const program =
+    read(
+      "desktop/DCCExpressHub.Net/Program.cs"
+    );
+
+  const hub =
+    read(
+      "desktop/DCCExpressHub.Net/Web/WsHub.cs"
+    );
+
+  const dispatcher =
+    read(
+      "desktop/DCCExpressHub.Net/Web/DispatcherRuntime.cs"
+    );
+
+  assert.match(
+    program,
+    /AddSingleton<SwitchManManager>\(\)/
+  );
+
+  assert.match(
+    program,
+    /AddSingleton<DispatcherRuntime>\(\)/
+  );
+
+  assert.match(
+    hub,
+    /case "dispatcherCommand"/
+  );
+
+  assert.match(
+    hub,
+    /Dispatcher\.AcquireLegAsync/
+  );
+
+  assert.match(
+    dispatcher,
+    /It never reserves an entire Movement[\s\S]*route ahead of the train/
+  );
+
+  assert.match(
+    dispatcher,
+    /TryGetSensorState\(address, out var on\) \|\| on/
+  );
+
+  assert.match(
+    dispatcher,
+    /AcquireAsync\([\s\S]*turnoutAddresses/
+  );
+
+  assert.match(
+    dispatcher,
+    /SetBlock\([\s\S]*request\.ToBlockId[\s\S]*marker/
+  );
+
+  assert.match(
+    dispatcher,
+    /finally[\s\S]*ReleaseOwned[\s\S]*ReleaseDestinationReservation/
   );
 });
