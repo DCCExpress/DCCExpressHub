@@ -587,37 +587,3 @@ export async function saveAutomationMovement(
       )
   );
 }
-
-
-export async function updateAutomationMovementTiming(
-  pageId: string,
-  startedAt: number | null,
-  stoppedAt: number | null
-): Promise<void> {
-  await mutateAutomationStorage(
-    current => {
-      const pages =
-        current.movement.pages.map(
-          page =>
-            page.id !==
-              pageId
-              ? page
-              : {
-                  ...page,
-                  startedAt,
-                  stoppedAt,
-                }
-        );
-
-      return createAutomationPayload(
-        current.scripts,
-        current.timetable,
-        current.visualFlow,
-        {
-          ...current.movement,
-          pages,
-        }
-      );
-    }
-  );
-}
