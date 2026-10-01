@@ -214,19 +214,16 @@ function SensorConditionMarker({
     return null;
   }
 
-  const textAnchor =
-    align === "start"
-      ? "start"
-      : align === "end"
-        ? "end"
-        : "middle";
+  const itemWidth = 46;
+  const totalWidth =
+    conditions.length * itemWidth;
 
-  const labelX =
+  const startX =
     align === "start"
-      ? x + 11
+      ? x
       : align === "end"
-        ? x - 11
-        : x;
+        ? x - totalWidth
+        : x - totalWidth / 2;
 
   return (
     <>
@@ -235,16 +232,23 @@ function SensorConditionMarker({
           condition,
           index
         ) => {
-          const yy =
-            y + index * 17;
+          const itemX =
+            startX +
+            index * itemWidth;
+
+          const circleX =
+            itemX + 6;
+
+          const labelX =
+            itemX + 16;
 
           return (
             <g
               key={`${condition.sensor}-${condition.state}-${index}`}
             >
               <circle
-                cx={x}
-                cy={yy}
+                cx={circleX}
+                cy={y}
                 r="5.5"
                 fill={
                   condition.state
@@ -261,8 +265,8 @@ function SensorConditionMarker({
 
               {!condition.state && (
                 <circle
-                  cx={x}
-                  cy={yy}
+                  cx={circleX}
+                  cy={y}
                   r="2.2"
                   fill="var(--mantine-color-body)"
                 />
@@ -270,9 +274,9 @@ function SensorConditionMarker({
 
               <text
                 x={labelX}
-                y={yy + 3.5}
-                textAnchor={textAnchor}
-                fontSize="10"
+                y={y + 3.5}
+                textAnchor="start"
+                fontSize="9.5"
                 fontWeight="700"
                 fill="var(--mantine-color-text)"
               >
@@ -322,7 +326,7 @@ function DirectionDiagram({
   return (
     <div>
       <svg
-        viewBox="0 0 360 176"
+        viewBox="0 0 360 158"
         role="img"
         aria-label={
           reverse
@@ -331,7 +335,7 @@ function DirectionDiagram({
         }
         style={{
           width: "100%",
-          maxHeight: 195,
+          maxHeight: 170,
           display: "block",
         }}
       >
@@ -501,7 +505,7 @@ function DirectionDiagram({
 
         <SensorConditionMarker
           conditions={events.beforeArrive}
-          x={reverse ? 305 : 55}
+          x={reverse ? 342 : 18}
           y={116}
           align={reverse ? "end" : "start"}
         />
@@ -515,7 +519,7 @@ function DirectionDiagram({
 
         <SensorConditionMarker
           conditions={events.beforeLeave}
-          x={reverse ? 55 : 305}
+          x={reverse ? 18 : 342}
           y={116}
           align={reverse ? "start" : "end"}
         />
@@ -524,7 +528,7 @@ function DirectionDiagram({
           <>
             <text
               x="180"
-              y="145"
+              y="137"
               textAnchor="middle"
               fontSize="9"
               fontWeight="700"
@@ -536,7 +540,7 @@ function DirectionDiagram({
             <SensorConditionMarker
               conditions={events.afterLeave}
               x={180}
-              y={156}
+              y={149}
               align="start"
             />
           </>
