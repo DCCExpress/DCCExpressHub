@@ -190,6 +190,20 @@ export default function AutomationPanel({
           </Tabs.Tab>
 
           <Tabs.Tab
+            value="dispatcher"
+          >
+            {
+              i18next.t(
+                "ui.automationDispatcherTab",
+                {
+                  defaultValue:
+                    "Dispatcher",
+                }
+              )
+            }
+          </Tabs.Tab>
+
+          <Tabs.Tab
             value="flows"
           >
             {
@@ -212,20 +226,6 @@ export default function AutomationPanel({
                 {
                   defaultValue:
                     "Scripts",
-                }
-              )
-            }
-          </Tabs.Tab>
-
-          <Tabs.Tab
-            value="dispatcher"
-          >
-            {
-              i18next.t(
-                "ui.automationDispatcherTab",
-                {
-                  defaultValue:
-                    "Dispatcher",
                 }
               )
             }
@@ -267,6 +267,20 @@ export default function AutomationPanel({
         </Tabs.Panel>
 
         <Tabs.Panel
+          value="dispatcher"
+          style={{
+            flex: 1,
+            minHeight: 0,
+          }}
+        >
+          <DispatcherPanel
+            movements={
+              movements
+            }
+          />
+        </Tabs.Panel>
+
+        <Tabs.Panel
           value="flows"
           style={{
             flex: 1,
@@ -299,20 +313,6 @@ export default function AutomationPanel({
             }
             onScriptsChange={
               onScriptsChange
-            }
-          />
-        </Tabs.Panel>
-
-        <Tabs.Panel
-          value="dispatcher"
-          style={{
-            flex: 1,
-            minHeight: 0,
-          }}
-        >
-          <DispatcherPanel
-            movements={
-              movements
             }
           />
         </Tabs.Panel>
