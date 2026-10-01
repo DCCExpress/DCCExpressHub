@@ -1534,6 +1534,43 @@ public sealed class MovementRuntime
         return false;
     }
 
+    static bool RetryableDispatcherFailure(
+        DispatcherAcquireResult result)
+    {
+        if (result.BlockingSensor.HasValue ||
+            result.BlockingBlock.HasValue &&
+            string.Equals(
+                result.Error,
+                "destination_block_busy",
+                StringComparison.Ordinal))
+            return true;
+
+        var error =
+            result.Error ??
+            "";
+
+        return
+            string.Equals(
+                error,
+                "safety_sensor_not_free",
+                StringComparison.Ordinal) ||
+            string.Equals(
+                error,
+                "destination_block_busy",
+                StringComparison.Ordinal) ||
+            string.Equals(
+                error,
+                "turnout_locked",
+                StringComparison.Ordinal) ||
+            string.Equals(
+                error,
+                "turnout_lock_timeout",
+                StringComparison.Ordinal) ||
+            error.StartsWith(
+                "dispatcher_resource_locked:",
+                StringComparison.Ordinal);
+    }
+
     async Task<DispatcherLegLeaseInfo> AcquireLeg(
         Execution execution,
         MovementPlanLegModel leg)
@@ -1598,6 +1635,12 @@ public sealed class MovementRuntime
 
                 return result.Lease;
             }
+
+            if (!RetryableDispatcherFailure(
+                    result))
+                throw new InvalidOperationException(
+                    result.Error ??
+                    "dispatcher_acquire_failed");
 
             execution.Moving = false;
             await ApplySpeed(execution, force: false);
