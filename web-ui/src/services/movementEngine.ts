@@ -3429,6 +3429,14 @@ function nextLegMayKeepRolling(
   leg:
     MovementPlanLeg
 ): boolean {
+  if (
+    movementIsHeld(
+      execution
+    )
+  ) {
+    return false;
+  }
+
   const nextLeg =
     nextLegAtArrival(
       execution,
@@ -4743,7 +4751,7 @@ async function traverseLeg(
       ) {
         emitMovementTrainEvent(
           execution,
-          "approach",
+          "arrival",
           leg.to
         );
 
