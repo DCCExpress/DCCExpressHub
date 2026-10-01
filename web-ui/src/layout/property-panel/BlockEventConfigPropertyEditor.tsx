@@ -204,121 +204,183 @@ const TEXT = {
   },
 } as const;
 
-function SensorConditionNodes({
+function SectionSideNode({
   conditions,
   x,
   y,
+  width,
+  role,
   side,
   sensorMetaByAddress,
 }: {
   conditions: BlockEventSensorConditionDto[];
   x: number;
   y: number;
-  side: "left" | "center" | "right";
+  width: number;
+  role: "BEFORE" | "AFTER";
+  side: "LEFT" | "RIGHT";
+  sensorMetaByAddress: Map<number, SensorMeta>;
+}) {
+  const primary =
+    conditions[0] ??
+    null;
+
+  const meta =
+    primary
+      ? sensorMetaByAddress.get(
+          primary.sensor
+        )
+      : null;
+
+  const sectionName =
+    meta?.title ||
+    "—";
+
+  const sensorText =
+    primary
+      ? `Sensor ${primary.sensor} · ${primary.state ? "ON" : "OFF"}`
+      : "No sensor";
+
+  return (
+    <g>
+      <text
+        x={x + width / 2}
+        y={y - 10}
+        textAnchor="middle"
+        fontSize="9"
+        fontWeight="700"
+        fill="var(--mantine-color-dimmed)"
+      >
+        {role}
+      </text>
+
+      <text
+        x={x + width / 2}
+        y={y - 1}
+        textAnchor="middle"
+        fontSize="9"
+        fontWeight="800"
+        fill="var(--mantine-color-text)"
+      >
+        {side}
+      </text>
+
+      <rect
+        x={x}
+        y={y + 6}
+        width={width}
+        height="42"
+        rx="7"
+        fill="var(--mantine-color-body)"
+        stroke={
+          primary?.state
+            ? "var(--mantine-color-blue-6)"
+            : "var(--mantine-color-gray-5)"
+        }
+        strokeWidth="1.4"
+      />
+
+      <rect
+        x={x}
+        y={y + 44}
+        width={width}
+        height="4"
+        rx="2"
+        fill={
+          side === "LEFT"
+            ? "var(--mantine-color-teal-5)"
+            : "var(--mantine-color-orange-5)"
+        }
+      />
+
+      <text
+        x={x + width / 2}
+        y={y + 23}
+        textAnchor="middle"
+        fontSize="10"
+        fontWeight="800"
+        fill="var(--mantine-color-text)"
+      >
+        {sectionName}
+      </text>
+
+      <text
+        x={x + width / 2}
+        y={y + 37}
+        textAnchor="middle"
+        fontSize="8.5"
+        fill="var(--mantine-color-dimmed)"
+      >
+        {sensorText}
+      </text>
+
+      {conditions.length > 1 && (
+        <text
+          x={x + width - 6}
+          y={y + 17}
+          textAnchor="end"
+          fontSize="8"
+          fontWeight="700"
+          fill="var(--mantine-color-dimmed)"
+        >
+          +{conditions.length - 1}
+        </text>
+      )}
+    </g>
+  );
+}
+
+function CompactConditionNodes({
+  conditions,
+  x,
+  y,
+  sensorMetaByAddress,
+}: {
+  conditions: BlockEventSensorConditionDto[];
+  x: number;
+  y: number;
   sensorMetaByAddress: Map<number, SensorMeta>;
 }) {
   if (conditions.length === 0) {
     return null;
   }
 
-  const nodeWidth =
-    side === "center"
-      ? 98
-      : 92;
-  const nodeHeight = 28;
-  const gap = 6;
-
-  const startX =
-    side === "left"
-      ? x
-      : side === "right"
-        ? x - nodeWidth
-        : x - nodeWidth / 2;
-
   return (
     <>
       {conditions.map((condition, index) => {
-        const yy =
-          y +
-          index *
-            (nodeHeight + gap);
-
         const meta =
           sensorMetaByAddress.get(
             condition.sensor
-          ) ?? {
-            title:
-              `Sensor ${condition.sensor}`,
-            subtitle:
-              `S${condition.sensor}`,
-          };
+          );
+
+        const yy =
+          y + index * 18;
 
         return (
           <g
             key={`${condition.sensor}-${condition.state}-${index}`}
           >
-            <rect
-              x={startX}
-              y={yy}
-              width={nodeWidth}
-              height={nodeHeight}
-              rx="6"
-              fill="var(--mantine-color-body)"
-              stroke={
-                condition.state
-                  ? "var(--mantine-color-blue-6)"
-                  : "var(--mantine-color-gray-5)"
-              }
-              strokeWidth="1.2"
-            />
-
-            <rect
-              x={startX + 6}
-              y={yy + 8}
-              width="10"
-              height="10"
-              rx="2"
+            <circle
+              cx={x}
+              cy={yy}
+              r="5"
               fill={
                 condition.state
                   ? "var(--mantine-color-blue-filled)"
                   : "var(--mantine-color-gray-3)"
               }
-              stroke={
-                condition.state
-                  ? "var(--mantine-color-blue-8)"
-                  : "var(--mantine-color-gray-6)"
-              }
+              stroke="var(--mantine-color-gray-6)"
               strokeWidth="1"
             />
 
-            {!condition.state && (
-              <rect
-                x={startX + 8.5}
-                y={yy + 10.5}
-                width="5"
-                height="5"
-                rx="1"
-                fill="var(--mantine-color-body)"
-              />
-            )}
-
             <text
-              x={startX + 22}
-              y={yy + 11}
+              x={x + 9}
+              y={yy + 3}
               fontSize="8.5"
               fontWeight="700"
               fill="var(--mantine-color-text)"
             >
-              {meta.title}
-            </text>
-
-            <text
-              x={startX + 22}
-              y={yy + 21}
-              fontSize="8"
-              fill="var(--mantine-color-dimmed)"
-            >
-              {meta.subtitle} · {condition.state ? "ON" : "OFF"}
+              {meta?.title || `Sensor ${condition.sensor}`} · {condition.state ? "ON" : "OFF"}
             </text>
           </g>
         );
@@ -458,77 +520,37 @@ function DirectionDiagram({
           {reverse ? "REVERSE" : "FORWARD"}
         </text>
 
-        <text
-          x="55"
-          y="94"
-          textAnchor="middle"
-          fontSize="9"
-          fontWeight="700"
-          fill="var(--mantine-color-dimmed)"
-        >
-          {reverse ? "AFTER" : "BEFORE"}
-        </text>
-
-        <text
-          x="55"
-          y="105"
-          textAnchor="middle"
-          fontSize="10"
-          fontWeight="800"
-          fill="currentColor"
-          opacity="0.84"
-        >
-          LEFT
-        </text>
-
-        <line
-          x1="18"
-          y1="113"
-          x2="92"
-          y2="113"
-          stroke="var(--mantine-color-teal-5)"
-          strokeWidth="4"
-          strokeLinecap="round"
-          opacity="0.9"
+        <SectionSideNode
+          conditions={
+            reverse
+              ? events.beforeLeave
+              : events.beforeArrive
+          }
+          x={18}
+          y={96}
+          width={112}
+          role={reverse ? "AFTER" : "BEFORE"}
+          side="LEFT"
+          sensorMetaByAddress={sensorMetaByAddress}
         />
 
-        <text
-          x="305"
-          y="94"
-          textAnchor="middle"
-          fontSize="9"
-          fontWeight="700"
-          fill="var(--mantine-color-dimmed)"
-        >
-          {reverse ? "BEFORE" : "AFTER"}
-        </text>
-
-        <text
-          x="305"
-          y="105"
-          textAnchor="middle"
-          fontSize="10"
-          fontWeight="800"
-          fill="currentColor"
-          opacity="0.84"
-        >
-          RIGHT
-        </text>
-
-        <line
-          x1="268"
-          y1="113"
-          x2="342"
-          y2="113"
-          stroke="var(--mantine-color-orange-5)"
-          strokeWidth="4"
-          strokeLinecap="round"
-          opacity="0.9"
+        <SectionSideNode
+          conditions={
+            reverse
+              ? events.beforeArrive
+              : events.beforeLeave
+          }
+          x={230}
+          y={96}
+          width={112}
+          role={reverse ? "BEFORE" : "AFTER"}
+          side="RIGHT"
+          sensorMetaByAddress={sensorMetaByAddress}
         />
 
         <text
           x="180"
-          y="99"
+          y="105"
           textAnchor="middle"
           fontSize="9"
           fontWeight="700"
@@ -538,37 +560,19 @@ function DirectionDiagram({
         </text>
 
         <line
-          x1="142"
-          y1="113"
-          x2="218"
-          y2="113"
+          x1="146"
+          y1="112"
+          x2="214"
+          y2="112"
           stroke="var(--mantine-color-violet-5)"
           strokeWidth="4"
           strokeLinecap="round"
-          opacity="0.9"
         />
 
-        <SensorConditionNodes
-          conditions={events.beforeArrive}
-          x={reverse ? 266 : 8}
-          y={121}
-          side={reverse ? "right" : "left"}
-          sensorMetaByAddress={sensorMetaByAddress}
-        />
-
-        <SensorConditionNodes
+        <CompactConditionNodes
           conditions={events.arrived}
-          x={180}
-          y={121}
-          side="center"
-          sensorMetaByAddress={sensorMetaByAddress}
-        />
-
-        <SensorConditionNodes
-          conditions={events.beforeLeave}
-          x={reverse ? 8 : 352}
-          y={121}
-          side={reverse ? "left" : "right"}
+          x={149}
+          y={128}
           sensorMetaByAddress={sensorMetaByAddress}
         />
 
@@ -576,7 +580,7 @@ function DirectionDiagram({
           <>
             <text
               x="180"
-              y="198"
+              y="184"
               textAnchor="middle"
               fontSize="9"
               fontWeight="700"
@@ -586,21 +590,19 @@ function DirectionDiagram({
             </text>
 
             <line
-              x1="142"
-              y1="206"
-              x2="218"
-              y2="206"
+              x1="146"
+              y1="192"
+              x2="214"
+              y2="192"
               stroke="var(--mantine-color-blue-5)"
               strokeWidth="4"
               strokeLinecap="round"
-              opacity="0.9"
             />
 
-            <SensorConditionNodes
+            <CompactConditionNodes
               conditions={events.afterLeave}
-              x={180}
-              y={214}
-              side="center"
+              x={149}
+              y={207}
               sensorMetaByAddress={sensorMetaByAddress}
             />
           </>
@@ -716,10 +718,8 @@ export default function BlockEventConfigPropertyEditor({
 
         add(
           element.address,
-          element.name || sectionLabel || "Track sensor",
-          sectionLabel
-            ? `${sectionLabel} · sensor ${element.address}`
-            : `Sensor ${element.address}`
+          sectionLabel || element.name || "Track section",
+          `Sensor ${element.address}`
         );
       }
     }
