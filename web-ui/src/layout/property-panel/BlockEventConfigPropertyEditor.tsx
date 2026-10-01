@@ -100,7 +100,7 @@ const TEXT = {
     directionGroup: "Menetirány csoport",
     arrival: "Érkezés",
     arrived: "Arrived",
-    leave: "Leave",
+    leave: "Elhagyás",
     sensor: "Szenzor",
     addSensor: "Szenzor hozzáadása",
     empty: "Nincs külön feltétel.",
@@ -118,7 +118,7 @@ const TEXT = {
     directionHelpForward:
       "A Forward csoport Arrival, Arrived és Leave szenzorait mutatja.",
     directionHelpReverse:
-      "A Reverse csoport Arrival, Arrived és Leave szenzorait mutatja."
+      "A Reverse csoport Arrival, Arrived és Leave szenzorait mutatja.",
     configured: "beállított feltétel",
     occupancy: "occupancy",
   },
@@ -151,7 +151,7 @@ const TEXT = {
     directionHelpForward:
       "Shows the Forward group's Arrival, Arrived and Leave sensors.",
     directionHelpReverse:
-      "Shows the Reverse group's Arrival, Arrived and Leave sensors."
+      "Shows the Reverse group's Arrival, Arrived and Leave sensors.",
     configured: "configured condition",
     occupancy: "occupancy",
   },
@@ -166,7 +166,7 @@ const TEXT = {
     directionGroup: "Fahrtrichtungsgruppe",
     arrival: "Ankunft",
     arrived: "Arrived",
-    leave: "Leave",
+    leave: "Verlassen",
     sensor: "Sensor",
     addSensor: "Sensor hinzufügen",
     empty: "Keine explizite Bedingung.",
@@ -184,7 +184,7 @@ const TEXT = {
     directionHelpForward:
       "Zeigt die Arrival-, Arrived- und Leave-Sensoren der Forward-Gruppe.",
     directionHelpReverse:
-      "Zeigt die Arrival-, Arrived- und Leave-Sensoren der Reverse-Gruppe."
+      "Zeigt die Arrival-, Arrived- und Leave-Sensoren der Reverse-Gruppe.",
     configured: "konfigurierte Bedingung",
     occupancy: "Belegtmelder",
   },
