@@ -312,3 +312,71 @@ test("Tracking table keeps sensor path compact and opens full history in a dialo
     /trainTrackingPathDialogTitle/
   );
 });
+
+
+test("Active Movement intent wins over turnout-only Tracking prediction", () => {
+  const movement =
+    read("src/services/movementEngine.ts");
+
+  const tracking =
+    read("src/services/trainTrackingRuntime.ts");
+
+  assert.match(
+    movement,
+    /export function getManagedMovementNextBlock/
+  );
+
+  assert.match(
+    movement,
+    /leg\.from\.blockId ===[\s\S]*currentBlockId/
+  );
+
+  assert.match(
+    movement,
+    /leg\.to\.blockId/
+  );
+
+  assert.match(
+    tracking,
+    /getManagedMovementNextBlock/
+  );
+
+  const syncStart =
+    tracking.indexOf(
+      "function syncTrackingPredictions"
+    );
+
+  const syncEnd =
+    tracking.indexOf(
+      "function uniqueSensors",
+      syncStart
+    );
+
+  const sync =
+    tracking.slice(
+      syncStart,
+      syncEnd
+    );
+
+  const managedIndex =
+    sync.indexOf(
+      "getManagedMovementNextBlock"
+    );
+
+  const turnoutPredictionIndex =
+    sync.indexOf(
+      "predictedRouteForTracking"
+    );
+
+  assert.ok(
+    managedIndex >= 0 &&
+    turnoutPredictionIndex >
+      managedIndex,
+    "active Movement intent must be checked before turnout-only route prediction"
+  );
+
+  assert.match(
+    sync,
+    /if \(managedNext\)[\s\S]*continue;/
+  );
+});
