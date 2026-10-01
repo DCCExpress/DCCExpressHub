@@ -759,6 +759,13 @@ public sealed class MovementRuntime
                pending.TrySetResult(ok);
     }
 
+    public void FailPendingAudio()
+    {
+        foreach (var pending in _pendingAudio.Values)
+            pending.TrySetResult(false);
+    }
+
+
     async Task ExecuteAction(
         Execution execution,
         MovementActionModel action)
