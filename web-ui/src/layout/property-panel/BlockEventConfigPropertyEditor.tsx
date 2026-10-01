@@ -277,11 +277,11 @@ function DirectionDiagram({
           {reverse ? "REVERSE" : "FORWARD"}
         </text>
 
-        <text x="55" y="103" textAnchor="middle" fontSize="10" fill="currentColor" opacity="0.7">
-          LEFT
+        <text x="55" y="103" textAnchor="middle" fontSize="10" fontWeight="700" fill="currentColor" opacity="0.78">
+          {reverse ? "AFTER · LEFT" : "BEFORE · LEFT"}
         </text>
-        <text x="305" y="103" textAnchor="middle" fontSize="10" fill="currentColor" opacity="0.7">
-          RIGHT
+        <text x="305" y="103" textAnchor="middle" fontSize="10" fontWeight="700" fill="currentColor" opacity="0.78">
+          {reverse ? "BEFORE · RIGHT" : "AFTER · RIGHT"}
         </text>
       </svg>
 
