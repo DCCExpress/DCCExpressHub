@@ -91,3 +91,14 @@ test("Dispatcher control bar exposes global runtime controls", () => {
   assert.match(runtime, /abortAllDispatcherMovements/);
   assert.match(runtime, /Dispatcher is disabled/);
 });
+
+
+test("Dispatcher installs Tracking runtime before consuming it", () => {
+  const dispatcher = read("src/services/dispatcherRuntime.ts");
+
+  assert.match(dispatcher, /installTrainTrackingRuntime/);
+  assert.match(
+    dispatcher,
+    /function ensureTrackingSubscription[\s\S]*installTrainTrackingRuntime\(\)/
+  );
+});
