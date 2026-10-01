@@ -742,15 +742,28 @@ public sealed class MovementRuntime
 
     static string AudioPath(string name)
     {
-        var value = (name ?? "").Trim();
+        var value =
+            (name ?? "")
+                .Trim();
 
         if (value.Length == 0)
             return "";
 
-        if (value.StartsWith("/", StringComparison.Ordinal))
+        if (value.StartsWith(
+                "/",
+                StringComparison.Ordinal))
             return value;
 
-        return "/sd/audio/" + Uri.EscapeDataString(value);
+        return
+            "/sd/audio/" +
+            value +
+            (
+                value.Contains(
+                    '.',
+                    StringComparison.Ordinal)
+                    ? ""
+                    : ".mp3"
+            );
     }
 
     async Task<bool> RequestAudio(
@@ -945,6 +958,29 @@ public sealed class MovementRuntime
         }
     }
 
+    int ResolveFunctionNumber(
+        Execution execution,
+        MovementActionModel action)
+    {
+        if (!action.FunctionBindingId.HasValue)
+            return Math.Clamp(
+                action.FunctionNumber,
+                0,
+                68);
+
+        if (!execution.FunctionNumbersByBindingId.TryGetValue(
+                action.FunctionBindingId.Value,
+                out var functionNumber))
+            throw new InvalidOperationException(
+                "movement_function_binding_not_found:" +
+                action.FunctionBindingId.Value);
+
+        return Math.Clamp(
+            functionNumber,
+            0,
+            68);
+    }
+
     async Task ExecuteAction(
         Execution execution,
         MovementActionModel action)
@@ -964,18 +1000,9 @@ public sealed class MovementRuntime
             case "function":
                 {
                     var fn =
-                        action.FunctionBindingId.HasValue &&
-                        execution.FunctionNumbersByBindingId.TryGetValue(
-                            action.FunctionBindingId.Value,
-                            out var bound)
-                            ? bound
-                            : action.FunctionNumber;
-
-                    fn =
-                        Math.Clamp(
-                            fn,
-                            0,
-                            68);
+                        ResolveFunctionNumber(
+                            execution,
+                            action);
 
                     if (!await _commandCenter.SetLocoFunctionAsync(
                             execution.LocoAddress,
@@ -995,14 +1022,9 @@ public sealed class MovementRuntime
             case "horn":
                 {
                     var fn =
-                        action.FunctionBindingId.HasValue &&
-                        execution.FunctionNumbersByBindingId.TryGetValue(
-                            action.FunctionBindingId.Value,
-                            out var bound)
-                            ? bound
-                            : action.FunctionNumber;
-
-                    fn = Math.Clamp(fn, 0, 68);
+                        ResolveFunctionNumber(
+                            execution,
+                            action);
 
                     if (!await _commandCenter.SetLocoFunctionAsync(
                             execution.LocoAddress,
@@ -1070,11 +1092,49 @@ public sealed class MovementRuntime
 
             case "randomPlay":
                 {
-                    var chance = Math.Clamp(action.RandomPlayChancePercent, 0, 100);
-                    if (Random.Shared.Next(1, 101) > chance)
-                        return;
+                    var roll =
+                        Random.Shared.Next(
+                            1,
+                            11);
 
-                    var path = AudioPath(action.AudioName);
+                    var threshold =
+                        Math.Clamp(
+                            (int)Math.Round(
+                                action.RandomPlayChancePercent /
+                                10d,
+                                MidpointRounding.AwayFromZero),
+                            1,
+                            9);
+
+                    if (roll > threshold)
+                    {
+                        Patch(
+                            execution,
+                            info:
+                                "Random audio skipped: " +
+                                roll +
+                                "/" +
+                                threshold,
+                            setInfo:
+                                true);
+
+                        return;
+                    }
+
+                    Patch(
+                        execution,
+                        info:
+                            "Random audio playing: " +
+                            roll +
+                            "/" +
+                            threshold,
+                        setInfo:
+                            true);
+
+                    var path =
+                        AudioPath(
+                            action.AudioName);
+
                     if (path.Length == 0)
                         return;
 
@@ -1082,7 +1142,8 @@ public sealed class MovementRuntime
                             execution,
                             path,
                             action.AudioWaitForEnd))
-                        throw new InvalidOperationException("movement_audio_failed");
+                        throw new InvalidOperationException(
+                            "movement_audio_failed");
 
                     return;
                 }
