@@ -216,6 +216,46 @@ export class BlockElement extends TrackElement {
     ctx.lineWidth = 1;
     ctx.fillRect(blockX, blockY, blockW, blockH);
     ctx.strokeRect(blockX, blockY, blockW, blockH);
+
+    /*
+     * A target-loco marker describes intent/authority, not physical occupancy.
+     * Keep the normal occupancy colors untouched and add a separate animated
+     * amber halo so the operator can immediately see where the locomotive is
+     * expected to arrive.
+     */
+    if (
+      targetAddress > 0 &&
+      this.locoAddress <= 0
+    ) {
+      const phase =
+        (
+          Math.sin(
+            Date.now() /
+              230
+          ) +
+          1
+        ) /
+        2;
+
+      ctx.save();
+      ctx.globalAlpha =
+        0.35 +
+        phase *
+          0.65;
+      ctx.strokeStyle =
+        "#ffb000";
+      ctx.lineWidth =
+        2 +
+        phase *
+          2;
+      ctx.strokeRect(
+        blockX - 2,
+        blockY - 2,
+        blockW + 4,
+        blockH + 4
+      );
+      ctx.restore();
+    }
     if (
       occupied ||
       inTransit
