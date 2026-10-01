@@ -117,6 +117,9 @@ import {
   subscribeBroadcastAudioEnabled,
 } from "@/services/broadcastAudioRuntime";
 import {
+  installTrainTrackingRuntime,
+} from "@/services/trainTrackingRuntime";
+import {
   createAutomationId,
   createAutomationPayload,
   loadAutomationMovement,
@@ -911,6 +914,13 @@ export default function LiteLayoutPage({
       subscribeBroadcastAudioEnabled(
         setBroadcastAudioEnabledState
       ),
+    []
+  );
+
+  useEffect(
+    () => {
+      installTrainTrackingRuntime();
+    },
     []
   );
 
@@ -2041,6 +2051,7 @@ export default function LiteLayoutPage({
                             setMovementEditorPageId(pageId);
                             setMovementEditorOpened(true);
                           }}
+                          controlStationActive={controlStationActive}
                         />
                       </div>
                     </Stack>
