@@ -70,6 +70,21 @@ const taskLocoAddresses =
     number
   >();
 
+/*
+ * Dispatcher owns locomotives exclusively while a task is active.
+ *
+ * Route/block overlap is not enough to prevent two opposite Movements from
+ * selecting the same tracked locomotive at an intermediate block. Without
+ * this ownership map a timetable could start A3 -> B2 -> C4 while
+ * C4 -> B2 -> A3 was still running, producing contradictory targetLoco and
+ * turnout locks for the same decoder.
+ */
+const activeLocoOwners =
+  new Map<
+    number,
+    string
+  >();
+
 const engineUnsubscribes =
   new Map<
     string,
@@ -553,6 +568,36 @@ export async function startDispatcherMovement(
     );
   }
 
+  const existingOwner =
+    activeLocoOwners.get(
+      loco.locoAddress
+    );
+
+  if (
+    existingOwner !==
+      undefined &&
+    existingOwner !==
+      page.id
+  ) {
+    const existingPage =
+      taskPages.get(
+        existingOwner
+      );
+
+    const ownerName =
+      existingPage?.name ??
+      existingOwner;
+
+    log(
+      "warn",
+      `"${page.name}" rejected for loco #${loco.locoAddress}: already owned by Dispatcher movement "${ownerName}".`
+    );
+
+    throw new Error(
+      `Dispatcher cannot start: locomotive #${loco.locoAddress} is already controlled by "${ownerName}".`
+    );
+  }
+
   const currentIndex =
     requested.indexOf(
       currentBlockId
@@ -612,6 +657,11 @@ export async function startDispatcherMovement(
     );
   }
 
+  activeLocoOwners.set(
+    loco.locoAddress,
+    page.id
+  );
+
   const remaining =
     routeBlocks(
       executionPage
@@ -657,6 +707,17 @@ export async function startDispatcherMovement(
 
     throw error;
   } finally {
+    if (
+      activeLocoOwners.get(
+        loco.locoAddress
+      ) ===
+        page.id
+    ) {
+      activeLocoOwners.delete(
+        loco.locoAddress
+      );
+    }
+
     emit();
   }
 }
