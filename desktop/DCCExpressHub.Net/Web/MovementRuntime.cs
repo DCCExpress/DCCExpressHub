@@ -1330,6 +1330,22 @@ public sealed class MovementRuntime
                 150);
     }
 
+    bool LegTurnoutsNeedChange(
+        MovementPlanLegModel leg)
+    {
+        foreach (var requirement in leg.TurnoutStates)
+        {
+            if (!_layout.TryGetTurnoutClosed(
+                    requirement.Address,
+                    out var closed) ||
+                closed !=
+                    requirement.Closed)
+                return true;
+        }
+
+        return false;
+    }
+
     async Task<DispatcherLegLeaseInfo> AcquireLeg(
         Execution execution,
         MovementPlanLegModel leg)
@@ -1434,7 +1450,22 @@ public sealed class MovementRuntime
             leg.From.Key,
             "beforeDepart");
 
-        var lease = await AcquireLeg(execution, leg);
+        if (LegTurnoutsNeedChange(
+                leg))
+        {
+            execution.Moving =
+                false;
+
+            await ApplySpeed(
+                execution,
+                force:
+                    false);
+        }
+
+        var lease =
+            await AcquireLeg(
+                execution,
+                leg);
 
         try
         {
@@ -1451,8 +1482,14 @@ public sealed class MovementRuntime
                 leg.From.Key,
                 "depart");
 
-            if (!SafetyFree(lease.SafetySensors))
-                throw new InvalidOperationException("movement_authority_lost_before_departure");
+            var heldAuthority =
+                _dispatcher.ValidateHeldLeg(
+                    lease.OwnerId);
+
+            if (!heldAuthority.Ok)
+                throw new InvalidOperationException(
+                    heldAuthority.Error ??
+                    "movement_authority_lost_before_departure");
 
             execution.Moving = true;
             await ApplySpeed(execution, force: true);
