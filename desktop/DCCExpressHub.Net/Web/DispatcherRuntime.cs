@@ -15,7 +15,8 @@ public sealed record DispatcherLegRequest(
     DispatcherTurnoutRequirement[] Turnouts,
     ushort[] SafetySensors,
     string[] ResourceKeys,
-    int TurnoutLockTimeoutMs = 0);
+    int TurnoutLockTimeoutMs = 0,
+    int TurnoutSetDelayMs = 250);
 
 public sealed record DispatcherLegLeaseInfo(
     string OwnerId,
@@ -836,7 +837,10 @@ public sealed class DispatcherRuntime
                     index + 1 <
                         turnouts.Length)
                     await Task.Delay(
-                        250,
+                        Math.Clamp(
+                            request.TurnoutSetDelayMs,
+                            0,
+                            600000),
                         ct);
             }
 
@@ -1133,7 +1137,10 @@ public sealed class DispatcherRuntime
                     index + 1 <
                         turnouts.Length)
                     await Task.Delay(
-                        250,
+                        Math.Clamp(
+                            request.TurnoutSetDelayMs,
+                            0,
+                            600000),
                         ct);
             }
 
