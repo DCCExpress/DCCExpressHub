@@ -23,7 +23,9 @@ function normalizeBlockEventConditions(value: unknown): BlockEventSensorConditio
     const sensor = Math.trunc(Number(candidate.sensor));
     if (!Number.isInteger(sensor) || sensor < 1 || sensor > 65535 || used.has(sensor)) continue;
     used.add(sensor);
-    result.push({ sensor, state: candidate.state !== false });
+    // Block configuration stores physical sensor groups only. Their configured
+    // trigger is always ON; derived OFF events are produced by Movement.
+    result.push({ sensor, state: true });
   }
 
   return result;
@@ -35,11 +37,28 @@ function normalizeBlockDirectionEvents(value: unknown): BlockDirectionEventConfi
       ? value as Record<string, unknown>
       : {};
 
+  const legacyLeave =
+    Array.isArray(candidate.afterLeave) &&
+    candidate.afterLeave.length > 0
+      ? candidate.afterLeave
+      : candidate.beforeLeave;
+
   return {
-    beforeArrive: normalizeBlockEventConditions(candidate.beforeArrive),
-    arrived: normalizeBlockEventConditions(candidate.arrived),
-    beforeLeave: normalizeBlockEventConditions(candidate.beforeLeave),
-    afterLeave: normalizeBlockEventConditions(candidate.afterLeave),
+    // Legacy migration:
+    //   beforeArrive -> arrival
+    //   arrived      -> arrived
+    //   afterLeave / beforeLeave -> leave sensor group
+    arrival: normalizeBlockEventConditions(
+      candidate.arrival ??
+      candidate.beforeArrive
+    ),
+    arrived: normalizeBlockEventConditions(
+      candidate.arrived
+    ),
+    leave: normalizeBlockEventConditions(
+      candidate.leave ??
+      legacyLeave
+    ),
   };
 }
 
