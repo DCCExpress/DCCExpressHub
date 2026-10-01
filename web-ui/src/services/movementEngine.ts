@@ -3410,71 +3410,32 @@ function arrivalSatisfied(
   );
 }
 
-function nextLegAtArrival(
-  execution:
-    MovementExecution,
-  leg:
-    MovementPlanLeg
-): MovementPlanLeg | null {
-  return execution.plan.legs[
-    leg.index +
-      1
-  ] ??
-    null;
-}
-
-function nextLegMayKeepRolling(
-  execution:
-    MovementExecution,
-  leg:
-    MovementPlanLeg
-): boolean {
-  if (
-    movementIsHeld(
-      execution
-    )
-  ) {
-    return false;
-  }
-
-  const nextLeg =
-    nextLegAtArrival(
-      execution,
-      leg
-    );
-
-  if (!nextLeg) {
-    return false;
-  }
-
-  if (
-    nextLeg.departWhen.length >
-      0 &&
-    !conditionsSatisfied(
-      nextLeg.departWhen
-    )
-  ) {
-    return false;
-  }
-
-  return (
-    targetBlockAvailableForLeg(
-      execution,
-      nextLeg
-    ) &&
-    aheadPathSensorsAreFree(
-      execution,
-      nextLeg
-    )
-  );
-}
-
-function applyIntermediateArrivalSpeedPolicy(
+function prepareIntermediateArrivalCruise(
   execution:
     MovementExecution,
   leg:
     MovementPlanLeg
 ): void {
+  if (
+    movementIsHeld(
+      execution
+    )
+  ) {
+    console.info(
+      "[Movement] ARRIVED handover held",
+      {
+        page:
+          execution.page.name,
+        locoAddress:
+          execution.locoAddress,
+        block:
+          leg.to.name,
+      }
+    );
+
+    return;
+  }
+
   execution.desiredSpeed =
     execution.page.speed;
 
@@ -3486,19 +3447,27 @@ function applyIntermediateArrivalSpeedPolicy(
     }
   );
 
-  const mayKeepRolling =
-    nextLegMayKeepRolling(
-      execution,
-      leg
-    );
-
-  if (!mayKeepRolling) {
-    execution.moving =
-      false;
-  }
-
+  /*
+   * Do NOT make a second, one-shot authority decision here.
+   *
+   * ARRIVED is only the boundary between two legs. The next traverseLeg()
+   * owns the authoritative departure checks:
+   *   - DEPART condition
+   *   - target block
+   *   - effective safety sensors
+   *   - Movement resource locks
+   *   - SwitchMan turnout authority / setting
+   *
+   * Previously this ARRIVED hook sampled target/safety state once and could
+   * force STOP from a transient WebSocket/cache state. That converted a
+   * rolling handover into a stopped restart, which could then self-block on
+   * sensors occupied by the same train.
+   *
+   * Preserve the current physical motion here. If the next leg is genuinely
+   * blocked, its normal clearance path will issue STOP and wait.
+   */
   console.info(
-    "[Movement] ARRIVED speed policy",
+    "[Movement] ARRIVED handover deferred to next leg clearance",
     {
       page:
         execution.page.name,
@@ -3508,19 +3477,9 @@ function applyIntermediateArrivalSpeedPolicy(
         leg.to.name,
       cruiseSpeed:
         execution.desiredSpeed,
-      mayKeepRolling,
+      moving:
+        execution.moving,
     }
-  );
-
-  /*
-   * Force the command even when Movement's physicalSpeed cache still equals
-   * cruiseSpeed. Manual or secondary-client throttle changes happen outside
-   * this cache. Safety/departure readiness wins: if the next leg is not ready,
-   * execution.moving is false and this forced command is STOP.
-   */
-  applyDesiredSpeed(
-    execution,
-    true
   );
 }
 
@@ -5002,16 +4961,12 @@ async function traverseLeg(
       !finalArrivedActionsRan
     ) {
       /*
-       * ARRIVED is the point where Movement takes speed ownership back from
-       * any manual/secondary-client throttle change.
-       *
-       * Safety first: only keep rolling at cruise speed when the next leg's
-       * departure condition, target block and effective safety sensors are
-       * already ready. Otherwise force STOP. ARRIVED speed actions run next,
-       * so they may replace desiredSpeed; while stopped they cannot bypass the
-       * next leg authority check.
+       * ARRIVED restores the logical cruise target but deliberately does not
+       * decide STOP/GO from a one-shot snapshot. The next leg performs the
+       * single authoritative clearance sequence. ARRIVED actions may still
+       * replace desiredSpeed before that next leg starts.
        */
-      applyIntermediateArrivalSpeedPolicy(
+      prepareIntermediateArrivalCruise(
         execution,
         leg
       );
