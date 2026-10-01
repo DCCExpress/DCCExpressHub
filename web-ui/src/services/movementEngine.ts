@@ -322,10 +322,11 @@ export function subscribeMovementEngineState(
 /*
  * The browser no longer executes Movement.
  *
- * It sends only the selected Movement definition to the Windows backend.
- * The backend rebuilds the physical route plan from persisted layout.json, so
- * all plan selection, safety, Dispatcher authority, turnout control, sensor
- * waits, block transitions, actions and throttle commands are authoritative.
+ * It sends only the selected Movement ID to the Windows backend.
+ * The backend reloads the saved Movement definition and rebuilds its physical
+ * route plan from persisted layout.json, so definition, plan selection, safety,
+ * Dispatcher authority, turnout control, sensor waits, block transitions,
+ * actions and throttle commands are authoritative.
  */
 export async function startMovement(
   page:
@@ -381,7 +382,8 @@ export async function startMovement(
           id,
         action:
           "start",
-        page,
+        pageId:
+          page.id,
       },
       "movementResponse",
       data =>
