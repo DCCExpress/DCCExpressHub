@@ -1724,6 +1724,55 @@ public sealed class MovementRuntime
         }
     }
 
+    async Task WaitForHeldLegReady(
+        Execution execution,
+        DispatcherLegLeaseInfo lease,
+        MovementPlanLegModel leg)
+    {
+        while (true)
+        {
+            execution.Cancellation.Token.ThrowIfCancellationRequested();
+
+            var authority =
+                _dispatcher.ValidateHeldLeg(
+                    lease.OwnerId);
+
+            if (authority.Ok)
+                return;
+
+            if (!string.Equals(
+                    authority.Error,
+                    "safety_sensor_not_free",
+                    StringComparison.Ordinal))
+                throw new InvalidOperationException(
+                    authority.Error ??
+                    "movement_authority_lost_before_departure");
+
+            execution.Moving =
+                false;
+
+            await ApplySpeed(
+                execution,
+                force:
+                    false);
+
+            Patch(
+                execution,
+                info:
+                    authority.BlockingSensor.HasValue
+                        ? "Waiting for safety sensor #" +
+                          authority.BlockingSensor.Value +
+                          " before departure"
+                        : "Waiting for held route safety before departure",
+                setInfo:
+                    true);
+
+            await Task.Delay(
+                100,
+                execution.Cancellation.Token);
+        }
+    }
+
     async Task TraverseLeg(
         Execution execution,
         MovementPlanLegModel leg)
@@ -1789,14 +1838,10 @@ public sealed class MovementRuntime
                 leg.From.Key,
                 "depart");
 
-            var heldAuthority =
-                _dispatcher.ValidateHeldLeg(
-                    lease.OwnerId);
-
-            if (!heldAuthority.Ok)
-                throw new InvalidOperationException(
-                    heldAuthority.Error ??
-                    "movement_authority_lost_before_departure");
+            await WaitForHeldLegReady(
+                execution,
+                lease,
+                leg);
 
             execution.Moving = true;
             await ApplySpeed(execution, force: true);
