@@ -25,6 +25,23 @@ type TrackingLogLevel =
   | "warn"
   | "error";
 
+export type LocoTrackingConfidence =
+  | "certain"
+  | "likely"
+  | "ambiguous";
+
+export type LocoTrackingState = {
+  locoAddress: number;
+  locoId: string | null;
+  currentBlockId: number | null;
+  currentBlockName: string | null;
+  currentSensors: number[];
+  lastSensor: number | null;
+  recentSensorPath: number[];
+  confidence: LocoTrackingConfidence;
+  updatedAt: number;
+};
+
 export type TrainTrackingLogEntry = {
   id: string;
   timestamp: number;
@@ -36,6 +53,7 @@ export type TrainTrackingState = {
   enabled: boolean;
   active: boolean;
   ready: boolean;
+  locos: LocoTrackingState[];
   logs: TrainTrackingLogEntry[];
 };
 
@@ -58,10 +76,22 @@ type RawBlockPathEntry = {
   name: string;
 };
 
+type RawRoutePart = {
+  nodeName?: string;
+  partKey?: string;
+  partIndex?: number;
+  fromSensor?: number | null;
+  toSensor?: number | null;
+  detectors?: number[];
+};
+
 type RawRouteEntry = {
   fromBlockId: number;
+  fromBlockName?: string;
   toBlockId: number;
+  toBlockName?: string;
   blockPath: RawBlockPathEntry[];
+  partPath?: RawRoutePart[];
   edgePath: RawRouteEdge[];
   locoDirection:
     | "unknown"
@@ -79,11 +109,21 @@ type TurnoutConfig = {
   openedAspect: number;
 };
 
+type SensorPathCandidate = {
+  tracking: LocoTrackingState;
+  route: RawRouteEntry;
+  sensorPath: number[];
+  sensorIndex: number;
+};
+
 const STORAGE_KEY =
   "dcc-express-hub.trainTracking.enabled";
 
 const MAX_LOGS =
   300;
+
+const MAX_RECENT_SENSORS =
+  32;
 
 let enabled =
   typeof window !== "undefined" &&
@@ -111,6 +151,12 @@ let blockStates:
 const blockSensorToId =
   new Map<number, number>();
 
+const blockIdToSensor =
+  new Map<number, number>();
+
+const blockNames =
+  new Map<number, string>();
+
 const sensorStates =
   new Map<number, boolean>();
 
@@ -119,6 +165,9 @@ const turnoutStates =
 
 const turnoutConfig =
   new Map<number, TurnoutConfig>();
+
+const locoTracking =
+  new Map<number, LocoTrackingState>();
 
 const logs:
   TrainTrackingLogEntry[] =
@@ -132,7 +181,7 @@ const listeners =
     ) => void
   >();
 
-function id(): string {
+function trackingId(): string {
   if (
     typeof crypto !== "undefined" &&
     typeof crypto.randomUUID === "function"
@@ -144,9 +193,7 @@ function id(): string {
     "tracking-" +
     Date.now().toString(36) +
     "-" +
-    Math.random()
-      .toString(36)
-      .slice(2)
+    Math.random().toString(36).slice(2)
   );
 }
 
@@ -157,12 +204,36 @@ function active(): boolean {
   );
 }
 
+function copyTracking(
+  state:
+    LocoTrackingState
+): LocoTrackingState {
+  return {
+    ...state,
+    currentSensors:
+      [...state.currentSensors],
+    recentSensorPath:
+      [...state.recentSensorPath],
+  };
+}
+
 function snapshot(): TrainTrackingState {
   return {
     enabled,
     active:
       active(),
     ready,
+    locos:
+      [...locoTracking.values()]
+        .map(copyTracking)
+        .sort(
+          (
+            left,
+            right
+          ) =>
+            left.locoAddress -
+            right.locoAddress
+        ),
     logs:
       logs.map(
         entry => ({
@@ -193,7 +264,7 @@ function log(
 ): void {
   logs.push({
     id:
-      id(),
+      trackingId(),
     timestamp:
       Date.now(),
     level,
@@ -247,8 +318,38 @@ function integerValue(
     : null;
 }
 
+function addRecentSensor(
+  state:
+    LocoTrackingState,
+  sensor: number
+): void {
+  if (
+    state.recentSensorPath[
+      state.recentSensorPath.length -
+        1
+    ] !==
+      sensor
+  ) {
+    state.recentSensorPath.push(
+      sensor
+    );
+  }
+
+  if (
+    state.recentSensorPath.length >
+      MAX_RECENT_SENSORS
+  ) {
+    state.recentSensorPath.splice(
+      0,
+      state.recentSensorPath.length -
+        MAX_RECENT_SENSORS
+    );
+  }
+}
+
 function buildTurnoutConfig(
-  layout: Record<string, unknown>
+  layout:
+    Record<string, unknown>
 ): void {
   turnoutConfig.clear();
 
@@ -294,8 +395,8 @@ function buildTurnoutConfig(
           ""
         );
 
-      const isTurnout =
-        [
+      if (
+        ![
           "trackturnout",
           "trackturnoutleft",
           "trackturnoutright",
@@ -304,9 +405,8 @@ function buildTurnoutConfig(
           "trackturnouttreeway",
         ].includes(
           type
-        );
-
-      if (!isTurnout) {
+        )
+      ) {
         continue;
       }
 
@@ -399,11 +499,13 @@ function buildTurnoutConfig(
   }
 }
 
-function buildBlockSensors(
+function buildBlocks(
   layout:
     Record<string, unknown>
 ): void {
   blockSensorToId.clear();
+  blockIdToSensor.clear();
+  blockNames.clear();
 
   const layers =
     Array.isArray(
@@ -450,21 +552,178 @@ function buildBlockSensors(
           element.id
         );
 
+      if (!blockId) {
+        continue;
+      }
+
       const sensor =
         integerValue(
           element.sensorAddress
         );
 
-      if (
-        blockId &&
-        sensor
-      ) {
+      blockNames.set(
+        blockId,
+        String(
+          element.name ??
+          `Block ${blockId}`
+        ).trim() ||
+        `Block ${blockId}`
+      );
+
+      if (sensor) {
         blockSensorToId.set(
           sensor,
           blockId
         );
+
+        blockIdToSensor.set(
+          blockId,
+          sensor
+        );
       }
     }
+  }
+}
+
+function seedTrackingFromBlocks(
+  nextBlockStates:
+    BlockStateChangedPayload
+): void {
+  for (
+    const [
+      rawBlockId,
+      block,
+    ] of Object.entries(
+      nextBlockStates
+    )
+  ) {
+    const blockId =
+      Number(
+        rawBlockId
+      );
+
+    const locoAddress =
+      Number(
+        block.locoAddress ??
+        0
+      );
+
+    if (
+      !Number.isInteger(
+        blockId
+      ) ||
+      blockId <=
+        0 ||
+      !Number.isInteger(
+        locoAddress
+      ) ||
+      locoAddress <=
+        0
+    ) {
+      continue;
+    }
+
+    const sensor =
+      blockIdToSensor.get(
+        blockId
+      ) ??
+      null;
+
+    const current =
+      locoTracking.get(
+        locoAddress
+      );
+
+    const blockChanged =
+      current?.currentBlockId !==
+        blockId;
+
+    const next:
+      LocoTrackingState =
+      current
+        ? copyTracking(
+            current
+          )
+        : {
+            locoAddress,
+            locoId:
+              block.locoId ??
+              null,
+            currentBlockId:
+              blockId,
+            currentBlockName:
+              blockNames.get(
+                blockId
+              ) ??
+              `Block ${blockId}`,
+            currentSensors:
+              [],
+            lastSensor:
+              null,
+            recentSensorPath:
+              [],
+            confidence:
+              "certain",
+            updatedAt:
+              Date.now(),
+          };
+
+    next.locoId =
+      block.locoId ??
+      next.locoId;
+
+    next.currentBlockId =
+      blockId;
+
+    next.currentBlockName =
+      blockNames.get(
+        blockId
+      ) ??
+      `Block ${blockId}`;
+
+    /*
+     * Putting a loco into a block is an explicit tracking anchor.
+     * The block occupancy sensor is therefore a known position even if the
+     * physical sensor is currently OFF (for example during setup).
+     */
+    if (
+      blockChanged &&
+      sensor
+    ) {
+      next.lastSensor =
+        sensor;
+
+      if (
+        !next.currentSensors.includes(
+          sensor
+        )
+      ) {
+        next.currentSensors.push(
+          sensor
+        );
+      }
+
+      addRecentSensor(
+        next,
+        sensor
+      );
+
+      next.confidence =
+        "certain";
+
+      next.updatedAt =
+        Date.now();
+
+      log(
+        "info",
+        `Tracking anchor loco #${locoAddress}: ${next.currentBlockName} / sensor #${sensor}.`
+      );
+    }
+
+    locoTracking.set(
+      locoAddress,
+      next
+    );
   }
 }
 
@@ -538,12 +797,16 @@ async function refreshTopology(): Promise<void> {
             route as unknown as RawRouteEntry
         );
 
-    buildBlockSensors(
+    buildBlocks(
       layout
     );
 
     buildTurnoutConfig(
       layout
+    );
+
+    seedTrackingFromBlocks(
+      blockStates
     );
 
     ready =
@@ -557,7 +820,7 @@ async function refreshTopology(): Promise<void> {
         ? "info"
         : "warn",
       ready
-        ? `Tracking topology ready: ${routeTable.length} routes, ${blockSensorToId.size} blocks.`
+        ? `Tracking topology ready: ${routeTable.length} routes, ${blockSensorToId.size} block sensors.`
         : "Tracking topology is incomplete. Generate/save the route graph and configure block occupancy sensors."
     );
   } catch (
@@ -662,14 +925,7 @@ function routeTurnoutStates(
 function routeMatchesTurnouts(
   route:
     RawRouteEntry
-): {
-  matches: boolean;
-  unknown: number[];
-} {
-  const unknown:
-    number[] =
-    [];
-
+): boolean {
   for (
     const required of
     routeTurnoutStates(
@@ -683,38 +939,19 @@ function routeMatchesTurnouts(
 
     if (
       current ===
-        undefined
-    ) {
-      unknown.push(
-        required.address
-      );
-
-      continue;
-    }
-
-    if (
+        undefined ||
       current !==
         required.closed
     ) {
-      return {
-        matches:
-          false,
-        unknown,
-      };
+      return false;
     }
   }
 
-  return {
-    matches:
-      unknown.length ===
-        0,
-    unknown,
-  };
+  return true;
 }
 
-function directRoutes(
+function directRoutesFromBlock(
   fromBlockId: number,
-  toBlockId: number,
   direction:
     "forward" |
     "reverse"
@@ -723,8 +960,6 @@ function directRoutes(
     route =>
       route.fromBlockId ===
         fromBlockId &&
-      route.toBlockId ===
-        toBlockId &&
       route.locoDirection ===
         direction &&
       route.blockPath?.length ===
@@ -732,21 +967,205 @@ function directRoutes(
       route.blockPath[0]?.id ===
         fromBlockId &&
       route.blockPath[1]?.id ===
-        toBlockId
+        route.toBlockId &&
+      routeMatchesTurnouts(
+        route
+      )
   );
 }
 
-type Candidate = {
-  sourceBlockId: number;
-  sourceBlockName: string;
-  locoAddress: number;
-  locoId: string | null;
-  routeCount: number;
-};
+function uniqueSensors(
+  values: Array<
+    number |
+    null |
+    undefined
+  >
+): number[] {
+  const result:
+    number[] =
+    [];
 
-function evaluateDestination(
-  destinationBlockId:
-    number
+  for (
+    const value of
+    values
+  ) {
+    if (
+      !Number.isInteger(
+        value
+      ) ||
+      (value ?? 0) <=
+        0
+    ) {
+      continue;
+    }
+
+    const sensor =
+      Number(
+        value
+      );
+
+    if (
+      result[
+        result.length -
+          1
+      ] !==
+        sensor
+    ) {
+      result.push(
+        sensor
+      );
+    }
+  }
+
+  return result;
+}
+
+function routeSensorPath(
+  route:
+    RawRouteEntry
+): number[] {
+  const values:
+    Array<
+      number |
+      null |
+      undefined
+    > =
+    [
+      blockIdToSensor.get(
+        route.fromBlockId
+      ),
+    ];
+
+  for (
+    const part of
+    route.partPath ??
+    []
+  ) {
+    values.push(
+      part.fromSensor
+    );
+
+    for (
+      const detector of
+      part.detectors ??
+      []
+    ) {
+      values.push(
+        detector
+      );
+    }
+
+    values.push(
+      part.toSensor
+    );
+  }
+
+  values.push(
+    blockIdToSensor.get(
+      route.toBlockId
+    )
+  );
+
+  return uniqueSensors(
+    values
+  );
+}
+
+function candidateForSensor(
+  tracking:
+    LocoTrackingState,
+  sensor: number
+): SensorPathCandidate[] {
+  if (
+    tracking.currentBlockId ===
+      null
+  ) {
+    return [];
+  }
+
+  const loco =
+    wsClient.getLatestLocoState(
+      tracking.locoAddress
+    );
+
+  if (
+    !loco ||
+    loco.speed <=
+      0
+  ) {
+    return [];
+  }
+
+  const direction =
+    loco.direction ===
+      "reverse"
+      ? "reverse"
+      : "forward";
+
+  const result:
+    SensorPathCandidate[] =
+    [];
+
+  for (
+    const route of
+    directRoutesFromBlock(
+      tracking.currentBlockId,
+      direction
+    )
+  ) {
+    const sensorPath =
+      routeSensorPath(
+        route
+      );
+
+    const targetIndex =
+      sensorPath.indexOf(
+        sensor
+      );
+
+    if (
+      targetIndex <
+        0
+    ) {
+      continue;
+    }
+
+    const anchor =
+      tracking.lastSensor ??
+      blockIdToSensor.get(
+        tracking.currentBlockId
+      ) ??
+      null;
+
+    const anchorIndex =
+      anchor ===
+        null
+        ? -1
+        : sensorPath.lastIndexOf(
+            anchor
+          );
+
+    if (
+      anchorIndex >=
+        targetIndex
+    ) {
+      continue;
+    }
+
+    result.push({
+      tracking,
+      route,
+      sensorPath,
+      sensorIndex:
+        targetIndex,
+    });
+  }
+
+  return result;
+}
+
+function handleSensorOn(
+  sensor: number
 ): void {
   if (
     !active() ||
@@ -755,188 +1174,248 @@ function evaluateDestination(
     return;
   }
 
-  const destinationState =
-    blockStates[
-      String(
-        destinationBlockId
-      )
-    ];
+  const uniqueCandidates:
+    SensorPathCandidate[] =
+    [];
 
-  if (
-    (destinationState?.locoAddress ??
-      0) >
-      0
-  ) {
-    log(
-      "info",
-      `Block ${destinationBlockId} became occupied but already has loco #${destinationState?.locoAddress}; tracking skipped.`
-    );
-
-    return;
-  }
-
-  const candidates =
-    new Map<
-      number,
-      Candidate
-    >();
+  const ambiguousLocos:
+    number[] =
+    [];
 
   for (
-    const [
-      rawBlockId,
-      sourceState,
-    ] of Object.entries(
-      blockStates
-    )
+    const tracking of
+    locoTracking.values()
   ) {
-    const sourceBlockId =
-      Number(
-        rawBlockId
-      );
-
-    const locoAddress =
-      Number(
-        sourceState.locoAddress ??
-        0
+    const matches =
+      candidateForSensor(
+        tracking,
+        sensor
       );
 
     if (
-      !Number.isInteger(
-        sourceBlockId
-      ) ||
-      sourceBlockId ===
-        destinationBlockId ||
-      !Number.isInteger(
-        locoAddress
-      ) ||
-      locoAddress <=
-        0
+      matches.length ===
+        1
     ) {
-      continue;
-    }
-
-    if (
-      isLocoManagedByActiveMovement(
-        locoAddress
-      )
-    ) {
-      continue;
-    }
-
-    const loco =
-      wsClient.getLatestLocoState(
-        locoAddress
+      uniqueCandidates.push(
+        matches[0]!
       );
-
-    if (
-      !loco ||
-      loco.speed <=
-        0
+    } else if (
+      matches.length >
+        1
     ) {
-      continue;
-    }
+      tracking.confidence =
+        "ambiguous";
 
-    const direction =
-      loco.direction ===
-        "reverse"
-        ? "reverse"
-        : "forward";
+      tracking.updatedAt =
+        Date.now();
 
-    const routes =
-      directRoutes(
-        sourceBlockId,
-        destinationBlockId,
-        direction
+      ambiguousLocos.push(
+        tracking.locoAddress
       );
-
-    const matching =
-      routes.filter(
-        route =>
-          routeMatchesTurnouts(
-            route
-          ).matches
-      );
-
-    if (
-      matching.length ===
-        0
-    ) {
-      continue;
     }
-
-    candidates.set(
-      locoAddress,
-      {
-        sourceBlockId,
-        sourceBlockName:
-          routes[0]?.blockPath[0]?.name ??
-          `Block ${sourceBlockId}`,
-        locoAddress,
-        locoId:
-          sourceState.locoId ??
-          null,
-        routeCount:
-          matching.length,
-      }
-    );
   }
 
-  const values =
-    [
-      ...candidates.values(),
-    ];
-
   if (
-    values.length ===
-      0
+    ambiguousLocos.length >
+      0 ||
+    uniqueCandidates.length >
+      1
   ) {
+    const addresses =
+      [
+        ...new Set([
+          ...ambiguousLocos,
+          ...uniqueCandidates.map(
+            candidate =>
+              candidate.tracking.locoAddress
+          ),
+        ]),
+      ];
+
+    for (
+      const address of
+      addresses
+    ) {
+      const tracking =
+        locoTracking.get(
+          address
+        );
+
+      if (tracking) {
+        tracking.confidence =
+          "ambiguous";
+
+        tracking.updatedAt =
+          Date.now();
+      }
+    }
+
     log(
       "warn",
-      `Block ${destinationBlockId} occupancy ON: no unambiguous moving locomotive matches direction + graph + turnout state.`
+      `Sensor #${sensor} -> ON is ambiguous: ${addresses.map(address => `#${address}`).join(", ")}.`
     );
+
+    emit();
 
     return;
   }
 
   if (
-    values.length >
+    uniqueCandidates.length !==
       1
   ) {
     log(
       "warn",
-      `Block ${destinationBlockId} occupancy ON is ambiguous: ${values.map(candidate => `#${candidate.locoAddress} from block ${candidate.sourceBlockId}`).join(", ")}.`
+      `Sensor #${sensor} -> ON: no moving tracked locomotive matches graph + direction + turnout state.`
     );
 
     return;
   }
 
   const candidate =
-    values[0]!;
+    uniqueCandidates[0]!;
 
-  const sent =
-    wsApi.setBlock(
-      String(
-        destinationBlockId
-      ),
-      candidate.locoId,
-      candidate.locoAddress
+  const state =
+    locoTracking.get(
+      candidate.tracking.locoAddress
     );
 
-  if (!sent) {
-    log(
-      "error",
-      `Tracking could not assign loco #${candidate.locoAddress} to block ${destinationBlockId}: WebSocket send failed.`
-    );
-
+  if (!state) {
     return;
   }
 
-  log(
-    "match",
-    `Tracked loco #${candidate.locoAddress}: block ${candidate.sourceBlockId} -> ${destinationBlockId} (${candidate.routeCount} matching route${candidate.routeCount === 1 ? "" : "s"}).`
+  if (
+    !state.currentSensors.includes(
+      sensor
+    )
+  ) {
+    state.currentSensors.push(
+      sensor
+    );
+  }
+
+  state.lastSensor =
+    sensor;
+
+  addRecentSensor(
+    state,
+    sensor
   );
 
-  wsApi.getBlocks();
+  state.confidence =
+    "likely";
+
+  state.updatedAt =
+    Date.now();
+
+  const destinationBlockId =
+    blockSensorToId.get(
+      sensor
+    ) ??
+    null;
+
+  if (
+    destinationBlockId !==
+      null &&
+    destinationBlockId ===
+      candidate.route.toBlockId
+  ) {
+    state.currentBlockId =
+      destinationBlockId;
+
+    state.currentBlockName =
+      blockNames.get(
+        destinationBlockId
+      ) ??
+      candidate.route.toBlockName ??
+      `Block ${destinationBlockId}`;
+
+    state.confidence =
+      "certain";
+
+    const movementOwned =
+      isLocoManagedByActiveMovement(
+        state.locoAddress
+      );
+
+    if (!movementOwned) {
+      const sent =
+        wsApi.setBlock(
+          String(
+            destinationBlockId
+          ),
+          state.locoId,
+          state.locoAddress
+        );
+
+      if (!sent) {
+        log(
+          "error",
+          `Tracking could not assign loco #${state.locoAddress} to block ${destinationBlockId}: WebSocket send failed.`
+        );
+
+        return;
+      }
+
+      wsApi.getBlocks();
+    }
+
+    log(
+      "match",
+      movementOwned
+        ? `Tracked loco #${state.locoAddress} into ${state.currentBlockName} via sensor #${sensor}; active Movement owns block assignment.`
+        : `Tracked loco #${state.locoAddress} into ${state.currentBlockName} via sensor #${sensor}.`
+    );
+  } else {
+    log(
+      "match",
+      `Tracked loco #${state.locoAddress} at sensor #${sensor} on route ${candidate.route.fromBlockName ?? candidate.route.fromBlockId} -> ${candidate.route.toBlockName ?? candidate.route.toBlockId}.`
+    );
+  }
+
+  emit();
+}
+
+function handleSensorOff(
+  sensor: number
+): void {
+  let changed =
+    false;
+
+  for (
+    const state of
+    locoTracking.values()
+  ) {
+    if (
+      !state.currentSensors.includes(
+        sensor
+      )
+    ) {
+      continue;
+    }
+
+    state.currentSensors =
+      state.currentSensors.filter(
+        value =>
+          value !==
+            sensor
+      );
+
+    state.updatedAt =
+      Date.now();
+
+    log(
+      "info",
+      `Loco #${state.locoAddress} left sensor #${sensor}.`
+    );
+
+    changed =
+      true;
+  }
+
+  if (changed) {
+    emit();
+  }
 }
 
 function updateTurnoutFromPhysical(
@@ -1050,6 +1529,12 @@ export function installTrainTrackingRuntime(): void {
     data => {
       blockStates =
         data;
+
+      seedTrackingFromBlocks(
+        data
+      );
+
+      emit();
     }
   );
 
@@ -1077,7 +1562,7 @@ export function installTrainTrackingRuntime(): void {
           if (
             (
               knownBits &
-              bit
+                bit
             ) ===
               0
           ) {
@@ -1116,29 +1601,20 @@ export function installTrainTrackingRuntime(): void {
           undefined ||
         previous ===
           data.on ||
-        !data.on ||
         !active()
       ) {
         return;
       }
 
-      const blockId =
-        blockSensorToId.get(
+      if (data.on) {
+        handleSensorOn(
           data.address
         );
-
-      if (!blockId) {
-        return;
+      } else {
+        handleSensorOff(
+          data.address
+        );
       }
-
-      log(
-        "info",
-        `Block ${blockId} occupancy sensor #${data.address} -> ON; evaluating candidates.`
-      );
-
-      evaluateDestination(
-        blockId
-      );
     }
   );
 
@@ -1214,18 +1690,21 @@ export function installTrainTrackingRuntime(): void {
         return;
       }
 
-      const snapshot =
+      const snapshotValue =
         objectValue(
           raw.data
         );
 
+      const basic =
+        Array.isArray(
+          snapshotValue?.basicAccessories
+        )
+          ? snapshotValue.basicAccessories
+          : [];
+
       for (
         const rawItem of
-        Array.isArray(
-          snapshot?.basicAccessories
-        )
-          ? snapshot.basicAccessories
-          : []
+        basic
       ) {
         const item =
           objectValue(
@@ -1250,13 +1729,16 @@ export function installTrainTrackingRuntime(): void {
         }
       }
 
+      const extended =
+        Array.isArray(
+          snapshotValue?.extendedAccessories
+        )
+          ? snapshotValue.extendedAccessories
+          : [];
+
       for (
         const rawItem of
-        Array.isArray(
-          snapshot?.extendedAccessories
-        )
-          ? snapshot.extendedAccessories
-          : []
+        extended
       ) {
         const item =
           objectValue(
@@ -1343,6 +1825,56 @@ export function clearTrainTrackingLogs(): void {
     0;
 
   emit();
+}
+
+export function resetTrainTrackingState(): void {
+  locoTracking.clear();
+
+  seedTrackingFromBlocks(
+    blockStates
+  );
+
+  log(
+    "info",
+    "Tracking locomotive state reset from current block assignments."
+  );
+
+  emit();
+}
+
+export function getLocoTrackingState(
+  locoAddress: number
+): LocoTrackingState | null {
+  const state =
+    locoTracking.get(
+      locoAddress
+    );
+
+  return state
+    ? copyTracking(
+        state
+      )
+    : null;
+}
+
+export function getLocoAtSensor(
+  sensorAddress: number
+): LocoTrackingState | null {
+  const matches =
+    [...locoTracking.values()]
+      .filter(
+        state =>
+          state.currentSensors.includes(
+            sensorAddress
+          )
+      );
+
+  return matches.length ===
+      1
+    ? copyTracking(
+        matches[0]!
+      )
+    : null;
 }
 
 export function getTrainTrackingState(): TrainTrackingState {
