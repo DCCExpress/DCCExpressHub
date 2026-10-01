@@ -101,6 +101,7 @@ const TEXT = {
       "Irányfüggő szenzorfeltételek a blokk érkezési és elhagyási eseményeihez.",
     forward: "Forward",
     reverse: "Reverse",
+    directionGroup: "Menetirány csoport",
     arrival: "Érkezés",
     departure: "Elhagyás",
     beforeArrive: "Before Arrive",
@@ -138,6 +139,7 @@ const TEXT = {
       "Direction-aware sensor conditions for block arrival and departure events.",
     forward: "Forward",
     reverse: "Reverse",
+    directionGroup: "Direction group",
     arrival: "Arrival",
     departure: "Departure",
     beforeArrive: "Before Arrive",
@@ -175,6 +177,7 @@ const TEXT = {
       "Richtungsabhängige Sensorbedingungen für Ankunfts- und Verlassensereignisse.",
     forward: "Forward",
     reverse: "Reverse",
+    directionGroup: "Fahrtrichtungsgruppe",
     arrival: "Ankunft",
     departure: "Abfahrt",
     beforeArrive: "Before Arrive",
@@ -878,7 +881,26 @@ export default function BlockEventConfigPropertyEditor({
                 minHeight: 0,
               }}
             >
-              <Group justify="flex-end">
+              <Group justify="space-between" align="center">
+                <Text size="sm" fw={800}>
+                  {text.directionGroup}: {direction === "forward" ? text.forward : text.reverse}
+                </Text>
+
+                <Button
+                  size="compact-xs"
+                  variant="subtle"
+                  onClick={() =>
+                    copyDirection(
+                      direction,
+                      direction === "forward" ? "reverse" : "forward"
+                    )
+                  }
+                >
+                  {direction === "forward"
+                    ? text.copyToReverse
+                    : text.copyToForward}
+                </Button>
+              </Group>
                 <Button
                   size="compact-xs"
                   variant="subtle"
