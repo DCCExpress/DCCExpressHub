@@ -23,9 +23,10 @@ function normalizeBlockEventConditions(value: unknown): BlockEventSensorConditio
     const sensor = Math.trunc(Number(candidate.sensor));
     if (!Number.isInteger(sensor) || sensor < 1 || sensor > 65535 || used.has(sensor)) continue;
     used.add(sensor);
-    // Block configuration stores physical sensor groups only. Their configured
-    // trigger is always ON; derived OFF events are produced by Movement.
-    result.push({ sensor, state: true });
+    result.push({
+      sensor,
+      state: candidate.state !== false,
+    });
   }
 
   return result;
