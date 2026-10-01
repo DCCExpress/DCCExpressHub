@@ -280,6 +280,52 @@ export default function TrainTrackingPanel({
         )
       }
 
+      {
+        controlStationActive &&
+        state.readinessWarnings.length > 0 &&
+        (
+          <Card
+            withBorder
+            p="xs"
+            radius="sm"
+          >
+            <Stack gap={3}>
+              <Text
+                size="xs"
+                fw={700}
+                c="yellow"
+              >
+                {
+                  i18next.t(
+                    "ui.trainTrackingRecommendations",
+                    {
+                      defaultValue:
+                        "Tracking recommendations:",
+                    }
+                  )
+                }
+              </Text>
+
+              {
+                state.readinessWarnings.map(
+                  warning => (
+                    <Text
+                      key={
+                        warning
+                      }
+                      size="xs"
+                      ff="monospace"
+                    >
+                      • {warning}
+                    </Text>
+                  )
+                )
+              }
+            </Stack>
+          </Card>
+        )
+      }
+
       <Text
         size="xs"
         c="dimmed"
