@@ -57,6 +57,111 @@ Current functionality includes:
 - USB serial configuration and recovery for ESP32 targets,
 - Windows Desktop application with integrated server log.
 
+### Automation
+
+DCCExpressHub separates railway automation into several cooperating services instead of putting every responsibility into one large movement engine.
+
+```text
+Timetable / manual start
+          |
+          v
+      Dispatcher
+          |
+          +----> Train Tracking   Where is the locomotive now?
+          |
+          +----> SwitchMan        May the required turnouts be used and changed?
+          |
+          v
+       Movement
+          |
+          v
+       DCC-EX
+
+Sensor / block / turnout / train events
+          |
+          v
+         Flows
+```
+
+#### SwitchMan
+
+**SwitchMan** is responsible for safe turnout access and turnout locking.
+
+When an automation needs a route, SwitchMan coordinates the required turnout states and prevents another movement from changing turnouts that are currently reserved by an active route. Route locks are released again when they are no longer required.
+
+SwitchMan is the common turnout authority used by automated movement logic; it is intentionally separate from train position tracking.
+
+> Planned safety extension: if a turnout has its own occupancy sensor, an occupied turnout should also block manual and automatic switching. This will be shown separately from an ordinary route lock.
+
+#### Train Tracking
+
+**Train Tracking** answers the question: **where is each locomotive actually located?**
+
+A locomotive is initially anchored by assigning it to a logical block. From there Tracking follows sensor ON/OFF events through the saved route graph. It combines:
+
+- the locomotive's current block,
+- locomotive direction and speed,
+- the ordered physical SectionParts in the graph,
+- live turnout states,
+- and the sensors belonging to the selected physical route.
+
+When a turnout and a sensor event identify one route unambiguously, Tracking commits that physical route until the locomotive reaches the next block. This prevents a turnout changed behind the train from retroactively moving the tracked locomotive onto another branch.
+
+Tracking keeps multiple simultaneously occupied sensors for long trains and reports ambiguous situations instead of guessing.
+
+The Tracking tab shows the current block, active sensors, selected SectionParts, last sensor, confidence and recent sensor path.
+
+#### Dispatcher / Forgalmista
+
+**Dispatcher** executes a saved movement intention such as:
+
+```text
+A1 -> B1 -> C1
+```
+
+The Movement describes **what route is requested**; Dispatcher decides **what should happen next**.
+
+Dispatcher uses Train Tracking as the source of the locomotive's actual position. This allows a movement to continue from an intermediate block: if an `A -> B -> C` movement is started while the tracked locomotive is already in `B`, Dispatcher executes only the remaining `B -> C` part.
+
+The Dispatcher coordinates execution with route safety and turnout authority and provides global controls for enabling Dispatcher operation, stopping managed trains, aborting managed movements and emergency stop.
+
+The current alpha implementation still delegates the physical execution of a selected route to the existing Movement engine. The long-term architecture is to run Tracking and Dispatcher as persistent Hub/backend services so they remain active independently of the browser.
+
+#### Timetable
+
+**Timetable** starts automation at scheduled FastClock times.
+
+A timetable entry can launch a Script or a Movement. For a Movement, Timetable does not drive the locomotive itself; it hands the saved movement intention to Dispatcher.
+
+This keeps scheduling separate from execution:
+
+```text
+Timetable = when should it start?
+Dispatcher = what should happen now?
+Tracking = where is the train?
+```
+
+Long station stops are best represented as separate movement legs. For example, a stopping passenger train can use `A -> B`, wait at B according to the timetable, then later start `B -> C`. A through train can use one continuous `A -> B -> C` movement.
+
+#### Flows
+
+**Flows** provide event-driven automation through the visual Flow editor.
+
+Flows can react to railway events such as sensors, blocks, turnouts, accessories and locomotive state, then perform actions such as:
+
+- changing locomotive speed or functions,
+- setting turnouts or accessories,
+- updating blocks or targets,
+- playing audio,
+- writing log messages,
+- or coordinating train-related actions.
+
+Each Flow can be enabled or disabled, and a global **Run flows** switch controls Flow execution.
+
+Flows are intended for operational behaviour around a train journey, while Dispatcher remains responsible for route execution and Train Tracking remains responsible for determining train position.
+
+The current Flow runtime is primarily frontend-driven. Moving the Flow engine to the Hub/backend is planned so automation can continue even when no browser is open.
+
 # Windows Desktop
 
 DCCExpressHub can run directly on a Windows PC without a separate ESP32 Hub.
