@@ -1366,5 +1366,10 @@
   "dispatcherNextBlock": "Nächster Block",
   "dispatcherNoTasks": "Noch keine Dispatcher-Bewegung gestartet.",
   "dispatcherLog": "Dispatcher-Protokoll",
-  "dispatcherNoLog": "Noch keine Dispatcher-Ereignisse."
+  "dispatcherNoLog": "Noch keine Dispatcher-Ereignisse.",
+  "dispatcherEnabled": "Aktiviert",
+  "dispatcherStopAll": "Alle Dispatcher-Züge anhalten",
+  "dispatcherAbortAll": "Alle Dispatcher-Bewegungen abbrechen",
+  "dispatcherEmergencyStop": "Not-Halt",
+  "dispatcherClearEstop": "Not-Halt aufheben"
 }
