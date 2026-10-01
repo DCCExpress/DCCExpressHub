@@ -5951,3 +5951,60 @@ test("composite Movement vector selection keeps the physical key and resolves th
     /selectedPhysicalResource\.detectors\.includes\([\s\S]*block\.sensorAddress/
   );
 });
+
+
+test("Movement turnout release remains retryable until backend ACK", () => {
+  const engine =
+    read(
+      "src/services/movementEngine.ts"
+    );
+
+  assert.match(
+    engine,
+    /let releasePromise:[\s\S]*Promise<void>[\s\S]*null/
+  );
+
+  assert.match(
+    engine,
+    /if \([\s\S]*releasePromise[\s\S]*\)[\s\S]*return await releasePromise/
+  );
+
+  const releaseStart =
+    engine.indexOf(
+      "const release ="
+    );
+
+  const releaseEnd =
+    engine.indexOf(
+      "try {",
+      releaseStart
+    );
+
+  const releaseBlock =
+    engine.slice(
+      releaseStart,
+      releaseEnd
+    );
+
+  const requestIndex =
+    releaseBlock.indexOf(
+      'switchManRequest(\n              "release"'
+    );
+
+  const releasedIndex =
+    releaseBlock.indexOf(
+      "released ="
+    );
+
+  assert.ok(
+    requestIndex >= 0 &&
+    releasedIndex >
+      requestIndex,
+    "turnout lease must be marked released only after backend release ACK"
+  );
+
+  assert.match(
+    engine,
+    /Release is owner-safe and idempotent on both backends/
+  );
+});
