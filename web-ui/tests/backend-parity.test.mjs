@@ -96,9 +96,9 @@ test("ESP32 WebSocket command contract matches the Windows backend", () => {
     );
 
   /*
-   * Windows-first migration: Dispatcher is intentionally native-only until
-   * the .NET implementation is stable and tested. Keep every other WS command
-   * under strict ESP32 parity and make the temporary exception explicit.
+   * Windows-first migration: Dispatcher, Movement and Timetable runtime
+   * commands are intentionally native-only until the .NET implementation is
+   * stable. Keep every other WS command under strict ESP32 parity.
    */
   for (
     const windowsOnly of
@@ -106,6 +106,8 @@ test("ESP32 WebSocket command contract matches the Windows backend", () => {
       "dispatcherCommand",
       "movementCommand",
       "movementAudioComplete",
+      "timetableCommand",
+      "timetableScriptComplete",
     ]
   ) {
     assert.ok(
@@ -120,6 +122,8 @@ test("ESP32 WebSocket command contract matches the Windows backend", () => {
       "dispatcherCommand",
       "movementCommand",
       "movementAudioComplete",
+      "timetableCommand",
+      "timetableScriptComplete",
     ]);
 
   assert.deepEqual(
