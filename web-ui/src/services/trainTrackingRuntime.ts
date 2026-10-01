@@ -192,6 +192,15 @@ const turnoutConfig =
 const locoTracking =
   new Map<number, LocoTrackingState>();
 
+/*
+ * Once turnout state + a sensor event select one physical direct route, keep
+ * that route committed for the locomotive until it reaches the destination
+ * block. This prevents a turnout changed behind the train from retroactively
+ * moving the locomotive to another branch.
+ */
+const committedRoutes =
+  new Map<number, RawRouteEntry>();
+
 const logs:
   TrainTrackingLogEntry[] =
   [];
@@ -673,6 +682,14 @@ function seedTrackingFromBlocks(
       current?.currentBlockId !==
         blockId;
 
+    if (
+      blockChanged
+    ) {
+      committedRoutes.delete(
+        locoAddress
+      );
+    }
+
     const next:
       LocoTrackingState =
       current
@@ -778,6 +795,10 @@ function seedTrackingFromBlocks(
     }
 
     locoTracking.delete(
+      address
+    );
+
+    committedRoutes.delete(
       address
     );
 
@@ -1289,6 +1310,63 @@ function routeSensorPath(
   );
 }
 
+function candidateFromRoute(
+  tracking:
+    LocoTrackingState,
+  route:
+    RawRouteEntry,
+  sensor:
+    number
+): SensorPathCandidate | null {
+  const sensorPath =
+    routeSensorPath(
+      route
+    );
+
+  const targetIndex =
+    sensorPath.indexOf(
+      sensor
+    );
+
+  if (
+    targetIndex <
+      0
+  ) {
+    return null;
+  }
+
+  const anchor =
+    tracking.lastSensor ??
+    blockIdToSensor.get(
+      tracking.currentBlockId ??
+        0
+    ) ??
+    null;
+
+  const anchorIndex =
+    anchor ===
+      null
+      ? -1
+      : sensorPath.lastIndexOf(
+          anchor
+        );
+
+  if (
+    anchorIndex >=
+      targetIndex
+  ) {
+    return null;
+  }
+
+  return {
+    tracking,
+    route,
+    sensorPath,
+    sensorIndex:
+      targetIndex,
+  };
+}
+
 function candidateForSensor(
   tracking:
     LocoTrackingState,
@@ -1320,6 +1398,34 @@ function candidateForSensor(
       ? "reverse"
       : "forward";
 
+  const committed =
+    committedRoutes.get(
+      tracking.locoAddress
+    );
+
+  if (
+    committed &&
+    committed.fromBlockId ===
+      tracking.currentBlockId &&
+    committed.locoDirection ===
+      direction
+  ) {
+    const candidate =
+      candidateFromRoute(
+        tracking,
+        committed,
+        sensor
+      );
+
+    if (
+      candidate
+    ) {
+      return [
+        candidate,
+      ];
+    }
+  }
+
   const result:
     SensorPathCandidate[] =
     [];
@@ -1331,52 +1437,20 @@ function candidateForSensor(
       direction
     )
   ) {
-    const sensorPath =
-      routeSensorPath(
-        route
-      );
-
-    const targetIndex =
-      sensorPath.indexOf(
+    const candidate =
+      candidateFromRoute(
+        tracking,
+        route,
         sensor
       );
 
     if (
-      targetIndex <
-        0
+      candidate
     ) {
-      continue;
+      result.push(
+        candidate
+      );
     }
-
-    const anchor =
-      tracking.lastSensor ??
-      blockIdToSensor.get(
-        tracking.currentBlockId
-      ) ??
-      null;
-
-    const anchorIndex =
-      anchor ===
-        null
-        ? -1
-        : sensorPath.lastIndexOf(
-            anchor
-          );
-
-    if (
-      anchorIndex >=
-        targetIndex
-    ) {
-      continue;
-    }
-
-    result.push({
-      tracking,
-      route,
-      sensorPath,
-      sensorIndex:
-        targetIndex,
-    });
   }
 
   return result;
@@ -1493,6 +1567,35 @@ function handleSensorOn(
   const candidate =
     uniqueCandidates[0]!;
 
+  const previousCommitted =
+    committedRoutes.get(
+      candidate.tracking.locoAddress
+    );
+
+  if (
+    previousCommitted !==
+      candidate.route
+  ) {
+    committedRoutes.set(
+      candidate.tracking.locoAddress,
+      candidate.route
+    );
+
+    if (
+      previousCommitted
+    ) {
+      log(
+        "warn",
+        `Tracking route changed for loco #${candidate.tracking.locoAddress}: live turnout state + sensor #${sensor} selected ${candidate.route.fromBlockName ?? candidate.route.fromBlockId} -> ${candidate.route.toBlockName ?? candidate.route.toBlockId}.`
+      );
+    } else {
+      log(
+        "info",
+        `Tracking route committed for loco #${candidate.tracking.locoAddress}: ${candidate.route.fromBlockName ?? candidate.route.fromBlockId} -> ${candidate.route.toBlockName ?? candidate.route.toBlockId}.`
+      );
+    }
+  }
+
   const state =
     locoTracking.get(
       candidate.tracking.locoAddress
@@ -1550,6 +1653,10 @@ function handleSensorOn(
 
     state.confidence =
       "certain";
+
+    committedRoutes.delete(
+      state.locoAddress
+    );
 
     const movementOwned =
       isLocoManagedByActiveMovement(
@@ -2065,6 +2172,7 @@ export function clearTrainTrackingLogs(): void {
 
 export function resetTrainTrackingState(): void {
   locoTracking.clear();
+  committedRoutes.clear();
 
   seedTrackingFromBlocks(
     blockStates
