@@ -115,7 +115,7 @@ test("Movement execution script resolves the same persisted plan as runtime", ()
 
   assert.ok(
     script.includes(
-      "Runtime startMovement() also calls loadMovementPlan(page)"
+      "Runtime startDispatcherExecution() also calls loadMovementPlan(page)"
     )
   );
 });
@@ -123,7 +123,7 @@ test("Movement execution script resolves the same persisted plan as runtime", ()
 test("Movement execution script mirrors the core runtime leg order", () => {
   const engine =
     read(
-      "src/services/movementEngine.ts"
+      "src/services/dispatcherExecutionRuntime.ts"
     );
 
   const script =
@@ -321,7 +321,7 @@ test("Movement execution script preserves action sequence mode and action semant
 test("Movement execution script exposes concrete locomotive interventions", () => {
   const engine =
     read(
-      "src/services/movementEngine.ts"
+      "src/services/dispatcherExecutionRuntime.ts"
     );
 
   const script =
@@ -438,7 +438,7 @@ test("Movement script speed/function/horn actions show their physical loco comma
 test("Movement execution script makes background task behavior explicit", () => {
   const engine =
     read(
-      "src/services/movementEngine.ts"
+      "src/services/dispatcherExecutionRuntime.ts"
     );
 
   const script =
@@ -534,7 +534,7 @@ test("Movement editor exposes a small read-only Script dialog", () => {
 
 test("Intermediate ARRIVED advances before source block LEAVE finishes", () => {
   const engine = read(
-    "src/services/movementEngine.ts"
+    "src/services/dispatcherExecutionRuntime.ts"
   );
 
   const traverse =
