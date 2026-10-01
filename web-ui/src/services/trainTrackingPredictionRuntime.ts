@@ -28,6 +28,9 @@ export function replaceTrainTrackingPredictions(
   const next =
     new Map<number, TrainTrackingPrediction>();
 
+  const conflicts =
+    new Set<number>();
+
   for (
     const prediction of
     predictions
@@ -52,11 +55,23 @@ export function replaceTrainTrackingPredictions(
      * visual marker is safer than showing an arbitrary winner.
      */
     if (
+      conflicts.has(
+        prediction.blockId
+      )
+    ) {
+      continue;
+    }
+
+    if (
       next.has(
         prediction.blockId
       )
     ) {
       next.delete(
+        prediction.blockId
+      );
+
+      conflicts.add(
         prediction.blockId
       );
 
