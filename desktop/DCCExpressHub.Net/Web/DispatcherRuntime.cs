@@ -79,6 +79,40 @@ public sealed class DispatcherRuntime
         _commandCenter = commandCenter;
         _switchMan = switchMan;
         _log = log;
+
+        // A manual/administrative SwitchMan force-release must never leave a
+        // Dispatcher lease alive without its physical turnout authority.
+        _switchMan.Changed += _ => ReconcileTurnoutAuthority();
+    }
+
+    void ReconcileTurnoutAuthority()
+    {
+        DispatcherLegLeaseInfo[] invalid;
+
+        lock (_gate)
+        {
+            invalid =
+                _leases.Values
+                    .Where(lease =>
+                        lease.TurnoutAddresses.Any(
+                            address =>
+                                !_switchMan.IsOwnedBy(
+                                    address,
+                                    lease.OwnerId)))
+                    .ToArray();
+        }
+
+        foreach (var lease in invalid)
+        {
+            _log.LogWarning(
+                "Dispatcher lease {OwnerId} lost turnout authority; releasing leg {FromBlock}->{ToBlock}",
+                lease.OwnerId,
+                lease.FromBlockId,
+                lease.ToBlockId);
+
+            ReleaseLeg(
+                lease.OwnerId);
+        }
     }
 
     public DispatcherLegLeaseInfo[] Snapshot()
