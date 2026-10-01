@@ -341,6 +341,25 @@ public sealed class WsHub
                 case "timetableCommand":
                     await HandleTimetableCommand(connectionId, ws, data);
                     return;
+                case "timetableScriptStatus":
+                    if (IsControlStationOwner(connectionId))
+                    {
+                        string? message =
+                            data.ValueKind == JsonValueKind.Object &&
+                            data.TryGetProperty(
+                                "message",
+                                out var messageElement) &&
+                            messageElement.ValueKind ==
+                                JsonValueKind.String
+                                ? messageElement.GetString()
+                                : null;
+
+                        Timetable.UpdateScriptStatus(
+                            S(data, "runId"),
+                            S(data, "status"),
+                            message);
+                    }
+                    return;
                 case "timetableScriptComplete":
                     if (IsControlStationOwner(connectionId))
                         Timetable.CompleteScript(S(data, "runId"), B(data, "ok"), S(data, "message"));
