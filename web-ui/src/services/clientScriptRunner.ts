@@ -15,9 +15,9 @@ import {
 } from "./controlStationRuntime";
 
 import {
-  holdDispatcherExecution,
-  releaseDispatcherExecution,
-} from "./dispatcherExecutionRuntime";
+  holdDispatcherMovement,
+  releaseDispatcherMovement,
+} from "./dispatcherRuntime";
 
 import {
   broadcastAudioPlayback,
@@ -3140,11 +3140,11 @@ function handleMovementCommand(
   const ok =
     message.method ===
       "hold"
-      ? holdDispatcherExecution(
+      ? holdDispatcherMovement(
           movementId,
           ownerId
         )
-      : releaseDispatcherExecution(
+      : releaseDispatcherMovement(
           movementId,
           ownerId
         );
@@ -3199,7 +3199,7 @@ function handleMovementCommand(
   }
 }
 
-function releaseDispatcherExecutionHoldsOwnedByExecution(
+function releaseDispatcherMovementHoldsOwnedByExecution(
   executionId:
     ClientScriptExecutionId
 ): void {
@@ -3215,7 +3215,7 @@ function releaseDispatcherExecutionHoldsOwnedByExecution(
     ) ??
     []
   ) {
-    releaseDispatcherExecution(
+    releaseDispatcherMovement(
       movementId,
       ownerId
     );
@@ -3244,7 +3244,7 @@ function finishExecution(
     );
   }
 
-  releaseDispatcherExecutionHoldsOwnedByExecution(
+  releaseDispatcherMovementHoldsOwnedByExecution(
     elementId
   );
 
