@@ -1024,7 +1024,7 @@
   "trainTrackingLastSensor": "Letzter Sensor",
   "trainTrackingLog": "Tracking-Protokoll",
   "trainTrackingRequirementsMissing": "Tracking kann noch nicht aktiviert werden:",
-  "trainTrackingRecommendations": "Tracking-Empfehlungen:",
+  "trainTrackingRecommendations": "Empfehlungen",
   "automationFlowsTab": "Flows",
   "automationMovementTab": "Bewegungen",
   "automationStatus": "Status",
