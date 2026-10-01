@@ -222,30 +222,30 @@ function DirectionDiagram({
         aria-label={reverse ? text.directionHelpReverse : text.directionHelpForward}
         style={{
           width: "100%",
-          maxHeight: 150,
+          maxHeight: 140,
           display: "block",
         }}
       >
         <defs>
           <marker
             id="block-event-arrow-right"
-            markerWidth="8"
-            markerHeight="8"
-            refX="7"
-            refY="4"
+            markerWidth="6"
+            markerHeight="6"
+            refX="5.5"
+            refY="3"
             orient="auto"
           >
-            <path d="M0,0 L8,4 L0,8 z" fill="currentColor" />
+            <path d="M0,0 L6,3 L0,6 z" fill="currentColor" />
           </marker>
           <marker
             id="block-event-arrow-left"
-            markerWidth="8"
-            markerHeight="8"
-            refX="7"
-            refY="4"
+            markerWidth="6"
+            markerHeight="6"
+            refX="5.5"
+            refY="3"
             orient="auto"
           >
-            <path d="M0,0 L8,4 L0,8 z" fill="currentColor" />
+            <path d="M0,0 L6,3 L0,6 z" fill="currentColor" />
           </marker>
         </defs>
 
@@ -254,32 +254,52 @@ function DirectionDiagram({
         <circle cx="305" cy="62" r="8" fill="var(--mantine-color-blue-filled)" />
 
         <rect
-          x="112"
-          y="38"
-          width="136"
-          height="48"
-          rx="7"
-          fill="var(--mantine-color-gray-2)"
-          stroke="currentColor"
-          strokeWidth="2"
+          x="125"
+          y="42"
+          width="110"
+          height="38"
+          rx="6"
+          fill="var(--mantine-color-body)"
+          stroke="var(--mantine-color-gray-6)"
+          strokeWidth="1.5"
         />
-        <text x="180" y="58" textAnchor="middle" fontSize="13" fontWeight="700" fill="currentColor">
+        <text
+          x="180"
+          y="57"
+          textAnchor="middle"
+          fontSize="12"
+          fontWeight="700"
+          fill="var(--mantine-color-text)"
+        >
           {blockName || "BLOCK"}
         </text>
-        <text x="180" y="77" textAnchor="middle" fontSize="11" fill="currentColor" opacity="0.72">
+        <text
+          x="180"
+          y="72"
+          textAnchor="middle"
+          fontSize="10"
+          fill="var(--mantine-color-dimmed)"
+        >
           {text.occupancy}: {occupancySensor > 0 ? occupancySensor : "—"}
         </text>
 
         <line
           x1={arrowX1}
-          y1="21"
+          y1="20"
           x2={arrowX2}
-          y2="21"
+          y2="20"
           stroke="currentColor"
-          strokeWidth="3"
+          strokeWidth="2"
           markerEnd={marker}
         />
-        <text x="180" y="15" textAnchor="middle" fontSize="12" fontWeight="700" fill="currentColor">
+        <text
+          x="180"
+          y="14"
+          textAnchor="middle"
+          fontSize="11"
+          fontWeight="700"
+          fill="currentColor"
+        >
           {reverse ? "REVERSE" : "FORWARD"}
         </text>
 
