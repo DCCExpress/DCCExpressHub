@@ -145,6 +145,8 @@ export type MovementPlanLeg = {
     MovementSensorCondition[];
   leaveWhenExplicit:
     boolean;
+  afterLeaveWhen:
+    MovementSensorCondition[];
   arrivedWhen:
     MovementSensorCondition[];
 };
@@ -752,10 +754,9 @@ function blockEventConditionsFor(
     | "forward"
     | "reverse",
   event:
-    | "beforeArrive"
+    | "arrival"
     | "arrived"
-    | "beforeLeave"
-    | "afterLeave"
+    | "leave"
 ): MovementSensorCondition[] {
   if (
     direction ===
@@ -844,7 +845,7 @@ function approachRuleFor(
     layout,
     blockId,
     direction,
-    "beforeArrive"
+    "arrival"
   );
 }
 
@@ -877,12 +878,8 @@ function departureRuleFor(
     );
   }
 
-  return blockEventConditionsFor(
-    layout,
-    blockId,
-    direction,
-    "beforeLeave"
-  );
+  // Before Leave is a derived Movement intent event, not a block sensor group.
+  return [];
 }
 
 function leaveRuleFor(
@@ -930,7 +927,7 @@ function leaveRuleFor(
       layout,
       blockId,
       direction,
-      "afterLeave"
+      "leave"
     );
 
   if (
@@ -939,7 +936,10 @@ function leaveRuleFor(
   ) {
     return {
       conditions:
-        configured,
+        configured.map(condition => ({
+          ...condition,
+          state: true,
+        })),
       explicit:
         true,
     };
@@ -972,6 +972,51 @@ function leaveRuleFor(
     explicit:
       false,
   };
+}
+
+function afterLeaveRuleFor(
+  blockId: number,
+  sensors: Map<number, number>,
+  layout: SerializedLayoutDto,
+  direction:
+    | "unknown"
+    | "forward"
+    | "reverse"
+): MovementSensorCondition[] {
+  const configured =
+    blockEventConditionsFor(
+      layout,
+      blockId,
+      direction,
+      "leave"
+    );
+
+  if (configured.length > 0) {
+    return configured.map(
+      condition => ({
+        ...condition,
+        state: false,
+        id: condition.id.replace(
+          "-leave-",
+          "-afterLeave-"
+        ),
+      })
+    );
+  }
+
+  const sensor =
+    sensors.get(
+      blockId
+    );
+
+  return sensor === undefined
+    ? []
+    : [{
+        id:
+          `auto-after-leave-${blockId}-off`,
+        sensor,
+        state: false,
+      }];
 }
 
 function arrivalRuleFor(
@@ -1997,6 +2042,13 @@ export function buildMovementPlan(
         leaveRule.conditions,
       leaveWhenExplicit:
         leaveRule.explicit,
+      afterLeaveWhen:
+        afterLeaveRuleFor(
+          from.blockId!,
+          sensors,
+          layout,
+          route.locoDirection
+        ),
       arrivedWhen:
         arrivalRuleFor(
           page,
