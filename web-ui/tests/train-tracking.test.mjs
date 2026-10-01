@@ -163,3 +163,42 @@ test("Tracking initializes and updates turnout state from all supported runtime 
   assert.match(runtime, /vpinChanged/);
   assert.match(runtime, /route\.turnoutStates/);
 });
+
+
+test("Target locomotive blocks use a separate animated arrival indicator", () => {
+  const block =
+    read("src/models/editor/elements/BlockElement.ts");
+
+  const canvas =
+    read("src/components/TrackCanvas.tsx");
+
+  assert.match(
+    block,
+    /targetAddress > 0/
+  );
+
+  assert.match(
+    block,
+    /Math\.sin\([\s\S]*Date\.now/
+  );
+
+  assert.match(
+    block,
+    /#ffb000/
+  );
+
+  assert.match(
+    canvas,
+    /const hasTargetLoco/
+  );
+
+  assert.match(
+    canvas,
+    /getBlockTargetLocoAddress/
+  );
+
+  assert.match(
+    canvas,
+    /needsBlinkRedraw[\s\S]*hasTargetLoco/
+  );
+});
