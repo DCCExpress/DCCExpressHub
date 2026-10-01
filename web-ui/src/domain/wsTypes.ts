@@ -125,6 +125,8 @@ export const CLIENT_WS_MESSAGE_TYPES = [
   "getControlStationStatus",
   "broadcastPlayAudio",
   "broadcastStopAudio",
+  "movementCommand",
+  "movementAudioComplete",
   "setTrackPower",
   "setProgrammingPower",
   "emergencyStop",
@@ -307,6 +309,27 @@ export type TaskManagerResponsePayload = WsCommandResponseMeta & {
   loadResult?: LoadTrainTasksResult;
 };
 
+export type MovementRuntimeStatePayload = {
+  pageId: string;
+  status: "idle" | "running" | "stopping" | "error";
+  startedAt: number | null;
+  stoppedAt: number | null;
+  locoAddress: number | null;
+  desiredSpeed: number;
+  currentResourceKey: string | null;
+  activeRouteResourceKey: string | null;
+  info: string | null;
+  error: string | null;
+};
+
+export type MovementResponsePayload = WsCommandResponseMeta & {
+  extra?: {
+    state?: MovementRuntimeStatePayload;
+    states?: MovementRuntimeStatePayload[];
+    count?: number;
+  };
+};
+
 export type ControlStationStatusPayload = {
   active: boolean;
   ownerClientId: string | null;
@@ -429,6 +452,9 @@ export type ServerWsPayloadMap = {
   stopAudio: {
     fileName: string;
   };
+  movementStateChanged: MovementRuntimeStatePayload;
+  movementSnapshot: { states: MovementRuntimeStatePayload[] };
+  movementResponse: MovementResponsePayload;
   locoActionListStatus: unknown;
   blockActionListStatus: unknown;
 };
