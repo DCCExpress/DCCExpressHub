@@ -202,3 +202,103 @@ test("Target locomotive blocks use a separate animated arrival indicator", () =>
     /needsBlinkRedraw[\s\S]*hasTargetLoco/
   );
 });
+
+
+test("Tracking predicts a unique next block from direction and live turnout state", () => {
+  const runtime =
+    read("src/services/trainTrackingRuntime.ts");
+
+  const predictionRuntime =
+    read("src/services/trainTrackingPredictionRuntime.ts");
+
+  const block =
+    read("src/models/editor/elements/BlockElement.ts");
+
+  const canvas =
+    read("src/components/TrackCanvas.tsx");
+
+  assert.match(
+    runtime,
+    /predictedNextBlockId/
+  );
+
+  assert.match(
+    runtime,
+    /predictedRouteForTracking/
+  );
+
+  assert.match(
+    runtime,
+    /directRoutesFromBlock/
+  );
+
+  assert.match(
+    runtime,
+    /new Set\([\s\S]*route\.toBlockId/
+  );
+
+  assert.match(
+    runtime,
+    /replaceTrainTrackingPredictions/
+  );
+
+  assert.match(
+    predictionRuntime,
+    /getTrainTrackingPredictionForBlock/
+  );
+
+  assert.match(
+    predictionRuntime,
+    /conflicts/
+  );
+
+  assert.match(
+    block,
+    /trackingPrediction/
+  );
+
+  assert.match(
+    block,
+    /#22d3ee/
+  );
+
+  assert.match(
+    canvas,
+    /subscribeTrainTrackingPredictions/
+  );
+
+  assert.match(
+    canvas,
+    /hasTrainTrackingPredictions/
+  );
+});
+
+test("Tracking table keeps sensor path compact and opens full history in a dialog", () => {
+  const panel =
+    read("src/components/automation/TrainTrackingPanel.tsx");
+
+  assert.match(
+    panel,
+    /trainTrackingNextBlock/
+  );
+
+  assert.match(
+    panel,
+    /predictedNextBlockName/
+  );
+
+  assert.match(
+    panel,
+    /recentSensorPath[\s\S]*\.slice\([\s\S]*-4/
+  );
+
+  assert.match(
+    panel,
+    /<Modal/
+  );
+
+  assert.match(
+    panel,
+    /trainTrackingPathDialogTitle/
+  );
+});
