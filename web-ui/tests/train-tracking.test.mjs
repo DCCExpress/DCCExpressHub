@@ -151,3 +151,15 @@ test("Tracking exposes physical SectionParts selected by route and sensors", () 
   assert.match(runtime, /part\.detectors/);
   assert.match(panel, /loco\.currentSectionParts/);
 });
+
+
+test("Tracking initializes and updates turnout state from all supported runtime sources", () => {
+  const runtime = read("src/services/trainTrackingRuntime.ts");
+
+  assert.match(runtime, /runtimePhysicalSnapshot/);
+  assert.match(runtime, /turnoutChanged/);
+  assert.match(runtime, /accessoryChanged/);
+  assert.match(runtime, /signalAspectChanged/);
+  assert.match(runtime, /vpinChanged/);
+  assert.match(runtime, /route\.turnoutStates/);
+});
