@@ -1498,6 +1498,21 @@ public sealed class MovementRuntime
                         EffectiveSafetySensors(
                             execution.Page,
                             leg),
+                        leg.Resources
+                            .Where(resource =>
+                                string.Equals(
+                                    resource.Kind,
+                                    "segment",
+                                    StringComparison.Ordinal))
+                            .Select(resource =>
+                                "segment:" +
+                                resource.Name)
+                            .Distinct(
+                                StringComparer.Ordinal)
+                            .OrderBy(
+                                key => key,
+                                StringComparer.Ordinal)
+                            .ToArray(),
                         0),
                     execution.Cancellation.Token);
 
