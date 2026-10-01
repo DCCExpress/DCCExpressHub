@@ -901,21 +901,6 @@ export default function BlockEventConfigPropertyEditor({
                     : text.copyToForward}
                 </Button>
               </Group>
-                <Button
-                  size="compact-xs"
-                  variant="subtle"
-                  onClick={() =>
-                    copyDirection(
-                      direction,
-                      direction === "forward" ? "reverse" : "forward"
-                    )
-                  }
-                >
-                  {direction === "forward"
-                    ? text.copyToReverse
-                    : text.copyToForward}
-                </Button>
-              </Group>
 
               <ScrollArea
                 style={{
