@@ -74,3 +74,20 @@ test("Dispatcher resumes from an intermediate tracked block", () => {
   assert.match(dispatcher, /Resuming/);
   assert.match(dispatcher, /already completed/);
 });
+
+
+test("Dispatcher control bar exposes global runtime controls", () => {
+  const panel = read("src/components/automation/DispatcherPanel.tsx");
+  const runtime = read("src/services/dispatcherRuntime.ts");
+
+  assert.match(panel, /<Switch/);
+  assert.match(panel, /stopAllDispatcherMovements/);
+  assert.match(panel, /abortAllDispatcherMovements/);
+  assert.match(panel, /wsApi\.emergencyStop/);
+  assert.match(panel, /<ActionIcon/);
+
+  assert.match(runtime, /setDispatcherEnabled/);
+  assert.match(runtime, /stopAllDispatcherMovements/);
+  assert.match(runtime, /abortAllDispatcherMovements/);
+  assert.match(runtime, /Dispatcher is disabled/);
+});
