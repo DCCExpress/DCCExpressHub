@@ -15,6 +15,11 @@ import {
 } from "./controlStationRuntime";
 
 import {
+  holdMovement,
+  releaseMovement,
+} from "./movementEngine";
+
+import {
   broadcastAudioPlayback,
   broadcastAudioPlaybackNoWait,
   broadcastAudioStop,
@@ -97,6 +102,12 @@ type ExecutionControl = {
 
 const executions =
   new Map<ClientScriptExecutionId, ExecutionControl>();
+
+const movementHoldsByExecution =
+  new Map<
+    ClientScriptExecutionId,
+    Set<string>
+  >();
 
 const locoFunctionBindings =
   new Map<
@@ -3087,6 +3098,134 @@ function handleDccCommand(
   });
 }
 
+function movementHoldOwnerId(
+  executionId:
+    ClientScriptExecutionId
+): string {
+  return `script:${String(executionId)}`;
+}
+
+function handleMovementCommand(
+  message:
+    Extract<
+      WorkerToMainMessage,
+      {
+        type: "movement";
+      }
+    >
+): void {
+  const movementId =
+    String(
+      message.args[0] ??
+      ""
+    ).trim();
+
+  if (!movementId) {
+    postToWorker({
+      type: "commandError",
+      executionId:
+        message.executionId,
+      message:
+        "Movement ID is required.",
+    });
+
+    return;
+  }
+
+  const ownerId =
+    movementHoldOwnerId(
+      message.executionId
+    );
+
+  const ok =
+    message.method ===
+      "hold"
+      ? holdMovement(
+          movementId,
+          ownerId
+        )
+      : releaseMovement(
+          movementId,
+          ownerId
+        );
+
+  if (!ok) {
+    postToWorker({
+      type: "commandError",
+      executionId:
+        message.executionId,
+      message:
+        `Movement "${movementId}" is not running.`,
+    });
+
+    return;
+  }
+
+  let owned =
+    movementHoldsByExecution.get(
+      message.executionId
+    );
+
+  if (!owned) {
+    owned =
+      new Set<string>();
+
+    movementHoldsByExecution.set(
+      message.executionId,
+      owned
+    );
+  }
+
+  if (
+    message.method ===
+      "hold"
+  ) {
+    owned.add(
+      movementId
+    );
+  } else {
+    owned.delete(
+      movementId
+    );
+
+    if (
+      owned.size ===
+        0
+    ) {
+      movementHoldsByExecution.delete(
+        message.executionId
+      );
+    }
+  }
+}
+
+function releaseMovementHoldsOwnedByExecution(
+  executionId:
+    ClientScriptExecutionId
+): void {
+  const ownerId =
+    movementHoldOwnerId(
+      executionId
+    );
+
+  for (
+    const movementId of
+    movementHoldsByExecution.get(
+      executionId
+    ) ??
+    []
+  ) {
+    releaseMovement(
+      movementId,
+      ownerId
+    );
+  }
+
+  movementHoldsByExecution.delete(
+    executionId
+  );
+}
+
 function finishExecution(
   elementId: ClientScriptExecutionId
 ): void {
@@ -3104,6 +3243,10 @@ function finishExecution(
       execution.infoOwnerId
     );
   }
+
+  releaseMovementHoldsOwnedByExecution(
+    elementId
+  );
 
   executions.delete(
     elementId
@@ -3138,6 +3281,17 @@ function handleWorkerMessage(
     "dcc"
   ) {
     handleDccCommand(
+      message
+    );
+
+    return;
+  }
+
+  if (
+    message.type ===
+      "movement"
+  ) {
+    handleMovementCommand(
       message
     );
 
