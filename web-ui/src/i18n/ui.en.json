@@ -1366,5 +1366,10 @@
   "dispatcherNextBlock": "Next block",
   "dispatcherNoTasks": "No Dispatcher movement has been started yet.",
   "dispatcherLog": "Dispatcher log",
-  "dispatcherNoLog": "No Dispatcher events yet."
+  "dispatcherNoLog": "No Dispatcher events yet.",
+  "dispatcherEnabled": "Enabled",
+  "dispatcherStopAll": "Stop all Dispatcher trains",
+  "dispatcherAbortAll": "Abort all Dispatcher movements",
+  "dispatcherEmergencyStop": "Emergency stop",
+  "dispatcherClearEstop": "Clear E-Stop"
 }
