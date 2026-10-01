@@ -1678,6 +1678,16 @@ public sealed class MovementRuntime
             await DrainReadyResourceLeaves(
                 execution);
 
+            await MaybeRunBlockLeave(
+                execution,
+                leg,
+                blockLeaveState);
+
+            await MaybeRunBlockApproach(
+                execution,
+                leg,
+                blockApproachState);
+
             Patch(
                 execution,
                 activeRouteResourceKey: leg.To.Key,
