@@ -35,6 +35,10 @@ export type ClientScriptTurnoutCatalogItem = {
   openedAspect: number;
 };
 
+export type ClientScriptWorkerMovementMethod =
+  | "hold"
+  | "release";
+
 export type ClientScriptWorkerDccMethod =
   | "setPower"
   | "setProgrammingPower"
@@ -131,6 +135,12 @@ export type MainToWorkerMessage =
     };
 
 export type WorkerToMainMessage =
+  | {
+      type: "movement";
+      executionId: ClientScriptWorkerExecutionId;
+      method: ClientScriptWorkerMovementMethod;
+      args: unknown[];
+    }
   | {
       type: "dcc";
       executionId: ClientScriptWorkerExecutionId;
