@@ -743,39 +743,145 @@ function explicitBlockRuleFor(
   );
 }
 
+function blockEventConditionsFor(
+  layout:
+    SerializedLayoutDto,
+  blockId: number,
+  direction:
+    | "unknown"
+    | "forward"
+    | "reverse",
+  event:
+    | "beforeArrive"
+    | "arrived"
+    | "beforeLeave"
+    | "afterLeave"
+): MovementSensorCondition[] {
+  if (
+    direction ===
+      "unknown"
+  ) {
+    return [];
+  }
+
+  for (
+    const layer of
+    layout.layers ??
+    []
+  ) {
+    for (
+      const element of
+      layer.elements ??
+      []
+    ) {
+      if (
+        element.type !==
+          "trackblock" ||
+        Number(
+          element.id
+        ) !== blockId
+      ) {
+        continue;
+      }
+
+      const conditions =
+        element.eventConfig?.[
+          direction
+        ]?.[
+          event
+        ] ??
+        [];
+
+      return conditions.map(
+        (
+          condition,
+          index
+        ) => ({
+          id:
+            `block-event-${blockId}-${direction}-${event}-${index}`,
+          sensor:
+            condition.sensor,
+          state:
+            condition.state,
+        })
+      );
+    }
+  }
+
+  return [];
+}
+
 function approachRuleFor(
   page:
     MovementPage,
-  blockId: number
+  blockId: number,
+  layout:
+    SerializedLayoutDto,
+  direction:
+    | "unknown"
+    | "forward"
+    | "reverse"
 ): MovementSensorCondition[] {
-  return (
+  const explicit =
     explicitBlockRuleFor(
       page,
       blockId
     )?.approachWhen ??
-    []
-  ).map(
-    condition => ({
-      ...condition,
-    })
+    [];
+
+  if (
+    explicit.length >
+      0
+  ) {
+    return explicit.map(
+      condition => ({
+        ...condition,
+      })
+    );
+  }
+
+  return blockEventConditionsFor(
+    layout,
+    blockId,
+    direction,
+    "beforeArrive"
   );
 }
 
 function departureRuleFor(
   page:
     MovementPage,
-  blockId: number
+  blockId: number,
+  layout:
+    SerializedLayoutDto,
+  direction:
+    | "unknown"
+    | "forward"
+    | "reverse"
 ): MovementSensorCondition[] {
-  return (
+  const explicit =
     explicitBlockRuleFor(
       page,
       blockId
     )?.departWhen ??
-    []
-  ).map(
-    condition => ({
-      ...condition,
-    })
+    [];
+
+  if (
+    explicit.length >
+      0
+  ) {
+    return explicit.map(
+      condition => ({
+        ...condition,
+      })
+    );
+  }
+
+  return blockEventConditionsFor(
+    layout,
+    blockId,
+    direction,
+    "beforeLeave"
   );
 }
 
@@ -784,7 +890,13 @@ function leaveRuleFor(
     MovementPage,
   blockId: number,
   sensors:
-    Map<number, number>
+    Map<number, number>,
+  layout:
+    SerializedLayoutDto,
+  direction:
+    | "unknown"
+    | "forward"
+    | "reverse"
 ): {
   conditions:
     MovementSensorCondition[];
@@ -808,6 +920,26 @@ function leaveRuleFor(
             ...condition,
           })
         ),
+      explicit:
+        true,
+    };
+  }
+
+  const configured =
+    blockEventConditionsFor(
+      layout,
+      blockId,
+      direction,
+      "afterLeave"
+    );
+
+  if (
+    configured.length >
+      0
+  ) {
+    return {
+      conditions:
+        configured,
       explicit:
         true,
     };
@@ -847,7 +979,13 @@ function arrivalRuleFor(
     MovementPage,
   blockId: number,
   sensors:
-    Map<number, number>
+    Map<number, number>,
+  layout:
+    SerializedLayoutDto,
+  direction:
+    | "unknown"
+    | "forward"
+    | "reverse"
 ): MovementSensorCondition[] {
   const explicit =
     explicitBlockRuleFor(
@@ -865,6 +1003,21 @@ function arrivalRuleFor(
         ...condition,
       })
     );
+  }
+
+  const configured =
+    blockEventConditionsFor(
+      layout,
+      blockId,
+      direction,
+      "arrived"
+    );
+
+  if (
+    configured.length >
+      0
+  ) {
+    return configured;
   }
 
   const destinationSensor =
@@ -1814,7 +1967,9 @@ export function buildMovementPlan(
       leaveRuleFor(
         page,
         from.blockId!,
-        sensors
+        sensors,
+        layout,
+        route.locoDirection
       );
 
     legs.push({
@@ -1827,12 +1982,16 @@ export function buildMovementPlan(
       approachWhen:
         approachRuleFor(
           page,
-          to.blockId!
+          to.blockId!,
+          layout,
+          route.locoDirection
         ),
       departWhen:
         departureRuleFor(
           page,
-          from.blockId!
+          from.blockId!,
+          layout,
+          route.locoDirection
         ),
       leaveWhen:
         leaveRule.conditions,
@@ -1842,7 +2001,9 @@ export function buildMovementPlan(
         arrivalRuleFor(
           page,
           to.blockId!,
-          sensors
+          sensors,
+          layout,
+          route.locoDirection
         ),
     });
   }
