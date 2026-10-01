@@ -1,4 +1,5 @@
 import {
+  Accordion,
   Badge,
   Button,
   Card,
@@ -284,45 +285,64 @@ export default function TrainTrackingPanel({
         controlStationActive &&
         state.readinessWarnings.length > 0 &&
         (
-          <Card
-            withBorder
-            p="xs"
+          <Accordion
+            variant="contained"
             radius="sm"
           >
-            <Stack gap={3}>
-              <Text
-                size="xs"
-                fw={700}
-                c="yellow"
-              >
-                {
-                  i18next.t(
-                    "ui.trainTrackingRecommendations",
+            <Accordion.Item value="tracking-recommendations">
+              <Accordion.Control>
+                <Group
+                  gap="xs"
+                  wrap="nowrap"
+                >
+                  <Text
+                    size="xs"
+                    fw={700}
+                  >
                     {
-                      defaultValue:
-                        "Tracking recommendations:",
+                      i18next.t(
+                        "ui.trainTrackingRecommendations",
+                        {
+                          defaultValue:
+                            "Recommendations",
+                        }
+                      )
                     }
-                  )
-                }
-              </Text>
+                  </Text>
 
-              {
-                state.readinessWarnings.map(
-                  warning => (
-                    <Text
-                      key={
-                        warning
-                      }
-                      size="xs"
-                      ff="monospace"
-                    >
-                      • {warning}
-                    </Text>
-                  )
-                )
-              }
-            </Stack>
-          </Card>
+                  <Badge
+                    size="xs"
+                    variant="light"
+                    color="yellow"
+                  >
+                    {
+                      state.readinessWarnings.length
+                    }
+                  </Badge>
+                </Group>
+              </Accordion.Control>
+
+              <Accordion.Panel>
+                <Stack gap={3}>
+                  {
+                    state.readinessWarnings.map(
+                      warning => (
+                        <Text
+                          key={
+                            warning
+                          }
+                          size="xs"
+                          ff="monospace"
+                        >
+                          • {warning}
+                        </Text>
+                      )
+                    )
+                  }
+                </Stack>
+              </Accordion.Panel>
+            </Accordion.Item>
+          </Accordion>
         )
       }
 
