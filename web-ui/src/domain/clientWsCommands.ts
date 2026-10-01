@@ -298,6 +298,28 @@ export type BroadcastStopAudioCommandPayload = {
   fileName: string;
 };
 
+export type MovementCommandAction =
+  | "snapshot"
+  | "start"
+  | "stop"
+  | "abort"
+  | "stopAll"
+  | "abortAll";
+
+export type MovementCommandPayload = {
+  requestId: string;
+  action: MovementCommandAction;
+  pageId?: string;
+  page?: unknown;
+  plan?: unknown;
+  emergencyStop?: boolean;
+};
+
+export type MovementAudioCompleteCommandPayload = {
+  requestId: string;
+  ok: boolean;
+};
+
 export type ClientWsPayloadMap = {
   heartbeat: EmptyClientWsCommandPayload;
   controlStationClaim: ControlStationClaimCommandPayload;
@@ -305,6 +327,8 @@ export type ClientWsPayloadMap = {
   getControlStationStatus: EmptyClientWsCommandPayload;
   broadcastPlayAudio: BroadcastPlayAudioCommandPayload;
   broadcastStopAudio: BroadcastStopAudioCommandPayload;
+  movementCommand: MovementCommandPayload;
+  movementAudioComplete: MovementAudioCompleteCommandPayload;
   setTrackPower: SetTrackPowerCommandPayload;
   setProgrammingPower: SetProgrammingPowerCommandPayload;
   emergencyStop: EmptyClientWsCommandPayload;
