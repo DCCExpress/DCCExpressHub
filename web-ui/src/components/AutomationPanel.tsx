@@ -24,11 +24,13 @@ import type {
 import AutomationFlowsTable from "./automation/AutomationFlowsTable";
 import AutomationScriptsTable from "./automation/AutomationScriptsTable";
 import MovementPagesTable from "./movement/MovementPagesTable";
+import TrainTrackingPanel from "./automation/TrainTrackingPanel";
 
 type AutomationPanelTab =
   | "scripts"
   | "flows"
-  | "movement";
+  | "movement"
+  | "tracking";
 
 const AUTOMATION_PANEL_TAB_STORAGE_KEY =
   "dcc-express-hub.automation.activeTab";
@@ -51,7 +53,9 @@ function loadAutomationPanelTab(): AutomationPanelTab {
     stored ===
       "movement" ||
     stored ===
-      "scripts"
+      "scripts" ||
+    stored ===
+      "tracking"
     ? stored
     : "movement";
 }
@@ -83,6 +87,8 @@ type AutomationPanelProps = {
     pageId:
       string
   ) => void;
+  controlStationActive:
+    boolean;
 };
 
 export default function AutomationPanel({
@@ -94,6 +100,7 @@ export default function AutomationPanel({
   movements,
   onMovementsChange,
   onOpenMovementEditor,
+  controlStationActive,
 }: AutomationPanelProps) {
   const [
     activeTab,
@@ -114,7 +121,9 @@ export default function AutomationPanel({
         value !==
           "flows" &&
         value !==
-          "movement"
+          "movement" &&
+        value !==
+          "tracking"
       ) {
         return;
       }
@@ -194,6 +203,20 @@ export default function AutomationPanel({
               )
             }
           </Tabs.Tab>
+
+          <Tabs.Tab
+            value="tracking"
+          >
+            {
+              i18next.t(
+                "ui.automationTrackingTab",
+                {
+                  defaultValue:
+                    "Tracking",
+                }
+              )
+            }
+          </Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel
@@ -249,6 +272,20 @@ export default function AutomationPanel({
             }
             onScriptsChange={
               onScriptsChange
+            }
+          />
+        </Tabs.Panel>
+
+        <Tabs.Panel
+          value="tracking"
+          style={{
+            flex: 1,
+            minHeight: 0,
+          }}
+        >
+          <TrainTrackingPanel
+            controlStationActive={
+              controlStationActive
             }
           />
         </Tabs.Panel>
