@@ -100,7 +100,7 @@ test("Tracking requires block sensors but treats section coverage as recommendat
 
   assert.match(runtime, /Block .* has no occupancy sensor/);
   assert.match(runtime, /SectionPart .* has no sensor; tracking will be less precise there/);
-  assert.match(runtime, /multiple turnout passages without an intermediate block/);
+  assert.doesNotMatch(runtime, /multiple turnout passages without an intermediate block/);
   assert.match(runtime, /readinessWarnings/);
   assert.match(runtime, /ready\s*=\s*readinessIssues\.length ===\s*0/);
   assert.match(runtime, /next\s*&&\s*!ready/);
