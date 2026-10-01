@@ -143,7 +143,7 @@ test("Selected segment and turnout use the resource condition editor", () => {
 test("Movement runtime preserves route locking and changes only resource event boundaries", () => {
   const engine =
     read(
-      "src/services/movementEngine.ts"
+      "src/services/dispatcherExecutionRuntime.ts"
     );
 
   assert.match(
