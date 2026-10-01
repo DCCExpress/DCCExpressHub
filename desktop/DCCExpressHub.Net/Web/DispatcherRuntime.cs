@@ -475,9 +475,22 @@ public sealed class DispatcherRuntime
                     null,
                     BlockingSensor: safety.BlockingSensor);
 
-            foreach (var turnout in turnouts)
+            for (
+                var index = 0;
+                index < turnouts.Length;
+                index++)
             {
                 ct.ThrowIfCancellationRequested();
+
+                var turnout =
+                    turnouts[index];
+
+                var needsChange =
+                    !_runtime.TryGetTurnoutClosed(
+                        turnout.Address,
+                        out var currentClosed) ||
+                    currentClosed !=
+                        turnout.Closed;
 
                 if (!await SetTurnoutAsync(
                         turnout,
@@ -487,6 +500,18 @@ public sealed class DispatcherRuntime
                         false,
                         "turnout_command_failed",
                         null);
+
+                /*
+                 * Match the proven browser runtime behavior: after an actual
+                 * turnout change leave a short mechanical/command-station
+                 * settling interval before issuing the next turnout command.
+                 */
+                if (needsChange &&
+                    index + 1 <
+                        turnouts.Length)
+                    await Task.Delay(
+                        250,
+                        ct);
             }
 
             // Final safety check after physical turnout commands.
