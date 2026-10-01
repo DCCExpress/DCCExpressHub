@@ -38,7 +38,7 @@ function loadAutomationPanelTab(): AutomationPanelTab {
     typeof window ===
       "undefined"
   ) {
-    return "scripts";
+    return "movement";
   }
 
   const stored =
@@ -53,7 +53,7 @@ function loadAutomationPanelTab(): AutomationPanelTab {
     stored ===
       "scripts"
     ? stored
-    : "scripts";
+    : "movement";
 }
 
 type AutomationPanelProps = {
@@ -154,14 +154,14 @@ export default function AutomationPanel({
       >
         <Tabs.List>
           <Tabs.Tab
-            value="scripts"
+            value="movement"
           >
             {
               i18next.t(
-                "ui.automationScriptsTab",
+                "ui.automationMovementTab",
                 {
                   defaultValue:
-                    "Scripts",
+                    "Movements",
                 }
               )
             }
@@ -182,14 +182,14 @@ export default function AutomationPanel({
           </Tabs.Tab>
 
           <Tabs.Tab
-            value="movement"
+            value="scripts"
           >
             {
               i18next.t(
-                "ui.automationMovementTab",
+                "ui.automationScriptsTab",
                 {
                   defaultValue:
-                    "Movement",
+                    "Scripts",
                 }
               )
             }
@@ -197,18 +197,21 @@ export default function AutomationPanel({
         </Tabs.List>
 
         <Tabs.Panel
-          value="scripts"
+          value="movement"
           style={{
             flex: 1,
             minHeight: 0,
           }}
         >
-          <AutomationScriptsTable
-            scripts={
-              scripts
+          <MovementPagesTable
+            document={
+              movements
             }
-            onScriptsChange={
-              onScriptsChange
+            onDocumentChange={
+              onMovementsChange
+            }
+            onOpenEditor={
+              onOpenMovementEditor
             }
           />
         </Tabs.Panel>
@@ -234,21 +237,18 @@ export default function AutomationPanel({
         </Tabs.Panel>
 
         <Tabs.Panel
-          value="movement"
+          value="scripts"
           style={{
             flex: 1,
             minHeight: 0,
           }}
         >
-          <MovementPagesTable
-            document={
-              movements
+          <AutomationScriptsTable
+            scripts={
+              scripts
             }
-            onDocumentChange={
-              onMovementsChange
-            }
-            onOpenEditor={
-              onOpenMovementEditor
+            onScriptsChange={
+              onScriptsChange
             }
           />
         </Tabs.Panel>
