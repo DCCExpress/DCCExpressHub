@@ -61,6 +61,7 @@ import { useCommandCenter } from "@/context/CommandCenterContext";
 import { useLayoutPageShortcuts } from "@/hooks/layout/useLayoutPageShortcuts";
 import BasicPropertyEditor from "@/layout/property-panel/BasicPropertyEditor";
 import BlockTypeSelectPropertyEditor from "@/layout/property-panel/BlockTypeSelectPropertyEditor";
+import BlockEventConfigPropertyEditor from "@/layout/property-panel/BlockEventConfigPropertyEditor";
 import SignalAspectPropertyEditor from "@/layout/property-panel/SignalAspectPropertyEditor";
 import TurnoutBitPropertyEditor from "@/layout/property-panel/TurnoutBitPropertyEditor";
 import RouteTurnoutSelectionPropertyEditor from "@/layout/property-panel/RouteTurnoutSelectionPropertyEditor";
@@ -871,6 +872,16 @@ function LitePropertyPanel({
             )}
           </Card>
         ))}
+
+        {selectedElement instanceof BlockElement && (
+          <Card withBorder p="xs">
+            <BlockEventConfigPropertyEditor
+              block={selectedElement}
+              layout={layout}
+              onChange={invalidate}
+            />
+          </Card>
+        )}
       </Stack>
     </ScrollArea>
   );
