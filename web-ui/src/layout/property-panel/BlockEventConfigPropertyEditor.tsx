@@ -214,7 +214,9 @@ function SensorConditionMarker({
     return null;
   }
 
-  const itemWidth = 46;
+  const itemWidth = 48;
+  const badgeWidth = 42;
+  const badgeHeight = 18;
   const totalWidth =
     conditions.length * itemWidth;
 
@@ -232,53 +234,45 @@ function SensorConditionMarker({
           condition,
           index
         ) => {
-          const itemX =
+          const badgeX =
             startX +
-            index * itemWidth;
-
-          const circleX =
-            itemX + 6;
-
-          const labelX =
-            itemX + 16;
+            index * itemWidth +
+            (itemWidth - badgeWidth) / 2;
 
           return (
             <g
               key={`${condition.sensor}-${condition.state}-${index}`}
             >
-              <circle
-                cx={circleX}
-                cy={y}
-                r="5.5"
+              <rect
+                x={badgeX}
+                y={y - badgeHeight / 2}
+                width={badgeWidth}
+                height={badgeHeight}
+                rx="9"
                 fill={
                   condition.state
                     ? "var(--mantine-color-blue-filled)"
-                    : "var(--mantine-color-gray-3)"
+                    : "var(--mantine-color-gray-2)"
                 }
                 stroke={
                   condition.state
-                    ? "var(--mantine-color-blue-8)"
-                    : "var(--mantine-color-gray-6)"
+                    ? "var(--mantine-color-blue-7)"
+                    : "var(--mantine-color-gray-5)"
                 }
-                strokeWidth="1.2"
+                strokeWidth="1"
               />
 
-              {!condition.state && (
-                <circle
-                  cx={circleX}
-                  cy={y}
-                  r="2.2"
-                  fill="var(--mantine-color-body)"
-                />
-              )}
-
               <text
-                x={labelX}
+                x={badgeX + badgeWidth / 2}
                 y={y + 3.5}
-                textAnchor="start"
-                fontSize="9.5"
+                textAnchor="middle"
+                fontSize="9"
                 fontWeight="700"
-                fill="var(--mantine-color-text)"
+                fill={
+                  condition.state
+                    ? "var(--mantine-color-white)"
+                    : "var(--mantine-color-text)"
+                }
               >
                 {condition.sensor}
               </text>
