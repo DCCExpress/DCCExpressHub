@@ -1372,5 +1372,8 @@
   "dispatcherAbortAll": "Abort all Dispatcher movements",
   "dispatcherEmergencyStop": "Emergency stop",
   "dispatcherClearEstop": "Clear E-Stop",
-  "trainTrackingSectionParts": "Section parts"
+  "trainTrackingSectionParts": "Section parts",
+  "trainTrackingNextBlock": "Next block",
+  "trainTrackingPathDialogTitle": "Sensor path — locomotive #{{address}}",
+  "trainTrackingPathDialogDescription": "Recent sensors retained by Train Tracking."
 }
