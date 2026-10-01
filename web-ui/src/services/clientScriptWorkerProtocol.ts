@@ -125,6 +125,15 @@ export type MainToWorkerMessage =
       error?: string;
     }
   | {
+      type: "dispatcherResult";
+      executionId: ClientScriptWorkerExecutionId;
+      requestId: number;
+      ok: boolean;
+      response?: unknown;
+      error?: string;
+      details?: unknown;
+    }
+  | {
       type: "commandError";
       executionId: ClientScriptWorkerExecutionId;
       message: string;
@@ -142,6 +151,13 @@ export type WorkerToMainMessage =
       executionId: ClientScriptWorkerExecutionId;
       requestId: number;
       name: string;
+    }
+  | {
+      type: "dispatcher";
+      executionId: ClientScriptWorkerExecutionId;
+      requestId: number;
+      action: string;
+      payload: Record<string, unknown>;
     }
   | {
       type: "info";
