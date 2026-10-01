@@ -1024,6 +1024,7 @@
   "trainTrackingLastSensor": "Utolsó szenzor",
   "trainTrackingLog": "Követési napló",
   "trainTrackingRequirementsMissing": "A Tracking még nem kapcsolható be:",
+  "trainTrackingRecommendations": "Tracking ajánlások:",
   "automationFlowsTab": "Flow-k",
   "automationMovementTab": "Mozgások",
   "automationStatus": "Állapot",
