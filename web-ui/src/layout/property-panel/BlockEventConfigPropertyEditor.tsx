@@ -101,6 +101,8 @@ const TEXT = {
       "Irányfüggő szenzorfeltételek a blokk érkezési és elhagyási eseményeihez.",
     forward: "Forward",
     reverse: "Reverse",
+    arrival: "Érkezés",
+    departure: "Elhagyás",
     beforeArrive: "Before Arrive",
     arrived: "Arrived",
     beforeLeave: "Before Leave",
@@ -136,6 +138,8 @@ const TEXT = {
       "Direction-aware sensor conditions for block arrival and departure events.",
     forward: "Forward",
     reverse: "Reverse",
+    arrival: "Arrival",
+    departure: "Departure",
     beforeArrive: "Before Arrive",
     arrived: "Arrived",
     beforeLeave: "Before Leave",
@@ -171,6 +175,8 @@ const TEXT = {
       "Richtungsabhängige Sensorbedingungen für Ankunfts- und Verlassensereignisse.",
     forward: "Forward",
     reverse: "Reverse",
+    arrival: "Ankunft",
+    departure: "Abfahrt",
     beforeArrive: "Before Arrive",
     arrived: "Arrived",
     beforeLeave: "Before Leave",
@@ -304,8 +310,8 @@ function DirectionDiagram({
    * Forward and Reverse are independent configurations.
    *
    * Physical placement for the active direction:
-   *   Forward: BEFORE on the left, AFTER on the right.
-   *   Reverse: AFTER on the left, BEFORE on the right.
+   *   Forward: ARRIVAL side on the left, DEPARTURE side on the right.
+   *   Reverse: DEPARTURE side on the left, ARRIVAL side on the right.
    */
   const leftSideConditions =
     reverse
@@ -463,7 +469,7 @@ function DirectionDiagram({
           fontWeight="700"
           fill="var(--mantine-color-dimmed)"
         >
-          {reverse ? "AFTER" : "BEFORE"}
+          {reverse ? text.departure : text.arrival}
         </text>
 
         <text
@@ -474,7 +480,7 @@ function DirectionDiagram({
           fontWeight="700"
           fill="var(--mantine-color-dimmed)"
         >
-          {reverse ? "BEFORE" : "AFTER"}
+          {reverse ? text.arrival : text.departure}
         </text>
 
         <text
@@ -897,8 +903,34 @@ export default function BlockEventConfigPropertyEditor({
                 type="auto"
                 offsetScrollbars
               >
-                <Stack gap="xs" pr="xs">
-                  {EVENT_ORDER.map(renderEvent)}
+                <Stack gap="sm" pr="xs">
+                  <Stack gap="xs">
+                    <Text
+                      size="xs"
+                      fw={800}
+                      tt="uppercase"
+                      c="dimmed"
+                    >
+                      {text.arrival}
+                    </Text>
+
+                    {renderEvent("beforeArrive")}
+                    {renderEvent("arrived")}
+                  </Stack>
+
+                  <Stack gap="xs">
+                    <Text
+                      size="xs"
+                      fw={800}
+                      tt="uppercase"
+                      c="dimmed"
+                    >
+                      {text.departure}
+                    </Text>
+
+                    {renderEvent("beforeLeave")}
+                    {renderEvent("afterLeave")}
+                  </Stack>
                 </Stack>
               </ScrollArea>
             </Stack>
