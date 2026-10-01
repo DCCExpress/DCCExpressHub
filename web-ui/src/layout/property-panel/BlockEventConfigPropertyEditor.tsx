@@ -409,26 +409,48 @@ function DirectionDiagram({
 
         <text
           x="55"
-          y="99"
+          y="94"
+          textAnchor="middle"
+          fontSize="9"
+          fontWeight="700"
+          fill="var(--mantine-color-dimmed)"
+        >
+          {reverse ? "AFTER" : "BEFORE"}
+        </text>
+
+        <text
+          x="55"
+          y="105"
           textAnchor="middle"
           fontSize="10"
-          fontWeight="700"
+          fontWeight="800"
           fill="currentColor"
-          opacity="0.78"
+          opacity="0.84"
         >
-          {reverse ? "AFTER · LEFT" : "BEFORE · LEFT"}
+          LEFT
         </text>
 
         <text
           x="305"
-          y="99"
+          y="94"
+          textAnchor="middle"
+          fontSize="9"
+          fontWeight="700"
+          fill="var(--mantine-color-dimmed)"
+        >
+          {reverse ? "BEFORE" : "AFTER"}
+        </text>
+
+        <text
+          x="305"
+          y="105"
           textAnchor="middle"
           fontSize="10"
-          fontWeight="700"
+          fontWeight="800"
           fill="currentColor"
-          opacity="0.78"
+          opacity="0.84"
         >
-          {reverse ? "BEFORE · RIGHT" : "AFTER · RIGHT"}
+          RIGHT
         </text>
 
         <text
