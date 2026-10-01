@@ -4,6 +4,7 @@ import type {
   ClientScriptSignalCatalogItem,
   ClientScriptTurnoutCatalogItem,
   ClientScriptWorkerDccMethod,
+  ClientScriptWorkerMovementMethod,
   ClientScriptWorkerElement,
   ClientScriptWorkerExecutionId,
   MainToWorkerMessage,
@@ -1461,6 +1462,90 @@ function sendDcc(
   });
 }
 
+function sendMovement(
+  executionId:
+    ClientScriptWorkerExecutionId,
+  method:
+    ClientScriptWorkerMovementMethod,
+  args: unknown[]
+): void {
+  post({
+    type: "movement",
+    executionId,
+    method,
+    args:
+      makeCloneableValues(
+        args
+      ),
+  });
+}
+
+function createMovementApi(
+  executionId:
+    ClientScriptWorkerExecutionId,
+  execution:
+    WorkerExecution
+) {
+  const check = () =>
+    assertNotAborted(
+      execution
+    );
+
+  return Object.freeze({
+    hold(
+      movementId: string
+    ): void {
+      check();
+
+      const id =
+        String(
+          movementId ??
+          ""
+        ).trim();
+
+      if (!id) {
+        throw new Error(
+          "movement.hold(movementId): movementId is required."
+        );
+      }
+
+      sendMovement(
+        executionId,
+        "hold",
+        [
+          id,
+        ]
+      );
+    },
+
+    release(
+      movementId: string
+    ): void {
+      check();
+
+      const id =
+        String(
+          movementId ??
+          ""
+        ).trim();
+
+      if (!id) {
+        throw new Error(
+          "movement.release(movementId): movementId is required."
+        );
+      }
+
+      sendMovement(
+        executionId,
+        "release",
+        [
+          id,
+        ]
+      );
+    },
+  });
+}
+
 function createDccApi(
   executionId: ClientScriptWorkerExecutionId,
   execution: WorkerExecution
@@ -2537,6 +2622,12 @@ async function runExecution(
       execution
     );
 
+  const movement =
+    createMovementApi(
+      executionId,
+      execution
+    );
+
   const delay = (
     ms: number
   ): Promise<void> =>
@@ -2588,6 +2679,7 @@ async function runExecution(
     const fn =
       new AsyncFunction(
         "dcc",
+        "movement",
         "delay",
         "log",
         "setInfo",
@@ -2600,6 +2692,7 @@ ${script}
     const result =
       await fn(
         dcc,
+        movement,
         delay,
         log,
         setInfo,
