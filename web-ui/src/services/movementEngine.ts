@@ -205,6 +205,10 @@ type MovementExecution = {
     >;
   resourceLeaveFired:
     Set<string>;
+  externalHolds:
+    Set<string>;
+  afterArrivedBlocks:
+    Set<number>;
   functionNumbersByBindingId:
     Map<number, number>;
 };
@@ -3608,7 +3612,7 @@ async function maybeRunBlockApproach(
 
   emitMovementTrainEvent(
     execution,
-    "approach",
+    "arrival",
     leg.to
   );
 
@@ -4086,6 +4090,41 @@ async function waitForResourceEntry(
   );
 }
 
+async function waitForAfterLeave(
+  execution:
+    MovementExecution,
+  leg:
+    MovementPlanLeg
+): Promise<void> {
+  if (
+    leg.afterLeaveWhen.length ===
+      0
+  ) {
+    return;
+  }
+
+  while (
+    !execution.cancelled
+  ) {
+    if (
+      conditionsSatisfied(
+        leg.afterLeaveWhen
+      )
+    ) {
+      return;
+    }
+
+    await controlledDelay(
+      execution,
+      100
+    );
+  }
+
+  throw new Error(
+    "Movement cancelled."
+  );
+}
+
 async function finishSourceBlockRelease(
   execution:
     MovementExecution,
@@ -4106,6 +4145,11 @@ async function finishSourceBlockRelease(
     execution,
     leg,
     blockLeaveState
+  );
+
+  await waitForAfterLeave(
+    execution,
+    leg
   );
 
   for (
@@ -4203,6 +4247,154 @@ function startBackgroundSourceBlockRelease(
   );
 }
 
+function movementIsHeld(
+  execution:
+    MovementExecution
+): boolean {
+  return execution.externalHolds.size > 0;
+}
+
+async function waitUntilLocoStopped(
+  execution:
+    MovementExecution,
+  timeoutMs = 5000
+): Promise<boolean> {
+  const deadline =
+    Date.now() +
+    timeoutMs;
+
+  while (
+    !execution.cancelled &&
+    Date.now() <
+      deadline
+  ) {
+    const live =
+      wsClient.getLatestLocoState(
+        execution.locoAddress
+      );
+
+    if (
+      live?.speed ===
+        0
+    ) {
+      return true;
+    }
+
+    await controlledDelay(
+      execution,
+      50
+    );
+  }
+
+  return false;
+}
+
+async function emitAfterArrivedIfStopped(
+  execution:
+    MovementExecution,
+  block:
+    MovementPlanResource
+): Promise<void> {
+  if (
+    block.blockId ===
+      null ||
+    execution.afterArrivedBlocks.has(
+      block.blockId
+    ) ||
+    execution.moving
+  ) {
+    return;
+  }
+
+  if (
+    !await waitUntilLocoStopped(
+      execution
+    )
+  ) {
+    return;
+  }
+
+  execution.afterArrivedBlocks.add(
+    block.blockId
+  );
+
+  emitMovementTrainEvent(
+    execution,
+    "afterArrived",
+    block
+  );
+}
+
+async function waitForExternalHolds(
+  execution:
+    MovementExecution,
+  leg:
+    MovementPlanLeg
+): Promise<void> {
+  if (!movementIsHeld(execution)) {
+    return;
+  }
+
+  execution.moving =
+    false;
+
+  execution.desiredSpeed =
+    0;
+
+  updateState(
+    execution,
+    {
+      desiredSpeed:
+        0,
+    }
+  );
+
+  applyDesiredSpeed(
+    execution,
+    true
+  );
+
+  await emitAfterArrivedIfStopped(
+    execution,
+    leg.from
+  );
+
+  while (
+    !execution.cancelled &&
+    movementIsHeld(
+      execution
+    )
+  ) {
+    setInfo(
+      execution,
+      `Movement held at ${leg.from.name}`,
+      leg.from.key
+    );
+
+    await controlledDelay(
+      execution,
+      100
+    );
+  }
+
+  if (execution.cancelled) {
+    throw new Error(
+      "Movement cancelled."
+    );
+  }
+
+  execution.desiredSpeed =
+    execution.page.speed;
+
+  updateState(
+    execution,
+    {
+      desiredSpeed:
+        execution.desiredSpeed,
+    }
+  );
+}
+
 async function traverseLeg(
   execution:
     MovementExecution,
@@ -4229,6 +4421,11 @@ async function traverseLeg(
     leg.from.key
   );
 
+  await waitForExternalHolds(
+    execution,
+    leg
+  );
+
   /*
    * Do not reserve the next leg while a custom DEPART condition is still
    * false. This keeps rolling authority local to the actual movement.
@@ -4249,7 +4446,7 @@ async function traverseLeg(
 
   emitMovementTrainEvent(
     execution,
-    "beforeDepart",
+    "beforeLeave",
     leg.from
   );
 
@@ -4279,7 +4476,7 @@ async function traverseLeg(
 
     emitMovementTrainEvent(
       execution,
-      "depart",
+      "starting",
       leg.from
     );
 
@@ -4587,6 +4784,41 @@ async function traverseLeg(
     );
 
     /*
+     * Flow TrainEvent branches execute in a Worker. Yield briefly while the
+     * train keeps its current speed so an Arrived -> movement.hold() branch
+     * can register its hold before the next leg starts acquiring authority.
+     */
+    await controlledDelay(
+      execution,
+      50
+    );
+
+    if (
+      movementIsHeld(
+        execution
+      )
+    ) {
+      execution.moving =
+        false;
+
+      execution.desiredSpeed =
+        0;
+
+      updateState(
+        execution,
+        {
+          desiredSpeed:
+            0,
+        }
+      );
+
+      applyDesiredSpeed(
+        execution,
+        true
+      );
+    }
+
+    /*
      * ARRIVED is the leg authority handoff boundary for turnouts.
      *
      * The previous leg's turnout route is no longer needed once the train has
@@ -4664,6 +4896,11 @@ async function traverseLeg(
 
       applyDesiredSpeed(
         execution
+      );
+
+      await emitAfterArrivedIfStopped(
+        execution,
+        leg.to
       );
     }
 
@@ -4772,6 +5009,11 @@ async function traverseLeg(
         leg.to.key,
         "arrived"
       );
+
+      await emitAfterArrivedIfStopped(
+        execution,
+        leg.to
+      );
     }
 
     setInfo(
@@ -4853,6 +5095,86 @@ async function executeMovement(
       ]
     );
   }
+}
+
+export function holdMovement(
+  pageId: string,
+  ownerId = "external"
+): boolean {
+  const execution =
+    executions.get(
+      pageId
+    );
+
+  if (!execution) {
+    return false;
+  }
+
+  execution.externalHolds.add(
+    ownerId
+  );
+
+  /*
+   * A hold never grants authority; it can only remove motion authority.
+   * Safety, target-block and turnout checks remain inside traverseLeg().
+   */
+  execution.moving =
+    false;
+
+  execution.desiredSpeed =
+    0;
+
+  updateState(
+    execution,
+    {
+      desiredSpeed:
+        0,
+    }
+  );
+
+  applyDesiredSpeed(
+    execution,
+    true
+  );
+
+  return true;
+}
+
+export function releaseMovement(
+  pageId: string,
+  ownerId = "external"
+): boolean {
+  const execution =
+    executions.get(
+      pageId
+    );
+
+  if (!execution) {
+    return false;
+  }
+
+  execution.externalHolds.delete(
+    ownerId
+  );
+
+  /*
+   * Deliberately do not send a non-zero speed command here. The Movement loop
+   * resumes only after its normal safety/target/turnout authority checks.
+   */
+  return true;
+}
+
+export function getMovementHoldOwners(
+  pageId: string
+): string[] {
+  return [
+    ...(
+      executions.get(
+        pageId
+      )?.externalHolds ??
+      []
+    ),
+  ];
 }
 
 export function getMovementEngineState(
@@ -5210,6 +5532,10 @@ export async function startMovement(
     resourceLeaves:
       new Map(),
     resourceLeaveFired:
+      new Set(),
+    externalHolds:
+      new Set(),
+    afterArrivedBlocks:
       new Set(),
     functionNumbersByBindingId,
   };
