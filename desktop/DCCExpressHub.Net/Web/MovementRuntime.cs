@@ -386,14 +386,20 @@ public sealed class MovementRuntime
         Execution execution,
         Func<bool> predicate,
         string info,
+        bool stopWhileWaiting = true,
         int pollMs = 75)
     {
         while (!predicate())
         {
             execution.Cancellation.Token.ThrowIfCancellationRequested();
 
-            execution.Moving = false;
-            await ApplySpeed(execution, force: false);
+            if (stopWhileWaiting)
+            {
+                execution.Moving = false;
+                await ApplySpeed(
+                    execution,
+                    force: false);
+            }
 
             Patch(
                 execution,
@@ -408,7 +414,8 @@ public sealed class MovementRuntime
 
     async Task ApplySpeed(
         Execution execution,
-        bool force)
+        bool force,
+        CancellationToken? cancellationToken = null)
     {
         var speed =
             execution.Moving
@@ -428,7 +435,8 @@ public sealed class MovementRuntime
                 execution.LocoAddress,
                 speed,
                 execution.Forward,
-                execution.Cancellation.Token))
+                cancellationToken ??
+                    execution.Cancellation.Token))
             throw new InvalidOperationException("movement_loco_command_failed");
 
         _hubState.Locos[execution.LocoAddress] =
@@ -818,7 +826,9 @@ public sealed class MovementRuntime
                 execution.Page,
                 resource,
                 eventName),
-            "Waiting for " + resource.Name);
+            "Waiting for " + resource.Name,
+            stopWhileWaiting:
+                false);
     }
 
     async Task WaitBlockLeave(
@@ -1034,7 +1044,9 @@ public sealed class MovementRuntime
             await WaitUntil(
                 execution,
                 () => ConditionsSatisfied(leg.ArrivedWhen),
-                "Waiting for arrival at " + leg.To.Name);
+                "Waiting for arrival at " + leg.To.Name,
+                stopWhileWaiting:
+                    false);
 
             Patch(
                 execution,
@@ -1205,7 +1217,9 @@ public sealed class MovementRuntime
             {
                 await ApplySpeed(
                     execution,
-                    force: true);
+                    force: true,
+                    cancellationToken:
+                        CancellationToken.None);
             }
             catch
             {
@@ -1398,6 +1412,41 @@ public sealed class MovementRuntime
 
         execution.Moving = false;
         execution.DesiredSpeed = 0;
+
+        _ = _commandCenter.SetLocoAsync(
+            execution.LocoAddress,
+            0,
+            execution.Forward,
+            CancellationToken.None)
+            .ContinueWith(
+                task =>
+                {
+                    if (task.IsCompletedSuccessfully &&
+                        task.Result)
+                    {
+                        var old =
+                            _hubState.Locos.GetValueOrDefault(
+                                execution.LocoAddress,
+                                new(
+                                    execution.LocoAddress,
+                                    0,
+                                    execution.Forward,
+                                    0));
+
+                        _hubState.Locos[
+                            execution.LocoAddress] =
+                            old with
+                            {
+                                Speed = 0,
+                                Forward =
+                                    execution.Forward
+                            };
+                    }
+                },
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+
         execution.Cancellation.Cancel();
 
         return true;
