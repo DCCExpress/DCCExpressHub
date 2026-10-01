@@ -152,6 +152,17 @@ public sealed class MovementRuntime
         public required MovementPlanResourceModel Resource { get; init; }
     }
 
+    sealed class BlockApproachState
+    {
+        public bool Fired { get; set; }
+    }
+
+    sealed class BlockLeaveState
+    {
+        public bool SeenOccupied { get; set; }
+        public bool Fired { get; set; }
+    }
+
     sealed class Execution
     {
         public required MovementPageModel Page { get; init; }
@@ -1062,7 +1073,10 @@ public sealed class MovementRuntime
 
     async Task WaitResourceEntry(
         Execution execution,
-        MovementPlanResourceModel resource)
+        MovementPlanLegModel leg,
+        MovementPlanResourceModel resource,
+        BlockLeaveState blockLeaveState,
+        BlockApproachState blockApproachState)
     {
         var eventName =
             string.Equals(resource.Kind, "turnout", StringComparison.Ordinal)
@@ -1088,6 +1102,16 @@ public sealed class MovementRuntime
             await DrainReadyResourceLeaves(
                 execution);
 
+            await MaybeRunBlockLeave(
+                execution,
+                leg,
+                blockLeaveState);
+
+            await MaybeRunBlockApproach(
+                execution,
+                leg,
+                blockApproachState);
+
             Patch(
                 execution,
                 info:
@@ -1102,45 +1126,171 @@ public sealed class MovementRuntime
         }
     }
 
-    async Task WaitBlockLeave(
-        Execution execution,
+    BlockLeaveState CreateBlockLeaveState(
         MovementPlanLegModel leg)
     {
-        if (leg.LeaveWhen.Length == 0)
+        var sensor =
+            leg.From.SensorAddress;
+
+        return new BlockLeaveState
+        {
+            SeenOccupied =
+                sensor is >= 1 and <= 65535 &&
+                _layout.TryGetSensorState(
+                    (ushort)sensor.Value,
+                    out var occupied) &&
+                occupied,
+            Fired =
+                false
+        };
+    }
+
+    async Task MaybeRunBlockApproach(
+        Execution execution,
+        MovementPlanLegModel leg,
+        BlockApproachState state)
+    {
+        if (state.Fired ||
+            leg.ApproachWhen.Length == 0 ||
+            !ConditionsSatisfied(
+                leg.ApproachWhen))
+            return;
+
+        state.Fired =
+            true;
+
+        await RunActions(
+            execution,
+            leg.To.Key,
+            "approach");
+
+        Patch(
+            execution,
+            info:
+                "Approaching: " +
+                leg.To.Name,
+            setInfo:
+                true);
+    }
+
+    async Task MaybeRunBlockLeave(
+        Execution execution,
+        MovementPlanLegModel leg,
+        BlockLeaveState state)
+    {
+        if (state.Fired ||
+            leg.LeaveWhen.Length == 0)
             return;
 
         if (leg.LeaveWhenExplicit)
         {
-            await WaitUntil(
-                execution,
-                () => ConditionsSatisfied(leg.LeaveWhen),
-                "Waiting to leave " + leg.From.Name);
-            return;
+            if (!ConditionsSatisfied(
+                    leg.LeaveWhen))
+                return;
+        }
+        else
+        {
+            var sensor =
+                leg.From.SensorAddress;
+
+            if (sensor is null ||
+                sensor is < 1 or > 65535)
+                return;
+
+            if (!_layout.TryGetSensorState(
+                    (ushort)sensor.Value,
+                    out var occupied))
+                return;
+
+            if (occupied)
+            {
+                state.SeenOccupied =
+                    true;
+                return;
+            }
+
+            if (!state.SeenOccupied)
+                return;
         }
 
-        var sensor = leg.From.SensorAddress;
+        state.Fired =
+            true;
 
-        if (sensor is null)
+        await RunActions(
+            execution,
+            leg.From.Key,
+            "leave");
+
+        Patch(
+            execution,
+            info:
+                "Left block: " +
+                leg.From.Name,
+            setInfo:
+                true);
+    }
+
+    async Task WaitForBlockLeave(
+        Execution execution,
+        MovementPlanLegModel leg,
+        BlockLeaveState state)
+    {
+        if (state.Fired ||
+            leg.LeaveWhen.Length == 0)
             return;
 
-        var seenOccupied =
-            _layout.TryGetSensorState((ushort)sensor.Value, out var initial) &&
-            initial;
-
-        while (true)
+        while (!state.Fired)
         {
             execution.Cancellation.Token.ThrowIfCancellationRequested();
 
-            if (_layout.TryGetSensorState((ushort)sensor.Value, out var occupied))
-            {
-                if (occupied)
-                    seenOccupied = true;
-                else if (seenOccupied)
-                    return;
-            }
+            await DrainReadyResourceLeaves(
+                execution);
 
-            await Task.Delay(75, execution.Cancellation.Token);
+            await MaybeRunBlockLeave(
+                execution,
+                leg,
+                state);
+
+            if (state.Fired)
+                return;
+
+            Patch(
+                execution,
+                info:
+                    "Waiting to leave " +
+                    leg.From.Name,
+                setInfo:
+                    true);
+
+            await Task.Delay(
+                100,
+                execution.Cancellation.Token);
         }
+    }
+
+    async Task RunBlockLeaveFallback(
+        Execution execution,
+        MovementPlanLegModel leg,
+        BlockLeaveState state)
+    {
+        if (state.Fired)
+            return;
+
+        state.Fired =
+            true;
+
+        await RunActions(
+            execution,
+            leg.From.Key,
+            "leave");
+
+        Patch(
+            execution,
+            info:
+                "Left block: " +
+                leg.From.Name,
+            setInfo:
+                true);
     }
 
     bool TargetBlockBasicallyFree(
@@ -1307,17 +1457,41 @@ public sealed class MovementRuntime
             execution.Moving = true;
             await ApplySpeed(execution, force: true);
 
-            var approachFired = false;
+            var blockApproachState =
+                new BlockApproachState();
 
-            if (leg.ApproachWhen.Length > 0 &&
-                ConditionsSatisfied(leg.ApproachWhen))
+            await MaybeRunBlockApproach(
+                execution,
+                leg,
+                blockApproachState);
+
+            var approachSegments =
+                leg.Resources
+                    .Where(resource =>
+                        string.Equals(
+                            resource.Kind,
+                            "segment",
+                            StringComparison.Ordinal))
+                    .ToArray();
+
+            var approachSegment =
+                approachSegments.LastOrDefault();
+
+            if (approachSegment is null &&
+                leg.ApproachWhen.Length == 0)
             {
                 await RunActions(
                     execution,
                     leg.To.Key,
                     "approach");
-                approachFired = true;
+
+                blockApproachState.Fired =
+                    true;
             }
+
+            var blockLeaveState =
+                CreateBlockLeaveState(
+                    leg);
 
             MovementPlanResourceModel? previousSegment =
                 execution.Plan.Resources.FirstOrDefault(resource =>
@@ -1333,7 +1507,10 @@ public sealed class MovementRuntime
 
                 await WaitResourceEntry(
                     execution,
-                    resource);
+                    leg,
+                    resource,
+                    blockLeaveState,
+                    blockApproachState);
 
                 Patch(
                     execution,
@@ -1392,15 +1569,30 @@ public sealed class MovementRuntime
                         resource;
                 }
 
-                if (!approachFired &&
-                    leg.ApproachWhen.Length > 0 &&
-                    ConditionsSatisfied(leg.ApproachWhen))
+                await MaybeRunBlockLeave(
+                    execution,
+                    leg,
+                    blockLeaveState);
+
+                await MaybeRunBlockApproach(
+                    execution,
+                    leg,
+                    blockApproachState);
+
+                if (!blockApproachState.Fired &&
+                    leg.ApproachWhen.Length == 0 &&
+                    string.Equals(
+                        approachSegment?.Key,
+                        resource.Key,
+                        StringComparison.Ordinal))
                 {
                     await RunActions(
                         execution,
                         leg.To.Key,
                         "approach");
-                    approachFired = true;
+
+                    blockApproachState.Fired =
+                        true;
                 }
             }
 
@@ -1415,6 +1607,16 @@ public sealed class MovementRuntime
 
                 await DrainReadyResourceLeaves(
                     execution);
+
+                await MaybeRunBlockLeave(
+                    execution,
+                    leg,
+                    blockLeaveState);
+
+                await MaybeRunBlockApproach(
+                    execution,
+                    leg,
+                    blockApproachState);
 
                 Patch(
                     execution,
@@ -1462,7 +1664,15 @@ public sealed class MovementRuntime
                 await ApplySpeed(execution, force: true);
             }
 
-            await WaitBlockLeave(execution, leg);
+            await MaybeRunBlockLeave(
+                execution,
+                leg,
+                blockLeaveState);
+
+            await WaitForBlockLeave(
+                execution,
+                leg,
+                blockLeaveState);
 
             foreach (var turnout in pendingTurnouts.ToArray())
             {
@@ -1483,10 +1693,13 @@ public sealed class MovementRuntime
             await DrainReadyResourceLeaves(
                 execution);
 
-            await RunActions(
-                execution,
-                leg.From.Key,
-                "leave");
+            if (leg.LeaveWhen.Length == 0)
+            {
+                await RunBlockLeaveFallback(
+                    execution,
+                    leg,
+                    blockLeaveState);
+            }
 
             if (leg.From.BlockId is >= 1 and <= 65535)
                 _layout.RemoveBlock(
