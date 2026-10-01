@@ -54,7 +54,8 @@ public sealed record DispatcherRouteRequest(
     DispatcherRouteBlockRequirement[] DownstreamBlocks,
     DispatcherTurnoutRequirement[] Turnouts,
     string[] ResourceKeys,
-    int TurnoutLockTimeoutMs = 0);
+    int TurnoutLockTimeoutMs = 0,
+    int TurnoutSetDelayMs = 250);
 
 public sealed record DispatcherRouteLeaseInfo(
     string OwnerId,
