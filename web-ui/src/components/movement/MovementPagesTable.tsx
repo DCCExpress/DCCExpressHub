@@ -46,8 +46,9 @@ import {
 } from "../../services/automationBlockCatalog";
 
 import {
-  abortMovement,
+  abortAllMovements,
   getMovementEngineState,
+  stopAllMovements,
   stopMovement,
   subscribeMovementEngineState,
   type MovementEngineState,
@@ -562,78 +563,35 @@ export default function MovementPagesTable({
 
   const stopAll =
     (): void => {
-      let stopped =
-        0;
-
-      for (
-        const page of
-        document.pages
-      ) {
-        if (
-          stopMovement(
-            page.id
-          )
-        ) {
-          stopped +=
-            1;
-        }
-      }
+      const sent =
+        stopAllMovements();
 
       showNotification({
         color:
-          stopped > 0
+          sent
             ? "yellow"
-            : "gray",
+            : "red",
         title:
           mt("movementStopAll"),
         message:
-          stopped > 0
+          sent
             ? mt(
                 "movementStoppingCount",
                 {
                   count:
-                    stopped,
+                    activeCount,
                 }
               )
-            : mt("movementNoRunning"),
+            : mt(
+                "movementCommandFailed"
+              ),
       });
     };
 
   const abortAll =
     (): void => {
-      let aborted =
-        0;
-
-      for (
-        const page of
-        document.pages
-      ) {
-        if (
-          abortMovement(
-            page.id,
-            false
-          )
-        ) {
-          aborted +=
-            1;
-        }
-      }
-
-      const emergencyAlreadyOn =
-        commandCenter.powerInfo
-          ?.emergencyStop ===
-        true;
-
-      const emergencyKnownOff =
-        commandCenter.powerInfo
-          ?.emergencyStop ===
-        false;
-
-      const emergencySent =
-        aborted > 0 &&
-        emergencyKnownOff
-          ? wsApi.emergencyStop()
-          : false;
+      const sent =
+        abortAllMovements();
 
       showNotification({
         color:
@@ -641,32 +599,17 @@ export default function MovementPagesTable({
         title:
           mt("movementAbortAll"),
         message:
-          aborted ===
-            0
-            ? mt("movementNoRunning")
-            : emergencyAlreadyOn
-              ? mt(
-                  "movementAbortedEstopAlready",
-                  {
-                    count:
-                      aborted,
-                  }
-                )
-              : emergencySent
-                ? mt(
-                    "movementAbortedAndEstop",
-                    {
-                      count:
-                        aborted,
-                    }
-                  )
-                : mt(
-                    "movementAbortedCount",
-                    {
-                      count:
-                        aborted,
-                    }
-                  ),
+          sent
+            ? mt(
+                "movementAbortedAndEstop",
+                {
+                  count:
+                    activeCount,
+                }
+              )
+            : mt(
+                "movementCommandFailed"
+              ),
       });
     };
 
