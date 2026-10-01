@@ -257,8 +257,6 @@ class WebSocketApi {
       | "abortAll",
     values: {
       pageId?: string;
-      page?: unknown;
-      plan?: unknown;
       emergencyStop?: boolean;
     } = {}
   ): boolean {
