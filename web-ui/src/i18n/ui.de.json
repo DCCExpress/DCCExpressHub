@@ -1023,6 +1023,7 @@
   "trainTrackingActiveSensors": "Aktive Sensoren",
   "trainTrackingLastSensor": "Letzter Sensor",
   "trainTrackingLog": "Tracking-Protokoll",
+  "trainTrackingRequirementsMissing": "Tracking kann noch nicht aktiviert werden:",
   "automationFlowsTab": "Flows",
   "automationMovementTab": "Bewegungen",
   "automationStatus": "Status",
