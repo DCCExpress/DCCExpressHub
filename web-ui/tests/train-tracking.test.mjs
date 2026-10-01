@@ -259,7 +259,7 @@ test("Tracking predicts a unique next block from direction and live turnout stat
 
   assert.match(
     block,
-    /#22d3ee/
+    /#ffd43b/
   );
 
   assert.match(
