@@ -14,7 +14,7 @@ public sealed class WsHub
     readonly LayoutRuntime LayoutRuntime;
     readonly RuntimeStateStore RuntimeStateStore;
     readonly LocoCounterRuntime LocoCounters;
-    readonly SwitchManManager SwitchMan = new();
+    readonly SwitchManManager SwitchMan;
     private readonly ILogger<WsHub> Logger;
     private readonly FastClockRuntime FastClock = new();
     private readonly ConcurrentDictionary<Guid, WebSocket> Clients = new();
@@ -31,13 +31,14 @@ public sealed class WsHub
     private static readonly TimeSpan WebSocketSendTimeout = TimeSpan.FromSeconds(2);
     public int ClientCount => Clients.Count;
 
-    public WsHub(ICommandCenter cc, HubState state, LayoutRuntime runtime, RuntimeStateStore stateStore, CommandCenterConfigStore ccConfig, LocoCounterRuntime locoCounters, ILogger<WsHub> log)
+    public WsHub(ICommandCenter cc, HubState state, LayoutRuntime runtime, RuntimeStateStore stateStore, CommandCenterConfigStore ccConfig, LocoCounterRuntime locoCounters, SwitchManManager switchMan, ILogger<WsHub> log)
     {
         CommandCenter = cc;
         HubState = state;
         LayoutRuntime = runtime;
         RuntimeStateStore = stateStore;
         LocoCounters = locoCounters;
+        SwitchMan = switchMan;
         CommandCenterConfigStore = ccConfig;
         LayoutRuntime.Changed += (type, data) => _ = Broadcast(type, data);
         SwitchMan.Changed += snapshot => _ = Broadcast("switchManChanged", new { locks = snapshot ?? SwitchMan.Snapshot() });
