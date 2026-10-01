@@ -1300,7 +1300,22 @@ function predictedRouteForTracking(
       direction
     );
 
-  return routes.length ===
+  if (
+    routes.length ===
+      0
+  ) {
+    return null;
+  }
+
+  const destinations =
+    new Set(
+      routes.map(
+        route =>
+          route.toBlockId
+      )
+    );
+
+  return destinations.size ===
       1
     ? routes[0]!
     : null;
