@@ -198,6 +198,18 @@ const NODE_META:
       title:
         "Horn",
     },
+    movementHold: {
+      icon: "⏸",
+      color: "red",
+      title:
+        "Movement Hold",
+    },
+    movementRelease: {
+      icon: "▶",
+      color: "green",
+      title:
+        "Movement Release",
+    },
     delay: {
       icon: "⏱",
       color: "gray",
@@ -420,6 +432,12 @@ function summary(
         `F${data.functionNumber ?? 2} · ` +
         `${data.pulseMs ?? 700} ms`
       );
+
+    case "movementHold":
+      return "payload.movementId · hold";
+
+    case "movementRelease":
+      return "payload.movementId · release";
 
     case "delay":
       return (
