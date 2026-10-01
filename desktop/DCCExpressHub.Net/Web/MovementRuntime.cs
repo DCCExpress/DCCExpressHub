@@ -187,6 +187,7 @@ public sealed class MovementRuntime
     readonly object _gate = new();
     readonly LayoutRuntime _layout;
     readonly DispatcherRuntime _dispatcher;
+    readonly SwitchManManager _switchMan;
     readonly MovementPlanBuilder _planBuilder;
     readonly ICommandCenter _commandCenter;
     readonly HubState _hubState;
@@ -205,6 +206,7 @@ public sealed class MovementRuntime
     public MovementRuntime(
         LayoutRuntime layout,
         DispatcherRuntime dispatcher,
+        SwitchManManager switchMan,
         MovementPlanBuilder planBuilder,
         ICommandCenter commandCenter,
         HubState hubState,
@@ -213,6 +215,7 @@ public sealed class MovementRuntime
     {
         _layout = layout;
         _dispatcher = dispatcher;
+        _switchMan = switchMan;
         _planBuilder = planBuilder;
         _commandCenter = commandCenter;
         _hubState = hubState;
@@ -766,6 +769,134 @@ public sealed class MovementRuntime
     }
 
 
+    async Task<string?> AcquireActionTurnoutLock(
+        Execution execution,
+        ushort address,
+        bool required)
+    {
+        if (!required)
+            return null;
+
+        var ownerId =
+            "movement-action:" +
+            execution.Page.Id +
+            ":" +
+            Guid.NewGuid().ToString("N");
+
+        var lease =
+            await _switchMan.AcquireAsync(
+                [address],
+                ownerId,
+                "Movement action: " +
+                    execution.Page.Name,
+                0,
+                execution.Cancellation.Token);
+
+        if (!lease.Ok)
+            throw new InvalidOperationException(
+                lease.Error ??
+                "movement_action_turnout_locked");
+
+        return ownerId;
+    }
+
+    async Task SetBasicAccessoryAction(
+        Execution execution,
+        int rawAddress,
+        bool active)
+    {
+        var address =
+            (ushort)Math.Clamp(
+                rawAddress,
+                1,
+                2048);
+
+        var turnout =
+            _layout.FindAccessory(
+                RuntimeAccessoryKind.Turnout,
+                address);
+
+        var lockOwner =
+            await AcquireActionTurnoutLock(
+                execution,
+                address,
+                turnout is not null &&
+                !turnout.TurnoutExtended &&
+                !turnout.TurnoutVPin);
+
+        try
+        {
+            if (!await _commandCenter.SetAccessoryAsync(
+                    address,
+                    active,
+                    execution.Cancellation.Token))
+                throw new InvalidOperationException(
+                    "movement_accessory_command_failed");
+
+            _layout.SetAccessory(
+                address,
+                active);
+        }
+        finally
+        {
+            if (lockOwner is not null)
+                _switchMan.ReleaseOwned(
+                    [address],
+                    lockOwner);
+        }
+    }
+
+    async Task SetExtendedAccessoryAction(
+        Execution execution,
+        int rawAddress,
+        int rawAspect)
+    {
+        var address =
+            (ushort)Math.Clamp(
+                rawAddress,
+                1,
+                2048);
+
+        var aspect =
+            Math.Clamp(
+                rawAspect,
+                0,
+                255);
+
+        var turnout =
+            _layout.FindAccessory(
+                RuntimeAccessoryKind.Turnout,
+                address);
+
+        var lockOwner =
+            await AcquireActionTurnoutLock(
+                execution,
+                address,
+                turnout?.TurnoutExtended ==
+                    true);
+
+        try
+        {
+            if (!await _commandCenter.SetSignalAspectAsync(
+                    address,
+                    aspect,
+                    execution.Cancellation.Token))
+                throw new InvalidOperationException(
+                    "movement_extended_accessory_command_failed");
+
+            _layout.SetSignal(
+                address,
+                aspect);
+        }
+        finally
+        {
+            if (lockOwner is not null)
+                _switchMan.ReleaseOwned(
+                    [address],
+                    lockOwner);
+        }
+    }
+
     async Task ExecuteAction(
         Execution execution,
         MovementActionModel action)
@@ -889,36 +1020,18 @@ public sealed class MovementRuntime
                 }
 
             case "setAccessory":
-                {
-                    var address = Math.Clamp(action.AccessoryAddress, 1, 2048);
-                    if (!await _commandCenter.SetAccessoryAsync(
-                            address,
-                            action.AccessoryActive,
-                            execution.Cancellation.Token))
-                        throw new InvalidOperationException("movement_accessory_command_failed");
-
-                    _layout.SetAccessory(
-                        (ushort)address,
-                        action.AccessoryActive);
-                    return;
-                }
+                await SetBasicAccessoryAction(
+                    execution,
+                    action.AccessoryAddress,
+                    action.AccessoryActive);
+                return;
 
             case "setExtendedAccessory":
-                {
-                    var address = Math.Clamp(action.AccessoryAddress, 1, 2048);
-                    var aspect = Math.Clamp(action.AccessoryAspect, 0, 255);
-
-                    if (!await _commandCenter.SetSignalAspectAsync(
-                            address,
-                            aspect,
-                            execution.Cancellation.Token))
-                        throw new InvalidOperationException("movement_extended_accessory_command_failed");
-
-                    _layout.SetSignal(
-                        (ushort)address,
-                        aspect);
-                    return;
-                }
+                await SetExtendedAccessoryAction(
+                    execution,
+                    action.AccessoryAddress,
+                    action.AccessoryAspect);
+                return;
 
             case "log":
                 _log.LogInformation(
