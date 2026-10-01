@@ -1008,6 +1008,7 @@
   "flowBlockSetterPayloadHint": "Verwendet payload.locoAddress als Lokadresse.",
   "automationScriptsTab": "Skripte",
   "automationFlowsTab": "Flows",
+  "automationMovementTab": "Bewegungen",
   "automationStatus": "Status",
   "automationStartAllColumn": "Alle",
   "automationScriptColumn": "Skript",
