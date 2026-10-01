@@ -89,6 +89,24 @@ function notifyAudioEnabled():
   }
 }
 
+function reportBackendMovementAudio(
+  requestId: string,
+  ok: boolean
+): void {
+  if (
+    !requestId.startsWith(
+      "movement-backend:"
+    )
+  ) {
+    return;
+  }
+
+  wsApi.movementAudioComplete(
+    requestId,
+    ok
+  );
+}
+
 function settlePending(
   requestId: string,
   ok: boolean
@@ -148,6 +166,11 @@ export function installBroadcastAudioRuntime():
           true
         );
 
+        reportBackendMovementAudio(
+          data.requestId,
+          true
+        );
+
         return;
       }
 
@@ -163,6 +186,11 @@ export function installBroadcastAudioRuntime():
         );
 
         settlePending(
+          data.requestId,
+          ok
+        );
+
+        reportBackendMovementAudio(
           data.requestId,
           ok
         );
