@@ -1007,6 +1007,7 @@
   "flowBlockGetterPayloadHint": "Schreibt die Lokadresse in payload.locoAddress und gibt den Payload weiter.",
   "flowBlockSetterPayloadHint": "Verwendet payload.locoAddress als Lokadresse.",
   "automationScriptsTab": "Skripte",
+  "automationTrackingTab": "Verfolgung",
   "automationFlowsTab": "Flows",
   "automationMovementTab": "Bewegungen",
   "automationStatus": "Status",
