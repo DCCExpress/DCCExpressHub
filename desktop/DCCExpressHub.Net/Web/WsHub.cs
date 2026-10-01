@@ -330,7 +330,7 @@ public sealed class WsHub
                     await HandleSwitchManCommand(ws, data, ct);
                     return;
                 case "dispatcherCommand":
-                    await HandleDispatcherCommand(ws, data, ct);
+                    await HandleDispatcherCommand(connectionId, ws, data, ct);
                     return;
                 case "movementCommand":
                     await HandleMovementCommand(connectionId, ws, data, ct);
@@ -1029,6 +1029,7 @@ public sealed class WsHub
     }
 
     private async Task HandleDispatcherCommand(
+        Guid connectionId,
         WebSocket ws,
         JsonElement data,
         CancellationToken ct)
@@ -1049,6 +1050,16 @@ public sealed class WsHub
                 message,
                 extra
             });
+        }
+
+        if (action != "snapshot" &&
+            !IsControlStationOwner(
+                connectionId))
+        {
+            await Reply(
+                false,
+                "control_station_required");
+            return;
         }
 
         static ushort[] ReadUShortArray(
