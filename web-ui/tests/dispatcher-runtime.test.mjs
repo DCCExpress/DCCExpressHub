@@ -41,3 +41,22 @@ test("Legacy Movement engine is only a compatibility executor behind Dispatcher"
   assert.match(dispatcher, /Compatibility executor/);
   assert.match(dispatcher, /await startMovement\(\s*page/);
 });
+
+
+test("Dispatcher has a visible Automation tab", () => {
+  const panel = read("src/components/AutomationPanel.tsx");
+  const dispatcherPanel = read("src/components/automation/DispatcherPanel.tsx");
+
+  const movement = panel.indexOf('value="movement"');
+  const dispatcher = panel.indexOf('value="dispatcher"');
+  const flows = panel.indexOf('value="flows"');
+
+  assert.ok(movement >= 0);
+  assert.ok(dispatcher > movement);
+  assert.ok(flows > dispatcher);
+  assert.match(panel, /<DispatcherPanel/);
+  assert.match(dispatcherPanel, /subscribeDispatcherRuntime/);
+  assert.match(dispatcherPanel, /Current block/);
+  assert.match(dispatcherPanel, /Next block/);
+  assert.match(dispatcherPanel, /Dispatcher log/);
+});
