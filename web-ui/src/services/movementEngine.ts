@@ -5423,6 +5423,22 @@ export async function startMovement(
     ) ??
     null;
 
+  const existingLocoExecution =
+    [
+      ...executions.values(),
+    ].find(
+      execution =>
+        !execution.cancelled &&
+        execution.locoAddress ===
+          locoAddress
+    );
+
+  if (existingLocoExecution) {
+    throw new Error(
+      `Locomotive #${locoAddress} is already controlled by Movement "${existingLocoExecution.page.name}".`
+    );
+  }
+
   const functionNumbersByBindingId =
     new Map<number, number>();
 
