@@ -25,21 +25,21 @@ test("Dispatcher is the public movement execution boundary", () => {
   assert.doesNotMatch(timetable, /services\/movementEngine/);
 });
 
-test("Dispatcher requires active Tracking and one loco in the source block", () => {
+test("Dispatcher requires active Tracking and one loco on the requested route", () => {
   const dispatcher = read("src/services/dispatcherRuntime.ts");
 
   assert.match(dispatcher, /getTrainTrackingState/);
   assert.match(dispatcher, /!tracking\.active/);
-  assert.match(dispatcher, /loco\.currentBlockId ===\s*page\.fromBlockId/);
-  assert.match(dispatcher, /sourceLocos\.length ===\s*0/);
-  assert.match(dispatcher, /sourceLocos\.length >\s*1/);
+  assert.match(dispatcher, /requested\.includes\(\s*loco\.currentBlockId/);
+  assert.match(dispatcher, /routeLocos\.length ===\s*0/);
+  assert.match(dispatcher, /routeLocos\.length >\s*1/);
 });
 
 test("Legacy Movement engine is only a compatibility executor behind Dispatcher", () => {
   const dispatcher = read("src/services/dispatcherRuntime.ts");
 
   assert.match(dispatcher, /Compatibility executor/);
-  assert.match(dispatcher, /await startMovement\(\s*page/);
+  assert.match(dispatcher, /await startMovement\(\s*executionPage/);
 });
 
 
@@ -59,4 +59,18 @@ test("Dispatcher has a visible Automation tab", () => {
   assert.match(dispatcherPanel, /Current block/);
   assert.match(dispatcherPanel, /Next block/);
   assert.match(dispatcherPanel, /Dispatcher log/);
+});
+
+
+test("Dispatcher resumes from an intermediate tracked block", () => {
+  const dispatcher = read("src/services/dispatcherRuntime.ts");
+
+  assert.match(dispatcher, /function remainingMovementPage/);
+  assert.match(dispatcher, /requested\.slice\(\s*currentIndex/);
+  assert.match(dispatcher, /routeKey:\s*""/);
+  assert.match(dispatcher, /fromBlockId:\s*remaining\[0\]/);
+  assert.match(dispatcher, /viaBlockIds:\s*remaining\.slice\(\s*1,\s*-1/);
+  assert.match(dispatcher, /toBlockId:/);
+  assert.match(dispatcher, /Resuming/);
+  assert.match(dispatcher, /already completed/);
 });
