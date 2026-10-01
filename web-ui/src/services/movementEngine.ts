@@ -3,10 +3,6 @@ import type {
 } from "../domain/movement";
 
 import {
-  loadMovementPlan,
-} from "./movementPlan";
-
-import {
   wsApi,
 } from "./wsApi";
 
@@ -326,10 +322,10 @@ export function subscribeMovementEngineState(
 /*
  * The browser no longer executes Movement.
  *
- * It resolves the persisted route plan and hands the immutable start snapshot
- * to the Windows backend. From that point all safety, Dispatcher authority,
- * turnout control, sensor waits, block transitions, actions and throttle
- * commands are backend-authoritative.
+ * It sends only the selected Movement definition to the Windows backend.
+ * The backend rebuilds the physical route plan from persisted layout.json, so
+ * all plan selection, safety, Dispatcher authority, turnout control, sensor
+ * waits, block transitions, actions and throttle commands are authoritative.
  */
 export async function startMovement(
   page:
@@ -372,11 +368,6 @@ export async function startMovement(
     );
   }
 
-  const plan =
-    await loadMovementPlan(
-      page
-    );
-
   const id =
     requestId(
       "start"
@@ -391,7 +382,6 @@ export async function startMovement(
         action:
           "start",
         page,
-        plan,
       },
       "movementResponse",
       data =>
