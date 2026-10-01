@@ -1,6 +1,7 @@
 import i18next from "i18next";
 import { BLOCK_TYPES, type BlockType, ELEMENT_TYPES } from "../../../domain/layout/elementTypes";
 import type { IRect } from "../../../domain/Rect";
+import type { BlockDirectionEventConfigDto, BlockEventConfigDto, BlockEventSensorConditionDto } from "../../../domain/layout/layoutDto";
 import { generateId } from "../../../helpers";
 import i18n from "../../../i18n";
 import { getBlockTargetLocoAddress } from "../../../services/blockTargetLocoRuntime";
@@ -10,6 +11,57 @@ import { TrackElement } from "../core/TrackElement";
 import { getCanvasImage } from "../rendering/ImageCache";
 import { DrawOptions, IBlockElement } from "../types/EditorTypes";
 import { IEditableProperty } from "./PropertyDescriptor";
+function normalizeBlockEventConditions(value: unknown): BlockEventSensorConditionDto[] {
+  if (!Array.isArray(value)) return [];
+
+  const result: BlockEventSensorConditionDto[] = [];
+  const used = new Set<number>();
+
+  for (const raw of value) {
+    if (!raw || typeof raw !== "object") continue;
+    const candidate = raw as Record<string, unknown>;
+    const sensor = Math.trunc(Number(candidate.sensor));
+    if (!Number.isInteger(sensor) || sensor < 1 || sensor > 65535 || used.has(sensor)) continue;
+    used.add(sensor);
+    result.push({ sensor, state: candidate.state !== false });
+  }
+
+  return result;
+}
+
+function normalizeBlockDirectionEvents(value: unknown): BlockDirectionEventConfigDto {
+  const candidate =
+    value && typeof value === "object"
+      ? value as Record<string, unknown>
+      : {};
+
+  return {
+    beforeArrive: normalizeBlockEventConditions(candidate.beforeArrive),
+    arrived: normalizeBlockEventConditions(candidate.arrived),
+    beforeLeave: normalizeBlockEventConditions(candidate.beforeLeave),
+    afterLeave: normalizeBlockEventConditions(candidate.afterLeave),
+  };
+}
+
+export function emptyBlockEventConfig(): BlockEventConfigDto {
+  return {
+    forward: normalizeBlockDirectionEvents(null),
+    reverse: normalizeBlockDirectionEvents(null),
+  };
+}
+
+function normalizeBlockEventConfig(value: unknown): BlockEventConfigDto {
+  const candidate =
+    value && typeof value === "object"
+      ? value as Record<string, unknown>
+      : {};
+
+  return {
+    forward: normalizeBlockDirectionEvents(candidate.forward),
+    reverse: normalizeBlockDirectionEvents(candidate.reverse),
+  };
+}
+
 export class BlockElement extends TrackElement {
   text: string = "HELLO";
   textColor: string = "black";
@@ -17,6 +69,7 @@ export class BlockElement extends TrackElement {
   override length: number = 1;
   sensorAddress: number = 0;
   blockType: BlockType = BLOCK_TYPES.NORMAL;
+  eventConfig: BlockEventConfigDto = emptyBlockEventConfig();
   /**
    * A blokk vizuálisan 3x1 overlay, de az x/y továbbra is
    * a blokkhoz tartozó középső fizikai síncella.
@@ -414,6 +467,7 @@ export class BlockElement extends TrackElement {
     copy.length = this.length;
     copy.sensorAddress = this.sensorAddress;
     copy.blockType = this.blockType;
+    copy.eventConfig = normalizeBlockEventConfig(this.eventConfig);
     return copy;
   }
   static fromJSON(data: IBlockElement): BlockElement {
@@ -434,6 +488,7 @@ export class BlockElement extends TrackElement {
      */
     element.locoAddress = 0;
     element.blockType = data.blockType ?? BLOCK_TYPES.NORMAL;
+    element.eventConfig = normalizeBlockEventConfig(data.eventConfig);
     return element;
   }
   override toJSON(): IBlockElement {
@@ -446,6 +501,7 @@ export class BlockElement extends TrackElement {
       locoAddress: 0,
       sensorAddress: this.sensorAddress,
       blockType: this.blockType as BlockType,
+      eventConfig: normalizeBlockEventConfig(this.eventConfig),
     };
   }
   override getEditableProperties(): IEditableProperty[] {
