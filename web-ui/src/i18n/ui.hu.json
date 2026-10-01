@@ -1008,6 +1008,7 @@
   "flowBlockSetterPayloadHint": "A mozdonycímet a payload.locoAddress mezőből veszi.",
   "automationScriptsTab": "Scriptek",
   "automationFlowsTab": "Flow-k",
+  "automationMovementTab": "Mozgások",
   "automationStatus": "Állapot",
   "automationStartAllColumn": "Mind",
   "automationScriptColumn": "Script",
