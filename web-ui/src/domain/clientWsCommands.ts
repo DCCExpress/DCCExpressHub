@@ -331,6 +331,15 @@ export type TimetableCommandPayload = {
   finishing?: boolean;
 };
 
+export type TimetableScriptStatusCommandPayload = {
+  runId: string;
+  status:
+    | "running"
+    | "paused";
+  message:
+    string | null;
+};
+
 export type TimetableScriptCompleteCommandPayload = {
   runId: string;
   ok: boolean;
@@ -347,6 +356,7 @@ export type ClientWsPayloadMap = {
   movementCommand: MovementCommandPayload;
   movementAudioComplete: MovementAudioCompleteCommandPayload;
   timetableCommand: TimetableCommandPayload;
+  timetableScriptStatus: TimetableScriptStatusCommandPayload;
   timetableScriptComplete: TimetableScriptCompleteCommandPayload;
   setTrackPower: SetTrackPowerCommandPayload;
   setProgrammingPower: SetProgrammingPowerCommandPayload;
