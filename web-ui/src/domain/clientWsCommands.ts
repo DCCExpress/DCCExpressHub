@@ -298,6 +298,38 @@ export type BroadcastStopAudioCommandPayload = {
   fileName: string;
 };
 
+export type DispatcherCommandAction =
+  | "snapshot"
+  | "acquireLeg"
+  | "releaseLeg"
+  | "acquireRoute"
+  | "commitRoute"
+  | "releaseRoute"
+  | "releaseAll";
+
+export type DispatcherCommandPayload = {
+  requestId: string;
+  action:
+    DispatcherCommandAction;
+  ownerId?: string;
+  ownerName?: string;
+  locoAddress?: number;
+  fromBlockId?: number;
+  toBlockId?: number;
+  sourceBlockId?: number;
+  downstreamBlocks?: Array<{
+    blockId: number;
+    sensorAddress: number;
+  }>;
+  turnouts?: Array<{
+    address: number;
+    closed: boolean;
+  }>;
+  safetySensors?: number[];
+  resourceKeys?: string[];
+  timeoutMs?: number;
+};
+
 export type MovementCommandAction =
   | "snapshot"
   | "start"
@@ -353,6 +385,7 @@ export type ClientWsPayloadMap = {
   getControlStationStatus: EmptyClientWsCommandPayload;
   broadcastPlayAudio: BroadcastPlayAudioCommandPayload;
   broadcastStopAudio: BroadcastStopAudioCommandPayload;
+  dispatcherCommand: DispatcherCommandPayload;
   movementCommand: MovementCommandPayload;
   movementAudioComplete: MovementAudioCompleteCommandPayload;
   timetableCommand: TimetableCommandPayload;
