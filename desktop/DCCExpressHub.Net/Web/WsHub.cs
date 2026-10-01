@@ -841,9 +841,36 @@ public sealed class WsHub
                 return;
 
             case "start":
-                Timetable.StartScheduler();
-                await Reply(true);
-                return;
+                {
+                    var pageId =
+                        S(
+                            data,
+                            "pageId");
+
+                    if (string.IsNullOrWhiteSpace(
+                            pageId))
+                    {
+                        await Reply(
+                            false,
+                            "invalid_movement_start");
+                        return;
+                    }
+
+                    var result =
+                        Movement.Start(
+                            pageId);
+
+                    await Reply(
+                        result.Ok,
+                        result.Error,
+                        new
+                        {
+                            state =
+                                Movement.GetState(
+                                    pageId)
+                        });
+                    return;
+                }
 
             case "stop":
                 Timetable.StopScheduler();
