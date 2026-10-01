@@ -17,8 +17,9 @@ public sealed class WsHub
     readonly SwitchManManager SwitchMan;
     readonly DispatcherRuntime Dispatcher;
     readonly MovementRuntime Movement;
+    readonly TimetableRuntime Timetable;
     private readonly ILogger<WsHub> Logger;
-    private readonly FastClockRuntime FastClock = new();
+    private readonly FastClockRuntime FastClock;
     private readonly ConcurrentDictionary<Guid, WebSocket> Clients = new();
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     private readonly object _programmingGate = new();
@@ -33,22 +34,26 @@ public sealed class WsHub
     private static readonly TimeSpan WebSocketSendTimeout = TimeSpan.FromSeconds(2);
     public int ClientCount => Clients.Count;
 
-    public WsHub(ICommandCenter cc, HubState state, LayoutRuntime runtime, RuntimeStateStore stateStore, CommandCenterConfigStore ccConfig, LocoCounterRuntime locoCounters, SwitchManManager switchMan, DispatcherRuntime dispatcher, MovementRuntime movement, ILogger<WsHub> log)
+    public WsHub(ICommandCenter cc, HubState state, LayoutRuntime runtime, RuntimeStateStore stateStore, CommandCenterConfigStore ccConfig, LocoCounterRuntime locoCounters, FastClockRuntime fastClock, SwitchManManager switchMan, DispatcherRuntime dispatcher, MovementRuntime movement, TimetableRuntime timetable, ILogger<WsHub> log)
     {
         CommandCenter = cc;
         HubState = state;
         LayoutRuntime = runtime;
         RuntimeStateStore = stateStore;
         LocoCounters = locoCounters;
+        FastClock = fastClock;
         SwitchMan = switchMan;
         Dispatcher = dispatcher;
         Movement = movement;
+        Timetable = timetable;
         CommandCenterConfigStore = ccConfig;
         LayoutRuntime.Changed += (type, data) => _ = Broadcast(type, data);
         SwitchMan.Changed += snapshot => _ = Broadcast("switchManChanged", new { locks = snapshot ?? SwitchMan.Snapshot() });
         Dispatcher.Changed += snapshot => _ = Broadcast("dispatcherChanged", new { leases = snapshot ?? Dispatcher.Snapshot() });
         Movement.Changed += state => _ = Broadcast("movementStateChanged", state);
         Movement.AudioRequested += request => _ = Broadcast("playAudio", new { requestId = request.RequestId, fileName = request.FileName });
+        Timetable.Changed += state => _ = Broadcast("timetableStateChanged", state);
+        Timetable.ScriptRequested += request => _ = Broadcast("timetableScriptRequested", request);
         Logger = log;
 
         LocoCounters.Changed += () =>
@@ -319,6 +324,12 @@ public sealed class WsHub
                     return;
                 case "movementAudioComplete":
                     Movement.CompleteAudio(S(data, "requestId"), B(data, "ok"));
+                    return;
+                case "timetableCommand":
+                    await HandleTimetableCommand(connectionId, ws, data);
+                    return;
+                case "timetableScriptComplete":
+                    Timetable.CompleteScript(S(data, "runId"), B(data, "ok"), S(data, "message"));
                     return;
                 case "setTrackPower":
                     ok = await CommandCenter.SetTrackPowerAsync(B(data, "on"), CommandCenterConfigStore.Current.PowerIncludesProgramming, ct);
@@ -763,6 +774,78 @@ public sealed class WsHub
 
             default:
                 await Reply(false, "unknown_switchman_action");
+                return;
+        }
+    }
+
+    private async Task HandleTimetableCommand(
+        Guid connectionId,
+        WebSocket ws,
+        JsonElement data)
+    {
+        var requestId =
+            S(
+                data,
+                "requestId");
+
+        var action =
+            S(
+                data,
+                "action");
+
+        async Task Reply(
+            bool ok,
+            string? message = null)
+        {
+            await Send(
+                ws,
+                "timetableResponse",
+                new
+                {
+                    requestId,
+                    action,
+                    ok,
+                    message,
+                    state =
+                        Timetable.Snapshot()
+                });
+        }
+
+        if (action != "snapshot" &&
+            !IsControlStationOwner(
+                connectionId))
+        {
+            await Reply(
+                false,
+                "control_station_required");
+            return;
+        }
+
+        switch (action)
+        {
+            case "snapshot":
+                await Reply(true);
+                return;
+
+            case "start":
+                Timetable.StartScheduler();
+                await Reply(true);
+                return;
+
+            case "stop":
+                Timetable.StopScheduler();
+                await Reply(true);
+                return;
+
+            case "rebase":
+                Timetable.Rebase();
+                await Reply(true);
+                return;
+
+            default:
+                await Reply(
+                    false,
+                    "unknown_timetable_action");
                 return;
         }
     }
@@ -1545,6 +1628,7 @@ public sealed class WsHub
         await Send(ws, "switchManChanged", new { locks = SwitchMan.Snapshot() });
         await Send(ws, "dispatcherChanged", new { leases = Dispatcher.Snapshot() });
         await Send(ws, "movementSnapshot", new { states = Movement.Snapshot() });
+        await Send(ws, "timetableStateChanged", Timetable.Snapshot());
     }
 
     private Task SendCommandCenterInfo(WebSocket ws)
