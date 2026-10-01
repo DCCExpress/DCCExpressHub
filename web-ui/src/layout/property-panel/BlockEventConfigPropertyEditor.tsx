@@ -326,7 +326,7 @@ function DirectionDiagram({
   return (
     <div>
       <svg
-        viewBox="0 0 360 158"
+        viewBox="0 0 360 176"
         role="img"
         aria-label={
           reverse
@@ -335,7 +335,7 @@ function DirectionDiagram({
         }
         style={{
           width: "100%",
-          maxHeight: 170,
+          maxHeight: 185,
           display: "block",
         }}
       >
@@ -459,7 +459,7 @@ function DirectionDiagram({
 
         <text
           x="55"
-          y="105"
+          y="132"
           textAnchor="middle"
           fontSize="10"
           fontWeight="800"
@@ -482,7 +482,7 @@ function DirectionDiagram({
 
         <text
           x="305"
-          y="105"
+          y="132"
           textAnchor="middle"
           fontSize="10"
           fontWeight="800"
@@ -505,30 +505,30 @@ function DirectionDiagram({
 
         <SensorConditionMarker
           conditions={events.beforeArrive}
-          x={reverse ? 342 : 18}
-          y={116}
-          align={reverse ? "end" : "start"}
+          x={reverse ? 305 : 55}
+          y={114}
+          align="middle"
         />
 
         <SensorConditionMarker
           conditions={events.arrived}
           x={180}
-          y={116}
-          align="start"
+          y={114}
+          align="middle"
         />
 
         <SensorConditionMarker
           conditions={events.beforeLeave}
-          x={reverse ? 18 : 342}
-          y={116}
-          align={reverse ? "start" : "end"}
+          x={reverse ? 55 : 305}
+          y={114}
+          align="middle"
         />
 
         {events.afterLeave.length > 0 && (
           <>
             <text
               x="180"
-              y="137"
+              y="151"
               textAnchor="middle"
               fontSize="9"
               fontWeight="700"
@@ -540,7 +540,7 @@ function DirectionDiagram({
             <SensorConditionMarker
               conditions={events.afterLeave}
               x={180}
-              y={149}
+              y={164}
               align="start"
             />
           </>
