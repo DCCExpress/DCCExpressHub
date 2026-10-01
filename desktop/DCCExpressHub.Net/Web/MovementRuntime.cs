@@ -2165,6 +2165,58 @@ public sealed class MovementRuntime
         }
     }
 
+    static MovementPageModel NormalizeSavedPage(
+        MovementPageModel page)
+    {
+        page.Id =
+            (page.Id ?? "")
+                .Trim();
+
+        page.Name =
+            string.IsNullOrWhiteSpace(
+                page.Name)
+                ? "Movement"
+                : page.Name.Trim();
+
+        page.Speed =
+            Math.Clamp(
+                page.Speed,
+                0,
+                126);
+
+        page.RouteKey =
+            (page.RouteKey ?? "")
+                .Trim();
+
+        page.ViaBlockIds =
+            (page.ViaBlockIds ?? [])
+                .Where(id =>
+                    id is >= 1 and <= 65535)
+                .Distinct()
+                .ToArray();
+
+        page.BlockRules ??= [];
+        page.ResourceEventRules ??= [];
+        page.SafetyRules ??= [];
+        page.Actions ??= [];
+
+        foreach (var rule in page.BlockRules)
+        {
+            rule.ApproachWhen ??= [];
+            rule.ArrivedWhen ??= [];
+            rule.DepartWhen ??= [];
+            rule.LeaveWhen ??= [];
+        }
+
+        foreach (var rule in page.ResourceEventRules)
+            rule.Conditions ??= [];
+
+        foreach (var rule in page.SafetyRules)
+            rule.IgnoredSensors ??= [];
+
+        return page;
+    }
+
     MovementPageModel? LoadSavedMovementPage(
         string pageId)
     {
@@ -2218,9 +2270,15 @@ public sealed class MovementRuntime
                         StringComparison.Ordinal))
                     continue;
 
-                return JsonSerializer.Deserialize<MovementPageModel>(
-                    pageJson.GetRawText(),
-                    _json);
+                var page =
+                    JsonSerializer.Deserialize<MovementPageModel>(
+                        pageJson.GetRawText(),
+                        _json);
+
+                return page is null
+                    ? null
+                    : NormalizeSavedPage(
+                        page);
             }
         }
         catch (Exception ex)
