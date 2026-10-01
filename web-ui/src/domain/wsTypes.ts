@@ -127,6 +127,8 @@ export const CLIENT_WS_MESSAGE_TYPES = [
   "broadcastStopAudio",
   "movementCommand",
   "movementAudioComplete",
+  "timetableCommand",
+  "timetableScriptComplete",
   "setTrackPower",
   "setProgrammingPower",
   "emergencyStop",
@@ -335,6 +337,53 @@ export type MovementResponsePayload = WsCommandResponseMeta & {
   };
 };
 
+export type TimetableRunStatusPayload =
+  | "launching"
+  | "running"
+  | "paused";
+
+export type TimetableActiveRunPayload = {
+  id: string;
+  timetableEntryId: string;
+  timetableActionId: string;
+  targetType:
+    | "script"
+    | "movement";
+  targetId: string;
+  targetName: string;
+  executionId: string | null;
+  scheduledTime: string;
+  scheduledMinuteOfDay: number;
+  status:
+    TimetableRunStatusPayload;
+  message: string | null;
+};
+
+export type TimetableRuntimeStatePayload = {
+  running: boolean;
+  lastTriggeredAt: string | null;
+  lastTriggeredTargetName: string | null;
+  activeRuns:
+    TimetableActiveRunPayload[];
+};
+
+export type TimetableResponsePayload = {
+  requestId: string;
+  action: string;
+  ok: boolean;
+  message?: string | null;
+  state:
+    TimetableRuntimeStatePayload;
+};
+
+export type TimetableScriptRequestedPayload = {
+  runId: string;
+  scriptId: string;
+  name: string;
+  script: string;
+  executionId: string;
+};
+
 export type ControlStationStatusPayload = {
   active: boolean;
   ownerClientId: string | null;
@@ -460,6 +509,9 @@ export type ServerWsPayloadMap = {
   movementStateChanged: MovementRuntimeStatePayload;
   movementSnapshot: { states: MovementRuntimeStatePayload[] };
   movementResponse: MovementResponsePayload;
+  timetableStateChanged: TimetableRuntimeStatePayload;
+  timetableResponse: TimetableResponsePayload;
+  timetableScriptRequested: TimetableScriptRequestedPayload;
   locoActionListStatus: unknown;
   blockActionListStatus: unknown;
 };
