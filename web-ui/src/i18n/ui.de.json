@@ -1371,5 +1371,6 @@
   "dispatcherStopAll": "Alle Dispatcher-Züge anhalten",
   "dispatcherAbortAll": "Alle Dispatcher-Bewegungen abbrechen",
   "dispatcherEmergencyStop": "Not-Halt",
-  "dispatcherClearEstop": "Not-Halt aufheben"
+  "dispatcherClearEstop": "Not-Halt aufheben",
+  "trainTrackingSectionParts": "Abschnittsteile"
 }
