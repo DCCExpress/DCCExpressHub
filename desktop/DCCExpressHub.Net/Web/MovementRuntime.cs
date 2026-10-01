@@ -134,9 +134,6 @@ public sealed class MovementPlanModel
     public MovementPlanLegModel[] Legs { get; set; } = [];
 }
 
-public sealed record MovementStartRequest(
-    MovementPageModel Page);
-
 /// <summary>
 /// Windows authoritative Movement executor.
 ///
