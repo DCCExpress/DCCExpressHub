@@ -450,6 +450,17 @@ export function setAutomationFinishing(
     finishing:
       next,
   } satisfies AutomationRunModeMessage);
+
+  /*
+   * Timetable scheduling is backend-authoritative on Windows. Mirror the
+   * existing global Finishing switch so the backend also stops launching new
+   * timetable slots while already running work is allowed to finish.
+   */
+  wsApi.timetableCommand(
+    `${wsApi.clientUuid}:timetable:finishing:${Date.now()}`,
+    "setFinishing",
+    next
+  );
 }
 
 export function subscribeAutomationFinishing(
