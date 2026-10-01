@@ -49,7 +49,7 @@ test("Putting a loco into a block anchors it to the block occupancy sensor", () 
 test("Sensor tracking uses graph, direction and live turnout state", () => {
   const runtime = read("src/services/trainTrackingRuntime.ts");
 
-  assert.match(runtime, /enabled\s*&&\s*isControlStationRuntimeActive\(\)/);
+  assert.match(runtime, /enabled\s*&&\s*ready\s*&&\s*isControlStationRuntimeActive\(\)/);
   assert.match(runtime, /route\.locoDirection\s*===\s*direction/);
   assert.match(runtime, /routeMatchesTurnouts/);
   assert.match(runtime, /routeSensorPath/);
@@ -91,4 +91,26 @@ test("Tracking exposes reverse lookup from sensor to one locomotive", () => {
   assert.match(runtime, /export function getLocoAtSensor/);
   assert.match(runtime, /state\.currentSensors\.includes/);
   assert.match(runtime, /matches\.length ===\s*1/);
+});
+
+
+test("Tracking requires every block and SectionPart to have sensor coverage", () => {
+  const runtime = read("src/services/trainTrackingRuntime.ts");
+  const panel = read("src/components/automation/TrainTrackingPanel.tsx");
+
+  assert.match(runtime, /Block .* has no occupancy sensor/);
+  assert.match(runtime, /SectionPart .* has no sensor/);
+  assert.match(runtime, /readinessIssues\.length ===\s*0/);
+  assert.match(runtime, /next\s*&&\s*!ready/);
+  assert.match(panel, /!state\.ready/);
+  assert.match(panel, /state\.readinessIssues\.map/);
+});
+
+test("Tracking keeps all currently occupied sensors for a long train", () => {
+  const runtime = read("src/services/trainTrackingRuntime.ts");
+
+  assert.match(runtime, /currentSensors:\s*number\[\]/);
+  assert.match(runtime, /!state\.currentSensors\.includes\(\s*sensor/);
+  assert.match(runtime, /state\.currentSensors\.push\(\s*sensor/);
+  assert.match(runtime, /state\.currentSensors\s*=\s*state\.currentSensors\.filter/);
 });
