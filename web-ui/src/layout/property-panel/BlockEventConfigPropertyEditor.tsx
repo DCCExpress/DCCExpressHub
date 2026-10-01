@@ -298,6 +298,26 @@ function DirectionDiagram({
     direction ===
     "reverse";
 
+  /*
+   * LEFT / RIGHT are physical positions and never move.
+   *
+   * The same physical side changes semantic role with travel direction:
+   *   Forward: LEFT=Before Arrive, RIGHT=After Leave
+   *   Reverse: LEFT=After Leave, RIGHT=Before Arrive
+   *
+   * Keep the sensors fixed on their physical side and only swap the event
+   * meaning shown for that side.
+   */
+  const leftSideConditions =
+    reverse
+      ? events.afterLeave
+      : events.beforeArrive;
+
+  const rightSideConditions =
+    reverse
+      ? events.beforeArrive
+      : events.afterLeave;
+
   const arrowX1 =
     reverse
       ? 314
@@ -494,8 +514,8 @@ function DirectionDiagram({
         </text>
 
         <SensorConditionMarker
-          conditions={events.beforeArrive}
-          x={reverse ? 305 : 55}
+          conditions={leftSideConditions}
+          x={55}
           y={136}
           align="middle"
         />
@@ -508,13 +528,13 @@ function DirectionDiagram({
         />
 
         <SensorConditionMarker
-          conditions={events.beforeLeave}
-          x={reverse ? 55 : 305}
+          conditions={rightSideConditions}
+          x={305}
           y={136}
           align="middle"
         />
 
-        {events.afterLeave.length > 0 && (
+        {events.beforeLeave.length > 0 && (
           <>
             <text
               x="180"
@@ -524,14 +544,14 @@ function DirectionDiagram({
               fontWeight="700"
               fill="var(--mantine-color-dimmed)"
             >
-              AFTER LEAVE
+              BEFORE LEAVE
             </text>
 
             <SensorConditionMarker
-              conditions={events.afterLeave}
+              conditions={events.beforeLeave}
               x={180}
               y={176}
-              align="start"
+              align="middle"
             />
           </>
         )}
