@@ -1,11 +1,15 @@
 export type TrainEventName =
-  | "approach"
-  | "enter"
+  // Block lifecycle events.
+  | "arrival"
   | "arrived"
-  | "beforeDepart"
-  | "depart"
+  | "afterArrived"
+  | "beforeLeave"
+  | "starting"
   | "leave"
-  | "afterLeave";
+  | "afterLeave"
+  // Physical Movement Vector resource events kept for segment/turnout flows.
+  | "approach"
+  | "enter";
 
 export type TrainEventResourceType =
   | "block"
