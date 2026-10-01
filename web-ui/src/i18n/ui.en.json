@@ -1356,5 +1356,15 @@
   "movementRuntimeRandomPlayPlaying": "Random audio playing · roll {{roll}}/10, threshold {{threshold}}",
   "graphStatusValid": "GRAPH VALID",
   "graphStatusDirty": "GRAPH OUT OF DATE",
-  "graphStatusInvalid": "GRAPH INVALID"
+  "graphStatusInvalid": "GRAPH INVALID",
+  "automationDispatcherTab": "Dispatcher",
+  "dispatcherTitle": "Dispatcher",
+  "dispatcherDescription": "The Dispatcher executes saved A→B→C movement intents. Train Tracking provides locomotive position; Dispatcher coordinates execution and safety authority.",
+  "dispatcherMovement": "Movement",
+  "dispatcherRoute": "Route",
+  "dispatcherCurrentBlock": "Current block",
+  "dispatcherNextBlock": "Next block",
+  "dispatcherNoTasks": "No Dispatcher movement has been started yet.",
+  "dispatcherLog": "Dispatcher log",
+  "dispatcherNoLog": "No Dispatcher events yet."
 }
