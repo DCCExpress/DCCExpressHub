@@ -326,7 +326,7 @@ function DirectionDiagram({
   return (
     <div>
       <svg
-        viewBox="0 0 360 176"
+        viewBox="0 0 360 190"
         role="img"
         aria-label={
           reverse
@@ -335,7 +335,7 @@ function DirectionDiagram({
         }
         style={{
           width: "100%",
-          maxHeight: 185,
+          maxHeight: 198,
           display: "block",
         }}
       >
@@ -459,7 +459,7 @@ function DirectionDiagram({
 
         <text
           x="55"
-          y="132"
+          y="120"
           textAnchor="middle"
           fontSize="10"
           fontWeight="800"
@@ -482,7 +482,7 @@ function DirectionDiagram({
 
         <text
           x="305"
-          y="132"
+          y="120"
           textAnchor="middle"
           fontSize="10"
           fontWeight="800"
@@ -506,7 +506,7 @@ function DirectionDiagram({
         <SensorConditionMarker
           conditions={events.beforeArrive}
           x={reverse ? 305 : 55}
-          y={114}
+          y={136}
           align="middle"
         />
 
@@ -520,7 +520,7 @@ function DirectionDiagram({
         <SensorConditionMarker
           conditions={events.beforeLeave}
           x={reverse ? 55 : 305}
-          y={114}
+          y={136}
           align="middle"
         />
 
@@ -528,7 +528,7 @@ function DirectionDiagram({
           <>
             <text
               x="180"
-              y="151"
+              y="162"
               textAnchor="middle"
               fontSize="9"
               fontWeight="700"
@@ -540,7 +540,7 @@ function DirectionDiagram({
             <SensorConditionMarker
               conditions={events.afterLeave}
               x={180}
-              y={164}
+              y={176}
               align="start"
             />
           </>
