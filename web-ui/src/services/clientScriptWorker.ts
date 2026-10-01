@@ -60,6 +60,33 @@ const audioRequestWaiters =
 let audioRequestSequence =
   0;
 
+type DispatcherRequestWaiter = {
+  executionId:
+    ClientScriptWorkerExecutionId;
+  resolve: (
+    value:
+      unknown
+  ) => void;
+  reject: (
+    error:
+      Error
+  ) => void;
+  onAbort: (
+    error:
+      WorkerScriptAbortError
+  ) => void;
+};
+
+const dispatcherRequestWaiters =
+  new Map<
+    number,
+    DispatcherRequestWaiter
+  >();
+
+let dispatcherRequestSequence =
+  0;
+
+
 const SCRIPT_AUDIO_MAX_SOURCE_LENGTH =
   240;
 
@@ -1448,6 +1475,187 @@ function resolveAudioPlayback(
   );
 }
 
+function requestBackendDispatcher(
+  executionId:
+    ClientScriptWorkerExecutionId,
+  execution:
+    WorkerExecution,
+  action:
+    string,
+  payload:
+    Record<string, unknown> =
+      {}
+): Promise<unknown> {
+  assertNotAborted(
+    execution
+  );
+
+  dispatcherRequestSequence +=
+    1;
+
+  const requestId =
+    dispatcherRequestSequence;
+
+  return new Promise<unknown>(
+    (
+      resolve,
+      reject
+    ) => {
+      let settled =
+        false;
+
+      const cleanup =
+        () => {
+          dispatcherRequestWaiters.delete(
+            requestId
+          );
+
+          execution.abortWaiters.delete(
+            onAbort
+          );
+        };
+
+      const finishResolve =
+        (
+          value:
+            unknown
+        ) => {
+          if (settled) {
+            return;
+          }
+
+          settled =
+            true;
+
+          cleanup();
+          resolve(
+            value
+          );
+        };
+
+      const finishReject =
+        (
+          error:
+            Error
+        ) => {
+          if (settled) {
+            return;
+          }
+
+          settled =
+            true;
+
+          cleanup();
+          reject(
+            error
+          );
+        };
+
+      const onAbort =
+        (
+          error:
+            WorkerScriptAbortError
+        ) => {
+          finishReject(
+            error
+          );
+        };
+
+      dispatcherRequestWaiters.set(
+        requestId,
+        {
+          executionId,
+          resolve:
+            finishResolve,
+          reject:
+            finishReject,
+          onAbort,
+        }
+      );
+
+      execution.abortWaiters.add(
+        onAbort
+      );
+
+      post({
+        type:
+          "dispatcher",
+        executionId,
+        requestId,
+        action:
+          String(
+            action
+          ),
+        payload:
+          payload &&
+          typeof payload ===
+            "object" &&
+          !Array.isArray(
+            payload
+          )
+            ? payload
+            : {},
+      });
+    }
+  );
+}
+
+function resolveBackendDispatcherRequest(
+  executionId:
+    ClientScriptWorkerExecutionId,
+  requestId:
+    number,
+  ok:
+    boolean,
+  response:
+    unknown,
+  errorText:
+    string | undefined,
+  details:
+    unknown
+): void {
+  const waiter =
+    dispatcherRequestWaiters.get(
+      requestId
+    );
+
+  if (
+    !waiter ||
+    waiter.executionId !==
+      executionId
+  ) {
+    return;
+  }
+
+  if (ok) {
+    waiter.resolve(
+      response
+    );
+    return;
+  }
+
+  const error =
+    new Error(
+      errorText ||
+      "dispatcher_failed"
+    ) as
+      Error & {
+        code?: string;
+        details?: unknown;
+      };
+
+  error.code =
+    errorText ||
+    "dispatcher_failed";
+
+  error.details =
+    details;
+
+  waiter.reject(
+    error
+  );
+}
+
 function sendDcc(
   executionId: ClientScriptWorkerExecutionId,
   method: ClientScriptWorkerDccMethod,
@@ -2592,6 +2800,7 @@ async function runExecution(
         "log",
         "setInfo",
         "element",
+        "dispatcherRequest",
         `"use strict";
 ${script}
 //# sourceURL=dcc-express-worker-script-${String(element.id).replace(/[^a-zA-Z0-9_-]/g, "_")}.js`
@@ -2603,7 +2812,20 @@ ${script}
         delay,
         log,
         setInfo,
-        safeElement
+        safeElement,
+        (
+          action:
+            string,
+          payload:
+            Record<string, unknown> =
+              {}
+        ) =>
+          requestBackendDispatcher(
+            executionId,
+            execution,
+            action,
+            payload
+          )
       );
 
     assertNotAborted(
@@ -3029,6 +3251,22 @@ workerScope.addEventListener(
         message.executionId,
         message.requestId,
         message.ok
+      );
+
+      return;
+    }
+
+    if (
+      message.type ===
+      "dispatcherResult"
+    ) {
+      resolveBackendDispatcherRequest(
+        message.executionId,
+        message.requestId,
+        message.ok,
+        message.response,
+        message.error,
+        message.details
       );
 
       return;
