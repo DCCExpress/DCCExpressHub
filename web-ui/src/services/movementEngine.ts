@@ -2666,6 +2666,11 @@ async function tryAcquireAndSetTurnouts(
   let released =
     false;
 
+  let releasePromise:
+    Promise<void> |
+    null =
+      null;
+
   const release =
     async (): Promise<void> => {
       if (
@@ -2674,19 +2679,44 @@ async function tryAcquireAndSetTurnouts(
         return;
       }
 
-      released =
-        true;
+      if (
+        releasePromise
+      ) {
+        return await releasePromise;
+      }
 
-      await switchManRequest(
-        "release",
-        {
-          ownerId,
-          ownerName,
-          addresses,
-        },
-        5000
-      );
-  };
+      releasePromise =
+        (async () => {
+          try {
+            /*
+             * Release is owner-safe and idempotent on both backends.
+             *
+             * Do not mark the lease released before the backend ACK. If the
+             * request times out or the WebSocket response is lost, the caller
+             * must be allowed to retry the same owner/address release. A
+             * second release after a successfully processed first request is
+             * harmless (released=0) and closes the stale-lock race.
+             */
+            await switchManRequest(
+              "release",
+              {
+                ownerId,
+                ownerName,
+                addresses,
+              },
+              5000
+            );
+
+            released =
+              true;
+          } finally {
+            releasePromise =
+              null;
+          }
+        })();
+
+      return await releasePromise;
+    };
 
   try {
     for (
