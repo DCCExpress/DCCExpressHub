@@ -6,11 +6,16 @@ namespace DCCExpressHub.Net.Web;
 
 public sealed record MovementRuntimeState(
     string PageId,
+    string MovementName,
     string Status,
     long? StartedAt,
     long? StoppedAt,
     int? LocoAddress,
+    string? Direction,
     int DesiredSpeed,
+    bool Moving,
+    int? CurrentBlockId,
+    int? TargetBlockId,
     string? CurrentResourceKey,
     string? ActiveRouteResourceKey,
     string? Info,
@@ -195,7 +200,22 @@ public sealed class MovementRuntime
     static long NowMs() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
     static MovementRuntimeState Idle(string pageId) =>
-        new(pageId, "idle", null, null, null, 0, null, null, null, null);
+        new(
+            pageId,
+            "",
+            "idle",
+            null,
+            null,
+            null,
+            null,
+            0,
+            false,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
 
     public MovementRuntimeState GetState(string pageId)
     {
@@ -246,6 +266,9 @@ public sealed class MovementRuntime
             {
                 Status = status ?? s.Status,
                 DesiredSpeed = desiredSpeed ?? s.DesiredSpeed,
+                Moving = execution.Moving,
+                CurrentBlockId = execution.CurrentBlockId,
+                TargetBlockId = execution.TargetBlockId,
                 CurrentResourceKey = setCurrentResource ? currentResourceKey : s.CurrentResourceKey,
                 ActiveRouteResourceKey = setActiveRoute ? activeRouteResourceKey : s.ActiveRouteResourceKey,
                 Info = setInfo ? info : s.Info,
@@ -1164,6 +1187,9 @@ public sealed class MovementRuntime
                     Status = "idle",
                     StoppedAt = stoppedAt,
                     DesiredSpeed = 0,
+                    Moving = false,
+                    CurrentBlockId = execution.CurrentBlockId,
+                    TargetBlockId = null,
                     CurrentResourceKey = null,
                     ActiveRouteResourceKey = null,
                     Info = "Movement completed",
@@ -1227,6 +1253,9 @@ public sealed class MovementRuntime
                     Status = "error",
                     StoppedAt = NowMs(),
                     DesiredSpeed = 0,
+                    Moving = false,
+                    CurrentBlockId = execution.CurrentBlockId,
+                    TargetBlockId = execution.TargetBlockId,
                     ActiveRouteResourceKey = null,
                     Info = "Movement failed",
                     Error = ex.Message
@@ -1315,11 +1344,16 @@ public sealed class MovementRuntime
                 State =
                     new MovementRuntimeState(
                         page.Id,
+                        page.Name,
                         "running",
                         NowMs(),
                         null,
                         sourceBlock.LocoAddress,
+                        plan.Direction,
                         Math.Clamp(page.Speed, 0, 126),
+                        false,
+                        source.BlockId,
+                        null,
                         source.Key,
                         source.Key,
                         "Starting from " + source.Name,
