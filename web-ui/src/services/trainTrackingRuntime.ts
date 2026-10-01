@@ -19,6 +19,11 @@ import {
   wsClient,
 } from "./wsClient";
 
+import {
+  clearTrainTrackingPredictions,
+  replaceTrainTrackingPredictions,
+} from "./trainTrackingPredictionRuntime";
+
 type TrackingLogLevel =
   | "info"
   | "match"
@@ -37,6 +42,8 @@ export type LocoTrackingState = {
   currentBlockName: string | null;
   currentSensors: number[];
   currentSectionParts: string[];
+  predictedNextBlockId: number | null;
+  predictedNextBlockName: string | null;
   lastSensor: number | null;
   recentSensorPath: number[];
   confidence: LocoTrackingConfidence;
@@ -285,6 +292,8 @@ function snapshot(): TrainTrackingState {
 }
 
 function emit(): void {
+  syncTrackingPredictions();
+
   const state =
     snapshot();
 
@@ -723,6 +732,10 @@ function seedTrackingFromBlocks(
               [],
             currentSectionParts:
               [],
+            predictedNextBlockId:
+              null,
+            predictedNextBlockName:
+              null,
             lastSensor:
               null,
             recentSensorPath:
@@ -1236,6 +1249,132 @@ function directRoutesFromBlock(
       routeMatchesTurnouts(
         route
       )
+  );
+}
+
+function predictedRouteForTracking(
+  tracking:
+    LocoTrackingState
+): RawRouteEntry | null {
+  if (
+    !active() ||
+    tracking.currentBlockId ===
+      null
+  ) {
+    return null;
+  }
+
+  const loco =
+    wsClient.getLatestLocoState(
+      tracking.locoAddress
+    );
+
+  if (!loco) {
+    return null;
+  }
+
+  const direction =
+    loco.direction ===
+      "reverse"
+      ? "reverse"
+      : "forward";
+
+  const committed =
+    committedRoutes.get(
+      tracking.locoAddress
+    );
+
+  if (
+    committed &&
+    committed.fromBlockId ===
+      tracking.currentBlockId &&
+    committed.locoDirection ===
+      direction
+  ) {
+    return committed;
+  }
+
+  const routes =
+    directRoutesFromBlock(
+      tracking.currentBlockId,
+      direction
+    );
+
+  return routes.length ===
+      1
+    ? routes[0]!
+    : null;
+}
+
+function syncTrackingPredictions(): void {
+  if (
+    !active()
+  ) {
+    for (
+      const tracking of
+      locoTracking.values()
+    ) {
+      tracking.predictedNextBlockId =
+        null;
+      tracking.predictedNextBlockName =
+        null;
+    }
+
+    clearTrainTrackingPredictions();
+
+    return;
+  }
+
+  const visualPredictions:
+    Array<{
+      blockId: number;
+      blockName: string | null;
+      locoAddress: number;
+    }> =
+    [];
+
+  for (
+    const tracking of
+    locoTracking.values()
+  ) {
+    const route =
+      predictedRouteForTracking(
+        tracking
+      );
+
+    tracking.predictedNextBlockId =
+      route?.toBlockId ??
+      null;
+
+    tracking.predictedNextBlockName =
+      route
+        ? (
+            route.toBlockName ??
+            blockNames.get(
+              route.toBlockId
+            ) ??
+            `Block ${route.toBlockId}`
+          )
+        : null;
+
+    if (
+      route &&
+      route.toBlockId !==
+        tracking.currentBlockId
+    ) {
+      visualPredictions.push({
+        blockId:
+          route.toBlockId,
+        blockName:
+          tracking.predictedNextBlockName,
+        locoAddress:
+          tracking.locoAddress,
+      });
+    }
+  }
+
+  replaceTrainTrackingPredictions(
+    visualPredictions
   );
 }
 
@@ -2080,6 +2219,12 @@ export function installTrainTrackingRuntime(): void {
           data.logicalClosed
         );
 
+        if (
+          active()
+        ) {
+          emit();
+        }
+
         return;
       }
 
@@ -2092,6 +2237,12 @@ export function installTrainTrackingRuntime(): void {
           ? data.aspect
           : data.closed
       );
+
+      if (
+        active()
+      ) {
+        emit();
+      }
     }
   );
 
@@ -2102,6 +2253,12 @@ export function installTrainTrackingRuntime(): void {
         data.address,
         data.active
       );
+
+      if (
+        active()
+      ) {
+        emit();
+      }
     }
   );
 
@@ -2112,6 +2269,12 @@ export function installTrainTrackingRuntime(): void {
         data.address,
         data.aspect
       );
+
+      if (
+        active()
+      ) {
+        emit();
+      }
     }
   );
 
@@ -2122,6 +2285,23 @@ export function installTrainTrackingRuntime(): void {
         data.vpin,
         data.active
       );
+
+      if (
+        active()
+      ) {
+        emit();
+      }
+    }
+  );
+
+  wsClient.on(
+    "locoState",
+    () => {
+      if (
+        active()
+      ) {
+        emit();
+      }
     }
   );
 
@@ -2212,6 +2392,12 @@ export function installTrainTrackingRuntime(): void {
           );
         }
       }
+
+      if (
+        active()
+      ) {
+        emit();
+      }
     }
   );
 
@@ -2297,6 +2483,7 @@ export function clearTrainTrackingLogs(): void {
 export function resetTrainTrackingState(): void {
   locoTracking.clear();
   committedRoutes.clear();
+  clearTrainTrackingPredictions();
 
   seedTrackingFromBlocks(
     blockStates
