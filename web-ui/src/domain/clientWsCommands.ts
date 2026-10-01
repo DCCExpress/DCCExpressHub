@@ -310,8 +310,6 @@ export type MovementCommandPayload = {
   requestId: string;
   action: MovementCommandAction;
   pageId?: string;
-  page?: unknown;
-  plan?: unknown;
   emergencyStop?: boolean;
 };
 
