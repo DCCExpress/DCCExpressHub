@@ -356,3 +356,43 @@ test("Tracking prediction remains physical even while Movement is active", () =>
   );
 });
 
+
+
+test("Tracking rejects Movement block jumps before destination occupancy", () => {
+  const runtime =
+    read(
+      "src/services/trainTrackingRuntime.ts"
+    );
+
+  const start =
+    runtime.indexOf(
+      "function seedTrackingFromBlocks"
+    );
+
+  const end =
+    runtime.indexOf(
+      "function validateTrackingTopology",
+      start
+    );
+
+  const seed =
+    runtime.slice(
+      start,
+      end
+    );
+
+  assert.match(
+    seed,
+    /isLocoManagedByActiveMovement/
+  );
+
+  assert.match(
+    seed,
+    /sensorStates\.get\([\s\S]*sensor[\s\S]*\) !==[\s\S]*true/
+  );
+
+  assert.match(
+    seed,
+    /Tracking ignored premature Movement block assignment/
+  );
+});
