@@ -782,8 +782,6 @@ function seedTrackingFromBlocks(
 }
 
 function validateTrackingTopology(
-  layout:
-    Record<string, unknown>,
   topology:
     Record<string, unknown> | null
 ): string[] {
@@ -864,17 +862,13 @@ function validateTrackingTopology(
         1;
 
       const sensors =
-        uniqueSensors([
-          part.fromSensor,
-          ...(
-            Array.isArray(
-              part.detectors
-            )
-              ? part.detectors
-              : []
-          ),
-          part.toSensor,
-        ]);
+        uniqueSensors(
+          Array.isArray(
+            part.detectors
+          )
+            ? part.detectors
+            : []
+        );
 
       if (
         sensors.length ===
@@ -1005,7 +999,6 @@ async function refreshTopology(): Promise<void> {
 
     readinessIssues =
       validateTrackingTopology(
-        layout,
         topology
       );
 
@@ -1701,17 +1694,18 @@ export function installTrainTrackingRuntime(): void {
   subscribeControlStationRuntime(
     controlActive => {
       if (
-        enabled &&
         controlActive
       ) {
-        log(
-          "info",
-          "Tracking active on this Control Station."
-        );
-
         void refreshTopology();
 
         requestRuntimeState();
+
+        if (enabled) {
+          log(
+            "info",
+            "Tracking active on this Control Station."
+          );
+        }
       } else if (
         enabled
       ) {
@@ -1730,7 +1724,7 @@ export function installTrainTrackingRuntime(): void {
       if (
         status ===
           "connected" &&
-        active()
+        isControlStationRuntimeActive()
       ) {
         void refreshTopology();
         requestRuntimeState();
@@ -2135,7 +2129,9 @@ export function subscribeTrainTrackingState(
 }
 
 export function refreshTrainTracking(): void {
-  if (!active()) {
+  if (
+    !isControlStationRuntimeActive()
+  ) {
     return;
   }
 
