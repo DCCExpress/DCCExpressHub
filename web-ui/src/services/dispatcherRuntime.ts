@@ -3,13 +3,13 @@ import type {
 } from "../domain/movement";
 
 import {
-  abortMovement,
-  getMovementEngineState,
-  startMovement,
-  stopMovement,
-  subscribeMovementEngineState,
-  type MovementEngineState,
-} from "./movementEngine";
+  abortDispatcherExecution,
+  getDispatcherExecutionState,
+  startDispatcherExecution,
+  stopDispatcherExecution,
+  subscribeDispatcherExecutionState,
+  type DispatcherExecutionState,
+} from "./dispatcherExecutionRuntime";
 
 import {
   getTrainTrackingState,
@@ -18,7 +18,7 @@ import {
 } from "./trainTrackingRuntime";
 
 export type DispatcherState =
-  MovementEngineState;
+  DispatcherExecutionState;
 
 export type DispatcherLogLevel =
   | "info"
@@ -284,7 +284,7 @@ function taskSnapshot(
     number
 ): DispatcherTaskState {
   const engine =
-    getMovementEngineState(
+    getDispatcherExecutionState(
       page.id
     );
 
@@ -438,7 +438,7 @@ function ensureEngineSubscription(
   }
 
   const unsubscribe =
-    subscribeMovementEngineState(
+    subscribeDispatcherExecutionState(
       page.id,
       state => {
         if (
@@ -683,7 +683,7 @@ export async function startDispatcherMovement(
    * resume from any tracked checkpoint on A -> B -> C.
    */
   try {
-    await startMovement(
+    await startDispatcherExecution(
       executionPage,
       loco.locoAddress
     );
@@ -733,7 +733,7 @@ export function stopDispatcherMovement(
     );
 
   const stopped =
-    stopMovement(
+    stopDispatcherExecution(
       pageId
     );
 
@@ -762,7 +762,7 @@ export function abortDispatcherMovement(
     );
 
   const aborted =
-    abortMovement(
+    abortDispatcherExecution(
       pageId,
       emergency
     );
@@ -791,7 +791,7 @@ export function stopAllDispatcherMovements():
     taskPages.keys()
   ) {
     if (
-      stopMovement(
+      stopDispatcherExecution(
         pageId
       )
     ) {
@@ -824,7 +824,7 @@ export function abortAllDispatcherMovements(
     taskPages.keys()
   ) {
     if (
-      abortMovement(
+      abortDispatcherExecution(
         pageId,
         emergency
       )
@@ -907,7 +907,7 @@ export function getDispatcherState(
   pageId:
     string
 ): DispatcherState {
-  return getMovementEngineState(
+  return getDispatcherExecutionState(
     pageId
   );
 }
@@ -921,7 +921,7 @@ export function subscribeDispatcherState(
         DispatcherState
     ) => void
 ): () => void {
-  return subscribeMovementEngineState(
+  return subscribeDispatcherExecutionState(
     pageId,
     listener
   );
