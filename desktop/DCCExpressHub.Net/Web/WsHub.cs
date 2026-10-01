@@ -1288,6 +1288,13 @@ public sealed class WsHub
                                     "timeoutMs",
                                     0),
                                 0,
+                                600000),
+                            Math.Clamp(
+                                IOr(
+                                    data,
+                                    "setDelayMs",
+                                    250),
+                                0,
                                 600000));
 
                     DispatcherAcquireResult result;
