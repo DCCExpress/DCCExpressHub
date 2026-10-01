@@ -77,55 +77,6 @@ function cloneConfig(
   };
 }
 
-function normalizePhysicalSidePairs(
-  config: BlockEventConfigDto
-): BlockEventConfigDto {
-  const result =
-    cloneConfig(
-      config
-    );
-
-  const left =
-    result.forward.beforeArrive.length > 0
-      ? result.forward.beforeArrive
-      : result.reverse.afterLeave;
-
-  const right =
-    result.forward.afterLeave.length > 0
-      ? result.forward.afterLeave
-      : result.reverse.beforeArrive;
-
-  result.forward.beforeArrive =
-    left.map(
-      item => ({
-        ...item,
-      })
-    );
-
-  result.reverse.afterLeave =
-    left.map(
-      item => ({
-        ...item,
-      })
-    );
-
-  result.forward.afterLeave =
-    right.map(
-      item => ({
-        ...item,
-      })
-    );
-
-  result.reverse.beforeArrive =
-    right.map(
-      item => ({
-        ...item,
-      })
-    );
-
-  return result;
-}
-
 
 function language(): "hu" | "de" | "en" {
   const value =
@@ -349,9 +300,12 @@ function DirectionDiagram({
     "reverse";
 
   /*
-   * LEFT / RIGHT are physical positions and must never move.
-   * updateEvent() keeps the paired direction events synchronized, therefore
-   * either representation contains the same physical sensor set.
+   * The diagram renders only the currently selected direction group.
+   * Forward and Reverse are independent configurations.
+   *
+   * Physical placement for the active direction:
+   *   Forward: BEFORE on the left, AFTER on the right.
+   *   Reverse: AFTER on the left, BEFORE on the right.
    */
   const leftSideConditions =
     reverse
@@ -600,9 +554,7 @@ export default function BlockEventConfigPropertyEditor({
   const [opened, setOpened] = useState(false);
   const [direction, setDirection] = useState<Direction>("forward");
   const [draft, setDraft] = useState<BlockEventConfigDto>(() =>
-    normalizePhysicalSidePairs(
-      block.eventConfig
-    )
+    cloneConfig(block.eventConfig)
   );
 
   const sensorOptions = useMemo(() => {
@@ -656,7 +608,7 @@ export default function BlockEventConfigPropertyEditor({
 
   const openEditor = () => {
     setDraft(
-      normalizePhysicalSidePairs(
+      cloneConfig(
         block.eventConfig
       )
     );
@@ -669,74 +621,18 @@ export default function BlockEventConfigPropertyEditor({
     event: EventKey,
     conditions: BlockEventSensorConditionDto[]
   ) => {
-    setDraft(current => {
-      const next =
-        cloneConfig(
-          current
-        );
-
-      next[targetDirection][event] =
-        conditions.map(
-          item => ({
-            ...item,
-          })
-        );
-
-      /*
-       * LEFT / RIGHT are physical sensor positions, not direction-specific
-       * resources. Mirror only the paired edge events so changing direction
-       * changes BEFORE/AFTER semantics without moving the physical sensors.
-       *
-       * LEFT:
-       *   Forward.beforeArrive <-> Reverse.afterLeave
-       *
-       * RIGHT:
-       *   Forward.afterLeave <-> Reverse.beforeArrive
-       */
-      if (
-        targetDirection === "forward" &&
-        event === "beforeArrive"
-      ) {
-        next.reverse.afterLeave =
+    setDraft(current => ({
+      ...current,
+      [targetDirection]: {
+        ...current[targetDirection],
+        [event]:
           conditions.map(
             item => ({
               ...item,
             })
-          );
-      } else if (
-        targetDirection === "reverse" &&
-        event === "afterLeave"
-      ) {
-        next.forward.beforeArrive =
-          conditions.map(
-            item => ({
-              ...item,
-            })
-          );
-      } else if (
-        targetDirection === "forward" &&
-        event === "afterLeave"
-      ) {
-        next.reverse.beforeArrive =
-          conditions.map(
-            item => ({
-              ...item,
-            })
-          );
-      } else if (
-        targetDirection === "reverse" &&
-        event === "beforeArrive"
-      ) {
-        next.forward.afterLeave =
-          conditions.map(
-            item => ({
-              ...item,
-            })
-          );
-      }
-
-      return next;
-    });
+          ),
+      },
+    }));
   };
 
   const copyDirection = (from: Direction, to: Direction) => {
@@ -1015,7 +911,7 @@ export default function BlockEventConfigPropertyEditor({
             <Button
               onClick={() => {
                 block.eventConfig =
-                  normalizePhysicalSidePairs(
+                  cloneConfig(
                     draft
                   );
                 onChange();
