@@ -573,6 +573,88 @@ public sealed class DispatcherRuntime
         }
     }
 
+    public DispatcherAcquireResult ValidateHeldLeg(
+        string ownerId)
+    {
+        DispatcherLegLeaseInfo? lease;
+
+        lock (_gate)
+        {
+            if (!_leases.TryGetValue(
+                    ownerId,
+                    out lease))
+                return new(
+                    false,
+                    "dispatcher_lease_not_found",
+                    null);
+        }
+
+        var sourceError =
+            ValidateSourceBlock(
+                lease.FromBlockId,
+                lease.LocoAddress);
+
+        if (sourceError is not null)
+            return new(
+                false,
+                sourceError,
+                lease,
+                BlockingBlock:
+                    lease.FromBlockId);
+
+        var destination =
+            FindBlock(
+                lease.ToBlockId);
+
+        if (destination is null)
+            return new(
+                false,
+                "destination_block_not_found",
+                lease,
+                BlockingBlock:
+                    lease.ToBlockId);
+
+        if (destination.LocoAddress != 0 ||
+            !string.Equals(
+                destination.LocoId,
+                lease.TargetMarker,
+                StringComparison.Ordinal))
+            return new(
+                false,
+                "destination_target_lost",
+                lease,
+                BlockingBlock:
+                    lease.ToBlockId);
+
+        foreach (var address in lease.TurnoutAddresses)
+        {
+            if (!_switchMan.IsOwnedBy(
+                    address,
+                    ownerId))
+                return new(
+                    false,
+                    "turnout_authority_lost",
+                    lease);
+        }
+
+        var safety =
+            SensorsFree(
+                lease.SafetySensors);
+
+        if (!safety.Ok)
+            return new(
+                false,
+                "safety_sensor_not_free",
+                lease,
+                BlockingSensor:
+                    safety.BlockingSensor);
+
+        return new(
+            true,
+            null,
+            lease);
+    }
+
     public bool ReleaseLeg(string ownerId)
     {
         if (string.IsNullOrWhiteSpace(ownerId))
