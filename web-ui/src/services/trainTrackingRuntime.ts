@@ -695,6 +695,38 @@ function seedTrackingFromBlocks(
       current?.currentBlockId !==
         blockId;
 
+    /*
+     * During an active Movement, a backend block assignment is not enough to
+     * advance physical Tracking. Movement is allowed to own the block runtime,
+     * but Tracking only accepts a changed block after that block's own
+     * occupancy sensor is physically ON.
+     *
+     * Manual/setup block assignment remains a valid anchor when no Movement
+     * owns the locomotive.
+     */
+    if (
+      current &&
+      blockChanged &&
+      isLocoManagedByActiveMovement(
+        locoAddress
+      ) &&
+      (
+        sensor ===
+          null ||
+        sensorStates.get(
+          sensor
+        ) !==
+          true
+      )
+    ) {
+      log(
+        "warn",
+        `Tracking ignored premature Movement block assignment for loco #${locoAddress}: ${blockNames.get(blockId) ?? `Block ${blockId}`} / sensor ${sensor === null ? "NONE" : `#${sensor}`} is not ON.`
+      );
+
+      continue;
+    }
+
     if (
       blockChanged
     ) {
