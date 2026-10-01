@@ -1014,7 +1014,7 @@
   "trainTrackingReady": "Gráf kész",
   "trainTrackingNotReady": "Gráf nem kész",
   "trainTrackingControlStationOnly": "A vonatkövetés csak az aktív Control Station kliensen működik.",
-  "trainTrackingDescription": "Ha egy blokk foglaltsági szenzora ON állapotba kerül, a Hub az elmentett útvonalgráf, az aktuális váltóállások és a mozdony menetiránya alapján keres egyetlen egyértelműen azonosítható mozgó mozdonyt. Többértelmű találatnál csak naplóz, blokkot nem rendel automatikusan.",
+  "trainTrackingDescription": "A Hub locónként követi a vonatot az útvonal szenzorain keresztül az elmentett gráf, az aktuális váltóállások és a mozdony menetiránya alapján. A blokkhoz rendelés a blokk occupancy szenzorához rögzíti a kezdő pozíciót. Többértelmű találatnál csak naplóz, nem rendel automatikusan.",
   "trainTrackingNoLog": "Még nincs követési esemény.",
   "trainTrackingReset": "Követés alaphelyzet",
   "trainTrackingLocomotives": "Követett mozdonyok",
