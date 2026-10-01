@@ -8,7 +8,6 @@ import {
 } from "./controlStationRuntime";
 
 import {
-  getManagedMovementNextBlock,
   isLocoManagedByActiveMovement,
 } from "./movementEngine";
 
@@ -1353,39 +1352,15 @@ function syncTrackingPredictions(): void {
     const tracking of
     locoTracking.values()
   ) {
-    const managedNext =
-      tracking.currentBlockId ===
-        null
-        ? null
-        : getManagedMovementNextBlock(
-            tracking.locoAddress,
-            tracking.currentBlockId
-          );
-
-    if (managedNext) {
-      tracking.predictedNextBlockId =
-        managedNext.blockId;
-
-      tracking.predictedNextBlockName =
-        managedNext.blockName;
-
-      if (
-        managedNext.blockId !==
-          tracking.currentBlockId
-      ) {
-        visualPredictions.push({
-          blockId:
-            managedNext.blockId,
-          blockName:
-            managedNext.blockName,
-          locoAddress:
-            tracking.locoAddress,
-        });
-      }
-
-      continue;
-    }
-
+    /*
+     * Prediction is deliberately PHYSICAL, not planned intent.
+     *
+     * Even while Dispatcher/Movement is active, the predicted next block must
+     * reflect the locomotive direction + the CURRENT turnout state in the
+     * graph. Planned Movement intent is represented separately by targetLoco.
+     * Mixing the two makes the prediction claim a route that the turnouts do
+     * not physically provide yet.
+     */
     const route =
       predictedRouteForTracking(
         tracking
