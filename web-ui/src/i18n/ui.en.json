@@ -1007,6 +1007,7 @@
   "flowBlockGetterPayloadHint": "Writes the locomotive address to payload.locoAddress and passes the payload onward.",
   "flowBlockSetterPayloadHint": "Uses payload.locoAddress as the locomotive address.",
   "automationScriptsTab": "Scripts",
+  "automationTrackingTab": "Tracking",
   "automationFlowsTab": "Flows",
   "automationMovementTab": "Movements",
   "automationStatus": "Status",
