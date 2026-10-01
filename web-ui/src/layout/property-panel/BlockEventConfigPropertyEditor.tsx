@@ -234,70 +234,37 @@ function SectionSideNode({
 
   const sectionName =
     meta?.title ||
-    "—";
-
-  const sensorText =
-    primary
-      ? `Sensor ${primary.sensor} · ${primary.state ? "ON" : "OFF"}`
-      : "No sensor";
+    "Section";
 
   return (
     <g>
       <text
         x={x + width / 2}
-        y={y - 10}
+        y={y - 8}
         textAnchor="middle"
-        fontSize="9"
+        fontSize="8.5"
         fontWeight="700"
         fill="var(--mantine-color-dimmed)"
       >
-        {role}
-      </text>
-
-      <text
-        x={x + width / 2}
-        y={y - 1}
-        textAnchor="middle"
-        fontSize="9"
-        fontWeight="800"
-        fill="var(--mantine-color-text)"
-      >
-        {side}
+        {role} · {side}
       </text>
 
       <rect
         x={x}
-        y={y + 6}
+        y={y}
         width={width}
-        height="42"
-        rx="7"
+        height="34"
+        rx="6"
         fill="var(--mantine-color-body)"
-        stroke={
-          primary?.state
-            ? "var(--mantine-color-blue-6)"
-            : "var(--mantine-color-gray-5)"
-        }
-        strokeWidth="1.4"
-      />
-
-      <rect
-        x={x}
-        y={y + 44}
-        width={width}
-        height="4"
-        rx="2"
-        fill={
-          side === "LEFT"
-            ? "var(--mantine-color-teal-5)"
-            : "var(--mantine-color-orange-5)"
-        }
+        stroke="var(--mantine-color-gray-5)"
+        strokeWidth="1.2"
       />
 
       <text
         x={x + width / 2}
-        y={y + 23}
+        y={y + 14}
         textAnchor="middle"
-        fontSize="10"
+        fontSize="9.5"
         fontWeight="800"
         fill="var(--mantine-color-text)"
       >
@@ -306,20 +273,22 @@ function SectionSideNode({
 
       <text
         x={x + width / 2}
-        y={y + 37}
+        y={y + 26}
         textAnchor="middle"
-        fontSize="8.5"
+        fontSize="8"
         fill="var(--mantine-color-dimmed)"
       >
-        {sensorText}
+        {primary
+          ? `Sensor ${primary.sensor}`
+          : "No sensor"}
       </text>
 
       {conditions.length > 1 && (
         <text
-          x={x + width - 6}
-          y={y + 17}
+          x={x + width - 5}
+          y={y + 10}
           textAnchor="end"
-          fontSize="8"
+          fontSize="7.5"
           fontWeight="700"
           fill="var(--mantine-color-dimmed)"
         >
@@ -330,64 +299,6 @@ function SectionSideNode({
   );
 }
 
-function CompactConditionNodes({
-  conditions,
-  x,
-  y,
-  sensorMetaByAddress,
-}: {
-  conditions: BlockEventSensorConditionDto[];
-  x: number;
-  y: number;
-  sensorMetaByAddress: Map<number, SensorMeta>;
-}) {
-  if (conditions.length === 0) {
-    return null;
-  }
-
-  return (
-    <>
-      {conditions.map((condition, index) => {
-        const meta =
-          sensorMetaByAddress.get(
-            condition.sensor
-          );
-
-        const yy =
-          y + index * 18;
-
-        return (
-          <g
-            key={`${condition.sensor}-${condition.state}-${index}`}
-          >
-            <circle
-              cx={x}
-              cy={yy}
-              r="5"
-              fill={
-                condition.state
-                  ? "var(--mantine-color-blue-filled)"
-                  : "var(--mantine-color-gray-3)"
-              }
-              stroke="var(--mantine-color-gray-6)"
-              strokeWidth="1"
-            />
-
-            <text
-              x={x + 9}
-              y={yy + 3}
-              fontSize="8.5"
-              fontWeight="700"
-              fill="var(--mantine-color-text)"
-            >
-              {meta?.title || `Sensor ${condition.sensor}`} · {condition.state ? "ON" : "OFF"}
-            </text>
-          </g>
-        );
-      })}
-    </>
-  );
-}
 
 function DirectionDiagram({
   direction,
@@ -403,20 +314,48 @@ function DirectionDiagram({
   sensorMetaByAddress: Map<number, SensorMeta>;
 }) {
   const text = TEXT[language()];
-  const reverse = direction === "reverse";
-  const arrowX1 = reverse ? 314 : 46;
-  const arrowX2 = reverse ? 46 : 314;
-  const marker = reverse ? "url(#block-event-arrow-left)" : "url(#block-event-arrow-right)";
+  const reverse =
+    direction ===
+    "reverse";
+
+  const leftConditions =
+    reverse
+      ? events.beforeLeave
+      : events.beforeArrive;
+
+  const rightConditions =
+    reverse
+      ? events.beforeArrive
+      : events.beforeLeave;
+
+  const arrowX1 =
+    reverse
+      ? 312
+      : 48;
+
+  const arrowX2 =
+    reverse
+      ? 48
+      : 312;
+
+  const marker =
+    reverse
+      ? "url(#block-event-arrow-left)"
+      : "url(#block-event-arrow-right)";
 
   return (
     <div>
       <svg
-        viewBox="0 0 360 252"
+        viewBox="0 0 360 132"
         role="img"
-        aria-label={reverse ? text.directionHelpReverse : text.directionHelpForward}
+        aria-label={
+          reverse
+            ? text.directionHelpReverse
+            : text.directionHelpForward
+        }
         style={{
           width: "100%",
-          maxHeight: 260,
+          maxHeight: 145,
           display: "block",
         }}
       >
@@ -429,8 +368,12 @@ function DirectionDiagram({
             refY="3"
             orient="auto"
           >
-            <path d="M0,0 L6,3 L0,6 z" fill="currentColor" />
+            <path
+              d="M0,0 L6,3 L0,6 z"
+              fill="currentColor"
+            />
           </marker>
+
           <marker
             id="block-event-arrow-left"
             markerWidth="6"
@@ -439,40 +382,59 @@ function DirectionDiagram({
             refY="3"
             orient="auto"
           >
-            <path d="M0,0 L6,3 L0,6 z" fill="currentColor" />
+            <path
+              d="M0,0 L6,3 L0,6 z"
+              fill="currentColor"
+            />
           </marker>
         </defs>
 
         <line
-          x1="20"
-          y1="62"
-          x2="340"
-          y2="62"
+          x1={arrowX1}
+          y1="18"
+          x2={arrowX2}
+          y2="18"
           stroke="currentColor"
-          strokeWidth="3"
-          opacity="0.5"
+          strokeWidth="1.8"
+          markerEnd={marker}
         />
 
-        <circle
-          cx="55"
-          cy="62"
-          r="7"
-          fill="var(--mantine-color-blue-filled)"
+        <text
+          x="180"
+          y="12"
+          textAnchor="middle"
+          fontSize="10"
+          fontWeight="700"
+          fill="currentColor"
+        >
+          {reverse ? "REVERSE" : "FORWARD"}
+        </text>
+
+        <line
+          x1="24"
+          y1="74"
+          x2="336"
+          y2="74"
+          stroke="var(--mantine-color-gray-5)"
+          strokeWidth="2"
         />
 
-        <circle
-          cx="305"
-          cy="62"
-          r="7"
-          fill="var(--mantine-color-blue-filled)"
+        <SectionSideNode
+          conditions={leftConditions}
+          x={26}
+          y={57}
+          width={82}
+          role={reverse ? "AFTER" : "BEFORE"}
+          side="LEFT"
+          sensorMetaByAddress={sensorMetaByAddress}
         />
 
         <rect
-          x="125"
-          y="42"
-          width="110"
-          height="38"
-          rx="6"
+          x="126"
+          y="54"
+          width="108"
+          height="40"
+          rx="7"
           fill="var(--mantine-color-body)"
           stroke="var(--mantine-color-gray-6)"
           strokeWidth="1.5"
@@ -480,10 +442,10 @@ function DirectionDiagram({
 
         <text
           x="180"
-          y="57"
+          y="69"
           textAnchor="middle"
-          fontSize="12"
-          fontWeight="700"
+          fontSize="11"
+          fontWeight="800"
           fill="var(--mantine-color-text)"
         >
           {blockName || "BLOCK"}
@@ -491,58 +453,21 @@ function DirectionDiagram({
 
         <text
           x="180"
-          y="72"
+          y="84"
           textAnchor="middle"
-          fontSize="10"
+          fontSize="8.5"
           fill="var(--mantine-color-dimmed)"
         >
-          {text.occupancy}: {occupancySensor > 0 ? occupancySensor : "—"}
-        </text>
-
-        <line
-          x1={arrowX1}
-          y1="20"
-          x2={arrowX2}
-          y2="20"
-          stroke="currentColor"
-          strokeWidth="2"
-          markerEnd={marker}
-        />
-
-        <text
-          x="180"
-          y="14"
-          textAnchor="middle"
-          fontSize="11"
-          fontWeight="700"
-          fill="currentColor"
-        >
-          {reverse ? "REVERSE" : "FORWARD"}
+          {occupancySensor > 0
+            ? `Sensor ${occupancySensor}`
+            : "No occupancy sensor"}
         </text>
 
         <SectionSideNode
-          conditions={
-            reverse
-              ? events.beforeLeave
-              : events.beforeArrive
-          }
-          x={18}
-          y={96}
-          width={112}
-          role={reverse ? "AFTER" : "BEFORE"}
-          side="LEFT"
-          sensorMetaByAddress={sensorMetaByAddress}
-        />
-
-        <SectionSideNode
-          conditions={
-            reverse
-              ? events.beforeArrive
-              : events.beforeLeave
-          }
-          x={230}
-          y={96}
-          width={112}
+          conditions={rightConditions}
+          x={252}
+          y={57}
+          width={82}
           role={reverse ? "BEFORE" : "AFTER"}
           side="RIGHT"
           sensorMetaByAddress={sensorMetaByAddress}
@@ -550,67 +475,45 @@ function DirectionDiagram({
 
         <text
           x="180"
-          y="105"
+          y="113"
           textAnchor="middle"
-          fontSize="9"
-          fontWeight="700"
+          fontSize="8.5"
           fill="var(--mantine-color-dimmed)"
         >
-          ARRIVED
+          {events.arrived.length > 0
+            ? `Arrived: ${events.arrived.map(condition => `S${condition.sensor} ${condition.state ? "ON" : "OFF"}`).join(" + ")}`
+            : (
+                occupancySensor > 0
+                  ? `Arrived: Sensor ${occupancySensor} ON (default)`
+                  : "Arrived: no sensor"
+              )}
         </text>
 
-        <line
-          x1="146"
-          y1="112"
-          x2="214"
-          y2="112"
-          stroke="var(--mantine-color-violet-5)"
-          strokeWidth="4"
-          strokeLinecap="round"
-        />
-
-        <CompactConditionNodes
-          conditions={events.arrived}
-          x={149}
-          y={128}
-          sensorMetaByAddress={sensorMetaByAddress}
-        />
-
-        {events.afterLeave.length > 0 && (
-          <>
-            <text
-              x="180"
-              y="184"
-              textAnchor="middle"
-              fontSize="9"
-              fontWeight="700"
-              fill="var(--mantine-color-dimmed)"
-            >
-              AFTER LEAVE
-            </text>
-
-            <line
-              x1="146"
-              y1="192"
-              x2="214"
-              y2="192"
-              stroke="var(--mantine-color-blue-5)"
-              strokeWidth="4"
-              strokeLinecap="round"
-            />
-
-            <CompactConditionNodes
-              conditions={events.afterLeave}
-              x={149}
-              y={207}
-              sensorMetaByAddress={sensorMetaByAddress}
-            />
-          </>
-        )}
+        <text
+          x="180"
+          y="126"
+          textAnchor="middle"
+          fontSize="8.5"
+          fill="var(--mantine-color-dimmed)"
+        >
+          {events.afterLeave.length > 0
+            ? `After Leave: ${events.afterLeave.map(condition => `S${condition.sensor} ${condition.state ? "ON" : "OFF"}`).join(" + ")}`
+            : (
+                occupancySensor > 0
+                  ? `After Leave: Sensor ${occupancySensor} OFF (default)`
+                  : "After Leave: no sensor"
+              )}
+        </text>
       </svg>
 
-      <Text size="xs" c="dimmed" ta="center">
-        {reverse ? text.directionHelpReverse : text.directionHelpForward}
+      <Text
+        size="xs"
+        c="dimmed"
+        ta="center"
+      >
+        {reverse
+          ? text.directionHelpReverse
+          : text.directionHelpForward}
       </Text>
     </div>
   );
