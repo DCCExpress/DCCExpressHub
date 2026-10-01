@@ -1831,6 +1831,9 @@ public sealed class MovementRuntime
         {
             _dispatcher.ReleaseLeg(
                 lease.OwnerId);
+
+            execution.TargetBlockId =
+                null;
         }
     }
 
@@ -2092,15 +2095,15 @@ public sealed class MovementRuntime
         if (execution is null)
             return false;
 
+        execution.Moving = false;
+        execution.DesiredSpeed = 0;
+
         Patch(
             execution,
             status: "stopping",
             desiredSpeed: 0,
             info: "Stopping Movement...",
             setInfo: true);
-
-        execution.Moving = false;
-        execution.DesiredSpeed = 0;
 
         _ = _commandCenter.SetLocoAsync(
             execution.LocoAddress,
@@ -2177,10 +2180,28 @@ public sealed class MovementRuntime
         var count = 0;
 
         foreach (var pageId in pageIds)
-            if (emergencyStop
-                    ? Abort(pageId, true)
-                    : Stop(pageId))
+        {
+            if (emergencyStop)
+            {
+                Execution? execution;
+
+                lock (_gate)
+                    _executions.TryGetValue(
+                        pageId,
+                        out execution);
+
+                if (execution is not null)
+                    execution.EmergencyAbort =
+                        true;
+            }
+
+            if (Stop(pageId))
                 count++;
+        }
+
+        if (emergencyStop &&
+            count > 0)
+            _ = _commandCenter.EmergencyStopAsync();
 
         return count;
     }
