@@ -844,6 +844,13 @@ export default function BlockEventConfigPropertyEditor({
             minHeight: 0,
           }}
         >
+          <DirectionDiagram
+            direction={direction}
+            blockName={block.name}
+            occupancySensor={block.sensorAddress}
+            events={draft[direction]}
+          />
+
           <Tabs
             value={direction}
             onChange={value => setDirection(value === "reverse" ? "reverse" : "forward")}
@@ -867,13 +874,6 @@ export default function BlockEventConfigPropertyEditor({
                 minHeight: 0,
               }}
             >
-              <DirectionDiagram
-                direction={direction}
-                blockName={block.name}
-                occupancySensor={block.sensorAddress}
-                events={draft[direction]}
-              />
-
               <Group justify="flex-end">
                 <Button
                   size="compact-xs"
