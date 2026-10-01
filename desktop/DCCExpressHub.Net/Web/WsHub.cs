@@ -87,6 +87,14 @@ public sealed class WsHub
 
             if (wasMainOn && !HubState.TrackPower)
             {
+                /*
+                 * Track power OFF is a hard execution boundary. Do not leave a
+                 * logical Movement/Timetable run alive to continue later from
+                 * stale sensor/authority state when power returns.
+                 */
+                Movement.StopAll(false);
+                Timetable.StopScheduler();
+
                 _ = RuntimeStateStore.SaveAsync();
                 _ = LocoCounters.SaveAsync();
             }
@@ -103,7 +111,12 @@ public sealed class WsHub
         cc.ConnectionChanged += connected =>
         {
             if (!connected)
+            {
                 LocoCounters.SetTrackPower(false);
+
+                Movement.StopAll(false);
+                Timetable.StopScheduler();
+            }
 
             // The backend is the single source of truth for command-center
             // connectivity. Push the authoritative state immediately when the
