@@ -15,7 +15,12 @@ import {
 import {
   runClientScript,
   ScriptAbortError,
+  subscribeClientScriptState,
 } from "@/services/clientScriptRunner";
+
+import {
+  subscribeSharedScriptInfo,
+} from "@/services/scriptInfoRuntime";
 
 import {
   wsApi,
@@ -183,6 +188,75 @@ class TimetableScheduler {
           return;
         }
 
+        let started =
+          false;
+
+        let currentStatus:
+          "running" |
+          "paused" =
+          "running";
+
+        let currentMessage:
+          string | null =
+          null;
+
+        const reportStatus =
+          (): void => {
+            wsApi.timetableScriptStatus(
+              request.runId,
+              currentStatus,
+              currentMessage
+            );
+          };
+
+        const unsubscribeState =
+          subscribeClientScriptState(
+            request.executionId,
+            state => {
+              if (
+                state.status !==
+                  "running" &&
+                state.status !==
+                  "paused"
+              ) {
+                return;
+              }
+
+              started =
+                true;
+
+              currentStatus =
+                state.status;
+
+              reportStatus();
+            }
+          );
+
+        const unsubscribeInfo =
+          subscribeSharedScriptInfo(
+            request.executionId,
+            message => {
+              /*
+               * Ignore stale text left from an older/manual run until the
+               * newly requested worker execution has actually registered.
+               */
+              if (
+                !started &&
+                message
+              ) {
+                return;
+              }
+
+              currentMessage =
+                message ||
+                null;
+
+              if (started) {
+                reportStatus();
+              }
+            }
+          );
+
         void runClientScript(
           request.script,
           {
@@ -218,6 +292,12 @@ class TimetableScheduler {
                       error
                     )
               );
+            }
+          )
+          .finally(
+            () => {
+              unsubscribeState();
+              unsubscribeInfo();
             }
           );
       }
