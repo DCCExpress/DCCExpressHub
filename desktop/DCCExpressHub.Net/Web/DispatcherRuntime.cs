@@ -768,6 +768,25 @@ public sealed class DispatcherRuntime
                 BlockingBlock:
                     lease.ToBlockId);
 
+        lock (_gate)
+        {
+            foreach (var key in lease.ResourceKeys)
+            {
+                if (!_resourceOwners.TryGetValue(
+                        key,
+                        out var resourceOwner) ||
+                    !string.Equals(
+                        resourceOwner,
+                        ownerId,
+                        StringComparison.Ordinal))
+                    return new(
+                        false,
+                        "dispatcher_resource_authority_lost:" +
+                            key,
+                        lease);
+            }
+        }
+
         foreach (var address in lease.TurnoutAddresses)
         {
             if (!_switchMan.IsOwnedBy(
