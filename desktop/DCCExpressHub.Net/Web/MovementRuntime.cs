@@ -2100,10 +2100,94 @@ public sealed class MovementRuntime
         }
     }
 
-    public (bool Ok, string? Error) Start(
-        MovementStartRequest request)
+    MovementPageModel? LoadSavedMovementPage(
+        string pageId)
     {
-        var page = request.Page;
+        if (string.IsNullOrWhiteSpace(
+                pageId))
+            return null;
+
+        var path =
+            Path.Combine(
+                _env.ContentRootPath,
+                "data",
+                "config",
+                "automations.json");
+
+        if (!File.Exists(path))
+            return null;
+
+        try
+        {
+            using var document =
+                JsonDocument.Parse(
+                    File.ReadAllText(
+                        path));
+
+            var root =
+                document.RootElement;
+
+            if (!root.TryGetProperty(
+                    "movement",
+                    out var movement) ||
+                movement.ValueKind !=
+                    JsonValueKind.Object ||
+                !movement.TryGetProperty(
+                    "pages",
+                    out var pages) ||
+                pages.ValueKind !=
+                    JsonValueKind.Array)
+                return null;
+
+            foreach (var pageJson in
+                     pages.EnumerateArray())
+            {
+                if (!pageJson.TryGetProperty(
+                        "id",
+                        out var idElement) ||
+                    idElement.ValueKind !=
+                        JsonValueKind.String ||
+                    !string.Equals(
+                        idElement.GetString(),
+                        pageId,
+                        StringComparison.Ordinal))
+                    continue;
+
+                return JsonSerializer.Deserialize<MovementPageModel>(
+                    pageJson.GetRawText(),
+                    _json);
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(
+                ex,
+                "Movement definition could not be loaded: {PageId}",
+                pageId);
+        }
+
+        return null;
+    }
+
+    public (bool Ok, string? Error) Start(
+        string pageId)
+    {
+        var page =
+            LoadSavedMovementPage(
+                pageId);
+
+        if (page is null)
+            return (
+                false,
+                "movement_not_found");
+
+        return StartSavedPage(
+            page);
+    }
+
+    (bool Ok, string? Error) StartSavedPage(
+        MovementPageModel page)
+    {
         MovementPlanModel plan;
 
         try
