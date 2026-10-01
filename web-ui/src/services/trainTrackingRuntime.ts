@@ -589,6 +589,9 @@ function seedTrackingFromBlocks(
   nextBlockStates:
     BlockStateChangedPayload
 ): void {
+  const assignedLocos =
+    new Set<number>();
+
   for (
     const [
       rawBlockId,
@@ -622,6 +625,10 @@ function seedTrackingFromBlocks(
     ) {
       continue;
     }
+
+    assignedLocos.add(
+      locoAddress
+    );
 
     const sensor =
       blockIdToSensor.get(
@@ -727,6 +734,28 @@ function seedTrackingFromBlocks(
     locoTracking.set(
       locoAddress,
       next
+    );
+  }
+
+  for (
+    const address of
+    [...locoTracking.keys()]
+  ) {
+    if (
+      assignedLocos.has(
+        address
+      )
+    ) {
+      continue;
+    }
+
+    locoTracking.delete(
+      address
+    );
+
+    log(
+      "info",
+      `Tracking removed loco #${address}: it is no longer assigned to any block.`
     );
   }
 }
