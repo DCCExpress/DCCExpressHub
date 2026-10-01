@@ -448,6 +448,18 @@ export default function TrainTrackingPanel({
                     <Table.Th>
                       {
                         i18next.t(
+                          "ui.trainTrackingSectionParts",
+                          {
+                            defaultValue:
+                              "Section parts",
+                          }
+                        )
+                      }
+                    </Table.Th>
+
+                    <Table.Th>
+                      {
+                        i18next.t(
                           "ui.trainTrackingLastSensor",
                           {
                             defaultValue:
@@ -544,6 +556,20 @@ export default function TrainTrackingPanel({
                                         `#${sensor}`
                                     )
                                     .join(", ")
+                                : "-"
+                            }
+                          </Table.Td>
+
+                          <Table.Td
+                            ff="monospace"
+                            c="dimmed"
+                          >
+                            {
+                              loco.currentSectionParts.length >
+                                0
+                                ? loco.currentSectionParts.join(
+                                    ", "
+                                  )
                                 : "-"
                             }
                           </Table.Td>
