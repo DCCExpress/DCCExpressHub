@@ -1372,5 +1372,8 @@
   "dispatcherAbortAll": "Minden forgalmista mozgás megszakítása",
   "dispatcherEmergencyStop": "Vészleállítás",
   "dispatcherClearEstop": "Vészleállítás feloldása",
-  "trainTrackingSectionParts": "Szakaszrészek"
+  "trainTrackingSectionParts": "Szakaszrészek",
+  "trainTrackingNextBlock": "Következő blokk",
+  "trainTrackingPathDialogTitle": "Szenzorútvonal — mozdony #{{address}}",
+  "trainTrackingPathDialogDescription": "A Train Tracking által megőrzött legutóbbi szenzorok."
 }
