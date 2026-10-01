@@ -1008,6 +1008,7 @@
   "flowBlockSetterPayloadHint": "Uses payload.locoAddress as the locomotive address.",
   "automationScriptsTab": "Scripts",
   "automationFlowsTab": "Flows",
+  "automationMovementTab": "Movements",
   "automationStatus": "Status",
   "automationStartAllColumn": "All",
   "automationScriptColumn": "Script",
