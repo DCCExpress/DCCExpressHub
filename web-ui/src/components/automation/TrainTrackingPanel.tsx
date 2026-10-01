@@ -1,6 +1,7 @@
 import {
   Badge,
   Button,
+  Card,
   Group,
   ScrollArea,
   Stack,
@@ -20,6 +21,7 @@ import {
   getTrainTrackingState,
   installTrainTrackingRuntime,
   refreshTrainTracking,
+  resetTrainTrackingState,
   setTrainTrackingEnabled,
   subscribeTrainTrackingState,
   type TrainTrackingState,
@@ -172,6 +174,28 @@ export default function TrainTrackingPanel({
 
           <Button
             size="xs"
+            variant="light"
+            color="orange"
+            disabled={
+              !state.active
+            }
+            onClick={
+              resetTrainTrackingState
+            }
+          >
+            {
+              i18next.t(
+                "ui.trainTrackingReset",
+                {
+                  defaultValue:
+                    "Reset tracking",
+                }
+              )
+            }
+          </Button>
+
+          <Button
+            size="xs"
             variant="subtle"
             color="gray"
             onClick={
@@ -183,7 +207,7 @@ export default function TrainTrackingPanel({
                 "ui.clear",
                 {
                   defaultValue:
-                    "Clear",
+                    "Clear log",
                 }
               )
             }
@@ -218,6 +242,190 @@ export default function TrainTrackingPanel({
             {
               defaultValue:
                 "When a block occupancy sensor turns ON, the Hub uses the saved route graph, live turnout states and locomotive direction to identify a unique moving locomotive. Ambiguous matches are logged and never assigned automatically.",
+            }
+          )
+        }
+      </Text>
+
+      <Stack gap="xs">
+        <Text
+          size="sm"
+          fw={700}
+        >
+          {
+            i18next.t(
+              "ui.trainTrackingLocomotives",
+              {
+                defaultValue:
+                  "Tracked locomotives",
+              }
+            )
+          }
+        </Text>
+
+        {
+          state.locos.length ===
+            0
+            ? (
+              <Text
+                size="xs"
+                c="dimmed"
+              >
+                {
+                  i18next.t(
+                    "ui.trainTrackingNoLocomotives",
+                    {
+                      defaultValue:
+                        "No locomotives are anchored for tracking.",
+                    }
+                  )
+                }
+              </Text>
+            )
+            : (
+              <Group
+                gap="xs"
+                align="stretch"
+              >
+                {
+                  state.locos.map(
+                    loco => (
+                      <Card
+                        key={
+                          loco.locoAddress
+                        }
+                        withBorder
+                        p="xs"
+                        radius="sm"
+                        miw={250}
+                      >
+                        <Stack gap={4}>
+                          <Group
+                            justify="space-between"
+                            gap="xs"
+                          >
+                            <Text
+                              size="sm"
+                              fw={700}
+                            >
+                              {
+                                `#${loco.locoAddress}`
+                              }
+                            </Text>
+
+                            <Badge
+                              size="xs"
+                              variant="light"
+                              color={
+                                loco.confidence ===
+                                  "certain"
+                                  ? "green"
+                                  : loco.confidence ===
+                                      "likely"
+                                    ? "blue"
+                                    : "yellow"
+                              }
+                            >
+                              {
+                                loco.confidence
+                              }
+                            </Badge>
+                          </Group>
+
+                          <Text size="xs">
+                            {
+                              i18next.t(
+                                "ui.trainTrackingBlock",
+                                {
+                                  defaultValue:
+                                    "Block",
+                                }
+                              )
+                            }
+                            : {
+                              loco.currentBlockName ??
+                              "-"
+                            }
+                          </Text>
+
+                          <Text size="xs">
+                            {
+                              i18next.t(
+                                "ui.trainTrackingActiveSensors",
+                                {
+                                  defaultValue:
+                                    "Active sensors",
+                                }
+                              )
+                            }
+                            : {
+                              loco.currentSensors.length >
+                                0
+                                ? loco.currentSensors
+                                    .map(
+                                      sensor =>
+                                        `#${sensor}`
+                                    )
+                                    .join(", ")
+                                : "-"
+                            }
+                          </Text>
+
+                          <Text size="xs">
+                            {
+                              i18next.t(
+                                "ui.trainTrackingLastSensor",
+                                {
+                                  defaultValue:
+                                    "Last sensor",
+                                }
+                              )
+                            }
+                            : {
+                              loco.lastSensor ===
+                                null
+                                ? "-"
+                                : `#${loco.lastSensor}`
+                            }
+                          </Text>
+
+                          <Text
+                            size="xs"
+                            c="dimmed"
+                            ff="monospace"
+                          >
+                            {
+                              loco.recentSensorPath.length >
+                                0
+                                ? loco.recentSensorPath
+                                    .map(
+                                      sensor =>
+                                        `#${sensor}`
+                                    )
+                                    .join(" → ")
+                                : "-"
+                            }
+                          </Text>
+                        </Stack>
+                      </Card>
+                    )
+                  )
+                }
+              </Group>
+            )
+        }
+      </Stack>
+
+      <Text
+        size="sm"
+        fw={700}
+      >
+        {
+          i18next.t(
+            "ui.trainTrackingLog",
+            {
+              defaultValue:
+                "Tracking log",
             }
           )
         }
