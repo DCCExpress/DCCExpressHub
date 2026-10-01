@@ -939,30 +939,13 @@ function leaveRuleFor(
     };
   }
 
-  const sensor =
-    sensors.get(
-      blockId
-    );
-
-  if (
-    sensor ===
-    undefined
-  ) {
-    return {
-      conditions: [],
-      explicit:
-        false,
-    };
-  }
-
+  /*
+   * Leave is a physical ON boundary. Without an explicit Movement override
+   * or configured Leave sensor group there is no physical Leave event.
+   * Occupancy OFF is reserved for the derived AfterLeave fallback.
+   */
   return {
-    conditions: [{
-      id:
-        `auto-leave-${blockId}-off`,
-      sensor,
-      state:
-        false,
-    }],
+    conditions: [],
     explicit:
       false,
   };
