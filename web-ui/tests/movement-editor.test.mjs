@@ -479,7 +479,7 @@ test("Movement uses a dedicated physical-route engine with JMRI-style actions", 
 
   const engine =
     read(
-      "src/services/movementEngine.ts"
+      "src/services/dispatcherExecutionRuntime.ts"
     );
 
   const cards =
@@ -544,7 +544,7 @@ test("Movement uses a dedicated physical-route engine with JMRI-style actions", 
 
   assert.match(
     engine,
-    /export async function startMovement/
+    /export async function startDispatcherExecution/
   );
 
   assert.match(
@@ -639,17 +639,17 @@ test("Movement uses a dedicated physical-route engine with JMRI-style actions", 
 
   assert.match(
     runtimeControls,
-    /startMovement/
+    /startDispatcherExecution/
   );
 
   assert.match(
     runtimeControls,
-    /stopMovement/
+    /stopDispatcherExecution/
   );
 
   assert.match(
     runtimeControls,
-    /abortMovement/
+    /abortDispatcherExecution/
   );
 
   assert.match(
@@ -1074,7 +1074,7 @@ test("Movement start is disabled and notified while track power is off", () => {
 
   const engine =
     read(
-      "src/services/movementEngine.ts"
+      "src/services/dispatcherExecutionRuntime.ts"
     );
 
   const powerRuntime =
@@ -1175,7 +1175,7 @@ test("Movement Condition and Actions panels use subtle grayscale section styling
 test("Movement block LEAVE fires from source occupancy release", () => {
   const engine =
     read(
-      "src/services/movementEngine.ts"
+      "src/services/dispatcherExecutionRuntime.ts"
     );
 
   assert.match(
@@ -1280,7 +1280,7 @@ test("Movement block conditions support APPROACH ARRIVED DEPART and LEAVE sensor
 
   const engine =
     read(
-      "src/services/movementEngine.ts"
+      "src/services/dispatcherExecutionRuntime.ts"
     );
 
   const editor =
@@ -1556,7 +1556,7 @@ test("Movement block actions support before-depart and after-leave lifecycle pha
 
   const engine =
     read(
-      "src/services/movementEngine.ts"
+      "src/services/dispatcherExecutionRuntime.ts"
     );
 
   assert.match(
@@ -1670,7 +1670,7 @@ test("Movement actions are draggable inside their sequence order", () => {
 
   const engine =
     read(
-      "src/services/movementEngine.ts"
+      "src/services/dispatcherExecutionRuntime.ts"
     );
 
   assert.match(
@@ -1889,7 +1889,7 @@ test("Movement action sequences support blocking and background execution", () =
 
   const engine =
     read(
-      "src/services/movementEngine.ts"
+      "src/services/dispatcherExecutionRuntime.ts"
     );
 
   assert.match(
@@ -1967,7 +1967,7 @@ test("Movement destination block exposes and fires APPROACH before ARRIVED", () 
 
   const engine =
     read(
-      "src/services/movementEngine.ts"
+      "src/services/dispatcherExecutionRuntime.ts"
     );
 
   assert.match(
@@ -2027,7 +2027,7 @@ test("Movement physical route highlights stable physical runtime progress", () =
 
   const engine =
     read(
-      "src/services/movementEngine.ts"
+      "src/services/dispatcherExecutionRuntime.ts"
     );
 
   const css =
@@ -2136,7 +2136,7 @@ test("Movement turnout resources keep their occupancy detector and use it for pr
 
   const engine =
     read(
-      "src/services/movementEngine.ts"
+      "src/services/dispatcherExecutionRuntime.ts"
     );
 
   const row =
@@ -2247,7 +2247,7 @@ test("Movement stores run timing and cards show live elapsed duration", () => {
 
   const engine =
     read(
-      "src/services/movementEngine.ts"
+      "src/services/dispatcherExecutionRuntime.ts"
     );
 
   const elapsed =
@@ -2342,7 +2342,7 @@ test("Movement stores run timing and cards show live elapsed duration", () => {
 
   assert.match(
     cards,
-    /getMovementEngineState/
+    /getDispatcherExecutionState/
   );
 
   assert.match(
@@ -2360,7 +2360,7 @@ test("Movement stores run timing and cards show live elapsed duration", () => {
 test("Movement block direction triangle shows executing moving waiting error and target runtime states", () => {
   const engine =
     read(
-      "src/services/movementEngine.ts"
+      "src/services/dispatcherExecutionRuntime.ts"
     );
 
   const runtime =
@@ -2556,7 +2556,7 @@ test("Movement block direction triangle shows executing moving waiting error and
 test("Movement waiting indicator survives stopped-speed polling loops", () => {
   const engine =
     read(
-      "src/services/movementEngine.ts"
+      "src/services/dispatcherExecutionRuntime.ts"
     );
 
   const runtime =
@@ -3011,7 +3011,7 @@ test("Movement merges a section part into a block by sensor identity", () => {
 
   const engine =
     read(
-      "src/services/movementEngine.ts"
+      "src/services/dispatcherExecutionRuntime.ts"
     );
 
   const script =
@@ -3215,7 +3215,7 @@ test("Movement vector keeps physical sensors while selected nodes expose a confi
 test("Movement runtime honors ignored safety sensors but keeps logical target block checks", () => {
   const engine =
     read(
-      "src/services/movementEngine.ts"
+      "src/services/dispatcherExecutionRuntime.ts"
     );
 
   const script =
@@ -3277,7 +3277,7 @@ test("Movement runtime honors ignored safety sensors but keeps logical target bl
 test("Movement intermediate ARRIVED defers STOP/GO to the next leg clearance", () => {
   const engine =
     read(
-      "src/services/movementEngine.ts"
+      "src/services/dispatcherExecutionRuntime.ts"
     );
 
   const script =
@@ -3648,7 +3648,7 @@ test("Movement direction marker is hidden on idle empty blocks but shown on acti
 test("Movement final ARRIVED blocking sequences run before the automatic stop", () => {
   const engine =
     read(
-      "src/services/movementEngine.ts"
+      "src/services/dispatcherExecutionRuntime.ts"
     );
 
   const waitStart =
@@ -3745,7 +3745,7 @@ test("Movement final ARRIVED blocking sequences run before the automatic stop", 
 test("Movement never guesses forward when route direction is unknown", () => {
   const engine =
     read(
-      "src/services/movementEngine.ts"
+      "src/services/dispatcherExecutionRuntime.ts"
     );
 
   assert.match(
@@ -3939,7 +3939,7 @@ test("Block direction blinking follows live locomotive runtime state", () => {
 test("Movement arms the requested logical direction at zero speed before departure", () => {
   const engine =
     read(
-      "src/services/movementEngine.ts"
+      "src/services/dispatcherExecutionRuntime.ts"
     );
 
   assert.match(
@@ -4012,7 +4012,7 @@ test("Movements tab exposes global Stop All, Abort All and Emergency Stop contro
 
   assert.match(
     table,
-    /subscribeMovementEngineState/
+    /subscribeDispatcherExecutionState/
   );
 
   assert.match(
@@ -4025,7 +4025,7 @@ test("Movements tab exposes global Stop All, Abort All and Emergency Stop contro
 test("Global Movement abort requests E-STOP at most once", () => {
   const engine =
     read(
-      "src/services/movementEngine.ts"
+      "src/services/dispatcherExecutionRuntime.ts"
     );
 
   const table =
@@ -4035,7 +4035,7 @@ test("Global Movement abort requests E-STOP at most once", () => {
 
   assert.match(
     engine,
-    /export function abortMovement\([\s\S]*requestEmergencyStop = true/
+    /export function abortDispatcherExecution\([\s\S]*requestEmergencyStop = true/
   );
 
   assert.match(
@@ -4045,7 +4045,7 @@ test("Global Movement abort requests E-STOP at most once", () => {
 
   assert.match(
     table,
-    /abortMovement\([\s\S]*page\.id,[\s\S]*false[\s\S]*\)/
+    /abortDispatcherExecution\([\s\S]*page\.id,[\s\S]*false[\s\S]*\)/
   );
 
   const abortAllStart =
@@ -4308,7 +4308,7 @@ test("Movement editor uses the current in-memory route graph while runtime keeps
 
   const engine =
     read(
-      "src/services/movementEngine.ts"
+      "src/services/dispatcherExecutionRuntime.ts"
     );
 
   assert.match(
@@ -4530,7 +4530,7 @@ test("Movement supports random audio and DCC accessory actions", () => {
 
   const engine =
     read(
-      "src/services/movementEngine.ts"
+      "src/services/dispatcherExecutionRuntime.ts"
     );
 
   const editor =
@@ -5418,7 +5418,7 @@ test("same-section route generation tries both physical directions", () => {
 
 test("rolling movement does not block on its own newly occupied path sensor", () => {
   const engine = read(
-    "src/services/movementEngine.ts"
+    "src/services/dispatcherExecutionRuntime.ts"
   );
 
   assert.match(
@@ -5440,7 +5440,7 @@ test("rolling movement does not block on its own newly occupied path sensor", ()
 
 test("ARRIVED releases previous leg turnout authority before leg completion", () => {
   const engine = read(
-    "src/services/movementEngine.ts"
+    "src/services/dispatcherExecutionRuntime.ts"
   );
 
   const traverse = engine.slice(
@@ -5545,7 +5545,7 @@ test("Movement plan fails closed when a turnout falls outside every leg", () => 
 test("Movement start logs resolved physical resources and per-leg turnout requirements", () => {
   const engine =
     read(
-      "src/services/movementEngine.ts"
+      "src/services/dispatcherExecutionRuntime.ts"
     );
 
   assert.match(
@@ -5956,7 +5956,7 @@ test("composite Movement vector selection keeps the physical key and resolves th
 test("Movement turnout release remains retryable until backend ACK", () => {
   const engine =
     read(
-      "src/services/movementEngine.ts"
+      "src/services/dispatcherExecutionRuntime.ts"
     );
 
   assert.match(
@@ -6018,7 +6018,7 @@ test("Dispatcher and Movement both reject concurrent control of one locomotive",
 
   const engine =
     read(
-      "src/services/movementEngine.ts"
+      "src/services/dispatcherExecutionRuntime.ts"
     );
 
   assert.match(
@@ -6066,7 +6066,7 @@ test("Dispatcher and Movement both reject concurrent control of one locomotive",
 test("Movement arrival requires the destination block occupancy sensor", () => {
   const engine =
     read(
-      "src/services/movementEngine.ts"
+      "src/services/dispatcherExecutionRuntime.ts"
     );
 
   const start =
@@ -6116,17 +6116,17 @@ test("Dispatcher-selected locomotive identity reaches the Movement executor unch
 
   const engine =
     read(
-      "src/services/movementEngine.ts"
+      "src/services/dispatcherExecutionRuntime.ts"
     );
 
   assert.match(
     dispatcher,
-    /startMovement\([\s\S]*executionPage,[\s\S]*loco\.locoAddress/
+    /startDispatcherExecution\([\s\S]*executionPage,[\s\S]*loco\.locoAddress/
   );
 
   assert.match(
     engine,
-    /export async function startMovement\([\s\S]*expectedLocoAddress\?:/
+    /export async function startDispatcherExecution\([\s\S]*expectedLocoAddress\?:/
   );
 
   assert.match(
@@ -6147,5 +6147,48 @@ test("Dispatcher-selected locomotive identity reaches the Movement executor unch
   assert.match(
     engine,
     /contains locomotive #[\s\S]*but Dispatcher selected/
+  );
+});
+
+
+test("Movement engine contains no physical execution authority", () => {
+  const movementEngine =
+    read(
+      "src/services/movementEngine.ts"
+    );
+
+  const dispatcher =
+    read(
+      "src/services/dispatcherRuntime.ts"
+    );
+
+  const executor =
+    read(
+      "src/services/dispatcherExecutionRuntime.ts"
+    );
+
+  assert.doesNotMatch(
+    movementEngine,
+    /wsApi|wsClient|setLoco|switchMan|targetLoco|startDispatcherExecution|stopDispatcherExecution/
+  );
+
+  assert.match(
+    movementEngine,
+    /Movement is declarative input only/
+  );
+
+  assert.match(
+    dispatcher,
+    /from "\.\/dispatcherExecutionRuntime"/
+  );
+
+  assert.match(
+    executor,
+    /Dispatcher-owned execution runtime/
+  );
+
+  assert.match(
+    executor,
+    /wsApi\.setLoco/
   );
 });
