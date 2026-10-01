@@ -44,6 +44,11 @@ type SensorOption = {
   label: string;
 };
 
+type SensorMeta = {
+  title: string;
+  subtitle: string;
+};
+
 type Props = {
   block: BlockElement;
   layout: LayoutView;
@@ -199,46 +204,80 @@ const TEXT = {
   },
 } as const;
 
-function SensorConditionMarker({
+function SensorConditionNodes({
   conditions,
   x,
   y,
-  align = "middle",
+  side,
+  sensorMetaByAddress,
 }: {
   conditions: BlockEventSensorConditionDto[];
   x: number;
   y: number;
-  align?: "start" | "middle" | "end";
+  side: "left" | "center" | "right";
+  sensorMetaByAddress: Map<number, SensorMeta>;
 }) {
   if (conditions.length === 0) {
     return null;
   }
 
-  const textAnchor =
-    align === "start"
-      ? "start"
-      : align === "end"
-        ? "end"
-        : "middle";
+  const nodeWidth =
+    side === "center"
+      ? 98
+      : 92;
+  const nodeHeight = 28;
+  const gap = 6;
 
-  const labelX =
-    align === "start"
-      ? x + 11
-      : align === "end"
-        ? x - 11
-        : x;
+  const startX =
+    side === "left"
+      ? x
+      : side === "right"
+        ? x - nodeWidth
+        : x - nodeWidth / 2;
 
   return (
     <>
       {conditions.map((condition, index) => {
-        const yy = y + index * 17;
+        const yy =
+          y +
+          index *
+            (nodeHeight + gap);
+
+        const meta =
+          sensorMetaByAddress.get(
+            condition.sensor
+          ) ?? {
+            title:
+              `Sensor ${condition.sensor}`,
+            subtitle:
+              `S${condition.sensor}`,
+          };
 
         return (
-          <g key={`${condition.sensor}-${condition.state}-${index}`}>
-            <circle
-              cx={x}
-              cy={yy}
-              r="5.5"
+          <g
+            key={`${condition.sensor}-${condition.state}-${index}`}
+          >
+            <rect
+              x={startX}
+              y={yy}
+              width={nodeWidth}
+              height={nodeHeight}
+              rx="6"
+              fill="var(--mantine-color-body)"
+              stroke={
+                condition.state
+                  ? "var(--mantine-color-blue-6)"
+                  : "var(--mantine-color-gray-5)"
+              }
+              strokeWidth="1.2"
+            />
+
+            <rect
+              x={startX + 6}
+              y={yy + 8}
+              width="10"
+              height="10"
+              rx="2"
               fill={
                 condition.state
                   ? "var(--mantine-color-blue-filled)"
@@ -249,27 +288,37 @@ function SensorConditionMarker({
                   ? "var(--mantine-color-blue-8)"
                   : "var(--mantine-color-gray-6)"
               }
-              strokeWidth="1.2"
+              strokeWidth="1"
             />
 
             {!condition.state && (
-              <circle
-                cx={x}
-                cy={yy}
-                r="2.2"
+              <rect
+                x={startX + 8.5}
+                y={yy + 10.5}
+                width="5"
+                height="5"
+                rx="1"
                 fill="var(--mantine-color-body)"
               />
             )}
 
             <text
-              x={labelX}
-              y={yy + 3.5}
-              textAnchor={textAnchor}
-              fontSize="10"
+              x={startX + 22}
+              y={yy + 11}
+              fontSize="8.5"
               fontWeight="700"
               fill="var(--mantine-color-text)"
             >
-              {condition.sensor}
+              {meta.title}
+            </text>
+
+            <text
+              x={startX + 22}
+              y={yy + 21}
+              fontSize="8"
+              fill="var(--mantine-color-dimmed)"
+            >
+              {meta.subtitle} · {condition.state ? "ON" : "OFF"}
             </text>
           </g>
         );
@@ -283,11 +332,13 @@ function DirectionDiagram({
   blockName,
   occupancySensor,
   events,
+  sensorMetaByAddress,
 }: {
   direction: Direction;
   blockName: string;
   occupancySensor: number;
   events: BlockDirectionEventConfigDto;
+  sensorMetaByAddress: Map<number, SensorMeta>;
 }) {
   const text = TEXT[language()];
   const reverse = direction === "reverse";
@@ -298,12 +349,12 @@ function DirectionDiagram({
   return (
     <div>
       <svg
-        viewBox="0 0 360 176"
+        viewBox="0 0 360 252"
         role="img"
         aria-label={reverse ? text.directionHelpReverse : text.directionHelpForward}
         style={{
           width: "100%",
-          maxHeight: 195,
+          maxHeight: 260,
           display: "block",
         }}
       >
@@ -430,6 +481,17 @@ function DirectionDiagram({
           LEFT
         </text>
 
+        <line
+          x1="18"
+          y1="113"
+          x2="92"
+          y2="113"
+          stroke="var(--mantine-color-teal-5)"
+          strokeWidth="4"
+          strokeLinecap="round"
+          opacity="0.9"
+        />
+
         <text
           x="305"
           y="94"
@@ -453,6 +515,17 @@ function DirectionDiagram({
           RIGHT
         </text>
 
+        <line
+          x1="268"
+          y1="113"
+          x2="342"
+          y2="113"
+          stroke="var(--mantine-color-orange-5)"
+          strokeWidth="4"
+          strokeLinecap="round"
+          opacity="0.9"
+        />
+
         <text
           x="180"
           y="99"
@@ -464,32 +537,46 @@ function DirectionDiagram({
           ARRIVED
         </text>
 
-        <SensorConditionMarker
-          conditions={events.beforeArrive}
-          x={reverse ? 305 : 55}
-          y={116}
-          align={reverse ? "end" : "start"}
+        <line
+          x1="142"
+          y1="113"
+          x2="218"
+          y2="113"
+          stroke="var(--mantine-color-violet-5)"
+          strokeWidth="4"
+          strokeLinecap="round"
+          opacity="0.9"
         />
 
-        <SensorConditionMarker
+        <SensorConditionNodes
+          conditions={events.beforeArrive}
+          x={reverse ? 266 : 8}
+          y={121}
+          side={reverse ? "right" : "left"}
+          sensorMetaByAddress={sensorMetaByAddress}
+        />
+
+        <SensorConditionNodes
           conditions={events.arrived}
           x={180}
-          y={116}
-          align="start"
+          y={121}
+          side="center"
+          sensorMetaByAddress={sensorMetaByAddress}
         />
 
-        <SensorConditionMarker
+        <SensorConditionNodes
           conditions={events.beforeLeave}
-          x={reverse ? 55 : 305}
-          y={116}
-          align={reverse ? "start" : "end"}
+          x={reverse ? 8 : 352}
+          y={121}
+          side={reverse ? "left" : "right"}
+          sensorMetaByAddress={sensorMetaByAddress}
         />
 
         {events.afterLeave.length > 0 && (
           <>
             <text
               x="180"
-              y="145"
+              y="198"
               textAnchor="middle"
               fontSize="9"
               fontWeight="700"
@@ -498,11 +585,23 @@ function DirectionDiagram({
               AFTER LEAVE
             </text>
 
-            <SensorConditionMarker
+            <line
+              x1="142"
+              y1="206"
+              x2="218"
+              y2="206"
+              stroke="var(--mantine-color-blue-5)"
+              strokeWidth="4"
+              strokeLinecap="round"
+              opacity="0.9"
+            />
+
+            <SensorConditionNodes
               conditions={events.afterLeave}
               x={180}
-              y={156}
-              align="start"
+              y={214}
+              side="center"
+              sensorMetaByAddress={sensorMetaByAddress}
             />
           </>
         )}
@@ -565,6 +664,83 @@ export default function BlockEventConfigPropertyEditor({
       (a, b) => Number(a.value) - Number(b.value)
     );
   }, [block, layout, opened]);
+
+  const sensorMetaByAddress = useMemo(() => {
+    const map = new Map<number, SensorMeta>();
+
+    const add = (
+      address: number,
+      title: string,
+      subtitle: string
+    ) => {
+      if (
+        !Number.isInteger(address) ||
+        address <= 0 ||
+        address > 65535 ||
+        map.has(address)
+      ) {
+        return;
+      }
+
+      map.set(address, {
+        title:
+          title.trim() ||
+          `Sensor ${address}`,
+        subtitle:
+          subtitle.trim() ||
+          `S${address}`,
+      });
+    };
+
+    for (const element of layout.getAllElements()) {
+      if (element instanceof BlockElement) {
+        add(
+          element.sensorAddress,
+          element.name || "Block occupancy",
+          `S${element.sensorAddress}`
+        );
+        continue;
+      }
+
+      if (
+        element instanceof TrackElement &&
+        element.hasOccupancySensor
+      ) {
+        const sectionLabel =
+          element.sectionPart ||
+          (
+            element.section > 0
+              ? `S${element.section}`
+              : ""
+          );
+
+        add(
+          element.address,
+          element.name || sectionLabel || "Track sensor",
+          sectionLabel
+            ? `${sectionLabel} · sensor ${element.address}`
+            : `Sensor ${element.address}`
+        );
+      }
+    }
+
+    for (const dir of ["forward", "reverse"] as const) {
+      for (const event of EVENT_ORDER) {
+        for (const condition of draft[dir][event]) {
+          if (!map.has(condition.sensor)) {
+            map.set(condition.sensor, {
+              title:
+                `Sensor ${condition.sensor}`,
+              subtitle:
+                `S${condition.sensor}`,
+            });
+          }
+        }
+      }
+    }
+
+    return map;
+  }, [draft, layout]);
 
   const configuredCount = EVENT_ORDER.reduce(
     (sum, event) =>
@@ -829,6 +1005,7 @@ export default function BlockEventConfigPropertyEditor({
                 blockName={block.name}
                 occupancySensor={block.sensorAddress}
                 events={draft[direction]}
+                sensorMetaByAddress={sensorMetaByAddress}
               />
 
               <Group justify="flex-end">
