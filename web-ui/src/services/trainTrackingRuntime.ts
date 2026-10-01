@@ -8,6 +8,7 @@ import {
 } from "./controlStationRuntime";
 
 import {
+  getManagedMovementNextBlock,
   isLocoManagedByActiveMovement,
 } from "./movementEngine";
 
@@ -1352,6 +1353,39 @@ function syncTrackingPredictions(): void {
     const tracking of
     locoTracking.values()
   ) {
+    const managedNext =
+      tracking.currentBlockId ===
+        null
+        ? null
+        : getManagedMovementNextBlock(
+            tracking.locoAddress,
+            tracking.currentBlockId
+          );
+
+    if (managedNext) {
+      tracking.predictedNextBlockId =
+        managedNext.blockId;
+
+      tracking.predictedNextBlockName =
+        managedNext.blockName;
+
+      if (
+        managedNext.blockId !==
+          tracking.currentBlockId
+      ) {
+        visualPredictions.push({
+          blockId:
+            managedNext.blockId,
+          blockName:
+            managedNext.blockName,
+          locoAddress:
+            tracking.locoAddress,
+        });
+      }
+
+      continue;
+    }
+
     const route =
       predictedRouteForTracking(
         tracking
