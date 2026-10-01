@@ -29,11 +29,13 @@ import AutomationFlowsTable from "./automation/AutomationFlowsTable";
 import AutomationScriptsTable from "./automation/AutomationScriptsTable";
 import MovementPagesTable from "./movement/MovementPagesTable";
 import TrainTrackingPanel from "./automation/TrainTrackingPanel";
+import DispatcherPanel from "./automation/DispatcherPanel";
 
 type AutomationPanelTab =
   | "scripts"
   | "flows"
   | "movement"
+  | "dispatcher"
   | "tracking";
 
 const AUTOMATION_PANEL_TAB_STORAGE_KEY =
@@ -58,6 +60,8 @@ function loadAutomationPanelTab(): AutomationPanelTab {
       "movement" ||
     stored ===
       "scripts" ||
+    stored ===
+      "dispatcher" ||
     stored ===
       "tracking"
     ? stored
@@ -129,6 +133,8 @@ export default function AutomationPanel({
           "flows" &&
         value !==
           "movement" &&
+        value !==
+          "dispatcher" &&
         value !==
           "tracking"
       ) {
@@ -212,6 +218,20 @@ export default function AutomationPanel({
           </Tabs.Tab>
 
           <Tabs.Tab
+            value="dispatcher"
+          >
+            {
+              i18next.t(
+                "ui.automationDispatcherTab",
+                {
+                  defaultValue:
+                    "Dispatcher",
+                }
+              )
+            }
+          </Tabs.Tab>
+
+          <Tabs.Tab
             value="tracking"
           >
             {
@@ -279,6 +299,20 @@ export default function AutomationPanel({
             }
             onScriptsChange={
               onScriptsChange
+            }
+          />
+        </Tabs.Panel>
+
+        <Tabs.Panel
+          value="dispatcher"
+          style={{
+            flex: 1,
+            minHeight: 0,
+          }}
+        >
+          <DispatcherPanel
+            movements={
+              movements
             }
           />
         </Tabs.Panel>
