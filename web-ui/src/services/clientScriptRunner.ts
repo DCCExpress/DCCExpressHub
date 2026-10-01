@@ -523,6 +523,22 @@ const ownedBlockTargets =
   >();
 
 
+type ScriptDispatcherLeaseKind =
+  | "leg"
+  | "route";
+
+const scriptDispatcherOwners =
+  new Map<
+    ClientScriptExecutionId,
+    Map<
+      string,
+      ScriptDispatcherLeaseKind
+    >
+  >();
+
+let scriptDispatcherRequestSequence =
+  0;
+
 type LayoutBlockCatalogItem = {
   id: string;
   name: string;
@@ -3031,6 +3047,333 @@ function executeDccCommand(
   }
 }
 
+function rememberScriptDispatcherOwner(
+  executionId:
+    ClientScriptExecutionId,
+  ownerId:
+    string,
+  kind:
+    ScriptDispatcherLeaseKind
+): void {
+  let owners =
+    scriptDispatcherOwners.get(
+      executionId
+    );
+
+  if (!owners) {
+    owners =
+      new Map();
+
+    scriptDispatcherOwners.set(
+      executionId,
+      owners
+    );
+  }
+
+  owners.set(
+    ownerId,
+    kind
+  );
+}
+
+function forgetScriptDispatcherOwner(
+  executionId:
+    ClientScriptExecutionId,
+  ownerId:
+    string
+): void {
+  const owners =
+    scriptDispatcherOwners.get(
+      executionId
+    );
+
+  if (!owners) {
+    return;
+  }
+
+  owners.delete(
+    ownerId
+  );
+
+  if (
+    owners.size ===
+      0
+  ) {
+    scriptDispatcherOwners.delete(
+      executionId
+    );
+  }
+}
+
+function releaseOneScriptDispatcherOwner(
+  executionId:
+    ClientScriptExecutionId,
+  ownerId:
+    string,
+  kind:
+    ScriptDispatcherLeaseKind
+): void {
+  scriptDispatcherRequestSequence +=
+    1;
+
+  const requestId =
+    `${wsApi.clientUuid}:script-dispatcher-cleanup:` +
+    `${String(executionId)}:` +
+    `${scriptDispatcherRequestSequence}`;
+
+  void wsApi.dispatcherRequest(
+    requestId,
+    kind ===
+      "route"
+      ? "releaseRoute"
+      : "releaseLeg",
+    {
+      ownerId,
+    },
+    10000
+  ).finally(
+    () => {
+      forgetScriptDispatcherOwner(
+        executionId,
+        ownerId
+      );
+    }
+  );
+}
+
+function releaseScriptDispatcherOwners(
+  executionId:
+    ClientScriptExecutionId
+): void {
+  const owners =
+    scriptDispatcherOwners.get(
+      executionId
+    );
+
+  if (!owners) {
+    return;
+  }
+
+  for (
+    const [
+      ownerId,
+      kind,
+    ] of [
+      ...owners.entries(),
+    ]
+  ) {
+    releaseOneScriptDispatcherOwner(
+      executionId,
+      ownerId,
+      kind
+    );
+  }
+}
+
+type ScriptDispatcherAction =
+  | "snapshot"
+  | "acquireLeg"
+  | "releaseLeg"
+  | "acquireRoute"
+  | "commitRoute"
+  | "releaseRoute";
+
+function scriptDispatcherAction(
+  value:
+    string
+): ScriptDispatcherAction | null {
+  switch (value) {
+    case "snapshot":
+    case "acquireLeg":
+    case "releaseLeg":
+    case "acquireRoute":
+    case "commitRoute":
+    case "releaseRoute":
+      return value;
+
+    default:
+      return null;
+  }
+}
+
+async function handleScriptDispatcherRequest(
+  message:
+    Extract<
+      WorkerToMainMessage,
+      {
+        type:
+          "dispatcher";
+      }
+    >
+): Promise<void> {
+  const execution =
+    executions.get(
+      message.executionId
+    );
+
+  const action =
+    scriptDispatcherAction(
+      message.action
+    );
+
+  if (
+    !execution ||
+    execution.aborted ||
+    !action
+  ) {
+    postToWorker({
+      type:
+        "dispatcherResult",
+      executionId:
+        message.executionId,
+      requestId:
+        message.requestId,
+      ok:
+        false,
+      error:
+        !action
+          ? "unknown_dispatcher_action"
+          : "script_not_running",
+    });
+
+    return;
+  }
+
+  const payload =
+    message.payload ??
+    {};
+
+  const ownerId =
+    typeof payload.ownerId ===
+      "string"
+      ? payload.ownerId
+      : "";
+
+  scriptDispatcherRequestSequence +=
+    1;
+
+  const requestId =
+    `${wsApi.clientUuid}:script-dispatcher:` +
+    `${String(message.executionId)}:` +
+    `${message.requestId}:` +
+    `${scriptDispatcherRequestSequence}`;
+
+  try {
+    const response =
+      await wsApi.dispatcherRequest(
+        requestId,
+        action,
+        payload,
+        30000
+      );
+
+    const acquiredKind:
+      ScriptDispatcherLeaseKind |
+      null =
+      response.ok &&
+      ownerId &&
+      action ===
+        "acquireLeg"
+        ? "leg"
+        : response.ok &&
+            ownerId &&
+            action ===
+              "acquireRoute"
+          ? "route"
+          : null;
+
+    if (acquiredKind) {
+      rememberScriptDispatcherOwner(
+        message.executionId,
+        ownerId,
+        acquiredKind
+      );
+    }
+
+    if (
+      response.ok &&
+      ownerId &&
+      (
+        action ===
+          "releaseLeg" ||
+        action ===
+          "releaseRoute" ||
+        action ===
+          "commitRoute"
+      )
+    ) {
+      forgetScriptDispatcherOwner(
+        message.executionId,
+        ownerId
+      );
+    }
+
+    const current =
+      executions.get(
+        message.executionId
+      );
+
+    /*
+     * Acquisition can race with Abort. If the backend grants authority after
+     * the Worker has already been cancelled, release it immediately instead
+     * of leaving an orphaned route lease.
+     */
+    if (
+      acquiredKind &&
+      (
+        !current ||
+        current.aborted
+      )
+    ) {
+      releaseOneScriptDispatcherOwner(
+        message.executionId,
+        ownerId,
+        acquiredKind
+      );
+
+      return;
+    }
+
+    postToWorker({
+      type:
+        "dispatcherResult",
+      executionId:
+        message.executionId,
+      requestId:
+        message.requestId,
+      ok:
+        response.ok,
+      response,
+      error:
+        response.ok
+          ? undefined
+          : response.message ??
+            "dispatcher_failed",
+      details:
+        response.extra,
+    });
+  } catch (
+    error
+  ) {
+    postToWorker({
+      type:
+        "dispatcherResult",
+      executionId:
+        message.executionId,
+      requestId:
+        message.requestId,
+      ok:
+        false,
+      error:
+        error instanceof Error
+          ? error.message
+          : String(
+              error
+            ),
+    });
+  }
+}
+
 function handleDccCommand(
   message:
     Extract<
@@ -3101,6 +3444,10 @@ function handleDccCommand(
 function finishExecution(
   elementId: ClientScriptExecutionId
 ): void {
+  releaseScriptDispatcherOwners(
+    elementId
+  );
+
   const execution =
     executions.get(
       elementId
@@ -3133,6 +3480,17 @@ function handleWorkerMessage(
     "audio"
   ) {
     handleScriptAudioPlayback(
+      message
+    );
+
+    return;
+  }
+
+  if (
+    message.type ===
+      "dispatcher"
+  ) {
+    void handleScriptDispatcherRequest(
       message
     );
 
@@ -3443,6 +3801,10 @@ export function abortClientScript(
       elementId,
     reason,
   });
+
+  releaseScriptDispatcherOwners(
+    elementId
+  );
 
   clearTargetsOwnedByExecution(
     elementId
