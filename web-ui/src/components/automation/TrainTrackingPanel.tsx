@@ -549,8 +549,8 @@ export default function TrainTrackingPanel({
                                         configured?.name ??
                                         `#${loco.locoAddress}`
                                       }
-                                      width={54}
-                                      height={28}
+                                      width={64}
+                                      height={34}
                                     />
 
                                     <Text
