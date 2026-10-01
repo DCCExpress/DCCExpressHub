@@ -189,13 +189,12 @@ public sealed class MovementRuntime
     readonly ICommandCenter _commandCenter;
     readonly HubState _hubState;
     readonly IWebHostEnvironment _env;
+    readonly AutomationStorageCoordinator _automationStorage;
     readonly ILogger<MovementRuntime> _log;
     readonly Dictionary<string, Execution> _executions = new(StringComparer.Ordinal);
     readonly Dictionary<string, MovementRuntimeState> _states = new(StringComparer.Ordinal);
     readonly ConcurrentDictionary<string, TaskCompletionSource<bool>> _pendingAudio = new(StringComparer.Ordinal);
     readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web);
-    readonly SemaphoreSlim _timingStorageGate =
-        new(1, 1);
 
     public event Action<MovementRuntimeState>? Changed;
     public event Action<MovementAudioRequest>? AudioRequested;
@@ -209,6 +208,7 @@ public sealed class MovementRuntime
         ICommandCenter commandCenter,
         HubState hubState,
         IWebHostEnvironment env,
+        AutomationStorageCoordinator automationStorage,
         ILogger<MovementRuntime> log)
     {
         _layout = layout;
@@ -218,6 +218,7 @@ public sealed class MovementRuntime
         _commandCenter = commandCenter;
         _hubState = hubState;
         _env = env;
+        _automationStorage = automationStorage;
         _log = log;
     }
 
@@ -599,95 +600,97 @@ public sealed class MovementRuntime
         if (!File.Exists(path))
             return;
 
-        await _timingStorageGate.WaitAsync();
-
-        try
-        {
-            var root =
-                JsonNode.Parse(
-                    await File.ReadAllTextAsync(
-                        path)) as
-                    JsonObject;
-
-            var pages =
-                root?["movement"]?["pages"] as
-                    JsonArray;
-
-            if (root is null ||
-                pages is null)
-                return;
-
-            JsonObject? target =
-                null;
-
-            foreach (var node in pages)
+        await _automationStorage.ExecuteAsync(
+            async () =>
             {
-                if (node is not JsonObject page)
-                    continue;
-
-                var id =
-                    page["id"]?
-                        .GetValue<string>();
-
-                if (string.Equals(
-                        id,
-                        pageId,
-                        StringComparison.Ordinal))
+                try
                 {
-                    target =
-                        page;
-                    break;
-                }
-            }
+                    var root =
+                        JsonNode.Parse(
+                            await File.ReadAllTextAsync(
+                                path)) as
+                            JsonObject;
 
-            if (target is null)
-                return;
+                    var pages =
+                        root?["movement"]?["pages"] as
+                            JsonArray;
 
-            target["startedAt"] =
-                startedAt.HasValue
-                    ? JsonValue.Create(
-                        startedAt.Value)
-                    : null;
+                    if (root is null ||
+                        pages is null)
+                        return false;
 
-            target["stoppedAt"] =
-                stoppedAt.HasValue
-                    ? JsonValue.Create(
-                        stoppedAt.Value)
-                    : null;
+                    JsonObject? target =
+                        null;
 
-            var tempPath =
-                path +
-                ".movement-timing.tmp";
-
-            Directory.CreateDirectory(
-                Path.GetDirectoryName(
-                    path)!);
-
-            await File.WriteAllTextAsync(
-                tempPath,
-                root.ToJsonString(
-                    new JsonSerializerOptions
+                    foreach (var node in pages)
                     {
-                        WriteIndented =
-                            false
-                    }));
+                        if (node is not JsonObject page)
+                            continue;
 
-            File.Move(
-                tempPath,
-                path,
-                true);
-        }
-        catch (Exception ex)
-        {
-            _log.LogWarning(
-                ex,
-                "Movement timing could not be persisted for {PageId}",
-                pageId);
-        }
-        finally
-        {
-            _timingStorageGate.Release();
-        }
+                        var id =
+                            page["id"]?
+                                .GetValue<string>();
+
+                        if (string.Equals(
+                                id,
+                                pageId,
+                                StringComparison.Ordinal))
+                        {
+                            target =
+                                page;
+                            break;
+                        }
+                    }
+
+                    if (target is null)
+                        return false;
+
+                    target["startedAt"] =
+                        startedAt.HasValue
+                            ? JsonValue.Create(
+                                startedAt.Value)
+                            : null;
+
+                    target["stoppedAt"] =
+                        stoppedAt.HasValue
+                            ? JsonValue.Create(
+                                stoppedAt.Value)
+                            : null;
+
+                    var tempPath =
+                        path +
+                        ".movement-timing.tmp";
+
+                    Directory.CreateDirectory(
+                        Path.GetDirectoryName(
+                            path)!);
+
+                    await File.WriteAllTextAsync(
+                        tempPath,
+                        root.ToJsonString(
+                            new JsonSerializerOptions
+                            {
+                                WriteIndented =
+                                    false
+                            }));
+
+                    File.Move(
+                        tempPath,
+                        path,
+                        true);
+
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    _log.LogWarning(
+                        ex,
+                        "Movement timing could not be persisted for {PageId}",
+                        pageId);
+
+                    return false;
+                }
+            });
     }
 
     Dictionary<int, int> LoadFunctionBindingMap(int locoAddress)
