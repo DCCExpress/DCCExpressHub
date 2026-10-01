@@ -170,6 +170,18 @@ public sealed class WsHub
         }
     }
 
+    private async Task OnControlStationReleased()
+    {
+        Timetable.StopScheduler();
+        Timetable.FailDelegatedScripts(
+            "control_station_disconnected");
+        Movement.FailPendingAudio();
+
+        await Broadcast(
+            "controlStationStatus",
+            ControlStationStatus());
+    }
+
     private bool IsControlStationOwner(Guid connectionId)
     {
         lock (_controlStationGate)
@@ -208,7 +220,7 @@ public sealed class WsHub
             Clients.TryRemove(id, out _);
 
             if (ReleaseControlStation(id))
-                await Broadcast("controlStationStatus", ControlStationStatus());
+                await OnControlStationReleased();
 
             try { await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "bye", CancellationToken.None); } catch { }
         }
@@ -253,7 +265,7 @@ public sealed class WsHub
                     }
                 case "controlStationRelease":
                     if (ReleaseControlStation(connectionId))
-                        await Broadcast("controlStationStatus", ControlStationStatus());
+                        await OnControlStationReleased();
                     else
                         await Send(ws, "controlStationStatus", ControlStationStatus());
                     return;
