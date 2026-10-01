@@ -146,6 +146,11 @@ public sealed record MovementStartRequest(
 /// </summary>
 public sealed class MovementRuntime
 {
+    sealed class ResourceLeaveState
+    {
+        public required MovementPlanResourceModel Resource { get; init; }
+    }
+
     sealed class Execution
     {
         public required MovementPageModel Page { get; init; }
@@ -161,6 +166,10 @@ public sealed class MovementRuntime
         public int? TargetBlockId { get; set; }
         public ConcurrentBag<Task> BackgroundTasks { get; } = [];
         public Dictionary<int, int> FunctionNumbersByBindingId { get; } = [];
+        public Dictionary<string, ResourceLeaveState> ResourceLeaves { get; } =
+            new(StringComparer.Ordinal);
+        public HashSet<string> ResourceLeaveFired { get; } =
+            new(StringComparer.Ordinal);
     }
 
     readonly object _gate = new();
@@ -300,32 +309,91 @@ public sealed class MovementRuntime
         return any;
     }
 
+    MovementResourceEventRule EffectiveResourceRule(
+        MovementPageModel page,
+        MovementPlanResourceModel resource,
+        string eventName)
+    {
+        var explicitRule =
+            page.ResourceEventRules.FirstOrDefault(x =>
+                string.Equals(x.ResourceKey, resource.Key, StringComparison.Ordinal) &&
+                string.Equals(x.Event, eventName, StringComparison.Ordinal));
+
+        if (explicitRule is not null)
+            return explicitRule;
+
+        var leaving =
+            string.Equals(
+                eventName,
+                "leave",
+                StringComparison.Ordinal);
+
+        return new MovementResourceEventRule
+        {
+            ResourceKey =
+                resource.Key,
+            Event =
+                eventName,
+            Match =
+                leaving
+                    ? "all"
+                    : "any",
+            Conditions =
+                resource.Detectors
+                    .Where(sensor =>
+                        sensor is >= 1 and <= 65535)
+                    .Distinct()
+                    .OrderBy(sensor =>
+                        sensor)
+                    .Select(sensor =>
+                        new MovementSensorCondition
+                        {
+                            Id =
+                                "default-" +
+                                resource.Key +
+                                "-" +
+                                eventName +
+                                "-" +
+                                sensor,
+                            Sensor =
+                                sensor,
+                            State =
+                                !leaving
+                        })
+                    .ToArray()
+        };
+    }
+
     bool ResourceEventSatisfied(
         MovementPageModel page,
         MovementPlanResourceModel resource,
         string eventName)
     {
-        var rule = page.ResourceEventRules.FirstOrDefault(x =>
-            string.Equals(x.ResourceKey, resource.Key, StringComparison.Ordinal) &&
-            string.Equals(x.Event, eventName, StringComparison.Ordinal));
+        var rule =
+            EffectiveResourceRule(
+                page,
+                resource,
+                eventName);
 
-        if (rule is null || rule.Conditions.Length == 0)
+        if (rule.Conditions.Length == 0)
             return false;
 
-        if (string.Equals(rule.Match, "any", StringComparison.Ordinal))
-        {
-            foreach (var condition in rule.Conditions)
-            {
-                if (condition.Sensor is >= 1 and <= 65535 &&
-                    _layout.TryGetSensorState((ushort)condition.Sensor, out var state) &&
-                    state == condition.State)
-                    return true;
-            }
+        bool Matches(
+            MovementSensorCondition condition) =>
+            condition.Sensor is >= 1 and <= 65535 &&
+            _layout.TryGetSensorState(
+                (ushort)condition.Sensor,
+                out var state) &&
+            state == condition.State;
 
-            return false;
-        }
-
-        return ConditionsSatisfied(rule.Conditions);
+        return string.Equals(
+                rule.Match,
+                "any",
+                StringComparison.Ordinal)
+            ? rule.Conditions.Any(
+                Matches)
+            : rule.Conditions.All(
+                Matches);
     }
 
     ushort[] EffectiveSafetySensors(
@@ -803,6 +871,86 @@ public sealed class MovementRuntime
         }
     }
 
+    bool ArmResourceLeave(
+        Execution execution,
+        MovementPlanResourceModel resource)
+    {
+        execution.ResourceLeaveFired.Remove(
+            resource.Key);
+
+        var rule =
+            EffectiveResourceRule(
+                execution.Page,
+                resource,
+                "leave");
+
+        if (rule.Conditions.Length == 0)
+            return false;
+
+        execution.ResourceLeaves[
+            resource.Key] =
+            new ResourceLeaveState
+            {
+                Resource =
+                    resource
+            };
+
+        return true;
+    }
+
+    async Task DrainReadyResourceLeaves(
+        Execution execution)
+    {
+        var ready =
+            execution.ResourceLeaves
+                .Where(pair =>
+                    ResourceEventSatisfied(
+                        execution.Page,
+                        pair.Value.Resource,
+                        "leave"))
+                .Select(pair =>
+                    pair.Key)
+                .ToArray();
+
+        foreach (var key in ready)
+        {
+            if (!execution.ResourceLeaves.Remove(
+                    key,
+                    out var state))
+                continue;
+
+            execution.ResourceLeaveFired.Add(
+                key);
+
+            await RunActions(
+                execution,
+                state.Resource.Key,
+                "leave");
+        }
+    }
+
+    async Task RunLegacyResourceLeaveIfNeeded(
+        Execution execution,
+        MovementPlanResourceModel resource)
+    {
+        await DrainReadyResourceLeaves(
+            execution);
+
+        if (execution.ResourceLeaveFired.Contains(
+                resource.Key) ||
+            execution.ResourceLeaves.ContainsKey(
+                resource.Key))
+            return;
+
+        execution.ResourceLeaveFired.Add(
+            resource.Key);
+
+        await RunActions(
+            execution,
+            resource.Key,
+            "leave");
+    }
+
     async Task WaitResourceEntry(
         Execution execution,
         MovementPlanResourceModel resource)
@@ -812,23 +960,37 @@ public sealed class MovementRuntime
                 ? "approach"
                 : "enter";
 
-        var hasRule = execution.Page.ResourceEventRules.Any(x =>
-            string.Equals(x.ResourceKey, resource.Key, StringComparison.Ordinal) &&
-            string.Equals(x.Event, eventName, StringComparison.Ordinal) &&
-            x.Conditions.Length > 0);
-
-        if (!hasRule)
-            return;
-
-        await WaitUntil(
-            execution,
-            () => ResourceEventSatisfied(
+        var rule =
+            EffectiveResourceRule(
                 execution.Page,
                 resource,
-                eventName),
-            "Waiting for " + resource.Name,
-            stopWhileWaiting:
-                false);
+                eventName);
+
+        if (rule.Conditions.Length == 0)
+            return;
+
+        while (!ResourceEventSatisfied(
+                   execution.Page,
+                   resource,
+                   eventName))
+        {
+            execution.Cancellation.Token.ThrowIfCancellationRequested();
+
+            await DrainReadyResourceLeaves(
+                execution);
+
+            Patch(
+                execution,
+                info:
+                    "Waiting for " +
+                    resource.Name,
+                setInfo:
+                    true);
+
+            await Task.Delay(
+                75,
+                execution.Cancellation.Token);
+        }
     }
 
     async Task WaitBlockLeave(
@@ -1048,6 +1210,14 @@ public sealed class MovementRuntime
                 approachFired = true;
             }
 
+            MovementPlanResourceModel? previousSegment =
+                execution.Plan.Resources.FirstOrDefault(resource =>
+                    string.Equals(resource.Kind, "segment", StringComparison.Ordinal) &&
+                    resource.NodeIndex == leg.From.NodeIndex);
+
+            var pendingTurnouts =
+                new List<MovementPlanResourceModel>();
+
             foreach (var resource in leg.Resources)
             {
                 execution.Cancellation.Token.ThrowIfCancellationRequested();
@@ -1063,17 +1233,54 @@ public sealed class MovementRuntime
 
                 if (string.Equals(resource.Kind, "turnout", StringComparison.Ordinal))
                 {
+                    ArmResourceLeave(
+                        execution,
+                        resource);
+
                     await RunActions(
                         execution,
                         resource.Key,
                         "approach");
+
+                    pendingTurnouts.Add(
+                        resource);
                 }
                 else if (string.Equals(resource.Kind, "segment", StringComparison.Ordinal))
                 {
+                    ArmResourceLeave(
+                        execution,
+                        resource);
+
+                    await DrainReadyResourceLeaves(
+                        execution);
+
+                    foreach (var turnout in pendingTurnouts.ToArray())
+                    {
+                        await RunLegacyResourceLeaveIfNeeded(
+                            execution,
+                            turnout);
+                    }
+
+                    pendingTurnouts.Clear();
+
+                    if (previousSegment is not null &&
+                        !string.Equals(
+                            previousSegment.Key,
+                            resource.Key,
+                            StringComparison.Ordinal))
+                    {
+                        await RunLegacyResourceLeaveIfNeeded(
+                            execution,
+                            previousSegment);
+                    }
+
                     await RunActions(
                         execution,
                         resource.Key,
                         "enter");
+
+                    previousSegment =
+                        resource;
                 }
 
                 if (!approachFired &&
@@ -1092,12 +1299,29 @@ public sealed class MovementRuntime
                 throw new InvalidOperationException(
                     "movement_destination_has_no_arrival_condition");
 
-            await WaitUntil(
-                execution,
-                () => ConditionsSatisfied(leg.ArrivedWhen),
-                "Waiting for arrival at " + leg.To.Name,
-                stopWhileWaiting:
-                    false);
+            while (!ConditionsSatisfied(
+                       leg.ArrivedWhen))
+            {
+                execution.Cancellation.Token.ThrowIfCancellationRequested();
+
+                await DrainReadyResourceLeaves(
+                    execution);
+
+                Patch(
+                    execution,
+                    info:
+                        "Waiting for arrival at " +
+                        leg.To.Name,
+                    setInfo:
+                        true);
+
+                await Task.Delay(
+                    100,
+                    execution.Cancellation.Token);
+            }
+
+            await DrainReadyResourceLeaves(
+                execution);
 
             Patch(
                 execution,
@@ -1130,6 +1354,25 @@ public sealed class MovementRuntime
             }
 
             await WaitBlockLeave(execution, leg);
+
+            foreach (var turnout in pendingTurnouts.ToArray())
+            {
+                await RunLegacyResourceLeaveIfNeeded(
+                    execution,
+                    turnout);
+            }
+
+            pendingTurnouts.Clear();
+
+            if (previousSegment is not null)
+            {
+                await RunLegacyResourceLeaveIfNeeded(
+                    execution,
+                    previousSegment);
+            }
+
+            await DrainReadyResourceLeaves(
+                execution);
 
             await RunActions(
                 execution,
@@ -1228,6 +1471,9 @@ public sealed class MovementRuntime
 
             foreach (var leg in execution.Plan.Legs)
                 await TraverseLeg(execution, leg);
+
+            await DrainReadyResourceLeaves(
+                execution);
 
             execution.Moving = false;
             execution.DesiredSpeed = 0;
