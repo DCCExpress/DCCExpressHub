@@ -58,7 +58,7 @@ function sliceBetween(
 test("Movement route authority is fail-closed for unknown runtime state", () => {
   const engine =
     read(
-      "src/services/movementEngine.ts"
+      "src/services/dispatcherExecutionRuntime.ts"
     );
 
   assert.ok(
@@ -141,7 +141,7 @@ test("Movement route authority is fail-closed for unknown runtime state", () => 
 test("Movement requires every effective path safety detector to be explicitly OFF", () => {
   const engine =
     read(
-      "src/services/movementEngine.ts"
+      "src/services/dispatcherExecutionRuntime.ts"
     );
 
   const safety =
@@ -269,7 +269,7 @@ test("Movement safety selector excludes a duplicated source occupancy detector",
 test("Movement safety waiting message names blocking sensor addresses and states", () => {
   const engine =
     read(
-      "src/services/movementEngine.ts"
+      "src/services/dispatcherExecutionRuntime.ts"
     );
 
   assert.match(
@@ -296,7 +296,7 @@ test("Movement safety waiting message names blocking sensor addresses and states
 test("Movement forgets stale authority knowledge across WebSocket reconnects", () => {
   const engine =
     read(
-      "src/services/movementEngine.ts"
+      "src/services/dispatcherExecutionRuntime.ts"
     );
 
   const tracking =
