@@ -1007,6 +1007,7 @@
   "flowBlockGetterPayloadHint": "A talált mozdonycímet a payload.locoAddress mezőbe írja, majd továbbadja a payloadot.",
   "flowBlockSetterPayloadHint": "A mozdonycímet a payload.locoAddress mezőből veszi.",
   "automationScriptsTab": "Scriptek",
+  "automationTrackingTab": "Követés",
   "automationFlowsTab": "Flow-k",
   "automationMovementTab": "Mozgások",
   "automationStatus": "Állapot",
