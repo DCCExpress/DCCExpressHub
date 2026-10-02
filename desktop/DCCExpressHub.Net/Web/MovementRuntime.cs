@@ -120,10 +120,13 @@ public sealed class MovementPlanLegModel
     public MovementPlanResourceModel[] Resources { get; set; } = [];
     public DispatcherTurnoutRequirement[] TurnoutStates { get; set; } = [];
     public MovementSensorCondition[] ApproachWhen { get; set; } = [];
+    public int ApproachDelayMs { get; set; }
     public MovementSensorCondition[] DepartWhen { get; set; } = [];
     public MovementSensorCondition[] LeaveWhen { get; set; } = [];
     public bool LeaveWhenExplicit { get; set; }
+    public int LeaveDelayMs { get; set; }
     public MovementSensorCondition[] ArrivedWhen { get; set; } = [];
+    public int ArrivedDelayMs { get; set; }
 }
 
 public sealed class MovementPlanModel
@@ -1469,6 +1472,48 @@ public sealed class MovementRuntime
         }
     }
 
+    async Task WaitBlockEventDelay(
+        Execution execution,
+        int delayMs,
+        string label)
+    {
+        var remaining =
+            Math.Clamp(
+                delayMs,
+                0,
+                600000);
+
+        if (remaining <= 0)
+            return;
+
+        Patch(
+            execution,
+            info:
+                label +
+                " delay: " +
+                remaining +
+                " ms",
+            setInfo:
+                true);
+
+        while (remaining > 0)
+        {
+            execution.Cancellation.Token.ThrowIfCancellationRequested();
+
+            var slice =
+                Math.Min(
+                    remaining,
+                    100);
+
+            await Task.Delay(
+                slice,
+                execution.Cancellation.Token);
+
+            remaining -=
+                slice;
+        }
+    }
+
     async Task MaybeRunBlockApproach(
         Execution execution,
         MovementPlanLegModel leg,
@@ -1482,6 +1527,12 @@ public sealed class MovementRuntime
 
         state.Fired =
             true;
+
+        await WaitBlockEventDelay(
+            execution,
+            leg.ApproachDelayMs,
+            "Approach " +
+            leg.To.Name);
 
         EvaluateNextLegTurnoutAvailability(
             execution,
@@ -1544,6 +1595,12 @@ public sealed class MovementRuntime
 
         state.Fired =
             true;
+
+        await WaitBlockEventDelay(
+            execution,
+            leg.LeaveDelayMs,
+            "Leave " +
+            leg.From.Name);
 
         await RunActions(
             execution,
@@ -2122,6 +2179,12 @@ public sealed class MovementRuntime
                     100,
                     execution.Cancellation.Token);
             }
+
+            await WaitBlockEventDelay(
+                execution,
+                leg.ArrivedDelayMs,
+                "Arrived " +
+                leg.To.Name);
 
             await DrainReadyResourceLeaves(
                 execution);
