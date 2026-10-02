@@ -687,6 +687,54 @@ public sealed class ScriptRuntime
         return count;
     }
 
+    string[] SavedAutomationExecutionIds() =>
+        LoadSavedScripts()
+            .Select(script =>
+                "automation:" +
+                script.Id)
+            .ToArray();
+
+    public int PauseAllSaved()
+    {
+        var count =
+            0;
+
+        foreach (var id in
+                 SavedAutomationExecutionIds())
+            if (Pause(id))
+                count++;
+
+        return count;
+    }
+
+    public int ResumeAllSaved()
+    {
+        var count =
+            0;
+
+        foreach (var id in
+                 SavedAutomationExecutionIds())
+            if (Resume(id))
+                count++;
+
+        return count;
+    }
+
+    public int AbortAllSaved()
+    {
+        var count =
+            0;
+
+        foreach (var id in
+                 SavedAutomationExecutionIds())
+            if (Abort(
+                    id,
+                    "All saved automation scripts aborted by user."))
+                count++;
+
+        return count;
+    }
+
     public int StartAllSaved()
     {
         if (Finishing)
