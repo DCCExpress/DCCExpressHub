@@ -647,7 +647,9 @@ export default function BlockEventConfigPropertyEditor({
     const fallbackText =
       group === "arrived"
         ? text.occupancyFallbackOn
-        : text.noFallback;
+        : group === "leave"
+          ? text.occupancyFallbackOff
+          : text.noFallback;
 
     return (
       <Card key={group} withBorder padding="sm">
