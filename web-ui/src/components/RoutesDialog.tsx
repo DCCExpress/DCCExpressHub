@@ -3,6 +3,7 @@ import {
   Badge,
   Button,
   Group,
+  NumberInput,
   ScrollArea,
   Select,
   Stack,
@@ -353,6 +354,11 @@ export default function RoutesDialog({
   ] = useState("");
 
   const [
+    cruiseSpeed,
+    setCruiseSpeed,
+  ] = useState(20);
+
+  const [
     exactRouteFilter,
     setExactRouteFilter,
   ] = useState<string | null>(
@@ -508,6 +514,19 @@ export default function RoutesDialog({
       setMovementName(
         editingPage?.name ??
         ""
+      );
+
+      setCruiseSpeed(
+        Math.max(
+          0,
+          Math.min(
+            126,
+            Math.round(
+              editingPage?.speed ??
+              20
+            )
+          )
+        )
       );
 
       setExactRouteFilter(
@@ -858,6 +877,16 @@ export default function RoutesDialog({
         name:
           movementName.trim() ||
           next.name,
+        speed:
+          Math.max(
+            0,
+            Math.min(
+              126,
+              Math.round(
+                cruiseSpeed
+              )
+            )
+          ),
       };
     };
 
@@ -1088,17 +1117,57 @@ export default function RoutesDialog({
               }}
             >
               <Stack gap="sm">
-                <TextInput
-                  label={t("ui.movementName")}
-                  value={movementName}
-                  onChange={
-                    event =>
-                      setMovementName(
-                        event.currentTarget.value
-                      )
-                  }
-                  placeholder={t("ui.movementName")}
-                />
+                <Group
+                  gap="sm"
+                  align="flex-end"
+                  wrap="nowrap"
+                >
+                  <TextInput
+                    label={t("ui.movementName")}
+                    value={movementName}
+                    onChange={
+                      event =>
+                        setMovementName(
+                          event.currentTarget.value
+                        )
+                    }
+                    placeholder={t("ui.movementName")}
+                    style={{
+                      flex: 1,
+                    }}
+                  />
+
+                  <NumberInput
+                    label={t("ui.movementCruiseSpeed")}
+                    value={cruiseSpeed}
+                    onChange={
+                      value =>
+                        setCruiseSpeed(
+                          Math.max(
+                            0,
+                            Math.min(
+                              126,
+                              Math.round(
+                                typeof value ===
+                                  "number"
+                                  ? value
+                                  : Number(
+                                      value
+                                    ) ||
+                                    0
+                              )
+                            )
+                          )
+                        )
+                    }
+                    min={0}
+                    max={126}
+                    step={1}
+                    clampBehavior="strict"
+                    allowDecimal={false}
+                    w={170}
+                  />
+                </Group>
 
                 <Group
                   gap="sm"
