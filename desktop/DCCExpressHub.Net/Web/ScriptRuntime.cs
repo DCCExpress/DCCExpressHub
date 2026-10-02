@@ -64,12 +64,27 @@ public sealed class ScriptRuntime
         public bool MotionAuthorized { get; set; }
         public bool Completed { get; set; }
         public string? ReservationOwnerId { get; set; }
+        public required Dictionary<string, MovementSensorCondition[]> ArrivalOverrides { get; init; }
+        public int SetDelayMs { get; init; } = 250;
+        public int PollMs { get; init; } = 100;
+        public int BlockedVersion { get; set; }
+        public int LastBlockedIndex { get; set; } = -1;
+        public string? LastBlockingError { get; set; }
+        public ushort? LastBlockingSensor { get; set; }
+        public ushort? LastBlockingBlock { get; set; }
+        public object? LastTurnoutConflicts { get; set; }
         public Task? MonitorTask { get; set; }
         public TaskCompletionSource<bool> Changed { get; set; } =
+            NewSignal();
+        public TaskCompletionSource<bool> BlockedChanged { get; set; } =
             NewSignal();
         public TaskCompletionSource<bool> CompletedSignal { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
+
+    sealed record SmartBlockSpec(
+        string Name,
+        MovementSensorCondition[]? ArrivedWhen);
 
     sealed record SavedScript(
         string Id,
@@ -2156,6 +2171,213 @@ public sealed class ScriptRuntime
             .Where(name =>
                 name.Length > 0)
             .ToArray();
+    }
+
+    static SmartBlockSpec[] ParseSmartBlockSpecs(
+        string blocksJson)
+    {
+        using var document =
+            JsonDocument.Parse(
+                blocksJson);
+
+        if (document.RootElement.ValueKind !=
+            JsonValueKind.Array)
+            throw new InvalidOperationException(
+                "smart_dispatcher_blocks_invalid");
+
+        var result =
+            new List<SmartBlockSpec>();
+
+        foreach (var item in
+                 document.RootElement.EnumerateArray())
+        {
+            string name;
+            JsonElement? arrivedWhen =
+                null;
+
+            if (item.ValueKind ==
+                JsonValueKind.String)
+            {
+                name =
+                    (
+                        item.GetString() ??
+                        ""
+                    ).Trim();
+            }
+            else if (item.ValueKind ==
+                     JsonValueKind.Number)
+            {
+                name =
+                    item.GetRawText()
+                        .Trim();
+            }
+            else if (item.ValueKind ==
+                     JsonValueKind.Object)
+            {
+                name =
+                    item.TryGetProperty(
+                        "block",
+                        out var blockElement)
+                        ? blockElement.ValueKind switch
+                        {
+                            JsonValueKind.String =>
+                                (
+                                    blockElement.GetString() ??
+                                    ""
+                                ).Trim(),
+                            JsonValueKind.Number =>
+                                blockElement.GetRawText()
+                                    .Trim(),
+                            _ =>
+                                ""
+                        }
+                        : item.TryGetProperty(
+                                "name",
+                                out var nameElement)
+                            ? nameElement.ValueKind switch
+                            {
+                                JsonValueKind.String =>
+                                    (
+                                        nameElement.GetString() ??
+                                        ""
+                                    ).Trim(),
+                                JsonValueKind.Number =>
+                                    nameElement.GetRawText()
+                                        .Trim(),
+                                _ =>
+                                    ""
+                            }
+                            : "";
+
+                if (item.TryGetProperty(
+                        "arrivedWhen",
+                        out var rawArrived) &&
+                    rawArrived.ValueKind !=
+                        JsonValueKind.Null &&
+                    rawArrived.ValueKind !=
+                        JsonValueKind.Undefined)
+                    arrivedWhen =
+                        rawArrived.Clone();
+            }
+            else
+            {
+                throw new InvalidOperationException(
+                    "smart_dispatcher_block_invalid");
+            }
+
+            if (name.Length ==
+                0)
+                throw new InvalidOperationException(
+                    "smart_dispatcher_block_name_missing");
+
+            MovementSensorCondition[]?
+                conditions =
+                    null;
+
+            if (arrivedWhen.HasValue)
+            {
+                if (arrivedWhen.Value.ValueKind !=
+                    JsonValueKind.Array)
+                    throw new InvalidOperationException(
+                        "smart_dispatcher_arrived_when_invalid:" +
+                        name);
+
+                var bySensor =
+                    new Dictionary<int, bool>();
+
+                foreach (var raw in
+                         arrivedWhen.Value.EnumerateArray())
+                {
+                    if (raw.ValueKind !=
+                        JsonValueKind.Object)
+                        throw new InvalidOperationException(
+                            "smart_dispatcher_arrived_when_invalid:" +
+                            name);
+
+                    var sensor =
+                        raw.TryGetProperty(
+                            "sensor",
+                            out var sensorElement) &&
+                        sensorElement.TryGetInt32(
+                            out var sensorValue)
+                            ? sensorValue
+                            : raw.TryGetProperty(
+                                    "address",
+                                    out sensorElement) &&
+                                sensorElement.TryGetInt32(
+                                    out sensorValue)
+                                ? sensorValue
+                                : 0;
+
+                    if (sensor is < 1 or > 65535)
+                        throw new InvalidOperationException(
+                            "smart_dispatcher_arrived_sensor_invalid:" +
+                            name);
+
+                    if (!raw.TryGetProperty(
+                            "state",
+                            out var stateElement) ||
+                        stateElement.ValueKind is not
+                            (JsonValueKind.True or
+                             JsonValueKind.False))
+                        throw new InvalidOperationException(
+                            "smart_dispatcher_arrived_state_invalid:" +
+                            name);
+
+                    var state =
+                        stateElement.ValueKind ==
+                        JsonValueKind.True;
+
+                    if (bySensor.TryGetValue(
+                            sensor,
+                            out var existing) &&
+                        existing !=
+                            state)
+                        throw new InvalidOperationException(
+                            "smart_dispatcher_arrived_contradictory:" +
+                            sensor);
+
+                    bySensor[
+                        sensor] =
+                        state;
+                }
+
+                if (bySensor.Count ==
+                    0)
+                    throw new InvalidOperationException(
+                        "smart_dispatcher_arrived_when_empty:" +
+                        name);
+
+                conditions =
+                    bySensor
+                        .Select(pair =>
+                            new MovementSensorCondition
+                            {
+                                Id =
+                                    "smart-explicit-" +
+                                    name +
+                                    "-" +
+                                    pair.Key,
+                                Sensor =
+                                    pair.Key,
+                                State =
+                                    pair.Value
+                            })
+                        .ToArray();
+            }
+
+            result.Add(
+                new SmartBlockSpec(
+                    name,
+                    conditions));
+        }
+
+        if (result.Count <
+            2)
+            throw new InvalidOperationException(
+                "smart_dispatcher_requires_two_blocks");
+
+        return result.ToArray();
     }
 
     RuntimeBlock? SourceBlock(
