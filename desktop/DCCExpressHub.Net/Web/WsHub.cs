@@ -1235,6 +1235,39 @@ public sealed class WsHub
                         });
                 return;
 
+            case "pauseAllSaved":
+                await Reply(
+                    true,
+                    extra:
+                        new
+                        {
+                            count =
+                                Scripts.PauseAllSaved()
+                        });
+                return;
+
+            case "resumeAllSaved":
+                await Reply(
+                    true,
+                    extra:
+                        new
+                        {
+                            count =
+                                Scripts.ResumeAllSaved()
+                        });
+                return;
+
+            case "abortAllSaved":
+                await Reply(
+                    true,
+                    extra:
+                        new
+                        {
+                            count =
+                                Scripts.AbortAllSaved()
+                        });
+                return;
+
             case "setFinishing":
                 Scripts.SetFinishing(
                     B(
