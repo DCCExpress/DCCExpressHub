@@ -17,6 +17,7 @@ import {
   IconTrash,
 } from "@tabler/icons-react";
 import { useMemo, useState } from "react";
+import { showNotification } from "@mantine/notifications";
 import i18next from "i18next";
 
 import AppModal from "@/components/common/AppModal";
@@ -26,6 +27,9 @@ import type {
   BlockEventSensorConditionDto,
 } from "@domain/layout/layoutDto";
 import type { LayoutView } from "@/models/editor/core/LayoutView";
+import {
+  createCurrentClientLayoutSnapshot,
+} from "@/services/clientRouteGraphCache";
 import { TrackElement } from "@/models/editor/core/TrackElement";
 import {
   BlockElement,
@@ -533,6 +537,7 @@ export default function BlockEventConfigPropertyEditor({
   const [draft, setDraft] = useState<BlockEventConfigDto>(() =>
     cloneConfig(block.eventConfig)
   );
+  const [saving, setSaving] = useState(false);
 
   const sensorOptions = useMemo(() => {
     const byAddress = new Map<number, SensorOption>();
@@ -903,13 +908,74 @@ export default function BlockEventConfigPropertyEditor({
               {text.cancel}
             </Button>
             <Button
-              onClick={() => {
+              loading={saving}
+              onClick={async () => {
+                const previous =
+                  cloneConfig(
+                    block.eventConfig
+                  );
+
                 block.eventConfig =
                   cloneConfig(
                     draft
                   );
+
                 onChange();
-                setOpened(false);
+                setSaving(true);
+
+                try {
+                  const snapshot =
+                    createCurrentClientLayoutSnapshot(
+                      layout
+                    );
+
+                  const response =
+                    await fetch(
+                      "/api/layout",
+                      {
+                        method: "POST",
+                        headers: {
+                          "Content-Type":
+                            "application/json",
+                        },
+                        body:
+                          JSON.stringify(
+                            snapshot
+                          ),
+                      }
+                    );
+
+                  if (!response.ok) {
+                    const message =
+                      await response.text();
+
+                    throw new Error(
+                      message.trim() ||
+                      "Block event configuration could not be saved."
+                    );
+                  }
+
+                  setOpened(false);
+                } catch (error) {
+                  block.eventConfig =
+                    previous;
+
+                  onChange();
+
+                  showNotification({
+                    color: "red",
+                    title:
+                      text.title,
+                    message:
+                      error instanceof Error
+                        ? error.message
+                        : String(
+                            error
+                          ),
+                  });
+                } finally {
+                  setSaving(false);
+                }
               }}
             >
               {text.save}
