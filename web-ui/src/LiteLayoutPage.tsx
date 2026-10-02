@@ -1969,6 +1969,8 @@ export default function LiteLayoutPage({
         opened={routesOpened}
         onClose={() => setRoutesOpened(false)}
         layout={layout}
+        movements={movementDocument}
+        onMovementsChange={setMovementDocument}
         onGenerated={invalidate}
       />
 
