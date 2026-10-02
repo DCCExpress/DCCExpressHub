@@ -1084,7 +1084,6 @@
   "noUpcomingTimetableRows": "Keine kommenden Fahrplanzeilen.",
   "timetableJumpBeforeFirst": "{{seconds}} s vor den ersten Start",
   "fastClockSetTimeFailed": "Die FastClock-Zeit konnte nicht gesetzt werden.",
-  "timetableControlStationRequired": "Control Station erforderlich",
   "movementFrom": "VON",
   "movementTo": "NACH",
   "movementVia": "ÜBER",
