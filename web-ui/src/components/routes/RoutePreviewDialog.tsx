@@ -66,6 +66,7 @@ type EventRow = {
   name: string;
   match: "all" | "any";
   conditions: MovementSensorCondition[];
+  defaultSensor?: boolean;
 };
 
 function conditionText(
@@ -205,8 +206,23 @@ function blockEvents(
         configuredArrived.length >
           0
           ? configuredArrived
-          : incoming?.arrivedWhen ??
-            [],
+          : resource.sensorAddress !==
+              null
+            ? [{
+                id:
+                  `preview-default-arrived-${resource.blockId}`,
+                sensor:
+                  resource.sensorAddress,
+                state:
+                  true,
+              }]
+            : incoming?.arrivedWhen ??
+              [],
+      defaultSensor:
+        configuredArrived.length ===
+          0 &&
+        resource.sensorAddress !==
+          null,
     },
     {
       name: "DEPART",
@@ -705,41 +721,72 @@ export default function RoutePreviewDialog({
                                         }
                                       </Text>
 
-                                      <Badge
-                                        size="xs"
-                                        variant="outline"
-                                        color="gray"
-                                      >
+                                      <Group gap={4}>
                                         {
-                                          event.match.toUpperCase()
+                                          event.defaultSensor && (
+                                            <Badge
+                                              size="xs"
+                                              variant="light"
+                                              color="blue"
+                                            >
+                                              DEFAULT
+                                            </Badge>
+                                          )
                                         }
-                                      </Badge>
+
+                                        <Badge
+                                          size="xs"
+                                          variant="outline"
+                                          color="gray"
+                                        >
+                                          {
+                                            event.match.toUpperCase()
+                                          }
+                                        </Badge>
+                                      </Group>
                                     </Group>
 
                                     {
                                       event.conditions.length >
                                         0
-                                        ? event.conditions.map(
-                                            condition => (
-                                              <Badge
-                                                key={
-                                                  condition.id
-                                                }
-                                                variant="light"
-                                                color={
-                                                  condition.state
-                                                    ? "teal"
-                                                    : "orange"
-                                                }
-                                              >
-                                                {
-                                                  conditionText(
-                                                    condition
-                                                  )
-                                                }
-                                              </Badge>
-                                            )
-                                          )
+                                        ? (
+                                          <>
+                                            {
+                                              event.defaultSensor && (
+                                                <Text
+                                                  size="xs"
+                                                  c="dimmed"
+                                                >
+                                                  Default occupancy sensor
+                                                </Text>
+                                              )
+                                            }
+
+                                            {
+                                              event.conditions.map(
+                                                condition => (
+                                                  <Badge
+                                                    key={
+                                                      condition.id
+                                                    }
+                                                    variant="light"
+                                                    color={
+                                                      condition.state
+                                                        ? "teal"
+                                                        : "orange"
+                                                    }
+                                                  >
+                                                    {
+                                                      conditionText(
+                                                        condition
+                                                      )
+                                                    }
+                                                  </Badge>
+                                                )
+                                              )
+                                            }
+                                          </>
+                                        )
                                         : (
                                           <Text
                                             size="xs"
