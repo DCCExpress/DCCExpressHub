@@ -6,6 +6,7 @@ import {
   Group,
   NumberInput,
   ScrollArea,
+  Select,
   Stack,
   Table,
   Text,
@@ -250,6 +251,22 @@ export default function LocoCalibrationTab({
   const [
     routeError,
     setRouteError,
+  ] =
+    useState<string | null>(
+      null
+    );
+
+  const [
+    fromFilter,
+    setFromFilter,
+  ] =
+    useState<string | null>(
+      null
+    );
+
+  const [
+    toFilter,
+    setToFilter,
   ] =
     useState<string | null>(
       null
@@ -581,6 +598,14 @@ export default function LocoCalibrationTab({
 
   const openRoutePicker =
     (): void => {
+      setFromFilter(
+        null
+      );
+
+      setToFilter(
+        null
+      );
+
       setPickerOpened(
         true
       );
@@ -684,6 +709,124 @@ export default function LocoCalibrationTab({
       126 &&
     speedStep <=
       maxSpeed;
+
+  const routeFilterOptions =
+    useMemo(
+      () => {
+        const from =
+          new Map<
+            string,
+            string
+          >();
+
+        const to =
+          new Map<
+            string,
+            string
+          >();
+
+        for (
+          const candidate of
+          candidates
+        ) {
+          from.set(
+            String(
+              candidate.fromBlockId
+            ),
+            candidate.fromBlockName
+          );
+
+          to.set(
+            String(
+              candidate.toBlockId
+            ),
+            candidate.toBlockName
+          );
+        }
+
+        const sortOptions =
+          (
+            entries:
+              Iterable<
+                [
+                  string,
+                  string,
+                ]
+              >
+          ) =>
+            Array.from(
+              entries
+            )
+              .map(
+                ([
+                  value,
+                  label,
+                ]) => ({
+                  value,
+                  label,
+                })
+              )
+              .sort(
+                (
+                  left,
+                  right
+                ) =>
+                  left.label.localeCompare(
+                    right.label,
+                    undefined,
+                    {
+                      numeric:
+                        true,
+                      sensitivity:
+                        "base",
+                    }
+                  )
+              );
+
+        return {
+          from:
+            sortOptions(
+              from.entries()
+            ),
+          to:
+            sortOptions(
+              to.entries()
+            ),
+        };
+      },
+      [
+        candidates,
+      ]
+    );
+
+  const filteredCandidates =
+    useMemo(
+      () =>
+        candidates.filter(
+          candidate =>
+            (
+              fromFilter ===
+                null ||
+              String(
+                candidate.fromBlockId
+              ) ===
+                fromFilter
+            ) &&
+            (
+              toFilter ===
+                null ||
+              String(
+                candidate.toBlockId
+              ) ===
+                toFilter
+            )
+        ),
+      [
+        candidates,
+        fromFilter,
+        toFilter,
+      ]
+    );
 
   const summary =
     useMemo(
@@ -1000,7 +1143,7 @@ export default function LocoCalibrationTab({
                       )
                   }
                   disabled={
-                    !activeForThisLoco
+                    commandBusy
                   }
                 >
                   {t("locodialog.calibration.estop")}
@@ -1265,6 +1408,37 @@ export default function LocoCalibrationTab({
             {t("locodialog.calibration.selectHint")}
           </Text>
 
+          <Group
+            grow
+            align="flex-end"
+          >
+            <Select
+              label={t("locodialog.calibration.from")}
+              data={
+                routeFilterOptions.from
+              }
+              value={fromFilter}
+              onChange={
+                setFromFilter
+              }
+              searchable
+              clearable
+            />
+
+            <Select
+              label={t("locodialog.calibration.to")}
+              data={
+                routeFilterOptions.to
+              }
+              value={toFilter}
+              onChange={
+                setToFilter
+              }
+              searchable
+              clearable
+            />
+          </Group>
+
           <ScrollArea
             style={{
               flex: 1,
@@ -1312,7 +1486,7 @@ export default function LocoCalibrationTab({
                         </Table.Td>
                       </Table.Tr>
                     )
-                    : candidates.map(
+                    : filteredCandidates.map(
                         candidate => {
                           const reverse =
                             reverseFor(
