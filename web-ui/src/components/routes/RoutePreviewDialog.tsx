@@ -68,7 +68,7 @@ type EventRow = {
   match: "all" | "any";
   conditions: MovementSensorCondition[];
   defaultSensor?: boolean;
-  note?: string;
+  note?: string | undefined;
 };
 
 function conditionText(
