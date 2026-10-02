@@ -352,12 +352,42 @@ public sealed class DispatcherCoordinatorRuntime
             RouteBlocks(
                 page);
 
+        /*
+         * Movement intent selects a train by route progress, not by asking
+         * that the complete requested route contain exactly one locomotive.
+         *
+         * Source-first is the important rule:
+         * - a locomotive in FROM is always the Movement train;
+         * - locomotives farther down the route are traffic/obstacles and are
+         *   handled progressively by block/safety authority;
+         * - when FROM is empty (for example after a backend restart), resume
+         *   from the earliest occupied requested checkpoint.
+         *
+         * This allows A -> B to start even when a different train is parked
+         * farther down an A -> B -> C intent. The next leg will wait for C
+         * when it actually needs C.
+         */
         var routeLocos =
             tracking.Locos
                 .Where(loco =>
-                    loco.CurrentBlockId.HasValue &&
-                    requested.Contains(
-                        loco.CurrentBlockId.Value))
+                    loco.CurrentBlockId.HasValue)
+                .Select(loco =>
+                    new
+                    {
+                        Loco =
+                            loco,
+                        RouteIndex =
+                            Array.IndexOf(
+                                requested,
+                                loco.CurrentBlockId!.Value)
+                    })
+                .Where(candidate =>
+                    candidate.RouteIndex >=
+                    0)
+                .OrderBy(candidate =>
+                    candidate.RouteIndex)
+                .ThenBy(candidate =>
+                    candidate.Loco.LocoAddress)
                 .ToArray();
 
         if (routeLocos.Length == 0)
@@ -372,12 +402,26 @@ public sealed class DispatcherCoordinatorRuntime
                 "dispatcher_no_tracked_loco");
         }
 
-        if (routeLocos.Length > 1)
+        var selectedIndex =
+            routeLocos[0]
+                .RouteIndex;
+
+        var selectedAtCheckpoint =
+            routeLocos
+                .Where(candidate =>
+                    candidate.RouteIndex ==
+                    selectedIndex)
+                .ToArray();
+
+        if (selectedAtCheckpoint.Length >
+            1)
         {
             WriteLog(
                 "warn",
                 page.Name +
-                ": more than one tracked locomotive is currently on the requested route.");
+                ": more than one tracked locomotive is assigned to checkpoint block #" +
+                requested[selectedIndex] +
+                ".");
 
             return (
                 false,
@@ -385,7 +429,8 @@ public sealed class DispatcherCoordinatorRuntime
         }
 
         var loco =
-            routeLocos[0];
+            selectedAtCheckpoint[0]
+                .Loco;
 
         if (!loco.CurrentBlockId.HasValue)
             return (
@@ -394,6 +439,34 @@ public sealed class DispatcherCoordinatorRuntime
 
         var currentBlockId =
             loco.CurrentBlockId.Value;
+
+        var downstreamLocos =
+            routeLocos
+                .Where(candidate =>
+                    candidate.Loco.LocoAddress !=
+                    loco.LocoAddress)
+                .ToArray();
+
+        if (downstreamLocos.Length >
+            0)
+        {
+            WriteLog(
+                "info",
+                page.Name +
+                ": selected loco #" +
+                loco.LocoAddress +
+                " in block #" +
+                currentBlockId +
+                "; downstream tracked locomotives are treated as traffic constraints: " +
+                string.Join(
+                    ", ",
+                    downstreamLocos.Select(candidate =>
+                        "#" +
+                        candidate.Loco.LocoAddress +
+                        "@block#" +
+                        candidate.Loco.CurrentBlockId)) +
+                ".");
+        }
 
         lock (_gate)
         {
