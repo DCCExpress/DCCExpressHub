@@ -43,8 +43,13 @@ import {
 } from "@/services/movementRouteIdentity";
 
 import type {
+  MovementDocument,
   MovementPage,
 } from "@/domain/movement";
+
+import {
+  saveAutomationMovement,
+} from "@/services/automationApi";
 
 import RoutePreviewDialog from "@/components/routes/RoutePreviewDialog";
 
@@ -64,6 +69,11 @@ type RoutesDialogProps = {
   opened: boolean;
   onClose: () => void;
   layout: LayoutView;
+  movements: MovementDocument;
+  onMovementsChange: (
+    document:
+      MovementDocument
+  ) => void;
   onGenerated?: () => void;
 };
 
@@ -224,6 +234,8 @@ export default function RoutesDialog({
   opened,
   onClose,
   layout,
+  movements,
+  onMovementsChange,
   onGenerated,
 }: RoutesDialogProps) {
   const { t } = useTranslation();
@@ -286,6 +298,18 @@ export default function RoutesDialog({
   ] = useState<string | null>(
     null
   );
+
+  const [
+    movementId,
+    setMovementId,
+  ] = useState<string | null>(
+    null
+  );
+
+  const [
+    assigningRoute,
+    setAssigningRoute,
+  ] = useState(false);
 
   const generate =
     useCallback(
@@ -510,6 +534,109 @@ export default function RoutesDialog({
       ]
     );
 
+  const movementOptions =
+    useMemo(
+      () =>
+        movements.pages.map(
+          page => ({
+            value:
+              page.id,
+            label:
+              page.name,
+          })
+        ),
+      [
+        movements.pages,
+      ]
+    );
+
+  const assignRouteToMovement =
+    async (
+      route:
+        ClientRouteGraphBuildResult["routes"][number]
+    ): Promise<void> => {
+      if (
+        movementId ===
+          null
+      ) {
+        return;
+      }
+
+      const routePage =
+        previewMovementPage(
+          route
+        );
+
+      const next: MovementDocument = {
+        ...movements,
+        pages:
+          movements.pages.map(
+            page =>
+              page.id ===
+                movementId
+                ? {
+                    ...page,
+                    routeKey:
+                      routePage.routeKey,
+                    fromBlockId:
+                      routePage.fromBlockId,
+                    viaBlockIds:
+                      routePage.viaBlockIds,
+                    toBlockId:
+                      routePage.toBlockId,
+                    blockRules: [],
+                    resourceEventRules: [],
+                    safetyRules: [],
+                  }
+                : page
+          ),
+        activePageId:
+          movementId,
+      };
+
+      setAssigningRoute(
+        true
+      );
+
+      try {
+        await saveAutomationMovement(
+          next
+        );
+
+        onMovementsChange(
+          next
+        );
+
+        showNotification({
+          color: "teal",
+          title:
+            t(
+              "ui.routes"
+            ),
+          message:
+            "Route assigned to Movement.",
+        });
+      } catch (assignError) {
+        showNotification({
+          color: "red",
+          title:
+            t(
+              "ui.error"
+            ),
+          message:
+            assignError instanceof Error
+              ? assignError.message
+              : String(
+                  assignError
+                ),
+        });
+      } finally {
+        setAssigningRoute(
+          false
+        );
+      }
+    };
+
   return (
     <Modal
       opened={opened}
@@ -666,6 +793,29 @@ export default function RoutesDialog({
                             <Button
                               size="xs"
                               variant="light"
+                              color="teal"
+                              disabled={
+                                movementId ===
+                                  null ||
+                                assigningRoute
+                              }
+                              loading={
+                                assigningRoute
+                              }
+                              onClick={() =>
+                                void assignRouteToMovement(
+                                  route
+                                )
+                              }
+                            >
+                              Select
+                            </Button>
+                          </Table.Td>
+
+                          <Table.Td>
+                            <Button
+                              size="xs"
+                              variant="light"
                               leftSection={
                                 <IconPlayerPlay size={14} />
                               }
@@ -806,6 +956,17 @@ export default function RoutesDialog({
                     w={220}
                   />
 
+                  <Select
+                    label="Movement"
+                    placeholder="Select Movement"
+                    data={movementOptions}
+                    value={movementId}
+                    onChange={setMovementId}
+                    searchable
+                    clearable
+                    w={260}
+                  />
+
                   <Badge
                     variant="light"
                     color="gray"
@@ -848,6 +1009,12 @@ export default function RoutesDialog({
                         style={{ width: 110 }}
                       >
                         {t("ui.preview")}
+                      </Table.Th>
+
+                      <Table.Th
+                        style={{ width: 110 }}
+                      >
+                        Movement
                       </Table.Th>
 
                       <Table.Th
