@@ -44,7 +44,7 @@ import type {
   MovementPage,
 } from "@/domain/movement";
 
-import MovementRouteVectorPreview from "@/components/movement/MovementRouteVectorPreview";
+import RoutePreviewDialog from "@/components/routes/RoutePreviewDialog";
 
 import {
   testRouteTurnoutStates,
@@ -674,15 +674,7 @@ export default function RoutesDialog({
               value="routes"
               pt="sm"
             >
-              <Stack gap="sm">
-                {previewPage && (
-                  <MovementRouteVectorPreview
-                    page={previewPage}
-                    layout={layout}
-                  />
-                )}
-
-                <ScrollArea.Autosize mah="52dvh">
+              <ScrollArea.Autosize mah="60dvh">
                 <Table
                   striped
                   highlightOnHover
@@ -810,11 +802,20 @@ export default function RoutesDialog({
                   </Table.Tbody>
                 </Table>
               </ScrollArea.Autosize>
-              </Stack>
             </Tabs.Panel>
           </Tabs>
         )}
       </Stack>
+      <RoutePreviewDialog
+        opened={previewPage !== null}
+        onClose={() =>
+          setPreviewPage(
+            null
+          )
+        }
+        page={previewPage}
+        layout={layout}
+      />
     </Modal>
   );
 }
