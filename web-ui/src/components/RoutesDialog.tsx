@@ -608,6 +608,29 @@ export default function RoutesDialog({
                   setExactRouteFilter(
                     current.key
                   );
+                } else {
+                  setExactRouteFilter(
+                    null
+                  );
+
+                  const sameEndpoints =
+                    loaded.find(
+                      candidate =>
+                        candidate.fromBlockId ===
+                          editingPage.fromBlockId &&
+                        candidate.toBlockId ===
+                          editingPage.toBlockId
+                    );
+
+                  if (sameEndpoints) {
+                    setSelectFromFilter(
+                      sameEndpoints.fromBlockName
+                    );
+
+                    setSelectToFilter(
+                      sameEndpoints.toBlockName
+                    );
+                  }
                 }
               }
             }
