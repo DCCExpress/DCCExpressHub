@@ -2360,6 +2360,7 @@ public sealed class DispatcherRuntime
     {
         string[] legOwners;
         string[] routeOwners;
+        string[] preparedOwners;
 
         lock (_gate)
         {
@@ -2368,12 +2369,19 @@ public sealed class DispatcherRuntime
 
             routeOwners =
                 _routeLeases.Keys.ToArray();
+
+            preparedOwners =
+                _preparedLegs.Keys.ToArray();
         }
 
         var released = 0;
 
         foreach (var owner in legOwners)
             if (ReleaseLeg(owner))
+                released++;
+
+        foreach (var owner in preparedOwners)
+            if (ReleasePreparedLeg(owner))
                 released++;
 
         foreach (var owner in routeOwners)
