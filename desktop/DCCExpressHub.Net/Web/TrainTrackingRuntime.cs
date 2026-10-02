@@ -1290,11 +1290,11 @@ public sealed class TrainTrackingRuntime
                              .Distinct())
                     if (_tracking.TryGetValue(
                             address,
-                            out var state))
+                            out var trackedState))
                     {
-                        state.Confidence =
+                        trackedState.Confidence =
                             "ambiguous";
-                        state.UpdatedAt =
+                        trackedState.UpdatedAt =
                             NowMs();
                     }
 
