@@ -328,6 +328,7 @@ export type DispatcherCommandPayload = {
   safetySensors?: number[];
   resourceKeys?: string[];
   timeoutMs?: number;
+  setDelayMs?: number;
 };
 
 export type MovementCommandAction =
