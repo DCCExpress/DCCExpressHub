@@ -299,6 +299,79 @@ test("SmartDispatcher logs route, clearance, arrival and failures", () => {
   );
 });
 
+test("script Dispatcher and SmartDispatcher use shared backend authority instead of browser Web Locks", () => {
+  const dispatcher =
+    read(
+      "src/services/clientScriptSwitchManPrelude.ts"
+    );
+
+  const smart =
+    read(
+      "src/services/clientScriptSmartDispatcherPrelude.ts"
+    );
+
+  const runner =
+    read(
+      "src/services/clientScriptRunner.ts"
+    );
+
+  const worker =
+    read(
+      "src/services/clientScriptWorker.ts"
+    );
+
+  const backend =
+    read(
+      "../desktop/DCCExpressHub.Net/Web/DispatcherRuntime.cs"
+    );
+
+  assert.doesNotMatch(
+    dispatcher,
+    /navigator\.locks/
+  );
+
+  assert.doesNotMatch(
+    smart,
+    /navigator\.locks/
+  );
+
+  assert.match(
+    dispatcher,
+    /dispatcherRequest\([\s\S]*"acquireRoute"/
+  );
+
+  assert.match(
+    smart,
+    /dispatcherRequest\([\s\S]*"acquireLeg"/
+  );
+
+  assert.match(
+    runner,
+    /handleScriptDispatcherRequest/
+  );
+
+  assert.match(
+    worker,
+    /requestBackendDispatcher/
+  );
+
+  assert.match(
+    backend,
+    /AcquireLegAsync/
+  );
+
+  assert.match(
+    backend,
+    /AcquireRouteAsync/
+  );
+
+  assert.match(
+    backend,
+    /_resourceOwners/
+  );
+});
+
+
 test("SmartDispatcher remains available only through the script runtime", () => {
   const domain =
     read(
