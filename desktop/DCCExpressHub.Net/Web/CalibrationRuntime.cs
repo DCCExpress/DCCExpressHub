@@ -42,6 +42,7 @@ public sealed class CalibrationRuntime
     readonly FlowRuntime _flows;
     readonly TimetableRuntime _timetable;
     readonly AutomationExclusiveGate _exclusiveGate;
+    readonly LocoStorageCoordinator _locoStorage;
     readonly IWebHostEnvironment _env;
     readonly ILogger<CalibrationRuntime> _log;
 
@@ -76,6 +77,7 @@ public sealed class CalibrationRuntime
         FlowRuntime flows,
         TimetableRuntime timetable,
         AutomationExclusiveGate exclusiveGate,
+        LocoStorageCoordinator locoStorage,
         IWebHostEnvironment env,
         ILogger<CalibrationRuntime> log)
     {
@@ -84,6 +86,7 @@ public sealed class CalibrationRuntime
         _flows = flows;
         _timetable = timetable;
         _exclusiveGate = exclusiveGate;
+        _locoStorage = locoStorage;
         _env = env;
         _log = log;
     }
@@ -627,123 +630,130 @@ public sealed class CalibrationRuntime
     async Task PersistResults(
         CalibrationStartRequest request)
     {
-        var path =
-            Path.Combine(
-                _env.ContentRootPath,
-                "data",
-                "config",
-                "locos.json");
-
-        if (!File.Exists(
-                path))
-            return;
-
-        JsonArray? root;
-
-        try
-        {
-            root =
-                JsonNode.Parse(
-                    await File.ReadAllTextAsync(
-                        path)) as
-                JsonArray;
-        }
-        catch
-        {
-            return;
-        }
-
-        if (root is null)
-            return;
-
-        JsonObject? target =
-            null;
-
-        foreach (var node in root)
-        {
-            if (node is not JsonObject loco)
-                continue;
-
-            var id =
-                loco["id"]?
-                    .GetValue<string>();
-
-            if (string.Equals(
-                    id,
-                    request.LocoId,
-                    StringComparison.Ordinal))
+        await _locoStorage.ExecuteAsync(
+            async () =>
             {
-                target =
-                    loco;
-                break;
-            }
-        }
+            var path =
+                        Path.Combine(
+                            _env.ContentRootPath,
+                            "data",
+                            "config",
+                            "locos.json");
+            
+                    if (!File.Exists(
+                            path))
+                        return;
+            
+                    JsonArray? root;
+            
+                    try
+                    {
+                        root =
+                            JsonNode.Parse(
+                                await File.ReadAllTextAsync(
+                                    path)) as
+                            JsonArray;
+                    }
+                    catch
+                    {
+                        return;
+                    }
+            
+                    if (root is null)
+                        return;
+            
+                    JsonObject? target =
+                        null;
+            
+                    foreach (var node in root)
+                    {
+                        if (node is not JsonObject loco)
+                            continue;
+            
+                        var id =
+                            loco["id"]?
+                                .GetValue<string>();
+            
+                        if (string.Equals(
+                                id,
+                                request.LocoId,
+                                StringComparison.Ordinal))
+                        {
+                            target =
+                                loco;
+                            break;
+                        }
+                    }
+            
+                    if (target is null)
+                        return;
+            
+                    CalibrationResultRow[] results;
+            
+                    lock (_gate)
+                        results =
+                            _results.ToArray();
+            
+                    var resultNodes =
+                        new JsonArray();
+            
+                    foreach (var row in results)
+                        resultNodes.Add(
+                            new JsonObject
+                            {
+                                ["speedStep"] =
+                                    row.SpeedStep,
+                                ["direction"] =
+                                    row.Direction,
+                                ["elapsedMs"] =
+                                    row.ElapsedMs,
+                                ["millimetersPerSecond"] =
+                                    row.MillimetersPerSecond
+                            });
+            
+                    target["calibration"] =
+                        new JsonObject
+                        {
+                            ["routeKey"] =
+                                request.RouteKey,
+                            ["reverseRouteKey"] =
+                                request.ReverseRouteKey,
+                            ["routeLabel"] =
+                                request.RouteLabel,
+                            ["routeLengthMm"] =
+                                request.RouteLengthMm,
+                            ["maxSpeed"] =
+                                request.MaxSpeed,
+                            ["speedStep"] =
+                                request.SpeedStep,
+                            ["updatedAt"] =
+                                DateTimeOffset.UtcNow
+                                    .ToString("O"),
+                            ["results"] =
+                                resultNodes
+                        };
+            
+                    var temp =
+                        path +
+                        ".calibration.tmp";
+            
+                    await File.WriteAllTextAsync(
+                        temp,
+                        root.ToJsonString(
+                            new System.Text.Json.JsonSerializerOptions
+                            {
+                                WriteIndented =
+                                    false
+                            }));
+            
+                    File.Move(
+                        temp,
+                        path,
+                        true);
+                }
 
-        if (target is null)
-            return;
-
-        CalibrationResultRow[] results;
-
-        lock (_gate)
-            results =
-                _results.ToArray();
-
-        var resultNodes =
-            new JsonArray();
-
-        foreach (var row in results)
-            resultNodes.Add(
-                new JsonObject
-                {
-                    ["speedStep"] =
-                        row.SpeedStep,
-                    ["direction"] =
-                        row.Direction,
-                    ["elapsedMs"] =
-                        row.ElapsedMs,
-                    ["millimetersPerSecond"] =
-                        row.MillimetersPerSecond
-                });
-
-        target["calibration"] =
-            new JsonObject
-            {
-                ["routeKey"] =
-                    request.RouteKey,
-                ["reverseRouteKey"] =
-                    request.ReverseRouteKey,
-                ["routeLabel"] =
-                    request.RouteLabel,
-                ["routeLengthMm"] =
-                    request.RouteLengthMm,
-                ["maxSpeed"] =
-                    request.MaxSpeed,
-                ["speedStep"] =
-                    request.SpeedStep,
-                ["updatedAt"] =
-                    DateTimeOffset.UtcNow
-                        .ToString("O"),
-                ["results"] =
-                    resultNodes
-            };
-
-        var temp =
-            path +
-            ".calibration.tmp";
-
-        await File.WriteAllTextAsync(
-            temp,
-            root.ToJsonString(
-                new System.Text.Json.JsonSerializerOptions
-                {
-                    WriteIndented =
-                        false
-                }));
-
-        File.Move(
-            temp,
-            path,
-            true);
+                return true;
+            });
     }
 
     public bool Stop()
