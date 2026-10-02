@@ -718,7 +718,7 @@ function resourceLockNames(
       null
   ) {
     names.add(
-      "dcc-express-dispatcher-block:" +
+      "block:" +
       String(
         leg.from.blockId
       )
@@ -730,7 +730,7 @@ function resourceLockNames(
       null
   ) {
     names.add(
-      "dcc-express-dispatcher-block:" +
+      "block:" +
       String(
         leg.to.blockId
       )
@@ -746,7 +746,7 @@ function resourceLockNames(
         "segment"
     ) {
       names.add(
-        "dcc-express-movement-segment:" +
+        "segment:" +
         resource.name
       );
     }
