@@ -199,6 +199,14 @@ public sealed class WsHub
         Timetable.StopScheduler();
         Timetable.FailDelegatedScripts(
             "control_station_disconnected");
+
+        /*
+         * Browser scripts disappear with the Control Station, so their
+         * backend route authority must not survive that browser. Native
+         * backend Movement leases are deliberately excluded here.
+         */
+        Dispatcher.ReleaseScriptLeases();
+
         Movement.FailPendingAudio();
 
         await Broadcast(
