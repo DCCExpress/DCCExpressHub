@@ -959,48 +959,21 @@ export default function RoutePreviewDialog({
                                             my={2}
                                           />
 
-                                          <Group
-                                            gap={6}
-                                            wrap="nowrap"
-                                            px="xs"
-                                            py={6}
-                                            style={{
-                                              borderRadius: 6,
-                                              background:
-                                                "var(--mantine-color-violet-light)",
-                                              border:
-                                                "1px solid var(--mantine-color-violet-light-color)",
-                                            }}
+                                          <Badge
+                                            size="sm"
+                                            variant="filled"
+                                            color="violet"
+                                            leftSection={
+                                              <IconClock
+                                                size={13}
+                                                stroke={2.2}
+                                              />
+                                            }
                                           >
-                                            <IconClock
-                                              size={15}
-                                              stroke={2.2}
-                                            />
-
-                                            <Text
-                                              size="xs"
-                                              fw={800}
-                                            >
-                                              DELAY
-                                            </Text>
-
-                                            <Badge
-                                              size="sm"
-                                              variant="filled"
-                                              color="violet"
-                                            >
-                                              +{
-                                                event.delayMs
-                                              } ms
-                                            </Badge>
-                                          </Group>
-
-                                          <Text
-                                            size="xs"
-                                            c="dimmed"
-                                          >
-                                            Starts after the sensor condition is satisfied.
-                                          </Text>
+                                            DELAY +{
+                                              event.delayMs
+                                            } ms
+                                          </Badge>
                                         </>
                                       )
                                     }
