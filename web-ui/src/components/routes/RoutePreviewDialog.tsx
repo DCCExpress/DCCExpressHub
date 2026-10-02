@@ -4,6 +4,7 @@ import {
   Card,
   Group,
   Loader,
+  ScrollArea,
   SimpleGrid,
   Stack,
   Text,
@@ -502,16 +503,26 @@ export default function RoutePreviewDialog({
         content: {
           height:
             "min(880px, 94dvh)",
+          overflow:
+            "hidden",
         },
         body: {
           height:
             "calc(100% - 48px)",
           overflow:
-            "auto",
+            "hidden",
         },
       }}
     >
-      <Stack gap="md">
+      <ScrollArea
+        h="100%"
+        type="auto"
+        offsetScrollbars
+      >
+        <Stack
+          gap="md"
+          pr="xs"
+        >
         {
           loading && (
             <Group gap="xs">
@@ -818,7 +829,8 @@ export default function RoutePreviewDialog({
             </>
           )
         }
-      </Stack>
+        </Stack>
+      </ScrollArea>
     </AppModal>
   );
 }
