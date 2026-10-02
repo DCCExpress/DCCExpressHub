@@ -1684,6 +1684,10 @@ public sealed class MovementRuntime
             leg.To.Key,
             "approach");
 
+        await TryPrepareNextLeg(
+            execution,
+            leg);
+
         Patch(
             execution,
             info:
@@ -2482,6 +2486,9 @@ public sealed class MovementRuntime
                 execution,
                 leg);
 
+        execution.ActiveLegOwnerId =
+            lease.OwnerId;
+
         try
         {
             if (leg.DepartWhen.Length > 0)
@@ -2542,6 +2549,10 @@ public sealed class MovementRuntime
                     execution,
                     leg.To.Key,
                     "approach");
+
+                await TryPrepareNextLeg(
+                    execution,
+                    leg);
 
                 blockApproachState.Fired =
                     true;
@@ -2663,6 +2674,10 @@ public sealed class MovementRuntime
                         execution,
                         leg.To.Key,
                         "approach");
+
+                    await TryPrepareNextLeg(
+                        execution,
+                        leg);
 
                     blockApproachState.Fired =
                         true;
@@ -2872,6 +2887,13 @@ public sealed class MovementRuntime
         }
         finally
         {
+            if (string.Equals(
+                    execution.ActiveLegOwnerId,
+                    lease.OwnerId,
+                    StringComparison.Ordinal))
+                execution.ActiveLegOwnerId =
+                    null;
+
             _dispatcher.ReleaseLeg(
                 lease.OwnerId);
 
