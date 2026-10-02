@@ -59,7 +59,7 @@ const START_X =
   24;
 
 const SVG_HEIGHT =
-  178;
+  154;
 
 function typeLabel(
   item:
@@ -134,21 +134,6 @@ function blockTypeLabel(
     key
     ? item.blockType
     : translated;
-}
-
-function conditionListText(
-  conditions:
-    Array<{
-      sensor: number;
-      state: boolean;
-    }>
-): string {
-  return conditions
-    .map(
-      condition =>
-        `#${condition.sensor} ${condition.state ? "ON" : "OFF"}`
-    )
-    .join(" · ");
 }
 
 function itemClassName(
@@ -615,7 +600,7 @@ export default function MovementRouteVectorPreview({
                         width={
                           ITEM_WIDTH
                         }
-                        height={126}
+                        height={102}
                         rx={11}
                       />
 
@@ -740,96 +725,36 @@ export default function MovementRouteVectorPreview({
                         )
                       }
 
-                      {
-                        item.kind ===
-                          "block"
-                          ? (
-                            <>
-                              <text
-                                className="movement-route-vector-sensor"
-                                x={centerX}
-                                y={103}
-                                textAnchor="middle"
-                              >
-                                {
-                                  item.occupancySensor ===
-                                    null
-                                    ? "OCC —"
-                                    : `OCC #${item.occupancySensor}`
-                                }
-                              </text>
-
-                              <text
-                                className="movement-route-vector-detail"
-                                x={centerX}
-                                y={119}
-                                textAnchor="middle"
-                              >
-                                {
-                                  item.arrivalConditions.length >
-                                    0
-                                    ? `A ${conditionListText(item.arrivalConditions)}`
-                                    : "A —"
-                                }
-                              </text>
-
-                              <text
-                                className="movement-route-vector-detail"
-                                x={centerX}
-                                y={135}
-                                textAnchor="middle"
-                              >
-                                {
-                                  item.arrivedConditions.length >
-                                    0
-                                    ? `ARR ${conditionListText(item.arrivedConditions)}`
-                                    : "ARR —"
-                                }
-                              </text>
-
-                              <text
-                                className="movement-route-vector-detail"
-                                x={centerX}
-                                y={151}
-                                textAnchor="middle"
-                              >
-                                {
-                                  item.leaveConditions.length >
-                                    0
-                                    ? `L ${conditionListText(item.leaveConditions)}`
-                                    : "L —"
-                                }
-                              </text>
-                            </>
+                      <text
+                        className={
+                          "movement-route-vector-sensor" +
+                          (
+                            item.sensors.length ===
+                              0 &&
+                            item.kind !==
+                              "turnout"
+                              ? " is-missing"
+                              : ""
                           )
-                          : (
-                            <text
-                              className={
-                                "movement-route-vector-sensor" +
-                                (
-                                  item.sensors.length ===
-                                    0 &&
-                                  item.kind !==
-                                    "turnout"
-                                    ? " is-missing"
-                                    : ""
-                                )
-                              }
-                              x={
-                                centerX
-                              }
-                              y={104}
-                              textAnchor="middle"
-                            >
-                              {
-                                item.sensors.length ===
-                                  0
-                                  ? mt("movementNoSensorUpper")
+                        }
+                        x={
+                          centerX
+                        }
+                        y={104}
+                        textAnchor="middle"
+                      >
+                        {
+                          item.sensors.length ===
+                            0
+                            ? mt("movementNoSensorUpper")
+                            : (
+                                item.kind ===
+                                  "block"
+                                  ? `OCC ${item.sensors.join(" · ")}`
                                   : `SEN ${item.sensors.join(" · ")}`
-                              }
-                            </text>
-                          )
-                      }
+                              )
+                        }
+                      </text>
 
                     </g>
                   </g>
