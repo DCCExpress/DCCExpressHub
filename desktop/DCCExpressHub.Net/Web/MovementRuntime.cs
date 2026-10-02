@@ -179,6 +179,8 @@ public sealed class MovementRuntime
             new(StringComparer.Ordinal);
         public HashSet<string> ResourceLeaveFired { get; } =
             new(StringComparer.Ordinal);
+        public Dictionary<int, DispatcherLegLeaseInfo> PreparedLegLeases { get; } =
+            [];
     }
 
     readonly object _gate = new();
@@ -1552,9 +1554,33 @@ public sealed class MovementRuntime
             Block(
                 leg.To.BlockId.Value);
 
+        /*
+         * Simple baseline rule: the target may be used only when it has no
+         * real locomotive and no target marker from anybody else.
+         */
         return block is not null &&
-               !block.HasRuntimeState;
+               block.LocoAddress == 0 &&
+               string.IsNullOrEmpty(
+                   block.LocoId);
     }
+
+    static bool HasBlockingAction(
+        MovementPageModel page,
+        string resourceKey,
+        string when) =>
+        page.Actions.Any(action =>
+            string.Equals(
+                action.ResourceKey,
+                resourceKey,
+                StringComparison.Ordinal) &&
+            string.Equals(
+                action.When,
+                when,
+                StringComparison.Ordinal) &&
+            string.Equals(
+                action.SequenceMode,
+                "blocking",
+                StringComparison.Ordinal));
 
     async Task WaitPreDepartureAvailability(
         Execution execution,
@@ -1770,6 +1796,10 @@ public sealed class MovementRuntime
             activeRouteResourceKey: leg.From.Key,
             setActiveRoute: true);
 
+        execution.PreparedLegLeases.Remove(
+            leg.Index,
+            out var preparedLease);
+
         if (leg.DepartWhen.Length > 0)
         {
             await WaitUntil(
@@ -1778,12 +1808,18 @@ public sealed class MovementRuntime
                 "Waiting for departure condition at " + leg.From.Name);
         }
 
-        // BEFORE DEPART intentionally runs before route authority is acquired:
-        // station dwell/audio must never hold turnouts for minutes. Wait only
-        // for basic block/sensor availability here, without taking any locks.
-        await WaitPreDepartureAvailability(
-            execution,
-            leg);
+        /*
+         * BEFORE DEPART intentionally runs before route authority is acquired
+         * for normal/station starts. A through leg may already have been
+         * prepared at the previous ARRIVED boundary; that fast path is only
+         * used when there is no blocking ARRIVED/BEFORE DEPART sequence.
+         */
+        if (preparedLease is null)
+        {
+            await WaitPreDepartureAvailability(
+                execution,
+                leg);
+        }
 
         await RunActions(
             execution,
@@ -1795,12 +1831,9 @@ public sealed class MovementRuntime
          * movement authority is already clear. The dispatcher still validates
          * the destination block, every effective safety sensor, resource
          * ownership and turnout ownership before granting the lease.
-         *
-         * Do NOT force a STOP merely because a turnout needs changing here.
-         * If authority is not available, AcquireLeg() remains fail-closed and
-         * stops the locomotive while it waits.
          */
         var lease =
+            preparedLease ??
             await AcquireLeg(
                 execution,
                 leg);
@@ -2020,6 +2053,9 @@ public sealed class MovementRuntime
                 activeRouteResourceKey: leg.To.Key,
                 setActiveRoute: true);
 
+            var destinationCommitted =
+                false;
+
             var finalLeg =
                 ReferenceEquals(
                     execution.Plan.Legs.LastOrDefault(),
@@ -2043,6 +2079,110 @@ public sealed class MovementRuntime
                     desiredSpeed: 0);
 
                 await ApplySpeed(execution, force: true);
+            }
+            else
+            {
+                var next =
+                    execution.Plan.Legs.ElementAtOrDefault(
+                        leg.Index + 1);
+
+                /*
+                 * Commit ARRIVED immediately. This deliberately decouples
+                 * next-leg preparation from the previous block's LEAVE edge:
+                 * the train may already be safely inside B1 while A1's leave
+                 * detector/action is still catching up.
+                 */
+                if (leg.To.BlockId is >= 1 and <= 65535)
+                {
+                    if (!_layout.SetBlock(
+                            (ushort)leg.To.BlockId.Value,
+                            "",
+                            (ushort)execution.LocoAddress))
+                        throw new InvalidOperationException(
+                            "movement_destination_commit_failed");
+
+                    execution.CurrentBlockId =
+                        leg.To.BlockId;
+
+                    execution.TargetBlockId =
+                        null;
+
+                    destinationCommitted =
+                        true;
+                }
+
+                /*
+                 * The committed destination is now the source of the next leg,
+                 * so release the old leg before trying to reserve it again.
+                 */
+                _dispatcher.ReleaseLeg(
+                    lease.OwnerId);
+
+                var mayKeepRolling =
+                    next is not null &&
+                    next.DepartWhen.Length == 0 &&
+                    TargetBlockBasicallyFree(
+                        next) &&
+                    SafetyFree(
+                        EffectiveSafetySensors(
+                            execution.Page,
+                            next));
+
+                execution.DesiredSpeed =
+                    execution.Page.Speed;
+
+                execution.Moving =
+                    mayKeepRolling;
+
+                Patch(
+                    execution,
+                    desiredSpeed:
+                        execution.DesiredSpeed);
+
+                await ApplySpeed(
+                    execution,
+                    force: true);
+
+                /*
+                 * Fast through-block preparation. Do not pre-hold the next
+                 * route across a blocking ARRIVED or BEFORE DEPART sequence;
+                 * that preserves station dwell semantics.
+                 */
+                if (mayKeepRolling &&
+                    next is not null &&
+                    !HasBlockingAction(
+                        execution.Page,
+                        leg.To.Key,
+                        "arrived") &&
+                    !HasBlockingAction(
+                        execution.Page,
+                        next.From.Key,
+                        "beforeDepart"))
+                {
+                    var nextLease =
+                        await AcquireLeg(
+                            execution,
+                            next);
+
+                    execution.PreparedLegLeases[
+                        next.Index] =
+                        nextLease;
+
+                    Patch(
+                        execution,
+                        info:
+                            "Next leg prepared: " +
+                            next.From.Name +
+                            " -> " +
+                            next.To.Name,
+                        setInfo:
+                            true);
+                }
+
+                await RunActions(
+                    execution,
+                    leg.To.Key,
+                    "arrived");
             }
 
             await MaybeRunBlockLeave(
@@ -2091,7 +2231,8 @@ public sealed class MovementRuntime
                 leg.From.Key,
                 "afterLeave");
 
-            if (leg.To.BlockId is >= 1 and <= 65535)
+            if (!destinationCommitted &&
+                leg.To.BlockId is >= 1 and <= 65535)
             {
                 if (!_layout.SetBlock(
                         (ushort)leg.To.BlockId.Value,
@@ -2105,53 +2246,6 @@ public sealed class MovementRuntime
 
                 execution.TargetBlockId =
                     null;
-            }
-
-            if (!finalLeg)
-            {
-                var next =
-                    execution.Plan.Legs.ElementAtOrDefault(
-                        leg.Index + 1);
-
-                /*
-                 * Deliberately simple rolling rule:
-                 *   1. the next target block has no locomotive/foreign target;
-                 *   2. every configured/effective sensor up to that target is
-                 *      known and FREE;
-                 *   3. an explicit DEPART condition, when present, is true.
-                 *
-                 * No predicted-train or multi-block look-ahead belongs here.
-                 */
-                var mayKeepRolling =
-                    next is not null &&
-                    (next.DepartWhen.Length == 0 ||
-                     ConditionsSatisfied(next.DepartWhen)) &&
-                    TargetBlockBasicallyFree(
-                        next) &&
-                    SafetyFree(
-                        EffectiveSafetySensors(
-                            execution.Page,
-                            next));
-
-                execution.DesiredSpeed =
-                    execution.Page.Speed;
-
-                execution.Moving =
-                    mayKeepRolling;
-
-                Patch(
-                    execution,
-                    desiredSpeed:
-                        execution.DesiredSpeed);
-
-                await ApplySpeed(
-                    execution,
-                    force: true);
-
-                await RunActions(
-                    execution,
-                    leg.To.Key,
-                    "arrived");
             }
 
             Patch(
@@ -2291,6 +2385,13 @@ public sealed class MovementRuntime
         }
         finally
         {
+            foreach (var prepared in
+                     execution.PreparedLegLeases.Values.ToArray())
+                _dispatcher.ReleaseLeg(
+                    prepared.OwnerId);
+
+            execution.PreparedLegLeases.Clear();
+
             await PersistMovementTimingAsync(
                 execution.Page.Id,
                 execution.State.StartedAt,
