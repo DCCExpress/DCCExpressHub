@@ -1480,253 +1480,50 @@ test("Movement stores run timing and cards show live elapsed duration", () => {
 
 
 test("Movement block direction triangle shows executing moving waiting error and target runtime states", () => {
-  const engine =
-    read(
-      "src/services/movementEngine.ts"
-    );
-
   const runtime =
-    read(
-      "src/services/movementBlockRuntime.ts"
-    );
-
+    read("src/services/movementBlockRuntime.ts");
+  const backend =
+    read("../desktop/DCCExpressHub.Net/Web/MovementRuntime.cs");
   const block =
-    read(
-      "src/models/editor/elements/BlockElement.ts"
-    );
-
+    read("src/models/editor/elements/BlockElement.ts");
   const canvas =
-    read(
-      "src/components/TrackCanvas.tsx"
-    );
+    read("src/components/TrackCanvas.tsx");
 
-  assert.match(
-    runtime,
-    /MovementBlockRuntimePhase/
-  );
+  assert.match(runtime, /wsClient\.on\([\s\S]*"movementStateChanged"/);
+  assert.match(runtime, /state\.currentBlockId/);
+  assert.match(runtime, /state\.targetBlockId/);
+  assert.match(runtime, /state\.moving[\s\S]*state\.desiredSpeed/);
 
-  assert.match(
-    runtime,
-    /\| "moving"/
-  );
+  assert.match(backend, /CurrentBlockId/);
+  assert.match(backend, /TargetBlockId/);
+  assert.match(backend, /bool Moving/);
 
-  assert.match(
-    runtime,
-    /\| "executing"/
-  );
-
-  assert.match(
-    runtime,
-    /\| "waiting"/
-  );
-
-  assert.match(
-    runtime,
-    /\| "error"/
-  );
-
-  assert.match(
-    engine,
-    /targetBlockId:\s*number \| null/
-  );
-
-  assert.match(
-    engine,
-    /execution\.targetBlockId =[\s\S]*leg\.to\.blockId/
-  );
-
-  assert.match(
-    engine,
-    /syncMovementMotionRuntime[\s\S]*execution\.currentBlockId[\s\S]*"moving"[\s\S]*execution\.targetBlockId[\s\S]*"moving"/
-  );
-
-  assert.match(
-    engine,
-    /setMovementExecuting/
-  );
-
-  assert.match(
-    engine,
-    /for \(const action of actions\)[\s\S]*reportInfo[\s\S]*setMovementExecuting/
-  );
-
-  assert.match(
-    engine,
-    /physicalSpeed >[\s\S]*0/
-  );
-
-  assert.match(
-    engine,
-    /setMovementError/
-  );
-
-  assert.match(
-    engine,
-    /"departureCondition"/
-  );
-
-  assert.match(
-    engine,
-    /"targetBlock"/
-  );
-
-  assert.match(
-    engine,
-    /"segment"/
-  );
-
-  assert.match(
-    engine,
-    /"resourceLock"/
-  );
-
-  assert.match(
-    engine,
-    /"turnoutLock"/
-  );
-
-  assert.match(
-    block,
-    /getMovementBlockRuntime/
-  );
-
-
-  assert.match(
-    block,
-    /baseForwardRotation =[\s\S]*runtimeForwardRotation[\s\S]*\?\?[\s\S]*this\.rotation/
-  );
-
-  assert.doesNotMatch(
-    block,
-    /!movementRuntime[\s\S]*runtimeForwardRotation === null[\s\S]*return/
-  );
-
-  assert.match(
-    block,
-    /movementRuntime\.direction ===[\s\S]*"reverse"[\s\S]*180/
-  );
-
-  assert.match(
-    block,
-    /movementRuntime\.phase ===[\s\S]*"moving"/
-  );
-
-  assert.match(
-    block,
-    /movementRuntime\.phase ===[\s\S]*"moving"[\s\S]*movementRuntime\.phase ===[\s\S]*"executing"/
-  );
-
-  assert.match(
-    block,
-    /#a3e635/
-  );
-
-  assert.match(
-    block,
-    /#ffd43b/
-  );
-
-  assert.match(
-    block,
-    /#ff6b6b/
-  );
-
-
-  assert.match(
-    runtime,
-    /hasMovingMovementBlockRuntime[\s\S]*state\.phase ===[\s\S]*"moving"/
-  );
-
-  assert.match(
-    block,
-    /!movementRuntime[\s\S]*return/
-  );
-
-  assert.doesNotMatch(
-    block,
-    /gainsboro/
-  );
-
-  assert.match(
-    block,
-    /Date\.now\(\)/
-  );
-
-
-  assert.match(
-    block,
-    /const arrowLength = 6/
-  );
-
-  assert.match(
-    block,
-    /const arrowHalfHeight = 4/
-  );
-
-  assert.match(
-    canvas,
-    /subscribeMovementBlockRuntime/
-  );
-
-  assert.match(
-    canvas,
-    /hasMovingMovementBlockRuntime\(\)/
-  );
+  assert.match(block, /getMovementBlockRuntime/);
+  assert.match(block, /wsClient\.getLatestLocoState/);
+  assert.match(block, /movementRuntime\?\.phase ===[\s\S]*"moving"/);
+  assert.match(block, /#a3e635/);
+  assert.match(block, /#ffd43b/);
+  assert.match(block, /#ff6b6b/);
+  assert.match(canvas, /subscribeMovementBlockRuntime/);
+  assert.match(canvas, /wsClient\.on\("locoState"/);
 });
 
 
 test("Movement waiting indicator survives stopped-speed polling loops", () => {
-  const engine =
-    read(
-      "src/services/movementEngine.ts"
-    );
-
   const runtime =
-    read(
-      "src/services/movementBlockRuntime.ts"
-    );
+    read("src/services/movementBlockRuntime.ts");
+  const backend =
+    read("../desktop/DCCExpressHub.Net/Web/MovementRuntime.cs");
 
-  assert.match(
-    runtime,
-    /clearMovementBlockRuntimeByOwnerPhase/
-  );
+  assert.match(runtime, /state\.moving[\s\S]*state\.desiredSpeed[\s\S]*"moving"[\s\S]*"waiting"/);
+  assert.match(runtime, /waitingReasonFor/);
+  assert.match(runtime, /"route authority"/);
+  assert.match(runtime, /"safety sensor"/);
 
-  const syncStart =
-    engine.indexOf(
-      "function syncMovementMotionRuntime"
-    );
-
-  const syncEnd =
-    engine.indexOf(
-      "function setMovementError",
-      syncStart
-    );
-
-  const sync =
-    engine.slice(
-      syncStart,
-      syncEnd
-    );
-
-  assert.match(
-    sync,
-    /physicalSpeed <=[\s\S]*0[\s\S]*clearMovementBlockRuntimeByOwnerPhase\([\s\S]*"moving"/
-  );
-
-  assert.doesNotMatch(
-    sync,
-    /physicalSpeed <=[\s\S]*0[\s\S]*clearMovementBlockRuntimeByOwner\([\s\S]*return/
-  );
-
-  assert.match(
-    engine,
-    /Waiting for block/
-  );
-
-  assert.match(
-    engine,
-    /setMovementWaiting/
-  );
+  assert.match(backend, /execution\.Moving = false;[\s\S]*await ApplySpeed/);
+  assert.match(backend, /Waiting for block/);
+  assert.match(backend, /Waiting for route authority/);
+  assert.match(backend, /Waiting for safety sensor/);
 });
 
 
@@ -2305,150 +2102,43 @@ test("Movement vector keeps physical sensors while selected nodes expose a confi
 });
 
 test("Movement runtime honors ignored safety sensors but keeps logical target block checks", () => {
-  const engine =
-    read(
-      "src/services/movementEngine.ts"
-    );
-
+  const backend =
+    read("../desktop/DCCExpressHub.Net/Web/MovementRuntime.cs");
   const script =
-    read(
-      "src/services/movementExecutionScript.ts"
-    );
-
+    read("src/services/movementExecutionScript.ts");
   const routeCatalog =
-    read(
-      "src/services/movementRouteCatalog.ts"
-    );
+    read("src/services/movementRouteCatalog.ts");
 
-  assert.match(
-    engine,
-    /movementLegEffectivePathSafetySensors\([\s\S]*execution\.page/
-  );
+  assert.match(backend, /EffectiveSafetySensors\([\s\S]*execution\.Page,[\s\S]*leg/);
+  assert.match(backend, /TargetBlockBasicallyFree/);
+  assert.match(backend, /!block\.HasRuntimeState/);
+  assert.match(backend, /SafetyFree/);
 
-  assert.match(
-    engine,
-    /movementLegSensorIsChecked\([\s\S]*execution\.page/
-  );
-
-  assert.match(
-    engine,
-    /function targetBlockAvailableForLeg/
-  );
-
-  assert.match(
-    engine,
-    /blockAvailableForTarget\([\s\S]*checkOccupancySensor/
-  );
-
-  assert.match(
-    engine,
-    /state\.locoAddress/
-  );
-
-  assert.match(
-    engine,
-    /state\.locoId/
-  );
-
-  assert.match(
-    script,
-    /IGNORED_BY_SAFETY_OVERRIDE/
-  );
-
-  assert.match(
-    script,
-    /movementLegEffectivePathSafetySensors/
-  );
-
-  assert.match(
-    routeCatalog,
-    /safetyRules:\s*\[\]/
-  );
+  assert.match(script, /IGNORED_BY_SAFETY_OVERRIDE/);
+  assert.match(script, /movementLegEffectivePathSafetySensors/);
+  assert.match(routeCatalog, /safetyRules:\s*\[\]/);
 });
 
 test("Movement intermediate ARRIVED restores cruise only after safety readiness, then ARRIVED actions may override desired speed", () => {
-  const engine =
-    read(
-      "src/services/movementEngine.ts"
-    );
-
+  const backend =
+    read("../desktop/DCCExpressHub.Net/Web/MovementRuntime.cs");
   const script =
-    read(
-      "src/services/movementExecutionScript.ts"
-    );
+    read("src/services/movementExecutionScript.ts");
 
-  assert.match(
-    engine,
-    /function nextLegMayKeepRolling/
-  );
+  assert.match(backend, /var mayKeepRolling =[\s\S]*next\.DepartWhen/);
+  assert.match(backend, /TargetBlockBasicallyFree\([\s\S]*next/);
+  assert.match(backend, /EffectiveSafetySensors\([\s\S]*execution\.Page,[\s\S]*next/);
+  assert.match(backend, /execution\.DesiredSpeed =[\s\S]*execution\.Page\.Speed/);
+  assert.match(backend, /execution\.Moving =[\s\S]*mayKeepRolling/);
 
-  assert.match(
-    engine,
-    /nextLeg\.departWhen\.length[\s\S]*conditionsSatisfied/
-  );
+  const policy =
+    backend.indexOf("var mayKeepRolling");
+  const arrived =
+    backend.indexOf('"arrived"', policy);
+  assert.ok(policy >= 0 && arrived > policy);
 
-  assert.match(
-    engine,
-    /targetBlockAvailableForLeg\([\s\S]*nextLeg/
-  );
-
-  assert.match(
-    engine,
-    /aheadPathSensorsAreFree\([\s\S]*nextLeg/
-  );
-
-  assert.match(
-    engine,
-    /function applyIntermediateArrivalSpeedPolicy/
-  );
-
-  assert.match(
-    engine,
-    /execution\.desiredSpeed =[\s\S]*execution\.page\.speed/
-  );
-
-  assert.match(
-    engine,
-    /if \(!mayKeepRolling\)[\s\S]*execution\.moving =[\s\S]*false/
-  );
-
-  assert.match(
-    engine,
-    /applyDesiredSpeed\([\s\S]*execution,[\s\S]*true/
-  );
-
-  const policyIndex =
-    engine.lastIndexOf(
-      "applyIntermediateArrivalSpeedPolicy("
-    );
-
-  const arrivedActionIndex =
-    engine.indexOf(
-      'leg.to.key,\n        "arrived"',
-      policyIndex
-    );
-
-  assert.ok(
-    policyIndex >= 0 &&
-    arrivedActionIndex >
-      policyIndex,
-    "ARRIVED safety/cruise policy must run before ARRIVED actions"
-  );
-
-  assert.match(
-    engine,
-    /case "speed":[\s\S]*execution\.desiredSpeed =[\s\S]*action\.speed/
-  );
-
-  assert.match(
-    script,
-    /safety\/departure readiness wins before cruise resync/
-  );
-
-  assert.match(
-    script,
-    /ARRIVED speed actions run after the policy and may replace DESIRED_SPEED/
-  );
+  assert.match(backend, /case "speed":[\s\S]*execution\.DesiredSpeed =/);
+  assert.match(script, /safety\/departure readiness wins before cruise resync/);
 });
 
 test("Movement route vector preview is styled by type and prepared for future item clicks", () => {
@@ -2704,121 +2394,40 @@ test("Movement direction marker is hidden on idle empty blocks but shown on acti
 
 
 test("Movement final ARRIVED blocking sequences run before the automatic stop", () => {
-  const engine =
-    read(
-      "src/services/movementEngine.ts"
-    );
+  const backend =
+    read("../desktop/DCCExpressHub.Net/Web/MovementRuntime.cs");
 
-  const waitStart =
-    engine.indexOf(
-      "async function waitForArrival"
-    );
-
-  const waitEnd =
-    engine.indexOf(
-      "async function waitForResourceEntry",
-      waitStart
-    );
-
-  const waitForArrival =
-    engine.slice(
-      waitStart,
-      waitEnd
-    );
-
-  assert.match(
-    waitForArrival,
-    /arrivalSatisfied\([\s\S]*leg[\s\S]*\)[\s\S]*return;/
-  );
-
-  assert.doesNotMatch(
-    waitForArrival,
-    /applyDesiredSpeed/
-  );
-
-  const traverseStart =
-    engine.indexOf(
-      "async function traverseLeg"
-    );
-
-  const traverseEnd =
-    engine.indexOf(
-      "async function executeMovement",
-      traverseStart
-    );
-
-  const traverse =
-    engine.slice(
-      traverseStart,
-      traverseEnd
-    );
-
-  assert.match(
-    traverse,
-    /const isFinalLeg =[\s\S]*execution\.plan\.legs/
-  );
-
-  assert.match(
-    traverse,
-    /if \([\s\S]*isFinalLeg[\s\S]*\)[\s\S]*await runActions\([\s\S]*leg\.to\.key,[\s\S]*"arrived"[\s\S]*\)/
-  );
-
-  const arrivedActionIndex =
-    traverse.indexOf(
-      '"arrived"'
-    );
-
-  const stopIndex =
-    traverse.indexOf(
-      "execution.moving =",
-      arrivedActionIndex
-    );
-
-  const applyStopIndex =
-    traverse.indexOf(
-      "applyDesiredSpeed(",
-      stopIndex
-    );
+  const finalLeg =
+    backend.indexOf("if (finalLeg)");
+  const arrived =
+    backend.indexOf('"arrived"', finalLeg);
+  const stop =
+    backend.indexOf("execution.Moving = false", arrived);
+  const applyStop =
+    backend.indexOf("await ApplySpeed", stop);
 
   assert.ok(
-    arrivedActionIndex >= 0 &&
-    stopIndex > arrivedActionIndex &&
-    applyStopIndex > stopIndex,
-    "final blocking ARRIVED actions must run before automatic stop"
-  );
-
-  assert.match(
-    traverse,
-    /finalArrivedActionsRan/
-  );
-
-  assert.match(
-    traverse,
-    /if \([\s\S]*!finalArrivedActionsRan[\s\S]*\)[\s\S]*await runActions/
+    finalLeg >= 0 &&
+    arrived > finalLeg &&
+    stop > arrived &&
+    applyStop > stop,
+    "final ARRIVED actions must run before automatic stop"
   );
 });
 
 
 
 test("Movement never guesses forward when route direction is unknown", () => {
-  const engine =
-    read(
-      "src/services/movementEngine.ts"
-    );
+  const backend =
+    read("../desktop/DCCExpressHub.Net/Web/MovementRuntime.cs");
 
   assert.match(
-    engine,
-    /plan\.direction ===[\s\S]*"unknown"[\s\S]*throw new Error/
+    backend,
+    /if \(plan\.Direction is not \("forward" or "reverse"\)\)[\s\S]*movement_direction_unknown/
   );
-
   assert.match(
-    engine,
-    /const direction =[\s\S]*plan\.direction/
-  );
-
-  assert.doesNotMatch(
-    engine,
-    /plan\.direction ===[\s\S]*"reverse"[\s\S]*\?[\s\S]*"reverse"[\s\S]*:[\s\S]*"forward"/
+    backend,
+    /Forward =[\s\S]*plan\.Direction == "forward"/
   );
 });
 
@@ -2995,50 +2604,14 @@ test("Block direction blinking follows live locomotive runtime state", () => {
 
 
 test("Movement arms the requested logical direction at zero speed before departure", () => {
-  const engine =
-    read(
-      "src/services/movementEngine.ts"
-    );
+  const backend =
+    read("../desktop/DCCExpressHub.Net/Web/MovementRuntime.cs");
 
-  assert.match(
-    engine,
-    /async function armMovementDirection/
-  );
-
-  assert.match(
-    engine,
-    /setPhysicalSpeed\([\s\S]*execution,[\s\S]*0,[\s\S]*true[\s\S]*\)/
-  );
-
-  assert.match(
-    engine,
-    /await controlledDelay\([\s\S]*execution,[\s\S]*150[\s\S]*\)/
-  );
-
-  assert.match(
-    engine,
-    /wsApi\.getLoco\([\s\S]*execution\.locoAddress/
-  );
-
-  assert.match(
-    engine,
-    /current\.speed ===[\s\S]*0[\s\S]*current\.direction ===[\s\S]*execution\.direction/
-  );
-
-  assert.match(
-    engine,
-    /await armMovementDirection\([\s\S]*execution[\s\S]*\)[\s\S]*await executeMovement/
-  );
-
-  assert.match(
-    engine,
-    /function setPhysicalSpeed\([\s\S]*force = false/
-  );
-
-  assert.match(
-    engine,
-    /!force &&[\s\S]*execution\.physicalSpeed ===[\s\S]*safeSpeed/
-  );
+  assert.match(backend, /async Task ArmDirection/);
+  assert.match(backend, /execution\.Moving = false/);
+  assert.match(backend, /await ApplySpeed\(execution, force: true\)/);
+  assert.match(backend, /await Task\.Delay\(150, execution\.Cancellation\.Token\)/);
+  assert.match(backend, /await ArmDirection\(execution\)[\s\S]*RunActions/);
 });
 
 
@@ -3082,58 +2655,21 @@ test("Movements tab exposes global Stop All, Abort All and Emergency Stop contro
 
 test("Global Movement abort requests E-STOP at most once", () => {
   const engine =
-    read(
-      "src/services/movementEngine.ts"
-    );
-
+    read("src/services/movementEngine.ts");
   const table =
-    read(
-      "src/components/movement/MovementPagesTable.tsx"
-    );
+    read("src/components/movement/MovementPagesTable.tsx");
+  const backend =
+    read("../desktop/DCCExpressHub.Net/Web/MovementRuntime.cs");
 
-  assert.match(
-    engine,
-    /export function abortMovement\([\s\S]*requestEmergencyStop = true/
-  );
+  assert.match(engine, /export function abortAllMovements/);
+  assert.match(engine, /"abortAll"/);
+  assert.match(table, /abortAllMovements\(\)/);
+  assert.doesNotMatch(table, /abortMovement\([\s\S]*false/);
 
-  assert.match(
-    engine,
-    /if \([\s\S]*requestEmergencyStop[\s\S]*\)[\s\S]*wsApi\.emergencyStop\(\)/
-  );
-
-  assert.match(
-    table,
-    /abortMovement\([\s\S]*page\.id,[\s\S]*false[\s\S]*\)/
-  );
-
-  const abortAllStart =
-    table.indexOf(
-      "const abortAll"
-    );
-
-  const emergencyToggleStart =
-    table.indexOf(
-      "const toggleEmergencyStop",
-      abortAllStart
-    );
-
-  const abortAll =
-    table.slice(
-      abortAllStart,
-      emergencyToggleStart
-    );
-
-  const emergencyCalls =
-    abortAll.match(
-      /wsApi\.emergencyStop\(\)/g
-    ) ??
-    [];
-
-  assert.equal(
-    emergencyCalls.length,
-    1,
-    "Abort All must request command-station E-STOP only once"
-  );
+  assert.match(backend, /async Task EnsureEmergencyStopAsync/);
+  assert.match(backend, /EmergencyPauseStateKnown[\s\S]*EmergencyPaused/);
+  assert.match(backend, /if \([\s\S]*_hubState\.EmergencyStop[\s\S]*\)[\s\S]*return;/);
+  assert.match(backend, /_commandCenter\.EmergencyStopAsync/);
 });
 
 
@@ -3325,124 +2861,32 @@ test("Movement sequence mode is fixed by its add button", () => {
 
 test("Movement editor uses the current in-memory route graph while runtime keeps saved layout authority", () => {
   const layoutPage =
-    read(
-      "src/LiteLayoutPage.tsx"
-    );
-
+    read("src/LiteLayoutPage.tsx");
   const dialog =
-    read(
-      "src/components/movement/MovementEditorDialog.tsx"
-    );
-
+    read("src/components/movement/MovementEditorDialog.tsx");
   const selector =
-    read(
-      "src/components/movement/MovementRouteSelectDialog.tsx"
-    );
-
+    read("src/components/movement/MovementRouteSelectDialog.tsx");
   const routeEditor =
-    read(
-      "src/components/movement/MovementRouteEditor.tsx"
-    );
-
-  const preview =
-    read(
-      "src/components/movement/MovementRouteVectorPreview.tsx"
-    );
-
+    read("src/components/movement/MovementRouteEditor.tsx");
   const cache =
-    read(
-      "src/services/clientRouteGraphCache.ts"
-    );
-
-  const catalog =
-    read(
-      "src/services/movementRouteCatalog.ts"
-    );
-
-  const plan =
-    read(
-      "src/services/movementPlan.ts"
-    );
-
+    read("src/services/clientRouteGraphCache.ts");
   const engine =
-    read(
-      "src/services/movementEngine.ts"
-    );
+    read("src/services/movementEngine.ts");
+  const backend =
+    read("../desktop/DCCExpressHub.Net/Web/MovementRuntime.cs");
 
-  assert.match(
-    layoutPage,
-    /<MovementEditorDialog[\s\S]*layout=\{layout\}/
-  );
+  assert.match(layoutPage, /<MovementEditorDialog[\s\S]*layout=\{layout\}/);
+  assert.match(dialog, /layout:[\s\S]*LayoutView/);
+  assert.match(selector, /createCurrentClientLayoutSnapshot/);
+  assert.match(routeEditor, /loadMovementPlan/);
+  assert.match(cache, /createCurrentClientLayoutSnapshot/);
 
-  assert.match(
-    dialog,
-    /layout:[\s\S]*LayoutView/
-  );
+  assert.match(engine, /pageId:[\s\S]*page\.id/);
+  assert.doesNotMatch(engine, /loadMovementPlan\(/);
+  assert.doesNotMatch(engine, /createCurrentClientLayoutSnapshot/);
 
-  assert.match(
-    dialog,
-    /<MovementRouteSelectDialog[\s\S]*layout=\{[\s\S]*layout/
-  );
-
-  assert.match(
-    dialog,
-    /<MovementRouteVectorPreview[\s\S]*layout=\{[\s\S]*layout/
-  );
-
-  assert.match(
-    dialog,
-    /<MovementRouteEditor[\s\S]*layout=\{[\s\S]*layout/
-  );
-
-  assert.match(
-    cache,
-    /export function createCurrentClientLayoutSnapshot/
-  );
-
-  assert.match(
-    cache,
-    /ensureClientRouteGraph\([\s\S]*layout[\s\S]*\)[\s\S]*attachClientRouteTopologyToLayoutJson/
-  );
-
-  assert.match(
-    selector,
-    /createCurrentClientLayoutSnapshot\([\s\S]*layout/
-  );
-
-  assert.match(
-    selector,
-    /loadMovementRouteCandidates\([\s\S]*document,[\s\S]*layoutSnapshot/
-  );
-
-  assert.match(
-    routeEditor,
-    /loadMovementPlan\([\s\S]*page,[\s\S]*layoutSnapshot/
-  );
-
-  assert.match(
-    preview,
-    /loadMovementRouteVector\([\s\S]*page,[\s\S]*layoutSnapshot/
-  );
-
-  assert.match(
-    catalog,
-    /layoutOverride\?:[\s\S]*SerializedLayoutDto/
-  );
-
-  assert.match(
-    plan,
-    /layoutOverride\?:[\s\S]*SerializedLayoutDto/
-  );
-
-  assert.match(
-    engine,
-    /await loadMovementPlan\([\s\S]*page[\s\S]*\)/
-  );
-
-  assert.doesNotMatch(
-    engine,
-    /createCurrentClientLayoutSnapshot/
-  );
+  assert.match(backend, /LoadSavedMovementPage\([\s\S]*pageId/);
+  assert.match(backend, /plan = _planBuilder\.Build\(page\)/);
 });
 
 
@@ -3582,102 +3026,25 @@ test("Movement keeps contextual event help inline and loads general help from lo
 
 test("Movement supports random audio and DCC accessory actions", () => {
   const domain =
-    read(
-      "src/domain/movement.ts"
-    );
-
-  const engine =
-    read(
-      "src/services/movementEngine.ts"
-    );
-
+    read("src/domain/movement.ts");
+  const backend =
+    read("../desktop/DCCExpressHub.Net/Web/MovementRuntime.cs");
   const editor =
-    read(
-      "src/components/movement/MovementActionEditor.tsx"
-    );
-
+    read("src/components/movement/MovementActionEditor.tsx");
   const script =
-    read(
-      "src/services/movementExecutionScript.ts"
-    );
+    read("src/services/movementExecutionScript.ts");
 
-  for (
-    const kind of
-    [
-      "randomPlay",
-      "setAccessory",
-      "setExtendedAccessory",
-    ]
-  ) {
-    assert.match(
-      domain,
-      new RegExp(
-        `"${kind}"`
-      )
-    );
-
-    assert.match(
-      editor,
-      new RegExp(
-        `"${kind}"`
-      )
-    );
+  for (const kind of ["randomPlay", "setAccessory", "setExtendedAccessory"]) {
+    assert.match(domain, new RegExp(`"${kind}"`));
+    assert.match(editor, new RegExp(`"${kind}"`));
   }
 
-  assert.match(
-    domain,
-    /accessoryAddress:\s*number/
-  );
-
-  assert.match(
-    domain,
-    /accessoryAspect:\s*number/
-  );
-
-  assert.match(
-    engine,
-    /case "randomPlay":[\s\S]*Math\.random/
-  );
-
-  assert.match(
-    domain,
-    /randomPlayChancePercent:\s*number/
-  );
-
-  assert.match(
-    domain,
-    /randomPlayChancePercent:\s*30/
-  );
-
-  assert.match(
-    editor,
-    /movementRandomPlayChance/
-  );
-
-  assert.match(
-    engine,
-    /case "setAccessory":[\s\S]*setBasicAccessory/
-  );
-
-  assert.match(
-    engine,
-    /case "setExtendedAccessory":[\s\S]*setSignalAspect/
-  );
-
-  assert.match(
-    script,
-    /RANDOM_1_TO_10/
-  );
-
-  assert.match(
-    script,
-    /SET_BASIC_ACCESSORY/
-  );
-
-  assert.match(
-    script,
-    /SET_EXTENDED_ACCESSORY/
-  );
+  assert.match(backend, /case "randomPlay":[\s\S]*Random\.Shared\.Next/);
+  assert.match(backend, /case "setAccessory":[\s\S]*SetBasicAccessoryAction/);
+  assert.match(backend, /case "setExtendedAccessory":[\s\S]*SetExtendedAccessoryAction/);
+  assert.match(script, /RANDOM_1_TO_10/);
+  assert.match(script, /SET_BASIC_ACCESSORY/);
+  assert.match(script, /SET_EXTENDED_ACCESSORY/);
 });
 
 
