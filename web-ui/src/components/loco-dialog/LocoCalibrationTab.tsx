@@ -1050,7 +1050,10 @@ export default function LocoCalibrationTab({
                       color="violet"
                     >
                       {
-                        runtime.currentDirection.toUpperCase()
+                        runtime.currentDirection ===
+                          "outbound"
+                          ? t("locodialog.calibration.outbound").toUpperCase()
+                          : t("locodialog.calibration.return").toUpperCase()
                       }
                     </Badge>
                   )
@@ -1249,7 +1252,7 @@ export default function LocoCalibrationTab({
             routeError && (
               <Alert
                 color="red"
-                title="Route selection"
+                title={t("locodialog.calibration.routeSelection")}
               >
                 {routeError}
               </Alert>
@@ -1289,7 +1292,7 @@ export default function LocoCalibrationTab({
                     {t("locodialog.calibration.to")}
                   </Table.Th>
                   <Table.Th>
-                    Direction
+                    {t("locodialog.calibration.direction")}
                   </Table.Th>
                   <Table.Th>
                     {t("locodialog.calibration.reverse")}
