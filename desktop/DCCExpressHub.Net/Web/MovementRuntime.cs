@@ -2258,8 +2258,13 @@ public sealed class MovementRuntime
             _dispatcher.ReleaseLeg(
                 lease.OwnerId);
 
-            execution.TargetBlockId =
-                null;
+            /*
+             * When ARRIVED already prepared the next leg, keep that target
+             * visible/authoritative. The next TraverseLeg owns clearing it.
+             */
+            if (execution.PreparedLegLeases.Count == 0)
+                execution.TargetBlockId =
+                    null;
         }
     }
 
