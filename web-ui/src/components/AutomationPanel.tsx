@@ -79,9 +79,9 @@ type AutomationPanelProps = {
     movements:
       MovementDocument
   ) => void;
-  onOpenMovementEditor: (
+  onSelectMovementRoute: (
     pageId:
-      string
+      string | null
   ) => void;
 };
 
@@ -93,7 +93,7 @@ export default function AutomationPanel({
   onOpenFlowEditor,
   movements,
   onMovementsChange,
-  onOpenMovementEditor,
+  onSelectMovementRoute,
 }: AutomationPanelProps) {
   const [
     activeTab,
@@ -247,8 +247,8 @@ export default function AutomationPanel({
             onDocumentChange={
               onMovementsChange
             }
-            onOpenEditor={
-              onOpenMovementEditor
+            onSelectRoute={
+              onSelectMovementRoute
             }
           />
         </Tabs.Panel>
