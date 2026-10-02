@@ -40,6 +40,7 @@ public sealed class TimetableRuntime : BackgroundService
     readonly IWebHostEnvironment _env;
     readonly FastClockRuntime _fastClock;
     readonly MovementRuntime _movement;
+    readonly DispatcherCoordinatorRuntime _dispatcher;
     readonly ScriptRuntime _scripts;
     readonly ILogger<TimetableRuntime> _log;
     readonly JsonSerializerOptions _json =
@@ -61,12 +62,14 @@ public sealed class TimetableRuntime : BackgroundService
         IWebHostEnvironment env,
         FastClockRuntime fastClock,
         MovementRuntime movement,
+        DispatcherCoordinatorRuntime dispatcher,
         ScriptRuntime scripts,
         ILogger<TimetableRuntime> log)
     {
         _env = env;
         _fastClock = fastClock;
         _movement = movement;
+        _dispatcher = dispatcher;
         _scripts = scripts;
         _log = log;
 
@@ -668,8 +671,8 @@ public sealed class TimetableRuntime : BackgroundService
         Publish();
 
         var result =
-            _movement.Start(
-                movement.Id);
+            _dispatcher.Start(
+                movement);
 
         if (!result.Ok)
         {
