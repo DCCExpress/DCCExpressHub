@@ -105,6 +105,7 @@ export type SerializedLayoutElementDto = {
   locoAddress?: number;
   sensorAddress?: number;
   blockType?: BlockType | string;
+  eventConfig?: BlockEventConfigDto;
 
   text?: string;
   fontSize?: number;
@@ -324,12 +325,29 @@ export interface ClockElementDto extends BaseElementDto {
   type: "clcok";
 }
 
+export type BlockEventSensorConditionDto = {
+  sensor: number;
+  state: boolean;
+};
+
+export type BlockDirectionEventConfigDto = {
+  arrival: BlockEventSensorConditionDto[];
+  arrived: BlockEventSensorConditionDto[];
+  leave: BlockEventSensorConditionDto[];
+};
+
+export type BlockEventConfigDto = {
+  forward: BlockDirectionEventConfigDto;
+  reverse: BlockDirectionEventConfigDto;
+};
+
 export interface BlockElementDto extends TrackElementDto {
   type: "trackblock";
   length: number;
   locoAddress: number;
   sensorAddress: number;
   blockType: BlockType;
+  eventConfig?: BlockEventConfigDto;
 }
 
 export interface TreeElementDto extends BaseElementDto {
