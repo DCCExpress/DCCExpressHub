@@ -31,10 +31,9 @@ import {
   IconX,
 } from "@tabler/icons-react";
 
-import {
-  createMovementPage,
-  type MovementDocument,
-  type MovementPage,
+import type {
+  MovementDocument,
+  MovementPage,
 } from "../../domain/movement";
 
 import {
@@ -81,9 +80,9 @@ type Props = {
     document:
       MovementDocument
   ) => void;
-  onOpenEditor: (
+  onSelectRoute: (
     pageId:
-      string
+      string | null
   ) => void;
 };
 
@@ -132,7 +131,7 @@ function MovementCard({
   page,
   catalog,
   onEnabledChange,
-  onOpenEditor,
+  onSelectRoute,
   onDelete,
 }: {
   page:
@@ -143,7 +142,7 @@ function MovementCard({
     enabled:
       boolean
   ) => void;
-  onOpenEditor: () => void;
+  onSelectRoute: () => void;
   onDelete: () => void;
 }) {
   const mt =
@@ -308,7 +307,7 @@ function MovementCard({
                   running
                 }
                 onClick={
-                  onOpenEditor
+                  onSelectRoute
                 }
               >
                 <IconEdit
@@ -438,7 +437,7 @@ function MovementCard({
 export default function MovementPagesTable({
   document,
   onDocumentChange,
-  onOpenEditor,
+  onSelectRoute,
 }: Props) {
   const mt =
     useMovementTranslation();
@@ -802,45 +801,6 @@ export default function MovementPagesTable({
       });
     };
 
-  const createPage =
-    (): void => {
-      const page =
-        createMovementPage(
-          mt(
-            "movementDefaultName",
-            {
-              number:
-                pageCount +
-                1,
-            }
-          )
-        );
-
-      const next = {
-        ...document,
-        pages: [
-          ...document.pages,
-          page,
-        ],
-        activePageId:
-          page.id,
-      };
-
-      void persist(
-        next
-      ).then(
-        saved => {
-          if (
-            saved
-          ) {
-            onOpenEditor(
-              page.id
-            );
-          }
-        }
-      );
-    };
-
   return (
     <Stack
       gap="sm"
@@ -901,32 +861,16 @@ export default function MovementPagesTable({
         >
           <Button
             size="xs"
-            variant="light"
-            color="violet"
-            leftSection={
-              <IconEdit
-                size={14}
-              />
-            }
-            onClick={
-              () =>
-                onOpenEditor(
-                  document.activePageId
-                )
-            }
-          >
-            {mt("movementEditorButton")}
-          </Button>
-
-          <Button
-            size="xs"
             leftSection={
               <IconPlus
                 size={14}
               />
             }
             onClick={
-              createPage
+              () =>
+                onSelectRoute(
+                  null
+                )
             }
           >
             {mt("movementNew")}
@@ -1039,9 +983,9 @@ export default function MovementPagesTable({
                   catalog={
                     catalog
                   }
-                  onOpenEditor={
+                  onSelectRoute={
                     () =>
-                      onOpenEditor(
+                      onSelectRoute(
                         page.id
                       )
                   }
