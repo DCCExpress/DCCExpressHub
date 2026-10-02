@@ -152,6 +152,9 @@ public sealed class MovementRuntime
     sealed class BlockApproachState
     {
         public bool Fired { get; set; }
+        public bool NextLegTurnoutBlocked { get; set; }
+        public ushort? BlockingTurnout { get; set; }
+        public string? BlockingOwnerName { get; set; }
     }
 
     sealed class BlockLeaveState
@@ -1396,6 +1399,71 @@ public sealed class MovementRuntime
         };
     }
 
+    void EvaluateNextLegTurnoutAvailability(
+        Execution execution,
+        MovementPlanLegModel leg,
+        BlockApproachState state)
+    {
+        state.NextLegTurnoutBlocked =
+            false;
+
+        state.BlockingTurnout =
+            null;
+
+        state.BlockingOwnerName =
+            null;
+
+        var next =
+            execution.Plan.Legs.ElementAtOrDefault(
+                leg.Index + 1);
+
+        if (next is null)
+            return;
+
+        var ownOwnerPrefix =
+            "movement:" +
+            execution.Page.Id +
+            ":leg:";
+
+        foreach (var requirement in
+                 next.TurnoutStates)
+        {
+            if (!_switchMan.IsLocked(
+                    requirement.Address,
+                    out var lockInfo) ||
+                lockInfo is null)
+                continue;
+
+            if (lockInfo.OwnerId.StartsWith(
+                    ownOwnerPrefix,
+                    StringComparison.Ordinal))
+                continue;
+
+            state.NextLegTurnoutBlocked =
+                true;
+
+            state.BlockingTurnout =
+                requirement.Address;
+
+            state.BlockingOwnerName =
+                lockInfo.OwnerName;
+
+            Patch(
+                execution,
+                info:
+                    "Next leg blocked by turnout #" +
+                    requirement.Address +
+                    " owned by " +
+                    lockInfo.OwnerName +
+                    "; train will stop at " +
+                    leg.To.Name,
+                setInfo:
+                    true);
+
+            return;
+        }
+    }
+
     async Task MaybeRunBlockApproach(
         Execution execution,
         MovementPlanLegModel leg,
@@ -1409,6 +1477,11 @@ public sealed class MovementRuntime
 
         state.Fired =
             true;
+
+        EvaluateNextLegTurnoutAvailability(
+            execution,
+            leg,
+            state);
 
         await RunActions(
             execution,
@@ -1884,6 +1957,11 @@ public sealed class MovementRuntime
             if (approachSegment is null &&
                 leg.ApproachWhen.Length == 0)
             {
+                EvaluateNextLegTurnoutAvailability(
+                    execution,
+                    leg,
+                    blockApproachState);
+
                 await RunActions(
                     execution,
                     leg.To.Key,
@@ -1990,6 +2068,11 @@ public sealed class MovementRuntime
                         resource.Key,
                         StringComparison.Ordinal))
                 {
+                    EvaluateNextLegTurnoutAvailability(
+                        execution,
+                        leg,
+                        blockApproachState);
+
                     await RunActions(
                         execution,
                         leg.To.Key,
@@ -2120,6 +2203,7 @@ public sealed class MovementRuntime
 
                 var mayKeepRolling =
                     next is not null &&
+                    !blockApproachState.NextLegTurnoutBlocked &&
                     next.DepartWhen.Length == 0 &&
                     TargetBlockBasicallyFree(
                         next) &&
