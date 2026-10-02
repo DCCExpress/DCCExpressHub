@@ -793,29 +793,6 @@ export default function RoutesDialog({
                             <Button
                               size="xs"
                               variant="light"
-                              color="teal"
-                              disabled={
-                                movementId ===
-                                  null ||
-                                assigningRoute
-                              }
-                              loading={
-                                assigningRoute
-                              }
-                              onClick={() =>
-                                void assignRouteToMovement(
-                                  route
-                                )
-                              }
-                            >
-                              Select
-                            </Button>
-                          </Table.Td>
-
-                          <Table.Td>
-                            <Button
-                              size="xs"
-                              variant="light"
                               leftSection={
                                 <IconPlayerPlay size={14} />
                               }
@@ -1075,6 +1052,29 @@ export default function RoutesDialog({
                               }
                             >
                               {t("ui.preview")}
+                            </Button>
+                          </Table.Td>
+
+                          <Table.Td>
+                            <Button
+                              size="xs"
+                              variant="light"
+                              color="teal"
+                              disabled={
+                                movementId ===
+                                  null ||
+                                assigningRoute
+                              }
+                              loading={
+                                assigningRoute
+                              }
+                              onClick={() =>
+                                void assignRouteToMovement(
+                                  route
+                                )
+                              }
+                            >
+                              Select
                             </Button>
                           </Table.Td>
 
