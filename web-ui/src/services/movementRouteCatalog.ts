@@ -3,8 +3,6 @@ import type {
 } from "../domain/layout/layoutDto";
 
 import {
-  createMovementAction,
-  createMovementId,
   type MovementDocument,
   type MovementPage,
 } from "../domain/movement";
@@ -673,69 +671,12 @@ export function applyMovementRouteCandidate(
       );
 
   /*
-   * New Movement defaults are materialized only on the very first route
-   * selection. Existing Movements and later route changes must never gain
-   * waiting actions implicitly.
+   * Station blocks do not imply dwell time.
+   *
+   * Passenger-stop behaviour belongs to TrainEvent / explicit user actions,
+   * not to route selection. A newly selected Movement therefore starts with
+   * no implicit BEFORE DEPART delay, regardless of block type.
    */
-  const applyNewMovementDefaults =
-    page.routeKey.trim().length ===
-      0 &&
-    page.fromBlockId ===
-      null &&
-    page.toBlockId ===
-      null &&
-    page.actions.length ===
-      0;
-
-  const defaultStationActions =
-    applyNewMovementDefaults
-      ? candidate.blockPath.flatMap(
-          block => {
-            if (
-              block.blockType !==
-                "station"
-            ) {
-              return [];
-            }
-
-            const sequenceId =
-              createMovementId(
-                "movement-sequence"
-              );
-
-            const fixedWait =
-              createMovementAction(
-                `block:${block.id}`,
-                "beforeDepart",
-                "delay",
-                sequenceId,
-                "blocking"
-              );
-
-            fixedWait.delayMs =
-              10000;
-
-            const randomWait =
-              createMovementAction(
-                `block:${block.id}`,
-                "beforeDepart",
-                "randomDelay",
-                sequenceId,
-                "blocking"
-              );
-
-            randomWait.minDelayMs =
-              0;
-            randomWait.maxDelayMs =
-              5000;
-
-            return [
-              fixedWait,
-              randomWait,
-            ];
-          }
-        )
-      : [];
 
   return {
     ...page,
@@ -777,12 +718,7 @@ export function applyMovementRouteCandidate(
      */
     safetyRules: [],
     actions:
-      applyNewMovementDefaults
-        ? [
-            ...page.actions,
-            ...defaultStationActions,
-          ]
-        : page.actions,
+      page.actions,
   };
 }
 
