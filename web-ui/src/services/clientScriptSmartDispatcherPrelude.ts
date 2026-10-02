@@ -520,6 +520,19 @@ const __dccSmartBuildRoute = async request => {
         nodeTo,
         arrivedWhen,
         turnoutStates,
+        resourceKeys:
+          Object.freeze(
+            baseRoute.nodePath
+              .slice(
+                nodeFrom,
+                nodeTo + 1
+              )
+              .map(
+                nodeName =>
+                  "segment:" +
+                  nodeName
+              )
+          ),
       })
     );
   }
@@ -1235,46 +1248,141 @@ const __dccSmartReleaseReservation =
       return;
     }
 
-    __dccSmartClearTarget(
-      reservation.block,
-      state.loco
+    try {
+      await dispatcherRequest(
+        "releaseLeg",
+        {
+          ownerId:
+            reservation.ownerId,
+        }
+      );
+    } catch (error) {
+      __dccSmartLog(
+        "ERROR",
+        "backend leg release failed",
+        {
+          block:
+            reservation.block?.name ??
+            null,
+          error:
+            __dccSmartErrorText(
+              error
+            ),
+        }
+      );
+    }
+  };
+
+const __dccSmartBackendConflicts =
+  (state, transition, response) => {
+    const extra =
+      response &&
+      response.extra
+        ? response.extra
+        : {};
+
+    const conflicts =
+      [];
+
+    if (
+      Array.isArray(
+        extra.turnoutConflicts
+      )
+    ) {
+      for (
+        const conflict of
+        extra.turnoutConflicts
+      ) {
+        conflicts.push(
+          Object.freeze({
+            type:
+              "turnout-lock",
+            ...conflict,
+          })
+        );
+      }
+    }
+
+    if (
+      Number.isInteger(
+        extra.blockingBlock
+      ) &&
+      extra.blockingBlock > 0
+    ) {
+      const block =
+        state.route.blocks.find(
+          item =>
+            item.id ===
+              extra.blockingBlock
+        );
+
+      conflicts.push(
+        Object.freeze({
+          type:
+            "block",
+          blockId:
+            extra.blockingBlock,
+          blockName:
+            block
+              ? block.name
+              : String(
+                  extra.blockingBlock
+                ),
+          sensorAddress:
+            Number.isInteger(
+              extra.blockingSensor
+            )
+              ? extra.blockingSensor
+              : null,
+          requestedLoco:
+            state.loco,
+        })
+      );
+    } else if (
+      Number.isInteger(
+        extra.blockingSensor
+      ) &&
+      extra.blockingSensor > 0
+    ) {
+      conflicts.push(
+        Object.freeze({
+          type:
+            "sensor",
+          sensorAddress:
+            extra.blockingSensor,
+          requestedLoco:
+            state.loco,
+        })
+      );
+    }
+
+    if (
+      conflicts.length ===
+        0
+    ) {
+      conflicts.push(
+        Object.freeze({
+          type:
+            "dispatcher",
+          code:
+            String(
+              response &&
+              response.message ||
+              "dispatcher_blocked"
+            ),
+          blockId:
+            transition.to.id,
+          blockName:
+            transition.to.name,
+          requestedLoco:
+            state.loco,
+        })
+      );
+    }
+
+    return Object.freeze(
+      conflicts
     );
-
-    try {
-      await reservation.turnoutLease.release();
-    } catch (error) {
-      __dccSmartLog(
-        "ERROR",
-        "reservation turnout release failed",
-        {
-          block:
-            reservation.block?.name ??
-            null,
-          error:
-            __dccSmartErrorText(
-              error
-            ),
-        }
-      );
-    }
-
-    try {
-      await reservation.blockLease.release();
-    } catch (error) {
-      __dccSmartLog(
-        "ERROR",
-        "reservation block lease release failed",
-        {
-          block:
-            reservation.block?.name ??
-            null,
-          error:
-            __dccSmartErrorText(
-              error
-            ),
-        }
-      );
-    }
   };
 
 const __dccSmartTryReserve =
@@ -1287,246 +1395,170 @@ const __dccSmartTryReserve =
         transition
       );
 
-    const conflict =
+    const localConflict =
       __dccSmartBlockConflict(
         block,
         state.loco
       );
 
-    if (conflict) {
+    if (localConflict) {
       return Object.freeze({
-        acquired: false,
+        acquired:
+          false,
         conflicts:
           Object.freeze([
-            conflict,
+            localConflict,
           ]),
       });
     }
 
-    const blockLease =
-      await __dccSmartTryBlockLease(
-        block
+    const turnoutNeedsChange =
+      transition.turnoutStates.some(
+        item =>
+          dcc.getTurnout(
+            item.address
+          ) !==
+            item.closed
       );
 
-    if (!blockLease.acquired) {
-      return Object.freeze({
-        acquired: false,
-        conflicts:
-          Object.freeze([
-            blockLease.conflict,
-          ]),
-      });
+    if (turnoutNeedsChange) {
+      state.motionAuthorized =
+        false;
+
+      __dccSmartApplySpeed(
+        state
+      );
     }
 
-    let targetSet =
-      false;
-
-    try {
-      const lockedConflict =
-        __dccSmartBlockConflict(
-          block,
-          state.loco
-        );
-
-      if (lockedConflict) {
-        return Object.freeze({
-          acquired: false,
-          conflicts:
-            Object.freeze([
-              lockedConflict,
-            ]),
-          blockLease,
-        });
-      }
-
-      __dccSmartLog(
-        "INFO",
-        transitionName +
-        ": target block is free; reserving target",
-        {
-          block:
-            block.name,
-          sensorAddress:
-            block.sensorAddress,
-          loco:
-            state.loco,
-        }
+    const ownerId =
+      __dccSwitchManOwnerBaseId +
+      ":smart-dispatcher:" +
+      String(
+        ++__dccSmartDispatcherSequence
       );
 
-      dcc.setBlockTargetLoco(
-        block.name,
-        state.loco
-      );
-
-      targetSet =
-        true;
-
-      await delay(0);
-
-      const actual =
-        dcc.getBlock(
-          block.name
-        );
-
-      const target =
-        dcc.getBlockTargetLoco(
-          block.name
-        );
-
-      const occupied =
-        dcc.getSensor(
-          block.sensorAddress
-        );
-
-      if (
-        actual !== 0 ||
-        target !==
-          state.loco ||
-        occupied !== false
-      ) {
-        return Object.freeze({
-          acquired: false,
-          conflicts:
-            Object.freeze([
-              Object.freeze({
-                type:
-                  "block-changed",
-                blockId:
-                  block.id,
-                blockName:
-                  block.name,
-                sensorAddress:
-                  block.sensorAddress,
-                locoAddress:
-                  actual,
-                targetLocoAddress:
-                  target,
-                occupied,
-                requestedLoco:
-                  state.loco,
-              }),
-            ]),
-          clearTarget: true,
-          blockLease,
-        });
-      }
-
-      __dccSmartLog(
-        "INFO",
-        transitionName +
-        ": target reservation confirmed",
-        {
-          block:
-            block.name,
-          targetLoco:
-            target,
-          occupied,
-        }
-      );
-
-      const turnoutNeedsChange =
-        transition.turnoutStates.some(
-          item =>
-            dcc.getTurnout(
-              item.address
-            ) !==
-              item.closed
-        );
-
-      if (turnoutNeedsChange) {
-        state.motionAuthorized =
-          false;
-
-        __dccSmartApplySpeed(
-          state
-        );
-      }
-
-      const turnoutLease =
-        await __dccSmartTryTurnoutLease(
+    __dccSmartLog(
+      "INFO",
+      transitionName +
+      ": requesting backend route authority",
+      {
+        ownerId,
+        from:
+          transition.from.id,
+        to:
+          transition.to.id,
+        turnouts:
           transition.turnoutStates,
-          state.options.setDelayMs,
-          () => {
-            state.motionAuthorized =
-              false;
-
-            __dccSmartApplySpeed(
-              state
-            );
-          },
-          transitionName
-        );
-
-      if (!turnoutLease.acquired) {
-        return Object.freeze({
-          acquired: false,
-          conflicts:
-            turnoutLease.conflicts,
-          clearTarget: true,
-          blockLease,
-        });
+        resourceKeys:
+          transition.resourceKeys,
       }
+    );
 
+    const response =
+      await dispatcherRequest(
+        "acquireLeg",
+        {
+          ownerId,
+          ownerName:
+            __dccSwitchManOwnerName +
+            ": smartDispatcher",
+          locoAddress:
+            state.loco,
+          fromBlockId:
+            transition.from.id,
+          toBlockId:
+            transition.to.id,
+          turnouts:
+            transition.turnoutStates,
+          safetySensors:
+            [
+              transition.to
+                .sensorAddress,
+            ],
+          resourceKeys:
+            transition.resourceKeys,
+          timeoutMs:
+            0,
+          setDelayMs:
+            state.options
+              .setDelayMs,
+        }
+      );
+
+    if (
+      response &&
+      response.ok
+    ) {
       return Object.freeze({
-        acquired: true,
+        acquired:
+          true,
+        ownerId,
         block,
         toIndex:
-          transition.index + 1,
-        blockLease,
-        turnoutLease,
+          transition.index +
+          1,
       });
-    } catch (error) {
-      __dccSmartLog(
-        "ERROR",
-        transitionName +
-        ": reservation failed",
-        {
-          error:
-            __dccSmartErrorText(
-              error
-            ),
-        }
+    }
+
+    const code =
+      String(
+        response &&
+        response.message ||
+        "dispatcher_failed"
       );
 
-      if (targetSet) {
-        __dccSmartClearTarget(
-          block,
-          state.loco
-        );
-      }
-
-      try {
-        await blockLease.release();
-      } catch (releaseError) {
-        __dccSmartLog(
-          "ERROR",
-          transitionName +
-          ": block lease release failed after reservation error",
-          {
-            error:
-              __dccSmartErrorText(
-                releaseError
-              ),
-          }
-        );
-      }
-
-      throw error;
+    if (
+      code ===
+        "destination_block_busy" ||
+      code ===
+        "safety_sensor_not_free" ||
+      code ===
+        "turnout_locked" ||
+      code ===
+        "turnout_lock_timeout" ||
+      code.startsWith(
+        "dispatcher_resource_locked:"
+      )
+    ) {
+      return Object.freeze({
+        acquired:
+          false,
+        conflicts:
+          __dccSmartBackendConflicts(
+            state,
+            transition,
+            response
+          ),
+      });
     }
+
+    const error =
+      new Error(
+        code
+      );
+
+    error.code =
+      code;
+
+    error.details =
+      response &&
+      response.extra
+        ? response.extra
+        : null;
+
+    throw error;
   };
 
 const __dccSmartDisposeFailedAttempt =
-  async (state, transition, result) => {
-    if (result.clearTarget) {
-      __dccSmartClearTarget(
-        transition.to,
-        state.loco
-      );
-    }
-
-    if (result.blockLease) {
-      await result.blockLease.release();
-    }
+  async (
+    _state,
+    _transition,
+    _result
+  ) => {
+    /*
+     * Failed backend acquireLeg is atomic and self-rolling-back.
+     * Nothing is owned by the Worker in this branch.
+     */
   };
 
 const __dccSmartWaitForClearance =
@@ -1834,9 +1866,6 @@ const __dccSmartCommitArrival =
     transition,
     reservation
   ) => {
-    const previousLease =
-      state.currentLease;
-
     const transitionName =
       __dccSmartTransitionName(
         transition
@@ -1849,21 +1878,18 @@ const __dccSmartCommitArrival =
       {
         loco:
           state.loco,
-        clearBlock:
-          transition.from.name,
         destination:
           transition.to.name,
+        ownerId:
+          reservation.ownerId,
       }
     );
 
-    dcc.clearBlock(
-      transition.from.name
-    );
-
-    dcc.clearBlockTargetLoco(
-      transition.to.name
-    );
-
+    /*
+     * Backend authority owns the target marker. Setting the real locomotive
+     * directly replaces that marker and LayoutRuntime atomically removes the
+     * same loco from its previous block.
+     */
     dcc.setBlock(
       transition.to.name,
       state.loco
@@ -1892,9 +1918,6 @@ const __dccSmartCommitArrival =
     state.currentIndex =
       reservation.toIndex;
 
-    state.currentLease =
-      reservation.blockLease;
-
     state.reservation =
       null;
 
@@ -1902,44 +1925,15 @@ const __dccSmartCommitArrival =
       state
     );
 
-    try {
-      await reservation.turnoutLease.release();
-    } catch (error) {
-      __dccSmartLog(
-        "ERROR",
-        transitionName +
-        ": turnout release failed after arrival",
-        {
-          error:
-            __dccSmartErrorText(
-              error
-            ),
-        }
-      );
-    }
-
-    if (previousLease) {
-      try {
-        await previousLease.release();
-      } catch (error) {
-        __dccSmartLog(
-          "ERROR",
-          transitionName +
-          ": previous block lease release failed",
-          {
-            error:
-              __dccSmartErrorText(
-                error
-              ),
-          }
-        );
-      }
-    }
+    await __dccSmartReleaseReservation(
+      state,
+      reservation
+    );
 
     __dccSmartLog(
       "INFO",
       transitionName +
-      ": arrival committed; previous resources released",
+      ": arrival committed; backend leg authority released",
       {
         currentBlock:
           transition.to.name,
@@ -2052,38 +2046,16 @@ const __dccSmartCleanup = async state => {
   __dccSmartApplySpeed(state);
 
   if (state.reservation) {
-    const reservation = state.reservation;
-    state.reservation = null;
+    const reservation =
+      state.reservation;
+
+    state.reservation =
+      null;
 
     await __dccSmartReleaseReservation(
       state,
       reservation
     );
-  }
-
-  if (state.currentLease) {
-    const lease = state.currentLease;
-    state.currentLease = null;
-
-    try {
-      await lease.release();
-    } catch (error) {
-      __dccSmartLog(
-        "ERROR",
-        "current block lease release failed during cleanup",
-        {
-          currentBlock:
-            state.route.blocks[
-              state.currentIndex
-            ]?.name ??
-            null,
-          error:
-            __dccSmartErrorText(
-              error
-            ),
-        }
-      );
-    }
   }
 };
 
@@ -2222,72 +2194,6 @@ const smartDispatcher = async (
     }
   );
 
-  const sourceLease =
-    await __dccSmartTryBlockLease(
-      route.blocks[0]
-    );
-
-  if (!sourceLease.acquired) {
-    const conflicts =
-      Object.freeze([
-        sourceLease.conflict,
-      ]);
-
-    __dccSmartLog(
-      "WARN",
-      "source block lock is unavailable",
-      conflicts
-    );
-
-    if (options.onBlocked) {
-      await options.onBlocked(
-        loco,
-        route.direction,
-        conflicts
-      );
-    }
-
-    return Object.freeze({
-      status:
-        "blocked",
-      loco,
-      dir:
-        route.direction,
-      conflicts,
-    });
-  }
-
-  const lockedLoco =
-    __dccDispatcherReadSourceLoco(
-      route
-    );
-
-  if (lockedLoco !== loco) {
-    await sourceLease.release();
-
-    const error =
-      new Error(
-        'smartDispatcher: source block "' +
-        route.fromBlockName +
-        '" changed while locking.'
-      );
-
-    __dccSmartLog(
-      "ERROR",
-      "source block changed while acquiring its lease",
-      {
-        source:
-          route.fromBlockName,
-        expectedLoco:
-          loco,
-        actualLoco:
-          lockedLoco,
-      }
-    );
-
-    throw error;
-  }
-
   const state = {
     route,
     loco,
@@ -2295,8 +2201,6 @@ const smartDispatcher = async (
       route.direction,
     options,
     currentIndex: 0,
-    currentLease:
-      sourceLease,
     reservation:
       null,
     desiredSpeed: 0,
