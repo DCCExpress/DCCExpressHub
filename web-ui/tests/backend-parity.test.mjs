@@ -124,6 +124,7 @@ test("ESP32 WebSocket command contract matches the Windows backend", () => {
       "movementCommand",
       "movementAudioComplete",
       "timetableCommand",
+      "timetableScriptStatus",
       "timetableScriptComplete",
     ]);
 
