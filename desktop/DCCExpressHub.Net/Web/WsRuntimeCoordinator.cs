@@ -33,12 +33,42 @@ public sealed class WsRuntimeCoordinator : BackgroundService
         _connected=cc.Connected;
         cc.ConnectionChanged+=OnConnectionChanged;
         cc.SensorFeedbackChanged+=OnSensorFeedbackChanged;
+        cc.PowerFeedbackChanged+=OnPowerFeedbackChanged;
     }
 
     void OnConnectionChanged(bool connected)
     {
         _connected=connected;
         _connectionChanged=true;
+    }
+
+    void OnPowerFeedbackChanged(
+        PowerFeedback _)
+    {
+        if (!_cc.Connected)
+            return;
+
+        // A train may already occupy a detector when track power is toggled.
+        // Refresh the complete Q/q state instead of waiting for a new edge.
+        _ = RefreshSensorsAfterPowerChangeAsync();
+    }
+
+    async Task RefreshSensorsAfterPowerChangeAsync()
+    {
+        try
+        {
+            await Task.Delay(100);
+            await _cc.RequestSensorSnapshotAsync();
+
+            _log.LogInformation(
+                "Sensor snapshot requested after power-state change");
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(
+                ex,
+                "Sensor snapshot refresh after power-state change failed");
+        }
     }
 
     void OnSensorFeedbackChanged(int address,bool on)
