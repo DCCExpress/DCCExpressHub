@@ -610,6 +610,7 @@ public sealed class MovementPlanBuilder
         LeaveRule(
             MovementPageModel _page,
             int blockId,
+            IReadOnlyDictionary<int, int> blockSensors,
             JsonElement root,
             string direction)
     {
@@ -620,9 +621,30 @@ public sealed class MovementPlanBuilder
                 direction,
                 "leave");
 
-        return (
-            configured,
-            configured.Length > 0);
+        if (configured.Length > 0)
+            return (
+                configured,
+                true);
+
+        return blockSensors.TryGetValue(
+                blockId,
+                out var sensor)
+            ? (
+                [
+                    new MovementSensorCondition
+                    {
+                        Id =
+                            $"auto-leave-{blockId}-off",
+                        Sensor =
+                            sensor,
+                        State =
+                            false
+                    }
+                ],
+                false)
+            : (
+                [],
+                false);
     }
 
     public MovementPlanModel BuildForBlockNames(
@@ -1249,6 +1271,7 @@ public sealed class MovementPlanBuilder
                 LeaveRule(
                     page,
                     from.BlockId.Value,
+                    blockSensors,
                     root,
                     routeDirection);
 
