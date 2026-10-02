@@ -97,11 +97,43 @@ function blockEvents(
         incoming.approachWhen,
     });
 
+    const arrivedConditions =
+      [
+        ...(
+          resource.sensorAddress ===
+            null
+            ? []
+            : [{
+                id:
+                  `effective-arrived-occ-${resource.blockId}`,
+                sensor:
+                  resource.sensorAddress,
+                state:
+                  true,
+              }]
+        ),
+        ...incoming.arrivedWhen,
+      ].filter(
+        (
+          condition,
+          index,
+          all
+        ) =>
+          all.findIndex(
+            candidate =>
+              candidate.sensor ===
+                condition.sensor &&
+              candidate.state ===
+                condition.state
+          ) ===
+          index
+      );
+
     result.push({
       name: "ARRIVED",
       match: "all",
       conditions:
-        incoming.arrivedWhen,
+        arrivedConditions,
     });
   }
 
@@ -415,6 +447,28 @@ export default function RoutePreviewDialog({
                 withBorder
                 p="sm"
               >
+                <Group
+                  justify="flex-end"
+                  mb="xs"
+                >
+                  <Badge
+                    variant="light"
+                    color={
+                      plan.direction ===
+                        "forward"
+                        ? "blue"
+                        : plan.direction ===
+                            "reverse"
+                          ? "orange"
+                          : "gray"
+                    }
+                  >
+                    DIRECTION: {
+                      plan.direction.toUpperCase()
+                    }
+                  </Badge>
+                </Group>
+
                 <MovementRouteVectorPreview
                   page={page}
                   layout={layout}
