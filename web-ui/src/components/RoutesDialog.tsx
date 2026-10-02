@@ -662,6 +662,8 @@ export default function RoutesDialog({
               ? "Movement route updated."
               : "Movement added.",
         });
+
+        onClose();
       } catch (assignError) {
         showNotification({
           color: "red",
@@ -1112,12 +1114,7 @@ export default function RoutesDialog({
                                 )
                               }
                             >
-                              {
-                                editingMovementId ===
-                                  null
-                                  ? "Add"
-                                  : "Select"
-                              }
+                              Select
                             </Button>
                           </Table.Td>
 
