@@ -2321,6 +2321,17 @@ public sealed class MovementRuntime
                     force: true);
             }
 
+            /*
+             * ARRIVED is the turnout-authority handoff boundary. The previous
+             * leg no longer needs to own or hold its turnout route once the
+             * configured destination arrival point has been reached.
+             */
+            if (lease.TurnoutAddresses.Length > 0 &&
+                !_dispatcher.ReleaseLegTurnouts(
+                    lease.OwnerId))
+                throw new InvalidOperationException(
+                    "movement_turnout_release_failed");
+
             var finalLeg =
                 ReferenceEquals(
                     execution.Plan.Legs.LastOrDefault(),
@@ -2354,56 +2365,22 @@ public sealed class MovementRuntime
                         leg.To);
             }
 
-            await MaybeRunBlockLeave(
-                execution,
-                leg,
-                blockLeaveState);
-
-            await WaitForBlockLeave(
-                execution,
-                leg,
-                blockLeaveState);
-
-            foreach (var turnout in pendingTurnouts.ToArray())
-            {
-                await RunLegacyResourceLeaveIfNeeded(
-                    execution,
-                    turnout);
-            }
+            var sourceReleaseTurnouts =
+                pendingTurnouts.ToArray();
 
             pendingTurnouts.Clear();
 
-            if (previousSegment is not null)
-            {
-                await RunLegacyResourceLeaveIfNeeded(
-                    execution,
-                    previousSegment);
-            }
-
-            await DrainReadyResourceLeaves(
-                execution);
-
-            if (leg.LeaveWhen.Length == 0)
-            {
-                await RunBlockLeaveFallback(
+            /*
+             * Final arrival may finish releasing the source synchronously.
+             * Intermediate arrival must not block the next leg on the old
+             * block's physical LEAVE/AfterLeave edge.
+             */
+            if (finalLeg)
+                await FinishSourceBlockRelease(
                     execution,
                     leg,
-                    blockLeaveState);
-            }
-
-            if (leg.From.BlockId is >= 1 and <= 65535)
-                _layout.RemoveBlock(
-                    (ushort)leg.From.BlockId.Value);
-
-            EmitTrainEvent(
-                execution,
-                "afterLeave",
-                leg.From);
-
-            await RunActions(
-                execution,
-                leg.From.Key,
-                "afterLeave");
+                    blockLeaveState,
+                    sourceReleaseTurnouts);
 
             if (leg.To.BlockId is >= 1 and <= 65535)
             {
@@ -2423,45 +2400,42 @@ public sealed class MovementRuntime
 
             if (!finalLeg)
             {
-                var next =
-                    execution.Plan.Legs.ElementAtOrDefault(
-                        leg.Index + 1);
-
-                var mayKeepRolling =
-                    !IsHeld(execution) &&
-                    next is not null &&
-                    (next.DepartWhen.Length == 0 ||
-                     ConditionsSatisfied(next.DepartWhen)) &&
-                    TargetBlockBasicallyFree(
-                        next) &&
-                    EffectiveSafetySensors(
-                        execution.Page,
-                        next)
-                        .All(sensor =>
-                            _layout.TryGetSensorState(
-                                sensor,
-                                out var on) &&
-                            !on);
-
-                execution.DesiredSpeed =
-                    execution.Page.Speed;
-
-                execution.Moving =
-                    mayKeepRolling;
-
-                Patch(
+                StartBackgroundSourceBlockRelease(
                     execution,
-                    desiredSpeed:
-                        execution.DesiredSpeed);
+                    leg,
+                    blockLeaveState,
+                    sourceReleaseTurnouts);
 
-                await ApplySpeed(
-                    execution,
-                    force: true);
+                /*
+                 * Preserve current physical motion. Do not make a second
+                 * one-shot STOP/GO decision from target/safety state here.
+                 * The next TraverseLeg owns the authoritative clearance check.
+                 */
+                if (!IsHeld(
+                        execution))
+                {
+                    execution.DesiredSpeed =
+                        execution.Page.Speed;
+
+                    Patch(
+                        execution,
+                        desiredSpeed:
+                            execution.DesiredSpeed);
+                }
 
                 await RunActions(
                     execution,
                     leg.To.Key,
                     "arrived");
+
+                if (!execution.Moving &&
+                    leg.To.BlockId is >= 1 and <= 65535 &&
+                    execution.AfterArrivedBlocks.Add(
+                        leg.To.BlockId.Value))
+                    EmitTrainEvent(
+                        execution,
+                        "afterArrived",
+                        leg.To);
             }
 
             Patch(
