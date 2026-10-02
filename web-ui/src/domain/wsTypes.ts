@@ -128,9 +128,10 @@ export const CLIENT_WS_MESSAGE_TYPES = [
   "dispatcherCommand",
   "movementCommand",
   "movementAudioComplete",
+  "scriptCommand",
+  "scriptAudioComplete",
+  "flowCommand",
   "timetableCommand",
-  "timetableScriptStatus",
-  "timetableScriptComplete",
   "setTrackPower",
   "setProgrammingPower",
   "emergencyStop",
@@ -399,12 +400,72 @@ export type TimetableResponsePayload = {
     TimetableRuntimeStatePayload;
 };
 
-export type TimetableScriptRequestedPayload = {
-  runId: string;
-  scriptId: string;
-  name: string;
-  script: string;
+export type AutomationScriptRuntimeStatePayload = {
   executionId: string;
+  scriptId: string | null;
+  name: string;
+  type: string;
+  status:
+    | "idle"
+    | "running"
+    | "paused"
+    | "error";
+  startedAt: number | null;
+  stoppedAt: number | null;
+  info: string | null;
+  error: string | null;
+};
+
+export type AutomationScriptLogPayload = {
+  executionId: string;
+  timestamp: number;
+  message: string;
+};
+
+export type AutomationScriptResponsePayload = {
+  requestId: string;
+  action: string;
+  ok: boolean;
+  message?: string | null;
+  extra?: {
+    state?: AutomationScriptRuntimeStatePayload;
+    states?: AutomationScriptRuntimeStatePayload[];
+    count?: number;
+    finishing?: boolean;
+  } | null;
+};
+
+export type FlowRuntimePageStatePayload = {
+  pageId: string;
+  name: string;
+  enabled: boolean;
+  activeExecutions: number;
+};
+
+export type FlowRuntimeSnapshotPayload = {
+  pages:
+    FlowRuntimePageStatePayload[];
+};
+
+export type FlowRuntimeLogPayload = {
+  pageId: string;
+  timestamp: number;
+  level:
+    | "info"
+    | "log"
+    | "error";
+  values: unknown[];
+};
+
+export type FlowResponsePayload = {
+  requestId: string;
+  action: string;
+  ok: boolean;
+  message?: string | null;
+  extra?: {
+    state?: FlowRuntimeSnapshotPayload;
+    count?: number;
+  } | null;
 };
 
 export type ControlStationStatusPayload = {
@@ -535,9 +596,21 @@ export type ServerWsPayloadMap = {
   movementStateChanged: MovementRuntimeStatePayload;
   movementSnapshot: { states: MovementRuntimeStatePayload[] };
   movementResponse: MovementResponsePayload;
+
+  automationScriptStateChanged: AutomationScriptRuntimeStatePayload;
+  automationScriptSnapshot: {
+    states: AutomationScriptRuntimeStatePayload[];
+    finishing: boolean;
+  };
+  automationScriptLog: AutomationScriptLogPayload;
+  automationScriptResponse: AutomationScriptResponsePayload;
+
+  flowStateChanged: FlowRuntimeSnapshotPayload;
+  flowLog: FlowRuntimeLogPayload;
+  flowResponse: FlowResponsePayload;
+
   timetableStateChanged: TimetableRuntimeStatePayload;
   timetableResponse: TimetableResponsePayload;
-  timetableScriptRequested: TimetableScriptRequestedPayload;
   locoActionListStatus: unknown;
   blockActionListStatus: unknown;
 };
