@@ -162,6 +162,11 @@ public sealed class CalibrationRuntime
                 false,
                 "invalid_calibration_speed");
 
+        if (request.SpeedStep > request.MaxSpeed)
+            return (
+                false,
+                "calibration_speed_step_exceeds_max");
+
         lock (_gate)
         {
             if (_cancellation is not null)
@@ -365,6 +370,18 @@ public sealed class CalibrationRuntime
         }
         finally
         {
+            try
+            {
+                await PersistResults(
+                    request);
+            }
+            catch (Exception ex)
+            {
+                _log.LogWarning(
+                    ex,
+                    "Partial locomotive calibration results could not be persisted");
+            }
+
             string? pageId;
 
             lock (_gate)
@@ -766,12 +783,20 @@ public sealed class CalibrationRuntime
 
         if (!string.IsNullOrWhiteSpace(
                 pageId))
+        {
             _movement.Abort(
                 pageId,
                 emergencyStop);
-
-        if (emergencyStop)
+        }
+        else if (emergencyStop)
+        {
+            /*
+             * Between outbound/return passes there is no active transient
+             * Movement to abort, but E-STOP must still reach the command
+             * station immediately.
+             */
             _movement.EmergencyStop();
+        }
 
         cancellation.Cancel();
 
