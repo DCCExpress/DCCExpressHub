@@ -503,9 +503,6 @@ public sealed class CalibrationRuntime
                 cancellationToken.Register(
                     () =>
                     {
-                        _movement.Stop(
-                            pageId);
-
                         started.TrySetCanceled(
                             cancellationToken);
 
@@ -751,14 +748,24 @@ public sealed class CalibrationRuntime
 
     public bool Stop()
     {
+        string? pageId;
         CancellationTokenSource? cancellation;
 
         lock (_gate)
+        {
+            pageId =
+                _currentPageId;
             cancellation =
                 _cancellation;
+        }
 
         if (cancellation is null)
             return false;
+
+        if (!string.IsNullOrWhiteSpace(
+                pageId))
+            _movement.Stop(
+                pageId);
 
         cancellation.Cancel();
         return true;
