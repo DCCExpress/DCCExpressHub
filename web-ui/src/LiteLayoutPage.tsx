@@ -1639,7 +1639,28 @@ export default function LiteLayoutPage({
 
             <Divider orientation="vertical" className="lite-toolbar-divider" />
             <Button size="xs" variant="light" color="violet" leftSection={<IconTrain size={16} />} onClick={onOpenLocoEditor} title={i18next.t("ui.editLocomotives")}> {i18next.t("ui.locos")} </Button>
-            <Button size="xs" variant="light" color="yellow" leftSection={<IconTrafficLights size={16} />} onClick={() => setSignalLogicOpened(true)} title={i18next.t("ui.automaticSignalAspects")}> {i18next.t("ui.signals2")} </Button>
+            <Button
+              data-signal-automation-button="true"
+              size="xs"
+              variant="light"
+              color="yellow"
+              leftSection={<IconTrafficLights size={16} />}
+              onClick={() => setSignalLogicOpened(true)}
+              title={i18next.t("ui.automaticSignalAspects")}
+            >
+              {i18next.t("ui.signals2")}
+              <span
+                data-signal-automation-state="true"
+                style={{
+                  marginLeft: 6,
+                  fontWeight: 800,
+                  fontSize: 10,
+                  opacity: 0.9,
+                }}
+              >
+                OFF
+              </span>
+            </Button>
             <Button size="xs" variant="light" color="teal" leftSection={<IconShieldCheck size={16} />} onClick={() => setIntegrityCheckOpened(true)} title={i18next.t("ui.checkAllProjectReferences")}> {i18next.t("ui.check")} </Button>
             <Button variant="light" leftSection={<IconBug size={16} />} onClick={() => setDebugOpened(true)}>
               Debug
