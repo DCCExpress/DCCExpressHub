@@ -859,7 +859,7 @@ dcc.setProgrammingPower(on)
 
 # 15. Runtime-ban még meglévő advanced / compatibility API
 
-Ezek ténylegesen léteznek a worker runtime-ban, de **nem részei az ajánlott Quick Help API-nak**.
+Ezek ténylegesen léteznek a backend ScriptRuntime-ban, de **nem részei az ajánlott Quick Help API-nak**.
 
 ## `dcc.setTurnoutRaw(address, closed)`
 
