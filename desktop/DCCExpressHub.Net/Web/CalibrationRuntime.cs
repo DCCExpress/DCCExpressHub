@@ -633,124 +633,122 @@ public sealed class CalibrationRuntime
         await _locoStorage.ExecuteAsync(
             async () =>
             {
-            var path =
-                        Path.Combine(
-                            _env.ContentRootPath,
-                            "data",
-                            "config",
-                            "locos.json");
-            
-                    if (!File.Exists(
-                            path))
-                        return;
-            
-                    JsonArray? root;
-            
-                    try
+                var path =
+                    Path.Combine(
+                        _env.ContentRootPath,
+                        "data",
+                        "config",
+                        "locos.json");
+
+                if (!File.Exists(path))
+                    return false;
+
+                JsonArray? root;
+
+                try
+                {
+                    root =
+                        JsonNode.Parse(
+                            await File.ReadAllTextAsync(
+                                path)) as
+                        JsonArray;
+                }
+                catch
+                {
+                    return false;
+                }
+
+                if (root is null)
+                    return false;
+
+                JsonObject? target =
+                    null;
+
+                foreach (var node in root)
+                {
+                    if (node is not JsonObject loco)
+                        continue;
+
+                    var id =
+                        loco["id"]?
+                            .GetValue<string>();
+
+                    if (string.Equals(
+                            id,
+                            request.LocoId,
+                            StringComparison.Ordinal))
                     {
-                        root =
-                            JsonNode.Parse(
-                                await File.ReadAllTextAsync(
-                                    path)) as
-                            JsonArray;
+                        target =
+                            loco;
+                        break;
                     }
-                    catch
-                    {
-                        return;
-                    }
-            
-                    if (root is null)
-                        return;
-            
-                    JsonObject? target =
-                        null;
-            
-                    foreach (var node in root)
-                    {
-                        if (node is not JsonObject loco)
-                            continue;
-            
-                        var id =
-                            loco["id"]?
-                                .GetValue<string>();
-            
-                        if (string.Equals(
-                                id,
-                                request.LocoId,
-                                StringComparison.Ordinal))
-                        {
-                            target =
-                                loco;
-                            break;
-                        }
-                    }
-            
-                    if (target is null)
-                        return;
-            
-                    CalibrationResultRow[] results;
-            
-                    lock (_gate)
-                        results =
-                            _results.ToArray();
-            
-                    var resultNodes =
-                        new JsonArray();
-            
-                    foreach (var row in results)
-                        resultNodes.Add(
-                            new JsonObject
-                            {
-                                ["speedStep"] =
-                                    row.SpeedStep,
-                                ["direction"] =
-                                    row.Direction,
-                                ["elapsedMs"] =
-                                    row.ElapsedMs,
-                                ["millimetersPerSecond"] =
-                                    row.MillimetersPerSecond
-                            });
-            
-                    target["calibration"] =
+                }
+
+                if (target is null)
+                    return false;
+
+                CalibrationResultRow[] results;
+
+                lock (_gate)
+                    results =
+                        _results.ToArray();
+
+                var resultNodes =
+                    new JsonArray();
+
+                foreach (var row in results)
+                    resultNodes.Add(
                         new JsonObject
                         {
-                            ["routeKey"] =
-                                request.RouteKey,
-                            ["reverseRouteKey"] =
-                                request.ReverseRouteKey,
-                            ["routeLabel"] =
-                                request.RouteLabel,
-                            ["routeLengthMm"] =
-                                request.RouteLengthMm,
-                            ["maxSpeed"] =
-                                request.MaxSpeed,
                             ["speedStep"] =
-                                request.SpeedStep,
-                            ["updatedAt"] =
-                                DateTimeOffset.UtcNow
-                                    .ToString("O"),
-                            ["results"] =
-                                resultNodes
-                        };
-            
-                    var temp =
-                        path +
-                        ".calibration.tmp";
-            
-                    await File.WriteAllTextAsync(
-                        temp,
-                        root.ToJsonString(
-                            new System.Text.Json.JsonSerializerOptions
-                            {
-                                WriteIndented =
-                                    false
-                            }));
-            
-                    File.Move(
-                        temp,
-                        path,
-                        true);
-                }
+                                row.SpeedStep,
+                            ["direction"] =
+                                row.Direction,
+                            ["elapsedMs"] =
+                                row.ElapsedMs,
+                            ["millimetersPerSecond"] =
+                                row.MillimetersPerSecond
+                        });
+
+                target["calibration"] =
+                    new JsonObject
+                    {
+                        ["routeKey"] =
+                            request.RouteKey,
+                        ["reverseRouteKey"] =
+                            request.ReverseRouteKey,
+                        ["routeLabel"] =
+                            request.RouteLabel,
+                        ["routeLengthMm"] =
+                            request.RouteLengthMm,
+                        ["maxSpeed"] =
+                            request.MaxSpeed,
+                        ["speedStep"] =
+                            request.SpeedStep,
+                        ["updatedAt"] =
+                            DateTimeOffset.UtcNow
+                                .ToString("O"),
+                        ["results"] =
+                            resultNodes
+                    };
+
+                var temp =
+                    path +
+                    ".calibration.tmp";
+
+                await File.WriteAllTextAsync(
+                    temp,
+                    root.ToJsonString(
+                        new System.Text.Json.JsonSerializerOptions
+                        {
+                            WriteIndented =
+                                false
+                        }));
+
+                File.Move(
+                    temp,
+                    path,
+                    true);
 
                 return true;
             });
