@@ -331,6 +331,28 @@ public sealed class MovementRuntime
         return any;
     }
 
+    bool ArrivalSatisfied(
+        MovementPlanLegModel leg)
+    {
+        /*
+         * ARRIVED means the locomotive is physically in the destination
+         * block AND the configured direction-aware ARRIVED conditions match.
+         * A custom sensor refines the stopping point; it never replaces the
+         * destination block occupancy confirmation.
+         */
+        var destinationSensor =
+            leg.To.SensorAddress;
+
+        return
+            destinationSensor is >= 1 and <= 65535 &&
+            _layout.TryGetSensorState(
+                (ushort)destinationSensor.Value,
+                out var occupied) &&
+            occupied &&
+            ConditionsSatisfied(
+                leg.ArrivedWhen);
+    }
+
     MovementResourceEventRule EffectiveResourceRule(
         MovementPageModel page,
         MovementPlanResourceModel resource,
@@ -2087,8 +2109,8 @@ public sealed class MovementRuntime
                 throw new InvalidOperationException(
                     "movement_destination_has_no_arrival_condition");
 
-            while (!ConditionsSatisfied(
-                       leg.ArrivedWhen))
+            while (!ArrivalSatisfied(
+                       leg))
             {
                 execution.Cancellation.Token.ThrowIfCancellationRequested();
 
