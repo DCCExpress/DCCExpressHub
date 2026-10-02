@@ -31,6 +31,7 @@ builder.Services.AddSingleton<RuntimeStateStore>();
 builder.Services.AddSingleton<LocoCounterRuntime>();
 builder.Services.AddSingleton<HubFileStorage>();
 builder.Services.AddSingleton<AutomationStorageCoordinator>();
+builder.Services.AddSingleton<AutomationExclusiveGate>();
 builder.Services.AddSingleton<CommandCenterConfigStore>();
 builder.Services.AddSingleton<IDccExTransport>(sp =>
     string.Equals(builder.Configuration["DccEx:Transport"], "Serial", StringComparison.OrdinalIgnoreCase)
@@ -50,6 +51,7 @@ builder.Services.AddSingleton<FlowRuntime>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<FlowRuntime>());
 builder.Services.AddSingleton<TimetableRuntime>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<TimetableRuntime>());
+builder.Services.AddSingleton<CalibrationRuntime>();
 builder.Services.AddSingleton<WsHub>();
 builder.Services.AddHostedService<WsRuntimeCoordinator>();
 
@@ -414,6 +416,79 @@ app.MapPost("/api/locos", async (HttpRequest req, IWebHostEnvironment env, Confi
 
     return Results.Json(new { ok = true, bytes = System.Text.Encoding.UTF8.GetByteCount(body) });
 });
+
+
+app.MapGet("/api/calibration", (CalibrationRuntime calibration) =>
+    Results.Json(calibration.Snapshot()));
+
+app.MapPost("/api/calibration/start", async (HttpRequest req, CalibrationRuntime calibration) =>
+{
+    CalibrationStartRequest? request;
+
+    try
+    {
+        request =
+            await JsonSerializer.DeserializeAsync<CalibrationStartRequest>(
+                req.Body,
+                new JsonSerializerOptions(JsonSerializerDefaults.Web),
+                req.HttpContext.RequestAborted);
+    }
+    catch
+    {
+        return Results.Json(
+            new { ok = false, message = "invalid_calibration_request" },
+            statusCode: 400);
+    }
+
+    if (request is null)
+        return Results.Json(
+            new { ok = false, message = "invalid_calibration_request" },
+            statusCode: 400);
+
+    var result =
+        calibration.Start(
+            request);
+
+    return result.Ok
+        ? Results.Json(
+            new
+            {
+                ok = true,
+                state = calibration.Snapshot()
+            })
+        : Results.Json(
+            new
+            {
+                ok = false,
+                message = result.Error,
+                state = calibration.Snapshot()
+            },
+            statusCode: 409);
+});
+
+app.MapPost("/api/calibration/stop", (CalibrationRuntime calibration) =>
+    Results.Json(
+        new
+        {
+            ok = calibration.Stop(),
+            state = calibration.Snapshot()
+        }));
+
+app.MapPost("/api/calibration/abort", (CalibrationRuntime calibration) =>
+    Results.Json(
+        new
+        {
+            ok = calibration.Abort(false),
+            state = calibration.Snapshot()
+        }));
+
+app.MapPost("/api/calibration/estop", (CalibrationRuntime calibration) =>
+    Results.Json(
+        new
+        {
+            ok = calibration.Abort(true),
+            state = calibration.Snapshot()
+        }));
 
 app.MapGet("/api/function-bindings", async (IWebHostEnvironment env) =>
 {
