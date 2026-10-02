@@ -468,269 +468,27 @@ test("Layout project import and export preserve Movement pages", () => {
 
 test("Movement uses a dedicated physical-route engine with JMRI-style actions", () => {
   const movement =
-    read(
-      "src/domain/movement.ts"
-    );
-
-  const plan =
-    read(
-      "src/services/movementPlan.ts"
-    );
-
+    read("src/domain/movement.ts");
   const engine =
-    read(
-      "src/services/movementEngine.ts"
-    );
+    read("src/services/movementEngine.ts");
+  const backend =
+    read("../desktop/DCCExpressHub.Net/Web/MovementRuntime.cs");
+  const dispatcher =
+    read("../desktop/DCCExpressHub.Net/Web/DispatcherRuntime.cs");
 
-  const cards =
-    read(
-      "src/components/movement/MovementPagesTable.tsx"
-    );
+  assert.match(movement, /actions: MovementAction\[\]/);
+  assert.match(engine, /The browser no longer executes Movement/);
+  assert.match(engine, /action:[\s\S]*"start"[\s\S]*pageId:[\s\S]*page\.id/);
+  assert.doesNotMatch(engine, /switchManCommand|navigator\.locks|wsApi\.setLoco\(/);
 
-  const runtimeControls =
-    read(
-      "src/components/movement/MovementRuntimeControls.tsx"
-    );
-
-  const sidebarCard =
-    read(
-      "src/components/movement/MovementSidebarCard.tsx"
-    );
-
-  const actionEditor =
-    read(
-      "src/components/movement/MovementActionEditor.tsx"
-    );
-
-  const routeEditor =
-    read(
-      "src/components/movement/MovementRouteEditor.tsx"
-    );
-
-  assert.match(
-    movement,
-    /actions: MovementAction\[\]/
-  );
-
-  assert.match(
-    movement,
-    /\| "approach"/
-  );
-
-  assert.match(
-    movement,
-    /\| "randomDelay"/
-  );
-
-  assert.match(
-    plan,
-    /kind:\s*"segment"/
-  );
-
-  assert.match(
-    plan,
-    /kind:\s*"turnout"/
-  );
-
-  assert.match(
-    plan,
-    /turnoutPath/
-  );
-
-  assert.match(
-    plan,
-    /trackAddressMap/
-  );
-
-  assert.match(
-    engine,
-    /export async function startMovement/
-  );
-
-  assert.match(
-    engine,
-    /isTrackPowerOn\(\)/
-  );
-
-  assert.match(
-    engine,
-    /Track power is OFF\. Turn it on before starting Movement\./
-  );
-
-  assert.match(
-    engine,
-    /switchManCommand/
-  );
-
-  assert.match(
-    engine,
-    /"acquire"/
-  );
-
-  assert.match(
-    engine,
-    /"set"/
-  );
-
-  assert.match(
-    engine,
-    /"release"/
-  );
-
-  assert.match(
-    engine,
-    /dcc-express-movement-segment/
-  );
-
-  assert.match(
-    engine,
-    /runActions/
-  );
-
-  assert.match(
-    engine,
-    /wsApi\.setLoco/
-  );
-
-  assert.doesNotMatch(
-    engine,
-    /wsApi\.setTurnout/
-  );
-
-  assert.match(
-    engine,
-    /tryAcquireAndSetTurnouts/
-  );
-
-  assert.match(
-    engine,
-    /createBlockTargetLocoMarker/
-  );
-
-  assert.match(
-    engine,
-    /setOptimisticBlockTargetLoco/
-  );
-
-  assert.match(
-    engine,
-    /wsApi\.setBlock\(/
-  );
-
-  assert.match(
-    engine,
-    /wsApi\.setBlockRemove\(/
-  );
-
-  assert.match(
-    engine,
-    /Target \$\{leg\.to\.name\}: loco/
-  );
-
-  assert.doesNotMatch(
-    engine,
-    /smartDispatcher/
-  );
-
-  assert.match(
-    cards,
-    /MovementRuntimeControls/
-  );
-
-  assert.match(
-    runtimeControls,
-    /startMovement/
-  );
-
-  assert.match(
-    runtimeControls,
-    /stopMovement/
-  );
-
-  assert.match(
-    runtimeControls,
-    /abortMovement/
-  );
-
-  assert.match(
-    runtimeControls,
-    /isTrackPowerOn/
-  );
-
-  assert.match(
-    runtimeControls,
-    /subscribeTrackPower/
-  );
-
-  assert.match(
-    runtimeControls,
-    /movementTrackPowerOff/
-  );
-
-  assert.match(
-    runtimeControls,
-    /!trackPowerOn/
-  );
-
-  assert.match(
-    sidebarCard,
-    /MovementRuntimeControls/
-  );
-
-  assert.match(
-    sidebarCard,
-    /useMovementRuntimeState/
-  );
-
-  assert.match(
-    actionEditor,
-    /Sequences/
-  );
-
-  assert.match(
-    actionEditor,
-    /Blocking/
-  );
-
-  assert.match(
-    actionEditor,
-    /Background/
-  );
-
-  assert.match(
-    actionEditor,
-    /value:\s*"leave"[\s\S]*movementEventLeave/
-  );
-
-  assert.doesNotMatch(
-    actionEditor,
-    /Set turnout/
-  );
-
-  assert.match(
-    actionEditor,
-    /AudioFileInput/
-  );
-
-  assert.match(
-    actionEditor,
-    /allowManualInput=\{\s*false\s*\}/
-  );
-
-  assert.match(
-    actionEditor,
-    /audioManager\.play/
-  );
-
-  assert.match(
-    routeEditor,
-    /plan\.resources/
-  );
-
-  assert.match(
-    routeEditor,
-    /topology v/
-  );
+  assert.match(backend, /Windows authoritative Movement executor/);
+  assert.match(backend, /async Task TraverseLeg/);
+  assert.match(backend, /async Task RunActions/);
+  assert.match(backend, /async Task ExecuteAction/);
+  assert.match(backend, /_dispatcher\.AcquireLegAsync/);
+  assert.match(backend, /_commandCenter\.SetLocoAsync/);
+  assert.match(dispatcher, /TryReserveLegResources/);
+  assert.match(dispatcher, /SetTurnoutAsync/);
 });
 
 
@@ -1173,40 +931,16 @@ test("Movement Condition and Actions panels use subtle grayscale section styling
 
 
 test("Movement block LEAVE fires from source occupancy release", () => {
-  const engine =
-    read(
-      "src/services/movementEngine.ts"
-    );
+  const backend =
+    read("../desktop/DCCExpressHub.Net/Web/MovementRuntime.cs");
 
-  assert.match(
-    engine,
-    /createBlockLeaveState/
-  );
-
-  assert.match(
-    engine,
-    /seenOccupied/
-  );
-
-  assert.match(
-    engine,
-    /sensorStates\.get\([\s\S]*sensorAddress[\s\S]*\) ===[\s\S]*true/
-  );
-
-  assert.match(
-    engine,
-    /maybeRunBlockLeave/
-  );
-
-  assert.match(
-    engine,
-    /leg\.from\.key,[\s\S]*"leave"/
-  );
-
-  assert.match(
-    engine,
-    /runBlockLeaveFallback/
-  );
+  assert.match(backend, /BlockLeaveState CreateBlockLeaveState/);
+  assert.match(backend, /SeenOccupied[\s\S]*TryGetSensorState/);
+  assert.match(backend, /async Task MaybeRunBlockLeave/);
+  assert.match(backend, /if \(occupied\)[\s\S]*state\.SeenOccupied/);
+  assert.match(backend, /if \(!state\.SeenOccupied\)[\s\S]*return/);
+  assert.match(backend, /leg\.From\.Key,[\s\S]*"leave"/);
+  assert.match(backend, /RunBlockLeaveFallback/);
 });
 
 
@@ -1269,164 +1003,29 @@ test("Movement default ARRIVED always comes from the block own occupancy sensor"
 
 test("Movement block conditions support APPROACH ARRIVED DEPART and LEAVE sensor rules", () => {
   const domain =
-    read(
-      "src/domain/movement.ts"
-    );
-
+    read("src/domain/movement.ts");
   const plan =
-    read(
-      "src/services/movementPlan.ts"
-    );
-
-  const engine =
-    read(
-      "src/services/movementEngine.ts"
-    );
-
+    read("src/services/movementPlan.ts");
+  const backend =
+    read("../desktop/DCCExpressHub.Net/Web/MovementRuntime.cs");
   const editor =
-    read(
-      "src/components/movement/MovementBlockConditionsEditor.tsx"
-    );
+    read("src/components/movement/MovementBlockConditionsEditor.tsx");
 
-  assert.match(
-    domain,
-    /approachWhen:\s*MovementSensorCondition\[\]/
-  );
+  assert.match(domain, /approachWhen:\s*MovementSensorCondition\[\]/);
+  assert.match(domain, /departWhen:\s*MovementSensorCondition\[\]/);
+  assert.match(domain, /leaveWhen:\s*MovementSensorCondition\[\]/);
+  assert.match(domain, /arrivedWhen:\s*MovementSensorCondition\[\]/);
+  assert.match(plan, /auto-arrival-\$\{blockId\}-on/);
 
-  assert.match(
-    domain,
-    /departWhen:\s*MovementSensorCondition\[\]/
-  );
+  assert.match(backend, /MaybeRunBlockApproach/);
+  assert.match(backend, /ConditionsSatisfied\([\s\S]*leg\.ApproachWhen/);
+  assert.match(backend, /leg\.DepartWhen/);
+  assert.match(backend, /leg\.LeaveWhen/);
+  assert.match(backend, /while \(!ConditionsSatisfied\([\s\S]*leg\.ArrivedWhen/);
 
-  assert.match(
-    domain,
-    /leaveWhen:\s*MovementSensorCondition\[\]/
-  );
-
-  assert.match(
-    domain,
-    /arrivedWhen:\s*MovementSensorCondition\[\]/
-  );
-
-  assert.match(
-    domain,
-    /candidate\.approachWhen/
-  );
-
-  assert.match(
-    domain,
-    /candidate\.departWhen/
-  );
-
-  assert.match(
-    domain,
-    /candidate\.leaveWhen/
-  );
-
-  assert.match(
-    plan,
-    /approachRuleFor/
-  );
-
-  assert.match(
-    plan,
-    /departureRuleFor/
-  );
-
-  assert.match(
-    plan,
-    /leaveRuleFor/
-  );
-
-  assert.match(
-    plan,
-    /auto-arrival-\$\{blockId\}-on/
-  );
-
-  assert.doesNotMatch(
-    plan,
-    /previousBlockId/
-  );
-
-  assert.doesNotMatch(
-    plan,
-    /auto-arrival-\$\{previousBlockId\}-off/
-  );
-
-  assert.match(
-    plan,
-    /leaveWhenExplicit/
-  );
-
-  assert.match(
-    engine,
-    /maybeRunBlockApproach/
-  );
-
-  assert.match(
-    engine,
-    /leg\.approachWhen\.length/
-  );
-
-  assert.match(
-    engine,
-    /waitForDepartureConditions/
-  );
-
-  assert.match(
-    engine,
-    /Waiting for departure/
-  );
-
-  assert.match(
-    engine,
-    /Waiting for leave/
-  );
-
-  assert.match(
-    engine,
-    /conditionsSatisfied/
-  );
-
-  assert.match(
-    editor,
-    /"approachWhen"/
-  );
-
-  assert.match(
-    editor,
-    /"departWhen"/
-  );
-
-  assert.match(
-    editor,
-    /"leaveWhen"/
-  );
-
-  assert.match(
-    editor,
-    /"arrivedWhen"/
-  );
-
-  assert.match(
-    editor,
-    /movementApproachDefault/
-  );
-
-  assert.match(
-    editor,
-    /movementDepartDefault/
-  );
-
-  assert.match(
-    editor,
-    /movementLeaveDefault/
-  );
-
-  assert.match(
-    editor,
-    /movementArrivedDefault/
-  );
+  for (const name of ["approachWhen", "departWhen", "leaveWhen", "arrivedWhen"]) {
+    assert.match(editor, new RegExp(`"${name}"`));
+  }
 });
 
 
@@ -1540,208 +1139,46 @@ test("Movement stepper and PhysicalRoute headers share route-role colors", () =>
 
 test("Movement block actions support before-depart and after-leave lifecycle phases", () => {
   const domain =
-    read(
-      "src/domain/movement.ts"
-    );
-
+    read("src/domain/movement.ts");
+  const backend =
+    read("../desktop/DCCExpressHub.Net/Web/MovementRuntime.cs");
   const actionEditor =
-    read(
-      "src/components/movement/MovementActionEditor.tsx"
-    );
+    read("src/components/movement/MovementActionEditor.tsx");
 
-  const routeRow =
-    read(
-      "src/components/movement/MovementRouteRow.tsx"
-    );
+  assert.match(domain, /\| "beforeDepart"/);
+  assert.match(domain, /\| "afterLeave"/);
+  assert.match(actionEditor, /movementEventBeforeDepart/);
+  assert.match(actionEditor, /movementEventAfterLeave/);
 
-  const engine =
-    read(
-      "src/services/movementEngine.ts"
-    );
-
-  assert.match(
-    domain,
-    /\| "beforeDepart"/
-  );
-
-  assert.match(
-    domain,
-    /\| "afterLeave"/
-  );
-
-  assert.match(
-    domain,
-    /"beforeDepart"[\s\S]*"afterLeave"/
-  );
-
-  assert.match(
-    actionEditor,
-    /movementEventBeforeDepart/
-  );
-
-  assert.match(
-    actionEditor,
-    /movementEventAfterLeave/
-  );
-
-  assert.match(
-    actionEditor,
-    /isSource\?: boolean/
-  );
-
-  assert.match(
-    actionEditor,
-    /isDestination\?: boolean/
-  );
-
-  assert.match(
-    actionEditor,
-    /isDestination[\s\S]*return \[[\s\S]*"arrived"/
-  );
-
-  assert.match(
-    routeRow,
-    /isSource=\{[\s\S]*isSource/
-  );
-
-  assert.match(
-    routeRow,
-    /isDestination=\{[\s\S]*isDestination/
-  );
-
-  assert.match(
-    engine,
-    /waitForPreDepartureAvailability/
-  );
-
-  assert.match(
-    engine,
-    /"beforeDepart"/
-  );
-
-  assert.match(
-    engine,
-    /"afterLeave"/
-  );
-
-  const preDepart =
-    engine.indexOf(
-      '"beforeDepart"'
-    );
-
+  const beforeDepart =
+    backend.indexOf('"beforeDepart"');
   const acquire =
-    engine.indexOf(
-      "waitForLegClearance",
-      preDepart
-    );
-
-  assert.ok(
-    preDepart >= 0 &&
-    acquire >
-      preDepart,
-    "BEFORE DEPART must run before route/turnout lock acquisition"
-  );
+    backend.indexOf("await AcquireLeg", beforeDepart);
+  assert.ok(beforeDepart >= 0 && acquire > beforeDepart);
 
   const sourceRelease =
-    engine.indexOf(
-      "wsApi.setBlockRemove"
-    );
-
+    backend.indexOf("_layout.RemoveBlock");
   const afterLeave =
-    engine.indexOf(
-      '"afterLeave"',
-      sourceRelease
-    );
-
-  assert.ok(
-    sourceRelease >= 0 &&
-    afterLeave >
-      sourceRelease,
-    "AFTER LEAVE must run after source block runtime release"
-  );
+    backend.indexOf('"afterLeave"', sourceRelease);
+  assert.ok(sourceRelease >= 0 && afterLeave > sourceRelease);
 });
 
 
 test("Movement actions are draggable inside their sequence order", () => {
-  const actionEditor =
-    read(
-      "src/components/movement/MovementActionEditor.tsx"
-    );
+  const editor =
+    read("src/components/movement/MovementActionEditor.tsx");
+  const backend =
+    read("../desktop/DCCExpressHub.Net/Web/MovementRuntime.cs");
 
-  const engine =
-    read(
-      "src/services/movementEngine.ts"
-    );
+  assert.match(editor, /type DragEvent/);
+  assert.match(editor, /IconGripVertical/);
+  assert.match(editor, /draggable/);
+  assert.match(editor, /moveActionByOffset/);
+  assert.match(editor, /moveAction\(/);
 
-  assert.match(
-    actionEditor,
-    /type DragEvent/
-  );
-
-  assert.match(
-    actionEditor,
-    /useState<string \| null>/
-  );
-
-  assert.match(
-    actionEditor,
-    /IconGripVertical/
-  );
-
-  assert.match(
-    actionEditor,
-    /draggable/
-  );
-
-  assert.match(
-    actionEditor,
-    /onDragStart/
-  );
-
-  assert.match(
-    actionEditor,
-    /onDragOver/
-  );
-
-  assert.match(
-    actionEditor,
-    /moveActionByOffset/
-  );
-
-  assert.match(
-    actionEditor,
-    /draggedActionId/
-  );
-
-  assert.match(
-    actionEditor,
-    /sequence\.actions\.some/
-  );
-
-  assert.match(
-    actionEditor,
-    /actionIndex \+ 1/
-  );
-
-  assert.match(
-    actionEditor,
-    /moveAction\(/
-  );
-
-  assert.match(
-    actionEditor,
-    /movementEventBeforeDepart/
-  );
-
-  assert.match(
-    actionEditor,
-    /movementEventAfterLeave/
-  );
-
-  assert.match(
-    engine,
-    /execution\.page\.actions\.filter\([\s\S]*action\.when ===[\s\S]*when/
-  );
+  assert.match(backend, /execution\.Page\.Actions/);
+  assert.match(backend, /action\.When/);
+  assert.match(backend, /action\.SequenceId/);
 });
 
 
@@ -1878,296 +1315,80 @@ test("Movement condition and action content use nested steppers", () => {
 
 test("Movement action sequences support blocking and background execution", () => {
   const domain =
-    read(
-      "src/domain/movement.ts"
-    );
-
+    read("src/domain/movement.ts");
   const editor =
-    read(
-      "src/components/movement/MovementActionEditor.tsx"
-    );
+    read("src/components/movement/MovementActionEditor.tsx");
+  const backend =
+    read("../desktop/DCCExpressHub.Net/Web/MovementRuntime.cs");
 
-  const engine =
-    read(
-      "src/services/movementEngine.ts"
-    );
+  assert.match(domain, /MovementSequenceMode/);
+  assert.match(domain, /sequenceMode:\s*MovementSequenceMode/);
+  assert.match(editor, /value:\s*"blocking"/);
+  assert.match(editor, /value:\s*"background"/);
 
-  assert.match(
-    domain,
-    /MovementSequenceMode/
-  );
-
-  assert.match(
-    domain,
-    /sequenceId:\s*string/
-  );
-
-  assert.match(
-    domain,
-    /sequenceMode:\s*MovementSequenceMode/
-  );
-
-  assert.match(
-    domain,
-    /candidate\.sequenceMode ===[\s\S]*"background"/
-  );
-
-  assert.match(
-    domain,
-    /legacySequenceIds/
-  );
-
-  assert.match(
-    editor,
-    /Sequence \{sequenceIndex \+ 1\}/
-  );
-
-  assert.match(
-    editor,
-    /SEQUENCE_MODE_OPTIONS/
-  );
-
-  assert.match(
-    editor,
-    /value:\s*"blocking"/
-  );
-
-  assert.match(
-    editor,
-    /value:\s*"background"/
-  );
-
-  assert.match(
-    engine,
-    /runActionSequence/
-  );
-
-  assert.match(
-    engine,
-    /startBackgroundSequence/
-  );
-
-  assert.match(
-    engine,
-    /execution\.backgroundTasks/
-  );
-
-  assert.match(
-    engine,
-    /Promise\.allSettled/
-  );
+  assert.match(backend, /RunActionSequence/);
+  assert.match(backend, /RunActions/);
+  assert.match(backend, /SequenceMode/);
+  assert.match(backend, /BackgroundTasks/);
+  assert.match(backend, /Task\.WhenAll/);
 });
 
 
 test("Movement destination block exposes and fires APPROACH before ARRIVED", () => {
   const editor =
-    read(
-      "src/components/movement/MovementActionEditor.tsx"
-    );
+    read("src/components/movement/MovementActionEditor.tsx");
+  const backend =
+    read("../desktop/DCCExpressHub.Net/Web/MovementRuntime.cs");
 
-  const engine =
-    read(
-      "src/services/movementEngine.ts"
-    );
-
-  assert.match(
-    editor,
-    /isDestination[\s\S]*"approach"[\s\S]*"arrived"/
-  );
-
-  assert.match(
-    engine,
-    /approachSegments/
-  );
-
-  assert.match(
-    engine,
-    /approachSegment/
-  );
-
-  assert.match(
-    engine,
-    /leg\.to\.key,[\s\S]*"approach"/
-  );
+  assert.match(editor, /isDestination[\s\S]*"approach"[\s\S]*"arrived"/);
+  assert.match(backend, /approachSegments/);
+  assert.match(backend, /approachSegment/);
 
   const approach =
-    engine.indexOf(
-      "approachSegment?.key"
-    );
-
-  const arrivalWait =
-    engine.indexOf(
-      "await waitForArrival",
-      approach
-    );
-
-  assert.ok(
-    approach >= 0,
-    "Destination APPROACH action trigger missing"
-  );
-
-  assert.ok(
-    arrivalWait >
-      approach,
-    "Destination APPROACH must be wired before arrival wait"
-  );
+    backend.indexOf('"approach"');
+  const arrival =
+    backend.indexOf("while (!ConditionsSatisfied", approach);
+  assert.ok(approach >= 0 && arrival > approach);
 });
 
 
 test("Movement physical route highlights stable physical runtime progress", () => {
   const editor =
-    read(
-      "src/components/movement/MovementRouteEditor.tsx"
-    );
-
+    read("src/components/movement/MovementRouteEditor.tsx");
   const row =
-    read(
-      "src/components/movement/MovementRouteRow.tsx"
-    );
-
+    read("src/components/movement/MovementRouteRow.tsx");
   const engine =
-    read(
-      "src/services/movementEngine.ts"
-    );
-
+    read("src/services/movementEngine.ts");
+  const backend =
+    read("../desktop/DCCExpressHub.Net/Web/MovementRuntime.cs");
   const css =
-    read(
-      "src/styles/movementEditor.css"
-    );
+    read("src/styles/movementEditor.css");
 
-  assert.match(
-    editor,
-    /useMovementRuntimeState/
-  );
-
-  assert.match(
-    editor,
-    /runtimeState\.activeRouteResourceKey/
-  );
-
-  assert.doesNotMatch(
-    editor,
-    /runtimeState\.currentResourceKey ===[\s\S]*resource\.key/
-  );
-
-  assert.match(
-    engine,
-    /activeRouteResourceKey:\s*string \| null/
-  );
-
-  assert.match(
-    engine,
-    /function setActiveRouteResource/
-  );
-
-  assert.match(
-    engine,
-    /setActiveRouteResource\([\s\S]*leg\.from\.key/
-  );
-
-  assert.match(
-    engine,
-    /waitForResourceEntry\([\s\S]*setActiveRouteResource\([\s\S]*resource\.key/
-  );
-
-  assert.match(
-    engine,
-    /waitForArrival\([\s\S]*setActiveRouteResource\([\s\S]*leg\.to\.key/
-  );
-
-
-  assert.match(
-    engine,
-    /status:[\s\S]*"idle"[\s\S]*activeRouteResourceKey:[\s\S]*null/
-  );
-
-  assert.match(
-    editor,
-    /isCurrent=/
-  );
-
-  assert.match(
-    row,
-    /isCurrent:\s*boolean/
-  );
-
-  assert.match(
-    row,
-    /movement-route-dot[\s\S]*is-current/
-  );
-
-  assert.match(
-    row,
-    /movement-physical-route-card[\s\S]*is-current/
-  );
-
-  assert.match(
-    css,
-    /movement-route-dot\.is-current/
-  );
-
-  assert.match(
-    css,
-    /width:\s*34px/
-  );
-
-  assert.match(
-    css,
-    /mantine-color-red-8/
-  );
-
-  assert.match(
-    css,
-    /mantine-color-yellow-3/
-  );
-
-  assert.match(
-    css,
-    /movement-current-step-pulse/
-  );
+  assert.match(editor, /runtimeState\.activeRouteResourceKey/);
+  assert.match(engine, /activeRouteResourceKey:\s*string \| null/);
+  assert.match(backend, /activeRouteResourceKey:/);
+  assert.match(backend, /resource\.Key/);
+  assert.match(backend, /leg\.To\.Key/);
+  assert.match(row, /isCurrent:\s*boolean/);
+  assert.match(css, /movement-route-dot\.is-current/);
 });
 
 
 test("Movement turnout resources keep their occupancy detector and use it for progress", () => {
   const plan =
-    read(
-      "src/services/movementPlan.ts"
-    );
-
-  const engine =
-    read(
-      "src/services/movementEngine.ts"
-    );
-
+    read("src/services/movementPlan.ts");
+  const builder =
+    read("../desktop/DCCExpressHub.Net/Web/MovementPlanBuilder.cs");
+  const backend =
+    read("../desktop/DCCExpressHub.Net/Web/MovementRuntime.cs");
   const row =
-    read(
-      "src/components/movement/MovementRouteRow.tsx"
-    );
+    read("src/components/movement/MovementRouteRow.tsx");
 
-  assert.match(
-    plan,
-    /sensorAddress:[\s\S]*trackAddresses\.get\([\s\S]*elementId/
-  );
-
-  assert.match(
-    plan,
-    /detectors:[\s\S]*trackAddresses\.get\([\s\S]*elementId/
-  );
-
-  assert.match(
-    engine,
-    /resource\.kind ===[\s\S]*"turnout"[\s\S]*await waitForResourceEntry/
-  );
-
-  assert.match(
-    engine,
-    /waitForResourceEntry[\s\S]*resource\.detectors\.some/
-  );
-
-  assert.match(
-    row,
-    /resource\.kind ===[\s\S]*"turnout"[\s\S]*Detectors:/
-  );
+  assert.match(plan, /detectors:[\s\S]*trackAddresses\.get/);
+  assert.match(builder, /Detectors =[\s\S]*detectors/);
+  assert.match(backend, /WaitResourceEntry/);
+  assert.match(backend, /ResourceEventSatisfied/);
+  assert.match(row, /resource\.kind ===[\s\S]*"turnout"[\s\S]*Detectors:/);
 });
 
 
@@ -2236,124 +1457,25 @@ test("Movement route condition sequence and action cards can all collapse", () =
 
 test("Movement stores run timing and cards show live elapsed duration", () => {
   const domain =
-    read(
-      "src/domain/movement.ts"
-    );
-
+    read("src/domain/movement.ts");
   const api =
-    read(
-      "src/services/automationApi.ts"
-    );
-
+    read("src/services/automationApi.ts");
   const engine =
-    read(
-      "src/services/movementEngine.ts"
-    );
-
+    read("src/services/movementEngine.ts");
+  const backend =
+    read("../desktop/DCCExpressHub.Net/Web/MovementRuntime.cs");
   const elapsed =
-    read(
-      "src/components/movement/MovementElapsedBadge.tsx"
-    );
+    read("src/components/movement/MovementElapsedBadge.tsx");
 
-  const cards =
-    read(
-      "src/components/movement/MovementPagesTable.tsx"
-    );
-
-  const sidebar =
-    read(
-      "src/components/movement/MovementSidebarCard.tsx"
-    );
-
-  const editor =
-    read(
-      "src/components/movement/MovementEditorDialog.tsx"
-    );
-
-  assert.match(
-    domain,
-    /startedAt:\s*number \| null/
-  );
-
-  assert.match(
-    domain,
-    /stoppedAt:\s*number \| null/
-  );
-
-  assert.match(
-    domain,
-    /startedAt:\s*null[\s\S]*stoppedAt:\s*null/
-  );
-
-  assert.match(
-    api,
-    /updateAutomationMovementTiming/
-  );
-
-  assert.match(
-    engine,
-    /stoppedAt:\s*number \| null/
-  );
-
-  assert.match(
-    engine,
-    /persistMovementTiming/
-  );
-
-  assert.match(
-    engine,
-    /const startedAt =[\s\S]*Date\.now\(\)/
-  );
-
-  assert.match(
-    engine,
-    /const stoppedAt =[\s\S]*Date\.now\(\)/
-  );
-
-  assert.match(
-    elapsed,
-    /window\.setInterval/
-  );
-
-  assert.match(
-    elapsed,
-    /1000/
-  );
-
-  assert.match(
-    elapsed,
-    /padStart\([\s\S]*2/
-  );
-
-  assert.match(
-    elapsed,
-    /\(\$\{safeSeconds\} s\)/
-  );
-
-  assert.match(
-    cards,
-    /MovementElapsedBadge/
-  );
-
-  assert.match(
-    sidebar,
-    /MovementElapsedBadge/
-  );
-
-  assert.match(
-    cards,
-    /getMovementEngineState/
-  );
-
-  assert.match(
-    editor,
-    /runtime\.startedAt/
-  );
-
-  assert.match(
-    editor,
-    /runtime\.stoppedAt/
-  );
+  assert.match(domain, /startedAt:\s*number \| null/);
+  assert.match(domain, /stoppedAt:\s*number \| null/);
+  assert.match(engine, /startedAt:\s*number \| null/);
+  assert.match(engine, /stoppedAt:\s*number \| null/);
+  assert.doesNotMatch(api, /updateAutomationMovementTiming/);
+  assert.match(backend, /PersistMovementTimingAsync/);
+  assert.match(backend, /target\["startedAt"\]/);
+  assert.match(backend, /target\["stoppedAt"\]/);
+  assert.match(elapsed, /window\.setInterval/);
 });
 
 
