@@ -45,6 +45,7 @@ builder.Services.AddSingleton<SwitchManManager>();
 builder.Services.AddSingleton<DispatcherRuntime>();
 builder.Services.AddSingleton<MovementPlanBuilder>();
 builder.Services.AddSingleton<MovementRuntime>();
+builder.Services.AddSingleton<ScriptRuntime>();
 builder.Services.AddSingleton<TimetableRuntime>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<TimetableRuntime>());
 builder.Services.AddSingleton<WsHub>();
