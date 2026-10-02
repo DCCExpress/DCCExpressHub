@@ -2247,7 +2247,58 @@ public sealed class MovementRuntime
     {
         if (leg.From.BlockId is null ||
             leg.To.BlockId is null)
-            throw new InvalidOperationException("movement_leg_block_missing");
+            throw new InvalidOperationException(
+                "movement_leg_block_missing");
+
+        if (execution.PreparedLegOwners.Remove(
+                leg.Index,
+                out var preparedOwnerId))
+        {
+            var preparedResult =
+                _dispatcher.ActivatePreparedLeg(
+                    preparedOwnerId);
+
+            if (preparedResult.Ok &&
+                preparedResult.Lease is not null)
+            {
+                execution.TargetBlockId =
+                    leg.To.BlockId;
+
+                Patch(
+                    execution,
+                    info:
+                        "Prepared route activated to " +
+                        leg.To.Name,
+                    setInfo:
+                        true);
+
+                return preparedResult.Lease;
+            }
+
+            /*
+             * Activation is deliberately fail-closed. Do not keep holding a
+             * prepared route while the train is stopped in the source block;
+             * release it and fall back to normal progressive acquisition.
+             */
+            _dispatcher.ReleasePreparedLeg(
+                preparedOwnerId);
+
+            execution.Moving =
+                false;
+
+            await ApplySpeed(
+                execution,
+                force:
+                    false);
+
+            _log.LogInformation(
+                "Movement {Movement} prepared leg {From}->{To} could not activate: {Error}; falling back to normal acquisition",
+                execution.Page.Name,
+                leg.From.Name,
+                leg.To.Name,
+                preparedResult.Error ??
+                    "activation_failed");
+        }
 
         var ownerId =
             "movement:" +
@@ -2255,7 +2306,8 @@ public sealed class MovementRuntime
             ":leg:" +
             leg.Index +
             ":" +
-            Guid.NewGuid().ToString("N");
+            Guid.NewGuid()
+                .ToString("N");
 
         while (true)
         {
@@ -2269,9 +2321,11 @@ public sealed class MovementRuntime
                         ownerId),
                     execution.Cancellation.Token);
 
-            if (result.Ok && result.Lease is not null)
+            if (result.Ok &&
+                result.Lease is not null)
             {
-                execution.TargetBlockId = leg.To.BlockId;
+                execution.TargetBlockId =
+                    leg.To.BlockId;
 
                 Patch(
                     execution,
@@ -2290,20 +2344,29 @@ public sealed class MovementRuntime
                     result.Error ??
                     "dispatcher_acquire_failed");
 
-            execution.Moving = false;
-            await ApplySpeed(execution, force: false);
+            execution.Moving =
+                false;
+
+            await ApplySpeed(
+                execution,
+                force:
+                    false);
 
             Patch(
                 execution,
                 info:
                     result.BlockingSensor.HasValue
-                        ? "Waiting for safety sensor #" + result.BlockingSensor.Value
+                        ? "Waiting for safety sensor #" +
+                          result.BlockingSensor.Value
                         : result.BlockingBlock.HasValue
-                            ? "Waiting for block " + result.BlockingBlock.Value
-                            : result.Error == "turnout_locked"
+                            ? "Waiting for block " +
+                              result.BlockingBlock.Value
+                            : result.Error ==
+                              "turnout_locked"
                                 ? "Waiting for turnout lock"
                                 : "Waiting for route authority",
-                setInfo: true);
+                setInfo:
+                    true);
 
             await Task.Delay(
                 150,
