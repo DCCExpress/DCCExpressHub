@@ -89,6 +89,41 @@ function notifyAudioEnabled():
   }
 }
 
+function reportBackendAudio(
+  requestId: string,
+  ok: boolean
+): void {
+  if (
+    requestId.startsWith(
+      "movement-backend:"
+    )
+  ) {
+    wsApi.sendBackendCommand(
+      "movementAudioComplete",
+      {
+        requestId,
+        ok,
+      }
+    );
+
+    return;
+  }
+
+  if (
+    requestId.startsWith(
+      "script-backend:"
+    )
+  ) {
+    wsApi.sendBackendCommand(
+      "scriptAudioComplete",
+      {
+        requestId,
+        ok,
+      }
+    );
+  }
+}
+
 function settlePending(
   requestId: string,
   ok: boolean
@@ -148,6 +183,11 @@ export function installBroadcastAudioRuntime():
           true
         );
 
+        reportBackendAudio(
+          data.requestId,
+          true
+        );
+
         return;
       }
 
@@ -163,6 +203,11 @@ export function installBroadcastAudioRuntime():
         );
 
         settlePending(
+          data.requestId,
+          ok
+        );
+
+        reportBackendAudio(
           data.requestId,
           ok
         );

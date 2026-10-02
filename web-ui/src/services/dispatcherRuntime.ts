@@ -3,24 +3,38 @@ import type {
 } from "../domain/movement";
 
 import {
-  abortDispatcherExecution,
-  getDispatcherExecutionState,
-  holdDispatcherExecution,
-  releaseDispatcherExecution,
-  startDispatcherExecution,
-  stopDispatcherExecution,
-  subscribeDispatcherExecutionState,
-  type DispatcherExecutionState,
-} from "./dispatcherExecutionRuntime";
+  wsApi,
+} from "./wsApi";
 
 import {
-  getTrainTrackingState,
-  installTrainTrackingRuntime,
-  subscribeTrainTrackingState,
-} from "./trainTrackingRuntime";
+  wsClient,
+} from "./wsClient";
 
-export type DispatcherState =
-  DispatcherExecutionState;
+export type MovementEngineStatus =
+  | "idle"
+  | "running"
+  | "stopping"
+  | "error";
+
+export type DispatcherState = {
+  status:
+    MovementEngineStatus;
+  startedAt:
+    number | null;
+  stoppedAt:
+    number | null;
+  locoAddress:
+    number | null;
+  desiredSpeed: number;
+  currentResourceKey:
+    string | null;
+  activeRouteResourceKey:
+    string | null;
+  info:
+    string | null;
+  error:
+    string | null;
+};
 
 export type DispatcherLogLevel =
   | "info"
@@ -42,7 +56,8 @@ export type DispatcherTaskState = {
   requestedBlocks: number[];
   currentBlockId: number | null;
   nextBlockId: number | null;
-  status: DispatcherState["status"];
+  status:
+    DispatcherState["status"];
   info: string | null;
   error: string | null;
   startedAt: number | null;
@@ -54,309 +69,108 @@ export type DispatcherRuntimeSnapshot = {
   logs: DispatcherLogEntry[];
 };
 
-type DispatcherRuntimeListener =
+type RuntimeListener =
   (
     state:
       DispatcherRuntimeSnapshot
   ) => void;
 
-const taskPages =
-  new Map<
-    string,
-    MovementPage
-  >();
+type StateListener =
+  (
+    state:
+      DispatcherState
+  ) => void;
 
-const taskLocoAddresses =
-  new Map<
-    string,
-    number
-  >();
+type CoordinatorResponse = {
+  requestId?: string;
+  action?: string;
+  ok?: boolean;
+  message?: string | null;
+  count?: number;
+  snapshot?: DispatcherRuntimeSnapshot;
+};
 
-/*
- * Dispatcher owns locomotives exclusively while a task is active.
- *
- * Route/block overlap is not enough to prevent two opposite Movements from
- * selecting the same tracked locomotive at an intermediate block. Without
- * this ownership map a timetable could start A3 -> B2 -> C4 while
- * C4 -> B2 -> A3 was still running, producing contradictory targetLoco and
- * turnout locks for the same decoder.
- */
-const activeLocoOwners =
-  new Map<
-    number,
-    string
-  >();
+const emptyRuntime =
+  (): DispatcherRuntimeSnapshot => ({
+    enabled:
+      true,
+    tasks:
+      [],
+    logs:
+      [],
+  });
 
-const executionUnsubscribes =
-  new Map<
-    string,
-    () => void
-  >();
+const idleState =
+  (): DispatcherState => ({
+    status:
+      "idle",
+    startedAt:
+      null,
+    stoppedAt:
+      null,
+    locoAddress:
+      null,
+    desiredSpeed:
+      0,
+    currentResourceKey:
+      null,
+    activeRouteResourceKey:
+      null,
+    info:
+      null,
+    error:
+      null,
+  });
 
-const logs:
-  DispatcherLogEntry[] =
-  [];
+let runtime =
+  emptyRuntime();
 
-const listeners =
-  new Set<
-    DispatcherRuntimeListener
-  >();
-
-const MAX_LOGS =
-  300;
-
-const STORAGE_KEY =
-  "dcc-express-hub.dispatcher.enabled";
-
-let enabled =
-  typeof window === "undefined"
-    ? true
-    : window.localStorage.getItem(
-        STORAGE_KEY
-      ) !== "false";
-
-let trackingSubscriptionInstalled =
+let installed =
   false;
 
-function id(): string {
-  if (
-    typeof crypto !== "undefined" &&
-    typeof crypto.randomUUID === "function"
-  ) {
-    return crypto.randomUUID();
-  }
+let sequence =
+  0;
+
+const runtimeListeners =
+  new Set<
+    RuntimeListener
+  >();
+
+const stateListeners =
+  new Map<
+    string,
+    Set<StateListener>
+  >();
+
+function requestId(
+  action: string
+): string {
+  sequence +=
+    1;
 
   return (
-    "dispatcher-" +
-    Date.now().toString(36) +
-    "-" +
-    Math.random()
-      .toString(36)
-      .slice(2)
+    `${wsApi.clientUuid}:dispatcher-coordinator:` +
+    `${action}:${Date.now()}:${sequence}`
   );
 }
 
-function routeBlocks(
-  page:
-    MovementPage
-): number[] {
-  return [
-    page.fromBlockId,
-    ...page.viaBlockIds,
-    page.toBlockId,
-  ].filter(
-    (
-      value
-    ): value is number =>
-      value !==
-        null
-  );
-}
-
-function remainingMovementPage(
-  page:
-    MovementPage,
-  currentBlockId:
-    number
-): MovementPage | null {
-  const requested =
-    routeBlocks(
-      page
-    );
-
-  const currentIndex =
-    requested.indexOf(
-      currentBlockId
-    );
-
-  if (
-    currentIndex <
-      0
-  ) {
-    return null;
-  }
-
-  const destination =
-    requested[
-      requested.length -
-        1
-    ];
-
-  if (
-    destination ===
-      undefined ||
-    currentBlockId ===
-      destination
-  ) {
-    return null;
-  }
-
-  const remaining =
-    requested.slice(
-      currentIndex
-    );
-
+function copyRuntime():
+  DispatcherRuntimeSnapshot {
   return {
-    ...page,
-    /*
-     * The persisted routeKey identifies the original full route. Once a
-     * Dispatcher resumes from an intermediate block, route selection must be
-     * regenerated from the remaining checkpoint sequence.
-     */
-    routeKey:
-      "",
-    fromBlockId:
-      remaining[0] ??
-      null,
-    viaBlockIds:
-      remaining.slice(
-        1,
-        -1
-      ),
-    toBlockId:
-      remaining[
-        remaining.length -
-          1
-      ] ??
-      null,
-  };
-}
-
-function currentTrackingBlock(
-  locoAddress:
-    number
-): number | null {
-  return (
-    getTrainTrackingState()
-      .locos.find(
-        loco =>
-          loco.locoAddress ===
-            locoAddress
-      )
-      ?.currentBlockId ??
-    null
-  );
-}
-
-function nextRequestedBlock(
-  requested:
-    number[],
-  currentBlockId:
-    number | null
-): number | null {
-  if (
-    requested.length ===
-      0
-  ) {
-    return null;
-  }
-
-  if (
-    currentBlockId ===
-      null
-  ) {
-    return requested[0] ??
-      null;
-  }
-
-  const index =
-    requested.indexOf(
-      currentBlockId
-    );
-
-  if (
-    index <
-      0
-  ) {
-    return requested[0] ??
-      null;
-  }
-
-  return requested[
-    index +
-      1
-  ] ??
-    null;
-}
-
-function taskSnapshot(
-  page:
-    MovementPage,
-  locoAddress:
-    number
-): DispatcherTaskState {
-  const engine =
-    getDispatcherExecutionState(
-      page.id
-    );
-
-  const requested =
-    routeBlocks(
-      page
-    );
-
-  const currentBlockId =
-    currentTrackingBlock(
-      locoAddress
-    );
-
-  return {
-    movementId:
-      page.id,
-    movementName:
-      page.name,
-    locoAddress,
-    requestedBlocks:
-      requested,
-    currentBlockId,
-    nextBlockId:
-      nextRequestedBlock(
-        requested,
-        currentBlockId
-      ),
-    status:
-      engine.status,
-    info:
-      engine.info,
-    error:
-      engine.error,
-    startedAt:
-      engine.startedAt,
-  };
-}
-
-function snapshot(): DispatcherRuntimeSnapshot {
-  return {
-    enabled,
+    enabled:
+      runtime.enabled,
     tasks:
-      [
-        ...taskPages.values(),
-      ]
-        .map(
-          page => {
-            const locoAddress =
-              taskLocoAddresses.get(
-                page.id
-              );
-
-            return locoAddress ===
-                undefined
-              ? null
-              : taskSnapshot(
-                  page,
-                  locoAddress
-                );
-          }
-        )
-        .filter(
-          (
-            task
-          ): task is DispatcherTaskState =>
-            task !==
-              null
-        ),
+      runtime.tasks.map(
+        task => ({
+          ...task,
+          requestedBlocks:
+            [
+              ...task.requestedBlocks,
+            ],
+        })
+      ),
     logs:
-      logs.map(
+      runtime.logs.map(
         entry => ({
           ...entry,
         })
@@ -364,573 +178,431 @@ function snapshot(): DispatcherRuntimeSnapshot {
   };
 }
 
-function emit(): void {
-  const state =
-    snapshot();
+function stateFor(
+  pageId: string
+): DispatcherState {
+  const task =
+    runtime.tasks.find(
+      candidate =>
+        candidate.movementId ===
+        pageId
+    );
+
+  if (!task) {
+    return idleState();
+  }
+
+  return {
+    status:
+      task.status,
+    startedAt:
+      task.startedAt,
+    stoppedAt:
+      task.status ===
+        "idle" ||
+      task.status ===
+        "error"
+        ? Date.now()
+        : null,
+    locoAddress:
+      task.locoAddress,
+    desiredSpeed:
+      0,
+    currentResourceKey:
+      task.currentBlockId ===
+        null
+        ? null
+        : `block:${task.currentBlockId}`,
+    activeRouteResourceKey:
+      task.nextBlockId ===
+        null
+        ? null
+        : `block:${task.nextBlockId}`,
+    info:
+      task.info,
+    error:
+      task.error,
+  };
+}
+
+function emit():
+  void {
+  const snapshot =
+    copyRuntime();
 
   for (
     const listener of
-    listeners
+    runtimeListeners
   ) {
     listener(
-      state
+      snapshot
     );
+  }
+
+  for (
+    const [
+      pageId,
+      listeners,
+    ] of
+    stateListeners
+  ) {
+    const state =
+      stateFor(
+        pageId
+      );
+
+    for (
+      const listener of
+      listeners
+    ) {
+      listener(
+        state
+      );
+    }
   }
 }
 
-function log(
-  level:
-    DispatcherLogLevel,
-  message:
-    string
+function apply(
+  raw: unknown
 ): void {
-  logs.push({
-    id:
-      id(),
-    timestamp:
-      Date.now(),
-    level,
-    message,
-  });
-
   if (
-    logs.length >
-      MAX_LOGS
+    !raw ||
+    typeof raw !==
+      "object"
   ) {
-    logs.splice(
-      0,
-      logs.length -
-        MAX_LOGS
-    );
+    return;
   }
+
+  const value =
+    raw as Partial<DispatcherRuntimeSnapshot>;
+
+  runtime = {
+    enabled:
+      value.enabled !==
+        false,
+    tasks:
+      Array.isArray(
+        value.tasks
+      )
+        ? value.tasks.map(
+            task => ({
+              ...task,
+              requestedBlocks:
+                [
+                  ...(
+                    task.requestedBlocks ??
+                    []
+                  ),
+                ],
+            })
+          )
+        : [],
+    logs:
+      Array.isArray(
+        value.logs
+      )
+        ? value.logs.map(
+            entry => ({
+              ...entry,
+            })
+          )
+        : [],
+  };
 
   emit();
 }
 
-function ensureTrackingSubscription():
-  void {
-  installTrainTrackingRuntime();
-
-  if (
-    trackingSubscriptionInstalled
-  ) {
-    return;
-  }
-
-  trackingSubscriptionInstalled =
-    true;
-
-  subscribeTrainTrackingState(
-    () => {
-      emit();
+function send(
+  action: string,
+  values:
+    Record<string, unknown> =
+      {}
+): boolean {
+  return wsApi.sendBackendCommand(
+    "dispatcherCoordinatorCommand",
+    {
+      requestId:
+        requestId(
+          action
+        ),
+      action,
+      ...values,
     }
   );
 }
 
-function ensureExecutionSubscription(
-  page:
-    MovementPage
-): void {
+async function request(
+  action: string,
+  values:
+    Record<string, unknown> =
+      {}
+): Promise<CoordinatorResponse> {
+  const id =
+    requestId(
+      action
+    );
+
+  const response =
+    await wsApi.requestBackendCommand<CoordinatorResponse>(
+      "dispatcherCoordinatorCommand",
+      {
+        requestId:
+          id,
+        action,
+        ...values,
+      },
+      "dispatcherCoordinatorResponse",
+      data =>
+        data.requestId ===
+          id
+    );
+
   if (
-    executionUnsubscribes.has(
-      page.id
-    )
+    response.snapshot
   ) {
+    apply(
+      response.snapshot
+    );
+  }
+
+  return response;
+}
+
+function install():
+  void {
+  if (installed) {
     return;
   }
 
-  const unsubscribe =
-    subscribeDispatcherExecutionState(
-      page.id,
-      state => {
+  installed =
+    true;
+
+  wsClient.subscribeMessages(
+    message => {
+      const raw =
+        message as unknown as {
+          type?: string;
+          data?: unknown;
+        };
+
+      if (
+        raw.type ===
+          "dispatcherCoordinatorChanged"
+      ) {
+        apply(
+          raw.data
+        );
+        return;
+      }
+
+      if (
+        raw.type ===
+          "dispatcherCoordinatorResponse"
+      ) {
+        const response =
+          raw.data as
+            CoordinatorResponse;
+
         if (
-          state.status ===
-            "error" &&
-          state.error
+          response?.snapshot
         ) {
-          log(
-            "error",
-            `${page.name}: ${state.error}`
+          apply(
+            response.snapshot
           );
         }
-
-        emit();
       }
-    );
-
-  executionUnsubscribes.set(
-    page.id,
-    unsubscribe
+    }
   );
+
+  wsClient.subscribeStatus(
+    status => {
+      if (
+        status ===
+          "connected"
+      ) {
+        send(
+          "snapshot"
+        );
+      }
+    }
+  );
+
+  if (
+    wsClient.getStatus() ===
+      "connected"
+  ) {
+    send(
+      "snapshot"
+    );
+  }
 }
 
-/**
- * Dispatcher is the public execution boundary for saved movements.
- *
- * MovementPage is intentionally treated as an intent:
- *   block A -> block B -> ... -> block N + cruise speed.
- *
- * TrainTracking is authoritative for locating the locomotive.
- *
- * MovementPage is declarative input only. Physical execution is Dispatcher
- * authority and lives in dispatcherExecutionRuntime.ts behind this facade.
- * UI, timetable, Flow and script code must call this module rather than the
- * executor directly.
- */
 export async function startDispatcherMovement(
   page:
     MovementPage
 ): Promise<void> {
-  ensureTrackingSubscription();
+  install();
+
+  const response =
+    await request(
+      "start",
+      {
+        movementId:
+          page.id,
+      }
+    );
 
   if (
-    !enabled
+    response.ok ===
+      false
   ) {
     throw new Error(
-      "Dispatcher is disabled."
+      response.message ||
+      "Dispatcher movement could not be started."
     );
-  }
-
-  if (
-    page.fromBlockId ===
-      null ||
-    page.toBlockId ===
-      null
-  ) {
-    throw new Error(
-      "Dispatcher movement requires a start and destination block."
-    );
-  }
-
-  const tracking =
-    getTrainTrackingState();
-
-  if (
-    !tracking.active
-  ) {
-    throw new Error(
-      "Train Tracking must be enabled and active before Dispatcher movement can start."
-    );
-  }
-
-  const requested =
-    routeBlocks(
-      page
-    );
-
-  const routeLocos =
-    tracking.locos.filter(
-      loco =>
-        loco.currentBlockId !==
-          null &&
-        requested.includes(
-          loco.currentBlockId
-        )
-    );
-
-  if (
-    routeLocos.length ===
-      0
-  ) {
-    log(
-      "warn",
-      `${page.name}: no tracked locomotive is currently on the requested route.`
-    );
-
-    throw new Error(
-      "Dispatcher cannot start: no tracked locomotive is currently on the requested route."
-    );
-  }
-
-  if (
-    routeLocos.length >
-      1
-  ) {
-    log(
-      "warn",
-      `${page.name}: more than one tracked locomotive is currently on the requested route.`
-    );
-
-    throw new Error(
-      "Dispatcher cannot start: more than one tracked locomotive is currently on the requested route."
-    );
-  }
-
-  const loco =
-    routeLocos[0]!;
-
-  const currentBlockId =
-    loco.currentBlockId;
-
-  if (
-    currentBlockId ===
-      null
-  ) {
-    throw new Error(
-      "Dispatcher cannot start: tracked locomotive has no current block."
-    );
-  }
-
-  const existingOwner =
-    activeLocoOwners.get(
-      loco.locoAddress
-    );
-
-  if (
-    existingOwner !==
-      undefined &&
-    existingOwner !==
-      page.id
-  ) {
-    const existingPage =
-      taskPages.get(
-        existingOwner
-      );
-
-    const ownerName =
-      existingPage?.name ??
-      existingOwner;
-
-    log(
-      "warn",
-      `"${page.name}" rejected for loco #${loco.locoAddress}: already owned by Dispatcher movement "${ownerName}".`
-    );
-
-    throw new Error(
-      `Dispatcher cannot start: locomotive #${loco.locoAddress} is already controlled by "${ownerName}".`
-    );
-  }
-
-  const currentIndex =
-    requested.indexOf(
-      currentBlockId
-    );
-
-  const destinationBlockId =
-    requested[
-      requested.length -
-        1
-    ] ??
-    null;
-
-  const executionPage =
-    remainingMovementPage(
-      page,
-      currentBlockId
-    );
-
-  taskPages.set(
-    page.id,
-    page
-  );
-
-  taskLocoAddresses.set(
-    page.id,
-    loco.locoAddress
-  );
-
-  ensureExecutionSubscription(
-    page
-  );
-
-  if (
-    destinationBlockId !==
-      null &&
-    currentBlockId ===
-      destinationBlockId
-  ) {
-    log(
-      "match",
-      `"${page.name}" already completed for loco #${loco.locoAddress}: locomotive is already in destination block #${destinationBlockId}.`
-    );
-
-    emit();
-
-    return;
-  }
-
-  if (
-    executionPage ===
-      null ||
-    currentIndex <
-      0
-  ) {
-    throw new Error(
-      "Dispatcher cannot resume: tracked locomotive is outside the requested route."
-    );
-  }
-
-  activeLocoOwners.set(
-    loco.locoAddress,
-    page.id
-  );
-
-  const remaining =
-    routeBlocks(
-      executionPage
-    );
-
-  log(
-    "info",
-    currentIndex ===
-      0
-      ? `Starting "${page.name}" for loco #${loco.locoAddress}: ${requested.join(" -> ")}.`
-      : `Resuming "${page.name}" for loco #${loco.locoAddress} from block #${currentBlockId}: ${remaining.join(" -> ")}.`
-  );
-
-  /*
-   * Compatibility executor.
-   *
-   * The legacy executor receives only the remaining route. Dispatcher keeps
-   * the original Movement intent for UI/status purposes, while execution can
-   * resume from any tracked checkpoint on A -> B -> C.
-   */
-  try {
-    await startDispatcherExecution(
-      executionPage,
-      loco.locoAddress
-    );
-
-    log(
-      "match",
-      `Completed "${page.name}" for loco #${loco.locoAddress}.`
-    );
-  } catch (
-    error
-  ) {
-    log(
-      "error",
-      `"${page.name}" failed: ${
-        error instanceof Error
-          ? error.message
-          : String(
-              error
-            )
-      }`
-    );
-
-    throw error;
-  } finally {
-    if (
-      activeLocoOwners.get(
-        loco.locoAddress
-      ) ===
-        page.id
-    ) {
-      activeLocoOwners.delete(
-        loco.locoAddress
-      );
-    }
-
-    emit();
   }
 }
 
 export function holdDispatcherMovement(
   pageId: string,
-  ownerId = "external"
+  ownerId =
+    "external"
 ): boolean {
-  return holdDispatcherExecution(
-    pageId,
-    ownerId
+  install();
+
+  return send(
+    "hold",
+    {
+      movementId:
+        pageId,
+      ownerId,
+    }
   );
 }
 
 export function releaseDispatcherMovement(
   pageId: string,
-  ownerId = "external"
+  ownerId =
+    "external"
 ): boolean {
-  return releaseDispatcherExecution(
-    pageId,
-    ownerId
+  install();
+
+  return send(
+    "release",
+    {
+      movementId:
+        pageId,
+      ownerId,
+    }
   );
 }
 
 export function stopDispatcherMovement(
-  pageId:
-    string
+  pageId: string
 ): boolean {
-  const page =
-    taskPages.get(
-      pageId
-    );
+  install();
 
-  const stopped =
-    stopDispatcherExecution(
-      pageId
-    );
-
-  if (
-    stopped
-  ) {
-    log(
-      "info",
-      page
-        ? `Stop requested for "${page.name}".`
-        : `Stop requested for movement ${pageId}.`
-    );
-  }
-
-  return stopped;
+  return send(
+    "stop",
+    {
+      movementId:
+        pageId,
+    }
+  );
 }
 
 export function abortDispatcherMovement(
-  pageId:
-    string,
-  emergency = true
+  pageId: string,
+  emergency =
+    true
 ): boolean {
-  const page =
-    taskPages.get(
-      pageId
-    );
+  install();
 
-  const aborted =
-    abortDispatcherExecution(
-      pageId,
-      emergency
-    );
-
-  if (
-    aborted
-  ) {
-    log(
-      "warn",
-      page
-        ? `Abort requested for "${page.name}".`
-        : `Abort requested for movement ${pageId}.`
-    );
-  }
-
-  return aborted;
+  return send(
+    "abort",
+    {
+      movementId:
+        pageId,
+      emergencyStop:
+        emergency,
+    }
+  );
 }
 
 export function stopAllDispatcherMovements():
   number {
-  let stopped =
-    0;
+  install();
 
-  for (
-    const pageId of
-    taskPages.keys()
-  ) {
-    if (
-      stopDispatcherExecution(
-        pageId
-      )
-    ) {
-      stopped +=
-        1;
-    }
-  }
+  const count =
+    runtime.tasks.filter(
+      task =>
+        task.status ===
+          "running" ||
+        task.status ===
+          "stopping"
+    ).length;
 
-  if (
-    stopped >
-      0
-  ) {
-    log(
-      "info",
-      `Stop All requested for ${stopped} Dispatcher movement(s).`
-    );
-  }
+  send(
+    "stopAll"
+  );
 
-  return stopped;
+  return count;
 }
 
 export function abortAllDispatcherMovements(
-  emergency = false
+  emergencyStop =
+    false
 ): number {
-  let aborted =
-    0;
+  install();
 
-  for (
-    const pageId of
-    taskPages.keys()
-  ) {
-    if (
-      abortDispatcherExecution(
-        pageId,
-        emergency
-      )
-    ) {
-      aborted +=
-        1;
+  const count =
+    runtime.tasks.filter(
+      task =>
+        task.status ===
+          "running" ||
+        task.status ===
+          "stopping"
+    ).length;
+
+  send(
+    "abortAll",
+    {
+      emergencyStop,
     }
-  }
+  );
 
-  if (
-    aborted >
-      0
-  ) {
-    log(
-      "warn",
-      `Abort All requested for ${aborted} Dispatcher movement(s).`
-    );
-  }
-
-  return aborted;
+  return count;
 }
 
 export function setDispatcherEnabled(
-  next:
-    boolean
+  value: boolean
 ): void {
-  if (
-    enabled ===
-      next
-  ) {
-    return;
-  }
+  install();
 
-  enabled =
-    next;
-
-  if (
-    typeof window !==
-      "undefined"
-  ) {
-    window.localStorage.setItem(
-      STORAGE_KEY,
-      enabled
-        ? "true"
-        : "false"
-    );
-  }
-
-  if (
-    !enabled
-  ) {
-    const aborted =
-      abortAllDispatcherMovements(
-        false
-      );
-
-    log(
-      "warn",
-      aborted >
-        0
-        ? `Dispatcher disabled; aborted ${aborted} managed movement(s).`
-        : "Dispatcher disabled."
-    );
-  } else {
-    log(
-      "info",
-      "Dispatcher enabled."
-    );
-  }
-
-  emit();
+  send(
+    "setEnabled",
+    {
+      enabled:
+        Boolean(
+          value
+        ),
+    }
+  );
 }
 
 export function getDispatcherEnabled():
   boolean {
-  return enabled;
+  install();
+
+  return runtime.enabled;
 }
 
 export function getDispatcherState(
-  pageId:
-    string
+  pageId: string
 ): DispatcherState {
-  return getDispatcherExecutionState(
+  install();
+
+  return stateFor(
     pageId
   );
 }
@@ -939,40 +611,81 @@ export function subscribeDispatcherState(
   pageId:
     string,
   listener:
-    (
-      state:
-        DispatcherState
-    ) => void
+    StateListener
 ): () => void {
-  return subscribeDispatcherExecutionState(
-    pageId,
-    listener
-  );
-}
+  install();
 
-export function getDispatcherRuntimeSnapshot():
-  DispatcherRuntimeSnapshot {
-  ensureTrackingSubscription();
+  let set =
+    stateListeners.get(
+      pageId
+    );
 
-  return snapshot();
-}
+  if (!set) {
+    set =
+      new Set<
+        StateListener
+      >();
 
-export function subscribeDispatcherRuntime(
-  listener:
-    DispatcherRuntimeListener
-): () => void {
-  ensureTrackingSubscription();
+    stateListeners.set(
+      pageId,
+      set
+    );
+  }
 
-  listeners.add(
+  set.add(
     listener
   );
 
   listener(
-    snapshot()
+    stateFor(
+      pageId
+    )
   );
 
   return () => {
-    listeners.delete(
+    const current =
+      stateListeners.get(
+        pageId
+      );
+
+    current?.delete(
+      listener
+    );
+
+    if (
+      current?.size ===
+        0
+    ) {
+      stateListeners.delete(
+        pageId
+      );
+    }
+  };
+}
+
+export function getDispatcherRuntimeSnapshot():
+  DispatcherRuntimeSnapshot {
+  install();
+
+  return copyRuntime();
+}
+
+export function subscribeDispatcherRuntime(
+  listener:
+    RuntimeListener
+): () => void {
+  install();
+
+  runtimeListeners.add(
+    listener
+  );
+
+  listener(
+    copyRuntime()
+  );
+
+  return () => {
+    runtimeListeners.delete(
       listener
     );
   };
@@ -980,8 +693,11 @@ export function subscribeDispatcherRuntime(
 
 export function clearDispatcherLog():
   void {
-  logs.length =
-    0;
+  install();
 
-  emit();
+  send(
+    "clearLogs"
+  );
 }
+
+install();

@@ -97,8 +97,6 @@ type AutomationPanelProps = {
     pageId:
       string
   ) => void;
-  controlStationActive:
-    boolean;
 };
 
 export default function AutomationPanel({
@@ -111,7 +109,6 @@ export default function AutomationPanel({
   movements,
   onMovementsChange,
   onOpenMovementEditor,
-  controlStationActive,
 }: AutomationPanelProps) {
   const [
     activeTab,
@@ -325,9 +322,6 @@ export default function AutomationPanel({
           }}
         >
           <TrainTrackingPanel
-            controlStationActive={
-              controlStationActive
-            }
             locos={
               locos
             }

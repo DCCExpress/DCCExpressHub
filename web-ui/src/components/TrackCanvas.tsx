@@ -19,10 +19,6 @@ import { useCommandCenter } from "../context/CommandCenterContext";
 import { useEditorSettings } from "../context/EditorSettingsContext";
 import { fastClockStore } from "../services/fastClockStore";
 import {
-  hasMovingMovementBlockRuntime,
-  subscribeMovementBlockRuntime,
-} from "../services/movementBlockRuntime";
-import {
   getBlockTargetLocoAddress,
 } from "../services/blockTargetLocoRuntime";
 import {
@@ -392,12 +388,6 @@ export default function TrackCanvas({
   }, [invalidate]);
 
   useEffect(() => {
-    return subscribeMovementBlockRuntime(() => {
-      invalidate();
-    });
-  }, [invalidate]);
-
-  useEffect(() => {
     return subscribeTrainTrackingPredictions(
       () => {
         invalidate();
@@ -466,7 +456,6 @@ export default function TrackCanvas({
         );
 
       const needsBlinkRedraw =
-        hasMovingMovementBlockRuntime() ||
         liveLocoMoving ||
         hasTargetLoco ||
         hasTrainTrackingPredictions() ||

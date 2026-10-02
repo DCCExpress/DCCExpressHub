@@ -30,6 +30,7 @@ builder.Services.AddSingleton<ScriptInfoStore>();
 builder.Services.AddSingleton<RuntimeStateStore>();
 builder.Services.AddSingleton<LocoCounterRuntime>();
 builder.Services.AddSingleton<HubFileStorage>();
+builder.Services.AddSingleton<AutomationStorageCoordinator>();
 builder.Services.AddSingleton<CommandCenterConfigStore>();
 builder.Services.AddSingleton<IDccExTransport>(sp =>
     string.Equals(builder.Configuration["DccEx:Transport"], "Serial", StringComparison.OrdinalIgnoreCase)
@@ -39,6 +40,20 @@ builder.Services.AddSingleton<DccExCommandCenter>();
 builder.Services.AddSingleton<ConfiguredCommandCenter>();
 builder.Services.AddSingleton<ICommandCenter>(sp => sp.GetRequiredService<ConfiguredCommandCenter>());
 builder.Services.AddHostedService(sp => sp.GetRequiredService<DccExCommandCenter>());
+builder.Services.AddSingleton<FastClockRuntime>();
+builder.Services.AddSingleton<SwitchManManager>();
+builder.Services.AddSingleton<TrackAuthorityRuntime>();
+builder.Services.AddSingleton<DispatcherRuntime>();
+builder.Services.AddSingleton<MovementPlanBuilder>();
+builder.Services.AddSingleton<TrainEventRuntime>();
+builder.Services.AddSingleton<MovementRuntime>();
+builder.Services.AddSingleton<TrainTrackingRuntime>();
+builder.Services.AddSingleton<DispatcherCoordinatorRuntime>();
+builder.Services.AddSingleton<ScriptRuntime>();
+builder.Services.AddSingleton<FlowRuntime>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<FlowRuntime>());
+builder.Services.AddSingleton<TimetableRuntime>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<TimetableRuntime>());
 builder.Services.AddSingleton<WsHub>();
 builder.Services.AddHostedService<WsRuntimeCoordinator>();
 
@@ -359,7 +374,7 @@ app.MapGet("/api/command-center-info", (ICommandCenter cc, CommandCenterConfigSt
 app.MapGet("/api/capabilities", () => Results.Json(new
 {
     ok = true,
-    javascriptAutomation = false,
+    javascriptAutomation = true,
     fileManager = true,
     deviceConfiguration = true,
     gamepad = true,
@@ -639,7 +654,7 @@ app.MapGet("/api/automations/previous", async (IWebHostEnvironment env) =>
         System.Text.Encoding.UTF8);
 });
 
-app.MapPost("/api/automations", async (HttpRequest req, IWebHostEnvironment env) =>
+app.MapPost("/api/automations", async (HttpRequest req, IWebHostEnvironment env, AutomationStorageCoordinator automationStorage) =>
 {
     const int maxBytes = 512 * 1024;
 
@@ -724,49 +739,54 @@ app.MapPost("/api/automations", async (HttpRequest req, IWebHostEnvironment env)
         }
     }
 
-    var finalPath = DataFile(env, "automations.json");
-    var tempPath = finalPath + ".tmp";
-
-    try
-    {
-        Directory.CreateDirectory(Path.GetDirectoryName(finalPath)!);
-
-        // Write to a temporary file first, then atomically replace/move it,
-        // matching the firmware's AtomicFileUpload semantics.
-        memory.Position = 0;
-        await using (var output = new FileStream(
-            tempPath, FileMode.Create, FileAccess.Write, FileShare.None,
-            81920, FileOptions.Asynchronous | FileOptions.WriteThrough))
+    return await automationStorage.ExecuteAsync<IResult>(
+        async () =>
         {
-            await memory.CopyToAsync(output);
-            await output.FlushAsync();
-        }
+            var finalPath = DataFile(env, "automations.json");
+            var tempPath = finalPath + ".tmp";
 
-        var previousPath =
-            DataFile(env, "automations.json.previous");
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(finalPath)!);
 
-        if (File.Exists(finalPath))
-            File.Copy(
-                finalPath,
-                previousPath,
-                true);
+                // Write to a temporary file first, then atomically replace/move it,
+                // matching the firmware's AtomicFileUpload semantics.
+                memory.Position = 0;
+                await using (var output = new FileStream(
+                    tempPath, FileMode.Create, FileAccess.Write, FileShare.None,
+                    81920, FileOptions.Asynchronous | FileOptions.WriteThrough))
+                {
+                    await memory.CopyToAsync(output);
+                    await output.FlushAsync();
+                }
 
-        File.Move(tempPath, finalPath, true);
+                var previousPath =
+                    DataFile(env, "automations.json.previous");
 
-        return Results.Json(new
-        {
-            ok = true,
-            bytes = memory.Length
-        });
-    }
-    catch
-    {
-        try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
+                if (File.Exists(finalPath))
+                    File.Copy(
+                        finalPath,
+                        previousPath,
+                        true);
 
-        return Results.Json(
-            new { ok = false, message = "Automation atomic rename failed" },
-            statusCode: StatusCodes.Status500InternalServerError);
-    }
+                File.Move(tempPath, finalPath, true);
+
+                return Results.Json(new
+                {
+                    ok = true,
+                    bytes = memory.Length
+                });
+            }
+            catch
+            {
+                try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
+
+                return Results.Json(
+                    new { ok = false, message = "Automation atomic rename failed" },
+                    statusCode: StatusCodes.Status500InternalServerError);
+            }
+        },
+        req.HttpContext.RequestAborted);
 });
 
 

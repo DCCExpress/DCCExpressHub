@@ -5,7 +5,6 @@ import type { BlockDirectionEventConfigDto, BlockEventConfigDto, BlockEventSenso
 import { generateId } from "../../../helpers";
 import i18n from "../../../i18n";
 import { getBlockTargetLocoAddress } from "../../../services/blockTargetLocoRuntime";
-import { getMovementBlockRuntime } from "../../../services/movementBlockRuntime";
 import { getTrainTrackingPredictionForBlock } from "../../../services/trainTrackingPredictionRuntime";
 import { wsClient } from "../../../services/wsClient";
 import { TrackElement } from "../core/TrackElement";
@@ -390,11 +389,6 @@ export class BlockElement extends TrackElement {
     displayLocoAddress: number,
     inTransit: boolean,
   ): void {
-    const movementRuntime =
-      getMovementBlockRuntime(
-        this.id
-      );
-
     const liveLocoState =
       displayLocoAddress > 0
         ? wsClient.getLatestLocoState(
@@ -413,13 +407,8 @@ export class BlockElement extends TrackElement {
       liveLocoState?.direction ??
       null;
 
-    const fallbackDirection =
-      movementRuntime?.direction ??
-      null;
-
     const direction =
-      liveDirection ??
-      fallbackDirection;
+      liveDirection;
 
     if (!direction) {
       return;
@@ -497,19 +486,11 @@ export class BlockElement extends TrackElement {
     );
     ctx.closePath();
 
-    const liveMoving =
-      liveLocoState !==
-        null
-        ? liveLocoState.speed >
-          0
-        : null;
-
     const moving =
-      liveMoving ??
       (
-        movementRuntime?.phase ===
-          "moving"
-      );
+        liveLocoState?.speed ??
+        0
+      ) > 0;
 
     const blinking =
       moving;
@@ -534,15 +515,6 @@ export class BlockElement extends TrackElement {
 
       ctx.strokeStyle =
         "#365314";
-    } else if (
-      movementRuntime?.phase ===
-        "error"
-    ) {
-      ctx.fillStyle =
-        "#ff6b6b";
-
-      ctx.strokeStyle =
-        "#7f1d1d";
     } else {
       ctx.fillStyle =
         "#ffd43b";

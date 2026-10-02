@@ -33,7 +33,6 @@ import {
 import {
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
 
@@ -57,8 +56,6 @@ import type {
 type Props = {
   onBack: () => void;
   status: WsConnectionStatus;
-  controlStationActive: boolean;
-  controlStationOwnerName: string | null;
 };
 
 type NumberValue = string | number;
@@ -216,8 +213,6 @@ function ProgrammingUnsupported({
 function DccExProgrammingPage({
   onBack,
   status,
-  controlStationActive,
-  controlStationOwnerName,
 }: Props) {
   useTranslation();
   const [busy, setBusy] = useState(false);
@@ -244,13 +239,6 @@ function DccExProgrammingPage({
   const [digiSwitchAddress, setDigiSwitchAddress] = useState<NumberValue>(1);
   const [digiSignalAddress, setDigiSignalAddress] = useState<NumberValue>(1);
 
-  const controlStationActiveRef =
-    useRef(
-      controlStationActive
-    );
-
-  controlStationActiveRef.current =
-    controlStationActive;
 
   useEffect(() => {
     const unsubscribe = wsClient.on("powerInfo", payload => {
@@ -260,15 +248,6 @@ function DccExProgrammingPage({
     return unsubscribe;
   }, []);
 
-  useEffect(() => {
-    if (
-      controlStationActive
-    ) {
-      setQuickControlOpened(
-        false
-      );
-    }
-  }, [controlStationActive]);
 
   const run = async (
     action: ProgrammingCommandAction,
@@ -281,11 +260,6 @@ function DccExProgrammingPage({
     confirmText?: string,
     valueTarget?: "locomotive" | "accessory",
   ) => {
-    if (
-      controlStationActiveRef.current
-    ) {
-      return;
-    }
 
     if (confirmText && !window.confirm(confirmText)) {
       return;
@@ -345,8 +319,7 @@ function DccExProgrammingPage({
       });
     } finally {
       if (
-        restoreJoinAfterProgramming &&
-        !controlStationActiveRef.current
+        restoreJoinAfterProgramming
       ) {
         const joinedAgain =
           wsApi.writeDccExDirectCommand("<1 JOIN>");
@@ -373,11 +346,6 @@ function DccExProgrammingPage({
     target: "MAIN" | "PROG",
     on: boolean,
   ): void => {
-    if (
-      controlStationActiveRef.current
-    ) {
-      return;
-    }
 
     const command = `<${on ? 1 : 0} ${target}>`;
     const sent = wsApi.writeDccExDirectCommand(command);
@@ -420,11 +388,6 @@ function DccExProgrammingPage({
   };
 
   const sendJoin = (joined: boolean): void => {
-    if (
-      controlStationActiveRef.current
-    ) {
-      return;
-    }
 
     const command = joined
       ? "<1 JOIN>"
@@ -457,11 +420,6 @@ function DccExProgrammingPage({
   };
 
   const openQuickControl = async (): Promise<void> => {
-    if (
-      controlStationActiveRef.current
-    ) {
-      return;
-    }
 
     const address = numberValue(quickTestAddress);
 
@@ -547,31 +505,12 @@ function DccExProgrammingPage({
         </div>
       </Group>
 
-      {controlStationActive && (
-        <Alert
-          color="orange"
-          icon={<IconAlertTriangle size={18} />}
-          title="Programming is locked while Control Station is active"
-        >
-          {controlStationOwnerName
-            ? `Automation is currently running on ${controlStationOwnerName}. Turn off Control Station before using decoder programming.`
-            : "Automation is currently active. Turn off Control Station before using decoder programming."}
-        </Alert>
-      )}
-
       <fieldset
-        disabled={
-          controlStationActive
-        }
         style={{
           border: 0,
           padding: 0,
           margin: 0,
           minWidth: 0,
-          opacity:
-            controlStationActive
-              ? 0.55
-              : 1,
         }}
       >
       <Card withBorder radius={5} p="lg">

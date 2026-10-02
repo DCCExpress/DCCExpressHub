@@ -37,7 +37,6 @@ import {
 } from "../../services/trainTrackingRuntime";
 
 type Props = {
-  controlStationActive: boolean;
   locos: Loco[];
 };
 
@@ -50,7 +49,6 @@ function timeText(
 }
 
 export default function TrainTrackingPanel({
-  controlStationActive,
   locos,
 }: Props) {
   const [
@@ -106,7 +104,6 @@ export default function TrainTrackingPanel({
               state.enabled
             }
             disabled={
-              !controlStationActive ||
               !state.ready
             }
             label={
@@ -185,9 +182,6 @@ export default function TrainTrackingPanel({
           <Button
             size="xs"
             variant="light"
-            disabled={
-              !controlStationActive
-            }
             onClick={
               refreshTrainTracking
             }
@@ -246,25 +240,8 @@ export default function TrainTrackingPanel({
         </Group>
       </Group>
 
-      {!controlStationActive && (
-        <Text
-          size="xs"
-          c="dimmed"
-        >
-          {
-            i18next.t(
-              "ui.trainTrackingControlStationOnly",
-              {
-                defaultValue:
-                  "Train tracking runs only on the active Control Station.",
-              }
-            )
-          }
-        </Text>
-      )}
 
       {
-        controlStationActive &&
         !state.ready &&
         state.readinessIssues.length > 0 &&
         (
@@ -311,7 +288,6 @@ export default function TrainTrackingPanel({
       }
 
       {
-        controlStationActive &&
         state.readinessWarnings.length > 0 &&
         (
           <Accordion

@@ -175,6 +175,100 @@ class WebSocketApi {
     });
   }
 
+  sendBackendCommand(
+    type: string,
+    data: Record<string, unknown>
+  ): boolean {
+    return wsClient.send({
+      type,
+      data,
+    } as never);
+  }
+
+  async requestBackendCommand<TResponse extends Record<string, unknown>>(
+    type: string,
+    data: Record<string, unknown>,
+    responseType: string,
+    matches: (data: TResponse) => boolean,
+    timeoutMs = 10000
+  ): Promise<TResponse> {
+    await this.waitUntilConnected(timeoutMs);
+
+    return new Promise((resolve, reject) => {
+      let timeoutHandle: number | null = null;
+      let settled = false;
+      let unsubscribeMessages: () => void = () => {};
+      let unsubscribeStatus: () => void = () => {};
+
+      const cleanup = (): void => {
+        if (timeoutHandle !== null) {
+          window.clearTimeout(timeoutHandle);
+          timeoutHandle = null;
+        }
+
+        unsubscribeMessages();
+        unsubscribeStatus();
+      };
+
+      const resolveOnce = (response: TResponse): void => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve(response);
+      };
+
+      const rejectOnce = (error: Error): void => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(error);
+      };
+
+      unsubscribeMessages = wsClient.subscribeMessages(message => {
+        const raw = message as unknown as {
+          type?: string;
+          data?: unknown;
+        };
+
+        if (raw.type !== responseType) return;
+
+        const response = raw.data as TResponse;
+
+        if (!matches(response)) return;
+
+        resolveOnce(response);
+      });
+
+      unsubscribeStatus = wsClient.subscribeStatus(status => {
+        if (
+          status === "connected" ||
+          status === "connecting" ||
+          status === "reconnecting"
+        ) {
+          return;
+        }
+
+        rejectOnce(
+          new Error(
+            `WebSocket request failed because connection is ${status}: ${type}`
+          )
+        );
+      });
+
+      timeoutHandle = window.setTimeout(() => {
+        rejectOnce(
+          new Error(
+            `WebSocket request timed out: ${type}`
+          )
+        );
+      }, timeoutMs);
+
+      if (!this.sendBackendCommand(type, data)) {
+        rejectOnce(new Error("WebSocket is not connected."));
+      }
+    });
+  }
+
   setTrackPower(on: boolean): boolean {
     return this.send("setTrackPower", { on });
   }
@@ -193,33 +287,6 @@ class WebSocketApi {
 
   emergencyStop(): boolean {
     return this.send("emergencyStop", {});
-  }
-
-  claimControlStation(
-    clientId: string,
-    clientName: string
-  ): boolean {
-    return this.send(
-      "controlStationClaim",
-      {
-        clientId,
-        clientName,
-      }
-    );
-  }
-
-  releaseControlStation(): boolean {
-    return this.send(
-      "controlStationRelease",
-      {}
-    );
-  }
-
-  getControlStationStatus(): boolean {
-    return this.send(
-      "getControlStationStatus",
-      {}
-    );
   }
 
   broadcastPlayAudio(
