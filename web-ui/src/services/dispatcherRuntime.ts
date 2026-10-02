@@ -512,7 +512,9 @@ export function stopDispatcherMovement(
 }
 
 export function abortDispatcherMovement(
-  pageId: string
+  pageId: string,
+  emergency =
+    true
 ): boolean {
   install();
 
@@ -522,7 +524,7 @@ export function abortDispatcherMovement(
       movementId:
         pageId,
       emergencyStop:
-        false,
+        emergency,
     }
   );
 }
