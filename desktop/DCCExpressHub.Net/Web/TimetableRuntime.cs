@@ -41,6 +41,7 @@ public sealed class TimetableRuntime : BackgroundService
     readonly FastClockRuntime _fastClock;
     readonly MovementRuntime _movement;
     readonly ScriptRuntime _scripts;
+    readonly AutomationExclusiveGate _exclusiveGate;
     readonly ILogger<TimetableRuntime> _log;
     readonly JsonSerializerOptions _json =
         new(JsonSerializerDefaults.Web);
@@ -62,12 +63,14 @@ public sealed class TimetableRuntime : BackgroundService
         FastClockRuntime fastClock,
         MovementRuntime movement,
         ScriptRuntime scripts,
+        AutomationExclusiveGate exclusiveGate,
         ILogger<TimetableRuntime> log)
     {
         _env = env;
         _fastClock = fastClock;
         _movement = movement;
         _scripts = scripts;
+        _exclusiveGate = exclusiveGate;
         _log = log;
 
         _movement.Changed +=
@@ -101,6 +104,9 @@ public sealed class TimetableRuntime : BackgroundService
 
     public bool StartScheduler()
     {
+        if (_exclusiveGate.CalibrationActive)
+            return false;
+
         lock (_gate)
         {
             if (_running)
@@ -189,6 +195,9 @@ public sealed class TimetableRuntime : BackgroundService
 
     void Tick()
     {
+        if (_exclusiveGate.CalibrationActive)
+            return;
+
         long? previous;
 
         lock (_gate)
