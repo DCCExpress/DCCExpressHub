@@ -1369,6 +1369,97 @@ public sealed class DispatcherRuntime
         return true;
     }
 
+    public DispatcherAcquireResult ValidateHeldLegAuthority(
+        string ownerId)
+    {
+        DispatcherLegLeaseInfo? lease;
+
+        lock (_gate)
+        {
+            if (!_leases.TryGetValue(
+                    ownerId,
+                    out lease))
+                return new(
+                    false,
+                    "dispatcher_lease_not_found",
+                    null);
+        }
+
+        var sourceError =
+            ValidateSourceBlock(
+                lease.FromBlockId,
+                lease.LocoAddress);
+
+        if (sourceError is not null)
+            return new(
+                false,
+                sourceError,
+                lease,
+                BlockingBlock:
+                    lease.FromBlockId);
+
+        var destination =
+            FindBlock(
+                lease.ToBlockId);
+
+        if (destination is null)
+            return new(
+                false,
+                "destination_block_not_found",
+                lease,
+                BlockingBlock:
+                    lease.ToBlockId);
+
+        if (destination.LocoAddress != 0 ||
+            !string.Equals(
+                destination.LocoId,
+                lease.TargetMarker,
+                StringComparison.Ordinal))
+            return new(
+                false,
+                "destination_target_lost",
+                lease,
+                BlockingBlock:
+                    lease.ToBlockId);
+
+        lock (_gate)
+        {
+            foreach (var key in
+                     lease.ResourceKeys)
+            {
+                if (!_resourceOwners.TryGetValue(
+                        key,
+                        out var resourceOwner) ||
+                    !string.Equals(
+                        resourceOwner,
+                        ownerId,
+                        StringComparison.Ordinal))
+                    return new(
+                        false,
+                        "dispatcher_resource_authority_lost:" +
+                            key,
+                        lease);
+            }
+        }
+
+        foreach (var address in
+                 lease.TurnoutAddresses)
+        {
+            if (!_switchMan.IsOwnedBy(
+                    address,
+                    ownerId))
+                return new(
+                    false,
+                    "turnout_authority_lost",
+                    lease);
+        }
+
+        return new(
+            true,
+            null,
+            lease);
+    }
+
     public DispatcherAcquireResult ValidateHeldLeg(
         string ownerId)
     {
