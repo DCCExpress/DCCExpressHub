@@ -1315,5 +1315,6 @@
   "movementRuntimeArrived": "Megérkezett: {{block}}",
   "movementRuntimeWaitDeparture": "Indulási feltételre vár: {{block}}",
   "movementRuntimeRandomPlaySkipped": "Véletlen hang kihagyva · dobás {{roll}}/10, határ {{threshold}}",
-  "movementRuntimeRandomPlayPlaying": "Véletlen hang lejátszása · dobás {{roll}}/10, határ {{threshold}}"
+  "movementRuntimeRandomPlayPlaying": "Véletlen hang lejátszása · dobás {{roll}}/10, határ {{threshold}}",
+  "delayAfterSensorCondition": "A késleltetés a szenzorfeltétel teljesülése után indul."
 }
