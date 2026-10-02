@@ -2828,6 +2828,19 @@ public sealed class MovementRuntime
         return true;
     }
 
+    public bool IsLocoManaged(
+        int locoAddress)
+    {
+        if (locoAddress <= 0)
+            return false;
+
+        lock (_gate)
+            return _executions.Values.Any(
+                execution =>
+                    execution.LocoAddress ==
+                        locoAddress);
+    }
+
     public string[] HoldOwners(
         string pageId)
     {
