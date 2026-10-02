@@ -26,8 +26,8 @@ public sealed record TimetableRuntimeState(
 /// matching happen here, independently from browser timer throttling/sleep.
 ///
 /// Movement targets are started directly through MovementRuntime. Script targets
-/// are delegated to the active WebUI script worker through ScriptRequested,
-/// because JavaScript execution is intentionally still a separate subsystem.
+/// are started directly through the backend ScriptRuntime. Browser presence or
+/// Control Station ownership is not part of runtime lifetime.
 /// </summary>
 public sealed class TimetableRuntime : BackgroundService
 {
