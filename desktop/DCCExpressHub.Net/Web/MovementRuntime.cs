@@ -760,8 +760,7 @@ public sealed class MovementRuntime
             value +
             (
                 value.Contains(
-                    '.',
-                    StringComparison.Ordinal)
+                    '.')
                     ? ""
                     : ".mp3"
             );
