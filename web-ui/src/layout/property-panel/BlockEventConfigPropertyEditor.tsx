@@ -4,6 +4,7 @@ import {
   Button,
   Card,
   Group,
+  NumberInput,
   ScrollArea,
   Select,
   Stack,
@@ -68,8 +69,11 @@ function cloneConfig(
     direction: BlockDirectionEventConfigDto
   ): BlockDirectionEventConfigDto => ({
     arrival: direction.arrival.map(item => ({ ...item })),
+    arrivalDelayMs: direction.arrivalDelayMs,
     arrived: direction.arrived.map(item => ({ ...item })),
+    arrivedDelayMs: direction.arrivedDelayMs,
     leave: direction.leave.map(item => ({ ...item })),
+    leaveDelayMs: direction.leaveDelayMs,
   });
 
   return {
@@ -107,6 +111,7 @@ const TEXT = {
     arrived: "Arrived",
     leave: "Elhagyás",
     sensor: "Szenzor",
+    delayMs: "Késleltetés (ms)",
     addSensor: "Szenzor hozzáadása",
     empty: "Nincs külön feltétel.",
     occupancyFallbackOn:
@@ -142,6 +147,7 @@ const TEXT = {
     arrived: "Arrived",
     leave: "Leave",
     sensor: "Sensor",
+    delayMs: "Delay (ms)",
     addSensor: "Add sensor",
     empty: "No explicit condition.",
     occupancyFallbackOn:
@@ -177,6 +183,7 @@ const TEXT = {
     arrived: "Arrived",
     leave: "Verlassen",
     sensor: "Sensor",
+    delayMs: "Verzögerung (ms)",
     addSensor: "Sensor hinzufügen",
     empty: "Keine explizite Bedingung.",
     occupancyFallbackOn:
@@ -632,14 +639,63 @@ export default function BlockEventConfigPropertyEditor({
       ...current,
       [to]: {
         arrival: current[from].arrival.map(item => ({ ...item })),
+        arrivalDelayMs: current[from].arrivalDelayMs,
         arrived: current[from].arrived.map(item => ({ ...item })),
+        arrivedDelayMs: current[from].arrivedDelayMs,
         leave: current[from].leave.map(item => ({ ...item })),
+        leaveDelayMs: current[from].leaveDelayMs,
+      },
+    }));
+  };
+
+  const delayKey = (
+    group: SensorGroupKey
+  ):
+    | "arrivalDelayMs"
+    | "arrivedDelayMs"
+    | "leaveDelayMs" =>
+    group === "arrival"
+      ? "arrivalDelayMs"
+      : group === "arrived"
+        ? "arrivedDelayMs"
+        : "leaveDelayMs";
+
+  const updateDelay = (
+    targetDirection: Direction,
+    group: SensorGroupKey,
+    delayMs: number
+  ) => {
+    const key =
+      delayKey(
+        group
+      );
+
+    setDraft(current => ({
+      ...current,
+      [targetDirection]: {
+        ...current[targetDirection],
+        [key]:
+          Math.max(
+            0,
+            Math.min(
+              600000,
+              Math.round(
+                delayMs
+              )
+            )
+          ),
       },
     }));
   };
 
   const renderGroup = (group: SensorGroupKey) => {
     const conditions = draft[direction][group];
+    const delayMs =
+      draft[direction][
+        delayKey(
+          group
+        )
+      ];
     const used = new Set(conditions.map(item => item.sensor));
     const available = sensorOptions.filter(option => !used.has(Number(option.value)));
     const next = available[0] ?? null;
@@ -654,7 +710,7 @@ export default function BlockEventConfigPropertyEditor({
     return (
       <Card key={group} withBorder padding="sm">
         <Stack gap="xs">
-          <Group justify="space-between" align="center">
+          <Group justify="space-between" align="flex-end" wrap="wrap">
             <Group gap="xs">
               <Text fw={700} size="sm">
                 {text[group]}
@@ -664,24 +720,48 @@ export default function BlockEventConfigPropertyEditor({
               </Badge>
             </Group>
 
-            <Button
-              size="compact-xs"
-              variant="light"
-              leftSection={<IconPlus size={13} />}
-              disabled={!next}
-              onClick={() => {
-                if (!next) return;
-                updateGroup(direction, group, [
-                  ...conditions,
-                  {
-                    sensor: Number(next.value),
-                    state: true,
-                  },
-                ]);
-              }}
-            >
-              {text.addSensor}
-            </Button>
+            <Group gap="xs" align="flex-end">
+              <NumberInput
+                size="xs"
+                label={text.delayMs}
+                value={delayMs}
+                min={0}
+                max={600000}
+                step={100}
+                allowDecimal={false}
+                clampBehavior="strict"
+                w={150}
+                onChange={
+                  value =>
+                    updateDelay(
+                      direction,
+                      group,
+                      typeof value === "number"
+                        ? value
+                        : Number(value) || 0
+                    )
+                }
+              />
+
+              <Button
+                size="compact-xs"
+                variant="light"
+                leftSection={<IconPlus size={13} />}
+                disabled={!next}
+                onClick={() => {
+                  if (!next) return;
+                  updateGroup(direction, group, [
+                    ...conditions,
+                    {
+                      sensor: Number(next.value),
+                      state: true,
+                    },
+                  ]);
+                }}
+              >
+                {text.addSensor}
+              </Button>
+            </Group>
           </Group>
 
           {conditions.length === 0 ? (
