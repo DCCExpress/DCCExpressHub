@@ -83,9 +83,6 @@ import {
   useAutomationFlowRuntime,
 } from "@/components/automation/useAutomationFlowRuntime";
 import {
-  abortAllClientScriptExecutions,
-} from "@/services/clientScriptRunner";
-import {
   setControlStationRuntimeActive,
 } from "@/services/controlStationRuntime";
 import {
@@ -1409,17 +1406,14 @@ export default function App() {
 
   useEffect(
     () => {
+      /*
+       * Control Station ownership now gates operator commands only.
+       * Script/Flow/Timetable/Movement execution is backend-owned and must
+       * survive this browser losing ownership or closing.
+       */
       setControlStationRuntimeActive(
         controlStationGranted
       );
-
-      if (
-        !controlStationGranted
-      ) {
-        abortAllClientScriptExecutions(
-          "Control Station ownership is not active."
-        );
-      }
     },
     [
       controlStationGranted,
