@@ -29,6 +29,26 @@ public sealed class TrackAuthorityRuntime
     Dictionary<string, HashSet<int>> _sectionPartOwners =
         new(StringComparer.Ordinal);
 
+    /*
+     * Expected ownership bridges the few milliseconds between:
+     *   protected-zone authority granted -> sensor becomes ON -> Tracking
+     *   confirms the physical locomotive.
+     *
+     * Only Movement's CURRENT NEXT protected zone is armed, and only while
+     * its sensors were observed FREE. It is not equivalent to reserving an
+     * entire leg.
+     */
+    readonly Dictionary<string, (int LocoAddress, HashSet<ushort> Sensors)>
+        _expected = new(StringComparer.Ordinal);
+
+    /*
+     * Once an expected FREE->ON transition is observed, keep that sensor
+     * provisionally owned until either Tracking confirms an owner or the
+     * sensor turns OFF. This prevents a second Movement from treating the
+     * same physical occupancy as unknown during Tracking handover.
+     */
+    readonly Dictionary<ushort, int> _provisionalSensorOwners = [];
+
     public TrackAuthorityRuntime(
         LayoutRuntime layout)
     {
@@ -104,7 +124,73 @@ public sealed class TrackAuthorityRuntime
                 sensorOwners;
             _sectionPartOwners =
                 sectionOwners;
+
+            foreach (var sensor in
+                     sensorOwners.Keys)
+                _provisionalSensorOwners.Remove(
+                    sensor);
         }
+    }
+
+    public void ArmExpectedSensors(
+        string ownerKey,
+        int locoAddress,
+        IEnumerable<ushort> sensors)
+    {
+        if (string.IsNullOrWhiteSpace(
+                ownerKey) ||
+            locoAddress <= 0)
+            return;
+
+        var armed =
+            (sensors ?? [])
+                .Where(sensor =>
+                    sensor > 0 &&
+                    _layout.TryGetSensorState(
+                        sensor,
+                        out var on) &&
+                    !on)
+                .Distinct()
+                .ToHashSet();
+
+        lock (_gate)
+        {
+            if (armed.Count == 0)
+                _expected.Remove(
+                    ownerKey);
+            else
+                _expected[
+                    ownerKey] =
+                    (
+                        locoAddress,
+                        armed
+                    );
+        }
+    }
+
+    public void ClearExpectedSensors(
+        string ownerKey)
+    {
+        if (string.IsNullOrWhiteSpace(
+                ownerKey))
+            return;
+
+        lock (_gate)
+            _expected.Remove(
+                ownerKey);
+    }
+
+    public void ObserveSensorState(
+        int sensor,
+        bool on)
+    {
+        if (sensor is < 1 or > 65535 ||
+            on)
+            return;
+
+        lock (_gate)
+            _provisionalSensorOwners.Remove(
+                (ushort)sensor);
     }
 
     public TrackAuthorityCheck CheckSensorsForLoco(
@@ -132,8 +218,11 @@ public sealed class TrackAuthorityRuntime
                 continue;
 
             int[] owners;
+            int? provisionalOwner;
+            int[] expectedOwners;
 
             lock (_gate)
+            {
                 owners =
                     _sensorOwners.TryGetValue(
                         sensor,
@@ -144,30 +233,100 @@ public sealed class TrackAuthorityRuntime
                             .ToArray()
                         : [];
 
-            if (owners.Length == 1 &&
-                owners[0] ==
-                    locoAddress)
-                continue;
+                provisionalOwner =
+                    _provisionalSensorOwners.TryGetValue(
+                        sensor,
+                        out var provisional)
+                        ? provisional
+                        : null;
 
-            var blockingLoco =
-                owners
-                    .FirstOrDefault(address =>
-                        address !=
-                        locoAddress);
+                expectedOwners =
+                    _expected.Values
+                        .Where(expected =>
+                            expected.Sensors.Contains(
+                                sensor))
+                        .Select(expected =>
+                            expected.LocoAddress)
+                        .Distinct()
+                        .OrderBy(address =>
+                            address)
+                        .ToArray();
+            }
 
-            return new(
-                false,
-                sensor,
-                blockingLoco > 0
-                    ? blockingLoco
-                    : null,
-                owners.Length == 0
-                    ? "occupied_unknown"
-                    : owners.Any(address =>
+            /*
+             * Tracking is authoritative whenever it knows an owner.
+             * An expected/provisional claim can never hide another tracked
+             * locomotive.
+             */
+            if (owners.Length > 0)
+            {
+                if (owners.Length == 1 &&
+                    owners[0] ==
+                        locoAddress)
+                    continue;
+
+                var blockingLoco =
+                    owners
+                        .FirstOrDefault(address =>
+                            address !=
+                            locoAddress);
+
+                return new(
+                    false,
+                    sensor,
+                    blockingLoco > 0
+                        ? blockingLoco
+                        : null,
+                    owners.Any(address =>
                         address !=
                         locoAddress)
                         ? "occupied_by_other"
                         : "occupied_ambiguous");
+            }
+
+            if (provisionalOwner.HasValue)
+            {
+                if (provisionalOwner.Value ==
+                    locoAddress)
+                    continue;
+
+                return new(
+                    false,
+                    sensor,
+                    provisionalOwner.Value,
+                    "occupied_by_other_provisional");
+            }
+
+            /*
+             * The sensor was FREE when exactly one Movement armed it as its
+             * current next protected zone. Its later ON edge is therefore the
+             * expected entry of that loco unless Tracking says otherwise.
+             */
+            if (expectedOwners.Length == 1 &&
+                expectedOwners[0] ==
+                    locoAddress)
+            {
+                lock (_gate)
+                    _provisionalSensorOwners[
+                        sensor] =
+                        locoAddress;
+
+                continue;
+            }
+
+            return new(
+                false,
+                sensor,
+                expectedOwners
+                    .FirstOrDefault(address =>
+                        address !=
+                        locoAddress) is var blocking &&
+                    blocking > 0
+                        ? blocking
+                        : null,
+                expectedOwners.Length > 1
+                    ? "occupied_expected_ambiguous"
+                    : "occupied_unknown");
         }
 
         return new(
