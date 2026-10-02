@@ -1485,6 +1485,10 @@ public sealed class TrainTrackingRuntime
                     on;
             }
 
+            _authority.ObserveSensorState(
+                address.Value,
+                on);
+
             if (!previous.HasValue ||
                 previous.Value ==
                     on)
