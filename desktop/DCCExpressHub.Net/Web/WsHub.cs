@@ -68,8 +68,8 @@ public sealed class WsHub
         Movement.LocoChanged += loco => _ = BroadcastLoco(loco);
         Movement.PowerStateChanged += () => _ = BroadcastPower();
 
-        Scripts.Changed += state => _ = Broadcast("scriptStateChanged", state);
-        Scripts.LogChanged += entry => _ = Broadcast("scriptLog", entry);
+        Scripts.Changed += state => _ = Broadcast("automationScriptStateChanged", state);
+        Scripts.LogChanged += entry => _ = Broadcast("automationScriptLog", entry);
         Scripts.AudioRequested += request => _ = Broadcast("playAudio", new { requestId = request.RequestId, fileName = request.FileName });
         Scripts.LocoChanged += loco => _ = BroadcastLoco(loco);
         Scripts.PowerStateChanged += () => _ = BroadcastPower();
@@ -1010,7 +1010,7 @@ public sealed class WsHub
         {
             await Send(
                 ws,
-                "scriptResponse",
+                "automationScriptResponse",
                 new
                 {
                     requestId,
@@ -2359,7 +2359,7 @@ public sealed class WsHub
                     Dispatcher.RouteSnapshot()
             });
         await Send(ws, "movementSnapshot", new { states = Movement.Snapshot() });
-        await Send(ws, "scriptSnapshot", new { states = Scripts.Snapshot(), finishing = Scripts.Finishing });
+        await Send(ws, "automationScriptSnapshot", new { states = Scripts.Snapshot(), finishing = Scripts.Finishing });
         await Send(ws, "flowStateChanged", Flows.Snapshot());
         await Send(ws, "timetableStateChanged", Timetable.Snapshot());
     }
