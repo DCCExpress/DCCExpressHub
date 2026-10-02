@@ -9,10 +9,6 @@ import type {
 } from "@/domain/movement";
 
 import {
-  isControlStationRuntimeActive,
-} from "@/services/controlStationRuntime";
-
-import {
   wsApi,
 } from "@/services/wsApi";
 
@@ -245,12 +241,6 @@ class TimetableScheduler {
   start(): void {
     this.install();
 
-    if (
-      !isControlStationRuntimeActive()
-    ) {
-      return;
-    }
-
     wsApi.timetableCommand(
       this.requestId(
         "start"
@@ -262,12 +252,6 @@ class TimetableScheduler {
   stop(): void {
     this.install();
 
-    if (
-      !isControlStationRuntimeActive()
-    ) {
-      return;
-    }
-
     wsApi.timetableCommand(
       this.requestId(
         "stop"
@@ -278,12 +262,6 @@ class TimetableScheduler {
 
   rebase(): void {
     this.install();
-
-    if (
-      !isControlStationRuntimeActive()
-    ) {
-      return;
-    }
 
     wsApi.timetableCommand(
       this.requestId(
