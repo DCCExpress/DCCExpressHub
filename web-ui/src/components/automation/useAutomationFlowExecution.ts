@@ -16,10 +16,6 @@ import {
 } from "../../services/clientScriptRunner";
 
 import {
-  isControlStationRuntimeActive,
-} from "../../services/controlStationRuntime";
-
-import {
   wsApi,
 } from "../../services/wsApi";
 
@@ -285,8 +281,7 @@ export function useAutomationFlowExecution({
     ): Promise<void> => {
       if (
         !page ||
-        execution ||
-        !isControlStationRuntimeActive()
+        execution
       ) {
         return;
       }
