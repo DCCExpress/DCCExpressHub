@@ -1579,22 +1579,6 @@ public sealed class MovementRuntime
                 150);
     }
 
-    bool LegTurnoutsNeedChange(
-        MovementPlanLegModel leg)
-    {
-        foreach (var requirement in leg.TurnoutStates)
-        {
-            if (!_layout.TryGetTurnoutClosed(
-                    requirement.Address,
-                    out var closed) ||
-                closed !=
-                    requirement.Closed)
-                return true;
-        }
-
-        return false;
-    }
-
     static bool RetryableDispatcherFailure(
         DispatcherAcquireResult result)
     {
@@ -1806,18 +1790,16 @@ public sealed class MovementRuntime
             leg.From.Key,
             "beforeDepart");
 
-        if (LegTurnoutsNeedChange(
-                leg))
-        {
-            execution.Moving =
-                false;
-
-            await ApplySpeed(
-                execution,
-                force:
-                    false);
-        }
-
+        /*
+         * Keep rolling while acquiring/setting the next leg when the simple
+         * movement authority is already clear. The dispatcher still validates
+         * the destination block, every effective safety sensor, resource
+         * ownership and turnout ownership before granting the lease.
+         *
+         * Do NOT force a STOP merely because a turnout needs changing here.
+         * If authority is not available, AcquireLeg() remains fail-closed and
+         * stops the locomotive while it waits.
+         */
         var lease =
             await AcquireLeg(
                 execution,
@@ -2131,20 +2113,25 @@ public sealed class MovementRuntime
                     execution.Plan.Legs.ElementAtOrDefault(
                         leg.Index + 1);
 
+                /*
+                 * Deliberately simple rolling rule:
+                 *   1. the next target block has no locomotive/foreign target;
+                 *   2. every configured/effective sensor up to that target is
+                 *      known and FREE;
+                 *   3. an explicit DEPART condition, when present, is true.
+                 *
+                 * No predicted-train or multi-block look-ahead belongs here.
+                 */
                 var mayKeepRolling =
                     next is not null &&
                     (next.DepartWhen.Length == 0 ||
                      ConditionsSatisfied(next.DepartWhen)) &&
                     TargetBlockBasicallyFree(
                         next) &&
-                    EffectiveSafetySensors(
-                        execution.Page,
-                        next)
-                        .All(sensor =>
-                            _layout.TryGetSensorState(
-                                sensor,
-                                out var on) &&
-                            !on);
+                    SafetyFree(
+                        EffectiveSafetySensors(
+                            execution.Page,
+                            next));
 
                 execution.DesiredSpeed =
                     execution.Page.Speed;
