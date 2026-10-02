@@ -2,6 +2,7 @@ import {
   Alert,
   Badge,
   Card,
+  Divider,
   Group,
   Loader,
   ScrollArea,
@@ -892,47 +893,6 @@ export default function RoutePreviewDialog({
                                     </Group>
 
                                     {
-                                      event.delayMs >
-                                        0 && (
-                                        <Group
-                                          gap={6}
-                                          wrap="nowrap"
-                                          px="xs"
-                                          py={6}
-                                          style={{
-                                            borderRadius: 6,
-                                            background:
-                                              "var(--mantine-color-violet-light)",
-                                            border:
-                                              "1px solid var(--mantine-color-violet-light-color)",
-                                          }}
-                                        >
-                                          <IconClock
-                                            size={15}
-                                            stroke={2.2}
-                                          />
-
-                                          <Text
-                                            size="xs"
-                                            fw={800}
-                                          >
-                                            DELAY
-                                          </Text>
-
-                                          <Badge
-                                            size="sm"
-                                            variant="filled"
-                                            color="violet"
-                                          >
-                                            +{
-                                              event.delayMs
-                                            } ms
-                                          </Badge>
-                                        </Group>
-                                      )
-                                    }
-
-                                    {
                                       event.conditions.length >
                                         0
                                         ? (
@@ -948,29 +908,34 @@ export default function RoutePreviewDialog({
                                               )
                                             }
 
-                                            {
-                                              event.conditions.map(
-                                                condition => (
-                                                  <Badge
-                                                    key={
-                                                      condition.id
-                                                    }
-                                                    variant="light"
-                                                    color={
-                                                      condition.state
-                                                        ? "teal"
-                                                        : "orange"
-                                                    }
-                                                  >
-                                                    {
-                                                      conditionText(
-                                                        condition
-                                                      )
-                                                    }
-                                                  </Badge>
+                                            <Group
+                                              gap={6}
+                                              wrap="wrap"
+                                            >
+                                              {
+                                                event.conditions.map(
+                                                  condition => (
+                                                    <Badge
+                                                      key={
+                                                        condition.id
+                                                      }
+                                                      variant="light"
+                                                      color={
+                                                        condition.state
+                                                          ? "teal"
+                                                          : "orange"
+                                                      }
+                                                    >
+                                                      {
+                                                        conditionText(
+                                                          condition
+                                                        )
+                                                      }
+                                                    </Badge>
+                                                  )
                                                 )
-                                              )
-                                            }
+                                              }
+                                            </Group>
                                           </>
                                         )
                                         : (
@@ -984,6 +949,60 @@ export default function RoutePreviewDialog({
                                             }
                                           </Text>
                                         )
+                                    }
+
+                                    {
+                                      event.delayMs >
+                                        0 && (
+                                        <>
+                                          <Divider
+                                            my={2}
+                                          />
+
+                                          <Group
+                                            gap={6}
+                                            wrap="nowrap"
+                                            px="xs"
+                                            py={6}
+                                            style={{
+                                              borderRadius: 6,
+                                              background:
+                                                "var(--mantine-color-violet-light)",
+                                              border:
+                                                "1px solid var(--mantine-color-violet-light-color)",
+                                            }}
+                                          >
+                                            <IconClock
+                                              size={15}
+                                              stroke={2.2}
+                                            />
+
+                                            <Text
+                                              size="xs"
+                                              fw={800}
+                                            >
+                                              DELAY
+                                            </Text>
+
+                                            <Badge
+                                              size="sm"
+                                              variant="filled"
+                                              color="violet"
+                                            >
+                                              +{
+                                                event.delayMs
+                                              } ms
+                                            </Badge>
+                                          </Group>
+
+                                          <Text
+                                            size="xs"
+                                            c="dimmed"
+                                          >
+                                            Starts after the sensor condition is satisfied.
+                                          </Text>
+                                        </>
+                                      )
                                     }
                                   </Stack>
                                 </Card>
