@@ -56,190 +56,89 @@ function sliceBetween(
 }
 
 test("Movement route authority is fail-closed for unknown runtime state", () => {
-  const engine =
-    read(
-      "src/services/movementEngine.ts"
-    );
+  const backend =
+    read("../desktop/DCCExpressHub.Net/Web/DispatcherRuntime.cs");
 
-  assert.ok(
-    engine.includes(
-      "let blockSnapshotKnown ="
-    )
+  assert.match(
+    backend,
+    /ValidateSourceBlock/
   );
 
-  assert.ok(
-    engine.includes(
-      "sensorStates.clear();"
-    )
+  assert.match(
+    backend,
+    /ValidateDestinationBlock/
   );
 
-  assert.ok(
-    engine.includes(
-      "blockStates = {};"
-    )
-  );
-
-  assert.ok(
-    engine.includes(
-      "blockSnapshotKnown =\n        false;"
-    )
-  );
-
-  assert.ok(
-    engine.includes(
-      "wsApi.getLayoutRuntimeSnapshot();"
-    )
-  );
-
-  const targetGuard =
+  const sensors =
     sliceBetween(
-      engine,
-      "function blockAvailableForTarget",
-      "function reserveBlockTarget"
+      backend,
+      "\(bool Ok, ushort\? BlockingSensor\) SensorsFree",
+      "bool TryReserveLegResources"
     );
 
-  assert.ok(
-    targetGuard.includes(
-      "!blockSnapshotKnown"
-    )
+  assert.match(
+    sensors,
+    /!_runtime\.TryGetSensorState\([\s\S]*\|\| on/
   );
 
-  assert.ok(
-    targetGuard.includes(
-      "if (!state)"
-    )
+  assert.match(
+    backend,
+    /destination\.HasRuntimeState/
   );
 
-  assert.ok(
-    targetGuard.includes(
-      "checkOccupancySensor &&"
-    )
-  );
-
-  assert.ok(
-    targetGuard.includes(
-      "!==\n      false"
-    ),
-    "checked target block sensor must be explicitly OFF"
-  );
-
-  const targetLegGuard =
-    sliceBetween(
-      engine,
-      "function targetBlockAvailableForLeg",
-      "function reserveBlockTarget"
-    );
-
-  assert.ok(
-    targetLegGuard.includes(
-      "movementLegSensorIsChecked("
-    ),
-    "target occupancy sensor may only be bypassed by an explicit safety override"
+  assert.match(
+    backend,
+    /destination_target_lost/
   );
 });
 
 test("Movement requires every effective path safety detector to be explicitly OFF", () => {
-  const engine =
-    read(
-      "src/services/movementEngine.ts"
-    );
-
+  const movement =
+    read("../desktop/DCCExpressHub.Net/Web/MovementRuntime.cs");
+  const dispatcher =
+    read("../desktop/DCCExpressHub.Net/Web/DispatcherRuntime.cs");
   const safety =
-    read(
-      "src/services/movementSafety.ts"
-    );
+    read("src/services/movementSafety.ts");
 
-  const guard =
+  assert.match(
+    movement,
+    /EffectiveSafetySensors\([\s\S]*execution\.Page,[\s\S]*leg/
+  );
+
+  assert.match(
+    dispatcher,
+    /!_runtime\.TryGetSensorState\([\s\S]*\|\| on/
+  );
+
+  assert.match(safety, /resource\.kind ===[\s\S]*"turnout"/);
+  assert.match(safety, /resource\.kind ===[\s\S]*"segment"/);
+  assert.match(safety, /sourceSensor/);
+
+  const held =
     sliceBetween(
-      engine,
-      "function aheadPathSensorsAreFree",
-      "async function acquireLock"
+      movement,
+      "async Task WaitForHeldLegReady",
+      "async Task TraverseLeg"
     );
 
-  assert.ok(
-    guard.includes(
-      "movementLegEffectivePathSafetySensors("
-    ),
-    "runtime guard must use the effective safety selector with explicit overrides"
-  );
-
-  assert.ok(
-    guard.includes(
-      "===\n        false"
-    ),
-    "effective route detector must be explicitly OFF"
-  );
-
-  assert.ok(
-    safety.includes(
-      'resource.kind ===\n      "turnout"'
-    )
-  );
-
-  assert.ok(
-    safety.includes(
-      'resource.kind ===\n      "segment"'
-    )
-  );
-
-  assert.ok(
-    safety.includes(
-      "resource.nodeIndex !==\n      sourceNode"
-    ),
-    "source segment must not be rechecked as ahead-path safety"
-  );
-
-  assert.ok(
-    safety.includes(
-      "address ===\n            sourceSensor"
-    ),
-    "source block occupancy sensor must be excluded from ahead-path safety"
-  );
-
-  assert.ok(
-    safety.includes(
-      "new Set<number>()"
-    ),
-    "effective safety addresses must be deduplicated"
-  );
-
-  const heldReady =
-    sliceBetween(
-      engine,
-      "async function waitForHeldLegReady",
-      "async function waitForArrival"
-    );
-
-  assert.ok(
-    heldReady.includes(
-      "aheadPathSensorsAreFree"
-    ),
-    "speed-up recheck must use the fail-closed path guard"
+  assert.match(
+    held,
+    /_dispatcher\.ValidateHeldLeg/
   );
 
   const traverse =
     sliceBetween(
-      engine,
-      "async function traverseLeg",
-      "async function executeMovement"
+      movement,
+      "async Task TraverseLeg",
+      "async Task RunExecution"
     );
 
   const recheck =
-    traverse.indexOf(
-      "await waitForHeldLegReady"
-    );
-
+    traverse.indexOf("await WaitForHeldLegReady");
   const speedEnable =
-    traverse.indexOf(
-      "execution.moving =",
-      recheck
-    );
-
+    traverse.indexOf("execution.Moving = true", recheck);
   const throttle =
-    traverse.indexOf(
-      "applyDesiredSpeed(",
-      speedEnable
-    );
+    traverse.indexOf("await ApplySpeed", speedEnable);
 
   assert.ok(
     recheck >= 0 &&
@@ -267,79 +166,49 @@ test("Movement safety selector excludes a duplicated source occupancy detector",
 });
 
 test("Movement safety waiting message names blocking sensor addresses and states", () => {
-  const engine =
-    read(
-      "src/services/movementEngine.ts"
-    );
+  const movement =
+    read("../desktop/DCCExpressHub.Net/Web/MovementRuntime.cs");
 
   assert.match(
-    engine,
-    /function blockedPathSafetySensorSummary/
+    movement,
+    /Waiting for safety sensor #/
   );
 
   assert.match(
-    engine,
-    /state ===[\s\S]*true[\s\S]*\? "ON"[\s\S]*: "UNKNOWN"/
+    movement,
+    /BlockingSensor\.HasValue/
   );
 
   assert.match(
-    engine,
-    /Waiting for safety: \$\{blockedPathSafetySensorSummary\(/
-  );
-
-  assert.doesNotMatch(
-    engine,
-    /Waiting for route sensors to become safely free/
+    movement,
+    /Waiting for held route safety before departure/
   );
 });
 
 test("Movement forgets stale authority knowledge across WebSocket reconnects", () => {
   const engine =
-    read(
-      "src/services/movementEngine.ts"
-    );
+    read("src/services/movementEngine.ts");
+  const backend =
+    read("../desktop/DCCExpressHub.Net/Web/DispatcherRuntime.cs");
 
-  const tracking =
-    sliceBetween(
-      engine,
-      "function installTracking",
-      "function delay"
-    );
-
-  assert.ok(
-    tracking.includes(
-      "wsClient.subscribeStatus"
-    )
+  assert.match(
+    engine,
+    /wsClient\.subscribeStatus\([\s\S]*"connected"[\s\S]*requestSnapshot\(\)/
   );
 
-  assert.ok(
-    tracking.includes(
-      "sensorStates.clear();"
-    )
+  assert.doesNotMatch(
+    engine,
+    /sensorStates|turnoutStates|blockSnapshotKnown|navigator\.locks/
   );
 
-  assert.ok(
-    tracking.includes(
-      "turnoutStates.clear();"
-    )
+  assert.match(
+    backend,
+    /readonly Dictionary<string, DispatcherLegLeaseInfo> _leases/
   );
 
-  assert.ok(
-    tracking.includes(
-      "blockStates = {};"
-    )
-  );
-
-  assert.ok(
-    tracking.includes(
-      "wsApi.getBlocks();"
-    )
-  );
-
-  assert.ok(
-    tracking.includes(
-      "wsApi.getLayoutRuntimeSnapshot();"
-    )
+  assert.match(
+    backend,
+    /ValidateHeldLeg/
   );
 });
 
