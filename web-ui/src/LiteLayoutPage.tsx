@@ -69,7 +69,6 @@ import TimetableDialog from "@/components/TimetableDialog";
 import TimetablePanel from "@/components/TimetablePanel";
 import RoutesDialog from "@/components/RoutesDialog";
 import AutomationFlowDialog from "@/components/automation/AutomationFlowDialog";
-import MovementEditorDialog from "@/components/movement/MovementEditorDialog";
 import { restorePersistedTopologyMetadata } from "@/services/layoutTopologyPersistence";
 import {
   attachClientRouteTopologyToLayoutJson,
@@ -741,13 +740,12 @@ export default function LiteLayoutPage({
   const [debugOpened, setDebugOpened] = useState(false);
   const [timetableOpened, setTimetableOpened] = useState(false);
   const [routesOpened, setRoutesOpened] = useState(false);
-  const [automationFlowOpened, setAutomationFlowOpened] = useState(false);
-  const [automationFlowPageId, setAutomationFlowPageId] =
+  const [routesMovementPageId, setRoutesMovementPageId] =
     useState<string | null>(
       null
     );
-  const [movementEditorOpened, setMovementEditorOpened] = useState(false);
-  const [movementEditorPageId, setMovementEditorPageId] =
+  const [automationFlowOpened, setAutomationFlowOpened] = useState(false);
+  const [automationFlowPageId, setAutomationFlowPageId] =
     useState<string | null>(
       null
     );
@@ -1746,7 +1744,10 @@ export default function LiteLayoutPage({
                             variant="light"
                             color="blue"
                             leftSection={<IconRoute size={15} />}
-                            onClick={() => setRoutesOpened(true)}
+                            onClick={() => {
+                              setRoutesMovementPageId(null);
+                              setRoutesOpened(true);
+                            }}
                           >
                             {i18next.t("ui.routes")}
                           </Button>
@@ -1775,9 +1776,9 @@ export default function LiteLayoutPage({
                           }}
                           movements={movementDocument}
                           onMovementsChange={setMovementDocument}
-                          onOpenMovementEditor={pageId => {
-                            setMovementEditorPageId(pageId);
-                            setMovementEditorOpened(true);
+                          onSelectMovementRoute={pageId => {
+                            setRoutesMovementPageId(pageId);
+                            setRoutesOpened(true);
                           }}
                         />
                       </div>
@@ -1967,9 +1968,13 @@ export default function LiteLayoutPage({
 
       <RoutesDialog
         opened={routesOpened}
-        onClose={() => setRoutesOpened(false)}
+        onClose={() => {
+          setRoutesOpened(false);
+          setRoutesMovementPageId(null);
+        }}
         layout={layout}
         movements={movementDocument}
+        editingMovementId={routesMovementPageId}
         onMovementsChange={setMovementDocument}
         onGenerated={invalidate}
       />
@@ -1981,17 +1986,6 @@ export default function LiteLayoutPage({
         onClose={() => {
           setAutomationFlowOpened(false);
           setAutomationFlowPageId(null);
-        }}
-      />
-
-      <MovementEditorDialog
-        opened={movementEditorOpened}
-        initialPageId={movementEditorPageId}
-        layout={layout}
-        onSaved={setMovementDocument}
-        onClose={() => {
-          setMovementEditorOpened(false);
-          setMovementEditorPageId(null);
         }}
       />
 
