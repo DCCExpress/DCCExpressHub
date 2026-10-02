@@ -375,6 +375,9 @@ export type ScriptCommandAction =
   | "pauseAll"
   | "resumeAll"
   | "abortAll"
+  | "pauseAllSaved"
+  | "resumeAllSaved"
+  | "abortAllSaved"
   | "setFinishing";
 
 export type ScriptCommandPayload = {
