@@ -7,6 +7,7 @@ import {
   ScrollArea,
   Select,
   Stack,
+  TextInput,
   Table,
   Tabs,
   Text,
@@ -15,6 +16,7 @@ import {
 import {
   IconEye,
   IconPlayerPlay,
+  IconX,
   IconRefresh,
   IconRoute,
 } from "@tabler/icons-react";
@@ -35,6 +37,7 @@ import type {
 } from "@/services/clientRouteGraphBuilder";
 
 import {
+  createCurrentClientLayoutSnapshot,
   ensureClientRouteGraph,
 } from "@/services/clientRouteGraphCache";
 
@@ -47,6 +50,12 @@ import {
   type MovementDocument,
   type MovementPage,
 } from "@/domain/movement";
+
+import {
+  applyMovementRouteCandidate,
+  loadMovementRouteCandidates,
+  type MovementRouteCandidate,
+} from "@/services/movementRouteCatalog";
 
 import {
   saveAutomationMovement,
@@ -308,6 +317,40 @@ export default function RoutesDialog({
     setAssigningRoute,
   ] = useState(false);
 
+  const [
+    candidates,
+    setCandidates,
+  ] = useState<MovementRouteCandidate[]>(
+    []
+  );
+
+  const [
+    candidatesLoading,
+    setCandidatesLoading,
+  ] = useState(false);
+
+  const [
+    candidatesError,
+    setCandidatesError,
+  ] = useState<string | null>(
+    null
+  );
+
+  const [
+    selectFromFilter,
+    setSelectFromFilter,
+  ] = useState("");
+
+  const [
+    selectToFilter,
+    setSelectToFilter,
+  ] = useState("");
+
+  const [
+    movementName,
+    setMovementName,
+  ] = useState("");
+
   const generate =
     useCallback(
       (
@@ -434,6 +477,118 @@ export default function RoutesDialog({
     generate,
   ]);
 
+  useEffect(
+    () => {
+      if (!opened) {
+        return;
+      }
+
+      let disposed =
+        false;
+
+      const editingPage =
+        editingMovementId ===
+          null
+          ? null
+          : movements.pages.find(
+              page =>
+                page.id ===
+                  editingMovementId
+            ) ??
+            null;
+
+      setMovementName(
+        editingPage?.name ??
+        ""
+      );
+
+      setSelectFromFilter(
+        ""
+      );
+
+      setSelectToFilter(
+        ""
+      );
+
+      setCandidatesLoading(
+        true
+      );
+
+      setCandidatesError(
+        null
+      );
+
+      const candidateDocument: MovementDocument = {
+        ...movements,
+        pages:
+          editingMovementId ===
+            null
+            ? movements.pages
+            : movements.pages.filter(
+                page =>
+                  page.id !==
+                    editingMovementId
+              ),
+      };
+
+      const layoutSnapshot =
+        createCurrentClientLayoutSnapshot(
+          layout
+        );
+
+      void loadMovementRouteCandidates(
+        candidateDocument,
+        layoutSnapshot
+      )
+        .then(
+          loaded => {
+            if (!disposed) {
+              setCandidates(
+                loaded
+              );
+            }
+          }
+        )
+        .catch(
+          loadError => {
+            if (!disposed) {
+              setCandidates(
+                []
+              );
+
+              setCandidatesError(
+                loadError instanceof Error
+                  ? loadError.message
+                  : String(
+                      loadError
+                    )
+              );
+            }
+          }
+        )
+        .finally(
+          () => {
+            if (!disposed) {
+              setCandidatesLoading(
+                false
+              );
+            }
+          }
+        );
+
+      return () => {
+        disposed =
+          true;
+      };
+    },
+    [
+      opened,
+      editingMovementId,
+      movements,
+      layout,
+    ]
+  );
+
   const nodes =
     result?.graph.nodes ?? [];
 
@@ -530,6 +685,185 @@ export default function RoutesDialog({
         toFilter,
       ]
     );
+
+  const filteredCandidates =
+    useMemo(
+      () => {
+        const fromNeedle =
+          selectFromFilter
+            .trim()
+            .toLocaleLowerCase();
+
+        const toNeedle =
+          selectToFilter
+            .trim()
+            .toLocaleLowerCase();
+
+        return candidates.filter(
+          candidate =>
+            (
+              !fromNeedle ||
+              candidate.fromBlockName
+                .toLocaleLowerCase()
+                .includes(
+                  fromNeedle
+                )
+            ) &&
+            (
+              !toNeedle ||
+              candidate.toBlockName
+                .toLocaleLowerCase()
+                .includes(
+                  toNeedle
+                )
+            )
+        );
+      },
+      [
+        candidates,
+        selectFromFilter,
+        selectToFilter,
+      ]
+    );
+
+  const previewCandidate =
+    (
+      candidate:
+        MovementRouteCandidate
+    ): MovementPage => {
+      const base =
+        editingMovementId ===
+          null
+          ? createMovementPage(
+              movementName.trim() ||
+              candidate.fromBlockName +
+                " → " +
+                candidate.toBlockName
+            )
+          : movements.pages.find(
+              page =>
+                page.id ===
+                  editingMovementId
+            ) ??
+            createMovementPage(
+              movementName.trim() ||
+              candidate.fromBlockName +
+                " → " +
+                candidate.toBlockName
+            );
+
+      const next =
+        applyMovementRouteCandidate(
+          base,
+          candidate
+        );
+
+      return {
+        ...next,
+        name:
+          movementName.trim() ||
+          next.name,
+      };
+    };
+
+  const assignCandidateToMovement =
+    async (
+      candidate:
+        MovementRouteCandidate
+    ): Promise<void> => {
+      if (
+        candidate.used
+      ) {
+        return;
+      }
+
+      const nextPage =
+        previewCandidate(
+          candidate
+        );
+
+      const existing =
+        editingMovementId ===
+          null
+          ? null
+          : movements.pages.find(
+              page =>
+                page.id ===
+                  editingMovementId
+            ) ??
+            null;
+
+      const next: MovementDocument =
+        existing
+          ? {
+              ...movements,
+              pages:
+                movements.pages.map(
+                  page =>
+                    page.id ===
+                      existing.id
+                      ? nextPage
+                      : page
+                ),
+              activePageId:
+                nextPage.id,
+            }
+          : {
+              ...movements,
+              pages: [
+                ...movements.pages,
+                nextPage,
+              ],
+              activePageId:
+                nextPage.id,
+            };
+
+      setAssigningRoute(
+        true
+      );
+
+      try {
+        await saveAutomationMovement(
+          next
+        );
+
+        onMovementsChange(
+          next
+        );
+
+        showNotification({
+          color: "teal",
+          title:
+            t(
+              "ui.routes"
+            ),
+          message:
+            existing
+              ? "Movement route updated."
+              : "Movement added.",
+        });
+
+        onClose();
+      } catch (assignError) {
+        showNotification({
+          color: "red",
+          title:
+            t(
+              "ui.error"
+            ),
+          message:
+            assignError instanceof Error
+              ? assignError.message
+              : String(
+                  assignError
+                ),
+        });
+      } finally {
+        setAssigningRoute(
+          false
+        );
+      }
+    };
 
   const routeUsedByOtherMovement =
     (
@@ -755,10 +1089,14 @@ export default function RoutesDialog({
 
         {!error && result && (
           <Tabs
-            defaultValue="routes"
+            defaultValue="selectRoute"
             keepMounted={false}
           >
             <Tabs.List>
+              <Tabs.Tab value="selectRoute">
+                {t("ui.movementSelectRouteTitle")}
+              </Tabs.Tab>
+
               <Tabs.Tab value="routes">
                 {t("ui.routeNetwork")}
               </Tabs.Tab>
@@ -771,6 +1109,308 @@ export default function RoutesDialog({
                 {t("ui.segments")}
               </Tabs.Tab>
             </Tabs.List>
+
+            <Tabs.Panel
+              value="selectRoute"
+              pt="sm"
+            >
+              <Stack gap="sm">
+                <TextInput
+                  label={t("ui.movementName")}
+                  value={movementName}
+                  onChange={
+                    event =>
+                      setMovementName(
+                        event.currentTarget.value
+                      )
+                  }
+                  placeholder={t("ui.movementName")}
+                />
+
+                <Group
+                  gap="sm"
+                  grow
+                  align="flex-end"
+                >
+                  <TextInput
+                    label={t("ui.movementFromFilter")}
+                    placeholder={t("ui.movementFilterPlaceholder")}
+                    value={selectFromFilter}
+                    onChange={
+                      event =>
+                        setSelectFromFilter(
+                          event.currentTarget.value
+                        )
+                    }
+                    rightSection={
+                      selectFromFilter ? (
+                        <Button
+                          size="compact-xs"
+                          variant="subtle"
+                          color="gray"
+                          px={4}
+                          onClick={
+                            () =>
+                              setSelectFromFilter(
+                                ""
+                              )
+                          }
+                        >
+                          <IconX size={14} />
+                        </Button>
+                      ) : null
+                    }
+                  />
+
+                  <TextInput
+                    label={t("ui.movementToFilter")}
+                    placeholder={t("ui.movementFilterPlaceholder")}
+                    value={selectToFilter}
+                    onChange={
+                      event =>
+                        setSelectToFilter(
+                          event.currentTarget.value
+                        )
+                    }
+                    rightSection={
+                      selectToFilter ? (
+                        <Button
+                          size="compact-xs"
+                          variant="subtle"
+                          color="gray"
+                          px={4}
+                          onClick={
+                            () =>
+                              setSelectToFilter(
+                                ""
+                              )
+                          }
+                        >
+                          <IconX size={14} />
+                        </Button>
+                      ) : null
+                    }
+                  />
+                </Group>
+
+                {
+                  candidatesLoading && (
+                    <Text
+                      size="sm"
+                      c="dimmed"
+                    >
+                      {t("ui.loading")}
+                    </Text>
+                  )
+                }
+
+                {
+                  candidatesError && (
+                    <Alert
+                      color="red"
+                      title={t("ui.error")}
+                    >
+                      {candidatesError}
+                    </Alert>
+                  )
+                }
+
+                {
+                  !candidatesLoading &&
+                  !candidatesError && (
+                    <ScrollArea.Autosize mah="54dvh">
+                      <Table
+                        striped
+                        highlightOnHover
+                        withTableBorder
+                        withColumnBorders
+                      >
+                        <Table.Thead>
+                          <Table.Tr>
+                            <Table.Th>
+                              {t("ui.path")}
+                            </Table.Th>
+
+                            <Table.Th>
+                              {t("ui.blockPath")}
+                            </Table.Th>
+
+                            <Table.Th>
+                              {t("ui.direction")}
+                            </Table.Th>
+
+                            <Table.Th>
+                              {t("ui.turnouts")}
+                            </Table.Th>
+
+                            <Table.Th
+                              style={{ width: 110 }}
+                            >
+                              {t("ui.preview")}
+                            </Table.Th>
+
+                            <Table.Th
+                              style={{ width: 110 }}
+                            />
+                          </Table.Tr>
+                        </Table.Thead>
+
+                        <Table.Tbody>
+                          {
+                            filteredCandidates.map(
+                              candidate => (
+                                <Table.Tr
+                                  key={
+                                    candidate.key
+                                  }
+                                >
+                                  <Table.Td>
+                                    <Stack gap={2}>
+                                      <Text
+                                        fw={700}
+                                        size="sm"
+                                      >
+                                        {
+                                          candidate.fromBlockName
+                                        }
+                                        {" → "}
+                                        {
+                                          candidate.toBlockName
+                                        }
+                                      </Text>
+
+                                      {
+                                        candidate.used && (
+                                          <Text
+                                            size="xs"
+                                            c="red"
+                                          >
+                                            {
+                                              candidate.usedByMovementNames.join(
+                                                ", "
+                                              )
+                                            }
+                                          </Text>
+                                        )
+                                      }
+                                    </Stack>
+                                  </Table.Td>
+
+                                  <Table.Td>
+                                    <Text size="sm">
+                                      {
+                                        candidate.blockPath
+                                          .map(
+                                            block =>
+                                              block.name
+                                          )
+                                          .join(
+                                            " → "
+                                          )
+                                      }
+                                    </Text>
+
+                                    {
+                                      candidate.nodePath.length >
+                                        0 && (
+                                        <Text
+                                          size="xs"
+                                          c="dimmed"
+                                        >
+                                          {
+                                            candidate.nodePath.join(
+                                              " → "
+                                            )
+                                          }
+                                        </Text>
+                                      )
+                                    }
+                                  </Table.Td>
+
+                                  <Table.Td>
+                                    <Badge
+                                      variant="light"
+                                      color={
+                                        candidate.locoDirection ===
+                                          "forward"
+                                          ? "blue"
+                                          : candidate.locoDirection ===
+                                              "reverse"
+                                            ? "orange"
+                                            : "gray"
+                                      }
+                                    >
+                                      {
+                                        candidate.locoDirection ===
+                                          "forward"
+                                          ? t("ui.forward")
+                                          : candidate.locoDirection ===
+                                              "reverse"
+                                            ? t("ui.reverse")
+                                            : t("ui.unknown")
+                                      }
+                                    </Badge>
+                                  </Table.Td>
+
+                                  <Table.Td>
+                                    {
+                                      candidate.turnoutCount
+                                    }
+                                  </Table.Td>
+
+                                  <Table.Td>
+                                    <Button
+                                      size="xs"
+                                      variant="light"
+                                      leftSection={
+                                        <IconEye size={14} />
+                                      }
+                                      onClick={
+                                        () =>
+                                          setPreviewPage(
+                                            previewCandidate(
+                                              candidate
+                                            )
+                                          )
+                                      }
+                                    >
+                                      {t("ui.preview")}
+                                    </Button>
+                                  </Table.Td>
+
+                                  <Table.Td>
+                                    <Button
+                                      size="xs"
+                                      fullWidth
+                                      color="teal"
+                                      disabled={
+                                        candidate.used ||
+                                        assigningRoute
+                                      }
+                                      loading={
+                                        assigningRoute
+                                      }
+                                      onClick={
+                                        () =>
+                                          void assignCandidateToMovement(
+                                            candidate
+                                          )
+                                      }
+                                    >
+                                      {t("ui.select")}
+                                    </Button>
+                                  </Table.Td>
+                                </Table.Tr>
+                              )
+                            )
+                          }
+                        </Table.Tbody>
+                      </Table>
+                    </ScrollArea.Autosize>
+                  )
+                }
+              </Stack>
+            </Tabs.Panel>
 
             <Tabs.Panel
               value="graph"
