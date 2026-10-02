@@ -120,10 +120,14 @@ public sealed class TrainEventRuntime
                 locoAddress);
 
         var sensors =
-            new[]
-            {
-                resource.SensorAddress
-            }
+            (
+                resource.SensorAddress is >= 1 and <= 65535
+                    ? new[]
+                    {
+                        resource.SensorAddress.Value
+                    }
+                    : Array.Empty<int>()
+            )
             .Concat(
                 resource.Detectors ??
                 [])
