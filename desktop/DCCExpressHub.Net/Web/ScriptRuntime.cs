@@ -3159,6 +3159,27 @@ public sealed class ScriptRuntime
                 {
                     run.Cancellation.Token.ThrowIfCancellationRequested();
 
+                    if (run.ReservationOwnerId is null)
+                        throw new InvalidOperationException(
+                            "smart_dispatcher_leg_authority_missing");
+
+                    var authority =
+                        _dispatcher.ValidateHeldLegAuthority(
+                            run.ReservationOwnerId);
+
+                    if (!authority.Ok)
+                    {
+                        run.MotionAuthorized =
+                            false;
+
+                        await ApplySmartSpeed(
+                            run);
+
+                        throw new InvalidOperationException(
+                            authority.Error ??
+                            "smart_dispatcher_leg_authority_lost");
+                    }
+
                     var arrived =
                         arrivalConditions.All(
                             condition =>
