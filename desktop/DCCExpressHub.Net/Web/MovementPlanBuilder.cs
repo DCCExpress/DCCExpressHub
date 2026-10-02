@@ -533,6 +533,151 @@ public sealed class MovementPlanBuilder
                 false);
     }
 
+    public MovementPlanModel BuildForBlockNames(
+        IEnumerable<string> requestedBlockNames)
+    {
+        var checkpoints =
+            (requestedBlockNames ?? [])
+                .Select(name =>
+                    (name ?? "").Trim())
+                .Where(name =>
+                    name.Length > 0)
+                .ToArray();
+
+        if (checkpoints.Length < 2)
+            throw new InvalidOperationException(
+                "dispatcher_requires_two_blocks");
+
+        var path =
+            Path.Combine(
+                _env.ContentRootPath,
+                "data",
+                "config",
+                "layout.json");
+
+        if (!File.Exists(path))
+            throw new InvalidOperationException(
+                "movement_layout_not_found");
+
+        using var document =
+            JsonDocument.Parse(
+                File.ReadAllText(path));
+
+        var root =
+            document.RootElement;
+
+        if (!root.TryGetProperty(
+                "routeTopology",
+                out var topology) ||
+            topology.ValueKind !=
+                JsonValueKind.Object ||
+            !topology.TryGetProperty(
+                "routeTable",
+                out var routeTable) ||
+            routeTable.ValueKind !=
+                JsonValueKind.Array)
+            throw new InvalidOperationException(
+                "movement_route_topology_incomplete");
+
+        static bool ContainsNames(
+            JsonElement route,
+            IReadOnlyList<string> names)
+        {
+            if (!route.TryGetProperty(
+                    "blockPath",
+                    out var rawBlocks) ||
+                rawBlocks.ValueKind !=
+                    JsonValueKind.Array)
+                return false;
+
+            var index =
+                0;
+
+            foreach (var block in
+                     rawBlocks.EnumerateArray())
+            {
+                if (index >=
+                    names.Count)
+                    return true;
+
+                var name =
+                    Str(
+                        block,
+                        "name");
+
+                if (string.Equals(
+                        name,
+                        names[index],
+                        StringComparison.OrdinalIgnoreCase))
+                    index++;
+            }
+
+            return index ==
+                   names.Count;
+        }
+
+        var candidates =
+            routeTable
+                .EnumerateArray()
+                .Where(route =>
+                {
+                    if (!route.TryGetProperty(
+                            "blockPath",
+                            out var rawBlocks) ||
+                        rawBlocks.ValueKind !=
+                            JsonValueKind.Array)
+                        return false;
+
+                    var blocks =
+                        rawBlocks
+                            .EnumerateArray()
+                            .ToArray();
+
+                    if (blocks.Length < 2)
+                        return false;
+
+                    return
+                        string.Equals(
+                            Str(
+                                blocks[0],
+                                "name"),
+                            checkpoints[0],
+                            StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(
+                            Str(
+                                blocks[^1],
+                                "name"),
+                            checkpoints[^1],
+                            StringComparison.OrdinalIgnoreCase) &&
+                        ContainsNames(
+                            route,
+                            checkpoints);
+                })
+                .Select(route =>
+                    route.Clone())
+                .ToArray();
+
+        if (candidates.Length == 0)
+            throw new InvalidOperationException(
+                "dispatcher_route_not_found");
+
+        if (candidates.Length > 1)
+            throw new InvalidOperationException(
+                "dispatcher_route_ambiguous");
+
+        return Build(
+            new MovementPageModel
+            {
+                Id =
+                    "script-route",
+                Name =
+                    "Script route",
+                RouteKey =
+                    CanonicalRouteKey(
+                        candidates[0])
+            });
+    }
+
     public MovementPlanModel Build(
         MovementPageModel page)
     {
