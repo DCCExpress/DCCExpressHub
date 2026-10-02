@@ -2246,8 +2246,8 @@ public sealed class MovementRuntime
                 throw new InvalidOperationException(
                     "movement_destination_has_no_arrival_condition");
 
-            while (!ConditionsSatisfied(
-                       leg.ArrivedWhen))
+            while (!ArrivalSatisfied(
+                       leg))
             {
                 execution.Cancellation.Token.ThrowIfCancellationRequested();
 
