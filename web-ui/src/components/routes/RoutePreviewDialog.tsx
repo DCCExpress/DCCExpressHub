@@ -974,6 +974,13 @@ export default function RoutePreviewDialog({
                                               event.delayMs
                                             } ms
                                           </Badge>
+
+                                          <Text
+                                            size="xs"
+                                            c="dimmed"
+                                          >
+                                            Starts after the sensor condition is satisfied.
+                                          </Text>
                                         </>
                                       )
                                     }
