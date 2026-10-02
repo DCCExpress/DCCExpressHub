@@ -555,8 +555,18 @@ export default function BlockEventConfigPropertyEditor({
         continue;
       }
 
-      if (element instanceof TrackElement && element.hasOccupancySensor) {
-        add(element.address, element.name);
+      if (
+        element instanceof TrackElement &&
+        Number.isInteger(
+          element.address
+        ) &&
+        element.address >
+          0
+      ) {
+        add(
+          element.address,
+          element.name
+        );
       }
     }
 
