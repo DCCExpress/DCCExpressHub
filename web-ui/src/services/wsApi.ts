@@ -249,23 +249,25 @@ class WebSocketApi {
   dispatcherCommand(
     requestId: string,
     action:
-      | "snapshot"
-      | "acquireLeg"
-      | "releaseLeg"
-      | "acquireRoute"
-      | "commitRoute"
-      | "releaseRoute"
-      | "releaseAll",
+      ClientWsPayloadMap[
+        "dispatcherCommand"
+      ]["action"],
     values:
-      Record<string, unknown> =
+      Omit<
+        ClientWsPayloadMap[
+          "dispatcherCommand"
+        ],
+        "requestId" |
+        "action"
+      > =
         {}
   ): boolean {
     return this.send(
       "dispatcherCommand",
       {
+        ...values,
         requestId,
         action,
-        ...values,
       }
     );
   }
@@ -273,15 +275,17 @@ class WebSocketApi {
   dispatcherRequest(
     requestId: string,
     action:
-      | "snapshot"
-      | "acquireLeg"
-      | "releaseLeg"
-      | "acquireRoute"
-      | "commitRoute"
-      | "releaseRoute"
-      | "releaseAll",
+      ClientWsPayloadMap[
+        "dispatcherCommand"
+      ]["action"],
     values:
-      Record<string, unknown> =
+      Omit<
+        ClientWsPayloadMap[
+          "dispatcherCommand"
+        ],
+        "requestId" |
+        "action"
+      > =
         {},
     timeoutMs =
       15000
@@ -289,9 +293,9 @@ class WebSocketApi {
     return this.request(
       "dispatcherCommand",
       {
+        ...values,
         requestId,
         action,
-        ...values,
       },
       "dispatcherResponse",
       response =>
