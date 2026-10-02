@@ -21,13 +21,6 @@ public sealed record TimetableRuntimeState(
     string? LastTriggeredTargetName,
     TimetableActiveRunState[] ActiveRuns);
 
-public sealed record TimetableScriptRequest(
-    string RunId,
-    string ScriptId,
-    string Name,
-    string Script,
-    string ExecutionId);
-
 /// <summary>
 /// Backend-authoritative timetable scheduler. FastClock traversal and schedule
 /// matching happen here, independently from browser timer throttling/sleep.
@@ -47,6 +40,7 @@ public sealed class TimetableRuntime : BackgroundService
     readonly IWebHostEnvironment _env;
     readonly FastClockRuntime _fastClock;
     readonly MovementRuntime _movement;
+    readonly ScriptRuntime _scripts;
     readonly ILogger<TimetableRuntime> _log;
     readonly JsonSerializerOptions _json =
         new(JsonSerializerDefaults.Web);
@@ -62,21 +56,25 @@ public sealed class TimetableRuntime : BackgroundService
         new(StringComparer.Ordinal);
 
     public event Action<TimetableRuntimeState>? Changed;
-    public event Action<TimetableScriptRequest>? ScriptRequested;
 
     public TimetableRuntime(
         IWebHostEnvironment env,
         FastClockRuntime fastClock,
         MovementRuntime movement,
+        ScriptRuntime scripts,
         ILogger<TimetableRuntime> log)
     {
         _env = env;
         _fastClock = fastClock;
         _movement = movement;
+        _scripts = scripts;
         _log = log;
 
         _movement.Changed +=
             OnMovementChanged;
+
+        _scripts.Changed +=
+            OnScriptChanged;
     }
 
     public TimetableRuntimeState Snapshot()
@@ -150,99 +148,6 @@ public sealed class TimetableRuntime : BackgroundService
                     _fastClock.GetSnapshot().TimeMs);
 
         Publish();
-    }
-
-    public int FailDelegatedScripts(
-        string reason)
-    {
-        string[] runIds;
-
-        lock (_gate)
-        {
-            runIds =
-                _activeRuns
-                    .Where(pair =>
-                        pair.Value.TargetType ==
-                            "script")
-                    .Select(pair =>
-                        pair.Key)
-                    .ToArray();
-
-            foreach (var runId in runIds)
-                _activeRuns.Remove(
-                    runId);
-        }
-
-        if (runIds.Length > 0)
-        {
-            _log.LogWarning(
-                "Timetable removed {Count} delegated script run(s): {Reason}",
-                runIds.Length,
-                reason);
-
-            Publish();
-        }
-
-        return runIds.Length;
-    }
-
-    public bool UpdateScriptStatus(
-        string runId,
-        string status,
-        string? message)
-    {
-        if (status is not ("running" or "paused"))
-            return false;
-
-        lock (_gate)
-        {
-            if (!_activeRuns.TryGetValue(
-                    runId,
-                    out var run) ||
-                run.TargetType !=
-                    "script")
-                return false;
-
-            _activeRuns[runId] =
-                run with
-                {
-                    Status =
-                        status,
-                    Message =
-                        message
-                };
-        }
-
-        Publish();
-        return true;
-    }
-
-    public bool CompleteScript(
-        string runId,
-        bool ok,
-        string? message)
-    {
-        bool removed;
-
-        lock (_gate)
-        {
-            removed =
-                _activeRuns.Remove(
-                    runId);
-        }
-
-        if (removed)
-        {
-            if (!ok)
-                _log.LogWarning(
-                    "Timetable script run {RunId} failed: {Message}",
-                    runId,
-                    message);
-
-            Publish();
-        }
-
-        return removed;
     }
 
     static long NormalizeDayTime(
@@ -821,7 +726,9 @@ public sealed class TimetableRuntime : BackgroundService
             NewRunId();
 
         var executionId =
-            "automation:" +
+            "timetable:" +
+            runId +
+            ":" +
             script.Id;
 
         var active =
@@ -852,23 +759,40 @@ public sealed class TimetableRuntime : BackgroundService
                 script.Name;
         }
 
+        Publish();
+
+        var result =
+            _scripts.StartSaved(
+                script.Id,
+                executionId,
+                "timetable");
+
+        if (!result.Ok)
+        {
+            lock (_gate)
+                _activeRuns.Remove(
+                    runId);
+
+            _log.LogWarning(
+                "Timetable script {Script} was not started: {Error}",
+                script.Name,
+                result.Error);
+
+            Publish();
+            return;
+        }
+
         lock (_gate)
             _activeRuns[runId] =
                 active with
                 {
                     Status =
-                        "running"
+                        "running",
+                    Message =
+                        result.State.Info
                 };
 
         Publish();
-
-        ScriptRequested?.Invoke(
-            new TimetableScriptRequest(
-                runId,
-                script.Id,
-                script.Name,
-                script.Script,
-                executionId));
     }
 
     void OnMovementChanged(
@@ -914,6 +838,60 @@ public sealed class TimetableRuntime : BackgroundService
         }
 
         Publish();
+    }
+
+    void OnScriptChanged(
+        ScriptRuntimeState state)
+    {
+        bool changed =
+            false;
+
+        lock (_gate)
+        {
+            var pair =
+                _activeRuns
+                    .FirstOrDefault(item =>
+                        item.Value.TargetType ==
+                            "script" &&
+                        string.Equals(
+                            item.Value.ExecutionId,
+                            state.ExecutionId,
+                            StringComparison.Ordinal));
+
+            if (pair.Key is null)
+                return;
+
+            var run =
+                pair.Value;
+
+            if (state.Status is
+                "running" or
+                "paused")
+            {
+                _activeRuns[pair.Key] =
+                    run with
+                    {
+                        Status =
+                            state.Status,
+                        Message =
+                            state.Info
+                    };
+
+                changed =
+                    true;
+            }
+            else
+            {
+                _activeRuns.Remove(
+                    pair.Key);
+
+                changed =
+                    true;
+            }
+        }
+
+        if (changed)
+            Publish();
     }
 
     sealed record ParsedCron(
