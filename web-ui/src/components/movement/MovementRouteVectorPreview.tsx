@@ -34,6 +34,8 @@ import {
   useMovementTranslation,
 } from "./movementI18n";
 
+import "../../styles/movementEditor.css";
+
 type Props = {
   page:
     MovementPage;
