@@ -1084,7 +1084,6 @@
   "noUpcomingTimetableRows": "Nincs következő menetrendi sor.",
   "timetableJumpBeforeFirst": "Első indulás elé {{seconds}} mp",
   "fastClockSetTimeFailed": "A FastClock idejét nem sikerült beállítani.",
-  "timetableControlStationRequired": "Control Station szükséges",
   "movementFrom": "HONNAN",
   "movementTo": "HOVA",
   "movementVia": "ÉRINTVE",

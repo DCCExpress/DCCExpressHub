@@ -616,68 +616,6 @@ void WsProtocol::sendPowerInfo(
         data.as<JsonVariantConst>());
 }
 
-void WsProtocol::sendControlStationStatus(
-    AsyncWebSocketClient *client)
-{
-    JsonDocument data;
-
-    data["active"] =
-        _controlStationOwnerConnectionId != 0;
-
-    if (
-        _controlStationOwnerConnectionId != 0)
-    {
-        data["ownerClientId"] =
-            _controlStationOwnerClientId;
-
-        data["ownerName"] =
-            _controlStationOwnerName;
-    }
-    else
-    {
-        data["ownerClientId"] =
-            nullptr;
-
-        data["ownerName"] =
-            nullptr;
-    }
-
-    send(
-        client,
-        "controlStationStatus",
-        data.as<JsonVariantConst>());
-}
-
-void WsProtocol::broadcastControlStationStatus()
-{
-    JsonDocument data;
-
-    data["active"] =
-        _controlStationOwnerConnectionId != 0;
-
-    if (
-        _controlStationOwnerConnectionId != 0)
-    {
-        data["ownerClientId"] =
-            _controlStationOwnerClientId;
-
-        data["ownerName"] =
-            _controlStationOwnerName;
-    }
-    else
-    {
-        data["ownerClientId"] =
-            nullptr;
-
-        data["ownerName"] =
-            nullptr;
-    }
-
-    broadcast(
-        "controlStationStatus",
-        data);
-}
-
 void WsProtocol::broadcastPowerInfo()
 {
     JsonDocument data;
@@ -3798,9 +3736,6 @@ void WsProtocol::handleEvent(
             "ws:welcome",
             welcome.as<JsonVariantConst>());
 
-        sendControlStationStatus(
-            client);
-
         sendRuntimeSnapshot(
             client);
 
@@ -3825,25 +3760,6 @@ void WsProtocol::handleEvent(
             "WS client disconnected #" +
             String(
                 client->id()));
-
-        if (
-            _controlStationOwnerConnectionId ==
-            client->id())
-        {
-            _controlStationOwnerConnectionId =
-                0;
-
-            _controlStationOwnerClientId =
-                "";
-
-            _controlStationOwnerName =
-                "";
-
-            broadcastControlStationStatus();
-
-            Logger::info(
-                "Control Station released because owner disconnected");
-        }
 
         return;
     }
@@ -3946,144 +3862,9 @@ void WsProtocol::handleMessage(
     if (
         strcmp(
             type,
-            "controlStationClaim") ==
-        0)
-    {
-        const String requestedClientId =
-            data["clientId"] |
-            "";
-
-        const String requestedName =
-            data["clientName"] |
-            "";
-
-        const bool granted =
-            _controlStationOwnerConnectionId ==
-                0 ||
-            _controlStationOwnerConnectionId ==
-                client->id();
-
-        if (
-            granted)
-        {
-            _controlStationOwnerConnectionId =
-                client->id();
-
-            _controlStationOwnerClientId =
-                requestedClientId;
-
-            _controlStationOwnerName =
-                requestedName;
-
-            broadcastControlStationStatus();
-        }
-
-        JsonDocument response;
-
-        response["granted"] =
-            granted;
-
-        response["active"] =
-            _controlStationOwnerConnectionId != 0;
-
-        if (
-            _controlStationOwnerConnectionId != 0)
-        {
-            response["ownerClientId"] =
-                _controlStationOwnerClientId;
-
-            response["ownerName"] =
-                _controlStationOwnerName;
-        }
-        else
-        {
-            response["ownerClientId"] =
-                nullptr;
-
-            response["ownerName"] =
-                nullptr;
-        }
-
-        if (
-            !granted)
-        {
-            response["message"] =
-                "Another Control Station is already connected.";
-        }
-
-        send(
-            client,
-            "controlStationClaimResult",
-            response.as<JsonVariantConst>());
-
-        return;
-    }
-
-    if (
-        strcmp(
-            type,
-            "controlStationRelease") ==
-        0)
-    {
-        if (
-            _controlStationOwnerConnectionId ==
-            client->id())
-        {
-            _controlStationOwnerConnectionId =
-                0;
-
-            _controlStationOwnerClientId =
-                "";
-
-            _controlStationOwnerName =
-                "";
-
-            broadcastControlStationStatus();
-        }
-        else
-        {
-            sendControlStationStatus(
-                client);
-        }
-
-        return;
-    }
-
-    if (
-        strcmp(
-            type,
-            "getControlStationStatus") ==
-        0)
-    {
-        sendControlStationStatus(
-            client);
-
-        return;
-    }
-
-    if (
-        strcmp(
-            type,
             "broadcastPlayAudio") ==
         0)
     {
-        if (
-            _controlStationOwnerConnectionId !=
-            client->id())
-        {
-            JsonDocument denied;
-
-            denied["message"] =
-                "control_station_required";
-
-            send(
-                client,
-                "error",
-                denied.as<JsonVariantConst>());
-
-            return;
-        }
-
         const String requestId =
             data["requestId"] |
             "";
@@ -4134,13 +3915,6 @@ void WsProtocol::handleMessage(
             "broadcastStopAudio") ==
         0)
     {
-        if (
-            _controlStationOwnerConnectionId !=
-            client->id())
-        {
-            return;
-        }
-
         const String fileName =
             data["fileName"] |
             "";

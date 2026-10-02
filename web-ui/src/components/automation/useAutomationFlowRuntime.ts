@@ -7,10 +7,6 @@ import type {
 } from "../../domain/automationFlow";
 
 import {
-  isControlStationRuntimeActive,
-} from "../../services/controlStationRuntime";
-
-import {
   wsApi,
 } from "../../services/wsApi";
 
@@ -100,9 +96,7 @@ function installFlowProxy():
  */
 export function useAutomationFlowRuntime(
   _document:
-    AutomationFlowDocument,
-  _controlStationActive:
-    boolean
+    AutomationFlowDocument
 ): void {
   useEffect(
     () => {
@@ -118,12 +112,6 @@ export function abortAutomationFlowPageExecutions(
     "Visual flow page disabled."
 ): number {
   installFlowProxy();
-
-  if (
-    !isControlStationRuntimeActive()
-  ) {
-    return 0;
-  }
 
   return wsApi.flowCommand(
     requestId(
@@ -143,12 +131,6 @@ export function abortAllAutomationFlowExecutions(
     "Visual flows disabled."
 ): number {
   installFlowProxy();
-
-  if (
-    !isControlStationRuntimeActive()
-  ) {
-    return 0;
-  }
 
   return wsApi.flowCommand(
     requestId(

@@ -120,9 +120,6 @@ export type ClientWsMessageType = keyof ClientWsPayloadMap;
 
 export const CLIENT_WS_MESSAGE_TYPES = [
   "heartbeat",
-  "controlStationClaim",
-  "controlStationRelease",
-  "getControlStationStatus",
   "broadcastPlayAudio",
   "broadcastStopAudio",
   "dispatcherCommand",
@@ -468,18 +465,6 @@ export type FlowResponsePayload = {
   } | null;
 };
 
-export type ControlStationStatusPayload = {
-  active: boolean;
-  ownerClientId: string | null;
-  ownerName: string | null;
-};
-
-export type ControlStationClaimResultPayload =
-  ControlStationStatusPayload & {
-    granted: boolean;
-    message?: string;
-  };
-
 export type AutomationModuleStatePayload = {
   id: string;
   name: string;
@@ -499,8 +484,6 @@ export type AutomationResponsePayload = WsCommandResponseMeta & {
 export type ServerWsPayloadMap = {
   "ws:welcome": { message: string };
   heartbeatAck: Record<string, never>;
-  controlStationStatus: ControlStationStatusPayload;
-  controlStationClaimResult: ControlStationClaimResultPayload;
   rawInfo: { raw: string };
   ack: string;
   error: { message: string };

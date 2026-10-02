@@ -1,8 +1,4 @@
 import {
-  isControlStationRuntimeActive,
-} from "./controlStationRuntime";
-
-import {
   wsApi,
 } from "./wsApi";
 
@@ -442,17 +438,6 @@ function installTracking():
   requestSnapshot();
 }
 
-function requireControlStation():
-  void {
-  if (
-    !isControlStationRuntimeActive()
-  ) {
-    throw new Error(
-      "This browser is not the active Control Station."
-    );
-  }
-}
-
 export function getAutomationFinishing():
   boolean {
   installTracking();
@@ -464,12 +449,6 @@ export function setAutomationFinishing(
   finishing: boolean
 ): void {
   installTracking();
-
-  if (
-    !isControlStationRuntimeActive()
-  ) {
-    return;
-  }
 
   applyFinishing(
     finishing
@@ -703,8 +682,7 @@ export function pauseClientScript(
   if (
     !state ||
     state.status !==
-      "running" ||
-    !isControlStationRuntimeActive()
+      "running"
   ) {
     return false;
   }
@@ -740,8 +718,7 @@ export function resumeClientScript(
   if (
     !state ||
     state.status !==
-      "paused" ||
-    !isControlStationRuntimeActive()
+      "paused"
   ) {
     return false;
   }
@@ -783,8 +760,7 @@ export function abortClientScript(
         "running" &&
       state.status !==
         "paused"
-    ) ||
-    !isControlStationRuntimeActive()
+    )
   ) {
     return false;
   }
@@ -814,7 +790,6 @@ export function abortClientScript(
 export async function startAllSavedClientScripts():
   Promise<number> {
   installTracking();
-  requireControlStation();
 
   const response =
     await wsApi.scriptRequest(
@@ -840,7 +815,6 @@ export async function startAllSavedClientScripts():
 export async function pauseAllSavedClientScripts():
   Promise<number> {
   installTracking();
-  requireControlStation();
 
   const response =
     await wsApi.scriptRequest(
@@ -866,7 +840,6 @@ export async function pauseAllSavedClientScripts():
 export async function resumeAllSavedClientScripts():
   Promise<number> {
   installTracking();
-  requireControlStation();
 
   const response =
     await wsApi.scriptRequest(
@@ -892,7 +865,6 @@ export async function resumeAllSavedClientScripts():
 export async function abortAllSavedClientScripts():
   Promise<number> {
   installTracking();
-  requireControlStation();
 
   const response =
     await wsApi.scriptRequest(
@@ -926,8 +898,7 @@ export function abortAllClientScriptExecutions(
       .length;
 
   if (
-    count > 0 &&
-    isControlStationRuntimeActive()
+    count > 0
   ) {
     for (
       const waiter of
@@ -966,7 +937,6 @@ export async function runClientScript(
     return undefined;
   }
 
-  requireControlStation();
 
   const key =
     executionKey(

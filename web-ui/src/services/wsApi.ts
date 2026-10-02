@@ -195,33 +195,6 @@ class WebSocketApi {
     return this.send("emergencyStop", {});
   }
 
-  claimControlStation(
-    clientId: string,
-    clientName: string
-  ): boolean {
-    return this.send(
-      "controlStationClaim",
-      {
-        clientId,
-        clientName,
-      }
-    );
-  }
-
-  releaseControlStation(): boolean {
-    return this.send(
-      "controlStationRelease",
-      {}
-    );
-  }
-
-  getControlStationStatus(): boolean {
-    return this.send(
-      "getControlStationStatus",
-      {}
-    );
-  }
-
   broadcastPlayAudio(
     requestId: string,
     fileName: string

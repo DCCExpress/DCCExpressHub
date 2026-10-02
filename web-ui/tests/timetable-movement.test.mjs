@@ -133,40 +133,6 @@ test("timetable editor groups multiple actions in one schedule row", () => {
   );
 });
 
-test("timetable execution requires active Control Station ownership", () => {
-  const scheduler =
-    read("src/services/timetableScheduler.ts");
-  const ws =
-    read("../desktop/DCCExpressHub.Net/Web/WsHub.cs");
-  const panel =
-    read("src/components/TimetablePanel.tsx");
-
-  assert.match(
-    scheduler,
-    /isControlStationRuntimeActive/
-  );
-
-  assert.match(
-    scheduler,
-    /wsApi\.timetableCommand/
-  );
-
-  assert.match(
-    ws,
-    /case "timetableCommand":[\s\S]*IsControlStationOwner/
-  );
-
-  assert.match(
-    panel,
-    /controlStationActive:\s*boolean/
-  );
-
-  assert.match(
-    panel,
-    /timetableControlStationRequired/
-  );
-});
-
 test("timetable scheduler launches every action in a matching row", () => {
   const scheduler =
     read("src/services/timetableScheduler.ts");

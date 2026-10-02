@@ -11,10 +11,6 @@ import {
 } from "./wsClient";
 
 import {
-  isControlStationRuntimeActive,
-} from "./controlStationRuntime";
-
-import {
   isTrackPowerOn,
 } from "./trackPowerRuntime";
 
@@ -358,14 +354,6 @@ export async function startMovement(
   ) {
     throw new Error(
       "Track power is OFF. Turn it on before starting Movement."
-    );
-  }
-
-  if (
-    !isControlStationRuntimeActive()
-  ) {
-    throw new Error(
-      "This browser is not the active Control Station."
     );
   }
 

@@ -10,10 +10,6 @@ import {
   wsClient,
 } from "./wsClient";
 
-import {
-  isControlStationRuntimeActive,
-} from "./controlStationRuntime";
-
 const AUDIO_ENABLED_KEY =
   "dcc-express-audio-enabled";
 
@@ -97,12 +93,6 @@ function reportBackendAudio(
   requestId: string,
   ok: boolean
 ): void {
-  if (
-    !isControlStationRuntimeActive()
-  ) {
-    return;
-  }
-
   if (
     requestId.startsWith(
       "movement-backend:"
