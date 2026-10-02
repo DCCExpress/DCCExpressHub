@@ -2636,11 +2636,31 @@ public sealed class MovementRuntime
                 "movement_not_found");
 
         return StartSavedPage(
-            page);
+            page,
+            null);
+    }
+
+    public (bool Ok, string? Error) StartDefinition(
+        MovementPageModel page,
+        int expectedLocoAddress)
+    {
+        if (page is null)
+            return (
+                false,
+                "movement_not_found");
+
+        page =
+            NormalizeSavedPage(
+                page);
+
+        return StartSavedPage(
+            page,
+            expectedLocoAddress);
     }
 
     (bool Ok, string? Error) StartSavedPage(
-        MovementPageModel page)
+        MovementPageModel page,
+        int? expectedLocoAddress)
     {
         MovementPlanModel plan;
 
@@ -2685,6 +2705,13 @@ public sealed class MovementRuntime
         if (sourceBlock is null ||
             sourceBlock.LocoAddress == 0)
             return (false, "movement_source_loco_missing");
+
+        if (expectedLocoAddress.HasValue &&
+            sourceBlock.LocoAddress !=
+                expectedLocoAddress.Value)
+            return (
+                false,
+                "movement_source_loco_mismatch");
 
         lock (_gate)
         {
