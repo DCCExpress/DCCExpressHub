@@ -1503,52 +1503,108 @@ public sealed class MovementRuntime
                 leg,
                 resource);
 
+        var expectationKey =
+            execution.Page.Id +
+            ":" +
+            leg.Index +
+            ":" +
+            resource.Key;
+
+        _authority.ArmExpectedSensors(
+            expectationKey,
+            execution.LocoAddress,
+            protectedSensors);
+
         var stoppedForAuthority =
             false;
 
-        while (true)
+        try
         {
-            execution.Cancellation.Token.ThrowIfCancellationRequested();
-
-            var authority =
-                CheckAuthority(
-                    execution,
-                    protectedSensors);
-
-            if (!authority.Ok)
+            while (true)
             {
-                if (execution.Moving)
+                execution.Cancellation.Token.ThrowIfCancellationRequested();
+
+                var authority =
+                    CheckAuthority(
+                        execution,
+                        protectedSensors);
+
+                if (!authority.Ok)
+                {
+                    if (execution.Moving)
+                    {
+                        execution.Moving =
+                            false;
+
+                        await ApplySpeed(
+                            execution,
+                            force:
+                                false);
+
+                        stoppedForAuthority =
+                            true;
+                    }
+
+                    Patch(
+                        execution,
+                        info:
+                            authority.BlockingLocoAddress.HasValue
+                                ? "Protected zone blocked by loco #" +
+                                  authority.BlockingLocoAddress.Value +
+                                  " at sensor #" +
+                                  authority.BlockingSensor
+                                : "Protected zone unsafe at sensor #" +
+                                  authority.BlockingSensor +
+                                  " (" +
+                                  (
+                                      authority.Reason ??
+                                      "unknown"
+                                  ) +
+                                  ")",
+                        setInfo:
+                            true);
+
+                    await DrainReadyResourceLeaves(
+                        execution);
+
+                    await MaybeRunBlockLeave(
+                        execution,
+                        leg,
+                        blockLeaveState);
+
+                    await MaybeRunBlockApproach(
+                        execution,
+                        leg,
+                        blockApproachState);
+
+                    await Task.Delay(
+                        75,
+                        execution.Cancellation.Token);
+
+                    continue;
+                }
+
+                if (stoppedForAuthority &&
+                    !IsHeld(
+                        execution))
                 {
                     execution.Moving =
-                        false;
+                        true;
 
                     await ApplySpeed(
                         execution,
                         force:
-                            false);
+                            true);
 
                     stoppedForAuthority =
-                        true;
+                        false;
                 }
 
-                Patch(
-                    execution,
-                    info:
-                        authority.BlockingLocoAddress.HasValue
-                            ? "Protected zone blocked by loco #" +
-                              authority.BlockingLocoAddress.Value +
-                              " at sensor #" +
-                              authority.BlockingSensor
-                            : "Protected zone unsafe at sensor #" +
-                              authority.BlockingSensor +
-                              " (" +
-                              (
-                                  authority.Reason ??
-                                  "unknown"
-                              ) +
-                              ")",
-                    setInfo:
-                        true);
+                if (ResourceEventSatisfied(
+                        execution.Page,
+                        resource,
+                        eventName))
+                    return;
 
                 await DrainReadyResourceLeaves(
                     execution);
@@ -1563,59 +1619,23 @@ public sealed class MovementRuntime
                     leg,
                     blockApproachState);
 
+                Patch(
+                    execution,
+                    info:
+                        "Approaching protected zone " +
+                        resource.Name,
+                    setInfo:
+                        true);
+
                 await Task.Delay(
                     75,
                     execution.Cancellation.Token);
-
-                continue;
             }
-
-            if (stoppedForAuthority &&
-                !IsHeld(
-                    execution))
-            {
-                execution.Moving =
-                    true;
-
-                await ApplySpeed(
-                    execution,
-                    force:
-                        true);
-
-                stoppedForAuthority =
-                    false;
-            }
-
-            if (ResourceEventSatisfied(
-                    execution.Page,
-                    resource,
-                    eventName))
-                return;
-
-            await DrainReadyResourceLeaves(
-                execution);
-
-            await MaybeRunBlockLeave(
-                execution,
-                leg,
-                blockLeaveState);
-
-            await MaybeRunBlockApproach(
-                execution,
-                leg,
-                blockApproachState);
-
-            Patch(
-                execution,
-                info:
-                    "Approaching protected zone " +
-                    resource.Name,
-                setInfo:
-                    true);
-
-            await Task.Delay(
-                75,
-                execution.Cancellation.Token);
+        }
+        finally
+        {
+            _authority.ClearExpectedSensors(
+                expectationKey);
         }
     }
 
