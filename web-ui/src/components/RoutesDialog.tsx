@@ -42,9 +42,10 @@ import {
   createMovementRouteKey,
 } from "@/services/movementRouteIdentity";
 
-import type {
-  MovementDocument,
-  MovementPage,
+import {
+  createMovementPage,
+  type MovementDocument,
+  type MovementPage,
 } from "@/domain/movement";
 
 import {
@@ -70,6 +71,8 @@ type RoutesDialogProps = {
   onClose: () => void;
   layout: LayoutView;
   movements: MovementDocument;
+  editingMovementId:
+    string | null;
   onMovementsChange: (
     document:
       MovementDocument
@@ -235,6 +238,7 @@ export default function RoutesDialog({
   onClose,
   layout,
   movements,
+  editingMovementId,
   onMovementsChange,
   onGenerated,
 }: RoutesDialogProps) {
@@ -295,13 +299,6 @@ export default function RoutesDialog({
   const [
     toFilter,
     setToFilter,
-  ] = useState<string | null>(
-    null
-  );
-
-  const [
-    movementId,
-    setMovementId,
   ] = useState<string | null>(
     null
   );
@@ -534,65 +531,112 @@ export default function RoutesDialog({
       ]
     );
 
-  const movementOptions =
-    useMemo(
-      () =>
-        movements.pages.map(
-          page => ({
-            value:
-              page.id,
-            label:
-              page.name,
-          })
-        ),
-      [
-        movements.pages,
-      ]
-    );
+  const routeUsedByOtherMovement =
+    (
+      routeKey:
+        string
+    ): boolean =>
+      movements.pages.some(
+        page =>
+          page.routeKey ===
+            routeKey &&
+          page.id !==
+            editingMovementId
+      );
 
   const assignRouteToMovement =
     async (
       route:
         ClientRouteGraphBuildResult["routes"][number]
     ): Promise<void> => {
-      if (
-        movementId ===
-          null
-      ) {
-        return;
-      }
-
       const routePage =
         previewMovementPage(
           route
         );
 
-      const next: MovementDocument = {
-        ...movements,
-        pages:
-          movements.pages.map(
-            page =>
-              page.id ===
-                movementId
-                ? {
-                    ...page,
-                    routeKey:
-                      routePage.routeKey,
-                    fromBlockId:
-                      routePage.fromBlockId,
-                    viaBlockIds:
-                      routePage.viaBlockIds,
-                    toBlockId:
-                      routePage.toBlockId,
-                    blockRules: [],
-                    resourceEventRules: [],
-                    safetyRules: [],
-                  }
-                : page
-          ),
-        activePageId:
-          movementId,
-      };
+      if (
+        routeUsedByOtherMovement(
+          routePage.routeKey
+        )
+      ) {
+        showNotification({
+          color: "orange",
+          title:
+            t(
+              "ui.routes"
+            ),
+          message:
+            "This route is already used by another Movement.",
+        });
+
+        return;
+      }
+
+      const existing =
+        editingMovementId ===
+          null
+          ? null
+          : movements.pages.find(
+              page =>
+                page.id ===
+                  editingMovementId
+            ) ??
+            null;
+
+      const nextPage: MovementPage =
+        existing
+          ? {
+              ...existing,
+              routeKey:
+                routePage.routeKey,
+              fromBlockId:
+                routePage.fromBlockId,
+              viaBlockIds:
+                routePage.viaBlockIds,
+              toBlockId:
+                routePage.toBlockId,
+              blockRules: [],
+              resourceEventRules: [],
+              safetyRules: [],
+              actions: [],
+            }
+          : {
+              ...createMovementPage(
+                routePage.name
+              ),
+              routeKey:
+                routePage.routeKey,
+              fromBlockId:
+                routePage.fromBlockId,
+              viaBlockIds:
+                routePage.viaBlockIds,
+              toBlockId:
+                routePage.toBlockId,
+            };
+
+      const next: MovementDocument = existing
+        ? {
+            ...movements,
+            pages:
+              movements.pages.map(
+                page =>
+                  page.id ===
+                    existing.id
+                    ? nextPage
+                    : page
+              ),
+            activePageId:
+              nextPage.id,
+          }
+        : {
+            ...movements,
+            pages: [
+              ...movements.pages,
+              nextPage,
+            ],
+            activePageId:
+              nextPage.id,
+          };
 
       setAssigningRoute(
         true
@@ -614,7 +658,9 @@ export default function RoutesDialog({
               "ui.routes"
             ),
           message:
-            "Route assigned to Movement.",
+            existing
+              ? "Movement route updated."
+              : "Movement added.",
         });
       } catch (assignError) {
         showNotification({
@@ -707,20 +753,20 @@ export default function RoutesDialog({
 
         {!error && result && (
           <Tabs
-            defaultValue="graph"
+            defaultValue="routes"
             keepMounted={false}
           >
             <Tabs.List>
+              <Tabs.Tab value="routes">
+                {t("ui.routeNetwork")}
+              </Tabs.Tab>
+
               <Tabs.Tab value="graph">
                 {t("ui.graph")}
               </Tabs.Tab>
 
               <Tabs.Tab value="segments">
                 {t("ui.segments")}
-              </Tabs.Tab>
-
-              <Tabs.Tab value="routes">
-                {t("ui.routeNetwork")}
               </Tabs.Tab>
             </Tabs.List>
 
@@ -933,17 +979,6 @@ export default function RoutesDialog({
                     w={220}
                   />
 
-                  <Select
-                    label="Movement"
-                    placeholder="Select Movement"
-                    data={movementOptions}
-                    value={movementId}
-                    onChange={setMovementId}
-                    searchable
-                    clearable
-                    w={260}
-                  />
-
                   <Badge
                     variant="light"
                     color="gray"
@@ -1061,9 +1096,12 @@ export default function RoutesDialog({
                               variant="light"
                               color="teal"
                               disabled={
-                                movementId ===
-                                  null ||
-                                assigningRoute
+                                assigningRoute ||
+                                routeUsedByOtherMovement(
+                                  previewMovementPage(
+                                    route
+                                  ).routeKey
+                                )
                               }
                               loading={
                                 assigningRoute
@@ -1074,7 +1112,12 @@ export default function RoutesDialog({
                                 )
                               }
                             >
-                              Select
+                              {
+                                editingMovementId ===
+                                  null
+                                  ? "Add"
+                                  : "Select"
+                              }
                             </Button>
                           </Table.Td>
 
