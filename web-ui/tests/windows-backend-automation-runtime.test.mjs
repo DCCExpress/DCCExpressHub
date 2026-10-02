@@ -403,6 +403,121 @@ test("old Timetable browser-script bridge is absent", () => {
   }
 });
 
+test("backend SmartDispatcher keeps safe arrival and authority semantics", () => {
+  const runtime =
+    read(
+      "desktop/DCCExpressHub.Net/Web/ScriptRuntime.cs"
+    );
+
+  const dispatcher =
+    read(
+      "desktop/DCCExpressHub.Net/Web/DispatcherRuntime.cs"
+    );
+
+  assert.match(
+    runtime,
+    /ParseSmartBlockSpecs\s*\(/
+  );
+
+  assert.match(
+    runtime,
+    /smart_dispatcher_shared_occupancy_sensor/
+  );
+
+  assert.match(
+    runtime,
+    /SmartArrivalConditions\s*\(/
+  );
+
+  assert.match(
+    runtime,
+    /leg\.To\.SensorAddress\.Value/
+  );
+
+  assert.match(
+    runtime,
+    /leg\.From\.SensorAddress\.Value/
+  );
+
+  assert.match(
+    runtime,
+    /ValidateHeldLegAuthority\s*\(/
+  );
+
+  assert.match(
+    dispatcher,
+    /public DispatcherAcquireResult ValidateHeldLegAuthority/
+  );
+
+  for (
+    const api of [
+      "stop:",
+      "waitForBlock:",
+      "waitForClearance:",
+      "getCurrentBlock:",
+      "getNextBlock:",
+      "getRoute:",
+      "getDesiredSpeed:",
+      "__smartWaitBlocked",
+    ]
+  ) {
+    assert.equal(
+      runtime.includes(
+        api
+      ),
+      true,
+      api
+    );
+  }
+});
+
+test("backend audio cannot deadlock automation when browser authority disappears", () => {
+  const hub =
+    read(
+      "desktop/DCCExpressHub.Net/Web/WsHub.cs"
+    );
+
+  assert.match(
+    hub,
+    /HandleMovementAudioRequest\s*\(/
+  );
+
+  assert.match(
+    hub,
+    /HandleScriptAudioRequest\s*\(/
+  );
+
+  assert.match(
+    hub,
+    /!HasControlStationOwner\(\)/
+  );
+
+  assert.match(
+    hub,
+    /Movement\.CompleteAudio\s*\(/
+  );
+
+  assert.match(
+    hub,
+    /Scripts\.CompleteAudio\s*\(/
+  );
+
+  assert.match(
+    hub,
+    /if \(Clients\.IsEmpty\)/
+  );
+
+  assert.match(
+    hub,
+    /Movement\.FailPendingAudio\(\)/
+  );
+
+  assert.match(
+    hub,
+    /Scripts\.FailPendingAudio\(\)/
+  );
+});
+
 test("Automation Script and Flow WebSocket namespaces are explicit", () => {
   const hub =
     read(
