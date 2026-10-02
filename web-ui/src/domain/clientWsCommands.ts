@@ -346,6 +346,19 @@ export type MovementAudioCompleteCommandPayload = {
   ok: boolean;
 };
 
+export type TrainTrackingCommandAction =
+  | "snapshot"
+  | "setEnabled"
+  | "refresh"
+  | "reset"
+  | "clearLogs";
+
+export type TrainTrackingCommandPayload = {
+  requestId: string;
+  action: TrainTrackingCommandAction;
+  enabled?: boolean;
+};
+
 export type TimetableCommandAction =
   | "snapshot"
   | "start"
@@ -415,6 +428,7 @@ export type ClientWsPayloadMap = {
   dispatcherCommand: DispatcherCommandPayload;
   movementCommand: MovementCommandPayload;
   movementAudioComplete: MovementAudioCompleteCommandPayload;
+  trainTrackingCommand: TrainTrackingCommandPayload;
   scriptCommand: ScriptCommandPayload;
   scriptAudioComplete: ScriptAudioCompleteCommandPayload;
   flowCommand: FlowCommandPayload;
