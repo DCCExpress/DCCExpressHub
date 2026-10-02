@@ -3341,16 +3341,14 @@ async function handleScriptDispatcherRequest(
         message.executionId,
       requestId:
         message.requestId,
+      /*
+       * Bridge success is separate from Dispatcher domain success. A normal
+       * blocked/rejected Dispatcher response must reach the Worker as data so
+       * dispatcher()/smartDispatcher() can run onBlocked/retry logic.
+       */
       ok:
-        response.ok,
+        true,
       response,
-      error:
-        response.ok
-          ? undefined
-          : response.message ??
-            "dispatcher_failed",
-      details:
-        response.extra,
     });
   } catch (
     error
