@@ -25,6 +25,10 @@ import type {
   LayoutView,
 } from "@/models/editor/core/LayoutView";
 
+import {
+  BlockElement,
+} from "@/models/editor/elements/BlockElement";
+
 import type {
   MovementPage,
   MovementSensorCondition,
@@ -70,9 +74,66 @@ function conditionText(
   return `#${condition.sensor} ${condition.state ? "ON" : "OFF"}`;
 }
 
+function configuredBlockConditions(
+  layout: LayoutView,
+  blockId: number,
+  direction:
+    | "unknown"
+    | "forward"
+    | "reverse",
+  event:
+    | "arrival"
+    | "arrived"
+    | "leave"
+): MovementSensorCondition[] {
+  if (
+    direction ===
+      "unknown"
+  ) {
+    return [];
+  }
+
+  const block =
+    layout
+      .getAllElements()
+      .find(
+        element =>
+          element instanceof
+            BlockElement &&
+          element.id ===
+            blockId
+      );
+
+  if (
+    !(block instanceof
+      BlockElement)
+  ) {
+    return [];
+  }
+
+  return block.eventConfig[
+    direction
+  ][
+    event
+  ].map(
+    (
+      condition,
+      index
+    ) => ({
+      id:
+        `preview-block-event-${blockId}-${direction}-${event}-${index}`,
+      sensor:
+        condition.sensor,
+      state:
+        condition.state,
+    })
+  );
+}
+
 function blockEvents(
   plan: MovementPlan,
-  resource: MovementPlanResource
+  resource: MovementPlanResource,
+  layout: LayoutView
 ): EventRow[] {
   if (
     resource.kind !== "block" ||
@@ -90,18 +151,40 @@ function blockEvents(
     );
 
   if (incoming) {
+    const configuredArrival =
+      configuredBlockConditions(
+        layout,
+        resource.blockId,
+        plan.direction,
+        "arrival"
+      );
+
+    const configuredArrived =
+      configuredBlockConditions(
+        layout,
+        resource.blockId,
+        plan.direction,
+        "arrived"
+      );
+
     result.push({
       name: "APPROACH",
       match: "all",
       conditions:
-        incoming.approachWhen,
+        configuredArrival.length >
+          0
+          ? configuredArrival
+          : incoming.approachWhen,
     });
 
     result.push({
       name: "ARRIVED",
       match: "all",
       conditions:
-        incoming.arrivedWhen,
+        configuredArrived.length >
+          0
+          ? configuredArrived
+          : incoming.arrivedWhen,
     });
   }
 
@@ -112,6 +195,14 @@ function blockEvents(
     );
 
   if (outgoing) {
+    const configuredLeave =
+      configuredBlockConditions(
+        layout,
+        resource.blockId,
+        plan.direction,
+        "leave"
+      );
+
     result.push({
       name: "DEPART",
       match: "all",
@@ -123,7 +214,10 @@ function blockEvents(
       name: "LEAVE",
       match: "all",
       conditions:
-        outgoing.leaveWhen,
+        configuredLeave.length >
+          0
+          ? configuredLeave
+          : outgoing.leaveWhen,
     });
   }
 
@@ -157,12 +251,14 @@ function resourceEvents(
 
 function eventRows(
   plan: MovementPlan,
-  resource: MovementPlanResource
+  resource: MovementPlanResource,
+  layout: LayoutView
 ): EventRow[] {
   return resource.kind === "block"
     ? blockEvents(
         plan,
-        resource
+        resource,
+        layout
       )
     : resourceEvents(
         resource
@@ -341,12 +437,14 @@ export default function RoutePreviewDialog({
         selectedResource
           ? eventRows(
               plan,
-              selectedResource
+              selectedResource,
+              layout
             )
           : [],
       [
         plan,
         selectedResource,
+        layout,
       ]
     );
 
