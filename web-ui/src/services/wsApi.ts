@@ -342,6 +342,137 @@ class WebSocketApi {
     );
   }
 
+  scriptCommand(
+    requestId: string,
+    action:
+      ClientWsPayloadMap[
+        "scriptCommand"
+      ]["action"],
+    values:
+      Omit<
+        ClientWsPayloadMap[
+          "scriptCommand"
+        ],
+        "requestId" |
+        "action"
+      > =
+        {}
+  ): boolean {
+    return this.send(
+      "scriptCommand",
+      {
+        ...values,
+        requestId,
+        action,
+      }
+    );
+  }
+
+  scriptRequest(
+    requestId: string,
+    action:
+      ClientWsPayloadMap[
+        "scriptCommand"
+      ]["action"],
+    values:
+      Omit<
+        ClientWsPayloadMap[
+          "scriptCommand"
+        ],
+        "requestId" |
+        "action"
+      > =
+        {},
+    timeoutMs =
+      15000
+  ) {
+    return this.request(
+      "scriptCommand",
+      {
+        ...values,
+        requestId,
+        action,
+      },
+      "automationScriptResponse",
+      response =>
+        response.requestId ===
+          requestId,
+      timeoutMs
+    );
+  }
+
+  scriptAudioComplete(
+    requestId: string,
+    ok: boolean
+  ): boolean {
+    return this.send(
+      "scriptAudioComplete",
+      {
+        requestId,
+        ok,
+      }
+    );
+  }
+
+  flowCommand(
+    requestId: string,
+    action:
+      ClientWsPayloadMap[
+        "flowCommand"
+      ]["action"],
+    values:
+      Omit<
+        ClientWsPayloadMap[
+          "flowCommand"
+        ],
+        "requestId" |
+        "action"
+      > =
+        {}
+  ): boolean {
+    return this.send(
+      "flowCommand",
+      {
+        ...values,
+        requestId,
+        action,
+      }
+    );
+  }
+
+  flowRequest(
+    requestId: string,
+    action:
+      ClientWsPayloadMap[
+        "flowCommand"
+      ]["action"],
+    values:
+      Omit<
+        ClientWsPayloadMap[
+          "flowCommand"
+        ],
+        "requestId" |
+        "action"
+      > =
+        {},
+    timeoutMs =
+      15000
+  ) {
+    return this.request(
+      "flowCommand",
+      {
+        ...values,
+        requestId,
+        action,
+      },
+      "flowResponse",
+      response =>
+        response.requestId ===
+          requestId,
+      timeoutMs
+    );
+  }
+
   timetableCommand(
     requestId: string,
     action:
@@ -362,43 +493,6 @@ class WebSocketApi {
           : {
               finishing,
             }),
-      }
-    );
-  }
-
-  timetableScriptStatus(
-    runId: string,
-    status:
-      | "running"
-      | "paused",
-    message:
-      string | null
-  ): boolean {
-    return this.send(
-      "timetableScriptStatus",
-      {
-        runId,
-        status,
-        message,
-      }
-    );
-  }
-
-  timetableScriptComplete(
-    runId: string,
-    ok: boolean,
-    message?: string
-  ): boolean {
-    return this.send(
-      "timetableScriptComplete",
-      {
-        runId,
-        ok,
-        ...(message
-          ? {
-              message,
-            }
-          : {}),
       }
     );
   }
