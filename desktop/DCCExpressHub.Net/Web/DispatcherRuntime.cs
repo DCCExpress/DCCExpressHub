@@ -994,6 +994,16 @@ public sealed class DispatcherRuntime
                     BlockingSensor:
                         safety.BlockingSensor);
 
+            foreach (var address in
+                     turnoutAddresses)
+                if (!_switchMan.IsOwnedBy(
+                        address,
+                        request.OwnerId))
+                    return new(
+                        false,
+                        "turnout_authority_lost",
+                        null);
+
             var prepared =
                 new DispatcherPreparedLegInfo(
                     request.OwnerId,
