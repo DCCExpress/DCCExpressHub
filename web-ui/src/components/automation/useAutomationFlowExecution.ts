@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useRef,
   useState,
 } from "react";
 
@@ -12,8 +13,19 @@ import {
 import {
   abortClientScript,
   runClientScript,
-  subscribeClientScriptLog,
 } from "../../services/clientScriptRunner";
+
+import {
+  isControlStationRuntimeActive,
+} from "../../services/controlStationRuntime";
+
+import {
+  wsApi,
+} from "../../services/wsApi";
+
+import {
+  wsClient,
+} from "../../services/wsClient";
 
 import type {
   AutomationFlowLogLine,
@@ -40,6 +52,23 @@ type Args = {
   generatedTest:
     GeneratedAutomationFlowScript;
 };
+
+let requestSequence =
+  0;
+
+function requestId(
+  action: string
+): string {
+  requestSequence +=
+    1;
+
+  return (
+    `${wsApi.clientUuid}:flow-editor:` +
+    `${action}:` +
+    `${Date.now()}:` +
+    `${requestSequence}`
+  );
+}
 
 function logValue(
   value: unknown
@@ -74,8 +103,10 @@ function logValue(
 
 export function useAutomationFlowExecution({
   page,
-  generated,
-  generatedTest,
+  generated:
+    _generated,
+  generatedTest:
+    _generatedTest,
 }: Args) {
   const [
     execution,
@@ -96,6 +127,11 @@ export function useAutomationFlowExecution({
     useState<
       AutomationFlowLogLine[]
     >([]);
+
+  const flowStartedRef =
+    useRef(
+      false
+    );
 
   const appendLog =
     (
@@ -187,11 +223,162 @@ export function useAutomationFlowExecution({
     ]
   );
 
-  const start =
+  useEffect(
+    () =>
+      wsClient.on(
+        "flowStateChanged",
+        state => {
+          const pageId =
+            page?.id;
+
+          if (
+            !pageId
+          ) {
+            return;
+          }
+
+          const runtimePage =
+            state.pages.find(
+              candidate =>
+                candidate.pageId ===
+                pageId
+            );
+
+          if (
+            (
+              runtimePage?.activeExecutions ??
+              0
+            ) >
+            0
+          ) {
+            flowStartedRef.current =
+              true;
+            return;
+          }
+
+          if (
+            flowStartedRef.current
+          ) {
+            flowStartedRef.current =
+              false;
+
+            setExecution(
+              current =>
+                current?.mode ===
+                  "inject"
+                  ? current
+                  : null
+            );
+          }
+        }
+      ),
+    [
+      page?.id,
+    ]
+  );
+
+  const startFlow =
     async (
       mode:
-        AutomationFlowExecutionMode,
-      scriptOverride?: string
+        "test" |
+        "run"
+    ): Promise<void> => {
+      if (
+        !page ||
+        execution ||
+        !isControlStationRuntimeActive()
+      ) {
+        return;
+      }
+
+      const id =
+        `visual-flow-${mode}:${page.id}`;
+
+      setExecution({
+        id,
+        mode,
+      });
+
+      flowStartedRef.current =
+        false;
+
+      const label =
+        mode ===
+          "run"
+          ? "RUN"
+          : "TEST";
+
+      appendLog(
+        "info",
+        `${label} requested: ${page.name}`
+      );
+
+      try {
+        const response =
+          await wsApi.flowRequest(
+            requestId(
+              "runPage"
+            ),
+            "runPage",
+            {
+              pageId:
+                page.id,
+              mode,
+            }
+          );
+
+        if (
+          !response.ok
+        ) {
+          throw new Error(
+            response.message ||
+            "Flow could not be started."
+          );
+        }
+
+        const active =
+          response.extra?.state
+            ?.pages
+            .find(
+              candidate =>
+                candidate.pageId ===
+                  page.id
+            )
+            ?.activeExecutions ??
+          0;
+
+        if (
+          active >
+          0
+        ) {
+          flowStartedRef.current =
+            true;
+        } else {
+          setExecution(
+            null
+          );
+        }
+      } catch (
+        error
+      ) {
+        setExecution(
+          null
+        );
+
+        appendLog(
+          "error",
+          error instanceof Error
+            ? error.message
+            : String(
+                error
+              )
+        );
+      }
+    };
+
+  const inject =
+    async (
+      script: string
     ): Promise<void> => {
       if (
         !page ||
@@ -201,53 +388,18 @@ export function useAutomationFlowExecution({
       }
 
       const id =
-        `visual-flow-${mode}:${page.id}`;
-
-      const script =
-        scriptOverride ??
-        (
-          mode ===
-            "run"
-            ? generated.code
-            : generatedTest.code
-        );
+        `visual-flow-inject:${page.id}`;
 
       setExecution({
         id,
-        mode,
+        mode:
+          "inject",
       });
-
-      const actionLabel =
-        mode ===
-        "run"
-          ? "RUN"
-          : mode ===
-            "inject"
-            ? "INJECT"
-            : "TEST";
 
       appendLog(
         "info",
-        `${actionLabel} started: ${page.name}`
+        `INJECT requested: ${page.name}`
       );
-
-      const unsubscribeLog =
-        subscribeClientScriptLog(
-          id,
-          entry => {
-            appendLog(
-              "log",
-              entry.values
-                .map(
-                  logValue
-                )
-                .join(
-                  " "
-                ),
-              entry.timestamp
-            );
-          }
-        );
 
       try {
         await runClientScript(
@@ -255,7 +407,7 @@ export function useAutomationFlowExecution({
           {
             id,
             name:
-              `Flow ${actionLabel}: ${page.name}`,
+              `Flow INJECT: ${page.name}`,
             type:
               "visual-flow",
           }
@@ -263,22 +415,24 @@ export function useAutomationFlowExecution({
 
         appendLog(
           "info",
-          `${actionLabel} completed.`
+          "INJECT completed."
         );
-      } catch (error) {
+      } catch (
+        error
+      ) {
         appendLog(
           "error",
           error instanceof Error
             ? error.message
-            : String(error)
+            : String(
+                error
+              )
         );
       } finally {
-        unsubscribeLog();
-
         setExecution(
           current =>
             current?.id ===
-            id
+              id
               ? null
               : current
         );
@@ -287,14 +441,33 @@ export function useAutomationFlowExecution({
 
   const stop =
     (): void => {
-      if (!execution) {
+      if (
+        !execution ||
+        !page
+      ) {
         return;
       }
 
-      abortClientScript(
-        execution.id,
-        "Visual flow stopped by user."
-      );
+      if (
+        execution.mode ===
+          "inject"
+      ) {
+        abortClientScript(
+          execution.id,
+          "Visual flow inject stopped by user."
+        );
+      } else {
+        wsApi.flowCommand(
+          requestId(
+            "abortPage"
+          ),
+          "abortPage",
+          {
+            pageId:
+              page.id,
+          }
+        );
+      }
 
       appendLog(
         "info",
@@ -321,18 +494,15 @@ export function useAutomationFlowExecution({
     execution,
     runTest:
       () =>
-        start("test"),
-    inject:
-      (
-        script: string
-      ) =>
-        start(
-          "inject",
-          script
+        startFlow(
+          "test"
         ),
+    inject,
     run:
       () =>
-        start("run"),
+        startFlow(
+          "run"
+        ),
     stop,
   };
 }
