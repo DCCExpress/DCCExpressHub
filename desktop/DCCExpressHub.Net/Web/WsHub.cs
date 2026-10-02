@@ -17,6 +17,7 @@ public sealed class WsHub
     readonly SwitchManManager SwitchMan;
     readonly DispatcherRuntime Dispatcher;
     readonly MovementRuntime Movement;
+    readonly ScriptRuntime Scripts;
     readonly TimetableRuntime Timetable;
     private readonly ILogger<WsHub> Logger;
     private readonly FastClockRuntime FastClock;
@@ -34,7 +35,7 @@ public sealed class WsHub
     private static readonly TimeSpan WebSocketSendTimeout = TimeSpan.FromSeconds(2);
     public int ClientCount => Clients.Count;
 
-    public WsHub(ICommandCenter cc, HubState state, LayoutRuntime runtime, RuntimeStateStore stateStore, CommandCenterConfigStore ccConfig, LocoCounterRuntime locoCounters, FastClockRuntime fastClock, SwitchManManager switchMan, DispatcherRuntime dispatcher, MovementRuntime movement, TimetableRuntime timetable, ILogger<WsHub> log)
+    public WsHub(ICommandCenter cc, HubState state, LayoutRuntime runtime, RuntimeStateStore stateStore, CommandCenterConfigStore ccConfig, LocoCounterRuntime locoCounters, FastClockRuntime fastClock, SwitchManManager switchMan, DispatcherRuntime dispatcher, MovementRuntime movement, ScriptRuntime scripts, TimetableRuntime timetable, ILogger<WsHub> log)
     {
         CommandCenter = cc;
         HubState = state;
@@ -45,6 +46,7 @@ public sealed class WsHub
         SwitchMan = switchMan;
         Dispatcher = dispatcher;
         Movement = movement;
+        Scripts = scripts;
         Timetable = timetable;
         CommandCenterConfigStore = ccConfig;
         LayoutRuntime.Changed += (type, data) => _ = Broadcast(type, data);
@@ -63,8 +65,14 @@ public sealed class WsHub
         Movement.AudioRequested += request => _ = Broadcast("playAudio", new { requestId = request.RequestId, fileName = request.FileName });
         Movement.LocoChanged += loco => _ = BroadcastLoco(loco);
         Movement.PowerStateChanged += () => _ = BroadcastPower();
+
+        Scripts.Changed += state => _ = Broadcast("scriptStateChanged", state);
+        Scripts.LogChanged += entry => _ = Broadcast("scriptLog", entry);
+        Scripts.AudioRequested += request => _ = Broadcast("playAudio", new { requestId = request.RequestId, fileName = request.FileName });
+        Scripts.LocoChanged += loco => _ = BroadcastLoco(loco);
+        Scripts.PowerStateChanged += () => _ = BroadcastPower();
+
         Timetable.Changed += state => _ = Broadcast("timetableStateChanged", state);
-        Timetable.ScriptRequested += request => _ = Broadcast("timetableScriptRequested", request);
         Logger = log;
 
         LocoCounters.Changed += () =>
@@ -102,6 +110,8 @@ public sealed class WsHub
                  * stale sensor/authority state when power returns.
                  */
                 Movement.StopAll(false);
+                Scripts.AbortAll(
+                    "Track power turned OFF.");
                 Timetable.StopScheduler();
 
                 _ = RuntimeStateStore.SaveAsync();
@@ -124,6 +134,8 @@ public sealed class WsHub
                 LocoCounters.SetTrackPower(false);
 
                 Movement.StopAll(false);
+                Scripts.AbortAll(
+                    "Command center disconnected.");
                 Timetable.StopScheduler();
             }
 
@@ -196,18 +208,13 @@ public sealed class WsHub
 
     private async Task OnControlStationReleased()
     {
-        Timetable.StopScheduler();
-        Timetable.FailDelegatedScripts(
-            "control_station_disconnected");
-
         /*
-         * Browser scripts disappear with the Control Station, so their
-         * backend route authority must not survive that browser. Native
-         * backend Movement leases are deliberately excluded here.
+         * Automation execution is backend-owned. Losing the browser Control
+         * Station must not stop Timetable, Script, Flow or Movement runtimes.
+         * Only browser-rendered blocking audio is client-dependent.
          */
-        Dispatcher.ReleaseScriptLeases();
-
         Movement.FailPendingAudio();
+        Scripts.FailPendingAudio();
 
         await Broadcast(
             "controlStationStatus",
@@ -369,31 +376,14 @@ public sealed class WsHub
                 case "movementAudioComplete":
                     Movement.CompleteAudio(S(data, "requestId"), B(data, "ok"));
                     return;
+                case "scriptCommand":
+                    await HandleScriptCommand(connectionId, ws, data);
+                    return;
+                case "scriptAudioComplete":
+                    Scripts.CompleteAudio(S(data, "requestId"), B(data, "ok"));
+                    return;
                 case "timetableCommand":
                     await HandleTimetableCommand(connectionId, ws, data);
-                    return;
-                case "timetableScriptStatus":
-                    if (IsControlStationOwner(connectionId))
-                    {
-                        string? message =
-                            data.ValueKind == JsonValueKind.Object &&
-                            data.TryGetProperty(
-                                "message",
-                                out var messageElement) &&
-                            messageElement.ValueKind ==
-                                JsonValueKind.String
-                                ? messageElement.GetString()
-                                : null;
-
-                        Timetable.UpdateScriptStatus(
-                            S(data, "runId"),
-                            S(data, "status"),
-                            message);
-                    }
-                    return;
-                case "timetableScriptComplete":
-                    if (IsControlStationOwner(connectionId))
-                        Timetable.CompleteScript(S(data, "runId"), B(data, "ok"), S(data, "message"));
                     return;
                 case "setTrackPower":
                     ok = await CommandCenter.SetTrackPowerAsync(B(data, "on"), CommandCenterConfigStore.Current.PowerIncludesProgramming, ct);
@@ -838,6 +828,275 @@ public sealed class WsHub
 
             default:
                 await Reply(false, "unknown_switchman_action");
+                return;
+        }
+    }
+
+    private async Task HandleScriptCommand(
+        Guid connectionId,
+        WebSocket ws,
+        JsonElement data)
+    {
+        var requestId =
+            S(
+                data,
+                "requestId");
+
+        var action =
+            S(
+                data,
+                "action");
+
+        async Task Reply(
+            bool ok,
+            string? message = null,
+            object? extra = null)
+        {
+            await Send(
+                ws,
+                "scriptResponse",
+                new
+                {
+                    requestId,
+                    action,
+                    ok,
+                    message,
+                    extra
+                });
+        }
+
+        if (action != "snapshot" &&
+            !IsControlStationOwner(
+                connectionId))
+        {
+            await Reply(
+                false,
+                "control_station_required");
+            return;
+        }
+
+        switch (action)
+        {
+            case "snapshot":
+                await Reply(
+                    true,
+                    extra:
+                        new
+                        {
+                            states =
+                                Scripts.Snapshot(),
+                            finishing =
+                                Scripts.Finishing
+                        });
+                return;
+
+            case "startSaved":
+                {
+                    var scriptId =
+                        S(
+                            data,
+                            "scriptId");
+
+                    var executionId =
+                        S(
+                            data,
+                            "executionId");
+
+                    var result =
+                        Scripts.StartSaved(
+                            scriptId,
+                            string.IsNullOrWhiteSpace(
+                                executionId)
+                                ? null
+                                : executionId,
+                            S(
+                                data,
+                                "executionType"));
+
+                    await Reply(
+                        result.Ok,
+                        result.Error,
+                        new
+                        {
+                            state =
+                                result.State
+                        });
+                    return;
+                }
+
+            case "startSource":
+                {
+                    var executionId =
+                        S(
+                            data,
+                            "executionId");
+
+                    var result =
+                        Scripts.StartSource(
+                            executionId,
+                            S(
+                                data,
+                                "name"),
+                            S(
+                                data,
+                                "executionType"),
+                            S(
+                                data,
+                                "source"));
+
+                    await Reply(
+                        result.Ok,
+                        result.Error,
+                        new
+                        {
+                            state =
+                                result.State
+                        });
+                    return;
+                }
+
+            case "pause":
+                {
+                    var executionId =
+                        S(
+                            data,
+                            "executionId");
+
+                    var ok =
+                        Scripts.Pause(
+                            executionId);
+
+                    await Reply(
+                        ok,
+                        ok
+                            ? null
+                            : "script_not_running",
+                        new
+                        {
+                            state =
+                                Scripts.GetState(
+                                    executionId)
+                        });
+                    return;
+                }
+
+            case "resume":
+                {
+                    var executionId =
+                        S(
+                            data,
+                            "executionId");
+
+                    var ok =
+                        Scripts.Resume(
+                            executionId);
+
+                    await Reply(
+                        ok,
+                        ok
+                            ? null
+                            : "script_not_paused",
+                        new
+                        {
+                            state =
+                                Scripts.GetState(
+                                    executionId)
+                        });
+                    return;
+                }
+
+            case "abort":
+                {
+                    var executionId =
+                        S(
+                            data,
+                            "executionId");
+
+                    var ok =
+                        Scripts.Abort(
+                            executionId);
+
+                    await Reply(
+                        ok,
+                        ok
+                            ? null
+                            : "script_not_running",
+                        new
+                        {
+                            state =
+                                Scripts.GetState(
+                                    executionId)
+                        });
+                    return;
+                }
+
+            case "startAll":
+                await Reply(
+                    true,
+                    extra:
+                        new
+                        {
+                            count =
+                                Scripts.StartAllSaved()
+                        });
+                return;
+
+            case "pauseAll":
+                await Reply(
+                    true,
+                    extra:
+                        new
+                        {
+                            count =
+                                Scripts.PauseAll()
+                        });
+                return;
+
+            case "resumeAll":
+                await Reply(
+                    true,
+                    extra:
+                        new
+                        {
+                            count =
+                                Scripts.ResumeAll()
+                        });
+                return;
+
+            case "abortAll":
+                await Reply(
+                    true,
+                    extra:
+                        new
+                        {
+                            count =
+                                Scripts.AbortAll()
+                        });
+                return;
+
+            case "setFinishing":
+                Scripts.SetFinishing(
+                    B(
+                        data,
+                        "finishing"));
+
+                Timetable.SetFinishing(
+                    Scripts.Finishing);
+
+                await Reply(
+                    true,
+                    extra:
+                        new
+                        {
+                            finishing =
+                                Scripts.Finishing
+                        });
+                return;
+
+            default:
+                await Reply(
+                    false,
+                    "unknown_script_action");
                 return;
         }
     }
@@ -1944,6 +2203,7 @@ public sealed class WsHub
                     Dispatcher.RouteSnapshot()
             });
         await Send(ws, "movementSnapshot", new { states = Movement.Snapshot() });
+        await Send(ws, "scriptSnapshot", new { states = Scripts.Snapshot(), finishing = Scripts.Finishing });
         await Send(ws, "timetableStateChanged", Timetable.Snapshot());
     }
 
