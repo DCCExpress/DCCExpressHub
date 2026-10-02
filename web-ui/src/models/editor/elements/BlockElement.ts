@@ -9,6 +9,7 @@ import type {
 import { generateId } from "../../../helpers";
 import i18n from "../../../i18n";
 import { getBlockTargetLocoAddress } from "../../../services/blockTargetLocoRuntime";
+import { getTrainTrackingPredictionForBlock } from "../../../services/trainTrackingPredictionRuntime";
 import { getMovementBlockRuntime } from "../../../services/movementBlockRuntime";
 import { wsClient } from "../../../services/wsClient";
 import { TrackElement } from "../core/TrackElement";
@@ -285,6 +286,16 @@ export class BlockElement extends TrackElement {
     const hasAssignedLoco =
       this.locoAddress > 0;
 
+    const targetAddress =
+      getBlockTargetLocoAddress(
+        this.id
+      );
+
+    const trackingPrediction =
+      getTrainTrackingPredictionForBlock(
+        this.id
+      );
+
     const sensorOccupied =
       this.isSensorAddressOccupied(
         this.sensorAddress
@@ -323,7 +334,9 @@ export class BlockElement extends TrackElement {
     const displayLocoAddress =
       hasAssignedLoco
         ? this.locoAddress
-        : this.runtimeTransitLocoAddress;
+        : this.runtimeTransitLocoAddress > 0
+          ? this.runtimeTransitLocoAddress
+          : trackingPrediction?.locoAddress ?? 0;
 
     const showBlockName = options?.showBlockNames === true && this.name.trim().length > 0;
     const blockNameHeight = showBlockName ? 9 : 0;
@@ -332,6 +345,78 @@ export class BlockElement extends TrackElement {
     ctx.lineWidth = 1;
     ctx.fillRect(blockX, blockY, blockW, blockH);
     ctx.strokeRect(blockX, blockY, blockW, blockH);
+
+    /*
+     * Dispatcher/Movement target remains the primary intent marker. When
+     * Train Tracking predicts a next block without an active Movement target,
+     * show the older dashed yellow tracking halo so the operator can see the
+     * physical prediction separately from route authority.
+     */
+    if (
+      targetAddress > 0 &&
+      this.locoAddress <= 0
+    ) {
+      const phase =
+        (
+          Math.sin(
+            Date.now() /
+              230
+          ) +
+          1
+        ) /
+        2;
+
+      ctx.save();
+      ctx.globalAlpha =
+        0.35 +
+        phase *
+          0.65;
+      ctx.strokeStyle =
+        "#ffb000";
+      ctx.lineWidth =
+        1;
+      ctx.strokeRect(
+        blockX - 1,
+        blockY - 1,
+        blockW + 2,
+        blockH + 2
+      );
+      ctx.restore();
+    } else if (
+      trackingPrediction
+    ) {
+      const phase =
+        (
+          Math.sin(
+            Date.now() /
+              180
+          ) +
+          1
+        ) /
+        2;
+
+      ctx.save();
+      ctx.globalAlpha =
+        0.35 +
+        phase *
+          0.65;
+      ctx.strokeStyle =
+        "#ffd43b";
+      ctx.lineWidth =
+        1;
+      ctx.setLineDash([
+        5,
+        3,
+      ]);
+      ctx.strokeRect(
+        blockX - 1,
+        blockY - 1,
+        blockW + 2,
+        blockH + 2
+      );
+      ctx.restore();
+    }
+
     if (
       occupied ||
       inTransit
