@@ -3889,32 +3889,140 @@ async function smartDispatcher(blocks, callback, options = {}) {
   if (!Array.isArray(blocks) || typeof callback !== "function") {
     throw new Error("smartDispatcher(blocks, callback, options?): invalid arguments.");
   }
-  const started = JSON.parse(await __smartStart(JSON.stringify(blocks), JSON.stringify({})));
+  if (options === null || typeof options !== "object" || Array.isArray(options)) {
+    throw new Error("smartDispatcher: options must be an object.");
+  }
+
+  const setDelayMs =
+    options.setDelayMs == null
+      ? 250
+      : Number(options.setDelayMs);
+
+  const blockPollMs =
+    options.blockPollMs == null
+      ? 100
+      : Number(options.blockPollMs);
+
+  if (!Number.isFinite(setDelayMs) || setDelayMs < 0 || setDelayMs > 600000) {
+    throw new Error("smartDispatcher: setDelayMs must be between 0 and 600000.");
+  }
+
+  if (!Number.isFinite(blockPollMs) || blockPollMs < 25 || blockPollMs > 5000) {
+    throw new Error("smartDispatcher: blockPollMs must be between 25 and 5000.");
+  }
+
+  if (
+    options.onBlocked != null &&
+    typeof options.onBlocked !== "function"
+  ) {
+    throw new Error("smartDispatcher: options.onBlocked must be a function.");
+  }
+
+  if (
+    options.onEmpty != null &&
+    typeof options.onEmpty !== "function"
+  ) {
+    throw new Error("smartDispatcher: options.onEmpty must be a function.");
+  }
+
+  const started = JSON.parse(
+    await __smartStart(
+      JSON.stringify(blocks),
+      JSON.stringify({
+        setDelayMs: Math.round(setDelayMs),
+        blockPollMs: Math.round(blockPollMs),
+      })
+    )
+  );
+
   if (started.status === "empty") {
-    if (typeof options?.onEmpty === "function") {
+    if (typeof options.onEmpty === "function") {
       await options.onEmpty(started.direction);
       return Object.freeze({ status: "empty", loco: 0, dir: started.direction });
     }
     throw new Error("smart_dispatcher_empty_source");
   }
+
   const runId = started.runId;
+
+  const state = () =>
+    JSON.parse(__smartState(runId));
+
   const run = Object.freeze({
     setSpeed: speed => __smartSetSpeed(runId, Number(speed)),
+    stop: () => __smartSetSpeed(runId, 0),
     waitForBlock: (blockName, timeoutMs = -1) =>
       __smartWaitBlock(runId, String(blockName), Number(timeoutMs ?? -1)),
-    waitForClearance: (timeoutMs = -1) =>
-      __smartWaitClearance(runId, Number(timeoutMs ?? -1)),
+    waitForClearance: (blockName, timeoutMs = -1) =>
+      __smartWaitClearance(
+        runId,
+        String(blockName),
+        Number(timeoutMs ?? -1)
+      ),
+    getCurrentBlock: () => state().currentBlock,
+    getNextBlock: () => state().nextBlock,
+    getRoute: () => Object.freeze([...(state().route ?? [])]),
+    getDesiredSpeed: () => Number(state().desiredSpeed ?? 0),
   });
+
+  let blockedWatcher = null;
+
+  if (typeof options.onBlocked === "function") {
+    blockedWatcher = (async () => {
+      let version = 0;
+
+      while (true) {
+        const event =
+          JSON.parse(
+            await __smartWaitBlocked(
+              runId,
+              version
+            )
+          );
+
+        version =
+          Number(event.version ?? version);
+
+        if (event.status === "complete") {
+          return;
+        }
+
+        await options.onBlocked(
+          started.loco,
+          started.direction,
+          event
+        );
+      }
+    })();
+  }
+
   try {
-    await Promise.all([
+    const promises = [
       __smartWaitComplete(runId),
-      Promise.resolve().then(() => callback(started.loco, started.direction, run)),
-    ]);
+      Promise.resolve().then(() =>
+        callback(
+          started.loco,
+          started.direction,
+          run
+        )
+      ),
+    ];
+
+    if (blockedWatcher) {
+      promises.push(blockedWatcher);
+    }
+
+    await Promise.all(promises);
+
     return Object.freeze({
       status: "completed",
       loco: started.loco,
       dir: started.direction,
-      block: Array.isArray(blocks) ? String(blocks[blocks.length - 1]) : "",
+      block:
+        Array.isArray(started.route) &&
+        started.route.length > 0
+          ? String(started.route[started.route.length - 1])
+          : "",
     });
   } finally {
     __smartAbort(runId);
@@ -4452,12 +4560,31 @@ async function smartDispatcher(blocks, callback, options = {}) {
 
         engine.SetValue(
             "__smartWaitClearance",
-            new Func<string, double, Task<bool>>(
-                (runId, timeout) =>
+            new Func<string, string, double, Task<bool>>(
+                (runId, blockName, timeout) =>
                     SmartWaitClearance(
                         execution,
                         runId,
+                        blockName,
                         timeout)));
+
+        engine.SetValue(
+            "__smartState",
+            new Func<string, string>(
+                runId =>
+                    SmartState(
+                        execution,
+                        runId)));
+
+        engine.SetValue(
+            "__smartWaitBlocked",
+            new Func<string, double, Task<string>>(
+                (runId, afterVersion) =>
+                    SmartWaitBlocked(
+                        execution,
+                        runId,
+                        (int)Math.Round(
+                            afterVersion))));
 
         engine.SetValue(
             "__smartWaitComplete",
