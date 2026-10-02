@@ -123,6 +123,7 @@ public sealed class MovementPlanLegModel
     public MovementSensorCondition[] DepartWhen { get; set; } = [];
     public MovementSensorCondition[] LeaveWhen { get; set; } = [];
     public bool LeaveWhenExplicit { get; set; }
+    public MovementSensorCondition[] AfterLeaveWhen { get; set; } = [];
     public MovementSensorCondition[] ArrivedWhen { get; set; } = [];
 }
 
