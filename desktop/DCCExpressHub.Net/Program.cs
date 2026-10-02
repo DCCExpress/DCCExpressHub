@@ -48,6 +48,7 @@ builder.Services.AddSingleton<SwitchManManager>();
 builder.Services.AddSingleton<DispatcherRuntime>();
 builder.Services.AddSingleton<MovementPlanBuilder>();
 builder.Services.AddSingleton<MovementRuntime>();
+builder.Services.AddSingleton<TrainTrackingRuntime>();
 builder.Services.AddSingleton<ScriptRuntime>();
 builder.Services.AddSingleton<FlowRuntime>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<FlowRuntime>());
