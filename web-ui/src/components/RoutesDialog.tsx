@@ -3,7 +3,6 @@ import {
   Badge,
   Button,
   Group,
-  Modal,
   ScrollArea,
   Select,
   Stack,
@@ -60,6 +59,8 @@ import {
 import {
   saveAutomationMovement,
 } from "@/services/automationApi";
+
+import AppModal from "@/components/common/AppModal";
 
 import RoutePreviewDialog from "@/components/routes/RoutePreviewDialog";
 
@@ -960,9 +961,10 @@ export default function RoutesDialog({
     };
 
   return (
-    <Modal
+    <AppModal
       opened={opened}
       onClose={onClose}
+      draggable
       title={
         <Group gap="xs">
           <IconRoute size={19} />
@@ -973,8 +975,28 @@ export default function RoutesDialog({
       }
       size="min(1200px, 94vw)"
       centered
+      styles={{
+        content: {
+          height:
+            "min(820px, 92dvh)",
+          overflow:
+            "hidden",
+        },
+        body: {
+          height:
+            "calc(100% - 48px)",
+          overflow:
+            "hidden",
+        },
+      }}
     >
-      <Stack gap="sm">
+      <Stack
+        gap="sm"
+        h="100%"
+        style={{
+          minHeight: 0,
+        }}
+      >
         <Group justify="space-between">
           <Group gap="xs">
             <Badge variant="light">
@@ -1031,6 +1053,12 @@ export default function RoutesDialog({
           <Tabs
             defaultValue="selectRoute"
             keepMounted={false}
+            style={{
+              flex: 1,
+              minHeight: 0,
+              display: "flex",
+              flexDirection: "column",
+            }}
           >
             <Tabs.List>
               <Tabs.Tab value="selectRoute">
@@ -1053,6 +1081,11 @@ export default function RoutesDialog({
             <Tabs.Panel
               value="selectRoute"
               pt="sm"
+              style={{
+                flex: 1,
+                minHeight: 0,
+                overflow: "hidden",
+              }}
             >
               <Stack gap="sm">
                 <TextInput
@@ -1375,6 +1408,11 @@ export default function RoutesDialog({
             <Tabs.Panel
               value="graph"
               pt="sm"
+              style={{
+                flex: 1,
+                minHeight: 0,
+                overflow: "hidden",
+              }}
             >
               <ScrollArea.Autosize mah="60dvh">
                 <Table
@@ -1474,6 +1512,11 @@ export default function RoutesDialog({
             <Tabs.Panel
               value="segments"
               pt="sm"
+              style={{
+                flex: 1,
+                minHeight: 0,
+                overflow: "hidden",
+              }}
             >
               <ScrollArea.Autosize mah="60dvh">
                 <Table
@@ -1552,6 +1595,11 @@ export default function RoutesDialog({
             <Tabs.Panel
               value="routes"
               pt="sm"
+              style={{
+                flex: 1,
+                minHeight: 0,
+                overflow: "hidden",
+              }}
             >
               <Stack gap="sm">
                 <Group
@@ -1733,6 +1781,6 @@ export default function RoutesDialog({
         page={previewPage}
         layout={layout}
       />
-    </Modal>
+    </AppModal>
   );
 }
