@@ -332,26 +332,9 @@ public sealed class MovementRuntime
     }
 
     bool ArrivalSatisfied(
-        MovementPlanLegModel leg)
-    {
-        /*
-         * ARRIVED means the locomotive is physically in the destination
-         * block AND the configured direction-aware ARRIVED conditions match.
-         * A custom sensor refines the stopping point; it never replaces the
-         * destination block occupancy confirmation.
-         */
-        var destinationSensor =
-            leg.To.SensorAddress;
-
-        return
-            destinationSensor is >= 1 and <= 65535 &&
-            _layout.TryGetSensorState(
-                (ushort)destinationSensor.Value,
-                out var occupied) &&
-            occupied &&
-            ConditionsSatisfied(
-                leg.ArrivedWhen);
-    }
+        MovementPlanLegModel leg) =>
+        ConditionsSatisfied(
+            leg.ArrivedWhen);
 
     MovementResourceEventRule EffectiveResourceRule(
         MovementPageModel page,
