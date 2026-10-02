@@ -2015,6 +2015,31 @@ public sealed class MovementRuntime
             0);
     }
 
+    static bool ActionCanDelayDeparture(
+        MovementActionModel action)
+    {
+        if (string.Equals(
+                action.SequenceMode,
+                "background",
+                StringComparison.Ordinal))
+            return false;
+
+        return action.Kind switch
+        {
+            "delay" or
+            "randomDelay" or
+            "horn" =>
+                true,
+
+            "playAudio" or
+            "randomPlay" =>
+                action.AudioWaitForEnd,
+
+            _ =>
+                false
+        };
+    }
+
     bool HasBlockingActions(
         MovementPageModel page,
         string resourceKey,
@@ -2028,10 +2053,8 @@ public sealed class MovementRuntime
                 action.When,
                 when,
                 StringComparison.Ordinal) &&
-            !string.Equals(
-                action.SequenceMode,
-                "background",
-                StringComparison.Ordinal));
+            ActionCanDelayDeparture(
+                action));
 
     bool CanPrepareNextLeg(
         Execution execution,
