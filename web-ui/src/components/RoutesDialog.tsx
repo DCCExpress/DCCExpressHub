@@ -12,6 +12,7 @@ import {
 } from "@mantine/core";
 
 import {
+  IconEye,
   IconPlayerPlay,
   IconRefresh,
   IconRoute,
@@ -36,6 +37,16 @@ import {
 } from "@/services/clientRouteGraphCache";
 
 import {
+  createMovementRouteKey,
+} from "@/services/movementRouteIdentity";
+
+import type {
+  MovementPage,
+} from "@/domain/movement";
+
+import MovementRouteVectorPreview from "@/components/movement/MovementRouteVectorPreview";
+
+import {
   testRouteTurnoutStates,
 } from "@/services/routeGraphTestExecutor";
 
@@ -54,6 +65,141 @@ type RoutesDialogProps = {
   onGenerated?: () => void;
 };
 
+function previewMovementPage(
+  route:
+    ClientRouteGraphBuildResult["routes"][number]
+): MovementPage {
+  const nodeIndexByName =
+    new Map(
+      route.solution.nodes.map(
+        (node, index) => [
+          node.name,
+          index,
+        ] as const
+      )
+    );
+
+  const blockPath =
+    route.solution.path
+      .filter(
+        item =>
+          item.type ===
+          "block"
+      )
+      .map(
+        item => {
+          if (item.type !== "block") {
+            throw new Error("invalid_route_preview_block");
+          }
+
+          return {
+            id:
+              Number(
+                item.block.id
+              ),
+            nodeIndex:
+              nodeIndexByName.get(
+                item.node.name
+              ) ??
+              0,
+          };
+        }
+      );
+
+  const routeKey =
+    createMovementRouteKey({
+      fromBlockId:
+        Number(
+          route.fromBlock.id
+        ),
+      toBlockId:
+        Number(
+          route.toBlock.id
+        ),
+      blockPath,
+      nodes:
+        route.solution.nodes.map(
+          node =>
+            node.name
+        ),
+      edgePath:
+        route.solution.edges.map(
+          edge => ({
+            from:
+              edge.from.name,
+            to:
+              edge.to.name,
+            locoDirection:
+              edge.locoDirection,
+            turnoutStates:
+              edge.turnoutStates.map(
+                state => ({
+                  ...state,
+                })
+              ),
+            turnoutPath:
+              edge.turnoutPath.map(
+                passage => ({
+                  elementId:
+                    Number(
+                      passage.elementId
+                    ),
+                  turnoutStates:
+                    passage.turnoutStates.map(
+                      state => ({
+                        ...state,
+                      })
+                    ),
+                })
+              ),
+          })
+        ),
+      locoDirection:
+        route.solution.locoDirection,
+    });
+
+  return {
+    id:
+      "route-preview",
+    name:
+      route.fromBlock.name +
+      " → " +
+      route.toBlock.name,
+    enabled:
+      false,
+    speed:
+      0,
+    startedAt:
+      null,
+    stoppedAt:
+      null,
+    routeKey,
+    fromBlockId:
+      Number(
+        route.fromBlock.id
+      ),
+    viaBlockIds:
+      blockPath
+        .slice(
+          1,
+          -1
+        )
+        .map(
+          block =>
+            Number(
+              block.id
+            )
+        ),
+    toBlockId:
+      Number(
+        route.toBlock.id
+      ),
+    blockRules: [],
+    resourceEventRules: [],
+    safetyRules: [],
+    actions: [],
+  };
+}
 function turnoutText(
   states: ReadonlyArray<{
     address: number;
@@ -103,6 +249,13 @@ export default function RoutesDialog({
     testingKey,
     setTestingKey,
   ] = useState<string | null>(
+    null
+  );
+
+  const [
+    previewPage,
+    setPreviewPage,
+  ] = useState<MovementPage | null>(
     null
   );
 
@@ -521,7 +674,15 @@ export default function RoutesDialog({
               value="routes"
               pt="sm"
             >
-              <ScrollArea.Autosize mah="60dvh">
+              <Stack gap="sm">
+                {previewPage && (
+                  <MovementRouteVectorPreview
+                    page={previewPage}
+                    layout={layout}
+                  />
+                )}
+
+                <ScrollArea.Autosize mah="52dvh">
                 <Table
                   striped
                   highlightOnHover
@@ -548,6 +709,12 @@ export default function RoutesDialog({
 
                       <Table.Th>
                         {t("ui.direction")}
+                      </Table.Th>
+
+                      <Table.Th
+                        style={{ width: 110 }}
+                      >
+                        {t("ui.preview")}
                       </Table.Th>
 
                       <Table.Th
@@ -597,6 +764,25 @@ export default function RoutesDialog({
                               size="xs"
                               variant="light"
                               leftSection={
+                                <IconEye size={14} />
+                              }
+                              onClick={() =>
+                                setPreviewPage(
+                                  previewMovementPage(
+                                    route
+                                  )
+                                )
+                              }
+                            >
+                              {t("ui.preview")}
+                            </Button>
+                          </Table.Td>
+
+                          <Table.Td>
+                            <Button
+                              size="xs"
+                              variant="light"
+                              leftSection={
                                 <IconPlayerPlay size={14} />
                               }
                               loading={
@@ -624,6 +810,7 @@ export default function RoutesDialog({
                   </Table.Tbody>
                 </Table>
               </ScrollArea.Autosize>
+              </Stack>
             </Tabs.Panel>
           </Tabs>
         )}
