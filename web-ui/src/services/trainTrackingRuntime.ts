@@ -1961,8 +1961,10 @@ function handleSensorOn(
 
     log(
       "match",
-      movementOwned
-        ? `Tracked loco #${state.locoAddress} into ${state.currentBlockName} via sensor #${sensor}; active Movement owns block assignment.`
+      backendManagedLocos.has(
+        state.locoAddress
+      )
+        ? `Tracked loco #${state.locoAddress} into ${state.currentBlockName} via sensor #${sensor}; backend Movement owns block assignment.`
         : `Tracked loco #${state.locoAddress} into ${state.currentBlockName} via sensor #${sensor}.`
     );
   } else {
