@@ -364,19 +364,50 @@ export type TimetableCommandPayload = {
   finishing?: boolean;
 };
 
-export type TimetableScriptStatusCommandPayload = {
-  runId: string;
-  status:
-    | "running"
-    | "paused";
-  message:
-    string | null;
+export type ScriptCommandAction =
+  | "snapshot"
+  | "startSaved"
+  | "startSource"
+  | "pause"
+  | "resume"
+  | "abort"
+  | "startAll"
+  | "pauseAll"
+  | "resumeAll"
+  | "abortAll"
+  | "setFinishing";
+
+export type ScriptCommandPayload = {
+  requestId: string;
+  action:
+    ScriptCommandAction;
+  scriptId?: string;
+  executionId?: string;
+  name?: string;
+  executionType?: string;
+  source?: string;
+  finishing?: boolean;
 };
 
-export type TimetableScriptCompleteCommandPayload = {
-  runId: string;
+export type ScriptAudioCompleteCommandPayload = {
+  requestId: string;
   ok: boolean;
-  message?: string;
+};
+
+export type FlowCommandAction =
+  | "snapshot"
+  | "runPage"
+  | "abortPage"
+  | "abortAll";
+
+export type FlowCommandPayload = {
+  requestId: string;
+  action:
+    FlowCommandAction;
+  pageId?: string;
+  inputNodeId?: string;
+  payload?: unknown;
+  mode?: string;
 };
 
 export type ClientWsPayloadMap = {
@@ -389,9 +420,10 @@ export type ClientWsPayloadMap = {
   dispatcherCommand: DispatcherCommandPayload;
   movementCommand: MovementCommandPayload;
   movementAudioComplete: MovementAudioCompleteCommandPayload;
+  scriptCommand: ScriptCommandPayload;
+  scriptAudioComplete: ScriptAudioCompleteCommandPayload;
+  flowCommand: FlowCommandPayload;
   timetableCommand: TimetableCommandPayload;
-  timetableScriptStatus: TimetableScriptStatusCommandPayload;
-  timetableScriptComplete: TimetableScriptCompleteCommandPayload;
   setTrackPower: SetTrackPowerCommandPayload;
   setProgrammingPower: SetProgrammingPowerCommandPayload;
   emergencyStop: EmptyClientWsCommandPayload;
