@@ -21,14 +21,20 @@ import type {
   AutomationScriptDefinition,
 } from "../services/automationApi";
 
+import type {
+  Loco,
+} from "../domain/domainTypes";
+
 import AutomationFlowsTable from "./automation/AutomationFlowsTable";
 import AutomationScriptsTable from "./automation/AutomationScriptsTable";
 import MovementPagesTable from "./movement/MovementPagesTable";
+import TrainTrackingPanel from "./automation/TrainTrackingPanel";
 
 type AutomationPanelTab =
   | "scripts"
   | "flows"
-  | "movement";
+  | "movement"
+  | "tracking";
 
 const AUTOMATION_PANEL_TAB_STORAGE_KEY =
   "dcc-express-hub.automation.activeTab";
@@ -57,6 +63,8 @@ function loadAutomationPanelTab(): AutomationPanelTab {
 }
 
 type AutomationPanelProps = {
+  locos:
+    Loco[];
   scripts:
     AutomationScriptDefinition[];
   onScriptsChange: (
@@ -86,6 +94,7 @@ type AutomationPanelProps = {
 };
 
 export default function AutomationPanel({
+  locos,
   scripts,
   onScriptsChange,
   flows,
@@ -114,7 +123,9 @@ export default function AutomationPanel({
         value !==
           "flows" &&
         value !==
-          "movement"
+          "movement" &&
+        value !==
+          "tracking"
       ) {
         return;
       }
@@ -194,6 +205,20 @@ export default function AutomationPanel({
               )
             }
           </Tabs.Tab>
+
+          <Tabs.Tab
+            value="tracking"
+          >
+            {
+              i18next.t(
+                "ui.automationTrackingTab",
+                {
+                  defaultValue:
+                    "Tracking",
+                }
+              )
+            }
+          </Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel
@@ -249,6 +274,20 @@ export default function AutomationPanel({
             }
             onSelectRoute={
               onSelectMovementRoute
+            }
+          />
+        </Tabs.Panel>
+
+        <Tabs.Panel
+          value="tracking"
+          style={{
+            flex: 1,
+            minHeight: 0,
+          }}
+        >
+          <TrainTrackingPanel
+            locos={
+              locos
             }
           />
         </Tabs.Panel>
