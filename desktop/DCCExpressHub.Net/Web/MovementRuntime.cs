@@ -110,6 +110,9 @@ public sealed class MovementPlanResourceModel
     public int? NodeIndex { get; set; }
     public int[] Detectors { get; set; } = [];
     public DispatcherTurnoutRequirement[] TurnoutStates { get; set; } = [];
+    public int RouteOrder { get; set; }
+    public int? PartIndex { get; set; }
+    public string[] PhysicalSegmentNames { get; set; } = [];
 }
 
 public sealed class MovementPlanLegModel
