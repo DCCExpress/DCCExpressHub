@@ -351,6 +351,13 @@ export default function RoutesDialog({
     setMovementName,
   ] = useState("");
 
+  const [
+    exactRouteFilter,
+    setExactRouteFilter,
+  ] = useState<string | null>(
+    null
+  );
+
   const generate =
     useCallback(
       (
@@ -502,6 +509,12 @@ export default function RoutesDialog({
         ""
       );
 
+      setExactRouteFilter(
+        editingPage?.routeKey?.trim()
+          ? editingPage.routeKey
+          : null
+      );
+
       setSelectFromFilter(
         ""
       );
@@ -546,6 +559,57 @@ export default function RoutesDialog({
               setCandidates(
                 loaded
               );
+
+              if (
+                editingPage
+              ) {
+                const current =
+                  (
+                    editingPage.routeKey.trim()
+                      ? loaded.find(
+                          candidate =>
+                            candidate.key ===
+                            editingPage.routeKey
+                        )
+                      : null
+                  ) ??
+                  loaded.find(
+                    candidate =>
+                      candidate.fromBlockId ===
+                        editingPage.fromBlockId &&
+                      candidate.toBlockId ===
+                        editingPage.toBlockId &&
+                      candidate.blockPath
+                        .slice(
+                          1,
+                          -1
+                        )
+                        .map(
+                          block =>
+                            block.id
+                        )
+                        .join(
+                          ","
+                        ) ===
+                        editingPage.viaBlockIds.join(
+                          ","
+                        )
+                  );
+
+                if (current) {
+                  setSelectFromFilter(
+                    current.fromBlockName
+                  );
+
+                  setSelectToFilter(
+                    current.toBlockName
+                  );
+
+                  setExactRouteFilter(
+                    current.key
+                  );
+                }
+              }
             }
           }
         )
@@ -702,6 +766,12 @@ export default function RoutesDialog({
         return candidates.filter(
           candidate =>
             (
+              exactRouteFilter ===
+                null ||
+              candidate.key ===
+                exactRouteFilter
+            ) &&
+            (
               !fromNeedle ||
               candidate.fromBlockName
                 .toLocaleLowerCase()
@@ -723,6 +793,7 @@ export default function RoutesDialog({
         candidates,
         selectFromFilter,
         selectToFilter,
+        exactRouteFilter,
       ]
     );
 
@@ -983,10 +1054,15 @@ export default function RoutesDialog({
                     placeholder={t("ui.movementFilterPlaceholder")}
                     value={selectFromFilter}
                     onChange={
-                      event =>
+                      event => {
+                        setExactRouteFilter(
+                          null
+                        );
+
                         setSelectFromFilter(
                           event.currentTarget.value
-                        )
+                        );
+                      }
                     }
                     rightSection={
                       selectFromFilter ? (
@@ -996,10 +1072,15 @@ export default function RoutesDialog({
                           color="gray"
                           px={4}
                           onClick={
-                            () =>
+                            () => {
+                              setExactRouteFilter(
+                                null
+                              );
+
                               setSelectFromFilter(
                                 ""
-                              )
+                              );
+                            }
                           }
                         >
                           <IconX size={14} />
@@ -1013,10 +1094,15 @@ export default function RoutesDialog({
                     placeholder={t("ui.movementFilterPlaceholder")}
                     value={selectToFilter}
                     onChange={
-                      event =>
+                      event => {
+                        setExactRouteFilter(
+                          null
+                        );
+
                         setSelectToFilter(
                           event.currentTarget.value
-                        )
+                        );
+                      }
                     }
                     rightSection={
                       selectToFilter ? (
@@ -1026,10 +1112,15 @@ export default function RoutesDialog({
                           color="gray"
                           px={4}
                           onClick={
-                            () =>
+                            () => {
+                              setExactRouteFilter(
+                                null
+                              );
+
                               setSelectToFilter(
                                 ""
-                              )
+                              );
+                            }
                           }
                         >
                           <IconX size={14} />
