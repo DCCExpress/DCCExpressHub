@@ -3104,6 +3104,7 @@ const dcc = Object.freeze({
 });
 
 const delay = ms => __delay(Number(ms));
+const playAudio = source => dcc.playAudio(source);
 const log = (...values) => __log(JSON.stringify(values));
 const setInfo = value => __setInfo(value == null ? "" : String(value));
 const isRunning = () => !__isFinishing();
