@@ -1561,6 +1561,59 @@ public sealed class DispatcherRuntime
             lease);
     }
 
+    public bool ReleaseLegTurnouts(string ownerId)
+    {
+        if (string.IsNullOrWhiteSpace(ownerId))
+            return false;
+
+        ushort[] addresses;
+
+        lock (_gate)
+        {
+            if (!_leases.TryGetValue(
+                    ownerId,
+                    out var lease))
+                return false;
+
+            if (lease.TurnoutAddresses.Length == 0)
+                return true;
+
+            addresses =
+                lease.TurnoutAddresses
+                    .ToArray();
+
+            /*
+             * Remove turnout authority from the Dispatcher lease BEFORE
+             * releasing SwitchMan locks. SwitchMan.Changed reconciles active
+             * leases synchronously; leaving the old addresses in the lease
+             * would make our intentional ARRIVED release look like authority
+             * loss and tear down the complete leg.
+             */
+            _leases[
+                ownerId] =
+                lease with
+                {
+                    TurnoutAddresses = []
+                };
+        }
+
+        _switchMan.ReleaseOwned(
+            addresses,
+            ownerId);
+
+        _log.LogInformation(
+            "Dispatcher released turnout authority for leg owner {OwnerId}: {Addresses}",
+            ownerId,
+            string.Join(
+                ",",
+                addresses));
+
+        Changed?.Invoke(
+            Snapshot());
+
+        return true;
+    }
+
     public bool ReleaseLeg(string ownerId)
     {
         if (string.IsNullOrWhiteSpace(ownerId))
