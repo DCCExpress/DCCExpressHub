@@ -462,10 +462,154 @@ public sealed class MovementPlanBuilder
                 })
             .ToArray();
 
+    static MovementSensorCondition[] BlockEventConditions(
+        JsonElement root,
+        int blockId,
+        string direction,
+        string eventName)
+    {
+        if (direction is not ("forward" or "reverse") ||
+            !root.TryGetProperty(
+                "layers",
+                out var layers) ||
+            layers.ValueKind != JsonValueKind.Array)
+            return [];
+
+        foreach (var layer in layers.EnumerateArray())
+        {
+            if (!layer.TryGetProperty(
+                    "elements",
+                    out var elements) ||
+                elements.ValueKind != JsonValueKind.Array)
+                continue;
+
+            foreach (var element in elements.EnumerateArray())
+            {
+                if (!string.Equals(
+                        Str(
+                            element,
+                            "type"),
+                        "trackblock",
+                        StringComparison.Ordinal) ||
+                    Int(
+                        element,
+                        "id") !=
+                    blockId ||
+                    !element.TryGetProperty(
+                        "eventConfig",
+                        out var eventConfig) ||
+                    eventConfig.ValueKind != JsonValueKind.Object ||
+                    !eventConfig.TryGetProperty(
+                        direction,
+                        out var directionConfig) ||
+                    directionConfig.ValueKind != JsonValueKind.Object)
+                    continue;
+
+                JsonElement conditions;
+
+                if (!directionConfig.TryGetProperty(
+                        eventName,
+                        out conditions))
+                {
+                    var legacyName =
+                        eventName switch
+                        {
+                            "arrival" =>
+                                "beforeArrive",
+                            "leave" =>
+                                directionConfig.TryGetProperty(
+                                    "afterLeave",
+                                    out _)
+                                    ? "afterLeave"
+                                    : "beforeLeave",
+                            _ =>
+                                eventName
+                        };
+
+                    if (!directionConfig.TryGetProperty(
+                            legacyName,
+                            out conditions))
+                        return [];
+                }
+
+                if (conditions.ValueKind != JsonValueKind.Array)
+                    return [];
+
+                var result =
+                    new List<MovementSensorCondition>();
+
+                var index =
+                    0;
+
+                foreach (var raw in conditions.EnumerateArray())
+                {
+                    var sensor =
+                        Int(
+                            raw,
+                            "sensor");
+
+                    if (!ValidId(
+                            sensor))
+                    {
+                        index++;
+                        continue;
+                    }
+
+                    var state =
+                        !raw.TryGetProperty(
+                            "state",
+                            out var stateElement) ||
+                        stateElement.ValueKind != JsonValueKind.False;
+
+                    result.Add(
+                        new MovementSensorCondition
+                        {
+                            Id =
+                                $"block-event-{blockId}-{direction}-{eventName}-{index}",
+                            Sensor =
+                                sensor,
+                            State =
+                                state
+                        });
+
+                    index++;
+                }
+
+                return result.ToArray();
+            }
+        }
+
+        return [];
+    }
+
+    static MovementSensorCondition[] ApproachRule(
+        MovementPageModel page,
+        int blockId,
+        JsonElement root,
+        string direction)
+    {
+        var explicitRule =
+            BlockRule(
+                page,
+                blockId);
+
+        if (explicitRule?.ApproachWhen.Length > 0)
+            return CloneConditions(
+                explicitRule.ApproachWhen);
+
+        return BlockEventConditions(
+            root,
+            blockId,
+            direction,
+            "arrival");
+    }
+
     static MovementSensorCondition[] ArrivalRule(
         MovementPageModel page,
         int blockId,
-        IReadOnlyDictionary<int, int> blockSensors)
+        IReadOnlyDictionary<int, int> blockSensors,
+        JsonElement root,
+        string direction)
     {
         var explicitRule =
             BlockRule(
@@ -475,6 +619,16 @@ public sealed class MovementPlanBuilder
         if (explicitRule?.ArrivedWhen.Length > 0)
             return CloneConditions(
                 explicitRule.ArrivedWhen);
+
+        var configured =
+            BlockEventConditions(
+                root,
+                blockId,
+                direction,
+                "arrived");
+
+        if (configured.Length > 0)
+            return configured;
 
         return blockSensors.TryGetValue(
                 blockId,
@@ -499,7 +653,8 @@ public sealed class MovementPlanBuilder
         LeaveRule(
             MovementPageModel page,
             int blockId,
-            IReadOnlyDictionary<int, int> blockSensors)
+            JsonElement root,
+            string direction)
     {
         var explicitRule =
             BlockRule(
@@ -512,22 +667,17 @@ public sealed class MovementPlanBuilder
                     explicitRule.LeaveWhen),
                 true);
 
-        return blockSensors.TryGetValue(
+        var configured =
+            BlockEventConditions(
+                root,
                 blockId,
-                out var sensor)
+                direction,
+                "leave");
+
+        return configured.Length > 0
             ? (
-                [
-                    new MovementSensorCondition
-                    {
-                        Id =
-                            $"auto-leave-{blockId}-off",
-                        Sensor =
-                            sensor,
-                        State =
-                            false
-                    }
-                ],
-                false)
+                configured,
+                true)
             : (
                 [],
                 false);
@@ -728,6 +878,12 @@ public sealed class MovementPlanBuilder
             SelectRoute(
                 page,
                 routeTable);
+
+        var routeDirection =
+            Str(
+                route,
+                "locoDirection",
+                "unknown");
 
         var trackAddresses =
             TrackAddressMap(root);
@@ -1151,12 +1307,8 @@ public sealed class MovementPlanBuilder
                 LeaveRule(
                     page,
                     from.BlockId.Value,
-                    blockSensors);
-
-            var rule =
-                BlockRule(
-                    page,
-                    to.BlockId.Value);
+                    root,
+                    routeDirection);
 
             var fromRule =
                 BlockRule(
@@ -1180,8 +1332,11 @@ public sealed class MovementPlanBuilder
                                 .SelectMany(resource =>
                                     resource.TurnoutStates)),
                     ApproachWhen =
-                        CloneConditions(
-                            rule?.ApproachWhen),
+                        ApproachRule(
+                            page,
+                            to.BlockId.Value,
+                            root,
+                            routeDirection),
                     DepartWhen =
                         CloneConditions(
                             fromRule?.DepartWhen),
@@ -1193,17 +1348,16 @@ public sealed class MovementPlanBuilder
                         ArrivalRule(
                             page,
                             to.BlockId.Value,
-                            blockSensors)
+                            blockSensors,
+                            root,
+                            routeDirection)
                 });
         }
 
         return new MovementPlanModel
         {
             Direction =
-                Str(
-                    route,
-                    "locoDirection",
-                    "unknown"),
+                routeDirection,
             Resources =
                 resources.ToArray(),
             Blocks =
