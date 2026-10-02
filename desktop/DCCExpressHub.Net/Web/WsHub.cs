@@ -64,13 +64,13 @@ public sealed class WsHub
                     Dispatcher.RouteSnapshot()
             });
         Movement.Changed += state => _ = Broadcast("movementStateChanged", state);
-        Movement.AudioRequested += request => _ = Broadcast("playAudio", new { requestId = request.RequestId, fileName = request.FileName });
+        Movement.AudioRequested += request => _ = HandleMovementAudioRequest(request);
         Movement.LocoChanged += loco => _ = BroadcastLoco(loco);
         Movement.PowerStateChanged += () => _ = BroadcastPower();
 
         Scripts.Changed += state => _ = Broadcast("automationScriptStateChanged", state);
         Scripts.LogChanged += entry => _ = Broadcast("automationScriptLog", entry);
-        Scripts.AudioRequested += request => _ = Broadcast("playAudio", new { requestId = request.RequestId, fileName = request.FileName });
+        Scripts.AudioRequested += request => _ = HandleScriptAudioRequest(request);
         Scripts.LocoChanged += loco => _ = BroadcastLoco(loco);
         Scripts.PowerStateChanged += () => _ = BroadcastPower();
 
@@ -234,6 +234,61 @@ public sealed class WsHub
                 _controlStationOwnerConnectionId.Value == connectionId;
     }
 
+    private bool HasControlStationOwner()
+    {
+        lock (_controlStationGate)
+            return
+                _controlStationOwnerConnectionId.HasValue &&
+                Clients.ContainsKey(
+                    _controlStationOwnerConnectionId.Value);
+    }
+
+    private async Task HandleMovementAudioRequest(
+        MovementAudioRequest request)
+    {
+        /*
+         * Audio is rendered by browsers, but automation lifetime is not owned
+         * by a browser. Without an active Control Station there is nobody who
+         * can authoritatively complete a blocking playback request, so resolve
+         * it as skipped and still broadcast the sound to any passive clients.
+         */
+        if (request.WaitForEnd &&
+            !HasControlStationOwner())
+            Movement.CompleteAudio(
+                request.RequestId,
+                false);
+
+        await Broadcast(
+            "playAudio",
+            new
+            {
+                requestId =
+                    request.RequestId,
+                fileName =
+                    request.FileName
+            });
+    }
+
+    private async Task HandleScriptAudioRequest(
+        ScriptAudioRequest request)
+    {
+        if (request.WaitForEnd &&
+            !HasControlStationOwner())
+            Scripts.CompleteAudio(
+                request.RequestId,
+                false);
+
+        await Broadcast(
+            "playAudio",
+            new
+            {
+                requestId =
+                    request.RequestId,
+                fileName =
+                    request.FileName
+            });
+    }
+
     private void ApplyPower(PowerFeedback p)
     {
         if (p.Target == "All") { HubState.TrackPower = p.On; HubState.ProgrammingPower = p.On; }
@@ -265,6 +320,12 @@ public sealed class WsHub
 
             if (ReleaseControlStation(id))
                 await OnControlStationReleased();
+
+            if (Clients.IsEmpty)
+            {
+                Movement.FailPendingAudio();
+                Scripts.FailPendingAudio();
+            }
 
             try { await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "bye", CancellationToken.None); } catch { }
         }
