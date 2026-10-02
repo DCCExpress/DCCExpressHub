@@ -142,86 +142,90 @@ function blockEvents(
     return [];
   }
 
-  const result: EventRow[] = [];
-
   const incoming =
     plan.legs.find(
       leg =>
         leg.to.key === resource.key
+    ) ??
+    null;
+
+  const outgoing =
+    plan.legs.find(
+      leg =>
+        leg.from.key === resource.key
+    ) ??
+    null;
+
+  const configuredArrival =
+    configuredBlockConditions(
+      layout,
+      resource.blockId,
+      plan.direction,
+      "arrival"
     );
 
-  if (incoming) {
-    const configuredArrival =
-      configuredBlockConditions(
-        layout,
-        resource.blockId,
-        plan.direction,
-        "arrival"
-      );
+  const configuredArrived =
+    configuredBlockConditions(
+      layout,
+      resource.blockId,
+      plan.direction,
+      "arrived"
+    );
 
-    const configuredArrived =
-      configuredBlockConditions(
-        layout,
-        resource.blockId,
-        plan.direction,
-        "arrived"
-      );
+  const configuredLeave =
+    configuredBlockConditions(
+      layout,
+      resource.blockId,
+      plan.direction,
+      "leave"
+    );
 
-    result.push({
+  /*
+   * Preview always exposes the selected block's current configuration,
+   * even when the block is the source or destination of this route.
+   * Runtime relevance is route-position dependent, but the inspector must
+   * never hide the block's authoritative configuration just because there
+   * is no incoming/outgoing leg.
+   */
+  return [
+    {
       name: "APPROACH",
       match: "all",
       conditions:
         configuredArrival.length >
           0
           ? configuredArrival
-          : incoming.approachWhen,
-    });
-
-    result.push({
+          : incoming?.approachWhen ??
+            [],
+    },
+    {
       name: "ARRIVED",
       match: "all",
       conditions:
         configuredArrived.length >
           0
           ? configuredArrived
-          : incoming.arrivedWhen,
-    });
-  }
-
-  const outgoing =
-    plan.legs.find(
-      leg =>
-        leg.from.key === resource.key
-    );
-
-  if (outgoing) {
-    const configuredLeave =
-      configuredBlockConditions(
-        layout,
-        resource.blockId,
-        plan.direction,
-        "leave"
-      );
-
-    result.push({
+          : incoming?.arrivedWhen ??
+            [],
+    },
+    {
       name: "DEPART",
       match: "all",
       conditions:
-        outgoing.departWhen,
-    });
-
-    result.push({
+        outgoing?.departWhen ??
+        [],
+    },
+    {
       name: "LEAVE",
       match: "all",
       conditions:
         configuredLeave.length >
           0
           ? configuredLeave
-          : outgoing.leaveWhen,
-    });
-  }
-
-  return result;
+          : outgoing?.leaveWhen ??
+            [],
+    },
+  ];
 }
 
 function resourceEvents(
