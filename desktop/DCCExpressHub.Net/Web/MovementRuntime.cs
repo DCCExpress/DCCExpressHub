@@ -194,6 +194,7 @@ public sealed class MovementRuntime
     readonly SwitchManManager _switchMan;
     readonly MovementPlanBuilder _planBuilder;
     readonly TrainEventRuntime _trainEvents;
+    readonly TrackAuthorityRuntime _authority;
     readonly ICommandCenter _commandCenter;
     readonly HubState _hubState;
     readonly IWebHostEnvironment _env;
@@ -215,6 +216,7 @@ public sealed class MovementRuntime
         SwitchManManager switchMan,
         MovementPlanBuilder planBuilder,
         TrainEventRuntime trainEvents,
+        TrackAuthorityRuntime authority,
         ICommandCenter commandCenter,
         HubState hubState,
         IWebHostEnvironment env,
@@ -226,6 +228,7 @@ public sealed class MovementRuntime
         _switchMan = switchMan;
         _planBuilder = planBuilder;
         _trainEvents = trainEvents;
+        _authority = authority;
         _commandCenter = commandCenter;
         _hubState = hubState;
         _env = env;
@@ -524,59 +527,88 @@ public sealed class MovementRuntime
                 Matches);
     }
 
-    ushort[] EffectiveSafetySensors(
+    HashSet<int> IgnoredSafetySensors(
         MovementPageModel page,
-        MovementPlanLegModel leg)
-    {
-        var ignored = page.SafetyRules
+        MovementPlanLegModel leg) =>
+        page.SafetyRules
             .FirstOrDefault(x =>
                 x.FromBlockId == leg.From.BlockId &&
                 x.ToBlockId == leg.To.BlockId)?
             .IgnoredSensors
             .Where(x => x is >= 1 and <= 65535)
-            .ToHashSet() ?? [];
+            .ToHashSet() ??
+        [];
 
-        var sourceSensor = leg.From.SensorAddress;
-        var sourceNode = leg.From.NodeIndex;
-        var result = new HashSet<ushort>();
+    ushort[] ProtectedSensorsForResource(
+        MovementPageModel page,
+        MovementPlanLegModel leg,
+        MovementPlanResourceModel resource)
+    {
+        var ignored =
+            IgnoredSafetySensors(
+                page,
+                leg);
 
-        foreach (var resource in leg.Resources)
+        var sourceSensor =
+            leg.From.SensorAddress;
+
+        return resource.Detectors
+            .Where(detector =>
+                detector is >= 1 and <= 65535 &&
+                detector != sourceSensor &&
+                !ignored.Contains(
+                    detector))
+            .Distinct()
+            .OrderBy(detector =>
+                detector)
+            .Select(detector =>
+                (ushort)detector)
+            .ToArray();
+    }
+
+    ushort[] InitialAuthoritySensors(
+        MovementPageModel page,
+        MovementPlanLegModel leg)
+    {
+        foreach (var resource in
+                 leg.Resources
+                     .OrderBy(resource =>
+                         resource.RouteOrder))
         {
-            var safetyResource =
-                string.Equals(resource.Kind, "turnout", StringComparison.Ordinal) ||
-                (string.Equals(resource.Kind, "segment", StringComparison.Ordinal) &&
-                 resource.NodeIndex.HasValue &&
-                 resource.NodeIndex != sourceNode);
+            var sensors =
+                ProtectedSensorsForResource(
+                    page,
+                    leg,
+                    resource);
 
-            if (!safetyResource)
-                continue;
-
-            foreach (var detector in resource.Detectors)
-            {
-                if (detector is < 1 or > 65535 ||
-                    detector == sourceSensor ||
-                    ignored.Contains(detector))
-                    continue;
-
-                result.Add((ushort)detector);
-            }
+            if (sensors.Length >
+                0)
+                return sensors;
         }
 
+        var ignored =
+            IgnoredSafetySensors(
+                page,
+                leg);
+
         if (leg.To.SensorAddress is >= 1 and <= 65535 &&
-            !ignored.Contains(leg.To.SensorAddress.Value))
-            result.Add((ushort)leg.To.SensorAddress.Value);
+            leg.To.SensorAddress !=
+                leg.From.SensorAddress &&
+            !ignored.Contains(
+                leg.To.SensorAddress.Value))
+            return [
+                (ushort)leg.To.SensorAddress.Value
+            ];
 
-        return result.OrderBy(x => x).ToArray();
+        return [];
     }
 
-    bool SafetyFree(IEnumerable<ushort> sensors)
-    {
-        foreach (var sensor in sensors)
-            if (!_layout.TryGetSensorState(sensor, out var on) || on)
-                return false;
-
-        return true;
-    }
+    TrackAuthorityCheck CheckAuthority(
+        Execution execution,
+        IEnumerable<ushort> sensors) =>
+        _authority.CheckSensorsForLoco(
+            execution.LocoAddress,
+            sensors);
 
     async Task WaitUntil(
         Execution execution,
@@ -1787,7 +1819,7 @@ public sealed class MovementRuntime
         MovementPlanLegModel leg)
     {
         var sensors =
-            EffectiveSafetySensors(
+            InitialAuthoritySensors(
                 execution.Page,
                 leg);
 
@@ -1796,13 +1828,15 @@ public sealed class MovementRuntime
             () =>
                 TargetBlockBasicallyFree(
                     leg) &&
-                SafetyFree(
-                    sensors),
-            "Waiting for next leg availability",
+                CheckAuthority(
+                    execution,
+                    sensors)
+                    .Ok,
+            "Waiting for next protected zone",
             stopWhileWaiting:
                 true,
             pollMs:
-                150);
+                100);
     }
 
     bool LegTurnoutsNeedChange(
@@ -1887,7 +1921,7 @@ public sealed class MovementRuntime
                         (ushort)leg.From.BlockId.Value,
                         (ushort)leg.To.BlockId.Value,
                         leg.TurnoutStates,
-                        EffectiveSafetySensors(
+                        InitialAuthoritySensors(
                             execution.Page,
                             leg),
                         leg.Resources
@@ -1897,8 +1931,7 @@ public sealed class MovementRuntime
                                     "segment",
                                     StringComparison.Ordinal))
                             .Select(resource =>
-                                "segment:" +
-                                resource.Name)
+                                resource.Key)
                             .Distinct(
                                 StringComparer.Ordinal)
                             .OrderBy(
