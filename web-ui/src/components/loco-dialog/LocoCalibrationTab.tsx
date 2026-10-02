@@ -468,7 +468,9 @@ export default function LocoCalibrationTab({
   );
 
   const loadRoutes =
-    async (): Promise<void> => {
+    async (
+      preferredRouteKey?: string
+    ): Promise<void> => {
       try {
         setLoadingRoutes(
           true
@@ -508,15 +510,13 @@ export default function LocoCalibrationTab({
         );
 
         const savedKey =
+          preferredRouteKey ??
           selectedRoute?.key ??
           loco.calibration
             ?.routeKey ??
           "";
 
-        if (
-          savedKey &&
-          !selectedRoute
-        ) {
+        if (savedKey) {
           const saved =
             loaded.find(
               candidate =>
@@ -525,18 +525,18 @@ export default function LocoCalibrationTab({
             ) ??
             null;
 
-          if (saved) {
-            setSelectedRoute(
-              saved
-            );
+          setSelectedRoute(
+            saved
+          );
 
-            setReverseRoute(
-              reverseFor(
-                saved,
-                loaded
-              )
-            );
-          }
+          setReverseRoute(
+            saved
+              ? reverseFor(
+                  saved,
+                  loaded
+                )
+              : null
+          );
         }
       } catch (error) {
         setRouteError(
@@ -552,6 +552,33 @@ export default function LocoCalibrationTab({
         );
       }
     };
+
+  useEffect(
+    () => {
+      setSelectedRoute(
+        null
+      );
+
+      setReverseRoute(
+        null
+      );
+
+      setRouteError(
+        null
+      );
+
+      calibrationSignature.current =
+        "";
+
+      void loadRoutes(
+        loco.calibration
+          ?.routeKey
+      );
+    },
+    [
+      loco.id,
+    ]
+  );
 
   const openRoutePicker =
     (): void => {
@@ -655,7 +682,9 @@ export default function LocoCalibrationTab({
     speedStep >=
       1 &&
     speedStep <=
-      126;
+      126 &&
+    speedStep <=
+      maxSpeed;
 
   const summary =
     useMemo(
@@ -929,7 +958,7 @@ export default function LocoCalibrationTab({
                     commandBusy
                   }
                 >
-                  Start
+                  {t("locodialog.calibration.start")}
                 </Button>
 
                 <Button
@@ -944,7 +973,7 @@ export default function LocoCalibrationTab({
                     !activeForThisLoco
                   }
                 >
-                  Stop
+                  {t("locodialog.calibration.stop")}
                 </Button>
 
                 <Button
@@ -960,7 +989,7 @@ export default function LocoCalibrationTab({
                     !activeForThisLoco
                   }
                 >
-                  Abort
+                  {t("locodialog.calibration.abort")}
                 </Button>
 
                 <Button
@@ -975,7 +1004,7 @@ export default function LocoCalibrationTab({
                     !activeForThisLoco
                   }
                 >
-                  E-STOP
+                  {t("locodialog.calibration.estop")}
                 </Button>
               </Group>
 
@@ -1132,7 +1161,10 @@ export default function LocoCalibrationTab({
                                 </Table.Td>
                                 <Table.Td>
                                   {
-                                    row.direction
+                                    row.direction ===
+                                      "outbound"
+                                      ? t("locodialog.calibration.outbound")
+                                      : t("locodialog.calibration.return")
                                   }
                                 </Table.Td>
                                 <Table.Td>
@@ -1327,8 +1359,8 @@ export default function LocoCalibrationTab({
                               <Table.Td>
                                 {
                                   reverse
-                                    ? "OK"
-                                    : "Missing / ambiguous"
+                                    ? t("locodialog.calibration.reverseOk")
+                                    : t("locodialog.calibration.reverseMissingShort")
                                 }
                               </Table.Td>
                               <Table.Td>
@@ -1345,7 +1377,7 @@ export default function LocoCalibrationTab({
                                       )
                                   }
                                 >
-                                  Select
+                                  {t("locodialog.calibration.select")}
                                 </Button>
                               </Table.Td>
                             </Table.Tr>
