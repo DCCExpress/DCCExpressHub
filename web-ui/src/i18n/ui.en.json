@@ -1084,7 +1084,6 @@
   "noUpcomingTimetableRows": "No upcoming timetable rows.",
   "timetableJumpBeforeFirst": "First start −{{seconds}}s",
   "fastClockSetTimeFailed": "Failed to set FastClock time.",
-  "timetableControlStationRequired": "Control Station required",
   "movementFrom": "FROM",
   "movementTo": "TO",
   "movementVia": "VIA",
