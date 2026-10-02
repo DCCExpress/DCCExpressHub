@@ -78,6 +78,30 @@ function normalizeBlockEventConditions(
   return result;
 }
 
+function normalizeBlockEventDelay(
+  value: unknown
+): number {
+  const numeric =
+    Math.round(
+      Number(
+        value ??
+        0
+      )
+    );
+
+  return Number.isFinite(
+    numeric
+  )
+    ? Math.max(
+        0,
+        Math.min(
+          600000,
+          numeric
+        )
+      )
+    : 0;
+}
+
 function normalizeBlockDirectionEvents(
   value: unknown
 ): BlockDirectionEventConfigDto {
@@ -106,14 +130,29 @@ function normalizeBlockDirectionEvents(
         candidate.arrival ??
         candidate.beforeArrive
       ),
+    arrivalDelayMs:
+      normalizeBlockEventDelay(
+        candidate.arrivalDelayMs ??
+        candidate.beforeArriveDelayMs
+      ),
     arrived:
       normalizeBlockEventConditions(
         candidate.arrived
+      ),
+    arrivedDelayMs:
+      normalizeBlockEventDelay(
+        candidate.arrivedDelayMs
       ),
     leave:
       normalizeBlockEventConditions(
         candidate.leave ??
         legacyLeave
+      ),
+    leaveDelayMs:
+      normalizeBlockEventDelay(
+        candidate.leaveDelayMs ??
+        candidate.afterLeaveDelayMs ??
+        candidate.beforeLeaveDelayMs
       ),
   };
 }
