@@ -539,18 +539,6 @@ function fallbackPassages(
   );
 }
 
-function explicitBlockRuleFor(
-  page:
-    MovementPage,
-  blockId: number
-) {
-  return page.blockRules.find(
-    rule =>
-      rule.blockId ===
-      blockId
-  );
-}
-
 function blockEventConditionsFor(
   layout:
     SerializedLayoutDto,
