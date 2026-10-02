@@ -186,6 +186,8 @@ public sealed class MovementRuntime
         public HashSet<string> ExternalHolds { get; } =
             new(StringComparer.Ordinal);
         public HashSet<int> AfterArrivedBlocks { get; } = [];
+        public Dictionary<int, string> PreparedLegOwners { get; } = [];
+        public string? ActiveLegOwnerId { get; set; }
     }
 
     readonly object _gate = new();
@@ -1966,6 +1968,242 @@ public sealed class MovementRuntime
         return false;
     }
 
+    string[] LegResourceKeys(
+        MovementPlanLegModel leg) =>
+        leg.Resources
+            .Where(resource =>
+                string.Equals(
+                    resource.Kind,
+                    "segment",
+                    StringComparison.Ordinal))
+            .Select(resource =>
+                resource.Key)
+            .Distinct(
+                StringComparer.Ordinal)
+            .OrderBy(
+                key => key,
+                StringComparer.Ordinal)
+            .ToArray();
+
+    DispatcherLegRequest BuildLegRequest(
+        Execution execution,
+        MovementPlanLegModel leg,
+        string ownerId)
+    {
+        if (leg.From.BlockId is null ||
+            leg.To.BlockId is null)
+            throw new InvalidOperationException(
+                "movement_leg_block_missing");
+
+        return new DispatcherLegRequest(
+            ownerId,
+            "Movement: " +
+                execution.Page.Name,
+            (ushort)execution.LocoAddress,
+            (ushort)leg.From.BlockId.Value,
+            (ushort)leg.To.BlockId.Value,
+            leg.TurnoutStates,
+            InitialAuthoritySensors(
+                execution.Page,
+                leg),
+            LegResourceKeys(
+                leg),
+            0);
+    }
+
+    bool HasBlockingActions(
+        MovementPageModel page,
+        string resourceKey,
+        string when) =>
+        page.Actions.Any(action =>
+            string.Equals(
+                action.ResourceKey,
+                resourceKey,
+                StringComparison.Ordinal) &&
+            string.Equals(
+                action.When,
+                when,
+                StringComparison.Ordinal) &&
+            !string.Equals(
+                action.SequenceMode,
+                "background",
+                StringComparison.Ordinal));
+
+    bool CanPrepareNextLeg(
+        Execution execution,
+        MovementPlanLegModel currentLeg,
+        MovementPlanLegModel nextLeg)
+    {
+        if (IsHeld(
+                execution) ||
+            currentLeg.To.BlockId is null ||
+            nextLeg.From.BlockId !=
+                currentLeg.To.BlockId ||
+            nextLeg.To.BlockId is null)
+            return false;
+
+        if (nextLeg.DepartWhen.Length >
+                0 &&
+            !ConditionsSatisfied(
+                nextLeg.DepartWhen))
+            return false;
+
+        /*
+         * Never lock the next route while a station-style blocking action
+         * still has to run at ARRIVED / BEFORE DEPART. Background actions do
+         * not delay departure and therefore do not block lookahead.
+         */
+        if (HasBlockingActions(
+                execution.Page,
+                currentLeg.To.Key,
+                "arrived") ||
+            HasBlockingActions(
+                execution.Page,
+                nextLeg.From.Key,
+                "beforeDepart"))
+            return false;
+
+        if (!TargetBlockBasicallyFree(
+                nextLeg))
+            return false;
+
+        return CheckAuthority(
+                execution,
+                InitialAuthoritySensors(
+                    execution.Page,
+                    nextLeg))
+            .Ok;
+    }
+
+    async Task TryPrepareNextLeg(
+        Execution execution,
+        MovementPlanLegModel currentLeg)
+    {
+        var nextLeg =
+            execution.Plan.Legs
+                .ElementAtOrDefault(
+                    currentLeg.Index +
+                    1);
+
+        if (nextLeg is null ||
+            execution.PreparedLegOwners.ContainsKey(
+                nextLeg.Index) ||
+            string.IsNullOrWhiteSpace(
+                execution.ActiveLegOwnerId) ||
+            !CanPrepareNextLeg(
+                execution,
+                currentLeg,
+                nextLeg))
+            return;
+
+        var ownerId =
+            "movement:" +
+            execution.Page.Id +
+            ":prepared-leg:" +
+            nextLeg.Index +
+            ":" +
+            Guid.NewGuid()
+                .ToString("N");
+
+        var result =
+            await _dispatcher.PrepareLegAsync(
+                BuildLegRequest(
+                    execution,
+                    nextLeg,
+                    ownerId),
+                execution.ActiveLegOwnerId!,
+                execution.Cancellation.Token);
+
+        if (result.Ok &&
+            result.Prepared is not null)
+        {
+            execution.PreparedLegOwners[
+                nextLeg.Index] =
+                ownerId;
+
+            _log.LogInformation(
+                "Movement {Movement} prepared next leg {From}->{To} at approach",
+                execution.Page.Name,
+                nextLeg.From.Name,
+                nextLeg.To.Name);
+
+            Patch(
+                execution,
+                info:
+                    "Next route prepared: " +
+                    nextLeg.From.Name +
+                    " -> " +
+                    nextLeg.To.Name,
+                setInfo:
+                    true);
+
+            return;
+        }
+
+        /*
+         * Lookahead is an optimisation, never a reason to fail the current
+         * leg. If preparation is not possible the train will stop at ARRIVED
+         * and acquire the next authority normally.
+         */
+        _log.LogInformation(
+            "Movement {Movement} could not prepare next leg {From}->{To}: {Error}",
+            execution.Page.Name,
+            nextLeg.From.Name,
+            nextLeg.To.Name,
+            result.Error ??
+                "not_available");
+    }
+
+    bool HasPreparedNextLeg(
+        Execution execution,
+        MovementPlanLegModel currentLeg)
+    {
+        var next =
+            execution.Plan.Legs
+                .ElementAtOrDefault(
+                    currentLeg.Index +
+                    1);
+
+        return next is not null &&
+               execution.PreparedLegOwners.ContainsKey(
+                   next.Index);
+    }
+
+    void ReleasePreparedNextLeg(
+        Execution execution,
+        MovementPlanLegModel currentLeg)
+    {
+        var next =
+            execution.Plan.Legs
+                .ElementAtOrDefault(
+                    currentLeg.Index +
+                    1);
+
+        if (next is null ||
+            !execution.PreparedLegOwners.Remove(
+                next.Index,
+                out var ownerId))
+            return;
+
+        _dispatcher.ReleasePreparedLeg(
+            ownerId);
+    }
+
+    void ReleaseAllPreparedLegs(
+        Execution execution)
+    {
+        foreach (var ownerId in
+                 execution.PreparedLegOwners
+                     .Values
+                     .Distinct(
+                         StringComparer.Ordinal)
+                     .ToArray())
+            _dispatcher.ReleasePreparedLeg(
+                ownerId);
+
+        execution.PreparedLegOwners.Clear();
+    }
+
     static bool RetryableDispatcherFailure(
         DispatcherAcquireResult result)
     {
@@ -2025,31 +2263,10 @@ public sealed class MovementRuntime
 
             var result =
                 await _dispatcher.AcquireLegAsync(
-                    new DispatcherLegRequest(
-                        ownerId,
-                        "Movement: " + execution.Page.Name,
-                        (ushort)execution.LocoAddress,
-                        (ushort)leg.From.BlockId.Value,
-                        (ushort)leg.To.BlockId.Value,
-                        leg.TurnoutStates,
-                        InitialAuthoritySensors(
-                            execution.Page,
-                            leg),
-                        leg.Resources
-                            .Where(resource =>
-                                string.Equals(
-                                    resource.Kind,
-                                    "segment",
-                                    StringComparison.Ordinal))
-                            .Select(resource =>
-                                resource.Key)
-                            .Distinct(
-                                StringComparer.Ordinal)
-                            .OrderBy(
-                                key => key,
-                                StringComparer.Ordinal)
-                            .ToArray(),
-                        0),
+                    BuildLegRequest(
+                        execution,
+                        leg,
+                        ownerId),
                     execution.Cancellation.Token);
 
             if (result.Ok && result.Lease is not null)
