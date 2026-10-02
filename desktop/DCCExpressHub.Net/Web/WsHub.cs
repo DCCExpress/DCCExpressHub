@@ -17,6 +17,7 @@ public sealed class WsHub
     readonly SwitchManManager SwitchMan;
     readonly DispatcherRuntime Dispatcher;
     readonly MovementRuntime Movement;
+    readonly TrainTrackingRuntime TrainTracking;
     readonly ScriptRuntime Scripts;
     readonly FlowRuntime Flows;
     readonly TimetableRuntime Timetable;
@@ -34,7 +35,7 @@ public sealed class WsHub
     private static readonly TimeSpan WebSocketSendTimeout = TimeSpan.FromSeconds(2);
     public int ClientCount => Clients.Count;
 
-    public WsHub(ICommandCenter cc, HubState state, LayoutRuntime runtime, RuntimeStateStore stateStore, CommandCenterConfigStore ccConfig, LocoCounterRuntime locoCounters, FastClockRuntime fastClock, SwitchManManager switchMan, DispatcherRuntime dispatcher, MovementRuntime movement, ScriptRuntime scripts, FlowRuntime flows, TimetableRuntime timetable, ILogger<WsHub> log)
+    public WsHub(ICommandCenter cc, HubState state, LayoutRuntime runtime, RuntimeStateStore stateStore, CommandCenterConfigStore ccConfig, LocoCounterRuntime locoCounters, FastClockRuntime fastClock, SwitchManManager switchMan, DispatcherRuntime dispatcher, MovementRuntime movement, TrainTrackingRuntime trainTracking, ScriptRuntime scripts, FlowRuntime flows, TimetableRuntime timetable, ILogger<WsHub> log)
     {
         CommandCenter = cc;
         HubState = state;
@@ -45,6 +46,7 @@ public sealed class WsHub
         SwitchMan = switchMan;
         Dispatcher = dispatcher;
         Movement = movement;
+        TrainTracking = trainTracking;
         Scripts = scripts;
         Flows = flows;
         Timetable = timetable;
@@ -65,6 +67,11 @@ public sealed class WsHub
         Movement.AudioRequested += request => _ = HandleMovementAudioRequest(request);
         Movement.LocoChanged += loco => _ = BroadcastLoco(loco);
         Movement.PowerStateChanged += () => _ = BroadcastPower();
+
+        TrainTracking.Changed += state =>
+            _ = Broadcast(
+                "trainTrackingChanged",
+                state);
 
         Scripts.Changed += state => _ = Broadcast("automationScriptStateChanged", state);
         Scripts.LogChanged += entry => _ = Broadcast("automationScriptLog", entry);
@@ -346,6 +353,9 @@ public sealed class WsHub
                     return;
                 case "dispatcherCommand":
                     await HandleDispatcherCommand(connectionId, ws, data, ct);
+                    return;
+                case "trainTrackingCommand":
+                    await HandleTrainTrackingCommand(ws, data, ct);
                     return;
                 case "movementCommand":
                     await HandleMovementCommand(connectionId, ws, data, ct);
@@ -1315,6 +1325,86 @@ public sealed class WsHub
                 await Reply(
                     false,
                     "unknown_timetable_action");
+                return;
+        }
+    }
+
+    private async Task HandleTrainTrackingCommand(
+        WebSocket ws,
+        JsonElement data,
+        CancellationToken ct)
+    {
+        var requestId =
+            S(
+                data,
+                "requestId");
+        var action =
+            S(
+                data,
+                "action");
+
+        async Task Reply(
+            bool ok,
+            string? message = null)
+        {
+            await Send(
+                ws,
+                "trainTrackingResponse",
+                new
+                {
+                    requestId,
+                    action,
+                    ok,
+                    message,
+                    snapshot =
+                        TrainTracking.Snapshot()
+                });
+        }
+
+        switch (action)
+        {
+            case "snapshot":
+                await Reply(true);
+                return;
+
+            case "setEnabled":
+                TrainTracking.SetEnabled(
+                    B(
+                        data,
+                        "enabled"));
+
+                if (B(
+                        data,
+                        "enabled"))
+                    await CommandCenter
+                        .RequestSensorSnapshotAsync(
+                            ct);
+
+                await Reply(true);
+                return;
+
+            case "refresh":
+                TrainTracking.RefreshTopology();
+                await CommandCenter
+                    .RequestSensorSnapshotAsync(
+                        ct);
+                await Reply(true);
+                return;
+
+            case "reset":
+                TrainTracking.Reset();
+                await Reply(true);
+                return;
+
+            case "clearLogs":
+                TrainTracking.ClearLogs();
+                await Reply(true);
+                return;
+
+            default:
+                await Reply(
+                    false,
+                    "unknown_train_tracking_action");
                 return;
         }
     }
@@ -2324,6 +2414,10 @@ public sealed class WsHub
                     Dispatcher.RouteSnapshot()
             });
         await Send(ws, "movementSnapshot", new { states = Movement.Snapshot() });
+        await Send(
+            ws,
+            "trainTrackingChanged",
+            TrainTracking.Snapshot());
         await Send(ws, "automationScriptSnapshot", new { states = Scripts.Snapshot(), finishing = Scripts.Finishing });
         await Send(ws, "flowStateChanged", Flows.Snapshot());
         await Send(ws, "timetableStateChanged", Timetable.Snapshot());
