@@ -93,6 +93,7 @@ public sealed class MovementPageModel
     public int? FromBlockId { get; set; }
     public int[] ViaBlockIds { get; set; } = [];
     public int? ToBlockId { get; set; }
+    public int? ExpectedLocoAddress { get; set; }
     public MovementBlockRule[] BlockRules { get; set; } = [];
     public MovementResourceEventRule[] ResourceEventRules { get; set; } = [];
     public MovementSafetyRule[] SafetyRules { get; set; } = [];
@@ -177,6 +178,7 @@ public sealed class MovementRuntime
         public int DesiredSpeed { get; set; }
         public bool Moving { get; set; }
         public bool EmergencyAbort { get; set; }
+        public bool MotionStartedPublished { get; set; }
         public int? CurrentBlockId { get; set; }
         public int? TargetBlockId { get; set; }
         public ConcurrentBag<Task> BackgroundTasks { get; } = [];
@@ -198,6 +200,7 @@ public sealed class MovementRuntime
     readonly HubState _hubState;
     readonly IWebHostEnvironment _env;
     readonly AutomationStorageCoordinator _automationStorage;
+    readonly AutomationExclusiveGate _exclusiveGate;
     readonly ILogger<MovementRuntime> _log;
     readonly Dictionary<string, Execution> _executions = new(StringComparer.Ordinal);
     readonly Dictionary<string, MovementRuntimeState> _states = new(StringComparer.Ordinal);
@@ -205,6 +208,8 @@ public sealed class MovementRuntime
     readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web);
 
     public event Action<MovementRuntimeState>? Changed;
+    public event Action<string, long>? MotionStarted;
+    public event Action<string, long>? DestinationArrived;
     public event Action<MovementAudioRequest>? AudioRequested;
     public event Action<LocoFeedback>? LocoChanged;
     public event Action? PowerStateChanged;
@@ -218,6 +223,7 @@ public sealed class MovementRuntime
         HubState hubState,
         IWebHostEnvironment env,
         AutomationStorageCoordinator automationStorage,
+        AutomationExclusiveGate exclusiveGate,
         ILogger<MovementRuntime> log)
     {
         _layout = layout;
@@ -228,6 +234,7 @@ public sealed class MovementRuntime
         _hubState = hubState;
         _env = env;
         _automationStorage = automationStorage;
+        _exclusiveGate = exclusiveGate;
         _log = log;
     }
 
@@ -1996,6 +2003,15 @@ public sealed class MovementRuntime
             execution.Moving = true;
             await ApplySpeed(execution, force: true);
 
+            if (!execution.MotionStartedPublished &&
+                execution.DesiredSpeed > 0)
+            {
+                execution.MotionStartedPublished = true;
+                MotionStarted?.Invoke(
+                    execution.Page.Id,
+                    NowMs());
+            }
+
             var blockApproachState =
                 new BlockApproachState();
 
@@ -2185,6 +2201,18 @@ public sealed class MovementRuntime
                 leg.ArrivedDelayMs,
                 "Arrived " +
                 leg.To.Name);
+
+            var finalLegForMeasurement =
+                ReferenceEquals(
+                    execution.Plan.Legs.LastOrDefault(),
+                    leg) ||
+                leg.Index ==
+                    execution.Plan.Legs.Length - 1;
+
+            if (finalLegForMeasurement)
+                DestinationArrived?.Invoke(
+                    execution.Page.Id,
+                    NowMs());
 
             await DrainReadyResourceLeaves(
                 execution);
@@ -2702,12 +2730,26 @@ public sealed class MovementRuntime
                 "movement_not_found");
 
         return StartSavedPage(
-            page);
+            page,
+            false);
     }
 
+    public (bool Ok, string? Error) StartTransient(
+        MovementPageModel page) =>
+        StartSavedPage(
+            page,
+            true);
+
     (bool Ok, string? Error) StartSavedPage(
-        MovementPageModel page)
+        MovementPageModel page,
+        bool calibrationBypass)
     {
+        if (!calibrationBypass &&
+            _exclusiveGate.CalibrationActive)
+            return (
+                false,
+                "calibration_active");
+
         MovementPlanModel plan;
 
         try
@@ -2751,6 +2793,13 @@ public sealed class MovementRuntime
         if (sourceBlock is null ||
             sourceBlock.LocoAddress == 0)
             return (false, "movement_source_loco_missing");
+
+        if (page.ExpectedLocoAddress is > 0 &&
+            sourceBlock.LocoAddress !=
+                page.ExpectedLocoAddress.Value)
+            return (
+                false,
+                "movement_source_loco_mismatch");
 
         lock (_gate)
         {
