@@ -619,7 +619,7 @@ function blockEventConditionsFor(
 }
 
 function approachRuleFor(
-  page:
+  _page:
     MovementPage,
   blockId: number,
   layout:
@@ -629,54 +629,24 @@ function approachRuleFor(
     | "forward"
     | "reverse"
 ): MovementSensorCondition[] {
-  const configured =
-    blockEventConditionsFor(
-      layout,
-      blockId,
-      direction,
-      "arrival"
-    );
-
-  if (
-    configured.length >
-      0
-  ) {
-    return configured;
-  }
-
-  return (
-    explicitBlockRuleFor(
-      page,
-      blockId
-    )?.approachWhen ??
-    []
-  ).map(
-    condition => ({
-      ...condition,
-    })
+  return blockEventConditionsFor(
+    layout,
+    blockId,
+    direction,
+    "arrival"
   );
 }
 
 function departureRuleFor(
-  page:
+  _page:
     MovementPage,
-  blockId: number
+  _blockId: number
 ): MovementSensorCondition[] {
-  return (
-    explicitBlockRuleFor(
-      page,
-      blockId
-    )?.departWhen ??
-    []
-  ).map(
-    condition => ({
-      ...condition,
-    })
-  );
+  return [];
 }
 
 function leaveRuleFor(
-  page:
+  _page:
     MovementPage,
   blockId: number,
   layout:
@@ -698,50 +668,17 @@ function leaveRuleFor(
       "leave"
     );
 
-  if (
-    configured.length >
-      0
-  ) {
-    return {
-      conditions:
-        configured,
-      explicit:
-        true,
-    };
-  }
-
-  const explicit =
-    explicitBlockRuleFor(
-      page,
-      blockId
-    );
-
-  if (
-    explicit &&
-    explicit.leaveWhen.length >
-      0
-  ) {
-    return {
-      conditions:
-        explicit.leaveWhen.map(
-          condition => ({
-            ...condition,
-          })
-        ),
-      explicit:
-        true,
-    };
-  }
-
   return {
-    conditions: [],
+    conditions:
+      configured,
     explicit:
-      false,
+      configured.length >
+      0,
   };
 }
 
 function arrivalRuleFor(
-  page:
+  _page:
     MovementPage,
   blockId: number,
   sensors:
@@ -766,24 +703,6 @@ function arrivalRuleFor(
       0
   ) {
     return configured;
-  }
-
-  const explicit =
-    explicitBlockRuleFor(
-      page,
-      blockId
-    );
-
-  if (
-    explicit &&
-    explicit.arrivedWhen.length >
-      0
-  ) {
-    return explicit.arrivedWhen.map(
-      condition => ({
-        ...condition,
-      })
-    );
   }
 
   const destinationSensor =
