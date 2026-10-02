@@ -860,7 +860,7 @@ dcc.setProgrammingPower(on)
 
 # 15. Advanced / compatibility API still present in the runtime
 
-These APIs genuinely exist in the worker runtime, but they are **not part of the recommended Quick Help API**.
+These APIs genuinely exist in the backend ScriptRuntime, but they are **not part of the recommended Quick Help API**.
 
 ## `dcc.setTurnoutRaw(address, closed)`
 
