@@ -207,6 +207,12 @@ public sealed class ScriptRuntime
                 finishing;
     }
 
+    static bool IsTransientExecution(
+        ScriptRuntimeState state) =>
+        state.Type is
+            "timetable" or
+            "visual-flow";
+
     void Publish(Execution execution, ScriptRuntimeState state)
     {
         execution.State =
@@ -216,8 +222,24 @@ public sealed class ScriptRuntime
             _states[execution.ExecutionId] =
                 state;
 
+        /*
+         * Subscribers consume the terminal transition synchronously. After
+         * that, unique timetable/manual-flow execution IDs have no value in a
+         * snapshot and would otherwise grow without bound for long-running
+         * command stations.
+         */
         Changed?.Invoke(
             state);
+
+        if (state.Status is not
+                ("running" or "paused") &&
+            IsTransientExecution(
+                state))
+        {
+            lock (_gate)
+                _states.Remove(
+                    execution.ExecutionId);
+        }
     }
 
     void Patch(
