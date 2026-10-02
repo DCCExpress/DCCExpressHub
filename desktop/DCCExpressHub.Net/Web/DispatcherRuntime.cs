@@ -38,6 +38,27 @@ public sealed record DispatcherAcquireResult(
     ushort? BlockingBlock = null,
     SwitchManLockInfo[]? TurnoutConflicts = null);
 
+public sealed record DispatcherPreparedLegInfo(
+    string OwnerId,
+    string OwnerName,
+    string PredecessorOwnerId,
+    ushort LocoAddress,
+    ushort FromBlockId,
+    ushort ToBlockId,
+    DispatcherTurnoutRequirement[] Turnouts,
+    ushort[] TurnoutAddresses,
+    ushort[] SafetySensors,
+    string[] ResourceKeys,
+    long PreparedAtMs);
+
+public sealed record DispatcherPrepareResult(
+    bool Ok,
+    string? Error,
+    DispatcherPreparedLegInfo? Prepared,
+    ushort? BlockingSensor = null,
+    ushort? BlockingBlock = null,
+    SwitchManLockInfo[]? TurnoutConflicts = null);
+
 public sealed record DispatcherRouteBlockRequirement(
     ushort BlockId,
     ushort SensorAddress);
@@ -109,6 +130,9 @@ public sealed class DispatcherRuntime
         new(StringComparer.Ordinal);
 
     readonly Dictionary<string, DispatcherRouteLeaseInfo> _routeLeases =
+        new(StringComparer.Ordinal);
+
+    readonly Dictionary<string, DispatcherPreparedLegInfo> _preparedLegs =
         new(StringComparer.Ordinal);
 
     readonly Dictionary<ushort, string> _destinationOwners = new();
