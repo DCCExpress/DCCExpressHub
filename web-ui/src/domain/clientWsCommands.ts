@@ -284,11 +284,6 @@ export type SetEditorEditModeCommandPayload = {
   editMode: boolean;
 };
 
-export type ControlStationClaimCommandPayload = {
-  clientId: string;
-  clientName: string;
-};
-
 export type BroadcastPlayAudioCommandPayload = {
   requestId: string;
   fileName: string;
@@ -415,9 +410,6 @@ export type FlowCommandPayload = {
 
 export type ClientWsPayloadMap = {
   heartbeat: EmptyClientWsCommandPayload;
-  controlStationClaim: ControlStationClaimCommandPayload;
-  controlStationRelease: EmptyClientWsCommandPayload;
-  getControlStationStatus: EmptyClientWsCommandPayload;
   broadcastPlayAudio: BroadcastPlayAudioCommandPayload;
   broadcastStopAudio: BroadcastStopAudioCommandPayload;
   dispatcherCommand: DispatcherCommandPayload;
