@@ -486,19 +486,11 @@ export class BlockElement extends TrackElement {
     );
     ctx.closePath();
 
-    const liveMoving =
-      liveLocoState !==
-        null
-        ? liveLocoState.speed >
-          0
-        : null;
-
     const moving =
-      liveMoving ??
       (
-        movementRuntime?.phase ===
-          "moving"
-      );
+        liveLocoState?.speed ??
+        0
+      ) > 0;
 
     const blinking =
       moving;
@@ -523,15 +515,6 @@ export class BlockElement extends TrackElement {
 
       ctx.strokeStyle =
         "#365314";
-    } else if (
-      movementRuntime?.phase ===
-        "error"
-    ) {
-      ctx.fillStyle =
-        "#ff6b6b";
-
-      ctx.strokeStyle =
-        "#7f1d1d";
     } else {
       ctx.fillStyle =
         "#ffd43b";
