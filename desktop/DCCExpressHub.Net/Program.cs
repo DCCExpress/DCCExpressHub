@@ -393,11 +393,16 @@ app.MapPost("/api/locos", async (HttpRequest req, IWebHostEnvironment env, Confi
 {
     using var sr = new StreamReader(req.Body);
     var body = await sr.ReadToEndAsync();
+
+    JsonArray incoming;
+
     try
     {
-        using var doc = JsonDocument.Parse(body);
-        if (doc.RootElement.ValueKind != JsonValueKind.Array)
-            return Results.Json(new { ok = false, message = "Expected locomotive JSON array" }, statusCode: 400);
+        incoming =
+            JsonNode.Parse(
+                body) as
+            JsonArray ??
+            throw new JsonException();
     }
     catch
     {
@@ -405,8 +410,87 @@ app.MapPost("/api/locos", async (HttpRequest req, IWebHostEnvironment env, Confi
     }
 
     var path = DataFile(env, "locos.json");
+
+    /*
+     * Calibration is backend-owned runtime data. A Loco Editor that was
+     * opened before/during a calibration run may hold an older copy of the
+     * locomotive array. Never allow that stale browser copy to overwrite a
+     * newer calibration profile already committed by CalibrationRuntime.
+     */
+    if (File.Exists(path))
+    {
+        try
+        {
+            var existing =
+                JsonNode.Parse(
+                    await File.ReadAllTextAsync(
+                        path)) as
+                JsonArray;
+
+            if (existing is not null)
+            {
+                var calibrationById =
+                    new Dictionary<
+                        string,
+                        JsonNode?>(
+                        StringComparer.Ordinal);
+
+                foreach (var node in existing)
+                {
+                    if (node is not JsonObject loco)
+                        continue;
+
+                    var id =
+                        loco["id"]?
+                            .GetValue<string>();
+
+                    if (string.IsNullOrWhiteSpace(id) ||
+                        loco["calibration"] is null)
+                        continue;
+
+                    calibrationById[id] =
+                        loco["calibration"]!
+                            .DeepClone();
+                }
+
+                foreach (var node in incoming)
+                {
+                    if (node is not JsonObject loco)
+                        continue;
+
+                    var id =
+                        loco["id"]?
+                            .GetValue<string>();
+
+                    if (string.IsNullOrWhiteSpace(id) ||
+                        !calibrationById.TryGetValue(
+                            id,
+                            out var calibration) ||
+                        calibration is null)
+                        continue;
+
+                    loco["calibration"] =
+                        calibration.DeepClone();
+                }
+            }
+        }
+        catch
+        {
+            // Keep normal locomotive editing usable if an old/corrupt file
+            // cannot be merged; the incoming document was already validated.
+        }
+    }
+
+    var normalizedBody =
+        incoming.ToJsonString(
+            new JsonSerializerOptions
+            {
+                WriteIndented =
+                    false
+            });
+
     var temp = path + ".tmp";
-    await File.WriteAllTextAsync(temp, body);
+    await File.WriteAllTextAsync(temp, normalizedBody);
     File.Move(temp, path, true);
 
     if (!configuredCc.ReloadLocomotiveConfiguration())
@@ -414,7 +498,7 @@ app.MapPost("/api/locos", async (HttpRequest req, IWebHostEnvironment env, Confi
 
     counters.ReloadConfiguration(true);
 
-    return Results.Json(new { ok = true, bytes = System.Text.Encoding.UTF8.GetByteCount(body) });
+    return Results.Json(new { ok = true, bytes = System.Text.Encoding.UTF8.GetByteCount(normalizedBody) });
 });
 
 
