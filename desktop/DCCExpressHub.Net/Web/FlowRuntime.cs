@@ -56,6 +56,7 @@ public sealed class FlowRuntime : BackgroundService
     readonly HubState _hubState;
     readonly ICommandCenter _commandCenter;
     readonly ScriptRuntime _scripts;
+    readonly AutomationExclusiveGate _exclusiveGate;
     readonly ILogger<FlowRuntime> _log;
 
     readonly Dictionary<string, string> _blockSignatures =
@@ -80,6 +81,7 @@ public sealed class FlowRuntime : BackgroundService
         HubState hubState,
         ICommandCenter commandCenter,
         ScriptRuntime scripts,
+        AutomationExclusiveGate exclusiveGate,
         ILogger<FlowRuntime> log)
     {
         _env = env;
@@ -87,6 +89,7 @@ public sealed class FlowRuntime : BackgroundService
         _hubState = hubState;
         _commandCenter = commandCenter;
         _scripts = scripts;
+        _exclusiveGate = exclusiveGate;
         _log = log;
 
         SeedBlockSignatures();
@@ -513,6 +516,9 @@ public sealed class FlowRuntime : BackgroundService
         string type,
         object data)
     {
+        if (_exclusiveGate.CalibrationActive)
+            return;
+
         try
         {
             var payload =
@@ -561,6 +567,9 @@ public sealed class FlowRuntime : BackgroundService
     void OnLocoChanged(
         LocoFeedback loco)
     {
+        if (_exclusiveGate.CalibrationActive)
+            return;
+
         var signature =
             LocoSignature(
                 loco);
@@ -1767,6 +1776,11 @@ public sealed class FlowRuntime : BackgroundService
         JsonElement? payload,
         string reason = "run")
     {
+        if (_exclusiveGate.CalibrationActive)
+            return (
+                false,
+                "calibration_active");
+
         DocumentDef document;
 
         try
@@ -1900,6 +1914,9 @@ public sealed class FlowRuntime : BackgroundService
 
     void TickIntervals()
     {
+        if (_exclusiveGate.CalibrationActive)
+            return;
+
         var document =
             LoadDocument();
 
