@@ -2722,13 +2722,14 @@ public sealed class ScriptRuntime
         string blocksJson,
         string optionsJson)
     {
-        var names =
-            ParseBlockNames(
+        var specs =
+            ParseSmartBlockSpecs(
                 blocksJson);
 
         var plan =
             _planBuilder.BuildForBlockNames(
-                names);
+                specs.Select(spec =>
+                    spec.Name));
 
         var source =
             SourceBlock(
@@ -2750,6 +2751,88 @@ public sealed class ScriptRuntime
             ("forward" or "reverse"))
             throw new InvalidOperationException(
                 "smart_dispatcher_direction_unknown");
+
+        var setDelayMs =
+            250;
+
+        var pollMs =
+            100;
+
+        if (!string.IsNullOrWhiteSpace(
+                optionsJson))
+        {
+            using var options =
+                JsonDocument.Parse(
+                    optionsJson);
+
+            if (options.RootElement.ValueKind ==
+                JsonValueKind.Object)
+            {
+                if (options.RootElement.TryGetProperty(
+                        "setDelayMs",
+                        out var setDelayElement) &&
+                    setDelayElement.TryGetInt32(
+                        out var rawSetDelay))
+                    setDelayMs =
+                        Math.Clamp(
+                            rawSetDelay,
+                            0,
+                            600_000);
+
+                if (options.RootElement.TryGetProperty(
+                        "blockPollMs",
+                        out var pollElement) &&
+                    pollElement.TryGetInt32(
+                        out var rawPoll))
+                    pollMs =
+                        Math.Clamp(
+                            rawPoll,
+                            25,
+                            5_000);
+            }
+        }
+
+        var overrides =
+            specs
+                .Where(spec =>
+                    spec.ArrivedWhen is
+                        { Length: > 0 })
+                .ToDictionary(
+                    spec =>
+                        spec.Name,
+                    spec =>
+                        spec.ArrivedWhen!,
+                    StringComparer.OrdinalIgnoreCase);
+
+        /*
+         * Match the original SmartDispatcher safety contract exactly:
+         * without an explicit arrivedWhen, arrival is destination occupancy ON
+         * AND source occupancy OFF. Adjacent blocks sharing one occupancy
+         * sensor therefore require an explicit override.
+         */
+        foreach (var leg in
+                 plan.Legs)
+        {
+            if (overrides.ContainsKey(
+                    leg.To.Name))
+                continue;
+
+            if (!leg.From.SensorAddress.HasValue ||
+                !leg.To.SensorAddress.HasValue)
+                throw new InvalidOperationException(
+                    "smart_dispatcher_occupancy_sensor_missing:" +
+                    leg.From.Name +
+                    "->" +
+                    leg.To.Name);
+
+            if (leg.From.SensorAddress.Value ==
+                leg.To.SensorAddress.Value)
+                throw new InvalidOperationException(
+                    "smart_dispatcher_shared_occupancy_sensor:" +
+                    leg.From.Name +
+                    "->" +
+                    leg.To.Name);
+        }
 
         var linked =
             CancellationTokenSource
@@ -2776,12 +2859,26 @@ public sealed class ScriptRuntime
                     plan.Direction ==
                     "forward",
                 Cancellation =
-                    linked
+                    linked,
+                ArrivalOverrides =
+                    overrides,
+                SetDelayMs =
+                    setDelayMs,
+                PollMs =
+                    pollMs
             };
 
         execution.SmartRuns[
             run.Id] =
             run;
+
+        WriteLog(
+            execution,
+            "SmartDispatcher route resolved: " +
+            string.Join(
+                " -> ",
+                plan.Blocks.Select(block =>
+                    block.Name)));
 
         run.MonitorTask =
             Task.Run(
@@ -2800,8 +2897,92 @@ public sealed class ScriptRuntime
                 loco =
                     run.LocoAddress,
                 direction =
-                    run.Direction
+                    run.Direction,
+                route =
+                    plan.Blocks
+                        .Select(block =>
+                            block.Name)
+                        .ToArray()
             });
+    }
+
+    MovementSensorCondition[] SmartArrivalConditions(
+        SmartRun run,
+        MovementPlanLegModel leg)
+    {
+        if (run.ArrivalOverrides.TryGetValue(
+                leg.To.Name,
+                out var explicitConditions))
+            return explicitConditions;
+
+        if (!leg.From.SensorAddress.HasValue ||
+            !leg.To.SensorAddress.HasValue)
+            throw new InvalidOperationException(
+                "smart_dispatcher_occupancy_sensor_missing:" +
+                leg.From.Name +
+                "->" +
+                leg.To.Name);
+
+        return
+        [
+            new MovementSensorCondition
+            {
+                Id =
+                    "smart-default-to-" +
+                    leg.To.Name,
+                Sensor =
+                    leg.To.SensorAddress.Value,
+                State =
+                    true
+            },
+            new MovementSensorCondition
+            {
+                Id =
+                    "smart-default-from-" +
+                    leg.From.Name,
+                Sensor =
+                    leg.From.SensorAddress.Value,
+                State =
+                    false
+            }
+        ];
+    }
+
+    void PulseSmartBlocked(
+        SmartRun run,
+        int legIndex,
+        DispatcherAcquireResult attempt)
+    {
+        if (run.LastBlockedIndex ==
+            legIndex)
+            return;
+
+        run.LastBlockedIndex =
+            legIndex;
+
+        run.LastBlockingError =
+            attempt.Error ??
+            "smart_dispatcher_blocked";
+
+        run.LastBlockingSensor =
+            attempt.BlockingSensor;
+
+        run.LastBlockingBlock =
+            attempt.BlockingBlock;
+
+        run.LastTurnoutConflicts =
+            attempt.TurnoutConflicts;
+
+        run.BlockedVersion++;
+
+        var old =
+            run.BlockedChanged;
+
+        run.BlockedChanged =
+            NewSignal();
+
+        old.TrySetResult(
+            true);
     }
 
     async Task MonitorSmart(
@@ -2882,7 +3063,7 @@ public sealed class ScriptRuntime
                                 safety,
                                 resources,
                                 0,
-                                250),
+                                run.SetDelayMs),
                             run.Cancellation.Token);
 
                     if (attempt.Ok &&
@@ -2914,6 +3095,11 @@ public sealed class ScriptRuntime
                             "dispatcher_resource_locked:",
                             StringComparison.Ordinal))
                     {
+                        PulseSmartBlocked(
+                            run,
+                            index,
+                            attempt);
+
                         SetInfo(
                             run.Execution,
                             "SmartDispatcher waiting: " +
@@ -2924,8 +3110,18 @@ public sealed class ScriptRuntime
                             error +
                             ")");
 
+                        WriteLog(
+                            run.Execution,
+                            "SmartDispatcher clearance blocked: " +
+                            leg.From.Name +
+                            " -> " +
+                            leg.To.Name +
+                            " (" +
+                            error +
+                            ")");
+
                         await Task.Delay(
-                            150,
+                            run.PollMs,
                             run.Cancellation.Token);
 
                         continue;
@@ -2938,40 +3134,53 @@ public sealed class ScriptRuntime
                 run.MotionAuthorized =
                     true;
 
+                run.LastBlockedIndex =
+                    -1;
+
                 PulseSmart(
                     run);
 
+                WriteLog(
+                    run.Execution,
+                    "SmartDispatcher clearance granted: " +
+                    leg.From.Name +
+                    " -> " +
+                    leg.To.Name);
+
                 await ApplySmartSpeed(
                     run);
+
+                var arrivalConditions =
+                    SmartArrivalConditions(
+                        run,
+                        leg);
 
                 while (true)
                 {
                     run.Cancellation.Token.ThrowIfCancellationRequested();
 
                     var arrived =
-                        leg.ArrivedWhen.Length >
-                        0
-                            ? leg.ArrivedWhen.All(
-                                condition =>
-                                    condition.Sensor is >= 1 and <= 65535 &&
-                                    _layout.TryGetSensorState(
-                                        (ushort)condition.Sensor,
-                                        out var state) &&
-                                    state ==
-                                        condition.State)
-                            : leg.To.SensorAddress is >= 1 and <= 65535 &&
-                              _layout.TryGetSensorState(
-                                  (ushort)leg.To.SensorAddress.Value,
-                                  out var on) &&
-                              on;
+                        arrivalConditions.All(
+                            condition =>
+                                condition.Sensor is >= 1 and <= 65535 &&
+                                _layout.TryGetSensorState(
+                                    (ushort)condition.Sensor,
+                                    out var state) &&
+                                state ==
+                                    condition.State);
 
                     if (arrived)
                         break;
 
                     await Task.Delay(
-                        75,
+                        run.PollMs,
                         run.Cancellation.Token);
                 }
+
+                WriteLog(
+                    run.Execution,
+                    "SmartDispatcher arrival confirmed: " +
+                    leg.To.Name);
 
                 if (leg.To.BlockId is >= 1 and <= 65535)
                 {
@@ -3016,7 +3225,15 @@ public sealed class ScriptRuntime
             await ApplySmartSpeed(
                 run);
 
+            WriteLog(
+                run.Execution,
+                "SmartDispatcher route completed: " +
+                run.Plan.Blocks[^1].Name);
+
             run.CompletedSignal.TrySetResult(
+                true);
+
+            run.BlockedChanged.TrySetResult(
                 true);
 
             PulseSmart(
@@ -3042,8 +3259,14 @@ public sealed class ScriptRuntime
             {
             }
 
+            run.Completed =
+                true;
+
             run.CompletedSignal.TrySetCanceled(
                 run.Cancellation.Token);
+
+            run.BlockedChanged.TrySetResult(
+                true);
         }
         catch (Exception ex)
         {
@@ -3062,8 +3285,14 @@ public sealed class ScriptRuntime
             {
             }
 
+            run.Completed =
+                true;
+
             run.CompletedSignal.TrySetException(
                 ex);
+
+            run.BlockedChanged.TrySetResult(
+                true);
 
             WriteLog(
                 run.Execution,
