@@ -811,6 +811,110 @@ export function abortClientScript(
   );
 }
 
+export async function startAllSavedClientScripts():
+  Promise<number> {
+  installTracking();
+  requireControlStation();
+
+  const response =
+    await wsApi.scriptRequest(
+      requestId(
+        "startAll"
+      ),
+      "startAll"
+    );
+
+  if (!response.ok) {
+    throw new Error(
+      response.message ||
+      "Saved automation scripts could not be started."
+    );
+  }
+
+  return (
+    response.extra?.count ??
+    0
+  );
+}
+
+export async function pauseAllSavedClientScripts():
+  Promise<number> {
+  installTracking();
+  requireControlStation();
+
+  const response =
+    await wsApi.scriptRequest(
+      requestId(
+        "pauseAllSaved"
+      ),
+      "pauseAllSaved"
+    );
+
+  if (!response.ok) {
+    throw new Error(
+      response.message ||
+      "Saved automation scripts could not be paused."
+    );
+  }
+
+  return (
+    response.extra?.count ??
+    0
+  );
+}
+
+export async function resumeAllSavedClientScripts():
+  Promise<number> {
+  installTracking();
+  requireControlStation();
+
+  const response =
+    await wsApi.scriptRequest(
+      requestId(
+        "resumeAllSaved"
+      ),
+      "resumeAllSaved"
+    );
+
+  if (!response.ok) {
+    throw new Error(
+      response.message ||
+      "Saved automation scripts could not be resumed."
+    );
+  }
+
+  return (
+    response.extra?.count ??
+    0
+  );
+}
+
+export async function abortAllSavedClientScripts():
+  Promise<number> {
+  installTracking();
+  requireControlStation();
+
+  const response =
+    await wsApi.scriptRequest(
+      requestId(
+        "abortAllSaved"
+      ),
+      "abortAllSaved"
+    );
+
+  if (!response.ok) {
+    throw new Error(
+      response.message ||
+      "Saved automation scripts could not be aborted."
+    );
+  }
+
+  return (
+    response.extra?.count ??
+    0
+  );
+}
+
 export function abortAllClientScriptExecutions(
   _reason =
     "Scripts aborted."
