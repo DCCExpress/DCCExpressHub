@@ -256,6 +256,12 @@ public sealed class WsHub
         {
             await Send(ws, "ws:welcome", new { message = "DCCExpressHub" });
             await SendSnapshot(ws);
+
+            // Refresh physical detector state whenever a UI client connects.
+            // Cached runtime state is sent first for fast paint; the DCC-EX <Q>
+            // snapshot then replaces it with current authoritative Q/q values.
+            _ = CommandCenter.RequestSensorSnapshotAsync(ctx.RequestAborted);
+
             var buf = new byte[64 * 1024];
             while (ws.State == WebSocketState.Open)
             {
