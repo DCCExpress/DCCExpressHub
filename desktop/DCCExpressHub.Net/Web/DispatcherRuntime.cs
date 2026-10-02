@@ -1510,6 +1510,43 @@ public sealed class DispatcherRuntime
         return true;
     }
 
+    public int ReleaseScriptLeases()
+    {
+        string[] legOwners;
+        string[] routeOwners;
+
+        lock (_gate)
+        {
+            legOwners =
+                _leases.Keys
+                    .Where(owner =>
+                        !owner.StartsWith(
+                            "movement:",
+                            StringComparison.Ordinal))
+                    .ToArray();
+
+            // Full-route leases currently belong to script dispatcher().
+            routeOwners =
+                _routeLeases.Keys
+                    .ToArray();
+        }
+
+        var released =
+            0;
+
+        foreach (var owner in legOwners)
+            if (ReleaseLeg(
+                    owner))
+                released++;
+
+        foreach (var owner in routeOwners)
+            if (ReleaseRoute(
+                    owner))
+                released++;
+
+        return released;
+    }
+
     public int ReleaseAll()
     {
         string[] legOwners;
