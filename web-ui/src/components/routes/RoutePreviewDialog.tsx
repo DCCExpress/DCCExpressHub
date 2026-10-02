@@ -67,6 +67,7 @@ type EventRow = {
   name: string;
   match: "all" | "any";
   conditions: MovementSensorCondition[];
+  delayMs: number;
   defaultSensor?: boolean;
   note?: string | undefined;
 };
@@ -133,6 +134,67 @@ function configuredBlockConditions(
   );
 }
 
+function configuredBlockDelay(
+  layout: LayoutView,
+  blockId: number,
+  direction:
+    | "unknown"
+    | "forward"
+    | "reverse",
+  event:
+    | "arrival"
+    | "arrived"
+    | "leave"
+): number {
+  if (
+    direction ===
+      "unknown"
+  ) {
+    return 0;
+  }
+
+  const block =
+    layout
+      .getAllElements()
+      .find(
+        element =>
+          element instanceof
+            BlockElement &&
+          element.id ===
+            blockId
+      );
+
+  if (
+    !(block instanceof
+      BlockElement)
+  ) {
+    return 0;
+  }
+
+  const raw =
+    event === "arrival"
+      ? block.eventConfig[
+          direction
+        ].arrivalDelayMs
+      : event === "arrived"
+        ? block.eventConfig[
+            direction
+          ].arrivedDelayMs
+        : block.eventConfig[
+            direction
+          ].leaveDelayMs;
+
+  return Math.max(
+    0,
+    Math.min(
+      600000,
+      Math.round(
+        raw
+      )
+    )
+  );
+}
+
 function blockEvents(
   plan: MovementPlan,
   resource: MovementPlanResource,
@@ -183,6 +245,30 @@ function blockEvents(
       "leave"
     );
 
+  const arrivalDelayMs =
+    configuredBlockDelay(
+      layout,
+      resource.blockId,
+      plan.direction,
+      "arrival"
+    );
+
+  const arrivedDelayMs =
+    configuredBlockDelay(
+      layout,
+      resource.blockId,
+      plan.direction,
+      "arrived"
+    );
+
+  const leaveDelayMs =
+    configuredBlockDelay(
+      layout,
+      resource.blockId,
+      plan.direction,
+      "leave"
+    );
+
   /*
    * Preview always exposes the selected block's current configuration,
    * even when the block is the source or destination of this route.
@@ -200,6 +286,8 @@ function blockEvents(
           ? configuredArrival
           : incoming?.approachWhen ??
             [],
+      delayMs:
+        arrivalDelayMs,
       note:
         configuredArrival.length ===
           0 &&
@@ -230,6 +318,8 @@ function blockEvents(
               }]
             : incoming?.arrivedWhen ??
               [],
+      delayMs:
+        arrivedDelayMs,
       defaultSensor:
         configuredArrived.length ===
           0 &&
@@ -249,6 +339,7 @@ function blockEvents(
       conditions:
         outgoing?.departWhen ??
         [],
+      delayMs: 0,
       note:
         (
           outgoing?.departWhen.length ??
@@ -277,6 +368,8 @@ function blockEvents(
               }]
             : outgoing?.leaveWhen ??
               [],
+      delayMs:
+        leaveDelayMs,
       defaultSensor:
         configuredLeave.length ===
           0 &&
@@ -313,6 +406,7 @@ function resourceEvents(
           rule.match,
         conditions:
           rule.conditions,
+        delayMs: 0,
       };
     }
   );
@@ -781,6 +875,21 @@ export default function RoutePreviewDialog({
                                       </Text>
 
                                       <Group gap={4}>
+                                        {
+                                          event.delayMs >
+                                            0 && (
+                                            <Badge
+                                              size="xs"
+                                              variant="light"
+                                              color="violet"
+                                            >
+                                              DELAY {
+                                                event.delayMs
+                                              } ms
+                                            </Badge>
+                                          )
+                                        }
+
                                         {
                                           event.defaultSensor && (
                                             <Badge
