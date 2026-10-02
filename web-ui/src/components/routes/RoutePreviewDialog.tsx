@@ -247,6 +247,11 @@ export default function RoutePreviewDialog({
     null
   );
 
+  const [
+    planRevision,
+    setPlanRevision,
+  ] = useState(0);
+
   useEffect(
     () => {
       let disposed =
@@ -299,6 +304,11 @@ export default function RoutePreviewDialog({
             if (!disposed) {
               setPlan(
                 next
+              );
+
+              setPlanRevision(
+                value =>
+                  value + 1
               );
             }
           }
@@ -470,6 +480,9 @@ export default function RoutePreviewDialog({
                 </Group>
 
                 <MovementRouteVectorPreview
+                  key={
+                    `movement-vector-${planRevision}`
+                  }
                   page={page}
                   layout={layout}
                   selectedKey={
