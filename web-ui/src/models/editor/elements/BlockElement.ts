@@ -636,12 +636,6 @@ export class BlockElement extends TrackElement {
         readonly: false,
         min: 0,
       },
-      {
-        label: i18next.t("ui.colorOn"),
-        key: "colorOn",
-        type: "colorpicker",
-        readonly: false,
-      },
     ];
   }
   override getHelp(): string {
