@@ -324,9 +324,7 @@ export default function LocoCalibrationTab({
 
   const visibleResults =
     runtime.locoId ===
-      loco.id &&
-    runtime.results.length >
-      0
+      loco.id
       ? runtime.results
       : loco.calibration
           ?.results ??
@@ -572,7 +570,8 @@ export default function LocoCalibrationTab({
 
       void loadRoutes(
         loco.calibration
-          ?.routeKey
+          ?.routeKey ??
+        ""
       );
     },
     [
