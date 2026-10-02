@@ -1456,7 +1456,6 @@ export function renderMovementExecutionScript(
       ...indent([
         "REQUIRE MOVEMENT ENABLED",
         "REQUIRE TRACK_POWER ON",
-        "REQUIRE ACTIVE_CONTROL_STATION",
         "WAIT SOURCE_BLOCK_LOCO_ADDRESS > 0 (timeout 3000ms)",
         "REQUIRE ROUTE_DIRECTION != UNKNOWN",
       ]),
