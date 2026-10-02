@@ -2737,6 +2737,13 @@ public sealed class MovementRuntime
                 activeRouteResourceKey: leg.To.Key,
                 setActiveRoute: true);
 
+            var finalLeg =
+                ReferenceEquals(
+                    execution.Plan.Legs.LastOrDefault(),
+                    leg) ||
+                leg.Index ==
+                    execution.Plan.Legs.Length - 1;
+
             EmitTrainEvent(
                 execution,
                 "arrived",
@@ -2749,18 +2756,34 @@ public sealed class MovementRuntime
                 50,
                 execution.Cancellation.Token);
 
-            if (IsHeld(execution))
+            if (!finalLeg &&
+                IsHeld(
+                    execution))
+                ReleasePreparedNextLeg(
+                    execution,
+                    leg);
+
+            if (IsHeld(
+                    execution) ||
+                (!finalLeg &&
+                 !HasPreparedNextLeg(
+                     execution,
+                     leg)))
             {
-                execution.Moving = false;
-                execution.DesiredSpeed = 0;
+                execution.Moving =
+                    false;
+                execution.DesiredSpeed =
+                    0;
 
                 Patch(
                     execution,
-                    desiredSpeed: 0);
+                    desiredSpeed:
+                        0);
 
                 await ApplySpeed(
                     execution,
-                    force: true);
+                    force:
+                        true);
             }
 
             /*
@@ -2773,12 +2796,6 @@ public sealed class MovementRuntime
                     lease.OwnerId))
                 throw new InvalidOperationException(
                     "movement_turnout_release_failed");
-
-            var finalLeg =
-                ReferenceEquals(
-                    execution.Plan.Legs.LastOrDefault(),
-                    leg) ||
-                leg.Index == execution.Plan.Legs.Length - 1;
 
             if (finalLeg)
             {
