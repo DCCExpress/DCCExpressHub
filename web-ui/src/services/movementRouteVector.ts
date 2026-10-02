@@ -54,6 +54,10 @@ export type MovementRouteVectorItem =
       name: string;
       sensor: number | null;
       sensors: number[];
+      occupancySensor: number | null;
+      arrivalSensors: number[];
+      arrivedSensors: number[];
+      leaveSensors: number[];
       mergedSegmentNames: string[];
       blockType: string;
       role:
@@ -730,6 +734,23 @@ export function buildMovementRouteVector(
                 )!,
               ]
             : [],
+        occupancySensor:
+          blockSensors.get(
+            blockId
+          ) ??
+          null,
+        arrivalSensors: [],
+        arrivedSensors:
+          blockSensors.has(
+            blockId
+          )
+            ? [
+                blockSensors.get(
+                  blockId
+                )!,
+              ]
+            : [],
+        leaveSensors: [],
         mergedSegmentNames: [],
         blockType:
           blockTypes.get(
@@ -1007,17 +1028,110 @@ export async function loadMovementRouteVector(
         resource.detectors[0] ??
         null;
 
+      const incomingLeg =
+        resource.kind ===
+          "block"
+          ? plan.legs.find(
+              leg =>
+                leg.to.key ===
+                resource.key
+            ) ??
+            null
+          : null;
+
+      const outgoingLeg =
+        resource.kind ===
+          "block"
+          ? plan.legs.find(
+              leg =>
+                leg.from.key ===
+                resource.key
+            ) ??
+            null
+          : null;
+
+      const occupancySensor =
+        resource.kind ===
+          "block"
+          ? resource.sensorAddress
+          : null;
+
+      const arrivalSensors =
+        resource.kind ===
+          "block"
+          ? [
+              ...new Set(
+                (
+                  incomingLeg?.approachWhen ??
+                  []
+                ).map(
+                  condition =>
+                    condition.sensor
+                )
+              ),
+            ]
+          : [];
+
+      const arrivedSensors =
+        resource.kind ===
+          "block"
+          ? [
+              ...new Set(
+                [
+                  ...(
+                    occupancySensor ===
+                      null
+                      ? []
+                      : [
+                          occupancySensor,
+                        ]
+                  ),
+                  ...(
+                    incomingLeg?.arrivedWhen ??
+                    []
+                  ).map(
+                    condition =>
+                      condition.sensor
+                  ),
+                ]
+              ),
+            ]
+          : [];
+
+      const leaveSensors =
+        resource.kind ===
+          "block"
+          ? [
+              ...new Set(
+                (
+                  outgoingLeg?.leaveWhen ??
+                  []
+                ).map(
+                  condition =>
+                    condition.sensor
+                )
+              ),
+            ]
+          : [];
+
       const sensors =
         resource.kind ===
           "block"
-          ? (
-              resource.sensorAddress ===
-                null
-                ? []
-                : [
-                    resource.sensorAddress,
-                  ]
-            )
+          ? [
+              ...new Set([
+                ...(
+                  occupancySensor ===
+                    null
+                    ? []
+                    : [
+                        occupancySensor,
+                      ]
+                ),
+                ...arrivalSensors,
+                ...arrivedSensors,
+                ...leaveSensors,
+              ]),
+            ]
           : [
               ...resource.detectors,
             ];
@@ -1051,6 +1165,10 @@ export async function loadMovementRouteVector(
             resource.name,
           sensor,
           sensors,
+          occupancySensor,
+          arrivalSensors,
+          arrivedSensors,
+          leaveSensors,
           mergedSegmentNames:
             mergedSegmentNamesByBlockKey.get(
               resource.key
