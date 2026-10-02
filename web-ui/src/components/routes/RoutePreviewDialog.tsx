@@ -11,6 +11,7 @@ import {
 } from "@mantine/core";
 
 import {
+  IconClock,
   IconRoute,
 } from "@tabler/icons-react";
 
@@ -876,21 +877,6 @@ export default function RoutePreviewDialog({
 
                                       <Group gap={4}>
                                         {
-                                          event.delayMs >
-                                            0 && (
-                                            <Badge
-                                              size="xs"
-                                              variant="light"
-                                              color="violet"
-                                            >
-                                              DELAY {
-                                                event.delayMs
-                                              } ms
-                                            </Badge>
-                                          )
-                                        }
-
-                                        {
                                           event.defaultSensor && (
                                             <Badge
                                               size="xs"
@@ -902,17 +888,49 @@ export default function RoutePreviewDialog({
                                           )
                                         }
 
-                                        <Badge
-                                          size="xs"
-                                          variant="outline"
-                                          color="gray"
-                                        >
-                                          {
-                                            event.match.toUpperCase()
-                                          }
-                                        </Badge>
                                       </Group>
                                     </Group>
+
+                                    {
+                                      event.delayMs >
+                                        0 && (
+                                        <Group
+                                          gap={6}
+                                          wrap="nowrap"
+                                          px="xs"
+                                          py={6}
+                                          style={{
+                                            borderRadius: 6,
+                                            background:
+                                              "var(--mantine-color-violet-light)",
+                                            border:
+                                              "1px solid var(--mantine-color-violet-light-color)",
+                                          }}
+                                        >
+                                          <IconClock
+                                            size={15}
+                                            stroke={2.2}
+                                          />
+
+                                          <Text
+                                            size="xs"
+                                            fw={800}
+                                          >
+                                            DELAY
+                                          </Text>
+
+                                          <Badge
+                                            size="sm"
+                                            variant="filled"
+                                            color="violet"
+                                          >
+                                            +{
+                                              event.delayMs
+                                            } ms
+                                          </Badge>
+                                        </Group>
+                                      )
+                                    }
 
                                     {
                                       event.conditions.length >
