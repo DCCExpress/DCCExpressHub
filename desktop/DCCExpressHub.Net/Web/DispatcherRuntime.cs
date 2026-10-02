@@ -102,6 +102,7 @@ public sealed class DispatcherRuntime
     readonly LayoutRuntime _runtime;
     readonly ICommandCenter _commandCenter;
     readonly SwitchManManager _switchMan;
+    readonly TrackAuthorityRuntime _authority;
     readonly ILogger<DispatcherRuntime> _log;
 
     readonly Dictionary<string, DispatcherLegLeaseInfo> _leases =
@@ -120,11 +121,13 @@ public sealed class DispatcherRuntime
         LayoutRuntime runtime,
         ICommandCenter commandCenter,
         SwitchManManager switchMan,
+        TrackAuthorityRuntime authority,
         ILogger<DispatcherRuntime> log)
     {
         _runtime = runtime;
         _commandCenter = commandCenter;
         _switchMan = switchMan;
+        _authority = authority;
         _log = log;
 
         // A manual/administrative SwitchMan force-release must never leave a
@@ -304,18 +307,12 @@ public sealed class DispatcherRuntime
         return null;
     }
 
-    (bool Ok, ushort? BlockingSensor) SensorsFree(
-        IReadOnlyList<ushort> sensors)
-    {
-        foreach (var address in sensors)
-        {
-            // UNKNOWN is deliberately unsafe.
-            if (!_runtime.TryGetSensorState(address, out var on) || on)
-                return (false, address);
-        }
-
-        return (true, null);
-    }
+    TrackAuthorityCheck SensorsSafe(
+        ushort locoAddress,
+        IReadOnlyList<ushort> sensors) =>
+        _authority.CheckSensorsForLoco(
+            locoAddress,
+            sensors);
 
     bool TryReserveLegResources(
         ushort destinationBlockId,
@@ -713,7 +710,9 @@ public sealed class DispatcherRuntime
         try
         {
             var safety =
-                SensorsFree(sensors);
+                SensorsSafe(
+                    request.LocoAddress,
+                    sensors);
 
             if (!safety.Ok)
                 return new(
@@ -794,7 +793,9 @@ public sealed class DispatcherRuntime
                 return new(false, destinationError, null, BlockingBlock: request.ToBlockId);
 
             safety =
-                SensorsFree(sensors);
+                SensorsSafe(
+                    request.LocoAddress,
+                    sensors);
 
             if (!safety.Ok)
                 return new(
@@ -854,7 +855,9 @@ public sealed class DispatcherRuntime
                 return new(false, destinationError, null, BlockingBlock: request.ToBlockId);
 
             safety =
-                SensorsFree(sensors);
+                SensorsSafe(
+                    request.LocoAddress,
+                    sensors);
 
             if (!safety.Ok)
                 return new(
@@ -1544,7 +1547,8 @@ public sealed class DispatcherRuntime
         }
 
         var safety =
-            SensorsFree(
+            SensorsSafe(
+                lease.LocoAddress,
                 lease.SafetySensors);
 
         if (!safety.Ok)
