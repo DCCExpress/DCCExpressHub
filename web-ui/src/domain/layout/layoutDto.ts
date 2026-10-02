@@ -332,8 +332,11 @@ export type BlockEventSensorConditionDto = {
 
 export type BlockDirectionEventConfigDto = {
   arrival: BlockEventSensorConditionDto[];
+  arrivalDelayMs: number;
   arrived: BlockEventSensorConditionDto[];
+  arrivedDelayMs: number;
   leave: BlockEventSensorConditionDto[];
+  leaveDelayMs: number;
 };
 
 export type BlockEventConfigDto = {
