@@ -3799,10 +3799,10 @@ const dcc = Object.freeze({
 });
 
 const movement = Object.freeze({
-  hold: (movementId, ownerId = "flow") =>
-    __movementHold(String(movementId), String(ownerId)),
-  release: (movementId, ownerId = "flow") =>
-    __movementRelease(String(movementId), String(ownerId)),
+  hold: movementId =>
+    __movementHold(String(movementId)),
+  release: movementId =>
+    __movementRelease(String(movementId)),
   holdOwners: movementId =>
     JSON.parse(__movementHoldOwners(String(movementId))),
 });
@@ -4504,19 +4504,19 @@ async function smartDispatcher(blocks, callback, options = {}) {
 
         engine.SetValue(
             "__movementHold",
-            new Func<string, string, bool>(
-                (movementId, ownerId) =>
+            new Func<string, bool>(
+                movementId =>
                     _movement.Hold(
                         movementId,
-                        ownerId)));
+                        execution.ExecutionId)));
 
         engine.SetValue(
             "__movementRelease",
-            new Func<string, string, bool>(
-                (movementId, ownerId) =>
+            new Func<string, bool>(
+                movementId =>
                     _movement.Release(
                         movementId,
-                        ownerId)));
+                        execution.ExecutionId)));
 
         engine.SetValue(
             "__movementHoldOwners",
