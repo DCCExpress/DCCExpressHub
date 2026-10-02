@@ -163,6 +163,7 @@ public sealed class DispatcherRuntime
     {
         DispatcherLegLeaseInfo[] invalidLegs;
         DispatcherRouteLeaseInfo[] invalidRoutes;
+        DispatcherPreparedLegInfo[] invalidPrepared;
 
         lock (_gate)
         {
@@ -185,6 +186,16 @@ public sealed class DispatcherRuntime
                                     address,
                                     lease.OwnerId)))
                     .ToArray();
+
+            invalidPrepared =
+                _preparedLegs.Values
+                    .Where(lease =>
+                        lease.TurnoutAddresses.Any(
+                            address =>
+                                !_switchMan.IsOwnedBy(
+                                    address,
+                                    lease.OwnerId)))
+                    .ToArray();
         }
 
         foreach (var lease in invalidLegs)
@@ -196,6 +207,18 @@ public sealed class DispatcherRuntime
                 lease.ToBlockId);
 
             ReleaseLeg(
+                lease.OwnerId);
+        }
+
+        foreach (var lease in invalidPrepared)
+        {
+            _log.LogWarning(
+                "Dispatcher prepared leg {OwnerId} lost turnout authority; releasing {FromBlock}->{ToBlock}",
+                lease.OwnerId,
+                lease.FromBlockId,
+                lease.ToBlockId);
+
+            ReleasePreparedLeg(
                 lease.OwnerId);
         }
 
@@ -642,6 +665,620 @@ public sealed class DispatcherRuntime
         }
 
         return ok;
+    }
+
+    string? ValidatePredecessorReservation(
+        string predecessorOwnerId,
+        ushort fromBlockId,
+        ushort locoAddress)
+    {
+        lock (_gate)
+        {
+            if (!_leases.TryGetValue(
+                    predecessorOwnerId,
+                    out var predecessor))
+                return "predecessor_leg_not_found";
+
+            if (predecessor.ToBlockId !=
+                    fromBlockId ||
+                predecessor.LocoAddress !=
+                    locoAddress)
+                return "predecessor_leg_mismatch";
+
+            if (!_destinationOwners.TryGetValue(
+                    fromBlockId,
+                    out var owner) ||
+                !string.Equals(
+                    owner,
+                    predecessorOwnerId,
+                    StringComparison.Ordinal))
+                return "predecessor_destination_authority_lost";
+        }
+
+        return null;
+    }
+
+    public async Task<DispatcherPrepareResult> PrepareLegAsync(
+        DispatcherLegRequest request,
+        string predecessorOwnerId,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(
+                predecessorOwnerId))
+            return new(
+                false,
+                "invalid_predecessor_owner",
+                null);
+
+        if (string.IsNullOrWhiteSpace(request.OwnerId) ||
+            request.OwnerId.Length > 240)
+            return new(false, "invalid_owner", null);
+
+        if (request.LocoAddress is < 1 or > 10239)
+            return new(false, "invalid_loco_address", null);
+
+        if (request.FromBlockId == 0 ||
+            request.ToBlockId == 0 ||
+            request.FromBlockId == request.ToBlockId)
+            return new(false, "invalid_block_leg", null);
+
+        lock (_gate)
+        {
+            if (_leases.ContainsKey(
+                    request.OwnerId) ||
+                _preparedLegs.ContainsKey(
+                    request.OwnerId))
+                return new(
+                    false,
+                    "owner_already_has_leg",
+                    null);
+        }
+
+        var predecessorError =
+            ValidatePredecessorReservation(
+                predecessorOwnerId,
+                request.FromBlockId,
+                request.LocoAddress);
+
+        if (predecessorError is not null)
+            return new(
+                false,
+                predecessorError,
+                null,
+                BlockingBlock:
+                    request.FromBlockId);
+
+        DispatcherTurnoutRequirement[] turnouts;
+
+        try
+        {
+            turnouts =
+                NormalizeTurnouts(
+                    request.Turnouts);
+        }
+        catch (ArgumentException ex)
+        {
+            return new(
+                false,
+                ex.Message,
+                null);
+        }
+
+        var sensors =
+            NormalizeSensors(
+                request.SafetySensors);
+
+        var resourceKeys =
+            NormalizeResources(
+                request.FromBlockId,
+                request.ToBlockId,
+                request.ResourceKeys);
+
+        var preparedResourceKeys =
+            resourceKeys
+                .Where(key =>
+                    !string.Equals(
+                        key,
+                        "block:" +
+                            request.FromBlockId,
+                        StringComparison.Ordinal))
+                .ToArray();
+
+        var destinationError =
+            ValidateDestinationBlock(
+                request.ToBlockId);
+
+        if (destinationError is not null)
+            return new(
+                false,
+                destinationError,
+                null,
+                BlockingBlock:
+                    request.ToBlockId);
+
+        if (!TryReserveLegResources(
+                request.ToBlockId,
+                request.OwnerId,
+                preparedResourceKeys,
+                out var blockingResource))
+            return new(
+                false,
+                "dispatcher_resource_locked:" +
+                    blockingResource,
+                null,
+                BlockingBlock:
+                    blockingResource ==
+                        "block:" +
+                        request.ToBlockId
+                        ? request.ToBlockId
+                        : null);
+
+        var turnoutAddresses =
+            turnouts
+                .Select(turnout =>
+                    turnout.Address)
+                .ToArray();
+
+        var switchManAcquired =
+            false;
+
+        try
+        {
+            var safety =
+                SensorsSafe(
+                    request.LocoAddress,
+                    sensors);
+
+            if (!safety.Ok)
+                return new(
+                    false,
+                    "safety_sensor_not_free",
+                    null,
+                    BlockingSensor:
+                        safety.BlockingSensor);
+
+            foreach (var address in
+                     turnoutAddresses)
+                if (_runtime.FindAccessory(
+                        RuntimeAccessoryKind.Turnout,
+                        address) is null)
+                    return new(
+                        false,
+                        "turnout_not_found",
+                        null);
+
+            if (turnoutAddresses.Length >
+                0)
+            {
+                var turnoutLease =
+                    await _switchMan.AcquireAsync(
+                        turnoutAddresses,
+                        request.OwnerId,
+                        string.IsNullOrWhiteSpace(
+                            request.OwnerName)
+                            ? request.OwnerId
+                            : request.OwnerName.Trim(),
+                        Math.Clamp(
+                            request.TurnoutLockTimeoutMs,
+                            0,
+                            600000),
+                        ct);
+
+                if (!turnoutLease.Ok)
+                    return new(
+                        false,
+                        turnoutLease.Error ??
+                            "turnout_lock_failed",
+                        null,
+                        TurnoutConflicts:
+                            turnoutLease.Conflicts);
+
+                switchManAcquired =
+                    true;
+            }
+
+            predecessorError =
+                ValidatePredecessorReservation(
+                    predecessorOwnerId,
+                    request.FromBlockId,
+                    request.LocoAddress);
+
+            if (predecessorError is not null)
+                return new(
+                    false,
+                    predecessorError,
+                    null,
+                    BlockingBlock:
+                        request.FromBlockId);
+
+            destinationError =
+                ValidateDestinationBlock(
+                    request.ToBlockId);
+
+            if (destinationError is not null)
+                return new(
+                    false,
+                    destinationError,
+                    null,
+                    BlockingBlock:
+                        request.ToBlockId);
+
+            safety =
+                SensorsSafe(
+                    request.LocoAddress,
+                    sensors);
+
+            if (!safety.Ok)
+                return new(
+                    false,
+                    "safety_sensor_not_free",
+                    null,
+                    BlockingSensor:
+                        safety.BlockingSensor);
+
+            for (
+                var index = 0;
+                index <
+                    turnouts.Length;
+                index++)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                var turnout =
+                    turnouts[
+                        index];
+
+                var needsChange =
+                    !_runtime.TryGetTurnoutClosed(
+                        turnout.Address,
+                        out var currentClosed) ||
+                    currentClosed !=
+                        turnout.Closed;
+
+                if (!await SetTurnoutAsync(
+                        turnout,
+                        request.OwnerId,
+                        ct))
+                    return new(
+                        false,
+                        "turnout_command_failed",
+                        null);
+
+                if (needsChange &&
+                    index + 1 <
+                        turnouts.Length)
+                    await Task.Delay(
+                        Math.Clamp(
+                            request.TurnoutSetDelayMs,
+                            0,
+                            600000),
+                        ct);
+            }
+
+            predecessorError =
+                ValidatePredecessorReservation(
+                    predecessorOwnerId,
+                    request.FromBlockId,
+                    request.LocoAddress);
+
+            if (predecessorError is not null)
+                return new(
+                    false,
+                    predecessorError,
+                    null,
+                    BlockingBlock:
+                        request.FromBlockId);
+
+            destinationError =
+                ValidateDestinationBlock(
+                    request.ToBlockId);
+
+            if (destinationError is not null)
+                return new(
+                    false,
+                    destinationError,
+                    null,
+                    BlockingBlock:
+                        request.ToBlockId);
+
+            safety =
+                SensorsSafe(
+                    request.LocoAddress,
+                    sensors);
+
+            if (!safety.Ok)
+                return new(
+                    false,
+                    "safety_sensor_not_free",
+                    null,
+                    BlockingSensor:
+                        safety.BlockingSensor);
+
+            var prepared =
+                new DispatcherPreparedLegInfo(
+                    request.OwnerId,
+                    string.IsNullOrWhiteSpace(
+                        request.OwnerName)
+                        ? request.OwnerId
+                        : request.OwnerName.Trim(),
+                    predecessorOwnerId,
+                    request.LocoAddress,
+                    request.FromBlockId,
+                    request.ToBlockId,
+                    turnouts,
+                    turnoutAddresses,
+                    sensors,
+                    resourceKeys,
+                    Environment.TickCount64);
+
+            lock (_gate)
+                _preparedLegs[
+                    request.OwnerId] =
+                    prepared;
+
+            _log.LogInformation(
+                "Dispatcher prepared next leg {FromBlock}->{ToBlock} for loco #{LocoAddress}, owner {OwnerId}",
+                request.FromBlockId,
+                request.ToBlockId,
+                request.LocoAddress,
+                request.OwnerId);
+
+            return new(
+                true,
+                null,
+                prepared);
+        }
+        finally
+        {
+            bool committed;
+
+            lock (_gate)
+                committed =
+                    _preparedLegs.ContainsKey(
+                        request.OwnerId);
+
+            if (!committed)
+            {
+                if (switchManAcquired)
+                    _switchMan.ReleaseOwned(
+                        turnoutAddresses,
+                        request.OwnerId);
+
+                ReleaseLegResources(
+                    request.ToBlockId,
+                    request.OwnerId,
+                    preparedResourceKeys);
+            }
+        }
+    }
+
+    public DispatcherAcquireResult ActivatePreparedLeg(
+        string ownerId)
+    {
+        DispatcherPreparedLegInfo? prepared;
+
+        lock (_gate)
+        {
+            if (!_preparedLegs.TryGetValue(
+                    ownerId,
+                    out prepared))
+                return new(
+                    false,
+                    "prepared_leg_not_found",
+                    null);
+        }
+
+        var sourceError =
+            ValidateSourceBlock(
+                prepared.FromBlockId,
+                prepared.LocoAddress);
+
+        if (sourceError is not null)
+            return new(
+                false,
+                sourceError,
+                null,
+                BlockingBlock:
+                    prepared.FromBlockId);
+
+        var destinationError =
+            ValidateDestinationBlock(
+                prepared.ToBlockId);
+
+        if (destinationError is not null)
+            return new(
+                false,
+                destinationError,
+                null,
+                BlockingBlock:
+                    prepared.ToBlockId);
+
+        if (!TryReserveLegResources(
+                prepared.ToBlockId,
+                prepared.OwnerId,
+                prepared.ResourceKeys,
+                out var blockingResource))
+            return new(
+                false,
+                "dispatcher_resource_locked:" +
+                    blockingResource,
+                null,
+                BlockingBlock:
+                    blockingResource ==
+                        "block:" +
+                        prepared.ToBlockId
+                        ? prepared.ToBlockId
+                        : null);
+
+        foreach (var address in
+                 prepared.TurnoutAddresses)
+            if (!_switchMan.IsOwnedBy(
+                    address,
+                    prepared.OwnerId))
+            {
+                ReleasePreparedLeg(
+                    prepared.OwnerId);
+
+                return new(
+                    false,
+                    "turnout_authority_lost",
+                    null);
+            }
+
+        foreach (var turnout in
+                 prepared.Turnouts)
+            if (!_runtime.TryGetTurnoutClosed(
+                    turnout.Address,
+                    out var currentClosed) ||
+                currentClosed !=
+                    turnout.Closed)
+            {
+                ReleasePreparedLeg(
+                    prepared.OwnerId);
+
+                return new(
+                    false,
+                    "turnout_state_changed_after_prepare",
+                    null);
+            }
+
+        var safety =
+            SensorsSafe(
+                prepared.LocoAddress,
+                prepared.SafetySensors);
+
+        if (!safety.Ok)
+            return new(
+                false,
+                "safety_sensor_not_free",
+                null,
+                BlockingSensor:
+                    safety.BlockingSensor);
+
+        sourceError =
+            ValidateSourceBlock(
+                prepared.FromBlockId,
+                prepared.LocoAddress);
+
+        if (sourceError is not null)
+            return new(
+                false,
+                sourceError,
+                null,
+                BlockingBlock:
+                    prepared.FromBlockId);
+
+        destinationError =
+            ValidateDestinationBlock(
+                prepared.ToBlockId);
+
+        if (destinationError is not null)
+            return new(
+                false,
+                destinationError,
+                null,
+                BlockingBlock:
+                    prepared.ToBlockId);
+
+        var marker =
+            CreateTargetMarker(
+                prepared.LocoAddress,
+                prepared.OwnerId);
+
+        if (!_runtime.SetBlock(
+                prepared.ToBlockId,
+                marker,
+                0))
+            return new(
+                false,
+                "target_block_marker_failed",
+                null,
+                BlockingBlock:
+                    prepared.ToBlockId);
+
+        var lease =
+            new DispatcherLegLeaseInfo(
+                prepared.OwnerId,
+                prepared.OwnerName,
+                prepared.LocoAddress,
+                prepared.FromBlockId,
+                prepared.ToBlockId,
+                prepared.TurnoutAddresses,
+                prepared.SafetySensors,
+                prepared.ResourceKeys,
+                marker,
+                Environment.TickCount64);
+
+        lock (_gate)
+        {
+            if (!_preparedLegs.Remove(
+                    prepared.OwnerId))
+            {
+                _runtime.RemoveBlock(
+                    prepared.ToBlockId,
+                    marker);
+
+                return new(
+                    false,
+                    "prepared_leg_lost",
+                    null);
+            }
+
+            _leases[
+                prepared.OwnerId] =
+                lease;
+        }
+
+        _log.LogInformation(
+            "Dispatcher activated prepared leg {FromBlock}->{ToBlock} for loco #{LocoAddress}, owner {OwnerId}",
+            lease.FromBlockId,
+            lease.ToBlockId,
+            lease.LocoAddress,
+            lease.OwnerId);
+
+        Changed?.Invoke(
+            Snapshot());
+
+        return new(
+            true,
+            null,
+            lease);
+    }
+
+    public bool ReleasePreparedLeg(
+        string ownerId)
+    {
+        if (string.IsNullOrWhiteSpace(
+                ownerId))
+            return false;
+
+        DispatcherPreparedLegInfo? prepared;
+
+        lock (_gate)
+        {
+            if (!_preparedLegs.Remove(
+                    ownerId,
+                    out prepared))
+                return false;
+        }
+
+        _switchMan.ReleaseOwned(
+            prepared.TurnoutAddresses,
+            ownerId);
+
+        ReleaseLegResources(
+            prepared.ToBlockId,
+            ownerId,
+            prepared.ResourceKeys);
+
+        _log.LogInformation(
+            "Dispatcher released prepared leg {FromBlock}->{ToBlock} for loco #{LocoAddress}, owner {OwnerId}",
+            prepared.FromBlockId,
+            prepared.ToBlockId,
+            prepared.LocoAddress,
+            ownerId);
+
+        return true;
     }
 
     public async Task<DispatcherAcquireResult> AcquireLegAsync(
