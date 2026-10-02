@@ -919,6 +919,11 @@ public sealed class WsHub
                         payload =
                             rawPayload.Clone();
 
+                    var mode =
+                        S(
+                            data,
+                            "mode");
+
                     var result =
                         Flows.RunPage(
                             pageId,
@@ -927,10 +932,10 @@ public sealed class WsHub
                                 ? null
                                 : inputNodeId,
                             payload,
-                            S(
-                                data,
-                                "mode",
-                                "run"));
+                            string.IsNullOrWhiteSpace(
+                                mode)
+                                ? "run"
+                                : mode);
 
                     await Reply(
                         result.Ok,
