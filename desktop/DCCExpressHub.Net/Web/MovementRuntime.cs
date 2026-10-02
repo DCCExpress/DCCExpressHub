@@ -266,6 +266,16 @@ public sealed class MovementRuntime
                 : Idle(pageId);
     }
 
+    public bool IsLocoManaged(
+        int locoAddress)
+    {
+        lock (_gate)
+            return _executions.Values.Any(
+                execution =>
+                    execution.LocoAddress ==
+                    locoAddress);
+    }
+
     public MovementRuntimeState[] Snapshot()
     {
         lock (_gate)
