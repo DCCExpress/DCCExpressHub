@@ -439,29 +439,6 @@ public sealed class MovementPlanBuilder
         return result;
     }
 
-    static MovementBlockRule? BlockRule(
-        MovementPageModel page,
-        int blockId) =>
-        page.BlockRules
-            .FirstOrDefault(x =>
-                x.BlockId ==
-                blockId);
-
-    static MovementSensorCondition[] CloneConditions(
-        IEnumerable<MovementSensorCondition>? source) =>
-        (source ?? [])
-            .Select(condition =>
-                new MovementSensorCondition
-                {
-                    Id =
-                        condition.Id,
-                    Sensor =
-                        condition.Sensor,
-                    State =
-                        condition.State
-                })
-            .ToArray();
-
     static MovementSensorCondition[] BlockEventConditions(
         JsonElement root,
         int blockId,
