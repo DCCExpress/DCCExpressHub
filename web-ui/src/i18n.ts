@@ -158,7 +158,12 @@ const enTranslation = {
       to: "To",
       reverse: "Reverse",
       select: "Select",
-      loadingRoutes: "Loading routes…"
+      loadingRoutes: "Loading routes…",
+      routeSelection: "Route selection",
+      outbound: "Outbound",
+      return: "Return",
+      reverseOk: "OK",
+      reverseMissingShort: "Missing / ambiguous"
     },
     trainTypes: {
       passenger: "Passenger",
@@ -307,7 +312,12 @@ const huTranslation = {
       to: "Hová",
       reverse: "Visszaút",
       select: "Kiválasztás",
-      loadingRoutes: "Útvonalak betöltése…"
+      loadingRoutes: "Útvonalak betöltése…",
+      routeSelection: "Útvonalválasztás",
+      outbound: "Oda",
+      return: "Vissza",
+      reverseOk: "OK",
+      reverseMissingShort: "Hiányzik / nem egyértelmű"
     },
     trainTypes: {
       passenger: "Személy",
@@ -456,7 +466,12 @@ const deTranslation = {
       to: "Nach",
       reverse: "Rückroute",
       select: "Auswählen",
-      loadingRoutes: "Routen werden geladen…"
+      loadingRoutes: "Routen werden geladen…",
+      routeSelection: "Routenauswahl",
+      outbound: "Hinfahrt",
+      return: "Rückfahrt",
+      reverseOk: "OK",
+      reverseMissingShort: "Fehlt / mehrdeutig"
     },
     trainTypes: {
       passenger: "Personenzug",
