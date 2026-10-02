@@ -68,6 +68,7 @@ type EventRow = {
   match: "all" | "any";
   conditions: MovementSensorCondition[];
   defaultSensor?: boolean;
+  note?: string;
 };
 
 function conditionText(
@@ -199,6 +200,16 @@ function blockEvents(
           ? configuredArrival
           : incoming?.approachWhen ??
             [],
+      note:
+        configuredArrival.length ===
+          0 &&
+        (
+          incoming?.approachWhen.length ??
+          0
+        ) ===
+          0
+          ? "No default sensor · configure Arrival in Block settings"
+          : undefined,
     },
     {
       name: "ARRIVED",
@@ -224,6 +235,13 @@ function blockEvents(
           0 &&
         resource.sensorAddress !==
           null,
+      note:
+        configuredArrived.length ===
+          0 &&
+        resource.sensorAddress !==
+          null
+          ? "Default occupancy sensor"
+          : undefined,
     },
     {
       name: "DEPART",
@@ -231,6 +249,14 @@ function blockEvents(
       conditions:
         outgoing?.departWhen ??
         [],
+      note:
+        (
+          outgoing?.departWhen.length ??
+          0
+        ) ===
+          0
+          ? "Derived event · no sensor required"
+          : undefined,
     },
     {
       name: "LEAVE",
@@ -239,8 +265,30 @@ function blockEvents(
         configuredLeave.length >
           0
           ? configuredLeave
-          : outgoing?.leaveWhen ??
-            [],
+          : resource.sensorAddress !==
+              null
+            ? [{
+                id:
+                  `preview-default-leave-${resource.blockId}`,
+                sensor:
+                  resource.sensorAddress,
+                state:
+                  false,
+              }]
+            : outgoing?.leaveWhen ??
+              [],
+      defaultSensor:
+        configuredLeave.length ===
+          0 &&
+        resource.sensorAddress !==
+          null,
+      note:
+        configuredLeave.length ===
+          0 &&
+        resource.sensorAddress !==
+          null
+          ? "Default occupancy sensor"
+          : undefined,
     },
   ];
 }
@@ -763,12 +811,12 @@ export default function RoutePreviewDialog({
                                         ? (
                                           <>
                                             {
-                                              event.defaultSensor && (
+                                              event.note && (
                                                 <Text
                                                   size="xs"
                                                   c="dimmed"
                                                 >
-                                                  Default occupancy sensor
+                                                  {event.note}
                                                 </Text>
                                               )
                                             }
@@ -803,7 +851,10 @@ export default function RoutePreviewDialog({
                                             size="xs"
                                             c="dimmed"
                                           >
-                                            No sensor condition
+                                            {
+                                              event.note ??
+                                              "No sensor condition"
+                                            }
                                           </Text>
                                         )
                                     }
