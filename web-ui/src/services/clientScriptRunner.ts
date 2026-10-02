@@ -1,6 +1,6 @@
 import {
-  getLocos,
-} from "../api/domainApi";
+  isControlStationRuntimeActive,
+} from "./controlStationRuntime";
 
 import {
   wsApi,
@@ -10,52 +10,9 @@ import {
   wsClient,
 } from "./wsClient";
 
-import {
-  isControlStationRuntimeActive,
-} from "./controlStationRuntime";
-
-import {
-  broadcastAudioPlayback,
-  broadcastAudioPlaybackNoWait,
-  broadcastAudioStop,
-} from "./broadcastAudioRuntime";
-
-import {
-  buildClientScriptSwitchManFinally,
-  buildClientScriptSwitchManPrelude,
-} from "./clientScriptSwitchManPrelude";
-
-import {
-  buildClientScriptSmartDispatcherPrelude,
-} from "./clientScriptSmartDispatcherPrelude";
-
-import {
-  applyClientScriptLayoutAccessoryCatalog,
-  executeClientScriptLayoutAccessoryCommand,
-  installClientScriptLayoutAccessoryTracking,
-  sendClientScriptLayoutAccessoryStateToWorker,
-} from "./clientScriptLayoutAccessoryRuntime";
-
-import {
-  claimSharedScriptInfo,
-  clearSharedScriptInfo,
-  setSharedScriptInfo,
-} from "./scriptInfoRuntime";
-
-import {
-  clearOptimisticBlockTargetLoco,
-  createBlockTargetLocoMarker,
-  getBlockTargetLocoMarker,
-  installBlockTargetLocoRuntime,
-  parseBlockTargetLocoMarker,
-  setOptimisticBlockTargetLoco,
-} from "./blockTargetLocoRuntime";
-
 import type {
-  ClientScriptWorkerDccMethod,
-  MainToWorkerMessage,
-  WorkerToMainMessage,
-} from "./clientScriptWorkerProtocol";
+  AutomationScriptRuntimeStatePayload,
+} from "../domain/wsTypes";
 
 export type ClientScriptExecutionId =
   | number
@@ -73,293 +30,280 @@ export type ClientScriptStatus =
   | "paused";
 
 export type ClientScriptState = {
-  status: ClientScriptStatus;
-  startedAt: number | null;
-  error: string | null;
-  info: string | null;
+  status:
+    ClientScriptStatus;
+  startedAt:
+    number | null;
+  error:
+    string | null;
+  info:
+    string | null;
 };
-
-type StateListener =
-  (state: ClientScriptState) => void;
-
-type ExecutionControl = {
-  element: ClientScriptElementContext;
-  status: "running" | "paused";
-  startedAt: number;
-  aborted: boolean;
-  abortReason: string | null;
-  commandError: string | null;
-  info: string | null;
-  infoOwnerId: string;
-  resolve: (value: unknown) => void;
-  reject: (reason: unknown) => void;
-};
-
-const executions =
-  new Map<ClientScriptExecutionId, ExecutionControl>();
-
-const locoFunctionBindings =
-  new Map<
-    number,
-    Map<number, number>
-  >();
-
-async function refreshLocoFunctionBindings(): Promise<void> {
-  const locos =
-    await getLocos();
-
-  const next =
-    new Map<
-      number,
-      Map<number, number>
-    >();
-
-  for (
-    const loco of
-    locos
-  ) {
-    const bindings =
-      new Map<number, number>();
-
-    for (
-      const fn of
-      loco.functions
-    ) {
-      if (
-        fn.bindingId ===
-          undefined ||
-        fn.bindingId ===
-          null ||
-        bindings.has(
-          fn.bindingId
-        )
-      ) {
-        continue;
-      }
-
-      bindings.set(
-        fn.bindingId,
-        fn.number
-      );
-    }
-
-    next.set(
-      loco.address,
-      bindings
-    );
-  }
-
-  locoFunctionBindings.clear();
-
-  for (
-    const [
-      locoAddress,
-      bindings,
-    ] of next
-  ) {
-    locoFunctionBindings.set(
-      locoAddress,
-      bindings
-    );
-  }
-}
-
-function resolveLocoFunctionBinding(
-  locoAddress: number,
-  bindingId: number
-): number {
-  const functionNumber =
-    locoFunctionBindings
-      .get(
-        locoAddress
-      )
-      ?.get(
-        bindingId
-      );
-
-  if (
-    functionNumber ===
-      undefined
-  ) {
-    throw new Error(
-      `Locomotive ${locoAddress} has no function binding #${bindingId}.`
-    );
-  }
-
-  return functionNumber;
-}
-
-const scriptAudioRequests =
-  new Map<
-    ClientScriptExecutionId,
-    Map<number, string>
-  >();
-
-function rememberScriptAudioRequest(
-  executionId:
-    ClientScriptExecutionId,
-  requestId:
-    number,
-  virtualPath:
-    string
-): void {
-  let requests =
-    scriptAudioRequests.get(
-      executionId
-    );
-
-  if (!requests) {
-    requests =
-      new Map<number, string>();
-
-    scriptAudioRequests.set(
-      executionId,
-      requests
-    );
-  }
-
-  requests.set(
-    requestId,
-    virtualPath
-  );
-}
-
-function forgetScriptAudioRequest(
-  executionId:
-    ClientScriptExecutionId,
-  requestId:
-    number
-): void {
-  const requests =
-    scriptAudioRequests.get(
-      executionId
-    );
-
-  if (!requests) {
-    return;
-  }
-
-  requests.delete(
-    requestId
-  );
-
-  if (
-    requests.size ===
-    0
-  ) {
-    scriptAudioRequests.delete(
-      executionId
-    );
-  }
-}
-
-function stopScriptAudioRequests(
-  executionId:
-    ClientScriptExecutionId
-): void {
-  const requests =
-    scriptAudioRequests.get(
-      executionId
-    );
-
-  if (!requests) {
-    return;
-  }
-
-  const paths =
-    [
-      ...new Set(
-        requests.values()
-      ),
-    ];
-
-  scriptAudioRequests.delete(
-    executionId
-  );
-
-  for (
-    const path of
-    paths
-  ) {
-    broadcastAudioStop(
-      path
-    );
-  }
-}
-
-const listeners =
-  new Map<ClientScriptExecutionId, Set<StateListener>>();
 
 export type ClientScriptLogEntry = {
   timestamp: number;
   values: unknown[];
 };
 
+export type ActiveClientScriptExecution = {
+  id:
+    ClientScriptExecutionId;
+  name: string;
+  status:
+    | "running"
+    | "paused";
+};
+
+type StateListener =
+  (
+    state:
+      ClientScriptState
+  ) => void;
+
 type LogListener =
-  (entry: ClientScriptLogEntry) => void;
+  (
+    entry:
+      ClientScriptLogEntry
+  ) => void;
+
+type AutomationFinishingListener =
+  (
+    finishing:
+      boolean
+  ) => void;
+
+type RunWaiter = {
+  started: boolean;
+  aborted: boolean;
+  resolve: (
+    value:
+      unknown
+  ) => void;
+  reject: (
+    reason:
+      unknown
+  ) => void;
+};
+
+const states =
+  new Map<
+    string,
+    AutomationScriptRuntimeStatePayload
+  >();
+
+const listeners =
+  new Map<
+    string,
+    Set<StateListener>
+  >();
 
 const logListeners =
   new Map<
-    ClientScriptExecutionId,
+    string,
     Set<LogListener>
   >();
 
-const lastErrors =
-  new Map<ClientScriptExecutionId, string | null>();
+const runWaiters =
+  new Map<
+    string,
+    RunWaiter
+  >();
 
-const SCRIPT_AUDIO_COMMAND_PREFIX =
-  "__DCCEXPRESS_PLAY_AUDIO__:";
-
-const SCRIPT_AUDIO_MAX_SOURCE_LENGTH =
-  240;
-
-const SCRIPT_AUDIO_EXTENSIONS =
-  /\.(?:mp3|wav|ogg|flac|m4a|aac)$/i;
-
-const AUTOMATION_RUN_MODE_CHANNEL =
-  "dcc-express-automation-run-mode-v1";
-
-type AutomationFinishingListener =
-  (finishing: boolean) => void;
-
-type AutomationRunModeMessage =
-  | {
-      type: "automationRunMode";
-      finishing: boolean;
-    }
-  | {
-      type: "automationRunModeRequest";
-    };
+const finishingListeners =
+  new Set<
+    AutomationFinishingListener
+  >();
 
 let automationFinishing =
   false;
 
-const automationFinishingListeners =
-  new Set<AutomationFinishingListener>();
+let installed =
+  false;
 
-let automationRunModeChannel:
-  BroadcastChannel | null = null;
+let requestSequence =
+  0;
 
-function notifyAutomationFinishingListeners(): void {
+function executionKey(
+  value:
+    ClientScriptExecutionId
+): string {
+  return String(
+    value
+  );
+}
+
+function requestId(
+  action: string
+): string {
+  requestSequence +=
+    1;
+
+  return (
+    `${wsApi.clientUuid}:automation-script:` +
+    `${action}:` +
+    `${Date.now()}:` +
+    `${requestSequence}`
+  );
+}
+
+function clientState(
+  state:
+    AutomationScriptRuntimeStatePayload |
+    undefined
+): ClientScriptState {
+  if (!state) {
+    return {
+      status:
+        "idle",
+      startedAt:
+        null,
+      error:
+        null,
+      info:
+        null,
+    };
+  }
+
+  return {
+    status:
+      state.status ===
+        "running"
+        ? "running"
+        : state.status ===
+            "paused"
+          ? "paused"
+          : "idle",
+    startedAt:
+      state.startedAt,
+    error:
+      state.status ===
+        "error"
+        ? state.error
+        : null,
+    info:
+      state.info,
+  };
+}
+
+function emitState(
+  executionId: string
+): void {
+  const state =
+    clientState(
+      states.get(
+        executionId
+      )
+    );
+
   for (
     const listener of
-    automationFinishingListeners
+    listeners.get(
+      executionId
+    ) ??
+    []
   ) {
     listener(
-      automationFinishing
+      state
     );
   }
 }
 
-function applyAutomationFinishing(
-  finishing: boolean
+function settleRunWaiter(
+  state:
+    AutomationScriptRuntimeStatePayload
+): void {
+  const waiter =
+    runWaiters.get(
+      state.executionId
+    );
+
+  if (!waiter) {
+    return;
+  }
+
+  if (
+    state.status ===
+      "running" ||
+    state.status ===
+      "paused"
+  ) {
+    waiter.started =
+      true;
+    return;
+  }
+
+  if (
+    !waiter.started &&
+    state.stoppedAt ===
+      null
+  ) {
+    return;
+  }
+
+  runWaiters.delete(
+    state.executionId
+  );
+
+  if (
+    state.status ===
+      "error"
+  ) {
+    waiter.reject(
+      new Error(
+        state.error ||
+        "Script execution failed."
+      )
+    );
+
+    return;
+  }
+
+  if (
+    waiter.aborted
+  ) {
+    waiter.reject(
+      new ScriptAbortError()
+    );
+
+    return;
+  }
+
+  waiter.resolve(
+    undefined
+  );
+}
+
+function applyState(
+  state:
+    AutomationScriptRuntimeStatePayload
+): void {
+  states.set(
+    state.executionId,
+    {
+      ...state,
+    }
+  );
+
+  emitState(
+    state.executionId
+  );
+
+  settleRunWaiter(
+    state
+  );
+}
+
+function applyFinishing(
+  value: boolean
 ): void {
   const next =
-    Boolean(finishing);
+    Boolean(
+      value
+    );
 
   if (
     automationFinishing ===
-    next
+      next
   ) {
     return;
   }
@@ -367,108 +311,191 @@ function applyAutomationFinishing(
   automationFinishing =
     next;
 
-  notifyAutomationFinishingListeners();
+  for (
+    const listener of
+    finishingListeners
+  ) {
+    listener(
+      next
+    );
+  }
 }
 
-function ensureAutomationRunModeChannel(): BroadcastChannel | null {
-  if (
-    automationRunModeChannel
-  ) {
-    return automationRunModeChannel;
+function requestSnapshot():
+  void {
+  wsApi.scriptCommand(
+    requestId(
+      "snapshot"
+    ),
+    "snapshot"
+  );
+}
+
+function installTracking():
+  void {
+  if (installed) {
+    return;
   }
 
-  if (
-    typeof BroadcastChannel ===
-    "undefined"
-  ) {
-    return null;
-  }
+  installed =
+    true;
 
-  automationRunModeChannel =
-    new BroadcastChannel(
-      AUTOMATION_RUN_MODE_CHANNEL
-    );
+  wsClient.on(
+    "automationScriptStateChanged",
+    state => {
+      applyState(
+        state
+      );
+    }
+  );
 
-  automationRunModeChannel.onmessage =
-    event => {
-      const message =
-        event.data as
-          AutomationRunModeMessage |
-          null;
+  wsClient.on(
+    "automationScriptSnapshot",
+    snapshot => {
+      applyFinishing(
+        snapshot.finishing
+      );
 
-      if (!message) {
-        return;
-      }
-
-      if (
-        message.type ===
-        "automationRunModeRequest"
+      for (
+        const state of
+        snapshot.states
       ) {
-        automationRunModeChannel?.postMessage({
-          type:
-            "automationRunMode",
-          finishing:
-            automationFinishing,
-        } satisfies AutomationRunModeMessage);
-
-        return;
-      }
-
-      if (
-        message.type ===
-        "automationRunMode"
-      ) {
-        applyAutomationFinishing(
-          message.finishing
+        applyState(
+          state
         );
       }
-    };
+    }
+  );
 
-  return automationRunModeChannel;
+  wsClient.on(
+    "automationScriptLog",
+    entry => {
+      const log:
+        ClientScriptLogEntry = {
+        timestamp:
+          entry.timestamp,
+        values: [
+          entry.message,
+        ],
+      };
+
+      for (
+        const listener of
+        logListeners.get(
+          entry.executionId
+        ) ??
+        []
+      ) {
+        listener(
+          log
+        );
+      }
+    }
+  );
+
+  wsClient.on(
+    "automationScriptResponse",
+    response => {
+      const extra =
+        response.extra;
+
+      if (
+        extra?.state
+      ) {
+        applyState(
+          extra.state
+        );
+      }
+
+      for (
+        const state of
+        extra?.states ??
+        []
+      ) {
+        applyState(
+          state
+        );
+      }
+
+      if (
+        typeof extra?.finishing ===
+          "boolean"
+      ) {
+        applyFinishing(
+          extra.finishing
+        );
+      }
+    }
+  );
+
+  wsClient.subscribeStatus(
+    status => {
+      if (
+        status ===
+          "connected"
+      ) {
+        requestSnapshot();
+      }
+    }
+  );
+
+  requestSnapshot();
 }
 
-export function getAutomationFinishing(): boolean {
+function requireControlStation():
+  void {
+  if (
+    !isControlStationRuntimeActive()
+  ) {
+    throw new Error(
+      "This browser is not the active Control Station."
+    );
+  }
+}
+
+export function getAutomationFinishing():
+  boolean {
+  installTracking();
+
   return automationFinishing;
 }
 
 export function setAutomationFinishing(
   finishing: boolean
 ): void {
-  const next =
-    Boolean(finishing);
+  installTracking();
 
-  applyAutomationFinishing(
-    next
+  if (
+    !isControlStationRuntimeActive()
+  ) {
+    return;
+  }
+
+  applyFinishing(
+    finishing
   );
 
-  const channel =
-    ensureAutomationRunModeChannel();
-
-  channel?.postMessage({
-    type:
-      "automationRunMode",
-    finishing:
-      next,
-  } satisfies AutomationRunModeMessage);
-
-  /*
-   * Timetable scheduling is backend-authoritative on Windows. Mirror the
-   * existing global Finishing switch so the backend also stops launching new
-   * timetable slots while already running work is allowed to finish.
-   */
-  wsApi.timetableCommand(
-    `${wsApi.clientUuid}:timetable:finishing:${Date.now()}`,
+  wsApi.scriptCommand(
+    requestId(
+      "setFinishing"
+    ),
     "setFinishing",
-    next
+    {
+      finishing:
+        Boolean(
+          finishing
+        ),
+    }
   );
 }
 
 export function subscribeAutomationFinishing(
-  listener: AutomationFinishingListener
+  listener:
+    AutomationFinishingListener
 ): () => void {
-  ensureAutomationRunModeChannel();
+  installTracking();
 
-  automationFinishingListeners.add(
+  finishingListeners.add(
     listener
   );
 
@@ -477,1114 +504,96 @@ export function subscribeAutomationFinishing(
   );
 
   return () => {
-    automationFinishingListeners.delete(
+    finishingListeners.delete(
       listener
     );
   };
 }
 
-let automationWorker:
-  Worker | null = null;
-
-let visibilityLoggingInstalled =
-  false;
-
-let browserLifecycleInstalled =
-  false;
-
-let browserTrackPowerOn =
-  false;
-
-let browserPowerTrackingInstalled =
-  false;
-
-let blockTrackingInstalled =
-  false;
-
-let blockSnapshotReady =
-  false;
-
-let blockSnapshot =
-  new Map<string, number>();
-
-let blockTargetSnapshotReady =
-  false;
-
-let blockTargetSnapshot =
-  new Map<string, number>();
-
-let blockTargetMarkers =
-  new Map<string, string>();
-
-const ownedBlockTargets =
-  new Map<
-    ClientScriptExecutionId,
-    Map<string, string>
-  >();
-
-
-type ScriptDispatcherLeaseKind =
-  | "leg"
-  | "route";
-
-const scriptDispatcherOwners =
-  new Map<
-    ClientScriptExecutionId,
-    Map<
-      string,
-      ScriptDispatcherLeaseKind
-    >
-  >();
-
-let scriptDispatcherRequestSequence =
-  0;
-
-type LayoutBlockCatalogItem = {
-  id: string;
-  name: string;
-};
-
-type ScriptRouteTurnoutReference = {
-  turnoutId?: number | string;
-  closed?: boolean;
-  secondClosed?: boolean;
-};
-
-type LayoutScriptCatalogElement = {
-  id?: number | string;
-  type?: string;
-  name?: string;
-  label?: string;
-  turnoutAddress?: number;
-  turnoutClosedValue?: boolean;
-  turnout1Address?: number;
-  turnout2Address?: number;
-  turnout1ClosedValue?: boolean;
-  turnout2ClosedValue?: boolean;
-  routeTurnouts?: ScriptRouteTurnoutReference[];
-};
-
-type LayoutForBlockCatalog = {
-  layers?: Array<{
-    elements?: LayoutScriptCatalogElement[];
-  }>;
-};
-
-type ScriptRouteOutput = {
-  address: number;
-  closed: boolean;
-};
-
-type ScriptRouteStep = {
-  outputs: ScriptRouteOutput[];
-};
-
-type ScriptRouteCatalogItem = {
-  name: string;
-  label: string;
-  steps: ScriptRouteStep[];
-  error: string | null;
-};
-
-let blockCatalogReady =
-  false;
-
-let blockCatalog:
-  LayoutBlockCatalogItem[] = [];
-
-let scriptRouteCatalog:
-  ScriptRouteCatalogItem[] = [];
-
-let blockCatalogLoadPromise:
-  Promise<void> | null = null;
-
-function scriptLayoutId(
-  value: unknown
-): string | null {
-  const numeric =
-    Number(value);
-
-  if (
-    !Number.isInteger(
-      numeric
-    ) ||
-    numeric < 1 ||
-    numeric > 65535
-  ) {
-    return null;
-  }
-
-  return String(
-    numeric
-  );
-}
-
-function scriptTurnoutAddress(
-  value: unknown
-): number | null {
-  const numeric =
-    Number(value);
-
-  if (
-    !Number.isInteger(
-      numeric
-    ) ||
-    numeric < 1 ||
-    numeric > 2048
-  ) {
-    return null;
-  }
-
-  return numeric;
-}
-
-function buildScriptRouteCatalog(
-  layout: LayoutForBlockCatalog
-): ScriptRouteCatalogItem[] {
-  const allElements:
-    LayoutScriptCatalogElement[] =
-    [];
-
-  const elementsById =
-    new Map<
-      string,
-      LayoutScriptCatalogElement
-    >();
-
-  for (
-    const layer of
-    layout.layers ?? []
-  ) {
-    for (
-      const element of
-      layer.elements ?? []
-    ) {
-      allElements.push(
-        element
-      );
-
-      const id =
-        scriptLayoutId(
-          element.id
-        );
-
-      if (id) {
-        elementsById.set(
-          id,
-          element
-        );
-      }
-    }
-  }
-
-  const routes:
-    ScriptRouteCatalogItem[] =
-    [];
-
-  for (
-    const routeElement of
-    allElements
-  ) {
-    if (
-      routeElement.type !==
-      "routebutton"
-    ) {
-      continue;
-    }
-
-    const name =
-      String(
-        routeElement.name ??
-        ""
-      ).trim();
-
-    const label =
-      String(
-        routeElement.label ??
-        ""
-      ).trim();
-
-    const references =
-      Array.isArray(
-        routeElement.routeTurnouts
-      )
-        ? routeElement.routeTurnouts
-        : [];
-
-    const steps:
-      ScriptRouteStep[] =
-      [];
-
-    let routeError:
-      string | null =
-      null;
-
-    if (
-      references.length ===
-      0
-    ) {
-      routeError =
-        "The route contains no configured turnouts.";
-    }
-
-    for (
-      let index = 0;
-      index <
-        references.length &&
-      routeError === null;
-      ++index
-    ) {
-      const reference =
-        references[index]!;
-
-      const turnoutId =
-        scriptLayoutId(
-          reference.turnoutId
-        );
-
-      const turnout =
-        turnoutId
-          ? elementsById.get(
-              turnoutId
-            )
-          : undefined;
-
-      if (!turnout) {
-        routeError =
-          `Route turnout #${index + 1} references a missing layout element.`;
-
-        break;
-      }
-
-      const firstPhysical =
-        Boolean(
-          reference.closed
-        );
-
-      const simpleAddress =
-        scriptTurnoutAddress(
-          turnout.turnoutAddress
-        );
-
-      if (
-        simpleAddress !==
-        null
-      ) {
-        const closedValue =
-          Boolean(
-            turnout.turnoutClosedValue ??
-            false
-          );
-
-        steps.push({
-          outputs: [
-            {
-              address:
-                simpleAddress,
-              closed:
-                firstPhysical ===
-                closedValue,
-            },
-          ],
-        });
-
-        continue;
-      }
-
-      const firstAddress =
-        scriptTurnoutAddress(
-          turnout.turnout1Address
-        );
-
-      const secondAddress =
-        scriptTurnoutAddress(
-          turnout.turnout2Address
-        );
-
-      if (
-        firstAddress ===
-          null ||
-        secondAddress ===
-          null
-      ) {
-        routeError =
-          `Route turnout #${index + 1} has no valid turnout output address.`;
-
-        break;
-      }
-
-      if (
-        typeof reference.secondClosed !==
-        "boolean"
-      ) {
-        routeError =
-          `Route turnout #${index + 1} is a two-motor turnout but its second motor state is missing. Re-save the RouteButton configuration.`;
-
-        break;
-      }
-
-      const firstClosedValue =
-        Boolean(
-          turnout.turnout1ClosedValue ??
-          false
-        );
-
-      const secondClosedValue =
-        Boolean(
-          turnout.turnout2ClosedValue ??
-          false
-        );
-
-      steps.push({
-        outputs: [
-          {
-            address:
-              firstAddress,
-            closed:
-              firstPhysical ===
-              firstClosedValue,
-          },
-          {
-            address:
-              secondAddress,
-            closed:
-              reference.secondClosed ===
-              secondClosedValue,
-          },
-        ],
-      });
-    }
-
-    routes.push({
-      name,
-      label,
-      steps,
-      error:
-        routeError,
-    });
-  }
-
-  return routes;
-}
-
-function sendBlockCatalogToWorker(): void {
-  if (!automationWorker) {
-    return;
-  }
-
-  const message:
-    MainToWorkerMessage = {
-      type: "blockCatalog",
-      blocks:
-        blockCatalog.map(
-          block => ({
-            ...block,
-          })
-        ),
-      ready:
-        blockCatalogReady,
-    };
-
-  automationWorker.postMessage(
-    message
-  );
-}
-
-async function refreshBlockCatalog(): Promise<void> {
-  if (
-    blockCatalogLoadPromise
-  ) {
-    return blockCatalogLoadPromise;
-  }
-
-  blockCatalogLoadPromise =
-    (async () => {
-      const response =
-        await fetch(
-          "/api/layout",
-          {
-            cache: "no-store",
-          }
-        );
-
-      if (!response.ok) {
-        throw new Error(
-          `Layout could not be loaded for script block-name lookup (HTTP ${response.status}).`
-        );
-      }
-
-      const layout =
-        await response.json() as LayoutForBlockCatalog;
-
-      const next:
-        LayoutBlockCatalogItem[] = [];
-
-      for (
-        const layer of
-        layout.layers ?? []
-      ) {
-        for (
-          const element of
-          layer.elements ?? []
-        ) {
-          if (
-            element.type !==
-            "trackblock"
-          ) {
-            continue;
-          }
-
-          const rawId =
-            String(
-              element.id ?? ""
-            ).trim();
-
-          const name =
-            String(
-              element.name ?? ""
-            ).trim();
-
-          if (
-            !/^\d+$/.test(
-              rawId
-            ) ||
-            !name
-          ) {
-            continue;
-          }
-
-          const numericId =
-            Number(rawId);
-
-          if (
-            !Number.isInteger(
-              numericId
-            ) ||
-            numericId < 1 ||
-            numericId > 65535
-          ) {
-            continue;
-          }
-
-          next.push({
-            id:
-              String(
-                numericId
-              ),
-            name,
-          });
-        }
-      }
-
-      blockCatalog =
-        next;
-
-      scriptRouteCatalog =
-        buildScriptRouteCatalog(
-          layout
-        );
-
-      blockCatalogReady =
-        true;
-
-      applyClientScriptLayoutAccessoryCatalog(
-        layout
-      );
-
-      sendBlockCatalogToWorker();
-    })().finally(
-      () => {
-        blockCatalogLoadPromise =
-          null;
-      }
-    );
-
-  return blockCatalogLoadPromise;
-}
-
-type BlockStateSnapshot =
-  Record<
-    string,
-    {
-      blockId: string;
-      locoId: string | null;
-      locoAddress?: number;
-    }
-  >;
-
-function blockTargetSnapshotRecord(): Record<string, number> {
-  const result:
-    Record<string, number> = {};
-
-  for (
-    const [
-      blockId,
-      locoAddress,
-    ] of blockTargetSnapshot
-  ) {
-    result[blockId] =
-      locoAddress;
-  }
-
-  return result;
-}
-
-function sendBlockTargetSnapshotToWorker(): void {
-  if (!automationWorker) {
-    return;
-  }
-
-  const message:
-    MainToWorkerMessage = {
-      type:
-        "blockTargetSnapshot",
-      targets:
-        blockTargetSnapshotRecord(),
-      ready:
-        blockTargetSnapshotReady,
-    };
-
-  automationWorker.postMessage(
-    message
-  );
-}
-
-function pruneOwnedBlockTargets(): void {
-  for (
-    const [
-      executionId,
-      owned,
-    ] of ownedBlockTargets
-  ) {
-    for (
-      const [
-        blockId,
-        marker,
-      ] of owned
-    ) {
-      if (
-        blockTargetMarkers.get(
-          blockId
-        ) !== marker
-      ) {
-        owned.delete(
-          blockId
-        );
-      }
-    }
-
-    if (
-      owned.size === 0
-    ) {
-      ownedBlockTargets.delete(
-        executionId
-      );
-    }
-  }
-}
-
-function blockSnapshotRecord(): Record<string, number> {
-  const result:
-    Record<string, number> = {};
-
-  for (
-    const [
-      blockId,
-      locoAddress,
-    ] of blockSnapshot
-  ) {
-    result[blockId] =
-      locoAddress;
-  }
-
-  return result;
-}
-
-function sendBlockSnapshotToWorker(): void {
-  if (!automationWorker) {
-    return;
-  }
-
-  const message:
-    MainToWorkerMessage = {
-      type: "blockSnapshot",
-      blocks:
-        blockSnapshotRecord(),
-      ready:
-        blockSnapshotReady,
-    };
-
-  automationWorker.postMessage(
-    message
-  );
-}
-
-function applyBlockSnapshot(
-  data: BlockStateSnapshot
-): void {
-  const next =
-    new Map<string, number>();
-
-  const nextTargets =
-    new Map<string, number>();
-
-  const nextMarkers =
-    new Map<string, string>();
-
-  for (
-    const [
-      key,
-      state,
-    ] of Object.entries(
-      data
-    )
-  ) {
-    const blockId =
-      String(
-        state?.blockId ??
-        key
-      );
-
-    const target =
-      parseBlockTargetLocoMarker(
-        state?.locoId
-      );
-
-    if (target) {
-      next.set(
-        blockId,
-        0
-      );
-
-      nextTargets.set(
-        blockId,
-        target.locoAddress
-      );
-
-      nextMarkers.set(
-        blockId,
-        target.marker
-      );
-
-      continue;
-    }
-
-    const locoAddress =
-      Number(
-        state?.locoAddress ??
-        0
-      );
-
-    next.set(
-      blockId,
-      Number.isInteger(locoAddress) &&
-      locoAddress > 0
-        ? locoAddress
-        : 0
-    );
-
-    nextTargets.set(
-      blockId,
-      0
-    );
-  }
-
-  blockSnapshot =
-    next;
-
-  blockTargetSnapshot =
-    nextTargets;
-
-  blockTargetMarkers =
-    nextMarkers;
-
-  blockSnapshotReady =
-    true;
-
-  blockTargetSnapshotReady =
-    true;
-
-  pruneOwnedBlockTargets();
-
-  sendBlockSnapshotToWorker();
-  sendBlockTargetSnapshotToWorker();
-}
-
-function installBlockTracking(): void {
-  if (
-    blockTrackingInstalled
-  ) {
-    return;
-  }
-
-  blockTrackingInstalled =
-    true;
-
-  wsClient.on<BlockStateSnapshot>(
-    "blockStateChanged",
-    data => {
-      applyBlockSnapshot(
-        data
-      );
-    }
-  );
-
-  wsClient.subscribeStatus(
-    status => {
-      if (
-        status !==
-        "connected"
-      ) {
-        return;
-      }
-
-      wsApi.getBlocks();
-
-      void refreshBlockCatalog().catch(
-        error => {
-          console.warn(
-            "[Automation Worker] layout block catalog refresh failed:",
-            error
-          );
-        }
-      );
-    }
-  );
-}
-
-// -----------------------------------------------------------------------------
-// Live sensor state for automation scripts.
-// The Hub already broadcasts sensorChanged and sensorSnapshot.
-// We mirror those states into the automation Worker.
-// -----------------------------------------------------------------------------
-
-type SensorChangedPayload = {
-  address: number;
-  on: boolean;
-};
-
-type SensorSnapshotPayload = {
-  groups: Array<
-    [
-      number,
-      number,
-      number,
-    ]
-  >;
-};
-
-let sensorTrackingInstalled =
-  false;
-
-let sensorSnapshotReady =
-  false;
-
-let sensorSnapshot =
-  new Map<number, boolean>();
-
-function sensorSnapshotRecord(): Record<string, boolean> {
-  const result:
-    Record<string, boolean> = {};
-
-  for (
-    const [
-      address,
-      on,
-    ] of sensorSnapshot
-  ) {
-    result[
-      String(address)
-    ] =
-      on;
-  }
-
-  return result;
-}
-
-function sendSensorSnapshotToWorker(): void {
-  if (!automationWorker) {
-    return;
-  }
-
-  const message:
-    MainToWorkerMessage = {
-      type:
-        "sensorSnapshot",
-      sensors:
-        sensorSnapshotRecord(),
-      ready:
-        sensorSnapshotReady,
-    };
-
-  automationWorker.postMessage(
-    message
-  );
-}
-
-function applySensorChanged(
-  data: SensorChangedPayload
-): void {
-  const address =
-    Number(
-      data?.address
-    );
-
-  if (
-    !Number.isInteger(
-      address
-    ) ||
-    address < 1 ||
-    address > 65535
-  ) {
-    return;
-  }
-
-  sensorSnapshot.set(
-    address,
-    Boolean(
-      data?.on
-    )
-  );
-
-  sendSensorSnapshotToWorker();
-}
-
-function applySensorSnapshot(
-  data: SensorSnapshotPayload
-): void {
-  // Merge only known bits. Do not clear states belonging to other
-  // sensor sources/adapters.
-  for (
-    const group of
-    data?.groups ?? []
-  ) {
-    if (
-      !Array.isArray(
-        group
-      ) ||
-      group.length < 3
-    ) {
-      continue;
-    }
-
-    const baseAddress =
-      Number(
-        group[0]
-      );
-
-    const activeBits =
-      Number(
-        group[1]
-      ) &
-      0xffff;
-
-    const knownBits =
-      Number(
-        group[2]
-      ) &
-      0xffff;
-
-    if (
-      !Number.isInteger(
-        baseAddress
-      ) ||
-      baseAddress < 1 ||
-      baseAddress > 65535
-    ) {
-      continue;
-    }
-
-    for (
-      let offset = 0;
-      offset < 16;
-      ++offset
-    ) {
-      const address =
-        baseAddress +
-        offset;
-
-      if (
-        address >
-        65535
-      ) {
-        break;
-      }
-
-      const bit =
-        1 <<
-        offset;
-
-      if (
-        (
-          knownBits &
-          bit
-        ) ===
-        0
-      ) {
-        continue;
-      }
-
-      sensorSnapshot.set(
-        address,
-        (
-          activeBits &
-          bit
-        ) !==
-          0
-      );
-    }
-  }
-  sensorSnapshotReady =
-    true;
-
-  sendSensorSnapshotToWorker();
-}
-
-function installSensorTracking(): void {
-  if (
-    sensorTrackingInstalled
-  ) {
-    return;
-  }
-
-  sensorTrackingInstalled =
-    true;
-
-  wsClient.on<SensorChangedPayload>(
-    "sensorChanged",
-    data => {
-      applySensorChanged(
-        data
-      );
-    }
-  );
-
-  wsClient.on<SensorSnapshotPayload>(
-    "sensorSnapshot",
-    data => {
-      applySensorSnapshot(
-        data
-      );
-    }
-  );
-
-  wsClient.subscribeStatus(
-    status => {
-      if (
-        status ===
-        "connected"
-      ) {
-        return;
-      }
-
-      // A stale FREE state must never allow waitForSensor(..., false) to
-      // continue after WebSocket loss. Drop all cached sensor values until a
-      // fresh sensorChanged or sensorSnapshot arrives.
-      sensorSnapshot.clear();
-
-      sensorSnapshotReady =
-        false;
-
-      sendSensorSnapshotToWorker();
-    }
-  );
-}
-
 export class ScriptAbortError extends Error {
   constructor(
-    message = "Script aborted."
+    message =
+      "Script aborted."
   ) {
-    super(message);
-    this.name = "ScriptAbortError";
-  }
-}
-
-function stateFor(
-  elementId: ClientScriptExecutionId
-): ClientScriptState {
-  const execution =
-    executions.get(elementId);
-
-  if (!execution) {
-    return {
-      status: "idle",
-      startedAt: null,
-      error:
-        lastErrors.get(elementId) ??
-        null,
-      info: null,
-    };
-  }
-
-  return {
-    status:
-      execution.status,
-    startedAt:
-      execution.startedAt,
-    error: null,
-    info:
-      execution.info,
-  };
-}
-
-function emitState(
-  elementId: ClientScriptExecutionId
-): void {
-  const state =
-    stateFor(elementId);
-
-  for (
-    const listener of
-    listeners.get(elementId) ?? []
-  ) {
-    listener(
-      state
+    super(
+      message
     );
+
+    this.name =
+      "ScriptAbortError";
   }
 }
 
 export function getClientScriptState(
-  elementId: ClientScriptExecutionId
+  elementId:
+    ClientScriptExecutionId
 ): ClientScriptState {
-  return stateFor(
-    elementId
+  installTracking();
+
+  return clientState(
+    states.get(
+      executionKey(
+        elementId
+      )
+    )
   );
 }
 
-export type ActiveClientScriptExecution = {
-  id: ClientScriptExecutionId;
-  name: string;
-  status: "running" | "paused";
-};
+export function getActiveClientScriptExecutions():
+  ActiveClientScriptExecution[] {
+  installTracking();
 
-export function getActiveClientScriptExecutions(): ActiveClientScriptExecution[] {
-  return [...executions.entries()].map(
-    ([id, execution]) => ({
-      id,
-      name:
-        execution.element.name ||
-        String(id),
-      status:
-        execution.status,
-    })
-  );
+  return [
+    ...states.values(),
+  ]
+    .filter(
+      state =>
+        state.status ===
+          "running" ||
+        state.status ===
+          "paused"
+    )
+    .map(
+      state => ({
+        id:
+          state.executionId,
+        name:
+          state.name ||
+          state.executionId,
+        status:
+          state.status as
+            | "running"
+            | "paused",
+      })
+    );
 }
 
 export function subscribeClientScriptLog(
-  elementId: ClientScriptExecutionId,
-  listener: LogListener
+  elementId:
+    ClientScriptExecutionId,
+  listener:
+    LogListener
 ): () => void {
+  installTracking();
+
+  const key =
+    executionKey(
+      elementId
+    );
+
   let set =
     logListeners.get(
-      elementId
+      key
     );
 
   if (!set) {
     set =
-      new Set<LogListener>();
+      new Set<
+        LogListener
+      >();
 
     logListeners.set(
-      elementId,
+      key,
       set
     );
   }
@@ -1596,65 +605,50 @@ export function subscribeClientScriptLog(
   return () => {
     const current =
       logListeners.get(
-        elementId
+        key
       );
 
-    if (!current) {
-      return;
-    }
-
-    current.delete(
+    current?.delete(
       listener
     );
 
     if (
-      current.size === 0
+      current?.size ===
+        0
     ) {
       logListeners.delete(
-        elementId
+        key
       );
     }
   };
 }
 
-function emitLog(
-  elementId: ClientScriptExecutionId,
-  values: unknown[]
-): void {
-  const entry:
-    ClientScriptLogEntry = {
-      timestamp:
-        Date.now(),
-      values: [
-        ...values,
-      ],
-    };
-
-  for (
-    const listener of
-    logListeners.get(
-      elementId
-    ) ?? []
-  ) {
-    listener(
-      entry
-    );
-  }
-}
-
 export function subscribeClientScriptState(
-  elementId: ClientScriptExecutionId,
-  listener: StateListener
+  elementId:
+    ClientScriptExecutionId,
+  listener:
+    StateListener
 ): () => void {
+  installTracking();
+
+  const key =
+    executionKey(
+      elementId
+    );
+
   let set =
-    listeners.get(elementId);
+    listeners.get(
+      key
+    );
 
   if (!set) {
     set =
-      new Set<StateListener>();
+      new Set<
+        StateListener
+      >();
 
     listeners.set(
-      elementId,
+      key,
       set
     );
   }
@@ -1664,2346 +658,331 @@ export function subscribeClientScriptState(
   );
 
   listener(
-    stateFor(
+    getClientScriptState(
       elementId
     )
   );
 
   return () => {
     const current =
-      listeners.get(elementId);
+      listeners.get(
+        key
+      );
 
-    if (!current) {
-      return;
-    }
-
-    current.delete(
+    current?.delete(
       listener
     );
 
     if (
-      current.size === 0
+      current?.size ===
+        0
     ) {
       listeners.delete(
-        elementId
+        key
       );
     }
   };
-}
-
-function installVisibilityLogging(): void {
-  if (
-    visibilityLoggingInstalled ||
-    typeof document ===
-      "undefined"
-  ) {
-    return;
-  }
-
-  visibilityLoggingInstalled =
-    true;
-
-  document.addEventListener(
-    "visibilitychange",
-    () => {
-      if (
-        executions.size === 0
-      ) {
-        return;
-      }
-
-      console.info(
-        `[Automation Worker] browser ${
-          document.hidden
-            ? "hidden"
-            : "visible"
-        }; ${executions.size} script(s) active.`
-      );
-    }
-  );
-}
-
-function installBrowserPowerTracking(): void {
-  if (
-    browserPowerTrackingInstalled
-  ) {
-    return;
-  }
-
-  browserPowerTrackingInstalled =
-    true;
-
-  wsClient.on(
-    "powerInfo",
-    payload => {
-      browserTrackPowerOn =
-        Boolean(
-          payload?.trackVoltageOn
-        );
-    }
-  );
-
-  wsClient.subscribeStatus(
-    status => {
-      if (
-        status ===
-        "connected"
-      ) {
-        return;
-      }
-
-      // If the connection is gone we cannot safely assume the track is off.
-      // Keep the last known power state so an active ON state still protects
-      // the user from accidentally closing/reloading the page.
-    }
-  );
-}
-
-function installBrowserLifecycleProtection(): void {
-  if (
-    typeof window === "undefined" ||
-    browserLifecycleInstalled
-  ) {
-    return;
-  }
-
-  browserLifecycleInstalled =
-    true;
-
-  window.addEventListener(
-    "beforeunload",
-    event => {
-      if (
-        !browserTrackPowerOn
-      ) {
-        return;
-      }
-
-      event.preventDefault();
-
-      // Modern Chrome intentionally ignores custom beforeunload text and
-      // displays its own generic confirmation dialog.
-      event.returnValue = "";
-    }
-  );
-
-  window.addEventListener(
-    "pagehide",
-    () => {
-      if (
-        executions.size === 0
-      ) {
-        return;
-      }
-
-      // Safety first: if this browser client owns an active automation script
-      // and the page is really being left, request an immediate emergency stop.
-      //
-      // Do NOT rely on WebSocket here: Chrome may already be tearing the socket
-      // down by the time pagehide runs. sendBeacon()/keepalive HTTP is designed
-      // specifically for requests that must survive page unload.
-      let emergencyStopQueued =
-        false;
-
-      try {
-        emergencyStopQueued =
-          navigator.sendBeacon(
-            "/api/emergency-stop"
-          );
-      } catch {
-        emergencyStopQueued =
-          false;
-      }
-
-      if (
-        !emergencyStopQueued
-      ) {
-        void fetch(
-          "/api/emergency-stop",
-          {
-            method: "POST",
-            keepalive: true,
-            cache: "no-store",
-          }
-        ).catch(
-          () => {
-            // The page is unloading, so there is nowhere useful to surface
-            // this error. The Hub-side endpoint is the authoritative action.
-          }
-        );
-      }
-
-      const activeExecutionIds =
-        [
-          ...executions.keys(),
-        ];
-
-      for (
-        const executionId of
-        activeExecutionIds
-      ) {
-        abortClientScript(
-          executionId,
-          "Script aborted because the browser page was closed or left."
-        );
-      }
-    }
-  );
-}
-
-function postToWorker(
-  message: MainToWorkerMessage
-): void {
-  ensureWorker().postMessage(
-    message
-  );
-}
-
-function failAllExecutions(
-  error: Error
-): void {
-  const active =
-    [
-      ...executions.entries(),
-    ];
-
-  executions.clear();
-
-  for (
-    const [
-      elementId,
-      execution,
-    ] of active
-  ) {
-    lastErrors.set(
-      elementId,
-      error.message
-    );
-
-    stopScriptAudioRequests(
-      elementId
-    );
-
-    execution.reject(
-      error
-    );
-
-    emitState(
-      elementId
-    );
-  }
-}
-
-function ensureWorker(): Worker {
-  if (
-    automationWorker
-  ) {
-    return automationWorker;
-  }
-
-  installVisibilityLogging();
-  installBrowserPowerTracking();
-  installBrowserLifecycleProtection();
-  installBlockTargetLocoRuntime();
-  installBlockTracking();
-  installSensorTracking();
-  installClientScriptLayoutAccessoryTracking(
-    message => {
-      automationWorker?.postMessage(
-        message
-      );
-    }
-  );
-
-  const worker =
-    new Worker(
-      new URL(
-        "./clientScriptWorker.ts",
-        import.meta.url
-      ),
-      {
-        type: "module",
-        name:
-          "dcc-express-automation",
-      }
-    );
-
-  worker.addEventListener(
-    "message",
-    (
-      event:
-        MessageEvent<WorkerToMainMessage>
-    ) => {
-      handleWorkerMessage(
-        event.data
-      );
-    }
-  );
-
-  worker.addEventListener(
-    "error",
-    event => {
-      const error =
-        new Error(
-          event.message ||
-            "Automation Worker crashed."
-        );
-
-      console.error(
-        "[Automation Worker]",
-        error
-      );
-
-      failAllExecutions(
-        error
-      );
-
-      worker.terminate();
-
-      if (
-        automationWorker ===
-        worker
-      ) {
-        automationWorker =
-          null;
-      }
-    }
-  );
-
-  worker.addEventListener(
-    "messageerror",
-    () => {
-      const error =
-        new Error(
-          "Automation Worker message could not be decoded."
-        );
-
-      console.error(
-        "[Automation Worker]",
-        error
-      );
-
-      failAllExecutions(
-        error
-      );
-    }
-  );
-
-  automationWorker =
-    worker;
-
-  sendBlockCatalogToWorker();
-  sendBlockSnapshotToWorker();
-  sendBlockTargetSnapshotToWorker();
-  sendSensorSnapshotToWorker();
-  sendClientScriptLayoutAccessoryStateToWorker();
-
-  if (
-    wsClient.isConnected() &&
-    !blockSnapshotReady
-  ) {
-    wsApi.getBlocks();
-  }
-
-  return worker;
-}
-
-function requireSend(
-  ok: boolean,
-  label: string
-): string | null {
-  if (
-    ok
-  ) {
-    return null;
-  }
-
-  return (
-    `${label}: WebSocket command could not be sent.`
-  );
-}
-
-function numberArg(
-  args: unknown[],
-  index: number
-): number {
-  return Number(
-    args[index]
-  );
-}
-
-function booleanArg(
-  args: unknown[],
-  index: number
-): boolean {
-  return Boolean(
-    args[index]
-  );
-}
-
-function stringArg(
-  args: unknown[],
-  index: number
-): string {
-  return String(
-    args[index] ?? ""
-  );
-}
-
-function resolveScriptAudioSource(
-  rawSource: string
-): string {
-  const source =
-    rawSource.trim();
-
-  const hasUnsafeSegment =
-    source
-      .split("/")
-      .some(
-        segment =>
-          segment === ".."
-      );
-
-  if (
-    !source ||
-    source.length >
-      SCRIPT_AUDIO_MAX_SOURCE_LENGTH ||
-    source.includes("\\") ||
-    source.includes("\0") ||
-    hasUnsafeSegment
-  ) {
-    throw new Error(
-      "playAudio(source): use an audio file from /sd or a legacy base filename."
-    );
-  }
-
-  if (
-    source.startsWith(
-      "/sd/"
-    )
-  ) {
-    if (
-      !SCRIPT_AUDIO_EXTENSIONS.test(
-        source
-      )
-    ) {
-      throw new Error(
-        "playAudio(source): unsupported audio file extension."
-      );
-    }
-
-    return source;
-  }
-
-  if (
-    source.includes("/")
-  ) {
-    throw new Error(
-      "playAudio(source): absolute audio paths must start with /sd/."
-    );
-  }
-
-  if (
-    source.includes(".")
-  ) {
-    if (
-      !SCRIPT_AUDIO_EXTENSIONS.test(
-        source
-      )
-    ) {
-      throw new Error(
-        "playAudio(source): unsupported audio file extension."
-      );
-    }
-
-    return `/sd/audio/${source}`;
-  }
-
-  return `/sd/audio/${source}.mp3`;
-}
-
-function executeScriptAudioCommand(
-  command: string
-): string | null {
-  const virtualPath =
-    resolveScriptAudioSource(
-      command.slice(
-        SCRIPT_AUDIO_COMMAND_PREFIX.length
-      )
-    );
-
-  const sent =
-    broadcastAudioPlaybackNoWait(
-      virtualPath
-    );
-
-  if (!sent) {
-    return "Audio broadcast could not be sent.";
-  }
-
-  console.info(
-    `[Automation Audio Broadcast] ${virtualPath}`
-  );
-
-  return null;
-}
-
-function handleScriptAudioPlayback(
-  message:
-    Extract<
-      WorkerToMainMessage,
-      {
-        type: "audio";
-      }
-    >
-): void {
-  const execution =
-    executions.get(
-      message.executionId
-    );
-
-  const reply = (
-    ok:
-      boolean,
-    error?:
-      string
-  ) => {
-    postToWorker({
-      type:
-        "audioResult",
-      executionId:
-        message.executionId,
-      requestId:
-        message.requestId,
-      ok,
-      ...(
-        error
-          ? {
-              error,
-            }
-          : {}
-      ),
-    });
-  };
-
-  if (
-    !execution ||
-    execution.aborted
-  ) {
-    reply(
-      false,
-      "Script execution is no longer active."
-    );
-
-    return;
-  }
-
-  let virtualPath:
-    string;
-
-  try {
-    virtualPath =
-      resolveScriptAudioSource(
-        message.name
-      );
-  } catch (
-    error
-  ) {
-    const messageText =
-      error instanceof Error
-        ? error.message
-        : String(
-            error
-          );
-
-    console.error(
-      "[Automation Audio]",
-      messageText
-    );
-
-    reply(
-      false,
-      messageText
-    );
-
-    return;
-  }
-
-  rememberScriptAudioRequest(
-    message.executionId,
-    message.requestId,
-    virtualPath
-  );
-
-  void broadcastAudioPlayback(
-    virtualPath
-  )
-    .then(
-      ok => {
-        forgetScriptAudioRequest(
-          message.executionId,
-          message.requestId
-        );
-
-        if (
-          !ok
-        ) {
-          console.error(
-            `[Automation Audio Broadcast] playAudio("${virtualPath}") failed.`
-          );
-        }
-
-        reply(
-          ok,
-          ok
-            ? undefined
-            : "Audio broadcast/playback failed."
-        );
-      }
-    )
-    .catch(
-      error => {
-        forgetScriptAudioRequest(
-          message.executionId,
-          message.requestId
-        );
-
-        const messageText =
-          error instanceof Error
-            ? error.message
-            : String(
-                error
-              );
-
-        console.error(
-          `[Automation Audio Broadcast] playAudio("${virtualPath}") failed:`,
-          error
-        );
-
-        reply(
-          false,
-          messageText
-        );
-      }
-    );
-
-  console.info(
-    `[Automation Audio Broadcast] ${virtualPath}`
-  );
-}
-
-function scriptWithRuntimeHelpers(
-  script: string,
-  switchManOwnerId: string,
-  switchManOwnerName: string
-): string {
-  const routes =
-    JSON.stringify(
-      scriptRouteCatalog
-    );
-
-  const initialFinishing =
-    automationFinishing
-      ? "true"
-      : "false";
-
-  const runModeChannel =
-    JSON.stringify(
-      AUTOMATION_RUN_MODE_CHANNEL
-    );
-
-  const switchManPrelude =
-    buildClientScriptSwitchManPrelude(
-      switchManOwnerId,
-      switchManOwnerName
-    );
-
-  const smartDispatcherPrelude =
-    buildClientScriptSmartDispatcherPrelude();
-
-  const switchManFinally =
-    buildClientScriptSwitchManFinally();
-
-  return `
-${switchManPrelude}
-${smartDispatcherPrelude}
-let __dccExpressAutomationFinishing = ${initialFinishing};
-
-const __dccExpressAutomationModeChannel =
-  typeof BroadcastChannel !== "undefined"
-    ? new BroadcastChannel(${runModeChannel})
-    : null;
-
-if (__dccExpressAutomationModeChannel) {
-  __dccExpressAutomationModeChannel.onmessage = event => {
-    const message = event.data;
-
-    if (
-      message &&
-      message.type === "automationRunMode"
-    ) {
-      __dccExpressAutomationFinishing =
-        Boolean(message.finishing);
-    }
-  };
-
-  __dccExpressAutomationModeChannel.postMessage({
-    type: "automationRunModeRequest",
-  });
-}
-
-const isFinishing = () =>
-  __dccExpressAutomationFinishing;
-
-const isRunning = () =>
-  !__dccExpressAutomationFinishing;
-
-const playAudio = (source) =>
-  dcc.playAudio(source);
-
-const __dccExpressRoutes = ${routes};
-
-const __findDccExpressRoute = (name) => {
-  const value =
-    String(name ?? "").trim();
-
-  if (!value) {
-    throw new Error(
-      "setRoute(name, delayMs?): route name is required."
-    );
-  }
-
-  let matches =
-    __dccExpressRoutes.filter(
-      route =>
-        route.name === value
-    );
-
-  if (
-    matches.length === 0
-  ) {
-    matches =
-      __dccExpressRoutes.filter(
-        route =>
-          route.label === value
-      );
-  }
-
-  if (
-    matches.length === 0
-  ) {
-    const folded =
-      value.toLocaleLowerCase();
-
-    matches =
-      __dccExpressRoutes.filter(
-        route =>
-          String(
-            route.name ?? ""
-          )
-            .toLocaleLowerCase() ===
-          folded
-      );
-
-    if (
-      matches.length === 0
-    ) {
-      matches =
-        __dccExpressRoutes.filter(
-          route =>
-            String(
-              route.label ?? ""
-            )
-              .toLocaleLowerCase() ===
-            folded
-        );
-    }
-  }
-
-  if (
-    matches.length === 0
-  ) {
-    throw new Error(
-      'Route "' + value + '" was not found in the current layout.'
-    );
-  }
-
-  if (
-    matches.length !== 1
-  ) {
-    throw new Error(
-      'Route name "' + value + '" is ambiguous. Use the exact RouteButton name.'
-    );
-  }
-
-  return matches[0];
-};
-
-const setRoute = async (
-  name,
-  delayMs = 250
-) => {
-  const route =
-    __findDccExpressRoute(
-      name
-    );
-
-  if (route.error) {
-    throw new Error(
-      'Route "' +
-      (route.name || route.label || String(name)) +
-      '" cannot be executed: ' +
-      route.error
-    );
-  }
-
-  const numericDelay =
-    Number(delayMs);
-
-  if (
-    !Number.isInteger(
-      numericDelay
-    ) ||
-    numericDelay < 0 ||
-    numericDelay > 600000
-  ) {
-    throw new Error(
-      "setRoute delayMs must be an integer between 0 and 600000."
-    );
-  }
-
-  for (
-    let stepIndex = 0;
-    stepIndex <
-      route.steps.length;
-    ++stepIndex
-  ) {
-    const step =
-      route.steps[
-        stepIndex
-      ];
-
-    for (
-      const output of
-      step.outputs
-    ) {
-      dcc.setTurnout(
-        output.address,
-        output.closed
-      );
-    }
-
-    if (
-      numericDelay > 0 &&
-      stepIndex + 1 <
-        route.steps.length
-    ) {
-      await delay(
-        numericDelay
-      );
-    }
-  }
-};
-
-try {
-${script}
-} finally {
-${switchManFinally}
-  __dccExpressAutomationModeChannel?.close();
-}
-`;
-}
-
-function executionOwnerId(
-  executionId: ClientScriptExecutionId
-): string {
-  return (
-    `${wsApi.clientUuid}:` +
-    String(executionId)
-  );
-}
-
-function rememberOwnedBlockTarget(
-  executionId: ClientScriptExecutionId,
-  blockId: string,
-  marker: string
-): void {
-  let owned =
-    ownedBlockTargets.get(
-      executionId
-    );
-
-  if (!owned) {
-    owned =
-      new Map<string, string>();
-
-    ownedBlockTargets.set(
-      executionId,
-      owned
-    );
-  }
-
-  owned.set(
-    blockId,
-    marker
-  );
-}
-
-function clearTargetsOwnedByExecution(
-  executionId: ClientScriptExecutionId
-): void {
-  const owned =
-    ownedBlockTargets.get(
-      executionId
-    );
-
-  if (!owned) {
-    return;
-  }
-
-  for (
-    const [
-      blockId,
-      marker,
-    ] of owned
-  ) {
-    /*
-     * setBlockRemove is owner-safe because the marker is stored in locoId.
-     * If the real locomotive has already arrived, the marker has already been
-     * replaced and this old marker must not clear the actual occupant.
-     */
-    if (
-      blockTargetMarkers.get(
-        blockId
-      ) === marker ||
-      getBlockTargetLocoMarker(
-        blockId
-      ) === marker
-    ) {
-      wsApi.setBlockRemove(
-        blockId,
-        marker
-      );
-
-      clearOptimisticBlockTargetLoco(
-        blockId,
-        marker
-      );
-
-      blockTargetMarkers.delete(
-        blockId
-      );
-
-      blockTargetSnapshot.set(
-        blockId,
-        0
-      );
-    }
-  }
-
-  ownedBlockTargets.delete(
-    executionId
-  );
-
-  sendBlockTargetSnapshotToWorker();
-}
-
-function executeBlockTargetCommand(
-  executionId: ClientScriptExecutionId,
-  method: ClientScriptWorkerDccMethod,
-  args: unknown[]
-): string | null | undefined {
-  if (
-    method ===
-    "setBlockTargetLoco"
-  ) {
-    const blockId =
-      stringArg(
-        args,
-        0
-      );
-
-    const locoAddress =
-      numberArg(
-        args,
-        1
-      );
-
-    const ownerId =
-      executionOwnerId(
-        executionId
-      );
-
-    const marker =
-      createBlockTargetLocoMarker(
-        locoAddress,
-        ownerId
-      );
-
-    const ok =
-      wsApi.setBlock(
-        blockId,
-        marker
-      );
-
-    if (!ok) {
-      return (
-        "dcc.setBlockTargetLoco: " +
-        "WebSocket command could not be sent."
-      );
-    }
-
-    rememberOwnedBlockTarget(
-      executionId,
-      blockId,
-      marker
-    );
-
-    blockTargetMarkers.set(
-      blockId,
-      marker
-    );
-
-    blockTargetSnapshot.set(
-      blockId,
-      locoAddress
-    );
-
-    setOptimisticBlockTargetLoco(
-      blockId,
-      locoAddress,
-      ownerId,
-      marker
-    );
-
-    sendBlockTargetSnapshotToWorker();
-
-    return null;
-  }
-
-  if (
-    method ===
-    "clearBlockTargetLoco"
-  ) {
-    const blockId =
-      stringArg(
-        args,
-        0
-      );
-
-    const marker =
-      blockTargetMarkers.get(
-        blockId
-      ) ??
-      getBlockTargetLocoMarker(
-        blockId
-      );
-
-    if (!marker) {
-      return null;
-    }
-
-    const ok =
-      wsApi.setBlockRemove(
-        blockId,
-        marker
-      );
-
-    if (!ok) {
-      return (
-        "dcc.clearBlockTargetLoco: " +
-        "WebSocket command could not be sent."
-      );
-    }
-
-    for (
-      const owned of
-      ownedBlockTargets.values()
-    ) {
-      if (
-        owned.get(
-          blockId
-        ) === marker
-      ) {
-        owned.delete(
-          blockId
-        );
-      }
-    }
-
-    clearOptimisticBlockTargetLoco(
-      blockId,
-      marker
-    );
-
-    blockTargetMarkers.delete(
-      blockId
-    );
-
-    blockTargetSnapshot.set(
-      blockId,
-      0
-    );
-
-    sendBlockTargetSnapshotToWorker();
-
-    return null;
-  }
-
-  return undefined;
-}
-
-function executeDccCommand(
-  method: ClientScriptWorkerDccMethod,
-  args: unknown[]
-): string | null {
-  switch (
-    method
-  ) {
-    case "setPower":
-      return requireSend(
-        wsApi.setTrackPower(
-          booleanArg(
-            args,
-            0
-          )
-        ),
-        "dcc.setPower"
-      );
-
-    case "setProgrammingPower":
-      return requireSend(
-        wsApi.setProgrammingPower(
-          booleanArg(
-            args,
-            0
-          )
-        ),
-        "dcc.setProgrammingPower"
-      );
-
-    case "emergencyStop":
-      return requireSend(
-        wsApi.emergencyStop(),
-        "dcc.emergencyStop"
-      );
-
-    case "setLoco": {
-      const direction =
-        args[2] === "reverse"
-          ? "reverse"
-          : "forward";
-
-      return requireSend(
-        wsApi.setLoco(
-          numberArg(
-            args,
-            0
-          ),
-          numberArg(
-            args,
-            1
-          ),
-          direction
-        ),
-        "dcc.setLoco"
-      );
-    }
-
-    case "setLocoFunction":
-      return requireSend(
-        wsApi.setLocoFunction(
-          numberArg(
-            args,
-            0
-          ),
-          numberArg(
-            args,
-            1
-          ),
-          booleanArg(
-            args,
-            2
-          )
-        ),
-        "dcc.setLocoFunction"
-      );
-
-    case "setLocoFunctionBinding": {
-      const locoAddress =
-        numberArg(
-          args,
-          0
-        );
-
-      const bindingId =
-        numberArg(
-          args,
-          1
-        );
-
-      const functionNumber =
-        resolveLocoFunctionBinding(
-          locoAddress,
-          bindingId
-        );
-
-      return requireSend(
-        wsApi.setLocoFunction(
-          locoAddress,
-          functionNumber,
-          booleanArg(
-            args,
-            2
-          )
-        ),
-        "dcc.setLocoFunctionBinding"
-      );
-    }
-
-    case "setTurnoutState":
-    case "setSignalState": {
-      const result =
-        executeClientScriptLayoutAccessoryCommand(
-          method,
-          args
-        );
-
-      return result ===
-        undefined
-        ? `dcc.${method}: semantic layout command is unavailable.`
-        : result;
-    }
-
-    case "setTurnoutRaw":
-      return requireSend(
-        wsApi.setTurnout(
-          numberArg(
-            args,
-            0
-          ),
-          booleanArg(
-            args,
-            1
-          )
-        ),
-        "dcc.setTurnout"
-      );
-
-    case "setSensor":
-      return requireSend(
-        wsApi.setSensor(
-          numberArg(
-            args,
-            0
-          ),
-          booleanArg(
-            args,
-            1
-          )
-        ),
-        "dcc.setSensor"
-      );
-
-    case "setAccessory":
-      return requireSend(
-        wsApi.setBasicAccessory(
-          numberArg(
-            args,
-            0
-          ),
-          booleanArg(
-            args,
-            1
-          )
-        ),
-        "dcc.setAccessory"
-      );
-
-    case "setSignalAspect":
-      return requireSend(
-        wsApi.setSignalAspect(
-          numberArg(
-            args,
-            0
-          ),
-          numberArg(
-            args,
-            1
-          )
-        ),
-        "dcc.setSignalAspect"
-      );
-
-    case "setBlock":
-      return requireSend(
-        wsApi.setBlock(
-          stringArg(
-            args,
-            0
-          ),
-          null,
-          numberArg(
-            args,
-            1
-          )
-        ),
-        "dcc.setBlock"
-      );
-
-    case "block": {
-      const rawLocoId =
-        args[1];
-
-      const locoId =
-        rawLocoId === null ||
-        rawLocoId === undefined
-          ? null
-          : String(
-              rawLocoId
-            );
-
-      const rawAddress =
-        args[2];
-
-      const locoAddress =
-        rawAddress === undefined
-          ? undefined
-          : Number(
-              rawAddress
-            );
-
-      return requireSend(
-        wsApi.setBlock(
-          stringArg(
-            args,
-            0
-          ),
-          locoId,
-          locoAddress
-        ),
-        "dcc.block"
-      );
-    }
-
-    case "clearBlock": {
-      const rawLocoId =
-        args[1];
-
-      const locoId =
-        rawLocoId === null ||
-        rawLocoId === undefined
-          ? null
-          : String(
-              rawLocoId
-            );
-
-      return requireSend(
-        wsApi.setBlockRemove(
-          stringArg(
-            args,
-            0
-          ),
-          locoId
-        ),
-        "dcc.clearBlock"
-      );
-    }
-
-    case "resetBlocks":
-      return requireSend(
-        wsApi.setBlocksReset(),
-        "dcc.resetBlocks"
-      );
-
-    case "setBlockTargetLoco":
-    case "clearBlockTargetLoco":
-      return null;
-
-    case "sendRaw": {
-      const command =
-        stringArg(
-          args,
-          0
-        );
-
-      if (
-        command.startsWith(
-          SCRIPT_AUDIO_COMMAND_PREFIX
-        )
-      ) {
-        return executeScriptAudioCommand(
-          command
-        );
-      }
-
-      return requireSend(
-        wsApi.writeDccExDirectCommand(
-          command
-        ),
-        "dcc.sendRaw"
-      );
-    }
-  }
-}
-
-function rememberScriptDispatcherOwner(
-  executionId:
-    ClientScriptExecutionId,
-  ownerId:
-    string,
-  kind:
-    ScriptDispatcherLeaseKind
-): void {
-  let owners =
-    scriptDispatcherOwners.get(
-      executionId
-    );
-
-  if (!owners) {
-    owners =
-      new Map();
-
-    scriptDispatcherOwners.set(
-      executionId,
-      owners
-    );
-  }
-
-  owners.set(
-    ownerId,
-    kind
-  );
-}
-
-function forgetScriptDispatcherOwner(
-  executionId:
-    ClientScriptExecutionId,
-  ownerId:
-    string
-): void {
-  const owners =
-    scriptDispatcherOwners.get(
-      executionId
-    );
-
-  if (!owners) {
-    return;
-  }
-
-  owners.delete(
-    ownerId
-  );
-
-  if (
-    owners.size ===
-      0
-  ) {
-    scriptDispatcherOwners.delete(
-      executionId
-    );
-  }
-}
-
-function releaseOneScriptDispatcherOwner(
-  executionId:
-    ClientScriptExecutionId,
-  ownerId:
-    string,
-  kind:
-    ScriptDispatcherLeaseKind
-): void {
-  scriptDispatcherRequestSequence +=
-    1;
-
-  const requestId =
-    `${wsApi.clientUuid}:script-dispatcher-cleanup:` +
-    `${String(executionId)}:` +
-    `${scriptDispatcherRequestSequence}`;
-
-  void wsApi.dispatcherRequest(
-    requestId,
-    kind ===
-      "route"
-      ? "releaseRoute"
-      : "releaseLeg",
-    {
-      ownerId,
-    },
-    10000
-  ).finally(
-    () => {
-      forgetScriptDispatcherOwner(
-        executionId,
-        ownerId
-      );
-    }
-  );
-}
-
-function releaseScriptDispatcherOwners(
-  executionId:
-    ClientScriptExecutionId
-): void {
-  const owners =
-    scriptDispatcherOwners.get(
-      executionId
-    );
-
-  if (!owners) {
-    return;
-  }
-
-  const entries =
-    [
-      ...owners.entries(),
-    ];
-
-  /*
-   * Claim cleanup synchronously so Abort followed by the Worker's final
-   * error/done message cannot enqueue a second release for the same lease.
-   */
-  scriptDispatcherOwners.delete(
-    executionId
-  );
-
-  for (
-    const [
-      ownerId,
-      kind,
-    ] of entries
-  ) {
-    releaseOneScriptDispatcherOwner(
-      executionId,
-      ownerId,
-      kind
-    );
-  }
-}
-
-type ScriptDispatcherAction =
-  | "snapshot"
-  | "acquireLeg"
-  | "releaseLeg"
-  | "acquireRoute"
-  | "commitRoute"
-  | "releaseRoute";
-
-function scriptDispatcherAction(
-  value:
-    string
-): ScriptDispatcherAction | null {
-  switch (value) {
-    case "snapshot":
-    case "acquireLeg":
-    case "releaseLeg":
-    case "acquireRoute":
-    case "commitRoute":
-    case "releaseRoute":
-      return value;
-
-    default:
-      return null;
-  }
-}
-
-async function handleScriptDispatcherRequest(
-  message:
-    Extract<
-      WorkerToMainMessage,
-      {
-        type:
-          "dispatcher";
-      }
-    >
-): Promise<void> {
-  const execution =
-    executions.get(
-      message.executionId
-    );
-
-  const action =
-    scriptDispatcherAction(
-      message.action
-    );
-
-  if (
-    !execution ||
-    execution.aborted ||
-    !action
-  ) {
-    postToWorker({
-      type:
-        "dispatcherResult",
-      executionId:
-        message.executionId,
-      requestId:
-        message.requestId,
-      ok:
-        false,
-      error:
-        !action
-          ? "unknown_dispatcher_action"
-          : "script_not_running",
-    });
-
-    return;
-  }
-
-  const payload =
-    message.payload ??
-    {};
-
-  const ownerId =
-    typeof payload.ownerId ===
-      "string"
-      ? payload.ownerId
-      : "";
-
-  scriptDispatcherRequestSequence +=
-    1;
-
-  const requestId =
-    `${wsApi.clientUuid}:script-dispatcher:` +
-    `${String(message.executionId)}:` +
-    `${message.requestId}:` +
-    `${scriptDispatcherRequestSequence}`;
-
-  try {
-    const response =
-      await wsApi.dispatcherRequest(
-        requestId,
-        action,
-        payload,
-        30000
-      );
-
-    const acquiredKind:
-      ScriptDispatcherLeaseKind |
-      null =
-      response.ok &&
-      ownerId &&
-      action ===
-        "acquireLeg"
-        ? "leg"
-        : response.ok &&
-            ownerId &&
-            action ===
-              "acquireRoute"
-          ? "route"
-          : null;
-
-    if (acquiredKind) {
-      rememberScriptDispatcherOwner(
-        message.executionId,
-        ownerId,
-        acquiredKind
-      );
-    }
-
-    if (
-      response.ok &&
-      ownerId &&
-      (
-        action ===
-          "releaseLeg" ||
-        action ===
-          "releaseRoute" ||
-        action ===
-          "commitRoute"
-      )
-    ) {
-      forgetScriptDispatcherOwner(
-        message.executionId,
-        ownerId
-      );
-    }
-
-    const current =
-      executions.get(
-        message.executionId
-      );
-
-    /*
-     * Acquisition can race with Abort. If the backend grants authority after
-     * the Worker has already been cancelled, release it immediately instead
-     * of leaving an orphaned route lease.
-     */
-    if (
-      acquiredKind &&
-      (
-        !current ||
-        current.aborted
-      )
-    ) {
-      releaseOneScriptDispatcherOwner(
-        message.executionId,
-        ownerId,
-        acquiredKind
-      );
-
-      return;
-    }
-
-    postToWorker({
-      type:
-        "dispatcherResult",
-      executionId:
-        message.executionId,
-      requestId:
-        message.requestId,
-      /*
-       * Bridge success is separate from Dispatcher domain success. A normal
-       * blocked/rejected Dispatcher response must reach the Worker as data so
-       * dispatcher()/smartDispatcher() can run onBlocked/retry logic.
-       */
-      ok:
-        true,
-      response,
-    });
-  } catch (
-    error
-  ) {
-    postToWorker({
-      type:
-        "dispatcherResult",
-      executionId:
-        message.executionId,
-      requestId:
-        message.requestId,
-      ok:
-        false,
-      error:
-        error instanceof Error
-          ? error.message
-          : String(
-              error
-            ),
-    });
-  }
-}
-
-function handleDccCommand(
-  message:
-    Extract<
-      WorkerToMainMessage,
-      {
-        type: "dcc";
-      }
-    >
-): void {
-  const execution =
-    executions.get(
-      message.executionId
-    );
-
-  if (
-    !execution ||
-    execution.aborted
-  ) {
-    return;
-  }
-
-  let errorMessage:
-    string | null = null;
-
-  try {
-    const blockTargetResult =
-      executeBlockTargetCommand(
-        message.executionId,
-        message.method,
-        message.args
-      );
-
-    errorMessage =
-      blockTargetResult ===
-        undefined
-        ? executeDccCommand(
-            message.method,
-            message.args
-          )
-        : blockTargetResult;
-  } catch (
-    error
-  ) {
-    errorMessage =
-      error instanceof Error
-        ? error.message
-        : String(error);
-  }
-
-  if (
-    !errorMessage
-  ) {
-    return;
-  }
-
-  execution.commandError =
-    errorMessage;
-
-  postToWorker({
-    type: "commandError",
-    executionId:
-      message.executionId,
-    message:
-      errorMessage,
-  });
-}
-
-function finishExecution(
-  elementId: ClientScriptExecutionId
-): void {
-  releaseScriptDispatcherOwners(
-    elementId
-  );
-
-  const execution =
-    executions.get(
-      elementId
-    );
-
-  if (execution) {
-    execution.info =
-      null;
-
-    clearSharedScriptInfo(
-      String(elementId),
-      execution.infoOwnerId
-    );
-  }
-
-  executions.delete(
-    elementId
-  );
-
-  emitState(
-    elementId
-  );
-}
-
-function handleWorkerMessage(
-  message: WorkerToMainMessage
-): void {
-  if (
-    message.type ===
-    "audio"
-  ) {
-    handleScriptAudioPlayback(
-      message
-    );
-
-    return;
-  }
-
-  if (
-    message.type ===
-      "dispatcher"
-  ) {
-    void handleScriptDispatcherRequest(
-      message
-    );
-
-    return;
-  }
-
-  const execution =
-    executions.get(
-      message.executionId
-    );
-
-  if (
-    message.type ===
-    "dcc"
-  ) {
-    handleDccCommand(
-      message
-    );
-
-    return;
-  }
-
-  if (
-    !execution
-  ) {
-    return;
-  }
-
-  if (
-    message.type ===
-    "info"
-  ) {
-    execution.info =
-      message.message.trim()
-        ? message.message
-        : null;
-
-    setSharedScriptInfo(
-      String(
-        message.executionId
-      ),
-      execution.infoOwnerId,
-      message.message
-    );
-
-    emitState(
-      message.executionId
-    );
-
-    return;
-  }
-
-  if (
-    message.type ===
-    "log"
-  ) {
-    console.log(
-      `[ScriptButton ${execution.element.name || execution.element.id}]`,
-      ...message.values
-    );
-
-    emitLog(
-      message.executionId,
-      message.values
-    );
-
-    return;
-  }
-
-  if (
-    message.type ===
-    "done"
-  ) {
-    if (
-      execution.commandError
-    ) {
-      const error =
-        new Error(
-          execution.commandError
-        );
-
-      lastErrors.set(
-        message.executionId,
-        error.message
-      );
-
-      clearTargetsOwnedByExecution(
-        message.executionId
-      );
-
-      execution.reject(
-        error
-      );
-    } else if (
-      execution.aborted
-    ) {
-      lastErrors.set(
-        message.executionId,
-        null
-      );
-
-      execution.reject(
-        new ScriptAbortError(
-          execution.abortReason ??
-            "Script aborted."
-        )
-      );
-    } else {
-      lastErrors.set(
-        message.executionId,
-        null
-      );
-
-      execution.resolve(
-        message.result
-      );
-    }
-
-    finishExecution(
-      message.executionId
-    );
-
-    return;
-  }
-
-  if (
-    message.type ===
-    "error"
-  ) {
-    if (
-      message.aborted ||
-      execution.aborted
-    ) {
-      lastErrors.set(
-        message.executionId,
-        execution.commandError
-          ? execution.commandError
-          : null
-      );
-
-      if (
-        execution.commandError
-      ) {
-        execution.reject(
-          new Error(
-            execution.commandError
-          )
-        );
-      } else {
-        execution.reject(
-          new ScriptAbortError(
-            execution.abortReason ??
-              message.message
-          )
-        );
-      }
-    } else {
-      const error =
-        new Error(
-          message.message
-        );
-
-      error.name =
-        message.name;
-
-      if (
-        message.stack
-      ) {
-        error.stack =
-          message.stack;
-      }
-
-      lastErrors.set(
-        message.executionId,
-        error.message
-      );
-
-      clearTargetsOwnedByExecution(
-        message.executionId
-      );
-
-      execution.reject(
-        error
-      );
-    }
-
-    finishExecution(
-      message.executionId
-    );
-  }
 }
 
 export function pauseClientScript(
-  elementId: ClientScriptExecutionId
+  elementId:
+    ClientScriptExecutionId
 ): boolean {
-  const execution =
-    executions.get(
+  installTracking();
+
+  const key =
+    executionKey(
       elementId
     );
 
+  const state =
+    states.get(
+      key
+    );
+
   if (
-    !execution ||
-    execution.aborted ||
-    execution.status ===
-      "paused"
+    !state ||
+    state.status !==
+      "running" ||
+    !isControlStationRuntimeActive()
   ) {
     return false;
   }
 
-  execution.status =
-    "paused";
-
-  postToWorker({
-    type: "pause",
-    executionId:
-      elementId,
-  });
-
-  emitState(
-    elementId
+  return wsApi.scriptCommand(
+    requestId(
+      "pause"
+    ),
+    "pause",
+    {
+      executionId:
+        key,
+    }
   );
-
-  return true;
 }
 
 export function resumeClientScript(
-  elementId: ClientScriptExecutionId
+  elementId:
+    ClientScriptExecutionId
 ): boolean {
-  const execution =
-    executions.get(
+  installTracking();
+
+  const key =
+    executionKey(
       elementId
     );
 
+  const state =
+    states.get(
+      key
+    );
+
   if (
-    !execution ||
-    execution.aborted ||
-    execution.status !==
-      "paused"
+    !state ||
+    state.status !==
+      "paused" ||
+    !isControlStationRuntimeActive()
   ) {
     return false;
   }
 
-  execution.status =
-    "running";
-
-  postToWorker({
-    type: "resume",
-    executionId:
-      elementId,
-  });
-
-  emitState(
-    elementId
+  return wsApi.scriptCommand(
+    requestId(
+      "resume"
+    ),
+    "resume",
+    {
+      executionId:
+        key,
+    }
   );
-
-  return true;
 }
 
 export function abortClientScript(
-  elementId: ClientScriptExecutionId,
-  reason =
+  elementId:
+    ClientScriptExecutionId,
+  _reason =
     "Script aborted by user."
 ): boolean {
-  const execution =
-    executions.get(
+  installTracking();
+
+  const key =
+    executionKey(
       elementId
     );
 
+  const state =
+    states.get(
+      key
+    );
+
   if (
-    !execution ||
-    execution.aborted
+    !state ||
+    (
+      state.status !==
+        "running" &&
+      state.status !==
+        "paused"
+    ) ||
+    !isControlStationRuntimeActive()
   ) {
     return false;
   }
 
-  execution.aborted =
-    true;
+  const waiter =
+    runWaiters.get(
+      key
+    );
 
-  execution.abortReason =
-    reason;
+  if (waiter) {
+    waiter.aborted =
+      true;
+  }
 
-  execution.info =
-    null;
-
-  clearSharedScriptInfo(
-    String(
-      elementId
+  return wsApi.scriptCommand(
+    requestId(
+      "abort"
     ),
-    execution.infoOwnerId
+    "abort",
+    {
+      executionId:
+        key,
+    }
   );
-
-  emitState(
-    elementId
-  );
-
-  /*
-   * Abort the Worker first.
-   *
-   * Worker messages from this main thread are processed in order. Sending the
-   * abort before clearing owned block targets prevents SmartDispatcher from
-   * seeing its target marker disappear while it still considers the run
-   * active, which would otherwise surface a false
-   * "target for block ... was lost during movement" error.
-   */
-  postToWorker({
-    type: "abort",
-    executionId:
-      elementId,
-    reason,
-  });
-
-  releaseScriptDispatcherOwners(
-    elementId
-  );
-
-  clearTargetsOwnedByExecution(
-    elementId
-  );
-
-  stopScriptAudioRequests(
-    elementId
-  );
-
-  emitState(
-    elementId
-  );
-
-  return true;
 }
 
 export function abortAllClientScriptExecutions(
-  reason =
-    "Control Station ownership lost."
+  _reason =
+    "Scripts aborted."
 ): number {
-  let aborted =
-    0;
+  installTracking();
 
-  for (
-    const execution of
+  const count =
     getActiveClientScriptExecutions()
+      .length;
+
+  if (
+    count > 0 &&
+    isControlStationRuntimeActive()
   ) {
-    if (
-      abortClientScript(
-        execution.id,
-        reason
-      )
+    for (
+      const waiter of
+      runWaiters.values()
     ) {
-      aborted +=
-        1;
+      waiter.aborted =
+        true;
     }
+
+    wsApi.scriptCommand(
+      requestId(
+        "abortAll"
+      ),
+      "abortAll"
+    );
   }
 
-  return aborted;
+  return count;
 }
 
+/*
+ * Compatibility surface for the existing editor/UI. The browser no longer
+ * evaluates JavaScript. It sends the source to the authoritative Windows
+ * ScriptRuntime and waits for backend state to reach completion.
+ */
 export async function runClientScript(
   script: string,
-  element: ClientScriptElementContext
+  element:
+    ClientScriptElementContext
 ): Promise<unknown> {
+  installTracking();
+
   if (
     !script.trim()
   ) {
     return undefined;
   }
 
+  requireControlStation();
+
+  const key =
+    executionKey(
+      element.id
+    );
+
+  const current =
+    states.get(
+      key
+    );
+
   if (
-    !isControlStationRuntimeActive()
+    current?.status ===
+      "running" ||
+    current?.status ===
+      "paused"
   ) {
     throw new Error(
-      "This browser is not the active Control Station."
+      `Script "${element.name || key}" is already running.`
     );
   }
 
   if (
-    executions.has(
-      element.id
+    runWaiters.has(
+      key
     )
   ) {
     throw new Error(
-      `Script "${element.name || element.id}" is already running.`
+      `Script "${element.name || key}" is already starting.`
     );
   }
 
-  await Promise.all([
-    refreshBlockCatalog(),
-    refreshLocoFunctionBindings(),
-  ]);
-
-  const worker =
-    ensureWorker();
-
-  return await new Promise<unknown>(
-    (
-      resolve,
-      reject
-    ) => {
-      const infoOwnerId =
-        `${wsApi.clientUuid}:` +
-        `${String(element.id)}:` +
-        `${Date.now()}:` +
-        Math.random()
-          .toString(36)
-          .slice(2, 10);
-
-      claimSharedScriptInfo(
-        String(
-          element.id
-        ),
-        infoOwnerId
-      );
-
-      const execution:
-        ExecutionControl = {
-          element: {
-            ...element,
-          },
-          status: "running",
-          startedAt: Date.now(),
-          aborted: false,
-          abortReason: null,
-          commandError: null,
-          info: null,
-          infoOwnerId,
-          resolve,
-          reject,
-        };
-
-      executions.set(
-        element.id,
-        execution
-      );
-
-      lastErrors.set(
-        element.id,
-        null
-      );
-
-      emitState(
-        element.id
-      );
-
-      const message:
-        MainToWorkerMessage = {
-          type: "start",
-          executionId:
-            element.id,
-          script:
-            scriptWithRuntimeHelpers(
-              script,
-              infoOwnerId,
-              element.name ||
-                String(element.id)
-            ),
-          element: {
-            ...element,
-          },
-        };
-
-      try {
-        worker.postMessage(
-          message
-        );
-      } catch (
-        error
-      ) {
-        executions.delete(
-          element.id
-        );
-
-        const sendError =
-          error instanceof Error
-            ? error
-            : new Error(
-                String(
-                  error
-                )
-              );
-
-        lastErrors.set(
-          element.id,
-          sendError.message
-        );
-
-        emitState(
-          element.id
-        );
-
-        reject(
-          sendError
+  const completion =
+    new Promise<unknown>(
+      (
+        resolve,
+        reject
+      ) => {
+        runWaiters.set(
+          key,
+          {
+            started:
+              false,
+            aborted:
+              false,
+            resolve,
+            reject,
+          }
         );
       }
-    }
-  );
-}
+    );
 
+  const id =
+    requestId(
+      "startSource"
+    );
 
-installBrowserPowerTracking();
-installBrowserLifecycleProtection();
-installBlockTracking();
-installSensorTracking();
-installClientScriptLayoutAccessoryTracking(
-  message => {
-    automationWorker?.postMessage(
-      message
+  let response;
+
+  try {
+    response =
+      await wsApi.scriptRequest(
+        id,
+        "startSource",
+        {
+          executionId:
+            key,
+          name:
+            element.name ||
+            key,
+          executionType:
+            element.type ||
+            "automation",
+          source:
+            script,
+        },
+        15000
+      );
+  } catch (
+    error
+  ) {
+    runWaiters.delete(
+      key
+    );
+
+    throw error;
+  }
+
+  if (
+    !response.ok
+  ) {
+    runWaiters.delete(
+      key
+    );
+
+    throw new Error(
+      response.message ||
+      "Script could not be started."
     );
   }
-);
+
+  const waiter =
+    runWaiters.get(
+      key
+    );
+
+  if (waiter) {
+    waiter.started =
+      true;
+  }
+
+  if (
+    response.extra?.state
+  ) {
+    applyState(
+      response.extra.state
+    );
+  }
+
+  return await completion;
+}
+
+installTracking();
