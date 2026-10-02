@@ -41,10 +41,18 @@ function paintSignalsButton(
     );
 
   if (stateLabel) {
-    stateLabel.textContent =
+    const nextLabel =
       enabled
         ? "ON"
         : "OFF";
+
+    if (
+      stateLabel.textContent !==
+      nextLabel
+    ) {
+      stateLabel.textContent =
+        nextLabel;
+    }
   }
 
   if (enabled) {
@@ -201,9 +209,9 @@ installSignalLogicStatusIndicator():
   );
 
   // The SIGNALS button only exists on the Layout page.
-  // This observer only watches node creation/removal; paintSignalsButton()
-  // changes styles/attributes, not child nodes, so it does not recursively
-  // trigger itself.
+  // textContent changes are child-list mutations too, so paintSignalsButton()
+  // must be idempotent. It only rewrites the ON/OFF label when the value
+  // actually changes, preventing a MutationObserver feedback loop.
   const observer =
     new MutationObserver(() => {
       paintSignalsButton(
