@@ -3329,6 +3329,27 @@ public sealed class ScriptRuntime
         return run;
     }
 
+    static int SmartBlockIndex(
+        SmartRun run,
+        string blockName)
+    {
+        var targetIndex =
+            Array.FindIndex(
+                run.Plan.Blocks,
+                block =>
+                    string.Equals(
+                        block.Name,
+                        blockName,
+                        StringComparison.OrdinalIgnoreCase));
+
+        if (targetIndex < 0)
+            throw new InvalidOperationException(
+                "smart_dispatcher_block_not_in_route:" +
+                blockName);
+
+        return targetIndex;
+    }
+
     int SmartSetSpeed(
         Execution execution,
         string runId,
@@ -3340,16 +3361,59 @@ public sealed class ScriptRuntime
                 runId);
 
         run.DesiredSpeed =
-            Math.Clamp(
-                speed,
-                0,
-                126);
+            run.Completed
+                ? 0
+                : Math.Clamp(
+                    speed,
+                    0,
+                    126);
 
         _ =
             ApplySmartSpeed(
                 run);
 
         return run.DesiredSpeed;
+    }
+
+    string SmartState(
+        Execution execution,
+        string runId)
+    {
+        var run =
+            SmartRunFor(
+                execution,
+                runId);
+
+        var current =
+            run.Plan.Blocks
+                .ElementAtOrDefault(
+                    run.CurrentIndex);
+
+        var next =
+            run.Plan.Blocks
+                .ElementAtOrDefault(
+                    run.CurrentIndex +
+                    1);
+
+        return JsonSerializer.Serialize(
+            new
+            {
+                currentBlock =
+                    current?.Name,
+                nextBlock =
+                    next?.Name,
+                route =
+                    run.Plan.Blocks
+                        .Select(block =>
+                            block.Name)
+                        .ToArray(),
+                desiredSpeed =
+                    run.DesiredSpeed,
+                motionAuthorized =
+                    run.MotionAuthorized,
+                completed =
+                    run.Completed
+            });
     }
 
     async Task<bool> SmartWaitBlock(
@@ -3364,17 +3428,8 @@ public sealed class ScriptRuntime
                 runId);
 
         var targetIndex =
-            Array.FindIndex(
-                run.Plan.Blocks,
-                block =>
-                    string.Equals(
-                        block.Name,
-                        blockName,
-                        StringComparison.OrdinalIgnoreCase));
-
-        if (targetIndex < 0)
-            throw new InvalidOperationException(
-                "smart_dispatcher_block_not_in_route:" +
+            SmartBlockIndex(
+                run,
                 blockName);
 
         var timeoutMs =
@@ -3410,12 +3465,22 @@ public sealed class ScriptRuntime
     async Task<bool> SmartWaitClearance(
         Execution execution,
         string runId,
+        string blockName,
         double rawTimeoutMs)
     {
         var run =
             SmartRunFor(
                 execution,
                 runId);
+
+        var targetIndex =
+            SmartBlockIndex(
+                run,
+                blockName);
+
+        if (targetIndex ==
+            0)
+            return true;
 
         var timeoutMs =
             rawTimeoutMs < 0
@@ -3429,9 +3494,28 @@ public sealed class ScriptRuntime
         var started =
             Environment.TickCount64;
 
-        while (!run.MotionAuthorized &&
-               !run.Completed)
+        while (true)
         {
+            /*
+             * Once the locomotive has reached the requested block, clearance
+             * for it necessarily existed earlier and waitForClearance remains
+             * satisfied.
+             */
+            if (run.CurrentIndex >=
+                targetIndex)
+                return true;
+
+            if (run.MotionAuthorized &&
+                run.CurrentIndex +
+                    1 ==
+                targetIndex)
+                return true;
+
+            if (run.Completed)
+                throw new InvalidOperationException(
+                    "smart_dispatcher_completed_before_clearance:" +
+                    blockName);
+
             if (timeoutMs >= 0 &&
                 Environment.TickCount64 -
                     started >=
@@ -3443,8 +3527,70 @@ public sealed class ScriptRuntime
                 run,
                 run.Cancellation.Token);
         }
+    }
 
-        return true;
+    async Task<string> SmartWaitBlocked(
+        Execution execution,
+        string runId,
+        int afterVersion)
+    {
+        var run =
+            SmartRunFor(
+                execution,
+                runId);
+
+        while (true)
+        {
+            if (run.BlockedVersion >
+                afterVersion)
+            {
+                var target =
+                    run.Plan.Blocks
+                        .ElementAtOrDefault(
+                            run.LastBlockedIndex +
+                            1);
+
+                return JsonSerializer.Serialize(
+                    new
+                    {
+                        status =
+                            "blocked",
+                        version =
+                            run.BlockedVersion,
+                        currentBlock =
+                            run.Plan.Blocks
+                                .ElementAtOrDefault(
+                                    run.LastBlockedIndex)?
+                                .Name,
+                        block =
+                            target?.Name,
+                        error =
+                            run.LastBlockingError,
+                        blockingSensor =
+                            run.LastBlockingSensor,
+                        blockingBlock =
+                            run.LastBlockingBlock,
+                        turnoutConflicts =
+                            run.LastTurnoutConflicts
+                    });
+            }
+
+            if (run.Completed)
+                return JsonSerializer.Serialize(
+                    new
+                    {
+                        status =
+                            "complete",
+                        version =
+                            run.BlockedVersion
+                    });
+
+            var signal =
+                run.BlockedChanged.Task;
+
+            await signal.WaitAsync(
+                run.Cancellation.Token);
+        }
     }
 
     async Task<bool> SmartWaitComplete(
@@ -3472,6 +3618,10 @@ public sealed class ScriptRuntime
             return false;
 
         run.Cancellation.Cancel();
+        run.BlockedChanged.TrySetResult(
+            true);
+        run.Changed.TrySetResult(
+            true);
 
         return true;
     }
