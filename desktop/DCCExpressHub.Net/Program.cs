@@ -32,6 +32,7 @@ builder.Services.AddSingleton<RuntimeStateStore>();
 builder.Services.AddSingleton<LocoCounterRuntime>();
 builder.Services.AddSingleton<HubFileStorage>();
 builder.Services.AddSingleton<AutomationStorageCoordinator>();
+builder.Services.AddSingleton<LocoStorageCoordinator>();
 builder.Services.AddSingleton<AutomationExclusiveGate>();
 builder.Services.AddSingleton<CommandCenterConfigStore>();
 builder.Services.AddSingleton<IDccExTransport>(sp =>
@@ -390,7 +391,7 @@ app.MapGet("/api/locos", async (IWebHostEnvironment env) =>
     return Results.Text(File.Exists(p) ? await File.ReadAllTextAsync(p) : "[]", "application/json");
 });
 
-app.MapPost("/api/locos", async (HttpRequest req, IWebHostEnvironment env, ConfiguredCommandCenter configuredCc, LocoCounterRuntime counters) =>
+app.MapPost("/api/locos", async (HttpRequest req, IWebHostEnvironment env, ConfiguredCommandCenter configuredCc, LocoCounterRuntime counters, LocoStorageCoordinator locoStorage) =>
 {
     using var sr = new StreamReader(req.Body);
     var body = await sr.ReadToEndAsync();
@@ -410,89 +411,111 @@ app.MapPost("/api/locos", async (HttpRequest req, IWebHostEnvironment env, Confi
         return Results.Json(new { ok = false, message = "Expected locomotive JSON array" }, statusCode: 400);
     }
 
-    var path = DataFile(env, "locos.json");
-
-    /*
-     * Calibration is backend-owned runtime data. A Loco Editor that was
-     * opened before/during a calibration run may hold an older copy of the
-     * locomotive array. Never allow that stale browser copy to overwrite a
-     * newer calibration profile already committed by CalibrationRuntime.
-     */
-    if (File.Exists(path))
-    {
-        try
-        {
-            var existing =
-                JsonNode.Parse(
-                    await File.ReadAllTextAsync(
-                        path)) as
-                JsonArray;
-
-            if (existing is not null)
-            {
-                var calibrationById =
-                    new Dictionary<
-                        string,
-                        JsonNode?>(
-                        StringComparer.Ordinal);
-
-                foreach (var node in existing)
-                {
-                    if (node is not JsonObject loco)
-                        continue;
-
-                    var id =
-                        loco["id"]?
-                            .GetValue<string>();
-
-                    if (string.IsNullOrWhiteSpace(id) ||
-                        loco["calibration"] is null)
-                        continue;
-
-                    calibrationById[id] =
-                        loco["calibration"]!
-                            .DeepClone();
-                }
-
-                foreach (var node in incoming)
-                {
-                    if (node is not JsonObject loco)
-                        continue;
-
-                    var id =
-                        loco["id"]?
-                            .GetValue<string>();
-
-                    if (string.IsNullOrWhiteSpace(id) ||
-                        !calibrationById.TryGetValue(
-                            id,
-                            out var calibration) ||
-                        calibration is null)
-                        continue;
-
-                    loco["calibration"] =
-                        calibration.DeepClone();
-                }
-            }
-        }
-        catch
-        {
-            // Keep normal locomotive editing usable if an old/corrupt file
-            // cannot be merged; the incoming document was already validated.
-        }
-    }
-
     var normalizedBody =
-        incoming.ToJsonString(
-            new JsonSerializerOptions
+        await locoStorage.ExecuteAsync(
+            async () =>
             {
-                WriteIndented =
-                    false
-            });
+                var path =
+                    DataFile(
+                        env,
+                        "locos.json");
 
-    var temp = path + ".tmp";
-    await File.WriteAllTextAsync(temp, normalizedBody);
-    File.Move(temp, path, true);
+                /*
+                 * Calibration is backend-owned runtime data. A Loco Editor that
+                 * was opened before/during a calibration run may hold an older
+                 * copy of the locomotive array. Merge the newest backend
+                 * calibration profile while holding the same write lock used by
+                 * CalibrationRuntime.
+                 */
+                if (File.Exists(path))
+                {
+                    try
+                    {
+                        var existing =
+                            JsonNode.Parse(
+                                await File.ReadAllTextAsync(
+                                    path)) as
+                                JsonArray;
+
+                        if (existing is not null)
+                        {
+                            var calibrationById =
+                                new Dictionary<
+                                    string,
+                                    JsonNode?>(
+                                    StringComparer.Ordinal);
+
+                            foreach (var node in existing)
+                            {
+                                if (node is not JsonObject loco)
+                                    continue;
+
+                                var id =
+                                    loco["id"]?
+                                        .GetValue<string>();
+
+                                if (string.IsNullOrWhiteSpace(id) ||
+                                    loco["calibration"] is null)
+                                    continue;
+
+                                calibrationById[id] =
+                                    loco["calibration"]!
+                                        .DeepClone();
+                            }
+
+                            foreach (var node in incoming)
+                            {
+                                if (node is not JsonObject loco)
+                                    continue;
+
+                                var id =
+                                    loco["id"]?
+                                        .GetValue<string>();
+
+                                if (string.IsNullOrWhiteSpace(id) ||
+                                    !calibrationById.TryGetValue(
+                                        id,
+                                        out var calibration) ||
+                                    calibration is null)
+                                    continue;
+
+                                loco["calibration"] =
+                                    calibration.DeepClone();
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // Keep normal locomotive editing usable if an old/corrupt
+                        // file cannot be merged; the incoming document was
+                        // already validated.
+                    }
+                }
+
+                var body =
+                    incoming.ToJsonString(
+                        new JsonSerializerOptions
+                        {
+                            WriteIndented =
+                                false
+                        });
+
+                var temp =
+                    path +
+                    ".tmp";
+
+                await File.WriteAllTextAsync(
+                    temp,
+                    body);
+
+                File.Move(
+                    temp,
+                    path,
+                    true);
+
+                return body;
+            },
+            req.HttpContext.RequestAborted);
 
     if (!configuredCc.ReloadLocomotiveConfiguration())
         return Results.Json(new { ok = false, message = "Locomotive configuration committed but runtime reload failed" }, statusCode: 500);
