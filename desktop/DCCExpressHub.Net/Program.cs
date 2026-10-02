@@ -42,6 +42,7 @@ builder.Services.AddSingleton<ICommandCenter>(sp => sp.GetRequiredService<Config
 builder.Services.AddHostedService(sp => sp.GetRequiredService<DccExCommandCenter>());
 builder.Services.AddSingleton<FastClockRuntime>();
 builder.Services.AddSingleton<SwitchManManager>();
+builder.Services.AddSingleton<TrackAuthorityRuntime>();
 builder.Services.AddSingleton<DispatcherRuntime>();
 builder.Services.AddSingleton<MovementPlanBuilder>();
 builder.Services.AddSingleton<TrainEventRuntime>();
