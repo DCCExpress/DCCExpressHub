@@ -112,6 +112,10 @@ import {
   setBroadcastAudioEnabled,
   subscribeBroadcastAudioEnabled,
 } from "@/services/broadcastAudioRuntime";
+
+import {
+  installTrainTrackingRuntime,
+} from "@/services/trainTrackingRuntime";
 import {
   createAutomationId,
   createAutomationPayload,
@@ -711,6 +715,13 @@ export default function LiteLayoutPage({
       subscribeBroadcastAudioEnabled(
         setBroadcastAudioEnabledState
       ),
+    []
+  );
+
+  useEffect(
+    () => {
+      installTrainTrackingRuntime();
+    },
     []
   );
 
@@ -1798,6 +1809,7 @@ export default function LiteLayoutPage({
 
                       <div style={{ flex: 1, minHeight: 0 }}>
                         <AutomationPanel
+                          locos={locos}
                           scripts={automationScripts}
                           onScriptsChange={setAutomationScripts}
                           flows={automationFlow}
