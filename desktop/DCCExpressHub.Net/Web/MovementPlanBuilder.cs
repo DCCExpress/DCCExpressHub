@@ -11,11 +11,17 @@ namespace DCCExpressHub.Net.Web;
 public sealed class MovementPlanBuilder
 {
     readonly IWebHostEnvironment _env;
+    readonly ILogger<MovementPlanBuilder> _log;
+    readonly object _diagnosticGate = new();
+    readonly HashSet<string> _reportedTopologyDiagnostics =
+        new(StringComparer.Ordinal);
 
     public MovementPlanBuilder(
-        IWebHostEnvironment env)
+        IWebHostEnvironment env,
+        ILogger<MovementPlanBuilder> log)
     {
         _env = env;
+        _log = log;
     }
 
     static int Int(
@@ -38,6 +44,189 @@ public sealed class MovementPlanBuilder
 
     static bool ValidId(int value) =>
         value is >= 1 and <= 65535;
+
+    static void CollectUnknownProperties(
+        JsonElement element,
+        string path,
+        IReadOnlySet<string> known,
+        ISet<string> ignored)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
+            return;
+
+        foreach (var property in element.EnumerateObject())
+            if (!known.Contains(property.Name))
+                ignored.Add(
+                    string.IsNullOrEmpty(path)
+                        ? property.Name
+                        : path + "." + property.Name);
+    }
+
+    void ReportTopologyDiagnostics(
+        JsonElement topology,
+        JsonElement graph,
+        JsonElement route)
+    {
+        var ignored =
+            new SortedSet<string>(
+                StringComparer.Ordinal);
+
+        CollectUnknownProperties(
+            topology,
+            "routeTopology",
+            new HashSet<string>(
+                new[]
+                {
+                    "version",
+                    "graph",
+                    "routeTable"
+                },
+                StringComparer.Ordinal),
+            ignored);
+
+        CollectUnknownProperties(
+            graph,
+            "routeTopology.graph",
+            new HashSet<string>(
+                new[]
+                {
+                    "ready",
+                    "nodes"
+                },
+                StringComparer.Ordinal),
+            ignored);
+
+        if (graph.TryGetProperty(
+                "nodes",
+                out var graphNodes) &&
+            graphNodes.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var node in graphNodes.EnumerateArray())
+                CollectUnknownProperties(
+                    node,
+                    "routeTopology.graph.nodes[]",
+                    new HashSet<string>(
+                        new[]
+                        {
+                            "name",
+                            "trackName",
+                            "detectors",
+                            "elementIds"
+                        },
+                        StringComparer.Ordinal),
+                    ignored);
+        }
+
+        CollectUnknownProperties(
+            route,
+            "routeTopology.routeTable[]",
+            new HashSet<string>(
+                new[]
+                {
+                    "fromBlockId",
+                    "toBlockId",
+                    "blockPath",
+                    "nodes",
+                    "edgePath",
+                    "turnoutStates",
+                    "locoDirection"
+                },
+                StringComparer.Ordinal),
+            ignored);
+
+        if (route.TryGetProperty(
+                "blockPath",
+                out var blockPath) &&
+            blockPath.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var block in blockPath.EnumerateArray())
+                CollectUnknownProperties(
+                    block,
+                    "routeTopology.routeTable[].blockPath[]",
+                    new HashSet<string>(
+                        new[]
+                        {
+                            "id",
+                            "name",
+                            "nodeIndex"
+                        },
+                        StringComparer.Ordinal),
+                    ignored);
+        }
+
+        if (route.TryGetProperty(
+                "edgePath",
+                out var edgePath) &&
+            edgePath.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var edge in edgePath.EnumerateArray())
+            {
+                CollectUnknownProperties(
+                    edge,
+                    "routeTopology.routeTable[].edgePath[]",
+                    new HashSet<string>(
+                        new[]
+                        {
+                            "from",
+                            "to",
+                            "turnoutStates",
+                            "turnoutPath",
+                            "locoDirection"
+                        },
+                        StringComparer.Ordinal),
+                    ignored);
+
+                if (edge.TryGetProperty(
+                        "turnoutPath",
+                        out var turnoutPath) &&
+                    turnoutPath.ValueKind == JsonValueKind.Array)
+                    foreach (var passage in
+                             turnoutPath.EnumerateArray())
+                        CollectUnknownProperties(
+                            passage,
+                            "routeTopology.routeTable[].edgePath[].turnoutPath[]",
+                            new HashSet<string>(
+                                new[]
+                                {
+                                    "elementId",
+                                    "turnoutStates"
+                                },
+                                StringComparer.Ordinal),
+                            ignored);
+            }
+        }
+
+        var version =
+            Int(
+                topology,
+                "version",
+                -1);
+
+        var ignoredText =
+            ignored.Count == 0
+                ? "(none)"
+                : string.Join(
+                    ", ",
+                    ignored);
+
+        var signature =
+            version.ToString(
+                System.Globalization.CultureInfo.InvariantCulture) +
+            "|" +
+            ignoredText;
+
+        lock (_diagnosticGate)
+        {
+            if (!_reportedTopologyDiagnostics.Add(
+                    signature))
+                return;
+        }
+
+        _log.LogInformation(
+            "Movement route topology parsed by capabilities. Version={Version}. Ignored fields: {IgnoredFields}",
+            version,
+            ignoredText);
+    }
 
     static DispatcherTurnoutRequirement[] UniqueTurnoutStates(
         IEnumerable<DispatcherTurnoutRequirement> source)
@@ -704,32 +893,66 @@ public sealed class MovementPlanBuilder
             throw new InvalidOperationException(
                 "movement_route_topology_missing");
 
-        var version =
-            Int(
-                topology,
-                "version");
+        var missing =
+            new List<string>();
 
-        const int SupportedRouteTopologyVersion = 11;
+        JsonElement graph =
+            default;
 
-        if (version != SupportedRouteTopologyVersion)
-            throw new InvalidOperationException(
-                "movement_route_topology_unsupported");
+        JsonElement graphNodes =
+            default;
 
-        if (!topology.TryGetProperty("graph", out var graph) ||
-            graph.ValueKind != JsonValueKind.Object ||
-            !graph.TryGetProperty("ready", out var ready) ||
-            ready.ValueKind != JsonValueKind.True ||
-            !graph.TryGetProperty("nodes", out var graphNodes) ||
-            graphNodes.ValueKind != JsonValueKind.Array ||
-            !topology.TryGetProperty("routeTable", out var routeTable) ||
+        JsonElement routeTable =
+            default;
+
+        if (!topology.TryGetProperty(
+                "graph",
+                out graph) ||
+            graph.ValueKind != JsonValueKind.Object)
+        {
+            missing.Add(
+                "graph");
+        }
+        else
+        {
+            if (!graph.TryGetProperty(
+                    "ready",
+                    out var ready) ||
+                ready.ValueKind != JsonValueKind.True)
+                missing.Add(
+                    "graph.ready");
+
+            if (!graph.TryGetProperty(
+                    "nodes",
+                    out graphNodes) ||
+                graphNodes.ValueKind != JsonValueKind.Array)
+                missing.Add(
+                    "graph.nodes");
+        }
+
+        if (!topology.TryGetProperty(
+                "routeTable",
+                out routeTable) ||
             routeTable.ValueKind != JsonValueKind.Array)
+            missing.Add(
+                "routeTable");
+
+        if (missing.Count > 0)
             throw new InvalidOperationException(
-                "movement_route_topology_incomplete");
+                "movement_route_topology_missing_required: " +
+                string.Join(
+                    ", ",
+                    missing));
 
         var route =
             SelectRoute(
                 page,
                 routeTable);
+
+        ReportTopologyDiagnostics(
+            topology,
+            graph,
+            route);
 
         var trackAddresses =
             TrackAddressMap(root);
