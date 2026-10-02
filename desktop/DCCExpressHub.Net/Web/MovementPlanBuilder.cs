@@ -559,6 +559,81 @@ public sealed class MovementPlanBuilder
         return [];
     }
 
+    static int BlockEventDelay(
+        JsonElement root,
+        int blockId,
+        string direction,
+        string eventName)
+    {
+        if (direction is not ("forward" or "reverse") ||
+            !root.TryGetProperty(
+                "layers",
+                out var layers) ||
+            layers.ValueKind != JsonValueKind.Array)
+            return 0;
+
+        var propertyName =
+            eventName switch
+            {
+                "arrival" =>
+                    "arrivalDelayMs",
+                "arrived" =>
+                    "arrivedDelayMs",
+                "leave" =>
+                    "leaveDelayMs",
+                _ =>
+                    ""
+            };
+
+        if (propertyName.Length == 0)
+            return 0;
+
+        foreach (var layer in layers.EnumerateArray())
+        {
+            if (!layer.TryGetProperty(
+                    "elements",
+                    out var elements) ||
+                elements.ValueKind != JsonValueKind.Array)
+                continue;
+
+            foreach (var element in elements.EnumerateArray())
+            {
+                if (!string.Equals(
+                        Str(
+                            element,
+                            "type"),
+                        "trackblock",
+                        StringComparison.Ordinal) ||
+                    Int(
+                        element,
+                        "id") !=
+                    blockId ||
+                    !element.TryGetProperty(
+                        "eventConfig",
+                        out var eventConfig) ||
+                    eventConfig.ValueKind != JsonValueKind.Object ||
+                    !eventConfig.TryGetProperty(
+                        direction,
+                        out var directionConfig) ||
+                    directionConfig.ValueKind != JsonValueKind.Object ||
+                    !directionConfig.TryGetProperty(
+                        propertyName,
+                        out var rawDelay) ||
+                    rawDelay.ValueKind != JsonValueKind.Number ||
+                    !rawDelay.TryGetInt32(
+                        out var delayMs))
+                    continue;
+
+                return Math.Clamp(
+                    delayMs,
+                    0,
+                    600000);
+            }
+        }
+
+        return 0;
+    }
+
     static MovementSensorCondition[] ApproachRule(
         MovementPageModel _page,
         int blockId,
@@ -1297,19 +1372,37 @@ public sealed class MovementPlanBuilder
                             to.BlockId.Value,
                             root,
                             routeDirection),
+                    ApproachDelayMs =
+                        BlockEventDelay(
+                            root,
+                            to.BlockId.Value,
+                            routeDirection,
+                            "arrival"),
                     DepartWhen =
                         [],
                     LeaveWhen =
                         leave.Conditions,
                     LeaveWhenExplicit =
                         leave.Explicit,
+                    LeaveDelayMs =
+                        BlockEventDelay(
+                            root,
+                            from.BlockId.Value,
+                            routeDirection,
+                            "leave"),
                     ArrivedWhen =
                         ArrivalRule(
                             page,
                             to.BlockId.Value,
                             blockSensors,
                             root,
-                            routeDirection)
+                            routeDirection),
+                    ArrivedDelayMs =
+                        BlockEventDelay(
+                            root,
+                            to.BlockId.Value,
+                            routeDirection,
+                            "arrived")
                 });
         }
 
