@@ -93,23 +93,39 @@ function notifyAudioEnabled():
   }
 }
 
-function reportBackendMovementAudio(
+function reportBackendAudio(
   requestId: string,
   ok: boolean
 ): void {
   if (
-    !requestId.startsWith(
-      "movement-backend:"
-    ) ||
     !isControlStationRuntimeActive()
   ) {
     return;
   }
 
-  wsApi.movementAudioComplete(
-    requestId,
-    ok
-  );
+  if (
+    requestId.startsWith(
+      "movement-backend:"
+    )
+  ) {
+    wsApi.movementAudioComplete(
+      requestId,
+      ok
+    );
+
+    return;
+  }
+
+  if (
+    requestId.startsWith(
+      "script-backend:"
+    )
+  ) {
+    wsApi.scriptAudioComplete(
+      requestId,
+      ok
+    );
+  }
 }
 
 function settlePending(
@@ -171,7 +187,7 @@ export function installBroadcastAudioRuntime():
           true
         );
 
-        reportBackendMovementAudio(
+        reportBackendAudio(
           data.requestId,
           true
         );
@@ -195,7 +211,7 @@ export function installBroadcastAudioRuntime():
           ok
         );
 
-        reportBackendMovementAudio(
+        reportBackendAudio(
           data.requestId,
           ok
         );
