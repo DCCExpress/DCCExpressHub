@@ -273,7 +273,7 @@ namespace DCCExpressHub.Net.CommandCenter
                          * first write after opening the USB COM port.
                          */
                         await WriteCoreAsync(
-                            "<s><#><!Q>",
+                            "<s><#><!Q><Q>",
                             stoppingToken);
 
                         if (IsSerial)
