@@ -597,13 +597,26 @@ export default function BlockEventConfigPropertyEditor({
 
 
 
-  const configuredCount = SENSOR_GROUP_ORDER.reduce(
-    (sum, group) =>
-      sum +
-      block.eventConfig.forward[group].length +
-      block.eventConfig.reverse[group].length,
-    0
-  );
+  const configuredCount =
+    SENSOR_GROUP_ORDER.reduce(
+      (sum, group) =>
+        sum +
+        block.eventConfig.forward[group].length +
+        block.eventConfig.reverse[group].length,
+      0
+    ) +
+    [
+      block.eventConfig.forward.arrivalDelayMs,
+      block.eventConfig.forward.arrivedDelayMs,
+      block.eventConfig.forward.leaveDelayMs,
+      block.eventConfig.reverse.arrivalDelayMs,
+      block.eventConfig.reverse.arrivedDelayMs,
+      block.eventConfig.reverse.leaveDelayMs,
+    ].filter(
+      delayMs =>
+        delayMs >
+        0
+    ).length;
 
   const openEditor = () => {
     setDraft(
