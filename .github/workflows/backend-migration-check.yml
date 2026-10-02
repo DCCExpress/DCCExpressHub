@@ -30,7 +30,7 @@ jobs:
           cache-dependency-path: web-ui/package-lock.json
       - name: Install
         run: npm ci --prefix web-ui
-      - name: Test
-        run: npm test --prefix web-ui
       - name: Build
         run: npm run build --prefix web-ui
+      - name: Test
+        run: npm test --prefix web-ui
