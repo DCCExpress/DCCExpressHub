@@ -27,6 +27,7 @@ import {
   IconPlayerStop,
   IconPlus,
   IconRoute,
+  IconTrash,
   IconX,
 } from "@tabler/icons-react";
 
@@ -132,6 +133,7 @@ function MovementCard({
   catalog,
   onEnabledChange,
   onOpenEditor,
+  onDelete,
 }: {
   page:
     MovementPage;
@@ -142,6 +144,7 @@ function MovementCard({
       boolean
   ) => void;
   onOpenEditor: () => void;
+  onDelete: () => void;
 }) {
   const mt =
     useMovementTranslation();
@@ -309,6 +312,27 @@ function MovementCard({
                 }
               >
                 <IconEdit
+                  size={15}
+                />
+              </ActionIcon>
+            </Tooltip>
+
+            <Tooltip
+              withArrow
+              label={mt("movementDelete")}
+            >
+              <ActionIcon
+                size="sm"
+                variant="light"
+                color="red"
+                disabled={
+                  running
+                }
+                onClick={
+                  onDelete
+                }
+              >
+                <IconTrash
                   size={15}
                 />
               </ActionIcon>
@@ -720,6 +744,64 @@ export default function MovementPagesTable({
       }
     };
 
+  const deletePage =
+    (
+      page:
+        MovementPage
+    ): void => {
+      const runtime =
+        getMovementEngineState(
+          page.id
+        );
+
+      if (
+        runtime.status === "running" ||
+        runtime.status === "stopping"
+      ) {
+        showNotification({
+          color: "orange",
+          title:
+            mt("movementRunningTitle"),
+          message:
+            mt("movementStopBeforeDelete"),
+        });
+
+        return;
+      }
+
+      if (
+        !window.confirm(
+          mt(
+            "movementDeleteConfirm",
+            {
+              name:
+                page.name,
+            }
+          )
+        )
+      ) {
+        return;
+      }
+
+      const pages =
+        document.pages.filter(
+          current =>
+            current.id !==
+            page.id
+        );
+
+      void persist({
+        ...document,
+        pages,
+        activePageId:
+          document.activePageId ===
+            page.id
+            ? pages[0]?.id ??
+              ""
+            : document.activePageId,
+      });
+    };
+
   const createPage =
     (): void => {
       const page =
@@ -980,6 +1062,12 @@ export default function MovementPagesTable({
                           ),
                       });
                     }
+                  }
+                  onDelete={
+                    () =>
+                      deletePage(
+                        page
+                      )
                   }
                 />
               )
