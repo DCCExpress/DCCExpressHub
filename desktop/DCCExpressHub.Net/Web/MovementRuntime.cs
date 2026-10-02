@@ -412,6 +412,28 @@ public sealed class MovementRuntime
         return any;
     }
 
+    bool ArrivalSatisfied(
+        MovementPlanLegModel leg)
+    {
+        /*
+         * Match the proven browser runtime exactly:
+         * custom/configured ARRIVED refines the stopping point but never
+         * commits the locomotive into a logical block before that block's own
+         * occupancy sensor confirms physical membership.
+         */
+        var destinationSensor =
+            leg.To.SensorAddress;
+
+        return
+            destinationSensor is >= 1 and <= 65535 &&
+            _layout.TryGetSensorState(
+                (ushort)destinationSensor.Value,
+                out var occupied) &&
+            occupied &&
+            ConditionsSatisfied(
+                leg.ArrivedWhen);
+    }
+
     MovementResourceEventRule EffectiveResourceRule(
         MovementPageModel page,
         MovementPlanResourceModel resource,
@@ -1646,6 +1668,101 @@ public sealed class MovementRuntime
                 leg.From.Name,
             setInfo:
                 true);
+    }
+
+    async Task WaitForAfterLeave(
+        Execution execution,
+        MovementPlanLegModel leg)
+    {
+        if (leg.AfterLeaveWhen.Length == 0)
+            return;
+
+        while (!ConditionsSatisfied(
+                   leg.AfterLeaveWhen))
+        {
+            execution.Cancellation.Token.ThrowIfCancellationRequested();
+
+            await Task.Delay(
+                100,
+                execution.Cancellation.Token);
+        }
+    }
+
+    async Task FinishSourceBlockRelease(
+        Execution execution,
+        MovementPlanLegModel leg,
+        BlockLeaveState blockLeaveState,
+        IReadOnlyList<MovementPlanResourceModel> pendingTurnouts)
+    {
+        await MaybeRunBlockLeave(
+            execution,
+            leg,
+            blockLeaveState);
+
+        await WaitForBlockLeave(
+            execution,
+            leg,
+            blockLeaveState);
+
+        await WaitForAfterLeave(
+            execution,
+            leg);
+
+        foreach (var turnout in pendingTurnouts)
+            await RunLegacyResourceLeaveIfNeeded(
+                execution,
+                turnout);
+
+        if (leg.From.BlockId is >= 1 and <= 65535)
+            _layout.RemoveBlock(
+                (ushort)leg.From.BlockId.Value);
+
+        if (leg.LeaveWhen.Length == 0)
+            await RunBlockLeaveFallback(
+                execution,
+                leg,
+                blockLeaveState);
+
+        EmitTrainEvent(
+            execution,
+            "afterLeave",
+            leg.From);
+
+        await RunActions(
+            execution,
+            leg.From.Key,
+            "afterLeave");
+    }
+
+    void StartBackgroundSourceBlockRelease(
+        Execution execution,
+        MovementPlanLegModel leg,
+        BlockLeaveState blockLeaveState,
+        IReadOnlyList<MovementPlanResourceModel> pendingTurnouts)
+    {
+        var task =
+            FinishSourceBlockRelease(
+                execution,
+                leg,
+                blockLeaveState,
+                pendingTurnouts)
+            .ContinueWith(
+                completed =>
+                {
+                    if (completed.IsFaulted &&
+                        !execution.Cancellation.IsCancellationRequested)
+                        _log.LogError(
+                            completed.Exception,
+                            "Movement background source block release failed: {Movement} {Block}",
+                            execution.Page.Name,
+                            leg.From.Name);
+                },
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+
+        execution.BackgroundTasks.Add(
+            task);
     }
 
     bool TargetBlockBasicallyFree(
