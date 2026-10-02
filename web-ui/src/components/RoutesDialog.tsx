@@ -865,160 +865,6 @@ export default function RoutesDialog({
       }
     };
 
-  const routeUsedByOtherMovement =
-    (
-      routeKey:
-        string
-    ): boolean =>
-      movements.pages.some(
-        page =>
-          page.routeKey ===
-            routeKey &&
-          page.id !==
-            editingMovementId
-      );
-
-  const assignRouteToMovement =
-    async (
-      route:
-        ClientRouteGraphBuildResult["routes"][number]
-    ): Promise<void> => {
-      const routePage =
-        previewMovementPage(
-          route
-        );
-
-      if (
-        routeUsedByOtherMovement(
-          routePage.routeKey
-        )
-      ) {
-        showNotification({
-          color: "orange",
-          title:
-            t(
-              "ui.routes"
-            ),
-          message:
-            "This route is already used by another Movement.",
-        });
-
-        return;
-      }
-
-      const existing =
-        editingMovementId ===
-          null
-          ? null
-          : movements.pages.find(
-              page =>
-                page.id ===
-                  editingMovementId
-            ) ??
-            null;
-
-      const nextPage: MovementPage =
-        existing
-          ? {
-              ...existing,
-              routeKey:
-                routePage.routeKey,
-              fromBlockId:
-                routePage.fromBlockId,
-              viaBlockIds:
-                routePage.viaBlockIds,
-              toBlockId:
-                routePage.toBlockId,
-              blockRules: [],
-              resourceEventRules: [],
-              safetyRules: [],
-              actions: [],
-            }
-          : {
-              ...createMovementPage(
-                routePage.name
-              ),
-              routeKey:
-                routePage.routeKey,
-              fromBlockId:
-                routePage.fromBlockId,
-              viaBlockIds:
-                routePage.viaBlockIds,
-              toBlockId:
-                routePage.toBlockId,
-            };
-
-      const next: MovementDocument = existing
-        ? {
-            ...movements,
-            pages:
-              movements.pages.map(
-                page =>
-                  page.id ===
-                    existing.id
-                    ? nextPage
-                    : page
-              ),
-            activePageId:
-              nextPage.id,
-          }
-        : {
-            ...movements,
-            pages: [
-              ...movements.pages,
-              nextPage,
-            ],
-            activePageId:
-              nextPage.id,
-          };
-
-      setAssigningRoute(
-        true
-      );
-
-      try {
-        await saveAutomationMovement(
-          next
-        );
-
-        onMovementsChange(
-          next
-        );
-
-        showNotification({
-          color: "teal",
-          title:
-            t(
-              "ui.routes"
-            ),
-          message:
-            existing
-              ? "Movement route updated."
-              : "Movement added.",
-        });
-
-        onClose();
-      } catch (assignError) {
-        showNotification({
-          color: "red",
-          title:
-            t(
-              "ui.error"
-            ),
-          message:
-            assignError instanceof Error
-              ? assignError.message
-              : String(
-                  assignError
-                ),
-        });
-      } finally {
-        setAssigningRoute(
-          false
-        );
-      }
-    };
-
   return (
     <Modal
       opened={opened}
@@ -1666,12 +1512,6 @@ export default function RoutesDialog({
                       </Table.Th>
 
                       <Table.Th
-                        style={{ width: 110 }}
-                      >
-                        Movement
-                      </Table.Th>
-
-                      <Table.Th
                         style={{ width: 100 }}
                       >
                         {t("ui.test")}
@@ -1729,32 +1569,6 @@ export default function RoutesDialog({
                               }
                             >
                               {t("ui.preview")}
-                            </Button>
-                          </Table.Td>
-
-                          <Table.Td>
-                            <Button
-                              size="xs"
-                              variant="light"
-                              color="teal"
-                              disabled={
-                                assigningRoute ||
-                                routeUsedByOtherMovement(
-                                  previewMovementPage(
-                                    route
-                                  ).routeKey
-                                )
-                              }
-                              loading={
-                                assigningRoute
-                              }
-                              onClick={() =>
-                                void assignRouteToMovement(
-                                  route
-                                )
-                              }
-                            >
-                              Select
                             </Button>
                           </Table.Td>
 
