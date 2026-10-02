@@ -18,6 +18,10 @@ import {
   useState,
 } from "react";
 
+import {
+  useTranslation,
+} from "react-i18next";
+
 import type {
   Loco,
   LocoCalibrationProfile,
@@ -213,6 +217,8 @@ export default function LocoCalibrationTab({
   loco,
   onPatch,
 }: Props) {
+  const { t } =
+    useTranslation();
   const [
     runtime,
     setRuntime,
@@ -578,7 +584,7 @@ export default function LocoCalibrationTab({
       setRouteError(
         reverse
           ? null
-          : "No unique reverse route exists for this physical path."
+          : t("locodialog.calibration.reverseMissingLong")
       );
 
       if (reverse) {
@@ -595,7 +601,7 @@ export default function LocoCalibrationTab({
         )
       : loco.calibration
           ?.routeLabel ??
-        "No route selected";
+        t("locodialog.calibration.noRoute");
 
   const runCommand =
     async (
@@ -722,9 +728,9 @@ export default function LocoCalibrationTab({
             activeForOtherLoco && (
               <Alert
                 color="orange"
-                title="Calibration is busy"
+                title={t("locodialog.calibration.busy")}
               >
-                Another locomotive is currently being calibrated.
+                {t("locodialog.calibration.busyOther")}
               </Alert>
             )
           }
@@ -733,7 +739,7 @@ export default function LocoCalibrationTab({
             runtime.error && (
               <Alert
                 color="red"
-                title="Calibration error"
+                title={t("locodialog.calibration.error")}
               >
                 {runtime.error}
               </Alert>
@@ -753,7 +759,7 @@ export default function LocoCalibrationTab({
                   <Text
                     fw={700}
                   >
-                    Calibration route
+                    {t("locodialog.calibration.route")}
                   </Text>
 
                   <Text
@@ -770,7 +776,7 @@ export default function LocoCalibrationTab({
                         size="xs"
                         c="red"
                       >
-                        Reverse route is missing or ambiguous.
+                        {t("locodialog.calibration.reverseMissing")}
                       </Text>
                     )
                   }
@@ -785,7 +791,7 @@ export default function LocoCalibrationTab({
                     activeForThisLoco
                   }
                 >
-                  Select route
+                  {t("locodialog.calibration.selectRoute")}
                 </Button>
               </Group>
 
@@ -794,7 +800,7 @@ export default function LocoCalibrationTab({
                 align="flex-end"
               >
                 <NumberInput
-                  label="Route length (mm)"
+                  label={t("locodialog.calibration.routeLength")}
                   value={
                     routeLengthMm
                   }
@@ -819,7 +825,7 @@ export default function LocoCalibrationTab({
                 />
 
                 <NumberInput
-                  label="Max calibration speed"
+                  label={t("locodialog.calibration.maxSpeed")}
                   value={
                     maxSpeed
                   }
@@ -851,7 +857,7 @@ export default function LocoCalibrationTab({
                 />
 
                 <NumberInput
-                  label="Speed step"
+                  label={t("locodialog.calibration.speedStep")}
                   value={
                     speedStep
                   }
@@ -1027,7 +1033,7 @@ export default function LocoCalibrationTab({
                 >
                   {
                     runtime.info ??
-                    "Ready"
+                    t("locodialog.calibration.ready")
                   }
                 </Text>
               </Group>
@@ -1043,16 +1049,20 @@ export default function LocoCalibrationTab({
                 justify="space-between"
               >
                 <Text fw={700}>
-                  Calibration results
+                  {t("locodialog.calibration.results")}
                 </Text>
 
                 <Text
                   size="xs"
                   c="dimmed"
                 >
-                  {
-                    summary.length
-                  } speed points
+                  {t(
+                    "locodialog.calibration.speedPoints",
+                    {
+                      count:
+                        summary.length,
+                    }
+                  )}
                 </Text>
               </Group>
 
@@ -1069,19 +1079,19 @@ export default function LocoCalibrationTab({
                   <Table.Thead>
                     <Table.Tr>
                       <Table.Th>
-                        Speed
+                        {t("locodialog.calibration.speed")}
                       </Table.Th>
                       <Table.Th>
-                        Direction
+                        {t("locodialog.calibration.direction")}
                       </Table.Th>
                       <Table.Th>
-                        Time
+                        {t("locodialog.calibration.time")}
                       </Table.Th>
                       <Table.Th>
-                        Distance
+                        {t("locodialog.calibration.distance")}
                       </Table.Th>
                       <Table.Th>
-                        Real speed
+                        {t("locodialog.calibration.realSpeed")}
                       </Table.Th>
                     </Table.Tr>
                   </Table.Thead>
@@ -1100,7 +1110,7 @@ export default function LocoCalibrationTab({
                                 c="dimmed"
                                 size="sm"
                               >
-                                No calibration measurements yet.
+                                {t("locodialog.calibration.noResults")}
                               </Text>
                             </Table.Td>
                           </Table.Tr>
@@ -1176,7 +1186,7 @@ export default function LocoCalibrationTab({
               false
             )
         }
-        title="Select calibration route"
+        title={t("locodialog.calibration.selectTitle")}
         size="min(1200px, 94vw)"
         centered
         draggable
@@ -1218,7 +1228,7 @@ export default function LocoCalibrationTab({
             size="sm"
             c="dimmed"
           >
-            The selected route must have one unique physical reverse route. Calibration alternates outbound and return runs automatically.
+            {t("locodialog.calibration.selectHint")}
           </Text>
 
           <ScrollArea
@@ -1238,19 +1248,19 @@ export default function LocoCalibrationTab({
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>
-                    From
+                    {t("locodialog.calibration.from")}
                   </Table.Th>
                   <Table.Th>
-                    Via
+                    {t("locodialog.calibration.via")}
                   </Table.Th>
                   <Table.Th>
-                    To
+                    {t("locodialog.calibration.to")}
                   </Table.Th>
                   <Table.Th>
                     Direction
                   </Table.Th>
                   <Table.Th>
-                    Reverse
+                    {t("locodialog.calibration.reverse")}
                   </Table.Th>
                   <Table.Th />
                 </Table.Tr>
@@ -1264,7 +1274,7 @@ export default function LocoCalibrationTab({
                         <Table.Td
                           colSpan={6}
                         >
-                          Loading routes…
+                          {t("locodialog.calibration.loadingRoutes")}
                         </Table.Td>
                       </Table.Tr>
                     )
