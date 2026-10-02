@@ -22,6 +22,10 @@ import {
   useState,
 } from "react";
 
+import {
+  useTranslation,
+} from "react-i18next";
+
 import AppModal from "@/components/common/AppModal";
 
 import type {
@@ -450,6 +454,9 @@ export default function RoutePreviewDialog({
   page,
   layout,
 }: Props) {
+  const { t } =
+    useTranslation();
+
   const [
     plan,
     setPlan,
@@ -979,7 +986,7 @@ export default function RoutePreviewDialog({
                                             size="xs"
                                             c="dimmed"
                                           >
-                                            Starts after the sensor condition is satisfied.
+                                            {t("ui.delayAfterSensorCondition")}
                                           </Text>
                                         </>
                                       )
