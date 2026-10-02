@@ -3,6 +3,7 @@ import {
   Badge,
   Button,
   Card,
+  Divider,
   Group,
   NumberInput,
   ScrollArea,
@@ -112,6 +113,8 @@ const TEXT = {
     leave: "Elhagyás",
     sensor: "Szenzor",
     delayMs: "Késleltetés (ms)",
+    delayHelp:
+      "A késleltetés a teljes szenzorfeltétel teljesülése után indul.",
     addSensor: "Szenzor hozzáadása",
     empty: "Nincs külön feltétel.",
     occupancyFallbackOn:
@@ -120,7 +123,7 @@ const TEXT = {
       "Üresen a blokk occupancy szenzorának OFF állapota az alapértelmezett.",
     noFallback:
       "Üresen ehhez az eseményhez nincs automatikus szenzorfeltétel.",
-    allMustMatch: "Az összes felsorolt szenzornak ON állapotban kell lennie (AND).",
+    allMustMatch: "A felsorolt szenzorfeltételek ÉS kapcsolatban vannak.",
     copyToReverse: "Forward → Reverse másolás",
     copyToForward: "Reverse → Forward másolás",
     cancel: "Mégse",
@@ -148,6 +151,8 @@ const TEXT = {
     leave: "Leave",
     sensor: "Sensor",
     delayMs: "Delay (ms)",
+    delayHelp:
+      "The delay starts after the complete sensor condition has been satisfied.",
     addSensor: "Add sensor",
     empty: "No explicit condition.",
     occupancyFallbackOn:
@@ -156,7 +161,7 @@ const TEXT = {
       "When empty, the block occupancy sensor OFF state is used as the default.",
     noFallback:
       "When empty, this event has no automatic sensor condition.",
-    allMustMatch: "All listed sensors must be ON (AND).",
+    allMustMatch: "The listed sensor conditions are combined with AND.",
     copyToReverse: "Copy Forward → Reverse",
     copyToForward: "Copy Reverse → Forward",
     cancel: "Cancel",
@@ -184,6 +189,8 @@ const TEXT = {
     leave: "Verlassen",
     sensor: "Sensor",
     delayMs: "Verzögerung (ms)",
+    delayHelp:
+      "Die Verzögerung beginnt, nachdem die gesamte Sensorbedingung erfüllt wurde.",
     addSensor: "Sensor hinzufügen",
     empty: "Keine explizite Bedingung.",
     occupancyFallbackOn:
@@ -192,7 +199,7 @@ const TEXT = {
       "Leer: standardmäßig wird der OFF-Zustand des Block-Belegtmelders verwendet.",
     noFallback:
       "Leer: für dieses Ereignis gibt es keine automatische Sensorbedingung.",
-    allMustMatch: "Alle aufgeführten Sensoren müssen ON sein (AND).",
+    allMustMatch: "Die aufgeführten Sensorbedingungen sind mit UND verknüpft.",
     copyToReverse: "Forward → Reverse kopieren",
     copyToForward: "Reverse → Forward kopieren",
     cancel: "Abbrechen",
@@ -723,7 +730,7 @@ export default function BlockEventConfigPropertyEditor({
     return (
       <Card key={group} withBorder padding="sm">
         <Stack gap="xs">
-          <Group justify="space-between" align="flex-end" wrap="wrap">
+          <Group justify="space-between" align="center" wrap="wrap">
             <Group gap="xs">
               <Text fw={700} size="sm">
                 {text[group]}
@@ -733,48 +740,24 @@ export default function BlockEventConfigPropertyEditor({
               </Badge>
             </Group>
 
-            <Group gap="xs" align="flex-end">
-              <NumberInput
-                size="xs"
-                label={text.delayMs}
-                value={delayMs}
-                min={0}
-                max={600000}
-                step={100}
-                allowDecimal={false}
-                clampBehavior="strict"
-                w={150}
-                onChange={
-                  value =>
-                    updateDelay(
-                      direction,
-                      group,
-                      typeof value === "number"
-                        ? value
-                        : Number(value) || 0
-                    )
-                }
-              />
-
-              <Button
-                size="compact-xs"
-                variant="light"
-                leftSection={<IconPlus size={13} />}
-                disabled={!next}
-                onClick={() => {
-                  if (!next) return;
-                  updateGroup(direction, group, [
-                    ...conditions,
-                    {
-                      sensor: Number(next.value),
-                      state: true,
-                    },
-                  ]);
-                }}
-              >
-                {text.addSensor}
-              </Button>
-            </Group>
+            <Button
+              size="compact-xs"
+              variant="light"
+              leftSection={<IconPlus size={13} />}
+              disabled={!next}
+              onClick={() => {
+                if (!next) return;
+                updateGroup(direction, group, [
+                  ...conditions,
+                  {
+                    sensor: Number(next.value),
+                    state: true,
+                  },
+                ]);
+              }}
+            >
+              {text.addSensor}
+            </Button>
           </Group>
 
           {conditions.length === 0 ? (
@@ -862,13 +845,53 @@ export default function BlockEventConfigPropertyEditor({
                 </Group>
               ))}
 
-              {conditions.length > 1 && (
-                <Text size="xs" c="dimmed">
-                  {text.allMustMatch}
-                </Text>
-              )}
+              <Text size="xs" c="dimmed">
+                {text.allMustMatch}
+              </Text>
             </>
           )}
+
+          <Divider />
+
+          <Group
+            justify="space-between"
+            align="flex-end"
+            wrap="wrap"
+            gap="sm"
+          >
+            <Text
+              size="xs"
+              c="dimmed"
+              style={{
+                flex: 1,
+                minWidth: 220,
+              }}
+            >
+              {text.delayHelp}
+            </Text>
+
+            <NumberInput
+              size="xs"
+              label={text.delayMs}
+              value={delayMs}
+              min={0}
+              max={600000}
+              step={100}
+              allowDecimal={false}
+              clampBehavior="strict"
+              w={150}
+              onChange={
+                value =>
+                  updateDelay(
+                    direction,
+                    group,
+                    typeof value === "number"
+                      ? value
+                      : Number(value) || 0
+                  )
+              }
+            />
+          </Group>
         </Stack>
       </Card>
     );
