@@ -770,6 +770,9 @@ public sealed class CalibrationRuntime
                 pageId,
                 emergencyStop);
 
+        if (emergencyStop)
+            _movement.EmergencyStop();
+
         cancellation.Cancel();
 
         return true;
