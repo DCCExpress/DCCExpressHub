@@ -583,34 +583,18 @@ public sealed class MovementPlanBuilder
     }
 
     static MovementSensorCondition[] ApproachRule(
-        MovementPageModel page,
+        MovementPageModel _page,
         int blockId,
         JsonElement root,
-        string direction)
-    {
-        var configured =
-            BlockEventConditions(
-                root,
-                blockId,
-                direction,
-                "arrival");
-
-        if (configured.Length > 0)
-            return configured;
-
-        var explicitRule =
-            BlockRule(
-                page,
-                blockId);
-
-        return explicitRule?.ApproachWhen.Length > 0
-            ? CloneConditions(
-                explicitRule.ApproachWhen)
-            : [];
-    }
+        string direction) =>
+        BlockEventConditions(
+            root,
+            blockId,
+            direction,
+            "arrival");
 
     static MovementSensorCondition[] ArrivalRule(
-        MovementPageModel page,
+        MovementPageModel _page,
         int blockId,
         IReadOnlyDictionary<int, int> blockSensors,
         JsonElement root,
@@ -625,15 +609,6 @@ public sealed class MovementPlanBuilder
 
         if (configured.Length > 0)
             return configured;
-
-        var explicitRule =
-            BlockRule(
-                page,
-                blockId);
-
-        if (explicitRule?.ArrivedWhen.Length > 0)
-            return CloneConditions(
-                explicitRule.ArrivedWhen);
 
         return blockSensors.TryGetValue(
                 blockId,
@@ -656,7 +631,7 @@ public sealed class MovementPlanBuilder
         MovementSensorCondition[] Conditions,
         bool Explicit)
         LeaveRule(
-            MovementPageModel page,
+            MovementPageModel _page,
             int blockId,
             JsonElement root,
             string direction)
@@ -668,24 +643,9 @@ public sealed class MovementPlanBuilder
                 direction,
                 "leave");
 
-        if (configured.Length > 0)
-            return (
-                configured,
-                true);
-
-        var explicitRule =
-            BlockRule(
-                page,
-                blockId);
-
-        return explicitRule?.LeaveWhen.Length > 0
-            ? (
-                CloneConditions(
-                    explicitRule.LeaveWhen),
-                true)
-            : (
-                [],
-                false);
+        return (
+            configured,
+            configured.Length > 0);
     }
 
     public MovementPlanModel BuildForBlockNames(
@@ -1315,11 +1275,6 @@ public sealed class MovementPlanBuilder
                     root,
                     routeDirection);
 
-            var fromRule =
-                BlockRule(
-                    page,
-                    from.BlockId.Value);
-
             legs.Add(
                 new MovementPlanLegModel
                 {
@@ -1343,8 +1298,7 @@ public sealed class MovementPlanBuilder
                             root,
                             routeDirection),
                     DepartWhen =
-                        CloneConditions(
-                            fromRule?.DepartWhen),
+                        [],
                     LeaveWhen =
                         leave.Conditions,
                     LeaveWhenExplicit =
