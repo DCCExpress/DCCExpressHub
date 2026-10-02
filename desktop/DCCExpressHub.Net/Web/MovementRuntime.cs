@@ -3041,6 +3041,9 @@ public sealed class MovementRuntime
         }
         finally
         {
+            ReleaseAllPreparedLegs(
+                execution);
+
             await PersistMovementTimingAsync(
                 execution.Page.Id,
                 execution.State.StartedAt,
@@ -3357,6 +3360,9 @@ public sealed class MovementRuntime
         lock (execution.ExternalHolds)
             execution.ExternalHolds.Add(
                 owner);
+
+        ReleaseAllPreparedLegs(
+            execution);
 
         execution.Moving = false;
         execution.DesiredSpeed = 0;
