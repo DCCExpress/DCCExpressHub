@@ -127,6 +127,7 @@ public sealed class MovementPlanBuilder
                     "toBlockId",
                     "blockPath",
                     "nodes",
+                    "partPath",
                     "edgePath",
                     "turnoutStates",
                     "locoDirection"
@@ -1216,7 +1217,8 @@ public sealed class MovementPlanBuilder
         void PushBlock(
             int id,
             string name,
-            int nodeIndex)
+            int nodeIndex,
+            bool physical = true)
         {
             var resource =
                 new MovementPlanResourceModel
@@ -1241,21 +1243,20 @@ public sealed class MovementPlanBuilder
                         nodeIndex
                 };
 
-            resources.Add(resource);
-            blocks.Add(resource);
+            if (physical)
+                resources.Add(
+                    resource);
+
+            blocks.Add(
+                resource);
         }
 
-        var source =
-            blockEntries[0];
-
-        PushBlock(
-            source.Id,
-            source.Name,
-            source.NodeIndex);
-
         JsonElement[] edges =
-            route.TryGetProperty("edgePath", out var edgePath) &&
-            edgePath.ValueKind == JsonValueKind.Array
+            route.TryGetProperty(
+                "edgePath",
+                out var edgePath) &&
+            edgePath.ValueKind ==
+                JsonValueKind.Array
                 ? edgePath
                     .EnumerateArray()
                     .Select(edge =>
@@ -1267,133 +1268,46 @@ public sealed class MovementPlanBuilder
             routeNodes
                 .EnumerateArray()
                 .Select(node =>
-                    node.ValueKind == JsonValueKind.String
-                        ? node.GetString() ?? ""
+                    node.ValueKind ==
+                        JsonValueKind.String
+                        ? node.GetString() ??
+                          ""
                         : "")
                 .ToArray();
 
-        for (
-            var nodeIndex = 0;
-            nodeIndex <
-                routeNodeNames.Length;
-            nodeIndex++)
+        JsonElement[] partPath =
+            route.TryGetProperty(
+                "partPath",
+                out var rawPartPath) &&
+            rawPartPath.ValueKind ==
+                JsonValueKind.Array
+                ? rawPartPath
+                    .EnumerateArray()
+                    .Where(part =>
+                        part.ValueKind ==
+                            JsonValueKind.Object)
+                    .Select(part =>
+                        part.Clone())
+                    .ToArray()
+                : [];
+
+        var usesSectionParts =
+            partPath.Length >
+            0;
+
+        void PushTurnouts(
+            JsonElement edge,
+            int nodeIndex)
         {
-            var nodeName =
-                routeNodeNames[
-                    nodeIndex];
-
-            if (string.IsNullOrWhiteSpace(
-                    nodeName))
-                continue;
-
-            nodesByName.TryGetValue(
-                nodeName,
-                out var node);
-
-            var detectors =
-                new HashSet<int>();
-
-            if (node.ValueKind ==
-                    JsonValueKind.Object)
-            {
-                if (node.TryGetProperty("detectors", out var rawDetectors) &&
-                    rawDetectors.ValueKind == JsonValueKind.Array)
-                {
-                    foreach (var detector in rawDetectors.EnumerateArray())
-                    {
-                        var address =
-                            Int(
-                                detector,
-                                "address");
-
-                        if (ValidId(
-                                address))
-                            detectors.Add(
-                                address);
-                    }
-                }
-
-                if (node.TryGetProperty("elementIds", out var rawElementIds) &&
-                    rawElementIds.ValueKind == JsonValueKind.Array)
-                {
-                    foreach (var elementId in rawElementIds.EnumerateArray())
-                    {
-                        if (!elementId.TryGetInt32(out var id))
-                            continue;
-
-                        if (trackAddresses.TryGetValue(
-                                id,
-                                out var address))
-                            detectors.Add(
-                                address);
-                    }
-                }
-            }
-
-            var trackName =
-                node.ValueKind ==
-                    JsonValueKind.Object
-                    ? Str(
-                        node,
-                        "trackName")
-                    : "";
-
-            resources.Add(
-                new MovementPlanResourceModel
-                {
-                    Key =
-                        "segment:" +
-                        nodeName,
-                    Kind =
-                        "segment",
-                    Name =
-                        nodeName,
-                    Label =
-                        string.IsNullOrWhiteSpace(
-                            trackName)
-                            ? nodeName
-                            : nodeName +
-                              " · " +
-                              trackName.Trim(),
-                    NodeIndex =
-                        nodeIndex,
-                    Detectors =
-                        detectors
-                            .OrderBy(x => x)
-                            .ToArray()
-                });
-
-            foreach (var block in blockEntries)
-            {
-                if (block.NodeIndex !=
-                        nodeIndex ||
-                    block.Id ==
-                        source.Id ||
-                    block.Id ==
-                        blockEntries[^1].Id ||
-                    blocks.Any(existing =>
-                        existing.BlockId ==
-                        block.Id))
-                    continue;
-
-                PushBlock(
-                    block.Id,
-                    block.Name,
-                    block.NodeIndex);
-            }
-
-            if (nodeIndex >=
-                edges.Length)
-                continue;
-
-            var edge =
-                edges[nodeIndex];
-
             JsonElement[] passages;
 
-            if (edge.TryGetProperty("turnoutPath", out var rawTurnoutPath) &&
-                rawTurnoutPath.ValueKind == JsonValueKind.Array &&
-                rawTurnoutPath.GetArrayLength() > 0)
+            if (edge.TryGetProperty(
+                    "turnoutPath",
+                    out var rawTurnoutPath) &&
+                rawTurnoutPath.ValueKind ==
+                    JsonValueKind.Array &&
+                rawTurnoutPath.GetArrayLength() >
+                    0)
             {
                 passages =
                     rawTurnoutPath
@@ -1472,7 +1386,8 @@ public sealed class MovementPlanBuilder
                         $"Turnout {fallbackAddress}");
 
                 var detectorAddress =
-                    ValidId(elementId) &&
+                    ValidId(
+                        elementId) &&
                     trackAddresses.TryGetValue(
                         elementId,
                         out var mappedAddress)
@@ -1483,7 +1398,8 @@ public sealed class MovementPlanBuilder
                     new MovementPlanResourceModel
                     {
                         Key =
-                            ValidId(elementId)
+                            ValidId(
+                                elementId)
                                 ? $"turnout:{elementId}"
                                 : $"turnout:{Str(edge, "from")}:{Str(edge, "to")}:{passageIndex}",
                         Kind =
@@ -1493,13 +1409,15 @@ public sealed class MovementPlanBuilder
                         Label =
                             name,
                         SensorAddress =
-                            detectorAddress > 0
+                            detectorAddress >
+                                0
                                 ? detectorAddress
                                 : null,
                         NodeIndex =
                             nodeIndex,
                         Detectors =
-                            detectorAddress > 0
+                            detectorAddress >
+                                0
                                 ? [detectorAddress]
                                 : [],
                         TurnoutStates =
@@ -1508,16 +1426,351 @@ public sealed class MovementPlanBuilder
             }
         }
 
-        var destination =
-            blockEntries[^1];
+        var source =
+            blockEntries[0];
 
-        if (!blocks.Any(block =>
-                block.BlockId ==
-                destination.Id))
+        if (usesSectionParts)
+        {
+            for (
+                var nodeIndex = 0;
+                nodeIndex <
+                    routeNodeNames.Length;
+                nodeIndex++)
+            {
+                var nodeName =
+                    routeNodeNames[
+                        nodeIndex];
+
+                if (string.IsNullOrWhiteSpace(
+                        nodeName))
+                    continue;
+
+                foreach (var part in
+                         partPath.Where(part =>
+                             string.Equals(
+                                 Str(
+                                     part,
+                                     "nodeName"),
+                                 nodeName,
+                                 StringComparison.Ordinal)))
+                {
+                    var detectors =
+                        new HashSet<int>();
+
+                    if (part.TryGetProperty(
+                            "detectors",
+                            out var rawDetectors) &&
+                        rawDetectors.ValueKind ==
+                            JsonValueKind.Array)
+                        foreach (var detector in
+                                 rawDetectors
+                                     .EnumerateArray())
+                            if (detector.TryGetInt32(
+                                    out var address) &&
+                                ValidId(
+                                    address))
+                                detectors.Add(
+                                    address);
+
+                    int? partIndex =
+                        part.TryGetProperty(
+                            "partIndex",
+                            out var rawPartIndex) &&
+                        rawPartIndex.TryGetInt32(
+                            out var parsedPartIndex)
+                            ? parsedPartIndex
+                            : null;
+
+                    var partKey =
+                        Str(
+                            part,
+                            "partKey",
+                            partIndex.HasValue
+                                ? "part-" +
+                                  partIndex.Value
+                                : "part");
+
+                    resources.Add(
+                        new MovementPlanResourceModel
+                        {
+                            Key =
+                                $"part:{nodeName}:{partKey}",
+                            Kind =
+                                "segment",
+                            Name =
+                                partKey,
+                            Label =
+                                nodeName +
+                                " · " +
+                                partKey,
+                            NodeIndex =
+                                nodeIndex,
+                            Detectors =
+                                detectors
+                                    .OrderBy(value =>
+                                        value)
+                                    .ToArray(),
+                            PartIndex =
+                                partIndex
+                        });
+                }
+
+                if (nodeIndex <
+                    edges.Length)
+                    PushTurnouts(
+                        edges[
+                            nodeIndex],
+                        nodeIndex);
+            }
+
+            for (
+                var routeOrder = 0;
+                routeOrder <
+                    resources.Count;
+                routeOrder++)
+                resources[
+                    routeOrder]
+                    .RouteOrder =
+                    routeOrder;
+
+            foreach (var block in
+                     blockEntries)
+            {
+                if (!blockSensors.TryGetValue(
+                        block.Id,
+                        out var sensor))
+                    throw new InvalidOperationException(
+                        $"movement_block_sensor_missing:{block.Name}");
+
+                var matchingSegments =
+                    resources
+                        .Where(resource =>
+                            string.Equals(
+                                resource.Kind,
+                                "segment",
+                                StringComparison.Ordinal) &&
+                            resource.Detectors.Contains(
+                                sensor))
+                        .ToArray();
+
+                if (matchingSegments.Length !=
+                    1)
+                    throw new InvalidOperationException(
+                        matchingSegments.Length ==
+                            0
+                            ? $"movement_block_sensor_not_on_route:{block.Name}:#{sensor}"
+                            : $"movement_block_sensor_ambiguous:{block.Name}:#{sensor}");
+
+                var segment =
+                    matchingSegments[
+                        0];
+
+                var blockResource =
+                    new MovementPlanResourceModel
+                    {
+                        Key =
+                            $"block:{block.Id}",
+                        Kind =
+                            "block",
+                        Name =
+                            block.Name,
+                        Label =
+                            block.Name,
+                        BlockId =
+                            block.Id,
+                        SensorAddress =
+                            sensor,
+                        NodeIndex =
+                            segment.NodeIndex,
+                        RouteOrder =
+                            segment.RouteOrder,
+                        PartIndex =
+                            segment.PartIndex,
+                        PhysicalSegmentNames =
+                            [segment.Name]
+                    };
+
+                blocks.Add(
+                    blockResource);
+            }
+        }
+        else
+        {
             PushBlock(
-                destination.Id,
-                destination.Name,
-                destination.NodeIndex);
+                source.Id,
+                source.Name,
+                source.NodeIndex);
+
+            for (
+                var nodeIndex = 0;
+                nodeIndex <
+                    routeNodeNames.Length;
+                nodeIndex++)
+            {
+                var nodeName =
+                    routeNodeNames[
+                        nodeIndex];
+
+                if (string.IsNullOrWhiteSpace(
+                        nodeName))
+                    continue;
+
+                nodesByName.TryGetValue(
+                    nodeName,
+                    out var node);
+
+                var detectors =
+                    new HashSet<int>();
+
+                if (node.ValueKind ==
+                        JsonValueKind.Object)
+                {
+                    if (node.TryGetProperty(
+                            "detectors",
+                            out var rawDetectors) &&
+                        rawDetectors.ValueKind ==
+                            JsonValueKind.Array)
+                    {
+                        foreach (var detector in
+                                 rawDetectors
+                                     .EnumerateArray())
+                        {
+                            var address =
+                                Int(
+                                    detector,
+                                    "address");
+
+                            if (ValidId(
+                                    address))
+                                detectors.Add(
+                                    address);
+                        }
+                    }
+
+                    if (node.TryGetProperty(
+                            "elementIds",
+                            out var rawElementIds) &&
+                        rawElementIds.ValueKind ==
+                            JsonValueKind.Array)
+                    {
+                        foreach (var elementId in
+                                 rawElementIds
+                                     .EnumerateArray())
+                        {
+                            if (!elementId.TryGetInt32(
+                                    out var id))
+                                continue;
+
+                            if (trackAddresses.TryGetValue(
+                                    id,
+                                    out var address))
+                                detectors.Add(
+                                    address);
+                        }
+                    }
+                }
+
+                var trackName =
+                    node.ValueKind ==
+                        JsonValueKind.Object
+                        ? Str(
+                            node,
+                            "trackName")
+                        : "";
+
+                resources.Add(
+                    new MovementPlanResourceModel
+                    {
+                        Key =
+                            "segment:" +
+                            nodeName,
+                        Kind =
+                            "segment",
+                        Name =
+                            nodeName,
+                        Label =
+                            string.IsNullOrWhiteSpace(
+                                trackName)
+                                ? nodeName
+                                : nodeName +
+                                  " · " +
+                                  trackName.Trim(),
+                        NodeIndex =
+                            nodeIndex,
+                        Detectors =
+                            detectors
+                                .OrderBy(value =>
+                                    value)
+                                .ToArray()
+                    });
+
+                foreach (var block in
+                         blockEntries)
+                {
+                    if (block.NodeIndex !=
+                            nodeIndex ||
+                        block.Id ==
+                            source.Id ||
+                        block.Id ==
+                            blockEntries[^1].Id ||
+                        blocks.Any(existing =>
+                            existing.BlockId ==
+                                block.Id))
+                        continue;
+
+                    PushBlock(
+                        block.Id,
+                        block.Name,
+                        block.NodeIndex);
+                }
+
+                if (nodeIndex <
+                    edges.Length)
+                    PushTurnouts(
+                        edges[
+                            nodeIndex],
+                        nodeIndex);
+            }
+
+            var destination =
+                blockEntries[^1];
+
+            if (!blocks.Any(block =>
+                    block.BlockId ==
+                        destination.Id))
+                PushBlock(
+                    destination.Id,
+                    destination.Name,
+                    destination.NodeIndex);
+
+            for (
+                var routeOrder = 0;
+                routeOrder <
+                    resources.Count;
+                routeOrder++)
+                resources[
+                    routeOrder]
+                    .RouteOrder =
+                    routeOrder;
+        }
+
+        for (
+            var index = 1;
+            index <
+                blocks.Count;
+            index++)
+            if (blocks[
+                    index -
+                    1]
+                    .RouteOrder >=
+                blocks[
+                    index]
+                    .RouteOrder)
+                throw new InvalidOperationException(
+                    "movement_block_route_order_invalid:" +
+                    blocks[
+                        index]
+                        .Name);
 
         var legs =
             new List<MovementPlanLegModel>();
@@ -1544,6 +1797,13 @@ public sealed class MovementPlanBuilder
                 resources
                     .Where(resource =>
                     {
+                        if (usesSectionParts)
+                            return
+                                resource.RouteOrder >
+                                    from.RouteOrder &&
+                                resource.RouteOrder <=
+                                    to.RouteOrder;
+
                         if (!resource.NodeIndex.HasValue ||
                             resource.Key ==
                                 from.Key ||
@@ -1567,6 +1827,8 @@ public sealed class MovementPlanBuilder
 
                         return false;
                     })
+                    .OrderBy(resource =>
+                        resource.RouteOrder)
                     .ToArray();
 
             var routeDirection =
