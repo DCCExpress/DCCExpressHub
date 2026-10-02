@@ -44,6 +44,8 @@ public sealed class ScriptRuntime
             NewSignal();
         public ConcurrentDictionary<string, byte> DispatcherOwners { get; } =
             new(StringComparer.Ordinal);
+        public ConcurrentDictionary<string, byte> SwitchOwners { get; } =
+            new(StringComparer.Ordinal);
         public ConcurrentDictionary<string, SmartRun> SmartRuns { get; } =
             new(StringComparer.Ordinal);
     }
@@ -1979,6 +1981,10 @@ public sealed class ScriptRuntime
                 result.Error ??
                 "switchman_acquire_failed");
 
+        execution.SwitchOwners.TryAdd(
+            ownerId,
+            0);
+
         return ownerId;
     }
 
@@ -1998,11 +2004,16 @@ public sealed class ScriptRuntime
     }
 
     bool SwitchRelease(
+        Execution execution,
         string ownerId)
     {
         _switchMan.ReleaseOwned(
             null,
             ownerId);
+
+        execution.SwitchOwners.TryRemove(
+            ownerId,
+            out _);
 
         return true;
     }
@@ -2056,6 +2067,7 @@ public sealed class ScriptRuntime
         finally
         {
             SwitchRelease(
+                execution,
                 ownerId);
         }
     }
@@ -3699,7 +3711,10 @@ async function smartDispatcher(blocks, callback, options = {}) {
         engine.SetValue(
             "__switchRelease",
             new Func<string, bool>(
-                SwitchRelease));
+                ownerId =>
+                    SwitchRelease(
+                        execution,
+                        ownerId)));
 
         engine.SetValue(
             "__setRoute",
@@ -3898,10 +3913,13 @@ async function smartDispatcher(blocks, callback, options = {}) {
                     ownerId);
             }
 
-            _switchMan.ReleaseOwned(
-                null,
-                "script-switch:" +
-                execution.ExecutionId);
+            foreach (var ownerId in
+                     execution.SwitchOwners.Keys)
+                _switchMan.ReleaseOwned(
+                    null,
+                    ownerId);
+
+            execution.SwitchOwners.Clear();
 
             _scriptInfo.Update(
                 execution.ExecutionId,
