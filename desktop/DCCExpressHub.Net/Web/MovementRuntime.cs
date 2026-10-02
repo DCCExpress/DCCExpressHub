@@ -2968,6 +2968,10 @@ public sealed class MovementRuntime
         PowerStateChanged?.Invoke();
     }
 
+    public void EmergencyStop() =>
+        _ =
+            EnsureEmergencyStopAsync();
+
     public bool Abort(
         string pageId,
         bool emergencyStop)
