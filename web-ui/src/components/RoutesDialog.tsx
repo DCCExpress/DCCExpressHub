@@ -5,6 +5,7 @@ import {
   Group,
   Modal,
   ScrollArea,
+  Select,
   Stack,
   Table,
   Tabs,
@@ -21,6 +22,7 @@ import {
 import {
   useCallback,
   useEffect,
+  useMemo,
   useState,
 } from "react";
 
@@ -271,6 +273,20 @@ export default function RoutesDialog({
     setRevisionRebuilt,
   ] = useState(false);
 
+  const [
+    fromFilter,
+    setFromFilter,
+  ] = useState<string | null>(
+    null
+  );
+
+  const [
+    toFilter,
+    setToFilter,
+  ] = useState<string | null>(
+    null
+  );
+
   const generate =
     useCallback(
       (
@@ -405,6 +421,94 @@ export default function RoutesDialog({
 
   const routes =
     result?.routes ?? [];
+
+  const routeBlockOptions =
+    useMemo(
+      () => {
+        const blocks =
+          new Map<
+            number,
+            string
+          >();
+
+        for (const route of routes) {
+          blocks.set(
+            Number(
+              route.fromBlock.id
+            ),
+            route.fromBlock.name
+          );
+
+          blocks.set(
+            Number(
+              route.toBlock.id
+            ),
+            route.toBlock.name
+          );
+        }
+
+        return [
+          ...blocks.entries(),
+        ]
+          .sort(
+            (
+              [, leftName],
+              [, rightName]
+            ) =>
+              leftName.localeCompare(
+                rightName,
+                undefined,
+                {
+                  numeric: true,
+                  sensitivity:
+                    "base",
+                }
+              )
+          )
+          .map(
+            ([id, name]) => ({
+              value:
+                String(
+                  id
+                ),
+              label:
+                name,
+            })
+          );
+      },
+      [
+        routes,
+      ]
+    );
+
+  const filteredRoutes =
+    useMemo(
+      () =>
+        routes.filter(
+          route =>
+            (
+              fromFilter ===
+                null ||
+              String(
+                route.fromBlock.id
+              ) ===
+                fromFilter
+            ) &&
+            (
+              toFilter ===
+                null ||
+              String(
+                route.toBlock.id
+              ) ===
+                toFilter
+            )
+        ),
+      [
+        routes,
+        fromFilter,
+        toFilter,
+      ]
+    );
 
   return (
     <Modal
@@ -674,7 +778,44 @@ export default function RoutesDialog({
               value="routes"
               pt="sm"
             >
-              <ScrollArea.Autosize mah="60dvh">
+              <Stack gap="sm">
+                <Group
+                  gap="sm"
+                  align="flex-end"
+                  wrap="wrap"
+                >
+                  <Select
+                    label={t("ui.from")}
+                    placeholder={t("ui.from")}
+                    data={routeBlockOptions}
+                    value={fromFilter}
+                    onChange={setFromFilter}
+                    clearable
+                    searchable
+                    w={220}
+                  />
+
+                  <Select
+                    label={t("ui.to")}
+                    placeholder={t("ui.to")}
+                    data={routeBlockOptions}
+                    value={toFilter}
+                    onChange={setToFilter}
+                    clearable
+                    searchable
+                    w={220}
+                  />
+
+                  <Badge
+                    variant="light"
+                    color="gray"
+                    mb={6}
+                  >
+                    {filteredRoutes.length} / {routes.length}
+                  </Badge>
+                </Group>
+
+                <ScrollArea.Autosize mah="54dvh">
                 <Table
                   striped
                   highlightOnHover
@@ -718,7 +859,7 @@ export default function RoutesDialog({
                   </Table.Thead>
 
                   <Table.Tbody>
-                    {routes.map(
+                    {filteredRoutes.map(
                       (route, index) => (
                         <Table.Tr
                           key={`${route.fromBlock.id}-${route.toBlock.id}-${index}`}
@@ -802,6 +943,7 @@ export default function RoutesDialog({
                   </Table.Tbody>
                 </Table>
               </ScrollArea.Autosize>
+              </Stack>
             </Tabs.Panel>
           </Tabs>
         )}
