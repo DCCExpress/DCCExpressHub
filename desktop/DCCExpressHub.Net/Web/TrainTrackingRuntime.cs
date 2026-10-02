@@ -96,6 +96,7 @@ public sealed class TrainTrackingRuntime
     readonly HubState _hubState;
     readonly ICommandCenter _commandCenter;
     readonly MovementRuntime _movement;
+    readonly TrackAuthorityRuntime _authority;
     readonly ILogger<TrainTrackingRuntime> _log;
 
     readonly List<RouteEntry> _routes = [];
@@ -124,6 +125,7 @@ public sealed class TrainTrackingRuntime
         HubState hubState,
         ICommandCenter commandCenter,
         MovementRuntime movement,
+        TrackAuthorityRuntime authority,
         ILogger<TrainTrackingRuntime> log)
     {
         _env = env;
@@ -131,6 +133,7 @@ public sealed class TrainTrackingRuntime
         _hubState = hubState;
         _commandCenter = commandCenter;
         _movement = movement;
+        _authority = authority;
         _log = log;
 
         LoadEnabled();
@@ -144,6 +147,9 @@ public sealed class TrainTrackingRuntime
 
         _commandCenter.LocoFeedbackChanged +=
             _ => Publish();
+
+        _authority.Update(
+            Snapshot().Locos);
     }
 
     static long NowMs() =>
@@ -1695,7 +1701,13 @@ public sealed class TrainTrackingRuntime
 
     void Publish()
     {
+        var snapshot =
+            Snapshot();
+
+        _authority.Update(
+            snapshot.Locos);
+
         Changed?.Invoke(
-            Snapshot());
+            snapshot);
     }
 }
