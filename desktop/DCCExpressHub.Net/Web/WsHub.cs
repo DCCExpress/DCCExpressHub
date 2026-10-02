@@ -18,6 +18,7 @@ public sealed class WsHub
     readonly DispatcherRuntime Dispatcher;
     readonly MovementRuntime Movement;
     readonly ScriptRuntime Scripts;
+    readonly FlowRuntime Flows;
     readonly TimetableRuntime Timetable;
     private readonly ILogger<WsHub> Logger;
     private readonly FastClockRuntime FastClock;
@@ -35,7 +36,7 @@ public sealed class WsHub
     private static readonly TimeSpan WebSocketSendTimeout = TimeSpan.FromSeconds(2);
     public int ClientCount => Clients.Count;
 
-    public WsHub(ICommandCenter cc, HubState state, LayoutRuntime runtime, RuntimeStateStore stateStore, CommandCenterConfigStore ccConfig, LocoCounterRuntime locoCounters, FastClockRuntime fastClock, SwitchManManager switchMan, DispatcherRuntime dispatcher, MovementRuntime movement, ScriptRuntime scripts, TimetableRuntime timetable, ILogger<WsHub> log)
+    public WsHub(ICommandCenter cc, HubState state, LayoutRuntime runtime, RuntimeStateStore stateStore, CommandCenterConfigStore ccConfig, LocoCounterRuntime locoCounters, FastClockRuntime fastClock, SwitchManManager switchMan, DispatcherRuntime dispatcher, MovementRuntime movement, ScriptRuntime scripts, FlowRuntime flows, TimetableRuntime timetable, ILogger<WsHub> log)
     {
         CommandCenter = cc;
         HubState = state;
@@ -47,6 +48,7 @@ public sealed class WsHub
         Dispatcher = dispatcher;
         Movement = movement;
         Scripts = scripts;
+        Flows = flows;
         Timetable = timetable;
         CommandCenterConfigStore = ccConfig;
         LayoutRuntime.Changed += (type, data) => _ = Broadcast(type, data);
@@ -71,6 +73,9 @@ public sealed class WsHub
         Scripts.AudioRequested += request => _ = Broadcast("playAudio", new { requestId = request.RequestId, fileName = request.FileName });
         Scripts.LocoChanged += loco => _ = BroadcastLoco(loco);
         Scripts.PowerStateChanged += () => _ = BroadcastPower();
+
+        Flows.Changed += state => _ = Broadcast("flowStateChanged", state);
+        Flows.LogChanged += entry => _ = Broadcast("flowLog", entry);
 
         Timetable.Changed += state => _ = Broadcast("timetableStateChanged", state);
         Logger = log;
@@ -381,6 +386,9 @@ public sealed class WsHub
                     return;
                 case "scriptAudioComplete":
                     Scripts.CompleteAudio(S(data, "requestId"), B(data, "ok"));
+                    return;
+                case "flowCommand":
+                    await HandleFlowCommand(connectionId, ws, data);
                     return;
                 case "timetableCommand":
                     await HandleTimetableCommand(connectionId, ws, data);
@@ -828,6 +836,154 @@ public sealed class WsHub
 
             default:
                 await Reply(false, "unknown_switchman_action");
+                return;
+        }
+    }
+
+    private async Task HandleFlowCommand(
+        Guid connectionId,
+        WebSocket ws,
+        JsonElement data)
+    {
+        var requestId =
+            S(
+                data,
+                "requestId");
+
+        var action =
+            S(
+                data,
+                "action");
+
+        async Task Reply(
+            bool ok,
+            string? message = null,
+            object? extra = null)
+        {
+            await Send(
+                ws,
+                "flowResponse",
+                new
+                {
+                    requestId,
+                    action,
+                    ok,
+                    message,
+                    extra
+                });
+        }
+
+        if (action != "snapshot" &&
+            !IsControlStationOwner(
+                connectionId))
+        {
+            await Reply(
+                false,
+                "control_station_required");
+            return;
+        }
+
+        switch (action)
+        {
+            case "snapshot":
+                await Reply(
+                    true,
+                    extra:
+                        new
+                        {
+                            state =
+                                Flows.Snapshot()
+                        });
+                return;
+
+            case "runPage":
+                {
+                    var pageId =
+                        S(
+                            data,
+                            "pageId");
+
+                    var inputNodeId =
+                        S(
+                            data,
+                            "inputNodeId");
+
+                    JsonElement? payload =
+                        null;
+
+                    if (data.ValueKind ==
+                            JsonValueKind.Object &&
+                        data.TryGetProperty(
+                            "payload",
+                            out var rawPayload))
+                        payload =
+                            rawPayload.Clone();
+
+                    var result =
+                        Flows.RunPage(
+                            pageId,
+                            string.IsNullOrWhiteSpace(
+                                inputNodeId)
+                                ? null
+                                : inputNodeId,
+                            payload,
+                            S(
+                                data,
+                                "mode",
+                                "run"));
+
+                    await Reply(
+                        result.Ok,
+                        result.Error,
+                        new
+                        {
+                            state =
+                                Flows.Snapshot()
+                        });
+                    return;
+                }
+
+            case "abortPage":
+                {
+                    var count =
+                        Flows.AbortPage(
+                            S(
+                                data,
+                                "pageId"));
+
+                    await Reply(
+                        true,
+                        extra:
+                            new
+                            {
+                                count,
+                                state =
+                                    Flows.Snapshot()
+                            });
+                    return;
+                }
+
+            case "abortAll":
+                {
+                    var count =
+                        Flows.AbortAll();
+
+                    await Reply(
+                        true,
+                        extra:
+                            new
+                            {
+                                count,
+                                state =
+                                    Flows.Snapshot()
+                            });
+                    return;
+                }
+
+            default:
+                await Reply(
+                    false,
+                    "unknown_flow_action");
                 return;
         }
     }
@@ -2204,6 +2360,7 @@ public sealed class WsHub
             });
         await Send(ws, "movementSnapshot", new { states = Movement.Snapshot() });
         await Send(ws, "scriptSnapshot", new { states = Scripts.Snapshot(), finishing = Scripts.Finishing });
+        await Send(ws, "flowStateChanged", Flows.Snapshot());
         await Send(ws, "timetableStateChanged", Timetable.Snapshot());
     }
 
