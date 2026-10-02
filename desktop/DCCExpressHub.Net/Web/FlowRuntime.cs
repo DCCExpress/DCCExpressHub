@@ -857,6 +857,13 @@ public sealed class FlowRuntime : BackgroundService
         Func<NodeDef, bool> matches,
         JsonElement payload)
     {
+        /*
+         * Finishing means existing automation may drain, but no new automatic
+         * event-triggered Flow branch is allowed to start.
+         */
+        if (_scripts.Finishing)
+            return;
+
         DocumentDef document;
 
         try
@@ -1562,7 +1569,7 @@ public sealed class FlowRuntime : BackgroundService
         return "null";
     }
 
-    void RunInput(
+    (bool Started, string? Error) RunInput(
         DocumentDef document,
         PageDef page,
         NodeDef input,
@@ -1572,7 +1579,9 @@ public sealed class FlowRuntime : BackgroundService
     {
         if (!page.Enabled &&
             !manual)
-            return;
+            return (
+                false,
+                "flow_page_disabled");
 
         var source =
             BuildBranchSource(
@@ -1606,7 +1615,9 @@ public sealed class FlowRuntime : BackgroundService
                     input.Kind),
                 "The input has no runnable connected branch.");
 
-            return;
+            return (
+                false,
+                "flow_branch_empty");
         }
 
         var executionId =
@@ -1622,6 +1633,20 @@ public sealed class FlowRuntime : BackgroundService
                   page.Id +
                   ":" +
                   input.Id;
+
+        /*
+         * Register ownership before ScriptRuntime.StartSource(). StartSource
+         * publishes RUNNING synchronously and a very short script can also
+         * finish on its background task immediately. Pre-registration makes
+         * both state transitions observable by FlowRuntime.
+         */
+        _executionPages[
+            executionId] =
+            page.Id;
+
+        _executionInputs[
+            executionId] =
+            input.Id;
 
         var result =
             _scripts.StartSource(
@@ -1640,7 +1665,21 @@ public sealed class FlowRuntime : BackgroundService
         {
             if (result.Error ==
                 "script_already_running")
-                return;
+            {
+                Publish();
+
+                return (
+                    false,
+                    result.Error);
+            }
+
+            _executionPages.TryRemove(
+                executionId,
+                out _);
+
+            _executionInputs.TryRemove(
+                executionId,
+                out _);
 
             WriteLog(
                 page.Id,
@@ -1653,18 +1692,19 @@ public sealed class FlowRuntime : BackgroundService
                 result.Error ??
                 "flow_start_failed");
 
-            return;
+            Publish();
+
+            return (
+                false,
+                result.Error ??
+                "flow_start_failed");
         }
 
-        _executionPages[
-            executionId] =
-            page.Id;
-
-        _executionInputs[
-            executionId] =
-            input.Id;
-
         Publish();
+
+        return (
+            true,
+            null);
     }
 
     void OnScriptStateChanged(
@@ -1774,17 +1814,18 @@ public sealed class FlowRuntime : BackgroundService
                 false,
                 "flow_input_not_found");
 
-        RunInput(
-            document,
-            page,
-            input,
-            payload,
-            true,
-            reason);
+        var run =
+            RunInput(
+                document,
+                page,
+                input,
+                payload,
+                true,
+                reason);
 
         return (
-            true,
-            null);
+            run.Started,
+            run.Error);
     }
 
     public int AbortPage(
@@ -1924,6 +1965,20 @@ public sealed class FlowRuntime : BackgroundService
                     due)
                     continue;
 
+                /*
+                 * Advance the cadence even while Finishing is active. This
+                 * prevents a backlog/burst from firing immediately when
+                 * Finishing is later cleared.
+                 */
+                lock (_gate)
+                    _nextIntervals[
+                        key] =
+                        now +
+                        intervalMs;
+
+                if (_scripts.Finishing)
+                    continue;
+
                 RunInput(
                     document,
                     page,
@@ -1931,12 +1986,6 @@ public sealed class FlowRuntime : BackgroundService
                     null,
                     false,
                     "interval");
-
-                lock (_gate)
-                    _nextIntervals[
-                        key] =
-                        now +
-                        intervalMs;
             }
         }
 
