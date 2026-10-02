@@ -1315,5 +1315,6 @@
   "movementRuntimeArrived": "Angekommen: {{block}}",
   "movementRuntimeWaitDeparture": "Warten auf Abfahrtsbedingung: {{block}}",
   "movementRuntimeRandomPlaySkipped": "Zufälliges Audio übersprungen · Wurf {{roll}}/10, Grenze {{threshold}}",
-  "movementRuntimeRandomPlayPlaying": "Zufälliges Audio wird abgespielt · Wurf {{roll}}/10, Grenze {{threshold}}"
+  "movementRuntimeRandomPlayPlaying": "Zufälliges Audio wird abgespielt · Wurf {{roll}}/10, Grenze {{threshold}}",
+  "delayAfterSensorCondition": "Die Verzögerung beginnt, nachdem die Sensorbedingung erfüllt wurde."
 }
