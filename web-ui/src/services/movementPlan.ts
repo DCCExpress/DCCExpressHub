@@ -637,6 +637,8 @@ function leaveRuleFor(
   _page:
     MovementPage,
   blockId: number,
+  sensors:
+    Map<number, number>,
   layout:
     SerializedLayoutDto,
   direction:
@@ -656,12 +658,38 @@ function leaveRuleFor(
       "leave"
     );
 
+  if (
+    configured.length >
+      0
+  ) {
+    return {
+      conditions:
+        configured,
+      explicit:
+        true,
+    };
+  }
+
+  const sourceSensor =
+    sensors.get(
+      blockId
+    );
+
   return {
     conditions:
-      configured,
+      sourceSensor ===
+        undefined
+        ? []
+        : [{
+            id:
+              `auto-leave-${blockId}-off`,
+            sensor:
+              sourceSensor,
+            state:
+              false,
+          }],
     explicit:
-      configured.length >
-      0,
+      false,
   };
 }
 
@@ -1130,6 +1158,7 @@ export function buildMovementPlan(
       leaveRuleFor(
         page,
         from.blockId!,
+        sensors,
         layout,
         route.locoDirection
       );
