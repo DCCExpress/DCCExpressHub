@@ -105,14 +105,17 @@ export type MovementPlanLeg = {
     RawTurnoutState[];
   approachWhen:
     MovementSensorCondition[];
+  approachDelayMs: number;
   departWhen:
     MovementSensorCondition[];
   leaveWhen:
     MovementSensorCondition[];
   leaveWhenExplicit:
     boolean;
+  leaveDelayMs: number;
   arrivedWhen:
     MovementSensorCondition[];
+  arrivedDelayMs: number;
 };
 
 export type MovementPlan = {
@@ -604,6 +607,85 @@ function blockEventConditionsFor(
   }
 
   return [];
+}
+
+function blockEventDelayFor(
+  layout:
+    SerializedLayoutDto,
+  blockId: number,
+  direction:
+    | "unknown"
+    | "forward"
+    | "reverse",
+  event:
+    | "arrival"
+    | "arrived"
+    | "leave"
+): number {
+  if (
+    direction ===
+      "unknown"
+  ) {
+    return 0;
+  }
+
+  const key =
+    event === "arrival"
+      ? "arrivalDelayMs"
+      : event === "arrived"
+        ? "arrivedDelayMs"
+        : "leaveDelayMs";
+
+  for (
+    const layer of
+    layout.layers ??
+    []
+  ) {
+    for (
+      const element of
+      layer.elements ??
+      []
+    ) {
+      if (
+        element.type !==
+          "trackblock" ||
+        Number(
+          element.id
+        ) !== blockId
+      ) {
+        continue;
+      }
+
+      const raw =
+        element.eventConfig?.[
+          direction
+        ]?.[
+          key
+        ];
+
+      const numeric =
+        Math.round(
+          Number(
+            raw ??
+            0
+          )
+        );
+
+      return Number.isFinite(
+        numeric
+      )
+        ? Math.max(
+            0,
+            Math.min(
+              600000,
+              numeric
+            )
+          )
+        : 0;
+    }
+  }
+
+  return 0;
 }
 
 function approachRuleFor(
@@ -1177,6 +1259,13 @@ export function buildMovementPlan(
           layout,
           route.locoDirection
         ),
+      approachDelayMs:
+        blockEventDelayFor(
+          layout,
+          to.blockId!,
+          route.locoDirection,
+          "arrival"
+        ),
       departWhen:
         departureRuleFor(
           page,
@@ -1186,6 +1275,13 @@ export function buildMovementPlan(
         leaveRule.conditions,
       leaveWhenExplicit:
         leaveRule.explicit,
+      leaveDelayMs:
+        blockEventDelayFor(
+          layout,
+          from.blockId!,
+          route.locoDirection,
+          "leave"
+        ),
       arrivedWhen:
         arrivalRuleFor(
           page,
@@ -1193,6 +1289,13 @@ export function buildMovementPlan(
           sensors,
           layout,
           route.locoDirection
+        ),
+      arrivedDelayMs:
+        blockEventDelayFor(
+          layout,
+          to.blockId!,
+          route.locoDirection,
+          "arrived"
         ),
     });
   }
