@@ -25,10 +25,8 @@ public sealed class WsHub
     private readonly ConcurrentDictionary<Guid, WebSocket> Clients = new();
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     private readonly object _programmingGate = new();
-    private readonly object _controlStationGate = new();
-    private Guid? _controlStationOwnerConnectionId;
-    private string _controlStationOwnerClientId = "";
-    private string _controlStationOwnerName = "";
+    private readonly object _audioCoordinatorGate = new();
+    private Guid? _audioCoordinatorConnectionId;
     private PendingProgramming? _pendingProgramming;
     private sealed record PendingProgramming(string RequestId, string Action, int ExpectedCv, long Token);
     private long _programmingToken;
@@ -156,104 +154,56 @@ public sealed class WsHub
         };
     }
 
-    private object ControlStationStatus()
+    private void EnsureAudioCoordinator(Guid connectionId)
     {
-        lock (_controlStationGate)
-        {
-            return new
-            {
-                active = _controlStationOwnerConnectionId.HasValue,
-                ownerClientId = _controlStationOwnerConnectionId.HasValue ? _controlStationOwnerClientId : null,
-                ownerName = _controlStationOwnerConnectionId.HasValue ? _controlStationOwnerName : null
-            };
-        }
+        lock (_audioCoordinatorGate)
+            _audioCoordinatorConnectionId ??= connectionId;
     }
 
-    private (bool Granted, string? OwnerClientId, string? OwnerName) ClaimControlStation(
-        Guid connectionId,
-        string clientId,
-        string clientName)
+    private bool ReleaseAudioCoordinator(Guid connectionId)
     {
-        lock (_controlStationGate)
+        lock (_audioCoordinatorGate)
         {
-            var granted =
-                !_controlStationOwnerConnectionId.HasValue ||
-                _controlStationOwnerConnectionId.Value == connectionId;
-
-            if (granted)
-            {
-                _controlStationOwnerConnectionId = connectionId;
-                _controlStationOwnerClientId = clientId;
-                _controlStationOwnerName = clientName;
-            }
-
-            return (
-                granted,
-                _controlStationOwnerConnectionId.HasValue ? _controlStationOwnerClientId : null,
-                _controlStationOwnerConnectionId.HasValue ? _controlStationOwnerName : null
-            );
-        }
-    }
-
-    private bool ReleaseControlStation(Guid connectionId)
-    {
-        lock (_controlStationGate)
-        {
-            if (
-                !_controlStationOwnerConnectionId.HasValue ||
-                _controlStationOwnerConnectionId.Value != connectionId)
+            if (_audioCoordinatorConnectionId != connectionId)
                 return false;
 
-            _controlStationOwnerConnectionId = null;
-            _controlStationOwnerClientId = "";
-            _controlStationOwnerName = "";
+            var replacement =
+                Clients.Keys.FirstOrDefault();
+
+            _audioCoordinatorConnectionId =
+                replacement == Guid.Empty
+                    ? null
+                    : replacement;
+
             return true;
         }
     }
 
-    private async Task OnControlStationReleased()
+    private bool IsAudioCoordinator(Guid connectionId)
     {
-        /*
-         * Automation execution is backend-owned. Losing the browser Control
-         * Station must not stop Timetable, Script, Flow or Movement runtimes.
-         * Only browser-rendered blocking audio is client-dependent.
-         */
-        Movement.FailPendingAudio();
-        Scripts.FailPendingAudio();
-
-        await Broadcast(
-            "controlStationStatus",
-            ControlStationStatus());
+        lock (_audioCoordinatorGate)
+            return _audioCoordinatorConnectionId == connectionId;
     }
 
-    private bool IsControlStationOwner(Guid connectionId)
+    private bool HasAudioCoordinator()
     {
-        lock (_controlStationGate)
+        lock (_audioCoordinatorGate)
             return
-                _controlStationOwnerConnectionId.HasValue &&
-                _controlStationOwnerConnectionId.Value == connectionId;
-    }
-
-    private bool HasControlStationOwner()
-    {
-        lock (_controlStationGate)
-            return
-                _controlStationOwnerConnectionId.HasValue &&
+                _audioCoordinatorConnectionId.HasValue &&
                 Clients.ContainsKey(
-                    _controlStationOwnerConnectionId.Value);
+                    _audioCoordinatorConnectionId.Value);
     }
 
     private async Task HandleMovementAudioRequest(
         MovementAudioRequest request)
     {
         /*
-         * Audio is rendered by browsers, but automation lifetime is not owned
-         * by a browser. Without an active Control Station there is nobody who
-         * can authoritatively complete a blocking playback request, so resolve
-         * it as skipped and still broadcast the sound to any passive clients.
+         * Audio is rendered by browsers, while automation execution remains
+         * backend-owned. One connected browser is selected automatically as
+         * the acknowledgement coordinator for blocking playback.
          */
         if (request.WaitForEnd &&
-            !HasControlStationOwner())
+            !HasAudioCoordinator())
             Movement.CompleteAudio(
                 request.RequestId,
                 false);
@@ -273,7 +223,7 @@ public sealed class WsHub
         ScriptAudioRequest request)
     {
         if (request.WaitForEnd &&
-            !HasControlStationOwner())
+            !HasAudioCoordinator())
             Scripts.CompleteAudio(
                 request.RequestId,
                 false);
@@ -301,10 +251,10 @@ public sealed class WsHub
     public async Task Accept(HttpContext ctx)
     {
         var ws = await ctx.WebSockets.AcceptWebSocketAsync(); var id = Guid.NewGuid(); Clients[id] = ws;
+        EnsureAudioCoordinator(id);
         try
         {
             await Send(ws, "ws:welcome", new { message = "DCCExpressHub" });
-            await Send(ws, "controlStationStatus", ControlStationStatus());
             await SendSnapshot(ws);
             var buf = new byte[64 * 1024];
             while (ws.State == WebSocketState.Open)
@@ -318,10 +268,8 @@ public sealed class WsHub
         {
             Clients.TryRemove(id, out _);
 
-            if (ReleaseControlStation(id))
-                await OnControlStationReleased();
-
-            if (Clients.IsEmpty)
+            if (ReleaseAudioCoordinator(id) ||
+                Clients.IsEmpty)
             {
                 Movement.FailPendingAudio();
                 Scripts.FailPendingAudio();
@@ -349,42 +297,8 @@ public sealed class WsHub
             bool ok = true;
             switch (type)
             {
-                case "controlStationClaim":
-                    {
-                        var clientId = S(data, "clientId");
-                        var clientName = S(data, "clientName");
-                        var result = ClaimControlStation(connectionId, clientId, clientName);
-
-                        if (result.Granted)
-                            await Broadcast("controlStationStatus", ControlStationStatus());
-
-                        await Send(ws, "controlStationClaimResult", new
-                        {
-                            granted = result.Granted,
-                            active = true,
-                            ownerClientId = result.OwnerClientId,
-                            ownerName = result.OwnerName,
-                            message = result.Granted ? null : "Another Control Station is already connected."
-                        });
-                        return;
-                    }
-                case "controlStationRelease":
-                    if (ReleaseControlStation(connectionId))
-                        await OnControlStationReleased();
-                    else
-                        await Send(ws, "controlStationStatus", ControlStationStatus());
-                    return;
-                case "getControlStationStatus":
-                    await Send(ws, "controlStationStatus", ControlStationStatus());
-                    return;
                 case "broadcastPlayAudio":
                     {
-                        if (!IsControlStationOwner(connectionId))
-                        {
-                            await Send(ws, "error", new { message = "control_station_required" });
-                            return;
-                        }
-
                         var requestId = S(data, "requestId");
                         var fileName = S(data, "fileName");
 
@@ -406,9 +320,6 @@ public sealed class WsHub
                     }
                 case "broadcastStopAudio":
                     {
-                        if (!IsControlStationOwner(connectionId))
-                            return;
-
                         var fileName = S(data, "fileName");
 
                         if (
@@ -440,13 +351,15 @@ public sealed class WsHub
                     await HandleMovementCommand(connectionId, ws, data, ct);
                     return;
                 case "movementAudioComplete":
-                    Movement.CompleteAudio(S(data, "requestId"), B(data, "ok"));
+                    if (IsAudioCoordinator(connectionId))
+                        Movement.CompleteAudio(S(data, "requestId"), B(data, "ok"));
                     return;
                 case "scriptCommand":
                     await HandleScriptCommand(connectionId, ws, data);
                     return;
                 case "scriptAudioComplete":
-                    Scripts.CompleteAudio(S(data, "requestId"), B(data, "ok"));
+                    if (IsAudioCoordinator(connectionId))
+                        Scripts.CompleteAudio(S(data, "requestId"), B(data, "ok"));
                     return;
                 case "flowCommand":
                     await HandleFlowCommand(connectionId, ws, data);
@@ -934,16 +847,6 @@ public sealed class WsHub
                 });
         }
 
-        if (action != "snapshot" &&
-            !IsControlStationOwner(
-                connectionId))
-        {
-            await Reply(
-                false,
-                "control_station_required");
-            return;
-        }
-
         switch (action)
         {
             case "snapshot":
@@ -1085,16 +988,6 @@ public sealed class WsHub
                     message,
                     extra
                 });
-        }
-
-        if (action != "snapshot" &&
-            !IsControlStationOwner(
-                connectionId))
-        {
-            await Reply(
-                false,
-                "control_station_required");
-            return;
         }
 
         switch (action)
@@ -1389,16 +1282,6 @@ public sealed class WsHub
                 });
         }
 
-        if (action != "snapshot" &&
-            !IsControlStationOwner(
-                connectionId))
-        {
-            await Reply(
-                false,
-                "control_station_required");
-            return;
-        }
-
         switch (action)
         {
             case "snapshot":
@@ -1458,13 +1341,6 @@ public sealed class WsHub
                 message,
                 extra
             });
-        }
-
-        if (action != "snapshot" &&
-            !IsControlStationOwner(connectionId))
-        {
-            await Reply(false, "control_station_required");
-            return;
         }
 
         switch (action)
@@ -1614,16 +1490,6 @@ public sealed class WsHub
                 message,
                 extra
             });
-        }
-
-        if (action != "snapshot" &&
-            !IsControlStationOwner(
-                connectionId))
-        {
-            await Reply(
-                false,
-                "control_station_required");
-            return;
         }
 
         static ushort[] ReadUShortArray(
