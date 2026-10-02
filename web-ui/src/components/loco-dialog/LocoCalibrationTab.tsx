@@ -1142,9 +1142,6 @@ export default function LocoCalibrationTab({
                         emergencyStopCalibration
                       )
                   }
-                  disabled={
-                    commandBusy
-                  }
                 >
                   {t("locodialog.calibration.estop")}
                 </Button>
