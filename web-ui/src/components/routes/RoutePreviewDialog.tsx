@@ -97,43 +97,11 @@ function blockEvents(
         incoming.approachWhen,
     });
 
-    const arrivedConditions =
-      [
-        ...(
-          resource.sensorAddress ===
-            null
-            ? []
-            : [{
-                id:
-                  `effective-arrived-occ-${resource.blockId}`,
-                sensor:
-                  resource.sensorAddress,
-                state:
-                  true,
-              }]
-        ),
-        ...incoming.arrivedWhen,
-      ].filter(
-        (
-          condition,
-          index,
-          all
-        ) =>
-          all.findIndex(
-            candidate =>
-              candidate.sensor ===
-                condition.sensor &&
-              candidate.state ===
-                condition.state
-          ) ===
-          index
-      );
-
     result.push({
       name: "ARRIVED",
       match: "all",
       conditions:
-        arrivedConditions,
+        incoming.arrivedWhen,
     });
   }
 
