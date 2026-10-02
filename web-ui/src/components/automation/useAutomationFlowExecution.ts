@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useRef,
   useState,
 } from "react";
 
@@ -12,8 +13,15 @@ import {
 import {
   abortClientScript,
   runClientScript,
-  subscribeClientScriptLog,
 } from "../../services/clientScriptRunner";
+
+import {
+  wsApi,
+} from "../../services/wsApi";
+
+import {
+  wsClient,
+} from "../../services/wsClient";
 
 import type {
   AutomationFlowLogLine,
@@ -41,12 +49,43 @@ type Args = {
     GeneratedAutomationFlowScript;
 };
 
+type FlowResponse = {
+  requestId?: string;
+  action?: string;
+  ok?: boolean;
+  message?: string | null;
+  extra?: {
+    state?: {
+      pages?: Array<{
+        pageId: string;
+        activeExecutions: number;
+      }>;
+    };
+    count?: number;
+  } | null;
+};
+
+let sequence =
+  0;
+
+function requestId(
+  action: string
+): string {
+  sequence +=
+    1;
+
+  return (
+    `${wsApi.clientUuid}:flow-editor:` +
+    `${action}:${Date.now()}:${sequence}`
+  );
+}
+
 function logValue(
   value: unknown
 ): string {
   if (
     typeof value ===
-    "string"
+      "string"
   ) {
     return value;
   }
@@ -59,7 +98,7 @@ function logValue(
 
     if (
       serialized !==
-      undefined
+        undefined
     ) {
       return serialized;
     }
@@ -74,8 +113,10 @@ function logValue(
 
 export function useAutomationFlowExecution({
   page,
-  generated,
-  generatedTest,
+  generated:
+    _generated,
+  generatedTest:
+    _generatedTest,
 }: Args) {
   const [
     execution,
@@ -96,6 +137,11 @@ export function useAutomationFlowExecution({
     useState<
       AutomationFlowLogLine[]
     >([]);
+
+  const flowStartedRef =
+    useRef(
+      false
+    );
 
   const appendLog =
     (
@@ -187,11 +233,84 @@ export function useAutomationFlowExecution({
     ]
   );
 
-  const start =
+  useEffect(
+    () =>
+      wsClient.subscribeMessages(
+        message => {
+          const raw =
+            message as unknown as {
+              type?: string;
+              data?: unknown;
+            };
+
+          if (
+            raw.type !==
+              "flowStateChanged"
+          ) {
+            return;
+          }
+
+          const state =
+            raw.data as {
+              pages?: Array<{
+                pageId: string;
+                activeExecutions: number;
+              }>;
+            };
+
+          const pageId =
+            page?.id;
+
+          if (!pageId) {
+            return;
+          }
+
+          const runtimePage =
+            state.pages?.find(
+              candidate =>
+                candidate.pageId ===
+                  pageId
+            );
+
+          if (
+            (
+              runtimePage
+                ?.activeExecutions ??
+              0
+            ) >
+            0
+          ) {
+            flowStartedRef.current =
+              true;
+            return;
+          }
+
+          if (
+            flowStartedRef.current
+          ) {
+            flowStartedRef.current =
+              false;
+
+            setExecution(
+              current =>
+                current?.mode ===
+                  "inject"
+                  ? current
+                  : null
+            );
+          }
+        }
+      ),
+    [
+      page?.id,
+    ]
+  );
+
+  const startFlow =
     async (
       mode:
-        AutomationFlowExecutionMode,
-      scriptOverride?: string
+        "test" |
+        "run"
     ): Promise<void> => {
       if (
         !page ||
@@ -203,51 +322,118 @@ export function useAutomationFlowExecution({
       const id =
         `visual-flow-${mode}:${page.id}`;
 
-      const script =
-        scriptOverride ??
-        (
-          mode ===
-            "run"
-            ? generated.code
-            : generatedTest.code
-        );
-
       setExecution({
         id,
         mode,
       });
 
-      const actionLabel =
-        mode ===
-        "run"
-          ? "RUN"
-          : mode ===
-            "inject"
-            ? "INJECT"
-            : "TEST";
+      flowStartedRef.current =
+        false;
 
       appendLog(
         "info",
-        `${actionLabel} started: ${page.name}`
+        `${mode === "run" ? "RUN" : "TEST"} requested: ${page.name}`
       );
 
-      const unsubscribeLog =
-        subscribeClientScriptLog(
-          id,
-          entry => {
-            appendLog(
-              "log",
-              entry.values
-                .map(
-                  logValue
-                )
-                .join(
-                  " "
-                ),
-              entry.timestamp
-            );
-          }
+      const rid =
+        requestId(
+          "runPage"
         );
+
+      try {
+        const response =
+          await wsApi.requestBackendCommand<FlowResponse>(
+            "flowCommand",
+            {
+              requestId:
+                rid,
+              action:
+                "runPage",
+              pageId:
+                page.id,
+              mode,
+            },
+            "flowResponse",
+            value =>
+              value.requestId ===
+                rid,
+            15000
+          );
+
+        if (
+          response.ok ===
+            false
+        ) {
+          throw new Error(
+            response.message ||
+            "Flow could not be started."
+          );
+        }
+
+        const active =
+          response.extra?.state
+            ?.pages
+            ?.find(
+              candidate =>
+                candidate.pageId ===
+                  page.id
+            )
+            ?.activeExecutions ??
+          0;
+
+        if (
+          active >
+          0
+        ) {
+          flowStartedRef.current =
+            true;
+        } else {
+          setExecution(
+            null
+          );
+        }
+      } catch (
+        error
+      ) {
+        setExecution(
+          null
+        );
+
+        appendLog(
+          "error",
+          error instanceof Error
+            ? error.message
+            : String(
+                error
+              )
+        );
+      }
+    };
+
+  const inject =
+    async (
+      script: string
+    ): Promise<void> => {
+      if (
+        !page ||
+        execution
+      ) {
+        return;
+      }
+
+      const id =
+        `visual-flow-inject:${page.id}`;
+
+      setExecution({
+        id,
+        mode:
+          "inject",
+      });
+
+      appendLog(
+        "info",
+        `INJECT requested: ${page.name}`
+      );
 
       try {
         await runClientScript(
@@ -255,7 +441,7 @@ export function useAutomationFlowExecution({
           {
             id,
             name:
-              `Flow ${actionLabel}: ${page.name}`,
+              `Flow INJECT: ${page.name}`,
             type:
               "visual-flow",
           }
@@ -263,22 +449,24 @@ export function useAutomationFlowExecution({
 
         appendLog(
           "info",
-          `${actionLabel} completed.`
+          "INJECT completed."
         );
-      } catch (error) {
+      } catch (
+        error
+      ) {
         appendLog(
           "error",
           error instanceof Error
             ? error.message
-            : String(error)
+            : String(
+                error
+              )
         );
       } finally {
-        unsubscribeLog();
-
         setExecution(
           current =>
             current?.id ===
-            id
+              id
               ? null
               : current
         );
@@ -287,14 +475,36 @@ export function useAutomationFlowExecution({
 
   const stop =
     (): void => {
-      if (!execution) {
+      if (
+        !execution ||
+        !page
+      ) {
         return;
       }
 
-      abortClientScript(
-        execution.id,
-        "Visual flow stopped by user."
-      );
+      if (
+        execution.mode ===
+          "inject"
+      ) {
+        abortClientScript(
+          execution.id,
+          "Visual flow inject stopped by user."
+        );
+      } else {
+        wsApi.sendBackendCommand(
+          "flowCommand",
+          {
+            requestId:
+              requestId(
+                "abortPage"
+              ),
+            action:
+              "abortPage",
+            pageId:
+              page.id,
+          }
+        );
+      }
 
       appendLog(
         "info",
@@ -321,18 +531,15 @@ export function useAutomationFlowExecution({
     execution,
     runTest:
       () =>
-        start("test"),
-    inject:
-      (
-        script: string
-      ) =>
-        start(
-          "inject",
-          script
+        startFlow(
+          "test"
         ),
+    inject,
     run:
       () =>
-        start("run"),
+        startFlow(
+          "run"
+        ),
     stop,
   };
 }
