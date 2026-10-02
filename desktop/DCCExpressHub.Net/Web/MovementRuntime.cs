@@ -1481,7 +1481,10 @@ public sealed class MovementRuntime
         BlockApproachState blockApproachState)
     {
         var eventName =
-            string.Equals(resource.Kind, "turnout", StringComparison.Ordinal)
+            string.Equals(
+                resource.Kind,
+                "turnout",
+                StringComparison.Ordinal)
                 ? "approach"
                 : "enter";
 
@@ -1494,12 +1497,100 @@ public sealed class MovementRuntime
         if (rule.Conditions.Length == 0)
             return;
 
-        while (!ResourceEventSatisfied(
-                   execution.Page,
-                   resource,
-                   eventName))
+        var protectedSensors =
+            ProtectedSensorsForResource(
+                execution.Page,
+                leg,
+                resource);
+
+        var stoppedForAuthority =
+            false;
+
+        while (true)
         {
             execution.Cancellation.Token.ThrowIfCancellationRequested();
+
+            var authority =
+                CheckAuthority(
+                    execution,
+                    protectedSensors);
+
+            if (!authority.Ok)
+            {
+                if (execution.Moving)
+                {
+                    execution.Moving =
+                        false;
+
+                    await ApplySpeed(
+                        execution,
+                        force:
+                            false);
+
+                    stoppedForAuthority =
+                        true;
+                }
+
+                Patch(
+                    execution,
+                    info:
+                        authority.BlockingLocoAddress.HasValue
+                            ? "Protected zone blocked by loco #" +
+                              authority.BlockingLocoAddress.Value +
+                              " at sensor #" +
+                              authority.BlockingSensor
+                            : "Protected zone unsafe at sensor #" +
+                              authority.BlockingSensor +
+                              " (" +
+                              (
+                                  authority.Reason ??
+                                  "unknown"
+                              ) +
+                              ")",
+                    setInfo:
+                        true);
+
+                await DrainReadyResourceLeaves(
+                    execution);
+
+                await MaybeRunBlockLeave(
+                    execution,
+                    leg,
+                    blockLeaveState);
+
+                await MaybeRunBlockApproach(
+                    execution,
+                    leg,
+                    blockApproachState);
+
+                await Task.Delay(
+                    75,
+                    execution.Cancellation.Token);
+
+                continue;
+            }
+
+            if (stoppedForAuthority &&
+                !IsHeld(
+                    execution))
+            {
+                execution.Moving =
+                    true;
+
+                await ApplySpeed(
+                    execution,
+                    force:
+                        true);
+
+                stoppedForAuthority =
+                    false;
+            }
+
+            if (ResourceEventSatisfied(
+                    execution.Page,
+                    resource,
+                    eventName))
+                return;
 
             await DrainReadyResourceLeaves(
                 execution);
@@ -1517,7 +1608,7 @@ public sealed class MovementRuntime
             Patch(
                 execution,
                 info:
-                    "Waiting for " +
+                    "Approaching protected zone " +
                     resource.Name,
                 setInfo:
                     true);
