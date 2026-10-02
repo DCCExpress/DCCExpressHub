@@ -3154,13 +3154,24 @@ function releaseScriptDispatcherOwners(
     return;
   }
 
+  const entries =
+    [
+      ...owners.entries(),
+    ];
+
+  /*
+   * Claim cleanup synchronously so Abort followed by the Worker's final
+   * error/done message cannot enqueue a second release for the same lease.
+   */
+  scriptDispatcherOwners.delete(
+    executionId
+  );
+
   for (
     const [
       ownerId,
       kind,
-    ] of [
-      ...owners.entries(),
-    ]
+    ] of entries
   ) {
     releaseOneScriptDispatcherOwner(
       executionId,
