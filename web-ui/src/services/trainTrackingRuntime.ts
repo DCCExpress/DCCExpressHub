@@ -249,14 +249,20 @@ function send(
     Record<string, unknown> =
       {}
 ): boolean {
-  return wsApi.sendBackendCommand(
+  return wsApi.send(
     "trainTrackingCommand",
     {
       requestId:
         requestId(
           action
         ),
-      action,
+      action:
+        action as
+          | "snapshot"
+          | "setEnabled"
+          | "refresh"
+          | "reset"
+          | "clearLogs",
       ...values,
     }
   );
