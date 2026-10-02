@@ -4,7 +4,6 @@ import type {
 
 import type {
   MovementPage,
-  MovementSensorCondition,
 } from "../domain/movement";
 
 import {
@@ -55,13 +54,6 @@ export type MovementRouteVectorItem =
       name: string;
       sensor: number | null;
       sensors: number[];
-      occupancySensor: number | null;
-      arrivalSensors: number[];
-      arrivedSensors: number[];
-      leaveSensors: number[];
-      arrivalConditions: MovementSensorCondition[];
-      arrivedConditions: MovementSensorCondition[];
-      leaveConditions: MovementSensorCondition[];
       mergedSegmentNames: string[];
       blockType: string;
       role:
@@ -738,40 +730,6 @@ export function buildMovementRouteVector(
                 )!,
               ]
             : [],
-        occupancySensor:
-          blockSensors.get(
-            blockId
-          ) ??
-          null,
-        arrivalSensors: [],
-        arrivedSensors:
-          blockSensors.has(
-            blockId
-          )
-            ? [
-                blockSensors.get(
-                  blockId
-                )!,
-              ]
-            : [],
-        leaveSensors: [],
-        arrivalConditions: [],
-        arrivedConditions:
-          blockSensors.has(
-            blockId
-          )
-            ? [{
-                id:
-                  `legacy-arrived-${blockId}`,
-                sensor:
-                  blockSensors.get(
-                    blockId
-                  )!,
-                state:
-                  true,
-              }]
-            : [],
-        leaveConditions: [],
         mergedSegmentNames: [],
         blockType:
           blockTypes.get(
@@ -1049,150 +1007,17 @@ export async function loadMovementRouteVector(
         resource.detectors[0] ??
         null;
 
-      const incomingLeg =
-        resource.kind ===
-          "block"
-          ? plan.legs.find(
-              leg =>
-                leg.to.key ===
-                resource.key
-            ) ??
-            null
-          : null;
-
-      const outgoingLeg =
-        resource.kind ===
-          "block"
-          ? plan.legs.find(
-              leg =>
-                leg.from.key ===
-                resource.key
-            ) ??
-            null
-          : null;
-
-      const occupancySensor =
-        resource.kind ===
-          "block"
-          ? resource.sensorAddress
-          : null;
-
-      const arrivalConditions =
-        resource.kind ===
-          "block"
-          ? (
-              incomingLeg?.approachWhen ??
-              []
-            ).map(
-              condition => ({
-                ...condition,
-              })
-            )
-          : [];
-
-      const arrivedConditions =
-        resource.kind ===
-          "block"
-          ? [
-              ...(
-                occupancySensor ===
-                  null
-                  ? []
-                  : [{
-                      id:
-                        `effective-arrived-occ-${resource.blockId ?? 0}`,
-                      sensor:
-                        occupancySensor,
-                      state:
-                        true,
-                    }]
-              ),
-              ...(
-                incomingLeg?.arrivedWhen ??
-                []
-              ).map(
-                condition => ({
-                  ...condition,
-                })
-              ),
-            ].filter(
-              (
-                condition,
-                index,
-                all
-              ) =>
-                all.findIndex(
-                  candidate =>
-                    candidate.sensor ===
-                      condition.sensor &&
-                    candidate.state ===
-                      condition.state
-                ) ===
-                index
-            )
-          : [];
-
-      const leaveConditions =
-        resource.kind ===
-          "block"
-          ? (
-              outgoingLeg?.leaveWhen ??
-              []
-            ).map(
-              condition => ({
-                ...condition,
-              })
-            )
-          : [];
-
-      const arrivalSensors =
-        [
-          ...new Set(
-            arrivalConditions.map(
-              condition =>
-                condition.sensor
-            )
-          ),
-        ];
-
-      const arrivedSensors =
-        [
-          ...new Set(
-            arrivedConditions.map(
-              condition =>
-                condition.sensor
-            )
-          ),
-        ];
-
-      const leaveSensors =
-        [
-          ...new Set(
-            leaveConditions.map(
-              condition =>
-                condition.sensor
-            )
-          ),
-        ];
-
       const sensors =
         resource.kind ===
           "block"
-          ? [
-              ...new Set([
-                ...(
-                  occupancySensor ===
-                    null
-                    ? []
-                    : [
-                        occupancySensor,
-                      ]
-                ),
-                ...arrivalSensors,
-                ...arrivedSensors,
-                ...leaveSensors,
-              ]),
-            ]
+          ? (
+              resource.sensorAddress ===
+                null
+                ? []
+                : [
+                    resource.sensorAddress,
+                  ]
+            )
           : [
               ...resource.detectors,
             ];
@@ -1226,13 +1051,6 @@ export async function loadMovementRouteVector(
             resource.name,
           sensor,
           sensors,
-          occupancySensor,
-          arrivalSensors,
-          arrivedSensors,
-          leaveSensors,
-          arrivalConditions,
-          arrivedConditions,
-          leaveConditions,
           mergedSegmentNames:
             mergedSegmentNamesByBlockKey.get(
               resource.key
