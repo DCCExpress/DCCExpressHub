@@ -709,7 +709,9 @@ public sealed class MovementPlanBuilder
                 topology,
                 "version");
 
-        if (version is not (2 or 3))
+        const int SupportedRouteTopologyVersion = 11;
+
+        if (version != SupportedRouteTopologyVersion)
             throw new InvalidOperationException(
                 "movement_route_topology_unsupported");
 
