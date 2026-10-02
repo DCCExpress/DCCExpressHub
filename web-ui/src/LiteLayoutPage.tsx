@@ -65,7 +65,6 @@ import TurnoutBitPropertyEditor from "@/layout/property-panel/TurnoutBitProperty
 import RouteTurnoutSelectionPropertyEditor from "@/layout/property-panel/RouteTurnoutSelectionPropertyEditor";
 import LocoPanel from "@/layout/LocoPanel";
 import AutomationPanel from "@/components/AutomationPanel";
-import PathsPanel from "@/components/PathsPanel";
 import TimetableDialog from "@/components/TimetableDialog";
 import TimetablePanel from "@/components/TimetablePanel";
 import RoutesDialog from "@/components/RoutesDialog";
@@ -437,7 +436,7 @@ const RUNTIME_TAB_SESSION_KEY = "dcc-express-lite.layout.runtimeTab";
 const RIGHT_LOCO_STORAGE_KEY = "dcc-express-lite.loco-panel.right.selected-loco-id";
 
 type RightPanelMode = "property" | "loco";
-type RuntimeTab = "paths" | "automation" | "timetable" | "info" | "log";
+type RuntimeTab = "automation" | "timetable" | "info" | "log";
 
 type SwitchManLockSnapshotItem = {
   address?: unknown;
@@ -524,7 +523,6 @@ function readStoredRuntimeTab(): RuntimeTab {
   const value = sessionStorage.getItem(RUNTIME_TAB_SESSION_KEY);
 
   if (
-    value === "paths" ||
     value === "timetable" ||
     value === "info" ||
     value === "log"
@@ -1721,7 +1719,6 @@ export default function LiteLayoutPage({
                   value={runtimeTab}
                   onChange={value => {
                     const nextTab: RuntimeTab =
-                      value === "paths" ||
                       value === "timetable" ||
                       value === "info" ||
                       value === "log"
@@ -1734,19 +1731,11 @@ export default function LiteLayoutPage({
                   className="lite-runtime-tabs"
                 >
                   <Tabs.List grow mb="sm">
-                    <Tabs.Tab value="paths">{i18next.t("ui.paths")}</Tabs.Tab>
                     <Tabs.Tab value="automation">{i18next.t("ui.automation2")}</Tabs.Tab>
                     <Tabs.Tab value="timetable">{i18next.t("ui.timetable")}</Tabs.Tab>
                     <Tabs.Tab value="info">{i18next.t("ui.info")}</Tabs.Tab>
                     <Tabs.Tab value="log">{i18next.t("ui.log")}</Tabs.Tab>
                   </Tabs.List>
-
-                  <Tabs.Panel value="paths" className="lite-info-tab-panel">
-                    <PathsPanel
-                      layout={layout}
-                      invalidate={invalidate}
-                    />
-                  </Tabs.Panel>
 
                   <Tabs.Panel value="automation" className="lite-info-tab-panel">
                     <Stack h="100%" gap="xs">
