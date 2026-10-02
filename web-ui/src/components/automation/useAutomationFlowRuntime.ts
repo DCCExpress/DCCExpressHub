@@ -136,15 +136,12 @@ function installFlowProxy():
 }
 
 /*
- * Flow execution is backend-owned. The second parameter is intentionally
- * accepted for compatibility with the former Control Station UI, but it does
- * not gate backend execution.
+ * Flow execution is backend-owned. The browser only installs the proxy that
+ * forwards editor control and renders backend runtime logs.
  */
 export function useAutomationFlowRuntime(
   _document:
-    AutomationFlowDocument,
-  _controlStationActive?:
-    boolean
+    AutomationFlowDocument
 ): void {
   useEffect(
     () => {
