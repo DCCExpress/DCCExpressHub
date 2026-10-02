@@ -3817,6 +3817,14 @@ async function smartDispatcher(blocks, callback, options = {}) {
                         options.ExperimentalFeatures =
                             ExperimentalFeature.TaskInterop;
 
+                        /*
+                         * EvaluateAsync cancellation is observed while promises
+                         * are settling. The execution constraint additionally
+                         * interrupts synchronous JavaScript loops on Abort.
+                         */
+                        options.CancellationToken(
+                            execution.Cancellation.Token);
+
                         options.Constraints.PromiseTimeout =
                             TimeSpan.FromDays(
                                 7);
