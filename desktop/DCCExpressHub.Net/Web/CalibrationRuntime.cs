@@ -793,6 +793,19 @@ public sealed class CalibrationRuntime
                 _cancellation;
         }
 
+        if (emergencyStop &&
+            cancellation is null)
+        {
+            /*
+             * E-STOP is a global safety command. It must remain available
+             * after a normal calibration Stop because a locomotive can still
+             * be coasting physically even though the calibration runtime is
+             * already idle.
+             */
+            _movement.EmergencyStop();
+            return true;
+        }
+
         if (cancellation is null)
             return false;
 
