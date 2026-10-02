@@ -125,6 +125,7 @@ export const CLIENT_WS_MESSAGE_TYPES = [
   "dispatcherCommand",
   "movementCommand",
   "movementAudioComplete",
+  "trainTrackingCommand",
   "scriptCommand",
   "scriptAudioComplete",
   "flowCommand",
