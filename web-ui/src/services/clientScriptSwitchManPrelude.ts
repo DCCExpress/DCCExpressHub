@@ -579,6 +579,7 @@ const switchMan = async (
 
 let __dccDispatcherLayoutPromise = null;
 const __dccDispatcherActiveBlockIds = new Set();
+let __dccDispatcherBackendSequence = 0;
 
 const __dccDispatcherNormalizeBlocks = value => {
   if (
@@ -2038,12 +2039,6 @@ const dispatcher = async (
   const direction =
     route.direction;
 
-  /*
-   * Read the locomotive BEFORE acquiring any route resources.
-   *
-   * Empty source is a normal Dispatcher branch, not a lock conflict:
-   * no block lock, no target marker and no turnout lock is touched.
-   */
   const loco =
     __dccDispatcherReadSourceLoco(
       route
@@ -2081,214 +2076,339 @@ const dispatcher = async (
     throw emptyError;
   }
 
-  return await __dccDispatcherWithBlockLocks(
-    route.blocks,
-    deadline,
-    async () => {
-      /*
-       * Re-read after the block locks were acquired. This closes the gap
-       * between the initial source lookup and route reservation.
-       */
-      const lockedSourceLoco =
-        __dccDispatcherReadSourceLoco(
-          route
+  const ownerId =
+    __dccSwitchManOwnerBaseId +
+    ":dispatcher:" +
+    String(
+      ++__dccDispatcherBackendSequence
+    );
+
+  const ownerName =
+    __dccSwitchManOwnerName +
+    ": dispatcher";
+
+  const downstreamBlocks =
+    route.blocks
+      .slice(1)
+      .map(
+        block => ({
+          blockId:
+            block.id,
+          sensorAddress:
+            block.sensorAddress,
+        })
+      );
+
+  /*
+   * Use the same segment resource namespace as backend Movement.
+   * This is what makes script Dispatcher and Movement mutually exclusive on
+   * the same physical track, not merely on destination block IDs.
+   */
+  const resourceKeys =
+    route.nodePath.map(
+      nodeName =>
+        "segment:" +
+        nodeName
+    );
+
+  const blockedResult =
+    async response => {
+      const extra =
+        response &&
+        response.extra
+          ? response.extra
+          : {};
+
+      const conflicts =
+        [];
+
+      if (
+        Array.isArray(
+          extra.turnoutConflicts
+        )
+      ) {
+        for (
+          const conflict of
+          extra.turnoutConflicts
+        ) {
+          conflicts.push(
+            Object.freeze({
+              type:
+                "turnout-lock",
+              ...conflict,
+            })
+          );
+        }
+      }
+
+      if (
+        Number.isInteger(
+          extra.blockingBlock
+        ) &&
+        extra.blockingBlock > 0
+      ) {
+        const block =
+          route.blocks.find(
+            item =>
+              item.id ===
+                extra.blockingBlock
+          );
+
+        conflicts.push(
+          Object.freeze({
+            type:
+              "block",
+            blockId:
+              extra.blockingBlock,
+            blockName:
+              block
+                ? block.name
+                : String(
+                    extra.blockingBlock
+                  ),
+            sensorAddress:
+              Number.isInteger(
+                extra.blockingSensor
+              )
+                ? extra.blockingSensor
+                : null,
+            requestedLoco:
+              loco,
+          })
+        );
+      } else if (
+        Number.isInteger(
+          extra.blockingSensor
+        ) &&
+        extra.blockingSensor > 0
+      ) {
+        conflicts.push(
+          Object.freeze({
+            type:
+              "sensor",
+            sensorAddress:
+              extra.blockingSensor,
+            requestedLoco:
+              loco,
+          })
+        );
+      }
+
+      const frozen =
+        Object.freeze(
+          conflicts
+        );
+
+      setInfo(
+        "Útvonal foglalt: " +
+        fromName +
+        " -> " +
+        toName
+      );
+
+      if (options.onBlocked) {
+        await options.onBlocked(
+          loco,
+          direction,
+          frozen
+        );
+      }
+
+      return Object.freeze({
+        status:
+          "blocked",
+        loco,
+        dir:
+          direction,
+        conflicts:
+          frozen,
+      });
+    };
+
+  let acquired =
+    false;
+
+  try {
+    while (!acquired) {
+      const remaining =
+        __dccDispatcherRemainingMs(
+          deadline
         );
 
       if (
-        lockedSourceLoco !==
-        loco
+        remaining === 0
       ) {
-        throw new Error(
-          'dispatcher: source block "' +
-          fromName +
-          '" changed while the route was being reserved.'
+        throw __dccDispatcherTimeoutError(
+          fromName,
+          toName
         );
       }
 
-      const blockResult =
-        await __dccDispatcherCheckBlocksFree(
-          route,
-          loco,
-          options
+      const response =
+        await dispatcherRequest(
+          "acquireRoute",
+          {
+            ownerId,
+            ownerName,
+            locoAddress:
+              loco,
+            sourceBlockId:
+              route.blocks[0].id,
+            downstreamBlocks,
+            turnouts:
+              route.turnoutStates,
+            resourceKeys,
+            timeoutMs:
+              0,
+            setDelayMs:
+              options.setDelayMs,
+          }
         );
 
-      if (blockResult) {
-        return blockResult;
-      }
-
-      let targetsSet =
-        false;
-
-      let committed =
-        false;
-
-      try {
-        await __dccDispatcherSetTargets(
-          route,
-          loco
-        );
-
-        targetsSet =
+      if (
+        response &&
+        response.ok
+      ) {
+        acquired =
           true;
 
-        const runCallbackAndCommit =
-          async () => {
-            await callback(
-              loco,
-              direction
-            );
+        break;
+      }
 
-            await __dccDispatcherCommitArrival(
-              route,
-              loco
-            );
+      const code =
+        String(
+          response &&
+          response.message ||
+          "dispatcher_failed"
+        );
 
-            committed =
-              true;
-
-            setInfo(
-              "Megérkezett: " +
-              toName
-            );
-          };
-
+      if (
+        code.startsWith(
+          "dispatcher_resource_locked:"
+        )
+      ) {
         if (
-          route.turnoutStates.length === 0
+          deadline !== null &&
+          Date.now() >=
+            deadline
         ) {
-          setInfo(
-            "Útvonal lezárva: " +
-            fromName +
-            " -> " +
+          throw __dccDispatcherTimeoutError(
+            fromName,
             toName
           );
+        }
 
-          await runCallbackAndCommit();
-        } else {
-          const addresses =
-            route.turnoutStates.map(
-              state =>
-                state.address
-            );
+        await delay(
+          options.blockPollMs
+        );
 
-          let turnoutBlockConflicts =
-            null;
+        continue;
+      }
 
-          const switchManOptions = {
-            // Dispatcher is a single route-attempt. If turnout resources are
-            // not available now, return "blocked" and let TaskManager/scheduler
-            // retry the task later instead of parking this task indefinitely.
-            timeoutMs: 0,
+      if (
+        code ===
+          "destination_block_busy" ||
+        code ===
+          "safety_sensor_not_free" ||
+        code ===
+          "turnout_locked" ||
+        code ===
+          "turnout_lock_timeout"
+      ) {
+        return await blockedResult(
+          response
+        );
+      }
 
-            onBlocked:
-              async conflicts => {
-                turnoutBlockConflicts =
-                  conflicts;
+      const error =
+        new Error(
+          code
+        );
 
-                if (options.onBlocked) {
-                  await options.onBlocked(
-                    loco,
-                    direction,
-                    conflicts
-                  );
-                }
-              },
-          };
+      error.code =
+        code;
 
-          setInfo(
-            "Váltókörzetre vár: " +
-            fromName +
-            " -> " +
-            toName
-          );
+      error.details =
+        response &&
+        response.extra
+          ? response.extra
+          : null;
 
-          try {
-            await switchMan(
-              addresses,
-              async sw => {
-                setInfo(
-                  "Útvonal beállítása: " +
-                  fromName +
-                  " -> " +
-                  toName
-                );
+      throw error;
+    }
 
-                for (
-                  let index = 0;
-                  index <
-                    route.turnoutStates.length;
-                  ++index
-                ) {
-                  const state =
-                    route.turnoutStates[
-                      index
-                    ];
+    setInfo(
+      "Útvonal lezárva: " +
+      fromName +
+      " -> " +
+      toName
+    );
 
-                  await sw.setTurnout(
-                    state.address,
-                    state.closed,
-                    index + 1 <
-                      route.turnoutStates.length
-                      ? options.setDelayMs
-                      : 0
-                  );
-                }
+    await callback(
+      loco,
+      direction
+    );
 
-                setInfo(
-                  "Útvonal lezárva: " +
-                  fromName +
-                  " -> " +
-                  toName
-                );
+    const committed =
+      await dispatcherRequest(
+        "commitRoute",
+        {
+          ownerId,
+        }
+      );
 
-                await runCallbackAndCommit();
-              },
-              switchManOptions
-            );
-          } catch (error) {
-            if (
-              error &&
-              error.code === "switchman_timeout" &&
-              turnoutBlockConflicts
-            ) {
-              return Object.freeze({
-                status: "blocked",
-                loco,
-                dir:
-                  direction,
-                conflicts:
-                  turnoutBlockConflicts,
-              });
-            }
+    if (
+      !committed ||
+      !committed.ok
+    ) {
+      const code =
+        String(
+          committed &&
+          committed.message ||
+          "dispatcher_route_commit_failed"
+        );
 
-            throw error;
+      const error =
+        new Error(
+          code
+        );
+
+      error.code =
+        code;
+
+      throw error;
+    }
+
+    acquired =
+      false;
+
+    setInfo(
+      "Megérkezett: " +
+      toName
+    );
+
+    return Object.freeze({
+      status:
+        "completed",
+      loco,
+      dir:
+        direction,
+    });
+  } finally {
+    if (acquired) {
+      try {
+        await dispatcherRequest(
+          "releaseRoute",
+          {
+            ownerId,
           }
-        }
-
-        return Object.freeze({
-          status: "completed",
-          loco,
-          dir:
-            direction,
-        });
-      } finally {
-        /*
-         * Normal success already converted target markers into final block
-         * ownership. Error/abort must NOT pretend the train arrived; only the
-         * dispatcher's own route targets are released.
-         */
-        if (
-          targetsSet &&
-          !committed
-        ) {
-          __dccDispatcherClearTargets(
-            route
-          );
-        }
+        );
+      } catch {
+        // The main-thread bridge also performs defensive owner cleanup.
       }
     }
-  );
+  }
 };
-
 
 // -----------------------------------------------------------------------------
 // Task Manager – single-flight concurrent automation tasks.
