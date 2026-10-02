@@ -629,29 +629,31 @@ function approachRuleFor(
     | "forward"
     | "reverse"
 ): MovementSensorCondition[] {
-  const explicit =
+  const configured =
+    blockEventConditionsFor(
+      layout,
+      blockId,
+      direction,
+      "arrival"
+    );
+
+  if (
+    configured.length >
+      0
+  ) {
+    return configured;
+  }
+
+  return (
     explicitBlockRuleFor(
       page,
       blockId
     )?.approachWhen ??
-    [];
-
-  if (
-    explicit.length >
-      0
-  ) {
-    return explicit.map(
-      condition => ({
-        ...condition,
-      })
-    );
-  }
-
-  return blockEventConditionsFor(
-    layout,
-    blockId,
-    direction,
-    "arrival"
+    []
+  ).map(
+    condition => ({
+      ...condition,
+    })
   );
 }
 
@@ -688,6 +690,26 @@ function leaveRuleFor(
     MovementSensorCondition[];
   explicit: boolean;
 } {
+  const configured =
+    blockEventConditionsFor(
+      layout,
+      blockId,
+      direction,
+      "leave"
+    );
+
+  if (
+    configured.length >
+      0
+  ) {
+    return {
+      conditions:
+        configured,
+      explicit:
+        true,
+    };
+  }
+
   const explicit =
     explicitBlockRuleFor(
       page,
@@ -706,26 +728,6 @@ function leaveRuleFor(
             ...condition,
           })
         ),
-      explicit:
-        true,
-    };
-  }
-
-  const configured =
-    blockEventConditionsFor(
-      layout,
-      blockId,
-      direction,
-      "leave"
-    );
-
-  if (
-    configured.length >
-      0
-  ) {
-    return {
-      conditions:
-        configured,
       explicit:
         true,
     };
@@ -751,6 +753,21 @@ function arrivalRuleFor(
     | "forward"
     | "reverse"
 ): MovementSensorCondition[] {
+  const configured =
+    blockEventConditionsFor(
+      layout,
+      blockId,
+      direction,
+      "arrived"
+    );
+
+  if (
+    configured.length >
+      0
+  ) {
+    return configured;
+  }
+
   const explicit =
     explicitBlockRuleFor(
       page,
@@ -767,21 +784,6 @@ function arrivalRuleFor(
         ...condition,
       })
     );
-  }
-
-  const configured =
-    blockEventConditionsFor(
-      layout,
-      blockId,
-      direction,
-      "arrived"
-    );
-
-  if (
-    configured.length >
-      0
-  ) {
-    return configured;
   }
 
   const destinationSensor =
