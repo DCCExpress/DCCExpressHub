@@ -116,6 +116,7 @@ public sealed class ScriptRuntime
     readonly HubState _hubState;
     readonly IWebHostEnvironment _env;
     readonly ScriptInfoStore _scriptInfo;
+    readonly AutomationExclusiveGate _exclusiveGate;
     readonly ILogger<ScriptRuntime> _log;
     readonly Dictionary<string, Execution> _executions =
         new(StringComparer.Ordinal);
@@ -141,6 +142,7 @@ public sealed class ScriptRuntime
         HubState hubState,
         IWebHostEnvironment env,
         ScriptInfoStore scriptInfo,
+        AutomationExclusiveGate exclusiveGate,
         ILogger<ScriptRuntime> log)
     {
         _layout = layout;
@@ -151,6 +153,7 @@ public sealed class ScriptRuntime
         _hubState = hubState;
         _env = env;
         _scriptInfo = scriptInfo;
+        _exclusiveGate = exclusiveGate;
         _log = log;
     }
 
@@ -451,6 +454,13 @@ public sealed class ScriptRuntime
         string source,
         string? scriptId = null)
     {
+        if (_exclusiveGate.CalibrationActive)
+            return (
+                false,
+                "calibration_active",
+                Idle(
+                    executionId));
+
         executionId =
             (executionId ?? "").Trim();
 
