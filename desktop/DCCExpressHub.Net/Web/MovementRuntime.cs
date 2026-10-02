@@ -179,6 +179,9 @@ public sealed class MovementRuntime
             new(StringComparer.Ordinal);
         public HashSet<string> ResourceLeaveFired { get; } =
             new(StringComparer.Ordinal);
+        public HashSet<string> ExternalHolds { get; } =
+            new(StringComparer.Ordinal);
+        public HashSet<int> AfterArrivedBlocks { get; } = [];
     }
 
     readonly object _gate = new();
@@ -186,6 +189,7 @@ public sealed class MovementRuntime
     readonly DispatcherRuntime _dispatcher;
     readonly SwitchManManager _switchMan;
     readonly MovementPlanBuilder _planBuilder;
+    readonly TrainEventRuntime _trainEvents;
     readonly ICommandCenter _commandCenter;
     readonly HubState _hubState;
     readonly IWebHostEnvironment _env;
@@ -206,6 +210,7 @@ public sealed class MovementRuntime
         DispatcherRuntime dispatcher,
         SwitchManManager switchMan,
         MovementPlanBuilder planBuilder,
+        TrainEventRuntime trainEvents,
         ICommandCenter commandCenter,
         HubState hubState,
         IWebHostEnvironment env,
@@ -216,6 +221,7 @@ public sealed class MovementRuntime
         _dispatcher = dispatcher;
         _switchMan = switchMan;
         _planBuilder = planBuilder;
+        _trainEvents = trainEvents;
         _commandCenter = commandCenter;
         _hubState = hubState;
         _env = env;
@@ -224,6 +230,85 @@ public sealed class MovementRuntime
     }
 
     static long NowMs() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+    void EmitTrainEvent(
+        Execution execution,
+        string eventName,
+        MovementPlanResourceModel resource)
+    {
+        _trainEvents.PublishMovement(
+            execution.State with
+            {
+                LocoAddress = execution.LocoAddress,
+                Direction = execution.Forward
+                    ? "forward"
+                    : "reverse"
+            },
+            resource,
+            eventName);
+    }
+
+    static bool IsHeld(
+        Execution execution)
+    {
+        lock (execution.ExternalHolds)
+            return execution.ExternalHolds.Count > 0;
+    }
+
+    async Task WaitForExternalHolds(
+        Execution execution,
+        MovementPlanLegModel leg)
+    {
+        if (!IsHeld(execution))
+            return;
+
+        execution.Moving = false;
+        execution.DesiredSpeed = 0;
+
+        Patch(
+            execution,
+            desiredSpeed: 0,
+            info:
+                "Movement held at " +
+                leg.From.Name,
+            setInfo: true);
+
+        await ApplySpeed(
+            execution,
+            force: true);
+
+        if (leg.From.BlockId is >= 1 and <= 65535 &&
+            execution.AfterArrivedBlocks.Add(
+                leg.From.BlockId.Value))
+            EmitTrainEvent(
+                execution,
+                "afterArrived",
+                leg.From);
+
+        while (IsHeld(execution))
+        {
+            execution.Cancellation.Token.ThrowIfCancellationRequested();
+
+            Patch(
+                execution,
+                info:
+                    "Movement held at " +
+                    leg.From.Name,
+                setInfo: true);
+
+            await Task.Delay(
+                100,
+                execution.Cancellation.Token);
+        }
+
+        execution.DesiredSpeed =
+            execution.Page.Speed;
+
+        Patch(
+            execution,
+            desiredSpeed:
+                execution.DesiredSpeed);
+    }
 
     static MovementRuntimeState Idle(string pageId) =>
         new(
@@ -1291,6 +1376,11 @@ public sealed class MovementRuntime
             execution.ResourceLeaveFired.Add(
                 key);
 
+            EmitTrainEvent(
+                execution,
+                "leave",
+                state.Resource);
+
             await RunActions(
                 execution,
                 state.Resource.Key,
@@ -1313,6 +1403,11 @@ public sealed class MovementRuntime
 
         execution.ResourceLeaveFired.Add(
             resource.Key);
+
+        EmitTrainEvent(
+            execution,
+            "leave",
+            resource);
 
         await RunActions(
             execution,
@@ -1408,6 +1503,11 @@ public sealed class MovementRuntime
         state.Fired =
             true;
 
+        EmitTrainEvent(
+            execution,
+            "arrival",
+            leg.To);
+
         await RunActions(
             execution,
             leg.To.Key,
@@ -1464,6 +1564,11 @@ public sealed class MovementRuntime
 
         state.Fired =
             true;
+
+        EmitTrainEvent(
+            execution,
+            "leave",
+            leg.From);
 
         await RunActions(
             execution,
@@ -1786,6 +1891,10 @@ public sealed class MovementRuntime
             activeRouteResourceKey: leg.From.Key,
             setActiveRoute: true);
 
+        await WaitForExternalHolds(
+            execution,
+            leg);
+
         if (leg.DepartWhen.Length > 0)
         {
             await WaitUntil(
@@ -1800,6 +1909,11 @@ public sealed class MovementRuntime
         await WaitPreDepartureAvailability(
             execution,
             leg);
+
+        EmitTrainEvent(
+            execution,
+            "beforeLeave",
+            leg.From);
 
         await RunActions(
             execution,
@@ -1843,6 +1957,11 @@ public sealed class MovementRuntime
                 lease,
                 leg);
 
+            EmitTrainEvent(
+                execution,
+                "starting",
+                leg.From);
+
             execution.Moving = true;
             await ApplySpeed(execution, force: true);
 
@@ -1869,6 +1988,11 @@ public sealed class MovementRuntime
             if (approachSegment is null &&
                 leg.ApproachWhen.Length == 0)
             {
+                EmitTrainEvent(
+                    execution,
+                    "approach",
+                    leg.To);
+
                 await RunActions(
                     execution,
                     leg.To.Key,
@@ -1912,6 +2036,11 @@ public sealed class MovementRuntime
                         execution,
                         resource);
 
+                    EmitTrainEvent(
+                        execution,
+                        "enter",
+                        resource);
+
                     await RunActions(
                         execution,
                         resource.Key,
@@ -1949,6 +2078,11 @@ public sealed class MovementRuntime
                             previousSegment);
                     }
 
+                    EmitTrainEvent(
+                        execution,
+                        "enter",
+                        resource);
+
                     await RunActions(
                         execution,
                         resource.Key,
@@ -1975,6 +2109,11 @@ public sealed class MovementRuntime
                         resource.Key,
                         StringComparison.Ordinal))
                 {
+                    EmitTrainEvent(
+                        execution,
+                        "arrival",
+                        leg.To);
+
                     await RunActions(
                         execution,
                         leg.To.Key,
@@ -2038,6 +2177,32 @@ public sealed class MovementRuntime
                 activeRouteResourceKey: leg.To.Key,
                 setActiveRoute: true);
 
+            EmitTrainEvent(
+                execution,
+                "arrived",
+                leg.To);
+
+            // Give TrainEvent-triggered backend Flow branches a deterministic
+            // window to register movement.hold() before the next leg acquires
+            // authority.
+            await Task.Delay(
+                50,
+                execution.Cancellation.Token);
+
+            if (IsHeld(execution))
+            {
+                execution.Moving = false;
+                execution.DesiredSpeed = 0;
+
+                Patch(
+                    execution,
+                    desiredSpeed: 0);
+
+                await ApplySpeed(
+                    execution,
+                    force: true);
+            }
+
             var finalLeg =
                 ReferenceEquals(
                     execution.Plan.Legs.LastOrDefault(),
@@ -2061,6 +2226,14 @@ public sealed class MovementRuntime
                     desiredSpeed: 0);
 
                 await ApplySpeed(execution, force: true);
+
+                if (leg.To.BlockId is >= 1 and <= 65535 &&
+                    execution.AfterArrivedBlocks.Add(
+                        leg.To.BlockId.Value))
+                    EmitTrainEvent(
+                        execution,
+                        "afterArrived",
+                        leg.To);
             }
 
             await MaybeRunBlockLeave(
@@ -2104,6 +2277,11 @@ public sealed class MovementRuntime
                 _layout.RemoveBlock(
                     (ushort)leg.From.BlockId.Value);
 
+            EmitTrainEvent(
+                execution,
+                "afterLeave",
+                leg.From);
+
             await RunActions(
                 execution,
                 leg.From.Key,
@@ -2132,6 +2310,7 @@ public sealed class MovementRuntime
                         leg.Index + 1);
 
                 var mayKeepRolling =
+                    !IsHeld(execution) &&
                     next is not null &&
                     (next.DepartWhen.Length == 0 ||
                      ConditionsSatisfied(next.DepartWhen)) &&
@@ -2568,6 +2747,106 @@ public sealed class MovementRuntime
             () => RunExecution(execution));
 
         return (true, null);
+    }
+
+    public bool Hold(
+        string pageId,
+        string ownerId)
+    {
+        Execution? execution;
+
+        lock (_gate)
+            _executions.TryGetValue(
+                pageId,
+                out execution);
+
+        if (execution is null)
+            return false;
+
+        var owner =
+            string.IsNullOrWhiteSpace(
+                ownerId)
+                ? "external"
+                : ownerId.Trim();
+
+        lock (execution.ExternalHolds)
+            execution.ExternalHolds.Add(
+                owner);
+
+        execution.Moving = false;
+        execution.DesiredSpeed = 0;
+
+        Patch(
+            execution,
+            desiredSpeed: 0,
+            info: "Movement hold requested",
+            setInfo: true);
+
+        _ = ApplySpeed(
+                execution,
+                force: true,
+                cancellationToken:
+                    CancellationToken.None)
+            .ContinueWith(
+                _ => { },
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+
+        return true;
+    }
+
+    public bool Release(
+        string pageId,
+        string ownerId)
+    {
+        Execution? execution;
+
+        lock (_gate)
+            _executions.TryGetValue(
+                pageId,
+                out execution);
+
+        if (execution is null)
+            return false;
+
+        var owner =
+            string.IsNullOrWhiteSpace(
+                ownerId)
+                ? "external"
+                : ownerId.Trim();
+
+        lock (execution.ExternalHolds)
+            execution.ExternalHolds.Remove(
+                owner);
+
+        Patch(
+            execution,
+            info: "Movement hold released",
+            setInfo: true);
+
+        return true;
+    }
+
+    public string[] HoldOwners(
+        string pageId)
+    {
+        Execution? execution;
+
+        lock (_gate)
+            _executions.TryGetValue(
+                pageId,
+                out execution);
+
+        if (execution is null)
+            return [];
+
+        lock (execution.ExternalHolds)
+            return execution.ExternalHolds
+                .OrderBy(
+                    x => x,
+                    StringComparer.Ordinal)
+                .ToArray();
     }
 
     public bool Stop(string pageId)
