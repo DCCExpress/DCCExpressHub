@@ -121,7 +121,7 @@ export class StationBuildingElement extends BaseElement {
     }
 
     const centerX = x + width / 2;
-    const frontY = y + height - 3;
+    const frontY = y + height - 1;
 
     if (
       this.variant === "terrace" ||
@@ -141,7 +141,8 @@ export class StationBuildingElement extends BaseElement {
         terraceWidth / 2;
 
       const terraceY =
-        frontY - 7;
+        frontY;
+      const terraceDepth = 17;
 
       const deck =
         ctx.createLinearGradient(
@@ -169,14 +170,14 @@ export class StationBuildingElement extends BaseElement {
         terraceX,
         terraceY,
         terraceWidth,
-        7
+        terraceDepth
       );
 
       ctx.strokeRect(
         terraceX,
         terraceY,
         terraceWidth,
-        7
+        terraceDepth
       );
 
       ctx.strokeStyle =
@@ -199,7 +200,9 @@ export class StationBuildingElement extends BaseElement {
         );
         ctx.lineTo(
           deckX,
-          frontY - 1
+          terraceY +
+            terraceDepth -
+            1
         );
         ctx.stroke();
       }
@@ -209,7 +212,9 @@ export class StationBuildingElement extends BaseElement {
         "coveredTerrace"
       ) {
         const canopyY =
-          terraceY - 5;
+          terraceY + 1;
+        const canopyDepth =
+          11;
 
         const canopy =
           ctx.createLinearGradient(
@@ -247,11 +252,13 @@ export class StationBuildingElement extends BaseElement {
         ctx.lineTo(
           terraceX +
             terraceWidth,
-          terraceY
+          canopyY +
+            canopyDepth
         );
         ctx.lineTo(
           terraceX,
-          terraceY
+          canopyY +
+            canopyDepth
         );
         ctx.closePath();
         ctx.fill();
@@ -262,18 +269,18 @@ export class StationBuildingElement extends BaseElement {
 
         ctx.fillRect(
           terraceX + 3,
-          terraceY - 1,
+          canopyY + 2,
           2,
-          6
+          canopyDepth + 4
         );
 
         ctx.fillRect(
           terraceX +
             terraceWidth -
             5,
-          terraceY - 1,
+          canopyY + 2,
           2,
-          6
+          canopyDepth + 4
         );
       }
 
@@ -283,48 +290,63 @@ export class StationBuildingElement extends BaseElement {
     if (
       this.variant === "stairs"
     ) {
-      const stepWidths = [
-        20,
-        16,
-        12,
+      const steps = [
+        { width: 12, depth: 5 },
+        { width: 16, depth: 5 },
+        { width: 20, depth: 5 },
       ];
 
-      stepWidths.forEach(
+      let stepY =
+        frontY;
+
+      steps.forEach(
         (
-          stepWidth,
+          step,
           index
         ) => {
-          const stepHeight = 2.2;
-          const stepY =
-            frontY -
-            (index + 1) *
-              stepHeight;
-
           ctx.fillStyle =
             index % 2 === 0
-              ? "#b8b5ae"
-              : "#9d9a94";
+              ? "#c1beb7"
+              : "#a6a39d";
           ctx.strokeStyle =
             "#6e6b66";
-          ctx.lineWidth = 0.7;
+          ctx.lineWidth = 0.8;
 
           ctx.fillRect(
             centerX -
-              stepWidth /
-                2,
+              step.width / 2,
             stepY,
-            stepWidth,
-            stepHeight
+            step.width,
+            step.depth
           );
 
           ctx.strokeRect(
             centerX -
-              stepWidth /
-                2,
+              step.width / 2,
             stepY,
-            stepWidth,
-            stepHeight
+            step.width,
+            step.depth
           );
+
+          ctx.strokeStyle =
+            "rgba(255,255,255,0.18)";
+          ctx.beginPath();
+          ctx.moveTo(
+            centerX -
+              step.width / 2 +
+              1,
+            stepY + 1
+          );
+          ctx.lineTo(
+            centerX +
+              step.width / 2 -
+              1,
+            stepY + 1
+          );
+          ctx.stroke();
+
+          stepY +=
+            step.depth;
         }
       );
     }
@@ -445,7 +467,16 @@ export class StationBuildingElement extends BaseElement {
     const width = this.width;
     const height = this.height;
     const x = this.posLeft;
-    const y = this.posTop;
+    const logicalY = this.posTop;
+
+    const buildingOffsetY =
+      this.variant === "plain"
+        ? 0
+        : -8;
+
+    const y =
+      logicalY +
+      buildingOffsetY;
 
     const normalizedRoofColor =
       normalizeHexColor(
