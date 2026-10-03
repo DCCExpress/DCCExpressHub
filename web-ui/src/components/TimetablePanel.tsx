@@ -785,18 +785,6 @@ export default function TimetablePanel({
                   )}
                 </Text>
               </div>
-
-              <Group gap={6} wrap="wrap">
-                <Badge variant="light" color="blue">
-                  {t("ui.rowsCount", { value1: expandedRows.length })}
-                </Badge>
-
-                {schedulerState.activeRuns.length > 0 && (
-                  <Badge variant="filled" color="green">
-                    {t("ui.activeRunsCount", { value1: schedulerState.activeRuns.length })}
-                  </Badge>
-                )}
-              </Group>
             </Group>
 
             <Group
@@ -874,6 +862,10 @@ export default function TimetablePanel({
 
             <Group justify="space-between" align="center" wrap="wrap">
               <Group gap="xs" wrap="wrap">
+                <Badge variant="light" color="blue">
+                  {t("ui.rowsCount", { value1: expandedRows.length })}
+                </Badge>
+
                 <Badge
                   size="sm"
                   variant={schedulerState.running ? "filled" : "light"}
@@ -883,6 +875,12 @@ export default function TimetablePanel({
                     ? t("ui.timetableActive")
                     : t("ui.timetableStopped")}
                 </Badge>
+
+                {schedulerState.activeRuns.length > 0 && (
+                  <Badge variant="filled" color="green">
+                    {t("ui.activeRunsCount", { value1: schedulerState.activeRuns.length })}
+                  </Badge>
+                )}
 
                 {automationFinishing && (
                   <Badge size="sm" variant="light" color="orange">
