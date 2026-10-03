@@ -53,6 +53,7 @@ import type { DccExStatusPayload, Loco } from "@domain/types";
 import { ELEMENT_TYPES, type ElementType } from "@domain/layout/elementTypes";
 import TrackCanvas from "@/components/TrackCanvas";
 import FullscreenLoader from "@/components/FullscreenLoader";
+import AppModal from "@/components/common/AppModal";
 import SignalLogicDialog from "@/components/SignalLogicDialog";
 import IntegrityCheckDialog from "@/components/IntegrityCheckDialog";
 import LayoutRuntimeLogPanel from "@/components/LayoutRuntimeLogPanel";
@@ -101,6 +102,10 @@ import { TrackTurnoutTwoWayElement } from "./models/editor/elements/TrackTurnout
 import { TrackTurnoutThreeWayElement } from "./models/editor/elements/TrackTurnoutThreeWayElement";
 import { ClockElement } from "./models/editor/elements/ClockElement";
 import { LabelElement } from "./models/editor/elements/LabelElement";
+import { TreeElement } from "./models/editor/elements/TreeElement";
+import { BushElement } from "./models/editor/elements/BushElement";
+import { LampElement } from "./models/editor/elements/LampElement";
+import { StationBuildingElement } from "./models/editor/elements/StationBuildingElement";
 import { RouteButtonElement } from "./models/editor/elements/RouteButtonElement";
 import ElementPreview from "@/models/editor/rendering/ElementPreviewRenderer";
 import type { EditorTool } from "@/models/editor/types/EditorTypes";
@@ -380,6 +385,13 @@ function createSignalPreview(): TrackSignalElement {
   return new TrackSignalElement(0, 0);
 }
 
+function createStationBuildingPreview(): StationBuildingElement {
+  const building = new StationBuildingElement(0, 0);
+  building.w = 1.15;
+  building.h = 0.72;
+  return building;
+}
+
 async function readHttpErrorMessage(
   response: Response,
   fallback: string
@@ -417,7 +429,7 @@ async function readHttpErrorMessage(
   }
 }
 
-const PICKER_ITEMS: PickerItem[] = [
+const RAILWAY_PICKER_ITEMS: PickerItem[] = [
   { type: ELEMENT_TYPES.TRACK_DIRECTION, get label() { return i18next.t("ui.direction"); }, preview: new TrackDirectionElement(0, 0) },
   { type: ELEMENT_TYPES.TRACK_STRAIGHT, get label() { return i18next.t("ui.straight"); }, preview: new TrackStraightElement(0, 0) },
   { type: ELEMENT_TYPES.TRACK_END, get label() { return i18next.t("ui.trackEnd"); }, preview: new TrackEndElement(0, 0) },
@@ -438,6 +450,29 @@ const PICKER_ITEMS: PickerItem[] = [
   { type: ELEMENT_TYPES.BUTTON_AUDIO, get label() { return i18next.t("ui.audioButton"); }, preview: new AudioButtonElement(0, 0) },
   { type: ELEMENT_TYPES.CLOCK, get label() { return i18next.t("fastClock.title"); }, preview: createClockPreview() },
   { type: ELEMENT_TYPES.LABEL, get label() { return i18next.t("ui.label"); }, preview: new LabelElement(0, 0) },
+];
+
+const DECORATION_PICKER_ITEMS: PickerItem[] = [
+  {
+    type: ELEMENT_TYPES.TREE,
+    get label() { return i18next.t("ui.tree"); },
+    preview: new TreeElement(0, 0),
+  },
+  {
+    type: ELEMENT_TYPES.BUSH,
+    get label() { return i18next.t("ui.bush"); },
+    preview: new BushElement(0, 0),
+  },
+  {
+    type: ELEMENT_TYPES.LAMP,
+    get label() { return i18next.t("ui.lamp"); },
+    preview: new LampElement(0, 0),
+  },
+  {
+    type: ELEMENT_TYPES.STATION_BUILDING,
+    get label() { return i18next.t("ui.stationBuilding"); },
+    preview: createStationBuildingPreview(),
+  },
 ];
 
 const LOCO_WIDTH_KEY = "dcc-express-lite.layout.locoPanelWidth";
@@ -2320,33 +2355,96 @@ export default function LiteLayoutPage({
         </Group>
       </Card>
 
-      <Modal opened={pickerOpened} onClose={() => setPickerOpened(false)} title={i18next.t("ui.addLayoutElement")} size="lg" returnFocus={false}>
-        <ScrollArea.Autosize mah="70dvh">
-          <SimpleGrid cols={{ base: 2, sm: 4 }}>
-            {PICKER_ITEMS.map(item => (
-              <Card
-                key={item.type}
-                withBorder
-                p="xs"
-                style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
-              >
-                <ElementPreview
-                  element={item.preview}
-                  label={item.label}
-                  width={54}
-                  height={54}
-                  translateX={4}
-                  translateY={10}
-                  onClick={() => {
-                    setTool({ mode: "draw", elementType: item.type });
-                    setPickerOpened(false);
-                  }}
-                />
-              </Card>
-            ))}
-          </SimpleGrid>
-        </ScrollArea.Autosize>
-      </Modal>
+      <AppModal
+        opened={pickerOpened}
+        onClose={() => setPickerOpened(false)}
+        title={i18next.t("ui.addLayoutElement")}
+        size="lg"
+        returnFocus={false}
+        centered
+        draggable
+      >
+        <Tabs defaultValue="railway">
+          <Tabs.List grow>
+            <Tabs.Tab value="railway">
+              {i18next.t("ui.railwayElements")}
+            </Tabs.Tab>
+            <Tabs.Tab value="decorations">
+              {i18next.t("ui.decorations")}
+            </Tabs.Tab>
+          </Tabs.List>
+
+          <Tabs.Panel value="railway" pt="sm">
+            <ScrollArea.Autosize mah="65dvh">
+              <SimpleGrid cols={{ base: 2, sm: 4 }}>
+                {RAILWAY_PICKER_ITEMS.map(item => (
+                  <Card
+                    key={item.type}
+                    withBorder
+                    p="xs"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <ElementPreview
+                      element={item.preview}
+                      label={item.label}
+                      width={54}
+                      height={54}
+                      translateX={4}
+                      translateY={10}
+                      onClick={() => {
+                        setTool({
+                          mode: "draw",
+                          elementType: item.type,
+                        });
+                        setPickerOpened(false);
+                      }}
+                    />
+                  </Card>
+                ))}
+              </SimpleGrid>
+            </ScrollArea.Autosize>
+          </Tabs.Panel>
+
+          <Tabs.Panel value="decorations" pt="sm">
+            <ScrollArea.Autosize mah="65dvh">
+              <SimpleGrid cols={{ base: 2, sm: 4 }}>
+                {DECORATION_PICKER_ITEMS.map(item => (
+                  <Card
+                    key={item.type}
+                    withBorder
+                    p="xs"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <ElementPreview
+                      element={item.preview}
+                      label={item.label}
+                      width={54}
+                      height={54}
+                      translateX={4}
+                      translateY={10}
+                      onClick={() => {
+                        setTool({
+                          mode: "draw",
+                          elementType: item.type,
+                        });
+                        setPickerOpened(false);
+                      }}
+                    />
+                  </Card>
+                ))}
+              </SimpleGrid>
+            </ScrollArea.Autosize>
+          </Tabs.Panel>
+        </Tabs>
+      </AppModal>
 
       <Modal
         opened={temperatureAlertOpened}
