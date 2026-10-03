@@ -288,9 +288,11 @@ export default function FunctionBindingsDialog({
                             value={
                               binding.name
                             }
-                            onClick={
-                              event =>
-                                event.stopPropagation()
+                            onFocus={
+                              () =>
+                                setSelectedId(
+                                  binding.id
+                                )
                             }
                             onChange={
                               event =>
