@@ -219,6 +219,17 @@ class WebSocketApi {
     );
   }
 
+  audioPlaybackState(
+    enabled: boolean
+  ): boolean {
+    return this.send(
+      "audioPlaybackState",
+      {
+        enabled,
+      }
+    );
+  }
+
   dispatcherCommand(
     requestId: string,
     action:
