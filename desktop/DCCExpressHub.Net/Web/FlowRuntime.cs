@@ -56,6 +56,7 @@ public sealed class FlowRuntime : BackgroundService
     readonly HubState _hubState;
     readonly ICommandCenter _commandCenter;
     readonly ScriptRuntime _scripts;
+    readonly TrainEventRuntime _trainEvents;
     readonly AutomationExclusiveGate _exclusiveGate;
     readonly ILogger<FlowRuntime> _log;
 
@@ -81,6 +82,7 @@ public sealed class FlowRuntime : BackgroundService
         HubState hubState,
         ICommandCenter commandCenter,
         ScriptRuntime scripts,
+        TrainEventRuntime trainEvents,
         AutomationExclusiveGate exclusiveGate,
         ILogger<FlowRuntime> log)
     {
@@ -89,6 +91,7 @@ public sealed class FlowRuntime : BackgroundService
         _hubState = hubState;
         _commandCenter = commandCenter;
         _scripts = scripts;
+        _trainEvents = trainEvents;
         _exclusiveGate = exclusiveGate;
         _log = log;
 
@@ -112,6 +115,9 @@ public sealed class FlowRuntime : BackgroundService
 
         _scripts.LogChanged +=
             OnScriptLog;
+
+        _trainEvents.Changed +=
+            OnTrainEvent;
     }
 
     static long NowMs() =>
@@ -185,6 +191,165 @@ public sealed class FlowRuntime : BackgroundService
             _ =>
                 fallback
         };
+    }
+
+    static string[] StringArray(
+        JsonElement element,
+        string property)
+    {
+        if (element.ValueKind !=
+                JsonValueKind.Object ||
+            !element.TryGetProperty(
+                property,
+                out var value) ||
+            value.ValueKind !=
+                JsonValueKind.Array)
+            return [];
+
+        return value
+            .EnumerateArray()
+            .Where(item =>
+                item.ValueKind ==
+                    JsonValueKind.String)
+            .Select(item =>
+                (item.GetString() ?? "")
+                    .Trim())
+            .Where(item =>
+                item.Length > 0)
+            .Distinct(
+                StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    static int[] IntArray(
+        JsonElement element,
+        string property)
+    {
+        if (element.ValueKind !=
+                JsonValueKind.Object ||
+            !element.TryGetProperty(
+                property,
+                out var value) ||
+            value.ValueKind !=
+                JsonValueKind.Array)
+            return [];
+
+        return value
+            .EnumerateArray()
+            .Select(item =>
+                item.ValueKind ==
+                    JsonValueKind.Number &&
+                item.TryGetInt32(
+                    out var number)
+                    ? number
+                    : 0)
+            .Where(number =>
+                number > 0)
+            .Distinct()
+            .ToArray();
+    }
+
+    static bool MatchesTrainEvent(
+        NodeDef node,
+        TrainEventPayload trainEvent)
+    {
+        var eventTypes =
+            StringArray(
+                node.Data,
+                "trainEventTypes");
+
+        if (eventTypes.Length > 0 &&
+            !eventTypes.Contains(
+                trainEvent.Event,
+                StringComparer.OrdinalIgnoreCase))
+            return false;
+
+        var trainTypes =
+            StringArray(
+                node.Data,
+                "trainTypeFilters");
+
+        if (trainTypes.Length > 0 &&
+            (string.IsNullOrWhiteSpace(
+                 trainEvent.TrainType) ||
+             !trainTypes.Contains(
+                 trainEvent.TrainType,
+                 StringComparer.OrdinalIgnoreCase)))
+            return false;
+
+        var resourceTypes =
+            StringArray(
+                node.Data,
+                "trainResourceTypes");
+
+        if (resourceTypes.Length > 0 &&
+            !resourceTypes.Contains(
+                trainEvent.ResourceType,
+                StringComparer.OrdinalIgnoreCase))
+            return false;
+
+        var blockFilters =
+            IntArray(
+                node.Data,
+                "trainBlockFilters");
+
+        if (blockFilters.Length > 0)
+        {
+            if (!string.Equals(
+                    trainEvent.ResourceType,
+                    "block",
+                    StringComparison.OrdinalIgnoreCase) ||
+                trainEvent.ResourceId is not int blockId ||
+                !blockFilters.Contains(
+                    blockId))
+                return false;
+        }
+
+        var sensorFilters =
+            IntArray(
+                node.Data,
+                "trainSensorFilters");
+
+        if (sensorFilters.Length > 0 &&
+            !sensorFilters.Any(sensor =>
+                trainEvent.SensorAddress ==
+                    sensor ||
+                trainEvent.Sensors.Contains(
+                    sensor)))
+            return false;
+
+        var resourceFilters =
+            StringArray(
+                node.Data,
+                "trainResourceFilters");
+
+        if (resourceFilters.Length > 0 &&
+            !resourceFilters.Any(filter =>
+                string.Equals(
+                    filter,
+                    trainEvent.ResourceName,
+                    StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(
+                    filter,
+                    trainEvent.ResourceKey,
+                    StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(
+                    filter,
+                    trainEvent.ResourceId?.ToString(),
+                    StringComparison.OrdinalIgnoreCase)))
+            return false;
+
+        var locoFilters =
+            IntArray(
+                node.Data,
+                "trainLocoAddressFilters");
+
+        if (locoFilters.Length > 0 &&
+            !locoFilters.Contains(
+                trainEvent.LocoAddress))
+            return false;
+
+        return true;
     }
 
     static string Js(
@@ -407,7 +572,8 @@ public sealed class FlowRuntime : BackgroundService
             "turnoutInput" or
             "basicAccessoryInput" or
             "extendedAccessoryInput" or
-            "locoInput";
+            "locoInput" or
+            "trainEventInput";
 
     static string LocoSignature(
         LocoFeedback loco) =>
@@ -511,6 +677,62 @@ public sealed class FlowRuntime : BackgroundService
         object value) =>
         JsonSerializer.SerializeToElement(
             value);
+
+    void OnTrainEvent(
+        TrainEventPayload trainEvent)
+    {
+        var payload =
+            ObjectPayload(
+                new
+                {
+                    eventType =
+                        "trainEvent",
+                    id =
+                        trainEvent.Id,
+                    timestamp =
+                        trainEvent.Timestamp,
+                    source =
+                        trainEvent.Source,
+                    movementId =
+                        trainEvent.MovementId,
+                    movementName =
+                        trainEvent.MovementName,
+                    locoId =
+                        trainEvent.LocoId,
+                    locoAddress =
+                        trainEvent.LocoAddress,
+                    locoName =
+                        trainEvent.LocoName,
+                    trainType =
+                        trainEvent.TrainType,
+                    direction =
+                        trainEvent.Direction,
+                    @event =
+                        trainEvent.Event,
+                    resourceType =
+                        trainEvent.ResourceType,
+                    resourceKey =
+                        trainEvent.ResourceKey,
+                    resourceId =
+                        trainEvent.ResourceId,
+                    resourceName =
+                        trainEvent.ResourceName,
+                    resourceLabel =
+                        trainEvent.ResourceLabel,
+                    sensorAddress =
+                        trainEvent.SensorAddress,
+                    sensors =
+                        trainEvent.Sensors
+                });
+
+        RunMatchingInputs(
+            "trainEventInput",
+            node =>
+                MatchesTrainEvent(
+                    node,
+                    trainEvent),
+            payload);
+    }
 
     void OnLayoutChanged(
         string type,
@@ -1457,6 +1679,53 @@ public sealed class FlowRuntime : BackgroundService
     static string DefaultPayload(
         NodeDef input)
     {
+        if (input.Kind ==
+            "trainEventInput")
+            return Json(
+                new
+                {
+                    eventType =
+                        "trainEvent",
+                    movementId =
+                        "manual-test",
+                    movementName =
+                        "Manual test",
+                    locoId =
+                        (string?)null,
+                    locoAddress =
+                        1,
+                    locoName =
+                        (string?)null,
+                    trainType =
+                        (string?)null,
+                    direction =
+                        "forward",
+                    @event =
+                        StringArray(
+                            input.Data,
+                            "trainEventTypes")
+                            .FirstOrDefault() ??
+                        "arrived",
+                    resourceType =
+                        StringArray(
+                            input.Data,
+                            "trainResourceTypes")
+                            .FirstOrDefault() ??
+                        "block",
+                    resourceKey =
+                        "manual-test",
+                    resourceId =
+                        1,
+                    resourceName =
+                        "Manual test",
+                    resourceLabel =
+                        "Manual test",
+                    sensorAddress =
+                        (int?)null,
+                    sensors =
+                        Array.Empty<int>()
+                });
+
         if (input.Kind ==
             "sensorInput")
             return Json(
