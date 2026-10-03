@@ -9,6 +9,7 @@ import {
   Divider,
   Group,
   Modal,
+  NumberInput,
   ScrollArea,
   SimpleGrid,
   Stack,
@@ -78,6 +79,7 @@ import {
   hydrateClientRouteGraphCache,
 } from "@/services/clientRouteGraphCache";
 import type { BaseElement } from "./models/editor/core/BaseElement";
+import { TrackElement } from "./models/editor/core/TrackElement";
 import { isTurnoutElement, LayoutView } from "@/models/editor/core/LayoutView";
 import { TrackCornerElement } from "./models/editor/elements/TrackCornerElement";
 import { TrackCrossingElement } from "./models/editor/elements/TrackCrossingElement";
@@ -569,6 +571,7 @@ function LitePropertyPanel({
   setTurnoutSelectionMode,
   setBusy,
   invalidate,
+  selectionRevision,
 }: {
   selectedElement: BaseElement | null;
   layout: LayoutView;
@@ -577,6 +580,7 @@ function LitePropertyPanel({
   setTurnoutSelectionMode: (on: boolean) => void;
   setBusy: (busy: boolean, text?: string) => void;
   invalidate: () => void;
+  selectionRevision: number;
 }) {
   useTranslation();
 
@@ -590,7 +594,197 @@ function LitePropertyPanel({
     [selectedElement, i18next.resolvedLanguage],
   );
 
+  const selectedElements = useMemo(
+    () =>
+      layout
+        .getAllElements()
+        .filter(element => element.selected),
+    [
+      layout,
+      selectedElement,
+      selectionRevision,
+    ]
+  );
+
+  const bulkOccupancyTracks =
+    selectedElement === null &&
+    selectedElements.length > 1 &&
+    selectedElements.every(
+      (
+        element
+      ): element is TrackElement =>
+        element instanceof TrackElement &&
+        element.hasOccupancySensor
+    )
+      ? selectedElements
+      : [];
+
+  const bulkOccupancyMixed =
+    bulkOccupancyTracks.length > 1 &&
+    new Set(
+      bulkOccupancyTracks.map(
+        element =>
+          element.address
+      )
+    ).size > 1;
+
+  const bulkOccupancySelectionKey =
+    bulkOccupancyTracks
+      .map(
+        element =>
+          `${element.id}:${element.address}`
+      )
+      .join("|");
+
+  const [
+    bulkOccupancyInput,
+    setBulkOccupancyInput,
+  ] = useState<
+    string |
+    number
+  >("");
+
+  useEffect(
+    () => {
+      if (
+        bulkOccupancyTracks.length <= 1
+      ) {
+        setBulkOccupancyInput(
+          ""
+        );
+        return;
+      }
+
+      setBulkOccupancyInput(
+        bulkOccupancyMixed
+          ? ""
+          : bulkOccupancyTracks[0]!.address
+      );
+    },
+    [
+      bulkOccupancySelectionKey,
+      bulkOccupancyMixed,
+    ]
+  );
+
   if (!selectedElement) {
+    if (
+      bulkOccupancyTracks.length > 1
+    ) {
+      return (
+        <ScrollArea h="100%">
+          <Stack gap="xs">
+            <Text
+              fw={800}
+            >
+              {i18next.t(
+                "ui.trackElements"
+              )}{" "}
+              ·{" "}
+              {
+                bulkOccupancyTracks.length
+              }
+            </Text>
+
+            <Card
+              withBorder
+              p="xs"
+            >
+              <NumberInput
+                label={
+                  i18next.t(
+                    "ui.occupancySensorAddress"
+                  )
+                }
+                min={0}
+                value={
+                  bulkOccupancyInput
+                }
+                onChange={
+                  nextValue => {
+                    setBulkOccupancyInput(
+                      nextValue
+                    );
+
+                    if (
+                      nextValue ===
+                        ""
+                    ) {
+                      return;
+                    }
+
+                    const numeric =
+                      Math.trunc(
+                        Number(
+                          nextValue
+                        )
+                      );
+
+                    if (
+                      !Number.isFinite(
+                        numeric
+                      ) ||
+                      numeric < 0
+                    ) {
+                      return;
+                    }
+
+                    for (
+                      const element of
+                      bulkOccupancyTracks
+                    ) {
+                      element.address =
+                        numeric;
+                    }
+
+                    invalidate();
+                  }
+                }
+              />
+
+              {bulkOccupancyMixed && (
+                <Text
+                  size="xs"
+                  c="dimmed"
+                  mt={4}
+                >
+                  {i18next.t(
+                    "ui.mixedValue"
+                  )}
+                </Text>
+              )}
+            </Card>
+          </Stack>
+        </ScrollArea>
+      );
+    }
+
+    if (
+      selectedElements.length >
+        1
+    ) {
+      return (
+        <Stack gap="xs">
+          <Text
+            fw={800}
+          >
+            {i18next.t(
+              "ui.properties"
+            )}
+          </Text>
+
+          <Text
+            size="sm"
+            c="dimmed"
+          >
+            {i18next.t(
+              "ui.noCommonEditableProperty"
+            )}
+          </Text>
+        </Stack>
+      );
+    }
+
     return <VisibilitySettings title={i18next.t("ui.layoutVisibility")} />;
   }
 
@@ -809,6 +1003,10 @@ export default function LiteLayoutPage({
     );
   const importFileRef = useRef<HTMLInputElement | null>(null);
   const [selectedElement, setSelectedElement] = useState<BaseElement | null>(null);
+  const [
+    selectionRevision,
+    setSelectionRevision,
+  ] = useState(0);
   const [tool, setTool] = useState<EditorTool>({ mode: "cursor", elementType: "general" });
   const [editMode, setEditMode] = useState(false);
   const [turnoutSelectionMode, setTurnoutSelectionMode] = useState(false);
@@ -849,6 +1047,25 @@ export default function LiteLayoutPage({
   const [timetableRevision, setTimetableRevision] = useState(0);
 
   const invalidate = useCallback(() => setInvalidateCounter(value => value + 1), []);
+
+  const handleSelectedElementChange =
+    useCallback(
+      (
+        element:
+          BaseElement |
+          null
+      ) => {
+        setSelectedElement(
+          element
+        );
+
+        setSelectionRevision(
+          value =>
+            value + 1
+        );
+      },
+      []
+    );
 
   const forceReleaseAllSwitchManLocks = useCallback(async (): Promise<void> => {
     const activeScripts =
@@ -1794,7 +2011,7 @@ export default function LiteLayoutPage({
             layout={layout}
             onLayoutChange={setLayout}
             selectedElement={selectedElement}
-            onSelectedElementChange={setSelectedElement}
+            onSelectedElementChange={handleSelectedElementChange}
             invalidateCounter={invalidateCounter}
             onInvalidate={invalidate}
             fitCounter={fitCounter}
@@ -1819,7 +2036,24 @@ export default function LiteLayoutPage({
             <Card withBorder p="sm" className="lite-property-panel">
               {editMode ? (
                 <>
-                  <Title order={5} mb="sm">{selectedElement ? i18next.t("ui.properties") : i18next.t("ui.display")}</Title>
+                  <Title order={5} mb="sm">
+                    {
+                      selectedElement ||
+                      layout
+                        .getAllElements()
+                        .filter(
+                          element =>
+                            element.selected
+                        ).length >
+                        1
+                        ? i18next.t(
+                            "ui.properties"
+                          )
+                        : i18next.t(
+                            "ui.display"
+                          )
+                    }
+                  </Title>
                   <LitePropertyPanel
                     selectedElement={selectedElement}
                     layout={layout}
@@ -1828,6 +2062,9 @@ export default function LiteLayoutPage({
                     setTurnoutSelectionMode={setTurnoutSelectionMode}
                     setBusy={setBusy}
                     invalidate={invalidate}
+                    selectionRevision={
+                      selectionRevision
+                    }
                   />
                 </>
               ) : (
