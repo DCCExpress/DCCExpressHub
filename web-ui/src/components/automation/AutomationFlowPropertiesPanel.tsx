@@ -1114,6 +1114,7 @@ export default function AutomationFlowPropertiesPanel({
               "arrived",
               "afterArrived",
               "beforeLeave",
+              "beforeStart",
               "starting",
               "leave",
               "afterLeave",
