@@ -352,6 +352,13 @@ export default function DccExCommandHelpDialog({
                 }
               />
 
+              <Text
+                size="xs"
+                c="dimmed"
+              >
+                Double-click a command to copy it to the Command field.
+              </Text>
+
               <ScrollArea
                 h={520}
                 type="auto"
