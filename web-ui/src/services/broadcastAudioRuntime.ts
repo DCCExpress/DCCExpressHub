@@ -32,6 +32,11 @@ let enabled =
 let installed =
   false;
 
+let unsubscribeStatus:
+  (() => void) |
+  null =
+  null;
+
 let requestSequence =
   0;
 
@@ -153,6 +158,28 @@ export function installBroadcastAudioRuntime():
   installed =
     true;
 
+  unsubscribeStatus =
+    wsClient.subscribeStatus(
+      status => {
+        if (
+          status ===
+          "connected"
+        ) {
+          wsApi.audioPlaybackState(
+            enabled
+          );
+        }
+      }
+    );
+
+  if (
+    wsClient.isConnected()
+  ) {
+    wsApi.audioPlaybackState(
+      enabled
+    );
+  }
+
   wsClient.on(
     "playAudio",
     data => {
@@ -177,11 +204,6 @@ export function installBroadcastAudioRuntime():
           true
         );
 
-        reportBackendAudio(
-          data.requestId,
-          true
-        );
-
         return;
       }
 
@@ -201,10 +223,12 @@ export function installBroadcastAudioRuntime():
           ok
         );
 
-        reportBackendAudio(
-          data.requestId,
-          ok
-        );
+        if (enabled) {
+          reportBackendAudio(
+            data.requestId,
+            ok
+          );
+        }
       };
 
       audioManager.play(
@@ -269,6 +293,14 @@ export function setBroadcastAudioEnabled(
 
   enabled =
     next;
+
+  if (
+    wsClient.isConnected()
+  ) {
+    wsApi.audioPlaybackState(
+      enabled
+    );
+  }
 
   try {
     window.localStorage.setItem(
