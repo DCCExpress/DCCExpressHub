@@ -770,12 +770,9 @@ public sealed class FlowRuntime : BackgroundService
                                  trainEvent)))
                 {
                     var executionId =
-                        "visual-flow-blocking:" +
-                        page.Id +
-                        ":" +
-                        input.Id +
-                        ":" +
-                        trainEvent.Id;
+                        "flow-block:" +
+                        Interlocked.Increment(
+                            ref _manualSequence);
 
                     var run =
                         RunInput(
