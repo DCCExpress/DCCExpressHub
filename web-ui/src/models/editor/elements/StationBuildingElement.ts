@@ -127,9 +127,9 @@ export class StationBuildingElement extends BaseElement {
       this.variant === "stairs"
     ) {
       const steps = [
-        { width: 8, depth: 4 },
-        { width: 10, depth: 4 },
-        { width: 12, depth: 4 },
+        { width: 14, depth: 1.5 },
+        { width: 18, depth: 1.5 },
+        { width: 22, depth: 1.5 },
       ];
 
       let stepY =
@@ -307,7 +307,7 @@ export class StationBuildingElement extends BaseElement {
 
     const buildingOffsetY =
       this.variant === "stairs"
-        ? -5
+        ? -2
         : 0;
 
     const y =
