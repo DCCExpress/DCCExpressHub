@@ -47,6 +47,7 @@ builder.Services.AddSingleton<FastClockRuntime>();
 builder.Services.AddSingleton<SwitchManManager>();
 builder.Services.AddSingleton<DispatcherRuntime>();
 builder.Services.AddSingleton<MovementPlanBuilder>();
+builder.Services.AddSingleton<TrainEventRuntime>();
 builder.Services.AddSingleton<MovementRuntime>();
 builder.Services.AddSingleton<TrainTrackingRuntime>();
 builder.Services.AddSingleton<ScriptRuntime>();
