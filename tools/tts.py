@@ -26,6 +26,16 @@
 #
 #   In this case the spoken text is still used as the file name.
 #
+# PRONUNCIATION FIXES:
+#   Built-in pronunciation fixes are applied only to the text sent to TTS.
+#   The original text is still used for the auto-generated file name.
+#
+#   Example ad-hoc replacement:
+#   py tools/tts.py "A személyvonat rövidesen indul a második vágányról." \
+#       --replace "vágányról=vágány-ról"
+#
+#   --replace can be specified multiple times.
+#
 # MALE VOICE:
 #   py tools/tts.py "A személyvonat rövidesen indul." \
 #       --voice hu-HU-TamasNeural
@@ -69,6 +79,12 @@ DEFAULT_PITCH = "-2Hz"
 DEFAULT_VOLUME = "+0%"
 DEFAULT_OUTPUT_DIR = Path(__file__).resolve().parent / "audio"
 MAX_AUTO_FILENAME_LENGTH = 180
+
+# Pronunciation workarounds for words the Microsoft Hungarian voice may
+# pronounce incorrectly. These affect only speech generation, never file names.
+PRONUNCIATION_FIXES: dict[str, str] = {
+    "vágányról": "vágány-ról",
+}
 
 WINDOWS_RESERVED_NAMES = {
     "CON",
@@ -127,6 +143,21 @@ def parse_args() -> argparse.Namespace:
         help=f"Volume adjustment, e.g. +0%% or -10%%. Default: {DEFAULT_VOLUME}",
     )
     parser.add_argument(
+        "--replace",
+        action="append",
+        default=[],
+        metavar="OLD=NEW",
+        help=(
+            "Replace text only for speech generation. Can be specified multiple "
+            "times, e.g. --replace 'vágányról=vágány-ról'."
+        ),
+    )
+    parser.add_argument(
+        "--no-pronunciation-fixes",
+        action="store_true",
+        help="Disable built-in pronunciation fixes.",
+    )
+    parser.add_argument(
         "--overwrite",
         action="store_true",
         help="Overwrite the output file if it already exists.",
@@ -183,10 +214,57 @@ def build_output_path(
     return directory / make_filename_from_text(text)
 
 
+def replace_case_insensitive(text: str, old: str, new: str) -> str:
+    if not old:
+        raise ValueError("Pronunciation replacement source cannot be empty.")
+    return re.sub(re.escape(old), new, text, flags=re.IGNORECASE)
+
+
+def parse_replacements(values: list[str]) -> list[tuple[str, str]]:
+    replacements: list[tuple[str, str]] = []
+    for value in values:
+        if "=" not in value:
+            raise ValueError(
+                f"Invalid --replace value: {value!r}. Expected OLD=NEW."
+            )
+        old, new = value.split("=", 1)
+        old = old.strip()
+        new = new.strip()
+        if not old:
+            raise ValueError(
+                f"Invalid --replace value: {value!r}. OLD cannot be empty."
+            )
+        replacements.append((old, new))
+    return replacements
+
+
+def make_speech_text(
+    text: str,
+    custom_replacements: list[str],
+    use_builtin_fixes: bool,
+) -> str:
+    speech_text = text
+
+    if use_builtin_fixes:
+        for old, new in PRONUNCIATION_FIXES.items():
+            speech_text = replace_case_insensitive(speech_text, old, new)
+
+    for old, new in parse_replacements(custom_replacements):
+        speech_text = replace_case_insensitive(speech_text, old, new)
+
+    return speech_text
+
+
 async def generate(args: argparse.Namespace) -> Path:
     text = args.text.strip()
     if not text:
         raise ValueError("Text cannot be empty.")
+
+    speech_text = make_speech_text(
+        text,
+        args.replace,
+        use_builtin_fixes=not args.no_pronunciation_fixes,
+    )
 
     output = build_output_path(text, args.output_dir, args.filename)
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -197,8 +275,11 @@ async def generate(args: argparse.Namespace) -> Path:
             "Use --overwrite to replace it."
         )
 
+    if speech_text != text:
+        print(f"TTS text: {speech_text}")
+
     communicate = edge_tts.Communicate(
-        text=text,
+        text=speech_text,
         voice=args.voice,
         rate=args.rate,
         pitch=args.pitch,
