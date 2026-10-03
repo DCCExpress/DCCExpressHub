@@ -178,11 +178,15 @@ function normalizeLocks(
             "string"
             ? value.ownerName
             : value.ownerId,
-        acquiredAtMs:
+        ...(
           typeof value.acquiredAtMs ===
             "number"
-            ? value.acquiredAtMs
-            : undefined,
+            ? {
+                acquiredAtMs:
+                  value.acquiredAtMs,
+              }
+            : {}
+        ),
       };
     })
     .filter(
@@ -200,6 +204,23 @@ function applyLocks(
     normalizeLocks(
       rawLocks
     );
+
+  /*
+   * sessionStorage keeps this browser tab's owner id across reloads.
+   * If the backend still has locks for that owner, restore Switchman mode
+   * instead of showing OFF while this client still owns turnouts.
+   */
+  if (
+    !enabled &&
+    locks.some(
+      lock =>
+        lock.ownerId ===
+        ownerId
+    )
+  ) {
+    enabled =
+      true;
+  }
 
   emit();
 }
