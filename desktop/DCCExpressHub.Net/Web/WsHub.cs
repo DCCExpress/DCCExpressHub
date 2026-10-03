@@ -27,7 +27,7 @@ public sealed class WsHub
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     private readonly object _programmingGate = new();
     private readonly object _audioAckGate = new();
-    private readonly ConcurrentDictionary<Guid, bool> _audioPlaybackEnabled = new();
+    private Guid? _audioSubscriberConnectionId;
     private readonly Dictionary<string, PendingAudioAck> _pendingAudioAcks =
         new(StringComparer.Ordinal);
     private PendingProgramming? _pendingProgramming;
@@ -36,8 +36,7 @@ public sealed class WsHub
     private sealed class PendingAudioAck
     {
         public required bool Script { get; init; }
-        public required HashSet<Guid> PendingClients { get; init; }
-        public bool AllOk { get; set; } = true;
+        public required Guid ConnectionId { get; init; }
     }
     private long _programmingToken;
     private const int ProgrammingTimeoutMs = 24000;
@@ -185,21 +184,167 @@ public sealed class WsHub
                 ok);
     }
 
+    private List<(
+        string RequestId,
+        bool Script)> RemovePendingAudioForClientLocked(
+            Guid connectionId)
+    {
+        var removed =
+            new List<(
+                string RequestId,
+                bool Script)>();
+
+        foreach (var pair in
+                 _pendingAudioAcks.ToArray())
+        {
+            if (pair.Value.ConnectionId !=
+                connectionId)
+                continue;
+
+            removed.Add(
+                (
+                    pair.Key,
+                    pair.Value.Script
+                ));
+
+            _pendingAudioAcks.Remove(
+                pair.Key);
+        }
+
+        return removed;
+    }
+
+    private void CompleteFailedAudioWaits(
+        IEnumerable<(
+            string RequestId,
+            bool Script)> requests)
+    {
+        foreach (var request in
+                 requests)
+            CompleteAudioWait(
+                request.RequestId,
+                request.Script,
+                false);
+    }
+
+    private async Task PublishAudioSubscriberState()
+    {
+        Guid? subscriber;
+
+        lock (_audioAckGate)
+            subscriber =
+                _audioSubscriberConnectionId;
+
+        foreach (var pair in
+                 Clients.ToArray())
+        {
+            try
+            {
+                await Send(
+                    pair.Value,
+                    "audioPlaybackStateChanged",
+                    new
+                    {
+                        enabled =
+                            subscriber.HasValue &&
+                            subscriber.Value ==
+                                pair.Key
+                    });
+            }
+            catch
+            {
+                // Normal socket cleanup will remove dead clients.
+            }
+        }
+    }
+
+    private async Task UpdateAudioPlaybackState(
+        Guid connectionId,
+        bool enabled)
+    {
+        List<(
+            string RequestId,
+            bool Script)> failed =
+            [];
+
+        lock (_audioAckGate)
+        {
+            if (enabled &&
+                Clients.ContainsKey(
+                    connectionId))
+            {
+                if (_audioSubscriberConnectionId.HasValue &&
+                    _audioSubscriberConnectionId.Value !=
+                        connectionId)
+                    failed =
+                        RemovePendingAudioForClientLocked(
+                            _audioSubscriberConnectionId.Value);
+
+                _audioSubscriberConnectionId =
+                    connectionId;
+            }
+            else if (_audioSubscriberConnectionId ==
+                     connectionId)
+            {
+                failed =
+                    RemovePendingAudioForClientLocked(
+                        connectionId);
+
+                _audioSubscriberConnectionId =
+                    null;
+            }
+        }
+
+        CompleteFailedAudioWaits(
+            failed);
+
+        await PublishAudioSubscriberState();
+    }
+
+    private async Task RemoveAudioClient(
+        Guid connectionId)
+    {
+        List<(
+            string RequestId,
+            bool Script)> failed;
+        bool stateChanged;
+
+        lock (_audioAckGate)
+        {
+            failed =
+                RemovePendingAudioForClientLocked(
+                    connectionId);
+
+            stateChanged =
+                _audioSubscriberConnectionId ==
+                connectionId;
+
+            if (stateChanged)
+                _audioSubscriberConnectionId =
+                    null;
+        }
+
+        CompleteFailedAudioWaits(
+            failed);
+
+        if (stateChanged)
+            await PublishAudioSubscriberState();
+    }
+
     private void StartAudioWait(
         string requestId,
         bool script)
     {
-        Guid[] clients;
+        Guid? subscriber;
 
         lock (_audioAckGate)
         {
-            clients =
-                _audioPlaybackEnabled.Keys
-                    .Where(
-                        Clients.ContainsKey)
-                    .ToArray();
+            subscriber =
+                _audioSubscriberConnectionId;
 
-            if (clients.Length > 0)
+            if (subscriber.HasValue &&
+                Clients.ContainsKey(
+                    subscriber.Value))
             {
                 _pendingAudioAcks[
                     requestId] =
@@ -207,8 +352,8 @@ public sealed class WsHub
                     {
                         Script =
                             script,
-                        PendingClients =
-                            clients.ToHashSet()
+                        ConnectionId =
+                            subscriber.Value
                     };
 
                 return;
@@ -229,8 +374,6 @@ public sealed class WsHub
     {
         bool complete =
             false;
-        bool allOk =
-            false;
 
         lock (_audioAckGate)
         {
@@ -239,111 +382,30 @@ public sealed class WsHub
                     out var pending) ||
                 pending.Script !=
                     script ||
-                !pending.PendingClients.Remove(
-                    connectionId))
+                pending.ConnectionId !=
+                    connectionId)
                 return;
 
-            pending.AllOk &=
-                ok;
+            _pendingAudioAcks.Remove(
+                requestId);
 
-            if (pending.PendingClients.Count ==
-                0)
-            {
-                complete =
-                    true;
-                allOk =
-                    pending.AllOk;
-
-                _pendingAudioAcks.Remove(
-                    requestId);
-            }
+            complete =
+                true;
         }
 
         if (complete)
             CompleteAudioWait(
                 requestId,
                 script,
-                allOk);
-    }
-
-    private void RemoveAudioClient(
-        Guid connectionId)
-    {
-        var completed =
-            new List<(
-                string RequestId,
-                bool Script,
-                bool Ok)>();
-
-        lock (_audioAckGate)
-        {
-            _audioPlaybackEnabled.TryRemove(
-                connectionId,
-                out _);
-
-            foreach (var pair in
-                     _pendingAudioAcks.ToArray())
-            {
-                var pending =
-                    pair.Value;
-
-                if (!pending.PendingClients.Remove(
-                        connectionId))
-                    continue;
-
-                pending.AllOk =
-                    false;
-
-                if (pending.PendingClients.Count >
-                    0)
-                    continue;
-
-                completed.Add(
-                    (
-                        pair.Key,
-                        pending.Script,
-                        pending.AllOk
-                    ));
-
-                _pendingAudioAcks.Remove(
-                    pair.Key);
-            }
-        }
-
-        foreach (var item in
-                 completed)
-            CompleteAudioWait(
-                item.RequestId,
-                item.Script,
-                item.Ok);
-    }
-
-    private void UpdateAudioPlaybackState(
-        Guid connectionId,
-        bool enabled)
-    {
-        if (enabled &&
-            Clients.ContainsKey(
-                connectionId))
-        {
-            _audioPlaybackEnabled[
-                connectionId] =
-                true;
-
-            return;
-        }
-
-        RemoveAudioClient(
-            connectionId);
+                ok);
     }
 
     private async Task HandleMovementAudioRequest(
         MovementAudioRequest request)
     {
         /*
-         * Audio is rendered by every browser that has local playback enabled.
-         * A blocking request waits for all Audio ON clients that were connected
-         * when playback started, not just for one coordinator.
+         * Exactly one browser may subscribe to audio playback. Blocking
+         * requests wait only for that authoritative subscriber.
          */
         if (request.WaitForEnd)
             StartAudioWait(
@@ -409,7 +471,7 @@ public sealed class WsHub
         finally
         {
             Clients.TryRemove(id, out _);
-            RemoveAudioClient(
+            await RemoveAudioClient(
                 id);
 
             if (Clients.IsEmpty)
@@ -441,7 +503,7 @@ public sealed class WsHub
             switch (type)
             {
                 case "audioPlaybackState":
-                    UpdateAudioPlaybackState(
+                    await UpdateAudioPlaybackState(
                         connectionId,
                         B(
                             data,
