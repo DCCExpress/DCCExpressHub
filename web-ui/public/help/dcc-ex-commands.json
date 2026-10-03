@@ -27,6 +27,18 @@
           "description": "Report track currents."
         },
         {
+          "syntax": "<J C>",
+          "description": "Get the DCC-EX fast-clock time."
+        },
+        {
+          "syntax": "<J C mmmm nn>",
+          "description": "Set fast-clock time/speed using the official DCC-EX fast-clock command."
+        },
+        {
+          "syntax": "<J G>",
+          "description": "Report gauge/current limits."
+        },
+        {
           "syntax": "<0>",
           "description": "Power OFF all tracks."
         },
@@ -89,6 +101,10 @@
           "description": "Set a locomotive decoder function ON or OFF."
         },
         {
+          "syntax": "<F loco DCCFREQ freqValue>",
+          "description": "Set DC-mode PWM frequency for a locomotive on a DC TrackManager output."
+        },
+        {
           "syntax": "<- loco>",
           "description": "Remove one locomotive from the state/reminder table."
         },
@@ -145,6 +161,14 @@
         {
           "syntax": "<T id value>",
           "description": "Set turnout state by ID."
+        },
+        {
+          "syntax": "<T id C> / <T id T>",
+          "description": "Close / throw a turnout by ID."
+        },
+        {
+          "syntax": "<T id X>",
+          "description": "Request detailed turnout information."
         },
         {
           "syntax": "<T id DCC linearAddr>",
@@ -237,11 +261,11 @@
         },
         {
           "syntax": "<o vpin>",
-          "description": "Query NeoPixel/RGB LED output."
+          "description": "Set one NeoPixel ON when vpin is positive or OFF when negative."
         },
         {
           "syntax": "<o vpin count>",
-          "description": "Query a range of NeoPixel/RGB LED outputs."
+          "description": "Set multiple NeoPixels ON/OFF using the sign of vpin."
         },
         {
           "syntax": "<o vpin r g b [count]>",
@@ -254,6 +278,18 @@
         {
           "syntax": "<D ANOUT vpin position [profile]>",
           "description": "Test an analogue/servo output."
+        },
+        {
+          "syntax": "<N>",
+          "description": "List SensorCAM base-vpin definitions."
+        },
+        {
+          "syntax": "<N cmd value>",
+          "description": "Execute a SensorCAM command with parameters."
+        },
+        {
+          "syntax": "<N Q>",
+          "description": "Request the full SensorCAM sensor-state set."
         }
       ]
     },
@@ -262,15 +298,15 @@
       "commands": [
         {
           "syntax": "<R>",
-          "description": "Read locomotive ID from the programming track."
+          "description": "Read the driveable locomotive ID from the PROG track; may return short, long or consist ID."
         },
         {
           "syntax": "<R LOCOID>",
-          "description": "Read locomotive ID from the programming track."
+          "description": "Read the locomotive ID from the PROG track while ignoring consist address."
         },
         {
           "syntax": "<R CONSIST>",
-          "description": "Read consist information."
+          "description": "Read the consist ID from the PROG track."
         },
         {
           "syntax": "<R cv>",
@@ -294,7 +330,11 @@
         },
         {
           "syntax": "<V cv cValue>",
-          "description": "Verify/write programming-track CV value according to the documented command form."
+          "description": "Fast-read/verify a CV against an expected value."
+        },
+        {
+          "syntax": "<V cv bitPosition bitValue>",
+          "description": "Fast-read/verify a CV bit against an expected value."
         },
         {
           "syntax": "<B cv bitPosition bitValue>",
@@ -382,6 +422,10 @@
     {
       "title": "EXRAIL runtime, roster & block events",
       "commands": [
+        {
+          "syntax": "</>",
+          "description": "Stream EXRAIL task/status information."
+        },
         {
           "syntax": "<J A>",
           "description": "List EXRAIL automations/routes."
@@ -472,6 +516,22 @@
           "description": "Create an EX-Turntable definition."
         },
         {
+          "syntax": "<J O>",
+          "description": "List turntable IDs."
+        },
+        {
+          "syntax": "<J O id>",
+          "description": "Request turntable state."
+        },
+        {
+          "syntax": "<J P id>",
+          "description": "List positions for a turntable."
+        },
+        {
+          "syntax": "<J L display row>",
+          "description": "Direct current display output to an LCD/OLED row."
+        },
+        {
           "syntax": "<y vpin PLAY trackNumber [volume]>",
           "description": "Play a DFPlayer track."
         },
@@ -524,6 +584,26 @@
           "syntax": "<D HAL RESET>",
           "description": "Reset all HAL devices.",
           "danger": true
+        },
+        {
+          "syntax": "<D EEPROM numEntries>",
+          "description": "Dump EEPROM contents for diagnostics."
+        },
+        {
+          "syntax": "<D SERVO vpin position [profile]>",
+          "description": "Test a servo output."
+        },
+        {
+          "syntax": "<D TT vpin steps [activity]>",
+          "description": "Test a turntable output."
+        },
+        {
+          "syntax": "<D LCN ON> / <D LCN OFF>",
+          "description": "Enable / disable LCN diagnostics."
+        },
+        {
+          "syntax": "<D NODE ON> / <D NODE OFF>",
+          "description": "Enable / disable Node diagnostics."
         },
         {
           "syntax": "<D CMD ON> / <D CMD OFF>",
@@ -598,6 +678,22 @@
           "description": "Restore default WiFi credentials."
         },
         {
+          "syntax": "<C ETHERNET ON> / <C ETHERNET OFF>",
+          "description": "Enable / disable Ethernet."
+        },
+        {
+          "syntax": "<C NODE ON>",
+          "description": "Enable Node mode without throttle support."
+        },
+        {
+          "syntax": "<C NVS nvsnumber nvsvalue>",
+          "description": "Set a non-volatile storage value."
+        },
+        {
+          "syntax": "<C SNIFFER ON> / <C SNIFFER OFF>",
+          "description": "Enable / disable sniffer output."
+        },
+        {
           "syntax": "<E>",
           "description": "Store EEPROM configuration."
         },
@@ -613,11 +709,19 @@
       "commands": [
         {
           "syntax": "<M ignore d0 d1 [d2 d3 d4 d5]>",
-          "description": "Write a raw DCC packet to the MAIN track. Advanced use only."
+          "description": "Send up to five raw DCC bytes on MAIN. Data bytes are hexadecimal; the legacy ignore parameter should be 0."
         },
         {
           "syntax": "<P ignore d0 d1 [d2 d3 d4 d5]>",
-          "description": "Write a raw DCC packet to the PROG track. Advanced use only."
+          "description": "Send up to five raw DCC bytes on PROG. Data bytes are hexadecimal; the legacy ignore parameter should be 0."
+        },
+        {
+          "syntax": "<L>",
+          "description": "LCC/CBUS adapter introduction message."
+        },
+        {
+          "syntax": "<L eventId>",
+          "description": "Pass an incoming LCC event ID to EX-CommandStation."
         }
       ]
     }
