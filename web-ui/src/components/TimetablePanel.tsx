@@ -616,14 +616,21 @@ export default function TimetablePanel({
     };
 
   return (
-    <ScrollArea
+    <Stack
+      gap="sm"
       h="100%"
-      type="always"
-      scrollbarSize={9}
-      className="lite-info-scroll"
+      style={{
+        minHeight: 0,
+        overflow: "hidden",
+      }}
     >
-      <Stack gap="sm">
-        <Card withBorder p="sm">
+      <Card
+        withBorder
+        p="sm"
+        style={{
+          flexShrink: 0,
+        }}
+      >
           <Stack gap="sm">
             <Group justify="space-between" align="center" wrap="wrap">
               <div>
@@ -749,8 +756,22 @@ export default function TimetablePanel({
           </Stack>
         </Card>
 
-        <Card withBorder p="sm">
-          <Stack gap="sm">
+      <Card
+        withBorder
+        p="sm"
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflow: "hidden",
+        }}
+      >
+        <Stack
+          gap="sm"
+          h="100%"
+          style={{
+            minHeight: 0,
+          }}
+        >
             <Group justify="space-between" align="flex-start" wrap="wrap">
               <div>
                 <Text fw={700}>{t("ui.timetable")}</Text>
@@ -887,27 +908,38 @@ export default function TimetablePanel({
               </Alert>
             )}
 
-            {timetableLoading ? (
-              <Group justify="center" py="md">
-                <Loader size="sm" />
-              </Group>
-            ) : !snapshot ? (
-              <Text size="sm" c="dimmed" ta="center" py="sm">
-                {t("ui.fastClockStateUnavailable")}
-              </Text>
-            ) : expandedRows.length === 0 ? (
-              <Text size="sm" c="dimmed" ta="center" py="sm">
-                {t(
-                  "ui.noUpcomingTimetableRows"
-                )}
-              </Text>
-            ) : (
-              <Table
-                striped
-                highlightOnHover
-                withRowBorders
-                verticalSpacing={5}
-              >
+            <ScrollArea
+              style={{
+                flex: 1,
+                minHeight: 0,
+              }}
+              type="auto"
+              scrollbarSize={9}
+              offsetScrollbars
+              className="lite-info-scroll"
+            >
+              {timetableLoading ? (
+                <Group justify="center" py="md">
+                  <Loader size="sm" />
+                </Group>
+              ) : !snapshot ? (
+                <Text size="sm" c="dimmed" ta="center" py="sm">
+                  {t("ui.fastClockStateUnavailable")}
+                </Text>
+              ) : expandedRows.length === 0 ? (
+                <Text size="sm" c="dimmed" ta="center" py="sm">
+                  {t(
+                    "ui.noUpcomingTimetableRows"
+                  )}
+                </Text>
+              ) : (
+                <Table
+                  striped
+                  highlightOnHover
+                  withRowBorders
+                  verticalSpacing={5}
+                  stickyHeader
+                >
                 <Table.Thead>
                   <Table.Tr>
                     <Table.Th w={82}>{t("ui.timeColumn")}</Table.Th>
@@ -1040,14 +1072,12 @@ export default function TimetablePanel({
                       </Table.Td>
                     </Table.Tr>
                   ))}
-                </Table.Tbody>
-              </Table>
-            )}
-
-
+                  </Table.Tbody>
+                </Table>
+              )}
+            </ScrollArea>
           </Stack>
-        </Card>
-      </Stack>
-    </ScrollArea>
+      </Card>
+    </Stack>
   );
 }
