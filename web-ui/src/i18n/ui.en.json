@@ -643,6 +643,8 @@
   "tree": "Tree",
   "bush": "Bush",
   "stationBuilding": "Station building",
+  "size": "Size",
+  "roofColor": "Roof tile color",
   "variant": "Variant",
   "branchCount": "Branch / crown group count",
   "clusterCount": "Cluster count",
