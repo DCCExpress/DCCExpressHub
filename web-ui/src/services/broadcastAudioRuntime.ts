@@ -32,11 +32,6 @@ let enabled =
 let installed =
   false;
 
-let unsubscribeStatus:
-  (() => void) |
-  null =
-  null;
-
 let requestSequence =
   0;
 
@@ -158,8 +153,7 @@ export function installBroadcastAudioRuntime():
   installed =
     true;
 
-  unsubscribeStatus =
-    wsClient.subscribeStatus(
+  wsClient.subscribeStatus(
       status => {
         if (
           status ===
