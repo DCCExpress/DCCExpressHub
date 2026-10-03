@@ -1548,6 +1548,16 @@ public sealed class FlowRuntime : BackgroundService
                         "}");
                 }
 
+            case "movementHold":
+                return
+                    "if (!payload || typeof payload !== \"object\" || !payload.movementId) { throw new Error(\"Movement Hold requires payload.movementId.\"); }\n" +
+                    "movement.hold(String(payload.movementId));";
+
+            case "movementRelease":
+                return
+                    "if (!payload || typeof payload !== \"object\" || !payload.movementId) { throw new Error(\"Movement Release requires payload.movementId.\"); }\n" +
+                    "movement.release(String(payload.movementId));";
+
             case "delay":
                 return
                     "await delay(" +
