@@ -180,6 +180,7 @@ public sealed class MovementRuntime
         public bool EmergencyAbort { get; set; }
         public bool MotionStartedPublished { get; set; }
         public bool ResumeAfterExternalHold { get; set; }
+        public string? ActiveLegOwnerId { get; set; }
         public int? CurrentBlockId { get; set; }
         public int? TargetBlockId { get; set; }
         public ConcurrentBag<Task> BackgroundTasks { get; } = [];
@@ -2170,6 +2171,9 @@ public sealed class MovementRuntime
                 execution,
                 leg);
 
+        execution.ActiveLegOwnerId =
+            lease.OwnerId;
+
         try
         {
             if (leg.DepartWhen.Length > 0)
@@ -2741,6 +2745,13 @@ public sealed class MovementRuntime
         }
         finally
         {
+            if (string.Equals(
+                    execution.ActiveLegOwnerId,
+                    lease.OwnerId,
+                    StringComparison.Ordinal))
+                execution.ActiveLegOwnerId =
+                    null;
+
             _dispatcher.ReleaseLeg(
                 lease.OwnerId);
 
@@ -3265,31 +3276,51 @@ public sealed class MovementRuntime
                     false;
         }
 
-        if (resumeNow)
+        if (resumeNow &&
+            !string.IsNullOrWhiteSpace(
+                execution.ActiveLegOwnerId))
         {
-            execution.DesiredSpeed =
-                execution.Page.Speed;
-            execution.Moving =
-                true;
+            var authority =
+                _dispatcher.ValidateHeldLeg(
+                    execution.ActiveLegOwnerId);
 
-            Patch(
-                execution,
-                desiredSpeed:
-                    execution.DesiredSpeed,
-                info:
-                    "Movement hold released; resuming active leg",
-                setInfo: true);
+            if (authority.Ok)
+            {
+                execution.DesiredSpeed =
+                    execution.Page.Speed;
+                execution.Moving =
+                    true;
 
-            _ = ApplySpeed(
+                Patch(
                     execution,
-                    force: true,
-                    cancellationToken:
-                        CancellationToken.None)
-                .ContinueWith(
-                    _ => { },
-                    CancellationToken.None,
-                    TaskContinuationOptions.ExecuteSynchronously,
-                    TaskScheduler.Default);
+                    desiredSpeed:
+                        execution.DesiredSpeed,
+                    info:
+                        "Movement hold released; resuming active leg",
+                    setInfo: true);
+
+                _ = ApplySpeed(
+                        execution,
+                        force: true,
+                        cancellationToken:
+                            CancellationToken.None)
+                    .ContinueWith(
+                        _ => { },
+                        CancellationToken.None,
+                        TaskContinuationOptions.ExecuteSynchronously,
+                        TaskScheduler.Default);
+            }
+            else
+            {
+                Patch(
+                    execution,
+                    info:
+                        authority.BlockingSensor.HasValue
+                            ? "Movement hold released; waiting for safety sensor #" +
+                              authority.BlockingSensor.Value
+                            : "Movement hold released; active leg is not safe to resume",
+                    setInfo: true);
+            }
         }
         else
         {
