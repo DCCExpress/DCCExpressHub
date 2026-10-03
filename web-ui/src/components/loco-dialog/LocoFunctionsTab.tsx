@@ -21,7 +21,6 @@ import {
 } from "@mantine/core";
 
 import {
-  IconCheck,
   IconDots,
   IconPlus,
   IconTrash,
@@ -457,17 +456,11 @@ export default function LocoFunctionsTab({
                         }
                         withArrow
                       >
-                        <ActionIcon
-                          size="sm"
-                          color={
-                            fn.startupActive
-                              ? "green"
-                              : "dark"
-                          }
-                          variant={
-                            fn.startupActive
-                              ? "filled"
-                              : "subtle"
+                        <Checkbox
+                          checked={
+                            Boolean(
+                              fn.startupActive
+                            )
                           }
                           disabled={
                             fn.momentary
@@ -475,20 +468,19 @@ export default function LocoFunctionsTab({
                           aria-label={t(
                             "locodialog.function_startup_tooltip"
                           )}
-                          onClick={() =>
-                            onUpdateFunction(
-                              fn.id,
-                              {
-                                startupActive:
-                                  !fn.startupActive,
-                              }
-                            )
+                          onChange={
+                            event =>
+                              onUpdateFunction(
+                                fn.id,
+                                {
+                                  startupActive:
+                                    event
+                                      .currentTarget
+                                      .checked,
+                                }
+                              )
                           }
-                        >
-                          <IconCheck
-                            size={17}
-                          />
-                        </ActionIcon>
+                        />
                       </Tooltip>
                     </Group>
                   </Table.Td>
