@@ -1362,5 +1362,7 @@
   "trainTrackingSectionParts": "Abschnittsteile",
   "trainTrackingNextBlock": "Nächster Block",
   "trainTrackingPathDialogTitle": "Sensorpfad — Lok #{{address}}",
-  "trainTrackingPathDialogDescription": "Die zuletzt von Train Tracking gespeicherten Sensoren."
+  "trainTrackingPathDialogDescription": "Die zuletzt von Train Tracking gespeicherten Sensoren.",
+  "mixedValue": "Gemischt",
+  "noCommonEditableProperty": "Keine gemeinsame bearbeitbare Eigenschaft"
 }
