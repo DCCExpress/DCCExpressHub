@@ -1362,5 +1362,7 @@
   "trainTrackingSectionParts": "Szakaszrészek",
   "trainTrackingNextBlock": "Következő blokk",
   "trainTrackingPathDialogTitle": "Szenzorútvonal — mozdony #{{address}}",
-  "trainTrackingPathDialogDescription": "A Train Tracking által megőrzött legutóbbi szenzorok."
+  "trainTrackingPathDialogDescription": "A Train Tracking által megőrzött legutóbbi szenzorok.",
+  "mixedValue": "Vegyes",
+  "noCommonEditableProperty": "Nincs közös szerkeszthető tulajdonság"
 }
