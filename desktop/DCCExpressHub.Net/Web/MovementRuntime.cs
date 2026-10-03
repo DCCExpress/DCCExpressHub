@@ -265,6 +265,26 @@ public sealed class MovementRuntime
             eventName);
     }
 
+    Task EmitTrainEventBlocking(
+        Execution execution,
+        string eventName,
+        MovementPlanResourceModel resource)
+    {
+        return _trainEvents.PublishMovementBlockingAsync(
+            execution.State with
+            {
+                LocoAddress =
+                    execution.LocoAddress,
+                Direction =
+                    execution.Forward
+                        ? "forward"
+                        : "reverse"
+            },
+            resource,
+            eventName,
+            execution.Cancellation.Token);
+    }
+
     static bool IsHeld(
         Execution execution)
     {
@@ -2194,17 +2214,10 @@ public sealed class MovementRuntime
                 lease,
                 leg);
 
-            EmitTrainEvent(
+            await EmitTrainEventBlocking(
                 execution,
                 "beforeStart",
                 leg.From);
-
-            // TrainEvent Flow execution starts asynchronously. Give a matching
-            // Before Start branch a deterministic chance to register a Hold
-            // before this Movement can apply locomotive speed.
-            await Task.Delay(
-                50,
-                execution.Cancellation.Token);
 
             await WaitForExternalHolds(
                 execution,
