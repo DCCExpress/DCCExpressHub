@@ -3,6 +3,7 @@ import i18next from "i18next";
 import {
   ActionIcon,
   Alert,
+  Button,
   Group,
   Loader,
   Stack,
@@ -14,6 +15,7 @@ import {
 import {
   IconAlertTriangle,
   IconArrowLeft,
+  IconRefresh,
   IconTerminal2,
 } from "@tabler/icons-react";
 
@@ -28,6 +30,10 @@ import {
 } from "@/api/commandCenterInfo";
 
 import ConsolePanel from "@/components/ConsolePanel";
+
+import {
+  wsApi,
+} from "@/services/wsApi";
 
 type Props = {
   onBack: () => void;
@@ -135,6 +141,38 @@ export default function ConsolePage({
             </Text>
           </div>
         </Group>
+
+        {
+          info?.capabilities
+            .rawCommand && (
+            <Button
+              color="red"
+              variant="light"
+              leftSection={
+                <IconRefresh
+                  size={17}
+                />
+              }
+              onClick={
+                () => {
+                  if (
+                    !window.confirm(
+                      "Restart the DCC-EX command station?"
+                    )
+                  ) {
+                    return;
+                  }
+
+                  wsApi.writeDccExDirectCommand(
+                    "<D RESET>"
+                  );
+                }
+              }
+            >
+              Reset DCC-EX
+            </Button>
+          )
+        }
       </Group>
 
       {
