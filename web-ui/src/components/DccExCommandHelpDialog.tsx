@@ -50,6 +50,9 @@ type DccExCommandHelpData = {
 type Props = {
   opened: boolean;
   onClose: () => void;
+  onCommandSelect: (
+    command: string
+  ) => void;
 };
 
 const HELP_URL =
@@ -58,6 +61,7 @@ const HELP_URL =
 export default function DccExCommandHelpDialog({
   opened,
   onClose,
+  onCommandSelect,
 }: Props) {
   const [
     data,
@@ -419,6 +423,19 @@ export default function DccExCommandHelpDialog({
                                         key={
                                           command.syntax
                                         }
+                                        onDoubleClick={
+                                          () => {
+                                            onCommandSelect(
+                                              command.syntax
+                                            );
+                                            onClose();
+                                          }
+                                        }
+                                        title="Double-click to copy this command to the Command field"
+                                        style={{
+                                          cursor:
+                                            "pointer",
+                                        }}
                                       >
                                         <Table.Td>
                                           <Group
