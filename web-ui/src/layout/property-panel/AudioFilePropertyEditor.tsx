@@ -50,7 +50,9 @@ type AudioFileInputProps = {
   allowManualInput?: boolean;
   description?: string;
   onChange: (value: string) => void;
-  onTest?: () => void;
+  onTest?: (
+    source?: string
+  ) => void;
 };
 
 type AudioFilePropertyEditorProps = {
@@ -319,7 +321,50 @@ export function AudioFileInput({
                       </Group>
 
                       {entry.type === "file" && (
-                        <Badge variant="light" color="violet">{i18next.t("ui.audio2")}</Badge>
+                        <Group
+                          gap="xs"
+                          wrap="nowrap"
+                        >
+                          <Badge
+                            variant="light"
+                            color="violet"
+                          >
+                            {i18next.t("ui.audio2")}
+                          </Badge>
+
+                          {onTest && (
+                            <ActionIcon
+                              variant="light"
+                              color="violet"
+                              title={i18next.t("ui.testAudio")}
+                              onPointerDown={
+                                event => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                }
+                              }
+                              onMouseDown={
+                                event => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                }
+                              }
+                              onClick={
+                                event => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  onTest(
+                                    entry.path
+                                  );
+                                }
+                              }
+                            >
+                              <IconPlayerPlayFilled
+                                size={16}
+                              />
+                            </ActionIcon>
+                          )}
+                        </Group>
                       )}
                     </Group>
                   </Card>
