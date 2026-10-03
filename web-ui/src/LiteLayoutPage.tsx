@@ -2360,6 +2360,18 @@ export default function LiteLayoutPage({
         returnFocus={false}
         centered
         draggable
+        styles={{
+          content: {
+            height: "min(620px, calc(100dvh - 32px))",
+            display: "flex",
+            flexDirection: "column",
+          },
+          body: {
+            flex: 1,
+            minHeight: 0,
+            overflow: "hidden",
+          },
+        }}
       >
         <Tabs
           value={layoutElementPickerTab}
@@ -2375,6 +2387,11 @@ export default function LiteLayoutPage({
               nextValue
             );
           }}
+          style={{
+            height: "100%",
+            display: "flex",
+            flexDirection: "column",
+          }}
         >
           <Tabs.List grow>
             <Tabs.Tab value="railway">
@@ -2385,8 +2402,12 @@ export default function LiteLayoutPage({
             </Tabs.Tab>
           </Tabs.List>
 
-          <Tabs.Panel value="railway" pt="sm">
-            <ScrollArea.Autosize mah="65dvh">
+          <Tabs.Panel
+            value="railway"
+            pt="sm"
+            style={{ flex: 1, minHeight: 0 }}
+          >
+            <ScrollArea h="100%" type="auto">
               <SimpleGrid cols={{ base: 2, sm: 4 }}>
                 {RAILWAY_PICKER_ITEMS.map(item => (
                   <Card
@@ -2417,11 +2438,15 @@ export default function LiteLayoutPage({
                   </Card>
                 ))}
               </SimpleGrid>
-            </ScrollArea.Autosize>
+            </ScrollArea>
           </Tabs.Panel>
 
-          <Tabs.Panel value="decorations" pt="sm">
-            <ScrollArea.Autosize mah="65dvh">
+          <Tabs.Panel
+            value="decorations"
+            pt="sm"
+            style={{ flex: 1, minHeight: 0 }}
+          >
+            <ScrollArea h="100%" type="auto">
               <SimpleGrid cols={{ base: 2, sm: 4 }}>
                 {DECORATION_PICKER_ITEMS.map(item => (
                   <Card
@@ -2452,7 +2477,7 @@ export default function LiteLayoutPage({
                   </Card>
                 ))}
               </SimpleGrid>
-            </ScrollArea.Autosize>
+            </ScrollArea>
           </Tabs.Panel>
         </Tabs>
       </AppModal>
