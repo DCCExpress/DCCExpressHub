@@ -774,22 +774,50 @@ export default function BlockEventConfigPropertyEditor({
                 )
             );
 
+          /*
+           * ensureClientRouteGraph() has already applied the generated
+           * travel direction to the live BlockElement. That gives us the
+           * physical Forward axis of this block, independent of how the
+           * editor happens to be rotated on screen.
+           */
+          const forwardRotation =
+            block.runtimeForwardRotation ??
+            block.rotation;
+
+          const forwardRad =
+            (
+              forwardRotation *
+              Math.PI
+            ) /
+            180;
+
+          const forwardX =
+            Math.cos(
+              forwardRad
+            );
+
+          const forwardY =
+            Math.sin(
+              forwardRad
+            );
+
+          /*
+           * BlockElement's drawing anchor is its centre cell, not x + w / 2.
+           * Match BlockElement.centerX / centerY in grid coordinates.
+           */
           const blockCenterX =
             block.x +
-            block.w / 2;
+            0.5;
 
           const blockCenterY =
             block.y +
-            block.h / 2;
+            0.5;
 
           const nearestSensor = (
             targetDirection: Direction
           ): number | null => {
-            const candidates:
-              Array<{
-                address: number;
-                distance: number;
-              }> = [];
+            const routeElementIds =
+              new Set<number>();
 
             for (
               const route
@@ -807,46 +835,110 @@ export default function BlockEventConfigPropertyEditor({
                 of route.solution.nodes
               ) {
                 for (
+                  const elementId
+                  of node.elementIds
+                ) {
+                  routeElementIds.add(
+                    elementId
+                  );
+                }
+
+                for (
                   const detector
                   of node.detectors
                 ) {
-                  if (
-                    detector.address <=
-                      0 ||
-                    detector.address ===
-                      block.sensorAddress
-                  ) {
-                    continue;
-                  }
-
-                  const element =
-                    elementById.get(
-                      detector.id
-                    );
-
-                  if (
-                    !(element instanceof TrackElement)
-                  ) {
-                    continue;
-                  }
-
-                  const dx =
-                    element.x -
-                    blockCenterX;
-
-                  const dy =
-                    element.y -
-                    blockCenterY;
-
-                  candidates.push({
-                    address:
-                      detector.address,
-                    distance:
-                      dx * dx +
-                      dy * dy,
-                  });
+                  routeElementIds.add(
+                    detector.id
+                  );
                 }
               }
+            }
+
+            const candidates:
+              Array<{
+                address: number;
+                distance: number;
+              }> = [];
+
+            for (
+              const elementId
+              of routeElementIds
+            ) {
+              const element =
+                elementById.get(
+                  elementId
+                );
+
+              if (
+                !(element instanceof TrackElement) ||
+                element instanceof BlockElement ||
+                String(
+                  element.type
+                ).startsWith(
+                  "tracksignal"
+                )
+              ) {
+                continue;
+              }
+
+              const address =
+                Math.trunc(
+                  Number(
+                    element.address
+                  )
+                );
+
+              if (
+                !Number.isInteger(
+                  address
+                ) ||
+                address <=
+                  0 ||
+                address ===
+                  block.sensorAddress
+              ) {
+                continue;
+              }
+
+              const sensorCenterX =
+                element.x +
+                0.5;
+
+              const sensorCenterY =
+                element.y +
+                0.5;
+
+              const dx =
+                sensorCenterX -
+                blockCenterX;
+
+              const dy =
+                sensorCenterY -
+                blockCenterY;
+
+              const projection =
+                dx *
+                  forwardX +
+                dy *
+                  forwardY;
+
+              if (
+                targetDirection ===
+                  "forward"
+                  ? projection <=
+                    0.01
+                  : projection >=
+                    -0.01
+              ) {
+                continue;
+              }
+
+              candidates.push({
+                address,
+                distance:
+                  dx * dx +
+                  dy * dy,
+              });
             }
 
             candidates.sort(
@@ -895,8 +987,8 @@ export default function BlockEventConfigPropertyEditor({
         block.id,
         block.x,
         block.y,
-        block.w,
-        block.h,
+        block.rotation,
+        block.runtimeForwardRotation,
         block.sensorAddress,
       ]
     );
