@@ -593,6 +593,26 @@ export default function MovementRouteVectorPreview({
                           : undefined
                       }
                     >
+                      {
+                        item.kind ===
+                          "block" &&
+                        item.mergedSegmentNames.length >
+                          0 && (
+                          <rect
+                            className="movement-route-vector-composite-segment-card"
+                            x={
+                              x + 7
+                            }
+                            y={35}
+                            width={
+                              ITEM_WIDTH
+                            }
+                            height={102}
+                            rx={11}
+                          />
+                        )
+                      }
+
                       <rect
                         className="movement-route-vector-card"
                         x={x}
