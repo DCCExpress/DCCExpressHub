@@ -1362,5 +1362,7 @@
   "trainTrackingSectionParts": "Section parts",
   "trainTrackingNextBlock": "Next block",
   "trainTrackingPathDialogTitle": "Sensor path — locomotive #{{address}}",
-  "trainTrackingPathDialogDescription": "Recent sensors retained by Train Tracking."
+  "trainTrackingPathDialogDescription": "Recent sensors retained by Train Tracking.",
+  "mixedValue": "Mixed",
+  "noCommonEditableProperty": "No common editable property"
 }
