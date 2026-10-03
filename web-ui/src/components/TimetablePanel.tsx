@@ -673,10 +673,6 @@ export default function TimetablePanel({
               {formattedTime}
             </Text>
 
-            <Text size="sm" c="dimmed" ta="center">
-              {t("ui.speedValue", { value1: snapshot?.speed ?? speedInput })}
-            </Text>
-
             <Group grow gap="xs">
               <Button
                 size="xs"
@@ -728,10 +724,18 @@ export default function TimetablePanel({
               </Button>
             </Group>
 
-            <Group align="flex-end" wrap="nowrap">
+            <Group align="center" wrap="nowrap">
+              <div style={{ flexShrink: 0 }}>
+                <Text size="sm" fw={500}>
+                  {t("ui.speedLabel")}
+                </Text>
+                <Text size="xs" c="dimmed">
+                  {t("ui.realTimeSpeedDescription")}
+                </Text>
+              </div>
+
               <NumberInput
-                label={t("ui.speedLabel")}
-                description={t("ui.realTimeSpeedDescription")}
+                aria-label={t("ui.speedLabel")}
                 min={1}
                 max={100}
                 step={1}
