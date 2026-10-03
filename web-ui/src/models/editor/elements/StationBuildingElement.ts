@@ -124,179 +124,12 @@ export class StationBuildingElement extends BaseElement {
     const frontY = y + height - 1;
 
     if (
-      this.variant === "terrace" ||
-      this.variant === "coveredTerrace"
-    ) {
-      const terraceWidth =
-        Math.min(
-          width - 12,
-          Math.max(
-            22,
-            width * 0.46
-          )
-        );
-
-      const terraceX =
-        centerX -
-        terraceWidth / 2;
-
-      const terraceY =
-        frontY;
-      const terraceDepth = 24;
-
-      const deck =
-        ctx.createLinearGradient(
-          terraceX,
-          terraceY,
-          terraceX,
-          terraceY +
-            terraceDepth
-        );
-
-      deck.addColorStop(
-        0,
-        "#bda786"
-      );
-      deck.addColorStop(
-        1,
-        "#8f785c"
-      );
-
-      ctx.fillStyle = deck;
-      ctx.strokeStyle =
-        "#675641";
-      ctx.lineWidth = 1;
-
-      ctx.fillRect(
-        terraceX,
-        terraceY,
-        terraceWidth,
-        terraceDepth
-      );
-
-      ctx.strokeRect(
-        terraceX,
-        terraceY,
-        terraceWidth,
-        terraceDepth
-      );
-
-      ctx.strokeStyle =
-        "rgba(255,255,255,0.18)";
-      ctx.lineWidth = 0.8;
-
-      for (
-        let deckX =
-          terraceX + 5;
-        deckX <
-          terraceX +
-            terraceWidth -
-            2;
-        deckX += 7
-      ) {
-        ctx.beginPath();
-        ctx.moveTo(
-          deckX,
-          terraceY + 1
-        );
-        ctx.lineTo(
-          deckX,
-          terraceY +
-            terraceDepth -
-            1
-        );
-        ctx.stroke();
-      }
-
-      if (
-        this.variant ===
-        "coveredTerrace"
-      ) {
-        const canopyY =
-          terraceY + 1;
-        const canopyDepth =
-          14;
-
-        const canopy =
-          ctx.createLinearGradient(
-            terraceX,
-            canopyY,
-            terraceX,
-            canopyY +
-              canopyDepth
-          );
-
-        canopy.addColorStop(
-          0,
-          palette.highlight
-        );
-        canopy.addColorStop(
-          1,
-          palette.side
-        );
-
-        ctx.fillStyle = canopy;
-        ctx.strokeStyle =
-          palette.edge;
-        ctx.lineWidth = 1;
-
-        ctx.beginPath();
-        ctx.moveTo(
-          terraceX + 2,
-          canopyY
-        );
-        ctx.lineTo(
-          terraceX +
-            terraceWidth -
-            2,
-          canopyY
-        );
-        ctx.lineTo(
-          terraceX +
-            terraceWidth,
-          canopyY +
-            canopyDepth
-        );
-        ctx.lineTo(
-          terraceX,
-          canopyY +
-            canopyDepth
-        );
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-
-        ctx.fillStyle =
-          "#51483e";
-
-        ctx.fillRect(
-          terraceX + 3,
-          canopyY + 2,
-          2,
-          canopyDepth + 4
-        );
-
-        ctx.fillRect(
-          terraceX +
-            terraceWidth -
-            5,
-          canopyY + 2,
-          2,
-          canopyDepth + 4
-        );
-      }
-
-      return;
-    }
-
-    if (
       this.variant === "stairs"
     ) {
       const steps = [
-        { width: 11, depth: 5 },
-        { width: 14, depth: 5 },
-        { width: 17, depth: 5 },
-        { width: 20, depth: 5 },
+        { width: 8, depth: 4 },
+        { width: 10, depth: 4 },
+        { width: 12, depth: 4 },
       ];
 
       let stepY =
@@ -473,9 +306,9 @@ export class StationBuildingElement extends BaseElement {
     const logicalY = this.posTop;
 
     const buildingOffsetY =
-      this.variant === "plain"
-        ? 0
-        : -7;
+      this.variant === "stairs"
+        ? -5
+        : 0;
 
     const y =
       logicalY +
@@ -910,10 +743,8 @@ export class StationBuildingElement extends BaseElement {
     element.bg = data.bg;
     element.fg = data.fg;
     element.variant =
-      data.variant === "terrace" ||
-      data.variant === "coveredTerrace" ||
       data.variant === "stairs"
-        ? data.variant
+        ? "stairs"
         : "plain";
     element.roofColor =
       normalizeHexColor(
@@ -964,20 +795,6 @@ export class StationBuildingElement extends BaseElement {
             label:
               i18next.t(
                 "ui.plainEntrance"
-              ),
-          },
-          {
-            value: "terrace",
-            label:
-              i18next.t(
-                "ui.terrace"
-              ),
-          },
-          {
-            value: "coveredTerrace",
-            label:
-              i18next.t(
-                "ui.coveredTerrace"
               ),
           },
           {
