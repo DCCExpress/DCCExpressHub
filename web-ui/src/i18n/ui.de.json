@@ -881,6 +881,7 @@
   "finishingNoNewStarts": "FINISHING · keine neuen Starts",
   "lastStart": "Letzter Start:",
   "timetableStart": "Fahrplan starten",
+  "timetableScriptType": "Skript",
   "timetableStop": "Beenden",
   "editTimetable": "Fahrplan bearbeiten",
   "stopScriptsFirst": "Stoppe zuerst die Skripte",
