@@ -48,6 +48,7 @@
     "delete": "Delete",
     "extended_params": "Advanced settings",
     "function_momentary": "Momentary",
+    "function_startup": "On connect",
     "function_startup_tooltip": "Turn this function ON whenever the backend connects to the command station.",
     "function_startup_unavailable_momentary": "Startup ON is not available for momentary functions.",
     "function_number": "Function No.",
