@@ -179,6 +179,7 @@ public sealed class MovementRuntime
         public bool Moving { get; set; }
         public bool EmergencyAbort { get; set; }
         public bool MotionStartedPublished { get; set; }
+        public bool ResumeAfterExternalHold { get; set; }
         public int? CurrentBlockId { get; set; }
         public int? TargetBlockId { get; set; }
         public ConcurrentBag<Task> BackgroundTasks { get; } = [];
@@ -2191,12 +2192,24 @@ public sealed class MovementRuntime
 
             EmitTrainEvent(
                 execution,
-                "starting",
+                "beforeStart",
                 leg.From);
+
+            // TrainEvent Flow execution starts asynchronously. Give a matching
+            // Before Start branch a deterministic chance to register a Hold
+            // before this Movement can apply locomotive speed.
+            await Task.Delay(
+                50,
+                execution.Cancellation.Token);
 
             await WaitForExternalHolds(
                 execution,
                 leg);
+
+            EmitTrainEvent(
+                execution,
+                "starting",
+                leg.From);
 
             execution.Moving = true;
             await ApplySpeed(execution, force: true);
@@ -2458,6 +2471,12 @@ public sealed class MovementRuntime
                     execution.Plan.Legs.LastOrDefault(),
                     leg) ||
                 leg.Index == execution.Plan.Legs.Length - 1;
+
+            // Once ARRIVED is committed, a mid-leg Hold must not resume
+            // the locomotive directly: the next departure must reacquire its
+            // own safety/route authority through the normal Movement path.
+            execution.ResumeAfterExternalHold =
+                false;
 
             EmitTrainEvent(
                 execution,
@@ -3171,8 +3190,15 @@ public sealed class MovementRuntime
                 : ownerId.Trim();
 
         lock (execution.ExternalHolds)
+        {
+            if (execution.ExternalHolds.Count == 0 &&
+                execution.Moving)
+                execution.ResumeAfterExternalHold =
+                    true;
+
             execution.ExternalHolds.Add(
                 owner);
+        }
 
         // A hold must never keep a future route/turnout group reserved.
         // The currently active leg is intentionally kept until its normal
@@ -3223,14 +3249,56 @@ public sealed class MovementRuntime
                 ? "external"
                 : ownerId.Trim();
 
+        bool resumeNow;
+
         lock (execution.ExternalHolds)
+        {
             execution.ExternalHolds.Remove(
                 owner);
 
-        Patch(
-            execution,
-            info: "Movement hold released",
-            setInfo: true);
+            resumeNow =
+                execution.ExternalHolds.Count == 0 &&
+                execution.ResumeAfterExternalHold;
+
+            if (resumeNow)
+                execution.ResumeAfterExternalHold =
+                    false;
+        }
+
+        if (resumeNow)
+        {
+            execution.DesiredSpeed =
+                execution.Page.Speed;
+            execution.Moving =
+                true;
+
+            Patch(
+                execution,
+                desiredSpeed:
+                    execution.DesiredSpeed,
+                info:
+                    "Movement hold released; resuming active leg",
+                setInfo: true);
+
+            _ = ApplySpeed(
+                    execution,
+                    force: true,
+                    cancellationToken:
+                        CancellationToken.None)
+                .ContinueWith(
+                    _ => { },
+                    CancellationToken.None,
+                    TaskContinuationOptions.ExecuteSynchronously,
+                    TaskScheduler.Default);
+        }
+        else
+        {
+            Patch(
+                execution,
+                info:
+                    "Movement hold released",
+                setInfo: true);
+        }
 
         return true;
     }
