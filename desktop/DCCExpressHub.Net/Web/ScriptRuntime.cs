@@ -916,6 +916,17 @@ public sealed class ScriptRuntime
                 0,
                 86_400_000);
 
+        var totalMs =
+            remaining;
+
+        if (execution.Type ==
+            "visual-flow")
+            WriteLog(
+                execution,
+                "FLOW Delay START " +
+                totalMs +
+                " ms");
+
         while (remaining > 0)
         {
             await WaitRunnable(
@@ -933,6 +944,14 @@ public sealed class ScriptRuntime
             remaining -=
                 slice;
         }
+
+        if (execution.Type ==
+            "visual-flow")
+            WriteLog(
+                execution,
+                "FLOW Delay END " +
+                totalMs +
+                " ms");
     }
 
     async Task<bool> WaitSensor(
@@ -3778,6 +3797,13 @@ public sealed class ScriptRuntime
                     tcs.TrySetCanceled(
                         execution.Cancellation.Token));
 
+        if (execution.Type ==
+            "visual-flow")
+            WriteLog(
+                execution,
+                "FLOW PlayAudio START " +
+                fileName);
+
         AudioRequested?.Invoke(
             new ScriptAudioRequest(
                 requestId,
@@ -3786,7 +3812,20 @@ public sealed class ScriptRuntime
 
         try
         {
-            return await tcs.Task;
+            var ok =
+                await tcs.Task;
+
+            if (execution.Type ==
+                "visual-flow")
+                WriteLog(
+                    execution,
+                    "FLOW PlayAudio END " +
+                    fileName +
+                    " ok=" +
+                    ok.ToString()
+                        .ToLowerInvariant());
+
+            return ok;
         }
         finally
         {
