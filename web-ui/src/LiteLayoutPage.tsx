@@ -35,6 +35,7 @@ import {
   IconTrafficLights,
   IconTrain,
   IconTrash,
+  IconUserShield,
   IconUpload,
   IconSeparator,
   IconBrandGithub,
@@ -112,6 +113,12 @@ import {
   setBroadcastAudioEnabled,
   subscribeBroadcastAudioEnabled,
 } from "@/services/broadcastAudioRuntime";
+import {
+  getSwitchManModeState,
+  setSwitchManModeEnabled,
+  subscribeSwitchManModeState,
+  type SwitchManModeState,
+} from "@/services/switchManModeRuntime";
 
 import {
   installTrainTrackingRuntime,
@@ -717,6 +724,74 @@ export default function LiteLayoutPage({
       ),
     []
   );
+
+  const [
+    switchManModeState,
+    setSwitchManModeState,
+  ] =
+    useState<SwitchManModeState>(
+      getSwitchManModeState
+    );
+
+  const [
+    switchManModeBusy,
+    setSwitchManModeBusy,
+  ] =
+    useState(false);
+
+  useEffect(
+    () =>
+      subscribeSwitchManModeState(
+        setSwitchManModeState
+      ),
+    []
+  );
+
+  const toggleSwitchManMode =
+    useCallback(
+      async (): Promise<void> => {
+        if (
+          switchManModeBusy
+        ) {
+          return;
+        }
+
+        setSwitchManModeBusy(
+          true
+        );
+
+        try {
+          await setSwitchManModeEnabled(
+            !switchManModeState.enabled
+          );
+        } catch (
+          switchManError
+        ) {
+          showNotification({
+            color:
+              "red",
+            title:
+              i18next.t(
+                "ui.switchManMode"
+              ),
+            message:
+              switchManError instanceof Error
+                ? switchManError.message
+                : String(
+                    switchManError
+                  ),
+          });
+        } finally {
+          setSwitchManModeBusy(
+            false
+          );
+        }
+      },
+      [
+        switchManModeBusy,
+        switchManModeState.enabled,
+      ]
+    );
 
   useEffect(
     () => {
@@ -1921,6 +1996,58 @@ export default function LiteLayoutPage({
               }
             >
               <IconVolume size={15} />
+            </ActionIcon>
+
+            <Divider orientation="vertical" />
+
+            <ActionIcon
+              size="sm"
+              variant={
+                switchManModeState.enabled
+                  ? "filled"
+                  : "light"
+              }
+              color={
+                switchManModeBusy
+                  ? "yellow"
+                  : switchManModeState.enabled
+                    ? "teal"
+                    : "gray"
+              }
+              disabled={
+                switchManModeBusy ||
+                wsStatus !==
+                  "connected"
+              }
+              aria-label={
+                i18next.t(
+                  "ui.switchManMode"
+                )
+              }
+              title={
+                switchManModeState.enabled
+                  ? i18next.t(
+                      "ui.switchManModeActive",
+                      {
+                        count:
+                          switchManModeState
+                            .ownedAddresses
+                            .length,
+                      }
+                    )
+                  : i18next.t(
+                      "ui.switchManModeInactive"
+                    )
+              }
+              onClick={
+                () => {
+                  void toggleSwitchManMode();
+                }
+              }
+            >
+              <IconUserShield
+                size={15}
+              />
             </ActionIcon>
 
             <Divider orientation="vertical" />
