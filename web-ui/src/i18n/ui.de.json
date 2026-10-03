@@ -928,6 +928,8 @@
   "flowNodeWaitBlock": "Auf Block warten",
   "flowNodeWaitSensor": "Auf Sensor warten",
   "flowNodeHorn": "Horn",
+  "flowNodeMovementHold": "Fahrt anhalten",
+  "flowNodeMovementRelease": "Fahrt fortsetzen",
   "flowNodeDelay": "Verzögerung",
   "flowNodeLog": "Log",
   "flowRouteBlocks": "Fahrwegblöcke",
