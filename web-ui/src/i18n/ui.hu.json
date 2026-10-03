@@ -878,7 +878,7 @@
   "scriptRunning": "Script fut...",
   "timetableActive": "MENETREND AKTÍV",
   "timetableStopped": "MENETREND LEÁLLÍTVA",
-  "finishingNoNewStarts": "FINISHING · új indítás tiltva",
+  "finishingNoNewStarts": "BEFEJEZÉS · új indítás tiltva",
   "lastStart": "Utolsó indítás:",
   "timetableStart": "Menetrend Start",
   "timetableStop": "Befejezés",
