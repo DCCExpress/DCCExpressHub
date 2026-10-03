@@ -81,6 +81,8 @@ public sealed class WsRuntimeCoordinator : BackgroundService
                 else
                 {
                     _locoSync.Clear();
+                    _startupFunctions.Clear();
+                    _startupFunctionsApplied=false;
                     nextCurrent=DateTimeOffset.MinValue;
                 }
             }
@@ -180,8 +182,10 @@ public sealed class WsRuntimeCoordinator : BackgroundService
 
         LoadConfiguredLocos();
 
-        if(!_startupFunctionsApplied)
-            LoadStartupFunctions();
+        // Re-apply configured startup functions on every successful
+        // command-center connection, including reconnects.
+        _startupFunctionsApplied=false;
+        LoadStartupFunctions();
 
         _log.LogInformation(
             "Command center bootstrap: automation evaluated, sensor snapshot requested, {Count} loco state request(s) and {StartupCount} startup function(s) queued",
