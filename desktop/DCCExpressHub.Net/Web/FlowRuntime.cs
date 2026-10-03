@@ -118,6 +118,9 @@ public sealed class FlowRuntime : BackgroundService
 
         _trainEvents.Changed +=
             OnTrainEvent;
+
+        _trainEvents.Blocking +=
+            OnBlockingTrainEventAsync;
     }
 
     static long NowMs() =>
@@ -677,6 +680,175 @@ public sealed class FlowRuntime : BackgroundService
         object value) =>
         JsonSerializer.SerializeToElement(
             value);
+
+    async Task OnBlockingTrainEventAsync(
+        TrainEventPayload trainEvent,
+        CancellationToken cancellationToken)
+    {
+        if (_scripts.Finishing)
+            return;
+
+        var payload =
+            ObjectPayload(
+                new
+                {
+                    eventType =
+                        "trainEvent",
+                    id =
+                        trainEvent.Id,
+                    timestamp =
+                        trainEvent.Timestamp,
+                    source =
+                        trainEvent.Source,
+                    movementId =
+                        trainEvent.MovementId,
+                    movementName =
+                        trainEvent.MovementName,
+                    locoId =
+                        trainEvent.LocoId,
+                    locoAddress =
+                        trainEvent.LocoAddress,
+                    locoName =
+                        trainEvent.LocoName,
+                    trainType =
+                        trainEvent.TrainType,
+                    direction =
+                        trainEvent.Direction,
+                    @event =
+                        trainEvent.Event,
+                    resourceType =
+                        trainEvent.ResourceType,
+                    resourceKey =
+                        trainEvent.ResourceKey,
+                    resourceId =
+                        trainEvent.ResourceId,
+                    resourceName =
+                        trainEvent.ResourceName,
+                    resourceLabel =
+                        trainEvent.ResourceLabel,
+                    sensorAddress =
+                        trainEvent.SensorAddress,
+                    sensors =
+                        trainEvent.Sensors
+                });
+
+        DocumentDef document;
+
+        try
+        {
+            document =
+                LoadDocument();
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(
+                ex,
+                "Flow runtime could not load saved graph for blocking TrainEvent");
+
+            throw;
+        }
+
+        var executionIds =
+            new List<string>();
+
+        try
+        {
+            foreach (var page in
+                     document.Pages)
+            {
+                if (!page.Enabled)
+                    continue;
+
+                foreach (var input in
+                         document.Nodes.Where(node =>
+                             node.PageId ==
+                                 page.Id &&
+                             node.Kind ==
+                                 "trainEventInput" &&
+                             MatchesTrainEvent(
+                                 node,
+                                 trainEvent)))
+                {
+                    var executionId =
+                        "visual-flow-blocking:" +
+                        page.Id +
+                        ":" +
+                        input.Id +
+                        ":" +
+                        trainEvent.Id;
+
+                    var run =
+                        RunInput(
+                            document,
+                            page,
+                            input,
+                            payload,
+                            false,
+                            "blocking-event",
+                            executionId);
+
+                    if (run.Started &&
+                        run.ExecutionId is not null)
+                    {
+                        executionIds.Add(
+                            run.ExecutionId);
+
+                        continue;
+                    }
+
+                    if (run.Error ==
+                        "flow_branch_empty")
+                        continue;
+
+                    throw new InvalidOperationException(
+                        run.Error ??
+                        "blocking_flow_start_failed");
+                }
+            }
+
+            foreach (var executionId in
+                     executionIds)
+            {
+                while (true)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    var state =
+                        _scripts.GetState(
+                            executionId);
+
+                    if (state.Status is
+                        "running" or
+                        "paused")
+                    {
+                        await Task.Delay(
+                            25,
+                            cancellationToken);
+
+                        continue;
+                    }
+
+                    if (state.Status ==
+                        "error")
+                        throw new InvalidOperationException(
+                            state.Error ??
+                            "blocking_flow_failed");
+
+                    break;
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            foreach (var executionId in
+                     executionIds)
+                _scripts.Abort(
+                    executionId,
+                    "Blocking TrainEvent cancelled with Movement.");
+
+            throw;
+        }
+    }
 
     void OnTrainEvent(
         TrainEventPayload trainEvent)
@@ -1857,19 +2029,21 @@ public sealed class FlowRuntime : BackgroundService
         return "null";
     }
 
-    (bool Started, string? Error) RunInput(
+    (bool Started, string? Error, string? ExecutionId) RunInput(
         DocumentDef document,
         PageDef page,
         NodeDef input,
         JsonElement? payload,
         bool manual,
-        string reason)
+        string reason,
+        string? executionIdOverride = null)
     {
         if (!page.Enabled &&
             !manual)
             return (
                 false,
-                "flow_page_disabled");
+                "flow_page_disabled",
+                null);
 
         var source =
             BuildBranchSource(
@@ -1905,22 +2079,26 @@ public sealed class FlowRuntime : BackgroundService
 
             return (
                 false,
-                "flow_branch_empty");
+                "flow_branch_empty",
+                null);
         }
 
         var executionId =
-            manual
-                ? "visual-flow-" +
-                  reason +
-                  ":" +
-                  page.Id +
-                  ":" +
-                  Interlocked.Increment(
-                      ref _manualSequence)
-                : "visual-flow-runtime:" +
-                  page.Id +
-                  ":" +
-                  input.Id;
+            !string.IsNullOrWhiteSpace(
+                executionIdOverride)
+                ? executionIdOverride!
+                : manual
+                    ? "visual-flow-" +
+                      reason +
+                      ":" +
+                      page.Id +
+                      ":" +
+                      Interlocked.Increment(
+                          ref _manualSequence)
+                    : "visual-flow-runtime:" +
+                      page.Id +
+                      ":" +
+                      input.Id;
 
         /*
          * Register ownership before ScriptRuntime.StartSource(). StartSource
@@ -1958,7 +2136,8 @@ public sealed class FlowRuntime : BackgroundService
 
                 return (
                     false,
-                    result.Error);
+                    result.Error,
+                    executionId);
             }
 
             _executionPages.TryRemove(
@@ -1985,14 +2164,16 @@ public sealed class FlowRuntime : BackgroundService
             return (
                 false,
                 result.Error ??
-                "flow_start_failed");
+                "flow_start_failed",
+                executionId);
         }
 
         Publish();
 
         return (
             true,
-            null);
+            null,
+            executionId);
     }
 
     void OnScriptStateChanged(
