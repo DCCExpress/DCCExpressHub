@@ -26,11 +26,19 @@ public sealed class WsHub
     private readonly ConcurrentDictionary<Guid, WebSocket> Clients = new();
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     private readonly object _programmingGate = new();
-    private readonly object _audioCoordinatorGate = new();
+    private readonly object _audioAckGate = new();
     private readonly ConcurrentDictionary<Guid, bool> _audioPlaybackEnabled = new();
-    private Guid? _audioCoordinatorConnectionId;
+    private readonly Dictionary<string, PendingAudioAck> _pendingAudioAcks =
+        new(StringComparer.Ordinal);
     private PendingProgramming? _pendingProgramming;
     private sealed record PendingProgramming(string RequestId, string Action, int ExpectedCv, long Token);
+
+    private sealed class PendingAudioAck
+    {
+        public required bool Script { get; init; }
+        public required HashSet<Guid> PendingClients { get; init; }
+        public bool AllOk { get; set; } = true;
+    }
     private long _programmingToken;
     private const int ProgrammingTimeoutMs = 24000;
     private static readonly TimeSpan WebSocketSendTimeout = TimeSpan.FromSeconds(2);
@@ -162,106 +170,186 @@ public sealed class WsHub
         };
     }
 
-    private void SelectAudioCoordinatorLocked()
+    private void CompleteAudioWait(
+        string requestId,
+        bool script,
+        bool ok)
     {
-        if (_audioCoordinatorConnectionId.HasValue &&
-            Clients.ContainsKey(
-                _audioCoordinatorConnectionId.Value) &&
-            _audioPlaybackEnabled.ContainsKey(
-                _audioCoordinatorConnectionId.Value))
-            return;
+        if (script)
+            Scripts.CompleteAudio(
+                requestId,
+                ok);
+        else
+            Movement.CompleteAudio(
+                requestId,
+                ok);
+    }
 
-        var replacement =
-            _audioPlaybackEnabled.Keys
-                .FirstOrDefault(
-                    Clients.ContainsKey);
+    private void StartAudioWait(
+        string requestId,
+        bool script)
+    {
+        Guid[] clients;
 
-        _audioCoordinatorConnectionId =
-            replacement == Guid.Empty
-                ? null
-                : replacement;
+        lock (_audioAckGate)
+        {
+            clients =
+                _audioPlaybackEnabled.Keys
+                    .Where(
+                        Clients.ContainsKey)
+                    .ToArray();
+
+            if (clients.Length > 0)
+            {
+                _pendingAudioAcks[
+                    requestId] =
+                    new PendingAudioAck
+                    {
+                        Script =
+                            script,
+                        PendingClients =
+                            clients.ToHashSet()
+                    };
+
+                return;
+            }
+        }
+
+        CompleteAudioWait(
+            requestId,
+            script,
+            false);
+    }
+
+    private void HandleAudioComplete(
+        Guid connectionId,
+        string requestId,
+        bool script,
+        bool ok)
+    {
+        bool complete =
+            false;
+        bool allOk =
+            false;
+
+        lock (_audioAckGate)
+        {
+            if (!_pendingAudioAcks.TryGetValue(
+                    requestId,
+                    out var pending) ||
+                pending.Script !=
+                    script ||
+                !pending.PendingClients.Remove(
+                    connectionId))
+                return;
+
+            pending.AllOk &=
+                ok;
+
+            if (pending.PendingClients.Count ==
+                0)
+            {
+                complete =
+                    true;
+                allOk =
+                    pending.AllOk;
+
+                _pendingAudioAcks.Remove(
+                    requestId);
+            }
+        }
+
+        if (complete)
+            CompleteAudioWait(
+                requestId,
+                script,
+                allOk);
+    }
+
+    private void RemoveAudioClient(
+        Guid connectionId)
+    {
+        var completed =
+            new List<(
+                string RequestId,
+                bool Script,
+                bool Ok)>();
+
+        lock (_audioAckGate)
+        {
+            _audioPlaybackEnabled.TryRemove(
+                connectionId,
+                out _);
+
+            foreach (var pair in
+                     _pendingAudioAcks.ToArray())
+            {
+                var pending =
+                    pair.Value;
+
+                if (!pending.PendingClients.Remove(
+                        connectionId))
+                    continue;
+
+                pending.AllOk =
+                    false;
+
+                if (pending.PendingClients.Count >
+                    0)
+                    continue;
+
+                completed.Add(
+                    (
+                        pair.Key,
+                        pending.Script,
+                        pending.AllOk
+                    ));
+
+                _pendingAudioAcks.Remove(
+                    pair.Key);
+            }
+        }
+
+        foreach (var item in
+                 completed)
+            CompleteAudioWait(
+                item.RequestId,
+                item.Script,
+                item.Ok);
     }
 
     private void UpdateAudioPlaybackState(
         Guid connectionId,
         bool enabled)
     {
-        lock (_audioCoordinatorGate)
+        if (enabled &&
+            Clients.ContainsKey(
+                connectionId))
         {
-            if (enabled &&
-                Clients.ContainsKey(
-                    connectionId))
-                _audioPlaybackEnabled[
-                    connectionId] =
-                    true;
-            else
-                _audioPlaybackEnabled.TryRemove(
-                    connectionId,
-                    out _);
+            _audioPlaybackEnabled[
+                connectionId] =
+                true;
 
-            SelectAudioCoordinatorLocked();
+            return;
         }
-    }
 
-    private bool ReleaseAudioCoordinator(
-        Guid connectionId)
-    {
-        lock (_audioCoordinatorGate)
-        {
-            var wasCoordinator =
-                _audioCoordinatorConnectionId ==
-                connectionId;
-
-            _audioPlaybackEnabled.TryRemove(
-                connectionId,
-                out _);
-
-            if (wasCoordinator)
-                _audioCoordinatorConnectionId =
-                    null;
-
-            SelectAudioCoordinatorLocked();
-
-            return
-                wasCoordinator &&
-                !_audioCoordinatorConnectionId.HasValue;
-        }
-    }
-
-    private bool IsAudioCoordinator(Guid connectionId)
-    {
-        lock (_audioCoordinatorGate)
-            return
-                _audioCoordinatorConnectionId ==
-                    connectionId &&
-                _audioPlaybackEnabled.ContainsKey(
-                    connectionId);
-    }
-
-    private bool HasAudioCoordinator()
-    {
-        lock (_audioCoordinatorGate)
-        {
-            SelectAudioCoordinatorLocked();
-
-            return
-                _audioCoordinatorConnectionId.HasValue;
-        }
+        RemoveAudioClient(
+            connectionId);
     }
 
     private async Task HandleMovementAudioRequest(
         MovementAudioRequest request)
     {
         /*
-         * Audio is rendered by browsers, while automation execution remains
-         * backend-owned. One connected browser is selected automatically as
-         * the acknowledgement coordinator for blocking playback.
+         * Audio is rendered by every browser that has local playback enabled.
+         * A blocking request waits for all Audio ON clients that were connected
+         * when playback started, not just for one coordinator.
          */
-        if (request.WaitForEnd &&
-            !HasAudioCoordinator())
-            Movement.CompleteAudio(
+        if (request.WaitForEnd)
+            StartAudioWait(
                 request.RequestId,
-                false);
+                script:
+                    false);
 
         await Broadcast(
             "playAudio",
@@ -277,11 +365,11 @@ public sealed class WsHub
     private async Task HandleScriptAudioRequest(
         ScriptAudioRequest request)
     {
-        if (request.WaitForEnd &&
-            !HasAudioCoordinator())
-            Scripts.CompleteAudio(
+        if (request.WaitForEnd)
+            StartAudioWait(
                 request.RequestId,
-                false);
+                script:
+                    true);
 
         await Broadcast(
             "playAudio",
@@ -321,9 +409,10 @@ public sealed class WsHub
         finally
         {
             Clients.TryRemove(id, out _);
+            RemoveAudioClient(
+                id);
 
-            if (ReleaseAudioCoordinator(id) ||
-                Clients.IsEmpty)
+            if (Clients.IsEmpty)
             {
                 Movement.FailPendingAudio();
                 Scripts.FailPendingAudio();
@@ -415,15 +504,23 @@ public sealed class WsHub
                     await HandleMovementCommand(connectionId, ws, data, ct);
                     return;
                 case "movementAudioComplete":
-                    if (IsAudioCoordinator(connectionId))
-                        Movement.CompleteAudio(S(data, "requestId"), B(data, "ok"));
+                    HandleAudioComplete(
+                        connectionId,
+                        S(data, "requestId"),
+                        script:
+                            false,
+                        B(data, "ok"));
                     return;
                 case "scriptCommand":
                     await HandleScriptCommand(connectionId, ws, data);
                     return;
                 case "scriptAudioComplete":
-                    if (IsAudioCoordinator(connectionId))
-                        Scripts.CompleteAudio(S(data, "requestId"), B(data, "ok"));
+                    HandleAudioComplete(
+                        connectionId,
+                        S(data, "requestId"),
+                        script:
+                            true,
+                        B(data, "ok"));
                     return;
                 case "flowCommand":
                     await HandleFlowCommand(connectionId, ws, data);
