@@ -216,6 +216,52 @@ const TEXT = {
   },
 } as const;
 
+function PhysicalSensorBadge({
+  sensor,
+  x,
+  y,
+}: {
+  sensor: number | null;
+  x: number;
+  y: number;
+}) {
+  if (
+    sensor === null ||
+    sensor <= 0
+  ) {
+    return null;
+  }
+
+  const width = 48;
+  const height = 20;
+
+  return (
+    <g>
+      <rect
+        x={x - width / 2}
+        y={y - height / 2}
+        width={width}
+        height={height}
+        rx={height / 2}
+        fill="var(--mantine-color-blue-filled)"
+        stroke="var(--mantine-color-blue-8)"
+        strokeWidth="1"
+      />
+
+      <text
+        x={x}
+        y={y + 3.5}
+        textAnchor="middle"
+        fontSize="9"
+        fontWeight="800"
+        fill="var(--mantine-color-white)"
+      >
+        {"#" + sensor}
+      </text>
+    </g>
+  );
+}
+
 function SensorConditionMarker({
   conditions,
   x,
@@ -304,6 +350,8 @@ function DirectionDiagram({
   events,
   hasForwardExit,
   hasReverseExit,
+  forwardSensor,
+  reverseSensor,
 }: {
   direction: Direction;
   blockName: string;
@@ -311,6 +359,8 @@ function DirectionDiagram({
   events: BlockDirectionEventConfigDto;
   hasForwardExit: boolean;
   hasReverseExit: boolean;
+  forwardSensor: number | null;
+  reverseSensor: number | null;
 }) {
   const text =
     TEXT[language()];
@@ -424,11 +474,10 @@ function DirectionDiagram({
               opacity="0.5"
             />
 
-            <circle
-              cx="55"
-              cy="62"
-              r="7"
-              fill="var(--mantine-color-blue-filled)"
+            <PhysicalSensorBadge
+              sensor={reverseSensor}
+              x={55}
+              y={62}
             />
           </>
         )}
@@ -445,11 +494,10 @@ function DirectionDiagram({
               opacity="0.5"
             />
 
-            <circle
-              cx="305"
-              cy="62"
-              r="7"
-              fill="var(--mantine-color-blue-filled)"
+            <PhysicalSensorBadge
+              sensor={forwardSensor}
+              x={305}
+              y={62}
             />
           </>
         )}
@@ -653,21 +701,25 @@ export default function BlockEventConfigPropertyEditor({
   const diagramTopology =
     useMemo(
       () => {
+        const fallback = {
+          hasForwardExit: true,
+          hasReverseExit: true,
+          forwardSensor: null as number | null,
+          reverseSensor: null as number | null,
+        };
+
         if (!opened) {
-          return {
-            hasForwardExit: true,
-            hasReverseExit: true,
-          };
+          return fallback;
         }
 
         try {
-          const graph =
+          const graphResult =
             ensureClientRouteGraph(
               layout
             ).result;
 
           const outgoingRoutes =
-            graph.routes.filter(
+            graphResult.routes.filter(
               route =>
                 route.fromBlock.id ===
                 block.id
@@ -686,10 +738,7 @@ export default function BlockEventConfigPropertyEditor({
                 "unknown"
             )
           ) {
-            return {
-              hasForwardExit: true,
-              hasReverseExit: true,
-            };
+            return fallback;
           }
 
           const hasForwardExit =
@@ -710,15 +759,126 @@ export default function BlockEventConfigPropertyEditor({
             !hasForwardExit &&
             !hasReverseExit
           ) {
-            return {
-              hasForwardExit: true,
-              hasReverseExit: true,
-            };
+            return fallback;
           }
+
+          const elementById =
+            new Map(
+              layout
+                .getAllElements()
+                .map(
+                  element => [
+                    element.id,
+                    element,
+                  ] as const
+                )
+            );
+
+          const blockCenterX =
+            block.x +
+            block.w / 2;
+
+          const blockCenterY =
+            block.y +
+            block.h / 2;
+
+          const nearestSensor = (
+            targetDirection: Direction
+          ): number | null => {
+            const candidates:
+              Array<{
+                address: number;
+                distance: number;
+              }> = [];
+
+            for (
+              const route
+              of outgoingRoutes
+            ) {
+              if (
+                route.solution.locoDirection !==
+                  targetDirection
+              ) {
+                continue;
+              }
+
+              for (
+                const node
+                of route.solution.nodes
+              ) {
+                for (
+                  const detector
+                  of node.detectors
+                ) {
+                  if (
+                    detector.address <=
+                      0 ||
+                    detector.address ===
+                      block.sensorAddress
+                  ) {
+                    continue;
+                  }
+
+                  const element =
+                    elementById.get(
+                      detector.id
+                    );
+
+                  if (
+                    !(element instanceof TrackElement)
+                  ) {
+                    continue;
+                  }
+
+                  const dx =
+                    element.x -
+                    blockCenterX;
+
+                  const dy =
+                    element.y -
+                    blockCenterY;
+
+                  candidates.push({
+                    address:
+                      detector.address,
+                    distance:
+                      dx * dx +
+                      dy * dy,
+                  });
+                }
+              }
+            }
+
+            candidates.sort(
+              (left, right) =>
+                left.distance -
+                  right.distance ||
+                left.address -
+                  right.address
+            );
+
+            return (
+              candidates[0]
+                ?.address ??
+              null
+            );
+          };
 
           return {
             hasForwardExit,
             hasReverseExit,
+            forwardSensor:
+              hasForwardExit
+                ? nearestSensor(
+                    "forward"
+                  )
+                : null,
+            reverseSensor:
+              hasReverseExit
+                ? nearestSensor(
+                    "reverse"
+                  )
+                : null,
           };
         } catch {
           /*
@@ -726,16 +886,18 @@ export default function BlockEventConfigPropertyEditor({
            * itself is temporarily invalid. In that case use the old neutral
            * through-block drawing instead of guessing a dead-end side.
            */
-          return {
-            hasForwardExit: true,
-            hasReverseExit: true,
-          };
+          return fallback;
         }
       },
       [
         opened,
         layout,
         block.id,
+        block.x,
+        block.y,
+        block.w,
+        block.h,
+        block.sensorAddress,
       ]
     );
 
@@ -1098,6 +1260,12 @@ export default function BlockEventConfigPropertyEditor({
             }
             hasReverseExit={
               diagramTopology.hasReverseExit
+            }
+            forwardSensor={
+              diagramTopology.forwardSensor
+            }
+            reverseSensor={
+              diagramTopology.reverseSensor
             }
           />
 
