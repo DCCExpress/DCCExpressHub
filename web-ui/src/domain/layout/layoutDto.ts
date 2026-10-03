@@ -379,7 +379,7 @@ export interface LampElementDto extends BaseElementDto {
   variant: LampVariantDto;
 }
 
-export type StationBuildingVariantDto = "classic" | "rural" | "modern";
+export type StationBuildingVariantDto = "plain" | "terrace" | "coveredTerrace" | "stairs" | "classic" | "rural" | "modern";
 
 export interface StationBuildingElementDto extends BaseElementDto {
   type: "stationbuilding";
