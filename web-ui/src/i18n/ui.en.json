@@ -881,7 +881,7 @@
   "finishingNoNewStarts": "FINISHING · new starts disabled",
   "lastStart": "Last start:",
   "timetableStart": "Start timetable",
-  "timetableStop": "Finishing",
+  "timetableStop": "Finish",
   "editTimetable": "Edit timetable",
   "stopScriptsFirst": "Stop the scripts first",
   "scriptsStillRunningOrPaused": "Still running or paused: {{value1}}.",
