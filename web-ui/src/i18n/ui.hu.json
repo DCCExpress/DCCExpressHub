@@ -881,7 +881,7 @@
   "finishingNoNewStarts": "FINISHING · új indítás tiltva",
   "lastStart": "Utolsó indítás:",
   "timetableStart": "Menetrend Start",
-  "timetableStop": "Menetrend Stop",
+  "timetableStop": "Befejezés",
   "editTimetable": "Menetrend szerkesztése",
   "stopScriptsFirst": "Előbb állítsd le a scripteket",
   "scriptsStillRunningOrPaused": "Még fut vagy szünetel: {{value1}}.",
