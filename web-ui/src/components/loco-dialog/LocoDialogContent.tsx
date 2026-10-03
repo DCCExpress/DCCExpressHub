@@ -112,7 +112,9 @@ export default function LocoDialogContent({
               <Tabs.Tab value="functions">{t("locodialog.tabs.functions")}</Tabs.Tab>
               <Tabs.Tab value="actions">{t("locodialog.tabs.actions")}</Tabs.Tab>
               <Tabs.Tab value="extended">{t("locodialog.extended_params")}</Tabs.Tab>
-              <Tabs.Tab value="calibration">{t("locodialog.tabs.calibration")}</Tabs.Tab>
+              <Tabs.Tab value="calibration" style={{ marginLeft: "auto" }}>
+                {t("locodialog.tabs.calibration")}
+              </Tabs.Tab>
               <Tabs.Tab value="statistics">{t("locodialog.tabs.statistics")}</Tabs.Tab>
             </Tabs.List>
 
