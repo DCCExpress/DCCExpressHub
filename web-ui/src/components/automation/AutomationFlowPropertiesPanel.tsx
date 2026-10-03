@@ -329,6 +329,24 @@ function TrainEventMultiSelect({
                   event => {
                     if (
                       event.key ===
+                      "Escape"
+                    ) {
+                      event.preventDefault();
+                      event.stopPropagation();
+
+                      setDropdownOpened(
+                        false
+                      );
+                      setSearch(
+                        ""
+                      );
+                      combobox.resetSelectedOption();
+
+                      return;
+                    }
+
+                    if (
+                      event.key ===
                         "Backspace" &&
                       search.length ===
                         0 &&
@@ -444,8 +462,8 @@ function TrainEventMultiSelect({
               }
             >
               {t(
-                "ui.ok",
-                "OK"
+                "ui.close",
+                "Close"
               )}
             </Button>
           </Group>
