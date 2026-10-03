@@ -12,9 +12,6 @@ import {
   RouteButtonElement,
 } from "../elements/RouteButtonElement";
 import {
-  TrackStraightElement,
-} from "../elements/TrackStraightElement";
-import {
   TrackTurnoutLeftElement,
 } from "../elements/TrackTurnoutLeftElement";
 import {
@@ -314,12 +311,6 @@ export class LayoutView
       (id, name, options) =>
         new LayerView(id, name, options)
     );
-
-    const track =
-      new TrackStraightElement(10, 10);
-
-    // addElement owns ID allocation. Do not manufacture IDs in view classes.
-    this.addElement(track, "track");
   }
 
   override removeElement(
