@@ -51,7 +51,6 @@ function t(
 export default function AutomationFlowInspector({
   node,
   pageId,
-  generated,
   logs,
   onClearLogs,
   onChangeNode,
