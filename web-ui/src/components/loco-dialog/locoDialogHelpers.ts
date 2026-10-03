@@ -52,6 +52,7 @@ export const createDefaultFunction = (nextNumber: number): LocoFunction => ({
   name: `F${nextNumber}`,
   icon: "💡",
   momentary: false,
+  startupActive: false,
 });
 
 export const createDefaultAction = (type: LocoActionType = "wait"): LocoAction => {
