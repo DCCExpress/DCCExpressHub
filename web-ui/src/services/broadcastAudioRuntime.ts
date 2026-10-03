@@ -89,6 +89,52 @@ function notifyAudioEnabled():
   }
 }
 
+function applyAudioEnabled(
+  next: boolean,
+  persist: boolean
+): void {
+  const changed =
+    enabled !==
+    next;
+
+  enabled =
+    next;
+
+  if (persist) {
+    try {
+      window.localStorage.setItem(
+        AUDIO_ENABLED_KEY,
+        enabled
+          ? "true"
+          : "false"
+      );
+    } catch {
+      // Audio preference remains valid for this browser session.
+    }
+  }
+
+  if (
+    !enabled
+  ) {
+    for (
+      const path of
+      [
+        ...activeBroadcastPaths,
+      ]
+    ) {
+      audioManager.stop(
+        path
+      );
+    }
+
+    activeBroadcastPaths.clear();
+  }
+
+  if (changed) {
+    notifyAudioEnabled();
+  }
+}
+
 function reportBackendAudio(
   requestId: string,
   ok: boolean
@@ -173,6 +219,18 @@ export function installBroadcastAudioRuntime():
       enabled
     );
   }
+
+  wsClient.on(
+    "audioPlaybackStateChanged",
+    data => {
+      applyAudioEnabled(
+        Boolean(
+          data.enabled
+        ),
+        true
+      );
+    }
+  );
 
   wsClient.on(
     "playAudio",
@@ -285,46 +343,18 @@ export function setBroadcastAudioEnabled(
     return;
   }
 
-  enabled =
-    next;
+  applyAudioEnabled(
+    next,
+    true
+  );
 
   if (
     wsClient.isConnected()
   ) {
     wsApi.audioPlaybackState(
-      enabled
+      next
     );
   }
-
-  try {
-    window.localStorage.setItem(
-      AUDIO_ENABLED_KEY,
-      enabled
-        ? "true"
-        : "false"
-    );
-  } catch {
-    // Audio preference remains valid for this browser session.
-  }
-
-  if (
-    !enabled
-  ) {
-    for (
-      const path of
-      [
-        ...activeBroadcastPaths,
-      ]
-    ) {
-      audioManager.stop(
-        path
-      );
-    }
-
-    activeBroadcastPaths.clear();
-  }
-
-  notifyAudioEnabled();
 }
 
 export function subscribeBroadcastAudioEnabled(
