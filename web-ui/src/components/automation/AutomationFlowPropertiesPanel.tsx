@@ -1368,9 +1368,10 @@ export default function AutomationFlowPropertiesPanel({
                 })
             }
             onTest={
-              () => {
+              previewSource => {
                 const source =
                   String(
+                    previewSource ??
                     data.audioName ??
                     ""
                   ).trim();
