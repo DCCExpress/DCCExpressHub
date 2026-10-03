@@ -30,6 +30,9 @@ const DEFAULT_COLORS = [
   "#82c91e",
   "#fab005",
   "#fd7e14",
+  "#b96354",
+  "#8b654d",
+  "#70777d",
 ];
 
 const BARRIER_TYPE_OPTIONS = [
