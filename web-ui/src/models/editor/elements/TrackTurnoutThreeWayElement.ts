@@ -6,6 +6,10 @@ import "../../../domain/layout/threeWayTurnoutDtoAugmentation";
 import { Point } from "../../../domain/Rect";
 import { generateId } from "../../../helpers";
 import { OUTPUT_COMMAND_MODE_OPTIONS, sendTurnoutOutput } from "../../../services/layoutOutput";
+import {
+  isSwitchManModeEnabled,
+  operateSwitchManTurnouts,
+} from "../../../services/switchManModeRuntime";
 import type { NeighborPointPair } from "../core/BaseElement";
 import type { ITrackTurnoutThreeWayElement } from "../types/EditorTypes";
 import type { IEditableProperty } from "./PropertyDescriptor";
@@ -227,8 +231,30 @@ export class TrackTurnoutThreeWayElement extends TrackMultiMotorTurnoutElement {
     ];
   }
   setPositionAndSend(position: Exclude<ThreeWayTurnoutPosition, "invalid">): void {
-    if (this.locked || !this.enabled) return;
+    if (!this.enabled) return;
+
     const bits = this.getBitsForPosition(position);
+
+    if (isSwitchManModeEnabled()) {
+      void operateSwitchManTurnouts([
+        {
+          address: this.turnout1Address,
+          closed:
+            bits.first ===
+            this.turnout1ClosedValue,
+        },
+        {
+          address: this.turnout2Address,
+          closed:
+            bits.second ===
+            this.turnout2ClosedValue,
+        },
+      ]);
+      return;
+    }
+
+    if (this.locked) return;
+
     this.turnout1Closed = bits.first;
     this.turnout2Closed = bits.second;
     sendTurnoutOutput(String(this.outputMode), this.turnout1Address, bits.first, {
