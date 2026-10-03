@@ -114,6 +114,9 @@ export type SerializedLayoutElementDto = {
   offsetY?: number;
   offsetX?: number;
 
+  size?: number;
+  roofColor?: string;
+
   signalOutput?: SignalOutputConfiguration;
   currentStateIndex?: number;
 
@@ -381,6 +384,8 @@ export type StationBuildingVariantDto = "classic" | "rural" | "modern";
 export interface StationBuildingElementDto extends BaseElementDto {
   type: "stationbuilding";
   variant: StationBuildingVariantDto;
+  size: number;
+  roofColor: string;
 }
 
 export interface LabelElementDto extends BaseElementDto {
