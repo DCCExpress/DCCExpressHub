@@ -155,6 +155,8 @@
   "dccExStatus": "DCC-EX status",
   "clear": "Clear",
   "waitingForConsoleActivity": "Waiting for console activity…",
+  "consoleLogFilter": "Filter log text…",
+  "consoleLogNoMatches": "No log entries match the current filters.",
   "welcomeToDccexpresshub": "Welcome to DCCExpressHub",
   "yourLayoutIsReadyToBeConfigured": "Your layout is ready to be configured",
   "noLocomotivesAreConfiguredYetSoThisLooksLikeA": "No locomotives are configured yet, so this looks like a new DCCExpressHub installation.",
