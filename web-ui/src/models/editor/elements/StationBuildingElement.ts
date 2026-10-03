@@ -60,12 +60,7 @@ export class StationBuildingElement extends BaseElement {
   override type: typeof ELEMENT_TYPES.STATION_BUILDING =
     ELEMENT_TYPES.STATION_BUILDING;
 
-  /**
-   * Retained for old saved layouts created while the decoration prototype
-   * still exposed multiple building styles. The approved station building
-   * renderer is now one canonical hipped-roof design.
-   */
-  variant: StationBuildingVariantDto = "classic";
+  variant: StationBuildingVariantDto = "plain";
 
   roofColor = "#b96354";
 
@@ -99,6 +94,240 @@ export class StationBuildingElement extends BaseElement {
     this.rotationStep = 0;
     this.name = "Station building";
     this.size = 3;
+  }
+
+  private drawEntranceVariant(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    palette: {
+      edge: string;
+      side: string;
+      top: string;
+      highlight: string;
+      ridge: string;
+      dormer: string;
+    }
+  ): void {
+    if (
+      this.variant === "plain" ||
+      this.variant === "classic" ||
+      this.variant === "rural" ||
+      this.variant === "modern"
+    ) {
+      return;
+    }
+
+    const centerX = x + width / 2;
+    const frontY = y + height - 3;
+
+    if (
+      this.variant === "terrace" ||
+      this.variant === "coveredTerrace"
+    ) {
+      const terraceWidth =
+        Math.min(
+          width - 12,
+          Math.max(
+            22,
+            width * 0.46
+          )
+        );
+
+      const terraceX =
+        centerX -
+        terraceWidth / 2;
+
+      const terraceY =
+        frontY - 7;
+
+      const deck =
+        ctx.createLinearGradient(
+          terraceX,
+          terraceY,
+          terraceX,
+          frontY
+        );
+
+      deck.addColorStop(
+        0,
+        "#bda786"
+      );
+      deck.addColorStop(
+        1,
+        "#8f785c"
+      );
+
+      ctx.fillStyle = deck;
+      ctx.strokeStyle =
+        "#675641";
+      ctx.lineWidth = 1;
+
+      ctx.fillRect(
+        terraceX,
+        terraceY,
+        terraceWidth,
+        7
+      );
+
+      ctx.strokeRect(
+        terraceX,
+        terraceY,
+        terraceWidth,
+        7
+      );
+
+      ctx.strokeStyle =
+        "rgba(255,255,255,0.18)";
+      ctx.lineWidth = 0.8;
+
+      for (
+        let deckX =
+          terraceX + 5;
+        deckX <
+          terraceX +
+            terraceWidth -
+            2;
+        deckX += 7
+      ) {
+        ctx.beginPath();
+        ctx.moveTo(
+          deckX,
+          terraceY + 1
+        );
+        ctx.lineTo(
+          deckX,
+          frontY - 1
+        );
+        ctx.stroke();
+      }
+
+      if (
+        this.variant ===
+        "coveredTerrace"
+      ) {
+        const canopyY =
+          terraceY - 5;
+
+        const canopy =
+          ctx.createLinearGradient(
+            terraceX,
+            canopyY,
+            terraceX,
+            terraceY
+          );
+
+        canopy.addColorStop(
+          0,
+          palette.highlight
+        );
+        canopy.addColorStop(
+          1,
+          palette.side
+        );
+
+        ctx.fillStyle = canopy;
+        ctx.strokeStyle =
+          palette.edge;
+        ctx.lineWidth = 1;
+
+        ctx.beginPath();
+        ctx.moveTo(
+          terraceX + 2,
+          canopyY
+        );
+        ctx.lineTo(
+          terraceX +
+            terraceWidth -
+            2,
+          canopyY
+        );
+        ctx.lineTo(
+          terraceX +
+            terraceWidth,
+          terraceY
+        );
+        ctx.lineTo(
+          terraceX,
+          terraceY
+        );
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle =
+          "#51483e";
+
+        ctx.fillRect(
+          terraceX + 3,
+          terraceY - 1,
+          2,
+          6
+        );
+
+        ctx.fillRect(
+          terraceX +
+            terraceWidth -
+            5,
+          terraceY - 1,
+          2,
+          6
+        );
+      }
+
+      return;
+    }
+
+    if (
+      this.variant === "stairs"
+    ) {
+      const stepWidths = [
+        20,
+        16,
+        12,
+      ];
+
+      stepWidths.forEach(
+        (
+          stepWidth,
+          index
+        ) => {
+          const stepHeight = 2.2;
+          const stepY =
+            frontY -
+            (index + 1) *
+              stepHeight;
+
+          ctx.fillStyle =
+            index % 2 === 0
+              ? "#b8b5ae"
+              : "#9d9a94";
+          ctx.strokeStyle =
+            "#6e6b66";
+          ctx.lineWidth = 0.7;
+
+          ctx.fillRect(
+            centerX -
+              stepWidth /
+                2,
+            stepY,
+            stepWidth,
+            stepHeight
+          );
+
+          ctx.strokeRect(
+            centerX -
+              stepWidth /
+                2,
+            stepY,
+            stepWidth,
+            stepHeight
+          );
+        }
+      );
+    }
   }
 
   private drawEyebrowDormer(
@@ -604,6 +833,15 @@ export class StationBuildingElement extends BaseElement {
       );
     }
 
+    this.drawEntranceVariant(
+      ctx,
+      x,
+      y,
+      width,
+      height,
+      palette
+    );
+
     this.endDraw(ctx);
     this.drawSelection(ctx);
   }
@@ -638,8 +876,11 @@ export class StationBuildingElement extends BaseElement {
     element.bg = data.bg;
     element.fg = data.fg;
     element.variant =
-      data.variant ??
-      "classic";
+      data.variant === "terrace" ||
+      data.variant === "coveredTerrace" ||
+      data.variant === "stairs"
+        ? data.variant
+        : "plain";
     element.roofColor =
       normalizeHexColor(
         data.roofColor ??
@@ -676,6 +917,44 @@ export class StationBuildingElement extends BaseElement {
   override getEditableProperties(): IEditableProperty[] {
     return [
       ...super.getEditableProperties(),
+      {
+        label:
+          i18next.t(
+            "ui.variant"
+          ),
+        key: "variant",
+        type: "select",
+        options: [
+          {
+            value: "plain",
+            label:
+              i18next.t(
+                "ui.plainEntrance"
+              ),
+          },
+          {
+            value: "terrace",
+            label:
+              i18next.t(
+                "ui.terrace"
+              ),
+          },
+          {
+            value: "coveredTerrace",
+            label:
+              i18next.t(
+                "ui.coveredTerrace"
+              ),
+          },
+          {
+            value: "stairs",
+            label:
+              i18next.t(
+                "ui.stairs"
+              ),
+          },
+        ],
+      },
       {
         label:
           i18next.t(
