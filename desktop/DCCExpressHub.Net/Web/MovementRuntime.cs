@@ -189,6 +189,7 @@ public sealed class MovementRuntime
             new(StringComparer.Ordinal);
         public Dictionary<int, DispatcherLegLeaseInfo> PreparedLegLeases { get; } =
             [];
+        public HashSet<int> AfterArrivedBlocks { get; } = [];
     }
 
     readonly object _gate = new();
@@ -196,6 +197,7 @@ public sealed class MovementRuntime
     readonly DispatcherRuntime _dispatcher;
     readonly SwitchManManager _switchMan;
     readonly MovementPlanBuilder _planBuilder;
+    readonly TrainEventRuntime _trainEvents;
     readonly ICommandCenter _commandCenter;
     readonly HubState _hubState;
     readonly IWebHostEnvironment _env;
@@ -219,6 +221,7 @@ public sealed class MovementRuntime
         DispatcherRuntime dispatcher,
         SwitchManManager switchMan,
         MovementPlanBuilder planBuilder,
+        TrainEventRuntime trainEvents,
         ICommandCenter commandCenter,
         HubState hubState,
         IWebHostEnvironment env,
@@ -230,6 +233,7 @@ public sealed class MovementRuntime
         _dispatcher = dispatcher;
         _switchMan = switchMan;
         _planBuilder = planBuilder;
+        _trainEvents = trainEvents;
         _commandCenter = commandCenter;
         _hubState = hubState;
         _env = env;
@@ -239,6 +243,23 @@ public sealed class MovementRuntime
     }
 
     static long NowMs() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+    void EmitTrainEvent(
+        Execution execution,
+        string eventName,
+        MovementPlanResourceModel resource)
+    {
+        _trainEvents.PublishMovement(
+            execution.State with
+            {
+                LocoAddress = execution.LocoAddress,
+                Direction = execution.Forward
+                    ? "forward"
+                    : "reverse"
+            },
+            resource,
+            eventName);
+    }
 
     static MovementRuntimeState Idle(string pageId) =>
         new(
@@ -1321,6 +1342,11 @@ public sealed class MovementRuntime
             execution.ResourceLeaveFired.Add(
                 key);
 
+            EmitTrainEvent(
+                execution,
+                "leave",
+                state.Resource);
+
             await RunActions(
                 execution,
                 state.Resource.Key,
@@ -1343,6 +1369,11 @@ public sealed class MovementRuntime
 
         execution.ResourceLeaveFired.Add(
             resource.Key);
+
+        EmitTrainEvent(
+            execution,
+            "leave",
+            resource);
 
         await RunActions(
             execution,
@@ -1556,6 +1587,11 @@ public sealed class MovementRuntime
             leg,
             state);
 
+        EmitTrainEvent(
+            execution,
+            "arrival",
+            leg.To);
+
         await RunActions(
             execution,
             leg.To.Key,
@@ -1618,6 +1654,11 @@ public sealed class MovementRuntime
             leg.LeaveDelayMs,
             "Leave " +
             leg.From.Name);
+
+        EmitTrainEvent(
+            execution,
+            "leave",
+            leg.From);
 
         await RunActions(
             execution,
@@ -1973,6 +2014,11 @@ public sealed class MovementRuntime
                 leg);
         }
 
+        EmitTrainEvent(
+            execution,
+            "beforeLeave",
+            leg.From);
+
         await RunActions(
             execution,
             leg.From.Key,
@@ -2009,6 +2055,11 @@ public sealed class MovementRuntime
                 execution,
                 lease,
                 leg);
+
+            EmitTrainEvent(
+                execution,
+                "starting",
+                leg.From);
 
             execution.Moving = true;
             await ApplySpeed(execution, force: true);
@@ -2049,6 +2100,11 @@ public sealed class MovementRuntime
                     execution,
                     leg,
                     blockApproachState);
+
+                EmitTrainEvent(
+                    execution,
+                    "approach",
+                    leg.To);
 
                 await RunActions(
                     execution,
@@ -2093,6 +2149,11 @@ public sealed class MovementRuntime
                         execution,
                         resource);
 
+                    EmitTrainEvent(
+                        execution,
+                        "enter",
+                        resource);
+
                     await RunActions(
                         execution,
                         resource.Key,
@@ -2130,6 +2191,11 @@ public sealed class MovementRuntime
                             previousSegment);
                     }
 
+                    EmitTrainEvent(
+                        execution,
+                        "enter",
+                        resource);
+
                     await RunActions(
                         execution,
                         resource.Key,
@@ -2160,6 +2226,11 @@ public sealed class MovementRuntime
                         execution,
                         leg,
                         blockApproachState);
+
+                    EmitTrainEvent(
+                        execution,
+                        "arrival",
+                        leg.To);
 
                     await RunActions(
                         execution,
@@ -2251,6 +2322,11 @@ public sealed class MovementRuntime
                     leg) ||
                 leg.Index == execution.Plan.Legs.Length - 1;
 
+            EmitTrainEvent(
+                execution,
+                "arrived",
+                leg.To);
+
             if (finalLeg)
             {
                 // ARRIVED blocking actions are allowed to roll the train a bit
@@ -2268,6 +2344,14 @@ public sealed class MovementRuntime
                     desiredSpeed: 0);
 
                 await ApplySpeed(execution, force: true);
+
+                if (leg.To.BlockId is >= 1 and <= 65535 &&
+                    execution.AfterArrivedBlocks.Add(
+                        leg.To.BlockId.Value))
+                    EmitTrainEvent(
+                        execution,
+                        "afterArrived",
+                        leg.To);
             }
             else
             {
@@ -2373,6 +2457,15 @@ public sealed class MovementRuntime
                     execution,
                     leg.To.Key,
                     "arrived");
+
+                if (!execution.Moving &&
+                    leg.To.BlockId is >= 1 and <= 65535 &&
+                    execution.AfterArrivedBlocks.Add(
+                        leg.To.BlockId.Value))
+                    EmitTrainEvent(
+                        execution,
+                        "afterArrived",
+                        leg.To);
             }
 
             await MaybeRunBlockLeave(
@@ -2415,6 +2508,11 @@ public sealed class MovementRuntime
             if (leg.From.BlockId is >= 1 and <= 65535)
                 _layout.RemoveBlock(
                     (ushort)leg.From.BlockId.Value);
+
+            EmitTrainEvent(
+                execution,
+                "afterLeave",
+                leg.From);
 
             await RunActions(
                 execution,
