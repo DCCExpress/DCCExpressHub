@@ -112,6 +112,7 @@ public sealed class ScriptRuntime
     readonly SwitchManManager _switchMan;
     readonly DispatcherRuntime _dispatcher;
     readonly MovementPlanBuilder _planBuilder;
+    readonly MovementRuntime _movement;
     readonly ICommandCenter _commandCenter;
     readonly HubState _hubState;
     readonly IWebHostEnvironment _env;
@@ -138,6 +139,7 @@ public sealed class ScriptRuntime
         SwitchManManager switchMan,
         DispatcherRuntime dispatcher,
         MovementPlanBuilder planBuilder,
+        MovementRuntime movement,
         ICommandCenter commandCenter,
         HubState hubState,
         IWebHostEnvironment env,
@@ -149,6 +151,7 @@ public sealed class ScriptRuntime
         _switchMan = switchMan;
         _dispatcher = dispatcher;
         _planBuilder = planBuilder;
+        _movement = movement;
         _commandCenter = commandCenter;
         _hubState = hubState;
         _env = env;
@@ -3805,6 +3808,15 @@ const dcc = Object.freeze({
   raw(command) { return this.sendRaw(command); },
 });
 
+const movement = Object.freeze({
+  hold: movementId =>
+    __movementHold(String(movementId)),
+  release: movementId =>
+    __movementRelease(String(movementId)),
+  holdOwners: movementId =>
+    JSON.parse(__movementHoldOwners(String(movementId))),
+});
+
 const delay = ms => __delay(Number(ms));
 const playAudio = source => dcc.playAudio(source);
 const log = (...values) => __log(JSON.stringify(values));
@@ -4499,6 +4511,30 @@ async function smartDispatcher(blocks, callback, options = {}) {
                         command,
                         true,
                         execution.Cancellation.Token)));
+
+        engine.SetValue(
+            "__movementHold",
+            new Func<string, bool>(
+                movementId =>
+                    _movement.Hold(
+                        movementId,
+                        execution.ExecutionId)));
+
+        engine.SetValue(
+            "__movementRelease",
+            new Func<string, bool>(
+                movementId =>
+                    _movement.Release(
+                        movementId,
+                        execution.ExecutionId)));
+
+        engine.SetValue(
+            "__movementHoldOwners",
+            new Func<string, string>(
+                movementId =>
+                    JsonSerializer.Serialize(
+                        _movement.HoldOwners(
+                            movementId))));
 
         engine.SetValue(
             "__switchAcquire",
