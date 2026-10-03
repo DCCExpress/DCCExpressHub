@@ -1,1 +1,0 @@
-import{Z as e}from"./c-pjMP7CZ-.js";import{t}from"./c-CM5yHyrh.js";var n=e();function r({document:e,onDocumentChange:r,onBack:i}){return(0,n.jsx)(t,{opened:!0,initialPageId:e.activePageId,onSaved:r,onClose:i})}export{r as default};
