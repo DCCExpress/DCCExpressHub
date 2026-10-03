@@ -19,6 +19,7 @@ import {
   IconAlertTriangle,
   IconBolt,
   IconClearAll,
+  IconHelpCircle,
   IconPlug,
   IconPlugConnected,
   IconPlayerPlay,
@@ -46,6 +47,8 @@ import {
 } from "@/services/wsClient";
 
 import { useCommandCenter } from "@/context/CommandCenterContext";
+
+import DccExCommandHelpDialog from "@/components/DccExCommandHelpDialog";
 
 type ConsoleTransport =
   | "websocket"
@@ -317,6 +320,11 @@ export default function ConsolePanel() {
     useState<QuickCommand[]>(
       loadQuickCommands
     );
+
+  const [
+    commandHelpOpened,
+    setCommandHelpOpened,
+  ] = useState(false);
 
   const [log, setLog] =
     useState<
@@ -1040,7 +1048,30 @@ export default function ConsolePanel() {
         p="md"
       >
         <Stack gap="sm">
-          <Text fw={600}> {i18next.t("ui.quickCommands")} </Text>
+          <Group
+            justify="space-between"
+            align="center"
+            wrap="wrap"
+          >
+            <Text fw={600}> {i18next.t("ui.quickCommands")} </Text>
+
+            <Button
+              size="xs"
+              variant="light"
+              leftSection={
+                <IconHelpCircle
+                  size={15}
+                />
+              }
+              onClick={() =>
+                setCommandHelpOpened(
+                  true
+                )
+              }
+            >
+              DCC-EX Help
+            </Button>
+          </Group>
 
           <Text
             size="xs"
@@ -1335,6 +1366,17 @@ export default function ConsolePanel() {
           </ScrollArea>
         </Stack>
       </Card>
+      <DccExCommandHelpDialog
+        opened={
+          commandHelpOpened
+        }
+        onClose={
+          () =>
+            setCommandHelpOpened(
+              false
+            )
+        }
+      />
     </Stack>
   );
 }
