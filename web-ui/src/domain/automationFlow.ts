@@ -25,6 +25,8 @@ export type AutomationFlowNodeKind =
   | "setBlockTargetLoco"
   | "clearBlockTargetLoco"
   | "horn"
+  | "movementHold"
+  | "movementRelease"
   | "delay"
   | "playAudio"
   | "log";
@@ -169,6 +171,8 @@ const NODE_KINDS =
     "setBlockTargetLoco",
     "clearBlockTargetLoco",
     "horn",
+    "movementHold",
+    "movementRelease",
     "delay",
     "playAudio",
     "log",
@@ -198,7 +202,9 @@ export function isAutomationFlowOutputNodeKind(
     kind === "setSensor" ||
     kind === "setTurnout" ||
     kind === "setAccessory" ||
-    kind === "setExtendedAccessory"
+    kind === "setExtendedAccessory" ||
+    kind === "movementHold" ||
+    kind === "movementRelease"
   );
 }
 
@@ -1559,6 +1565,24 @@ function generateStatement(
         offCommand,
       ].join("\n");
     }
+
+    case "movementHold":
+      return [
+        "{",
+        '  const movementId = String(payload && typeof payload === "object" && !Array.isArray(payload) ? payload.movementId ?? "" : "").trim();',
+        '  if (!movementId) { throw new Error("Movement Hold requires payload.movementId from a TrainEvent."); }',
+        "  movement.hold(movementId);",
+        "}",
+      ].join("\n");
+
+    case "movementRelease":
+      return [
+        "{",
+        '  const movementId = String(payload && typeof payload === "object" && !Array.isArray(payload) ? payload.movementId ?? "" : "").trim();',
+        '  if (!movementId) { throw new Error("Movement Release requires payload.movementId from a TrainEvent."); }',
+        "  movement.release(movementId);",
+        "}",
+      ].join("\n");
 
     case "delay":
       return `await delay(${Math.max(0, Math.round(data.delayMs ?? 500))});`;
