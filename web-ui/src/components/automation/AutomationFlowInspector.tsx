@@ -1,15 +1,10 @@
 import {
-  Alert,
-  Divider,
   ScrollArea,
   Stack,
   Tabs,
-  Text,
-  Textarea,
 } from "@mantine/core";
 
 import {
-  IconAlertTriangle,
   IconListDetails,
   IconTerminal2,
 } from "@tabler/icons-react";
@@ -129,63 +124,7 @@ export default function AutomationFlowInspector({
               }
             />
 
-            <Divider
-              label={
-                t(
-                  "ui.flowGeneratedCode",
-                  "Generated JavaScript"
-                )
-              }
-              labelPosition="left"
-            />
 
-            {generated.warnings.length >
-              0 && (
-              <Alert
-                color="yellow"
-                icon={
-                  <IconAlertTriangle
-                    size={16}
-                  />
-                }
-                py="xs"
-              >
-                <Stack gap={2}>
-                  {generated.warnings.map(
-                    warning => (
-                      <Text
-                        key={
-                          warning
-                        }
-                        size="xs"
-                      >
-                        {
-                          warning
-                        }
-                      </Text>
-                    )
-                  )}
-                </Stack>
-              </Alert>
-            )}
-
-            <Textarea
-              value={
-                generated.code
-              }
-              readOnly
-              autosize
-              minRows={12}
-              maxRows={28}
-              className="automation-flow-generated-code"
-              styles={{
-                input: {
-                  fontFamily:
-                    "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-                  fontSize: 12,
-                },
-              }}
-            />
           </Stack>
         </ScrollArea>
       </Tabs.Panel>
