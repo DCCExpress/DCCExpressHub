@@ -13,6 +13,7 @@ import {
   Group,
   NumberInput,
   Select,
+  MultiSelect,
   Stack,
   Switch,
   Text,
@@ -52,6 +53,24 @@ import {
   dispatchAutomationFlowNodeCollapse,
 } from "./automationFlowEvents";
 
+import {
+  loadAutomationBlockCatalog,
+  type AutomationBlockOption,
+} from "../../services/automationBlockCatalog";
+
+import {
+  loadAutomationSensorCatalog,
+  type AutomationSensorOption,
+} from "../../services/automationSensorCatalog";
+
+const TRAIN_TYPE_OPTIONS = [
+  "passenger",
+  "freight",
+  "mixed",
+  "maintenance",
+  "other",
+] as const;
+
 type Props = {
   node: AutomationFlowNode | null;
   pageId: string;
@@ -87,10 +106,42 @@ export default function AutomationFlowPropertiesPanel({
   ] =
     useState<FunctionBinding[]>([]);
 
+  const [trainBlocks, setTrainBlocks] =
+    useState<AutomationBlockOption[]>([]);
+
+  const [trainSensors, setTrainSensors] =
+    useState<AutomationSensorOption[]>([]);
+
   useEffect(
     () => {
       let active =
         true;
+
+      void loadAutomationBlockCatalog()
+        .then(blocks => {
+          if (active) {
+            setTrainBlocks(blocks);
+          }
+        })
+        .catch(error => {
+          console.warn(
+            "[Automation] Could not load block catalog for Train Event",
+            error
+          );
+        });
+
+      void loadAutomationSensorCatalog()
+        .then(sensors => {
+          if (active) {
+            setTrainSensors(sensors);
+          }
+        })
+        .catch(error => {
+          console.warn(
+            "[Automation] Could not load sensor catalog for Train Event",
+            error
+          );
+        });
 
       void getFunctionBindings()
         .then(
@@ -658,6 +709,148 @@ export default function AutomationFlowPropertiesPanel({
                     "Runs whenever this Basic Accessory state changes. payload contains eventType, address and active."
                   )
             }
+          </Text>
+        </>
+      )}
+
+      {data.kind ===
+        "trainEventInput" && (
+        <>
+          <MultiSelect
+            label={t("ui.flowTrainEventTypes", "Event types")}
+            description={t("ui.flowTrainEventAllHint", "Empty selection means All.")}
+            placeholder={t("ui.flowAll", "All")}
+            data={[
+              "arrival",
+              "arrived",
+              "afterArrived",
+              "beforeLeave",
+              "starting",
+              "leave",
+              "afterLeave",
+              "approach",
+              "enter",
+            ]}
+            value={data.trainEventTypes ?? []}
+            searchable
+            clearable
+            onChange={value => onChange({ trainEventTypes: value })}
+          />
+
+          <MultiSelect
+            label={t("ui.flowTrainTypes", "Train types")}
+            description={t("ui.flowTrainEventAllHint", "Empty selection means All.")}
+            placeholder={t("ui.flowAll", "All")}
+            data={TRAIN_TYPE_OPTIONS.map(value => ({
+              value,
+              label: i18next.t(
+                `locodialog.trainTypes.${value}`,
+                { defaultValue: value }
+              ),
+            }))}
+            value={data.trainTypeFilters ?? []}
+            searchable
+            clearable
+            onChange={value => onChange({ trainTypeFilters: value })}
+          />
+
+          <MultiSelect
+            label={t("ui.flowTrainResourceTypes", "Resource types")}
+            description={t("ui.flowTrainEventAllHint", "Empty selection means All.")}
+            placeholder={t("ui.flowAll", "All")}
+            data={[
+              { value: "block", label: t("ui.flowTrainResourceBlock", "Block") },
+              { value: "segment", label: t("ui.flowTrainResourceSegment", "Segment") },
+              { value: "turnout", label: t("ui.flowTrainResourceTurnout", "Turnout") },
+            ]}
+            value={data.trainResourceTypes ?? []}
+            clearable
+            onChange={value => onChange({ trainResourceTypes: value })}
+          />
+
+          <MultiSelect
+            label={t("ui.flowTrainBlocks", "Blocks")}
+            description={t("ui.flowTrainEventAllHint", "Empty selection means All.")}
+            placeholder={t("ui.flowAll", "All")}
+            data={trainBlocks.map(block => ({
+              value: String(block.id),
+              label: block.label,
+            }))}
+            value={(data.trainBlockFilters ?? []).map(String)}
+            searchable
+            clearable
+            onChange={value =>
+              onChange({
+                trainBlockFilters: value
+                  .map(item => Number(item))
+                  .filter(item => Number.isInteger(item) && item > 0),
+              })
+            }
+          />
+
+          <MultiSelect
+            label={t("ui.flowTrainSensors", "Sensors")}
+            description={t("ui.flowTrainEventAllHint", "Empty selection means All.")}
+            placeholder={t("ui.flowAll", "All")}
+            data={trainSensors.map(sensor => ({
+              value: String(sensor.address),
+              label: sensor.label,
+            }))}
+            value={(data.trainSensorFilters ?? []).map(String)}
+            searchable
+            clearable
+            onChange={value =>
+              onChange({
+                trainSensorFilters: value
+                  .map(item => Number(item))
+                  .filter(item => Number.isInteger(item) && item > 0),
+              })
+            }
+          />
+
+          <TextInput
+            label={t("ui.flowTrainResources", "Resources")}
+            description={t(
+              "ui.flowTrainResourcesHint",
+              "Optional comma-separated resource names/keys. Empty means All."
+            )}
+            placeholder={t("ui.flowAll", "All")}
+            value={(data.trainResourceFilters ?? []).join(", ")}
+            onChange={event => {
+              const value = event.currentTarget.value;
+              onChange({
+                trainResourceFilters: value
+                  .split(",")
+                  .map(item => item.trim())
+                  .filter(Boolean),
+              });
+            }}
+          />
+
+          <TextInput
+            label={t("ui.flowTrainLocos", "Locomotives")}
+            description={t(
+              "ui.flowTrainLocosHint",
+              "Optional comma-separated DCC addresses. Empty means All."
+            )}
+            placeholder={t("ui.flowAll", "All")}
+            value={(data.trainLocoAddressFilters ?? []).join(", ")}
+            onChange={event => {
+              const value = event.currentTarget.value;
+              onChange({
+                trainLocoAddressFilters: value
+                  .split(",")
+                  .map(item => Number(item.trim()))
+                  .filter(item => Number.isInteger(item) && item > 0 && item <= 10239),
+              });
+            }}
+          />
+
+          <Text size="xs" c="dimmed">
+            {t(
+              "ui.flowTrainEventPayloadHint",
+              "Matching TrainEvent data is passed to the connected branch as payload."
+            )}
           </Text>
         </>
       )}
