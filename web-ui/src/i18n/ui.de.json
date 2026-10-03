@@ -643,6 +643,8 @@
   "tree": "Baum",
   "bush": "Busch / Strauch",
   "stationBuilding": "Bahnhofsgebäude",
+  "size": "Größe",
+  "roofColor": "Dachziegelfarbe",
   "variant": "Variante",
   "branchCount": "Anzahl Äste / Kronengruppen",
   "clusterCount": "Anzahl Buschgruppen",
