@@ -724,6 +724,8 @@ export default function TimetablePanel({
               </Button>
             </Group>
 
+            <Divider />
+
             <Group align="center" wrap="nowrap">
               <div style={{ flexShrink: 0 }}>
                 <Text size="sm" fw={500}>
