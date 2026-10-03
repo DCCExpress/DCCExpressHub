@@ -928,6 +928,8 @@
   "flowNodeWaitBlock": "Wait block",
   "flowNodeWaitSensor": "Wait sensor",
   "flowNodeHorn": "Horn",
+  "flowNodeMovementHold": "Movement Hold",
+  "flowNodeMovementRelease": "Movement Release",
   "flowNodeDelay": "Delay",
   "flowNodeLog": "Log",
   "flowRouteBlocks": "Route blocks",
