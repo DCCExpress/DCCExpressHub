@@ -14,6 +14,9 @@ import { ButtonElement } from "../elements/ButtonElement";
 import { ClockElement } from "../elements/ClockElement";
 import { BlockElement } from "../elements/BlockElement";
 import { TreeElement } from "../elements/TreeElement";
+import { BushElement } from "../elements/BushElement";
+import { LampElement } from "../elements/LampElement";
+import { StationBuildingElement } from "../elements/StationBuildingElement";
 import { TrackSignalElement } from "../elements/TrackSignalElement";
 import { AudioButtonElement } from "../elements/AudioButtonElement";
 import { AudioListButtonElement } from "../elements/AudioListButtonElement";
@@ -101,6 +104,15 @@ export class ElementFactory {
 
       case ELEMENT_TYPES.TREE:
         return TreeElement.fromJSON(data);
+
+      case ELEMENT_TYPES.BUSH:
+        return BushElement.fromJSON(data);
+
+      case ELEMENT_TYPES.LAMP:
+        return LampElement.fromJSON(data);
+
+      case ELEMENT_TYPES.STATION_BUILDING:
+        return StationBuildingElement.fromJSON(data);
 
       case ELEMENT_TYPES.LABEL:
         return LabelElement.fromJSON(data);
