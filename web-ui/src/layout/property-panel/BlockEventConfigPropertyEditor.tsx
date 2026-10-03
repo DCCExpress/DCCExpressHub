@@ -31,6 +31,7 @@ import type {
 import type { LayoutView } from "@/models/editor/core/LayoutView";
 import {
   createCurrentClientLayoutSnapshot,
+  ensureClientRouteGraph,
 } from "@/services/clientRouteGraphCache";
 import { TrackElement } from "@/models/editor/core/TrackElement";
 import {
@@ -301,11 +302,15 @@ function DirectionDiagram({
   blockName,
   occupancySensor,
   events,
+  hasForwardExit,
+  hasReverseExit,
 }: {
   direction: Direction;
   blockName: string;
   occupancySensor: number;
   events: BlockDirectionEventConfigDto;
+  hasForwardExit: boolean;
+  hasReverseExit: boolean;
 }) {
   const text =
     TEXT[language()];
@@ -346,6 +351,20 @@ function DirectionDiagram({
     reverse
       ? "url(#block-event-arrow-left)"
       : "url(#block-event-arrow-right)";
+
+  /*
+   * Diagram coordinates are fixed to the physical Forward orientation:
+   *   left  = Reverse departure side
+   *   right = Forward departure side
+   *
+   * A terminal/dead-end side is therefore hidden in BOTH direction tabs.
+   * Only the labels swap between Arrival and Leave when direction changes.
+   */
+  const showLeftSide =
+    hasReverseExit;
+
+  const showRightSide =
+    hasForwardExit;
 
   return (
     <div>
@@ -393,29 +412,47 @@ function DirectionDiagram({
           </marker>
         </defs>
 
-        <line
-          x1="20"
-          y1="62"
-          x2="340"
-          y2="62"
-          stroke="currentColor"
-          strokeWidth="3"
-          opacity="0.5"
-        />
+        {showLeftSide && (
+          <>
+            <line
+              x1="20"
+              y1="62"
+              x2="125"
+              y2="62"
+              stroke="currentColor"
+              strokeWidth="3"
+              opacity="0.5"
+            />
 
-        <circle
-          cx="55"
-          cy="62"
-          r="7"
-          fill="var(--mantine-color-blue-filled)"
-        />
+            <circle
+              cx="55"
+              cy="62"
+              r="7"
+              fill="var(--mantine-color-blue-filled)"
+            />
+          </>
+        )}
 
-        <circle
-          cx="305"
-          cy="62"
-          r="7"
-          fill="var(--mantine-color-blue-filled)"
-        />
+        {showRightSide && (
+          <>
+            <line
+              x1="235"
+              y1="62"
+              x2="340"
+              y2="62"
+              stroke="currentColor"
+              strokeWidth="3"
+              opacity="0.5"
+            />
+
+            <circle
+              cx="305"
+              cy="62"
+              r="7"
+              fill="var(--mantine-color-blue-filled)"
+            />
+          </>
+        )}
 
         <rect
           x="125"
@@ -470,27 +507,31 @@ function DirectionDiagram({
           {reverse ? "REVERSE" : "FORWARD"}
         </text>
 
-        <text
-          x="55"
-          y="94"
-          textAnchor="middle"
-          fontSize="9"
-          fontWeight="700"
-          fill="var(--mantine-color-dimmed)"
-        >
-          {reverse ? text.leave : text.arrival}
-        </text>
+        {showLeftSide && (
+          <text
+            x="55"
+            y="94"
+            textAnchor="middle"
+            fontSize="9"
+            fontWeight="700"
+            fill="var(--mantine-color-dimmed)"
+          >
+            {reverse ? text.leave : text.arrival}
+          </text>
+        )}
 
-        <text
-          x="305"
-          y="94"
-          textAnchor="middle"
-          fontSize="9"
-          fontWeight="700"
-          fill="var(--mantine-color-dimmed)"
-        >
-          {reverse ? text.arrival : text.leave}
-        </text>
+        {showRightSide && (
+          <text
+            x="305"
+            y="94"
+            textAnchor="middle"
+            fontSize="9"
+            fontWeight="700"
+            fill="var(--mantine-color-dimmed)"
+          >
+            {reverse ? text.arrival : text.leave}
+          </text>
+        )}
 
         <text
           x="180"
@@ -503,12 +544,14 @@ function DirectionDiagram({
           ARRIVED
         </text>
 
-        <SensorConditionMarker
-          conditions={leftSideConditions}
-          x={55}
-          y={122}
-          align="middle"
-        />
+        {showLeftSide && (
+          <SensorConditionMarker
+            conditions={leftSideConditions}
+            x={55}
+            y={122}
+            align="middle"
+          />
+        )}
 
         <SensorConditionMarker
           conditions={events.arrived}
@@ -517,12 +560,14 @@ function DirectionDiagram({
           align="middle"
         />
 
-        <SensorConditionMarker
-          conditions={rightSideConditions}
-          x={305}
-          y={122}
-          align="middle"
-        />
+        {showRightSide && (
+          <SensorConditionMarker
+            conditions={rightSideConditions}
+            x={305}
+            y={122}
+            align="middle"
+          />
+        )}
 
 
       </svg>
@@ -603,6 +648,96 @@ export default function BlockEventConfigPropertyEditor({
   }, [block, layout, opened]);
 
 
+
+
+  const diagramTopology =
+    useMemo(
+      () => {
+        if (!opened) {
+          return {
+            hasForwardExit: true,
+            hasReverseExit: true,
+          };
+        }
+
+        try {
+          const graph =
+            ensureClientRouteGraph(
+              layout
+            ).result;
+
+          const outgoingRoutes =
+            graph.routes.filter(
+              route =>
+                route.fromBlock.id ===
+                block.id
+            );
+
+          /*
+           * An UNKNOWN route does not tell us which physical side is the
+           * continuation, so keep both sides visible rather than drawing a
+           * false terminal.
+           */
+          if (
+            outgoingRoutes.length === 0 ||
+            outgoingRoutes.some(
+              route =>
+                route.solution.locoDirection ===
+                "unknown"
+            )
+          ) {
+            return {
+              hasForwardExit: true,
+              hasReverseExit: true,
+            };
+          }
+
+          const hasForwardExit =
+            outgoingRoutes.some(
+              route =>
+                route.solution.locoDirection ===
+                "forward"
+            );
+
+          const hasReverseExit =
+            outgoingRoutes.some(
+              route =>
+                route.solution.locoDirection ===
+                "reverse"
+            );
+
+          if (
+            !hasForwardExit &&
+            !hasReverseExit
+          ) {
+            return {
+              hasForwardExit: true,
+              hasReverseExit: true,
+            };
+          }
+
+          return {
+            hasForwardExit,
+            hasReverseExit,
+          };
+        } catch {
+          /*
+           * The event editor must remain usable even when the physical graph
+           * itself is temporarily invalid. In that case use the old neutral
+           * through-block drawing instead of guessing a dead-end side.
+           */
+          return {
+            hasForwardExit: true,
+            hasReverseExit: true,
+          };
+        }
+      },
+      [
+        opened,
+        layout,
+        block.id,
+      ]
+    );
 
   const configuredCount =
     SENSOR_GROUP_ORDER.reduce(
@@ -958,6 +1093,12 @@ export default function BlockEventConfigPropertyEditor({
             blockName={block.name}
             occupancySensor={block.sensorAddress}
             events={draft[direction]}
+            hasForwardExit={
+              diagramTopology.hasForwardExit
+            }
+            hasReverseExit={
+              diagramTopology.hasReverseExit
+            }
           />
 
           <Tabs
