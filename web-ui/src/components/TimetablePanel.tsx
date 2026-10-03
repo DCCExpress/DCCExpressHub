@@ -777,11 +777,7 @@ export default function TimetablePanel({
                 <Text fw={700}>{t("ui.timetable")}</Text>
                 <Text size="xs" c="dimmed">
                   {t(
-                    "ui.timetableNextRowsDescription",
-                    {
-                      value1:
-                        TIMETABLE_NEXT_ROW_COUNT,
-                    }
+                    "ui.timetableNextRowsDescription"
                   )}
                 </Text>
               </div>
