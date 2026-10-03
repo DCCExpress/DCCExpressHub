@@ -165,34 +165,6 @@ export default function AutomationPanel({
       >
         <Tabs.List>
           <Tabs.Tab
-            value="scripts"
-          >
-            {
-              i18next.t(
-                "ui.automationScriptsTab",
-                {
-                  defaultValue:
-                    "Scripts",
-                }
-              )
-            }
-          </Tabs.Tab>
-
-          <Tabs.Tab
-            value="flows"
-          >
-            {
-              i18next.t(
-                "ui.automationFlowsTab",
-                {
-                  defaultValue:
-                    "Flows",
-                }
-              )
-            }
-          </Tabs.Tab>
-
-          <Tabs.Tab
             value="movement"
           >
             {
@@ -215,6 +187,34 @@ export default function AutomationPanel({
                 {
                   defaultValue:
                     "Tracking",
+                }
+              )
+            }
+          </Tabs.Tab>
+
+          <Tabs.Tab
+            value="flows"
+          >
+            {
+              i18next.t(
+                "ui.automationFlowsTab",
+                {
+                  defaultValue:
+                    "Flows",
+                }
+              )
+            }
+          </Tabs.Tab>
+
+          <Tabs.Tab
+            value="scripts"
+          >
+            {
+              i18next.t(
+                "ui.automationScriptsTab",
+                {
+                  defaultValue:
+                    "Scripts",
                 }
               )
             }
