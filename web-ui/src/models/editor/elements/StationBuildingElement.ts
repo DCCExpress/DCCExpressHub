@@ -142,14 +142,15 @@ export class StationBuildingElement extends BaseElement {
 
       const terraceY =
         frontY;
-      const terraceDepth = 17;
+      const terraceDepth = 24;
 
       const deck =
         ctx.createLinearGradient(
           terraceX,
           terraceY,
           terraceX,
-          frontY
+          terraceY +
+            terraceDepth
         );
 
       deck.addColorStop(
@@ -214,14 +215,15 @@ export class StationBuildingElement extends BaseElement {
         const canopyY =
           terraceY + 1;
         const canopyDepth =
-          11;
+          14;
 
         const canopy =
           ctx.createLinearGradient(
             terraceX,
             canopyY,
             terraceX,
-            terraceY
+            canopyY +
+              canopyDepth
           );
 
         canopy.addColorStop(
@@ -291,8 +293,9 @@ export class StationBuildingElement extends BaseElement {
       this.variant === "stairs"
     ) {
       const steps = [
-        { width: 12, depth: 5 },
-        { width: 16, depth: 5 },
+        { width: 11, depth: 5 },
+        { width: 14, depth: 5 },
+        { width: 17, depth: 5 },
         { width: 20, depth: 5 },
       ];
 
@@ -472,7 +475,7 @@ export class StationBuildingElement extends BaseElement {
     const buildingOffsetY =
       this.variant === "plain"
         ? 0
-        : -8;
+        : -7;
 
     const y =
       logicalY +
