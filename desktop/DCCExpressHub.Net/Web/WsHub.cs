@@ -27,6 +27,7 @@ public sealed class WsHub
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     private readonly object _programmingGate = new();
     private readonly object _audioCoordinatorGate = new();
+    private readonly ConcurrentDictionary<Guid, bool> _audioPlaybackEnabled = new();
     private Guid? _audioCoordinatorConnectionId;
     private PendingProgramming? _pendingProgramming;
     private sealed record PendingProgramming(string RequestId, string Action, int ExpectedCv, long Token);
@@ -161,44 +162,91 @@ public sealed class WsHub
         };
     }
 
-    private void EnsureAudioCoordinator(Guid connectionId)
+    private void SelectAudioCoordinatorLocked()
     {
-        lock (_audioCoordinatorGate)
-            _audioCoordinatorConnectionId ??= connectionId;
+        if (_audioCoordinatorConnectionId.HasValue &&
+            Clients.ContainsKey(
+                _audioCoordinatorConnectionId.Value) &&
+            _audioPlaybackEnabled.ContainsKey(
+                _audioCoordinatorConnectionId.Value))
+            return;
+
+        var replacement =
+            _audioPlaybackEnabled.Keys
+                .FirstOrDefault(
+                    Clients.ContainsKey);
+
+        _audioCoordinatorConnectionId =
+            replacement == Guid.Empty
+                ? null
+                : replacement;
     }
 
-    private bool ReleaseAudioCoordinator(Guid connectionId)
+    private void UpdateAudioPlaybackState(
+        Guid connectionId,
+        bool enabled)
     {
         lock (_audioCoordinatorGate)
         {
-            if (_audioCoordinatorConnectionId != connectionId)
-                return false;
+            if (enabled &&
+                Clients.ContainsKey(
+                    connectionId))
+                _audioPlaybackEnabled[
+                    connectionId] =
+                    true;
+            else
+                _audioPlaybackEnabled.TryRemove(
+                    connectionId,
+                    out _);
 
-            var replacement =
-                Clients.Keys.FirstOrDefault();
+            SelectAudioCoordinatorLocked();
+        }
+    }
 
-            _audioCoordinatorConnectionId =
-                replacement == Guid.Empty
-                    ? null
-                    : replacement;
+    private bool ReleaseAudioCoordinator(
+        Guid connectionId)
+    {
+        lock (_audioCoordinatorGate)
+        {
+            var wasCoordinator =
+                _audioCoordinatorConnectionId ==
+                connectionId;
 
-            return true;
+            _audioPlaybackEnabled.TryRemove(
+                connectionId,
+                out _);
+
+            if (wasCoordinator)
+                _audioCoordinatorConnectionId =
+                    null;
+
+            SelectAudioCoordinatorLocked();
+
+            return
+                wasCoordinator &&
+                !_audioCoordinatorConnectionId.HasValue;
         }
     }
 
     private bool IsAudioCoordinator(Guid connectionId)
     {
         lock (_audioCoordinatorGate)
-            return _audioCoordinatorConnectionId == connectionId;
+            return
+                _audioCoordinatorConnectionId ==
+                    connectionId &&
+                _audioPlaybackEnabled.ContainsKey(
+                    connectionId);
     }
 
     private bool HasAudioCoordinator()
     {
         lock (_audioCoordinatorGate)
+        {
+            SelectAudioCoordinatorLocked();
+
             return
-                _audioCoordinatorConnectionId.HasValue &&
-                Clients.ContainsKey(
-                    _audioCoordinatorConnectionId.Value);
+                _audioCoordinatorConnectionId.HasValue;
+        }
     }
 
     private async Task HandleMovementAudioRequest(
@@ -258,7 +306,6 @@ public sealed class WsHub
     public async Task Accept(HttpContext ctx)
     {
         var ws = await ctx.WebSockets.AcceptWebSocketAsync(); var id = Guid.NewGuid(); Clients[id] = ws;
-        EnsureAudioCoordinator(id);
         try
         {
             await Send(ws, "ws:welcome", new { message = "DCCExpressHub" });
@@ -304,6 +351,13 @@ public sealed class WsHub
             bool ok = true;
             switch (type)
             {
+                case "audioPlaybackState":
+                    UpdateAudioPlaybackState(
+                        connectionId,
+                        B(
+                            data,
+                            "enabled"));
+                    return;
                 case "broadcastPlayAudio":
                     {
                         var requestId = S(data, "requestId");
