@@ -14,6 +14,8 @@ public sealed class WsRuntimeCoordinator : BackgroundService
     volatile bool _connected;
     volatile bool _connectionChanged;
     readonly Queue<int> _locoSync=new();
+    readonly Queue<(int Address,int Function)> _startupFunctions=new();
+    bool _startupFunctionsApplied;
 
     public WsRuntimeCoordinator(
         ICommandCenter cc,
@@ -63,6 +65,7 @@ public sealed class WsRuntimeCoordinator : BackgroundService
         var nextCurrent=DateTimeOffset.MinValue;
         var nextStatus=DateTimeOffset.MinValue;
         var nextLoco=DateTimeOffset.MinValue;
+        var nextStartupFunction=DateTimeOffset.MinValue;
 
         if(_connected)
             await ConnectedAsync(ct);
@@ -92,6 +95,57 @@ public sealed class WsRuntimeCoordinator : BackgroundService
                     _locoSync.Dequeue();
 
                 nextLoco=now.AddMilliseconds(25);
+            }
+
+            if(
+                _cc.Connected &&
+                !_startupFunctionsApplied &&
+                _locoSync.Count==0 &&
+                now>=nextStartupFunction)
+            {
+                if(_startupFunctions.Count==0)
+                {
+                    _startupFunctionsApplied=true;
+
+                    _log.LogInformation(
+                        "Startup locomotive functions applied");
+                }
+                else
+                {
+                    var item=
+                        _startupFunctions.Peek();
+
+                    if(await _cc.SetLocoFunctionAsync(
+                        item.Address,
+                        item.Function,
+                        true,
+                        ct))
+                    {
+                        _startupFunctions.Dequeue();
+
+                        _log.LogInformation(
+                            "Startup locomotive function ON: loco #{Address} F{Function}",
+                            item.Address,
+                            item.Function);
+
+                        // Refresh the authoritative locomotive mask after the
+                        // startup command so every connected UI gets the same
+                        // state from normal command-center feedback.
+                        await _cc.RequestLocoAsync(
+                            item.Address,
+                            ct);
+
+                        nextStartupFunction=
+                            now.AddMilliseconds(25);
+                    }
+                    else
+                    {
+                        // Do not hammer a temporarily unavailable command
+                        // station. Keep the same item queued and retry later.
+                        nextStartupFunction=
+                            now.AddMilliseconds(500);
+                    }
+                }
             }
 
             if(_cc.Connected && _ws.ClientCount>0 && now>=nextCurrent)
@@ -126,9 +180,92 @@ public sealed class WsRuntimeCoordinator : BackgroundService
 
         LoadConfiguredLocos();
 
+        if(!_startupFunctionsApplied)
+            LoadStartupFunctions();
+
         _log.LogInformation(
-            "Command center bootstrap: automation evaluated, sensor snapshot requested, {Count} loco state request(s) queued",
-            _locoSync.Count);
+            "Command center bootstrap: automation evaluated, sensor snapshot requested, {Count} loco state request(s) and {StartupCount} startup function(s) queued",
+            _locoSync.Count,
+            _startupFunctions.Count);
+    }
+
+    void LoadStartupFunctions()
+    {
+        _startupFunctions.Clear();
+
+        var path=Path.Combine(
+            _env.ContentRootPath,
+            "data",
+            "config",
+            "locos.json");
+
+        if(!File.Exists(path))
+            return;
+
+        try
+        {
+            using var doc=JsonDocument.Parse(
+                File.ReadAllText(path));
+
+            if(doc.RootElement.ValueKind!=JsonValueKind.Array)
+                return;
+
+            var seen=
+                new HashSet<(int Address,int Function)>();
+
+            foreach(var loco in doc.RootElement.EnumerateArray())
+            {
+                if(
+                    !loco.TryGetProperty("address",out var addressElement) ||
+                    !addressElement.TryGetInt32(out var address) ||
+                    address is <1 or >10239 ||
+                    !loco.TryGetProperty("functions",out var functions) ||
+                    functions.ValueKind!=JsonValueKind.Array)
+                    continue;
+
+                foreach(var function in functions.EnumerateArray())
+                {
+                    var startupActive=
+                        function.TryGetProperty(
+                            "startupActive",
+                            out var startupElement) &&
+                        startupElement.ValueKind==
+                            JsonValueKind.True;
+
+                    var momentary=
+                        function.TryGetProperty(
+                            "momentary",
+                            out var momentaryElement) &&
+                        momentaryElement.ValueKind==
+                            JsonValueKind.True;
+
+                    if(
+                        !startupActive ||
+                        momentary ||
+                        !function.TryGetProperty(
+                            "number",
+                            out var numberElement) ||
+                        !numberElement.TryGetInt32(
+                            out var number) ||
+                        number is <0 or >28 ||
+                        !seen.Add(
+                            (address,number)))
+                        continue;
+
+                    _startupFunctions.Enqueue(
+                        (address,number));
+
+                    if(_startupFunctions.Count>=256)
+                        return;
+                }
+            }
+        }
+        catch(Exception ex)
+        {
+            _log.LogWarning(
+                ex,
+                "Startup locomotive functions: invalid locos.json");
+        }
     }
 
     void LoadConfiguredLocos()
