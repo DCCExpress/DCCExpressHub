@@ -8,118 +8,601 @@ import { BaseElement } from "../core/BaseElement";
 import type { DrawOptions } from "../types/EditorTypes";
 import type { IEditableProperty } from "./PropertyDescriptor";
 
-const BUILDING_VARIANTS: Array<{
-  value: StationBuildingVariantDto;
-  labelKey: string;
-}> = [
-  { value: "classic", labelKey: "ui.classic" },
-  { value: "rural", labelKey: "ui.rural" },
-  { value: "modern", labelKey: "ui.modern" },
-];
+function clampByte(value: number): number {
+  return Math.max(0, Math.min(255, Math.round(value)));
+}
+
+function normalizeHexColor(value: string, fallback: string): string {
+  const raw = value.trim();
+
+  if (/^#[0-9a-f]{6}$/i.test(raw)) {
+    return raw.toLowerCase();
+  }
+
+  if (/^#[0-9a-f]{3}$/i.test(raw)) {
+    return (
+      "#" +
+      raw
+        .slice(1)
+        .split("")
+        .map(char => char + char)
+        .join("")
+    ).toLowerCase();
+  }
+
+  return fallback;
+}
+
+function shadeHexColor(
+  value: string,
+  factor: number,
+  fallback = "#b96354"
+): string {
+  const hex = normalizeHexColor(value, fallback);
+  const red = parseInt(hex.slice(1, 3), 16);
+  const green = parseInt(hex.slice(3, 5), 16);
+  const blue = parseInt(hex.slice(5, 7), 16);
+
+  const transform = (channel: number) =>
+    factor >= 0
+      ? clampByte(channel + (255 - channel) * factor)
+      : clampByte(channel * (1 + factor));
+
+  return (
+    "#" +
+    [transform(red), transform(green), transform(blue)]
+      .map(channel => channel.toString(16).padStart(2, "0"))
+      .join("")
+  );
+}
 
 export class StationBuildingElement extends BaseElement {
   override type: typeof ELEMENT_TYPES.STATION_BUILDING =
     ELEMENT_TYPES.STATION_BUILDING;
+
+  /**
+   * Retained for old saved layouts created while the decoration prototype
+   * still exposed multiple building styles. The approved station building
+   * renderer is now one canonical hipped-roof design.
+   */
   variant: StationBuildingVariantDto = "classic";
+
+  roofColor = "#b96354";
+
+  private _size = 3;
+
+  get size(): number {
+    return this._size;
+  }
+
+  set size(value: number) {
+    const normalized = Math.max(
+      1,
+      Math.min(
+        6,
+        Math.round(
+          Number.isFinite(value)
+            ? value
+            : 3
+        )
+      )
+    );
+
+    this._size = normalized;
+    this.w = normalized;
+    this.h = 1;
+  }
 
   constructor(x: number, y: number) {
     super(x, y);
     this.layerName = "buildings";
-    this.rotationStep = 90;
-    this.w = 4;
-    this.h = 2;
+    this.rotationStep = 0;
     this.name = "Station building";
+    this.size = 3;
   }
 
-  override draw(ctx: CanvasRenderingContext2D, options?: DrawOptions): void {
+  private drawEyebrowDormer(
+    ctx: CanvasRenderingContext2D,
+    centerX: number,
+    roofY: number,
+    roofHeight: number,
+    side: "top" | "bottom",
+    palette: {
+      edge: string;
+      top: string;
+      highlight: string;
+      dormer: string;
+    }
+  ): void {
+    const direction =
+      side === "top"
+        ? 1
+        : -1;
+
+    const baseY =
+      side === "top"
+        ? roofY + roofHeight * 0.17
+        : roofY + roofHeight * 0.83;
+
+    const width = 11;
+    const height = 7;
+
+    ctx.save();
+
+    ctx.fillStyle = "rgba(0,0,0,0.16)";
+    ctx.beginPath();
+    ctx.ellipse(
+      centerX + 1.5,
+      baseY + direction * 1.3,
+      width * 0.55,
+      height * 0.42,
+      0,
+      0,
+      Math.PI * 2
+    );
+    ctx.fill();
+
+    const gradient =
+      ctx.createLinearGradient(
+        centerX,
+        baseY - direction * height,
+        centerX,
+        baseY + direction * height
+      );
+
+    gradient.addColorStop(
+      0,
+      palette.highlight
+    );
+    gradient.addColorStop(
+      0.55,
+      palette.top
+    );
+    gradient.addColorStop(
+      1,
+      palette.dormer
+    );
+
+    ctx.fillStyle = gradient;
+    ctx.strokeStyle = palette.edge;
+    ctx.lineWidth = 1;
+
+    ctx.beginPath();
+    ctx.moveTo(
+      centerX - width / 2,
+      baseY
+    );
+    ctx.quadraticCurveTo(
+      centerX,
+      baseY - direction * height,
+      centerX + width / 2,
+      baseY
+    );
+    ctx.quadraticCurveTo(
+      centerX,
+      baseY - direction * (height * 0.3),
+      centerX - width / 2,
+      baseY
+    );
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.strokeStyle =
+      "rgba(35,43,48,0.88)";
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(
+      centerX - 2.8,
+      baseY + direction * 0.6
+    );
+    ctx.lineTo(
+      centerX + 2.8,
+      baseY + direction * 0.6
+    );
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  override draw(
+    ctx: CanvasRenderingContext2D,
+    options?: DrawOptions
+  ): void {
     if (!this.visible) return;
 
     this.beginDraw(ctx, options);
 
-    ctx.translate(this.centerX, this.centerY);
-    ctx.rotate((this.rotation * Math.PI) / 180);
+    const width = this.width;
+    const height = this.height;
+    const x = this.posLeft;
+    const y = this.posTop;
 
-    const width =
-      this.rotation % 180 === 0
-        ? this.width
-        : this.height;
-    const height =
-      this.rotation % 180 === 0
-        ? this.height
-        : this.width;
+    const normalizedRoofColor =
+      normalizeHexColor(
+        this.roofColor,
+        "#b96354"
+      );
 
-    const x = -width / 2;
-    const y = -height / 2;
+    const palette = {
+      edge:
+        shadeHexColor(
+          normalizedRoofColor,
+          -0.42
+        ),
+      side:
+        shadeHexColor(
+          normalizedRoofColor,
+          -0.2
+        ),
+      top:
+        normalizedRoofColor,
+      highlight:
+        shadeHexColor(
+          normalizedRoofColor,
+          0.22
+        ),
+      ridge:
+        shadeHexColor(
+          normalizedRoofColor,
+          0.42
+        ),
+      dormer:
+        shadeHexColor(
+          normalizedRoofColor,
+          -0.28
+        ),
+    };
 
-    ctx.fillStyle = "rgba(0,0,0,0.22)";
+    // Soft building shadow.
+    ctx.fillStyle =
+      "rgba(0,0,0,0.22)";
     ctx.beginPath();
-    ctx.roundRect(x + 5, y + 5, width, height, 5);
+    ctx.roundRect(
+      x + 4,
+      y + 5,
+      width,
+      height - 2,
+      4
+    );
     ctx.fill();
 
-    const wallGradient = ctx.createLinearGradient(x, y, x, y + height);
+    // A narrow wall rim remains visible around the roof in top view.
+    const wallMargin = 3;
+    const wallGradient =
+      ctx.createLinearGradient(
+        x,
+        y,
+        x,
+        y + height
+      );
+
     wallGradient.addColorStop(
       0,
-      this.variant === "modern" ? "#d9dde0" : "#ddccb0"
+      "#e1d1b7"
     );
     wallGradient.addColorStop(
       1,
-      this.variant === "modern" ? "#aeb5bb" : "#c2ad8c"
+      "#bda98a"
     );
+
     ctx.fillStyle = wallGradient;
-    ctx.beginPath();
-    ctx.roundRect(x, y, width, height, 5);
-    ctx.fill();
     ctx.strokeStyle = "#65584a";
-    ctx.lineWidth = 1.4;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(
+      x + wallMargin,
+      y + wallMargin,
+      width - wallMargin * 2,
+      height - wallMargin * 2,
+      3
+    );
+    ctx.fill();
     ctx.stroke();
 
-    const margin = this.variant === "rural" ? 7 : 9;
-    const roofX = x + margin;
-    const roofY = y + margin;
-    const roofW = width - margin * 2;
-    const roofH = height - margin * 2;
+    // Hipped / tent roof.
+    const roofMargin = 5;
+    const roofX = x + roofMargin;
+    const roofY = y + roofMargin;
+    const roofWidth =
+      width - roofMargin * 2;
+    const roofHeight =
+      height - roofMargin * 2;
 
-    if (this.variant === "modern") {
-      const roof = ctx.createLinearGradient(roofX, roofY, roofX, roofY + roofH);
-      roof.addColorStop(0, "#737b82");
-      roof.addColorStop(1, "#555c62");
-      ctx.fillStyle = roof;
-      ctx.beginPath();
-      ctx.roundRect(roofX, roofY, roofW, roofH, 3);
-      ctx.fill();
+    const ridgeInset =
+      Math.min(
+        15,
+        roofWidth * 0.18
+      );
 
-      ctx.fillStyle = "#7693a4";
-      const glassH = Math.max(5, roofH * 0.18);
-      ctx.fillRect(roofX + 8, roofY + roofH - glassH - 6, roofW - 16, glassH);
-    } else {
-      const roof = ctx.createLinearGradient(roofX, roofY, roofX, roofY + roofH);
-      roof.addColorStop(0, this.variant === "rural" ? "#8b654d" : "#b96354");
-      roof.addColorStop(1, this.variant === "rural" ? "#6c4c3a" : "#8e443b");
-      ctx.fillStyle = roof;
-      ctx.beginPath();
-      ctx.roundRect(roofX, roofY, roofW, roofH, 3);
-      ctx.fill();
+    const ridgeY =
+      roofY + roofHeight / 2;
+    const ridgeX1 =
+      roofX + ridgeInset;
+    const ridgeX2 =
+      roofX + roofWidth - ridgeInset;
 
-      ctx.strokeStyle = "rgba(255,255,255,0.17)";
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(roofX + roofW / 2, roofY + 2);
-      ctx.lineTo(roofX + roofW / 2, roofY + roofH - 2);
-      ctx.stroke();
+    let gradient =
+      ctx.createLinearGradient(
+        roofX,
+        roofY,
+        roofX,
+        ridgeY
+      );
+
+    gradient.addColorStop(
+      0,
+      palette.side
+    );
+    gradient.addColorStop(
+      1,
+      palette.top
+    );
+
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.moveTo(roofX, roofY);
+    ctx.lineTo(
+      roofX + roofWidth,
+      roofY
+    );
+    ctx.lineTo(
+      ridgeX2,
+      ridgeY
+    );
+    ctx.lineTo(
+      ridgeX1,
+      ridgeY
+    );
+    ctx.closePath();
+    ctx.fill();
+
+    gradient =
+      ctx.createLinearGradient(
+        roofX,
+        roofY + roofHeight,
+        roofX,
+        ridgeY
+      );
+
+    gradient.addColorStop(
+      0,
+      palette.side
+    );
+    gradient.addColorStop(
+      1,
+      palette.top
+    );
+
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.moveTo(
+      roofX,
+      roofY + roofHeight
+    );
+    ctx.lineTo(
+      roofX + roofWidth,
+      roofY + roofHeight
+    );
+    ctx.lineTo(
+      ridgeX2,
+      ridgeY
+    );
+    ctx.lineTo(
+      ridgeX1,
+      ridgeY
+    );
+    ctx.closePath();
+    ctx.fill();
+
+    gradient =
+      ctx.createLinearGradient(
+        roofX,
+        ridgeY,
+        ridgeX1,
+        ridgeY
+      );
+
+    gradient.addColorStop(
+      0,
+      palette.edge
+    );
+    gradient.addColorStop(
+      1,
+      palette.top
+    );
+
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.moveTo(
+      roofX,
+      roofY
+    );
+    ctx.lineTo(
+      roofX,
+      roofY + roofHeight
+    );
+    ctx.lineTo(
+      ridgeX1,
+      ridgeY
+    );
+    ctx.closePath();
+    ctx.fill();
+
+    gradient =
+      ctx.createLinearGradient(
+        roofX + roofWidth,
+        ridgeY,
+        ridgeX2,
+        ridgeY
+      );
+
+    gradient.addColorStop(
+      0,
+      palette.edge
+    );
+    gradient.addColorStop(
+      1,
+      palette.top
+    );
+
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.moveTo(
+      roofX + roofWidth,
+      roofY
+    );
+    ctx.lineTo(
+      roofX + roofWidth,
+      roofY + roofHeight
+    );
+    ctx.lineTo(
+      ridgeX2,
+      ridgeY
+    );
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle =
+      palette.edge;
+    ctx.lineWidth = 1.2;
+    ctx.strokeRect(
+      roofX,
+      roofY,
+      roofWidth,
+      roofHeight
+    );
+
+    ctx.strokeStyle =
+      "rgba(255,255,255,0.14)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(
+      roofX,
+      roofY
+    );
+    ctx.lineTo(
+      ridgeX1,
+      ridgeY
+    );
+    ctx.moveTo(
+      roofX,
+      roofY + roofHeight
+    );
+    ctx.lineTo(
+      ridgeX1,
+      ridgeY
+    );
+    ctx.moveTo(
+      roofX + roofWidth,
+      roofY
+    );
+    ctx.lineTo(
+      ridgeX2,
+      ridgeY
+    );
+    ctx.moveTo(
+      roofX + roofWidth,
+      roofY + roofHeight
+    );
+    ctx.lineTo(
+      ridgeX2,
+      ridgeY
+    );
+    ctx.stroke();
+
+    ctx.strokeStyle =
+      palette.ridge;
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(
+      ridgeX1,
+      ridgeY
+    );
+    ctx.lineTo(
+      ridgeX2,
+      ridgeY
+    );
+    ctx.stroke();
+
+    // Roof "eyebrows". Their count grows gently with the building size.
+    const pairCount =
+      Math.max(
+        1,
+        Math.min(
+          4,
+          Math.floor(
+            (this.size + 1) / 2
+          )
+        )
+      );
+
+    for (
+      let index = 0;
+      index < pairCount;
+      index += 1
+    ) {
+      const progress =
+        (index + 1) /
+        (pairCount + 1);
+
+      const eyebrowX =
+        ridgeX1 +
+        (ridgeX2 - ridgeX1) *
+          progress;
+
+      this.drawEyebrowDormer(
+        ctx,
+        eyebrowX,
+        roofY,
+        roofHeight,
+        "top",
+        palette
+      );
+
+      if (
+        this.size >= 3 ||
+        index % 2 === 0
+      ) {
+        this.drawEyebrowDormer(
+          ctx,
+          eyebrowX,
+          roofY,
+          roofHeight,
+          "bottom",
+          palette
+        );
+      }
     }
 
-    ctx.fillStyle = "#425260";
-    const windowCount = this.variant === "rural" ? 3 : 5;
-    for (let index = 0; index < windowCount; index += 1) {
-      const wx =
-        x +
-        15 +
-        index * ((width - 30) / Math.max(1, windowCount - 1));
-      ctx.fillRect(wx - 3, y + height - 11, 6, 5);
-    }
+    if (this.size >= 2) {
+      const chimneyX =
+        ridgeX2 -
+        Math.min(
+          10,
+          (ridgeX2 - ridgeX1) *
+            0.15
+        );
 
-    ctx.fillStyle = "#4c3829";
-    ctx.fillRect(-6, y + height - 12, 12, 10);
+      const chimneyY =
+        ridgeY - 5;
+
+      ctx.fillStyle = "#6b625b";
+      ctx.strokeStyle = "#3f3934";
+      ctx.lineWidth = 1;
+      ctx.fillRect(
+        chimneyX - 2.5,
+        chimneyY - 3,
+        5,
+        6
+      );
+      ctx.strokeRect(
+        chimneyX - 2.5,
+        chimneyY - 3,
+        5,
+        6
+      );
+    }
 
     this.endDraw(ctx);
     this.drawSelection(ctx);
@@ -128,36 +611,65 @@ export class StationBuildingElement extends BaseElement {
   override toJSON(): StationBuildingElementDto {
     return {
       ...super.toJSON(),
-      type: ELEMENT_TYPES.STATION_BUILDING,
+      type:
+        ELEMENT_TYPES.STATION_BUILDING,
       variant: this.variant,
+      size: this.size,
+      roofColor: this.roofColor,
     };
   }
 
   static fromJSON(
     data: StationBuildingElementDto
   ): StationBuildingElement {
-    const element = new StationBuildingElement(data.x, data.y);
+    const element =
+      new StationBuildingElement(
+        data.x,
+        data.y
+      );
+
     element.id = data.id;
     element.name = data.name;
-    element.layerName = data.layerName || "buildings";
-    element.w = data.w ?? 4;
-    element.h = data.h ?? 2;
-    element.rotation = data.rotation;
-    element.rotationStep = data.rotationStep;
+    element.layerName =
+      data.layerName ||
+      "buildings";
+    element.rotation = 0;
+    element.rotationStep = 0;
     element.bg = data.bg;
     element.fg = data.fg;
-    element.variant = data.variant ?? "classic";
+    element.variant =
+      data.variant ??
+      "classic";
+    element.roofColor =
+      normalizeHexColor(
+        data.roofColor ??
+          "#b96354",
+        "#b96354"
+      );
+
+    // New layouts persist size explicitly. Older prototype layouts used w.
+    element.size =
+      data.size ??
+      data.w ??
+      3;
+
     return element;
   }
 
   override clone(): StationBuildingElement {
-    const copy = new StationBuildingElement(this.x, this.y);
+    const copy =
+      new StationBuildingElement(
+        this.x,
+        this.y
+      );
+
     copy.name = this.name;
-    copy.w = this.w;
-    copy.h = this.h;
-    copy.rotation = this.rotation;
-    copy.rotationStep = this.rotationStep;
-    copy.variant = this.variant;
+    copy.size = this.size;
+    copy.roofColor =
+      this.roofColor;
+    copy.variant =
+      this.variant;
+
     return copy;
   }
 
@@ -165,13 +677,22 @@ export class StationBuildingElement extends BaseElement {
     return [
       ...super.getEditableProperties(),
       {
-        label: i18next.t("ui.variant"),
-        key: "variant",
-        type: "select",
-        options: BUILDING_VARIANTS.map(item => ({
-          value: item.value,
-          label: i18next.t(item.labelKey),
-        })),
+        label:
+          i18next.t(
+            "ui.size"
+          ),
+        key: "size",
+        type: "number",
+        min: 1,
+        max: 6,
+      },
+      {
+        label:
+          i18next.t(
+            "ui.roofColor"
+          ),
+        key: "roofColor",
+        type: "colorpicker",
       },
     ];
   }
