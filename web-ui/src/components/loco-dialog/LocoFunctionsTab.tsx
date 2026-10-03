@@ -17,9 +17,11 @@ import {
   Stack,
   Text,
   TextInput,
+  Tooltip,
 } from "@mantine/core";
 
 import {
+  IconCheck,
   IconDots,
   IconPlus,
   IconTrash,
@@ -357,11 +359,64 @@ export default function LocoFunctionsTab({
                           fn.id,
                           {
                             momentary,
+                            ...(momentary
+                              ? {
+                                  startupActive:
+                                    false,
+                                }
+                              : {}),
                           }
                         );
                       }
                     }
                   />
+
+                  <Tooltip
+                    label={
+                      fn.momentary
+                        ? t(
+                            "locodialog.function_startup_unavailable_momentary"
+                          )
+                        : t(
+                            "locodialog.function_startup_tooltip"
+                          )
+                    }
+                    withArrow
+                  >
+                    <ActionIcon
+                      mt={28}
+                      size="lg"
+                      color={
+                        fn.startupActive
+                          ? "green"
+                          : "dark"
+                      }
+                      variant={
+                        fn.startupActive
+                          ? "filled"
+                          : "subtle"
+                      }
+                      disabled={
+                        fn.momentary
+                      }
+                      aria-label={t(
+                        "locodialog.function_startup_tooltip"
+                      )}
+                      onClick={() =>
+                        onUpdateFunction(
+                          fn.id,
+                          {
+                            startupActive:
+                              !fn.startupActive,
+                          }
+                        )
+                      }
+                    >
+                      <IconCheck
+                        size={18}
+                      />
+                    </ActionIcon>
+                  </Tooltip>
 
                   <Button
                     mt={24}
