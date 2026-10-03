@@ -4,6 +4,7 @@ export type TrainEventName =
   | "arrived"
   | "afterArrived"
   | "beforeLeave"
+  | "beforeStart"
   | "starting"
   | "leave"
   | "afterLeave"
