@@ -1080,7 +1080,7 @@
   "timetableDeleteRow": "Delete row",
   "timetableAddRow": "Add row",
   "timetableMissingMovement": "Missing Movement",
-  "timetableNextRowsDescription": "Always showing the next {{value1}} timetable rows · running rows stay pinned above them",
+  "timetableNextRowsDescription": "Running movements stay pinned at the top.",
   "noUpcomingTimetableRows": "No upcoming timetable rows.",
   "timetableJumpBeforeFirst": "First start −{{seconds}}s",
   "fastClockSetTimeFailed": "Failed to set FastClock time.",
