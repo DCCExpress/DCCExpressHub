@@ -24,6 +24,9 @@ import { TrackTurnoutRightElement } from "../../models/editor/elements/TrackTurn
 import { TrackTurnoutThreeWayElement } from "../../models/editor/elements/TrackTurnoutThreeWayElement";
 import { TrackTurnoutTwoWayElement } from "../../models/editor/elements/TrackTurnoutTwoWayElement";
 import { TreeElement } from "../../models/editor/elements/TreeElement";
+import { BushElement } from "../../models/editor/elements/BushElement";
+import { LampElement } from "../../models/editor/elements/LampElement";
+import { StationBuildingElement } from "../../models/editor/elements/StationBuildingElement";
 import type { EditorTool } from "../../models/editor/types/EditorTypes";
 
 const cursorTrackElement = new TrackStraightElement(0, 0);
@@ -48,6 +51,9 @@ const cursorAudioButtonElement = new AudioButtonElement(0, 0);
 const cursorAudioListButtonElement = new AudioListButtonElement(0, 0);
 const cursorClockElement = new ClockElement(0, 0);
 const cursorTreeElement = new TreeElement(0, 0);
+const cursorBushElement = new BushElement(0, 0);
+const cursorLampElement = new LampElement(0, 0);
+const cursorStationBuildingElement = new StationBuildingElement(0, 0);
 const cursorBlockElement = new BlockElement(0, 0);
 const cursorLabelElement = new LabelElement(0, 0);
 
@@ -74,6 +80,9 @@ export function createCursorElement(tool: EditorTool): BaseElement | null {
     case ELEMENT_TYPES.BUTTON_ROUTE_EXTENDED: return cursorExtendedRouteButtonElement;
     case ELEMENT_TYPES.CLOCK: return cursorClockElement;
     case ELEMENT_TYPES.TREE: return cursorTreeElement;
+    case ELEMENT_TYPES.BUSH: return cursorBushElement;
+    case ELEMENT_TYPES.LAMP: return cursorLampElement;
+    case ELEMENT_TYPES.STATION_BUILDING: return cursorStationBuildingElement;
     case ELEMENT_TYPES.TRACK_BLOCK: return cursorBlockElement;
     case ELEMENT_TYPES.TRACK_SIGNAL2:
     case ELEMENT_TYPES.TRACK_SIGNAL3:
