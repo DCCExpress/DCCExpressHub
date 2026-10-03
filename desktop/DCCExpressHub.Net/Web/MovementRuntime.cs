@@ -289,8 +289,31 @@ public sealed class MovementRuntime
             _dispatcher.ReleaseLeg(
                 lease.OwnerId);
 
-        execution.TargetBlockId =
-            null;
+        if (prepared.Length > 0)
+            execution.TargetBlockId =
+                null;
+    }
+
+    bool TryStorePreparedLegLease(
+        Execution execution,
+        int legIndex,
+        DispatcherLegLeaseInfo lease)
+    {
+        // Lock order is deliberate: Hold() registers ExternalHolds first and
+        // only then releases PreparedLegLeases. This makes "check held + store"
+        // atomic relative to an external Hold request.
+        lock (execution.ExternalHolds)
+        {
+            if (execution.ExternalHolds.Count > 0)
+                return false;
+
+            lock (execution.PreparedLegLeases)
+                execution.PreparedLegLeases[
+                    legIndex] =
+                    lease;
+
+            return true;
+        }
     }
 
     async Task WaitForExternalHolds(
@@ -2114,6 +2137,26 @@ public sealed class MovementRuntime
             leg.From.Key,
             "beforeDepart");
 
+        if (IsHeld(
+                execution))
+        {
+            if (preparedLease is not null)
+            {
+                _dispatcher.ReleaseLeg(
+                    preparedLease.OwnerId);
+
+                preparedLease =
+                    null;
+
+                execution.TargetBlockId =
+                    null;
+            }
+
+            await WaitForExternalHolds(
+                execution,
+                leg);
+        }
+
         /*
          * Keep rolling while acquiring/setting the next leg when the simple
          * movement authority is already clear. The dispatcher still validates
@@ -2150,6 +2193,10 @@ public sealed class MovementRuntime
                 execution,
                 "starting",
                 leg.From);
+
+            await WaitForExternalHolds(
+                execution,
+                leg);
 
             execution.Moving = true;
             await ApplySpeed(execution, force: true);
@@ -2544,8 +2591,10 @@ public sealed class MovementRuntime
                             execution,
                             next);
 
-                    if (IsHeld(
-                            execution))
+                    if (!TryStorePreparedLegLease(
+                            execution,
+                            next.Index,
+                            nextLease))
                     {
                         _dispatcher.ReleaseLeg(
                             nextLease.OwnerId);
@@ -2571,11 +2620,6 @@ public sealed class MovementRuntime
                     }
                     else
                     {
-                        lock (execution.PreparedLegLeases)
-                            execution.PreparedLegLeases[
-                                next.Index] =
-                                nextLease;
-
                         Patch(
                             execution,
                             info:
