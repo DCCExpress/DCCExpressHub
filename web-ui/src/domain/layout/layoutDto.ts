@@ -353,8 +353,34 @@ export interface BlockElementDto extends TrackElementDto {
   eventConfig?: BlockEventConfigDto;
 }
 
+export type TreeVariantDto = "round" | "broad" | "conifer";
+
 export interface TreeElementDto extends BaseElementDto {
   type: "tree";
+  variant: TreeVariantDto;
+  branchCount: number;
+}
+
+export type BushVariantDto = "compact" | "wide" | "flowering";
+
+export interface BushElementDto extends BaseElementDto {
+  type: "bush";
+  variant: BushVariantDto;
+  clusterCount: number;
+}
+
+export type LampVariantDto = "classic" | "modern" | "double";
+
+export interface LampElementDto extends BaseElementDto {
+  type: "lamp";
+  variant: LampVariantDto;
+}
+
+export type StationBuildingVariantDto = "classic" | "rural" | "modern";
+
+export interface StationBuildingElementDto extends BaseElementDto {
+  type: "stationbuilding";
+  variant: StationBuildingVariantDto;
 }
 
 export interface LabelElementDto extends BaseElementDto {
@@ -410,5 +436,8 @@ export type LayoutElementDto =
   | ClockElementDto
   | BlockElementDto
   | TreeElementDto
+  | BushElementDto
+  | LampElementDto
+  | StationBuildingElementDto
   | TrackSignalElementDto
   | LabelElementDto;
