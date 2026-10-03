@@ -105,6 +105,7 @@ import { LabelElement } from "./models/editor/elements/LabelElement";
 import { TreeElement } from "./models/editor/elements/TreeElement";
 import { BushElement } from "./models/editor/elements/BushElement";
 import { LampElement } from "./models/editor/elements/LampElement";
+import { StationBuildingElement } from "./models/editor/elements/StationBuildingElement";
 import { RouteButtonElement } from "./models/editor/elements/RouteButtonElement";
 import ElementPreview from "@/models/editor/rendering/ElementPreviewRenderer";
 import type { EditorTool } from "@/models/editor/types/EditorTypes";
@@ -384,6 +385,12 @@ function createSignalPreview(): TrackSignalElement {
   return new TrackSignalElement(0, 0);
 }
 
+function createStationBuildingPreview(): StationBuildingElement {
+  const building = new StationBuildingElement(0, 0);
+  building.size = 1;
+  return building;
+}
+
 async function readHttpErrorMessage(
   response: Response,
   fallback: string
@@ -459,6 +466,11 @@ const DECORATION_PICKER_ITEMS: PickerItem[] = [
     type: ELEMENT_TYPES.LAMP,
     get label() { return i18next.t("ui.lamp"); },
     preview: new LampElement(0, 0),
+  },
+  {
+    type: ELEMENT_TYPES.STATION_BUILDING,
+    get label() { return i18next.t("ui.stationBuilding"); },
+    preview: createStationBuildingPreview(),
   },
 ];
 
