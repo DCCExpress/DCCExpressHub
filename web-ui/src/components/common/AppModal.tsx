@@ -15,6 +15,7 @@ import {
 type AppModalProps = ModalProps & {
   draggable?: boolean;
   resetPositionOnOpen?: boolean;
+  headerHeight?: number;
 };
 
 type ModalOffset = {
@@ -38,6 +39,7 @@ const MODAL_BODY_TOP_GAP = "var(--mantine-spacing-sm)";
 export default function AppModal({
   draggable = false,
   resetPositionOnOpen = true,
+  headerHeight = MODAL_HEADER_HEIGHT,
   title,
   styles,
   closeButtonProps,
@@ -75,7 +77,7 @@ export default function AppModal({
         window.innerWidth - MIN_VISIBLE_HEADER_WIDTH;
 
       const minTop = 0;
-      const maxTop = window.innerHeight - MODAL_HEADER_HEIGHT;
+      const maxTop = window.innerHeight - headerHeight;
 
       const clampedLeft = Math.min(
         maxLeft,
@@ -119,7 +121,7 @@ export default function AppModal({
       document.body.style.userSelect = "";
       document.body.style.webkitUserSelect = "";
     };
-  }, []);
+  }, [headerHeight]);
 
   const handleDragAreaPointerDown = (
     ev: ReactPointerEvent<HTMLDivElement>
@@ -171,7 +173,7 @@ export default function AppModal({
       style={{
         width: "100%",
         height: "100%",
-        minHeight: MODAL_HEADER_HEIGHT,
+        minHeight: headerHeight,
         display: "flex",
         alignItems: "center",
         paddingLeft: "var(--mantine-spacing-md)",
@@ -215,7 +217,8 @@ export default function AppModal({
         },
 
         header: {
-          minHeight: MODAL_HEADER_HEIGHT,
+          minHeight: headerHeight,
+          height: headerHeight,
           padding: 0,
           backgroundColor: "var(--mantine-primary-color-filled)",
           userSelect: draggable ? "none" : undefined,
