@@ -16,6 +16,7 @@ import {
   NumberInput,
   Pill,
   PillsInput,
+  Portal,
   ScrollArea,
   Select,
   Stack,
@@ -128,18 +129,30 @@ function TrainEventMultiSelect({
     setSearch,
   ] = useState("");
 
+  const [
+    dropdownOpened,
+    setDropdownOpened,
+  ] = useState(false);
+
   const combobox =
     useCombobox({
       onDropdownClose:
         () => {
+          setDropdownOpened(
+            false
+          );
           setSearch("");
           combobox.resetSelectedOption();
         },
       onDropdownOpen:
-        () =>
+        () => {
+          setDropdownOpened(
+            true
+          );
           combobox.updateSelectedOptionIndex(
             "active"
-          ),
+          );
+        },
     });
 
   const normalizedSearch =
@@ -195,13 +208,58 @@ function TrainEventMultiSelect({
   };
 
   return (
-    <Combobox
-      store={combobox}
-      onOptionSubmit={
-        toggleValue
-      }
-      position="bottom-start"
-    >
+    <>
+      {dropdownOpened && (
+        <Portal>
+          <div
+            aria-hidden="true"
+            onPointerDown={
+              event => {
+                event.preventDefault();
+                event.stopPropagation();
+              }
+            }
+            onMouseDown={
+              event => {
+                event.preventDefault();
+                event.stopPropagation();
+              }
+            }
+            onClick={
+              event => {
+                event.preventDefault();
+                event.stopPropagation();
+              }
+            }
+            style={{
+              position:
+                "fixed",
+              inset: 0,
+              zIndex: 299,
+              background:
+                "transparent",
+              cursor:
+                "default",
+            }}
+          />
+        </Portal>
+      )}
+
+      <Combobox
+        store={combobox}
+        onOptionSubmit={
+          toggleValue
+        }
+        position="bottom-start"
+        withinPortal
+        zIndex={300}
+        closeOnClickOutside={
+          false
+        }
+        closeOnEscape={
+          false
+        }
+      >
       <Combobox.DropdownTarget>
         <PillsInput
           label={label}
@@ -389,7 +447,8 @@ function TrainEventMultiSelect({
           </Group>
         </Combobox.Footer>
       </Combobox.Dropdown>
-    </Combobox>
+      </Combobox>
+    </>
   );
 }
 
