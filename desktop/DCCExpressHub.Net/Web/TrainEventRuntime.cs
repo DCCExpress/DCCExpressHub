@@ -28,6 +28,7 @@ public sealed class TrainEventRuntime
     readonly ILogger<TrainEventRuntime> _log;
 
     public event Action<TrainEventPayload>? Changed;
+    public event Func<TrainEventPayload, CancellationToken, Task>? Blocking;
 
     public TrainEventRuntime(
         IWebHostEnvironment env,
@@ -107,7 +108,7 @@ public sealed class TrainEventRuntime
         Guid.NewGuid()
             .ToString("N");
 
-    public TrainEventPayload PublishMovement(
+    TrainEventPayload BuildMovementPayload(
         MovementRuntimeState state,
         MovementPlanResourceModel resource,
         string eventName)
@@ -140,31 +141,72 @@ public sealed class TrainEventRuntime
             resource.BlockId ??
             (object?)resource.Key;
 
+        return new TrainEventPayload(
+            NewId(),
+            DateTimeOffset.UtcNow
+                .ToUnixTimeMilliseconds(),
+            "movement",
+            state.PageId,
+            state.MovementName,
+            meta.Id,
+            locoAddress,
+            meta.Name,
+            meta.TrainType,
+            state.Direction ??
+                "unknown",
+            eventName,
+            resource.Kind,
+            resource.Key,
+            resourceId,
+            resource.Name,
+            resource.Label,
+            resource.SensorAddress,
+            sensors);
+    }
+
+    public TrainEventPayload PublishMovement(
+        MovementRuntimeState state,
+        MovementPlanResourceModel resource,
+        string eventName)
+    {
         var payload =
-            new TrainEventPayload(
-                NewId(),
-                DateTimeOffset.UtcNow
-                    .ToUnixTimeMilliseconds(),
-                "movement",
-                state.PageId,
-                state.MovementName,
-                meta.Id,
-                locoAddress,
-                meta.Name,
-                meta.TrainType,
-                state.Direction ??
-                    "unknown",
-                eventName,
-                resource.Kind,
-                resource.Key,
-                resourceId,
-                resource.Name,
-                resource.Label,
-                resource.SensorAddress,
-                sensors);
+            BuildMovementPayload(
+                state,
+                resource,
+                eventName);
 
         Changed?.Invoke(
             payload);
+
+        return payload;
+    }
+
+    public async Task<TrainEventPayload> PublishMovementBlockingAsync(
+        MovementRuntimeState state,
+        MovementPlanResourceModel resource,
+        string eventName,
+        CancellationToken cancellationToken)
+    {
+        var payload =
+            BuildMovementPayload(
+                state,
+                resource,
+                eventName);
+
+        var handlers =
+            Blocking?
+                .GetInvocationList()
+                .Cast<Func<TrainEventPayload, CancellationToken, Task>>()
+                .ToArray() ??
+            [];
+
+        if (handlers.Length > 0)
+            await Task.WhenAll(
+                handlers.Select(
+                    handler =>
+                        handler(
+                            payload,
+                            cancellationToken)));
 
         return payload;
     }
