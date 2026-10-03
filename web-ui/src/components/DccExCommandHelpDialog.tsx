@@ -11,10 +11,12 @@ import {
   Table,
   Text,
   TextInput,
+  ThemeIcon,
 } from "@mantine/core";
 import {
   IconAlertTriangle,
   IconExternalLink,
+  IconInfoCircle,
   IconSearch,
 } from "@tabler/icons-react";
 import {
@@ -352,12 +354,28 @@ export default function DccExCommandHelpDialog({
                 }
               />
 
-              <Text
-                size="xs"
-                c="dimmed"
+              <Group
+                gap="xs"
+                wrap="nowrap"
               >
-                Double-click a command to copy it to the Command field.
-              </Text>
+                <ThemeIcon
+                  size="sm"
+                  radius="xl"
+                  color="yellow"
+                  variant="light"
+                >
+                  <IconInfoCircle
+                    size={14}
+                  />
+                </ThemeIcon>
+
+                <Text
+                  size="xs"
+                  c="yellow.7"
+                >
+                  Double-click a command to copy it to the Command field.
+                </Text>
+              </Group>
 
               <ScrollArea
                 h={520}
