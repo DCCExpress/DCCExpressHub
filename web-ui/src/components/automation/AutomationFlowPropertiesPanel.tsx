@@ -136,19 +136,22 @@ function TrainEventMultiSelect({
 
   const combobox =
     useCombobox({
+      opened:
+        dropdownOpened,
+      onOpenedChange:
+        opened => {
+          if (opened) {
+            setDropdownOpened(
+              true
+            );
+          }
+        },
       onDropdownClose:
         () => {
-          setDropdownOpened(
-            false
-          );
-          setSearch("");
           combobox.resetSelectedOption();
         },
       onDropdownOpen:
         () => {
-          setDropdownOpened(
-            true
-          );
           combobox.updateSelectedOptionIndex(
             "active"
           );
@@ -253,12 +256,6 @@ function TrainEventMultiSelect({
         position="bottom-start"
         withinPortal
         zIndex={300}
-        closeOnClickOutside={
-          false
-        }
-        closeOnEscape={
-          false
-        }
       >
       <Combobox.DropdownTarget>
         <PillsInput
@@ -435,8 +432,15 @@ function TrainEventMultiSelect({
                   event.preventDefault()
               }
               onClick={
-                () =>
-                  combobox.closeDropdown()
+                () => {
+                  setDropdownOpened(
+                    false
+                  );
+                  setSearch(
+                    ""
+                  );
+                  combobox.resetSelectedOption();
+                }
               }
             >
               {t(
