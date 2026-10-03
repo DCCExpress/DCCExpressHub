@@ -48,6 +48,7 @@
     "delete": "Törlés",
     "extended_params": "Kiegészítő paraméterek",
     "function_momentary": "Nyomógomb",
+    "function_startup": "Csatlakozáskor",
     "function_startup_tooltip": "Minden sikeres command center csatlakozáskor bekapcsolja ezt a funkciót.",
     "function_startup_unavailable_momentary": "Induláskori bekapcsolás pillanatfunkciónál nem használható.",
     "function_number": "Funk. szám",
