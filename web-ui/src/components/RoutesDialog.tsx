@@ -896,8 +896,25 @@ export default function RoutesDialog({
         MovementRouteCandidate
     ): Promise<void> => {
       if (
-        candidate.used
+        candidate.used ||
+        candidate.locoDirection ===
+          "unknown"
       ) {
+        if (
+          candidate.locoDirection ===
+            "unknown"
+        ) {
+          showNotification({
+            color: "red",
+            title:
+              t(
+                "ui.error"
+              ),
+            message:
+              `${t("ui.direction")}: ${t("ui.unknown")}`,
+          });
+        }
+
         return;
       }
 
@@ -1447,7 +1464,15 @@ export default function RoutesDialog({
                                       color="teal"
                                       disabled={
                                         candidate.used ||
+                                        candidate.locoDirection ===
+                                          "unknown" ||
                                         assigningRoute
+                                      }
+                                      title={
+                                        candidate.locoDirection ===
+                                          "unknown"
+                                          ? `${t("ui.direction")}: ${t("ui.unknown")}`
+                                          : undefined
                                       }
                                       loading={
                                         assigningRoute
