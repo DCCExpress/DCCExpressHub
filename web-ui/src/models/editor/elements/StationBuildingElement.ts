@@ -121,7 +121,7 @@ export class StationBuildingElement extends BaseElement {
     }
 
     const centerX = x + width / 2;
-    const frontY = y + height - 1;
+    const frontY = y + height - 3;
 
     if (
       this.variant === "stairs"
@@ -349,6 +349,17 @@ export class StationBuildingElement extends BaseElement {
           -0.28
         ),
     };
+
+    // Draw the entrance first so the building shadow and lower roof/wall
+    // naturally overlap its inner edge.
+    this.drawEntranceVariant(
+      ctx,
+      x,
+      y,
+      width,
+      height,
+      palette
+    );
 
     // Soft building shadow.
     ctx.fillStyle =
@@ -699,15 +710,6 @@ export class StationBuildingElement extends BaseElement {
         6
       );
     }
-
-    this.drawEntranceVariant(
-      ctx,
-      x,
-      y,
-      width,
-      height,
-      palette
-    );
 
     this.endDraw(ctx);
     this.drawSelection(ctx);
