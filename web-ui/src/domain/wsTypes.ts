@@ -577,6 +577,9 @@ export type ServerWsPayloadMap = {
   stopAudio: {
     fileName: string;
   };
+  audioPlaybackStateChanged: {
+    enabled: boolean;
+  };
   movementStateChanged: MovementRuntimeStatePayload;
   movementSnapshot: { states: MovementRuntimeStatePayload[] };
   movementResponse: MovementResponsePayload;
