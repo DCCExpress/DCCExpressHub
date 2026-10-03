@@ -187,6 +187,8 @@ public sealed class MovementRuntime
             new(StringComparer.Ordinal);
         public HashSet<string> ResourceLeaveFired { get; } =
             new(StringComparer.Ordinal);
+        public HashSet<string> ExternalHolds { get; } =
+            new(StringComparer.Ordinal);
         public Dictionary<int, DispatcherLegLeaseInfo> PreparedLegLeases { get; } =
             [];
         public HashSet<int> AfterArrivedBlocks { get; } = [];
@@ -259,6 +261,87 @@ public sealed class MovementRuntime
             },
             resource,
             eventName);
+    }
+
+    static bool IsHeld(
+        Execution execution)
+    {
+        lock (execution.ExternalHolds)
+            return execution.ExternalHolds.Count > 0;
+    }
+
+    void ReleaseAllPreparedLegs(
+        Execution execution)
+    {
+        DispatcherLegLeaseInfo[] prepared;
+
+        lock (execution.PreparedLegLeases)
+        {
+            prepared =
+                execution.PreparedLegLeases
+                    .Values
+                    .ToArray();
+
+            execution.PreparedLegLeases.Clear();
+        }
+
+        foreach (var lease in prepared)
+            _dispatcher.ReleaseLeg(
+                lease.OwnerId);
+
+        execution.TargetBlockId =
+            null;
+    }
+
+    async Task WaitForExternalHolds(
+        Execution execution,
+        MovementPlanLegModel leg)
+    {
+        if (!IsHeld(execution))
+            return;
+
+        execution.Moving = false;
+        execution.DesiredSpeed = 0;
+
+        Patch(
+            execution,
+            desiredSpeed: 0,
+            info:
+                "Movement held at " +
+                leg.From.Name,
+            setInfo: true);
+
+        await ApplySpeed(
+            execution,
+            force: true);
+
+        while (IsHeld(execution))
+        {
+            execution.Cancellation.Token.ThrowIfCancellationRequested();
+
+            Patch(
+                execution,
+                info:
+                    "Movement held at " +
+                    leg.From.Name,
+                setInfo: true);
+
+            await Task.Delay(
+                100,
+                execution.Cancellation.Token);
+        }
+
+        execution.DesiredSpeed =
+            execution.Page.Speed;
+
+        Patch(
+            execution,
+            desiredSpeed:
+                execution.DesiredSpeed,
+            info:
+                "Movement hold released at " +
+                leg.From.Name,
+            setInfo: true);
     }
 
     static MovementRuntimeState Idle(string pageId) =>
@@ -1989,9 +2072,16 @@ public sealed class MovementRuntime
             activeRouteResourceKey: leg.From.Key,
             setActiveRoute: true);
 
-        execution.PreparedLegLeases.Remove(
-            leg.Index,
-            out var preparedLease);
+        await WaitForExternalHolds(
+            execution,
+            leg);
+
+        DispatcherLegLeaseInfo? preparedLease;
+
+        lock (execution.PreparedLegLeases)
+            execution.PreparedLegLeases.Remove(
+                leg.Index,
+                out preparedLease);
 
         if (leg.DepartWhen.Length > 0)
         {
@@ -2327,6 +2417,13 @@ public sealed class MovementRuntime
                 "arrived",
                 leg.To);
 
+            // Give TrainEvent-triggered backend Flow branches a deterministic
+            // window to register movement.hold() before the next leg can
+            // acquire authority or keep rolling.
+            await Task.Delay(
+                50,
+                execution.Cancellation.Token);
+
             if (finalLeg)
             {
                 // ARRIVED blocking actions are allowed to roll the train a bit
@@ -2391,7 +2488,12 @@ public sealed class MovementRuntime
                 _dispatcher.ReleaseLeg(
                     lease.OwnerId);
 
+                var held =
+                    IsHeld(
+                        execution);
+
                 var mayKeepRolling =
+                    !held &&
                     next is not null &&
                     !blockApproachState.NextLegTurnoutBlocked &&
                     next.DepartWhen.Length == 0 &&
@@ -2403,7 +2505,9 @@ public sealed class MovementRuntime
                             next));
 
                 execution.DesiredSpeed =
-                    execution.Page.Speed;
+                    held
+                        ? 0
+                        : execution.Page.Speed;
 
                 execution.Moving =
                     mayKeepRolling;
@@ -2424,6 +2528,8 @@ public sealed class MovementRuntime
                  */
                 if (mayKeepRolling &&
                     next is not null &&
+                    !IsHeld(
+                        execution) &&
                     !HasBlockingAction(
                         execution.Page,
                         leg.To.Key,
@@ -2438,19 +2544,48 @@ public sealed class MovementRuntime
                             execution,
                             next);
 
-                    execution.PreparedLegLeases[
-                        next.Index] =
-                        nextLease;
+                    if (IsHeld(
+                            execution))
+                    {
+                        _dispatcher.ReleaseLeg(
+                            nextLease.OwnerId);
 
-                    Patch(
-                        execution,
-                        info:
-                            "Next leg prepared: " +
-                            next.From.Name +
-                            " -> " +
-                            next.To.Name,
-                        setInfo:
-                            true);
+                        execution.Moving =
+                            false;
+                        execution.DesiredSpeed =
+                            0;
+
+                        Patch(
+                            execution,
+                            desiredSpeed:
+                                0,
+                            info:
+                                "Movement hold cancelled prepared next leg",
+                            setInfo:
+                                true);
+
+                        await ApplySpeed(
+                            execution,
+                            force:
+                                true);
+                    }
+                    else
+                    {
+                        lock (execution.PreparedLegLeases)
+                            execution.PreparedLegLeases[
+                                next.Index] =
+                                nextLease;
+
+                        Patch(
+                            execution,
+                            info:
+                                "Next leg prepared: " +
+                                next.From.Name +
+                                " -> " +
+                                next.To.Name,
+                            setInfo:
+                                true);
+                    }
                 }
 
                 await RunActions(
@@ -2550,9 +2685,12 @@ public sealed class MovementRuntime
              * When ARRIVED already prepared the next leg, keep that target
              * visible/authoritative. The next TraverseLeg owns clearing it.
              */
-            if (execution.PreparedLegLeases.Count == 0)
-                execution.TargetBlockId =
-                    null;
+            lock (execution.PreparedLegLeases)
+            {
+                if (execution.PreparedLegLeases.Count == 0)
+                    execution.TargetBlockId =
+                        null;
+            }
         }
     }
 
@@ -2678,12 +2816,8 @@ public sealed class MovementRuntime
         }
         finally
         {
-            foreach (var prepared in
-                     execution.PreparedLegLeases.Values.ToArray())
-                _dispatcher.ReleaseLeg(
-                    prepared.OwnerId);
-
-            execution.PreparedLegLeases.Clear();
+            ReleaseAllPreparedLegs(
+                execution);
 
             await PersistMovementTimingAsync(
                 execution.Page.Id,
@@ -2970,6 +3104,112 @@ public sealed class MovementRuntime
             () => RunExecution(execution));
 
         return (true, null);
+    }
+
+    public bool Hold(
+        string pageId,
+        string ownerId)
+    {
+        Execution? execution;
+
+        lock (_gate)
+            _executions.TryGetValue(
+                pageId,
+                out execution);
+
+        if (execution is null)
+            return false;
+
+        var owner =
+            string.IsNullOrWhiteSpace(
+                ownerId)
+                ? "external"
+                : ownerId.Trim();
+
+        lock (execution.ExternalHolds)
+            execution.ExternalHolds.Add(
+                owner);
+
+        // A hold must never keep a future route/turnout group reserved.
+        // The currently active leg is intentionally kept until its normal
+        // ARRIVED handoff so a train stopped mid-leg does not lose authority.
+        ReleaseAllPreparedLegs(
+            execution);
+
+        execution.Moving = false;
+        execution.DesiredSpeed = 0;
+
+        Patch(
+            execution,
+            desiredSpeed: 0,
+            info: "Movement hold requested",
+            setInfo: true);
+
+        _ = ApplySpeed(
+                execution,
+                force: true,
+                cancellationToken:
+                    CancellationToken.None)
+            .ContinueWith(
+                _ => { },
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+
+        return true;
+    }
+
+    public bool Release(
+        string pageId,
+        string ownerId)
+    {
+        Execution? execution;
+
+        lock (_gate)
+            _executions.TryGetValue(
+                pageId,
+                out execution);
+
+        if (execution is null)
+            return false;
+
+        var owner =
+            string.IsNullOrWhiteSpace(
+                ownerId)
+                ? "external"
+                : ownerId.Trim();
+
+        lock (execution.ExternalHolds)
+            execution.ExternalHolds.Remove(
+                owner);
+
+        Patch(
+            execution,
+            info: "Movement hold released",
+            setInfo: true);
+
+        return true;
+    }
+
+    public string[] HoldOwners(
+        string pageId)
+    {
+        Execution? execution;
+
+        lock (_gate)
+            _executions.TryGetValue(
+                pageId,
+                out execution);
+
+        if (execution is null)
+            return [];
+
+        lock (execution.ExternalHolds)
+            return execution.ExternalHolds
+                .OrderBy(
+                    x => x,
+                    StringComparer.Ordinal)
+                .ToArray();
     }
 
     public bool Stop(string pageId)
