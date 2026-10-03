@@ -293,6 +293,10 @@ export type BroadcastStopAudioCommandPayload = {
   fileName: string;
 };
 
+export type AudioPlaybackStateCommandPayload = {
+  enabled: boolean;
+};
+
 export type DispatcherCommandAction =
   | "snapshot"
   | "acquireLeg"
@@ -425,6 +429,7 @@ export type ClientWsPayloadMap = {
   heartbeat: EmptyClientWsCommandPayload;
   broadcastPlayAudio: BroadcastPlayAudioCommandPayload;
   broadcastStopAudio: BroadcastStopAudioCommandPayload;
+  audioPlaybackState: AudioPlaybackStateCommandPayload;
   dispatcherCommand: DispatcherCommandPayload;
   movementCommand: MovementCommandPayload;
   movementAudioComplete: MovementAudioCompleteCommandPayload;
