@@ -643,6 +643,8 @@
   "tree": "Fa",
   "bush": "Bokor / cserje",
   "stationBuilding": "Állomásépület",
+  "size": "Méret",
+  "roofColor": "Cserép színe",
   "variant": "Változat",
   "branchCount": "Ágak / lombcsoportok száma",
   "clusterCount": "Bokorcsoportok száma",
