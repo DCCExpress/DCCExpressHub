@@ -806,33 +806,16 @@ public sealed class FlowRuntime : BackgroundService
             foreach (var executionId in
                      executionIds)
             {
-                while (true)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
+                var state =
+                    await _scripts.WaitForCompletionAsync(
+                        executionId,
+                        cancellationToken);
 
-                    var state =
-                        _scripts.GetState(
-                            executionId);
-
-                    if (state.Status is
-                        "running" or
-                        "paused")
-                    {
-                        await Task.Delay(
-                            25,
-                            cancellationToken);
-
-                        continue;
-                    }
-
-                    if (state.Status ==
-                        "error")
-                        throw new InvalidOperationException(
-                            state.Error ??
-                            "blocking_flow_failed");
-
-                    break;
-                }
+                if (state.Status ==
+                    "error")
+                    throw new InvalidOperationException(
+                        state.Error ??
+                        "blocking_flow_failed");
             }
         }
         catch (OperationCanceledException)
