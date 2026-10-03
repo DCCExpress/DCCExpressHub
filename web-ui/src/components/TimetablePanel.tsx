@@ -1021,7 +1021,7 @@ export default function TimetablePanel({
                                   "movement"
                                   ? "Movement"
                                   : t(
-                                      "ui.script"
+                                      "ui.timetableScriptType"
                                     )
                               }
                             </Badge>
