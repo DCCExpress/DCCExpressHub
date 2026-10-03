@@ -212,6 +212,92 @@ public sealed class ScriptRuntime
                 .ToArray();
     }
 
+    public async Task<ScriptRuntimeState> WaitForCompletionAsync(
+        string executionId,
+        CancellationToken cancellationToken)
+    {
+        executionId =
+            (executionId ?? "").Trim();
+
+        if (executionId.Length == 0)
+            return Idle(
+                executionId);
+
+        var completion =
+            new TaskCompletionSource<ScriptRuntimeState>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+
+        void OnChanged(
+            ScriptRuntimeState state)
+        {
+            if (!string.Equals(
+                    state.ExecutionId,
+                    executionId,
+                    StringComparison.Ordinal) ||
+                state.Status is
+                    "running" or
+                    "paused")
+                return;
+
+            completion.TrySetResult(
+                state);
+        }
+
+        Changed +=
+            OnChanged;
+
+        try
+        {
+            ScriptRuntimeState? immediate =
+                null;
+
+            lock (_gate)
+            {
+                if (_executions.TryGetValue(
+                        executionId,
+                        out var execution))
+                {
+                    if (execution.State.Status is not
+                        ("running" or "paused"))
+                        immediate =
+                            execution.State;
+                }
+                else if (_states.TryGetValue(
+                             executionId,
+                             out var state))
+                {
+                    immediate =
+                        state;
+                }
+                else if (!completion.Task.IsCompleted)
+                {
+                    immediate =
+                        Idle(
+                            executionId);
+                }
+            }
+
+            if (completion.Task.IsCompleted)
+                return await completion.Task;
+
+            if (immediate is not null)
+                return immediate;
+
+            using var registration =
+                cancellationToken.Register(
+                    () =>
+                        completion.TrySetCanceled(
+                            cancellationToken));
+
+            return await completion.Task;
+        }
+        finally
+        {
+            Changed -=
+                OnChanged;
+        }
+    }
+
     public bool Finishing
     {
         get
