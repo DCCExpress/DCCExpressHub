@@ -9,10 +9,22 @@
 # BASIC USAGE:
 #   py tools/tts.py "A személyvonat rövidesen indul a második vágányról."
 #
+#   If neither --output-dir nor --filename is specified, the MP3 is written to:
+#     tools/audio/A személyvonat rövidesen indul a második vágányról.mp3
+#
+#   The tools/audio directory is created automatically.
+#   Invalid Windows filename characters are removed from auto-generated names.
+#
 # OUTPUT DIRECTORY + FILE NAME:
 #   py tools/tts.py "A személyvonat rövidesen indul." \
 #       --output-dir ".\\data\\audio" \
 #       --filename "szemelyvonat_indul.mp3"
+#
+# OUTPUT DIRECTORY ONLY:
+#   py tools/tts.py "A személyvonat rövidesen indul." \
+#       --output-dir ".\\data\\audio"
+#
+#   In this case the spoken text is still used as the file name.
 #
 # MALE VOICE:
 #   py tools/tts.py "A személyvonat rövidesen indul." \
@@ -27,8 +39,8 @@
 #   rate        = -8%
 #   pitch       = -2Hz
 #   volume      = +0%
-#   output-dir  = current directory
-#   filename    = bemondas.mp3
+#   output-dir  = <directory containing this script>/audio
+#   filename    = sanitized spoken text + .mp3
 #
 # NOTES:
 # - No API key is required.
@@ -44,6 +56,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import re
 import sys
 from pathlib import Path
 
@@ -54,7 +67,17 @@ DEFAULT_VOICE = "hu-HU-NoemiNeural"
 DEFAULT_RATE = "-8%"
 DEFAULT_PITCH = "-2Hz"
 DEFAULT_VOLUME = "+0%"
-DEFAULT_FILENAME = "bemondas.mp3"
+DEFAULT_OUTPUT_DIR = Path(__file__).resolve().parent / "audio"
+MAX_AUTO_FILENAME_LENGTH = 180
+
+WINDOWS_RESERVED_NAMES = {
+    "CON",
+    "PRN",
+    "AUX",
+    "NUL",
+    *(f"COM{i}" for i in range(1, 10)),
+    *(f"LPT{i}" for i in range(1, 10)),
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -68,14 +91,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "-d",
         "--output-dir",
-        default=".",
-        help="Destination directory. Created automatically if it does not exist. Default: current directory.",
+        default=None,
+        help=(
+            "Destination directory. Created automatically if it does not exist. "
+            "Default: the 'audio' directory next to this script."
+        ),
     )
     parser.add_argument(
         "-f",
         "--filename",
-        default=DEFAULT_FILENAME,
-        help=f"Output file name. '.mp3' is added automatically if omitted. Default: {DEFAULT_FILENAME}",
+        default=None,
+        help=(
+            "Output file name. '.mp3' is added automatically if omitted. "
+            "Default: the spoken text, sanitized for Windows filenames."
+        ),
     )
     parser.add_argument(
         "--voice",
@@ -105,18 +134,53 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def build_output_path(output_dir: str, filename: str) -> Path:
-    directory = Path(output_dir).expanduser()
-    name = filename.strip()
+def make_filename_from_text(text: str) -> str:
+    # One line, compact whitespace.
+    name = re.sub(r"\s+", " ", text).strip()
+
+    # Windows does not allow these characters in file names.
+    name = re.sub(r'[<>:"/\\|?*\x00-\x1F]', "", name)
+
+    # Trailing dots and spaces are not valid on Windows.
+    name = name.rstrip(" .")
 
     if not name:
-        raise ValueError("Filename cannot be empty.")
+        name = "bemondas"
 
-    output = directory / name
-    if output.suffix.lower() != ".mp3":
-        output = output.with_suffix(output.suffix + ".mp3" if output.suffix else ".mp3")
+    # Avoid Windows device names.
+    if name.upper() in WINDOWS_RESERVED_NAMES:
+        name = f"bemondas_{name}"
 
-    return output
+    # Keep generated names comfortably below common Windows filename limits.
+    if len(name) > MAX_AUTO_FILENAME_LENGTH:
+        name = name[:MAX_AUTO_FILENAME_LENGTH].rstrip(" .")
+
+    return f"{name}.mp3"
+
+
+def build_output_path(
+    text: str,
+    output_dir: str | None,
+    filename: str | None,
+) -> Path:
+    directory = (
+        Path(output_dir).expanduser()
+        if output_dir
+        else DEFAULT_OUTPUT_DIR
+    )
+
+    if filename:
+        name = filename.strip()
+        if not name:
+            raise ValueError("Filename cannot be empty.")
+        output = directory / name
+        if output.suffix.lower() != ".mp3":
+            output = output.with_suffix(
+                output.suffix + ".mp3" if output.suffix else ".mp3"
+            )
+        return output
+
+    return directory / make_filename_from_text(text)
 
 
 async def generate(args: argparse.Namespace) -> Path:
@@ -124,7 +188,7 @@ async def generate(args: argparse.Namespace) -> Path:
     if not text:
         raise ValueError("Text cannot be empty.")
 
-    output = build_output_path(args.output_dir, args.filename)
+    output = build_output_path(text, args.output_dir, args.filename)
     output.parent.mkdir(parents=True, exist_ok=True)
 
     if output.exists() and not args.overwrite:
