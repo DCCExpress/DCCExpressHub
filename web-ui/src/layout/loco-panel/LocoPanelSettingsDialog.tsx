@@ -1,11 +1,12 @@
 import {
-  Modal,
   NumberInput,
   SimpleGrid,
   Stack,
   Switch,
   Text,
 } from "@mantine/core";
+
+import AppModal from "../../components/common/AppModal";
 
 import type {
   LocoPanelCounterDisplaySettings,
@@ -33,7 +34,7 @@ export default function LocoPanelSettingsDialog({
   t,
 }: Props) {
   return (
-    <Modal
+    <AppModal
       opened={
         opened
       }
@@ -44,6 +45,8 @@ export default function LocoPanelSettingsDialog({
         "locopanel.counter_settings_title"
       )}
       centered
+      draggable
+      headerHeight={40}
       size="md"
     >
       <Stack gap="md">
@@ -244,6 +247,6 @@ export default function LocoPanelSettingsDialog({
         </Stack>
 
       </Stack>
-    </Modal>
+    </AppModal>
   );
 }
