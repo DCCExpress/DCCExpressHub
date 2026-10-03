@@ -1376,6 +1376,12 @@ export default function ConsolePanel() {
               false
             )
         }
+        onCommandSelect={
+          selectedCommand =>
+            setCommand(
+              selectedCommand
+            )
+        }
       />
     </Stack>
   );
