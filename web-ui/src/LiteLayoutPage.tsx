@@ -1636,18 +1636,27 @@ export default function LiteLayoutPage({
 
     try {
       /*
-       * SAVE is the authoritative graph-build point.
+       * Route topology generation is best-effort during SAVE.
        *
-       * The fingerprint cache makes this effectively free when only
-       * non-topological editor properties changed.
+       * An incomplete/invalid railway graph must NEVER prevent the editor
+       * layout itself from being persisted. serializeLayoutOnly() only attaches
+       * routeTopology when the cache contains a fresh graph for this exact
+       * topology fingerprint; otherwise it removes stale routeTopology data.
        */
-      const ensuredRouteGraph =
-        ensureClientRouteGraph(
-          layout
-        );
+      try {
+        const ensuredRouteGraph =
+          ensureClientRouteGraph(
+            layout
+          );
 
-      if (ensuredRouteGraph.rebuilt) {
-        invalidate();
+        if (ensuredRouteGraph.rebuilt) {
+          invalidate();
+        }
+      } catch (graphError) {
+        console.warn(
+          "Route graph generation failed during layout save. Saving layout without routeTopology.",
+          graphError
+        );
       }
 
       const layoutResponse = await fetch(
