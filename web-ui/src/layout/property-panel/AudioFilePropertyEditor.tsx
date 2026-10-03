@@ -8,7 +8,6 @@ import {
   Card,
   Group,
   Loader,
-  Modal,
   ScrollArea,
   Stack,
   Text,
@@ -28,6 +27,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { BaseElement } from "../../models/editor/core/BaseElement";
 import type { IEditableProperty } from "../../models/editor/elements/PropertyDescriptor";
 import type { PropertyChangeHandler } from "./propertyPanelTypes";
+
+import AppModal from "../../components/common/AppModal";
 
 type StorageEntry = {
   name: string;
@@ -233,12 +234,13 @@ export function AudioFileInput({
         </Text>
       </Stack>
 
-      <Modal
+      <AppModal
         opened={opened}
         onClose={() => setOpened(false)}
         title={i18next.t("ui.chooseAudioFromSdCard")}
         size="lg"
         centered
+        draggable
         returnFocus={false}
       >
         <Stack gap="sm">
@@ -306,10 +308,8 @@ export function AudioFileInput({
                   >
                     <Group justify="space-between" wrap="nowrap">
                       <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
-                        {entry.type === "directory" ? (
+                        {entry.type === "directory" && (
                           <IconFolder size={20} />
-                        ) : (
-                          <IconPlayerPlayFilled size={18} />
                         )}
 
                         <div style={{ minWidth: 0 }}>
@@ -326,16 +326,16 @@ export function AudioFileInput({
                           wrap="nowrap"
                         >
                           <Badge
-                            variant="light"
-                            color="violet"
+                            variant="filled"
+                            color="dark"
                           >
                             {i18next.t("ui.audio2")}
                           </Badge>
 
                           {onTest && (
                             <ActionIcon
-                              variant="light"
-                              color="violet"
+                              variant="filled"
+                              color="cyan"
                               title={i18next.t("ui.testAudio")}
                               onPointerDown={
                                 event => {
@@ -388,7 +388,7 @@ export function AudioFileInput({
             </Button>
           </Group>
         </Stack>
-      </Modal>
+      </AppModal>
     </>
   );
 }
