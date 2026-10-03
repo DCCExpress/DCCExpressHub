@@ -881,7 +881,7 @@
   "finishingNoNewStarts": "FINISHING · keine neuen Starts",
   "lastStart": "Letzter Start:",
   "timetableStart": "Fahrplan starten",
-  "timetableStop": "Fahrplan stoppen",
+  "timetableStop": "Beenden",
   "editTimetable": "Fahrplan bearbeiten",
   "stopScriptsFirst": "Stoppe zuerst die Skripte",
   "scriptsStillRunningOrPaused": "Noch aktiv oder pausiert: {{value1}}.",
