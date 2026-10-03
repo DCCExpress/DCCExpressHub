@@ -1946,9 +1946,12 @@ export default function MovementActionEditor({
                                         )
                                     }
                                     onTest={
-                                      () => {
+                                      previewSource => {
                                         const source =
-                                          action.audioName.trim();
+                                          (
+                                            previewSource ??
+                                            action.audioName
+                                          ).trim();
 
                                         if (
                                           source
