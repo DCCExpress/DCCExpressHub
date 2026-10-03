@@ -928,6 +928,8 @@
   "flowNodeWaitBlock": "Várakozás blokkra",
   "flowNodeWaitSensor": "Várakozás szenzorra",
   "flowNodeHorn": "Kürt",
+  "flowNodeMovementHold": "Menet megállítása",
+  "flowNodeMovementRelease": "Menet továbbengedése",
   "flowNodeDelay": "Késleltetés",
   "flowNodeLog": "Log",
   "flowRouteBlocks": "Útvonal blokkjai",
