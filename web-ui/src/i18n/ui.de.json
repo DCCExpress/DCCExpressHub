@@ -155,6 +155,8 @@
   "dccExStatus": "DCC-EX-Status",
   "clear": "Leeren",
   "waitingForConsoleActivity": "Warten auf Konsolenaktivität…",
+  "consoleLogFilter": "Protokolltext filtern…",
+  "consoleLogNoMatches": "Keine Protokolleinträge entsprechen den aktuellen Filtern.",
   "welcomeToDccexpresshub": "Willkommen bei DCCExpressHub",
   "yourLayoutIsReadyToBeConfigured": "Deine Anlage kann jetzt eingerichtet werden",
   "noLocomotivesAreConfiguredYetSoThisLooksLikeA": "Es sind noch keine Lokomotiven eingerichtet. Dies scheint eine neue DCCExpressHub-Installation zu sein.",
