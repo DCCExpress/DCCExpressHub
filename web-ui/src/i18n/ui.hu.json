@@ -155,6 +155,8 @@
   "dccExStatus": "DCC-EX állapot",
   "clear": "Ürítés",
   "waitingForConsoleActivity": "Várakozás konzoleseményekre…",
+  "consoleLogFilter": "Log szöveg szűrése…",
+  "consoleLogNoMatches": "Nincs a jelenlegi szűrőknek megfelelő logbejegyzés.",
   "welcomeToDccexpresshub": "Üdv a DCCExpressHubban",
   "yourLayoutIsReadyToBeConfigured": "A terepasztal készen áll a beállításra",
   "noLocomotivesAreConfiguredYetSoThisLooksLikeA": "Még nincs mozdony beállítva, így ez új DCCExpressHub-telepítésnek tűnik.",
