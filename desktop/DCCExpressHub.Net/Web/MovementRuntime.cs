@@ -2180,6 +2180,16 @@ public sealed class MovementRuntime
         }
 
         /*
+         * BEFORE START is intentionally blocking and runs before route
+         * authority / turnout acquisition. Announcements and departure delays
+         * must finish before downstream turnouts are reserved or changed.
+         */
+        await EmitTrainEventBlocking(
+            execution,
+            "beforeStart",
+            leg.From);
+
+        /*
          * Keep rolling while acquiring/setting the next leg when the simple
          * movement authority is already clear. The dispatcher still validates
          * the destination block, every effective safety sensor, resource
@@ -2213,11 +2223,6 @@ public sealed class MovementRuntime
                 execution,
                 lease,
                 leg);
-
-            await EmitTrainEventBlocking(
-                execution,
-                "beforeStart",
-                leg.From);
 
             await WaitForExternalHolds(
                 execution,
