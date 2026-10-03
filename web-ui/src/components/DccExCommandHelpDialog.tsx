@@ -86,8 +86,7 @@ export default function DccExCommandHelpDialog({
     () => {
       if (
         !opened ||
-        data ||
-        loading
+        data
       ) {
         return;
       }
@@ -166,7 +165,6 @@ export default function DccExCommandHelpDialog({
     [
       opened,
       data,
-      loading,
     ]
   );
 
