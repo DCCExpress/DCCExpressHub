@@ -76,7 +76,8 @@ export default function LocoPicker({
       }
       centered
       draggable
-      size="min(380px, 94vw)"
+      headerHeight={40}
+      size="min(360px, calc(100vw - 24px))"
       zIndex={3000}
       overlayProps={{
         backgroundOpacity: 0.55,
@@ -93,20 +94,21 @@ export default function LocoPicker({
       }}
       styles={{
         content: {
-          height: "min(70dvh, 720px)",
-          minHeight: "min(520px, calc(100dvh - 24px))",
+          height: "70dvh",
           maxHeight: "calc(100dvh - 24px)",
           display: "flex",
           flexDirection: "column",
           overflow: "hidden",
         },
         body: {
-          height: "calc(100% - 48px)",
+          height: "calc(100% - 40px)",
           minHeight: 0,
           display: "flex",
           flexDirection: "column",
           flex: 1,
           overflow: "hidden",
+          paddingLeft: "var(--mantine-spacing-md)",
+          paddingRight: "var(--mantine-spacing-md)",
         },
       }}
     >
@@ -169,7 +171,7 @@ export default function LocoPicker({
             },
           }}
         >
-          <Stack gap="sm" pr="xs">
+          <Stack gap="sm">
             {locos.map(loco => (
               <Card
                 key={loco.id}
