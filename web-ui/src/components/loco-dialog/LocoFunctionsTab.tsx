@@ -256,7 +256,7 @@ export default function LocoFunctionsTab({
                 )}
               </Table.Th>
               <Table.Th
-                w={90}
+                w={120}
                 ta="center"
               >
                 <Tooltip
