@@ -240,7 +240,7 @@ function TrainEventMultiSelect({
               inset: 0,
               zIndex: 299,
               background:
-                "transparent",
+                "rgba(0, 0, 0, 0.28)",
               cursor:
                 "default",
             }}
