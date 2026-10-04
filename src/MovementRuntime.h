@@ -73,6 +73,10 @@ private:
     size_t preparedLegIndex = static_cast<size_t>(-1);
     bool stopping = false;
     bool aborting = false;
+    bool departed = false;
+    bool approachFired = false;
+    bool arrivedCommitted = false;
+    bool leaveSeenOccupied = false;
   };
 
   LayoutRuntime& _layout;
@@ -105,6 +109,10 @@ private:
       const std::vector<MovementSensorCondition>& conditions) const;
 
   bool arrived(
+      const MovementPlanLeg& leg) const;
+
+  bool leaveSatisfied(
+      Execution& execution,
       const MovementPlanLeg& leg) const;
 
   bool legSafetyFree(
