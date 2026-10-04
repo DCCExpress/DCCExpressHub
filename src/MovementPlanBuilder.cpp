@@ -1,5 +1,7 @@
 #include "MovementPlanBuilder.h"
 
+#include "Logger.h"
+
 #include <LittleFS.h>
 #include <algorithm>
 
@@ -377,8 +379,49 @@ bool MovementPlanBuilder::build(
   plan.direction =
       str(selected, "locoDirection", "unknown");
 
+  // Older/stale route-table entries can have an unknown or missing route-level
+  // direction while each physical edge still carries the authoritative
+  // locoDirection. Reconstruct the route direction exactly like the client
+  // graph builder: unknown edges do not override a known direction, but a
+  // forward/reverse conflict makes the route invalid.
   if (plan.direction != "forward" &&
       plan.direction != "reverse") {
+    String derivedDirection = "unknown";
+    bool directionConflict = false;
+
+    for (JsonObjectConst edge :
+         selected["edgePath"].as<JsonArrayConst>()) {
+      const String edgeDirection =
+          str(edge, "locoDirection", "unknown");
+
+      if (edgeDirection != "forward" &&
+          edgeDirection != "reverse")
+        continue;
+
+      if (derivedDirection == "unknown") {
+        derivedDirection = edgeDirection;
+        continue;
+      }
+
+      if (derivedDirection != edgeDirection) {
+        directionConflict = true;
+        break;
+      }
+    }
+
+    if (!directionConflict &&
+        (derivedDirection == "forward" ||
+         derivedDirection == "reverse"))
+      plan.direction = derivedDirection;
+  }
+
+  if (plan.direction != "forward" &&
+      plan.direction != "reverse") {
+    Logger::error(
+        "Movement direction unknown. routeKey=" +
+        str(page, "routeKey") +
+        " routeDirection=" +
+        str(selected, "locoDirection", "unknown"));
     error = "movement_direction_unknown";
     return false;
   }
