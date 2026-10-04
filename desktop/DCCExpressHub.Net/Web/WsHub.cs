@@ -75,6 +75,10 @@ public sealed class WsHub
         Movement.AudioRequested += request => _ = HandleMovementAudioRequest(request);
         Movement.LocoChanged += loco => _ = BroadcastLoco(loco);
         Movement.PowerStateChanged += () => _ = BroadcastPower();
+        Movement.SafetyEmergencyStop += trip =>
+            _ = Broadcast(
+                "safetyEmergencyStop",
+                trip);
 
         TrainTracking.Changed += state =>
             _ = Broadcast(
