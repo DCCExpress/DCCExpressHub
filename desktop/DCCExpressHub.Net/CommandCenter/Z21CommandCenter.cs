@@ -672,6 +672,21 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
 
     private void ResetTransport()
     {
+        CancelPendingTxRequests();
+
+        PendingTurnoutFeedback? pendingTurnout;
+
+        lock (_turnoutFeedbackGate)
+        {
+            pendingTurnout =
+                _pendingTurnoutFeedback;
+            _pendingTurnoutFeedback =
+                null;
+        }
+
+        pendingTurnout?.Completion.TrySetResult(
+            false);
+
         UdpClient? old;
         bool wasOnline;
 
@@ -919,6 +934,62 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
         }
     }
 
+    private static bool IsLocoDrivePacket(
+        TxRequest request) =>
+        request.Header == 0x0040 &&
+        request.Packet.Length >= 7 &&
+        request.Packet[4] == 0xE4 &&
+        request.Packet[5] == 0x13;
+
+    private void DropQueuedLocoDriveCommands(
+        string reason)
+    {
+        List<TxRequest> dropped = [];
+
+        lock (_txQueueGate)
+        {
+            if (_normalTxQueue.Count == 0)
+                return;
+
+            var keep =
+                new Queue<TxRequest>();
+
+            while (_normalTxQueue.Count > 0)
+            {
+                var request =
+                    _normalTxQueue.Dequeue();
+
+                if (IsLocoDrivePacket(
+                        request))
+                {
+                    dropped.Add(
+                        request);
+                }
+                else
+                {
+                    keep.Enqueue(
+                        request);
+                }
+            }
+
+            while (keep.Count > 0)
+                _normalTxQueue.Enqueue(
+                    keep.Dequeue());
+        }
+
+        foreach (var request in dropped)
+            request.Completion.TrySetResult(
+                false);
+
+        if (dropped.Count > 0)
+        {
+            _log.LogWarning(
+                "Dropped {Count} queued Z21 locomotive drive command(s): {Reason}",
+                dropped.Count,
+                reason);
+        }
+    }
+
     private void CancelPendingTxRequests()
     {
         TxRequest[] pending;
@@ -1022,6 +1093,12 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
         bool includeProgramming = true,
         CancellationToken ct = default)
     {
+        if (!on)
+        {
+            DropQueuedLocoDriveCommands(
+                "track power OFF");
+        }
+
         var ok =
             await SendXBusAsync(
                 new byte[]
@@ -1084,7 +1161,11 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
         }
 
         // Z21 LAN protocol 2.13: emergency stop all locomotives while the
-        // track voltage remains switched on.
+        // track voltage remains switched on. Drop stale queued throttle
+        // commands before the priority E-STOP packet is enqueued.
+        DropQueuedLocoDriveCommands(
+            "emergency stop");
+
         var stopped =
             await SendXBusAsync(
                 new byte[] { 0x80 },
