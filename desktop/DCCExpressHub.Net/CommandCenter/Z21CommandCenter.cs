@@ -1362,13 +1362,6 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                     _locoNetPort);
             }
 
-            lock (_stateGate)
-            {
-                _lbServerConnected = false;
-                _lbServerConnectedSinceUtc =
-                    DateTime.MinValue;
-            }
-
             try
             {
                 await Task.Delay(
@@ -1474,6 +1467,13 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                     "YaMoRC LocoNet LBServer unavailable: {Host}:{Port}",
                     _host,
                     _lbServerPort);
+            }
+
+            lock (_stateGate)
+            {
+                _lbServerConnected = false;
+                _lbServerConnectedSinceUtc =
+                    DateTime.MinValue;
             }
 
             try
