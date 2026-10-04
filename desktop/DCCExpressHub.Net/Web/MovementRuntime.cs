@@ -684,9 +684,24 @@ public sealed class MovementRuntime
     }
 
     bool ArrivalSatisfied(
-        MovementPlanLegModel leg) =>
-        ConditionsSatisfied(
-            leg.ArrivedWhen);
+        MovementPlanLegModel leg)
+    {
+        if (!ConditionsSatisfied(
+                leg.ArrivedWhen))
+            return false;
+
+        // A Movement may have additional/custom arrival conditions, but the
+        // destination block itself must physically become occupied as well.
+        // Never commit ARRIVED solely from an upstream/auxiliary sensor.
+        if (leg.To.SensorAddress is not
+            (>= 1 and <= 65535))
+            return false;
+
+        return _layout.TryGetSensorState(
+                (ushort)leg.To.SensorAddress.Value,
+                out var destinationOccupied) &&
+            destinationOccupied;
+    }
 
     MovementResourceEventRule EffectiveResourceRule(
         MovementPageModel page,
@@ -3324,6 +3339,19 @@ public sealed class MovementRuntime
 
         if (source?.BlockId is null)
             return (false, "movement_source_missing");
+
+        var blockWithoutSensor =
+            plan.Blocks.FirstOrDefault(block =>
+                block.BlockId is >= 1 and <= 65535 &&
+                block.SensorAddress is not
+                    (>= 1 and <= 65535));
+
+        if (blockWithoutSensor is not null)
+            return (
+                false,
+                "Movement cannot start: block " +
+                blockWithoutSensor.Name +
+                " has no occupancy sensor configured.");
 
         var sourceBlock =
             Block(source.BlockId.Value);
