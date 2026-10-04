@@ -86,6 +86,28 @@ bool MovementPlanBuilder::ignoredSafetySensor(
   return false;
 }
 
+int MovementPlanBuilder::blockEventDelay(
+    JsonObjectConst root,
+    uint16_t blockId,
+    const String& direction,
+    const char* eventName) {
+  if (direction != "forward" && direction != "reverse") return 0;
+  const char* property = nullptr;
+  if (strcmp(eventName, "arrival") == 0) property = "arrivalDelayMs";
+  else if (strcmp(eventName, "arrived") == 0) property = "arrivedDelayMs";
+  else if (strcmp(eventName, "leave") == 0) property = "leaveDelayMs";
+  if (!property) return 0;
+  for (JsonObjectConst layer : root["layers"].as<JsonArrayConst>())
+    for (JsonObjectConst element : layer["elements"].as<JsonArrayConst>()) {
+      if (str(element, "type") != "trackblock" ||
+          (element["id"] | 0) != blockId) continue;
+      JsonObjectConst cfg = element["eventConfig"][direction].as<JsonObjectConst>();
+      if (!cfg || !cfg[property].is<int>()) return 0;
+      return std::max(0, std::min(600000, cfg[property].as<int>()));
+    }
+  return 0;
+}
+
 std::vector<MovementSensorCondition>
 MovementPlanBuilder::blockEventConditions(
     JsonObjectConst root,
@@ -517,6 +539,9 @@ bool MovementPlanBuilder::build(
             plan.direction,
             "arrival");
 
+    leg.approachDelayMs = blockEventDelay(
+        root, leg.to.blockId, plan.direction, "arrival");
+
     leg.departWhen =
         blockEventConditions(
             root,
@@ -530,6 +555,9 @@ bool MovementPlanBuilder::build(
             leg.to.blockId,
             plan.direction,
             "arrived");
+
+    leg.arrivedDelayMs = blockEventDelay(
+        root, leg.to.blockId, plan.direction, "arrived");
 
     if (leg.arrivedWhen.empty() &&
         leg.to.sensorAddress != 0) {
@@ -549,6 +577,8 @@ bool MovementPlanBuilder::build(
 
     leg.leaveWhenExplicit =
         !leg.leaveWhen.empty();
+    leg.leaveDelayMs = blockEventDelay(
+        root, leg.from.blockId, plan.direction, "leave");
 
     if (leg.leaveWhen.empty() &&
         leg.from.sensorAddress != 0) {
