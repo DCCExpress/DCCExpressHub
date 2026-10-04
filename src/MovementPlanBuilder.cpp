@@ -309,6 +309,25 @@ bool MovementPlanBuilder::build(
     }
   }
 
+  std::vector<std::pair<int, uint16_t>> trackSensors;
+  for (JsonObjectConst layer :
+       root["layers"].as<JsonArrayConst>()) {
+    for (JsonObjectConst element :
+         layer["elements"].as<JsonArrayConst>()) {
+      const int elementId = element["id"] | 0;
+      const int sensor = element["sensorAddress"] | 0;
+      if (validId(elementId) && validId(sensor))
+        trackSensors.push_back({elementId, static_cast<uint16_t>(sensor)});
+    }
+  }
+
+  auto trackSensor = [&trackSensors](int elementId) -> uint16_t {
+    for (const auto& item : trackSensors)
+      if (item.first == elementId)
+        return item.second;
+    return 0;
+  };
+
   std::vector<MovementPlanResource> blocks;
 
   for (JsonObjectConst block :
@@ -343,6 +362,49 @@ bool MovementPlanBuilder::build(
 
   JsonArrayConst edges =
       selected["edgePath"].as<JsonArrayConst>();
+
+  std::vector<MovementPlanResource> routeResources;
+  size_t routeNodeIndex = 0;
+  for (JsonVariantConst rawName :
+       selected["nodePath"].as<JsonArrayConst>()) {
+    const String nodeName = rawName.as<String>();
+    MovementPlanResource resource;
+    resource.key = "segment:" + nodeName;
+    resource.kind = "segment";
+    resource.name = nodeName;
+    resource.nodeIndex = static_cast<int>(routeNodeIndex);
+
+    for (JsonObjectConst node :
+         graph["nodes"].as<JsonArrayConst>()) {
+      if (str(node, "name") != nodeName)
+        continue;
+
+      for (JsonObjectConst detector :
+           node["detectors"].as<JsonArrayConst>()) {
+        const int address = detector["address"] | 0;
+        if (validId(address))
+          uniquePush(resource.detectors, static_cast<uint16_t>(address));
+      }
+      for (JsonVariantConst detector :
+           node["detectors"].as<JsonArrayConst>()) {
+        if (detector.is<int>()) {
+          const int address = detector.as<int>();
+          if (validId(address))
+            uniquePush(resource.detectors, static_cast<uint16_t>(address));
+        }
+      }
+      for (JsonVariantConst elementId :
+           node["elementIds"].as<JsonArrayConst>()) {
+        const uint16_t sensor = trackSensor(elementId | 0);
+        uniquePush(resource.detectors, sensor);
+      }
+      break;
+    }
+
+    routeResources.push_back(resource);
+    plan.resources.push_back(resource);
+    ++routeNodeIndex;
+  }
 
   for (size_t index = 0;
        index + 1 < blocks.size();
@@ -398,12 +460,28 @@ bool MovementPlanBuilder::build(
           resource.name =
               str(passage, "name", resource.key);
           resource.nodeIndex =
-              leg.from.nodeIndex;
-          resource.turnouts =
-              leg.turnouts;
+              edge["fromNodeIndex"] | leg.from.nodeIndex;
+          resource.sensorAddress =
+              trackSensor(elementId);
+          uniquePush(
+              resource.detectors,
+              resource.sensorAddress);
+          bool resourceConflict = false;
+          readTurnoutStates(
+              passage["turnoutStates"],
+              resource.turnouts,
+              resourceConflict);
           leg.resources.push_back(resource);
+          plan.resources.push_back(resource);
         }
       }
+    }
+
+    for (const auto& resource : routeResources) {
+      if (resource.nodeIndex <= leg.from.nodeIndex ||
+          resource.nodeIndex > leg.to.nodeIndex)
+        continue;
+      leg.resources.push_back(resource);
     }
 
     if (turnoutConflict) {
