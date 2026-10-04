@@ -36,37 +36,9 @@ function argumentValue(name) {
 
 const environment =
   argumentValue("--env") ??
-  "m5stack-basic-dccex";
+  "sunton-8048s043-dccex";
 
 const targetDefinitions = {
-  "m5stack-basic-dccex": {
-    id: "m5stack-basic",
-    commandCenter: "dcc-ex",
-    displayName: "M5Stack Basic / DCC-EX",
-    fileTag: "M5Stack-Basic-DCCEX",
-  },
-
-  "m5stack-basic-z21": {
-    id: "m5stack-basic",
-    commandCenter: "z21",
-    displayName: "M5Stack Basic / Z21",
-    fileTag: "M5Stack-Basic-Z21",
-  },
-
-  "esp32dev-dccex": {
-    id: "esp32-devkit",
-    commandCenter: "dcc-ex",
-    displayName: "ESP32 DevKit / DCC-EX",
-    fileTag: "ESP32-DevKit-DCCEX",
-  },
-
-  "esp32dev-z21": {
-    id: "esp32-devkit",
-    commandCenter: "z21",
-    displayName: "ESP32 DevKit / Z21",
-    fileTag: "ESP32-DevKit-Z21",
-  },
-
   "sunton-8048s043-dccex": {
     id: "sunton-8048s043",
     commandCenter: "dcc-ex",
