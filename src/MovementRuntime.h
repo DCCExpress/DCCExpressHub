@@ -69,6 +69,8 @@ private:
     MovementPlan plan;
     size_t legIndex = 0;
     String activeLegOwnerId;
+    String preparedLegOwnerId;
+    size_t preparedLegIndex = static_cast<size_t>(-1);
     bool stopping = false;
     bool aborting = false;
   };
@@ -92,13 +94,20 @@ private:
   bool acquireLeg(
       Execution& execution,
       size_t legIndex,
-      String& error);
+      String& error,
+      bool prepared = false);
 
   bool applySpeed(
       Execution& execution,
       uint8_t speed);
 
   bool arrived(
+      const MovementPlanLeg& leg) const;
+
+  bool legSafetyFree(
+      const MovementPlanLeg& leg) const;
+
+  bool targetBasicallyFree(
       const MovementPlanLeg& leg) const;
 
   void processExecution(
