@@ -51,6 +51,16 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
     private int _binaryPacketsObserved;
     private int _lbServerLinesObserved;
 
+    private bool _lbServerConnected;
+    private DateTime _lbServerConnectedSinceUtc = DateTime.MinValue;
+    private DateTime _lastLbServerRxUtc = DateTime.MinValue;
+    private string _lbServerVersion = "";
+    private long _sensorFeedbackCount;
+    private int _lastSensorAddress;
+    private int _lastSensorOn = -1;
+    private DateTime _lastSensorFeedbackUtc = DateTime.MinValue;
+    private DateTime _onlineSinceUtc = DateTime.MinValue;
+
     private UdpClient? _udp;
     private string _host;
     private int _port;
@@ -170,6 +180,75 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
     public string Endpoint => $"{_host}:{_port}/udp";
     public bool EmergencyPauseStateKnown => _emergencyKnown;
     public bool EmergencyPaused => _emergencyPaused;
+
+    public Z21RuntimeDiagnostics Diagnostics
+    {
+        get
+        {
+            var now = DateTime.UtcNow;
+
+            long AgeMs(
+                DateTime timestamp) =>
+                timestamp == DateTime.MinValue
+                    ? -1
+                    : Math.Max(
+                        0,
+                        (long)(now - timestamp).TotalMilliseconds);
+
+            return new Z21RuntimeDiagnostics(
+                Profile:
+                    _isYaMoRc7010
+                        ? "yamorc7010"
+                        : "z21",
+                BroadcastFlags:
+                    _broadcastFlags,
+                UdpUptimeMs:
+                    _onlineSinceUtc == DateTime.MinValue
+                        ? -1
+                        : Math.Max(
+                            0,
+                            (long)(now - _onlineSinceUtc).TotalMilliseconds),
+                LbServerEnabled:
+                    _lbServerFeedbackEnabled,
+                LbServerConnected:
+                    _lbServerConnected,
+                LbServerPort:
+                    _lbServerPort,
+                LbServerUptimeMs:
+                    _lbServerConnectedSinceUtc == DateTime.MinValue
+                        ? -1
+                        : Math.Max(
+                            0,
+                            (long)(now - _lbServerConnectedSinceUtc).TotalMilliseconds),
+                LbServerLinesObserved:
+                    Volatile.Read(
+                        ref _lbServerLinesObserved),
+                LbServerVersion:
+                    _lbServerVersion,
+                SensorFeedbackCount:
+                    Interlocked.Read(
+                        ref _sensorFeedbackCount),
+                LastSensorAddress:
+                    Volatile.Read(
+                        ref _lastSensorAddress),
+                LastSensorOn:
+                    Volatile.Read(
+                        ref _lastSensorOn) switch
+                    {
+                        0 => false,
+                        1 => true,
+                        _ => null
+                    },
+                LastSensorFeedbackAgeMs:
+                    AgeMs(
+                        _lastSensorFeedbackUtc),
+                LastInterrogateAgeMs:
+                    AgeMs(
+                        _lastLocoNetInterrogateUtc),
+                InterrogateEnabled:
+                    _lbServerFeedbackEnabled);
+        }
+    }
 
     public event Action<string>? RawInfo;
     public event Action<StationInfo>? StationInfoChanged;
@@ -533,6 +612,7 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
             _lastRxUtc = DateTime.MinValue;
             _lastTxUtc = DateTime.MinValue;
             _powerFeedbackKnown = false;
+            _onlineSinceUtc = DateTime.MinValue;
             wasOnline = _online;
             _online = false;
         }
@@ -562,7 +642,18 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
             _online = online;
 
             if (online)
+            {
                 _lastRxUtc = DateTime.UtcNow;
+
+                if (changed)
+                    _onlineSinceUtc =
+                        _lastRxUtc;
+            }
+            else if (changed)
+            {
+                _onlineSinceUtc =
+                    DateTime.MinValue;
+            }
         }
 
         if (changed)
@@ -1271,6 +1362,13 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                     _locoNetPort);
             }
 
+            lock (_stateGate)
+            {
+                _lbServerConnected = false;
+                _lbServerConnectedSinceUtc =
+                    DateTime.MinValue;
+            }
+
             try
             {
                 await Task.Delay(
@@ -1309,6 +1407,15 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                     _host,
                     _lbServerPort,
                     connectCts.Token);
+
+                lock (_stateGate)
+                {
+                    _lbServerConnected = true;
+                    _lbServerConnectedSinceUtc =
+                        DateTime.UtcNow;
+                    _lastLbServerRxUtc =
+                        DateTime.MinValue;
+                }
 
                 _log.LogInformation(
                     "YaMoRC LocoNet LBServer feedback connected: {Host}:{Port}",
@@ -1554,6 +1661,19 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
 
             if (trimmed.Length == 0)
                 continue;
+
+            lock (_stateGate)
+                _lastLbServerRxUtc =
+                    DateTime.UtcNow;
+
+            if (trimmed.StartsWith(
+                    "VERSION ",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                lock (_stateGate)
+                    _lbServerVersion =
+                        trimmed;
+            }
 
             var observed =
                 Interlocked.Increment(
@@ -1852,6 +1972,23 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
 
         var occupied =
             (in2 & 0x10) != 0;
+
+        Interlocked.Increment(
+            ref _sensorFeedbackCount);
+
+        Volatile.Write(
+            ref _lastSensorAddress,
+            address);
+
+        Volatile.Write(
+            ref _lastSensorOn,
+            occupied
+                ? 1
+                : 0);
+
+        lock (_stateGate)
+            _lastSensorFeedbackUtc =
+                DateTime.UtcNow;
 
         _log.LogInformation(
             "YaMoRC S88/LocoNet feedback #{Address}: {State}",
