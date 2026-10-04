@@ -387,7 +387,7 @@ bool MovementPlanBuilder::build(
   std::vector<MovementPlanResource> routeResources;
   size_t routeNodeIndex = 0;
   for (JsonVariantConst rawName :
-       selected["nodePath"].as<JsonArrayConst>()) {
+       selected["nodes"].as<JsonArrayConst>()) {
     const String nodeName = rawName.as<String>();
     MovementPlanResource resource;
     resource.key = "segment:" + nodeName;
@@ -588,6 +588,14 @@ bool MovementPlanBuilder::build(
               sensor);
       }
     }
+
+    if (leg.to.sensorAddress != 0 &&
+        !ignoredSafetySensor(
+            page,
+            leg.from.blockId,
+            leg.to.blockId,
+            leg.to.sensorAddress))
+      uniquePush(leg.safetySensors, leg.to.sensorAddress);
 
     plan.legs.push_back(
         std::move(leg));
