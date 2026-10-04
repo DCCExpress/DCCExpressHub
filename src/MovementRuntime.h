@@ -105,6 +105,9 @@ private:
     unsigned long waitUntilMs = 0;
     bool hornActive = false;
     uint8_t hornFunction = 0;
+    String sourceLocoId;
+    String eventDelayKey;
+    unsigned long eventDelayUntilMs = 0;
     String pendingAudioRequestId;
     bool pendingAudioCompleted = false;
     bool pendingAudioOk = false;
@@ -199,6 +202,11 @@ private:
       Execution& execution,
       const MovementPlanLeg& leg,
       String& error);
+
+  bool waitEventDelay(
+      Execution& execution,
+      const String& key,
+      int delayMs);
 
   void releasePreparedAuthority(
       Execution& execution);
