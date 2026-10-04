@@ -490,11 +490,6 @@ bool MovementPlanBuilder::build(
       }
     }
 
-    for (const auto& turnout : leg.turnouts)
-      uniquePush(
-          leg.safetySensors,
-          turnout.address);
-
     plan.legs.push_back(
         std::move(leg));
   }
