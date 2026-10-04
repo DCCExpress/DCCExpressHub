@@ -116,6 +116,8 @@ export type SerializedLayoutElementDto = {
 
   size?: number;
   roofColor?: string;
+  gardenWidth?: number;
+  gardenHeight?: number;
 
   signalOutput?: SignalOutputConfiguration;
   currentStateIndex?: number;
