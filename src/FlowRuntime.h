@@ -7,11 +7,14 @@
 #include <vector>
 
 #include "AutomationScriptRuntime.h"
+#include "ICommandCenter.h"
+#include "LayoutRuntime.h"
 
 class FlowRuntime {
 public:
-  explicit FlowRuntime(
-      AutomationScriptRuntime& scripts);
+  FlowRuntime(
+      AutomationScriptRuntime& scripts,
+      LayoutRuntime& runtime);
 
   bool begin();
   void loop();
@@ -31,6 +34,14 @@ public:
       JsonObject out);
 
   bool takeChanged();
+
+  void onRuntimeChange(
+      RuntimeChangeKind kind,
+      uint16_t id,
+      uint8_t channel);
+
+  void onLocoFeedback(
+      const CommandCenterLocoFeedback& info);
 
 private:
   static constexpr const char* AUTOMATIONS_PATH =
@@ -61,6 +72,7 @@ private:
   };
 
   AutomationScriptRuntime& _scripts;
+  LayoutRuntime& _runtime;
 
   std::vector<ExecutionDef> _executions;
   uint32_t _manualSequence = 0;
@@ -124,4 +136,11 @@ private:
 
   void cleanupExecutions();
   void tickIntervals();
+
+  void runMatchingInputs(
+      const String& kind,
+      uint16_t address,
+      bool boolValue,
+      int intState,
+      JsonVariantConst payload);
 };
