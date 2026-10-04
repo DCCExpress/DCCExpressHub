@@ -651,9 +651,19 @@ namespace DCCExpressHub.Desktop
 
             while (!timeout.IsCancellationRequested)
             {
-                var datagram =
-                    await udp.ReceiveAsync(
-                        timeout.Token);
+                UdpReceiveResult datagram;
+
+                try
+                {
+                    datagram =
+                        await udp.ReceiveAsync(
+                            timeout.Token);
+                }
+                catch (OperationCanceledException)
+                    when (timeout.IsCancellationRequested)
+                {
+                    break;
+                }
 
                 var buffer =
                     datagram.Buffer;
