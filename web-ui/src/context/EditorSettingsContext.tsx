@@ -25,6 +25,7 @@ const defaultEditorSettings: EditorSettings = {
     snapToGrid: true,
     showElementNames: false,
     showBlockNames: false,
+    showBuildings: true,
 };
 
 type EditorSettingsContextValue = {
