@@ -396,6 +396,13 @@ export interface SwitchmanHutElementDto extends BaseElementDto {
   roofColor: string;
 }
 
+export interface GardenHouseElementDto extends BaseElementDto {
+  type: "gardenhouse";
+  gardenWidth: number;
+  gardenHeight: number;
+  roofColor: string;
+}
+
 export interface LabelElementDto extends BaseElementDto {
   type: "label";
   text: string;
