@@ -1,25 +1,18 @@
-DCCExpressHub VERSION + DCC-EX-only release setup
+DCCExpressHub release setup
 
 Current policy:
-- DCC-EX is the official / primary backend.
-- GitHub Releases publish ONLY:
-    * M5Stack Basic / DCC-EX
-    * ESP32 DevKit / DCC-EX
-- Z21 source code and PlatformIO targets stay in the repository.
-- README mentions Z21 only as planned future support.
-- No official Z21 firmware is released.
+- Windows backend is the primary DCCExpressHub runtime.
+- DCC-EX is the official / primary command-station backend.
+- ESP32-S3 is the only supported embedded platform.
+- The official embedded firmware target is:
+    * Sunton ESP32-8048S043 / DCC-EX
+- Classic ESP32, ESP32 DevKit and M5Stack Basic are not supported targets.
+- Z21 remains future work and no official Z21 firmware is released.
 
-Install / update:
-  .\setup-versioning.ps1 -RepoRoot D:\MyProjects\DCCExpressHub
+Release version:
+  VERSION is authoritative.
 
-Then:
-  cd D:\MyProjects\DCCExpressHub
-  git diff
-
-Commit/push the migration normally.
-
-Next release example:
+Example:
   .\release.ps1 0.1.0-alpha.2
 
-VERSION is authoritative.
 Pushing a matching v* tag starts GitHub Actions.
