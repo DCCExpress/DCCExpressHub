@@ -212,7 +212,8 @@ bool DccExBridge::writeDirect(
 bool DccExBridge::enqueueCommand(
     String command,
     bool logCommand,
-    bool priority) {
+    bool priority,
+    bool background) {
   normalizeCommand(
       command);
 
@@ -237,9 +238,9 @@ bool DccExBridge::enqueueCommand(
       false;
 
   if (priority) {
-    // Priority traffic is deliberately independent from the normal queue
-    // capacity. An ESTOP must remain enqueueable even when automation has
-    // saturated the normal queue.
+    // Priority traffic is deliberately independent from queue capacity.
+    // An ESTOP must remain enqueueable even when automation has saturated
+    // control/background traffic.
     _txQueue.erase(
         std::remove_if(
             _txQueue.begin(),
@@ -265,21 +266,50 @@ bool DccExBridge::enqueueCommand(
       !_priorityTxQueue.empty()
   ) {
     // While an ESTOP/RESUME priority transaction is pending, do not allow a
-    // locomotive command to line up immediately behind it. This prevents a
-    // racing automation command from restarting a train after RESUME.
+    // locomotive command to line up immediately behind it.
     accepted =
         false;
-  } else if (
-      _txQueue.size() <
-      MAX_TX_QUEUE_DEPTH
-  ) {
-    _txQueue.push_back(
-        PendingTxCommand{
-            std::move(command),
-            logCommand});
+  } else {
+    const size_t queued =
+        _txQueue.size() +
+        _backgroundTxQueue.size();
 
-    accepted =
-        true;
+    if (queued <
+        MAX_TX_QUEUE_DEPTH) {
+      if (background) {
+        // Polling/status requests are idempotent. Do not let repeated
+        // telemetry ticks build an ever-growing FIFO backlog.
+        const bool alreadyQueued =
+            std::any_of(
+                _backgroundTxQueue.begin(),
+                _backgroundTxQueue.end(),
+                [&command](
+                    const PendingTxCommand& item) {
+                  return
+                      item.command ==
+                      command;
+                });
+
+        if (alreadyQueued) {
+          accepted =
+              true;
+        } else {
+          _backgroundTxQueue.push_back(
+              PendingTxCommand{
+                  std::move(command),
+                  logCommand});
+          accepted =
+              true;
+        }
+      } else {
+        _txQueue.push_back(
+            PendingTxCommand{
+                std::move(command),
+                logCommand});
+        accepted =
+            true;
+      }
+    }
   }
 
   xSemaphoreGive(
@@ -299,6 +329,17 @@ bool DccExBridge::sendPriorityCommand(
   return enqueueCommand(
       std::move(command),
       logCommand,
+      true,
+      false);
+}
+
+bool DccExBridge::sendBackgroundCommand(
+    String command,
+    bool logCommand) {
+  return enqueueCommand(
+      std::move(command),
+      logCommand,
+      false,
       true);
 }
 
@@ -336,6 +377,7 @@ void DccExBridge::clearTxQueue() {
   if (!_txQueueMutex) {
     _priorityTxQueue.clear();
     _txQueue.clear();
+    _backgroundTxQueue.clear();
     return;
   }
 
@@ -350,6 +392,7 @@ void DccExBridge::clearTxQueue() {
 
   _priorityTxQueue.clear();
   _txQueue.clear();
+  _backgroundTxQueue.clear();
 
   xSemaphoreGive(
       _txQueueMutex);
@@ -401,6 +444,7 @@ void DccExBridge::processTxQueue() {
       normalDue &&
       !_txQueue.empty()
   ) {
+    // Real control traffic always wins over status polling.
     command =
         std::move(
             _txQueue.front());
@@ -408,7 +452,23 @@ void DccExBridge::processTxQueue() {
     _txQueue.pop_front();
     hasCommand =
         true;
+  } else if (
+      normalDue &&
+      !_backgroundTxQueue.empty()
+  ) {
+    command =
+        std::move(
+            _backgroundTxQueue.front());
+
+    _backgroundTxQueue.pop_front();
+    hasCommand =
+        true;
   }
+
+  // Never hold the queue mutex while writing to TCP. WiFiClient::print() can
+  // occasionally block long enough to delay producers on another task/core.
+  xSemaphoreGive(
+      _txQueueMutex);
 
   if (hasCommand) {
     const bool sent =
@@ -427,9 +487,6 @@ void DccExBridge::processTxQueue() {
                     _commandIntervalMs;
     }
   }
-
-  xSemaphoreGive(
-      _txQueueMutex);
 }
 
 bool DccExBridge::sendCommand(
@@ -438,6 +495,7 @@ bool DccExBridge::sendCommand(
   return enqueueCommand(
       std::move(command),
       logCommand,
+      false,
       false);
 }
 
@@ -498,7 +556,7 @@ bool DccExBridge::requestLocoState(
     return false;
   }
 
-  return sendCommand(
+  return sendBackgroundCommand(
       "<t " +
       String(address) +
       ">",
@@ -605,28 +663,28 @@ bool DccExBridge::setVPin(
 
 bool DccExBridge::requestTrackConfiguration(
     bool logCommand) {
-  return sendCommand(
+  return sendBackgroundCommand(
       "<=>",
       logCommand);
 }
 
 bool DccExBridge::requestCurrentTelemetry(
     bool logCommand) {
-  return sendCommand(
+  return sendBackgroundCommand(
       "<JI>",
       logCommand);
 }
 
 bool DccExBridge::requestTripTelemetry(
     bool logCommand) {
-  return sendCommand(
+  return sendBackgroundCommand(
       "<JG>",
       logCommand);
 }
 
 bool DccExBridge::requestSensorSnapshot(
     bool logCommand) {
-  return sendCommand(
+  return sendBackgroundCommand(
       "<Q>",
       logCommand);
 }
