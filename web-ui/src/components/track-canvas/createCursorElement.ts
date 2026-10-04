@@ -27,6 +27,7 @@ import { TreeElement } from "../../models/editor/elements/TreeElement";
 import { BushElement } from "../../models/editor/elements/BushElement";
 import { LampElement } from "../../models/editor/elements/LampElement";
 import { StationBuildingElement } from "../../models/editor/elements/StationBuildingElement";
+import { SwitchmanHutElement } from "../../models/editor/elements/SwitchmanHutElement";
 import type { EditorTool } from "../../models/editor/types/EditorTypes";
 
 const cursorTrackElement = new TrackStraightElement(0, 0);
@@ -54,6 +55,7 @@ const cursorTreeElement = new TreeElement(0, 0);
 const cursorBushElement = new BushElement(0, 0);
 const cursorLampElement = new LampElement(0, 0);
 const cursorStationBuildingElement = new StationBuildingElement(0, 0);
+const cursorSwitchmanHutElement = new SwitchmanHutElement(0, 0);
 const cursorBlockElement = new BlockElement(0, 0);
 const cursorLabelElement = new LabelElement(0, 0);
 
@@ -83,6 +85,7 @@ export function createCursorElement(tool: EditorTool): BaseElement | null {
     case ELEMENT_TYPES.BUSH: return cursorBushElement;
     case ELEMENT_TYPES.LAMP: return cursorLampElement;
     case ELEMENT_TYPES.STATION_BUILDING: return cursorStationBuildingElement;
+    case ELEMENT_TYPES.SWITCHMAN_HUT: return cursorSwitchmanHutElement;
     case ELEMENT_TYPES.TRACK_BLOCK: return cursorBlockElement;
     case ELEMENT_TYPES.TRACK_SIGNAL2:
     case ELEMENT_TYPES.TRACK_SIGNAL3:
