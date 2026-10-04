@@ -1,6 +1,6 @@
 # DCCExpressHub
 
-DCCExpressHub is a control and automation system for **DCC-EX** model railways.
+DCCExpressHub is a control and automation system for model railways using **DCC-EX**, **Roco Z21** or compatible command stations.
 
 It provides one interface for driving locomotives, operating turnouts and signals, editing the layout, following trains, running automatic movements and timetables, and using sensors for safer operation.
 
@@ -13,7 +13,7 @@ The same layout can be controlled from PCs, notebooks, tablets and phones on the
 
 > **DCCExpressHub is not a command station.**
 >
-> Your DCC-EX command station still generates the DCC track signal. DCCExpressHub sits above it and provides the control, layout and automation functions.
+> The connected command station still generates the DCC track signal. DCCExpressHub sits above it and provides the control, layout and automation functions.
 
 ![DCCExpressHub screenshot](doc/images/Screenshot_2026-09-23_182817.png)
 
@@ -27,7 +27,8 @@ The same layout can be controlled from PCs, notebooks, tablets and phones on the
    Windows or ESP32-S3
          |
          v
-       DCC-EX
+  Command station
+ DCC-EX / Z21 / YD7010
          |
          v
  Model railway layout
@@ -112,10 +113,17 @@ The Windows version is the **primary DCCExpressHub platform**.
 
 It can run locally on the same PC as the user interface or as a network server for other PCs, tablets and phones.
 
-The Windows backend can connect to DCC-EX over:
+The Windows backend supports these command-station connections:
 
-- **TCP/IP**
-- **Serial / USB COM port**
+- **DCC-EX TCP/IP**
+- **DCC-EX Serial / USB COM port**
+- **Roco Z21 UDP**
+- **YaMoRC YD7010**
+
+> **Source-code status**
+>
+> Roco Z21 and YaMoRC YD7010 support are currently available in the source code / development build only.
+> They are **not yet included in the current published release package**.
 
 Typical architecture:
 
@@ -272,11 +280,20 @@ DCC-EX host:      dccex.local
 DCC-EX TCP port:  2560
 ```
 
-## DCC-EX support
+## Command station support
 
-DCCExpressHub is developed primarily for **DCC-EX**, including **EX-CSB1**.
+DCCExpressHub is developed primarily against **DCC-EX**, including **EX-CSB1**, but the Windows backend also contains native support for **Roco Z21** and **YaMoRC YD7010**.
 
-DCC-EX is the current reference and officially supported command-station backend.
+| Command station | Windows backend | Published release |
+| --- | --- | --- |
+| DCC-EX TCP | Supported | Yes |
+| DCC-EX Serial / USB | Supported | Yes |
+| Roco Z21 | Supported in source | Not yet |
+| YaMoRC YD7010 | Supported in source | Not yet |
+
+### DCC-EX
+
+DCC-EX remains the current reference backend.
 
 Sensor feedback is received through normal DCC-EX sensor events such as:
 
@@ -285,13 +302,113 @@ Sensor feedback is received through normal DCC-EX sensor events such as:
 <q ...>
 ```
 
-This allows block occupancy and route sensors to be handled through one common DCC-EX runtime path.
+This allows block occupancy and route sensors to use the same backend runtime that drives tracking, Movement and Dispatcher safety.
 
-**Z21 support remains future work and is not currently an officially supported runtime target.**
+### Roco Z21
+
+The Windows backend contains native Z21 LAN support.
+
+Current implementation includes:
+
+- Z21 UDP connection,
+- track power control,
+- emergency stop and release,
+- locomotive speed and direction,
+- locomotive functions,
+- turnout / basic accessory control,
+- Z21 feedback handling.
+
+The default Z21 LAN port is:
+
+```text
+21105 / UDP
+```
+
+Roco Z21 support is currently **source-code / development-build only** and is not yet included in the published release package.
+
+### YaMoRC YD7010
+
+The Windows backend has a dedicated **YaMoRC YD7010** profile.
+
+Control and feedback use two parallel network connections:
+
+```text
+DCCExpressHub.Net
+      |
+      +---- Z21 UDP 21105 --------> locomotive / turnout / power control
+      |
+      +---- LocoNet LBServer 1234 -> S88 / occupancy feedback
+      |
+   YaMoRC YD7010
+```
+
+YaMoRC YD7010 support is currently **source-code / development-build only** and is not yet included in the published release package.
+
+#### Required YaMoRC YD7010 settings
+
+In the YaMoRC configuration utility configure the following:
+
+1. Under the network / LAN protocol settings:
+
+   ```text
+   Z21                 ON
+   Z21 port            21105
+
+   LocoNet LBServer    ON
+   LBServer port       1234
+   ```
+
+   DCCExpressHub does not require the separate **LocoNet Binary** connection for the YD7010 profile.
+
+2. Under:
+
+   ```text
+   LocoNet -> Expert
+   ```
+
+   enable:
+
+   ```text
+   Interrogate: Report All Feedbacks
+   ```
+
+   DCCExpressHub uses the same LocoNet interrogation mechanism used by JMRI to request the current feedback state after connecting.
+
+3. Under:
+
+   ```text
+   ES-Link / s88N-IN
+   ```
+
+   configure **1ter Kontakt im Rückmeldebereich** so that the generated YaMoRC feedback addresses match the sensor addresses used by the Hub.
+
+   Important: the YaMoRC value is **one below** the first Hub sensor address.
+
+   Example:
+
+   ```text
+   First Hub sensor address:                   1001
+   YaMoRC "1ter Kontakt im Rückmeldebereich": 1000
+   ```
+
+   The resulting S88 addresses are then:
+
+   ```text
+   S88 input 1  -> Hub sensor 1001
+   S88 input 6  -> Hub sensor 1006
+   S88 input 7  -> Hub sensor 1007
+   S88 input 20 -> Hub sensor 1020
+   ```
+
+4. Save YaMoRC configuration changes with the **green check mark**.
+
+The Desktop launcher provides a **YaMoRC YD7010** connection profile. Its connection test checks both the Z21 control connection and the LBServer feedback connection required for automation.
 
 ## S88 / s88-N feedback
 
-S88 feedback can be integrated through the companion **DCCExpress-S88Adapter** project:
+With **YaMoRC YD7010**, S88 feedback is received directly through the YD7010 LocoNet LBServer connection described above.
+
+With **DCC-EX**, S88 feedback can be integrated through the companion **DCCExpress-S88Adapter** project:
 
 https://github.com/DCCExpress/DCCExpress-S88Adapter
 
