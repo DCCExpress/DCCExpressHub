@@ -423,6 +423,7 @@ void WsProtocol::begin()
         millis();
 
     _scripts.begin();
+    _flows.begin();
 
     _lastCommandCenterConnected =
         _commandCenter.connected();
@@ -443,6 +444,14 @@ void WsProtocol::loop()
     updateCpuUsage();
 
     _scripts.loop();
+    _flows.loop();
+
+    if (
+        _flows.takeChanged() &&
+        _wsClientCount > 0)
+    {
+        broadcastFlowSnapshot();
+    }
 
     if (
         _scripts.takeChanged() &&
@@ -679,6 +688,33 @@ void WsProtocol::broadcastAutomationScriptSnapshot()
         "automationScriptSnapshot",
         data);
 }
+
+void WsProtocol::sendFlowSnapshot(
+    AsyncWebSocketClient* client)
+{
+    JsonDocument data;
+
+    _flows.appendSnapshot(
+        data.to<JsonObject>());
+
+    send(
+        client,
+        "flowStateChanged",
+        data.as<JsonVariantConst>());
+}
+
+void WsProtocol::broadcastFlowSnapshot()
+{
+    JsonDocument data;
+
+    _flows.appendSnapshot(
+        data.to<JsonObject>());
+
+    broadcast(
+        "flowStateChanged",
+        data);
+}
+
 
 void WsProtocol::sendBlockStateSnapshot(
     AsyncWebSocketClient *client)
@@ -3782,6 +3818,9 @@ void WsProtocol::handleEvent(
         sendAutomationScriptSnapshot(
             client);
 
+        sendFlowSnapshot(
+            client);
+
         return;
     }
 
@@ -4011,6 +4050,99 @@ void WsProtocol::handleMessage(
         handleSwitchManCommand(
             client,
             data);
+
+        return;
+    }
+
+    if (
+        strcmp(
+            type,
+            "flowCommand") ==
+        0)
+    {
+        const String requestId =
+            data["requestId"] |
+            "";
+
+        const String action =
+            data["action"] |
+            "";
+
+        bool ok =
+            true;
+        String error;
+
+        JsonDocument response;
+
+        response["requestId"] =
+            requestId;
+        response["action"] =
+            action;
+
+        if (
+            action ==
+            "snapshot")
+        {
+        }
+        else if (
+            action ==
+            "runPage")
+        {
+            ok =
+                _flows.runPage(
+                    data["pageId"] |
+                        "",
+                    data["inputNodeId"] |
+                        "",
+                    data["payload"],
+                    error);
+        }
+        else if (
+            action ==
+            "abortPage")
+        {
+            response["count"] =
+                _flows.abortPage(
+                    data["pageId"] |
+                        "");
+        }
+        else if (
+            action ==
+            "abortAll")
+        {
+            response["count"] =
+                _flows.abortAll();
+        }
+        else
+        {
+            ok =
+                false;
+            error =
+                "unknown_flow_action";
+        }
+
+        response["ok"] =
+            ok;
+
+        if (!error.isEmpty())
+        {
+            response["message"] =
+                error;
+        }
+
+        _flows.appendSnapshot(
+            response["state"]
+                .to<JsonObject>());
+
+        send(
+            client,
+            "flowResponse",
+            response.as<JsonVariantConst>());
+
+        if (ok)
+        {
+            broadcastFlowSnapshot();
+        }
 
         return;
     }
