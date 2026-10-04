@@ -4037,6 +4037,17 @@ void WsProtocol::handleMessage(
         bool includeSnapshot =
             false;
 
+        JsonDocument response;
+
+        response["requestId"] =
+            requestId;
+        response["action"] =
+            action;
+
+        JsonObject extra =
+            response["extra"]
+                .to<JsonObject>();
+
         if (
             action ==
             "snapshot")
@@ -4058,7 +4069,7 @@ void WsProtocol::handleMessage(
                         "",
                     error);
 
-            includeState =
+            includeSnapshot =
                 ok;
         }
         else if (
@@ -4077,7 +4088,7 @@ void WsProtocol::handleMessage(
                         "",
                     error);
 
-            includeState =
+            includeSnapshot =
                 ok;
         }
         else if (
@@ -4121,6 +4132,76 @@ void WsProtocol::handleMessage(
         }
         else if (
             action ==
+            "startAll")
+        {
+            extra["count"] =
+                _scripts.startAllSaved();
+
+            includeSnapshot =
+                true;
+        }
+        else if (
+            action ==
+            "pauseAll")
+        {
+            extra["count"] =
+                _scripts.pauseAll();
+
+            includeSnapshot =
+                true;
+        }
+        else if (
+            action ==
+            "resumeAll")
+        {
+            extra["count"] =
+                _scripts.resumeAll();
+
+            includeSnapshot =
+                true;
+        }
+        else if (
+            action ==
+            "abortAll")
+        {
+            extra["count"] =
+                _scripts.abortAll();
+
+            includeSnapshot =
+                true;
+        }
+        else if (
+            action ==
+            "pauseAllSaved")
+        {
+            extra["count"] =
+                _scripts.pauseAllSaved();
+
+            includeSnapshot =
+                true;
+        }
+        else if (
+            action ==
+            "resumeAllSaved")
+        {
+            extra["count"] =
+                _scripts.resumeAllSaved();
+
+            includeSnapshot =
+                true;
+        }
+        else if (
+            action ==
+            "abortAllSaved")
+        {
+            extra["count"] =
+                _scripts.abortAllSaved();
+
+            includeSnapshot =
+                true;
+        }
+        else if (
+            action ==
             "setFinishing")
         {
             _scripts.setFinishing(
@@ -4138,12 +4219,6 @@ void WsProtocol::handleMessage(
                 "script_action_not_supported_on_esp32";
         }
 
-        JsonDocument response;
-
-        response["requestId"] =
-            requestId;
-        response["action"] =
-            action;
         response["ok"] =
             ok;
 
@@ -4153,13 +4228,11 @@ void WsProtocol::handleMessage(
                 error;
         }
 
-        JsonObject extra =
-            response["extra"]
-                .to<JsonObject>();
-
         if (includeState)
         {
             _scripts.appendState(
+                data["executionId"] |
+                    "",
                 extra["state"]
                     .to<JsonObject>());
         }
