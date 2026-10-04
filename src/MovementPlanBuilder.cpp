@@ -376,41 +376,17 @@ bool MovementPlanBuilder::build(
     return false;
   }
 
-  // The saved Movement routeKey is the canonical identity created by the UI
-  // and already contains the selected route direction. Prefer that value first
-  // so runtime execution cannot drift from the exact route the user selected.
+  // routeKey is the exact route identity selected by the UI. It already
+  // contains the route direction. Do not deserialize that JSON string again:
+  // on ESP32 this is unnecessary allocation and was the source of misleading
+  // "unknown" results. Read the canonical marker directly from the saved text.
   plan.direction = "unknown";
 
-  String savedKeyDirection = "unknown";
-
   if (!requestedRouteKey.isEmpty()) {
-    JsonDocument routeIdentity;
-    const DeserializationError routeKeyError =
-        deserializeJson(
-            routeIdentity,
-            requestedRouteKey);
-
-    if (!routeKeyError) {
-      const String routeKeyDirection =
-          routeIdentity["direction"] | "unknown";
-
-      if (routeKeyDirection == "forward" ||
-          routeKeyDirection == "reverse")
-        savedKeyDirection = routeKeyDirection;
-    }
-
-    // createMovementRouteKey() uses JSON.stringify(), so this exact fallback
-    // is deterministic and avoids depending on nested JSON string conversion.
-    if (savedKeyDirection == "unknown") {
-      if (requestedRouteKey.indexOf("\"direction\":\"reverse\"") >= 0)
-        savedKeyDirection = "reverse";
-      else if (requestedRouteKey.indexOf("\"direction\":\"forward\"") >= 0)
-        savedKeyDirection = "forward";
-    }
-
-    if (savedKeyDirection == "forward" ||
-        savedKeyDirection == "reverse")
-      plan.direction = savedKeyDirection;
+    if (requestedRouteKey.indexOf("\"direction\":\"reverse\"") >= 0)
+      plan.direction = "reverse";
+    else if (requestedRouteKey.indexOf("\"direction\":\"forward\"") >= 0)
+      plan.direction = "forward";
   }
 
   if (plan.direction != "forward" &&
@@ -461,7 +437,7 @@ bool MovementPlanBuilder::build(
         str(selected, "locoDirection", "unknown");
     const String diagnostic =
         "movement_direction_unknown" +
-        String(" savedKeyDirection=") + savedKeyDirection +
+        String(" routeKeyDirection=") + plan.direction +
         " topologyDirection=" + topologyDirection +
         " edgeDirection=" + derivedDirection +
         " edgeConflict=" + (directionConflict ? "true" : "false") +
