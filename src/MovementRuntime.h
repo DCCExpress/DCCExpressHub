@@ -9,6 +9,23 @@
 #include "LayoutRuntime.h"
 #include "MovementPlanBuilder.h"
 
+struct MovementAction {
+  String resourceKey;
+  String when;
+  String sequenceId;
+  String sequenceMode = "blocking";
+  String kind = "log";
+  int speed = 20;
+  int functionNumber = 2;
+  bool functionActive = true;
+  int pulseMs = 700;
+  int delayMs = 500;
+  int accessoryAddress = 1;
+  bool accessoryActive = true;
+  int accessoryAspect = 0;
+  String message;
+};
+
 struct MovementRuntimeState {
   String pageId;
   String movementName;
@@ -77,6 +94,14 @@ private:
     bool approachFired = false;
     bool arrivedCommitted = false;
     bool leaveSeenOccupied = false;
+    std::vector<MovementAction> actions;
+    std::vector<size_t> blockingActionIndexes;
+    size_t blockingActionPosition = 0;
+    bool blockingActionsActive = false;
+    String blockingEventKey;
+    unsigned long actionWaitUntilMs = 0;
+    bool hornActive = false;
+    uint8_t hornFunction = 0;
   };
 
   LayoutRuntime& _layout;
@@ -85,6 +110,10 @@ private:
   MovementPlanBuilder _planBuilder;
   std::vector<Execution> _executions;
   bool _changed = true;
+
+  static void loadActions(
+      JsonObjectConst page,
+      std::vector<MovementAction>& actions);
 
   bool loadPage(
       const String& pageId,
@@ -120,6 +149,17 @@ private:
 
   bool targetBasicallyFree(
       const MovementPlanLeg& leg) const;
+
+  bool runBlockingActions(
+      Execution& execution,
+      const String& resourceKey,
+      const String& when,
+      String& error);
+
+  bool executeAction(
+      Execution& execution,
+      const MovementAction& action,
+      String& error);
 
   void processExecution(
       Execution& execution);
