@@ -330,38 +330,83 @@ bool MovementPlanBuilder::build(
 
   JsonObjectConst selected;
   size_t candidates = 0;
-  const String requestedRouteKey = str(page, "routeKey");
 
-  for (JsonObjectConst route :
-       topology["routeTable"].as<JsonArrayConst>()) {
-    if (!requestedRouteKey.isEmpty()) {
-      if (canonicalRouteKey(route) == requestedRouteKey) {
+  // routeKey is itself a JSON string stored inside automations.json. Read the
+  // string variant directly; do not route it through the generic str() helper.
+  const String requestedRouteKey =
+      page["routeKey"].is<const char*>()
+          ? page["routeKey"].as<String>()
+          : String();
+
+  auto normalizedPhysicalRouteKey =
+      [](String key) -> String {
+        // Direction metadata may be stale in persisted layout topology while
+        // the physical route identity (blocks/nodes/turnouts) is still exact.
+        // Normalize ONLY direction fields; every physical field must still
+        // match bit-for-bit.
+        key.replace(
+            "\"direction\":\"forward\"",
+            "\"direction\":\"unknown\"");
+        key.replace(
+            "\"direction\":\"reverse\"",
+            "\"direction\":\"unknown\"");
+        return key;
+      };
+
+  if (!requestedRouteKey.isEmpty()) {
+    // First require the full canonical identity.
+    for (JsonObjectConst route :
+         topology["routeTable"].as<JsonArrayConst>()) {
+      if (canonicalRouteKey(route) ==
+          requestedRouteKey) {
         selected = route;
         candidates = 1;
         break;
       }
-      continue;
     }
 
-    if ((route["fromBlockId"] | 0) != requestedFrom ||
-        (route["toBlockId"] | 0) != requestedTo)
-      continue;
+    // If only direction metadata differs, accept the exact same physical
+    // route. This does NOT fall back to an arbitrary from/to route.
+    if (candidates == 0) {
+      const String requestedPhysicalKey =
+          normalizedPhysicalRouteKey(
+              requestedRouteKey);
 
-    size_t checkpointIndex = 0;
+      for (JsonObjectConst route :
+           topology["routeTable"].as<JsonArrayConst>()) {
+        if (normalizedPhysicalRouteKey(
+                canonicalRouteKey(route)) !=
+            requestedPhysicalKey)
+          continue;
 
-    for (JsonObjectConst block :
-         route["blockPath"].as<JsonArrayConst>()) {
-      if (checkpointIndex >= checkpoints.size()) break;
-      if ((block["id"] | 0) ==
-          checkpoints[checkpointIndex])
-        ++checkpointIndex;
+        selected = route;
+        ++candidates;
+      }
     }
+  } else {
+    // Legacy Movement without routeKey: retain the old checkpoint lookup.
+    for (JsonObjectConst route :
+         topology["routeTable"].as<JsonArrayConst>()) {
+      if ((route["fromBlockId"] | 0) != requestedFrom ||
+          (route["toBlockId"] | 0) != requestedTo)
+        continue;
 
-    if (checkpointIndex != checkpoints.size())
-      continue;
+      size_t checkpointIndex = 0;
 
-    selected = route;
-    ++candidates;
+      for (JsonObjectConst block :
+           route["blockPath"].as<JsonArrayConst>()) {
+        if (checkpointIndex >= checkpoints.size()) break;
+        if ((block["id"] | 0) ==
+            checkpoints[checkpointIndex])
+          ++checkpointIndex;
+      }
+
+      if (checkpointIndex != checkpoints.size())
+        continue;
+
+      selected = route;
+      ++candidates;
+    }
   }
 
   if (candidates == 0) {
@@ -383,9 +428,14 @@ bool MovementPlanBuilder::build(
   plan.direction = "unknown";
 
   if (!requestedRouteKey.isEmpty()) {
-    if (requestedRouteKey.indexOf("\"direction\":\"reverse\"") >= 0)
+    // In the canonical key the route-level direction is the final property.
+    // Use endsWith() so an edge direction cannot be mistaken for the route
+    // direction.
+    if (requestedRouteKey.endsWith(
+            "\"direction\":\"reverse\"}"))
       plan.direction = "reverse";
-    else if (requestedRouteKey.indexOf("\"direction\":\"forward\"") >= 0)
+    else if (requestedRouteKey.endsWith(
+                 "\"direction\":\"forward\"}"))
       plan.direction = "forward";
   }
 
