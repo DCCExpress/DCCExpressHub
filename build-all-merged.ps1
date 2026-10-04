@@ -10,10 +10,6 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $targets = @(
-    "m5stack-basic-dccex",
-    "m5stack-basic-z21",
-    "esp32dev-dccex",
-    "esp32dev-z21",
     "sunton-8048s043-dccex"
 )
 
