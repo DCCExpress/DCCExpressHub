@@ -17,6 +17,11 @@ struct MovementPlanResource {
   std::vector<DispatcherTurnoutRequirement> turnouts;
 };
 
+struct MovementSensorCondition {
+  uint16_t sensor = 0;
+  bool state = true;
+};
+
 struct MovementPlanLeg {
   size_t index = 0;
   MovementPlanResource from;
@@ -24,6 +29,11 @@ struct MovementPlanLeg {
   std::vector<MovementPlanResource> resources;
   std::vector<DispatcherTurnoutRequirement> turnouts;
   std::vector<uint16_t> safetySensors;
+  std::vector<MovementSensorCondition> approachWhen;
+  std::vector<MovementSensorCondition> departWhen;
+  std::vector<MovementSensorCondition> leaveWhen;
+  bool leaveWhenExplicit = false;
+  std::vector<MovementSensorCondition> arrivedWhen;
 };
 
 struct MovementPlan {
@@ -72,6 +82,12 @@ private:
       uint16_t fromBlockId,
       uint16_t toBlockId,
       uint16_t sensor);
+
+  static std::vector<MovementSensorCondition> blockEventConditions(
+      JsonObjectConst root,
+      uint16_t blockId,
+      const String& direction,
+      const char* eventName);
 
   bool loadLayout(JsonDocument& document, String& error) const;
 };
