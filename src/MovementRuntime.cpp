@@ -1191,7 +1191,7 @@ void MovementRuntime::processExecution(
       return;
     }
 
-    if (!_layout.setBlock(
+    if (!_layout.setBlockTransition(
             leg.to.blockId,
             String(execution.state.locoAddress),
             execution.state.locoAddress)) {
