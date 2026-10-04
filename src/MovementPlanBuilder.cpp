@@ -434,6 +434,10 @@ bool MovementPlanBuilder::build(
     // First require the full canonical identity.
     for (JsonObjectConst route :
          topology["routeTable"].as<JsonArrayConst>()) {
+      if ((route["fromBlockId"] | 0) != requestedFrom ||
+          (route["toBlockId"] | 0) != requestedTo)
+        continue;
+
       if (canonicalRouteKey(route) ==
           requestedRouteKey) {
         selected = route;
@@ -451,6 +455,10 @@ bool MovementPlanBuilder::build(
 
       for (JsonObjectConst route :
            topology["routeTable"].as<JsonArrayConst>()) {
+        if ((route["fromBlockId"] | 0) != requestedFrom ||
+            (route["toBlockId"] | 0) != requestedTo)
+          continue;
+
         if (normalizedPhysicalRouteKey(
                 canonicalRouteKey(route)) !=
             requestedPhysicalKey)
