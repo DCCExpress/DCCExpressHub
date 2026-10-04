@@ -57,6 +57,7 @@ const cursorBushElement = new BushElement(0, 0);
 const cursorLampElement = new LampElement(0, 0);
 const cursorStationBuildingElement = new StationBuildingElement(0, 0);
 const cursorSwitchmanHutElement = new SwitchmanHutElement(0, 0);
+const cursorGardenHouseElement = new GardenHouseElement(0, 0);
 const cursorBlockElement = new BlockElement(0, 0);
 const cursorLabelElement = new LabelElement(0, 0);
 
