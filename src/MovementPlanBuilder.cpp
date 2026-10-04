@@ -328,9 +328,19 @@ bool MovementPlanBuilder::build(
 
   JsonObjectConst selected;
   size_t candidates = 0;
+  const String requestedRouteKey = str(page, "routeKey");
 
   for (JsonObjectConst route :
        topology["routeTable"].as<JsonArrayConst>()) {
+    if (!requestedRouteKey.isEmpty()) {
+      if (canonicalRouteKey(route) == requestedRouteKey) {
+        selected = route;
+        candidates = 1;
+        break;
+      }
+      continue;
+    }
+
     if ((route["fromBlockId"] | 0) != requestedFrom ||
         (route["toBlockId"] | 0) != requestedTo)
       continue;
