@@ -119,6 +119,9 @@ export class ElementFactory {
       case ELEMENT_TYPES.SWITCHMAN_HUT:
         return SwitchmanHutElement.fromJSON(data);
 
+      case ELEMENT_TYPES.GARDEN_HOUSE:
+        return GardenHouseElement.fromJSON(data);
+
       case ELEMENT_TYPES.LABEL:
         return LabelElement.fromJSON(data);
 
