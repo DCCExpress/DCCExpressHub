@@ -363,7 +363,9 @@ bool MovementPlanBuilder::build(
   }
 
   if (candidates == 0) {
-    error = "movement_route_not_found";
+    error = requestedRouteKey.isEmpty()
+        ? "movement_route_not_found"
+        : "movement_selected_route_not_found";
     return false;
   }
 
