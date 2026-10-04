@@ -84,7 +84,7 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
         _locoNetFeedbackEnabled =
             configuration.GetValue(
                 "Z21:LocoNetFeedback",
-                true);
+                false);
 
         _locoNetPort =
             configuration.GetValue(
@@ -1249,13 +1249,19 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                         NewLine = "\r\n"
                     };
 
+                // JMRI keeps its receive handler alive while the 8-phase
+                // interrogation is sent. Do the same so YaMoRC replies are
+                // consumed immediately on the very same LBServer session.
+                var readTask =
+                    ReadLbServerAsync(
+                        reader,
+                        ct);
+
                 await SendLocoNetInterrogateAsync(
                     writer,
                     ct);
 
-                await ReadLbServerAsync(
-                    reader,
-                    ct);
+                await readTask;
             }
             catch (OperationCanceledException)
                 when (ct.IsCancellationRequested)
