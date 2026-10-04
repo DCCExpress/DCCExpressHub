@@ -402,9 +402,9 @@ bool MovementPlanBuilder::build(
     // createMovementRouteKey() uses JSON.stringify(), so this exact fallback
     // is deterministic and avoids depending on nested JSON string conversion.
     if (savedKeyDirection == "unknown") {
-      if (requestedRouteKey.indexOf("\\\"direction\\\":\\\"reverse\\\"") >= 0)
+      if (requestedRouteKey.indexOf("\"direction\":\"reverse\"") >= 0)
         savedKeyDirection = "reverse";
-      else if (requestedRouteKey.indexOf("\\\"direction\\\":\\\"forward\\\"") >= 0)
+      else if (requestedRouteKey.indexOf("\"direction\":\"forward\"") >= 0)
         savedKeyDirection = "forward";
     }
 
