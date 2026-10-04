@@ -234,8 +234,85 @@ bool MovementPlanBuilder::loadLayout(
     return false;
   }
 
+  // layout.json contains the complete editor document and the generated
+  // route topology. Materializing the whole file on an ESP32 can temporarily
+  // exhaust internal heap. Keep only fields used by Movement planning.
+  JsonDocument filter;
+
+  JsonObject layoutElement =
+      filter["layers"][0]["elements"][0]
+          .to<JsonObject>();
+  layoutElement["type"] = true;
+  layoutElement["id"] = true;
+  layoutElement["sensorAddress"] = true;
+  // Block event conditions/delays are direction-dependent and user-defined,
+  // therefore retain this small subtree intact.
+  layoutElement["eventConfig"] = true;
+
+  JsonObject topology =
+      filter["routeTopology"]
+          .to<JsonObject>();
+  topology["version"] = true;
+
+  JsonObject graph =
+      topology["graph"]
+          .to<JsonObject>();
+  graph["ready"] = true;
+
+  JsonObject graphNode =
+      graph["nodes"][0]
+          .to<JsonObject>();
+  graphNode["name"] = true;
+  graphNode["detectors"] = true;
+  graphNode["elementIds"] = true;
+
+  JsonObject route =
+      topology["routeTable"][0]
+          .to<JsonObject>();
+  route["fromBlockId"] = true;
+  route["toBlockId"] = true;
+  route["locoDirection"] = true;
+  route["nodes"] = true;
+
+  JsonObject block =
+      route["blockPath"][0]
+          .to<JsonObject>();
+  block["id"] = true;
+  block["name"] = true;
+  block["nodeIndex"] = true;
+
+  JsonObject edge =
+      route["edgePath"][0]
+          .to<JsonObject>();
+  edge["from"] = true;
+  edge["to"] = true;
+  edge["locoDirection"] = true;
+  edge["fromNodeIndex"] = true;
+  edge["toNodeIndex"] = true;
+
+  JsonObject turnout =
+      edge["turnoutStates"][0]
+          .to<JsonObject>();
+  turnout["address"] = true;
+  turnout["closed"] = true;
+
+  JsonObject passage =
+      edge["turnoutPath"][0]
+          .to<JsonObject>();
+  passage["elementId"] = true;
+
+  JsonObject passageTurnout =
+      passage["turnoutStates"][0]
+          .to<JsonObject>();
+  passageTurnout["address"] = true;
+  passageTurnout["closed"] = true;
+
   const auto jsonError =
-      deserializeJson(document, file);
+      deserializeJson(
+          document,
+          file,
+          DeserializationOption::Filter(
+              filter));
   file.close();
 
   if (jsonError) {
