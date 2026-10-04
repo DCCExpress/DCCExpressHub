@@ -5,24 +5,16 @@
 AutomationScriptRuntime::AutomationScriptRuntime(
     ICommandCenter& commandCenter,
     LayoutRuntime& runtime)
-    : _sandbox(
-          commandCenter,
-          runtime) {}
+    : _commandCenter(commandCenter),
+      _runtime(runtime) {}
 
 bool AutomationScriptRuntime::begin() {
-  const bool ok =
-      _sandbox.begin();
-
-  _lastState =
-      _sandbox.snapshot().state;
-
   _changed = true;
 
   Logger::info(
-      String("AutomationScriptRuntime: ") +
-      (ok ? "ready" : "sandbox unavailable"));
+      "AutomationScriptRuntime: ready");
 
-  return ok;
+  return true;
 }
 
 const char* AutomationScriptRuntime::normalizeState(
@@ -44,23 +36,91 @@ const char* AutomationScriptRuntime::normalizeState(
   }
 }
 
-void AutomationScriptRuntime::loop() {
-  const JsSandboxSnapshot snapshot =
-      _sandbox.snapshot();
-
-  if (
-      snapshot.state != _lastState ||
-      snapshot.lastError != _lastError ||
-      snapshot.log != _lastLog
+bool AutomationScriptRuntime::isActive(
+    const Execution& execution) const {
+  switch (
+      execution.lastState
   ) {
-    _lastState =
-        snapshot.state;
-    _lastError =
-        snapshot.lastError;
-    _lastLog =
-        snapshot.log;
-    _changed =
-        true;
+    case JsSandboxState::Running:
+    case JsSandboxState::Paused:
+    case JsSandboxState::Stopping:
+    case JsSandboxState::Aborting:
+      return true;
+
+    default:
+      return false;
+  }
+}
+
+AutomationScriptRuntime::Execution*
+AutomationScriptRuntime::findExecution(
+    const String& executionId) {
+  for (
+      auto& execution :
+      _executions
+  ) {
+    if (
+        execution &&
+        execution->executionId ==
+            executionId
+    ) {
+      return
+          execution.get();
+    }
+  }
+
+  return nullptr;
+}
+
+const AutomationScriptRuntime::Execution*
+AutomationScriptRuntime::findExecution(
+    const String& executionId) const {
+  for (
+      const auto& execution :
+      _executions
+  ) {
+    if (
+        execution &&
+        execution->executionId ==
+            executionId
+    ) {
+      return
+          execution.get();
+    }
+  }
+
+  return nullptr;
+}
+
+void AutomationScriptRuntime::loop() {
+  for (
+      auto& execution :
+      _executions
+  ) {
+    if (!execution) {
+      continue;
+    }
+
+    const JsSandboxSnapshot snapshot =
+        execution->sandbox.snapshot();
+
+    if (
+        snapshot.state !=
+            execution->lastState ||
+        snapshot.lastError !=
+            execution->lastError ||
+        snapshot.log !=
+            execution->lastLog
+    ) {
+      execution->lastState =
+          snapshot.state;
+      execution->lastError =
+          snapshot.lastError;
+      execution->lastLog =
+          snapshot.log;
+      _changed =
+          true;
+    }
   }
 }
 
@@ -79,8 +139,82 @@ String AutomationScriptRuntime::nextExecutionId(
       String(_sequence);
 }
 
-bool AutomationScriptRuntime::startSource(
+bool AutomationScriptRuntime::ensureCapacity(
     const String& executionId,
+    String& error) {
+  Execution* existing =
+      findExecution(
+          executionId);
+
+  if (existing) {
+    const JsSandboxSnapshot snapshot =
+        existing->sandbox.snapshot();
+
+    existing->lastState =
+        snapshot.state;
+
+    if (isActive(
+            *existing)) {
+      error =
+          "script_already_running";
+      return false;
+    }
+
+    for (
+        auto iterator =
+            _executions.begin();
+        iterator !=
+            _executions.end();
+        ++iterator
+    ) {
+      if (
+          iterator->get() ==
+          existing
+      ) {
+        _executions.erase(
+            iterator);
+        break;
+      }
+    }
+  }
+
+  size_t activeCount =
+      0;
+
+  for (
+      auto& execution :
+      _executions
+  ) {
+    if (!execution) {
+      continue;
+    }
+
+    const JsSandboxSnapshot snapshot =
+        execution->sandbox.snapshot();
+
+    execution->lastState =
+        snapshot.state;
+
+    if (isActive(
+            *execution)) {
+      ++activeCount;
+    }
+  }
+
+  if (
+      activeCount >=
+      MAX_CONCURRENT_EXECUTIONS
+  ) {
+    error =
+        "script_runtime_capacity";
+    return false;
+  }
+
+  return true;
+}
+
+bool AutomationScriptRuntime::startSource(
+    const String& requestedExecutionId,
     const String& name,
     const String& executionType,
     const String& source,
@@ -91,46 +225,64 @@ bool AutomationScriptRuntime::startSource(
     return false;
   }
 
-  const JsSandboxSnapshot current =
-      _sandbox.snapshot();
+  const String executionId =
+      requestedExecutionId.isEmpty()
+          ? nextExecutionId("")
+          : requestedExecutionId;
 
-  if (
-      current.state == JsSandboxState::Running ||
-      current.state == JsSandboxState::Paused ||
-      current.state == JsSandboxState::Stopping ||
-      current.state == JsSandboxState::Aborting
-  ) {
-    error =
-        "script_runtime_busy";
+  if (!ensureCapacity(
+          executionId,
+          error)) {
     return false;
   }
 
-  _executionId =
-      executionId.isEmpty()
-          ? nextExecutionId("")
-          : executionId;
+  std::unique_ptr<Execution> execution(
+      new Execution(
+          _commandCenter,
+          _runtime));
 
-  _scriptId = "";
-  _name =
+  if (!execution) {
+    error =
+        "script_runtime_allocation_failed";
+    return false;
+  }
+
+  if (!execution->sandbox.begin()) {
+    error =
+        "script_sandbox_unavailable";
+    return false;
+  }
+
+  execution->executionId =
+      executionId;
+  execution->name =
       name.isEmpty()
           ? "Script"
           : name;
-  _executionType =
+  execution->executionType =
       executionType.isEmpty()
           ? "script"
           : executionType;
 
-  if (!_sandbox.start(
+  if (!execution->sandbox.start(
           source,
           error)) {
-    _executionId = "";
-    _name = "";
-    _executionType =
-        "script";
-    _changed =
-        true;
     return false;
   }
+
+  const JsSandboxSnapshot snapshot =
+      execution->sandbox.snapshot();
+
+  execution->lastState =
+      snapshot.state;
+  execution->lastError =
+      snapshot.lastError;
+  execution->lastLog =
+      snapshot.log;
+
+  _executions.push_back(
+      std::move(
+          execution));
 
   _changed =
       true;
@@ -138,20 +290,18 @@ bool AutomationScriptRuntime::startSource(
   return true;
 }
 
-bool AutomationScriptRuntime::loadSavedScript(
-    const String& scriptId,
-    String& name,
-    String& source,
+bool AutomationScriptRuntime::loadSavedScripts(
+    std::vector<SavedScript>& scripts,
     String& error) {
+  scripts.clear();
+
   File file =
       LittleFS.open(
           AUTOMATIONS_PATH,
           "r");
 
   if (!file) {
-    error =
-        "automation_storage_not_found";
-    return false;
+    return true;
   }
 
   JsonDocument document;
@@ -169,37 +319,69 @@ bool AutomationScriptRuntime::loadSavedScript(
     return false;
   }
 
-  JsonArrayConst scripts =
+  JsonArrayConst sourceScripts =
       document["scripts"]
           .as<JsonArrayConst>();
 
   for (
-      JsonObjectConst script :
-      scripts
+      JsonObjectConst source :
+      sourceScripts
   ) {
-    const String id =
-        script["id"] |
-        "";
+    SavedScript script;
 
-    if (id != scriptId) {
+    script.id =
+        source["id"] |
+        "";
+    script.name =
+        source["name"] |
+        "Script";
+    script.source =
+        source["script"] |
+        "";
+    script.startWithAll =
+        source["includeWithStartAll"] |
+        false;
+
+    if (
+        script.id.isEmpty() ||
+        script.source.isEmpty()
+    ) {
       continue;
     }
 
-    name =
-        script["name"] |
-        "Script";
+    scripts.push_back(
+        std::move(
+            script));
+  }
 
-    source =
-        script["script"] |
-        "";
+  return true;
+}
 
-    if (source.isEmpty()) {
-      error =
-          "script_source_empty";
-      return false;
+bool AutomationScriptRuntime::loadSavedScript(
+    const String& scriptId,
+    SavedScript& script,
+    String& error) {
+  std::vector<SavedScript> scripts;
+
+  if (!loadSavedScripts(
+          scripts,
+          error)) {
+    return false;
+  }
+
+  for (
+      auto& candidate :
+      scripts
+  ) {
+    if (
+        candidate.id ==
+        scriptId
+    ) {
+      script =
+          std::move(
+              candidate);
+      return true;
     }
-
-    return true;
   }
 
   error =
@@ -209,7 +391,7 @@ bool AutomationScriptRuntime::loadSavedScript(
 
 bool AutomationScriptRuntime::startSaved(
     const String& scriptId,
-    const String& executionId,
+    const String& requestedExecutionId,
     const String& executionType,
     String& error) {
   if (scriptId.isEmpty()) {
@@ -218,62 +400,62 @@ bool AutomationScriptRuntime::startSaved(
     return false;
   }
 
-  String name;
-  String source;
+  SavedScript script;
 
   if (!loadSavedScript(
           scriptId,
-          name,
-          source,
+          script,
           error)) {
     return false;
   }
 
-  const String resolvedExecutionId =
-      executionId.isEmpty()
+  const String executionId =
+      requestedExecutionId.isEmpty()
           ? nextExecutionId(
                 scriptId)
-          : executionId;
+          : requestedExecutionId;
 
   if (!startSource(
-          resolvedExecutionId,
-          name,
+          executionId,
+          script.name,
           executionType.isEmpty()
               ? String("saved")
               : executionType,
-          source,
+          script.source,
           error)) {
     return false;
   }
 
-  _scriptId =
-      scriptId;
+  Execution* execution =
+      findExecution(
+          executionId);
+
+  if (execution) {
+    execution->scriptId =
+        scriptId;
+  }
+
   _changed =
       true;
 
   return true;
 }
 
-bool AutomationScriptRuntime::matchesExecution(
-    const String& executionId) const {
-  return
-      executionId.isEmpty() ||
-      executionId ==
-          _executionId;
-}
-
 bool AutomationScriptRuntime::pause(
     const String& executionId,
     String& error) {
-  if (!matchesExecution(
-          executionId)) {
+  Execution* execution =
+      findExecution(
+          executionId);
+
+  if (!execution) {
     error =
         "script_not_running";
     return false;
   }
 
   const bool ok =
-      _sandbox.pause(
+      execution->sandbox.pause(
           error);
 
   if (ok) {
@@ -287,15 +469,18 @@ bool AutomationScriptRuntime::pause(
 bool AutomationScriptRuntime::resume(
     const String& executionId,
     String& error) {
-  if (!matchesExecution(
-          executionId)) {
+  Execution* execution =
+      findExecution(
+          executionId);
+
+  if (!execution) {
     error =
         "script_not_paused";
     return false;
   }
 
   const bool ok =
-      _sandbox.resume(
+      execution->sandbox.resume(
           error);
 
   if (ok) {
@@ -309,15 +494,18 @@ bool AutomationScriptRuntime::resume(
 bool AutomationScriptRuntime::abort(
     const String& executionId,
     String& error) {
-  if (!matchesExecution(
-          executionId)) {
+  Execution* execution =
+      findExecution(
+          executionId);
+
+  if (!execution) {
     error =
         "script_not_running";
     return false;
   }
 
   const bool ok =
-      _sandbox.abort(
+      execution->sandbox.abort(
           error);
 
   if (ok) {
@@ -326,6 +514,251 @@ bool AutomationScriptRuntime::abort(
   }
 
   return ok;
+}
+
+size_t AutomationScriptRuntime::pauseAll() {
+  size_t count =
+      0;
+
+  for (
+      auto& execution :
+      _executions
+  ) {
+    if (!execution) {
+      continue;
+    }
+
+    String error;
+
+    if (execution->sandbox.pause(
+            error)) {
+      ++count;
+    }
+  }
+
+  if (count > 0) {
+    _changed =
+        true;
+  }
+
+  return count;
+}
+
+size_t AutomationScriptRuntime::resumeAll() {
+  size_t count =
+      0;
+
+  for (
+      auto& execution :
+      _executions
+  ) {
+    if (!execution) {
+      continue;
+    }
+
+    String error;
+
+    if (execution->sandbox.resume(
+            error)) {
+      ++count;
+    }
+  }
+
+  if (count > 0) {
+    _changed =
+        true;
+  }
+
+  return count;
+}
+
+size_t AutomationScriptRuntime::abortAll() {
+  size_t count =
+      0;
+
+  for (
+      auto& execution :
+      _executions
+  ) {
+    if (!execution) {
+      continue;
+    }
+
+    String error;
+
+    if (execution->sandbox.abort(
+            error)) {
+      ++count;
+    }
+  }
+
+  if (count > 0) {
+    _changed =
+        true;
+  }
+
+  return count;
+}
+
+size_t AutomationScriptRuntime::startAllSaved() {
+  if (_finishing) {
+    return 0;
+  }
+
+  std::vector<SavedScript> scripts;
+  String error;
+
+  if (!loadSavedScripts(
+          scripts,
+          error)) {
+    Logger::warn(
+        "Start All scripts failed: " +
+        error);
+    return 0;
+  }
+
+  size_t count =
+      0;
+
+  for (
+      const auto& script :
+      scripts
+  ) {
+    if (!script.startWithAll) {
+      continue;
+    }
+
+    const String executionId =
+        "automation:" +
+        script.id;
+
+    String startError;
+
+    if (startSource(
+            executionId,
+            script.name,
+            "automation",
+            script.source,
+            startError)) {
+      Execution* execution =
+          findExecution(
+              executionId);
+
+      if (execution) {
+        execution->scriptId =
+            script.id;
+      }
+
+      ++count;
+    } else if (
+        startError !=
+        "script_already_running"
+    ) {
+      Logger::warn(
+          "Start All skipped " +
+          script.id +
+          ": " +
+          startError);
+    }
+  }
+
+  return count;
+}
+
+size_t AutomationScriptRuntime::pauseAllSaved() {
+  size_t count =
+      0;
+
+  for (
+      auto& execution :
+      _executions
+  ) {
+    if (
+        !execution ||
+        execution->executionType !=
+            "automation"
+    ) {
+      continue;
+    }
+
+    String error;
+
+    if (execution->sandbox.pause(
+            error)) {
+      ++count;
+    }
+  }
+
+  if (count > 0) {
+    _changed =
+        true;
+  }
+
+  return count;
+}
+
+size_t AutomationScriptRuntime::resumeAllSaved() {
+  size_t count =
+      0;
+
+  for (
+      auto& execution :
+      _executions
+  ) {
+    if (
+        !execution ||
+        execution->executionType !=
+            "automation"
+    ) {
+      continue;
+    }
+
+    String error;
+
+    if (execution->sandbox.resume(
+            error)) {
+      ++count;
+    }
+  }
+
+  if (count > 0) {
+    _changed =
+        true;
+  }
+
+  return count;
+}
+
+size_t AutomationScriptRuntime::abortAllSaved() {
+  size_t count =
+      0;
+
+  for (
+      auto& execution :
+      _executions
+  ) {
+    if (
+        !execution ||
+        execution->executionType !=
+            "automation"
+    ) {
+      continue;
+    }
+
+    String error;
+
+    if (execution->sandbox.abort(
+            error)) {
+      ++count;
+    }
+  }
+
+  if (count > 0) {
+    _changed =
+        true;
+  }
+
+  return count;
 }
 
 bool AutomationScriptRuntime::setFinishing(
@@ -344,39 +777,50 @@ bool AutomationScriptRuntime::setFinishing(
 }
 
 void AutomationScriptRuntime::appendState(
+    const String& executionId,
     JsonObject out) {
+  Execution* execution =
+      findExecution(
+          executionId);
+
+  if (!execution) {
+    return;
+  }
+
   const JsSandboxSnapshot snapshot =
-      _sandbox.snapshot();
+      execution->sandbox.snapshot();
+
+  execution->lastState =
+      snapshot.state;
 
   out["executionId"] =
-      _executionId;
-  out["scriptId"] =
-      _scriptId.isEmpty()
-          ? nullptr
-          : _scriptId.c_str();
+      execution->executionId;
+
+  if (execution->scriptId.isEmpty()) {
+    out["scriptId"] =
+        nullptr;
+  } else {
+    out["scriptId"] =
+        execution->scriptId;
+  }
+
   out["name"] =
-      _name;
+      execution->name;
   out["type"] =
-      _executionType;
+      execution->executionType;
   out["status"] =
       normalizeState(
           snapshot.state);
 
-  if (snapshot.startedAtMs > 0) {
-    out["startedAt"] =
-        snapshot.startedAtMs;
-  } else {
-    out["startedAt"] =
-        nullptr;
-  }
+  out["startedAt"] =
+      snapshot.startedAtMs > 0
+          ? snapshot.startedAtMs
+          : 0;
 
-  if (snapshot.finishedAtMs > 0) {
-    out["stoppedAt"] =
-        snapshot.finishedAtMs;
-  } else {
-    out["stoppedAt"] =
-        nullptr;
-  }
+  out["stoppedAt"] =
+      snapshot.finishedAtMs > 0
+          ? snapshot.finishedAtMs
+          : 0;
 
   out["info"] =
       nullptr;
@@ -396,10 +840,17 @@ void AutomationScriptRuntime::appendSnapshot(
       out["states"]
           .to<JsonArray>();
 
-  if (!_executionId.isEmpty()) {
+  for (
+      auto& execution :
+      _executions
+  ) {
+    if (!execution) {
+      continue;
+    }
+
     appendState(
-        states
-            .add<JsonObject>());
+        execution->executionId,
+        states.add<JsonObject>());
   }
 
   out["finishing"] =
