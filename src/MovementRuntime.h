@@ -66,6 +66,10 @@ public:
   bool begin();
   void loop();
 
+  void audioCompleted(
+      const String& requestId,
+      bool ok);
+
   void setAudioRequestCallback(
       AudioRequestCallback callback) {
     _audioRequest = std::move(callback);
@@ -116,6 +120,9 @@ private:
     unsigned long actionWaitUntilMs = 0;
     bool hornActive = false;
     uint8_t hornFunction = 0;
+    String pendingAudioRequestId;
+    bool pendingAudioCompleted = false;
+    bool pendingAudioOk = false;
   };
 
   LayoutRuntime& _layout;
