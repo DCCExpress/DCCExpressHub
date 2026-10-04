@@ -3,6 +3,47 @@
 #include <LittleFS.h>
 #include <algorithm>
 
+void MovementRuntime::loadActions(
+    JsonObjectConst page,
+    std::vector<MovementAction>& actions) {
+  actions.clear();
+
+  for (JsonObjectConst raw :
+       page["actions"].as<JsonArrayConst>()) {
+    MovementAction action;
+    action.resourceKey =
+        raw["resourceKey"] | "";
+    action.when =
+        raw["when"] | "";
+    action.sequenceId =
+        raw["sequenceId"] | "";
+    action.sequenceMode =
+        raw["sequenceMode"] | "blocking";
+    action.kind =
+        raw["kind"] | "log";
+    action.speed =
+        raw["speed"] | 20;
+    action.functionNumber =
+        raw["functionNumber"] | 2;
+    action.functionActive =
+        raw["functionActive"] | true;
+    action.pulseMs =
+        raw["pulseMs"] | 700;
+    action.delayMs =
+        raw["delayMs"] | 500;
+    action.accessoryAddress =
+        raw["accessoryAddress"] | 1;
+    action.accessoryActive =
+        raw["accessoryActive"] | true;
+    action.accessoryAspect =
+        raw["accessoryAspect"] | 0;
+    action.message =
+        raw["message"] | "";
+    actions.push_back(
+        std::move(action));
+  }
+}
+
 bool MovementRuntime::begin() {
   _executions.clear();
   _changed = true;
@@ -275,6 +316,9 @@ bool MovementRuntime::start(
       plan.blocks.front().name;
   execution.plan =
       std::move(plan);
+  loadActions(
+      page,
+      execution.actions);
 
   _executions.push_back(
       std::move(execution));
@@ -389,6 +433,209 @@ bool MovementRuntime::targetBasicallyFree(
 
   return target &&
          !target->hasRuntimeState();
+}
+
+bool MovementRuntime::executeAction(
+    Execution& execution,
+    const MovementAction& action,
+    String& error) {
+  if (action.kind == "speed") {
+    const uint8_t speed =
+        static_cast<uint8_t>(
+            std::max(
+                0,
+                std::min(
+                    126,
+                    action.speed)));
+    execution.state.desiredSpeed = speed;
+    return applySpeed(
+        execution,
+        speed);
+  }
+
+  if (action.kind == "function") {
+    const int fn =
+        std::max(
+            0,
+            std::min(
+                68,
+                action.functionNumber));
+
+    if (!_commandCenter.setLocoFunction(
+            execution.state.locoAddress,
+            static_cast<uint8_t>(fn),
+            action.functionActive)) {
+      error = "movement_function_command_failed";
+      return false;
+    }
+    return true;
+  }
+
+  if (action.kind == "horn") {
+    const int fn =
+        std::max(
+            0,
+            std::min(
+                68,
+                action.functionNumber));
+
+    if (!_commandCenter.setLocoFunction(
+            execution.state.locoAddress,
+            static_cast<uint8_t>(fn),
+            true)) {
+      error = "movement_horn_on_failed";
+      return false;
+    }
+
+    execution.hornActive = true;
+    execution.hornFunction =
+        static_cast<uint8_t>(fn);
+    execution.actionWaitUntilMs =
+        millis() +
+        static_cast<unsigned long>(
+            std::max(
+                1,
+                std::min(
+                    600000,
+                    action.pulseMs)));
+    return true;
+  }
+
+  if (action.kind == "delay") {
+    execution.actionWaitUntilMs =
+        millis() +
+        static_cast<unsigned long>(
+            std::max(
+                0,
+                std::min(
+                    600000,
+                    action.delayMs)));
+    return true;
+  }
+
+  if (action.kind == "setAccessory") {
+    if (action.accessoryAddress < 1 ||
+        action.accessoryAddress > 65535 ||
+        !_commandCenter.setAccessory(
+            static_cast<uint16_t>(
+                action.accessoryAddress),
+            action.accessoryActive)) {
+      error = "movement_accessory_command_failed";
+      return false;
+    }
+    return true;
+  }
+
+  if (action.kind == "setExtendedAccessory") {
+    if (action.accessoryAddress < 1 ||
+        action.accessoryAddress > 65535 ||
+        !_commandCenter.setSignalAspect(
+            static_cast<uint16_t>(
+                action.accessoryAddress),
+            static_cast<int16_t>(
+                action.accessoryAspect))) {
+      error = "movement_extended_accessory_command_failed";
+      return false;
+    }
+    return true;
+  }
+
+  if (action.kind == "log") {
+    execution.state.info =
+        action.message;
+    publishChanged();
+    return true;
+  }
+
+  // Audio/random actions are intentionally left for the WS audio lifecycle
+  // layer; unknown actions are ignored like the Windows switch default.
+  return true;
+}
+
+bool MovementRuntime::runBlockingActions(
+    Execution& execution,
+    const String& resourceKey,
+    const String& when,
+    String& error) {
+  const String eventKey =
+      resourceKey + "|" + when;
+
+  if (!execution.blockingActionsActive) {
+    execution.blockingActionIndexes.clear();
+    execution.blockingActionPosition = 0;
+    execution.blockingEventKey =
+        eventKey;
+
+    for (size_t i = 0;
+         i < execution.actions.size();
+         ++i) {
+      const auto& action =
+          execution.actions[i];
+
+      if (action.resourceKey ==
+              resourceKey &&
+          action.when == when &&
+          action.sequenceMode !=
+              "background")
+        execution.blockingActionIndexes
+            .push_back(i);
+    }
+
+    execution.blockingActionsActive =
+        !execution.blockingActionIndexes.empty();
+
+    if (!execution.blockingActionsActive)
+      return true;
+  } else if (
+      execution.blockingEventKey !=
+      eventKey) {
+    error = "movement_blocking_action_overlap";
+    return false;
+  }
+
+  if (execution.actionWaitUntilMs != 0) {
+    if (static_cast<long>(
+            millis() -
+            execution.actionWaitUntilMs) < 0)
+      return false;
+
+    execution.actionWaitUntilMs = 0;
+
+    if (execution.hornActive) {
+      _commandCenter.setLocoFunction(
+          execution.state.locoAddress,
+          execution.hornFunction,
+          false);
+      execution.hornActive = false;
+    }
+
+    ++execution.blockingActionPosition;
+  }
+
+  while (execution.blockingActionPosition <
+         execution.blockingActionIndexes.size()) {
+    const auto& action =
+        execution.actions[
+            execution.blockingActionIndexes[
+                execution.blockingActionPosition]];
+
+    if (!executeAction(
+            execution,
+            action,
+            error))
+      return false;
+
+    if (execution.actionWaitUntilMs != 0)
+      return false;
+
+    ++execution.blockingActionPosition;
+  }
+
+  execution.blockingActionsActive = false;
+  execution.blockingActionIndexes.clear();
+  execution.blockingActionPosition = 0;
+  execution.blockingEventKey = "";
+  return true;
 }
 
 void MovementRuntime::processExecution(
