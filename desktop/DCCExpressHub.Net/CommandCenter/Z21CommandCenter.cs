@@ -19,14 +19,13 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
     private const int AccessoryPulseMs = 120;
     private const int LocoNetInterrogateRestMs = 1250;
 
-    // Driving/switching + R-BUS + system state + all changed locos +
-    // LocoNet detector occupancy + raw LocoNet messages.
-    //
-    // YaMoRC maps S88/ES-Link feedback into its common feedback address space.
-    // On the Z21-compatible LAN interface those changes can arrive as raw
-    // LocoNet OPC_INPUT_REP messages, therefore 0x01000000 is required in
-    // addition to the standard detector broadcast 0x08000000.
-    private const uint BroadcastFlags = 0x09010103;
+    // Generic Z21: driving/switching + R-BUS + system state + all changed
+    // locos + LocoNet detector occupancy.
+    private const uint Z21BroadcastFlags = 0x08010103;
+
+    // YaMoRC additionally exposes raw LocoNet messages. Keep this vendor
+    // extension out of the generic Z21 mode.
+    private const uint YaMoRcBroadcastFlags = 0x09010103;
 
     private readonly ILogger<Z21CommandCenter> _log;
     private readonly object _stateGate = new();
@@ -36,6 +35,8 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
 
     private DateTime _lastLocoNetInterrogateUtc = DateTime.MinValue;
 
+    private readonly bool _isYaMoRc7010;
+    private readonly uint _broadcastFlags;
     private readonly bool _locoNetFeedbackEnabled;
     private readonly int _locoNetPort;
     private readonly bool _lbServerFeedbackEnabled;
@@ -70,6 +71,17 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
     {
         _log = log;
 
+        _isYaMoRc7010 =
+            string.Equals(
+                configuration["CommandCenter:Protocol"],
+                "yamorc7010",
+                StringComparison.OrdinalIgnoreCase);
+
+        _broadcastFlags =
+            _isYaMoRc7010
+                ? YaMoRcBroadcastFlags
+                : Z21BroadcastFlags;
+
         _host =
             (configuration["Z21:Host"] ??
              configuration["DccEx:Host"] ??
@@ -100,7 +112,7 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
         _lbServerFeedbackEnabled =
             configuration.GetValue(
                 "Z21:LbServerFeedback",
-                true);
+                _isYaMoRc7010);
 
         _lbServerPort =
             configuration.GetValue(
@@ -109,6 +121,17 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
 
         if (_lbServerPort is < 1 or > 65535)
             _lbServerPort = 1234;
+
+        if (_isYaMoRc7010)
+        {
+            _stationInfo =
+                new(
+                    Version: "",
+                    Processor: "Z21 LAN + LocoNet LBServer",
+                    Hardware: "YaMoRC YD7010",
+                    Build: "",
+                    MaxLocos: 100);
+        }
     }
 
     public bool Connected
@@ -127,7 +150,10 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
     }
 
     public string Type => "z21";
-    public string Name => "Z21-compatible command station";
+    public string Name =>
+        _isYaMoRc7010
+            ? "YaMoRC YD7010"
+            : "Z21-compatible command station";
     public string Endpoint => $"{_host}:{_port}/udp";
     public bool EmergencyPauseStateKnown => _emergencyKnown;
     public bool EmergencyPaused => _emergencyPaused;
@@ -429,7 +455,7 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
 
         BinaryPrimitives.WriteUInt32LittleEndian(
             flags,
-            BroadcastFlags);
+            _broadcastFlags);
 
         var ok =
             await SendPacketCoreAsync(
