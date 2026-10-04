@@ -162,6 +162,15 @@ bool MovementRuntime::applySpeed(
   return true;
 }
 
+void MovementRuntime::releasePreparedAuthority(
+    Execution& execution) {
+  if (execution.preparedLegOwnerId.isEmpty())
+    return;
+  _dispatcher.releaseLeg(execution.preparedLegOwnerId);
+  execution.preparedLegOwnerId = "";
+  execution.preparedLegIndex = static_cast<size_t>(-1);
+}
+
 void MovementRuntime::releaseAuthority(
     Execution& execution) {
   if (!execution.activeLegOwnerId.isEmpty()) {
@@ -179,6 +188,18 @@ void MovementRuntime::finish(
     const String& error) {
   applySpeed(execution, 0);
   releaseAuthority(execution);
+  releasePreparedAuthority(execution);
+  if (execution.hornActive) {
+    _commandCenter.setLocoFunction(execution.state.locoAddress,
+        execution.hornFunction, false);
+    execution.hornActive = false;
+  }
+  for (auto& bg : execution.backgroundSequences) {
+    if (bg.hornActive)
+      _commandCenter.setLocoFunction(execution.state.locoAddress,
+          bg.hornFunction, false);
+    bg.hornActive = false;
+  }
   execution.state.status = status;
   execution.state.error = error;
   execution.state.stoppedAtMs = millis();
@@ -276,9 +297,19 @@ bool MovementRuntime::start(
     return false;
   }
 
-  if (findExecution(pageId)) {
-    error = "movement_already_running";
-    return false;
+  if (Execution* existing = findExecution(pageId)) {
+    if (existing->state.status == "running" ||
+        existing->state.status == "stopping" ||
+        existing->state.status == "starting") {
+      error = "movement_already_running";
+      return false;
+    }
+    _executions.erase(
+        std::remove_if(_executions.begin(), _executions.end(),
+            [&pageId](const Execution& item) {
+              return item.state.pageId == pageId;
+            }),
+        _executions.end());
   }
 
   JsonDocument document;
