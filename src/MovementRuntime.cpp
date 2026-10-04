@@ -509,7 +509,9 @@ bool MovementRuntime::resourceEventSatisfied(
     const MovementPlan& plan,
     const MovementPlanResource& resource,
     bool leaving) const {
-  const String eventName = leaving ? "leave" : "enter";
+  const String eventName = leaving
+      ? "leave"
+      : (resource.kind == "turnout" ? "approach" : "enter");
   const MovementResourceEventRule* explicitRule = nullptr;
   for (const auto& rule : plan.resourceEventRules) {
     if (rule.resourceKey == resource.key && rule.event == eventName) {
@@ -562,9 +564,10 @@ bool MovementRuntime::runResourceEvents(
         resource.key) != execution.enteredResources.end();
 
     if (!entered && resourceEventSatisfied(execution.plan, resource, false)) {
-      const String eventKey = resource.key + "|enter";
-      startBackgroundActions(execution, resource.key, "enter");
-      if (!runBlockingActions(execution, resource.key, "enter", error))
+      const String enterEvent = resource.kind == "turnout" ? "approach" : "enter";
+      const String eventKey = resource.key + "|" + enterEvent;
+      startBackgroundActions(execution, resource.key, enterEvent);
+      if (!runBlockingActions(execution, resource.key, enterEvent, error))
         return false;
       execution.enteredResources.push_back(resource.key);
       execution.firedResourceEvents.push_back(eventKey);
@@ -1088,13 +1091,6 @@ void MovementRuntime::processExecution(
   const auto& leg =
       execution.plan.legs[
           execution.legIndex];
-
-  if (execution.departed && !execution.arrivedCommitted &&
-      !legSafetyFree(leg)) {
-    applySpeed(execution, 0);
-    finish(execution, "error", "movement_safety_became_unsafe");
-    return;
-  }
 
   String resourceError;
   if (!runResourceEvents(execution, leg, resourceError)) {
