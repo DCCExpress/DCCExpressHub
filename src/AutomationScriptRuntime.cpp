@@ -209,6 +209,8 @@ bool AutomationScriptRuntime::loadSavedScript(
 
 bool AutomationScriptRuntime::startSaved(
     const String& scriptId,
+    const String& executionId,
+    const String& executionType,
     String& error) {
   if (scriptId.isEmpty()) {
     error =
@@ -227,14 +229,18 @@ bool AutomationScriptRuntime::startSaved(
     return false;
   }
 
-  const String executionId =
-      nextExecutionId(
-          scriptId);
+  const String resolvedExecutionId =
+      executionId.isEmpty()
+          ? nextExecutionId(
+                scriptId)
+          : executionId;
 
   if (!startSource(
-          executionId,
+          resolvedExecutionId,
           name,
-          "saved",
+          executionType.isEmpty()
+              ? String("saved")
+              : executionType,
           source,
           error)) {
     return false;
