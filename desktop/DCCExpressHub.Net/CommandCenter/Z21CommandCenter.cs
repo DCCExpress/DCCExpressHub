@@ -1387,7 +1387,8 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                     activate: false,
                     queue: false,
                     ct: CancellationToken.None,
-                    priority: true))
+                    priority: true,
+                    ensureTransport: false))
             {
                 return false;
             }
@@ -1511,7 +1512,8 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                     activate: false,
                     queue: false,
                     ct: CancellationToken.None,
-                    priority: true);
+                    priority: true,
+                    ensureTransport: false);
 
             activated = false;
 
@@ -1559,7 +1561,7 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
         var functionAddress =
             address - 1;
 
-        return SendXBusAsync(
+        return SendXBusCoreAsync(
             new byte[]
             {
                 0x43,
@@ -1576,7 +1578,8 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
         bool activate,
         bool queue,
         CancellationToken ct,
-        bool priority = false)
+        bool priority = false,
+        bool ensureTransport = true)
     {
         // LAN_X_SET_TURNOUT DB2 = 100QA00P.
         byte control = 0x80;
@@ -1590,17 +1593,26 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
         if (position)
             control |= 0x01;
 
-        return SendXBusAsync(
+        var payload =
             new byte[]
             {
                 0x53,
                 (byte)(functionAddress >> 8),
                 (byte)(functionAddress & 0xFF),
                 control
-            },
-            true,
-            ct,
-            priority);
+            };
+
+        return ensureTransport
+            ? SendXBusAsync(
+                payload,
+                true,
+                ct,
+                priority)
+            : SendXBusCoreAsync(
+                payload,
+                true,
+                ct,
+                priority);
     }
 
     public Task<bool> SetSignalAspectAsync(
