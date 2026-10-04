@@ -32,6 +32,9 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
     private readonly SemaphoreSlim _connectGate = new(1, 1);
     private readonly SemaphoreSlim _txGate = new(1, 1);
 
+    private readonly bool _locoNetFeedbackEnabled;
+    private readonly int _locoNetPort;
+
     private UdpClient? _udp;
     private string _host;
     private int _port;
@@ -71,6 +74,19 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
 
         if (_port is < 1 or > 65535)
             _port = DefaultPort;
+
+        _locoNetFeedbackEnabled =
+            configuration.GetValue(
+                "Z21:LocoNetFeedback",
+                true);
+
+        _locoNetPort =
+            configuration.GetValue(
+                "Z21:LocoNetPort",
+                5560);
+
+        if (_locoNetPort is < 1 or > 65535)
+            _locoNetPort = 5560;
     }
 
     public bool Connected
@@ -135,6 +151,12 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
     protected override async Task ExecuteAsync(
         CancellationToken stoppingToken)
     {
+        var locoNetFeedbackTask =
+            _locoNetFeedbackEnabled
+                ? RunLocoNetFeedbackAsync(
+                    stoppingToken)
+                : Task.CompletedTask;
+
         while (!stoppingToken.IsCancellationRequested)
         {
             try
@@ -260,6 +282,20 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
         }
         catch
         {
+        }
+
+        try
+        {
+            await locoNetFeedbackTask;
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            _log.LogDebug(
+                ex,
+                "Z21 LocoNet feedback task stopped");
         }
 
         ResetTransport();
@@ -994,6 +1030,276 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
             rbus0 ||
             rbus1 ||
             loconet;
+    }
+
+    private async Task RunLocoNetFeedbackAsync(
+        CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            try
+            {
+                using var client =
+                    new TcpClient
+                    {
+                        NoDelay = true
+                    };
+
+                using var connectCts =
+                    CancellationTokenSource
+                        .CreateLinkedTokenSource(
+                            ct);
+
+                connectCts.CancelAfter(
+                    TimeSpan.FromSeconds(3));
+
+                await client.ConnectAsync(
+                    _host,
+                    _locoNetPort,
+                    connectCts.Token);
+
+                _log.LogInformation(
+                    "YaMoRC LocoNet Binary feedback connected: {Host}:{Port}",
+                    _host,
+                    _locoNetPort);
+
+                using var stream =
+                    client.GetStream();
+
+                await ReadLocoNetBinaryAsync(
+                    stream,
+                    ct);
+            }
+            catch (OperationCanceledException)
+                when (ct.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (OperationCanceledException)
+            {
+                _log.LogDebug(
+                    "YaMoRC LocoNet Binary feedback connect timed out: {Host}:{Port}",
+                    _host,
+                    _locoNetPort);
+            }
+            catch (Exception ex)
+            {
+                _log.LogDebug(
+                    ex,
+                    "YaMoRC LocoNet Binary feedback unavailable: {Host}:{Port}",
+                    _host,
+                    _locoNetPort);
+            }
+
+            try
+            {
+                await Task.Delay(
+                    2000,
+                    ct);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+        }
+    }
+
+    private async Task ReadLocoNetBinaryAsync(
+        NetworkStream stream,
+        CancellationToken ct)
+    {
+        var readBuffer =
+            new byte[512];
+
+        var packet =
+            new byte[128];
+
+        var packetLength = 0;
+        var expectedLength = 0;
+
+        while (!ct.IsCancellationRequested)
+        {
+            var count =
+                await stream.ReadAsync(
+                    readBuffer,
+                    ct);
+
+            if (count <= 0)
+                return;
+
+            for (var index = 0;
+                 index < count;
+                 ++index)
+            {
+                var value =
+                    readBuffer[index];
+
+                if ((value & 0x80) != 0)
+                {
+                    packet[0] = value;
+                    packetLength = 1;
+                    expectedLength =
+                        LocoNetMessageLength(
+                            packet,
+                            packetLength);
+
+                    continue;
+                }
+
+                if (packetLength == 0)
+                    continue;
+
+                if (packetLength >= packet.Length)
+                {
+                    packetLength = 0;
+                    expectedLength = 0;
+                    continue;
+                }
+
+                packet[packetLength++] =
+                    value;
+
+                expectedLength =
+                    LocoNetMessageLength(
+                        packet,
+                        packetLength);
+
+                if (expectedLength <= 0)
+                    continue;
+
+                if (expectedLength >
+                    packet.Length)
+                {
+                    packetLength = 0;
+                    expectedLength = 0;
+                    continue;
+                }
+
+                if (packetLength <
+                    expectedLength)
+                {
+                    continue;
+                }
+
+                if (packetLength ==
+                    expectedLength)
+                {
+                    ProcessLocoNetBinaryPacket(
+                        packet.AsSpan(
+                            0,
+                            packetLength));
+                }
+
+                packetLength = 0;
+                expectedLength = 0;
+            }
+        }
+    }
+
+    private static int LocoNetMessageLength(
+        byte[] packet,
+        int packetLength)
+    {
+        if (packetLength <= 0)
+            return 0;
+
+        var opcode =
+            packet[0];
+
+        if ((opcode & 0x60) ==
+            0x60)
+        {
+            if (packetLength < 2)
+                return 0;
+
+            return packet[1];
+        }
+
+        return
+            ((opcode & 0x60) >> 4) +
+            2;
+    }
+
+    private void ProcessLocoNetBinaryPacket(
+        ReadOnlySpan<byte> packet)
+    {
+        if (packet.Length < 2)
+            return;
+
+        byte checksum = 0;
+
+        foreach (var value in packet)
+            checksum ^= value;
+
+        if (checksum != 0xFF)
+        {
+            _log.LogDebug(
+                "Ignoring LocoNet Binary packet with invalid checksum: {Packet}",
+                Convert.ToHexString(
+                    packet));
+
+            return;
+        }
+
+        // OPC_INPUT_REP is the normal LocoNet general sensor report. YaMoRC
+        // emits S88 / ES-Link feedback into the same feedback address space.
+        if (packet[0] == 0xB2 &&
+            packet.Length >= 4)
+        {
+            ProcessLocoNetInputReport(
+                packet);
+
+            return;
+        }
+
+        _log.LogTrace(
+            "LocoNet Binary RX {Packet}",
+            Convert.ToHexString(
+                packet));
+    }
+
+    private void ProcessLocoNetInputReport(
+        ReadOnlySpan<byte> packet)
+    {
+        var in1 =
+            packet[1];
+
+        var in2 =
+            packet[2];
+
+        var address =
+            (
+                in1 |
+                (
+                    (in2 & 0x0F)
+                    << 7
+                )
+            ) << 1;
+
+        address +=
+            (in2 & 0x20) != 0
+                ? 2
+                : 1;
+
+        if (address is < 1 or > 4096)
+            return;
+
+        var occupied =
+            (in2 & 0x10) != 0;
+
+        _log.LogInformation(
+            "YaMoRC S88/LocoNet feedback #{Address}: {State}",
+            address,
+            occupied
+                ? "ON"
+                : "OFF");
+
+        RawInfo?.Invoke(
+            $"Z21 sensor #{address} {(occupied ? "ON" : "OFF")}");
+
+        SensorFeedbackChanged?.Invoke(
+            address,
+            occupied);
     }
 
     private void ProcessDatagram(
