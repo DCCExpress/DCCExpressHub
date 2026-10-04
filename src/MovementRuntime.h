@@ -105,9 +105,6 @@ private:
     unsigned long waitUntilMs = 0;
     bool hornActive = false;
     uint8_t hornFunction = 0;
-    String sourceLocoId;
-    String eventDelayKey;
-    unsigned long eventDelayUntilMs = 0;
     String pendingAudioRequestId;
     bool pendingAudioCompleted = false;
     bool pendingAudioOk = false;
@@ -141,6 +138,9 @@ private:
     unsigned long actionWaitUntilMs = 0;
     bool hornActive = false;
     uint8_t hornFunction = 0;
+    String sourceLocoId;
+    String eventDelayKey;
+    unsigned long eventDelayUntilMs = 0;
     String pendingAudioRequestId;
     bool pendingAudioCompleted = false;
     bool pendingAudioOk = false;
