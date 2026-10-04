@@ -47,6 +47,7 @@ export const ELEMENT_TYPES = {
   LAMP: "lamp",
   STATION_BUILDING: "stationbuilding",
   SWITCHMAN_HUT: "switchmanhut",
+  GARDEN_HOUSE: "gardenhouse",
   LABEL: "label",
 } as const;
 
