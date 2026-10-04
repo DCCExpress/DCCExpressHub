@@ -369,6 +369,11 @@ private:
 
   void broadcastFlowSnapshot();
 
+  void sendMovementSnapshot(
+      AsyncWebSocketClient* client);
+
+  void broadcastMovementSnapshot();
+
   void sendLocoCounterSnapshot(
       AsyncWebSocketClient* client);
 
