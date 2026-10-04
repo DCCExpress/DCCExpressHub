@@ -433,6 +433,45 @@ void WsProtocol::begin()
     _scripts.begin();
     _flows.begin();
 
+    _dispatcher.setTurnoutAuthority(
+        [this](
+            const std::vector<uint16_t>& addresses,
+            const String& ownerId,
+            const String& ownerName)
+        {
+            const bool ok =
+                switchManAcquire(
+                    addresses,
+                    ownerId,
+                    ownerName,
+                    nullptr);
+
+            if (ok)
+            {
+                broadcastSwitchManSnapshot();
+            }
+
+            return ok;
+        },
+        [this](
+            uint16_t address,
+            bool closed,
+            const String& ownerId)
+        {
+            return dispatcherSetTurnout(
+                address,
+                closed,
+                ownerId);
+        },
+        [this](
+            const std::vector<uint16_t>& addresses,
+            const String& ownerId)
+        {
+            switchManRelease(
+                ownerId,
+                &addresses);
+        });
+
     _lastCommandCenterConnected =
         _commandCenter.connected();
 
@@ -2844,6 +2883,92 @@ const WsProtocol::SwitchManLock* WsProtocol::switchManFind(
     }
 
     return nullptr;
+}
+
+bool WsProtocol::dispatcherSetTurnout(
+    uint16_t address,
+    bool logicalClosed,
+    const String& ownerId)
+{
+    if (!switchManOwns(
+            address,
+            ownerId))
+    {
+        return false;
+    }
+
+    RuntimeAccessory* turnout =
+        _runtime.findAccessory(
+            RuntimeAccessoryKind::Turnout,
+            address);
+
+    if (!turnout)
+    {
+        return false;
+    }
+
+    const bool physicalValue =
+        logicalClosed
+            ? turnout->closedValue
+            : !turnout->closedValue;
+
+    bool ok = false;
+
+    if (turnout->turnoutExtended)
+    {
+        const int16_t aspect =
+            logicalClosed
+                ? turnout->turnoutClosedAspect
+                : turnout->turnoutOpenedAspect;
+
+        ok =
+            _commandCenter.setSignalAspect(
+                address,
+                aspect);
+
+        if (ok)
+        {
+            _runtime.setSignal(
+                address,
+                aspect);
+        }
+    }
+    else if (turnout->turnoutVPin)
+    {
+        ok =
+            _commandCenter.setVPin(
+                address,
+                physicalValue);
+
+        if (ok)
+        {
+            _runtime.setVPin(
+                address,
+                physicalValue);
+        }
+    }
+    else
+    {
+        ok =
+            _commandCenter.setTurnout(
+                address,
+                physicalValue);
+
+        if (ok)
+        {
+            _runtime.setTurnout(
+                address,
+                physicalValue);
+        }
+    }
+
+    if (ok)
+    {
+        broadcastTurnoutState(
+            address);
+    }
+
+    return ok;
 }
 
 bool WsProtocol::switchManOwnerRevoked(
