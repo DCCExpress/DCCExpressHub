@@ -591,6 +591,26 @@ void WsProtocol::loop()
 
 void WsProtocol::cleanupClients()
 {
+    // Client cleanup is maintenance work, not a per-millisecond realtime job.
+    // Running it every App::loop() iteration needlessly walks the websocket
+    // client list and contends with AsyncTCP.
+    static unsigned long nextCleanupAt = 0;
+
+    const unsigned long now =
+        millis();
+
+    if (
+        nextCleanupAt != 0 &&
+        static_cast<long>(
+            now -
+            nextCleanupAt) < 0
+    ) {
+        return;
+    }
+
+    nextCleanupAt =
+        now + 250;
+
     _ws.cleanupClients();
 }
 
