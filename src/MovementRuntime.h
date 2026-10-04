@@ -99,6 +99,19 @@ public:
   bool takeChanged();
 
 private:
+  struct BackgroundSequence {
+    std::vector<size_t> actionIndexes;
+    size_t position = 0;
+    unsigned long waitUntilMs = 0;
+    bool hornActive = false;
+    uint8_t hornFunction = 0;
+    String pendingAudioRequestId;
+    bool pendingAudioCompleted = false;
+    bool pendingAudioOk = false;
+    bool failed = false;
+    String error;
+  };
+
   struct Execution {
     MovementRuntimeState state;
     MovementPlan plan;
@@ -113,6 +126,8 @@ private:
     bool arrivedCommitted = false;
     bool leaveSeenOccupied = false;
     std::vector<MovementAction> actions;
+    std::vector<BackgroundSequence> backgroundSequences;
+    std::vector<String> firedBackgroundEvents;
     std::vector<size_t> blockingActionIndexes;
     size_t blockingActionPosition = 0;
     bool blockingActionsActive = false;
@@ -182,6 +197,14 @@ private:
       Execution& execution,
       const MovementAction& action,
       String& error);
+
+  void startBackgroundActions(
+      Execution& execution,
+      const String& resourceKey,
+      const String& when);
+
+  void processBackgroundActions(
+      Execution& execution);
 
   void processExecution(
       Execution& execution);
