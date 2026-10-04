@@ -86,6 +86,79 @@ bool MovementPlanBuilder::ignoredSafetySensor(
   return false;
 }
 
+std::vector<MovementSensorCondition>
+MovementPlanBuilder::blockEventConditions(
+    JsonObjectConst root,
+    uint16_t blockId,
+    const String& direction,
+    const char* eventName) {
+  std::vector<MovementSensorCondition> result;
+
+  if (direction != "forward" &&
+      direction != "reverse")
+    return result;
+
+  for (JsonObjectConst layer :
+       root["layers"].as<JsonArrayConst>()) {
+    for (JsonObjectConst element :
+         layer["elements"].as<JsonArrayConst>()) {
+      if (str(element, "type") != "trackblock" ||
+          (element["id"] | 0) != blockId)
+        continue;
+
+      JsonObjectConst directionConfig =
+          element["eventConfig"][direction]
+              .as<JsonObjectConst>();
+
+      if (!directionConfig)
+        return result;
+
+      JsonArrayConst conditions =
+          directionConfig[eventName]
+              .as<JsonArrayConst>();
+
+      if (!conditions) {
+        const char* legacyName = eventName;
+
+        if (strcmp(eventName, "arrival") == 0)
+          legacyName = "beforeArrive";
+        else if (strcmp(eventName, "leave") == 0)
+          legacyName =
+              directionConfig["afterLeave"].is<JsonArrayConst>()
+                  ? "afterLeave"
+                  : "beforeLeave";
+
+        conditions =
+            directionConfig[legacyName]
+                .as<JsonArrayConst>();
+      }
+
+      if (!conditions)
+        return result;
+
+      for (JsonObjectConst raw : conditions) {
+        const int sensor =
+            raw["sensor"] | 0;
+
+        if (!validId(sensor))
+          continue;
+
+        MovementSensorCondition condition;
+        condition.sensor =
+            static_cast<uint16_t>(sensor);
+        condition.state =
+            !raw["state"].is<bool>() ||
+            (raw["state"] | true);
+        result.push_back(condition);
+      }
+
+      return result;
+    }
+  }
+
+  return result;
+}
+
 bool MovementPlanBuilder::loadLayout(
     JsonDocument& document,
     String& error) const {
@@ -336,6 +409,55 @@ bool MovementPlanBuilder::build(
     if (turnoutConflict) {
       error = "movement_route_conflicting_turnout_state";
       return false;
+    }
+
+    leg.approachWhen =
+        blockEventConditions(
+            root,
+            leg.to.blockId,
+            plan.direction,
+            "arrival");
+
+    leg.departWhen =
+        blockEventConditions(
+            root,
+            leg.from.blockId,
+            plan.direction,
+            "depart");
+
+    leg.arrivedWhen =
+        blockEventConditions(
+            root,
+            leg.to.blockId,
+            plan.direction,
+            "arrived");
+
+    if (leg.arrivedWhen.empty() &&
+        leg.to.sensorAddress != 0) {
+      MovementSensorCondition condition;
+      condition.sensor =
+          leg.to.sensorAddress;
+      condition.state = true;
+      leg.arrivedWhen.push_back(condition);
+    }
+
+    leg.leaveWhen =
+        blockEventConditions(
+            root,
+            leg.from.blockId,
+            plan.direction,
+            "leave");
+
+    leg.leaveWhenExplicit =
+        !leg.leaveWhen.empty();
+
+    if (leg.leaveWhen.empty() &&
+        leg.from.sensorAddress != 0) {
+      MovementSensorCondition condition;
+      condition.sensor =
+          leg.from.sensorAddress;
+      condition.state = false;
+      leg.leaveWhen.push_back(condition);
     }
 
     // Fail closed: destination occupancy plus all explicitly persisted
