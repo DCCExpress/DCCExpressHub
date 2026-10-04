@@ -399,6 +399,13 @@ function createSwitchmanHutPreview(): SwitchmanHutElement {
   return building;
 }
 
+function createGardenHousePreview(): GardenHouseElement {
+  const building = new GardenHouseElement(0, 0);
+  building.gardenWidth = 2;
+  building.gardenHeight = 2;
+  return building;
+}
+
 async function readHttpErrorMessage(
   response: Response,
   fallback: string
