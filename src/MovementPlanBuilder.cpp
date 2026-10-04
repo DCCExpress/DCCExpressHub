@@ -330,10 +330,7 @@ bool MovementPlanBuilder::build(
 
   JsonObjectConst selected;
   size_t candidates = 0;
-  const String requestedRouteKey =
-      page["routeKey"].isNull()
-          ? String()
-          : page["routeKey"].as<String>();
+  const String requestedRouteKey = str(page, "routeKey");
 
   for (JsonObjectConst route :
        topology["routeTable"].as<JsonArrayConst>()) {
