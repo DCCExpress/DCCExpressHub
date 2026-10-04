@@ -333,6 +333,22 @@ export type DispatcherChangedPayload = {
   routes: unknown[];
 };
 
+export type SafetyEmergencyStopPayload = {
+  code:
+    | "unknown_occupancy"
+    | "target_occupancy_mismatch"
+    | string;
+  reason: string;
+  timestamp: number;
+  blockId: number;
+  blockName: string;
+  sensorAddress: number;
+  expectedLocoAddress: number | null;
+  activeLocoAddresses: number[];
+  movementNames: string[];
+  emergencyStopActive: boolean;
+};
+
 export type MovementRuntimeStatePayload = {
   pageId: string;
   movementName: string;
@@ -583,6 +599,7 @@ export type ServerWsPayloadMap = {
   movementStateChanged: MovementRuntimeStatePayload;
   movementSnapshot: { states: MovementRuntimeStatePayload[] };
   movementResponse: MovementResponsePayload;
+  safetyEmergencyStop: SafetyEmergencyStopPayload;
 
   automationScriptStateChanged: AutomationScriptRuntimeStatePayload;
   automationScriptSnapshot: {
