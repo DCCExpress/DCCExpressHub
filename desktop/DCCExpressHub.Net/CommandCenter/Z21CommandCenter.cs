@@ -59,6 +59,10 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
     private bool _emergencyKnown;
     private bool _emergencyPaused;
 
+    private bool _powerFeedbackKnown;
+    private bool _lastPowerOn;
+    private string _lastPowerTarget = "";
+
     private StationInfo _stationInfo =
         new(
             Version: "",
@@ -515,6 +519,7 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
             _sessionRegistered = false;
             _lastRxUtc = DateTime.MinValue;
             _nextKeepAliveUtc = DateTime.MinValue;
+            _powerFeedbackKnown = false;
             wasOnline = _online;
             _online = false;
         }
@@ -1872,6 +1877,39 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
         }
     }
 
+    private void EmitPowerFeedbackIfChanged(
+        bool on,
+        string target)
+    {
+        if (
+            _powerFeedbackKnown &&
+            _lastPowerOn == on &&
+            string.Equals(
+                _lastPowerTarget,
+                target,
+                StringComparison.Ordinal)
+        )
+        {
+            return;
+        }
+
+        _powerFeedbackKnown = true;
+        _lastPowerOn = on;
+        _lastPowerTarget = target;
+
+        _log.LogInformation(
+            "Z21 power state changed: {State} target={Target}",
+            on
+                ? "ON"
+                : "OFF",
+            target);
+
+        PowerFeedbackChanged?.Invoke(
+            new PowerFeedback(
+                on,
+                target));
+    }
+
     private void UpdateEmergencyState(
         bool active,
         string source)
@@ -1920,10 +1958,9 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
             var on =
                 data[1] is 0x01 or 0x02;
 
-            PowerFeedbackChanged?.Invoke(
-                new PowerFeedback(
-                    on,
-                    target));
+            EmitPowerFeedbackIfChanged(
+                on,
+                target);
 
             if (data[1] == 0x01)
             {
@@ -1954,12 +1991,11 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                 (status & 0x01) != 0,
                 "LAN_X_STATUS_CHANGED");
 
-            PowerFeedbackChanged?.Invoke(
-                new PowerFeedback(
-                    (status & 0x02) == 0,
-                    (status & 0x20) != 0
-                        ? "Programming"
-                        : "All"));
+            EmitPowerFeedbackIfChanged(
+                (status & 0x02) == 0,
+                (status & 0x20) != 0
+                    ? "Programming"
+                    : "All");
 
             return;
         }
@@ -2097,12 +2133,11 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
             (centralState & 0x01) != 0,
             "LAN_SYSTEMSTATE_DATACHANGED");
 
-        PowerFeedbackChanged?.Invoke(
-            new PowerFeedback(
-                (centralState & 0x02) == 0,
-                (centralState & 0x20) != 0
-                    ? "Programming"
-                    : "All"));
+        EmitPowerFeedbackIfChanged(
+            (centralState & 0x02) == 0,
+            (centralState & 0x20) != 0
+                ? "Programming"
+                : "All");
     }
 
     private void ProcessHardwareInfo(
