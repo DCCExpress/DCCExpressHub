@@ -113,7 +113,8 @@ void MovementRuntime::finish(
 bool MovementRuntime::acquireLeg(
     Execution& execution,
     size_t legIndex,
-    String& error) {
+    String& error,
+    bool prepared) {
   if (legIndex >= execution.plan.legs.size()) {
     error = "movement_leg_missing";
     return false;
@@ -164,8 +165,12 @@ bool MovementRuntime::acquireLeg(
     return false;
   }
 
-  execution.activeLegOwnerId =
-      request.ownerId;
+  if (prepared) {
+    execution.preparedLegOwnerId = request.ownerId;
+    execution.preparedLegIndex = legIndex;
+  } else {
+    execution.activeLegOwnerId = request.ownerId;
+  }
   execution.state.targetBlockId =
       leg.to.blockId;
   execution.state.activeRouteResourceKey =
@@ -320,6 +325,32 @@ bool MovementRuntime::arrived(
          on;
 }
 
+bool MovementRuntime::legSafetyFree(
+    const MovementPlanLeg& leg) const {
+  for (const auto sensor :
+       leg.safetySensors) {
+    bool on = false;
+    if (!_layout.getSensorState(
+            sensor,
+            on) ||
+        on)
+      return false;
+  }
+
+  return true;
+}
+
+bool MovementRuntime::targetBasicallyFree(
+    const MovementPlanLeg& leg) const {
+  RuntimeBlock* target =
+      const_cast<LayoutRuntime&>(_layout)
+          .findBlockById(
+              leg.to.blockId);
+
+  return target &&
+         !target->hasRuntimeState();
+}
+
 void MovementRuntime::processExecution(
     Execution& execution) {
   if (execution.state.status != "running")
@@ -338,16 +369,34 @@ void MovementRuntime::processExecution(
   if (!arrived(leg))
     return;
 
-  // Stop before changing block authority. This first slice intentionally
-  // favours safety over seamless speed; later parity work will prepare the
-  // next leg at APPROACH/ARRIVED like Windows.
-  if (!applySpeed(execution, 0)) {
+  const size_t nextIndex =
+      execution.legIndex + 1;
+  const bool hasNext =
+      nextIndex <
+      execution.plan.legs.size();
+
+  // ARRIVED is committed before the previous block's leave edge catches up.
+  // This mirrors Windows: the committed destination becomes the legal source
+  // of the next dispatcher leg.
+  if (!_layout.setBlock(
+          leg.to.blockId,
+          String(execution.state.locoAddress),
+          execution.state.locoAddress)) {
     finish(
         execution,
         "error",
-        "movement_loco_command_failed");
+        "movement_destination_commit_failed");
     return;
   }
+
+  execution.state.currentBlockId =
+      leg.to.blockId;
+  execution.state.currentResourceKey =
+      leg.to.key;
+
+  // The old authority must be gone before the just-committed destination can
+  // be reserved as the source of the next leg.
+  releaseAuthority(execution);
 
   RuntimeBlock* source =
       _layout.findBlockById(
@@ -360,33 +409,70 @@ void MovementRuntime::processExecution(
         leg.from.blockId,
         source->locoId);
 
-  _layout.setBlock(
-      leg.to.blockId,
-      String(execution.state.locoAddress),
-      execution.state.locoAddress);
-
-  releaseAuthority(execution);
-
-  execution.state.currentBlockId =
-      leg.to.blockId;
-  execution.state.currentResourceKey =
-      leg.to.key;
   ++execution.legIndex;
 
   if (execution.stopping ||
-      execution.legIndex >=
-          execution.plan.legs.size()) {
+      !hasNext) {
     finish(execution, "finished");
     return;
+  }
+
+  const auto& next =
+      execution.plan.legs[nextIndex];
+
+  // Through-block fast path: stay rolling only when the next destination and
+  // every effective safety detector are already clear. Dispatcher acquisition
+  // still repeats all checks and obtains SwitchMan authority before the lease
+  // becomes prepared.
+  const bool mayKeepRolling =
+      targetBasicallyFree(next) &&
+      legSafetyFree(next);
+
+  if (!mayKeepRolling) {
+    if (!applySpeed(execution, 0)) {
+      finish(
+          execution,
+          "error",
+          "movement_loco_command_failed");
+      return;
+    }
   }
 
   String error;
   if (!acquireLeg(
           execution,
-          execution.legIndex,
-          error)) {
+          nextIndex,
+          error,
+          mayKeepRolling)) {
+    if (mayKeepRolling)
+      applySpeed(execution, 0);
+
     finish(execution, "error", error);
     return;
+  }
+
+  if (mayKeepRolling) {
+    execution.activeLegOwnerId =
+        execution.preparedLegOwnerId;
+    execution.preparedLegOwnerId = "";
+    execution.preparedLegIndex =
+        static_cast<size_t>(-1);
+
+    execution.state.info =
+        "Next leg prepared: " +
+        next.from.name +
+        " -> " +
+        next.to.name;
+    publishChanged();
+    return;
+  }
+
+  if (!execution.preparedLegOwnerId.isEmpty()) {
+    execution.activeLegOwnerId =
+        execution.preparedLegOwnerId;
+    execution.preparedLegOwnerId = "";
+    execution.preparedLegIndex =
+        static_cast<size_t>(-1);
   }
 
   if (!applySpeed(
