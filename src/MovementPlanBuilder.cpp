@@ -195,6 +195,27 @@ bool MovementPlanBuilder::build(
 
   JsonObjectConst root =
       layout.as<JsonObjectConst>();
+  for (JsonObjectConst rawRule :
+       page["resourceEventRules"].as<JsonArrayConst>()) {
+    MovementResourceEventRule rule;
+    rule.resourceKey = str(rawRule, "resourceKey");
+    rule.event = str(rawRule, "event");
+    rule.match = str(rawRule, "match", "all");
+    for (JsonObjectConst rawCondition :
+         rawRule["conditions"].as<JsonArrayConst>()) {
+      const int sensor = rawCondition["sensor"] | 0;
+      if (!validId(sensor)) continue;
+      MovementSensorCondition condition;
+      condition.sensor = static_cast<uint16_t>(sensor);
+      condition.state = !rawCondition["state"].is<bool>() ||
+          (rawCondition["state"] | true);
+      rule.conditions.push_back(condition);
+    }
+    if (!rule.resourceKey.isEmpty() && !rule.event.isEmpty())
+      plan.resourceEventRules.push_back(std::move(rule));
+  }
+
+
   JsonObjectConst topology =
       root["routeTopology"].as<JsonObjectConst>();
 
