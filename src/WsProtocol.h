@@ -9,6 +9,7 @@
 #include "FastClockRuntime.h"
 #include "FlowRuntime.h"
 #include "DispatcherRuntime.h"
+#include "MovementRuntime.h"
 #include "ICommandCenter.h"
 #include "LayoutRuntime.h"
 #include "LocoCounterRuntime.h"
@@ -148,6 +149,11 @@ private:
 
   DispatcherRuntime _dispatcher{
       _runtime};
+
+  MovementRuntime _movements{
+      _runtime,
+      _dispatcher,
+      _commandCenter};
 
   bool _trackPower = false;
   bool _programmingPower = false;
