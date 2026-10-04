@@ -55,6 +55,9 @@ export type CommandCenterInfoPayload = {
 };
 
 export type DccExStatusPayload = {
+  commandCenterType?: string;
+  commandCenterName?: string;
+  commandCenterProfile?: string | null;
   version: string;
   hardware: string;
   trackVoltageOn: boolean;
@@ -90,6 +93,36 @@ export type DccExStatusPayload = {
   port?: number;
   serialPort?: string;
   baudRate?: number;
+  emergencyStop?: boolean;
+  linkUptimeMs?: number | null;
+  z21?: {
+    profile: string;
+    broadcastFlags: string;
+    udpUptimeMs: number;
+    mainCurrentMa: number;
+    progCurrentMa: number;
+    filteredMainCurrentMa: number;
+    temperatureC: number;
+    supplyVoltageMv: number;
+    trackVoltageMv: number;
+    centralState: number;
+    centralStateEx: number;
+    capabilities: number;
+    lastSystemStateAgeMs: number;
+    lbServerEnabled: boolean;
+    lbServerConnected: boolean;
+    lbServerPort: number;
+    lbServerUptimeMs: number;
+    lastLbServerRxAgeMs: number;
+    lbServerLinesObserved: number;
+    lbServerVersion: string;
+    sensorFeedbackCount: number;
+    lastSensorAddress: number;
+    lastSensorOn: boolean | null;
+    lastSensorFeedbackAgeMs: number;
+    lastInterrogateAgeMs: number;
+    interrogateEnabled: boolean;
+  } | null;
 };
 
 export type CommandCenterLockChangedPayload = {
