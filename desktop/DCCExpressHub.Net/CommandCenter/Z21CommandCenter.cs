@@ -32,6 +32,9 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
     private readonly object _stateGate = new();
     private readonly SemaphoreSlim _connectGate = new(1, 1);
     private readonly SemaphoreSlim _txGate = new(1, 1);
+    private readonly SemaphoreSlim _locoNetInterrogateGate = new(1, 1);
+
+    private DateTime _lastLocoNetInterrogateUtc = DateTime.MinValue;
 
     private readonly bool _locoNetFeedbackEnabled;
     private readonly int _locoNetPort;
@@ -469,9 +472,6 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                     KeepAliveMs);
 
             EmitTrackConfiguration();
-
-            _ = RequestSensorSnapshotAsync(
-                CancellationToken.None);
         }
     }
 
@@ -1102,11 +1102,9 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                     NewLine = "\r\n"
                 };
 
-            await SendLocoNetInterrogateAsync(
+            return await SendLocoNetInterrogateAsync(
                 writer,
                 ct);
-
-            return true;
         }
         catch (OperationCanceledException)
             when (ct.IsCancellationRequested)
@@ -1257,9 +1255,10 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                         reader,
                         ct);
 
-                await SendLocoNetInterrogateAsync(
-                    writer,
-                    ct);
+                _ =
+                    await SendLocoNetInterrogateAsync(
+                        writer,
+                        ct);
 
                 await readTask;
             }
@@ -1297,10 +1296,33 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
         }
     }
 
-    private async Task SendLocoNetInterrogateAsync(
+    private async Task<bool> SendLocoNetInterrogateAsync(
         StreamWriter writer,
         CancellationToken ct)
     {
+        await _locoNetInterrogateGate.WaitAsync(
+            ct);
+
+        try
+        {
+            var now =
+                DateTime.UtcNow;
+
+            if (
+                _lastLocoNetInterrogateUtc !=
+                    DateTime.MinValue &&
+                now - _lastLocoNetInterrogateUtc <
+                    TimeSpan.FromSeconds(10)
+            )
+            {
+                _log.LogDebug(
+                    "YaMoRC LocoNet sensor interrogation skipped: recent request still authoritative");
+
+                return true;
+            }
+
+            _lastLocoNetInterrogateUtc =
+                now;
         // Same 8-phase LocoNet sensor interrogation sequence used by JMRI.
         // A YaMoRC command station with "Interrogate: Report All Feedbacks"
         // enabled responds by publishing the current feedback states.
@@ -1376,6 +1398,13 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
 
         RawInfo?.Invoke(
             "YaMoRC LocoNet sensor interrogation sent");
+
+            return true;
+        }
+        finally
+        {
+            _locoNetInterrogateGate.Release();
+        }
     }
 
     private async Task ReadLbServerAsync(
