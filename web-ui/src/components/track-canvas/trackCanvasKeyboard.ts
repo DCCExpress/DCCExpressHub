@@ -8,10 +8,6 @@ import type {
   BaseElement,
 } from "../../models/editor/core/BaseElement";
 
-import {
-  INVALID_LAYOUT_ELEMENT_ID,
-} from "@domain/layout/layoutDto";
-
 import type {
   LayoutView,
 } from "../../models/editor/core/LayoutView";
@@ -31,6 +27,10 @@ import {
 import {
   getAllLayoutElements,
 } from "./trackCanvasSelection";
+
+import {
+  cloneElementForPlacement,
+} from "./trackCanvasClone";
 
 export type TrackCanvasRef<T> = {
   current: T;
@@ -130,13 +130,9 @@ export function handleTrackCanvasKeyDown(
     event.preventDefault();
 
     const copied =
-      selectedElements[0]!.clone();
-
-    copied.id =
-      INVALID_LAYOUT_ELEMENT_ID;
-
-    copied.selected = false;
-    copied.marked = false;
+      cloneElementForPlacement(
+        selectedElements[0]!
+      );
 
     context.copiedElementRef.current =
       copied;
@@ -158,13 +154,9 @@ export function handleTrackCanvasKeyDown(
     event.preventDefault();
 
     const pasted =
-      copied.clone();
-
-    pasted.id =
-      INVALID_LAYOUT_ELEMENT_ID;
-
-    pasted.selected = false;
-    pasted.marked = false;
+      cloneElementForPlacement(
+        copied
+      );
 
     const stepX =
       Math.max(
@@ -234,13 +226,11 @@ export function handleTrackCanvasKeyDown(
     }
 
     const cursor =
-      copied.clone();
-
-    cursor.id =
-      INVALID_LAYOUT_ELEMENT_ID;
+      cloneElementForPlacement(
+        copied
+      );
 
     cursor.selected = true;
-    cursor.marked = false;
 
     context.pendingCopiedCursorRef.current =
       cursor;
