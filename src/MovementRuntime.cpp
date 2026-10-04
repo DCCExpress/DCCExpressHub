@@ -506,11 +506,12 @@ bool MovementRuntime::targetBasicallyFree(
 }
 
 bool MovementRuntime::resourceEventSatisfied(
+    const MovementPlan& plan,
     const MovementPlanResource& resource,
     bool leaving) const {
   const String eventName = leaving ? "leave" : "enter";
   const MovementResourceEventRule* explicitRule = nullptr;
-  for (const auto& rule : _activePlanForResourceRules->resourceEventRules) {
+  for (const auto& rule : plan.resourceEventRules) {
     if (rule.resourceKey == resource.key && rule.event == eventName) {
       explicitRule = &rule;
       break;
@@ -560,7 +561,7 @@ bool MovementRuntime::runResourceEvents(
         execution.enteredResources.end(),
         resource.key) != execution.enteredResources.end();
 
-    if (!entered && resourceEventSatisfied(resource, false)) {
+    if (!entered && resourceEventSatisfied(execution.plan, resource, false)) {
       const String eventKey = resource.key + "|enter";
       startBackgroundActions(execution, resource.key, "enter");
       if (!runBlockingActions(execution, resource.key, "enter", error))
@@ -581,7 +582,7 @@ bool MovementRuntime::runResourceEvents(
         execution.firedResourceEvents.end(),
         leaveKey) != execution.firedResourceEvents.end();
 
-    if (nowEntered && !left && resourceEventSatisfied(resource, true)) {
+    if (nowEntered && !left && resourceEventSatisfied(execution.plan, resource, true)) {
       startBackgroundActions(execution, resource.key, "leave");
       if (!runBlockingActions(execution, resource.key, "leave", error))
         return false;
