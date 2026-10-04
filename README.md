@@ -1,6 +1,6 @@
 # DCCExpressHub
 
-DCCExpressHub is a control and automation system for model railways using **DCC-EX**, **Roco Z21** or compatible command stations.
+DCCExpressHub is a control and automation system for model railways using **DCC-EX**, **Roco Z21** or **YaMoRC YD7010** command stations.
 
 It provides one interface for driving locomotives, operating turnouts and signals, editing the layout, following trains, running automatic movements and timetables, and using sensors for safer operation.
 
@@ -136,10 +136,11 @@ Typical architecture:
  DCCExpressHub.Net
    ASP.NET Core
          |
-      TCP / USB
+   TCP / USB / UDP
          |
          v
-       DCC-EX
+  Command station
+ DCC-EX / Z21 / YD7010
 ```
 
 ### Download and install
