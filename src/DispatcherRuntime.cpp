@@ -243,6 +243,59 @@ DispatcherAcquireResult DispatcherRuntime::acquireLeg(
     return result;
   }
 
+  bool turnoutAuthority = false;
+
+  if (!raw.turnoutAddresses.empty()) {
+    if (!_turnoutAcquire ||
+        !_turnoutAcquire(
+            raw.turnoutAddresses,
+            raw.ownerId,
+            raw.ownerName.isEmpty()
+                ? raw.ownerId
+                : raw.ownerName)) {
+      result.error = "turnout_lock_failed";
+      return result;
+    }
+
+    turnoutAuthority = true;
+
+    // Safety must be checked again after waiting for turnout authority.
+    sourceError =
+        validateSource(
+            raw.fromBlockId,
+            raw.locoAddress);
+
+    destinationError =
+        validateDestination(
+            raw.toBlockId,
+            raw.ownerId);
+
+    if (!sourceError.isEmpty() ||
+        !destinationError.isEmpty() ||
+        !sensorsFree(
+            raw.safetySensors,
+            blockingSensor)) {
+      if (_turnoutRelease) {
+        _turnoutRelease(
+            raw.turnoutAddresses,
+            raw.ownerId);
+      }
+
+      if (!sourceError.isEmpty()) {
+        result.error = sourceError;
+        result.blockingBlock = raw.fromBlockId;
+      } else if (!destinationError.isEmpty()) {
+        result.error = destinationError;
+        result.blockingBlock = raw.toBlockId;
+      } else {
+        result.error = "safety_sensor_not_free";
+        result.blockingSensor = blockingSensor;
+      }
+
+      return result;
+    }
+  }
+
   const String marker =
       targetMarker(
           raw.locoAddress,
@@ -252,6 +305,13 @@ DispatcherAcquireResult DispatcherRuntime::acquireLeg(
           raw.toBlockId,
           marker,
           0)) {
+    if (turnoutAuthority &&
+        _turnoutRelease) {
+      _turnoutRelease(
+          raw.turnoutAddresses,
+          raw.ownerId);
+    }
+
     result.error = "target_block_marker_failed";
     result.blockingBlock = raw.toBlockId;
     return result;
@@ -268,6 +328,7 @@ DispatcherAcquireResult DispatcherRuntime::acquireLeg(
   lease.toBlockId = raw.toBlockId;
   lease.safetySensors = raw.safetySensors;
   lease.resourceKeys = resources;
+  lease.turnoutAddresses = raw.turnoutAddresses;
   lease.targetMarker = marker;
   lease.acquiredAtMs = millis();
 
@@ -294,6 +355,13 @@ bool DispatcherRuntime::releaseLeg(
       _runtime.removeBlock(
           it->toBlockId,
           it->targetMarker);
+    }
+
+    if (!it->turnoutAddresses.empty() &&
+        _turnoutRelease) {
+      _turnoutRelease(
+          it->turnoutAddresses,
+          it->ownerId);
     }
 
     _leases.erase(it);
