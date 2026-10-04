@@ -21,6 +21,13 @@ public sealed class CommandCenterSettings
             "serial",
             StringComparison.OrdinalIgnoreCase);
 
+    [JsonIgnore]
+    public bool IsZ21 =>
+        string.Equals(
+            Transport,
+            "z21",
+            StringComparison.OrdinalIgnoreCase);
+
     public CommandCenterSettings()
     {
     }
@@ -112,21 +119,38 @@ public sealed class CommandCenterConfigStore
         }
     }
 
-    private string RuntimeTransport =>
-        string.Equals(
-            _configuration["DccEx:Transport"],
-            "Serial",
-            StringComparison.OrdinalIgnoreCase)
-            ? "serial"
-            : "tcp";
+    private string RuntimeTransport
+    {
+        get
+        {
+            if (string.Equals(
+                    _configuration["CommandCenter:Protocol"],
+                    "z21",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return "z21";
+            }
+
+            return
+                string.Equals(
+                    _configuration["DccEx:Transport"],
+                    "Serial",
+                    StringComparison.OrdinalIgnoreCase)
+                    ? "serial"
+                    : "tcp";
+        }
+    }
 
     private CommandCenterSettings Load()
     {
-        // The Windows Desktop launcher explicitly supplies DccEx__Transport and
-        // the endpoint through environment variables on every start. In that
-        // case the launcher selection is authoritative; a stale persisted
-        // command-center.json must never switch COM port/host behind its back.
+        // The Windows Desktop launcher explicitly supplies the selected
+        // command-center protocol and endpoint on every start. In that case
+        // the launcher selection is authoritative; a stale persisted
+        // command-center.json must never switch protocol/COM/host behind it.
         if (!string.IsNullOrWhiteSpace(
+                Environment.GetEnvironmentVariable(
+                    "CommandCenter__Protocol")) ||
+            !string.IsNullOrWhiteSpace(
                 Environment.GetEnvironmentVariable(
                     "DccEx__Transport")))
         {
@@ -309,26 +333,44 @@ public sealed class CommandCenterConfigStore
 
     private CommandCenterSettings FromConfiguration()
     {
+        var transport =
+            RuntimeTransport;
+
+        var isZ21 =
+            string.Equals(
+                transport,
+                "z21",
+                StringComparison.OrdinalIgnoreCase);
+
         var settings =
             new CommandCenterSettings
             {
                 Transport =
-                    RuntimeTransport,
+                    transport,
 
                 TcpHost =
-                    _configuration["DccEx:Host"] ??
-                    "127.0.0.1",
+                    isZ21
+                        ? _configuration["Z21:Host"] ??
+                          _configuration["DccEx:Host"] ??
+                          "127.0.0.1"
+                        : _configuration["DccEx:Host"] ??
+                          "127.0.0.1",
 
                 TcpPort =
-                    _configuration.GetValue(
-                        "DccEx:Port",
-                        2560),
+                    isZ21
+                        ? _configuration.GetValue(
+                            "Z21:Port",
+                            Z21CommandCenter.DefaultPort)
+                        : _configuration.GetValue(
+                            "DccEx:Port",
+                            2560),
 
                 SerialPort =
                     _configuration["DccEx:SerialPort"] ??
                     "COM3",
 
-                PowerIncludesProgramming = true,
+                PowerIncludesProgramming =
+                    !isZ21,
 
                 CommandIntervalMs =
                     _configuration.GetValue(
@@ -339,7 +381,7 @@ public sealed class CommandCenterConfigStore
         return Normalize(settings) ??
                new CommandCenterSettings
                {
-                   Transport = RuntimeTransport
+                   Transport = transport
                };
     }
 
@@ -397,6 +439,12 @@ public sealed class CommandCenterConfigStore
                 "serial",
                 StringComparison.OrdinalIgnoreCase);
 
+        var isZ21 =
+            string.Equals(
+                value.Transport,
+                "z21",
+                StringComparison.OrdinalIgnoreCase);
+
         var tcpHost =
             (value.TcpHost ?? "").Trim();
 
@@ -410,7 +458,12 @@ public sealed class CommandCenterConfigStore
             tcpHost = "127.0.0.1";
 
         if (tcpPort is < 1 or > 65535)
-            tcpPort = 2560;
+        {
+            tcpPort =
+                isZ21
+                    ? Z21CommandCenter.DefaultPort
+                    : 2560;
+        }
 
         if (serialPort.Length == 0)
             serialPort = "COM3";
@@ -428,7 +481,9 @@ public sealed class CommandCenterConfigStore
             Transport =
                 isSerial
                     ? "serial"
-                    : "tcp",
+                    : isZ21
+                        ? "z21"
+                        : "tcp",
 
             TcpHost = tcpHost,
             TcpPort = tcpPort,
