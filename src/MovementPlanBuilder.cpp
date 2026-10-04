@@ -216,6 +216,26 @@ bool MovementPlanBuilder::build(
     return false;
   }
 
+  std::vector<std::pair<uint16_t, uint16_t>> blockSensors;
+
+  for (JsonObjectConst layer :
+       root["layers"].as<JsonArrayConst>()) {
+    for (JsonObjectConst element :
+         layer["elements"].as<JsonArrayConst>()) {
+      if (str(element, "type") != "trackblock")
+        continue;
+
+      const int blockId = element["id"] | 0;
+      const int sensor = element["sensorAddress"] | 0;
+
+      if (validId(blockId) &&
+          validId(sensor))
+        blockSensors.push_back({
+            static_cast<uint16_t>(blockId),
+            static_cast<uint16_t>(sensor)});
+    }
+  }
+
   std::vector<MovementPlanResource> blocks;
 
   for (JsonObjectConst block :
@@ -229,6 +249,13 @@ bool MovementPlanBuilder::build(
     resource.name = str(block, "name", resource.key);
     resource.blockId = static_cast<uint16_t>(id);
     resource.nodeIndex = block["nodeIndex"] | -1;
+
+    for (const auto& mapping : blockSensors) {
+      if (mapping.first == resource.blockId) {
+        resource.sensorAddress = mapping.second;
+        break;
+      }
+    }
 
     blocks.push_back(resource);
     plan.resources.push_back(resource);
