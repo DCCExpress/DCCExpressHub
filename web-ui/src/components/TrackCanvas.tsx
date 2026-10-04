@@ -25,6 +25,11 @@ import {
 import {
   getBlockTargetLocoAddress,
 } from "../services/blockTargetLocoRuntime";
+
+import {
+  hasTrainTrackingPredictions,
+  subscribeTrainTrackingPredictions,
+} from "../services/trainTrackingPredictionRuntime";
 import { wsClient } from "../services/wsClient";
 import "../styles/TrackCanvas.css";
 
@@ -394,6 +399,14 @@ export default function TrackCanvas({
   }, [invalidate]);
 
   useEffect(() => {
+    return subscribeTrainTrackingPredictions(
+      () => {
+        invalidate();
+      }
+    );
+  }, [invalidate]);
+
+  useEffect(() => {
     return wsClient.on("locoState", () => {
       /*
        * Block direction markers use the authoritative locomotive runtime
@@ -445,6 +458,7 @@ export default function TrackCanvas({
 
       const needsBlinkRedraw =
         hasMovingMovementBlockRuntime() ||
+        hasTrainTrackingPredictions() ||
         liveLocoMoving ||
         elements.some(
           element =>

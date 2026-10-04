@@ -29,9 +29,18 @@ void AutomationsEndpoint::sendJson(
 }
 
 bool AutomationsEndpoint::backupCurrent() {
+  // IMPORTANT: an automation POST already owns FINAL_PATH.tmp here.
+  // FileStore::openRead(FINAL_PATH) runs recover(), and recover() treats a
+  // final+temp pair as stale transaction debris and removes the temp file.
+  // That would delete the just-uploaded, already validated candidate before
+  // AtomicFileUpload::commit() gets a chance to commit it.
+  //
+  // Read the currently committed final directly while this transaction is
+  // active; recovery belongs before beginWrite(), not in the middle of it.
   File source =
-      _files.openRead(
-          FINAL_PATH);
+      LittleFS.open(
+          FINAL_PATH,
+          "r");
 
   if (!source) {
     // First save: there is no previous committed document yet.

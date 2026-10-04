@@ -551,6 +551,28 @@ bool Sunton8048S043Display::readTouch(
 
 Sunton8048S043Display::PhysicalButton
 Sunton8048S043Display::takeButtonPress() {
+  // GT911 is connected over I2C and has no interrupt line on this board.
+  // Polling it on every ~1 ms application loop wastes a large amount of CPU.
+  // 20 ms still gives responsive touch controls while reducing I2C traffic
+  // from roughly 1000 polls/s to at most 50 polls/s.
+  static unsigned long nextTouchPollAt = 0;
+
+  const unsigned long now =
+      millis();
+
+  if (
+      nextTouchPollAt != 0 &&
+      static_cast<long>(
+          now -
+          nextTouchPollAt) < 0
+  ) {
+    return
+        PhysicalButton::None;
+  }
+
+  nextTouchPollAt =
+      now + 20;
+
   int16_t x = 0;
   int16_t y = 0;
 

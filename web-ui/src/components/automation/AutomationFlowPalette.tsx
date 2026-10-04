@@ -163,6 +163,14 @@ const ITEMS: PaletteItem[] = [
     color: "blue",
   },
   {
+    kind: "trainEventInput",
+    group: "trigger",
+    icon: <IconRoute size={16} />,
+    labelKey: "ui.flowNodeTrainEventInput",
+    fallback: "Train event",
+    color: "violet",
+  },
+  {
     kind: "setSpeed",
     group: "railway",
     icon: <IconBolt size={16} />,
@@ -289,6 +297,22 @@ const ITEMS: PaletteItem[] = [
     labelKey: "ui.flowNodeSetExtendedAccessory",
     fallback: "Extended Accessory output",
     color: "orange",
+  },
+  {
+    kind: "movementHold",
+    group: "railway",
+    icon: <IconRoute size={16} />,
+    labelKey: "ui.flowNodeMovementHold",
+    fallback: "Movement Hold",
+    color: "red",
+  },
+  {
+    kind: "movementRelease",
+    group: "railway",
+    icon: <IconRoute size={16} />,
+    labelKey: "ui.flowNodeMovementRelease",
+    fallback: "Movement Release",
+    color: "green",
   },
   {
     kind: "delay",
@@ -420,6 +444,18 @@ export function createDefaultAutomationNodeData(
         ...base,
         locoAddress: 0,
         locoLabel: "",
+      };
+
+    case "trainEventInput":
+      return {
+        ...base,
+        trainEventTypes: [],
+        trainTypeFilters: [],
+        trainResourceTypes: [],
+        trainResourceFilters: [],
+        trainBlockFilters: [],
+        trainSensorFilters: [],
+        trainLocoAddressFilters: [],
       };
 
     case "waitForSensor":

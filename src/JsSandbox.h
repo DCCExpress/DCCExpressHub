@@ -96,6 +96,34 @@ public:
       uint16_t address,
       int16_t aspect);
 
+  bool commandSetAccessory(
+      uint16_t address,
+      bool active);
+
+  bool commandSetSensor(
+      uint16_t address,
+      bool on);
+
+  int32_t blockLoco(
+      uint16_t blockId) const;
+
+  bool setBlockLoco(
+      uint16_t blockId,
+      uint16_t locoAddress);
+
+  bool clearBlockLoco(
+      uint16_t blockId);
+
+  int32_t blockTargetLoco(
+      uint16_t blockId) const;
+
+  bool setBlockTargetLoco(
+      uint16_t blockId,
+      uint16_t locoAddress);
+
+  bool clearBlockTargetLoco(
+      uint16_t blockId);
+
   bool sensorState(
       uint16_t address);
 

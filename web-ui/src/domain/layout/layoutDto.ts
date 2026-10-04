@@ -105,6 +105,7 @@ export type SerializedLayoutElementDto = {
   locoAddress?: number;
   sensorAddress?: number;
   blockType?: BlockType | string;
+  eventConfig?: BlockEventConfigDto;
 
   text?: string;
   fontSize?: number;
@@ -112,6 +113,11 @@ export type SerializedLayoutElementDto = {
   alignment?: "left" | "center" | "right";
   offsetY?: number;
   offsetX?: number;
+
+  size?: number;
+  roofColor?: string;
+  gardenWidth?: number;
+  gardenHeight?: number;
 
   signalOutput?: SignalOutputConfiguration;
   currentStateIndex?: number;
@@ -324,16 +330,77 @@ export interface ClockElementDto extends BaseElementDto {
   type: "clcok";
 }
 
+export type BlockEventSensorConditionDto = {
+  sensor: number;
+  state: boolean;
+};
+
+export type BlockDirectionEventConfigDto = {
+  arrival: BlockEventSensorConditionDto[];
+  arrivalDelayMs: number;
+  arrived: BlockEventSensorConditionDto[];
+  arrivedDelayMs: number;
+  leave: BlockEventSensorConditionDto[];
+  leaveDelayMs: number;
+};
+
+export type BlockEventConfigDto = {
+  forward: BlockDirectionEventConfigDto;
+  reverse: BlockDirectionEventConfigDto;
+};
+
 export interface BlockElementDto extends TrackElementDto {
   type: "trackblock";
   length: number;
   locoAddress: number;
   sensorAddress: number;
   blockType: BlockType;
+  eventConfig?: BlockEventConfigDto;
 }
+
+export type TreeVariantDto = "round" | "broad" | "conifer";
 
 export interface TreeElementDto extends BaseElementDto {
   type: "tree";
+  variant: TreeVariantDto;
+  branchCount: number;
+}
+
+export type BushVariantDto = "compact" | "wide" | "flowering";
+
+export interface BushElementDto extends BaseElementDto {
+  type: "bush";
+  variant: BushVariantDto;
+  clusterCount: number;
+}
+
+export type LampVariantDto = "classic" | "modern" | "double";
+
+export interface LampElementDto extends BaseElementDto {
+  type: "lamp";
+  variant: LampVariantDto;
+}
+
+export type StationBuildingVariantDto = "plain" | "terrace" | "coveredTerrace" | "stairs" | "classic" | "rural" | "modern";
+
+export interface StationBuildingElementDto extends BaseElementDto {
+  type: "stationbuilding";
+  variant: StationBuildingVariantDto;
+  size: number;
+  roofColor: string;
+}
+
+export interface SwitchmanHutElementDto extends BaseElementDto {
+  type: "switchmanhut";
+  size: number;
+  roofColor: string;
+}
+
+export interface GardenHouseElementDto extends BaseElementDto {
+  type: "gardenhouse";
+  gardenWidth: number;
+  gardenHeight: number;
+  roofColor: string;
 }
 
 export interface LabelElementDto extends BaseElementDto {
@@ -389,5 +456,10 @@ export type LayoutElementDto =
   | ClockElementDto
   | BlockElementDto
   | TreeElementDto
+  | BushElementDto
+  | LampElementDto
+  | StationBuildingElementDto
+  | SwitchmanHutElementDto
+  | GardenHouseElementDto
   | TrackSignalElementDto
   | LabelElementDto;

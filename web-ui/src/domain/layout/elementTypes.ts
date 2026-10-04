@@ -43,6 +43,11 @@ export const ELEMENT_TYPES = {
 
   CLOCK: "clcok",
   TREE: "tree",
+  BUSH: "bush",
+  LAMP: "lamp",
+  STATION_BUILDING: "stationbuilding",
+  SWITCHMAN_HUT: "switchmanhut",
+  GARDEN_HOUSE: "gardenhouse",
   LABEL: "label",
 } as const;
 

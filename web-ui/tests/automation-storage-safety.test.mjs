@@ -60,9 +60,29 @@ test("shared automation document writes are serialized in the WebUI", () => {
     /saveAutomationMovement[\s\S]*mutateAutomationStorage/
   );
 
-  assert.match(
+  assert.doesNotMatch(
     api,
-    /updateAutomationMovementTiming[\s\S]*mutateAutomationStorage/
+    /updateAutomationMovementTiming/
+  );
+
+  const backend =
+    read(
+      "../desktop/DCCExpressHub.Net/Web/MovementRuntime.cs"
+    );
+
+  const coordinator =
+    read(
+      "../desktop/DCCExpressHub.Net/Web/AutomationStorageCoordinator.cs"
+    );
+
+  assert.match(
+    backend,
+    /PersistMovementTimingAsync[\s\S]*_automationStorage\.ExecuteAsync/
+  );
+
+  assert.match(
+    coordinator,
+    /SemaphoreSlim/
   );
 });
 

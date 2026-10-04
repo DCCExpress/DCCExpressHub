@@ -361,7 +361,7 @@ function paintLayoutStatusBar():
   );
 
   // Layout status order:
-  // WS -> DCC-EX -> Control Station -> ESTOP -> ...
+  // WS -> DCC-EX -> ESTOP -> ...
   if (
     dccBadge.previousElementSibling !==
       existingWsBadge

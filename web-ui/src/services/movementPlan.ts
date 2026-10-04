@@ -105,14 +105,17 @@ export type MovementPlanLeg = {
     RawTurnoutState[];
   approachWhen:
     MovementSensorCondition[];
+  approachDelayMs: number;
   departWhen:
     MovementSensorCondition[];
   leaveWhen:
     MovementSensorCondition[];
   leaveWhenExplicit:
     boolean;
+  leaveDelayMs: number;
   arrivedWhen:
     MovementSensorCondition[];
+  arrivedDelayMs: number;
 };
 
 export type MovementPlan = {
@@ -539,140 +542,265 @@ function fallbackPassages(
   );
 }
 
-function explicitBlockRuleFor(
-  page:
-    MovementPage,
-  blockId: number
-) {
-  return page.blockRules.find(
-    rule =>
-      rule.blockId ===
-      blockId
-  );
+function blockEventConditionsFor(
+  layout:
+    SerializedLayoutDto,
+  blockId: number,
+  direction:
+    | "unknown"
+    | "forward"
+    | "reverse",
+  event:
+    | "arrival"
+    | "arrived"
+    | "leave"
+): MovementSensorCondition[] {
+  if (
+    direction ===
+      "unknown"
+  ) {
+    return [];
+  }
+
+  for (
+    const layer of
+    layout.layers ??
+    []
+  ) {
+    for (
+      const element of
+      layer.elements ??
+      []
+    ) {
+      if (
+        element.type !==
+          "trackblock" ||
+        Number(
+          element.id
+        ) !== blockId
+      ) {
+        continue;
+      }
+
+      const conditions =
+        element.eventConfig?.[
+          direction
+        ]?.[
+          event
+        ] ??
+        [];
+
+      return conditions.map(
+        (
+          condition,
+          index
+        ) => ({
+          id:
+            `block-event-${blockId}-${direction}-${event}-${index}`,
+          sensor:
+            condition.sensor,
+          state:
+            condition.state,
+        })
+      );
+    }
+  }
+
+  return [];
+}
+
+function blockEventDelayFor(
+  layout:
+    SerializedLayoutDto,
+  blockId: number,
+  direction:
+    | "unknown"
+    | "forward"
+    | "reverse",
+  event:
+    | "arrival"
+    | "arrived"
+    | "leave"
+): number {
+  if (
+    direction ===
+      "unknown"
+  ) {
+    return 0;
+  }
+
+  const key =
+    event === "arrival"
+      ? "arrivalDelayMs"
+      : event === "arrived"
+        ? "arrivedDelayMs"
+        : "leaveDelayMs";
+
+  for (
+    const layer of
+    layout.layers ??
+    []
+  ) {
+    for (
+      const element of
+      layer.elements ??
+      []
+    ) {
+      if (
+        element.type !==
+          "trackblock" ||
+        Number(
+          element.id
+        ) !== blockId
+      ) {
+        continue;
+      }
+
+      const raw =
+        element.eventConfig?.[
+          direction
+        ]?.[
+          key
+        ];
+
+      const numeric =
+        Math.round(
+          Number(
+            raw ??
+            0
+          )
+        );
+
+      return Number.isFinite(
+        numeric
+      )
+        ? Math.max(
+            0,
+            Math.min(
+              600000,
+              numeric
+            )
+          )
+        : 0;
+    }
+  }
+
+  return 0;
 }
 
 function approachRuleFor(
-  page:
+  _page:
     MovementPage,
-  blockId: number
+  blockId: number,
+  layout:
+    SerializedLayoutDto,
+  direction:
+    | "unknown"
+    | "forward"
+    | "reverse"
 ): MovementSensorCondition[] {
-  return (
-    explicitBlockRuleFor(
-      page,
-      blockId
-    )?.approachWhen ??
-    []
-  ).map(
-    condition => ({
-      ...condition,
-    })
+  return blockEventConditionsFor(
+    layout,
+    blockId,
+    direction,
+    "arrival"
   );
 }
 
 function departureRuleFor(
-  page:
+  _page:
     MovementPage,
-  blockId: number
+  _blockId: number
 ): MovementSensorCondition[] {
-  return (
-    explicitBlockRuleFor(
-      page,
-      blockId
-    )?.departWhen ??
-    []
-  ).map(
-    condition => ({
-      ...condition,
-    })
-  );
+  return [];
 }
 
 function leaveRuleFor(
-  page:
+  _page:
     MovementPage,
   blockId: number,
   sensors:
-    Map<number, number>
+    Map<number, number>,
+  layout:
+    SerializedLayoutDto,
+  direction:
+    | "unknown"
+    | "forward"
+    | "reverse"
 ): {
   conditions:
     MovementSensorCondition[];
   explicit: boolean;
 } {
-  const explicit =
-    explicitBlockRuleFor(
-      page,
-      blockId
+  const configured =
+    blockEventConditionsFor(
+      layout,
+      blockId,
+      direction,
+      "leave"
     );
 
   if (
-    explicit &&
-    explicit.leaveWhen.length >
+    configured.length >
       0
   ) {
     return {
       conditions:
-        explicit.leaveWhen.map(
-          condition => ({
-            ...condition,
-          })
-        ),
+        configured,
       explicit:
         true,
     };
   }
 
-  const sensor =
+  const sourceSensor =
     sensors.get(
       blockId
     );
 
-  if (
-    sensor ===
-    undefined
-  ) {
-    return {
-      conditions: [],
-      explicit:
-        false,
-    };
-  }
-
   return {
-    conditions: [{
-      id:
-        `auto-leave-${blockId}-off`,
-      sensor,
-      state:
-        false,
-    }],
+    conditions:
+      sourceSensor ===
+        undefined
+        ? []
+        : [{
+            id:
+              `auto-leave-${blockId}-off`,
+            sensor:
+              sourceSensor,
+            state:
+              false,
+          }],
     explicit:
       false,
   };
 }
 
 function arrivalRuleFor(
-  page:
+  _page:
     MovementPage,
   blockId: number,
   sensors:
-    Map<number, number>
+    Map<number, number>,
+  layout:
+    SerializedLayoutDto,
+  direction:
+    | "unknown"
+    | "forward"
+    | "reverse"
 ): MovementSensorCondition[] {
-  const explicit =
-    explicitBlockRuleFor(
-      page,
-      blockId
+  const configured =
+    blockEventConditionsFor(
+      layout,
+      blockId,
+      direction,
+      "arrived"
     );
 
   if (
-    explicit &&
-    explicit.arrivedWhen.length >
+    configured.length >
       0
   ) {
-    return explicit.arrivedWhen.map(
-      condition => ({
-        ...condition,
-      })
-    );
+    return configured;
   }
 
   const destinationSensor =
@@ -1112,7 +1240,9 @@ export function buildMovementPlan(
       leaveRuleFor(
         page,
         from.blockId!,
-        sensors
+        sensors,
+        layout,
+        route.locoDirection
       );
 
     legs.push({
@@ -1125,7 +1255,16 @@ export function buildMovementPlan(
       approachWhen:
         approachRuleFor(
           page,
-          to.blockId!
+          to.blockId!,
+          layout,
+          route.locoDirection
+        ),
+      approachDelayMs:
+        blockEventDelayFor(
+          layout,
+          to.blockId!,
+          route.locoDirection,
+          "arrival"
         ),
       departWhen:
         departureRuleFor(
@@ -1136,11 +1275,27 @@ export function buildMovementPlan(
         leaveRule.conditions,
       leaveWhenExplicit:
         leaveRule.explicit,
+      leaveDelayMs:
+        blockEventDelayFor(
+          layout,
+          from.blockId!,
+          route.locoDirection,
+          "leave"
+        ),
       arrivedWhen:
         arrivalRuleFor(
           page,
           to.blockId!,
-          sensors
+          sensors,
+          layout,
+          route.locoDirection
+        ),
+      arrivedDelayMs:
+        blockEventDelayFor(
+          layout,
+          to.blockId!,
+          route.locoDirection,
+          "arrived"
         ),
     });
   }

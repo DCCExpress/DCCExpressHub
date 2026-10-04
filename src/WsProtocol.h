@@ -5,7 +5,11 @@
 #include <ESPAsyncWebServer.h>
 #include <vector>
 
+#include "AutomationScriptRuntime.h"
 #include "FastClockRuntime.h"
+#include "FlowRuntime.h"
+#include "DispatcherRuntime.h"
+#include "MovementRuntime.h"
 #include "ICommandCenter.h"
 #include "LayoutRuntime.h"
 #include "LocoCounterRuntime.h"
@@ -135,6 +139,21 @@ private:
   RuntimeStateStore& _stateStore;
   LocoCounterRuntime& _locoCounters;
   FastClockRuntime _fastClock;
+  AutomationScriptRuntime _scripts{
+      _commandCenter,
+      _runtime};
+
+  FlowRuntime _flows{
+      _scripts,
+      _runtime};
+
+  DispatcherRuntime _dispatcher{
+      _runtime};
+
+  MovementRuntime _movements{
+      _runtime,
+      _dispatcher,
+      _commandCenter};
 
   bool _trackPower = false;
   bool _programmingPower = false;
@@ -195,10 +214,6 @@ private:
   unsigned long _nextHubStatusAt = 0;
 
   uint8_t _wsClientCount = 0;
-
-  uint32_t _controlStationOwnerConnectionId = 0;
-  String _controlStationOwnerClientId;
-  String _controlStationOwnerName;
 
   struct PendingProgrammingRequest {
     bool active = false;
@@ -261,6 +276,11 @@ private:
   bool switchManOwns(
       uint16_t address,
       const String& ownerId) const;
+
+  bool dispatcherSetTurnout(
+      uint16_t address,
+      bool logicalClosed,
+      const String& ownerId);
 
   const SwitchManLock* switchManFind(
       uint16_t address) const;
@@ -325,11 +345,6 @@ private:
   void sendPowerInfo(
       AsyncWebSocketClient* client);
 
-  void sendControlStationStatus(
-      AsyncWebSocketClient* client);
-
-  void broadcastControlStationStatus();
-
   void sendRuntimeSnapshot(
       AsyncWebSocketClient* client);
 
@@ -343,6 +358,21 @@ private:
 
   void broadcastDccExStatus();
   void broadcastPowerInfo();
+
+  void sendAutomationScriptSnapshot(
+      AsyncWebSocketClient* client);
+
+  void broadcastAutomationScriptSnapshot();
+
+  void sendFlowSnapshot(
+      AsyncWebSocketClient* client);
+
+  void broadcastFlowSnapshot();
+
+  void sendMovementSnapshot(
+      AsyncWebSocketClient* client);
+
+  void broadcastMovementSnapshot();
 
   void sendLocoCounterSnapshot(
       AsyncWebSocketClient* client);

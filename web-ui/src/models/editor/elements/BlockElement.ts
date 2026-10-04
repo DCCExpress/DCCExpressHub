@@ -1,15 +1,202 @@
 import i18next from "i18next";
 import { BLOCK_TYPES, type BlockType, ELEMENT_TYPES } from "../../../domain/layout/elementTypes";
 import type { IRect } from "../../../domain/Rect";
+import type {
+  BlockDirectionEventConfigDto,
+  BlockEventConfigDto,
+  BlockEventSensorConditionDto,
+} from "../../../domain/layout/layoutDto";
 import { generateId } from "../../../helpers";
 import i18n from "../../../i18n";
 import { getBlockTargetLocoAddress } from "../../../services/blockTargetLocoRuntime";
+import { getTrainTrackingPredictionForBlock } from "../../../services/trainTrackingPredictionRuntime";
 import { getMovementBlockRuntime } from "../../../services/movementBlockRuntime";
 import { wsClient } from "../../../services/wsClient";
 import { TrackElement } from "../core/TrackElement";
 import { getCanvasImage } from "../rendering/ImageCache";
 import { DrawOptions, IBlockElement } from "../types/EditorTypes";
 import { IEditableProperty } from "./PropertyDescriptor";
+function normalizeBlockEventConditions(
+  value: unknown
+): BlockEventSensorConditionDto[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const result:
+    BlockEventSensorConditionDto[] = [];
+
+  const used =
+    new Set<number>();
+
+  for (const raw of value) {
+    if (
+      !raw ||
+      typeof raw !==
+        "object"
+    ) {
+      continue;
+    }
+
+    const candidate =
+      raw as Record<
+        string,
+        unknown
+      >;
+
+    const sensor =
+      Math.trunc(
+        Number(
+          candidate.sensor
+        )
+      );
+
+    if (
+      !Number.isInteger(
+        sensor
+      ) ||
+      sensor < 1 ||
+      sensor > 65535 ||
+      used.has(
+        sensor
+      )
+    ) {
+      continue;
+    }
+
+    used.add(
+      sensor
+    );
+
+    result.push({
+      sensor,
+      state:
+        candidate.state !==
+        false,
+    });
+  }
+
+  return result;
+}
+
+function normalizeBlockEventDelay(
+  value: unknown
+): number {
+  const numeric =
+    Math.round(
+      Number(
+        value ??
+        0
+      )
+    );
+
+  return Number.isFinite(
+    numeric
+  )
+    ? Math.max(
+        0,
+        Math.min(
+          600000,
+          numeric
+        )
+      )
+    : 0;
+}
+
+function normalizeBlockDirectionEvents(
+  value: unknown
+): BlockDirectionEventConfigDto {
+  const candidate =
+    value &&
+    typeof value ===
+      "object"
+      ? value as Record<
+          string,
+          unknown
+        >
+      : {};
+
+  const legacyLeave =
+    Array.isArray(
+      candidate.afterLeave
+    ) &&
+    candidate.afterLeave.length >
+      0
+      ? candidate.afterLeave
+      : candidate.beforeLeave;
+
+  return {
+    arrival:
+      normalizeBlockEventConditions(
+        candidate.arrival ??
+        candidate.beforeArrive
+      ),
+    arrivalDelayMs:
+      normalizeBlockEventDelay(
+        candidate.arrivalDelayMs ??
+        candidate.beforeArriveDelayMs
+      ),
+    arrived:
+      normalizeBlockEventConditions(
+        candidate.arrived
+      ),
+    arrivedDelayMs:
+      normalizeBlockEventDelay(
+        candidate.arrivedDelayMs
+      ),
+    leave:
+      normalizeBlockEventConditions(
+        candidate.leave ??
+        legacyLeave
+      ),
+    leaveDelayMs:
+      normalizeBlockEventDelay(
+        candidate.leaveDelayMs ??
+        candidate.afterLeaveDelayMs ??
+        candidate.beforeLeaveDelayMs
+      ),
+  };
+}
+
+export function emptyBlockEventConfig():
+  BlockEventConfigDto {
+  return {
+    forward:
+      normalizeBlockDirectionEvents(
+        null
+      ),
+    reverse:
+      normalizeBlockDirectionEvents(
+        null
+      ),
+  };
+}
+
+function normalizeBlockEventConfig(
+  value: unknown
+): BlockEventConfigDto {
+  const candidate =
+    value &&
+    typeof value ===
+      "object"
+      ? value as Record<
+          string,
+          unknown
+        >
+      : {};
+
+  return {
+    forward:
+      normalizeBlockDirectionEvents(
+        candidate.forward
+      ),
+    reverse:
+      normalizeBlockDirectionEvents(
+        candidate.reverse
+      ),
+  };
+}
+
 export class BlockElement extends TrackElement {
   text: string = "HELLO";
   textColor: string = "black";
@@ -17,6 +204,9 @@ export class BlockElement extends TrackElement {
   override length: number = 1;
   sensorAddress: number = 0;
   blockType: BlockType = BLOCK_TYPES.NORMAL;
+  eventConfig:
+    BlockEventConfigDto =
+      emptyBlockEventConfig();
   /**
    * A blokk vizuálisan 3x1 overlay, de az x/y továbbra is
    * a blokkhoz tartozó középső fizikai síncella.
@@ -96,6 +286,16 @@ export class BlockElement extends TrackElement {
     const hasAssignedLoco =
       this.locoAddress > 0;
 
+    const targetAddress =
+      getBlockTargetLocoAddress(
+        this.id
+      );
+
+    const trackingPrediction =
+      getTrainTrackingPredictionForBlock(
+        this.id
+      );
+
     const sensorOccupied =
       this.isSensorAddressOccupied(
         this.sensorAddress
@@ -134,7 +334,9 @@ export class BlockElement extends TrackElement {
     const displayLocoAddress =
       hasAssignedLoco
         ? this.locoAddress
-        : this.runtimeTransitLocoAddress;
+        : this.runtimeTransitLocoAddress > 0
+          ? this.runtimeTransitLocoAddress
+          : trackingPrediction?.locoAddress ?? 0;
 
     const showBlockName = options?.showBlockNames === true && this.name.trim().length > 0;
     const blockNameHeight = showBlockName ? 9 : 0;
@@ -143,6 +345,78 @@ export class BlockElement extends TrackElement {
     ctx.lineWidth = 1;
     ctx.fillRect(blockX, blockY, blockW, blockH);
     ctx.strokeRect(blockX, blockY, blockW, blockH);
+
+    /*
+     * Dispatcher/Movement target remains the primary intent marker. When
+     * Train Tracking predicts a next block without an active Movement target,
+     * show the older dashed yellow tracking halo so the operator can see the
+     * physical prediction separately from route authority.
+     */
+    if (
+      targetAddress > 0 &&
+      this.locoAddress <= 0
+    ) {
+      const phase =
+        (
+          Math.sin(
+            Date.now() /
+              230
+          ) +
+          1
+        ) /
+        2;
+
+      ctx.save();
+      ctx.globalAlpha =
+        0.35 +
+        phase *
+          0.65;
+      ctx.strokeStyle =
+        "#ffb000";
+      ctx.lineWidth =
+        1;
+      ctx.strokeRect(
+        blockX - 1,
+        blockY - 1,
+        blockW + 2,
+        blockH + 2
+      );
+      ctx.restore();
+    } else if (
+      trackingPrediction
+    ) {
+      const phase =
+        (
+          Math.sin(
+            Date.now() /
+              180
+          ) +
+          1
+        ) /
+        2;
+
+      ctx.save();
+      ctx.globalAlpha =
+        0.35 +
+        phase *
+          0.65;
+      ctx.strokeStyle =
+        "#ffd43b";
+      ctx.lineWidth =
+        1;
+      ctx.setLineDash([
+        5,
+        3,
+      ]);
+      ctx.strokeRect(
+        blockX - 1,
+        blockY - 1,
+        blockW + 2,
+        blockH + 2
+      );
+      ctx.restore();
+    }
+
     if (
       occupied ||
       inTransit
@@ -414,6 +688,10 @@ export class BlockElement extends TrackElement {
     copy.length = this.length;
     copy.sensorAddress = this.sensorAddress;
     copy.blockType = this.blockType;
+    copy.eventConfig =
+      normalizeBlockEventConfig(
+        this.eventConfig
+      );
     return copy;
   }
   static fromJSON(data: IBlockElement): BlockElement {
@@ -433,7 +711,13 @@ export class BlockElement extends TrackElement {
      * ezért induláskor nem töltjük vissza.
      */
     element.locoAddress = 0;
-    element.blockType = data.blockType ?? BLOCK_TYPES.NORMAL;
+    element.blockType =
+      data.blockType ??
+      BLOCK_TYPES.NORMAL;
+    element.eventConfig =
+      normalizeBlockEventConfig(
+        data.eventConfig
+      );
     return element;
   }
   override toJSON(): IBlockElement {
@@ -445,7 +729,12 @@ export class BlockElement extends TrackElement {
       // Occupancy belongs to /runtime-state.json, never to the saved layout.
       locoAddress: 0,
       sensorAddress: this.sensorAddress,
-      blockType: this.blockType as BlockType,
+      blockType:
+        this.blockType as BlockType,
+      eventConfig:
+        normalizeBlockEventConfig(
+          this.eventConfig
+        ),
     };
   }
   override getEditableProperties(): IEditableProperty[] {
@@ -470,12 +759,6 @@ export class BlockElement extends TrackElement {
         type: "number",
         readonly: false,
         min: 0,
-      },
-      {
-        label: i18next.t("ui.colorOn"),
-        key: "colorOn",
-        type: "colorpicker",
-        readonly: false,
       },
     ];
   }

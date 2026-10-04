@@ -508,6 +508,102 @@ JSValue jsHubSetSignal(
           ok);
 }
 
+JSValue jsHubSetAccessory(
+    JSContext* ctx,
+    JSValueConst,
+    int argc,
+    JSValueConst* argv) {
+  if (!checkpoint(ctx)) return interrupted(ctx);
+  if (argc < 2) return JS_ThrowTypeError(ctx, "hub.setAccessory(address, active) requires 2 arguments");
+  uint32_t address = 0;
+  if (!readUint32(ctx, argv[0], address)) return JS_EXCEPTION;
+  return JS_NewBool(ctx, sandboxFrom(ctx)->commandSetAccessory(static_cast<uint16_t>(address), JS_ToBool(ctx, argv[1])));
+}
+
+JSValue jsHubSetSensor(
+    JSContext* ctx,
+    JSValueConst,
+    int argc,
+    JSValueConst* argv) {
+  if (!checkpoint(ctx)) return interrupted(ctx);
+  if (argc < 2) return JS_ThrowTypeError(ctx, "hub.setSensor(address, on) requires 2 arguments");
+  uint32_t address = 0;
+  if (!readUint32(ctx, argv[0], address)) return JS_EXCEPTION;
+  return JS_NewBool(ctx, sandboxFrom(ctx)->commandSetSensor(static_cast<uint16_t>(address), JS_ToBool(ctx, argv[1])));
+}
+
+JSValue jsHubGetBlock(
+    JSContext* ctx,
+    JSValueConst,
+    int argc,
+    JSValueConst* argv) {
+  if (!checkpoint(ctx)) return interrupted(ctx);
+  if (argc < 1) return JS_ThrowTypeError(ctx, "hub.getBlock(blockId) requires 1 argument");
+  uint32_t id = 0;
+  if (!readUint32(ctx, argv[0], id)) return JS_EXCEPTION;
+  return JS_NewInt32(ctx, sandboxFrom(ctx)->blockLoco(static_cast<uint16_t>(id)));
+}
+
+JSValue jsHubSetBlock(
+    JSContext* ctx,
+    JSValueConst,
+    int argc,
+    JSValueConst* argv) {
+  if (!checkpoint(ctx)) return interrupted(ctx);
+  if (argc < 2) return JS_ThrowTypeError(ctx, "hub.setBlock(blockId, locoAddress) requires 2 arguments");
+  uint32_t id = 0, loco = 0;
+  if (!readUint32(ctx, argv[0], id) || !readUint32(ctx, argv[1], loco)) return JS_EXCEPTION;
+  return JS_NewBool(ctx, sandboxFrom(ctx)->setBlockLoco(static_cast<uint16_t>(id), static_cast<uint16_t>(loco)));
+}
+
+JSValue jsHubClearBlock(
+    JSContext* ctx,
+    JSValueConst,
+    int argc,
+    JSValueConst* argv) {
+  if (!checkpoint(ctx)) return interrupted(ctx);
+  if (argc < 1) return JS_ThrowTypeError(ctx, "hub.clearBlock(blockId) requires 1 argument");
+  uint32_t id = 0;
+  if (!readUint32(ctx, argv[0], id)) return JS_EXCEPTION;
+  return JS_NewBool(ctx, sandboxFrom(ctx)->clearBlockLoco(static_cast<uint16_t>(id)));
+}
+
+JSValue jsHubGetBlockTarget(
+    JSContext* ctx,
+    JSValueConst,
+    int argc,
+    JSValueConst* argv) {
+  if (!checkpoint(ctx)) return interrupted(ctx);
+  if (argc < 1) return JS_ThrowTypeError(ctx, "hub.getBlockTarget(blockId) requires 1 argument");
+  uint32_t id = 0;
+  if (!readUint32(ctx, argv[0], id)) return JS_EXCEPTION;
+  return JS_NewInt32(ctx, sandboxFrom(ctx)->blockTargetLoco(static_cast<uint16_t>(id)));
+}
+
+JSValue jsHubSetBlockTarget(
+    JSContext* ctx,
+    JSValueConst,
+    int argc,
+    JSValueConst* argv) {
+  if (!checkpoint(ctx)) return interrupted(ctx);
+  if (argc < 2) return JS_ThrowTypeError(ctx, "hub.setBlockTarget(blockId, locoAddress) requires 2 arguments");
+  uint32_t id = 0, loco = 0;
+  if (!readUint32(ctx, argv[0], id) || !readUint32(ctx, argv[1], loco)) return JS_EXCEPTION;
+  return JS_NewBool(ctx, sandboxFrom(ctx)->setBlockTargetLoco(static_cast<uint16_t>(id), static_cast<uint16_t>(loco)));
+}
+
+JSValue jsHubClearBlockTarget(
+    JSContext* ctx,
+    JSValueConst,
+    int argc,
+    JSValueConst* argv) {
+  if (!checkpoint(ctx)) return interrupted(ctx);
+  if (argc < 1) return JS_ThrowTypeError(ctx, "hub.clearBlockTarget(blockId) requires 1 argument");
+  uint32_t id = 0;
+  if (!readUint32(ctx, argv[0], id)) return JS_EXCEPTION;
+  return JS_NewBool(ctx, sandboxFrom(ctx)->clearBlockTargetLoco(static_cast<uint16_t>(id)));
+}
+
 JSValue jsHubGetSensor(
     JSContext* ctx,
     JSValueConst,
@@ -688,6 +784,15 @@ void installHubApi(
           jsHubSetSignal,
           "setSignal",
           2));
+
+  JS_SetPropertyStr(context, hub, "setAccessory", JS_NewCFunction(context, jsHubSetAccessory, "setAccessory", 2));
+  JS_SetPropertyStr(context, hub, "setSensor", JS_NewCFunction(context, jsHubSetSensor, "setSensor", 2));
+  JS_SetPropertyStr(context, hub, "getBlock", JS_NewCFunction(context, jsHubGetBlock, "getBlock", 1));
+  JS_SetPropertyStr(context, hub, "setBlock", JS_NewCFunction(context, jsHubSetBlock, "setBlock", 2));
+  JS_SetPropertyStr(context, hub, "clearBlock", JS_NewCFunction(context, jsHubClearBlock, "clearBlock", 1));
+  JS_SetPropertyStr(context, hub, "getBlockTarget", JS_NewCFunction(context, jsHubGetBlockTarget, "getBlockTarget", 1));
+  JS_SetPropertyStr(context, hub, "setBlockTarget", JS_NewCFunction(context, jsHubSetBlockTarget, "setBlockTarget", 2));
+  JS_SetPropertyStr(context, hub, "clearBlockTarget", JS_NewCFunction(context, jsHubClearBlockTarget, "clearBlockTarget", 1));
 
   JS_SetPropertyStr(
       context,
@@ -1182,6 +1287,65 @@ bool JsSandbox::commandSetSignal(
           .setSignalAspect(
               address,
               aspect);
+}
+
+bool JsSandbox::commandSetAccessory(
+    uint16_t address,
+    bool active) {
+  return _commandCenter.setAccessory(address, active);
+}
+
+bool JsSandbox::commandSetSensor(
+    uint16_t address,
+    bool on) {
+  return _runtime.setSensor(address, on);
+}
+
+int32_t JsSandbox::blockLoco(
+    uint16_t blockId) const {
+  RuntimeBlock* block =
+      const_cast<LayoutRuntime&>(_runtime).findBlockById(blockId);
+  return block && block->occupied()
+      ? static_cast<int32_t>(block->locoAddress)
+      : 0;
+}
+
+bool JsSandbox::setBlockLoco(
+    uint16_t blockId,
+    uint16_t locoAddress) {
+  if (locoAddress < 1 || locoAddress > 10239) return false;
+  return _runtime.setBlock(blockId, String(locoAddress), locoAddress);
+}
+
+bool JsSandbox::clearBlockLoco(
+    uint16_t blockId) {
+  return _runtime.removeBlock(blockId);
+}
+
+int32_t JsSandbox::blockTargetLoco(
+    uint16_t blockId) const {
+  RuntimeBlock* block =
+      const_cast<LayoutRuntime&>(_runtime).findBlockById(blockId);
+  if (!block || !block->targetOnly()) return 0;
+  String raw = block->locoId.substring(strlen(RuntimeBlock::TARGET_LOCO_PREFIX));
+  return raw.toInt();
+}
+
+bool JsSandbox::setBlockTargetLoco(
+    uint16_t blockId,
+    uint16_t locoAddress) {
+  if (locoAddress < 1 || locoAddress > 10239) return false;
+  return _runtime.setBlock(
+      blockId,
+      String(RuntimeBlock::TARGET_LOCO_PREFIX) + String(locoAddress),
+      0);
+}
+
+bool JsSandbox::clearBlockTargetLoco(
+    uint16_t blockId) {
+  RuntimeBlock* block = _runtime.findBlockById(blockId);
+  if (!block || !block->targetOnly()) return true;
+  return _runtime.removeBlock(blockId);
 }
 
 bool JsSandbox::sensorState(

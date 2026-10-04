@@ -49,14 +49,18 @@ import {
 } from "../../services/automationApi";
 
 import {
+  abortAllSavedClientScripts,
   abortClientScript,
   getAutomationFinishing,
   getClientScriptState,
+  pauseAllSavedClientScripts,
   pauseClientScript,
+  resumeAllSavedClientScripts,
   resumeClientScript,
   runClientScript,
   ScriptAbortError,
   setAutomationFinishing,
+  startAllSavedClientScripts,
   subscribeAutomationFinishing,
   subscribeClientScriptState,
   type ClientScriptState,
@@ -1415,196 +1419,168 @@ export default function AutomationScriptsTable({
     };
 
   const startAll =
-    (): void => {
-      let started = 0;
+    async (): Promise<void> => {
+      try {
+        const started =
+          await startAllSavedClientScripts();
 
-      for (
-        const definition of
-        scripts
-      ) {
-        if (
-          definition.startWithAll ===
-            false ||
-          !definition.script.trim() ||
-          getClientScriptState(
-            executionId(
-              definition.id
-            )
-          ).status !==
-            "idle"
-        ) {
-          continue;
-        }
-
-        started += 1;
-
-        void runClientScript(
-          definition.script,
-          {
-            id:
-              executionId(
-                definition.id
-              ),
-            name:
-              definition.name,
-            type:
-              "automation",
-          }
-        ).catch(
-          error => {
-            if (
-              error instanceof
-              ScriptAbortError
-            ) {
-              return;
-            }
-
-            showNotification({
-              color:
-                "red",
-              title:
-                i18next.t(
-                  "ui.automationFailed"
+        showNotification({
+          color:
+            started > 0
+              ? "green"
+              : "gray",
+          title:
+            automationPanelText(
+              "startAll"
+            ),
+          message:
+            started > 0
+              ? automationPanelText(
+                  "startAllStarted",
+                  {
+                    count:
+                      started,
+                  }
+                )
+              : automationPanelText(
+                  "noStartableScripts"
                 ),
-              message:
-                error instanceof Error
-                  ? error.message
-                  : String(
-                      error
-                    ),
-            });
-          }
-        );
+        });
+      } catch (error) {
+        showNotification({
+          color:
+            "red",
+          title:
+            automationPanelText(
+              "startAll"
+            ),
+          message:
+            error instanceof Error
+              ? error.message
+              : String(
+                  error
+                ),
+        });
       }
-
-      showNotification({
-        color:
-          started > 0
-            ? "green"
-            : "gray",
-        title:
-          automationPanelText(
-            "startAll"
-          ),
-        message:
-          started > 0
-            ? automationPanelText(
-                "startAllStarted",
-                {
-                  count:
-                    started,
-                }
-              )
-            : automationPanelText(
-                "noStartableScripts"
-              ),
-      });
     };
 
   const resumeAll =
-    (): void => {
-      let resumed = 0;
+    async (): Promise<void> => {
+      try {
+        const resumed =
+          await resumeAllSavedClientScripts();
 
-      for (
-        const script of
-        scripts
-      ) {
-        if (
-          resumeClientScript(
-            executionId(
-              script.id
-            )
-          )
-        ) {
-          resumed += 1;
-        }
+        showNotification({
+          color:
+            resumed > 0
+              ? "cyan"
+              : "gray",
+          title:
+            automationPanelText(
+              "resumeAll"
+            ),
+          message:
+            resumed > 0
+              ? automationPanelText(
+                  "resumeAllResumed",
+                  {
+                    count:
+                      resumed,
+                  }
+                )
+              : automationPanelText(
+                  "noPausedScripts"
+                ),
+        });
+      } catch (error) {
+        showNotification({
+          color:
+            "red",
+          title:
+            automationPanelText(
+              "resumeAll"
+            ),
+          message:
+            error instanceof Error
+              ? error.message
+              : String(
+                  error
+                ),
+        });
       }
-
-      showNotification({
-        color:
-          resumed > 0
-            ? "cyan"
-            : "gray",
-        title:
-          automationPanelText(
-            "resumeAll"
-          ),
-        message:
-          resumed > 0
-            ? automationPanelText(
-                "resumeAllResumed",
-                {
-                  count:
-                    resumed,
-                }
-              )
-            : automationPanelText(
-                "noPausedScripts"
-              ),
-      });
     };
 
   const stopAll =
-    (): void => {
-      let stopped = 0;
+    async (): Promise<void> => {
+      try {
+        const stopped =
+          await pauseAllSavedClientScripts();
 
-      for (
-        const script of
-        scripts
-      ) {
-        if (
-          pauseClientScript(
-            executionId(
-              script.id
-            )
-          )
-        ) {
-          stopped += 1;
-        }
+        showNotification({
+          color:
+            stopped > 0
+              ? "yellow"
+              : "gray",
+          title:
+            automationPanelText(
+              "stopAll"
+            ),
+          message:
+            stopped > 0
+              ? automationPanelText(
+                  "stopAllPaused",
+                  {
+                    count:
+                      stopped,
+                  }
+                )
+              : automationPanelText(
+                  "noRunningScripts"
+                ),
+        });
+      } catch (error) {
+        showNotification({
+          color:
+            "red",
+          title:
+            automationPanelText(
+              "stopAll"
+            ),
+          message:
+            error instanceof Error
+              ? error.message
+              : String(
+                  error
+                ),
+        });
       }
-
-      showNotification({
-        color:
-          stopped > 0
-            ? "yellow"
-            : "gray",
-        title:
-          automationPanelText(
-            "stopAll"
-          ),
-        message:
-          stopped > 0
-            ? automationPanelText(
-                "stopAllPaused",
-                {
-                  count:
-                    stopped,
-                }
-              )
-            : automationPanelText(
-                "noRunningScripts"
-              ),
-      });
     };
 
   const abortAll =
-    (): void => {
-      let aborted = 0;
+    async (): Promise<void> => {
+      let aborted =
+        0;
 
-      for (
-        const script of
-        scripts
-      ) {
-        if (
-          abortClientScript(
-            executionId(
-              script.id
+      try {
+        aborted =
+          await abortAllSavedClientScripts();
+      } catch (error) {
+        showNotification({
+          color:
+            "red",
+          title:
+            automationPanelText(
+              "abortAll"
             ),
-            "All automation scripts aborted by user."
-          )
-        ) {
-          aborted += 1;
-        }
+          message:
+            error instanceof Error
+              ? error.message
+              : String(
+                  error
+                ),
+        });
+
+        return;
       }
 
       const emergencyKnownOff =

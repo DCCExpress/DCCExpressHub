@@ -9,9 +9,15 @@ import {
   Alert,
   Badge,
   Button,
+  Checkbox,
+  Combobox,
   Divider,
   Group,
   NumberInput,
+  Pill,
+  PillsInput,
+  Portal,
+  ScrollArea,
   Select,
   Stack,
   Switch,
@@ -19,6 +25,7 @@ import {
   Textarea,
   TextInput,
   Tooltip,
+  useCombobox,
 } from "@mantine/core";
 
 import {
@@ -52,6 +59,24 @@ import {
   dispatchAutomationFlowNodeCollapse,
 } from "./automationFlowEvents";
 
+import {
+  loadAutomationBlockCatalog,
+  type AutomationBlockOption,
+} from "../../services/automationBlockCatalog";
+
+import {
+  loadAutomationSensorCatalog,
+  type AutomationSensorOption,
+} from "../../services/automationSensorCatalog";
+
+const TRAIN_TYPE_OPTIONS = [
+  "passenger",
+  "freight",
+  "mixed",
+  "maintenance",
+  "other",
+] as const;
+
 type Props = {
   node: AutomationFlowNode | null;
   pageId: string;
@@ -75,6 +100,380 @@ function t(
   );
 }
 
+type TrainEventMultiSelectOption = {
+  value: string;
+  label: string;
+};
+
+type TrainEventMultiSelectProps = {
+  label: string;
+  description?: string;
+  placeholder: string;
+  data: TrainEventMultiSelectOption[];
+  value: string[];
+  onChange: (
+    value: string[]
+  ) => void;
+};
+
+function TrainEventMultiSelect({
+  label,
+  description,
+  placeholder,
+  data,
+  value,
+  onChange,
+}: TrainEventMultiSelectProps) {
+  const [
+    search,
+    setSearch,
+  ] = useState("");
+
+  const [
+    dropdownOpened,
+    setDropdownOpened,
+  ] = useState(false);
+
+  const combobox =
+    useCombobox({
+      opened:
+        dropdownOpened,
+      onOpenedChange:
+        opened => {
+          if (opened) {
+            setDropdownOpened(
+              true
+            );
+          }
+        },
+      onDropdownClose:
+        () => {
+          combobox.resetSelectedOption();
+        },
+      onDropdownOpen:
+        () => {
+          combobox.updateSelectedOptionIndex(
+            "active"
+          );
+        },
+    });
+
+  const normalizedSearch =
+    search
+      .trim()
+      .toLocaleLowerCase();
+
+  const visibleOptions =
+    data.filter(
+      option =>
+        !normalizedSearch ||
+        option.label
+          .toLocaleLowerCase()
+          .includes(
+            normalizedSearch
+          ) ||
+        option.value
+          .toLocaleLowerCase()
+          .includes(
+            normalizedSearch
+          )
+    );
+
+  const labelByValue =
+    new Map(
+      data.map(
+        option => [
+          option.value,
+          option.label,
+        ]
+      )
+    );
+
+  const toggleValue = (
+    nextValue: string
+  ) => {
+    onChange(
+      value.includes(
+        nextValue
+      )
+        ? value.filter(
+            item =>
+              item !==
+              nextValue
+          )
+        : [
+            ...value,
+            nextValue,
+          ]
+    );
+
+    setSearch("");
+  };
+
+  return (
+    <>
+      {dropdownOpened && (
+        <Portal>
+          <div
+            aria-hidden="true"
+            onPointerDown={
+              event => {
+                event.preventDefault();
+                event.stopPropagation();
+              }
+            }
+            onMouseDown={
+              event => {
+                event.preventDefault();
+                event.stopPropagation();
+              }
+            }
+            onClick={
+              event => {
+                event.preventDefault();
+                event.stopPropagation();
+              }
+            }
+            style={{
+              position:
+                "fixed",
+              inset: 0,
+              zIndex: 299,
+              background:
+                "rgba(0, 0, 0, 0.28)",
+              cursor:
+                "default",
+            }}
+          />
+        </Portal>
+      )}
+
+      <Combobox
+        store={combobox}
+        onOptionSubmit={
+          toggleValue
+        }
+        position="bottom-start"
+        withinPortal
+        zIndex={300}
+      >
+      <Combobox.DropdownTarget>
+        <PillsInput
+          label={label}
+          description={
+            description
+          }
+          onClick={
+            () =>
+              combobox.openDropdown()
+          }
+          rightSection={
+            <Combobox.Chevron />
+          }
+          rightSectionPointerEvents="none"
+        >
+          <Pill.Group>
+            {value.map(
+              selectedValue => (
+                <Pill
+                  key={
+                    selectedValue
+                  }
+                  withRemoveButton
+                  onRemove={
+                    () =>
+                      onChange(
+                        value.filter(
+                          item =>
+                            item !==
+                            selectedValue
+                        )
+                      )
+                  }
+                >
+                  {labelByValue.get(
+                    selectedValue
+                  ) ??
+                    selectedValue}
+                </Pill>
+              )
+            )}
+
+            <Combobox.EventsTarget>
+              <PillsInput.Field
+                value={search}
+                placeholder={
+                  value.length ===
+                    0 &&
+                  search.length ===
+                    0
+                    ? placeholder
+                    : ""
+                }
+                onFocus={
+                  () =>
+                    combobox.openDropdown()
+                }
+                onChange={
+                  event => {
+                    setSearch(
+                      event
+                        .currentTarget
+                        .value
+                    );
+                    combobox.openDropdown();
+                    combobox.updateSelectedOptionIndex();
+                  }
+                }
+                onKeyDown={
+                  event => {
+                    if (
+                      event.key ===
+                      "Escape"
+                    ) {
+                      event.preventDefault();
+                      event.stopPropagation();
+
+                      setDropdownOpened(
+                        false
+                      );
+                      setSearch(
+                        ""
+                      );
+                      combobox.resetSelectedOption();
+
+                      return;
+                    }
+
+                    if (
+                      event.key ===
+                        "Backspace" &&
+                      search.length ===
+                        0 &&
+                      value.length >
+                        0
+                    ) {
+                      event.preventDefault();
+
+                      onChange(
+                        value.slice(
+                          0,
+                          -1
+                        )
+                      );
+                    }
+                  }
+                }
+              />
+            </Combobox.EventsTarget>
+          </Pill.Group>
+        </PillsInput>
+      </Combobox.DropdownTarget>
+
+      <Combobox.Dropdown>
+        <Combobox.Options>
+          <ScrollArea.Autosize
+            mah={240}
+            type="auto"
+          >
+            {visibleOptions.length ===
+            0 ? (
+              <Combobox.Empty>
+                {t(
+                  "ui.noResults",
+                  "No results"
+                )}
+              </Combobox.Empty>
+            ) : (
+              visibleOptions.map(
+                option => {
+                  const checked =
+                    value.includes(
+                      option.value
+                    );
+
+                  return (
+                    <Combobox.Option
+                      key={
+                        option.value
+                      }
+                      value={
+                        option.value
+                      }
+                      active={
+                        checked
+                      }
+                    >
+                      <Group
+                        gap="xs"
+                        wrap="nowrap"
+                      >
+                        <Checkbox
+                          size="xs"
+                          checked={
+                            checked
+                          }
+                          readOnly
+                          tabIndex={
+                            -1
+                          }
+                          style={{
+                            pointerEvents:
+                              "none",
+                          }}
+                        />
+
+                        <Text
+                          size="sm"
+                        >
+                          {
+                            option.label
+                          }
+                        </Text>
+                      </Group>
+                    </Combobox.Option>
+                  );
+                }
+              )
+            )}
+          </ScrollArea.Autosize>
+        </Combobox.Options>
+
+        <Combobox.Footer>
+          <Group
+            justify="flex-end"
+          >
+            <Button
+              size="compact-xs"
+              onPointerDown={
+                event =>
+                  event.preventDefault()
+              }
+              onClick={
+                () => {
+                  setDropdownOpened(
+                    false
+                  );
+                  setSearch(
+                    ""
+                  );
+                  combobox.resetSelectedOption();
+                }
+              }
+            >
+              {t(
+                "ui.close",
+                "Close"
+              )}
+            </Button>
+          </Group>
+        </Combobox.Footer>
+      </Combobox.Dropdown>
+      </Combobox>
+    </>
+  );
+}
+
 export default function AutomationFlowPropertiesPanel({
   node,
   pageId,
@@ -87,10 +486,42 @@ export default function AutomationFlowPropertiesPanel({
   ] =
     useState<FunctionBinding[]>([]);
 
+  const [trainBlocks, setTrainBlocks] =
+    useState<AutomationBlockOption[]>([]);
+
+  const [trainSensors, setTrainSensors] =
+    useState<AutomationSensorOption[]>([]);
+
   useEffect(
     () => {
       let active =
         true;
+
+      void loadAutomationBlockCatalog()
+        .then(blocks => {
+          if (active) {
+            setTrainBlocks(blocks);
+          }
+        })
+        .catch(error => {
+          console.warn(
+            "[Automation] Could not load block catalog for Train Event",
+            error
+          );
+        });
+
+      void loadAutomationSensorCatalog()
+        .then(sensors => {
+          if (active) {
+            setTrainSensors(sensors);
+          }
+        })
+        .catch(error => {
+          console.warn(
+            "[Automation] Could not load sensor catalog for Train Event",
+            error
+          );
+        });
 
       void getFunctionBindings()
         .then(
@@ -663,6 +1094,283 @@ export default function AutomationFlowPropertiesPanel({
       )}
 
       {data.kind ===
+        "trainEventInput" && (
+        <>
+          <TrainEventMultiSelect
+            label={t(
+              "ui.flowTrainEventTypes",
+              "Event types"
+            )}
+            description={t(
+              "ui.flowTrainEventAllHint",
+              "Empty selection means All."
+            )}
+            placeholder={t(
+              "ui.flowAll",
+              "All"
+            )}
+            data={[
+              "arrival",
+              "arrived",
+              "afterArrived",
+              "beforeLeave",
+              "beforeStart",
+              "starting",
+              "leave",
+              "afterLeave",
+              "approach",
+              "enter",
+            ].map(value => ({
+              value,
+              label: value,
+            }))}
+            value={
+              data.trainEventTypes ??
+              []
+            }
+            onChange={
+              value =>
+                onChange({
+                  trainEventTypes:
+                    value,
+                })
+            }
+          />
+
+          <TrainEventMultiSelect
+            label={t(
+              "ui.flowTrainTypes",
+              "Train types"
+            )}
+            description={t(
+              "ui.flowTrainEventAllHint",
+              "Empty selection means All."
+            )}
+            placeholder={t(
+              "ui.flowAll",
+              "All"
+            )}
+            data={TRAIN_TYPE_OPTIONS.map(
+              value => ({
+                value,
+                label:
+                  i18next.t(
+                    `locodialog.trainTypes.${value}`,
+                    {
+                      defaultValue:
+                        value,
+                    }
+                  ),
+              })
+            )}
+            value={
+              data.trainTypeFilters ??
+              []
+            }
+            onChange={
+              value =>
+                onChange({
+                  trainTypeFilters:
+                    value,
+                })
+            }
+          />
+
+          <TrainEventMultiSelect
+            label={t(
+              "ui.flowTrainResourceTypes",
+              "Resource types"
+            )}
+            description={t(
+              "ui.flowTrainEventAllHint",
+              "Empty selection means All."
+            )}
+            placeholder={t(
+              "ui.flowAll",
+              "All"
+            )}
+            data={[
+              {
+                value: "block",
+                label: t(
+                  "ui.flowTrainResourceBlock",
+                  "Block"
+                ),
+              },
+              {
+                value: "segment",
+                label: t(
+                  "ui.flowTrainResourceSegment",
+                  "Segment"
+                ),
+              },
+              {
+                value: "turnout",
+                label: t(
+                  "ui.flowTrainResourceTurnout",
+                  "Turnout"
+                ),
+              },
+            ]}
+            value={
+              data.trainResourceTypes ??
+              []
+            }
+            onChange={
+              value =>
+                onChange({
+                  trainResourceTypes:
+                    value,
+                })
+            }
+          />
+
+          <TrainEventMultiSelect
+            label={t(
+              "ui.flowTrainBlocks",
+              "Blocks"
+            )}
+            description={t(
+              "ui.flowTrainEventAllHint",
+              "Empty selection means All."
+            )}
+            placeholder={t(
+              "ui.flowAll",
+              "All"
+            )}
+            data={trainBlocks.map(
+              block => ({
+                value: String(
+                  block.id
+                ),
+                label:
+                  block.label,
+              })
+            )}
+            value={(
+              data.trainBlockFilters ??
+              []
+            ).map(String)}
+            onChange={
+              value =>
+                onChange({
+                  trainBlockFilters:
+                    value
+                      .map(
+                        item =>
+                          Number(
+                            item
+                          )
+                      )
+                      .filter(
+                        item =>
+                          Number.isInteger(
+                            item
+                          ) &&
+                          item >
+                            0
+                      ),
+                })
+            }
+          />
+
+          <TrainEventMultiSelect
+            label={t(
+              "ui.flowTrainSensors",
+              "Sensors"
+            )}
+            description={t(
+              "ui.flowTrainEventAllHint",
+              "Empty selection means All."
+            )}
+            placeholder={t(
+              "ui.flowAll",
+              "All"
+            )}
+            data={trainSensors.map(
+              sensor => ({
+                value: String(
+                  sensor.address
+                ),
+                label:
+                  sensor.label,
+              })
+            )}
+            value={(
+              data.trainSensorFilters ??
+              []
+            ).map(String)}
+            onChange={
+              value =>
+                onChange({
+                  trainSensorFilters:
+                    value
+                      .map(
+                        item =>
+                          Number(
+                            item
+                          )
+                      )
+                      .filter(
+                        item =>
+                          Number.isInteger(
+                            item
+                          ) &&
+                          item >
+                            0
+                      ),
+                })
+            }
+          />
+
+          <TextInput
+            label={t("ui.flowTrainResources", "Resources")}
+            description={t(
+              "ui.flowTrainResourcesHint",
+              "Optional comma-separated resource names/keys. Empty means All."
+            )}
+            placeholder={t("ui.flowAll", "All")}
+            value={(data.trainResourceFilters ?? []).join(", ")}
+            onChange={event => {
+              const value = event.currentTarget.value;
+              onChange({
+                trainResourceFilters: value
+                  .split(",")
+                  .map(item => item.trim())
+                  .filter(Boolean),
+              });
+            }}
+          />
+
+          <TextInput
+            label={t("ui.flowTrainLocos", "Locomotives")}
+            description={t(
+              "ui.flowTrainLocosHint",
+              "Optional comma-separated DCC addresses. Empty means All."
+            )}
+            placeholder={t("ui.flowAll", "All")}
+            value={(data.trainLocoAddressFilters ?? []).join(", ")}
+            onChange={event => {
+              const value = event.currentTarget.value;
+              onChange({
+                trainLocoAddressFilters: value
+                  .split(",")
+                  .map(item => Number(item.trim()))
+                  .filter(item => Number.isInteger(item) && item > 0 && item <= 10239),
+              });
+            }}
+          />
+
+          <Text size="xs" c="dimmed">
+            {t(
+              "ui.flowTrainEventPayloadHint",
+              "Matching TrainEvent data is passed to the connected branch as payload."
+            )}
+          </Text>
+        </>
+      )}
+
+      {data.kind ===
         "locoInput" && (
         <AutomationFlowLocoInputEditor
           data={
@@ -1175,9 +1883,10 @@ export default function AutomationFlowPropertiesPanel({
                 })
             }
             onTest={
-              () => {
+              previewSource => {
                 const source =
                   String(
+                    previewSource ??
                     data.audioName ??
                     ""
                   ).trim();

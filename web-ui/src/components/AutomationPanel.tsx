@@ -21,14 +21,20 @@ import type {
   AutomationScriptDefinition,
 } from "../services/automationApi";
 
+import type {
+  Loco,
+} from "../domain/domainTypes";
+
 import AutomationFlowsTable from "./automation/AutomationFlowsTable";
 import AutomationScriptsTable from "./automation/AutomationScriptsTable";
 import MovementPagesTable from "./movement/MovementPagesTable";
+import TrainTrackingPanel from "./automation/TrainTrackingPanel";
 
 type AutomationPanelTab =
   | "scripts"
   | "flows"
-  | "movement";
+  | "movement"
+  | "tracking";
 
 const AUTOMATION_PANEL_TAB_STORAGE_KEY =
   "dcc-express-hub.automation.activeTab";
@@ -57,6 +63,8 @@ function loadAutomationPanelTab(): AutomationPanelTab {
 }
 
 type AutomationPanelProps = {
+  locos:
+    Loco[];
   scripts:
     AutomationScriptDefinition[];
   onScriptsChange: (
@@ -79,13 +87,14 @@ type AutomationPanelProps = {
     movements:
       MovementDocument
   ) => void;
-  onOpenMovementEditor: (
+  onSelectMovementRoute: (
     pageId:
-      string
+      string | null
   ) => void;
 };
 
 export default function AutomationPanel({
+  locos,
   scripts,
   onScriptsChange,
   flows,
@@ -93,7 +102,7 @@ export default function AutomationPanel({
   onOpenFlowEditor,
   movements,
   onMovementsChange,
-  onOpenMovementEditor,
+  onSelectMovementRoute,
 }: AutomationPanelProps) {
   const [
     activeTab,
@@ -114,7 +123,9 @@ export default function AutomationPanel({
         value !==
           "flows" &&
         value !==
-          "movement"
+          "movement" &&
+        value !==
+          "tracking"
       ) {
         return;
       }
@@ -154,14 +165,28 @@ export default function AutomationPanel({
       >
         <Tabs.List>
           <Tabs.Tab
-            value="scripts"
+            value="movement"
           >
             {
               i18next.t(
-                "ui.automationScriptsTab",
+                "ui.automationMovementTab",
                 {
                   defaultValue:
-                    "Scripts",
+                    "Movement",
+                }
+              )
+            }
+          </Tabs.Tab>
+
+          <Tabs.Tab
+            value="tracking"
+          >
+            {
+              i18next.t(
+                "ui.automationTrackingTab",
+                {
+                  defaultValue:
+                    "Tracking",
                 }
               )
             }
@@ -182,14 +207,14 @@ export default function AutomationPanel({
           </Tabs.Tab>
 
           <Tabs.Tab
-            value="movement"
+            value="scripts"
           >
             {
               i18next.t(
-                "ui.automationMovementTab",
+                "ui.automationScriptsTab",
                 {
                   defaultValue:
-                    "Movement",
+                    "Scripts",
                 }
               )
             }
@@ -247,8 +272,22 @@ export default function AutomationPanel({
             onDocumentChange={
               onMovementsChange
             }
-            onOpenEditor={
-              onOpenMovementEditor
+            onSelectRoute={
+              onSelectMovementRoute
+            }
+          />
+        </Tabs.Panel>
+
+        <Tabs.Panel
+          value="tracking"
+          style={{
+            flex: 1,
+            minHeight: 0,
+          }}
+        >
+          <TrainTrackingPanel
+            locos={
+              locos
             }
           />
         </Tabs.Panel>

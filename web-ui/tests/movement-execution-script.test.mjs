@@ -90,73 +90,50 @@ function assertOrder(
 
 test("Movement execution script resolves the same persisted plan as runtime", () => {
   const script =
-    read(
-      "src/services/movementExecutionScript.ts"
-    );
+    read("src/services/movementExecutionScript.ts");
+  const backend =
+    read("../desktop/DCCExpressHub.Net/Web/MovementRuntime.cs");
 
-  assert.ok(
-    script.includes(
-      "await loadMovementPlan("
-    )
-  );
+  assert.match(script, /await loadMovementPlan\(/);
+  assert.match(script, /read-only preview from the persisted backend layout/);
+  assert.match(script, /client preview is never trusted as input/);
+  assert.doesNotMatch(script, /layoutOverride/);
 
-  assert.ok(
-    script.includes(
-      "page\n    );"
-    )
-  );
-
-  assert.equal(
-    script.includes(
-      "layoutOverride"
-    ),
-    false
-  );
-
-  assert.ok(
-    script.includes(
-      "Runtime startMovement() also calls loadMovementPlan(page)"
-    )
-  );
+  assert.match(backend, /LoadSavedMovementPage\(/);
+  assert.match(backend, /_planBuilder\.Build\(page\)/);
 });
 
 test("Movement execution script mirrors the core runtime leg order", () => {
-  const engine =
-    read(
-      "src/services/movementEngine.ts"
-    );
-
+  const backend =
+    read("../desktop/DCCExpressHub.Net/Web/MovementRuntime.cs");
   const script =
-    read(
-      "src/services/movementExecutionScript.ts"
-    );
+    read("src/services/movementExecutionScript.ts");
 
   const traverse =
     sliceBetween(
-      engine,
-      "async function traverseLeg",
-      "async function executeMovement"
+      backend,
+      "async Task TraverseLeg",
+      "async Task RunExecution"
     );
 
   assertOrder(
     traverse,
     [
-      "await waitForDepartureConditions(",
-      "await waitForPreDepartureAvailability(",
+      "leg.DepartWhen.Length",
+      "await WaitPreDepartureAvailability(",
       '"beforeDepart"',
-      "await waitForLegClearance(",
-      "await waitForDepartureConditions(",
+      "await AcquireLeg(",
       '"depart"',
-      "await waitForHeldLegReady(",
-      "execution.moving =",
-      "applyDesiredSpeed(",
-      "await waitForArrival(",
-      "await waitForBlockLeave(",
-      "wsApi.setBlockRemove(",
+      "await WaitForHeldLegReady(",
+      "execution.Moving = true",
+      "await ApplySpeed",
+      "leg.ArrivedWhen",
+      "await WaitForBlockLeave(",
+      "_layout.RemoveBlock(",
       '"afterLeave"',
-      "wsApi.setBlock(",
+      "_layout.SetBlock(",
     ],
-    "runtime traverseLeg"
+    "backend TraverseLeg"
   );
 
   const renderLeg =
@@ -322,63 +299,39 @@ test("Movement execution script preserves action sequence mode and action semant
 });
 
 test("Movement execution script exposes concrete locomotive interventions", () => {
-  const engine =
-    read(
-      "src/services/movementEngine.ts"
-    );
-
+  const backend =
+    read("../desktop/DCCExpressHub.Net/Web/MovementRuntime.cs");
   const script =
-    read(
-      "src/services/movementExecutionScript.ts"
-    );
+    read("src/services/movementExecutionScript.ts");
 
-  const physicalSpeed =
-    sliceBetween(
-      engine,
-      "function setPhysicalSpeed",
-      "function applyDesiredSpeed"
-    );
-
-  assert.ok(
-    physicalSpeed.includes(
-      "wsApi.setLoco("
-    )
+  assert.match(
+    backend,
+    /async Task ApplySpeed[\s\S]*_commandCenter\.SetLocoAsync/
   );
 
-  assert.ok(
-    physicalSpeed.includes(
-      "execution.direction"
-    )
+  assert.match(
+    backend,
+    /async Task ArmDirection[\s\S]*await ApplySpeed\(execution, force: true\)[\s\S]*Task\.Delay\(150/
   );
 
-  for (
-    const marker of
-    [
-      "address=RUNTIME_SOURCE_LOCO direction=ROUTE_DIRECTION",
-      "INITIAL_DESIRED_SPEED = ",
-      "ALL SPEED COMMANDS USE ROUTE_DIRECTION = ",
-      "force stopped route direction before departure",
-      "CONFIRM LIVE_LOCO speed=0 direction=ROUTE_DIRECTION",
-      "ON WAIT DEPART_CONDITION:",
-      "ON_WAIT_ROUTE_AUTHORITY:",
-      "ON ANY WAIT/LOCK CONFLICT:",
-      "turnout must be changed before movement",
-      "ON_BLOCKED_HELD_AUTHORITY:",
-      "SET MOVING = TRUE",
-      "APPLY_LOCO_SPEED -> ",
-      "final ARRIVED automatic stop",
-      "normal Movement completion",
-      "STOP_REQUEST -> SET CANCELLED=TRUE",
-      "RUNTIME_ERROR -> SET MOVING=FALSE",
-      "EMERGENCY_ABORT -> STOP_REQUEST plus GLOBAL_EMERGENCY_STOP",
-    ]
-  ) {
-    assert.ok(
-      script.includes(
-        marker
-      ),
-      marker
-    );
+  for (const marker of [
+    "address=RUNTIME_SOURCE_LOCO direction=ROUTE_DIRECTION",
+    "INITIAL_DESIRED_SPEED = ",
+    "ALL SPEED COMMANDS USE ROUTE_DIRECTION = ",
+    "force stopped route direction before departure",
+    "ON_WAIT_ROUTE_AUTHORITY:",
+    "ON ANY WAIT/LOCK CONFLICT:",
+    "turnout must be changed before movement",
+    "ON_BLOCKED_HELD_AUTHORITY:",
+    "SET MOVING = TRUE",
+    "APPLY_LOCO_SPEED -> ",
+    "final ARRIVED automatic stop",
+    "normal Movement completion",
+    "STOP_REQUEST -> SET CANCELLED=TRUE",
+    "RUNTIME_ERROR -> SET MOVING=FALSE",
+    "EMERGENCY_ABORT -> STOP_REQUEST plus GLOBAL_EMERGENCY_STOP",
+  ]) {
+    assert.ok(script.includes(marker), marker);
   }
 });
 
@@ -439,50 +392,34 @@ test("Movement script speed/function/horn actions show their physical loco comma
 });
 
 test("Movement execution script makes background task behavior explicit", () => {
-  const engine =
-    read(
-      "src/services/movementEngine.ts"
-    );
-
+  const backend =
+    read("../desktop/DCCExpressHub.Net/Web/MovementRuntime.cs");
   const script =
-    read(
-      "src/services/movementExecutionScript.ts"
-    );
+    read("src/services/movementExecutionScript.ts");
 
-  assert.ok(
-    engine.includes(
-      'sequence.mode ===\n      "background"'
-    )
+  assert.match(
+    backend,
+    /SequenceMode[\s\S]*"background"/
   );
 
-  assert.ok(
-    engine.includes(
-      "startBackgroundSequence("
-    )
+  assert.match(
+    backend,
+    /execution\.BackgroundTasks/
   );
 
-  assert.ok(
-    engine.includes(
-      "await Promise.allSettled("
-    )
+  assert.match(
+    backend,
+    /Task\.WhenAll/
   );
 
-  for (
-    const marker of
-    [
-      "START_BACKGROUND SEQUENCE ",
-      "MAIN_FLOW CONTINUES IMMEDIATELY",
-      "RUN_BLOCKING SEQUENCE ",
-      "MAIN_FLOW WAITS FOR SEQUENCE",
-      "JOIN ALL STARTED_BACKGROUND SEQUENCES",
-    ]
-  ) {
-    assert.ok(
-      script.includes(
-        marker
-      ),
-      marker
-    );
+  for (const marker of [
+    "START_BACKGROUND SEQUENCE ",
+    "MAIN_FLOW CONTINUES IMMEDIATELY",
+    "RUN_BLOCKING SEQUENCE ",
+    "MAIN_FLOW WAITS FOR SEQUENCE",
+    "JOIN ALL STARTED_BACKGROUND SEQUENCES",
+  ]) {
+    assert.ok(script.includes(marker), marker);
   }
 });
 

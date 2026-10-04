@@ -718,7 +718,7 @@ function resourceLockNames(
       null
   ) {
     names.add(
-      "dcc-express-dispatcher-block:" +
+      "block:" +
       String(
         leg.from.blockId
       )
@@ -730,7 +730,7 @@ function resourceLockNames(
       null
   ) {
     names.add(
-      "dcc-express-dispatcher-block:" +
+      "block:" +
       String(
         leg.to.blockId
       )
@@ -746,7 +746,7 @@ function resourceLockNames(
         "segment"
     ) {
       names.add(
-        "dcc-express-movement-segment:" +
+        "segment:" +
         resource.name
       );
     }
@@ -1419,7 +1419,7 @@ export function renderMovementExecutionScript(
 
   const lines = [
     "// READ-ONLY EXECUTION PROJECTION",
-    "// Built from the same resolved MovementPlan used by movementEngine.",
+    "// Preview of the persisted route plan rebuilt authoritatively by the Windows backend.",
     "// UNKNOWN sensor/runtime state is BLOCKED by the runtime safety guards.",
     "",
     "MOVEMENT " +
@@ -1456,7 +1456,6 @@ export function renderMovementExecutionScript(
       ...indent([
         "REQUIRE MOVEMENT ENABLED",
         "REQUIRE TRACK_POWER ON",
-        "REQUIRE ACTIVE_CONTROL_STATION",
         "WAIT SOURCE_BLOCK_LOCO_ADDRESS > 0 (timeout 3000ms)",
         "REQUIRE ROUTE_DIRECTION != UNKNOWN",
       ]),
@@ -1545,9 +1544,9 @@ export async function loadMovementExecutionScript(
 ): Promise<string> {
   /*
    * Deliberately do NOT pass an editor layout override here.
-   * Runtime startMovement() also calls loadMovementPlan(page) with the
-   * persisted backend layout, so this dialog resolves the same route topology
-   * that execution will use.
+   * This is a read-only preview from the persisted backend layout. Runtime
+   * execution independently rebuilds and validates the same route topology
+   * inside MovementPlanBuilder; the client preview is never trusted as input.
    */
   const plan =
     await loadMovementPlan(

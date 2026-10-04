@@ -936,7 +936,18 @@ export async function loadMovementRouteVector(
       continue;
     }
 
-    const matchingBlocks =
+    /*
+     * Preserve the original composite-node rule from 7258cfdc first:
+     * same physical graph node + same single occupancy sensor.
+     *
+     * Newer route-topology generation can assign the logical Block and the
+     * physical segment different nodeIndex values even though both refer to
+     * the same occupancy sensor. In that case sensor identity is the stronger
+     * physical signal. Fall back to it only when the match is unique on this
+     * route, so duplicate/misconfigured sensor addresses can never merge the
+     * segment into an arbitrary Block.
+     */
+    const sameNodeBlocks =
       plan.resources.filter(
         resource =>
           resource.kind ===
@@ -946,6 +957,24 @@ export async function loadMovementRouteVector(
           resource.sensorAddress ===
             detector
       );
+
+    const sameSensorBlocks =
+      plan.resources.filter(
+        resource =>
+          resource.kind ===
+            "block" &&
+          resource.sensorAddress ===
+            detector
+      );
+
+    const matchingBlocks =
+      sameNodeBlocks.length ===
+        1
+        ? sameNodeBlocks
+        : sameSensorBlocks.length ===
+            1
+          ? sameSensorBlocks
+          : [];
 
     if (
       matchingBlocks.length !==

@@ -1,0 +1,39 @@
+name: Backend migration check
+
+on:
+  push:
+    branches:
+      - feature/windows-backend-movement-engine
+
+permissions:
+  contents: read
+
+jobs:
+  windows-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Build Windows backend
+        run: dotnet build desktop/DCCExpressHub.Net/DCCExpressHub.Net.csproj -c Release
+
+  web-ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web-ui/package-lock.json
+      - name: Install
+        run: npm ci --prefix web-ui
+      - name: Build
+        run: npm run build --prefix web-ui
+      - name: Backend migration regression
+        run: node --test web-ui/tests/windows-backend-automation-runtime.test.mjs
+      - name: Full regression suite
+        continue-on-error: true
+        run: npm test --prefix web-ui

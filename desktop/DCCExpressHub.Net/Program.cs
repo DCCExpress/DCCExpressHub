@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using System.Text.Json;
 using DCCExpressHub.Net.CommandCenter;
 using DCCExpressHub.Net.Web;
@@ -30,6 +31,9 @@ builder.Services.AddSingleton<ScriptInfoStore>();
 builder.Services.AddSingleton<RuntimeStateStore>();
 builder.Services.AddSingleton<LocoCounterRuntime>();
 builder.Services.AddSingleton<HubFileStorage>();
+builder.Services.AddSingleton<AutomationStorageCoordinator>();
+builder.Services.AddSingleton<LocoStorageCoordinator>();
+builder.Services.AddSingleton<AutomationExclusiveGate>();
 builder.Services.AddSingleton<CommandCenterConfigStore>();
 builder.Services.AddSingleton<IDccExTransport>(sp =>
     string.Equals(builder.Configuration["DccEx:Transport"], "Serial", StringComparison.OrdinalIgnoreCase)
@@ -39,6 +43,19 @@ builder.Services.AddSingleton<DccExCommandCenter>();
 builder.Services.AddSingleton<ConfiguredCommandCenter>();
 builder.Services.AddSingleton<ICommandCenter>(sp => sp.GetRequiredService<ConfiguredCommandCenter>());
 builder.Services.AddHostedService(sp => sp.GetRequiredService<DccExCommandCenter>());
+builder.Services.AddSingleton<FastClockRuntime>();
+builder.Services.AddSingleton<SwitchManManager>();
+builder.Services.AddSingleton<DispatcherRuntime>();
+builder.Services.AddSingleton<MovementPlanBuilder>();
+builder.Services.AddSingleton<TrainEventRuntime>();
+builder.Services.AddSingleton<MovementRuntime>();
+builder.Services.AddSingleton<TrainTrackingRuntime>();
+builder.Services.AddSingleton<ScriptRuntime>();
+builder.Services.AddSingleton<FlowRuntime>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<FlowRuntime>());
+builder.Services.AddSingleton<TimetableRuntime>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<TimetableRuntime>());
+builder.Services.AddSingleton<CalibrationRuntime>();
 builder.Services.AddSingleton<WsHub>();
 builder.Services.AddHostedService<WsRuntimeCoordinator>();
 
@@ -376,33 +393,212 @@ app.MapGet("/api/locos", async (IWebHostEnvironment env) =>
     return Results.Text(File.Exists(p) ? await File.ReadAllTextAsync(p) : "[]", "application/json");
 });
 
-app.MapPost("/api/locos", async (HttpRequest req, IWebHostEnvironment env, ConfiguredCommandCenter configuredCc, LocoCounterRuntime counters) =>
+app.MapPost("/api/locos", async (HttpRequest req, IWebHostEnvironment env, ConfiguredCommandCenter configuredCc, LocoCounterRuntime counters, LocoStorageCoordinator locoStorage) =>
 {
     using var sr = new StreamReader(req.Body);
     var body = await sr.ReadToEndAsync();
+
+    JsonArray incoming;
+
     try
     {
-        using var doc = JsonDocument.Parse(body);
-        if (doc.RootElement.ValueKind != JsonValueKind.Array)
-            return Results.Json(new { ok = false, message = "Expected locomotive JSON array" }, statusCode: 400);
+        incoming =
+            JsonNode.Parse(
+                body) as
+            JsonArray ??
+            throw new JsonException();
     }
     catch
     {
         return Results.Json(new { ok = false, message = "Expected locomotive JSON array" }, statusCode: 400);
     }
 
-    var path = DataFile(env, "locos.json");
-    var temp = path + ".tmp";
-    await File.WriteAllTextAsync(temp, body);
-    File.Move(temp, path, true);
+    var normalizedBody =
+        await locoStorage.ExecuteAsync(
+            async () =>
+            {
+                var path =
+                    DataFile(
+                        env,
+                        "locos.json");
+
+                /*
+                 * Calibration is backend-owned runtime data. A Loco Editor that
+                 * was opened before/during a calibration run may hold an older
+                 * copy of the locomotive array. Merge the newest backend
+                 * calibration profile while holding the same write lock used by
+                 * CalibrationRuntime.
+                 */
+                if (File.Exists(path))
+                {
+                    try
+                    {
+                        var existing =
+                            JsonNode.Parse(
+                                await File.ReadAllTextAsync(
+                                    path)) as
+                                JsonArray;
+
+                        if (existing is not null)
+                        {
+                            var calibrationById =
+                                new Dictionary<
+                                    string,
+                                    JsonNode?>(
+                                    StringComparer.Ordinal);
+
+                            foreach (var node in existing)
+                            {
+                                if (node is not JsonObject loco)
+                                    continue;
+
+                                var id =
+                                    loco["id"]?
+                                        .GetValue<string>();
+
+                                if (string.IsNullOrWhiteSpace(id) ||
+                                    loco["calibration"] is null)
+                                    continue;
+
+                                calibrationById[id] =
+                                    loco["calibration"]!
+                                        .DeepClone();
+                            }
+
+                            foreach (var node in incoming)
+                            {
+                                if (node is not JsonObject loco)
+                                    continue;
+
+                                var id =
+                                    loco["id"]?
+                                        .GetValue<string>();
+
+                                if (string.IsNullOrWhiteSpace(id) ||
+                                    !calibrationById.TryGetValue(
+                                        id,
+                                        out var calibration) ||
+                                    calibration is null)
+                                    continue;
+
+                                loco["calibration"] =
+                                    calibration.DeepClone();
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // Keep normal locomotive editing usable if an old/corrupt
+                        // file cannot be merged; the incoming document was
+                        // already validated.
+                    }
+                }
+
+                var body =
+                    incoming.ToJsonString(
+                        new JsonSerializerOptions
+                        {
+                            WriteIndented =
+                                false
+                        });
+
+                var temp =
+                    path +
+                    ".tmp";
+
+                await File.WriteAllTextAsync(
+                    temp,
+                    body);
+
+                File.Move(
+                    temp,
+                    path,
+                    true);
+
+                return body;
+            },
+            req.HttpContext.RequestAborted);
 
     if (!configuredCc.ReloadLocomotiveConfiguration())
         return Results.Json(new { ok = false, message = "Locomotive configuration committed but runtime reload failed" }, statusCode: 500);
 
     counters.ReloadConfiguration(true);
 
-    return Results.Json(new { ok = true, bytes = System.Text.Encoding.UTF8.GetByteCount(body) });
+    return Results.Json(new { ok = true, bytes = System.Text.Encoding.UTF8.GetByteCount(normalizedBody) });
 });
+
+
+app.MapGet("/api/calibration", (CalibrationRuntime calibration) =>
+    Results.Json(calibration.Snapshot()));
+
+app.MapPost("/api/calibration/start", async (HttpRequest req, CalibrationRuntime calibration) =>
+{
+    CalibrationStartRequest? request;
+
+    try
+    {
+        request =
+            await JsonSerializer.DeserializeAsync<CalibrationStartRequest>(
+                req.Body,
+                new JsonSerializerOptions(JsonSerializerDefaults.Web),
+                req.HttpContext.RequestAborted);
+    }
+    catch
+    {
+        return Results.Json(
+            new { ok = false, message = "invalid_calibration_request" },
+            statusCode: 400);
+    }
+
+    if (request is null)
+        return Results.Json(
+            new { ok = false, message = "invalid_calibration_request" },
+            statusCode: 400);
+
+    var result =
+        calibration.Start(
+            request);
+
+    return result.Ok
+        ? Results.Json(
+            new
+            {
+                ok = true,
+                state = calibration.Snapshot()
+            })
+        : Results.Json(
+            new
+            {
+                ok = false,
+                message = result.Error,
+                state = calibration.Snapshot()
+            },
+            statusCode: 409);
+});
+
+app.MapPost("/api/calibration/stop", (CalibrationRuntime calibration) =>
+    Results.Json(
+        new
+        {
+            ok = calibration.Stop(),
+            state = calibration.Snapshot()
+        }));
+
+app.MapPost("/api/calibration/abort", (CalibrationRuntime calibration) =>
+    Results.Json(
+        new
+        {
+            ok = calibration.Abort(false),
+            state = calibration.Snapshot()
+        }));
+
+app.MapPost("/api/calibration/estop", (CalibrationRuntime calibration) =>
+    Results.Json(
+        new
+        {
+            ok = calibration.Abort(true),
+            state = calibration.Snapshot()
+        }));
 
 app.MapGet("/api/function-bindings", async (IWebHostEnvironment env) =>
 {
@@ -576,7 +772,7 @@ app.MapGet("/api/automations/previous", async (IWebHostEnvironment env) =>
         System.Text.Encoding.UTF8);
 });
 
-app.MapPost("/api/automations", async (HttpRequest req, IWebHostEnvironment env) =>
+app.MapPost("/api/automations", async (HttpRequest req, IWebHostEnvironment env, AutomationStorageCoordinator automationStorage) =>
 {
     const int maxBytes = 512 * 1024;
 
@@ -661,49 +857,92 @@ app.MapPost("/api/automations", async (HttpRequest req, IWebHostEnvironment env)
         }
     }
 
-    var finalPath = DataFile(env, "automations.json");
-    var tempPath = finalPath + ".tmp";
-
-    try
-    {
-        Directory.CreateDirectory(Path.GetDirectoryName(finalPath)!);
-
-        // Write to a temporary file first, then atomically replace/move it,
-        // matching the firmware's AtomicFileUpload semantics.
-        memory.Position = 0;
-        await using (var output = new FileStream(
-            tempPath, FileMode.Create, FileAccess.Write, FileShare.None,
-            81920, FileOptions.Asynchronous | FileOptions.WriteThrough))
+    return await automationStorage.ExecuteAsync<IResult>(
+        async () =>
         {
-            await memory.CopyToAsync(output);
-            await output.FlushAsync();
-        }
+            var finalPath =
+                DataFile(
+                    env,
+                    "automations.json");
 
-        var previousPath =
-            DataFile(env, "automations.json.previous");
+            var tempPath =
+                finalPath +
+                ".tmp";
 
-        if (File.Exists(finalPath))
-            File.Copy(
-                finalPath,
-                previousPath,
-                true);
+            try
+            {
+                Directory.CreateDirectory(
+                    Path.GetDirectoryName(
+                        finalPath)!);
 
-        File.Move(tempPath, finalPath, true);
+                // Write to a temporary file first, then atomically replace/move it,
+                // matching the firmware's AtomicFileUpload semantics.
+                memory.Position = 0;
 
-        return Results.Json(new
-        {
-            ok = true,
-            bytes = memory.Length
+                await using (var output = new FileStream(
+                    tempPath,
+                    FileMode.Create,
+                    FileAccess.Write,
+                    FileShare.None,
+                    81920,
+                    FileOptions.Asynchronous |
+                    FileOptions.WriteThrough))
+                {
+                    await memory.CopyToAsync(
+                        output);
+
+                    await output.FlushAsync();
+                }
+
+                var previousPath =
+                    DataFile(
+                        env,
+                        "automations.json.previous");
+
+                if (File.Exists(
+                        finalPath))
+                    File.Copy(
+                        finalPath,
+                        previousPath,
+                        true);
+
+                File.Move(
+                    tempPath,
+                    finalPath,
+                    true);
+
+                return Results.Json(
+                    new
+                    {
+                        ok = true,
+                        bytes =
+                            memory.Length
+                    });
+            }
+            catch
+            {
+                try
+                {
+                    if (File.Exists(
+                            tempPath))
+                        File.Delete(
+                            tempPath);
+                }
+                catch
+                {
+                }
+
+                return Results.Json(
+                    new
+                    {
+                        ok = false,
+                        message =
+                            "Automation atomic rename failed"
+                    },
+                    statusCode:
+                        StatusCodes.Status500InternalServerError);
+            }
         });
-    }
-    catch
-    {
-        try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
-
-        return Results.Json(
-            new { ok = false, message = "Automation atomic rename failed" },
-            statusCode: StatusCodes.Status500InternalServerError);
-    }
 });
 
 

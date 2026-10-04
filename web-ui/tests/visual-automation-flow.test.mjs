@@ -299,6 +299,79 @@ test("SmartDispatcher logs route, clearance, arrival and failures", () => {
   );
 });
 
+test("script Dispatcher and SmartDispatcher use shared backend authority instead of browser Web Locks", () => {
+  const dispatcher =
+    read(
+      "src/services/clientScriptSwitchManPrelude.ts"
+    );
+
+  const smart =
+    read(
+      "src/services/clientScriptSmartDispatcherPrelude.ts"
+    );
+
+  const runner =
+    read(
+      "src/services/clientScriptRunner.ts"
+    );
+
+  const worker =
+    read(
+      "src/services/clientScriptWorker.ts"
+    );
+
+  const backend =
+    read(
+      "../desktop/DCCExpressHub.Net/Web/DispatcherRuntime.cs"
+    );
+
+  assert.doesNotMatch(
+    dispatcher,
+    /navigator\.locks/
+  );
+
+  assert.doesNotMatch(
+    smart,
+    /navigator\.locks/
+  );
+
+  assert.match(
+    dispatcher,
+    /dispatcherRequest\([\s\S]*"acquireRoute"/
+  );
+
+  assert.match(
+    smart,
+    /dispatcherRequest\([\s\S]*"acquireLeg"/
+  );
+
+  assert.match(
+    runner,
+    /handleScriptDispatcherRequest/
+  );
+
+  assert.match(
+    worker,
+    /requestBackendDispatcher/
+  );
+
+  assert.match(
+    backend,
+    /AcquireLegAsync/
+  );
+
+  assert.match(
+    backend,
+    /AcquireRouteAsync/
+  );
+
+  assert.match(
+    backend,
+    /_resourceOwners/
+  );
+});
+
+
 test("SmartDispatcher remains available only through the script runtime", () => {
   const domain =
     read(
@@ -1622,28 +1695,8 @@ test("control station badges are distinct from WS status and appear in the layou
   );
 
   assert.match(
-    app,
-    /data-dccex-status-role="home-control-station"/
-  );
-
-  assert.match(
-    app,
-    /controlStationGranted[\s\S]*\? "green"[\s\S]*: "dark"/
-  );
-
-  assert.match(
     layout,
     /data-dccex-status-role="layout-ws"/
-  );
-
-  assert.match(
-    layout,
-    /data-dccex-status-role="layout-control-station"/
-  );
-
-  assert.match(
-    layout,
-    /controlStationActive[\s\S]*\? "green"[\s\S]*: "dark"/
   );
 
   assert.match(
@@ -1659,217 +1712,6 @@ test("control station badges are distinct from WS status and appear in the layou
   assert.doesNotMatch(
     indicator,
     /querySelector<HTMLElement>\(\s*"\.mantine-Badge-root"/
-  );
-});
-
-test("programming page is locked while any Control Station is active", () => {
-  const app =
-    read(
-      "src/App.tsx"
-    );
-
-  const programming =
-    read(
-      "src/ProgrammingPage.tsx"
-    );
-
-  assert.match(
-    app,
-    /controlStationActive/
-  );
-
-  assert.match(
-    app,
-    /<ProgrammingPage[\s\S]*controlStationActive=\{controlStationActive\}/
-  );
-
-  assert.match(
-    programming,
-    /Programming is locked while Control Station is active/
-  );
-
-  assert.match(
-    programming,
-    /<fieldset[\s\S]*disabled=\{[\s\S]*controlStationActive/
-  );
-
-  assert.match(
-    programming,
-    /controlStationActiveRef\.current/
-  );
-
-  assert.match(
-    programming,
-    /restoreJoinAfterProgramming[\s\S]*!controlStationActiveRef\.current/
-  );
-
-  assert.match(
-    programming,
-    /setQuickControlOpened\([\s\S]*false/
-  );
-});
-
-test("control station ownership gates browser automation runtime", () => {
-  const app =
-    read(
-      "src/App.tsx"
-    );
-
-  const runtime =
-    read(
-      "src/components/automation/useAutomationFlowRuntime.ts"
-    );
-
-  const runner =
-    read(
-      "src/services/clientScriptRunner.ts"
-    );
-
-  const controlRuntime =
-    read(
-      "src/services/controlStationRuntime.ts"
-    );
-
-  const wsTypes =
-    read(
-      "src/domain/wsTypes.ts"
-    );
-
-  const clientCommands =
-    read(
-      "src/domain/clientWsCommands.ts"
-    );
-
-  const espProtocol =
-    read(
-      "../src/WsProtocol.cpp"
-    );
-
-  const desktopHub =
-    read(
-      "../desktop/DCCExpressHub.Net/Web/WsHub.cs"
-    );
-
-  assert.match(
-    app,
-    /CONTROL_STATION_ENABLED_KEY/
-  );
-
-  assert.match(
-    app,
-    /localStorage\.setItem\([\s\S]*CONTROL_STATION_ENABLED_KEY/
-  );
-
-  assert.match(
-    app,
-    /claimControlStation/
-  );
-
-  assert.match(
-    app,
-    /!data\.granted[\s\S]*setControlStationRequested\([\s\S]*false[\s\S]*CONTROL_STATION_ENABLED_KEY[\s\S]*"false"/
-  );
-
-  assert.match(
-    app,
-    /checked=\{[\s\S]*controlStationGranted/
-  );
-
-  assert.match(
-    app,
-    /data\.granted[\s\S]*CONTROL_STATION_ENABLED_KEY[\s\S]*"true"/
-  );
-
-  assert.match(
-    app,
-    /useAutomationFlowRuntime\([\s\S]*automationFlow,[\s\S]*controlStationGranted/
-  );
-
-  assert.match(
-    runtime,
-    /controlStationActiveRef/
-  );
-
-  assert.match(
-    runner,
-    /isControlStationRuntimeActive/
-  );
-
-  assert.match(
-    runner,
-    /not the active Control Station/
-  );
-
-  assert.match(
-    controlRuntime,
-    /setControlStationRuntimeActive/
-  );
-
-  for (
-    const type of [
-      "controlStationClaim",
-      "controlStationRelease",
-      "getControlStationStatus",
-    ]
-  ) {
-    assert.match(
-      clientCommands,
-      new RegExp(
-        type
-      )
-    );
-
-    assert.match(
-      wsTypes,
-      new RegExp(
-        `"${type}"`
-      )
-    );
-  }
-
-  assert.match(
-    wsTypes,
-    /controlStationClaimResult/
-  );
-
-  assert.match(
-    wsTypes,
-    /controlStationStatus/
-  );
-
-  assert.match(
-    espProtocol,
-    /_controlStationOwnerConnectionId/
-  );
-
-  assert.match(
-    espProtocol,
-    /"controlStationClaim"/
-  );
-
-  assert.match(
-    espProtocol,
-    /"controlStationRelease"/
-  );
-
-  assert.match(
-    espProtocol,
-    /Control Station released because owner disconnected/
-  );
-
-  assert.match(
-    desktopHub,
-    /_controlStationOwnerConnectionId/
-  );
-
-  assert.match(
-    desktopHub,
-    /case "controlStationClaim"/
-  );
-
-  assert.match(
-    desktopHub,
-    /ReleaseControlStation\(id\)/
   );
 });
 

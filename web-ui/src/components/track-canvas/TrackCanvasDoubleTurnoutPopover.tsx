@@ -18,6 +18,10 @@ import {
 import {
   sendTurnoutOutput,
 } from "../../services/layoutOutput";
+import {
+  isSwitchManModeEnabled,
+  operateSwitchManTurnouts,
+} from "../../services/switchManModeRuntime";
 
 import type {
   DoubleTurnoutPopoverState,
@@ -204,6 +208,26 @@ function setDoubleTurnoutPosition(
       turnout,
       position
     );
+
+  if (isSwitchManModeEnabled()) {
+    void operateSwitchManTurnouts([
+      {
+        address:
+          turnout.turnout1Address,
+        closed:
+          bits.first ===
+          turnout.turnout1ClosedValue,
+      },
+      {
+        address:
+          turnout.turnout2Address,
+        closed:
+          bits.second ===
+          turnout.turnout2ClosedValue,
+      },
+    ]);
+    return;
+  }
 
   turnout.turnout1Closed =
     bits.first;

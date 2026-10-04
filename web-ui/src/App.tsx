@@ -13,7 +13,6 @@ import {
   PasswordInput,
   SimpleGrid,
   Stack,
-  Switch,
   Text,
   TextInput,
   ThemeIcon,
@@ -83,12 +82,6 @@ import {
   useAutomationFlowRuntime,
 } from "@/components/automation/useAutomationFlowRuntime";
 import {
-  abortAllClientScriptExecutions,
-} from "@/services/clientScriptRunner";
-import {
-  setControlStationRuntimeActive,
-} from "@/services/controlStationRuntime";
-import {
   installBroadcastAudioRuntime,
 } from "@/services/broadcastAudioRuntime";
 import {
@@ -120,68 +113,6 @@ type ApiResponse = {
   ok: boolean;
   message: string;
 };
-
-const CONTROL_STATION_ENABLED_KEY =
-  "dcc-express-control-station-enabled";
-
-const CONTROL_STATION_CLIENT_ID_KEY =
-  "dcc-express-control-station-client-id";
-
-function readControlStationRequested(): boolean {
-  try {
-    return (
-      window.localStorage.getItem(
-        CONTROL_STATION_ENABLED_KEY
-      ) ===
-      "true"
-    );
-  } catch {
-    return false;
-  }
-}
-
-function controlStationClientId(): string {
-  try {
-    const existing =
-      window.localStorage.getItem(
-        CONTROL_STATION_CLIENT_ID_KEY
-      );
-
-    if (existing) {
-      return existing;
-    }
-
-    const created =
-      typeof crypto !== "undefined" &&
-      typeof crypto.randomUUID === "function"
-        ? crypto.randomUUID()
-        : `browser-${Date.now()}-${Math.random()
-            .toString(36)
-            .slice(2, 10)}`;
-
-    window.localStorage.setItem(
-      CONTROL_STATION_CLIENT_ID_KEY,
-      created
-    );
-
-    return created;
-  } catch {
-    return `browser-${Date.now()}-${Math.random()
-      .toString(36)
-      .slice(2, 10)}`;
-  }
-}
-
-function controlStationClientName(): string {
-  const platform =
-    typeof navigator !== "undefined"
-      ? navigator.platform
-      : "";
-
-  return platform
-    ? `${platform} browser`
-    : "Browser";
-}
 
 function statusColor(status: WsConnectionStatus): string {
   switch (status) {
@@ -215,19 +146,9 @@ function pageFromHash(): Page {
 function AppHeader({
   status,
   version,
-  controlStationRequested,
-  controlStationGranted,
-  controlStationOwnerName,
-  onControlStationRequestedChange,
 }: {
   status: WsConnectionStatus;
   version: string;
-  controlStationRequested: boolean;
-  controlStationGranted: boolean;
-  controlStationOwnerName: string | null;
-  onControlStationRequestedChange: (
-    requested: boolean
-  ) => void;
 }) {
   const { t } = useTranslation();
   const commandCenter = useCommandCenter();
@@ -281,48 +202,6 @@ function AppHeader({
         gap="xs"
         wrap="nowrap"
       >
-        <Switch
-          size="sm"
-          checked={
-            controlStationGranted
-          }
-          label="Control Station"
-          onChange={
-            event =>
-              onControlStationRequestedChange(
-                event.currentTarget.checked
-              )
-          }
-          title={
-            controlStationGranted
-              ? "This browser owns the automation runtime."
-              : controlStationRequested &&
-                  controlStationOwnerName
-                ? `Automation runtime is owned by ${controlStationOwnerName}.`
-                : "Run browser automation on this device."
-          }
-        />
-
-        <Badge
-          data-dccex-status-role="home-control-station"
-          size="sm"
-          variant="filled"
-          color={
-            controlStationGranted
-              ? "green"
-              : "dark"
-          }
-          title={
-            controlStationGranted
-              ? "This browser is the active Control Station."
-              : controlStationOwnerName
-                ? `Control Station is active on ${controlStationOwnerName}.`
-                : "This browser is not the active Control Station."
-          }
-        >
-          Control Station
-        </Badge>
-
         <Badge
           data-dccex-status-role="home-ws"
           color={statusColor(status)}
@@ -396,22 +275,12 @@ function HomePage({
   locoCount,
   onNavigate,
   onOpenLocoEditor,
-  controlStationRequested,
-  controlStationGranted,
-  controlStationOwnerName,
-  onControlStationRequestedChange,
 }: {
   status: WsConnectionStatus;
   version: string;
   locoCount: number;
   onNavigate: (page: Page) => void;
   onOpenLocoEditor: () => void;
-  controlStationRequested: boolean;
-  controlStationGranted: boolean;
-  controlStationOwnerName: string | null;
-  onControlStationRequestedChange: (
-    requested: boolean
-  ) => void;
 }) {
   const { t } = useTranslation();
 
@@ -422,18 +291,6 @@ function HomePage({
           <AppHeader
             status={status}
             version={version}
-            controlStationRequested={
-              controlStationRequested
-            }
-            controlStationGranted={
-              controlStationGranted
-            }
-            controlStationOwnerName={
-              controlStationOwnerName
-            }
-            onControlStationRequestedChange={
-              onControlStationRequestedChange
-            }
           />
           <Group justify="flex-end" align="center" gap="sm" wrap="wrap">
             <LanguageSwitcher />
@@ -1347,39 +1204,6 @@ export default function App() {
   const [driveLayoutOpen, setDriveLayoutOpen] = useState(false);
   const [version, setVersion] = useState("development");
   const [
-    controlStationRequested,
-    setControlStationRequested,
-  ] =
-    useState<boolean>(
-      readControlStationRequested
-    );
-  const [
-    controlStationGranted,
-    setControlStationGranted,
-  ] =
-    useState(false);
-  const [
-    controlStationActive,
-    setControlStationActive,
-  ] =
-    useState(false);
-  const [
-    controlStationOwnerName,
-    setControlStationOwnerName,
-  ] =
-    useState<string | null>(
-      null
-    );
-  const controlStationClientIdRef =
-    useRef(
-      controlStationClientId()
-    );
-  const controlStationClientNameRef =
-    useRef(
-      controlStationClientName()
-    );
-
-  const [
     automationFlow,
     setAutomationFlow,
   ] =
@@ -1389,8 +1213,7 @@ export default function App() {
     );
 
   useAutomationFlowRuntime(
-    automationFlow,
-    controlStationGranted
+    automationFlow
   );
 
   useEffect(
@@ -1406,189 +1229,6 @@ export default function App() {
     },
     []
   );
-
-  useEffect(
-    () => {
-      setControlStationRuntimeActive(
-        controlStationGranted
-      );
-
-      if (
-        !controlStationGranted
-      ) {
-        abortAllClientScriptExecutions(
-          "Control Station ownership is not active."
-        );
-      }
-    },
-    [
-      controlStationGranted,
-    ]
-  );
-
-  useEffect(
-    () => {
-      const unsubscribeClaim =
-        wsClient.on(
-          "controlStationClaimResult",
-          data => {
-            setControlStationGranted(
-              data.granted
-            );
-
-            setControlStationActive(
-              data.active
-            );
-
-            setControlStationOwnerName(
-              data.ownerName ??
-              null
-            );
-
-            if (
-              data.granted
-            ) {
-              setControlStationRequested(
-                true
-              );
-
-              try {
-                window.localStorage.setItem(
-                  CONTROL_STATION_ENABLED_KEY,
-                  "true"
-                );
-              } catch {
-                // Persistence is optional; backend ownership remains authoritative.
-              }
-
-              return;
-            }
-
-            if (
-              !data.granted
-            ) {
-              setControlStationRequested(
-                false
-              );
-
-              try {
-                window.localStorage.setItem(
-                  CONTROL_STATION_ENABLED_KEY,
-                  "false"
-                );
-              } catch {
-                // Persistence is optional; backend ownership remains authoritative.
-              }
-
-              showNotification({
-                color: "orange",
-                title:
-                  "Control Station already in use",
-                message:
-                  data.ownerName
-                    ? `Automation is running on ${data.ownerName}.`
-                    : "Another browser already owns the automation runtime.",
-              });
-            }
-          }
-        );
-
-      const unsubscribeStatus =
-        wsClient.on(
-          "controlStationStatus",
-          data => {
-            setControlStationActive(
-              data.active
-            );
-
-            setControlStationOwnerName(
-              data.ownerName ??
-              null
-            );
-
-            if (
-              !data.active
-            ) {
-              setControlStationGranted(
-                false
-              );
-            }
-          }
-        );
-
-      return () => {
-        unsubscribeClaim();
-        unsubscribeStatus();
-      };
-    },
-    []
-  );
-
-  useEffect(
-    () => {
-      if (
-        status !==
-        "connected"
-      ) {
-        setControlStationGranted(
-          false
-        );
-
-        setControlStationActive(
-          false
-        );
-
-        return;
-      }
-
-      if (
-        controlStationRequested
-      ) {
-        wsApi.claimControlStation(
-          controlStationClientIdRef.current,
-          controlStationClientNameRef.current
-        );
-      } else {
-        wsApi.releaseControlStation();
-        wsApi.getControlStationStatus();
-      }
-    },
-    [
-      controlStationRequested,
-      status,
-    ]
-  );
-
-  const updateControlStationRequested =
-    useCallback(
-      (
-        requested:
-          boolean
-      ): void => {
-        setControlStationRequested(
-          requested
-        );
-
-        if (
-          !requested
-        ) {
-          try {
-            window.localStorage.setItem(
-              CONTROL_STATION_ENABLED_KEY,
-              "false"
-            );
-          } catch {
-            // Persistence is optional; backend ownership remains authoritative.
-          }
-
-
-          setControlStationGranted(
-            false
-          );
-        }
-      },
-      []
-    );
 
   const loadAutomationFlowState =
     useCallback(
@@ -1710,7 +1350,7 @@ export default function App() {
 
     if (page === "backup") return <BackupPage onBack={() => navigate("home")} onDataImported={reloadImportedData} />;
 
-    if (page === "programming") return <ProgrammingPage onBack={() => navigate("home")} status={status} controlStationActive={controlStationActive} controlStationOwnerName={controlStationOwnerName} />;
+    if (page === "programming") return <ProgrammingPage onBack={() => navigate("home")} status={status} />;
 
     if (page === "device-config") return <DeviceConfigurationPage onBack={() => navigate("home")} />;
 
@@ -1731,7 +1371,7 @@ export default function App() {
       );
     }
 
-    if (page === "layout") return <LiteLayoutPage version={version} locos={locos} automationFlow={automationFlow} controlStationActive={controlStationGranted} onAutomationFlowChange={setAutomationFlow} onBack={() => navigate("home")} onOpenLocoEditor={() => setLocoEditorOpened(true)} />;
+    if (page === "layout") return <LiteLayoutPage version={version} locos={locos} automationFlow={automationFlow} onAutomationFlowChange={setAutomationFlow} onBack={() => navigate("home")} onOpenLocoEditor={() => setLocoEditorOpened(true)} />;
 
     if (page === "drive") {
       return (
@@ -1805,18 +1445,6 @@ export default function App() {
         onNavigate={navigate}
         onOpenLocoEditor={() =>
           setLocoEditorOpened(true)
-        }
-        controlStationRequested={
-          controlStationRequested
-        }
-        controlStationGranted={
-          controlStationGranted
-        }
-        controlStationOwnerName={
-          controlStationOwnerName
-        }
-        onControlStationRequestedChange={
-          updateControlStationRequested
         }
       />
     );

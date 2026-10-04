@@ -89,6 +89,81 @@ function notifyAudioEnabled():
   }
 }
 
+function applyAudioEnabled(
+  next: boolean,
+  persist: boolean
+): void {
+  const changed =
+    enabled !==
+    next;
+
+  enabled =
+    next;
+
+  if (persist) {
+    try {
+      window.localStorage.setItem(
+        AUDIO_ENABLED_KEY,
+        enabled
+          ? "true"
+          : "false"
+      );
+    } catch {
+      // Audio preference remains valid for this browser session.
+    }
+  }
+
+  if (
+    !enabled
+  ) {
+    for (
+      const path of
+      [
+        ...activeBroadcastPaths,
+      ]
+    ) {
+      audioManager.stop(
+        path
+      );
+    }
+
+    activeBroadcastPaths.clear();
+  }
+
+  if (changed) {
+    notifyAudioEnabled();
+  }
+}
+
+function reportBackendAudio(
+  requestId: string,
+  ok: boolean
+): void {
+  if (
+    requestId.startsWith(
+      "movement-backend:"
+    )
+  ) {
+    wsApi.movementAudioComplete(
+      requestId,
+      ok
+    );
+
+    return;
+  }
+
+  if (
+    requestId.startsWith(
+      "script-backend:"
+    )
+  ) {
+    wsApi.scriptAudioComplete(
+      requestId,
+      ok
+    );
+  }
+}
+
 function settlePending(
   requestId: string,
   ok: boolean
@@ -123,6 +198,39 @@ export function installBroadcastAudioRuntime():
 
   installed =
     true;
+
+  wsClient.subscribeStatus(
+      status => {
+        if (
+          status ===
+          "connected"
+        ) {
+          wsApi.audioPlaybackState(
+            enabled
+          );
+        }
+      }
+    );
+
+  if (
+    wsClient.isConnected()
+  ) {
+    wsApi.audioPlaybackState(
+      enabled
+    );
+  }
+
+  wsClient.on(
+    "audioPlaybackStateChanged",
+    data => {
+      applyAudioEnabled(
+        Boolean(
+          data.enabled
+        ),
+        true
+      );
+    }
+  );
 
   wsClient.on(
     "playAudio",
@@ -166,6 +274,13 @@ export function installBroadcastAudioRuntime():
           data.requestId,
           ok
         );
+
+        if (enabled) {
+          reportBackendAudio(
+            data.requestId,
+            ok
+          );
+        }
       };
 
       audioManager.play(
@@ -228,38 +343,18 @@ export function setBroadcastAudioEnabled(
     return;
   }
 
-  enabled =
-    next;
-
-  try {
-    window.localStorage.setItem(
-      AUDIO_ENABLED_KEY,
-      enabled
-        ? "true"
-        : "false"
-    );
-  } catch {
-    // Audio preference remains valid for this browser session.
-  }
+  applyAudioEnabled(
+    next,
+    true
+  );
 
   if (
-    !enabled
+    wsClient.isConnected()
   ) {
-    for (
-      const path of
-      [
-        ...activeBroadcastPaths,
-      ]
-    ) {
-      audioManager.stop(
-        path
-      );
-    }
-
-    activeBroadcastPaths.clear();
+    wsApi.audioPlaybackState(
+      next
+    );
   }
-
-  notifyAudioEnabled();
 }
 
 export function subscribeBroadcastAudioEnabled(

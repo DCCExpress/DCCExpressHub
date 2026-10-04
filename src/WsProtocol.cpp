@@ -375,14 +375,27 @@ void WsProtocol::begin()
         {
             handleLocoFeedback(
                 info);
+
+            _flows.onLocoFeedback(
+                info);
         });
 
     _runtime.onChange(
         [this](
             RuntimeChangeKind kind,
-            uint16_t,
-            uint8_t)
+            uint16_t id,
+            uint8_t channel)
         {
+            _flows.onRuntimeChange(
+                kind,
+                id,
+                channel);
+
+            _movements.onRuntimeChange(
+                kind,
+                id,
+                channel);
+
             if (
                 kind ==
                 RuntimeChangeKind::Block)
@@ -422,6 +435,66 @@ void WsProtocol::begin()
     lastCpuSampleAtMs =
         millis();
 
+    _scripts.begin();
+    _flows.begin();
+    _movements.setAudioRequestCallback(
+        [this](
+            const String& requestId,
+            const String& fileName) -> bool
+        {
+            if (requestId.isEmpty() ||
+                fileName.isEmpty() ||
+                fileName.length() > 240)
+                return false;
+
+            JsonDocument out;
+            out["requestId"] = requestId;
+            out["fileName"] = fileName;
+            broadcast("playAudio", out);
+            return true;
+        });
+
+    _movements.begin();
+
+    _dispatcher.setTurnoutAuthority(
+        [this](
+            const std::vector<uint16_t>& addresses,
+            const String& ownerId,
+            const String& ownerName)
+        {
+            const bool ok =
+                switchManAcquire(
+                    addresses,
+                    ownerId,
+                    ownerName,
+                    nullptr);
+
+            if (ok)
+            {
+                broadcastSwitchManSnapshot();
+            }
+
+            return ok;
+        },
+        [this](
+            uint16_t address,
+            bool closed,
+            const String& ownerId)
+        {
+            return dispatcherSetTurnout(
+                address,
+                closed,
+                ownerId);
+        },
+        [this](
+            const std::vector<uint16_t>& addresses,
+            const String& ownerId)
+        {
+            switchManRelease(
+                ownerId,
+                &addresses);
+        });
+
     _lastCommandCenterConnected =
         _commandCenter.connected();
 
@@ -439,6 +512,31 @@ void WsProtocol::loop()
         millis();
 
     updateCpuUsage();
+
+    _scripts.loop();
+    _flows.loop();
+    _movements.loop();
+
+    if (
+        _flows.takeChanged() &&
+        _wsClientCount > 0)
+    {
+        broadcastFlowSnapshot();
+    }
+
+    if (
+        _scripts.takeChanged() &&
+        _wsClientCount > 0)
+    {
+        broadcastAutomationScriptSnapshot();
+    }
+
+    if (
+        _movements.takeChanged() &&
+        _wsClientCount > 0)
+    {
+        broadcastMovementSnapshot();
+    }
 
     _locoCounters.loop();
 
@@ -493,6 +591,26 @@ void WsProtocol::loop()
 
 void WsProtocol::cleanupClients()
 {
+    // Client cleanup is maintenance work, not a per-millisecond realtime job.
+    // Running it every App::loop() iteration needlessly walks the websocket
+    // client list and contends with AsyncTCP.
+    static unsigned long nextCleanupAt = 0;
+
+    const unsigned long now =
+        millis();
+
+    if (
+        nextCleanupAt != 0 &&
+        static_cast<long>(
+            now -
+            nextCleanupAt) < 0
+    ) {
+        return;
+    }
+
+    nextCleanupAt =
+        now + 250;
+
     _ws.cleanupClients();
 }
 
@@ -616,68 +734,6 @@ void WsProtocol::sendPowerInfo(
         data.as<JsonVariantConst>());
 }
 
-void WsProtocol::sendControlStationStatus(
-    AsyncWebSocketClient *client)
-{
-    JsonDocument data;
-
-    data["active"] =
-        _controlStationOwnerConnectionId != 0;
-
-    if (
-        _controlStationOwnerConnectionId != 0)
-    {
-        data["ownerClientId"] =
-            _controlStationOwnerClientId;
-
-        data["ownerName"] =
-            _controlStationOwnerName;
-    }
-    else
-    {
-        data["ownerClientId"] =
-            nullptr;
-
-        data["ownerName"] =
-            nullptr;
-    }
-
-    send(
-        client,
-        "controlStationStatus",
-        data.as<JsonVariantConst>());
-}
-
-void WsProtocol::broadcastControlStationStatus()
-{
-    JsonDocument data;
-
-    data["active"] =
-        _controlStationOwnerConnectionId != 0;
-
-    if (
-        _controlStationOwnerConnectionId != 0)
-    {
-        data["ownerClientId"] =
-            _controlStationOwnerClientId;
-
-        data["ownerName"] =
-            _controlStationOwnerName;
-    }
-    else
-    {
-        data["ownerClientId"] =
-            nullptr;
-
-        data["ownerName"] =
-            nullptr;
-    }
-
-    broadcast(
-        "controlStationStatus",
-        data);
-}
-
 void WsProtocol::broadcastPowerInfo()
 {
     JsonDocument data;
@@ -702,6 +758,83 @@ void WsProtocol::broadcastPowerInfo()
 
     broadcast(
         "powerInfo",
+        data);
+}
+
+void WsProtocol::sendAutomationScriptSnapshot(
+    AsyncWebSocketClient* client)
+{
+    JsonDocument data;
+
+    _scripts.appendSnapshot(
+        data.to<JsonObject>());
+
+    send(
+        client,
+        "automationScriptSnapshot",
+        data.as<JsonVariantConst>());
+}
+
+void WsProtocol::broadcastAutomationScriptSnapshot()
+{
+    JsonDocument data;
+
+    _scripts.appendSnapshot(
+        data.to<JsonObject>());
+
+    broadcast(
+        "automationScriptSnapshot",
+        data);
+}
+
+void WsProtocol::sendFlowSnapshot(
+    AsyncWebSocketClient* client)
+{
+    JsonDocument data;
+
+    _flows.appendSnapshot(
+        data.to<JsonObject>());
+
+    send(
+        client,
+        "flowStateChanged",
+        data.as<JsonVariantConst>());
+}
+
+void WsProtocol::broadcastFlowSnapshot()
+{
+    JsonDocument data;
+
+    _flows.appendSnapshot(
+        data.to<JsonObject>());
+
+    broadcast(
+        "flowStateChanged",
+        data);
+}
+
+
+void WsProtocol::sendMovementSnapshot(
+    AsyncWebSocketClient* client)
+{
+    JsonDocument data;
+    _movements.appendSnapshot(
+        data.to<JsonObject>());
+
+    send(
+        client,
+        "movementStateChanged",
+        data.as<JsonVariantConst>());
+}
+
+void WsProtocol::broadcastMovementSnapshot()
+{
+    JsonDocument data;
+    _movements.appendSnapshot(
+        data.to<JsonObject>());
+
+    broadcast(
+        "movementStateChanged",
         data);
 }
 
@@ -2827,6 +2960,92 @@ const WsProtocol::SwitchManLock* WsProtocol::switchManFind(
     return nullptr;
 }
 
+bool WsProtocol::dispatcherSetTurnout(
+    uint16_t address,
+    bool logicalClosed,
+    const String& ownerId)
+{
+    if (!switchManOwns(
+            address,
+            ownerId))
+    {
+        return false;
+    }
+
+    RuntimeAccessory* turnout =
+        _runtime.findAccessory(
+            RuntimeAccessoryKind::Turnout,
+            address);
+
+    if (!turnout)
+    {
+        return false;
+    }
+
+    const bool physicalValue =
+        logicalClosed
+            ? turnout->closedValue
+            : !turnout->closedValue;
+
+    bool ok = false;
+
+    if (turnout->turnoutExtended)
+    {
+        const int16_t aspect =
+            logicalClosed
+                ? turnout->turnoutClosedAspect
+                : turnout->turnoutOpenedAspect;
+
+        ok =
+            _commandCenter.setSignalAspect(
+                address,
+                aspect);
+
+        if (ok)
+        {
+            _runtime.setSignal(
+                address,
+                aspect);
+        }
+    }
+    else if (turnout->turnoutVPin)
+    {
+        ok =
+            _commandCenter.setVPin(
+                address,
+                physicalValue);
+
+        if (ok)
+        {
+            _runtime.setVPin(
+                address,
+                physicalValue);
+        }
+    }
+    else
+    {
+        ok =
+            _commandCenter.setTurnout(
+                address,
+                physicalValue);
+
+        if (ok)
+        {
+            _runtime.setTurnout(
+                address,
+                physicalValue);
+        }
+    }
+
+    if (ok)
+    {
+        broadcastTurnoutState(
+            address);
+    }
+
+    return ok;
+}
+
 bool WsProtocol::switchManOwnerRevoked(
     const String& ownerId) const
 {
@@ -3798,13 +4017,16 @@ void WsProtocol::handleEvent(
             "ws:welcome",
             welcome.as<JsonVariantConst>());
 
-        sendControlStationStatus(
-            client);
-
         sendRuntimeSnapshot(
             client);
 
         sendSwitchManSnapshot(
+            client);
+
+        sendAutomationScriptSnapshot(
+            client);
+
+        sendFlowSnapshot(
             client);
 
         return;
@@ -3825,25 +4047,6 @@ void WsProtocol::handleEvent(
             "WS client disconnected #" +
             String(
                 client->id()));
-
-        if (
-            _controlStationOwnerConnectionId ==
-            client->id())
-        {
-            _controlStationOwnerConnectionId =
-                0;
-
-            _controlStationOwnerClientId =
-                "";
-
-            _controlStationOwnerName =
-                "";
-
-            broadcastControlStationStatus();
-
-            Logger::info(
-                "Control Station released because owner disconnected");
-        }
 
         return;
     }
@@ -3946,144 +4149,9 @@ void WsProtocol::handleMessage(
     if (
         strcmp(
             type,
-            "controlStationClaim") ==
-        0)
-    {
-        const String requestedClientId =
-            data["clientId"] |
-            "";
-
-        const String requestedName =
-            data["clientName"] |
-            "";
-
-        const bool granted =
-            _controlStationOwnerConnectionId ==
-                0 ||
-            _controlStationOwnerConnectionId ==
-                client->id();
-
-        if (
-            granted)
-        {
-            _controlStationOwnerConnectionId =
-                client->id();
-
-            _controlStationOwnerClientId =
-                requestedClientId;
-
-            _controlStationOwnerName =
-                requestedName;
-
-            broadcastControlStationStatus();
-        }
-
-        JsonDocument response;
-
-        response["granted"] =
-            granted;
-
-        response["active"] =
-            _controlStationOwnerConnectionId != 0;
-
-        if (
-            _controlStationOwnerConnectionId != 0)
-        {
-            response["ownerClientId"] =
-                _controlStationOwnerClientId;
-
-            response["ownerName"] =
-                _controlStationOwnerName;
-        }
-        else
-        {
-            response["ownerClientId"] =
-                nullptr;
-
-            response["ownerName"] =
-                nullptr;
-        }
-
-        if (
-            !granted)
-        {
-            response["message"] =
-                "Another Control Station is already connected.";
-        }
-
-        send(
-            client,
-            "controlStationClaimResult",
-            response.as<JsonVariantConst>());
-
-        return;
-    }
-
-    if (
-        strcmp(
-            type,
-            "controlStationRelease") ==
-        0)
-    {
-        if (
-            _controlStationOwnerConnectionId ==
-            client->id())
-        {
-            _controlStationOwnerConnectionId =
-                0;
-
-            _controlStationOwnerClientId =
-                "";
-
-            _controlStationOwnerName =
-                "";
-
-            broadcastControlStationStatus();
-        }
-        else
-        {
-            sendControlStationStatus(
-                client);
-        }
-
-        return;
-    }
-
-    if (
-        strcmp(
-            type,
-            "getControlStationStatus") ==
-        0)
-    {
-        sendControlStationStatus(
-            client);
-
-        return;
-    }
-
-    if (
-        strcmp(
-            type,
             "broadcastPlayAudio") ==
         0)
     {
-        if (
-            _controlStationOwnerConnectionId !=
-            client->id())
-        {
-            JsonDocument denied;
-
-            denied["message"] =
-                "control_station_required";
-
-            send(
-                client,
-                "error",
-                denied.as<JsonVariantConst>());
-
-            return;
-        }
-
         const String requestId =
             data["requestId"] |
             "";
@@ -4131,16 +4199,28 @@ void WsProtocol::handleMessage(
     if (
         strcmp(
             type,
+            "movementAudioComplete") ==
+        0)
+    {
+        const String requestId =
+            data["requestId"] | "";
+        const bool ok =
+            data["ok"] | true;
+
+        if (!requestId.isEmpty())
+            _movements.audioCompleted(
+                requestId,
+                ok);
+
+        return;
+    }
+
+    if (
+        strcmp(
+            type,
             "broadcastStopAudio") ==
         0)
     {
-        if (
-            _controlStationOwnerConnectionId !=
-            client->id())
-        {
-            return;
-        }
-
         const String fileName =
             data["fileName"] |
             "";
@@ -4197,6 +4277,393 @@ void WsProtocol::handleMessage(
         handleSwitchManCommand(
             client,
             data);
+
+        return;
+    }
+
+    if (
+        strcmp(
+            type,
+            "movementCommand") ==
+        0)
+    {
+        const String requestId =
+            data["requestId"] | "";
+        const String action =
+            data["action"] | "";
+        const String pageId =
+            data["pageId"] | "";
+
+        bool ok = false;
+        String error;
+        int count = 0;
+
+        if (action == "snapshot")
+            ok = true;
+        else if (action == "start")
+            ok = _movements.start(pageId, error);
+        else if (action == "stop")
+        {
+            ok = _movements.stop(pageId);
+            if (!ok) error = "movement_not_running";
+        }
+        else if (action == "abort")
+        {
+            ok = _movements.abort(pageId);
+            if (!ok) error = "movement_not_running";
+        }
+        else if (action == "stopAll")
+        {
+            count = static_cast<int>(_movements.stopAll());
+            ok = true;
+        }
+        else if (action == "abortAll")
+        {
+            count = static_cast<int>(_movements.abortAll());
+            ok = true;
+        }
+        else
+            error = "unsupported_movement_action";
+
+        JsonDocument response;
+        response["requestId"] = requestId;
+        response["action"] = action;
+        response["ok"] = ok;
+        if (!error.isEmpty())
+            response["message"] = error;
+        if (action == "stopAll" || action == "abortAll")
+            response["count"] = count;
+
+        _movements.appendSnapshot(
+            response["state"].to<JsonObject>());
+
+        send(
+            client,
+            "movementResponse",
+            response.as<JsonVariantConst>());
+
+        if (ok)
+            broadcastMovementSnapshot();
+
+        return;
+    }
+
+    if (
+        strcmp(
+            type,
+            "flowCommand") ==
+        0)
+    {
+        const String requestId =
+            data["requestId"] |
+            "";
+
+        const String action =
+            data["action"] |
+            "";
+
+        bool ok =
+            true;
+        String error;
+
+        JsonDocument response;
+
+        response["requestId"] =
+            requestId;
+        response["action"] =
+            action;
+
+        if (
+            action ==
+            "snapshot")
+        {
+        }
+        else if (
+            action ==
+            "runPage")
+        {
+            ok =
+                _flows.runPage(
+                    data["pageId"] |
+                        "",
+                    data["inputNodeId"] |
+                        "",
+                    data["payload"],
+                    error);
+        }
+        else if (
+            action ==
+            "abortPage")
+        {
+            response["count"] =
+                _flows.abortPage(
+                    data["pageId"] |
+                        "");
+        }
+        else if (
+            action ==
+            "abortAll")
+        {
+            response["count"] =
+                _flows.abortAll();
+        }
+        else
+        {
+            ok =
+                false;
+            error =
+                "unknown_flow_action";
+        }
+
+        response["ok"] =
+            ok;
+
+        if (!error.isEmpty())
+        {
+            response["message"] =
+                error;
+        }
+
+        _flows.appendSnapshot(
+            response["state"]
+                .to<JsonObject>());
+
+        send(
+            client,
+            "flowResponse",
+            response.as<JsonVariantConst>());
+
+        if (ok)
+        {
+            broadcastFlowSnapshot();
+        }
+
+        return;
+    }
+
+    if (
+        strcmp(
+            type,
+            "scriptCommand") ==
+        0)
+    {
+        const String requestId =
+            data["requestId"] |
+            "";
+
+        const String action =
+            data["action"] |
+            "";
+
+        String error;
+        bool ok =
+            true;
+        bool includeState =
+            false;
+        bool includeSnapshot =
+            false;
+
+        JsonDocument response;
+
+        response["requestId"] =
+            requestId;
+        response["action"] =
+            action;
+
+        JsonObject extra =
+            response["extra"]
+                .to<JsonObject>();
+
+        if (
+            action ==
+            "snapshot")
+        {
+            includeSnapshot =
+                true;
+        }
+        else if (
+            action ==
+            "startSaved")
+        {
+            ok =
+                _scripts.startSaved(
+                    data["scriptId"] |
+                        "",
+                    data["executionId"] |
+                        "",
+                    data["executionType"] |
+                        "",
+                    error);
+
+            includeSnapshot =
+                ok;
+        }
+        else if (
+            action ==
+            "startSource")
+        {
+            ok =
+                _scripts.startSource(
+                    data["executionId"] |
+                        "",
+                    data["name"] |
+                        "",
+                    data["executionType"] |
+                        "",
+                    data["source"] |
+                        "",
+                    error);
+
+            includeSnapshot =
+                ok;
+        }
+        else if (
+            action ==
+            "pause")
+        {
+            ok =
+                _scripts.pause(
+                    data["executionId"] |
+                        "",
+                    error);
+
+            includeState =
+                true;
+        }
+        else if (
+            action ==
+            "resume")
+        {
+            ok =
+                _scripts.resume(
+                    data["executionId"] |
+                        "",
+                    error);
+
+            includeState =
+                true;
+        }
+        else if (
+            action ==
+            "abort")
+        {
+            ok =
+                _scripts.abort(
+                    data["executionId"] |
+                        "",
+                    error);
+
+            includeState =
+                true;
+        }
+        else if (
+            action ==
+            "startAll")
+        {
+            extra["count"] =
+                _scripts.startAllSaved();
+
+        }
+        else if (
+            action ==
+            "pauseAll")
+        {
+            extra["count"] =
+                _scripts.pauseAll();
+
+        }
+        else if (
+            action ==
+            "resumeAll")
+        {
+            extra["count"] =
+                _scripts.resumeAll();
+
+        }
+        else if (
+            action ==
+            "abortAll")
+        {
+            extra["count"] =
+                _scripts.abortAll();
+
+        }
+        else if (
+            action ==
+            "pauseAllSaved")
+        {
+            extra["count"] =
+                _scripts.pauseAllSaved();
+
+        }
+        else if (
+            action ==
+            "resumeAllSaved")
+        {
+            extra["count"] =
+                _scripts.resumeAllSaved();
+
+        }
+        else if (
+            action ==
+            "abortAllSaved")
+        {
+            extra["count"] =
+                _scripts.abortAllSaved();
+
+        }
+        else if (
+            action ==
+            "setFinishing")
+        {
+            _scripts.setFinishing(
+                data["finishing"] |
+                    false);
+
+            extra["finishing"] =
+                _scripts.finishing();
+        }
+        else
+        {
+            ok =
+                false;
+            error =
+                "script_action_not_supported_on_esp32";
+        }
+
+        response["ok"] =
+            ok;
+
+        if (!error.isEmpty())
+        {
+            response["message"] =
+                error;
+        }
+
+        if (includeState)
+        {
+            _scripts.appendState(
+                data["executionId"] |
+                    "",
+                extra["state"]
+                    .to<JsonObject>());
+        }
+
+        if (includeSnapshot)
+        {
+            _scripts.appendSnapshot(
+                extra);
+        }
+
+        send(
+            client,
+            "automationScriptResponse",
+            response.as<JsonVariantConst>());
+
+        if (ok)
+        {
+            broadcastAutomationScriptSnapshot();
+        }
 
         return;
     }

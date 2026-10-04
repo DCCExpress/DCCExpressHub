@@ -859,7 +859,7 @@ dcc.setProgrammingPower(on)
 
 # 15. Runtime-ban még meglévő advanced / compatibility API
 
-Ezek ténylegesen léteznek a worker runtime-ban, de **nem részei az ajánlott Quick Help API-nak**.
+Ezek ténylegesen léteznek a backend ScriptRuntime-ban, de **nem részei az ajánlott Quick Help API-nak**.
 
 ## `dcc.setTurnoutRaw(address, closed)`
 
@@ -1019,7 +1019,7 @@ occupancy sensor == false
 
 A Dispatcher indulás előtt minden következő blokkra beállítja a mozdony target jelölését, majd újra ellenőrzi, hogy a foglalás közben nem változott-e az állapot.
 
-Az egymást átfedő Dispatcher útvonalak blokkzárolása Web Locks segítségével történik. Ugyanazon scriptben egymást átfedő aktív Dispatcher útvonalak nem engedélyezettek.
+Az egymást átfedő Dispatcher útvonalakat a Windows backend DispatcherRuntime sorosítja. A script Dispatcher és a Movement ugyanazt a blokk/szegmens/váltó authority-t használja, ezért külön böngészős lockkal nem kerülhetik meg egymást.
 
 ## 18.4 Váltók
 
@@ -1063,9 +1063,9 @@ await dispatcher(
 );
 ```
 
-- `timeoutMs`: blokk-lock várakozás timeoutja; elhagyva nincs explicit Dispatcher timeout, maximum `600000 ms`;
+- `timeoutMs`: a backend route-resource authority várakozás timeoutja; elhagyva nincs explicit Dispatcher timeout, maximum `600000 ms`;
 - `setDelayMs`: váltóállítások közötti késleltetés, alapból `250 ms`;
-- `blockPollMs`: blokk-lock újrapróbálási idő, alapból `250 ms`, tartománya `25..5000 ms`;
+- `blockPollMs`: a backend route-resource authority újrapróbálási ideje, alapból `250 ms`, tartománya `25..5000 ms`;
 - `onEmpty(dir)`: akkor fut, ha a kiinduló blokkban nincs mozdony;
 - `onBlocked(loco, dir, conflicts)`: blokk- vagy váltókonfliktus esetén fut.
 
@@ -1244,7 +1244,7 @@ A \`smartDispatcher()\` a stabil \`dispatcher()\` mellett külön implementáci�
 A SmartDispatcher automatikusan:
 
 - ellenőrzi a következő blokk \`actual\`, \`target\` és occupancy állapotát;
-- Web Lockkal lefoglalja a következő blokkot;
+- a backend DispatcherRuntime-ban lefoglalja a jelenlegi→következő blokk authority-t, a közös blokk/szegmens erőforrásokkal együtt;
 - beállítja a következő blokk \`target loco\` jelölését;
 - csak az aktuális blokkátmenethez szükséges váltókat foglalja és állítja;
 - clearance hiányában megállítja a mozdonyt;
@@ -1340,7 +1340,7 @@ A következő blokk csak akkor használható, ha:
 actual loco == 0
 target loco == 0
 occupancy   == false
-block Web Lock megszerezhető
+backend Dispatcher blokk/szegmens authority megszerezhető
 szükséges váltózárak megszerezhetők
 szükséges váltóállások beállíthatók
 \`\`\`

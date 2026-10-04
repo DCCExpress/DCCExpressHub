@@ -9,14 +9,15 @@ import {
 import {
   ActionIcon,
   Button,
-  Card,
   Checkbox,
   Group,
   NumberInput,
   ScrollArea,
   Stack,
+  Table,
   Text,
   TextInput,
+  Tooltip,
 } from "@mantine/core";
 
 import {
@@ -210,298 +211,439 @@ export default function LocoFunctionsTab({
           minHeight: 0,
         }}
       >
-        <Stack gap="sm">
-          {functions.map(fn => {
-            const testActive =
-              activeTestFunctions.has(
-                fn.id
-              );
-
-            return (
-              <Card
-                key={fn.id}
-                withBorder
-                p="sm"
+        <Table
+          stickyHeader
+          striped
+          highlightOnHover
+          withTableBorder
+          withColumnBorders
+          verticalSpacing="xs"
+          horizontalSpacing="sm"
+          style={{
+            minWidth: 940,
+            tableLayout: "fixed",
+          }}
+        >
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th w={90}>
+                {t(
+                  "locodialog.function_number"
+                )}
+              </Table.Th>
+              <Table.Th>
+                {t(
+                  "locodialog.functionname"
+                )}
+              </Table.Th>
+              <Table.Th w={210}>
+                {i18next.t(
+                  "ui.functionBinding"
+                )}
+              </Table.Th>
+              <Table.Th w={90}>
+                {i18next.t(
+                  "ui.icon"
+                )}
+              </Table.Th>
+              <Table.Th
+                w={110}
+                ta="center"
               >
-                <Group
-                  className="loco-function-editor-row"
-                  align="flex-start"
-                  wrap="nowrap"
+                {t(
+                  "locodialog.function_momentary"
+                )}
+              </Table.Th>
+              <Table.Th
+                w={120}
+                ta="center"
+              >
+                <Tooltip
+                  label={t(
+                    "locodialog.function_startup_tooltip"
+                  )}
+                  withArrow
                 >
-                  <NumberInput
-                    label={t(
-                      "locodialog.function_number"
-                    )}
-                    value={fn.number}
-                    min={0}
-                    w={110}
-                    onChange={
-                      value =>
-                        onUpdateFunction(
-                          fn.id,
-                          {
-                            number:
-                              Number(
-                                value
-                              ) || 0,
-                          }
-                        )
-                    }
-                  />
-
-                  <TextInput
-                    label={t(
-                      "locodialog.functionname"
-                    )}
-                    value={fn.name}
-                    style={{
-                      flex: 1,
-                    }}
-                    onChange={
-                      event =>
-                        onUpdateFunction(
-                          fn.id,
-                          {
-                            name:
-                              event
-                                .currentTarget
-                                .value,
-                          }
-                        )
-                    }
-                  />
-
-                  <TextInput
-                    label={i18next.t("ui.functionBinding")}
-                    value={
-                      fn.bindingId ===
-                        undefined ||
-                      fn.bindingId ===
-                        null
-                        ? ""
-                        : (
-                            bindingNameById.get(
-                              fn.bindingId
-                            ) ??
-                            `#${fn.bindingId}`
-                          )
-                    }
-                    readOnly
-                    w={210}
-                    rightSection={
-                      <ActionIcon
-                        size="sm"
-                        variant="subtle"
-                        aria-label={i18next.t("ui.functionBindings")}
-                        onClick={
-                          () =>
-                            setBindingFunctionId(
-                              fn.id
-                            )
-                        }
-                      >
-                        <IconDots
-                          size={16}
-                        />
-                      </ActionIcon>
-                    }
-                  />
-
-                  <TextInput
-                    label={i18next.t("ui.icon")}
-                    value={fn.icon}
-                    w={90}
-                    onChange={
-                      event =>
-                        onUpdateFunction(
-                          fn.id,
-                          {
-                            icon:
-                              event
-                                .currentTarget
-                                .value,
-                          }
-                        )
-                    }
-                  />
-
-                  <Checkbox
-                    mt={30}
-                    label={t(
-                      "locodialog.function_momentary"
-                    )}
-                    checked={
-                      fn.momentary
-                    }
-                    onChange={
-                      event => {
-                        const momentary =
-                          event
-                            .currentTarget
-                            .checked;
-
-                        // If a normal test function was left ON and the
-                        // user converts it to momentary, switch it OFF
-                        // before changing its behavior.
-                        if (
-                          momentary &&
-                          testActive
-                        ) {
-                          setTestState(
-                            fn,
-                            false
-                          );
-                        }
-
-                        onUpdateFunction(
-                          fn.id,
-                          {
-                            momentary,
-                          }
-                        );
-                      }
-                    }
-                  />
-
-                  <Button
-                    mt={24}
-                    size="xs"
-                    {...(
-                      testActive
-                        ? {
-                            color:
-                              "green" as const,
-                            variant:
-                              "filled" as const,
-                          }
-                        : {
-                            variant:
-                              "light" as const,
-                          }
-                    )}
-
-                    // Normal functions toggle on each click.
-                    onClick={() => {
-                      if (
-                        !fn.momentary
-                      ) {
-                        toggleTestState(
-                          fn
-                        );
-                      }
-                    }}
-
-                    // Momentary functions are active only while held.
-                    onPointerDown={
-                      event => {
-                        if (
-                          !fn.momentary
-                        ) {
-                          return;
-                        }
-
-                        event
-                          .preventDefault();
-
-                        setTestState(
-                          fn,
-                          true
-                        );
-                      }
-                    }
-                    onPointerUp={
-                      event => {
-                        if (
-                          !fn.momentary
-                        ) {
-                          return;
-                        }
-
-                        event
-                          .preventDefault();
-
-                        setTestState(
-                          fn,
-                          false
-                        );
-                      }
-                    }
-                    onPointerCancel={
-                      event => {
-                        if (
-                          !fn.momentary
-                        ) {
-                          return;
-                        }
-
-                        event
-                          .preventDefault();
-
-                        setTestState(
-                          fn,
-                          false
-                        );
-                      }
-                    }
-                    onPointerLeave={
-                      event => {
-                        if (
-                          fn.momentary &&
-                          event.buttons === 1
-                        ) {
-                          setTestState(
-                            fn,
-                            false
-                          );
-                        }
-                      }
-                    }
+                  <Text
+                    span
+                    size="sm"
+                    fw={600}
                   >
                     {t(
-                      "locodialog.function_test"
+                      "locodialog.function_startup"
                     )}
-                  </Button>
+                  </Text>
+                </Tooltip>
+              </Table.Th>
+              <Table.Th
+                w={95}
+                ta="center"
+              >
+                {t(
+                  "locodialog.function_test"
+                )}
+              </Table.Th>
+              <Table.Th w={52} />
+            </Table.Tr>
+          </Table.Thead>
 
-                  <ActionIcon
-                    mt={28}
-                    color="red"
-                    variant="light"
-                    onClick={() => {
-                      if (
-                        testActive
-                      ) {
-                        setTestState(
-                          fn,
-                          false
-                        );
+          <Table.Tbody>
+            {functions.map(fn => {
+              const testActive =
+                activeTestFunctions.has(
+                  fn.id
+                );
+
+              return (
+                <Table.Tr
+                  key={fn.id}
+                >
+                  <Table.Td>
+                    <NumberInput
+                      size="xs"
+                      value={fn.number}
+                      min={0}
+                      onChange={
+                        value =>
+                          onUpdateFunction(
+                            fn.id,
+                            {
+                              number:
+                                Number(
+                                  value
+                                ) || 0,
+                            }
+                          )
                       }
-
-                      onDeleteFunction(
-                        fn.id
-                      );
-                    }}
-                  >
-                    <IconTrash
-                      size={16}
                     />
-                  </ActionIcon>
-                </Group>
-              </Card>
-            );
-          })}
+                  </Table.Td>
 
-          {functions.length ===
-            0 && (
-            <Text
-              size="sm"
-              c="dimmed"
-            >
-              {t(
-                "locodialog.functions_empty"
-              )}
-            </Text>
-          )}
-        </Stack>
+                  <Table.Td>
+                    <TextInput
+                      size="xs"
+                      value={fn.name}
+                      onChange={
+                        event =>
+                          onUpdateFunction(
+                            fn.id,
+                            {
+                              name:
+                                event
+                                  .currentTarget
+                                  .value,
+                            }
+                          )
+                      }
+                    />
+                  </Table.Td>
+
+                  <Table.Td>
+                    <TextInput
+                      size="xs"
+                      value={
+                        fn.bindingId ===
+                          undefined ||
+                        fn.bindingId ===
+                          null
+                          ? ""
+                          : (
+                              bindingNameById.get(
+                                fn.bindingId
+                              ) ??
+                              `#${fn.bindingId}`
+                            )
+                      }
+                      readOnly
+                      rightSection={
+                        <ActionIcon
+                          size="sm"
+                          variant="subtle"
+                          aria-label={i18next.t(
+                            "ui.functionBindings"
+                          )}
+                          onClick={
+                            () =>
+                              setBindingFunctionId(
+                                fn.id
+                              )
+                          }
+                        >
+                          <IconDots
+                            size={16}
+                          />
+                        </ActionIcon>
+                      }
+                    />
+                  </Table.Td>
+
+                  <Table.Td>
+                    <TextInput
+                      size="xs"
+                      value={fn.icon}
+                      onChange={
+                        event =>
+                          onUpdateFunction(
+                            fn.id,
+                            {
+                              icon:
+                                event
+                                  .currentTarget
+                                  .value,
+                            }
+                          )
+                      }
+                    />
+                  </Table.Td>
+
+                  <Table.Td>
+                    <Group
+                      justify="center"
+                      wrap="nowrap"
+                    >
+                      <Checkbox
+                        checked={
+                          fn.momentary
+                        }
+                        onChange={
+                          event => {
+                            const momentary =
+                              event
+                                .currentTarget
+                                .checked;
+
+                            if (
+                              momentary &&
+                              testActive
+                            ) {
+                              setTestState(
+                                fn,
+                                false
+                              );
+                            }
+
+                            onUpdateFunction(
+                              fn.id,
+                              {
+                                momentary,
+                                ...(momentary
+                                  ? {
+                                      startupActive:
+                                        false,
+                                    }
+                                  : {}),
+                              }
+                            );
+                          }
+                        }
+                      />
+                    </Group>
+                  </Table.Td>
+
+                  <Table.Td>
+                    <Group
+                      justify="center"
+                      wrap="nowrap"
+                    >
+                      <Tooltip
+                        label={
+                          fn.momentary
+                            ? t(
+                                "locodialog.function_startup_unavailable_momentary"
+                              )
+                            : t(
+                                "locodialog.function_startup_tooltip"
+                              )
+                        }
+                        withArrow
+                      >
+                        <Checkbox
+                          checked={
+                            Boolean(
+                              fn.startupActive
+                            )
+                          }
+                          disabled={
+                            fn.momentary
+                          }
+                          aria-label={t(
+                            "locodialog.function_startup_tooltip"
+                          )}
+                          onChange={
+                            event =>
+                              onUpdateFunction(
+                                fn.id,
+                                {
+                                  startupActive:
+                                    event
+                                      .currentTarget
+                                      .checked,
+                                }
+                              )
+                          }
+                        />
+                      </Tooltip>
+                    </Group>
+                  </Table.Td>
+
+                  <Table.Td>
+                    <Group
+                      justify="center"
+                      wrap="nowrap"
+                    >
+                      <Button
+                        size="compact-xs"
+                        {...(
+                          testActive
+                            ? {
+                                color:
+                                  "green" as const,
+                                variant:
+                                  "filled" as const,
+                              }
+                            : {
+                                variant:
+                                  "light" as const,
+                              }
+                        )}
+                        onClick={() => {
+                          if (
+                            !fn.momentary
+                          ) {
+                            toggleTestState(
+                              fn
+                            );
+                          }
+                        }}
+                        onPointerDown={
+                          event => {
+                            if (
+                              !fn.momentary
+                            ) {
+                              return;
+                            }
+
+                            event
+                              .preventDefault();
+
+                            setTestState(
+                              fn,
+                              true
+                            );
+                          }
+                        }
+                        onPointerUp={
+                          event => {
+                            if (
+                              !fn.momentary
+                            ) {
+                              return;
+                            }
+
+                            event
+                              .preventDefault();
+
+                            setTestState(
+                              fn,
+                              false
+                            );
+                          }
+                        }
+                        onPointerCancel={
+                          event => {
+                            if (
+                              !fn.momentary
+                            ) {
+                              return;
+                            }
+
+                            event
+                              .preventDefault();
+
+                            setTestState(
+                              fn,
+                              false
+                            );
+                          }
+                        }
+                        onPointerLeave={
+                          event => {
+                            if (
+                              fn.momentary &&
+                              event.buttons === 1
+                            ) {
+                              setTestState(
+                                fn,
+                                false
+                              );
+                            }
+                          }
+                        }
+                      >
+                        {t(
+                          "locodialog.function_test"
+                        )}
+                      </Button>
+                    </Group>
+                  </Table.Td>
+
+                  <Table.Td>
+                    <Group
+                      justify="center"
+                      wrap="nowrap"
+                    >
+                      <ActionIcon
+                        size="sm"
+                        color="red"
+                        variant="light"
+                        aria-label={t(
+                          "locodialog.delete"
+                        )}
+                        onClick={() => {
+                          if (
+                            testActive
+                          ) {
+                            setTestState(
+                              fn,
+                              false
+                            );
+                          }
+
+                          onDeleteFunction(
+                            fn.id
+                          );
+                        }}
+                      >
+                        <IconTrash
+                          size={15}
+                        />
+                      </ActionIcon>
+                    </Group>
+                  </Table.Td>
+                </Table.Tr>
+              );
+            })}
+
+            {functions.length ===
+              0 && (
+              <Table.Tr>
+                <Table.Td
+                  colSpan={8}
+                >
+                  <Text
+                    size="sm"
+                    c="dimmed"
+                    ta="center"
+                    py="md"
+                  >
+                    {t(
+                      "locodialog.functions_empty"
+                    )}
+                  </Text>
+                </Table.Td>
+              </Table.Tr>
+            )}
+          </Table.Tbody>
+        </Table>
       </ScrollArea>
       <FunctionBindingsDialog
         opened={

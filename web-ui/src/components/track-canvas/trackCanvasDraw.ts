@@ -200,6 +200,7 @@ export function drawScene(
     showSignalAddress: settings.showSignalAddress,
     showSection: settings.showSegments,
     showBlockNames: settings.showBlockNames,
+    showBuildings: settings.showBuildings,
     darkMode: isDark,
     locos: locos || [],
   };

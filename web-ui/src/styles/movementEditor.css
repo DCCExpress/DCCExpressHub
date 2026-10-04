@@ -205,6 +205,17 @@
   opacity: 0.82;
 }
 
+.movement-route-vector-composite-segment-card {
+  fill: color-mix(
+    in srgb,
+    var(--mantine-color-gray-6) 10%,
+    var(--mantine-color-body)
+  );
+  stroke: var(--mantine-color-gray-6);
+  stroke-width: 1.5;
+  pointer-events: none;
+}
+
 .movement-route-vector-card {
   fill: var(--mantine-color-body);
   stroke: var(--mantine-color-gray-5);

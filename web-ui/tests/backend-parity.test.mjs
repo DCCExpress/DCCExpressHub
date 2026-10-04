@@ -90,12 +90,53 @@ test("ESP32 WebSocket command contract matches the Windows backend", () => {
       "src/WsProtocol.cpp"
     );
 
+  const windowsCommands =
+    windowsTopLevelWsCommands(
+      windows
+    );
+
+  /*
+   * Windows-first migration: Dispatcher, Movement and Timetable runtime
+   * commands are intentionally native-only until the .NET implementation is
+   * stable. Keep every other WS command under strict ESP32 parity.
+   */
+  for (
+    const windowsOnly of
+    [
+      "dispatcherCommand",
+      "movementCommand",
+      "movementAudioComplete",
+      "timetableCommand",
+      "timetableScriptStatus",
+      "timetableScriptComplete",
+    ]
+  ) {
+    assert.ok(
+      windowsCommands.includes(
+        windowsOnly
+      )
+    );
+  }
+
+  const windowsOnly =
+    new Set([
+      "dispatcherCommand",
+      "movementCommand",
+      "movementAudioComplete",
+      "timetableCommand",
+      "timetableScriptStatus",
+      "timetableScriptComplete",
+    ]);
+
   assert.deepEqual(
     espTopLevelWsCommands(
       esp
     ),
-    windowsTopLevelWsCommands(
-      windows
+    windowsCommands.filter(
+      command =>
+        !windowsOnly.has(
+          command
+        )
     )
   );
 });
@@ -386,3 +427,5 @@ test("ESP32 manual turnout lock is held until runtime state has been broadcast",
     "manual turnout lock must remain held through the state broadcast"
   );
 });
+
+

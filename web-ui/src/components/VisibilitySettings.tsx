@@ -85,6 +85,16 @@ export default function VisibilitySettings({
         />
         <Checkbox
           mb={4}
+          label={t("visibility.showBuildings")}
+          checked={settings.showBuildings}
+          onChange={(e) =>
+            updateSettings({
+              showBuildings: e.currentTarget.checked,
+            })
+          }
+        />
+        <Checkbox
+          mb={4}
           label={t("visibility.showGrid")}
           checked={settings.showGrid}
           onChange={(e) =>

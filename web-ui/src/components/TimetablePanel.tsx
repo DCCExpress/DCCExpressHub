@@ -62,7 +62,6 @@ import {
 type TimetablePanelProps = {
   scripts: AutomationScriptDefinition[];
   movements: MovementPage[];
-  controlStationActive: boolean;
   onOpenTimetable: () => void;
   timetableRevision?: number;
 };
@@ -120,7 +119,6 @@ function formatTimetableTime(
 export default function TimetablePanel({
   scripts,
   movements,
-  controlStationActive,
   onOpenTimetable,
   timetableRevision = 0,
 }: TimetablePanelProps) {
@@ -618,14 +616,21 @@ export default function TimetablePanel({
     };
 
   return (
-    <ScrollArea
+    <Stack
+      gap="sm"
       h="100%"
-      type="always"
-      scrollbarSize={9}
-      className="lite-info-scroll"
+      style={{
+        minHeight: 0,
+        overflow: "hidden",
+      }}
     >
-      <Stack gap="sm">
-        <Card withBorder p="sm">
+      <Card
+        withBorder
+        p="sm"
+        style={{
+          flexShrink: 0,
+        }}
+      >
           <Stack gap="sm">
             <Group justify="space-between" align="center" wrap="wrap">
               <div>
@@ -666,10 +671,6 @@ export default function TimetablePanel({
               }}
             >
               {formattedTime}
-            </Text>
-
-            <Text size="sm" c="dimmed" ta="center">
-              {t("ui.speedValue", { value1: snapshot?.speed ?? speedInput })}
             </Text>
 
             <Group grow gap="xs">
@@ -723,10 +724,20 @@ export default function TimetablePanel({
               </Button>
             </Group>
 
-            <Group align="flex-end" wrap="nowrap">
+            <Divider />
+
+            <Group align="center" wrap="nowrap">
+              <div style={{ flexShrink: 0 }}>
+                <Text size="sm" fw={500}>
+                  {t("ui.speedLabel")}
+                </Text>
+                <Text size="xs" c="dimmed">
+                  {t("ui.realTimeSpeedDescription")}
+                </Text>
+              </div>
+
               <NumberInput
-                label={t("ui.speedLabel")}
-                description={t("ui.realTimeSpeedDescription")}
+                aria-label={t("ui.speedLabel")}
                 min={1}
                 max={100}
                 step={1}
@@ -751,25 +762,120 @@ export default function TimetablePanel({
           </Stack>
         </Card>
 
-        <Card withBorder p="sm">
-          <Stack gap="sm">
+      <Card
+        withBorder
+        p="sm"
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflow: "hidden",
+        }}
+      >
+        <Stack
+          gap="sm"
+          h="100%"
+          style={{
+            minHeight: 0,
+          }}
+        >
             <Group justify="space-between" align="flex-start" wrap="wrap">
               <div>
                 <Text fw={700}>{t("ui.timetable")}</Text>
                 <Text size="xs" c="dimmed">
                   {t(
-                    "ui.timetableNextRowsDescription",
-                    {
-                      value1:
-                        TIMETABLE_NEXT_ROW_COUNT,
-                    }
+                    "ui.timetableNextRowsDescription"
                   )}
                 </Text>
               </div>
+            </Group>
 
-              <Group gap={6} wrap="wrap">
+            <Group
+              grow
+              gap="xs"
+              wrap="wrap"
+            >
+              <Button
+                color="cyan"
+                variant="light"
+                leftSection={
+                  <IconClock
+                    size={16}
+                  />
+                }
+                disabled={
+                  busy ||
+                  !clockState.connected ||
+                  !snapshot ||
+                  timetableLoading ||
+                  firstRunnableTimetableMinute ===
+                    null
+                }
+                onClick={
+                  jumpBeforeFirstTimetableStart
+                }
+              >
+                {
+                  t(
+                    "ui.timetableJumpBeforeFirst",
+                    {
+                      seconds:
+                        FAST_CLOCK_TEST_LEAD_MS /
+                        1000,
+                    }
+                  )
+                }
+              </Button>
+
+              <Button
+                color="green"
+                variant="light"
+                leftSection={<IconPlayerPlay size={16} />}
+                disabled={
+                  schedulerState.running ||
+                  !clockState.connected ||
+                  !snapshot ||
+                  timetableLoading ||
+                  timetable.length === 0
+                }
+                onClick={() => timetableScheduler.start()}
+              >
+                {t("ui.timetableStart")}
+              </Button>
+
+              <Button
+                color="red"
+                variant="light"
+                leftSection={<IconPlayerStop size={16} />}
+                disabled={!schedulerState.running}
+                onClick={() => timetableScheduler.stop()}
+              >
+                {t("ui.timetableStop")}
+              </Button>
+
+              <Button
+                color="blue"
+                variant="light"
+                leftSection={<IconCalendarTime size={17} />}
+                onClick={onOpenTimetable}
+              >
+                {t("ui.editTimetable")}
+              </Button>
+            </Group>
+
+            <Group justify="space-between" align="center" wrap="wrap">
+              <Group gap="xs" wrap="wrap">
                 <Badge variant="light" color="blue">
                   {t("ui.rowsCount", { value1: expandedRows.length })}
+                </Badge>
+
+                <Badge
+                  size="sm"
+                  variant={schedulerState.running ? "filled" : "light"}
+                  color={schedulerState.running ? "green" : "gray"}
+                >
+                  {schedulerState.running
+                    ? t("ui.timetableActive")
+                    : t("ui.timetableStopped")}
                 </Badge>
 
                 {schedulerState.activeRuns.length > 0 && (
@@ -777,8 +883,24 @@ export default function TimetablePanel({
                     {t("ui.activeRunsCount", { value1: schedulerState.activeRuns.length })}
                   </Badge>
                 )}
+
+                {automationFinishing && (
+                  <Badge size="sm" variant="light" color="orange">
+                    {t("ui.finishingNoNewStarts")}
+                  </Badge>
+                )}
               </Group>
+
+              {schedulerState.lastTriggeredAt &&
+                schedulerState.lastTriggeredTargetName && (
+                  <Text size="xs" c="dimmed">
+                    {t("ui.lastStart")} {schedulerState.lastTriggeredAt} ·{" "}
+                    {schedulerState.lastTriggeredTargetName}
+                  </Text>
+                )}
             </Group>
+
+            <Divider />
 
             {timetableError && (
               <Alert color="red" variant="light">
@@ -786,27 +908,38 @@ export default function TimetablePanel({
               </Alert>
             )}
 
-            {timetableLoading ? (
-              <Group justify="center" py="md">
-                <Loader size="sm" />
-              </Group>
-            ) : !snapshot ? (
-              <Text size="sm" c="dimmed" ta="center" py="sm">
-                {t("ui.fastClockStateUnavailable")}
-              </Text>
-            ) : expandedRows.length === 0 ? (
-              <Text size="sm" c="dimmed" ta="center" py="sm">
-                {t(
-                  "ui.noUpcomingTimetableRows"
-                )}
-              </Text>
-            ) : (
-              <Table
-                striped
-                highlightOnHover
-                withRowBorders
-                verticalSpacing={5}
-              >
+            <ScrollArea
+              style={{
+                flex: 1,
+                minHeight: 0,
+              }}
+              type="auto"
+              scrollbarSize={9}
+              offsetScrollbars
+              className="lite-info-scroll"
+            >
+              {timetableLoading ? (
+                <Group justify="center" py="md">
+                  <Loader size="sm" />
+                </Group>
+              ) : !snapshot ? (
+                <Text size="sm" c="dimmed" ta="center" py="sm">
+                  {t("ui.fastClockStateUnavailable")}
+                </Text>
+              ) : expandedRows.length === 0 ? (
+                <Text size="sm" c="dimmed" ta="center" py="sm">
+                  {t(
+                    "ui.noUpcomingTimetableRows"
+                  )}
+                </Text>
+              ) : (
+                <Table
+                  striped
+                  highlightOnHover
+                  withRowBorders
+                  verticalSpacing={5}
+                  stickyHeader
+                >
                 <Table.Thead>
                   <Table.Tr>
                     <Table.Th w={82}>{t("ui.timeColumn")}</Table.Th>
@@ -888,7 +1021,7 @@ export default function TimetablePanel({
                                   "movement"
                                   ? "Movement"
                                   : t(
-                                      "ui.script"
+                                      "ui.timetableScriptType"
                                     )
                               }
                             </Badge>
@@ -939,123 +1072,12 @@ export default function TimetablePanel({
                       </Table.Td>
                     </Table.Tr>
                   ))}
-                </Table.Tbody>
-              </Table>
-            )}
-
-            <Divider />
-
-            <Group justify="space-between" align="center" wrap="wrap">
-              <Group gap="xs" wrap="wrap">
-                <Badge
-                  size="sm"
-                  variant={schedulerState.running ? "filled" : "light"}
-                  color={schedulerState.running ? "green" : "gray"}
-                >
-                  {schedulerState.running
-                    ? t("ui.timetableActive")
-                    : t("ui.timetableStopped")}
-                </Badge>
-
-                {automationFinishing && (
-                  <Badge size="sm" variant="light" color="orange">
-                    {t("ui.finishingNoNewStarts")}
-                  </Badge>
-                )}
-
-                {!controlStationActive && (
-                  <Badge size="sm" variant="light" color="orange">
-                    {t("ui.timetableControlStationRequired")}
-                  </Badge>
-                )}
-              </Group>
-
-              {schedulerState.lastTriggeredAt &&
-                schedulerState.lastTriggeredTargetName && (
-                  <Text size="xs" c="dimmed">
-                    {t("ui.lastStart")} {schedulerState.lastTriggeredAt} ·{" "}
-                    {schedulerState.lastTriggeredTargetName}
-                  </Text>
-                )}
-            </Group>
-
-            <Group
-              grow
-              gap="xs"
-              wrap="wrap"
-            >
-              <Button
-                color="cyan"
-                variant="light"
-                leftSection={
-                  <IconClock
-                    size={16}
-                  />
-                }
-                disabled={
-                  busy ||
-                  !clockState.connected ||
-                  !snapshot ||
-                  timetableLoading ||
-                  firstRunnableTimetableMinute ===
-                    null
-                }
-                onClick={
-                  jumpBeforeFirstTimetableStart
-                }
-              >
-                {
-                  t(
-                    "ui.timetableJumpBeforeFirst",
-                    {
-                      seconds:
-                        FAST_CLOCK_TEST_LEAD_MS /
-                        1000,
-                    }
-                  )
-                }
-              </Button>
-
-              <Button
-                color="green"
-                variant="light"
-                leftSection={<IconPlayerPlay size={16} />}
-                disabled={
-                  !controlStationActive ||
-                  schedulerState.running ||
-                  !clockState.connected ||
-                  !snapshot ||
-                  timetableLoading ||
-                  timetable.length === 0
-                }
-                onClick={() => timetableScheduler.start()}
-              >
-                {t("ui.timetableStart")}
-              </Button>
-
-              <Button
-                color="red"
-                variant="light"
-                leftSection={<IconPlayerStop size={16} />}
-                disabled={!schedulerState.running}
-                onClick={() => timetableScheduler.stop()}
-              >
-                {t("ui.timetableStop")}
-              </Button>
-            </Group>
-
-            <Divider />
-
-            <Button
-              variant="default"
-              leftSection={<IconCalendarTime size={17} />}
-              onClick={onOpenTimetable}
-            >
-              {t("ui.editTimetable")}
-            </Button>
+                  </Table.Tbody>
+                </Table>
+              )}
+            </ScrollArea>
           </Stack>
-        </Card>
-      </Stack>
-    </ScrollArea>
+      </Card>
+    </Stack>
   );
 }

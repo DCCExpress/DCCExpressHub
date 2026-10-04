@@ -96,6 +96,12 @@ const NODE_META:
       title:
         "Loco event",
     },
+    trainEventInput: {
+      icon: "🚆",
+      color: "violet",
+      title:
+        "Train event",
+    },
     setSpeed: {
       icon: "⚡",
       color: "blue",
@@ -192,6 +198,18 @@ const NODE_META:
       title:
         "Horn",
     },
+    movementHold: {
+      icon: "⏸",
+      color: "red",
+      title:
+        "Movement Hold",
+    },
+    movementRelease: {
+      icon: "▶",
+      color: "green",
+      title:
+        "Movement Release",
+    },
     delay: {
       icon: "⏱",
       color: "gray",
@@ -274,6 +292,16 @@ function summary(
             : "Select locomotive"
         )
       );
+
+    case "trainEventInput": {
+      const eventCount = data.trainEventTypes?.length ?? 0;
+      const typeCount = data.trainTypeFilters?.length ?? 0;
+
+      return (
+        `${eventCount ? `${eventCount} events` : "All events"} · ` +
+        `${typeCount ? `${typeCount} train types` : "All train types"}`
+      );
+    }
 
     case "setSpeed":
       return `${data.speed ?? 20}`;
@@ -404,6 +432,12 @@ function summary(
         `F${data.functionNumber ?? 2} · ` +
         `${data.pulseMs ?? 700} ms`
       );
+
+    case "movementHold":
+      return "payload.movementId · hold";
+
+    case "movementRelease":
+      return "payload.movementId · release";
 
     case "delay":
       return (

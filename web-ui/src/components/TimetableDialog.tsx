@@ -1244,7 +1244,7 @@ export default function TimetableDialog({
                                                       "script",
                                                     label:
                                                       t(
-                                                        "ui.script"
+                                                        "ui.timetableScriptType"
                                                       ),
                                                   },
                                                   {

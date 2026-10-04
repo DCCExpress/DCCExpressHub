@@ -120,11 +120,16 @@ export type ClientWsMessageType = keyof ClientWsPayloadMap;
 
 export const CLIENT_WS_MESSAGE_TYPES = [
   "heartbeat",
-  "controlStationClaim",
-  "controlStationRelease",
-  "getControlStationStatus",
   "broadcastPlayAudio",
   "broadcastStopAudio",
+  "dispatcherCommand",
+  "movementCommand",
+  "movementAudioComplete",
+  "trainTrackingCommand",
+  "scriptCommand",
+  "scriptAudioComplete",
+  "flowCommand",
+  "timetableCommand",
   "setTrackPower",
   "setProgrammingPower",
   "emergencyStop",
@@ -307,17 +312,159 @@ export type TaskManagerResponsePayload = WsCommandResponseMeta & {
   loadResult?: LoadTrainTasksResult;
 };
 
-export type ControlStationStatusPayload = {
-  active: boolean;
-  ownerClientId: string | null;
-  ownerName: string | null;
+export type DispatcherResponsePayload = {
+  requestId: string;
+  action: string;
+  ok: boolean;
+  message?: string | null;
+  extra?: {
+    lease?: unknown;
+    leases?: unknown[];
+    routes?: unknown[];
+    blockingSensor?: number | null;
+    blockingBlock?: number | null;
+    turnoutConflicts?: unknown[];
+    released?: number;
+  } | null;
 };
 
-export type ControlStationClaimResultPayload =
-  ControlStationStatusPayload & {
-    granted: boolean;
-    message?: string;
+export type DispatcherChangedPayload = {
+  leases: unknown[];
+  routes: unknown[];
+};
+
+export type MovementRuntimeStatePayload = {
+  pageId: string;
+  movementName: string;
+  status: "idle" | "running" | "stopping" | "error";
+  startedAt: number | null;
+  stoppedAt: number | null;
+  locoAddress: number | null;
+  direction: "forward" | "reverse" | null;
+  desiredSpeed: number;
+  moving: boolean;
+  currentBlockId: number | null;
+  targetBlockId: number | null;
+  currentResourceKey: string | null;
+  activeRouteResourceKey: string | null;
+  info: string | null;
+  error: string | null;
+};
+
+export type MovementResponsePayload = WsCommandResponseMeta & {
+  extra?: {
+    state?: MovementRuntimeStatePayload;
+    states?: MovementRuntimeStatePayload[];
+    count?: number;
   };
+};
+
+export type TimetableRunStatusPayload =
+  | "launching"
+  | "running"
+  | "paused";
+
+export type TimetableActiveRunPayload = {
+  id: string;
+  timetableEntryId: string;
+  timetableActionId: string;
+  targetType:
+    | "script"
+    | "movement";
+  targetId: string;
+  targetName: string;
+  executionId: string | null;
+  scheduledTime: string;
+  scheduledMinuteOfDay: number;
+  status:
+    TimetableRunStatusPayload;
+  message: string | null;
+};
+
+export type TimetableRuntimeStatePayload = {
+  running: boolean;
+  lastTriggeredAt: string | null;
+  lastTriggeredTargetName: string | null;
+  activeRuns:
+    TimetableActiveRunPayload[];
+};
+
+export type TimetableResponsePayload = {
+  requestId: string;
+  action: string;
+  ok: boolean;
+  message?: string | null;
+  state:
+    TimetableRuntimeStatePayload;
+};
+
+export type AutomationScriptRuntimeStatePayload = {
+  executionId: string;
+  scriptId: string | null;
+  name: string;
+  type: string;
+  status:
+    | "idle"
+    | "running"
+    | "paused"
+    | "error";
+  startedAt: number | null;
+  stoppedAt: number | null;
+  info: string | null;
+  error: string | null;
+};
+
+export type AutomationScriptLogPayload = {
+  executionId: string;
+  timestamp: number;
+  message: string;
+};
+
+export type AutomationScriptResponsePayload = {
+  requestId: string;
+  action: string;
+  ok: boolean;
+  message?: string | null;
+  extra?: {
+    state?: AutomationScriptRuntimeStatePayload;
+    states?: AutomationScriptRuntimeStatePayload[];
+    count?: number;
+    finishing?: boolean;
+  } | null;
+};
+
+export type FlowRuntimePageStatePayload = {
+  pageId: string;
+  name: string;
+  enabled: boolean;
+  activeExecutions: number;
+};
+
+export type FlowRuntimeSnapshotPayload = {
+  pages:
+    FlowRuntimePageStatePayload[];
+};
+
+export type FlowRuntimeLogPayload = {
+  pageId: string;
+  timestamp: number;
+  level:
+    | "info"
+    | "log"
+    | "error";
+  values: unknown[];
+};
+
+export type FlowResponsePayload = {
+  requestId: string;
+  action: string;
+  ok: boolean;
+  message?: string | null;
+  extra?: {
+    state?: FlowRuntimeSnapshotPayload;
+    count?: number;
+  } | null;
+};
 
 export type AutomationModuleStatePayload = {
   id: string;
@@ -338,8 +485,6 @@ export type AutomationResponsePayload = WsCommandResponseMeta & {
 export type ServerWsPayloadMap = {
   "ws:welcome": { message: string };
   heartbeatAck: Record<string, never>;
-  controlStationStatus: ControlStationStatusPayload;
-  controlStationClaimResult: ControlStationClaimResultPayload;
   rawInfo: { raw: string };
   ack: string;
   error: { message: string };
@@ -422,6 +567,9 @@ export type ServerWsPayloadMap = {
   fastClockResponse: FastClockResponsePayload;
   fileResponse: FileResponsePayload;
 
+  dispatcherChanged: DispatcherChangedPayload;
+  dispatcherResponse: DispatcherResponsePayload;
+
   playAudio: {
     requestId: string;
     fileName: string;
@@ -429,6 +577,27 @@ export type ServerWsPayloadMap = {
   stopAudio: {
     fileName: string;
   };
+  audioPlaybackStateChanged: {
+    enabled: boolean;
+  };
+  movementStateChanged: MovementRuntimeStatePayload;
+  movementSnapshot: { states: MovementRuntimeStatePayload[] };
+  movementResponse: MovementResponsePayload;
+
+  automationScriptStateChanged: AutomationScriptRuntimeStatePayload;
+  automationScriptSnapshot: {
+    states: AutomationScriptRuntimeStatePayload[];
+    finishing: boolean;
+  };
+  automationScriptLog: AutomationScriptLogPayload;
+  automationScriptResponse: AutomationScriptResponsePayload;
+
+  flowStateChanged: FlowRuntimeSnapshotPayload;
+  flowLog: FlowRuntimeLogPayload;
+  flowResponse: FlowResponsePayload;
+
+  timetableStateChanged: TimetableRuntimeStatePayload;
+  timetableResponse: TimetableResponsePayload;
   locoActionListStatus: unknown;
   blockActionListStatus: unknown;
 };

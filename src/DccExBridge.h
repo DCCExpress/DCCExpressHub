@@ -165,6 +165,10 @@ protected:
       String command,
       bool logCommand = true);
 
+  bool sendBackgroundCommand(
+      String command,
+      bool logCommand = false);
+
   void discardPendingLocoCommands();
 
 private:
@@ -199,6 +203,9 @@ private:
 
   std::deque<PendingTxCommand>
       _txQueue;
+
+  std::deque<PendingTxCommand>
+      _backgroundTxQueue;
 
   uint16_t _commandIntervalMs =
       25;
@@ -276,7 +283,8 @@ private:
   bool enqueueCommand(
       String command,
       bool logCommand,
-      bool priority);
+      bool priority,
+      bool background);
 
   bool writeDirect(
       const String& command,

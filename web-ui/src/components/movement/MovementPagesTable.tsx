@@ -27,13 +27,13 @@ import {
   IconPlayerStop,
   IconPlus,
   IconRoute,
+  IconTrash,
   IconX,
 } from "@tabler/icons-react";
 
-import {
-  createMovementPage,
-  type MovementDocument,
-  type MovementPage,
+import type {
+  MovementDocument,
+  MovementPage,
 } from "../../domain/movement";
 
 import {
@@ -46,8 +46,9 @@ import {
 } from "../../services/automationBlockCatalog";
 
 import {
-  abortMovement,
+  abortAllMovements,
   getMovementEngineState,
+  stopAllMovements,
   stopMovement,
   subscribeMovementEngineState,
   type MovementEngineState,
@@ -79,9 +80,9 @@ type Props = {
     document:
       MovementDocument
   ) => void;
-  onOpenEditor: (
+  onSelectRoute: (
     pageId:
-      string
+      string | null
   ) => void;
 };
 
@@ -130,7 +131,8 @@ function MovementCard({
   page,
   catalog,
   onEnabledChange,
-  onOpenEditor,
+  onSelectRoute,
+  onDelete,
 }: {
   page:
     MovementPage;
@@ -140,7 +142,8 @@ function MovementCard({
     enabled:
       boolean
   ) => void;
-  onOpenEditor: () => void;
+  onSelectRoute: () => void;
+  onDelete: () => void;
 }) {
   const mt =
     useMovementTranslation();
@@ -304,10 +307,31 @@ function MovementCard({
                   running
                 }
                 onClick={
-                  onOpenEditor
+                  onSelectRoute
                 }
               >
                 <IconEdit
+                  size={15}
+                />
+              </ActionIcon>
+            </Tooltip>
+
+            <Tooltip
+              withArrow
+              label={mt("movementDelete")}
+            >
+              <ActionIcon
+                size="sm"
+                variant="light"
+                color="red"
+                disabled={
+                  running
+                }
+                onClick={
+                  onDelete
+                }
+              >
+                <IconTrash
                   size={15}
                 />
               </ActionIcon>
@@ -413,7 +437,7 @@ function MovementCard({
 export default function MovementPagesTable({
   document,
   onDocumentChange,
-  onOpenEditor,
+  onSelectRoute,
 }: Props) {
   const mt =
     useMovementTranslation();
@@ -562,78 +586,35 @@ export default function MovementPagesTable({
 
   const stopAll =
     (): void => {
-      let stopped =
-        0;
-
-      for (
-        const page of
-        document.pages
-      ) {
-        if (
-          stopMovement(
-            page.id
-          )
-        ) {
-          stopped +=
-            1;
-        }
-      }
+      const sent =
+        stopAllMovements();
 
       showNotification({
         color:
-          stopped > 0
+          sent
             ? "yellow"
-            : "gray",
+            : "red",
         title:
           mt("movementStopAll"),
         message:
-          stopped > 0
+          sent
             ? mt(
                 "movementStoppingCount",
                 {
                   count:
-                    stopped,
+                    activeCount,
                 }
               )
-            : mt("movementNoRunning"),
+            : mt(
+                "movementCommandFailed"
+              ),
       });
     };
 
   const abortAll =
     (): void => {
-      let aborted =
-        0;
-
-      for (
-        const page of
-        document.pages
-      ) {
-        if (
-          abortMovement(
-            page.id,
-            false
-          )
-        ) {
-          aborted +=
-            1;
-        }
-      }
-
-      const emergencyAlreadyOn =
-        commandCenter.powerInfo
-          ?.emergencyStop ===
-        true;
-
-      const emergencyKnownOff =
-        commandCenter.powerInfo
-          ?.emergencyStop ===
-        false;
-
-      const emergencySent =
-        aborted > 0 &&
-        emergencyKnownOff
-          ? wsApi.emergencyStop()
-          : false;
+      const sent =
+        abortAllMovements();
 
       showNotification({
         color:
@@ -641,32 +622,17 @@ export default function MovementPagesTable({
         title:
           mt("movementAbortAll"),
         message:
-          aborted ===
-            0
-            ? mt("movementNoRunning")
-            : emergencyAlreadyOn
-              ? mt(
-                  "movementAbortedEstopAlready",
-                  {
-                    count:
-                      aborted,
-                  }
-                )
-              : emergencySent
-                ? mt(
-                    "movementAbortedAndEstop",
-                    {
-                      count:
-                        aborted,
-                    }
-                  )
-                : mt(
-                    "movementAbortedCount",
-                    {
-                      count:
-                        aborted,
-                    }
-                  ),
+          sent
+            ? mt(
+                "movementAbortedAndEstop",
+                {
+                  count:
+                    activeCount,
+                }
+              )
+            : mt(
+                "movementCommandFailed"
+              ),
       });
     };
 
@@ -777,43 +743,62 @@ export default function MovementPagesTable({
       }
     };
 
-  const createPage =
-    (): void => {
-      const page =
-        createMovementPage(
-          mt(
-            "movementDefaultName",
-            {
-              number:
-                pageCount +
-                1,
-            }
-          )
+  const deletePage =
+    (
+      page:
+        MovementPage
+    ): void => {
+      const runtime =
+        getMovementEngineState(
+          page.id
         );
 
-      const next = {
-        ...document,
-        pages: [
-          ...document.pages,
-          page,
-        ],
-        activePageId:
-          page.id,
-      };
+      if (
+        runtime.status === "running" ||
+        runtime.status === "stopping"
+      ) {
+        showNotification({
+          color: "orange",
+          title:
+            mt("movementRunningTitle"),
+          message:
+            mt("movementStopBeforeDelete"),
+        });
 
-      void persist(
-        next
-      ).then(
-        saved => {
-          if (
-            saved
-          ) {
-            onOpenEditor(
-              page.id
-            );
-          }
-        }
-      );
+        return;
+      }
+
+      if (
+        !window.confirm(
+          mt(
+            "movementDeleteConfirm",
+            {
+              name:
+                page.name,
+            }
+          )
+        )
+      ) {
+        return;
+      }
+
+      const pages =
+        document.pages.filter(
+          current =>
+            current.id !==
+            page.id
+        );
+
+      void persist({
+        ...document,
+        pages,
+        activePageId:
+          document.activePageId ===
+            page.id
+            ? pages[0]?.id ??
+              ""
+            : document.activePageId,
+      });
     };
 
   return (
@@ -876,32 +861,16 @@ export default function MovementPagesTable({
         >
           <Button
             size="xs"
-            variant="light"
-            color="violet"
-            leftSection={
-              <IconEdit
-                size={14}
-              />
-            }
-            onClick={
-              () =>
-                onOpenEditor(
-                  document.activePageId
-                )
-            }
-          >
-            {mt("movementEditorButton")}
-          </Button>
-
-          <Button
-            size="xs"
             leftSection={
               <IconPlus
                 size={14}
               />
             }
             onClick={
-              createPage
+              () =>
+                onSelectRoute(
+                  null
+                )
             }
           >
             {mt("movementNew")}
@@ -1014,9 +983,9 @@ export default function MovementPagesTable({
                   catalog={
                     catalog
                   }
-                  onOpenEditor={
+                  onSelectRoute={
                     () =>
-                      onOpenEditor(
+                      onSelectRoute(
                         page.id
                       )
                   }
@@ -1037,6 +1006,12 @@ export default function MovementPagesTable({
                           ),
                       });
                     }
+                  }
+                  onDelete={
+                    () =>
+                      deletePage(
+                        page
+                      )
                   }
                 />
               )

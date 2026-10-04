@@ -8,7 +8,6 @@ import {
   Card,
   Group,
   Loader,
-  Modal,
   ScrollArea,
   Stack,
   Text,
@@ -28,6 +27,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { BaseElement } from "../../models/editor/core/BaseElement";
 import type { IEditableProperty } from "../../models/editor/elements/PropertyDescriptor";
 import type { PropertyChangeHandler } from "./propertyPanelTypes";
+
+import AppModal from "../../components/common/AppModal";
 
 type StorageEntry = {
   name: string;
@@ -50,7 +51,9 @@ type AudioFileInputProps = {
   allowManualInput?: boolean;
   description?: string;
   onChange: (value: string) => void;
-  onTest?: () => void;
+  onTest?: (
+    source?: string
+  ) => void;
 };
 
 type AudioFilePropertyEditorProps = {
@@ -231,12 +234,13 @@ export function AudioFileInput({
         </Text>
       </Stack>
 
-      <Modal
+      <AppModal
         opened={opened}
         onClose={() => setOpened(false)}
         title={i18next.t("ui.chooseAudioFromSdCard")}
         size="lg"
         centered
+        draggable
         returnFocus={false}
       >
         <Stack gap="sm">
@@ -304,10 +308,8 @@ export function AudioFileInput({
                   >
                     <Group justify="space-between" wrap="nowrap">
                       <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
-                        {entry.type === "directory" ? (
+                        {entry.type === "directory" && (
                           <IconFolder size={20} />
-                        ) : (
-                          <IconPlayerPlayFilled size={18} />
                         )}
 
                         <div style={{ minWidth: 0 }}>
@@ -319,7 +321,50 @@ export function AudioFileInput({
                       </Group>
 
                       {entry.type === "file" && (
-                        <Badge variant="light" color="violet">{i18next.t("ui.audio2")}</Badge>
+                        <Group
+                          gap="xs"
+                          wrap="nowrap"
+                        >
+                          <Badge
+                            variant="filled"
+                            color="dark"
+                          >
+                            {i18next.t("ui.audio2")}
+                          </Badge>
+
+                          {onTest && (
+                            <ActionIcon
+                              variant="filled"
+                              color="cyan"
+                              title={i18next.t("ui.testAudio")}
+                              onPointerDown={
+                                event => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                }
+                              }
+                              onMouseDown={
+                                event => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                }
+                              }
+                              onClick={
+                                event => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  onTest(
+                                    entry.path
+                                  );
+                                }
+                              }
+                            >
+                              <IconPlayerPlayFilled
+                                size={16}
+                              />
+                            </ActionIcon>
+                          )}
+                        </Group>
                       )}
                     </Group>
                   </Card>
@@ -343,7 +388,7 @@ export function AudioFileInput({
             </Button>
           </Group>
         </Stack>
-      </Modal>
+      </AppModal>
     </>
   );
 }

@@ -860,7 +860,7 @@ dcc.setProgrammingPower(on)
 
 # 15. Advanced / compatibility API still present in the runtime
 
-These APIs genuinely exist in the worker runtime, but they are **not part of the recommended Quick Help API**.
+These APIs genuinely exist in the backend ScriptRuntime, but they are **not part of the recommended Quick Help API**.
 
 ## `dcc.setTurnoutRaw(address, closed)`
 
@@ -1018,7 +1018,7 @@ occupancy sensor == false
 
 Before movement begins, Dispatcher writes target-locomotive markers to every downstream route block and performs a second safety check to ensure the state did not change during reservation.
 
-Overlapping Dispatcher routes are serialized with Web Locks. Overlapping active Dispatcher routes inside the same script are not allowed.
+Overlapping Dispatcher routes are serialized by the Windows backend DispatcherRuntime. Script Dispatcher and Movement use the same block/segment/turnout authority, so overlapping physical routes cannot bypass each other through separate browser locks.
 
 ## 18.4 Turnouts
 
@@ -1243,7 +1243,7 @@ This scheduler attempts to start both routes every 500 ms. Because `startTask()`
 SmartDispatcher automatically:
 
 - checks the next block's \`actual\`, \`target\`, and occupancy state;
-- acquires the next block Web Lock;
+- acquires authoritative backend Dispatcher authority for the current-to-next block leg, including shared block/segment resources;
 - marks the next block with the target locomotive;
 - locks and sets only the turnouts required for the current block transition;
 - stops the locomotive when clearance is unavailable;
@@ -1339,7 +1339,7 @@ The next block is usable only when:
 actual loco == 0
 target loco == 0
 occupancy   == false
-block Web Lock can be acquired
+backend Dispatcher block/segment authority can be acquired
 required turnout locks can be acquired
 required turnout states can be set
 \`\`\`

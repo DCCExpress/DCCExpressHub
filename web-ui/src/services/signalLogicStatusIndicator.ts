@@ -3,6 +3,7 @@ import type {
 } from "@domain/signalLogic";
 
 let installed = false;
+let lastEnabled = false;
 let lastRunning = false;
 
 const SIGNAL_LOGIC_API =
@@ -10,20 +11,13 @@ const SIGNAL_LOGIC_API =
 
 function findSignalsButton():
   HTMLButtonElement | null {
-  return (
-    Array.from(
-      document.querySelectorAll<HTMLButtonElement>(
-        "button"
-      )
-    ).find(
-      button =>
-        button.textContent?.trim() ===
-        "SIGNALS"
-    ) ?? null
+  return document.querySelector<HTMLButtonElement>(
+    '[data-signal-automation-button="true"]'
   );
 }
 
 function paintSignalsButton(
+  enabled: boolean,
   running: boolean
 ): void {
   const button =
@@ -34,10 +28,34 @@ function paintSignalsButton(
   }
 
   button.dataset
+    .signalAutomationEnabled =
+    enabled ? "true" : "false";
+
+  button.dataset
     .signalAutomationRunning =
     running ? "true" : "false";
 
-  if (running) {
+  const stateLabel =
+    button.querySelector<HTMLElement>(
+      '[data-signal-automation-state="true"]'
+    );
+
+  if (stateLabel) {
+    const nextLabel =
+      enabled
+        ? "ON"
+        : "OFF";
+
+    if (
+      stateLabel.textContent !==
+      nextLabel
+    ) {
+      stateLabel.textContent =
+        nextLabel;
+    }
+  }
+
+  if (enabled) {
     button.style.backgroundColor =
       "var(--mantine-color-green-filled)";
 
@@ -48,7 +66,9 @@ function paintSignalsButton(
       "var(--mantine-color-green-filled)";
 
     button.title =
-      "Automatic signal aspects · RUNNING";
+      running
+        ? "Automatic signal aspects · ENABLED / RUNNING"
+        : "Automatic signal aspects · ENABLED";
 
     return;
   }
@@ -61,12 +81,11 @@ function paintSignalsButton(
     "color"
   );
 
-  button.style.removeProperty(
-    "border-color"
-  );
+  button.style.borderColor =
+    "var(--mantine-color-gray-5)";
 
   button.title =
-    "Automatic signal aspects";
+    "Automatic signal aspects · DISABLED";
 }
 
 function readEnabledFromNdjson(
@@ -108,8 +127,12 @@ async function readConfiguredState():
       );
 
     if (response.status === 404) {
+      lastEnabled = false;
       lastRunning = false;
-      paintSignalsButton(false);
+      paintSignalsButton(
+        false,
+        false
+      );
       return;
     }
 
@@ -122,18 +145,23 @@ async function readConfiguredState():
     const content =
       await response.text();
 
-    lastRunning =
+    lastEnabled =
       readEnabledFromNdjson(
         content
       );
 
+    lastRunning =
+      lastEnabled;
+
     paintSignalsButton(
+      lastEnabled,
       lastRunning
     );
   } catch {
     // Do not force the button OFF just because a temporary HTTP read
     // failed. Preserve the last runtime state we actually know.
     paintSignalsButton(
+      lastEnabled,
       lastRunning
     );
   }
@@ -158,6 +186,11 @@ installSignalLogicStatusIndicator():
             >
         ).detail;
 
+      lastEnabled =
+        Boolean(
+          state?.enabled
+        );
+
       lastRunning =
         Boolean(
           state?.enabled &&
@@ -165,6 +198,7 @@ installSignalLogicStatusIndicator():
         );
 
       paintSignalsButton(
+        lastEnabled,
         lastRunning
       );
     };
@@ -175,12 +209,13 @@ installSignalLogicStatusIndicator():
   );
 
   // The SIGNALS button only exists on the Layout page.
-  // This observer only watches node creation/removal; paintSignalsButton()
-  // changes styles/attributes, not child nodes, so it does not recursively
-  // trigger itself.
+  // textContent changes are child-list mutations too, so paintSignalsButton()
+  // must be idempotent. It only rewrites the ON/OFF label when the value
+  // actually changes, preventing a MutationObserver feedback loop.
   const observer =
     new MutationObserver(() => {
       paintSignalsButton(
+        lastEnabled,
         lastRunning
       );
     });

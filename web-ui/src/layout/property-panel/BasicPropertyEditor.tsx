@@ -32,6 +32,16 @@ const DEFAULT_COLORS = [
   "#fd7e14",
 ];
 
+const ROOF_COLORS = [
+  "#b96354",
+  "#8e443b",
+  "#8b654d",
+  "#6c4c3a",
+  "#70777d",
+  "#555c62",
+  "#c74343",
+];
+
 const BARRIER_TYPE_OPTIONS = [
   { value: "none", get label() { return i18next.t("ui.none"); } },
   { value: "half", get label() { return i18next.t("ui.half"); } },
@@ -116,6 +126,10 @@ export default function BasicPropertyEditor({
 
   if (prop.type === "colorpicker") {
     const selectedColor = String(value ?? "").toLowerCase();
+    const colors =
+      prop.key === "roofColor"
+        ? ROOF_COLORS
+        : DEFAULT_COLORS;
 
     return (
       <>
@@ -124,12 +138,15 @@ export default function BasicPropertyEditor({
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(8, 24px)",
+            gridTemplateColumns:
+              prop.key === "roofColor"
+                ? "repeat(7, 24px)"
+                : "repeat(8, 24px)",
             gap: 8,
             marginTop: 8,
           }}
         >
-          {DEFAULT_COLORS.map(color => {
+          {colors.map(color => {
             const isSelected = selectedColor === color.toLowerCase();
 
             return (

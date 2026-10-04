@@ -284,11 +284,6 @@ export type SetEditorEditModeCommandPayload = {
   editMode: boolean;
 };
 
-export type ControlStationClaimCommandPayload = {
-  clientId: string;
-  clientName: string;
-};
-
 export type BroadcastPlayAudioCommandPayload = {
   requestId: string;
   fileName: string;
@@ -298,13 +293,151 @@ export type BroadcastStopAudioCommandPayload = {
   fileName: string;
 };
 
+export type AudioPlaybackStateCommandPayload = {
+  enabled: boolean;
+};
+
+export type DispatcherCommandAction =
+  | "snapshot"
+  | "acquireLeg"
+  | "releaseLeg"
+  | "acquireRoute"
+  | "commitRoute"
+  | "releaseRoute"
+  | "releaseAll";
+
+export type DispatcherCommandPayload = {
+  requestId: string;
+  action:
+    DispatcherCommandAction;
+  ownerId?: string;
+  ownerName?: string;
+  locoAddress?: number;
+  fromBlockId?: number;
+  toBlockId?: number;
+  sourceBlockId?: number;
+  downstreamBlocks?: Array<{
+    blockId: number;
+    sensorAddress: number;
+  }>;
+  turnouts?: Array<{
+    address: number;
+    closed: boolean;
+  }>;
+  safetySensors?: number[];
+  resourceKeys?: string[];
+  timeoutMs?: number;
+  setDelayMs?: number;
+};
+
+export type MovementCommandAction =
+  | "snapshot"
+  | "start"
+  | "stop"
+  | "abort"
+  | "stopAll"
+  | "abortAll";
+
+export type MovementCommandPayload = {
+  requestId: string;
+  action: MovementCommandAction;
+  pageId?: string;
+  emergencyStop?: boolean;
+};
+
+export type MovementAudioCompleteCommandPayload = {
+  requestId: string;
+  ok: boolean;
+};
+
+export type TrainTrackingCommandAction =
+  | "snapshot"
+  | "setEnabled"
+  | "refresh"
+  | "reset"
+  | "clearLogs";
+
+export type TrainTrackingCommandPayload = {
+  requestId: string;
+  action: TrainTrackingCommandAction;
+  enabled?: boolean;
+};
+
+export type TimetableCommandAction =
+  | "snapshot"
+  | "start"
+  | "stop"
+  | "rebase"
+  | "setFinishing";
+
+export type TimetableCommandPayload = {
+  requestId: string;
+  action: TimetableCommandAction;
+  finishing?: boolean;
+};
+
+export type ScriptCommandAction =
+  | "snapshot"
+  | "startSaved"
+  | "startSource"
+  | "pause"
+  | "resume"
+  | "abort"
+  | "startAll"
+  | "pauseAll"
+  | "resumeAll"
+  | "abortAll"
+  | "pauseAllSaved"
+  | "resumeAllSaved"
+  | "abortAllSaved"
+  | "setFinishing";
+
+export type ScriptCommandPayload = {
+  requestId: string;
+  action:
+    ScriptCommandAction;
+  scriptId?: string;
+  executionId?: string;
+  name?: string;
+  executionType?: string;
+  source?: string;
+  finishing?: boolean;
+};
+
+export type ScriptAudioCompleteCommandPayload = {
+  requestId: string;
+  ok: boolean;
+};
+
+export type FlowCommandAction =
+  | "snapshot"
+  | "runPage"
+  | "abortPage"
+  | "abortAll";
+
+export type FlowCommandPayload = {
+  requestId: string;
+  action:
+    FlowCommandAction;
+  pageId?: string;
+  inputNodeId?: string;
+  payload?: unknown;
+  mode?: string;
+};
+
 export type ClientWsPayloadMap = {
   heartbeat: EmptyClientWsCommandPayload;
-  controlStationClaim: ControlStationClaimCommandPayload;
-  controlStationRelease: EmptyClientWsCommandPayload;
-  getControlStationStatus: EmptyClientWsCommandPayload;
   broadcastPlayAudio: BroadcastPlayAudioCommandPayload;
   broadcastStopAudio: BroadcastStopAudioCommandPayload;
+  audioPlaybackState: AudioPlaybackStateCommandPayload;
+  dispatcherCommand: DispatcherCommandPayload;
+  movementCommand: MovementCommandPayload;
+  movementAudioComplete: MovementAudioCompleteCommandPayload;
+  trainTrackingCommand: TrainTrackingCommandPayload;
+  scriptCommand: ScriptCommandPayload;
+  scriptAudioComplete: ScriptAudioCompleteCommandPayload;
+  flowCommand: FlowCommandPayload;
+  timetableCommand: TimetableCommandPayload;
   setTrackPower: SetTrackPowerCommandPayload;
   setProgrammingPower: SetProgrammingPowerCommandPayload;
   emergencyStop: EmptyClientWsCommandPayload;

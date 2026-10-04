@@ -10,6 +10,7 @@ export type EditorSettings = {
     snapToGrid: boolean;
     showElementNames: boolean;
     showBlockNames: boolean;
+    showBuildings: boolean;
 };
 
 const STORAGE_KEY = "dcc-express.editor.settings";
@@ -24,6 +25,7 @@ const defaultEditorSettings: EditorSettings = {
     snapToGrid: true,
     showElementNames: false,
     showBlockNames: false,
+    showBuildings: true,
 };
 
 type EditorSettingsContextValue = {
@@ -68,7 +70,10 @@ function loadSettings(): EditorSettings {
                 typeof parsed.showBlockNames === "boolean"
                     ? parsed.showBlockNames
                     : defaultEditorSettings.showBlockNames,
-
+            showBuildings:
+                typeof parsed.showBuildings === "boolean"
+                    ? parsed.showBuildings
+                    : defaultEditorSettings.showBuildings,
 
             showGrid:
                 typeof parsed.showGrid === "boolean"

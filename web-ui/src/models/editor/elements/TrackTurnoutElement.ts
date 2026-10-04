@@ -6,6 +6,10 @@ import type {
 import { Point } from "../../../domain/Rect";
 import { drawTextWithRoundedBackground } from "../../../graphics";
 import { TURNOUT_OUTPUT_MODE_OPTIONS, sendTurnoutOutput } from "../../../services/layoutOutput";
+import {
+  isSwitchManModeEnabled,
+  operateSwitchManTurnouts,
+} from "../../../services/switchManModeRuntime";
 import { TrackElement } from "../core/TrackElement";
 import { drawTurnoutLockIndicator } from "../turnout/turnoutLockIndicator";
 import {
@@ -87,6 +91,18 @@ export abstract class TrackTurnoutElement extends TrackElement {
     if (!this.enabled) return;
 
     const nextPhysicalValue = !this.turnoutClosed;
+
+    if (isSwitchManModeEnabled()) {
+      void operateSwitchManTurnouts([
+        {
+          address: this.turnoutAddress,
+          closed:
+            nextPhysicalValue ===
+            this.turnoutClosedValue,
+        },
+      ]);
+      return;
+    }
 
     /*
      * SwitchMan lock:

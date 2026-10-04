@@ -14,33 +14,83 @@ public sealed class WsHub
     readonly LayoutRuntime LayoutRuntime;
     readonly RuntimeStateStore RuntimeStateStore;
     readonly LocoCounterRuntime LocoCounters;
-    readonly SwitchManManager SwitchMan = new();
+    readonly SwitchManManager SwitchMan;
+    readonly DispatcherRuntime Dispatcher;
+    readonly MovementRuntime Movement;
+    readonly TrainTrackingRuntime TrainTracking;
+    readonly ScriptRuntime Scripts;
+    readonly FlowRuntime Flows;
+    readonly TimetableRuntime Timetable;
     private readonly ILogger<WsHub> Logger;
-    private readonly FastClockRuntime FastClock = new();
+    private readonly FastClockRuntime FastClock;
     private readonly ConcurrentDictionary<Guid, WebSocket> Clients = new();
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     private readonly object _programmingGate = new();
-    private readonly object _controlStationGate = new();
-    private Guid? _controlStationOwnerConnectionId;
-    private string _controlStationOwnerClientId = "";
-    private string _controlStationOwnerName = "";
+    private readonly object _audioAckGate = new();
+    private Guid? _audioSubscriberConnectionId;
+    private readonly Dictionary<string, PendingAudioAck> _pendingAudioAcks =
+        new(StringComparer.Ordinal);
     private PendingProgramming? _pendingProgramming;
     private sealed record PendingProgramming(string RequestId, string Action, int ExpectedCv, long Token);
+
+    private sealed class PendingAudioAck
+    {
+        public required bool Script { get; init; }
+        public required Guid ConnectionId { get; init; }
+    }
     private long _programmingToken;
     private const int ProgrammingTimeoutMs = 24000;
     private static readonly TimeSpan WebSocketSendTimeout = TimeSpan.FromSeconds(2);
     public int ClientCount => Clients.Count;
 
-    public WsHub(ICommandCenter cc, HubState state, LayoutRuntime runtime, RuntimeStateStore stateStore, CommandCenterConfigStore ccConfig, LocoCounterRuntime locoCounters, ILogger<WsHub> log)
+    public WsHub(ICommandCenter cc, HubState state, LayoutRuntime runtime, RuntimeStateStore stateStore, CommandCenterConfigStore ccConfig, LocoCounterRuntime locoCounters, FastClockRuntime fastClock, SwitchManManager switchMan, DispatcherRuntime dispatcher, MovementRuntime movement, TrainTrackingRuntime trainTracking, ScriptRuntime scripts, FlowRuntime flows, TimetableRuntime timetable, ILogger<WsHub> log)
     {
         CommandCenter = cc;
         HubState = state;
         LayoutRuntime = runtime;
         RuntimeStateStore = stateStore;
         LocoCounters = locoCounters;
+        FastClock = fastClock;
+        SwitchMan = switchMan;
+        Dispatcher = dispatcher;
+        Movement = movement;
+        TrainTracking = trainTracking;
+        Scripts = scripts;
+        Flows = flows;
+        Timetable = timetable;
         CommandCenterConfigStore = ccConfig;
         LayoutRuntime.Changed += (type, data) => _ = Broadcast(type, data);
         SwitchMan.Changed += snapshot => _ = Broadcast("switchManChanged", new { locks = snapshot ?? SwitchMan.Snapshot() });
+        Dispatcher.Changed += snapshot => _ = Broadcast(
+            "dispatcherChanged",
+            new
+            {
+                leases =
+                    snapshot ??
+                    Dispatcher.Snapshot(),
+                routes =
+                    Dispatcher.RouteSnapshot()
+            });
+        Movement.Changed += state => _ = Broadcast("movementStateChanged", state);
+        Movement.AudioRequested += request => _ = HandleMovementAudioRequest(request);
+        Movement.LocoChanged += loco => _ = BroadcastLoco(loco);
+        Movement.PowerStateChanged += () => _ = BroadcastPower();
+
+        TrainTracking.Changed += state =>
+            _ = Broadcast(
+                "trainTrackingChanged",
+                state);
+
+        Scripts.Changed += state => _ = Broadcast("automationScriptStateChanged", state);
+        Scripts.LogChanged += entry => _ = Broadcast("automationScriptLog", entry);
+        Scripts.AudioRequested += request => _ = HandleScriptAudioRequest(request);
+        Scripts.LocoChanged += loco => _ = BroadcastLoco(loco);
+        Scripts.PowerStateChanged += () => _ = BroadcastPower();
+
+        Flows.Changed += state => _ = Broadcast("flowStateChanged", state);
+        Flows.LogChanged += entry => _ = Broadcast("flowLog", entry);
+
+        Timetable.Changed += state => _ = Broadcast("timetableStateChanged", state);
         Logger = log;
 
         LocoCounters.Changed += () =>
@@ -72,6 +122,16 @@ public sealed class WsHub
 
             if (wasMainOn && !HubState.TrackPower)
             {
+                /*
+                 * Track power OFF is a hard execution boundary. Do not leave a
+                 * logical Movement/Timetable run alive to continue later from
+                 * stale sensor/authority state when power returns.
+                 */
+                Movement.StopAll(false);
+                Scripts.AbortAll(
+                    "Track power turned OFF.");
+                Timetable.StopScheduler();
+
                 _ = RuntimeStateStore.SaveAsync();
                 _ = LocoCounters.SaveAsync();
             }
@@ -88,7 +148,14 @@ public sealed class WsHub
         cc.ConnectionChanged += connected =>
         {
             if (!connected)
+            {
                 LocoCounters.SetTrackPower(false);
+
+                Movement.StopAll(false);
+                Scripts.AbortAll(
+                    "Command center disconnected.");
+                Timetable.StopScheduler();
+            }
 
             // The backend is the single source of truth for command-center
             // connectivity. Push the authoritative state immediately when the
@@ -102,67 +169,279 @@ public sealed class WsHub
         };
     }
 
-    private object ControlStationStatus()
+    private void CompleteAudioWait(
+        string requestId,
+        bool script,
+        bool ok)
     {
-        lock (_controlStationGate)
-        {
-            return new
-            {
-                active = _controlStationOwnerConnectionId.HasValue,
-                ownerClientId = _controlStationOwnerConnectionId.HasValue ? _controlStationOwnerClientId : null,
-                ownerName = _controlStationOwnerConnectionId.HasValue ? _controlStationOwnerName : null
-            };
-        }
+        if (script)
+            Scripts.CompleteAudio(
+                requestId,
+                ok);
+        else
+            Movement.CompleteAudio(
+                requestId,
+                ok);
     }
 
-    private (bool Granted, string? OwnerClientId, string? OwnerName) ClaimControlStation(
-        Guid connectionId,
-        string clientId,
-        string clientName)
+    private List<(
+        string RequestId,
+        bool Script)> RemovePendingAudioForClientLocked(
+            Guid connectionId)
     {
-        lock (_controlStationGate)
-        {
-            var granted =
-                !_controlStationOwnerConnectionId.HasValue ||
-                _controlStationOwnerConnectionId.Value == connectionId;
+        var removed =
+            new List<(
+                string RequestId,
+                bool Script)>();
 
-            if (granted)
+        foreach (var pair in
+                 _pendingAudioAcks.ToArray())
+        {
+            if (pair.Value.ConnectionId !=
+                connectionId)
+                continue;
+
+            removed.Add(
+                (
+                    pair.Key,
+                    pair.Value.Script
+                ));
+
+            _pendingAudioAcks.Remove(
+                pair.Key);
+        }
+
+        return removed;
+    }
+
+    private void CompleteFailedAudioWaits(
+        IEnumerable<(
+            string RequestId,
+            bool Script)> requests)
+    {
+        foreach (var request in
+                 requests)
+            CompleteAudioWait(
+                request.RequestId,
+                request.Script,
+                false);
+    }
+
+    private async Task PublishAudioSubscriberState()
+    {
+        Guid? subscriber;
+
+        lock (_audioAckGate)
+            subscriber =
+                _audioSubscriberConnectionId;
+
+        foreach (var pair in
+                 Clients.ToArray())
+        {
+            try
             {
-                _controlStationOwnerConnectionId = connectionId;
-                _controlStationOwnerClientId = clientId;
-                _controlStationOwnerName = clientName;
+                await Send(
+                    pair.Value,
+                    "audioPlaybackStateChanged",
+                    new
+                    {
+                        enabled =
+                            subscriber.HasValue &&
+                            subscriber.Value ==
+                                pair.Key
+                    });
             }
-
-            return (
-                granted,
-                _controlStationOwnerConnectionId.HasValue ? _controlStationOwnerClientId : null,
-                _controlStationOwnerConnectionId.HasValue ? _controlStationOwnerName : null
-            );
+            catch
+            {
+                // Normal socket cleanup will remove dead clients.
+            }
         }
     }
 
-    private bool ReleaseControlStation(Guid connectionId)
+    private async Task UpdateAudioPlaybackState(
+        Guid connectionId,
+        bool enabled)
     {
-        lock (_controlStationGate)
+        List<(
+            string RequestId,
+            bool Script)> failed =
+            [];
+
+        lock (_audioAckGate)
         {
-            if (
-                !_controlStationOwnerConnectionId.HasValue ||
-                _controlStationOwnerConnectionId.Value != connectionId)
-                return false;
+            if (enabled &&
+                Clients.ContainsKey(
+                    connectionId))
+            {
+                if (_audioSubscriberConnectionId.HasValue &&
+                    _audioSubscriberConnectionId.Value !=
+                        connectionId)
+                    failed =
+                        RemovePendingAudioForClientLocked(
+                            _audioSubscriberConnectionId.Value);
 
-            _controlStationOwnerConnectionId = null;
-            _controlStationOwnerClientId = "";
-            _controlStationOwnerName = "";
-            return true;
+                _audioSubscriberConnectionId =
+                    connectionId;
+            }
+            else if (_audioSubscriberConnectionId ==
+                     connectionId)
+            {
+                failed =
+                    RemovePendingAudioForClientLocked(
+                        connectionId);
+
+                _audioSubscriberConnectionId =
+                    null;
+            }
         }
+
+        CompleteFailedAudioWaits(
+            failed);
+
+        await PublishAudioSubscriberState();
     }
 
-    private bool IsControlStationOwner(Guid connectionId)
+    private async Task RemoveAudioClient(
+        Guid connectionId)
     {
-        lock (_controlStationGate)
-            return
-                _controlStationOwnerConnectionId.HasValue &&
-                _controlStationOwnerConnectionId.Value == connectionId;
+        List<(
+            string RequestId,
+            bool Script)> failed;
+        bool stateChanged;
+
+        lock (_audioAckGate)
+        {
+            failed =
+                RemovePendingAudioForClientLocked(
+                    connectionId);
+
+            stateChanged =
+                _audioSubscriberConnectionId ==
+                connectionId;
+
+            if (stateChanged)
+                _audioSubscriberConnectionId =
+                    null;
+        }
+
+        CompleteFailedAudioWaits(
+            failed);
+
+        if (stateChanged)
+            await PublishAudioSubscriberState();
+    }
+
+    private void StartAudioWait(
+        string requestId,
+        bool script)
+    {
+        Guid? subscriber;
+
+        lock (_audioAckGate)
+        {
+            subscriber =
+                _audioSubscriberConnectionId;
+
+            if (subscriber.HasValue &&
+                Clients.ContainsKey(
+                    subscriber.Value))
+            {
+                _pendingAudioAcks[
+                    requestId] =
+                    new PendingAudioAck
+                    {
+                        Script =
+                            script,
+                        ConnectionId =
+                            subscriber.Value
+                    };
+
+                return;
+            }
+        }
+
+        CompleteAudioWait(
+            requestId,
+            script,
+            false);
+    }
+
+    private void HandleAudioComplete(
+        Guid connectionId,
+        string requestId,
+        bool script,
+        bool ok)
+    {
+        bool complete =
+            false;
+
+        lock (_audioAckGate)
+        {
+            if (!_pendingAudioAcks.TryGetValue(
+                    requestId,
+                    out var pending) ||
+                pending.Script !=
+                    script ||
+                pending.ConnectionId !=
+                    connectionId)
+                return;
+
+            _pendingAudioAcks.Remove(
+                requestId);
+
+            complete =
+                true;
+        }
+
+        if (complete)
+            CompleteAudioWait(
+                requestId,
+                script,
+                ok);
+    }
+
+    private async Task HandleMovementAudioRequest(
+        MovementAudioRequest request)
+    {
+        /*
+         * Exactly one browser may subscribe to audio playback. Blocking
+         * requests wait only for that authoritative subscriber.
+         */
+        if (request.WaitForEnd)
+            StartAudioWait(
+                request.RequestId,
+                script:
+                    false);
+
+        await Broadcast(
+            "playAudio",
+            new
+            {
+                requestId =
+                    request.RequestId,
+                fileName =
+                    request.FileName
+            });
+    }
+
+    private async Task HandleScriptAudioRequest(
+        ScriptAudioRequest request)
+    {
+        if (request.WaitForEnd)
+            StartAudioWait(
+                request.RequestId,
+                script:
+                    true);
+
+        await Broadcast(
+            "playAudio",
+            new
+            {
+                requestId =
+                    request.RequestId,
+                fileName =
+                    request.FileName
+            });
     }
 
     private void ApplyPower(PowerFeedback p)
@@ -180,7 +459,6 @@ public sealed class WsHub
         try
         {
             await Send(ws, "ws:welcome", new { message = "DCCExpressHub" });
-            await Send(ws, "controlStationStatus", ControlStationStatus());
             await SendSnapshot(ws);
             var buf = new byte[64 * 1024];
             while (ws.State == WebSocketState.Open)
@@ -193,9 +471,14 @@ public sealed class WsHub
         finally
         {
             Clients.TryRemove(id, out _);
+            await RemoveAudioClient(
+                id);
 
-            if (ReleaseControlStation(id))
-                await Broadcast("controlStationStatus", ControlStationStatus());
+            if (Clients.IsEmpty)
+            {
+                Movement.FailPendingAudio();
+                Scripts.FailPendingAudio();
+            }
 
             try { await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "bye", CancellationToken.None); } catch { }
         }
@@ -219,42 +502,15 @@ public sealed class WsHub
             bool ok = true;
             switch (type)
             {
-                case "controlStationClaim":
-                    {
-                        var clientId = S(data, "clientId");
-                        var clientName = S(data, "clientName");
-                        var result = ClaimControlStation(connectionId, clientId, clientName);
-
-                        if (result.Granted)
-                            await Broadcast("controlStationStatus", ControlStationStatus());
-
-                        await Send(ws, "controlStationClaimResult", new
-                        {
-                            granted = result.Granted,
-                            active = true,
-                            ownerClientId = result.OwnerClientId,
-                            ownerName = result.OwnerName,
-                            message = result.Granted ? null : "Another Control Station is already connected."
-                        });
-                        return;
-                    }
-                case "controlStationRelease":
-                    if (ReleaseControlStation(connectionId))
-                        await Broadcast("controlStationStatus", ControlStationStatus());
-                    else
-                        await Send(ws, "controlStationStatus", ControlStationStatus());
-                    return;
-                case "getControlStationStatus":
-                    await Send(ws, "controlStationStatus", ControlStationStatus());
+                case "audioPlaybackState":
+                    await UpdateAudioPlaybackState(
+                        connectionId,
+                        B(
+                            data,
+                            "enabled"));
                     return;
                 case "broadcastPlayAudio":
                     {
-                        if (!IsControlStationOwner(connectionId))
-                        {
-                            await Send(ws, "error", new { message = "control_station_required" });
-                            return;
-                        }
-
                         var requestId = S(data, "requestId");
                         var fileName = S(data, "fileName");
 
@@ -276,9 +532,6 @@ public sealed class WsHub
                     }
                 case "broadcastStopAudio":
                     {
-                        if (!IsControlStationOwner(connectionId))
-                            return;
-
                         var fileName = S(data, "fileName");
 
                         if (
@@ -302,6 +555,40 @@ public sealed class WsHub
                     return;
                 case "switchManCommand":
                     await HandleSwitchManCommand(ws, data, ct);
+                    return;
+                case "dispatcherCommand":
+                    await HandleDispatcherCommand(connectionId, ws, data, ct);
+                    return;
+                case "trainTrackingCommand":
+                    await HandleTrainTrackingCommand(ws, data, ct);
+                    return;
+                case "movementCommand":
+                    await HandleMovementCommand(connectionId, ws, data, ct);
+                    return;
+                case "movementAudioComplete":
+                    HandleAudioComplete(
+                        connectionId,
+                        S(data, "requestId"),
+                        script:
+                            false,
+                        B(data, "ok"));
+                    return;
+                case "scriptCommand":
+                    await HandleScriptCommand(connectionId, ws, data);
+                    return;
+                case "scriptAudioComplete":
+                    HandleAudioComplete(
+                        connectionId,
+                        S(data, "requestId"),
+                        script:
+                            true,
+                        B(data, "ok"));
+                    return;
+                case "flowCommand":
+                    await HandleFlowCommand(connectionId, ws, data);
+                    return;
+                case "timetableCommand":
+                    await HandleTimetableCommand(connectionId, ws, data);
                     return;
                 case "setTrackPower":
                     ok = await CommandCenter.SetTrackPowerAsync(B(data, "on"), CommandCenterConfigStore.Current.PowerIncludesProgramming, ct);
@@ -750,6 +1037,1185 @@ public sealed class WsHub
         }
     }
 
+    private async Task HandleFlowCommand(
+        Guid connectionId,
+        WebSocket ws,
+        JsonElement data)
+    {
+        var requestId =
+            S(
+                data,
+                "requestId");
+
+        var action =
+            S(
+                data,
+                "action");
+
+        async Task Reply(
+            bool ok,
+            string? message = null,
+            object? extra = null)
+        {
+            await Send(
+                ws,
+                "flowResponse",
+                new
+                {
+                    requestId,
+                    action,
+                    ok,
+                    message,
+                    extra
+                });
+        }
+
+        switch (action)
+        {
+            case "snapshot":
+                await Reply(
+                    true,
+                    extra:
+                        new
+                        {
+                            state =
+                                Flows.Snapshot()
+                        });
+                return;
+
+            case "runPage":
+                {
+                    var pageId =
+                        S(
+                            data,
+                            "pageId");
+
+                    var inputNodeId =
+                        S(
+                            data,
+                            "inputNodeId");
+
+                    JsonElement? payload =
+                        null;
+
+                    if (data.ValueKind ==
+                            JsonValueKind.Object &&
+                        data.TryGetProperty(
+                            "payload",
+                            out var rawPayload))
+                        payload =
+                            rawPayload.Clone();
+
+                    var mode =
+                        S(
+                            data,
+                            "mode");
+
+                    var result =
+                        Flows.RunPage(
+                            pageId,
+                            string.IsNullOrWhiteSpace(
+                                inputNodeId)
+                                ? null
+                                : inputNodeId,
+                            payload,
+                            string.IsNullOrWhiteSpace(
+                                mode)
+                                ? "run"
+                                : mode);
+
+                    await Reply(
+                        result.Ok,
+                        result.Error,
+                        new
+                        {
+                            state =
+                                Flows.Snapshot()
+                        });
+                    return;
+                }
+
+            case "abortPage":
+                {
+                    var count =
+                        Flows.AbortPage(
+                            S(
+                                data,
+                                "pageId"));
+
+                    await Reply(
+                        true,
+                        extra:
+                            new
+                            {
+                                count,
+                                state =
+                                    Flows.Snapshot()
+                            });
+                    return;
+                }
+
+            case "abortAll":
+                {
+                    var count =
+                        Flows.AbortAll();
+
+                    await Reply(
+                        true,
+                        extra:
+                            new
+                            {
+                                count,
+                                state =
+                                    Flows.Snapshot()
+                            });
+                    return;
+                }
+
+            default:
+                await Reply(
+                    false,
+                    "unknown_flow_action");
+                return;
+        }
+    }
+
+    private async Task HandleScriptCommand(
+        Guid connectionId,
+        WebSocket ws,
+        JsonElement data)
+    {
+        var requestId =
+            S(
+                data,
+                "requestId");
+
+        var action =
+            S(
+                data,
+                "action");
+
+        async Task Reply(
+            bool ok,
+            string? message = null,
+            object? extra = null)
+        {
+            await Send(
+                ws,
+                "automationScriptResponse",
+                new
+                {
+                    requestId,
+                    action,
+                    ok,
+                    message,
+                    extra
+                });
+        }
+
+        switch (action)
+        {
+            case "snapshot":
+                await Reply(
+                    true,
+                    extra:
+                        new
+                        {
+                            states =
+                                Scripts.Snapshot(),
+                            finishing =
+                                Scripts.Finishing
+                        });
+                return;
+
+            case "startSaved":
+                {
+                    var scriptId =
+                        S(
+                            data,
+                            "scriptId");
+
+                    var executionId =
+                        S(
+                            data,
+                            "executionId");
+
+                    var result =
+                        Scripts.StartSaved(
+                            scriptId,
+                            string.IsNullOrWhiteSpace(
+                                executionId)
+                                ? null
+                                : executionId,
+                            S(
+                                data,
+                                "executionType"));
+
+                    await Reply(
+                        result.Ok,
+                        result.Error,
+                        new
+                        {
+                            state =
+                                result.State
+                        });
+                    return;
+                }
+
+            case "startSource":
+                {
+                    var executionId =
+                        S(
+                            data,
+                            "executionId");
+
+                    var result =
+                        Scripts.StartSource(
+                            executionId,
+                            S(
+                                data,
+                                "name"),
+                            S(
+                                data,
+                                "executionType"),
+                            S(
+                                data,
+                                "source"));
+
+                    await Reply(
+                        result.Ok,
+                        result.Error,
+                        new
+                        {
+                            state =
+                                result.State
+                        });
+                    return;
+                }
+
+            case "pause":
+                {
+                    var executionId =
+                        S(
+                            data,
+                            "executionId");
+
+                    var ok =
+                        Scripts.Pause(
+                            executionId);
+
+                    await Reply(
+                        ok,
+                        ok
+                            ? null
+                            : "script_not_running",
+                        new
+                        {
+                            state =
+                                Scripts.GetState(
+                                    executionId)
+                        });
+                    return;
+                }
+
+            case "resume":
+                {
+                    var executionId =
+                        S(
+                            data,
+                            "executionId");
+
+                    var ok =
+                        Scripts.Resume(
+                            executionId);
+
+                    await Reply(
+                        ok,
+                        ok
+                            ? null
+                            : "script_not_paused",
+                        new
+                        {
+                            state =
+                                Scripts.GetState(
+                                    executionId)
+                        });
+                    return;
+                }
+
+            case "abort":
+                {
+                    var executionId =
+                        S(
+                            data,
+                            "executionId");
+
+                    var ok =
+                        Scripts.Abort(
+                            executionId);
+
+                    await Reply(
+                        ok,
+                        ok
+                            ? null
+                            : "script_not_running",
+                        new
+                        {
+                            state =
+                                Scripts.GetState(
+                                    executionId)
+                        });
+                    return;
+                }
+
+            case "startAll":
+                await Reply(
+                    true,
+                    extra:
+                        new
+                        {
+                            count =
+                                Scripts.StartAllSaved()
+                        });
+                return;
+
+            case "pauseAll":
+                await Reply(
+                    true,
+                    extra:
+                        new
+                        {
+                            count =
+                                Scripts.PauseAll()
+                        });
+                return;
+
+            case "resumeAll":
+                await Reply(
+                    true,
+                    extra:
+                        new
+                        {
+                            count =
+                                Scripts.ResumeAll()
+                        });
+                return;
+
+            case "abortAll":
+                await Reply(
+                    true,
+                    extra:
+                        new
+                        {
+                            count =
+                                Scripts.AbortAll()
+                        });
+                return;
+
+            case "pauseAllSaved":
+                await Reply(
+                    true,
+                    extra:
+                        new
+                        {
+                            count =
+                                Scripts.PauseAllSaved()
+                        });
+                return;
+
+            case "resumeAllSaved":
+                await Reply(
+                    true,
+                    extra:
+                        new
+                        {
+                            count =
+                                Scripts.ResumeAllSaved()
+                        });
+                return;
+
+            case "abortAllSaved":
+                await Reply(
+                    true,
+                    extra:
+                        new
+                        {
+                            count =
+                                Scripts.AbortAllSaved()
+                        });
+                return;
+
+            case "setFinishing":
+                Scripts.SetFinishing(
+                    B(
+                        data,
+                        "finishing"));
+
+                Timetable.SetFinishing(
+                    Scripts.Finishing);
+
+                await Reply(
+                    true,
+                    extra:
+                        new
+                        {
+                            finishing =
+                                Scripts.Finishing
+                        });
+                return;
+
+            default:
+                await Reply(
+                    false,
+                    "unknown_script_action");
+                return;
+        }
+    }
+
+    private async Task HandleTimetableCommand(
+        Guid connectionId,
+        WebSocket ws,
+        JsonElement data)
+    {
+        var requestId =
+            S(
+                data,
+                "requestId");
+
+        var action =
+            S(
+                data,
+                "action");
+
+        async Task Reply(
+            bool ok,
+            string? message = null)
+        {
+            await Send(
+                ws,
+                "timetableResponse",
+                new
+                {
+                    requestId,
+                    action,
+                    ok,
+                    message,
+                    state =
+                        Timetable.Snapshot()
+                });
+        }
+
+        switch (action)
+        {
+            case "snapshot":
+                await Reply(true);
+                return;
+
+            case "start":
+                Timetable.StartScheduler();
+                await Reply(true);
+                return;
+
+            case "stop":
+                Timetable.StopScheduler();
+                await Reply(true);
+                return;
+
+            case "rebase":
+                Timetable.Rebase();
+                await Reply(true);
+                return;
+
+            case "setFinishing":
+                Timetable.SetFinishing(
+                    B(
+                        data,
+                        "finishing"));
+                await Reply(true);
+                return;
+
+            default:
+                await Reply(
+                    false,
+                    "unknown_timetable_action");
+                return;
+        }
+    }
+
+    private async Task HandleTrainTrackingCommand(
+        WebSocket ws,
+        JsonElement data,
+        CancellationToken ct)
+    {
+        var requestId =
+            S(
+                data,
+                "requestId");
+        var action =
+            S(
+                data,
+                "action");
+
+        async Task Reply(
+            bool ok,
+            string? message = null)
+        {
+            await Send(
+                ws,
+                "trainTrackingResponse",
+                new
+                {
+                    requestId,
+                    action,
+                    ok,
+                    message,
+                    snapshot =
+                        TrainTracking.Snapshot()
+                });
+        }
+
+        switch (action)
+        {
+            case "snapshot":
+                await Reply(true);
+                return;
+
+            case "setEnabled":
+                TrainTracking.SetEnabled(
+                    B(
+                        data,
+                        "enabled"));
+
+                if (B(
+                        data,
+                        "enabled"))
+                    await CommandCenter
+                        .RequestSensorSnapshotAsync(
+                            ct);
+
+                await Reply(true);
+                return;
+
+            case "refresh":
+                TrainTracking.RefreshTopology();
+                await CommandCenter
+                    .RequestSensorSnapshotAsync(
+                        ct);
+                await Reply(true);
+                return;
+
+            case "reset":
+                TrainTracking.Reset();
+                await Reply(true);
+                return;
+
+            case "clearLogs":
+                TrainTracking.ClearLogs();
+                await Reply(true);
+                return;
+
+            default:
+                await Reply(
+                    false,
+                    "unknown_train_tracking_action");
+                return;
+        }
+    }
+
+    private async Task HandleMovementCommand(
+        Guid connectionId,
+        WebSocket ws,
+        JsonElement data,
+        CancellationToken ct)
+    {
+        var requestId = S(data, "requestId");
+        var action = S(data, "action");
+
+        async Task Reply(
+            bool ok,
+            string? message = null,
+            object? extra = null)
+        {
+            await Send(ws, "movementResponse", new
+            {
+                requestId,
+                action,
+                ok,
+                message,
+                extra
+            });
+        }
+
+        switch (action)
+        {
+            case "snapshot":
+                await Reply(
+                    true,
+                    extra: new
+                    {
+                        states = Movement.Snapshot()
+                    });
+                return;
+
+            case "start":
+                {
+                    var pageId =
+                        S(
+                            data,
+                            "pageId");
+
+                    if (string.IsNullOrWhiteSpace(
+                            pageId))
+                    {
+                        await Reply(
+                            false,
+                            "invalid_movement_start");
+                        return;
+                    }
+
+                    var result =
+                        Movement.Start(
+                            pageId);
+
+                    await Reply(
+                        result.Ok,
+                        result.Error,
+                        new
+                        {
+                            state =
+                                Movement.GetState(
+                                    pageId)
+                        });
+                    return;
+                }
+
+            case "stop":
+                {
+                    var pageId = S(data, "pageId");
+                    var ok = Movement.Stop(pageId);
+                    await Reply(
+                        ok,
+                        ok ? null : "movement_not_running",
+                        new
+                        {
+                            state =
+                                Movement.GetState(
+                                    pageId)
+                        });
+                    return;
+                }
+
+            case "abort":
+                {
+                    var pageId = S(data, "pageId");
+                    var emergency =
+                        !data.TryGetProperty(
+                            "emergencyStop",
+                            out var emergencyElement) ||
+                        emergencyElement.ValueKind != JsonValueKind.False;
+
+                    var ok =
+                        Movement.Abort(
+                            pageId,
+                            emergency);
+
+                    await Reply(
+                        ok,
+                        ok ? null : "movement_not_running",
+                        new
+                        {
+                            state =
+                                Movement.GetState(
+                                    pageId)
+                        });
+                    return;
+                }
+
+            case "stopAll":
+                {
+                    var count =
+                        Movement.StopAll(false);
+
+                    await Reply(
+                        true,
+                        extra: new
+                        {
+                            count,
+                            states =
+                                Movement.Snapshot()
+                        });
+                    return;
+                }
+
+            case "abortAll":
+                {
+                    var count =
+                        Movement.StopAll(true);
+
+                    await Reply(
+                        true,
+                        extra: new
+                        {
+                            count,
+                            states =
+                                Movement.Snapshot()
+                        });
+                    return;
+                }
+
+            default:
+                await Reply(
+                    false,
+                    "unknown_movement_action");
+                return;
+        }
+    }
+
+    private async Task HandleDispatcherCommand(
+        Guid connectionId,
+        WebSocket ws,
+        JsonElement data,
+        CancellationToken ct)
+    {
+        var requestId = S(data, "requestId");
+        var action = S(data, "action");
+
+        async Task Reply(
+            bool ok,
+            string? message = null,
+            object? extra = null)
+        {
+            await Send(ws, "dispatcherResponse", new
+            {
+                requestId,
+                action,
+                ok,
+                message,
+                extra
+            });
+        }
+
+        static ushort[] ReadUShortArray(
+            JsonElement source,
+            string propertyName,
+            int maxValue = 65535)
+        {
+            if (source.ValueKind != JsonValueKind.Object ||
+                !source.TryGetProperty(propertyName, out var raw) ||
+                raw.ValueKind != JsonValueKind.Array)
+                return Array.Empty<ushort>();
+
+            return raw
+                .EnumerateArray()
+                .Select(x =>
+                    x.TryGetInt32(out var n) &&
+                    n is >= 1 &&
+                    n <= maxValue
+                        ? (ushort)n
+                        : (ushort)0)
+                .Where(x => x != 0)
+                .Distinct()
+                .OrderBy(x => x)
+                .ToArray();
+        }
+
+        static string[] ReadStringArray(
+            JsonElement source,
+            string propertyName)
+        {
+            if (source.ValueKind != JsonValueKind.Object ||
+                !source.TryGetProperty(propertyName, out var raw) ||
+                raw.ValueKind != JsonValueKind.Array)
+                return Array.Empty<string>();
+
+            return raw
+                .EnumerateArray()
+                .Where(item =>
+                    item.ValueKind ==
+                        JsonValueKind.String)
+                .Select(item =>
+                    (item.GetString() ?? "")
+                        .Trim())
+                .Where(value =>
+                    value.Length is
+                        > 0 and <= 240)
+                .Distinct(
+                    StringComparer.Ordinal)
+                .OrderBy(
+                    value => value,
+                    StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        static DispatcherRouteBlockRequirement[] ReadRouteBlocks(
+            JsonElement source)
+        {
+            if (source.ValueKind != JsonValueKind.Object ||
+                !source.TryGetProperty(
+                    "downstreamBlocks",
+                    out var raw) ||
+                raw.ValueKind !=
+                    JsonValueKind.Array)
+                return [];
+
+            var result =
+                new List<DispatcherRouteBlockRequirement>();
+
+            foreach (var item in raw.EnumerateArray())
+            {
+                if (item.ValueKind !=
+                        JsonValueKind.Object ||
+                    !item.TryGetProperty(
+                        "blockId",
+                        out var blockIdElement) ||
+                    !blockIdElement.TryGetInt32(
+                        out var blockId) ||
+                    blockId is < 1 or > 65535)
+                    continue;
+
+                var sensorAddress =
+                    item.TryGetProperty(
+                        "sensorAddress",
+                        out var sensorElement) &&
+                    sensorElement.TryGetInt32(
+                        out var sensor) &&
+                    sensor is >= 1 and <= 65535
+                        ? sensor
+                        : 0;
+
+                result.Add(
+                    new DispatcherRouteBlockRequirement(
+                        (ushort)blockId,
+                        (ushort)sensorAddress));
+            }
+
+            return result
+                .GroupBy(item =>
+                    item.BlockId)
+                .Select(group =>
+                    group.First())
+                .ToArray();
+        }
+
+        static DispatcherTurnoutRequirement[] ReadTurnouts(
+            JsonElement source)
+        {
+            if (source.ValueKind != JsonValueKind.Object ||
+                !source.TryGetProperty("turnouts", out var raw) ||
+                raw.ValueKind != JsonValueKind.Array)
+                return Array.Empty<DispatcherTurnoutRequirement>();
+
+            var result =
+                new List<DispatcherTurnoutRequirement>();
+
+            foreach (var item in raw.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.Object ||
+                    !item.TryGetProperty("address", out var addressElement) ||
+                    !addressElement.TryGetInt32(out var address) ||
+                    address is < 1 or > 2048)
+                    continue;
+
+                var closed =
+                    item.TryGetProperty("closed", out var closedElement) &&
+                    closedElement.ValueKind == JsonValueKind.True;
+
+                result.Add(
+                    new DispatcherTurnoutRequirement(
+                        (ushort)address,
+                        closed));
+            }
+
+            return result.ToArray();
+        }
+
+        switch (action)
+        {
+            case "snapshot":
+                await Reply(
+                    true,
+                    extra: new
+                    {
+                        leases =
+                            Dispatcher.Snapshot(),
+                        routes =
+                            Dispatcher.RouteSnapshot()
+                    });
+                return;
+
+            case "acquireLeg":
+                {
+                    var ownerId = S(data, "ownerId");
+                    var ownerName = S(data, "ownerName");
+                    var loco = I(data, "locoAddress");
+                    var fromBlock = I(data, "fromBlockId");
+                    var toBlock = I(data, "toBlockId");
+
+                    if (loco is < 1 or > 10239 ||
+                        fromBlock is < 1 or > 65535 ||
+                        toBlock is < 1 or > 65535)
+                    {
+                        await Reply(false, "invalid_dispatcher_leg");
+                        return;
+                    }
+
+                    var request =
+                        new DispatcherLegRequest(
+                            ownerId,
+                            ownerName,
+                            (ushort)loco,
+                            (ushort)fromBlock,
+                            (ushort)toBlock,
+                            ReadTurnouts(data),
+                            ReadUShortArray(
+                                data,
+                                "safetySensors"),
+                            ReadStringArray(
+                                data,
+                                "resourceKeys"),
+                            Math.Clamp(
+                                IOr(
+                                    data,
+                                    "timeoutMs",
+                                    0),
+                                0,
+                                600000),
+                            Math.Clamp(
+                                IOr(
+                                    data,
+                                    "setDelayMs",
+                                    250),
+                                0,
+                                600000));
+
+                    DispatcherAcquireResult result;
+
+                    try
+                    {
+                        result =
+                            await Dispatcher.AcquireLegAsync(
+                                request,
+                                ct);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        return;
+                    }
+
+                    await Reply(
+                        result.Ok,
+                        result.Error,
+                        new
+                        {
+                            lease = result.Lease,
+                            blockingSensor =
+                                result.BlockingSensor,
+                            blockingBlock =
+                                result.BlockingBlock,
+                            turnoutConflicts =
+                                result.TurnoutConflicts
+                        });
+                    return;
+                }
+
+            case "releaseLeg":
+                {
+                    var ownerId = S(data, "ownerId");
+
+                    if (string.IsNullOrWhiteSpace(ownerId))
+                    {
+                        await Reply(false, "invalid_owner");
+                        return;
+                    }
+
+                    var released =
+                        Dispatcher.ReleaseLeg(
+                            ownerId);
+
+                    await Reply(
+                        released,
+                        released
+                            ? null
+                            : "dispatcher_lease_not_found",
+                        new
+                        {
+                            leases =
+                                Dispatcher.Snapshot()
+                        });
+                    return;
+                }
+
+            case "acquireRoute":
+                {
+                    var ownerId =
+                        S(
+                            data,
+                            "ownerId");
+
+                    var ownerName =
+                        S(
+                            data,
+                            "ownerName");
+
+                    var loco =
+                        I(
+                            data,
+                            "locoAddress");
+
+                    var sourceBlock =
+                        I(
+                            data,
+                            "sourceBlockId");
+
+                    var downstream =
+                        ReadRouteBlocks(
+                            data);
+
+                    if (string.IsNullOrWhiteSpace(
+                            ownerId) ||
+                        loco is < 1 or > 10239 ||
+                        sourceBlock is < 1 or > 65535 ||
+                        downstream.Length == 0)
+                    {
+                        await Reply(
+                            false,
+                            "invalid_dispatcher_route");
+                        return;
+                    }
+
+                    DispatcherRouteAcquireResult result;
+
+                    try
+                    {
+                        result =
+                            await Dispatcher.AcquireRouteAsync(
+                                new DispatcherRouteRequest(
+                                    ownerId,
+                                    ownerName,
+                                    (ushort)loco,
+                                    (ushort)sourceBlock,
+                                    downstream,
+                                    ReadTurnouts(
+                                        data),
+                                    ReadStringArray(
+                                        data,
+                                        "resourceKeys"),
+                                    Math.Clamp(
+                                        IOr(
+                                            data,
+                                            "timeoutMs",
+                                            0),
+                                        0,
+                                        600000),
+                                    Math.Clamp(
+                                        IOr(
+                                            data,
+                                            "setDelayMs",
+                                            250),
+                                        0,
+                                        600000)),
+                                ct);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        return;
+                    }
+
+                    await Reply(
+                        result.Ok,
+                        result.Error,
+                        new
+                        {
+                            lease =
+                                result.Lease,
+                            blockingSensor =
+                                result.BlockingSensor,
+                            blockingBlock =
+                                result.BlockingBlock,
+                            turnoutConflicts =
+                                result.TurnoutConflicts
+                        });
+                    return;
+                }
+
+            case "commitRoute":
+                {
+                    var ownerId =
+                        S(
+                            data,
+                            "ownerId");
+
+                    var committed =
+                        Dispatcher.CommitRoute(
+                            ownerId);
+
+                    await Reply(
+                        committed,
+                        committed
+                            ? null
+                            : "dispatcher_route_commit_failed",
+                        new
+                        {
+                            leases =
+                                Dispatcher.Snapshot(),
+                            routes =
+                                Dispatcher.RouteSnapshot()
+                        });
+                    return;
+                }
+
+            case "releaseRoute":
+                {
+                    var ownerId =
+                        S(
+                            data,
+                            "ownerId");
+
+                    var released =
+                        Dispatcher.ReleaseRoute(
+                            ownerId);
+
+                    await Reply(
+                        released,
+                        released
+                            ? null
+                            : "dispatcher_route_lease_not_found",
+                        new
+                        {
+                            leases =
+                                Dispatcher.Snapshot(),
+                            routes =
+                                Dispatcher.RouteSnapshot()
+                        });
+                    return;
+                }
+
+            case "releaseAll":
+                {
+                    var released =
+                        Dispatcher.ReleaseAll();
+
+                    await Reply(
+                        true,
+                        extra: new
+                        {
+                            released,
+                            leases =
+                                Dispatcher.Snapshot(),
+                            routes =
+                                Dispatcher.RouteSnapshot()
+                        });
+                    return;
+                }
+
+            default:
+                await Reply(
+                    false,
+                    "unknown_dispatcher_action");
+                return;
+        }
+    }
+
     private async Task HandleFastClockCommand(WebSocket ws, JsonElement data)
     {
         var requestId = S(data, "requestId");
@@ -1150,6 +2616,24 @@ public sealed class WsHub
             await Send(ws, item.Type, item.Data);
 
         await Send(ws, "switchManChanged", new { locks = SwitchMan.Snapshot() });
+        await Send(
+            ws,
+            "dispatcherChanged",
+            new
+            {
+                leases =
+                    Dispatcher.Snapshot(),
+                routes =
+                    Dispatcher.RouteSnapshot()
+            });
+        await Send(ws, "movementSnapshot", new { states = Movement.Snapshot() });
+        await Send(
+            ws,
+            "trainTrackingChanged",
+            TrainTracking.Snapshot());
+        await Send(ws, "automationScriptSnapshot", new { states = Scripts.Snapshot(), finishing = Scripts.Finishing });
+        await Send(ws, "flowStateChanged", Flows.Snapshot());
+        await Send(ws, "timetableStateChanged", Timetable.Snapshot());
     }
 
     private Task SendCommandCenterInfo(WebSocket ws)

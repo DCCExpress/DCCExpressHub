@@ -141,54 +141,54 @@ test("Selected segment and turnout use the resource condition editor", () => {
 });
 
 test("Movement runtime preserves route locking and changes only resource event boundaries", () => {
-  const engine =
+  const backend =
     read(
-      "src/services/movementEngine.ts"
+      "../desktop/DCCExpressHub.Net/Web/MovementRuntime.cs"
+    );
+
+  const dispatcher =
+    read(
+      "../desktop/DCCExpressHub.Net/Web/DispatcherRuntime.cs"
     );
 
   assert.match(
-    engine,
-    /effectiveMovementResourceEventRule/
+    backend,
+    /EffectiveResourceRule/
   );
 
   assert.match(
-    engine,
-    /movementResourceRuleSatisfied/
+    backend,
+    /ResourceEventSatisfied/
   );
 
   assert.match(
-    engine,
-    /resourceEntryEvent[sS]*"turnout"[sS]*"approach"[sS]*"enter"/
+    backend,
+    /ArmResourceLeave/
   );
 
   assert.match(
-    engine,
-    /armResourceLeave/
+    backend,
+    /ResourceLeaveFired/
   );
 
   assert.match(
-    engine,
-    /captureResourceLeaveTransitions/
+    backend,
+    /RunLegacyResourceLeaveIfNeeded/
   );
 
   assert.match(
-    engine,
-    /resourceLeaveFired/
+    backend,
+    /_dispatcher\.AcquireLegAsync/
   );
 
   assert.match(
-    engine,
-    /runLegacyLeaveIfNeeded/
+    dispatcher,
+    /TryReserveLegResources/
   );
 
   assert.match(
-    engine,
-    /waitForLegClearance/
-  );
-
-  assert.match(
-    engine,
-    /tryAcquireAndSetTurnouts/
+    dispatcher,
+    /SetTurnoutAsync/
   );
 });
 

@@ -195,33 +195,6 @@ class WebSocketApi {
     return this.send("emergencyStop", {});
   }
 
-  claimControlStation(
-    clientId: string,
-    clientName: string
-  ): boolean {
-    return this.send(
-      "controlStationClaim",
-      {
-        clientId,
-        clientName,
-      }
-    );
-  }
-
-  releaseControlStation(): boolean {
-    return this.send(
-      "controlStationRelease",
-      {}
-    );
-  }
-
-  getControlStationStatus(): boolean {
-    return this.send(
-      "getControlStationStatus",
-      {}
-    );
-  }
-
   broadcastPlayAudio(
     requestId: string,
     fileName: string
@@ -242,6 +215,268 @@ class WebSocketApi {
       "broadcastStopAudio",
       {
         fileName,
+      }
+    );
+  }
+
+  audioPlaybackState(
+    enabled: boolean
+  ): boolean {
+    return this.send(
+      "audioPlaybackState",
+      {
+        enabled,
+      }
+    );
+  }
+
+  dispatcherCommand(
+    requestId: string,
+    action:
+      ClientWsPayloadMap[
+        "dispatcherCommand"
+      ]["action"],
+    values:
+      Omit<
+        ClientWsPayloadMap[
+          "dispatcherCommand"
+        ],
+        "requestId" |
+        "action"
+      > =
+        {}
+  ): boolean {
+    return this.send(
+      "dispatcherCommand",
+      {
+        ...values,
+        requestId,
+        action,
+      }
+    );
+  }
+
+  dispatcherRequest(
+    requestId: string,
+    action:
+      ClientWsPayloadMap[
+        "dispatcherCommand"
+      ]["action"],
+    values:
+      Omit<
+        ClientWsPayloadMap[
+          "dispatcherCommand"
+        ],
+        "requestId" |
+        "action"
+      > =
+        {},
+    timeoutMs =
+      15000
+  ) {
+    return this.request(
+      "dispatcherCommand",
+      {
+        ...values,
+        requestId,
+        action,
+      },
+      "dispatcherResponse",
+      response =>
+        response.requestId ===
+          requestId,
+      timeoutMs
+    );
+  }
+
+  movementCommand(
+    requestId: string,
+    action:
+      | "snapshot"
+      | "start"
+      | "stop"
+      | "abort"
+      | "stopAll"
+      | "abortAll",
+    values: {
+      pageId?: string;
+      emergencyStop?: boolean;
+    } = {}
+  ): boolean {
+    return this.send(
+      "movementCommand",
+      {
+        requestId,
+        action,
+        ...values,
+      }
+    );
+  }
+
+  movementAudioComplete(
+    requestId: string,
+    ok: boolean
+  ): boolean {
+    return this.send(
+      "movementAudioComplete",
+      {
+        requestId,
+        ok,
+      }
+    );
+  }
+
+  scriptCommand(
+    requestId: string,
+    action:
+      ClientWsPayloadMap[
+        "scriptCommand"
+      ]["action"],
+    values:
+      Omit<
+        ClientWsPayloadMap[
+          "scriptCommand"
+        ],
+        "requestId" |
+        "action"
+      > =
+        {}
+  ): boolean {
+    return this.send(
+      "scriptCommand",
+      {
+        ...values,
+        requestId,
+        action,
+      }
+    );
+  }
+
+  scriptRequest(
+    requestId: string,
+    action:
+      ClientWsPayloadMap[
+        "scriptCommand"
+      ]["action"],
+    values:
+      Omit<
+        ClientWsPayloadMap[
+          "scriptCommand"
+        ],
+        "requestId" |
+        "action"
+      > =
+        {},
+    timeoutMs =
+      15000
+  ) {
+    return this.request(
+      "scriptCommand",
+      {
+        ...values,
+        requestId,
+        action,
+      },
+      "automationScriptResponse",
+      response =>
+        response.requestId ===
+          requestId,
+      timeoutMs
+    );
+  }
+
+  scriptAudioComplete(
+    requestId: string,
+    ok: boolean
+  ): boolean {
+    return this.send(
+      "scriptAudioComplete",
+      {
+        requestId,
+        ok,
+      }
+    );
+  }
+
+  flowCommand(
+    requestId: string,
+    action:
+      ClientWsPayloadMap[
+        "flowCommand"
+      ]["action"],
+    values:
+      Omit<
+        ClientWsPayloadMap[
+          "flowCommand"
+        ],
+        "requestId" |
+        "action"
+      > =
+        {}
+  ): boolean {
+    return this.send(
+      "flowCommand",
+      {
+        ...values,
+        requestId,
+        action,
+      }
+    );
+  }
+
+  flowRequest(
+    requestId: string,
+    action:
+      ClientWsPayloadMap[
+        "flowCommand"
+      ]["action"],
+    values:
+      Omit<
+        ClientWsPayloadMap[
+          "flowCommand"
+        ],
+        "requestId" |
+        "action"
+      > =
+        {},
+    timeoutMs =
+      15000
+  ) {
+    return this.request(
+      "flowCommand",
+      {
+        ...values,
+        requestId,
+        action,
+      },
+      "flowResponse",
+      response =>
+        response.requestId ===
+          requestId,
+      timeoutMs
+    );
+  }
+
+  timetableCommand(
+    requestId: string,
+    action:
+      | "snapshot"
+      | "start"
+      | "stop"
+      | "rebase"
+      | "setFinishing",
+    finishing?: boolean
+  ): boolean {
+    return this.send(
+      "timetableCommand",
+      {
+        requestId,
+        action,
+        ...(finishing === undefined
+          ? {}
+          : {
+              finishing,
+            }),
       }
     );
   }

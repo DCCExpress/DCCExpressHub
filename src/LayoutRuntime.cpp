@@ -684,6 +684,24 @@ bool LayoutRuntime::setBlock(uint16_t blockId, const String& locoId, uint16_t lo
   return true;
 }
 
+bool LayoutRuntime::setBlockTransition(
+    uint16_t blockId,
+    const String& locoId,
+    uint16_t locoAddress) {
+  RuntimeBlock* target = findBlockById(blockId);
+  if (!target || (locoId.isEmpty() && locoAddress == 0))
+    return false;
+
+  if (target->locoId == locoId &&
+      target->locoAddress == locoAddress)
+    return true;
+
+  target->locoId = locoId;
+  target->locoAddress = locoAddress;
+  notify(RuntimeChangeKind::Block, blockId, 0);
+  return true;
+}
+
 bool LayoutRuntime::removeBlock(uint16_t blockId, const String& locoId) {
   RuntimeBlock* block = findBlockById(blockId);
   if (!block) return false;

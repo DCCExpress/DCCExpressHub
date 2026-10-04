@@ -133,97 +133,50 @@ test("timetable editor groups multiple actions in one schedule row", () => {
   );
 });
 
-test("timetable execution requires active Control Station ownership", () => {
-  const scheduler =
-    read(
-      "src/services/timetableScheduler.ts"
-    );
-
-  const panel =
-    read(
-      "src/components/TimetablePanel.tsx"
-    );
-
-  const layout =
-    read(
-      "src/LiteLayoutPage.tsx"
-    );
-
-  assert.match(
-    scheduler,
-    /isControlStationRuntimeActive/
-  );
-
-  assert.match(
-    scheduler,
-    /subscribeControlStationRuntime/
-  );
-
-  assert.match(
-    scheduler,
-    /!isControlStationRuntimeActive\(\)[\s\S]*return/
-  );
-
-  assert.match(
-    panel,
-    /controlStationActive:\s*boolean/
-  );
-
-  assert.match(
-    panel,
-    /!controlStationActive[\s\S]*schedulerState\.running/
-  );
-
-  assert.match(
-    panel,
-    /timetableControlStationRequired/
-  );
-
-  assert.match(
-    layout,
-    /controlStationActive={controlStationActive}/
-  );
-});
-
 test("timetable scheduler launches every action in a matching row", () => {
   const scheduler =
-    read(
-      "src/services/timetableScheduler.ts"
-    );
+    read("src/services/timetableScheduler.ts");
+  const backend =
+    read("../desktop/DCCExpressHub.Net/Web/TimetableRuntime.cs");
 
   assert.match(
     scheduler,
-    /for\s*\([\s\S]*const action of[\s\S]*entry\.actions/
+    /Timetable timing\/decision is backend-authoritative/
   );
 
   assert.match(
-    scheduler,
-    /action\.targetType ===[\s\S]*"movement"/
+    backend,
+    /foreach \(var entry in storage\.Entries\)/
   );
 
   assert.match(
-    scheduler,
-    /this\.launchMovement\([\s\S]*entry,[\s\S]*action,[\s\S]*movement/
+    backend,
+    /CronMatches\([\s\S]*entry\.Cron/
   );
 
   assert.match(
-    scheduler,
-    /this\.launchScript\([\s\S]*entry,[\s\S]*action,[\s\S]*script/
+    backend,
+    /foreach \(var action in entry\.Actions\)/
   );
 
   assert.match(
-    scheduler,
-    /timetableActionId:\s*[\s\S]*action\.id/
+    backend,
+    /LaunchMovement\(/
   );
 
   assert.match(
-    scheduler,
-    /startMovement\([\s\S]*movement/
+    backend,
+    /LaunchScript\(/
   );
 
   assert.match(
-    scheduler,
-    /runClientScript\(/
+    backend,
+    /_movement\.Start\([\s\S]*movement\.Id/
+  );
+
+  assert.match(
+    backend,
+    /ScriptRequested\?\.Invoke/
   );
 });
 

@@ -2,7 +2,6 @@ import {
   Button,
   Card,
   Group,
-  Modal,
   ScrollArea,
   Stack,
   Text,
@@ -14,6 +13,7 @@ import {
 import { useTranslation } from "react-i18next";
 
 import type { Loco } from "@domain/types";
+import AppModal from "../common/AppModal";
 import LocoImage from "./LocoImage";
 
 type LocoPickerProps = {
@@ -66,7 +66,7 @@ export default function LocoPicker({
     Boolean(selectedLoco);
 
   return (
-    <Modal
+    <AppModal
       opened={opened}
       onClose={onClose}
       title={
@@ -75,7 +75,9 @@ export default function LocoPicker({
         </Text>
       }
       centered
-      size="md"
+      draggable
+      headerHeight={40}
+      size="min(360px, calc(100vw - 24px))"
       zIndex={3000}
       overlayProps={{
         backgroundOpacity: 0.55,
@@ -92,15 +94,21 @@ export default function LocoPicker({
       }}
       styles={{
         content: {
+          height: "70dvh",
           maxHeight: "calc(100dvh - 24px)",
           display: "flex",
           flexDirection: "column",
+          overflow: "hidden",
         },
         body: {
+          height: "calc(100% - 40px)",
           minHeight: 0,
           display: "flex",
           flexDirection: "column",
           flex: 1,
+          overflow: "hidden",
+          paddingLeft: "var(--mantine-spacing-md)",
+          paddingRight: "var(--mantine-spacing-md)",
         },
       }}
     >
@@ -159,11 +167,11 @@ export default function LocoPicker({
           }}
           viewportProps={{
             style: {
-              maxHeight: "min(70dvh, 680px)",
+              height: "100%",
             },
           }}
         >
-          <Stack gap="sm" pr="xs">
+          <Stack gap="sm">
             {locos.map(loco => (
               <Card
                 key={loco.id}
@@ -213,6 +221,6 @@ export default function LocoPicker({
           </Stack>
         </ScrollArea>
       </Stack>
-    </Modal>
+    </AppModal>
   );
 }

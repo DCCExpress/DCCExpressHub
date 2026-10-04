@@ -38,12 +38,41 @@ public sealed class RuntimeBlock
     public const string TargetLocoPrefix = "__dcc_target_loco__:";
 
     public ushort Id { get; set; }
+    public string Name { get; set; } = "";
+    public ushort SensorAddress { get; set; }
     public string LocoId { get; set; } = "";
     public ushort LocoAddress { get; set; }
 
     public bool TargetOnly =>
         LocoAddress == 0 &&
         LocoId.StartsWith(TargetLocoPrefix, StringComparison.Ordinal);
+
+    public ushort TargetLocoAddress
+    {
+        get
+        {
+            if (!TargetOnly)
+                return 0;
+
+            var raw =
+                LocoId.AsSpan(
+                    TargetLocoPrefix.Length);
+
+            var separator =
+                raw.IndexOf(':');
+
+            if (separator >= 0)
+                raw =
+                    raw[..separator];
+
+            return ushort.TryParse(
+                    raw,
+                    out var address) &&
+                address is >= 1 and <= 10239
+                    ? address
+                    : (ushort)0;
+        }
+    }
 
     public bool Occupied =>
         LocoAddress > 0 ||
@@ -438,7 +467,26 @@ public sealed class LayoutRuntime
 
         if (type == "trackblock")
         {
-            blocks.Add(new RuntimeBlock { Id = id });
+            var sensorAddress =
+                I(
+                    e,
+                    "sensorAddress");
+
+            blocks.Add(
+                new RuntimeBlock
+                {
+                    Id = id,
+                    Name =
+                        S(
+                            e,
+                            "text",
+                            "Block #" + id),
+                    SensorAddress =
+                        sensorAddress is >= 1 and <= 65535
+                            ? (ushort)sensorAddress
+                            : (ushort)0
+                });
+
             return;
         }
 
@@ -769,6 +817,8 @@ public sealed class LayoutRuntime
             return _blocks.Select(x => new RuntimeBlock
             {
                 Id = x.Id,
+                Name = x.Name,
+                SensorAddress = x.SensorAddress,
                 LocoId = x.LocoId,
                 LocoAddress = x.LocoAddress
             }).ToArray();

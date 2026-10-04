@@ -1238,12 +1238,20 @@ export function ensureClientRouteGraph(
 export function createCurrentClientLayoutSnapshot(
   layout: LayoutView
 ): SerializedLayoutDto {
-  // Movement editing must use the same in-memory topology as the Paths panel.
-  // Ensure the cache is current, then attach that exact generated topology to
-  // a plain JSON snapshot without persisting anything to the backend.
-  ensureClientRouteGraph(
-    layout
-  );
+  // Movement editing prefers the current in-memory route topology, but an
+  // incomplete/invalid track layout must never make UI snapshot creation throw.
+  // attachClientRouteTopologyToLayoutJson() below already drops stale topology
+  // metadata when there is no fresh graph for the current fingerprint.
+  try {
+    ensureClientRouteGraph(
+      layout
+    );
+  } catch (buildError) {
+    console.warn(
+      "Route graph could not be generated for the current layout snapshot. Continuing without routeTopology.",
+      buildError
+    );
+  }
 
   const plainLayout =
     JSON.parse(

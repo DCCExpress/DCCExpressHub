@@ -9,9 +9,12 @@ namespace {
 // better to wait a few hundred milliseconds for a busy handle than to fail an
 // otherwise valid atomic save.
 //
-// 30 * 10 ms = ~300 ms worst case per remove/rename operation.
+// ESPAsyncWebServer can retain a LittleFS response handle noticeably longer
+// than the HTTP request itself. Automation saves commonly follow an immediate
+// GET, so allow enough time for that read handle to drain before falling back.
+// 100 * 10 ms = ~1 s worst case per remove/rename operation.
 constexpr uint8_t FILE_OPERATION_RETRIES =
-    30;
+    100;
 
 constexpr uint32_t FILE_OPERATION_RETRY_DELAY_MS =
     10;
@@ -568,19 +571,12 @@ bool FileStore::commit(
     // copyFile() has closed both source and destination handles here.
     // ESPAsyncWebServer may still own a read handle briefly after a GET.
     // Give it enough time to release that handle before declaring failure.
-    if (
-        !removeIfExists(
-            _fs,
-            final)
-    ) {
+    if (!removeIfExists(_fs, final)) {
+      // Do not discard the transaction just because an HTTP response still
+      // owns the old file. The validated temp and backup are both intact.
+      // Leave them for recover()/a later save rather than risking data loss.
       Logger::error(
-          "FileStore commit failed: final file is still busy after retries: " +
-          final);
-
-      removeIfExists(
-          _fs,
-          backup);
-
+          "FileStore commit deferred: final file is still busy: " + final);
       return false;
     }
   }

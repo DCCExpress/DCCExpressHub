@@ -1,3 +1,7 @@
+import {
+  wsClient,
+} from "./wsClient";
+
 export type MovementBlockWaitingReason =
   | "departureCondition"
   | "targetBlock"
@@ -40,6 +44,9 @@ const listeners =
     Listener
   >();
 
+let installed =
+  false;
+
 function emit(): void {
   for (
     const listener of
@@ -49,120 +56,59 @@ function emit(): void {
   }
 }
 
-export function getMovementBlockRuntime(
-  blockId: number
-): MovementBlockRuntimeState | null {
-  const state =
-    states.get(
-      blockId
-    );
-
-  return state
-    ? {
-        ...state,
-      }
-    : null;
-}
-
-export function setMovementBlockRuntime(
-  blockId: number,
-  state:
-    MovementBlockRuntimeState
-): void {
-  if (
-    !Number.isInteger(
-      blockId
-    ) ||
-    blockId <= 0
-  ) {
-    return;
-  }
-
-  states.set(
-    blockId,
-    {
-      ...state,
-    }
-  );
-
-  emit();
-}
-
-export function clearMovementBlockRuntime(
-  blockId: number,
-  ownerId: string,
-  phase:
-    MovementBlockRuntimePhase |
-    null =
-      null
-): void {
-  const current =
-    states.get(
-      blockId
-    );
+function waitingReasonFor(
+  info: string
+): MovementBlockWaitingReason |
+  null {
+  const text =
+    info.toLowerCase();
 
   if (
-    !current ||
-    current.ownerId !==
-      ownerId ||
-    (
-      phase !==
-        null &&
-      current.phase !==
-        phase
+    text.includes(
+      "departure condition"
     )
   ) {
-    return;
-  }
-
-  states.delete(
-    blockId
-  );
-
-  emit();
-}
-
-export function clearMovementBlockRuntimeByOwnerPhase(
-  ownerId: string,
-  phase:
-    MovementBlockRuntimePhase
-): void {
-  let changed =
-    false;
-
-  for (
-    const [
-      blockId,
-      state,
-    ] of states
-  ) {
-    if (
-      state.ownerId !==
-        ownerId ||
-      state.phase !==
-        phase
-    ) {
-      continue;
-    }
-
-    states.delete(
-      blockId
-    );
-
-    changed =
-      true;
+    return "departureCondition";
   }
 
   if (
-    changed
+    text.includes(
+      "turnout lock"
+    )
   ) {
-    emit();
+    return "turnoutLock";
   }
+
+  if (
+    text.includes(
+      "safety sensor"
+    )
+  ) {
+    return "segment";
+  }
+
+  if (
+    text.includes(
+      "waiting for block"
+    )
+  ) {
+    return "targetBlock";
+  }
+
+  if (
+    text.includes(
+      "route authority"
+    )
+  ) {
+    return "resourceLock";
+  }
+
+  return null;
 }
 
-export function clearMovementBlockRuntimeByOwner(
+function clearOwner(
   ownerId: string
-): void {
+): boolean {
   let changed =
     false;
 
@@ -187,14 +133,238 @@ export function clearMovementBlockRuntimeByOwner(
       true;
   }
 
-  if (
-    changed
-  ) {
-    emit();
+  return changed;
+}
+
+function install():
+  void {
+  if (installed) {
+    return;
   }
+
+  installed =
+    true;
+
+  wsClient.on(
+    "movementStateChanged",
+    state => {
+      let changed =
+        clearOwner(
+          state.pageId
+        );
+
+      if (
+        (
+          state.status ===
+            "running" ||
+          state.status ===
+            "stopping" ||
+          state.status ===
+            "error"
+        ) &&
+        state.locoAddress !==
+          null &&
+        state.direction !==
+          null
+      ) {
+        const phase:
+          MovementBlockRuntimePhase =
+          state.status ===
+            "error"
+            ? "error"
+            : state.moving &&
+              state.desiredSpeed >
+                0
+              ? "moving"
+              : "waiting";
+
+        const info =
+          state.info ??
+          "";
+
+        const value:
+          MovementBlockRuntimeState = {
+          ownerId:
+            state.pageId,
+          movementName:
+            state.movementName,
+          locoAddress:
+            state.locoAddress,
+          direction:
+            state.direction,
+          phase,
+          waitingReason:
+            phase ===
+              "waiting"
+              ? waitingReasonFor(
+                  info
+                )
+              : null,
+          info,
+        };
+
+        if (
+          state.currentBlockId !==
+            null
+        ) {
+          states.set(
+            state.currentBlockId,
+            value
+          );
+
+          changed =
+            true;
+        }
+
+        if (
+          state.targetBlockId !==
+            null &&
+          state.targetBlockId !==
+            state.currentBlockId
+        ) {
+          states.set(
+            state.targetBlockId,
+            value
+          );
+
+          changed =
+            true;
+        }
+      }
+
+      if (changed) {
+        emit();
+      }
+    }
+  );
+
+  wsClient.on(
+    "movementSnapshot",
+    data => {
+      let changed =
+        false;
+
+      for (
+        const state of
+        data.states
+      ) {
+        changed =
+          clearOwner(
+            state.pageId
+          ) ||
+          changed;
+
+        if (
+          state.status !==
+            "running" &&
+          state.status !==
+            "stopping" &&
+          state.status !==
+            "error"
+        ) {
+          continue;
+        }
+
+        if (
+          state.locoAddress ===
+            null ||
+          state.direction ===
+            null
+        ) {
+          continue;
+        }
+
+        const phase:
+          MovementBlockRuntimePhase =
+          state.status ===
+            "error"
+            ? "error"
+            : state.moving &&
+              state.desiredSpeed >
+                0
+              ? "moving"
+              : "waiting";
+
+        const value:
+          MovementBlockRuntimeState = {
+          ownerId:
+            state.pageId,
+          movementName:
+            state.movementName,
+          locoAddress:
+            state.locoAddress,
+          direction:
+            state.direction,
+          phase,
+          waitingReason:
+            phase ===
+              "waiting"
+              ? waitingReasonFor(
+                  state.info ??
+                    ""
+                )
+              : null,
+          info:
+            state.info ??
+            "",
+        };
+
+        if (
+          state.currentBlockId !==
+            null
+        ) {
+          states.set(
+            state.currentBlockId,
+            value
+          );
+
+          changed =
+            true;
+        }
+
+        if (
+          state.targetBlockId !==
+            null &&
+          state.targetBlockId !==
+            state.currentBlockId
+        ) {
+          states.set(
+            state.targetBlockId,
+            value
+          );
+
+          changed =
+            true;
+        }
+      }
+
+      if (changed) {
+        emit();
+      }
+    }
+  );
+}
+
+export function getMovementBlockRuntime(
+  blockId: number
+): MovementBlockRuntimeState | null {
+  install();
+
+  const state =
+    states.get(
+      blockId
+    );
+
+  return state
+    ? {
+        ...state,
+      }
+    : null;
 }
 
 export function hasMovingMovementBlockRuntime(): boolean {
+  install();
+
   for (
     const state of
     states.values()
@@ -214,6 +384,8 @@ export function subscribeMovementBlockRuntime(
   listener:
     Listener
 ): () => void {
+  install();
+
   listeners.add(
     listener
   );
@@ -224,3 +396,5 @@ export function subscribeMovementBlockRuntime(
     );
   };
 }
+
+install();

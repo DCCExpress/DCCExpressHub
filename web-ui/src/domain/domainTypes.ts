@@ -29,6 +29,7 @@ export type LocoFunction = {
   bindingId?: number | null;
   icon: string;
   momentary: boolean;
+  startupActive?: boolean;
   active?: boolean;
 };
 
@@ -101,6 +102,26 @@ export type BlockAction =
 export type BlockActionHooks =
   Partial<Record<BlockActionHook, BlockAction[]>>;
 
+export type LocoCalibrationResult = {
+  speedStep: number;
+  direction:
+    | "outbound"
+    | "return";
+  elapsedMs: number;
+  millimetersPerSecond: number;
+};
+
+export type LocoCalibrationProfile = {
+  routeKey: string;
+  reverseRouteKey: string;
+  routeLabel: string;
+  routeLengthMm: number;
+  maxSpeed: number;
+  speedStep: number;
+  updatedAt: string;
+  results: LocoCalibrationResult[];
+};
+
 export type Loco = {
   id: string;
   name: string;
@@ -117,6 +138,7 @@ export type Loco = {
   counterSettings?: Partial<LocoCounterSettings>;
   functions: LocoFunction[];
   actions?: LocoActionHooks;
+  calibration?: LocoCalibrationProfile;
 };
 
 export type ReservationOwnerType =

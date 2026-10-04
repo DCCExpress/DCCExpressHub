@@ -44,9 +44,28 @@ export class TrackTravelDirectionResolver {
         );
 
       if (directionElements.length === 0) {
-        throw new Error(
-          "A connected track network has no TrackDirection element."
+        /*
+         * Direction metadata is optional for graph generation.
+         *
+         * A connected physical network without TrackDirection is still valid
+         * topology: sections and graph edges can be generated, but their
+         * locomotive travel direction remains "unknown". Consumers already
+         * support that state explicitly.
+         *
+         * This also means an incomplete layout can still be inspected in the
+         * Routes dialog while it is being drawn.
+         */
+        console.warn(
+          "Connected track network has no TrackDirection element; continuing with unknown travel direction.",
+          network.map(elem => ({
+            id: elem.id,
+            type: elem.type,
+            x: elem.x,
+            y: elem.y,
+          }))
         );
+
+        continue;
       }
 
       if (directionElements.length > 1) {

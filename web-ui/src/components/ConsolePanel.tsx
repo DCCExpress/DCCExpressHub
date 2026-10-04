@@ -5,6 +5,7 @@ import {
   Badge,
   Button,
   Card,
+  Checkbox,
   Group,
   ScrollArea,
   SegmentedControl,
@@ -19,6 +20,7 @@ import {
   IconAlertTriangle,
   IconBolt,
   IconClearAll,
+  IconHelpCircle,
   IconPlug,
   IconPlugConnected,
   IconPlayerPlay,
@@ -29,6 +31,7 @@ import {
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -46,6 +49,8 @@ import {
 } from "@/services/wsClient";
 
 import { useCommandCenter } from "@/context/CommandCenterContext";
+
+import DccExCommandHelpDialog from "@/components/DccExCommandHelpDialog";
 
 type ConsoleTransport =
   | "websocket"
@@ -317,6 +322,31 @@ export default function ConsolePanel() {
     useState<QuickCommand[]>(
       loadQuickCommands
     );
+
+  const [
+    commandHelpOpened,
+    setCommandHelpOpened,
+  ] = useState(false);
+
+  const [
+    logFilter,
+    setLogFilter,
+  ] = useState("");
+
+  const [
+    showTxLog,
+    setShowTxLog,
+  ] = useState(true);
+
+  const [
+    showRxLog,
+    setShowRxLog,
+  ] = useState(true);
+
+  const [
+    showSysLog,
+    setShowSysLog,
+  ] = useState(true);
 
   const [log, setLog] =
     useState<
@@ -778,6 +808,60 @@ export default function ConsolePanel() {
       ?.trackVoltageOn ??
     false;
 
+  const filteredLog =
+    useMemo(
+      () => {
+        const query =
+          logFilter
+            .trim()
+            .toLocaleLowerCase();
+
+        return log.filter(
+          entry => {
+            const directionVisible =
+              entry.direction === "TX"
+                ? showTxLog
+                : entry.direction === "RX"
+                  ? showRxLog
+                  : showSysLog;
+
+            if (!directionVisible) {
+              return false;
+            }
+
+            if (!query) {
+              return true;
+            }
+
+            return (
+              entry.text
+                .toLocaleLowerCase()
+                .includes(
+                  query
+                ) ||
+              entry.direction
+                .toLocaleLowerCase()
+                .includes(
+                  query
+                ) ||
+              entry.timestamp
+                .toLocaleLowerCase()
+                .includes(
+                  query
+                )
+            );
+          }
+        );
+      },
+      [
+        log,
+        logFilter,
+        showTxLog,
+        showRxLog,
+        showSysLog,
+      ]
+    );
+
   return (
     <Stack gap="md">
       <Card
@@ -1040,7 +1124,30 @@ export default function ConsolePanel() {
         p="md"
       >
         <Stack gap="sm">
-          <Text fw={600}> {i18next.t("ui.quickCommands")} </Text>
+          <Group
+            justify="space-between"
+            align="center"
+            wrap="wrap"
+          >
+            <Text fw={600}> {i18next.t("ui.quickCommands")} </Text>
+
+            <Button
+              size="xs"
+              variant="light"
+              leftSection={
+                <IconHelpCircle
+                  size={15}
+                />
+              }
+              onClick={() =>
+                setCommandHelpOpened(
+                  true
+                )
+              }
+            >
+              DCC-EX Help
+            </Button>
+          </Group>
 
           <Text
             size="xs"
@@ -1265,6 +1372,87 @@ export default function ConsolePanel() {
             </Group>
           </Group>
 
+          <Group
+            gap="sm"
+            align="center"
+            wrap="wrap"
+          >
+            <TextInput
+              size="xs"
+              value={
+                logFilter
+              }
+              onChange={
+                event =>
+                  setLogFilter(
+                    event.currentTarget.value
+                  )
+              }
+              placeholder={i18next.t(
+                "ui.consoleLogFilter"
+              )}
+              style={{
+                flex: 1,
+                minWidth: 220,
+              }}
+            />
+
+            <Group
+              gap="xs"
+              wrap="nowrap"
+            >
+              <Checkbox
+                size="xs"
+                label="TX"
+                checked={
+                  showTxLog
+                }
+                onChange={
+                  event =>
+                    setShowTxLog(
+                      event.currentTarget.checked
+                    )
+                }
+              />
+
+              <Checkbox
+                size="xs"
+                label="RX"
+                checked={
+                  showRxLog
+                }
+                onChange={
+                  event =>
+                    setShowRxLog(
+                      event.currentTarget.checked
+                    )
+                }
+              />
+
+              <Checkbox
+                size="xs"
+                label="SYS"
+                checked={
+                  showSysLog
+                }
+                onChange={
+                  event =>
+                    setShowSysLog(
+                      event.currentTarget.checked
+                    )
+                }
+              />
+            </Group>
+
+            <Badge
+              size="sm"
+              variant="light"
+              color="gray"
+            >
+              {filteredLog.length}/{log.length}
+            </Badge>
+          </Group>
+
           <ScrollArea
             h={320}
             viewportRef={
@@ -1284,7 +1472,21 @@ export default function ConsolePanel() {
                 > {i18next.t("ui.waitingForConsoleActivity")} </Text>
               )}
 
-              {log.map(entry => (
+              {log.length > 0 &&
+                filteredLog.length ===
+                  0 && (
+                <Text
+                  size="sm"
+                  c="dimmed"
+                  ff="monospace"
+                >
+                  {i18next.t(
+                    "ui.consoleLogNoMatches"
+                  )}
+                </Text>
+              )}
+
+              {filteredLog.map(entry => (
                 <Group
                   key={entry.id}
                   gap="xs"
@@ -1335,6 +1537,23 @@ export default function ConsolePanel() {
           </ScrollArea>
         </Stack>
       </Card>
+      <DccExCommandHelpDialog
+        opened={
+          commandHelpOpened
+        }
+        onClose={
+          () =>
+            setCommandHelpOpened(
+              false
+            )
+        }
+        onCommandSelect={
+          selectedCommand =>
+            setCommand(
+              selectedCommand
+            )
+        }
+      />
     </Stack>
   );
 }

@@ -48,6 +48,9 @@
     "delete": "Löschen",
     "extended_params": "Erweiterte Einstellungen",
     "function_momentary": "Momentkontakt",
+    "function_startup": "Bei Verbindung",
+    "function_startup_tooltip": "Schaltet diese Funktion bei jeder erfolgreichen Verbindung des Backends mit der Zentrale ein.",
+    "function_startup_unavailable_momentary": "Start-EIN ist für Momentfunktionen nicht verfügbar.",
     "function_number": "Funktionsnr.",
     "function_test": "Test",
     "functionname": "Name",
@@ -183,6 +186,7 @@
     "showSignalAddress": "Signaladresse anzeigen",
     "showSegments": "Segmente anzeigen",
     "showBlockNames": "Blocknamen anzeigen",
+    "showBuildings": "Gebäude anzeigen",
     "showGrid": "Raster anzeigen"
   },
   "controlPanel": {
