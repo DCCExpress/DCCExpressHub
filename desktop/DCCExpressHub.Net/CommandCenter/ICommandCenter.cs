@@ -18,6 +18,7 @@ namespace DCCExpressHub.Net.CommandCenter
         event Action<PowerFeedback>? PowerFeedbackChanged;
         event Action<LocoFeedback>? LocoFeedbackChanged;
         event Action<int, bool>? SensorFeedbackChanged;
+        event Action<int, bool>? AccessoryFeedbackChanged;
         event Action<bool>? ConnectionChanged;
 
         Task<bool> SendRawAsync(string command, bool log = true, CancellationToken ct = default);
