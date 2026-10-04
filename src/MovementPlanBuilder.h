@@ -37,10 +37,13 @@ struct MovementPlanLeg {
   std::vector<DispatcherTurnoutRequirement> turnouts;
   std::vector<uint16_t> safetySensors;
   std::vector<MovementSensorCondition> approachWhen;
+  int approachDelayMs = 0;
   std::vector<MovementSensorCondition> departWhen;
   std::vector<MovementSensorCondition> leaveWhen;
   bool leaveWhenExplicit = false;
+  int leaveDelayMs = 0;
   std::vector<MovementSensorCondition> arrivedWhen;
+  int arrivedDelayMs = 0;
 };
 
 struct MovementPlan {
@@ -90,6 +93,12 @@ private:
       uint16_t fromBlockId,
       uint16_t toBlockId,
       uint16_t sensor);
+
+  static int blockEventDelay(
+      JsonObjectConst root,
+      uint16_t blockId,
+      const String& direction,
+      const char* eventName);
 
   static std::vector<MovementSensorCondition> blockEventConditions(
       JsonObjectConst root,
