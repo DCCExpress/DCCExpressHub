@@ -381,6 +381,8 @@ bool MovementPlanBuilder::build(
   // so runtime execution cannot drift from the exact route the user selected.
   plan.direction = "unknown";
 
+  String savedKeyDirection = "unknown";
+
   if (!requestedRouteKey.isEmpty()) {
     JsonDocument routeIdentity;
     const DeserializationError routeKeyError =
@@ -388,15 +390,27 @@ bool MovementPlanBuilder::build(
             routeIdentity,
             requestedRouteKey);
 
-    if (!routeKeyError &&
-        routeIdentity["direction"].is<const char*>()) {
+    if (!routeKeyError) {
       const String routeKeyDirection =
-          routeIdentity["direction"].as<String>();
+          routeIdentity["direction"] | "unknown";
 
       if (routeKeyDirection == "forward" ||
           routeKeyDirection == "reverse")
-        plan.direction = routeKeyDirection;
+        savedKeyDirection = routeKeyDirection;
     }
+
+    // createMovementRouteKey() uses JSON.stringify(), so this exact fallback
+    // is deterministic and avoids depending on nested JSON string conversion.
+    if (savedKeyDirection == "unknown") {
+      if (requestedRouteKey.indexOf("\\\"direction\\\":\\\"reverse\\\"") >= 0)
+        savedKeyDirection = "reverse";
+      else if (requestedRouteKey.indexOf("\\\"direction\\\":\\\"forward\\\"") >= 0)
+        savedKeyDirection = "forward";
+    }
+
+    if (savedKeyDirection == "forward" ||
+        savedKeyDirection == "reverse")
+      plan.direction = savedKeyDirection;
   }
 
   if (plan.direction != "forward" &&
@@ -409,10 +423,11 @@ bool MovementPlanBuilder::build(
   // locoDirection. Reconstruct the route direction exactly like the client
   // graph builder: unknown edges do not override a known direction, but a
   // forward/reverse conflict makes the route invalid.
+  String derivedDirection = "unknown";
+  bool directionConflict = false;
+
   if (plan.direction != "forward" &&
       plan.direction != "reverse") {
-    String derivedDirection = "unknown";
-    bool directionConflict = false;
 
     for (JsonObjectConst edge :
          selected["edgePath"].as<JsonArrayConst>()) {
@@ -442,17 +457,23 @@ bool MovementPlanBuilder::build(
 
   if (plan.direction != "forward" &&
       plan.direction != "reverse") {
-    Logger::error(
-        "Movement direction unknown. routeKey=" +
-        requestedRouteKey +
-        " routeDirection=" +
-        str(selected, "locoDirection", "unknown") +
+    const String topologyDirection =
+        str(selected, "locoDirection", "unknown");
+    const String diagnostic =
+        "movement_direction_unknown" +
+        String(" savedKeyDirection=") + savedKeyDirection +
+        " topologyDirection=" + topologyDirection +
+        " edgeDirection=" + derivedDirection +
+        " edgeConflict=" + (directionConflict ? "true" : "false") +
+        " routeKeyLength=" + String(requestedRouteKey.length()) +
         " edgeCount=" +
         String(
             selected["edgePath"]
                 .as<JsonArrayConst>()
-                .size()));
-    error = "movement_direction_unknown";
+                .size());
+
+    Logger::error(diagnostic);
+    error = diagnostic;
     return false;
   }
 
