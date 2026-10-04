@@ -27,9 +27,10 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
     // locos + LocoNet detector occupancy.
     private const uint Z21BroadcastFlags = 0x08010103;
 
-    // YaMoRC additionally exposes raw LocoNet messages. Keep this vendor
-    // extension out of the generic Z21 mode.
-    private const uint YaMoRcBroadcastFlags = 0x09010103;
+    // YaMoRC YD7010: locomotive/turnout/power/system-state only.
+    // S88 occupancy is authoritative on LBServer TCP/1234 in this profile,
+    // so do not also request raw LocoNet / detector occupancy over Z21.
+    private const uint YaMoRcBroadcastFlags = 0x00010101;
 
     private readonly ILogger<Z21CommandCenter> _log;
     private readonly object _stateGate = new();
@@ -57,7 +58,10 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
     private bool _online;
     private bool _sessionRegistered;
     private DateTime _lastRxUtc = DateTime.MinValue;
-    private DateTime _nextKeepAliveUtc = DateTime.MinValue;
+    private DateTime _lastTxUtc = DateTime.MinValue;
+
+    private long _lastLocoNetSensorTrafficTicks =
+        DateTime.UtcNow.Ticks;
 
     private bool _emergencyKnown;
     private bool _emergencyPaused;
@@ -175,6 +179,7 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
     public event Action<PowerFeedback>? PowerFeedbackChanged;
     public event Action<LocoFeedback>? LocoFeedbackChanged;
     public event Action<int, bool>? SensorFeedbackChanged;
+    public event Action<int, bool>? AccessoryFeedbackChanged;
     public event Action<bool>? ConnectionChanged;
 
     public bool SetEndpoint(
@@ -271,20 +276,26 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
 
                 var now = DateTime.UtcNow;
 
-                if (now >= _nextKeepAliveUtc)
+                DateTime lastTx;
+
+                lock (_stateGate)
+                    lastTx =
+                        _lastTxUtc;
+
+                if (
+                    lastTx == DateTime.MinValue ||
+                    now - lastTx >=
+                        TimeSpan.FromMilliseconds(
+                            KeepAliveMs)
+                )
                 {
-                    // Lightweight keepalive. Do not poll system state here:
-                    // broadcast flag 0x00000100 already delivers
-                    // LAN_SYSTEMSTATE_DATACHANGED asynchronously.
+                    // Same strategy as JMRI: only send a heartbeat after
+                    // 30 seconds with no other outgoing Z21 traffic.
                     await SendPacketAsync(
                         0x0010,
                         ReadOnlyMemory<byte>.Empty,
                         logPacket: false,
                         stoppingToken);
-
-                    _nextKeepAliveUtc =
-                        now.AddMilliseconds(
-                            KeepAliveMs);
                 }
 
                 bool timedOut;
@@ -427,8 +438,8 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
             {
                 _udp = udp;
                 _sessionRegistered = false;
-                _nextKeepAliveUtc =
-                    DateTime.UtcNow;
+                _lastTxUtc =
+                    DateTime.MinValue;
             }
 
             _log.LogInformation(
@@ -505,10 +516,6 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
         if (ok)
         {
             _sessionRegistered = true;
-            _nextKeepAliveUtc =
-                DateTime.UtcNow.AddMilliseconds(
-                    KeepAliveMs);
-
             EmitTrackConfiguration();
         }
     }
@@ -524,7 +531,7 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
             _udp = null;
             _sessionRegistered = false;
             _lastRxUtc = DateTime.MinValue;
-            _nextKeepAliveUtc = DateTime.MinValue;
+            _lastTxUtc = DateTime.MinValue;
             _powerFeedbackKnown = false;
             wasOnline = _online;
             _online = false;
@@ -629,6 +636,10 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
 
             if (written != packet.Length)
                 return false;
+
+            lock (_stateGate)
+                _lastTxUtc =
+                    DateTime.UtcNow;
 
             if (logPacket)
             {
@@ -1371,6 +1382,48 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
         }
     }
 
+    private void MarkLocoNetSensorTraffic()
+    {
+        Interlocked.Exchange(
+            ref _lastLocoNetSensorTrafficTicks,
+            DateTime.UtcNow.Ticks);
+    }
+
+    private async Task WaitForLocoNetQuietPeriodAsync(
+        CancellationToken ct)
+    {
+        while (true)
+        {
+            var lastTicks =
+                Interlocked.Read(
+                    ref _lastLocoNetSensorTrafficTicks);
+
+            var elapsed =
+                DateTime.UtcNow -
+                new DateTime(
+                    lastTicks,
+                    DateTimeKind.Utc);
+
+            var remaining =
+                TimeSpan.FromMilliseconds(
+                    LocoNetInterrogateRestMs) -
+                elapsed;
+
+            if (remaining <=
+                TimeSpan.Zero)
+            {
+                return;
+            }
+
+            await Task.Delay(
+                remaining >
+                    TimeSpan.FromMilliseconds(100)
+                    ? TimeSpan.FromMilliseconds(100)
+                    : remaining,
+                ct);
+        }
+    }
+
     private async Task<bool> SendLocoNetInterrogateAsync(
         StreamWriter writer,
         CancellationToken ct)
@@ -1437,6 +1490,12 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
              index < sw1.Length;
              ++index)
         {
+            // JMRI waits until the LocoNet has been quiet for the configured
+            // resting interval. Any sensor/turnout feedback received while
+            // interrogating pushes the next phase out again.
+            await WaitForLocoNetQuietPeriodAsync(
+                ct);
+
             var opcode =
                 (byte)0xB0;
 
@@ -1462,13 +1521,7 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                 line.AsMemory(),
                 ct);
 
-            if (index + 1 <
-                sw1.Length)
-            {
-                await Task.Delay(
-                    LocoNetInterrogateRestMs,
-                    ct);
-            }
+            MarkLocoNetSensorTraffic();
         }
 
         RawInfo?.Invoke(
@@ -1723,6 +1776,36 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
             return;
         }
 
+        if (
+            packet[0] is
+                0xB1 or // OPC_SW_REP
+                0xB2    // OPC_INPUT_REP
+        )
+        {
+            MarkLocoNetSensorTraffic();
+        }
+        else if (
+            packet.Length >= 4 &&
+            packet[0] is
+                0xB0 or // OPC_SW_REQ
+                0xBD    // OPC_SW_ACK
+        )
+        {
+            var address =
+                (packet[1] & 0x7F) +
+                128 *
+                (packet[2] & 0x0F);
+
+            if (address is
+                0x3F8 or
+                0x3F9 or
+                0x3FA or
+                0x3FB)
+            {
+                MarkLocoNetSensorTraffic();
+            }
+        }
+
         // OPC_INPUT_REP is the normal LocoNet general sensor report. YaMoRC
         // emits S88 / ES-Link feedback into the same feedback address space.
         if (packet[0] == 0xB2 &&
@@ -1820,26 +1903,27 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
         if (!valid)
             return;
 
-        var wasOnline = Connected;
+        bool hadPreviousReply;
+        var wasOnline =
+            Connected;
+
+        lock (_stateGate)
+            hadPreviousReply =
+                _lastRxUtc !=
+                DateTime.MinValue;
 
         SetOnline(true);
 
-        if (!wasOnline)
+        if (
+            hadPreviousReply &&
+            !wasOnline
+        )
         {
-            _sessionRegistered = false;
-
-            _ = Task.Run(
-                async () =>
-                {
-                    try
-                    {
-                        await RegisterSessionAsync(
-                            CancellationToken.None);
-                    }
-                    catch
-                    {
-                    }
-                });
+            // The normal worker performs registration. Mark the session stale
+            // on a real recovery, but never launch a second parallel
+            // registration from the first startup reply.
+            lock (_stateGate)
+                _sessionRegistered = false;
         }
     }
 
@@ -2103,8 +2187,31 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                 (data[1] << 8) |
                 data[2];
 
+            var address =
+                functionAddress + 1;
+
+            var position =
+                data[3] & 0x03;
+
             RawInfo?.Invoke(
-                $"Z21 turnout {functionAddress + 1} position={data[3] & 0x03}");
+                $"Z21 turnout {address} position={position}");
+
+            // LAN_X_TURNOUT_INFO: 1=P0, 2=P1, 0=unknown, 3=inconsistent.
+            // Hub runtime stores the physical output bool, so only publish
+            // authoritative states and leave unknown/inconsistent untouched.
+            if (position is 1 or 2)
+            {
+                AccessoryFeedbackChanged?.Invoke(
+                    address,
+                    position == 2);
+            }
+            else
+            {
+                _log.LogDebug(
+                    "Z21 turnout #{Address} feedback not authoritative: position={Position}",
+                    address,
+                    position);
+            }
 
             return;
         }
