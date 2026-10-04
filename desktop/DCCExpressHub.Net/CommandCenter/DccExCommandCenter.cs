@@ -151,6 +151,7 @@ namespace DCCExpressHub.Net.CommandCenter
         public event Action<PowerFeedback>? PowerFeedbackChanged;
         public event Action<LocoFeedback>? LocoFeedbackChanged;
         public event Action<int, bool>? SensorFeedbackChanged;
+        public event Action<int, bool>? AccessoryFeedbackChanged;
         public event Action<bool>? ConnectionChanged;
 
         public DccExCommandCenter(
