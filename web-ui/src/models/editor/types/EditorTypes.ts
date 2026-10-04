@@ -48,6 +48,7 @@ export interface DrawOptions {
   showTurnoutAddress: boolean;
   showSection?: boolean;
   showBlockNames?: boolean;
+  showBuildings?: boolean;
   selected?: boolean;
   hovered?: boolean;
   ghost?: boolean;
