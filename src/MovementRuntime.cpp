@@ -67,14 +67,25 @@ void MovementRuntime::audioCompleted(
     return;
 
   for (auto& execution : _executions) {
-    if (execution.pendingAudioRequestId !=
-        requestId)
-      continue;
+    if (execution.pendingAudioRequestId ==
+        requestId) {
+      execution.pendingAudioCompleted = true;
+      execution.pendingAudioOk = ok;
+      publishChanged();
+      return;
+    }
 
-    execution.pendingAudioCompleted = true;
-    execution.pendingAudioOk = ok;
-    publishChanged();
-    return;
+    for (auto& background :
+         execution.backgroundSequences) {
+      if (background.pendingAudioRequestId !=
+          requestId)
+        continue;
+
+      background.pendingAudioCompleted = true;
+      background.pendingAudioOk = ok;
+      publishChanged();
+      return;
+    }
   }
 }
 
@@ -766,8 +777,185 @@ bool MovementRuntime::runBlockingActions(
   return true;
 }
 
+void MovementRuntime::startBackgroundActions(
+    Execution& execution,
+    const String& resourceKey,
+    const String& when) {
+  const String eventKey =
+      resourceKey + "|" + when;
+
+  if (std::find(
+          execution.firedBackgroundEvents.begin(),
+          execution.firedBackgroundEvents.end(),
+          eventKey) !=
+      execution.firedBackgroundEvents.end())
+    return;
+
+  execution.firedBackgroundEvents.push_back(
+      eventKey);
+
+  std::vector<String> sequenceIds;
+  for (size_t i = 0;
+       i < execution.actions.size();
+       ++i) {
+    const auto& action = execution.actions[i];
+    if (action.resourceKey != resourceKey ||
+        action.when != when ||
+        action.sequenceMode != "background")
+      continue;
+
+    String id = action.sequenceId;
+    if (id.isEmpty())
+      id = "legacy:" + eventKey;
+
+    auto found = std::find(
+        sequenceIds.begin(),
+        sequenceIds.end(),
+        id);
+
+    if (found == sequenceIds.end()) {
+      sequenceIds.push_back(id);
+      execution.backgroundSequences.emplace_back();
+      execution.backgroundSequences.back()
+          .actionIndexes.push_back(i);
+    } else {
+      const size_t index =
+          static_cast<size_t>(
+              found - sequenceIds.begin());
+      execution.backgroundSequences[index]
+          .actionIndexes.push_back(i);
+    }
+  }
+}
+
+void MovementRuntime::processBackgroundActions(
+    Execution& execution) {
+  for (auto& sequence :
+       execution.backgroundSequences) {
+    if (sequence.failed ||
+        sequence.position >=
+            sequence.actionIndexes.size())
+      continue;
+
+    if (!sequence.pendingAudioRequestId.isEmpty()) {
+      if (!sequence.pendingAudioCompleted)
+        continue;
+
+      if (!sequence.pendingAudioOk) {
+        sequence.failed = true;
+        sequence.error = "movement_audio_failed";
+        sequence.pendingAudioRequestId = "";
+        continue;
+      }
+
+      sequence.pendingAudioRequestId = "";
+      sequence.pendingAudioCompleted = false;
+      sequence.pendingAudioOk = false;
+      ++sequence.position;
+    }
+
+    if (sequence.waitUntilMs != 0) {
+      if (static_cast<long>(
+              millis() - sequence.waitUntilMs) < 0)
+        continue;
+
+      sequence.waitUntilMs = 0;
+      if (sequence.hornActive) {
+        _commandCenter.setLocoFunction(
+            execution.state.locoAddress,
+            sequence.hornFunction,
+            false);
+        sequence.hornActive = false;
+      }
+      ++sequence.position;
+    }
+
+    while (sequence.position <
+           sequence.actionIndexes.size()) {
+      const auto& action =
+          execution.actions[
+              sequence.actionIndexes[
+                  sequence.position]];
+      String error;
+
+      if (action.kind == "delay" ||
+          action.kind == "randomDelay") {
+        int waitMs = action.delayMs;
+        if (action.kind == "randomDelay") {
+          const int minMs = std::max(0, std::min(600000,
+              std::min(action.minDelayMs, action.maxDelayMs)));
+          const int maxMs = std::max(minMs, std::min(600000,
+              std::max(action.minDelayMs, action.maxDelayMs)));
+          waitMs = minMs + (maxMs > minMs
+              ? static_cast<int>(random(maxMs - minMs + 1)) : 0);
+        }
+        sequence.waitUntilMs = millis() +
+            static_cast<unsigned long>(std::max(0, std::min(600000, waitMs)));
+        break;
+      }
+
+      if (action.kind == "horn") {
+        const uint8_t fn = static_cast<uint8_t>(
+            std::max(0, std::min(68, action.functionNumber)));
+        if (!_commandCenter.setLocoFunction(
+                execution.state.locoAddress, fn, true)) {
+          sequence.failed = true;
+          sequence.error = "movement_horn_on_failed";
+          break;
+        }
+        sequence.hornActive = true;
+        sequence.hornFunction = fn;
+        sequence.waitUntilMs = millis() +
+            static_cast<unsigned long>(
+                std::max(1, std::min(600000, action.pulseMs)));
+        break;
+      }
+
+      if (action.kind == "playAudio" ||
+          action.kind == "randomPlay") {
+        bool play = !action.audioName.isEmpty();
+        if (play && action.kind == "randomPlay") {
+          const int roll = static_cast<int>(random(1, 11));
+          const int threshold = std::max(1, std::min(9,
+              (action.randomPlayChancePercent + 5) / 10));
+          play = roll <= threshold;
+        }
+        if (play) {
+          const String requestId =
+              "movement-backend:" + execution.state.pageId +
+              ":bg:" + String(millis()) + ":" + String(sequence.position);
+          if (!_audioRequest || !_audioRequest(requestId, action.audioName)) {
+            sequence.failed = true;
+            sequence.error = "movement_audio_failed";
+            break;
+          }
+          if (action.audioWaitForEnd) {
+            sequence.pendingAudioRequestId = requestId;
+            sequence.pendingAudioCompleted = false;
+            sequence.pendingAudioOk = false;
+            break;
+          }
+        }
+        ++sequence.position;
+        continue;
+      }
+
+      if (!executeAction(execution, action, error)) {
+        sequence.failed = true;
+        sequence.error = error;
+        break;
+      }
+
+      // executeAction uses the foreground wait fields only for the three
+      // action kinds handled above, so all remaining actions complete now.
+      ++sequence.position;
+    }
+  }
+}
+
 void MovementRuntime::processExecution(
     Execution& execution) {
+  processBackgroundActions(execution);
   if (execution.state.status != "running")
     return;
 
