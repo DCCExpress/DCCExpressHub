@@ -1051,7 +1051,8 @@ void MovementRuntime::processBackgroundActions(
 void MovementRuntime::processExecution(
     Execution& execution) {
   processBackgroundActions(execution);
-  if (execution.state.status != "running")
+  if (execution.state.status != "running" &&
+      execution.state.status != "stopping")
     return;
 
   if (execution.legIndex >=
@@ -1414,8 +1415,10 @@ void MovementRuntime::onRuntimeChange(
       kind != RuntimeChangeKind::Block)
     return;
 
+  // Never recurse into the movement state machine from LayoutRuntime notify().
+  // loop() processes the changed state after the current mutation unwinds.
   for (auto& execution : _executions)
-    processExecution(execution);
+    execution.runtimeDirty = true;
 }
 
 void MovementRuntime::appendSnapshot(
