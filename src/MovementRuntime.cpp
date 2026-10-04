@@ -654,6 +654,17 @@ void MovementRuntime::processExecution(
           execution.legIndex];
 
   if (!execution.departed) {
+    String actionError;
+    if (!runBlockingActions(
+            execution,
+            leg.from.key,
+            "beforeDepart",
+            actionError)) {
+      if (!actionError.isEmpty())
+        finish(execution, "error", actionError);
+      return;
+    }
+
     if (!leg.departWhen.empty() &&
         !conditionsSatisfied(
             leg.departWhen)) {
@@ -664,6 +675,16 @@ void MovementRuntime::processExecution(
           "Waiting for departure condition at " +
           leg.from.name;
       publishChanged();
+      return;
+    }
+
+    if (!runBlockingActions(
+            execution,
+            leg.from.key,
+            "depart",
+            actionError)) {
+      if (!actionError.isEmpty())
+        finish(execution, "error", actionError);
       return;
     }
 
@@ -695,6 +716,17 @@ void MovementRuntime::processExecution(
       !leg.approachWhen.empty() &&
       conditionsSatisfied(
           leg.approachWhen)) {
+    String actionError;
+    if (!runBlockingActions(
+            execution,
+            leg.to.key,
+            "approach",
+            actionError)) {
+      if (!actionError.isEmpty())
+        finish(execution, "error", actionError);
+      return;
+    }
+
     execution.approachFired = true;
     execution.state.info =
         "Approaching: " +
@@ -705,6 +737,17 @@ void MovementRuntime::processExecution(
   if (!execution.arrivedCommitted) {
     if (!arrived(leg))
       return;
+
+    String actionError;
+    if (!runBlockingActions(
+            execution,
+            leg.to.key,
+            "arrived",
+            actionError)) {
+      if (!actionError.isEmpty())
+        finish(execution, "error", actionError);
+      return;
+    }
 
     if (!_layout.setBlock(
             leg.to.blockId,
@@ -784,6 +827,17 @@ void MovementRuntime::processExecution(
           execution,
           leg))
     return;
+
+  String leaveActionError;
+  if (!runBlockingActions(
+          execution,
+          leg.from.key,
+          "leave",
+          leaveActionError)) {
+    if (!leaveActionError.isEmpty())
+      finish(execution, "error", leaveActionError);
+    return;
+  }
 
   RuntimeBlock* source =
       _layout.findBlockById(
