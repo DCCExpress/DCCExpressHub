@@ -378,6 +378,7 @@
                    <ComboBoxItem Content="DCC-EX TCP" Tag="tcp"/>
                    <ComboBoxItem Content="DCC-EX Serial" Tag="serial"/>
                    <ComboBoxItem Content="Z21 UDP (backend)" Tag="z21"/>
+                   <ComboBoxItem Content="YaMoRC YD7010 (backend)" Tag="yamorc7010"/>
                  </ComboBox>
 
                  <Grid x:Name="TcpPanel" Margin="0,12,0,0" Visibility="Collapsed">
@@ -435,6 +436,26 @@
                                 TextWrapping="Wrap"/>
                    </Border>
                  </StackPanel>
+
+                 <Border x:Name="YaMoRcHelpPanel"
+                         Visibility="Collapsed"
+                         Background="#0F1E2E"
+                         BorderBrush="#31506D"
+                         BorderThickness="1"
+                         CornerRadius="7"
+                         Padding="12,10"
+                         Margin="0,10,0,0">
+                   <StackPanel>
+                     <TextBlock x:Name="YaMoRcHelpTitleText"
+                                Foreground="#7DD3FC"
+                                FontWeight="SemiBold"
+                                Margin="0,0,0,5"/>
+                     <TextBlock x:Name="YaMoRcHelpText"
+                                Foreground="#CBD5E1"
+                                FontSize="12"
+                                TextWrapping="Wrap"/>
+                   </StackPanel>
+                 </Border>
                </StackPanel>
              </Border>
 
