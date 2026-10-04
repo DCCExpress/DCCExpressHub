@@ -57,21 +57,6 @@ String formatBytesCompact(
 }
 
 void HubDisplay::begin() {
-#if HUB_DISPLAY_M5STACK_BASIC
-  constexpr uint8_t M5STACK_SD_CS_PIN = 4;
-
-  pinMode(
-      M5STACK_SD_CS_PIN,
-      OUTPUT);
-
-  digitalWrite(
-      M5STACK_SD_CS_PIN,
-      HIGH);
-
-  Logger::info(
-      "M5Stack SD deselected before display init");
-#endif
-
   Logger::info(
       "Display init starting");
 
@@ -79,18 +64,6 @@ void HubDisplay::begin() {
 
   Logger::info(
       "Display init complete");
-
-#if HUB_DISPLAY_M5STACK_BASIC
-  _display.configureForHub();
-
-  Logger::info(
-      "SD init starting");
-
-  StorageManager::instance().begin();
-
-  Logger::info(
-      "SD init complete");
-#endif
 
   _display.setTextSize(
       2);
@@ -292,7 +265,7 @@ void HubDisplay::loop() {
     return;
   }
 
-#if HUB_DISPLAY_M5STACK_BASIC || HUB_DISPLAY_SUNTON_8048S043
+#if HUB_DISPLAY_SUNTON_8048S043
   switch (
       _display
           .takeButtonPress()
@@ -481,7 +454,7 @@ void HubDisplay::redraw() {
   _dirty =
       false;
 
-#if HUB_DISPLAY_M5STACK_BASIC || HUB_DISPLAY_SUNTON_8048S043
+#if HUB_DISPLAY_SUNTON_8048S043
   if (_infoPage) {
     redrawInfoPage();
     return;
