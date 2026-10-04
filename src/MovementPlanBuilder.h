@@ -63,6 +63,7 @@ public:
 
 private:
   static bool validId(int value);
+  static String canonicalRouteKey(JsonObjectConst route);
   static String str(
       JsonObjectConst object,
       const char* name,
