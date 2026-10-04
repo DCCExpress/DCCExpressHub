@@ -191,6 +191,7 @@ private:
       const MovementPlanLeg& leg) const;
 
   bool resourceEventSatisfied(
+      const MovementPlan& plan,
       const MovementPlanResource& resource,
       bool leaving) const;
 
