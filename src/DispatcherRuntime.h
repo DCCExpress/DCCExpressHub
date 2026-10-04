@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <vector>
+#include <functional>
 
 #include "LayoutRuntime.h"
 
@@ -14,6 +15,7 @@ struct DispatcherLegRequest {
   uint16_t toBlockId = 0;
   std::vector<uint16_t> safetySensors;
   std::vector<String> resourceKeys;
+  std::vector<uint16_t> turnoutAddresses;
 };
 
 struct DispatcherLegLease {
@@ -24,6 +26,7 @@ struct DispatcherLegLease {
   uint16_t toBlockId = 0;
   std::vector<uint16_t> safetySensors;
   std::vector<String> resourceKeys;
+  std::vector<uint16_t> turnoutAddresses;
   String targetMarker;
   unsigned long acquiredAtMs = 0;
 };
@@ -37,8 +40,24 @@ struct DispatcherAcquireResult {
 
 class DispatcherRuntime {
 public:
+  using TurnoutAcquireCallback = std::function<bool(
+      const std::vector<uint16_t>&,
+      const String&,
+      const String&)>;
+
+  using TurnoutReleaseCallback = std::function<void(
+      const std::vector<uint16_t>&,
+      const String&)>;
+
   explicit DispatcherRuntime(LayoutRuntime& runtime)
       : _runtime(runtime) {}
+
+  void setTurnoutAuthority(
+      TurnoutAcquireCallback acquire,
+      TurnoutReleaseCallback release) {
+    _turnoutAcquire = std::move(acquire);
+    _turnoutRelease = std::move(release);
+  }
 
   DispatcherAcquireResult acquireLeg(
       const DispatcherLegRequest& request);
@@ -59,6 +78,8 @@ public:
 private:
   LayoutRuntime& _runtime;
   std::vector<DispatcherLegLease> _leases;
+  TurnoutAcquireCallback _turnoutAcquire;
+  TurnoutReleaseCallback _turnoutRelease;
 
   RuntimeBlock* findBlock(uint16_t id) const;
   const DispatcherLegLease* findLease(
