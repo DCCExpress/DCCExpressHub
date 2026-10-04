@@ -1449,8 +1449,6 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                 return true;
             }
 
-            _lastLocoNetInterrogateUtc =
-                now;
         // Same 8-phase LocoNet sensor interrogation sequence used by JMRI.
         // A YaMoRC command station with "Interrogate: Report All Feedbacks"
         // enabled responds by publishing the current feedback states.
@@ -1526,6 +1524,9 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
 
         RawInfo?.Invoke(
             "YaMoRC LocoNet sensor interrogation sent");
+
+            _lastLocoNetInterrogateUtc =
+                DateTime.UtcNow;
 
             return true;
         }
