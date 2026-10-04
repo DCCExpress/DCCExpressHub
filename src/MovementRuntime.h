@@ -20,6 +20,11 @@ struct MovementAction {
   bool functionActive = true;
   int pulseMs = 700;
   int delayMs = 500;
+  int minDelayMs = 500;
+  int maxDelayMs = 1500;
+  String audioName;
+  bool audioWaitForEnd = false;
+  int randomPlayChancePercent = 30;
   int accessoryAddress = 1;
   bool accessoryActive = true;
   int accessoryAspect = 0;
@@ -46,6 +51,10 @@ struct MovementRuntimeState {
 
 class MovementRuntime {
 public:
+  using AudioRequestCallback =
+      std::function<bool(
+          const String& requestId,
+          const String& fileName)>;
   MovementRuntime(
       LayoutRuntime& layout,
       DispatcherRuntime& dispatcher,
@@ -56,6 +65,11 @@ public:
 
   bool begin();
   void loop();
+
+  void setAudioRequestCallback(
+      AudioRequestCallback callback) {
+    _audioRequest = std::move(callback);
+  }
 
   bool start(
       const String& pageId,
@@ -110,6 +124,7 @@ private:
   MovementPlanBuilder _planBuilder;
   std::vector<Execution> _executions;
   bool _changed = true;
+  AudioRequestCallback _audioRequest;
 
   static void loadActions(
       JsonObjectConst page,
