@@ -3113,21 +3113,7 @@ public sealed class MovementRuntime
             return (false, "track_power_off");
 
         if (plan.Direction is not ("forward" or "reverse"))
-        {
-            var diagnostic =
-                "movement_direction_unknown" +
-                $" planDirection={plan.Direction}" +
-                $" routeKeyLength={page.RouteKey?.Length ?? 0}";
-
-            _log.LogError(
-                "Movement direction validation failed for {Movement}: {Diagnostic}",
-                page.Name,
-                diagnostic);
-
-            return (
-                false,
-                diagnostic);
-        }
+            return (false, "movement_direction_unknown");
 
         var source =
             plan.Blocks.FirstOrDefault();
