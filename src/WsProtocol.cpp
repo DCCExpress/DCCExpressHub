@@ -4179,7 +4179,7 @@ void WsProtocol::handleMessage(
     if (
         strcmp(
             type,
-            "audioPlaybackCompleted") ==
+            "movementAudioComplete") ==
         0)
     {
         const String requestId =
