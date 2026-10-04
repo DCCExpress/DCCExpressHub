@@ -17,6 +17,7 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
     private const int KeepAliveMs = 10_000;
     private const int OnlineTimeoutMs = 30_000;
     private const int AccessoryPulseMs = 120;
+    private const int LocoNetInterrogateRestMs = 1250;
 
     // Driving/switching + R-BUS + system state + all changed locos +
     // LocoNet detector occupancy + raw LocoNet messages.
@@ -1039,7 +1040,7 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                 false,
                 ct);
 
-        // Stationary interrogate request for LocoNet occupancy detectors.
+        // Standard Z21 stationary detector interrogation.
         var loconet =
             await SendPacketAsync(
                 0x00A4,
@@ -1052,10 +1053,76 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                 false,
                 ct);
 
+        var lbServer =
+            await RequestLbServerSensorSnapshotAsync(
+                ct);
+
         return
             rbus0 ||
             rbus1 ||
-            loconet;
+            loconet ||
+            lbServer;
+    }
+
+    private async Task<bool> RequestLbServerSensorSnapshotAsync(
+        CancellationToken ct)
+    {
+        if (!_lbServerFeedbackEnabled)
+            return false;
+
+        try
+        {
+            using var client =
+                new TcpClient
+                {
+                    NoDelay = true
+                };
+
+            using var connectCts =
+                CancellationTokenSource
+                    .CreateLinkedTokenSource(
+                        ct);
+
+            connectCts.CancelAfter(
+                TimeSpan.FromSeconds(3));
+
+            await client.ConnectAsync(
+                _host,
+                _lbServerPort,
+                connectCts.Token);
+
+            using var stream =
+                client.GetStream();
+
+            using var writer =
+                new StreamWriter(
+                    stream)
+                {
+                    AutoFlush = true,
+                    NewLine = "\r\n"
+                };
+
+            await SendLocoNetInterrogateAsync(
+                writer,
+                ct);
+
+            return true;
+        }
+        catch (OperationCanceledException)
+            when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(
+                ex,
+                "YaMoRC LocoNet sensor interrogation failed: {Host}:{Port}",
+                _host,
+                _lbServerPort);
+
+            return false;
+        }
     }
 
     private async Task RunLocoNetFeedbackAsync(
@@ -1174,6 +1241,18 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                     new StreamReader(
                         stream);
 
+                using var writer =
+                    new StreamWriter(
+                        stream)
+                    {
+                        AutoFlush = true,
+                        NewLine = "\r\n"
+                    };
+
+                await SendLocoNetInterrogateAsync(
+                    writer,
+                    ct);
+
                 await ReadLbServerAsync(
                     reader,
                     ct);
@@ -1210,6 +1289,87 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                 break;
             }
         }
+    }
+
+    private async Task SendLocoNetInterrogateAsync(
+        StreamWriter writer,
+        CancellationToken ct)
+    {
+        // Same 8-phase LocoNet sensor interrogation sequence used by JMRI.
+        // A YaMoRC command station with "Interrogate: Report All Feedbacks"
+        // enabled responds by publishing the current feedback states.
+        var sw1 =
+            new byte[]
+            {
+                0x78,
+                0x79,
+                0x7A,
+                0x7B,
+                0x78,
+                0x79,
+                0x7A,
+                0x7B
+            };
+
+        var sw2 =
+            new byte[]
+            {
+                0x27,
+                0x27,
+                0x27,
+                0x27,
+                0x07,
+                0x07,
+                0x07,
+                0x07
+            };
+
+        RawInfo?.Invoke(
+            "YaMoRC LocoNet sensor interrogation started");
+
+        _log.LogInformation(
+            "Starting YaMoRC LocoNet sensor interrogation");
+
+        for (var index = 0;
+             index < sw1.Length;
+             ++index)
+        {
+            var opcode =
+                (byte)0xB0;
+
+            var checksum =
+                (byte)(
+                    0xFF ^
+                    opcode ^
+                    sw1[index] ^
+                    sw2[index]);
+
+            var line =
+                $"SEND {opcode:X2} {sw1[index]:X2} {sw2[index]:X2} {checksum:X2}";
+
+            _log.LogInformation(
+                "LocoNet interrogate TX {Phase}/8: {Line}",
+                index + 1,
+                line);
+
+            RawInfo?.Invoke(
+                $"LocoNet interrogate TX {index + 1}/8");
+
+            await writer.WriteLineAsync(
+                line.AsMemory(),
+                ct);
+
+            if (index + 1 <
+                sw1.Length)
+            {
+                await Task.Delay(
+                    LocoNetInterrogateRestMs,
+                    ct);
+            }
+        }
+
+        RawInfo?.Invoke(
+            "YaMoRC LocoNet sensor interrogation sent");
     }
 
     private async Task ReadLbServerAsync(
