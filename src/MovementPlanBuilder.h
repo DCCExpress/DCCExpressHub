@@ -6,6 +6,18 @@
 
 #include "DispatcherRuntime.h"
 
+struct MovementSensorCondition {
+  uint16_t sensor = 0;
+  bool state = true;
+};
+
+struct MovementResourceEventRule {
+  String resourceKey;
+  String event;
+  String match = "all";
+  std::vector<MovementSensorCondition> conditions;
+};
+
 struct MovementPlanResource {
   String key;
   String kind;
@@ -15,11 +27,6 @@ struct MovementPlanResource {
   int nodeIndex = -1;
   std::vector<uint16_t> detectors;
   std::vector<DispatcherTurnoutRequirement> turnouts;
-};
-
-struct MovementSensorCondition {
-  uint16_t sensor = 0;
-  bool state = true;
 };
 
 struct MovementPlanLeg {
@@ -41,6 +48,7 @@ struct MovementPlan {
   std::vector<MovementPlanResource> resources;
   std::vector<MovementPlanResource> blocks;
   std::vector<MovementPlanLeg> legs;
+  std::vector<MovementResourceEventRule> resourceEventRules;
 };
 
 class MovementPlanBuilder {
