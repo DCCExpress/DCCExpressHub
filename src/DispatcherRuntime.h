@@ -7,6 +7,11 @@
 
 #include "LayoutRuntime.h"
 
+struct DispatcherTurnoutRequirement {
+  uint16_t address = 0;
+  bool closed = true;
+};
+
 struct DispatcherLegRequest {
   String ownerId;
   String ownerName;
@@ -16,6 +21,7 @@ struct DispatcherLegRequest {
   std::vector<uint16_t> safetySensors;
   std::vector<String> resourceKeys;
   std::vector<uint16_t> turnoutAddresses;
+  std::vector<DispatcherTurnoutRequirement> turnouts;
 };
 
 struct DispatcherLegLease {
@@ -45,6 +51,11 @@ public:
       const String&,
       const String&)>;
 
+  using TurnoutSetCallback = std::function<bool(
+      uint16_t,
+      bool,
+      const String&)>;
+
   using TurnoutReleaseCallback = std::function<void(
       const std::vector<uint16_t>&,
       const String&)>;
@@ -54,8 +65,10 @@ public:
 
   void setTurnoutAuthority(
       TurnoutAcquireCallback acquire,
+      TurnoutSetCallback set,
       TurnoutReleaseCallback release) {
     _turnoutAcquire = std::move(acquire);
+    _turnoutSet = std::move(set);
     _turnoutRelease = std::move(release);
   }
 
@@ -79,6 +92,7 @@ private:
   LayoutRuntime& _runtime;
   std::vector<DispatcherLegLease> _leases;
   TurnoutAcquireCallback _turnoutAcquire;
+  TurnoutSetCallback _turnoutSet;
   TurnoutReleaseCallback _turnoutRelease;
 
   RuntimeBlock* findBlock(uint16_t id) const;
