@@ -31,6 +31,16 @@ void MovementRuntime::loadActions(
         raw["pulseMs"] | 700;
     action.delayMs =
         raw["delayMs"] | 500;
+    action.minDelayMs =
+        raw["minDelayMs"] | 500;
+    action.maxDelayMs =
+        raw["maxDelayMs"] | 1500;
+    action.audioName =
+        raw["audioName"] | "";
+    action.audioWaitForEnd =
+        raw["audioWaitForEnd"] | false;
+    action.randomPlayChancePercent =
+        raw["randomPlayChancePercent"] | 30;
     action.accessoryAddress =
         raw["accessoryAddress"] | 1;
     action.accessoryActive =
@@ -510,6 +520,89 @@ bool MovementRuntime::executeAction(
                 std::min(
                     600000,
                     action.delayMs)));
+    return true;
+  }
+
+  if (action.kind == "randomDelay") {
+    const int minMs =
+        std::max(
+            0,
+            std::min(
+                600000,
+                std::min(
+                    action.minDelayMs,
+                    action.maxDelayMs)));
+    const int maxMs =
+        std::max(
+            minMs,
+            std::min(
+                600000,
+                std::max(
+                    action.minDelayMs,
+                    action.maxDelayMs)));
+    const int span = maxMs - minMs;
+    const int waitMs =
+        minMs +
+        (span > 0
+             ? static_cast<int>(random(span + 1))
+             : 0);
+    execution.actionWaitUntilMs =
+        millis() +
+        static_cast<unsigned long>(waitMs);
+    return true;
+  }
+
+  if (action.kind == "playAudio" ||
+      action.kind == "randomPlay") {
+    if (action.audioName.isEmpty())
+      return true;
+
+    if (action.kind == "randomPlay") {
+      const int roll =
+          static_cast<int>(random(1, 11));
+      const int threshold =
+          std::max(
+              1,
+              std::min(
+                  9,
+                  (action.randomPlayChancePercent + 5) /
+                      10));
+
+      if (roll > threshold) {
+        execution.state.info =
+            "Random audio skipped: " +
+            String(roll) + "/" +
+            String(threshold);
+        publishChanged();
+        return true;
+      }
+    }
+
+    if (!_audioRequest) {
+      error = "movement_audio_unavailable";
+      return false;
+    }
+
+    const String requestId =
+        "movement:" +
+        execution.state.pageId + ":" +
+        String(millis());
+
+    if (!_audioRequest(
+            requestId,
+            action.audioName)) {
+      error = "movement_audio_failed";
+      return false;
+    }
+
+    // Existing ESP32 audio protocol has no completion ACK yet. Fire-and-
+    // forget is correct for non-waiting actions; waitForEnd is added once the
+    // client->backend completion message exists.
+    if (action.audioWaitForEnd) {
+      error = "movement_audio_wait_not_supported";
+      return false;
+    }
+
     return true;
   }
 
