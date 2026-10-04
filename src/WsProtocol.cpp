@@ -391,6 +391,11 @@ void WsProtocol::begin()
                 id,
                 channel);
 
+            _movements.onRuntimeChange(
+                kind,
+                id,
+                channel);
+
             if (
                 kind ==
                 RuntimeChangeKind::Block)
@@ -432,6 +437,7 @@ void WsProtocol::begin()
 
     _scripts.begin();
     _flows.begin();
+    _movements.begin();
 
     _dispatcher.setTurnoutAuthority(
         [this](
@@ -492,6 +498,7 @@ void WsProtocol::loop()
 
     _scripts.loop();
     _flows.loop();
+    _movements.loop();
 
     if (
         _flows.takeChanged() &&
@@ -505,6 +512,13 @@ void WsProtocol::loop()
         _wsClientCount > 0)
     {
         broadcastAutomationScriptSnapshot();
+    }
+
+    if (
+        _movements.takeChanged() &&
+        _wsClientCount > 0)
+    {
+        broadcastMovementSnapshot();
     }
 
     _locoCounters.loop();
@@ -762,6 +776,30 @@ void WsProtocol::broadcastFlowSnapshot()
         data);
 }
 
+
+void WsProtocol::sendMovementSnapshot(
+    AsyncWebSocketClient* client)
+{
+    JsonDocument data;
+    _movements.appendSnapshot(
+        data.to<JsonObject>());
+
+    send(
+        client,
+        "movementStateChanged",
+        data.as<JsonVariantConst>());
+}
+
+void WsProtocol::broadcastMovementSnapshot()
+{
+    JsonDocument data;
+    _movements.appendSnapshot(
+        data.to<JsonObject>());
+
+    broadcast(
+        "movementStateChanged",
+        data);
+}
 
 void WsProtocol::sendBlockStateSnapshot(
     AsyncWebSocketClient *client)
@@ -4183,6 +4221,73 @@ void WsProtocol::handleMessage(
         handleSwitchManCommand(
             client,
             data);
+
+        return;
+    }
+
+    if (
+        strcmp(
+            type,
+            "movementCommand") ==
+        0)
+    {
+        const String requestId =
+            data["requestId"] | "";
+        const String action =
+            data["action"] | "";
+        const String pageId =
+            data["pageId"] | "";
+
+        bool ok = false;
+        String error;
+        int count = 0;
+
+        if (action == "snapshot")
+            ok = true;
+        else if (action == "start")
+            ok = _movements.start(pageId, error);
+        else if (action == "stop")
+        {
+            ok = _movements.stop(pageId);
+            if (!ok) error = "movement_not_running";
+        }
+        else if (action == "abort")
+        {
+            ok = _movements.abort(pageId);
+            if (!ok) error = "movement_not_running";
+        }
+        else if (action == "stopAll")
+        {
+            count = static_cast<int>(_movements.stopAll());
+            ok = true;
+        }
+        else if (action == "abortAll")
+        {
+            count = static_cast<int>(_movements.abortAll());
+            ok = true;
+        }
+        else
+            error = "unsupported_movement_action";
+
+        JsonDocument response;
+        response["requestId"] = requestId;
+        response["action"] = action;
+        response["ok"] = ok;
+        if (!error.isEmpty())
+            response["message"] = error;
+        if (action == "stopAll" || action == "abortAll")
+            response["count"] = count;
+
+        _movements.appendSnapshot(
+            response["state"].to<JsonObject>());
+
+        send(
+            client,
+            "movementResponse",
+            response.as<JsonVariantConst>());
+
+        if (ok)
+            broadcastMovementSnapshot();
 
         return;
     }
