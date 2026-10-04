@@ -512,6 +512,10 @@ bool MovementRuntime::waitEventDelay(
     int delayMs) {
   delayMs = std::max(0, std::min(600000, delayMs));
   if (delayMs == 0) return true;
+  if (std::find(execution.completedEventDelays.begin(),
+          execution.completedEventDelays.end(), key) !=
+      execution.completedEventDelays.end())
+    return true;
   if (execution.eventDelayKey != key) {
     execution.eventDelayKey = key;
     execution.eventDelayUntilMs = millis() + static_cast<unsigned long>(delayMs);
@@ -521,6 +525,7 @@ bool MovementRuntime::waitEventDelay(
     return false;
   execution.eventDelayKey = "";
   execution.eventDelayUntilMs = 0;
+  execution.completedEventDelays.push_back(key);
   return true;
 }
 
@@ -1356,6 +1361,7 @@ void MovementRuntime::processExecution(
   execution.enteredResources.clear();
   execution.firedResourceEvents.clear();
   execution.firedBackgroundEvents.clear();
+  execution.completedEventDelays.clear();
 
   if (execution.stopping ||
       execution.legIndex >=
