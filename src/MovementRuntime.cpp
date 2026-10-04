@@ -308,21 +308,14 @@ bool MovementRuntime::start(
 
 bool MovementRuntime::arrived(
     const MovementPlanLeg& leg) const {
-  RuntimeBlock* target =
-      const_cast<LayoutRuntime&>(_layout)
-          .findBlockById(
-              leg.to.blockId);
-
-  if (!target) return false;
-
-  // The physical occupancy detector is authoritative. A target marker alone
-  // never counts as ARRIVED.
-  if (target->sensorAddress == 0)
+  // The physical occupancy detector carried by the movement plan is
+  // authoritative. A target reservation marker alone never counts as ARRIVED.
+  if (leg.to.sensorAddress == 0)
     return false;
 
   bool on = false;
   return _layout.getSensorState(
-             target->sensorAddress,
+             leg.to.sensorAddress,
              on) &&
          on;
 }
@@ -487,10 +480,10 @@ void MovementRuntime::appendSnapshot(
     item["movementName"] = state.movementName;
     item["status"] = state.status;
     item["startedAt"] = state.startedAtMs;
-    item["stoppedAt"] =
-        state.stoppedAtMs
-            ? JsonVariant(state.stoppedAtMs)
-            : JsonVariant();
+    if (state.stoppedAtMs)
+        item["stoppedAt"] = state.stoppedAtMs;
+    else
+        item["stoppedAt"] = nullptr;
     item["locoAddress"] = state.locoAddress;
     item["direction"] = state.direction;
     item["desiredSpeed"] = state.desiredSpeed;
