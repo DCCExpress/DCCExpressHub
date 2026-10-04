@@ -492,6 +492,11 @@ const DECORATION_PICKER_ITEMS: PickerItem[] = [
     get label() { return i18next.t("ui.switchmanHut"); },
     preview: createSwitchmanHutPreview(),
   },
+  {
+    type: ELEMENT_TYPES.GARDEN_HOUSE,
+    get label() { return i18next.t("ui.gardenHouse"); },
+    preview: createGardenHousePreview(),
+  },
 ];
 
 const LOCO_WIDTH_KEY = "dcc-express-lite.layout.locoPanelWidth";
