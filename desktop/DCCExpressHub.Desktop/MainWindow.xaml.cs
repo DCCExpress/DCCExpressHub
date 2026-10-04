@@ -311,6 +311,12 @@ namespace DCCExpressHub.Desktop
             TestButton.Content =
                 L("testConnection");
 
+            YaMoRcHelpTitleText.Text =
+                L("yamorcHelpTitle");
+
+            YaMoRcHelpText.Text =
+                L("yamorcHelp");
+
             WebServerTitleText.Text =
                 L("webServerTitle");
 
@@ -375,7 +381,7 @@ namespace DCCExpressHub.Desktop
                 var portText =
                     TcpPortText.Text.Trim();
 
-                if (SelectedProtocol == "z21" &&
+                if (SelectedProtocol is "z21" or "yamorc7010" &&
                     portText == "2560")
                 {
                     TcpPortText.Text = "21105";
@@ -397,7 +403,7 @@ namespace DCCExpressHub.Desktop
                 SelectedProtocol;
 
             TcpPanel.Visibility =
-                protocol is "tcp" or "z21"
+                protocol is "tcp" or "z21" or "yamorc7010"
                     ? Visibility.Visible
                     : Visibility.Collapsed;
 
@@ -408,7 +414,12 @@ namespace DCCExpressHub.Desktop
 
             TestButton.IsEnabled =
                 !_setupBusy &&
-                protocol is "tcp" or "serial" or "z21";
+                protocol is "tcp" or "serial" or "z21" or "yamorc7010";
+
+            YaMoRcHelpPanel.Visibility =
+                protocol == "yamorc7010"
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
         }
 
         private void RefreshSerialButton_Click(
@@ -522,6 +533,10 @@ namespace DCCExpressHub.Desktop
                             await TestZ21Async(
                                 testSettings),
 
+                        "yamorc7010" =>
+                            await TestYaMoRc7010Async(
+                                testSettings),
+
                         _ =>
                             await TestSerialAsync(
                                 testSettings)
@@ -545,7 +560,8 @@ namespace DCCExpressHub.Desktop
                     SelectedProtocol is
                         "tcp" or
                         "serial" or
-                        "z21";
+                        "z21" or
+                        "yamorc7010";
             }
         }
 
@@ -707,6 +723,85 @@ namespace DCCExpressHub.Desktop
             return new TestResult(
                 false,
                 "Z21 did not answer the LAN system-state request.");
+        }
+
+        private async Task<TestResult> TestYaMoRc7010Async(
+            DesktopSettings settings)
+        {
+            var z21 =
+                await TestZ21Async(
+                    settings);
+
+            if (!z21.Ok)
+            {
+                return new TestResult(
+                    false,
+                    $"YaMoRC Z21 test failed: {z21.Message}");
+            }
+
+            using var timeout =
+                new CancellationTokenSource(
+                    TimeSpan.FromSeconds(3));
+
+            using var client =
+                new TcpClient
+                {
+                    NoDelay = true
+                };
+
+            try
+            {
+                await client.ConnectAsync(
+                    settings.TcpHost,
+                    1234,
+                    timeout.Token);
+            }
+            catch (Exception ex)
+            {
+                return new TestResult(
+                    false,
+                    $"Z21 UDP is reachable, but YaMoRC LBServer TCP/1234 is not reachable: {ex.Message}");
+            }
+
+            using var stream =
+                client.GetStream();
+
+            using var reader =
+                new StreamReader(
+                    stream,
+                    Encoding.ASCII,
+                    false,
+                    1024,
+                    leaveOpen: true);
+
+            try
+            {
+                var line =
+                    await reader.ReadLineAsync(
+                        timeout.Token);
+
+                if (
+                    line is not null &&
+                    line.StartsWith(
+                        "VERSION ",
+                        StringComparison.OrdinalIgnoreCase)
+                )
+                {
+                    return new TestResult(
+                        true,
+                        $"YaMoRC YD7010 reachable: Z21 UDP/{settings.TcpPort} + LBServer TCP/1234 · {line}");
+                }
+
+                return new TestResult(
+                    true,
+                    $"YaMoRC YD7010 reachable: Z21 UDP/{settings.TcpPort} + LBServer TCP/1234.");
+            }
+            catch (OperationCanceledException)
+            {
+                return new TestResult(
+                    true,
+                    $"YaMoRC YD7010 reachable: Z21 UDP/{settings.TcpPort} + LBServer TCP/1234.");
+            }
         }
 
         private static async Task<string?> ReadHeartbeatAsync(
@@ -914,7 +1009,7 @@ namespace DCCExpressHub.Desktop
                 SelectedProtocol;
 
             if (protocol is not
-                ("tcp" or "serial" or "z21"))
+                ("tcp" or "serial" or "z21" or "yamorc7010"))
             {
                 error =
                     L("validationChooseProtocol");
@@ -938,7 +1033,7 @@ namespace DCCExpressHub.Desktop
                     ? "server"
                     : "local";
 
-            if (protocol is "tcp" or "z21")
+            if (protocol is "tcp" or "z21" or "yamorc7010")
             {
                 var host =
                     TcpHostText.Text.Trim();
@@ -1838,6 +1933,13 @@ namespace DCCExpressHub.Desktop
 
             psi.Environment["Z21__Port"] =
                 _settings.TcpPort.ToString();
+
+            psi.Environment["Z21__LbServerFeedback"] =
+                (_settings.Protocol == "yamorc7010")
+                    .ToString();
+
+            psi.Environment["Z21__LbServerPort"] =
+                "1234";
 
             _backendExpectedStop = false;
 
