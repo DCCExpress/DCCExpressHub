@@ -34,6 +34,11 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
 
     private readonly bool _locoNetFeedbackEnabled;
     private readonly int _locoNetPort;
+    private readonly bool _lbServerFeedbackEnabled;
+    private readonly int _lbServerPort;
+
+    private int _binaryPacketsObserved;
+    private int _lbServerLinesObserved;
 
     private UdpClient? _udp;
     private string _host;
@@ -87,6 +92,19 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
 
         if (_locoNetPort is < 1 or > 65535)
             _locoNetPort = 5560;
+
+        _lbServerFeedbackEnabled =
+            configuration.GetValue(
+                "Z21:LbServerFeedback",
+                true);
+
+        _lbServerPort =
+            configuration.GetValue(
+                "Z21:LbServerPort",
+                1234);
+
+        if (_lbServerPort is < 1 or > 65535)
+            _lbServerPort = 1234;
     }
 
     public bool Connected
@@ -154,6 +172,12 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
         var locoNetFeedbackTask =
             _locoNetFeedbackEnabled
                 ? RunLocoNetFeedbackAsync(
+                    stoppingToken)
+                : Task.CompletedTask;
+
+        var lbServerFeedbackTask =
+            _lbServerFeedbackEnabled
+                ? RunLbServerFeedbackAsync(
                     stoppingToken)
                 : Task.CompletedTask;
 
@@ -286,7 +310,9 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
 
         try
         {
-            await locoNetFeedbackTask;
+            await Task.WhenAll(
+                locoNetFeedbackTask,
+                lbServerFeedbackTask);
         }
         catch (OperationCanceledException)
         {
@@ -295,7 +321,7 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
         {
             _log.LogDebug(
                 ex,
-                "Z21 LocoNet feedback task stopped");
+                "Z21 feedback side-channel task stopped");
         }
 
         ResetTransport();
@@ -1063,6 +1089,9 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                     _host,
                     _locoNetPort);
 
+                RawInfo?.Invoke(
+                    $"YaMoRC LocoNet Binary connected {_host}:{_locoNetPort}");
+
                 using var stream =
                     client.GetStream();
 
@@ -1100,6 +1129,170 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
             catch (OperationCanceledException)
             {
                 break;
+            }
+        }
+    }
+
+    private async Task RunLbServerFeedbackAsync(
+        CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            try
+            {
+                using var client =
+                    new TcpClient
+                    {
+                        NoDelay = true
+                    };
+
+                using var connectCts =
+                    CancellationTokenSource
+                        .CreateLinkedTokenSource(
+                            ct);
+
+                connectCts.CancelAfter(
+                    TimeSpan.FromSeconds(3));
+
+                await client.ConnectAsync(
+                    _host,
+                    _lbServerPort,
+                    connectCts.Token);
+
+                _log.LogInformation(
+                    "YaMoRC LocoNet LBServer feedback connected: {Host}:{Port}",
+                    _host,
+                    _lbServerPort);
+
+                RawInfo?.Invoke(
+                    $"YaMoRC LocoNet LBServer connected {_host}:{_lbServerPort}");
+
+                using var stream =
+                    client.GetStream();
+
+                using var reader =
+                    new StreamReader(
+                        stream);
+
+                await ReadLbServerAsync(
+                    reader,
+                    ct);
+            }
+            catch (OperationCanceledException)
+                when (ct.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (OperationCanceledException)
+            {
+                _log.LogDebug(
+                    "YaMoRC LocoNet LBServer connect timed out: {Host}:{Port}",
+                    _host,
+                    _lbServerPort);
+            }
+            catch (Exception ex)
+            {
+                _log.LogDebug(
+                    ex,
+                    "YaMoRC LocoNet LBServer unavailable: {Host}:{Port}",
+                    _host,
+                    _lbServerPort);
+            }
+
+            try
+            {
+                await Task.Delay(
+                    2000,
+                    ct);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+        }
+    }
+
+    private async Task ReadLbServerAsync(
+        StreamReader reader,
+        CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            var line =
+                await reader.ReadLineAsync(
+                    ct);
+
+            if (line is null)
+                return;
+
+            var trimmed =
+                line.Trim();
+
+            if (trimmed.Length == 0)
+                continue;
+
+            var observed =
+                Interlocked.Increment(
+                    ref _lbServerLinesObserved);
+
+            if (observed <= 12)
+            {
+                _log.LogInformation(
+                    "LocoNet LBServer RX #{Count}: {Line}",
+                    observed,
+                    trimmed);
+
+                RawInfo?.Invoke(
+                    $"LocoNet LBServer RX {trimmed}");
+            }
+
+            if (!trimmed.StartsWith(
+                    "RECEIVE ",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var tokens =
+                trimmed[8..]
+                    .Split(
+                        ' ',
+                        StringSplitOptions.RemoveEmptyEntries |
+                        StringSplitOptions.TrimEntries);
+
+            if (tokens.Length == 0 ||
+                tokens.Length > 128)
+            {
+                continue;
+            }
+
+            var packet =
+                new byte[tokens.Length];
+
+            var valid = true;
+
+            for (var index = 0;
+                 index < tokens.Length;
+                 ++index)
+            {
+                try
+                {
+                    packet[index] =
+                        Convert.ToByte(
+                            tokens[index],
+                            16);
+                }
+                catch
+                {
+                    valid = false;
+                    break;
+                }
+            }
+
+            if (valid)
+            {
+                ProcessLocoNetBinaryPacket(
+                    packet);
             }
         }
     }
@@ -1225,6 +1418,25 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
     {
         if (packet.Length < 2)
             return;
+
+        var observed =
+            Interlocked.Increment(
+                ref _binaryPacketsObserved);
+
+        if (observed <= 12)
+        {
+            var hex =
+                Convert.ToHexString(
+                    packet);
+
+            _log.LogInformation(
+                "LocoNet Binary RX #{Count}: {Packet}",
+                observed,
+                hex);
+
+            RawInfo?.Invoke(
+                $"LocoNet Binary RX {hex}");
+        }
 
         byte checksum = 0;
 
