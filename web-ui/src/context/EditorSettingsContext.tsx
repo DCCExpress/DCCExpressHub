@@ -10,6 +10,7 @@ export type EditorSettings = {
     snapToGrid: boolean;
     showElementNames: boolean;
     showBlockNames: boolean;
+    showBuildings: boolean;
 };
 
 const STORAGE_KEY = "dcc-express.editor.settings";
