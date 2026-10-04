@@ -18,6 +18,7 @@ import { BushElement } from "../elements/BushElement";
 import { LampElement } from "../elements/LampElement";
 import { StationBuildingElement } from "../elements/StationBuildingElement";
 import { SwitchmanHutElement } from "../elements/SwitchmanHutElement";
+import { GardenHouseElement } from "../elements/GardenHouseElement";
 import { TrackSignalElement } from "../elements/TrackSignalElement";
 import { AudioButtonElement } from "../elements/AudioButtonElement";
 import { AudioListButtonElement } from "../elements/AudioListButtonElement";
