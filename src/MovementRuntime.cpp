@@ -113,8 +113,17 @@ bool MovementRuntime::loadPage(
     return false;
   }
 
+  // Start only needs the Movement document. Do not materialize scripts,
+  // timetable and visual-flow data into the ESP32 heap on every Movement start.
+  JsonDocument filter;
+  filter["movement"] = true;
+
   const auto jsonError =
-      deserializeJson(document, file);
+      deserializeJson(
+          document,
+          file,
+          DeserializationOption::Filter(
+              filter));
   file.close();
 
   if (jsonError) {
