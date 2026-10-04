@@ -27,6 +27,8 @@ public:
 
   bool startSaved(
       const String& scriptId,
+      const String& executionId,
+      const String& executionType,
       String& error);
 
   bool pause(
