@@ -4052,6 +4052,10 @@ void WsProtocol::handleMessage(
                 _scripts.startSaved(
                     data["scriptId"] |
                         "",
+                    data["executionId"] |
+                        "",
+                    data["executionType"] |
+                        "",
                     error);
 
             includeState =
@@ -4162,12 +4166,8 @@ void WsProtocol::handleMessage(
 
         if (includeSnapshot)
         {
-            JsonObject snapshot =
-                extra["snapshot"]
-                    .to<JsonObject>();
-
             _scripts.appendSnapshot(
-                snapshot);
+                extra);
         }
 
         send(
