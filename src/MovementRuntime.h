@@ -125,6 +125,9 @@ private:
     bool approachFired = false;
     bool arrivedCommitted = false;
     bool leaveSeenOccupied = false;
+    bool runtimeDirty = true;
+    std::vector<String> firedResourceEvents;
+    std::vector<String> enteredResources;
     std::vector<MovementAction> actions;
     std::vector<BackgroundSequence> backgroundSequences;
     std::vector<String> firedBackgroundEvents;
@@ -186,6 +189,18 @@ private:
 
   bool targetBasicallyFree(
       const MovementPlanLeg& leg) const;
+
+  bool resourceEventSatisfied(
+      const MovementPlanResource& resource,
+      bool leaving) const;
+
+  bool runResourceEvents(
+      Execution& execution,
+      const MovementPlanLeg& leg,
+      String& error);
+
+  void releasePreparedAuthority(
+      Execution& execution);
 
   bool runBlockingActions(
       Execution& execution,
