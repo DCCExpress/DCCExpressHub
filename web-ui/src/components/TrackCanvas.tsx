@@ -170,7 +170,6 @@ export default function TrackCanvas({
   const editModeRef = useRef(editMode);
   const selectedElementRef = useRef<BaseElement | null>(selectedElement);
   const currentCursorRef = useRef<BaseElement | null>(currentCursor);
-  const copiedElementRef = useRef<BaseElement | null>(null);
   const pendingCopiedCursorRef = useRef<BaseElement | null>(null);
   const signalAspectPopoverRef = useRef(signalAspectPopover);
   const doubleTurnoutPopoverRef = useRef(doubleTurnoutPopover);
@@ -1367,7 +1366,6 @@ export default function TrackCanvas({
         editModeRef,
         currentCursorRef,
         selectedElementRef,
-        copiedElementRef,
         pendingCopiedCursorRef,
         viewRef,
         setCurrentCursor,
