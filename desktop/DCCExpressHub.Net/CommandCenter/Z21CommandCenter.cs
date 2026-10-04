@@ -17,6 +17,7 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
     private const int KeepAliveMs = 10_000;
     private const int OnlineTimeoutMs = 30_000;
     private const int AccessoryPulseMs = 120;
+    private const int AccessorySettleMs = 50;
     private const int LocoNetInterrogateRestMs = 1250;
 
     // Generic Z21: driving/switching + R-BUS + system state + all changed
@@ -31,6 +32,7 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
     private readonly object _stateGate = new();
     private readonly SemaphoreSlim _connectGate = new(1, 1);
     private readonly SemaphoreSlim _txGate = new(1, 1);
+    private readonly SemaphoreSlim _accessoryGate = new(1, 1);
     private readonly SemaphoreSlim _locoNetInterrogateGate = new(1, 1);
 
     private DateTime _lastLocoNetInterrogateUtc = DateTime.MinValue;
@@ -54,7 +56,7 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
     private DateTime _lastRxUtc = DateTime.MinValue;
     private DateTime _nextKeepAliveUtc = DateTime.MinValue;
 
-    private bool _emergencyKnown = true;
+    private bool _emergencyKnown;
     private bool _emergencyPaused;
 
     private StationInfo _stationInfo =
@@ -755,29 +757,43 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
     public async Task<bool> EmergencyStopAsync(
         CancellationToken ct = default)
     {
-        // Z21 emergency stop is not a DCC-EX-style latched pause. The first
-        // press sends native LAN_X_SET_STOP. The second press releases only
-        // the Hub latch; subsequent throttle commands can continue normally.
-        if (_emergencyPaused)
+        if (_emergencyKnown &&
+            _emergencyPaused)
         {
-            _emergencyKnown = true;
-            _emergencyPaused = false;
-            return true;
+            // Z21 LAN protocol 2.6: TRACK_POWER_ON also terminates an
+            // emergency stop while leaving track voltage enabled.
+            var resumed =
+                await SendXBusAsync(
+                    new byte[]
+                    {
+                        0x21,
+                        0x81
+                    },
+                    true,
+                    ct);
+
+            if (resumed)
+                UpdateEmergencyState(
+                    false,
+                    "local release");
+
+            return resumed;
         }
 
-        var ok =
+        // Z21 LAN protocol 2.13: emergency stop all locomotives while the
+        // track voltage remains switched on.
+        var stopped =
             await SendXBusAsync(
                 new byte[] { 0x80 },
                 true,
                 ct);
 
-        if (ok)
-        {
-            _emergencyKnown = true;
-            _emergencyPaused = true;
-        }
+        if (stopped)
+            UpdateEmergencyState(
+                true,
+                "local request");
 
-        return ok;
+        return stopped;
     }
 
     public async Task<bool> SetLocoAsync(
@@ -879,42 +895,34 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
             ct);
     }
 
-    public async Task<bool> SetTurnoutAsync(
+    public Task<bool> SetTurnoutAsync(
         int address,
         bool closed,
         CancellationToken ct = default)
     {
-        if (address is < 1 or > 2048)
-            return false;
-
-        var functionAddress =
-            address - 1;
-
-        // Hub closed -> Z21 P=0; thrown -> P=1.
-        var position =
-            !closed;
-
-        var ok =
-            await SendAccessoryPulseAsync(
-                functionAddress,
-                position,
-                activate: true,
-                ct);
-
-        if (ok)
-        {
-            ScheduleAccessoryDeactivate(
-                functionAddress,
-                position);
-        }
-
-        return ok;
+        // Despite the historic parameter name, callers pass the already
+        // resolved physical accessory value here (ClosedValue polarity has
+        // already been applied). Preserve the same bool semantics as DCC-EX:
+        // false -> Z21 P=0, true -> Z21 P=1.
+        return SendAccessoryCommandAsync(
+            address,
+            closed,
+            ct);
     }
 
-    public async Task<bool> SetAccessoryAsync(
+    public Task<bool> SetAccessoryAsync(
         int address,
         bool active,
-        CancellationToken ct = default)
+        CancellationToken ct = default) =>
+        SendAccessoryCommandAsync(
+            address,
+            active,
+            ct);
+
+    private async Task<bool> SendAccessoryCommandAsync(
+        int address,
+        bool position,
+        CancellationToken ct)
     {
         if (address is < 1 or > 2048)
             return false;
@@ -922,30 +930,63 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
         var functionAddress =
             address - 1;
 
-        var ok =
-            await SendAccessoryPulseAsync(
-                functionAddress,
-                active,
-                activate: true,
+        await _accessoryGate.WaitAsync(
+            ct);
+
+        try
+        {
+            // Match the conservative/JMRI-compatible Q=0 sequence from the
+            // Z21 specification: activate -> pulse -> deactivate -> settle.
+            // This avoids depending on a command station's optional queue
+            // implementation and guarantees only one active turnout output.
+            if (!await SendAccessoryPulseAsync(
+                    functionAddress,
+                    position,
+                    activate: true,
+                    queue: false,
+                    ct))
+            {
+                return false;
+            }
+
+            await Task.Delay(
+                AccessoryPulseMs,
                 ct);
 
-        if (ok)
-        {
-            ScheduleAccessoryDeactivate(
-                functionAddress,
-                active);
-        }
+            if (!await SendAccessoryPulseAsync(
+                    functionAddress,
+                    position,
+                    activate: false,
+                    queue: false,
+                    ct))
+            {
+                return false;
+            }
 
-        return ok;
+            await Task.Delay(
+                AccessorySettleMs,
+                ct);
+
+            return true;
+        }
+        finally
+        {
+            _accessoryGate.Release();
+        }
     }
 
     private Task<bool> SendAccessoryPulseAsync(
         int functionAddress,
         bool position,
         bool activate,
+        bool queue,
         CancellationToken ct)
     {
-        byte control = 0xA0;
+        // LAN_X_SET_TURNOUT DB2 = 100QA00P.
+        byte control = 0x80;
+
+        if (queue)
+            control |= 0x20;
 
         if (activate)
             control |= 0x08;
@@ -963,30 +1004,6 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
             },
             true,
             ct);
-    }
-
-    private void ScheduleAccessoryDeactivate(
-        int functionAddress,
-        bool position)
-    {
-        _ = Task.Run(
-            async () =>
-            {
-                try
-                {
-                    await Task.Delay(
-                        AccessoryPulseMs);
-
-                    await SendAccessoryPulseAsync(
-                        functionAddress,
-                        position,
-                        activate: false,
-                        CancellationToken.None);
-                }
-                catch
-                {
-                }
-            });
     }
 
     public Task<bool> SetSignalAspectAsync(
@@ -1837,6 +1854,35 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
         }
     }
 
+    private void UpdateEmergencyState(
+        bool active,
+        string source)
+    {
+        var changed =
+            !_emergencyKnown ||
+            _emergencyPaused != active;
+
+        _emergencyKnown = true;
+        _emergencyPaused = active;
+
+        if (!changed)
+            return;
+
+        _log.LogInformation(
+            "Z21 emergency stop {State} ({Source})",
+            active
+                ? "ACTIVE"
+                : "CLEARED",
+            source);
+
+        // WsHub uses RawInfo as the generic immediate state-sync hook for
+        // EmergencyPauseStateKnown/EmergencyPaused.
+        RawInfo?.Invoke(
+            active
+                ? "Z21: emergency stop active"
+                : "Z21: emergency stop cleared");
+    }
+
     private void ProcessXBus(
         ReadOnlySpan<byte> data)
     {
@@ -1863,8 +1909,9 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
 
             if (data[1] == 0x01)
             {
-                _emergencyKnown = true;
-                _emergencyPaused = false;
+                UpdateEmergencyState(
+                    false,
+                    "track power on");
             }
 
             return;
@@ -1872,11 +1919,9 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
 
         if (xHeader == 0x81)
         {
-            _emergencyKnown = true;
-            _emergencyPaused = true;
-
-            RawInfo?.Invoke(
-                "Z21: emergency stop active");
+            UpdateEmergencyState(
+                true,
+                "LAN_X_BC_STOPPED");
 
             return;
         }
@@ -1886,6 +1931,10 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
             data[1] == 0x22)
         {
             var status = data[2];
+
+            UpdateEmergencyState(
+                (status & 0x01) != 0,
+                "LAN_X_STATUS_CHANGED");
 
             PowerFeedbackChanged?.Invoke(
                 new PowerFeedback(
@@ -2025,6 +2074,10 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
 
         var centralState =
             data[12];
+
+        UpdateEmergencyState(
+            (centralState & 0x01) != 0,
+            "LAN_SYSTEMSTATE_DATACHANGED");
 
         PowerFeedbackChanged?.Invoke(
             new PowerFeedback(
