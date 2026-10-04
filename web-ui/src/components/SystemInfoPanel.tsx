@@ -82,7 +82,7 @@ type ExtendedDccExStatus = DccExStatusPayload & {
   maxLocos?: number;
   tracks?: DccTrackTelemetry[];
   currentUpdatedAtMs?: number;
-  linkUptimeMs?: number;
+  linkUptimeMs?: number | null;
   hub?: HubTelemetry;
 };
 
@@ -185,6 +185,54 @@ function formatUptime(
   }
 
   return `${hours}h ${minutes}m ${seconds}s`;
+}
+
+function formatAge(
+  ageMs: number | null | undefined,
+): string {
+  if (
+    ageMs === null ||
+    ageMs === undefined ||
+    !Number.isFinite(ageMs) ||
+    ageMs < 0
+  ) {
+    return "—";
+  }
+
+  const seconds =
+    Math.max(
+      0,
+      Math.floor(ageMs / 1000),
+    );
+
+  if (seconds < 2) {
+    return i18next.t("ui.justNow");
+  }
+
+  if (seconds < 60) {
+    return i18next.t(
+      "ui.secondsAgo",
+      { value1: seconds },
+    );
+  }
+
+  const minutes =
+    Math.floor(seconds / 60);
+
+  if (minutes < 60) {
+    return i18next.t(
+      "ui.minutesAgo",
+      { value1: minutes },
+    );
+  }
+
+  const hours =
+    Math.floor(minutes / 60);
+
+  return i18next.t(
+    "ui.hoursAgo",
+    { value1: hours },
+  );
 }
 
 function InfoRow({
@@ -306,6 +354,24 @@ export default function SystemInfoPanel({
     wsStatus === "connected" &&
     Boolean(telemetry?.alive);
 
+  const z21 =
+    telemetry?.z21 ?? null;
+
+  const isZ21 =
+    telemetry?.commandCenterType === "z21" ||
+    z21 !== null;
+
+  const isYaMoRc =
+    telemetry?.commandCenterProfile === "yamorc7010" ||
+    z21?.profile === "yamorc7010";
+
+  const commandCenterTitle =
+    isYaMoRc
+      ? "YaMoRC YD7010"
+      : isZ21
+        ? "Roco Z21"
+        : "DCC-EX / EX-CSB1";
+
   const target =
     telemetry?.transport === "serial" ||
     Boolean(telemetry?.serialPort)
@@ -313,13 +379,26 @@ export default function SystemInfoPanel({
         ? `${telemetry.serialPort} @ ${telemetry.baudRate ?? 115200} baud`
         : "—"
       : telemetry?.host
-        ? `${telemetry.host}:${telemetry.port ?? 2560}`
+        ? `${telemetry.host}:${telemetry.port ?? (isZ21 ? 21105 : 2560)}${isZ21 ? " / UDP" : ""}`
         : "—";
 
-  const dccVersion =
+  const commandVersion =
     telemetry?.version
-      ? `V-${telemetry.version}`
+      ? isZ21
+        ? telemetry.version
+        : `V-${telemetry.version}`
       : "—";
+
+  const z21StateAvailable =
+    z21 !== null &&
+    z21.lastSystemStateAgeMs >= 0;
+
+  const commandStationTemperatureLevel =
+    z21StateAvailable
+      ? getTemperatureLevel(
+          z21.temperatureC,
+        )
+      : null;
 
   const tracks =
     telemetry?.tracks ?? [];
@@ -397,7 +476,7 @@ export default function SystemInfoPanel({
           <Stack gap="xs">
             <Group justify="space-between">
               <Text fw={700}>
-                DCC-EX / EX-CSB1
+                {commandCenterTitle}
               </Text>
 
               <Badge
@@ -415,38 +494,56 @@ export default function SystemInfoPanel({
             />
 
             <InfoRow
-              label={i18next.t("ui.dccExVersion")}
-              value={dccVersion}
+              label={
+                isYaMoRc
+                  ? i18next.t("ui.z21InterfaceFirmware")
+                  : isZ21
+                    ? i18next.t("ui.firmware")
+                    : i18next.t("ui.dccExVersion")
+              }
+              value={commandVersion}
               color="violet"
             />
 
             <InfoRow
-              label={i18next.t("ui.processor")}
+              label={
+                isZ21
+                  ? i18next.t("ui.protocol")
+                  : i18next.t("ui.processor")
+              }
               value={telemetry?.processor || "—"}
               color="indigo"
             />
 
             <InfoRow
-              label={i18next.t("ui.motorDriver")}
+              label={
+                isZ21
+                  ? i18next.t("ui.hardware")
+                  : i18next.t("ui.motorDriver")
+              }
               value={telemetry?.hardware || "—"}
               color="cyan"
             />
 
-            <InfoRow
-              label={i18next.t("ui.build")}
-              value={telemetry?.build || "—"}
-              color="gray"
-            />
+            {!isZ21 && (
+              <>
+                <InfoRow
+                  label={i18next.t("ui.build")}
+                  value={telemetry?.build || "—"}
+                  color="gray"
+                />
 
-            <InfoRow
-              label={i18next.t("ui.maxLocoSlots")}
-              value={
-                telemetry?.maxLocos
-                  ? String(telemetry.maxLocos)
-                  : "—"
-              }
-              color="blue"
-            />
+                <InfoRow
+                  label={i18next.t("ui.maxLocoSlots")}
+                  value={
+                    telemetry?.maxLocos
+                      ? String(telemetry.maxLocos)
+                      : "—"
+                  }
+                  color="blue"
+                />
+              </>
+            )}
 
             <InfoRow
               label={i18next.t("ui.trackPower")}
@@ -461,6 +558,22 @@ export default function SystemInfoPanel({
                   : "red"
               }
             />
+
+            {isZ21 && (
+              <InfoRow
+                label={i18next.t("ui.emergencyStop")}
+                value={
+                  telemetry?.emergencyStop
+                    ? "ACTIVE"
+                    : "CLEAR"
+                }
+                color={
+                  telemetry?.emergencyStop
+                    ? "red"
+                    : "green"
+                }
+              />
+            )}
 
             {tracks.length > 0 && (
               <InfoRow
@@ -492,20 +605,245 @@ export default function SystemInfoPanel({
             ))}
 
             {tracks.length === 0 && (
-              <Text size="xs" c="dimmed"> {i18next.t("ui.waitingForDccExTrackmanagerCurrentTelemetry")} </Text>
+              <Text size="xs" c="dimmed">
+                {isZ21
+                  ? i18next.t("ui.waitingForZ21SystemState")
+                  : i18next.t("ui.waitingForDccExTrackmanagerCurrentTelemetry")}
+              </Text>
             )}
 
-            <InfoRow
-              label={i18next.t("ui.tcpLinkUptime")}
-              value={formatUptime(
-                telemetry?.linkUptimeMs,
-              )}
-              color="teal"
-            />
+            {isZ21 && z21 && (
+              <>
+                <InfoRow
+                  label={i18next.t("ui.filteredMainCurrent")}
+                  value={
+                    z21StateAvailable
+                      ? `${z21.filteredMainCurrentMa} mA`
+                      : "—"
+                  }
+                  color="teal"
+                />
 
-            <Text size="xs" c="dimmed"> {i18next.t("ui.trackCurrentIsRequestedFromDccExEvery1000Ms")} </Text>
+                <InfoRow
+                  label={i18next.t("ui.trackVoltage")}
+                  value={
+                    z21StateAvailable
+                      ? `${(z21.trackVoltageMv / 1000).toFixed(2)} V`
+                      : "—"
+                  }
+                  color="blue"
+                />
+
+                <InfoRow
+                  label={i18next.t("ui.supplyVoltage")}
+                  value={
+                    z21StateAvailable
+                      ? `${(z21.supplyVoltageMv / 1000).toFixed(2)} V`
+                      : "—"
+                  }
+                  color="blue"
+                />
+
+                <InfoRow
+                  label={i18next.t("ui.commandStationTemperature")}
+                  value={
+                    z21StateAvailable
+                      ? `${z21.temperatureC} °C`
+                      : "—"
+                  }
+                  color={
+                    commandStationTemperatureLevel?.color ??
+                    "gray"
+                  }
+                />
+
+                <InfoRow
+                  label={i18next.t("ui.z21CentralState")}
+                  value={
+                    z21StateAvailable
+                      ? `0x${z21.centralState.toString(16).padStart(2, "0").toUpperCase()} · EX 0x${z21.centralStateEx.toString(16).padStart(2, "0").toUpperCase()}`
+                      : "—"
+                  }
+                  color="gray"
+                />
+
+                <InfoRow
+                  label={i18next.t("ui.z21Capabilities")}
+                  value={
+                    z21StateAvailable
+                      ? `0x${z21.capabilities.toString(16).padStart(2, "0").toUpperCase()}`
+                      : "—"
+                  }
+                  color="gray"
+                />
+
+                <InfoRow
+                  label={i18next.t("ui.z21BroadcastFlags")}
+                  value={z21.broadcastFlags}
+                  color="indigo"
+                />
+
+                <InfoRow
+                  label={i18next.t("ui.z21UdpUptime")}
+                  value={formatUptime(
+                    z21.udpUptimeMs,
+                  )}
+                  color="teal"
+                />
+
+                <InfoRow
+                  label={i18next.t("ui.lastSystemState")}
+                  value={formatAge(
+                    z21.lastSystemStateAgeMs,
+                  )}
+                  color="cyan"
+                />
+
+                {!isYaMoRc && (
+                  <InfoRow
+                    label={i18next.t("ui.feedback")}
+                    value={i18next.t("ui.z21FeedbackSource")}
+                    color="blue"
+                  />
+                )}
+
+                <Text size="xs" c="dimmed">
+                  {i18next.t("ui.z21TelemetryBroadcastHint")}
+                </Text>
+              </>
+            )}
+
+            {!isZ21 && (
+              <>
+                <InfoRow
+                  label={i18next.t("ui.tcpLinkUptime")}
+                  value={formatUptime(
+                    telemetry?.linkUptimeMs,
+                  )}
+                  color="teal"
+                />
+
+                <Text size="xs" c="dimmed">
+                  {i18next.t("ui.trackCurrentIsRequestedFromDccExEvery1000Ms")}
+                </Text>
+              </>
+            )}
           </Stack>
         </Card>
+
+        {isYaMoRc && z21 && (
+          <Card withBorder p="sm">
+            <Stack gap="xs">
+              <Group justify="space-between">
+                <Text fw={700}>
+                  LocoNet / S88
+                </Text>
+
+                <Badge
+                  color={
+                    z21.lbServerConnected
+                      ? "green"
+                      : "red"
+                  }
+                  variant={
+                    z21.lbServerConnected
+                      ? "light"
+                      : "filled"
+                  }
+                >
+                  {z21.lbServerConnected
+                    ? i18next.t("ui.online")
+                    : i18next.t("ui.offline")}
+                </Badge>
+              </Group>
+
+              <InfoRow
+                label={i18next.t("ui.lbServer")}
+                value={
+                  `${telemetry?.host ?? "—"}:${z21.lbServerPort} / TCP`
+                }
+                color={
+                  z21.lbServerConnected
+                    ? "green"
+                    : "red"
+                }
+              />
+
+              <InfoRow
+                label={i18next.t("ui.lbServerVersion")}
+                value={z21.lbServerVersion || "—"}
+                color="violet"
+              />
+
+              <InfoRow
+                label={i18next.t("ui.lbServerUptime")}
+                value={formatUptime(
+                  z21.lbServerUptimeMs,
+                )}
+                color="teal"
+              />
+
+              <InfoRow
+                label={i18next.t("ui.lbServerRx")}
+                value={
+                  `${z21.lbServerLinesObserved} · ${formatAge(z21.lastLbServerRxAgeMs)}`
+                }
+                color="cyan"
+              />
+
+              <InfoRow
+                label={i18next.t("ui.s88FeedbackSource")}
+                value="LBServer · OPC_INPUT_REP"
+                color="blue"
+              />
+
+              <InfoRow
+                label={i18next.t("ui.s88FeedbackReports")}
+                value={String(
+                  z21.sensorFeedbackCount,
+                )}
+                color={
+                  z21.sensorFeedbackCount > 0
+                    ? "green"
+                    : "yellow"
+                }
+              />
+
+              <InfoRow
+                label={i18next.t("ui.lastS88Feedback")}
+                value={
+                  z21.sensorFeedbackCount > 0 &&
+                  z21.lastSensorAddress > 0
+                    ? `#${z21.lastSensorAddress} ${z21.lastSensorOn ? "ON" : "OFF"} · ${formatAge(z21.lastSensorFeedbackAgeMs)}`
+                    : "—"
+                }
+                color={
+                  z21.sensorFeedbackCount > 0
+                    ? "green"
+                    : "yellow"
+                }
+              />
+
+              <InfoRow
+                label={i18next.t("ui.sensorInterrogation")}
+                value={
+                  z21.interrogateEnabled
+                    ? `${i18next.t("ui.enabled")} · ${formatAge(z21.lastInterrogateAgeMs)}`
+                    : i18next.t("ui.disabled")
+                }
+                color={
+                  z21.interrogateEnabled
+                    ? "green"
+                    : "red"
+                }
+              />
+
+              <Text size="xs" c="dimmed">
+                {i18next.t("ui.yamorcS88DiagnosticHint")}
+              </Text>
+            </Stack>
+          </Card>
+        )}
 
         <Card withBorder p="sm">
           <Stack gap="xs">
