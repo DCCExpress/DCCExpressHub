@@ -375,14 +375,22 @@ void WsProtocol::begin()
         {
             handleLocoFeedback(
                 info);
+
+            _flows.onLocoFeedback(
+                info);
         });
 
     _runtime.onChange(
         [this](
             RuntimeChangeKind kind,
-            uint16_t,
-            uint8_t)
+            uint16_t id,
+            uint8_t channel)
         {
+            _flows.onRuntimeChange(
+                kind,
+                id,
+                channel);
+
             if (
                 kind ==
                 RuntimeChangeKind::Block)
