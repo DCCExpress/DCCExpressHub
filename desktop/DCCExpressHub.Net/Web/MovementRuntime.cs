@@ -138,6 +138,18 @@ public sealed class MovementPlanModel
     public MovementPlanLegModel[] Legs { get; set; } = [];
 }
 
+public sealed record MovementSafetyEmergencyStop(
+    string Code,
+    string Reason,
+    long Timestamp,
+    int BlockId,
+    string BlockName,
+    int SensorAddress,
+    int? ExpectedLocoAddress,
+    int[] ActiveLocoAddresses,
+    string[] MovementNames,
+    bool EmergencyStopActive);
+
 /// <summary>
 /// Windows authoritative Movement executor.
 ///
@@ -197,6 +209,11 @@ public sealed class MovementRuntime
         public HashSet<int> AfterArrivedBlocks { get; } = [];
     }
 
+    readonly record struct TargetOccupancyMismatch(
+        RuntimeBlock Block,
+        int ExpectedLocoAddress,
+        string MovementName);
+
     readonly object _gate = new();
     readonly LayoutRuntime _layout;
     readonly DispatcherRuntime _dispatcher;
@@ -221,6 +238,7 @@ public sealed class MovementRuntime
     public event Action<MovementAudioRequest>? AudioRequested;
     public event Action<LocoFeedback>? LocoChanged;
     public event Action? PowerStateChanged;
+    public event Action<MovementSafetyEmergencyStop>? SafetyEmergencyStop;
 
     public MovementRuntime(
         LayoutRuntime layout,
@@ -291,7 +309,7 @@ public sealed class MovementRuntime
         return null;
     }
 
-    RuntimeBlock? FindTargetOccupancyMismatch(
+    TargetOccupancyMismatch? FindTargetOccupancyMismatch(
         IReadOnlyList<Execution> executions)
     {
         var blocks =
@@ -329,10 +347,89 @@ public sealed class MovementRuntime
 
             if (!correctRealLoco &&
                 !correctTargetLoco)
-                return block;
+            {
+                return new TargetOccupancyMismatch(
+                    block,
+                    execution.LocoAddress,
+                    execution.Page.Name);
+            }
         }
 
         return null;
+    }
+
+    MovementSafetyEmergencyStop CreateSafetyTrip(
+        string code,
+        RuntimeBlock block,
+        IReadOnlyList<Execution> executions,
+        int? expectedLocoAddress = null,
+        string? movementName = null)
+    {
+        var blockName =
+            string.IsNullOrWhiteSpace(
+                block.Name)
+                ? "#" + block.Id
+                : block.Name;
+
+        string reason =
+            code switch
+            {
+                "target_occupancy_mismatch" =>
+                    "Unexpected target occupancy: block " +
+                    blockName +
+                    " (#" +
+                    block.Id +
+                    "), sensor #" +
+                    block.SensorAddress +
+                    " became occupied but Movement " +
+                    (string.IsNullOrWhiteSpace(movementName)
+                        ? ""
+                        : "'" + movementName + "' ") +
+                    "expects locomotive #" +
+                    (expectedLocoAddress?.ToString() ?? "?") +
+                    ".",
+
+                _ =>
+                    OccupancyError(
+                        block)
+            };
+
+        return new MovementSafetyEmergencyStop(
+            Code:
+                code,
+            Reason:
+                reason,
+            Timestamp:
+                NowMs(),
+            BlockId:
+                block.Id,
+            BlockName:
+                blockName,
+            SensorAddress:
+                block.SensorAddress,
+            ExpectedLocoAddress:
+                expectedLocoAddress,
+            ActiveLocoAddresses:
+                executions
+                    .Select(x =>
+                        x.LocoAddress)
+                    .Distinct()
+                    .OrderBy(x => x)
+                    .ToArray(),
+            MovementNames:
+                executions
+                    .Select(x =>
+                        x.Page.Name)
+                    .Where(x =>
+                        !string.IsNullOrWhiteSpace(x))
+                    .Distinct(
+                        StringComparer.Ordinal)
+                    .OrderBy(
+                        x => x,
+                        StringComparer.Ordinal)
+                    .ToArray(),
+            EmergencyStopActive:
+                false);
     }
 
     void OnLayoutRuntimeChanged(
@@ -354,22 +451,54 @@ public sealed class MovementRuntime
         if (executions.Length == 0)
             return;
 
-        var violation =
-            FindUnknownOccupiedBlock() ??
+        var unknownOccupancy =
+            FindUnknownOccupiedBlock();
+
+        if (unknownOccupancy is not null)
+        {
+            _ =
+                TripOccupancySafetyAsync(
+                    CreateSafetyTrip(
+                        "unknown_occupancy",
+                        unknownOccupancy,
+                        executions));
+
+            return;
+        }
+
+        var mismatch =
             FindTargetOccupancyMismatch(
                 executions);
 
-        if (violation is null)
-            return;
-
-        _ =
-            TripUnknownOccupancyAsync(
-                OccupancyError(
-                    violation));
+        if (mismatch.HasValue)
+        {
+            _ =
+                TripOccupancySafetyAsync(
+                    CreateSafetyTrip(
+                        "target_occupancy_mismatch",
+                        mismatch.Value.Block,
+                        executions,
+                        mismatch.Value.ExpectedLocoAddress,
+                        mismatch.Value.MovementName));
+        }
     }
 
-    async Task TripUnknownOccupancyAsync(
-        string error)
+    async Task PublishSafetyEmergencyStopAsync(
+        MovementSafetyEmergencyStop trip)
+    {
+        var active =
+            await EnsureEmergencyStopAsync();
+
+        SafetyEmergencyStop?.Invoke(
+            trip with
+            {
+                EmergencyStopActive =
+                    active
+            });
+    }
+
+    async Task TripOccupancySafetyAsync(
+        MovementSafetyEmergencyStop trip)
     {
         if (Interlocked.Exchange(
                 ref _occupancySafetyTripActive,
@@ -389,12 +518,12 @@ public sealed class MovementRuntime
 
             _log.LogCritical(
                 "{Error} Emergency stop requested.",
-                error);
+                trip.Reason);
 
             foreach (var execution in executions)
             {
                 execution.SafetyError =
-                    error;
+                    trip.Reason;
                 execution.EmergencyAbort =
                     true;
                 execution.Moving =
@@ -409,16 +538,20 @@ public sealed class MovementRuntime
                     desiredSpeed:
                         0,
                     info:
-                        "Emergency stop: unknown occupancy",
+                        trip.Code ==
+                            "target_occupancy_mismatch"
+                            ? "Emergency stop: target occupancy mismatch"
+                            : "Emergency stop: unknown occupancy",
                     setInfo:
                         true,
                     error:
-                        error,
+                        trip.Reason,
                     setError:
                         true);
             }
 
-            await EnsureEmergencyStopAsync();
+            await PublishSafetyEmergencyStopAsync(
+                trip);
 
             foreach (var execution in executions)
                 execution.Cancellation.Cancel();
@@ -3394,7 +3527,11 @@ public sealed class MovementRuntime
                 occupancyError);
 
             _ =
-                EnsureEmergencyStopAsync();
+                PublishSafetyEmergencyStopAsync(
+                    CreateSafetyTrip(
+                        "unknown_occupancy",
+                        unknownOccupancy,
+                        Array.Empty<Execution>()));
 
             return (
                 false,
@@ -3713,7 +3850,7 @@ public sealed class MovementRuntime
         return true;
     }
 
-    async Task EnsureEmergencyStopAsync()
+    async Task<bool> EnsureEmergencyStopAsync()
     {
         /*
          * DccExCommandCenter.EmergencyStopAsync() is deliberately a toggle:
@@ -3732,7 +3869,7 @@ public sealed class MovementRuntime
                 true;
 
             PowerStateChanged?.Invoke();
-            return;
+            return true;
         }
 
         var ok =
@@ -3740,7 +3877,7 @@ public sealed class MovementRuntime
                 CancellationToken.None);
 
         if (!ok)
-            return;
+            return false;
 
         _hubState.EmergencyStop =
             _commandCenter.EmergencyPauseStateKnown
@@ -3748,6 +3885,9 @@ public sealed class MovementRuntime
                 : true;
 
         PowerStateChanged?.Invoke();
+
+        return
+            _hubState.EmergencyStop;
     }
 
     public void EmergencyStop() =>
