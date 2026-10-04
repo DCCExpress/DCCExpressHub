@@ -505,6 +505,70 @@ bool MovementRuntime::targetBasicallyFree(
          !target->hasRuntimeState();
 }
 
+bool MovementRuntime::resourceEventSatisfied(
+    const MovementPlanResource& resource,
+    bool leaving) const {
+  if (resource.detectors.empty())
+    return false;
+  bool any = false;
+  for (const uint16_t sensor : resource.detectors) {
+    bool on = false;
+    if (!_layout.getSensorState(sensor, on))
+      return false;
+    if (leaving) {
+      if (on) return false;
+    } else if (on) {
+      any = true;
+    }
+  }
+  return leaving ? true : any;
+}
+
+bool MovementRuntime::runResourceEvents(
+    Execution& execution,
+    const MovementPlanLeg& leg,
+    String& error) {
+  for (const auto& resource : leg.resources) {
+    if (resource.kind != "segment" && resource.kind != "turnout")
+      continue;
+
+    const bool entered = std::find(
+        execution.enteredResources.begin(),
+        execution.enteredResources.end(),
+        resource.key) != execution.enteredResources.end();
+
+    if (!entered && resourceEventSatisfied(resource, false)) {
+      const String eventKey = resource.key + "|enter";
+      startBackgroundActions(execution, resource.key, "enter");
+      if (!runBlockingActions(execution, resource.key, "enter", error))
+        return false;
+      execution.enteredResources.push_back(resource.key);
+      execution.firedResourceEvents.push_back(eventKey);
+      execution.state.currentResourceKey = resource.key;
+      publishChanged();
+    }
+
+    const bool nowEntered = std::find(
+        execution.enteredResources.begin(),
+        execution.enteredResources.end(),
+        resource.key) != execution.enteredResources.end();
+    const String leaveKey = resource.key + "|leave";
+    const bool left = std::find(
+        execution.firedResourceEvents.begin(),
+        execution.firedResourceEvents.end(),
+        leaveKey) != execution.firedResourceEvents.end();
+
+    if (nowEntered && !left && resourceEventSatisfied(resource, true)) {
+      startBackgroundActions(execution, resource.key, "leave");
+      if (!runBlockingActions(execution, resource.key, "leave", error))
+        return false;
+      execution.firedResourceEvents.push_back(leaveKey);
+      publishChanged();
+    }
+  }
+  return true;
+}
+
 bool MovementRuntime::executeAction(
     Execution& execution,
     const MovementAction& action,
@@ -1000,6 +1064,20 @@ void MovementRuntime::processExecution(
       execution.plan.legs[
           execution.legIndex];
 
+  if (execution.departed && !execution.arrivedCommitted &&
+      !legSafetyFree(leg)) {
+    applySpeed(execution, 0);
+    finish(execution, "error", "movement_safety_became_unsafe");
+    return;
+  }
+
+  String resourceError;
+  if (!runResourceEvents(execution, leg, resourceError)) {
+    if (!resourceError.isEmpty())
+      finish(execution, "error", resourceError);
+    return;
+  }
+
   if (!execution.departed) {
     startBackgroundActions(
         execution,
@@ -1222,6 +1300,8 @@ void MovementRuntime::processExecution(
   execution.approachFired = false;
   execution.arrivedCommitted = false;
   execution.leaveSeenOccupied = false;
+  execution.enteredResources.clear();
+  execution.firedResourceEvents.clear();
 
   if (execution.stopping ||
       execution.legIndex >=
