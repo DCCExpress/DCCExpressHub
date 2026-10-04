@@ -12,6 +12,18 @@ namespace DCCExpressHub.Net.CommandCenter;
 /// </summary>
 public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
 {
+    private sealed record TxRequest(
+        byte[] Packet,
+        ushort Header,
+        bool LogPacket,
+        CancellationToken CancellationToken,
+        TaskCompletionSource<bool> Completion);
+
+    private sealed record PendingTurnoutFeedback(
+        int Address,
+        bool ExpectedPhysicalValue,
+        TaskCompletionSource<bool> Completion);
+
     public const int DefaultPort = 21105;
 
     // Z21 clients only need to communicate once per minute to stay registered.
@@ -21,6 +33,7 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
     private const int OnlineTimeoutMs = 45_000;
     private const int AccessoryPulseMs = 120;
     private const int AccessorySettleMs = 50;
+    private const int TurnoutFeedbackTimeoutMs = 750;
     private const int LocoNetInterrogateRestMs = 1250;
 
     // Generic Z21: driving/switching + R-BUS + system state + all changed
@@ -35,8 +48,11 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
     private readonly ILogger<Z21CommandCenter> _log;
     private readonly object _stateGate = new();
     private readonly SemaphoreSlim _connectGate = new(1, 1);
-    private readonly SemaphoreSlim _txGate = new(1, 1);
     private readonly SemaphoreSlim _accessoryGate = new(1, 1);
+    private readonly SemaphoreSlim _txSignal = new(0);
+    private readonly object _txQueueGate = new();
+    private readonly Queue<TxRequest> _priorityTxQueue = new();
+    private readonly Queue<TxRequest> _normalTxQueue = new();
     private readonly SemaphoreSlim _locoNetInterrogateGate = new(1, 1);
 
     private DateTime _lastLocoNetInterrogateUtc = DateTime.MinValue;
@@ -90,6 +106,9 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
     private bool _powerFeedbackKnown;
     private bool _lastPowerOn;
     private string _lastPowerTarget = "";
+
+    private readonly object _turnoutFeedbackGate = new();
+    private PendingTurnoutFeedback? _pendingTurnoutFeedback;
 
     private StationInfo _stationInfo =
         new(
@@ -325,6 +344,13 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
     protected override async Task ExecuteAsync(
         CancellationToken stoppingToken)
     {
+        using var txCts =
+            new CancellationTokenSource();
+
+        var txTask =
+            RunTxQueueAsync(
+                txCts.Token);
+
         var locoNetFeedbackTask =
             _locoNetFeedbackEnabled
                 ? RunLocoNetFeedbackAsync(
@@ -488,6 +514,18 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                 ex,
                 "Z21 feedback side-channel task stopped");
         }
+
+        txCts.Cancel();
+
+        try
+        {
+            await txTask;
+        }
+        catch (OperationCanceledException)
+        {
+        }
+
+        CancelPendingTxRequests();
 
         ResetTransport();
     }
@@ -704,7 +742,8 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
         ushort header,
         ReadOnlyMemory<byte> payload,
         bool logPacket,
-        CancellationToken ct)
+        CancellationToken ct,
+        bool priority = false)
     {
         if (!await EnsureTransportAsync(ct))
             return false;
@@ -713,23 +752,17 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
             header,
             payload,
             logPacket,
-            ct);
+            ct,
+            priority);
     }
 
     private async Task<bool> SendPacketCoreAsync(
         ushort header,
         ReadOnlyMemory<byte> payload,
         bool logPacket,
-        CancellationToken ct)
+        CancellationToken ct,
+        bool priority = false)
     {
-        UdpClient? udp;
-
-        lock (_stateGate)
-            udp = _udp;
-
-        if (udp is null)
-            return false;
-
         if (payload.Length > ushort.MaxValue - 4)
             return false;
 
@@ -749,7 +782,104 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
         payload.Span.CopyTo(
             packet.AsSpan(4));
 
-        await _txGate.WaitAsync(ct);
+        var completion =
+            new TaskCompletionSource<bool>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var request =
+            new TxRequest(
+                packet,
+                header,
+                logPacket,
+                ct,
+                completion);
+
+        lock (_txQueueGate)
+        {
+            if (priority)
+                _priorityTxQueue.Enqueue(
+                    request);
+            else
+                _normalTxQueue.Enqueue(
+                    request);
+        }
+
+        _txSignal.Release();
+
+        try
+        {
+            return await completion.Task.WaitAsync(
+                ct);
+        }
+        catch (OperationCanceledException)
+            when (ct.IsCancellationRequested)
+        {
+            return false;
+        }
+    }
+
+    private async Task RunTxQueueAsync(
+        CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            try
+            {
+                await _txSignal.WaitAsync(
+                    ct);
+            }
+            catch (OperationCanceledException)
+                when (ct.IsCancellationRequested)
+            {
+                break;
+            }
+
+            TxRequest? request = null;
+
+            lock (_txQueueGate)
+            {
+                if (_priorityTxQueue.Count > 0)
+                    request =
+                        _priorityTxQueue.Dequeue();
+                else if (_normalTxQueue.Count > 0)
+                    request =
+                        _normalTxQueue.Dequeue();
+            }
+
+            if (request is null)
+                continue;
+
+            if (request.CancellationToken.IsCancellationRequested)
+            {
+                request.Completion.TrySetCanceled(
+                    request.CancellationToken);
+
+                continue;
+            }
+
+            var ok =
+                SendPacketDirect(
+                    request.Packet,
+                    request.Header,
+                    request.LogPacket);
+
+            request.Completion.TrySetResult(
+                ok);
+        }
+    }
+
+    private bool SendPacketDirect(
+        byte[] packet,
+        ushort header,
+        bool logPacket)
+    {
+        UdpClient? udp;
+
+        lock (_stateGate)
+            udp = _udp;
+
+        if (udp is null)
+            return false;
 
         try
         {
@@ -787,37 +917,58 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
         {
             return false;
         }
-        finally
+    }
+
+    private void CancelPendingTxRequests()
+    {
+        TxRequest[] pending;
+
+        lock (_txQueueGate)
         {
-            _txGate.Release();
+            pending =
+                _priorityTxQueue
+                    .Concat(
+                        _normalTxQueue)
+                    .ToArray();
+
+            _priorityTxQueue.Clear();
+            _normalTxQueue.Clear();
         }
+
+        foreach (var request in pending)
+            request.Completion.TrySetCanceled();
     }
 
     private Task<bool> SendXBusAsync(
         ReadOnlyMemory<byte> payload,
         bool logPacket,
-        CancellationToken ct) =>
+        CancellationToken ct,
+        bool priority = false) =>
         SendXBusInternalAsync(
             payload,
             logPacket,
             ensureTransport: true,
-            ct);
+            ct,
+            priority);
 
     private Task<bool> SendXBusCoreAsync(
         ReadOnlyMemory<byte> payload,
         bool logPacket,
-        CancellationToken ct) =>
+        CancellationToken ct,
+        bool priority = false) =>
         SendXBusInternalAsync(
             payload,
             logPacket,
             ensureTransport: false,
-            ct);
+            ct,
+            priority);
 
     private async Task<bool> SendXBusInternalAsync(
         ReadOnlyMemory<byte> payload,
         bool logPacket,
         bool ensureTransport,
-        CancellationToken ct)
+        CancellationToken ct,
+        bool priority = false)
     {
         if (payload.Length == 0)
             return false;
@@ -841,12 +992,14 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                 0x0040,
                 data,
                 logPacket,
-                ct)
+                ct,
+                priority)
             : await SendPacketCoreAsync(
                 0x0040,
                 data,
                 logPacket,
-                ct);
+                ct,
+                priority);
     }
 
     public Task<bool> SendRawAsync(
@@ -879,7 +1032,9 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                         : (byte)0x80
                 },
                 true,
-                ct);
+                ct,
+                priority:
+                    !on);
 
         if (ok && on)
         {
@@ -917,7 +1072,8 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                         0x81
                     },
                     true,
-                    ct);
+                    ct,
+                    priority: true);
 
             if (resumed)
                 UpdateEmergencyState(
@@ -933,7 +1089,8 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
             await SendXBusAsync(
                 new byte[] { 0x80 },
                 true,
-                ct);
+                ct,
+                priority: true);
 
         if (stopped)
             UpdateEmergencyState(
@@ -1062,7 +1219,7 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
         // Callers pass the already resolved physical accessory value here
         // (ClosedValue polarity has already been applied). Preserve the same
         // bool semantics as DCC-EX: false -> Z21 P=0, true -> Z21 P=1.
-        return SendAccessoryCommandAsync(
+        return SendTurnoutCommandAsync(
             address,
             physicalValue,
             ct);
@@ -1072,12 +1229,12 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
         int address,
         bool active,
         CancellationToken ct = default) =>
-        SendAccessoryCommandAsync(
+        SendTimedAccessoryPulseAsync(
             address,
             active,
             ct);
 
-    private async Task<bool> SendAccessoryCommandAsync(
+    private async Task<bool> SendTurnoutCommandAsync(
         int address,
         bool position,
         CancellationToken ct)
@@ -1089,7 +1246,7 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
             address - 1;
 
         _log.LogInformation(
-            "Z21 turnout/accessory #{Address}: physical={PhysicalValue}, functionAddress={FunctionAddress}",
+            "Z21 turnout #{Address}: physical={PhysicalValue}, functionAddress={FunctionAddress}",
             address,
             position,
             functionAddress);
@@ -1097,12 +1254,21 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
         await _accessoryGate.WaitAsync(
             ct);
 
+        var feedback =
+            new PendingTurnoutFeedback(
+                address,
+                position,
+                new TaskCompletionSource<bool>(
+                    TaskCreationOptions.RunContinuationsAsynchronously));
+
+        lock (_turnoutFeedbackGate)
+            _pendingTurnoutFeedback =
+                feedback;
+
+        var activated = false;
+
         try
         {
-            // Match the conservative/JMRI-compatible Q=0 sequence from the
-            // Z21 specification: activate -> pulse -> deactivate -> settle.
-            // This avoids depending on a command station's optional queue
-            // implementation and guarantees only one active turnout output.
             if (!await SendAccessoryPulseAsync(
                     functionAddress,
                     position,
@@ -1113,30 +1279,214 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                 return false;
             }
 
-            await Task.Delay(
-                AccessoryPulseMs,
-                ct);
+            activated = true;
 
+            // JMRI sends Q=0 and waits for LAN_X_TURNOUT_INFO before turning
+            // the decoder output off. Keep a hard pulse ceiling as a coil
+            // safety fallback in case feedback is lost.
+            var first =
+                await Task.WhenAny(
+                    feedback.Completion.Task,
+                    Task.Delay(
+                        AccessoryPulseMs,
+                        ct));
+
+            var confirmed =
+                first ==
+                    feedback.Completion.Task &&
+                feedback.Completion.Task
+                    .IsCompletedSuccessfully &&
+                feedback.Completion.Task.Result;
+
+            // Deactivate is safety-critical. Put it at the front of the global
+            // Z21 TX queue and do it even if the caller was cancelled.
             if (!await SendAccessoryPulseAsync(
                     functionAddress,
                     position,
                     activate: false,
+                    queue: false,
+                    ct: CancellationToken.None,
+                    priority: true))
+            {
+                return false;
+            }
+
+            activated = false;
+
+            if (!confirmed)
+            {
+                // Ask for the authoritative state once. The broadcast reply
+                // resolves the same pending feedback waiter.
+                await RequestTurnoutInfoAsync(
+                    address,
+                    CancellationToken.None);
+
+                var final =
+                    await Task.WhenAny(
+                        feedback.Completion.Task,
+                        Task.Delay(
+                            TurnoutFeedbackTimeoutMs,
+                            CancellationToken.None));
+
+                confirmed =
+                    final ==
+                        feedback.Completion.Task &&
+                    feedback.Completion.Task
+                        .IsCompletedSuccessfully &&
+                    feedback.Completion.Task.Result;
+            }
+
+            await Task.Delay(
+                AccessorySettleMs,
+                CancellationToken.None);
+
+            if (!confirmed)
+            {
+                _log.LogWarning(
+                    "Z21 turnout #{Address} command not confirmed by LAN_X_TURNOUT_INFO (expected physical={PhysicalValue})",
+                    address,
+                    position);
+            }
+
+            return confirmed;
+        }
+        catch (OperationCanceledException)
+            when (ct.IsCancellationRequested)
+        {
+            return false;
+        }
+        finally
+        {
+            if (activated)
+            {
+                try
+                {
+                    await SendAccessoryPulseAsync(
+                        functionAddress,
+                        position,
+                        activate: false,
+                        queue: false,
+                        ct: CancellationToken.None,
+                        priority: true);
+                }
+                catch
+                {
+                }
+            }
+
+            lock (_turnoutFeedbackGate)
+            {
+                if (ReferenceEquals(
+                        _pendingTurnoutFeedback,
+                        feedback))
+                {
+                    _pendingTurnoutFeedback =
+                        null;
+                }
+            }
+
+            _accessoryGate.Release();
+        }
+    }
+
+    private async Task<bool> SendTimedAccessoryPulseAsync(
+        int address,
+        bool position,
+        CancellationToken ct)
+    {
+        if (address is < 1 or > 2048)
+            return false;
+
+        var functionAddress =
+            address - 1;
+
+        await _accessoryGate.WaitAsync(
+            ct);
+
+        var activated = false;
+
+        try
+        {
+            if (!await SendAccessoryPulseAsync(
+                    functionAddress,
+                    position,
+                    activate: true,
                     queue: false,
                     ct: ct))
             {
                 return false;
             }
 
+            activated = true;
+
+            await Task.Delay(
+                AccessoryPulseMs,
+                ct);
+
+            var ok =
+                await SendAccessoryPulseAsync(
+                    functionAddress,
+                    position,
+                    activate: false,
+                    queue: false,
+                    ct: CancellationToken.None,
+                    priority: true);
+
+            activated = false;
+
+            if (!ok)
+                return false;
+
             await Task.Delay(
                 AccessorySettleMs,
-                ct);
+                CancellationToken.None);
 
             return true;
         }
+        catch (OperationCanceledException)
+            when (ct.IsCancellationRequested)
+        {
+            return false;
+        }
         finally
         {
+            if (activated)
+            {
+                try
+                {
+                    await SendAccessoryPulseAsync(
+                        functionAddress,
+                        position,
+                        activate: false,
+                        queue: false,
+                        ct: CancellationToken.None,
+                        priority: true);
+                }
+                catch
+                {
+                }
+            }
+
             _accessoryGate.Release();
         }
+    }
+
+    private Task<bool> RequestTurnoutInfoAsync(
+        int address,
+        CancellationToken ct)
+    {
+        var functionAddress =
+            address - 1;
+
+        return SendXBusAsync(
+            new byte[]
+            {
+                0x43,
+                (byte)(functionAddress >> 8),
+                (byte)(functionAddress & 0xFF)
+            },
+            false,
+            ct);
     }
 
     private Task<bool> SendAccessoryPulseAsync(
@@ -1144,7 +1494,8 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
         bool position,
         bool activate,
         bool queue,
-        CancellationToken ct)
+        CancellationToken ct,
+        bool priority = false)
     {
         // LAN_X_SET_TURNOUT DB2 = 100QA00P.
         byte control = 0x80;
@@ -1167,7 +1518,8 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                 control
             },
             true,
-            ct);
+            ct,
+            priority);
     }
 
     public Task<bool> SetSignalAspectAsync(
@@ -2373,9 +2725,41 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
             // authoritative states and leave unknown/inconsistent untouched.
             if (position is 1 or 2)
             {
+                var physicalValue =
+                    position == 2;
+
                 AccessoryFeedbackChanged?.Invoke(
                     address,
-                    position == 2);
+                    physicalValue);
+
+                PendingTurnoutFeedback? pending;
+
+                lock (_turnoutFeedbackGate)
+                    pending =
+                        _pendingTurnoutFeedback;
+
+                if (
+                    pending is not null &&
+                    pending.Address == address
+                )
+                {
+                    if (
+                        physicalValue ==
+                        pending.ExpectedPhysicalValue
+                    )
+                    {
+                        pending.Completion.TrySetResult(
+                            true);
+                    }
+                    else
+                    {
+                        _log.LogDebug(
+                            "Z21 turnout #{Address} feedback physical={PhysicalValue}; waiting for expected physical={ExpectedPhysicalValue}",
+                            address,
+                            physicalValue,
+                            pending.ExpectedPhysicalValue);
+                    }
+                }
             }
             else
             {
