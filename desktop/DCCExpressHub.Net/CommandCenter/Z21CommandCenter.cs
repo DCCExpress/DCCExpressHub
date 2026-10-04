@@ -14,8 +14,11 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
 {
     public const int DefaultPort = 21105;
 
-    private const int KeepAliveMs = 10_000;
-    private const int OnlineTimeoutMs = 30_000;
+    // Z21 clients only need to communicate once per minute to stay registered.
+    // Use a lightweight 30 s keepalive and leave system-state/current updates
+    // to the subscribed LAN_SYSTEMSTATE_DATACHANGED broadcast.
+    private const int KeepAliveMs = 30_000;
+    private const int OnlineTimeoutMs = 45_000;
     private const int AccessoryPulseMs = 120;
     private const int AccessorySettleMs = 50;
     private const int LocoNetInterrogateRestMs = 1250;
@@ -270,8 +273,11 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
 
                 if (now >= _nextKeepAliveUtc)
                 {
+                    // Lightweight keepalive. Do not poll system state here:
+                    // broadcast flag 0x00000100 already delivers
+                    // LAN_SYSTEMSTATE_DATACHANGED asynchronously.
                     await SendPacketAsync(
-                        0x0085,
+                        0x0010,
                         ReadOnlyMemory<byte>.Empty,
                         logPacket: false,
                         stoppingToken);
@@ -1075,12 +1081,15 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
     }
 
     public Task<bool> RequestCurrentTelemetryAsync(
-        CancellationToken ct = default) =>
-        SendPacketAsync(
-            0x0085,
-            ReadOnlyMemory<byte>.Empty,
-            false,
-            ct);
+        CancellationToken ct = default)
+    {
+        // WsRuntimeCoordinator asks command centers for current telemetry at
+        // 1 Hz. Z21 does not need that polling because our broadcast flags
+        // include 0x00000100, which asynchronously delivers the same
+        // LAN_SYSTEMSTATE_DATACHANGED dataset whenever it changes.
+        // RegisterSessionAsync still requests one authoritative snapshot.
+        return Task.FromResult(true);
+    }
 
     public Task<bool> RequestTripTelemetryAsync(
         CancellationToken ct = default)
