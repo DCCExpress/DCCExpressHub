@@ -1,5 +1,7 @@
 #include "MovementRuntime.h"
 
+#include "Logger.h"
+
 #include <LittleFS.h>
 #include <algorithm>
 
@@ -129,17 +131,34 @@ bool MovementRuntime::loadPage(
     return false;
   }
 
+  String storedIds;
+
   for (JsonObjectConst candidate :
        movement["pages"].as<JsonArrayConst>()) {
-    const char* id =
-        candidate["id"] | nullptr;
+    const String id =
+        candidate["id"].is<const char*>()
+            ? candidate["id"].as<String>()
+            : String();
 
-    if (id &&
+    if (!id.isEmpty()) {
+      if (!storedIds.isEmpty())
+        storedIds += ", ";
+      storedIds += id;
+    }
+
+    if (!id.isEmpty() &&
         pageId == id) {
       page = candidate;
       return true;
     }
   }
+
+  Logger::error(
+      "Movement not found. requested=" +
+      pageId +
+      " stored=[" +
+      storedIds +
+      "]");
 
   error = "movement_not_found";
   return false;
