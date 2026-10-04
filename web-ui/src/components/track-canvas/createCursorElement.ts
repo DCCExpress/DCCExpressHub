@@ -28,6 +28,7 @@ import { BushElement } from "../../models/editor/elements/BushElement";
 import { LampElement } from "../../models/editor/elements/LampElement";
 import { StationBuildingElement } from "../../models/editor/elements/StationBuildingElement";
 import { SwitchmanHutElement } from "../../models/editor/elements/SwitchmanHutElement";
+import { GardenHouseElement } from "../../models/editor/elements/GardenHouseElement";
 import type { EditorTool } from "../../models/editor/types/EditorTypes";
 
 const cursorTrackElement = new TrackStraightElement(0, 0);
