@@ -970,6 +970,10 @@ void MovementRuntime::processExecution(
           execution.legIndex];
 
   if (!execution.departed) {
+    startBackgroundActions(
+        execution,
+        leg.from.key,
+        "beforeDepart");
     String actionError;
     if (!runBlockingActions(
             execution,
@@ -994,6 +998,10 @@ void MovementRuntime::processExecution(
       return;
     }
 
+    startBackgroundActions(
+        execution,
+        leg.from.key,
+        "depart");
     if (!runBlockingActions(
             execution,
             leg.from.key,
@@ -1032,6 +1040,10 @@ void MovementRuntime::processExecution(
       !leg.approachWhen.empty() &&
       conditionsSatisfied(
           leg.approachWhen)) {
+    startBackgroundActions(
+        execution,
+        leg.to.key,
+        "approach");
     String actionError;
     if (!runBlockingActions(
             execution,
@@ -1054,6 +1066,10 @@ void MovementRuntime::processExecution(
     if (!arrived(leg))
       return;
 
+    startBackgroundActions(
+        execution,
+        leg.to.key,
+        "arrived");
     String actionError;
     if (!runBlockingActions(
             execution,
@@ -1144,6 +1160,10 @@ void MovementRuntime::processExecution(
           leg))
     return;
 
+  startBackgroundActions(
+      execution,
+      leg.from.key,
+      "leave");
   String leaveActionError;
   if (!runBlockingActions(
           execution,
