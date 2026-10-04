@@ -809,6 +809,18 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
             return false;
         }
 
+        if (_emergencyKnown &&
+            _emergencyPaused &&
+            speed > 0)
+        {
+            _log.LogWarning(
+                "Z21 loco #{Address} speed {Speed} rejected while emergency stop is active",
+                address,
+                speed);
+
+            return false;
+        }
+
         EncodeLocoAddress(
             address,
             out var msb,
