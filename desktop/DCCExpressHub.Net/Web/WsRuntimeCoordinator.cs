@@ -35,6 +35,7 @@ public sealed class WsRuntimeCoordinator : BackgroundService
         _connected=cc.Connected;
         cc.ConnectionChanged+=OnConnectionChanged;
         cc.SensorFeedbackChanged+=OnSensorFeedbackChanged;
+        cc.AccessoryFeedbackChanged+=OnAccessoryFeedbackChanged;
     }
 
     void OnConnectionChanged(bool connected)
@@ -58,6 +59,22 @@ public sealed class WsRuntimeCoordinator : BackgroundService
             "Sensor {Address} = {State}",
             address,
             on ? 1 : 0);
+    }
+
+    void OnAccessoryFeedbackChanged(int address,bool active)
+    {
+        if(address is <=0 or >65535)
+            return;
+
+        if(!_runtime.SetAccessory(
+               (ushort)address,
+               active))
+            return;
+
+        _log.LogInformation(
+            "Accessory {Address} = {State}",
+            address,
+            active ? 1 : 0);
     }
 
     protected override async Task ExecuteAsync(CancellationToken ct)
