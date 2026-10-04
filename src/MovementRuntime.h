@@ -141,6 +141,7 @@ private:
     String sourceLocoId;
     String eventDelayKey;
     unsigned long eventDelayUntilMs = 0;
+    std::vector<String> completedEventDelays;
     String pendingAudioRequestId;
     bool pendingAudioCompleted = false;
     bool pendingAudioOk = false;
