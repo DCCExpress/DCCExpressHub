@@ -1,67 +1,55 @@
 # DCCExpressHub
 
-DCCExpressHub is a control, automation and integration server for **DCC-EX** model railway command stations.
+DCCExpressHub is a control and automation system for **DCC-EX** model railways.
 
-The project currently targets two runtime platforms:
+It provides one interface for driving locomotives, operating turnouts and signals, editing the layout, following trains, running automatic movements and timetables, and using sensors for safer operation.
 
-- **Windows Desktop / Server** — the primary platform for DCCExpressHub and the full automation runtime.
-- **ESP32-S3 Hub** — the supported embedded platform for standalone layouts.
+You can run DCCExpressHub on:
+
+- **Windows Desktop / Server** — the primary platform and recommended choice for automation.
+- **ESP32-S3 Hub** — the supported standalone embedded platform.
+
+The same layout can be controlled from PCs, notebooks, tablets and phones on the local network.
 
 > **DCCExpressHub is not a command station.**
 >
-> The connected DCC-EX command station generates the DCC signal. DCCExpressHub provides the user interface, layout configuration, automation, train tracking and integration layer around it.
+> Your DCC-EX command station still generates the DCC track signal. DCCExpressHub sits above it and provides the control, layout and automation functions.
 
 ![DCCExpressHub screenshot](doc/images/Screenshot_2026-09-23_182817.png)
 
-## Architecture
+## How it works
 
 ```text
  PC / tablet / phone
          |
-      HTTP / WS
+         v
+   DCCExpressHub
+   Windows or ESP32-S3
          |
          v
- +-----------------------+
- |     DCCExpressHub     |
- |                       |
- | Windows backend       |  <- primary runtime
- | or ESP32-S3 Hub       |
- +-----------+-----------+
-             |
-          DCC-EX
-             |
-             v
-      Command station
-             |
-            DCC
-             |
-             v
-    Model railway layout
+       DCC-EX
+         |
+         v
+ Model railway layout
 ```
-
-The Windows runtime is built with **ASP.NET Core 10** and the Desktop shell uses **WPF + WebView2**.
-
-The shared Web UI is built with **React, TypeScript, Mantine and Vite**.
 
 ## Alpha2 highlights
 
-Alpha2 contains a major runtime and architecture update.
+Alpha2 is a major step forward for automatic operation and layout control.
 
-### Windows backend automation
+Main improvements:
 
-Automation execution has moved out of the browser and into the Windows backend.
-
-The backend now owns:
-
-- **Movement / Dispatcher**
-- **Train Tracking**
-- **Flows**
-- **Scripts**
-- **Timetable**
-- **Train Events**
-- **Calibration runtime**
-
-JavaScript automation on Windows uses the **Jint** engine.
+- automatic train movements with route and turnout handling,
+- train tracking using occupancy sensors,
+- safer route execution and unknown occupancy detection,
+- timetable operation,
+- visual automation flows and scripts,
+- improved route preview and block event configuration,
+- locomotive calibration,
+- improved DCC-EX sensor and console support,
+- new layout decorations and buildings,
+- Windows as the primary automation platform,
+- ESP32-S3 as the supported standalone embedded platform.
 
 ### Movement / Dispatcher
 
