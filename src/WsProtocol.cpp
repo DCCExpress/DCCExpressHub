@@ -4179,6 +4179,25 @@ void WsProtocol::handleMessage(
     if (
         strcmp(
             type,
+            "audioPlaybackCompleted") ==
+        0)
+    {
+        const String requestId =
+            data["requestId"] | "";
+        const bool ok =
+            data["ok"] | true;
+
+        if (!requestId.isEmpty())
+            _movements.audioCompleted(
+                requestId,
+                ok);
+
+        return;
+    }
+
+    if (
+        strcmp(
+            type,
             "broadcastStopAudio") ==
         0)
     {
