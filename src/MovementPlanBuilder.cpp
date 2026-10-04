@@ -376,8 +376,33 @@ bool MovementPlanBuilder::build(
     return false;
   }
 
-  plan.direction =
-      str(selected, "locoDirection", "unknown");
+  // The saved Movement routeKey is the canonical identity created by the UI
+  // and already contains the selected route direction. Prefer that value first
+  // so runtime execution cannot drift from the exact route the user selected.
+  plan.direction = "unknown";
+
+  if (!requestedRouteKey.isEmpty()) {
+    JsonDocument routeIdentity;
+    const DeserializationError routeKeyError =
+        deserializeJson(
+            routeIdentity,
+            requestedRouteKey);
+
+    if (!routeKeyError &&
+        routeIdentity["direction"].is<const char*>()) {
+      const String routeKeyDirection =
+          routeIdentity["direction"].as<String>();
+
+      if (routeKeyDirection == "forward" ||
+          routeKeyDirection == "reverse")
+        plan.direction = routeKeyDirection;
+    }
+  }
+
+  if (plan.direction != "forward" &&
+      plan.direction != "reverse")
+    plan.direction =
+        str(selected, "locoDirection", "unknown");
 
   // Older/stale route-table entries can have an unknown or missing route-level
   // direction while each physical edge still carries the authoritative
@@ -419,9 +444,14 @@ bool MovementPlanBuilder::build(
       plan.direction != "reverse") {
     Logger::error(
         "Movement direction unknown. routeKey=" +
-        str(page, "routeKey") +
+        requestedRouteKey +
         " routeDirection=" +
-        str(selected, "locoDirection", "unknown"));
+        str(selected, "locoDirection", "unknown") +
+        " edgeCount=" +
+        String(
+            selected["edgePath"]
+                .as<JsonArrayConst>()
+                .size()));
     error = "movement_direction_unknown";
     return false;
   }
