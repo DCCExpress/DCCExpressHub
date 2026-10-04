@@ -44,6 +44,7 @@ import type {
 export type TrackCanvasProps = {
   editMode?: boolean;
   tool: EditorTool;
+  onToolChange?: Dispatch<SetStateAction<EditorTool>>;
   layout: LayoutView;
   onLayoutChange: Dispatch<SetStateAction<LayoutView>>;
   onBeforeLayoutChange?: () => void;
