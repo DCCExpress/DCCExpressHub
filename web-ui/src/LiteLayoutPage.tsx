@@ -106,6 +106,7 @@ import { TreeElement } from "./models/editor/elements/TreeElement";
 import { BushElement } from "./models/editor/elements/BushElement";
 import { LampElement } from "./models/editor/elements/LampElement";
 import { StationBuildingElement } from "./models/editor/elements/StationBuildingElement";
+import { SwitchmanHutElement } from "./models/editor/elements/SwitchmanHutElement";
 import { RouteButtonElement } from "./models/editor/elements/RouteButtonElement";
 import ElementPreview from "@/models/editor/rendering/ElementPreviewRenderer";
 import type { EditorTool } from "@/models/editor/types/EditorTypes";
@@ -391,6 +392,12 @@ function createStationBuildingPreview(): StationBuildingElement {
   return building;
 }
 
+function createSwitchmanHutPreview(): SwitchmanHutElement {
+  const building = new SwitchmanHutElement(0, 0);
+  building.size = 1;
+  return building;
+}
+
 async function readHttpErrorMessage(
   response: Response,
   fallback: string
@@ -471,6 +478,11 @@ const DECORATION_PICKER_ITEMS: PickerItem[] = [
     type: ELEMENT_TYPES.STATION_BUILDING,
     get label() { return i18next.t("ui.stationBuilding"); },
     preview: createStationBuildingPreview(),
+  },
+  {
+    type: ELEMENT_TYPES.SWITCHMAN_HUT,
+    get label() { return i18next.t("ui.switchmanHut"); },
+    preview: createSwitchmanHutPreview(),
   },
 ];
 
