@@ -388,6 +388,12 @@ export interface StationBuildingElementDto extends BaseElementDto {
   roofColor: string;
 }
 
+export interface SwitchmanHutElementDto extends BaseElementDto {
+  type: "switchmanhut";
+  size: number;
+  roofColor: string;
+}
+
 export interface LabelElementDto extends BaseElementDto {
   type: "label";
   text: string;
@@ -444,5 +450,6 @@ export type LayoutElementDto =
   | BushElementDto
   | LampElementDto
   | StationBuildingElementDto
+  | SwitchmanHutElementDto
   | TrackSignalElementDto
   | LabelElementDto;
