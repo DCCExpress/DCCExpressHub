@@ -107,6 +107,7 @@ import { BushElement } from "./models/editor/elements/BushElement";
 import { LampElement } from "./models/editor/elements/LampElement";
 import { StationBuildingElement } from "./models/editor/elements/StationBuildingElement";
 import { SwitchmanHutElement } from "./models/editor/elements/SwitchmanHutElement";
+import { GardenHouseElement } from "./models/editor/elements/GardenHouseElement";
 import { RouteButtonElement } from "./models/editor/elements/RouteButtonElement";
 import ElementPreview from "@/models/editor/rendering/ElementPreviewRenderer";
 import type { EditorTool } from "@/models/editor/types/EditorTypes";
