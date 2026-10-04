@@ -460,5 +460,6 @@ export type LayoutElementDto =
   | LampElementDto
   | StationBuildingElementDto
   | SwitchmanHutElementDto
+  | GardenHouseElementDto
   | TrackSignalElementDto
   | LabelElementDto;
