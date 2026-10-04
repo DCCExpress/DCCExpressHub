@@ -338,6 +338,65 @@ String FlowRuntime::statement(
 
   if (
       node.kind ==
+      "setSensor"
+  ) {
+    const int address =
+        intValue(data, "sensorAddress");
+
+    if (address < 1 || address > 65535) {
+      return "throw new Error(\"Set Sensor node has no configured sensor.\");";
+    }
+
+    return
+        "hub.setSensor(" +
+        String(address) +
+        ", " +
+        (boolValue(data, "sensorState", true) ? "true" : "false") +
+        ");";
+  }
+
+  if (
+      node.kind ==
+      "setAccessory"
+  ) {
+    const int address =
+        intValue(data, "accessoryAddress");
+
+    if (address < 1 || address > 2048) {
+      return "throw new Error(\"Set Accessory node has no configured address.\");";
+    }
+
+    return
+        "hub.setAccessory(" +
+        String(address) +
+        ", " +
+        (boolValue(data, "accessoryActive", true) ? "true" : "false") +
+        ");";
+  }
+
+  if (
+      node.kind ==
+      "setExtendedAccessory"
+  ) {
+    const int address =
+        intValue(data, "accessoryAddress");
+    const int aspect =
+        std::max(0, std::min(255, intValue(data, "accessoryAspect")));
+
+    if (address < 1 || address > 2048) {
+      return "throw new Error(\"Set Extended Accessory node has no configured address.\");";
+    }
+
+    return
+        "hub.setSignal(" +
+        String(address) +
+        ", " +
+        String(aspect) +
+        ");";
+  }
+
+  if (
+      node.kind ==
       "setTurnout"
   ) {
     JsonArrayConst commands =
@@ -464,6 +523,82 @@ String FlowRuntime::statement(
 
     return
         "throw new Error(\"Set Loco requires a configured loco address on ESP32.\");";
+  }
+
+  if (
+      node.kind == "getBlock" ||
+      node.kind == "setBlock" ||
+      node.kind == "clearBlock" ||
+      node.kind == "getBlockTargetLoco" ||
+      node.kind == "setBlockTargetLoco" ||
+      node.kind == "clearBlockTargetLoco"
+  ) {
+    const int blockId =
+        intValue(data, "blockElementId");
+
+    if (blockId < 1 || blockId > 65535) {
+      return "throw new Error(\"Block node has no configured block id.\");";
+    }
+
+    if (node.kind == "getBlock") {
+      return
+          "if (!payload || typeof payload !== \"object\" || Array.isArray(payload)) payload = {}; "
+          "payload.locoAddress = hub.getBlock(" +
+          String(blockId) +
+          ");";
+    }
+
+    if (node.kind == "clearBlock") {
+      return
+          "hub.clearBlock(" +
+          String(blockId) +
+          ");";
+    }
+
+    if (node.kind == "getBlockTargetLoco") {
+      return
+          "if (!payload || typeof payload !== \"object\" || Array.isArray(payload)) payload = {}; "
+          "payload.locoAddress = hub.getBlockTarget(" +
+          String(blockId) +
+          ");";
+    }
+
+    if (node.kind == "clearBlockTargetLoco") {
+      return
+          "hub.clearBlockTarget(" +
+          String(blockId) +
+          ");";
+    }
+
+    const int configuredLoco =
+        intValue(data, "locoAddress");
+
+    String locoSource;
+
+    if (configuredLoco >= 1 && configuredLoco <= 10239) {
+      locoSource =
+          String(configuredLoco);
+    } else {
+      locoSource =
+          "(function(){ const a=Number(payload && typeof payload===\"object\" ? payload.locoAddress : NaN); "
+          "if(!Number.isInteger(a)||a<1||a>10239) throw new Error(\"Block output requires payload.locoAddress.\"); return a; })()";
+    }
+
+    if (node.kind == "setBlock") {
+      return
+          "hub.setBlock(" +
+          String(blockId) +
+          ", " +
+          locoSource +
+          ");";
+    }
+
+    return
+        "hub.setBlockTarget(" +
+        String(blockId) +
+        ", " +
+        locoSource +
+        ");";
   }
 
   if (
