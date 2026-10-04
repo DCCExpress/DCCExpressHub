@@ -88,6 +88,7 @@ type RoutesDialogProps = {
     document:
       MovementDocument
   ) => void;
+  onPersistRouteTopology?: () => Promise<void>;
   onGenerated?: () => void;
 };
 
@@ -251,6 +252,7 @@ export default function RoutesDialog({
   movements,
   editingMovementId,
   onMovementsChange,
+  onPersistRouteTopology,
   onGenerated,
 }: RoutesDialogProps) {
   const { t } = useTranslation();
@@ -964,6 +966,8 @@ export default function RoutesDialog({
       );
 
       try {
+        await onPersistRouteTopology?.();
+
         await saveAutomationMovement(
           next
         );
