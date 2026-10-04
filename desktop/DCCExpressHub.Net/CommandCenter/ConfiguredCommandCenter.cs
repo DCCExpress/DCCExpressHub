@@ -27,6 +27,7 @@ public sealed class ConfiguredCommandCenter : ICommandCenter
         _inner.PowerFeedbackChanged+=x=>PowerFeedbackChanged?.Invoke(x);
         _inner.ConnectionChanged+=x=>ConnectionChanged?.Invoke(x);
         _inner.SensorFeedbackChanged+=(address,on)=>SensorFeedbackChanged?.Invoke(address,on);
+        _inner.AccessoryFeedbackChanged+=(address,active)=>AccessoryFeedbackChanged?.Invoke(address,active);
         _inner.LocoFeedbackChanged += x =>
         {
             var inverted = LocomotiveDirectionInverted(x.Address);
@@ -111,6 +112,7 @@ public sealed class ConfiguredCommandCenter : ICommandCenter
     public event Action<PowerFeedback>? PowerFeedbackChanged;
     public event Action<LocoFeedback>? LocoFeedbackChanged;
     public event Action<int, bool>? SensorFeedbackChanged;
+    public event Action<int, bool>? AccessoryFeedbackChanged;
     public event Action<bool>? ConnectionChanged;
 
     public Task<bool> SendRawAsync(string command,bool log=true,CancellationToken ct=default)=>_inner.SendRawAsync(command,log,ct);
