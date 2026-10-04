@@ -486,14 +486,13 @@ public sealed class MovementRuntime
     async Task PublishSafetyEmergencyStopAsync(
         MovementSafetyEmergencyStop trip)
     {
-        var active =
-            await EnsureEmergencyStopAsync();
+        await EnsureEmergencyStopAsync();
 
         SafetyEmergencyStop?.Invoke(
             trip with
             {
                 EmergencyStopActive =
-                    active
+                    _hubState.EmergencyStop
             });
     }
 
@@ -3850,7 +3849,7 @@ public sealed class MovementRuntime
         return true;
     }
 
-    async Task<bool> EnsureEmergencyStopAsync()
+    async Task EnsureEmergencyStopAsync()
     {
         /*
          * DccExCommandCenter.EmergencyStopAsync() is deliberately a toggle:
@@ -3869,7 +3868,7 @@ public sealed class MovementRuntime
                 true;
 
             PowerStateChanged?.Invoke();
-            return true;
+            return;
         }
 
         var ok =
@@ -3877,7 +3876,7 @@ public sealed class MovementRuntime
                 CancellationToken.None);
 
         if (!ok)
-            return false;
+            return;
 
         _hubState.EmergencyStop =
             _commandCenter.EmergencyPauseStateKnown
@@ -3885,9 +3884,6 @@ public sealed class MovementRuntime
                 : true;
 
         PowerStateChanged?.Invoke();
-
-        return
-            _hubState.EmergencyStop;
     }
 
     public void EmergencyStop() =>
