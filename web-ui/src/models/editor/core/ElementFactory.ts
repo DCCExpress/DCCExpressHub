@@ -17,6 +17,7 @@ import { TreeElement } from "../elements/TreeElement";
 import { BushElement } from "../elements/BushElement";
 import { LampElement } from "../elements/LampElement";
 import { StationBuildingElement } from "../elements/StationBuildingElement";
+import { SwitchmanHutElement } from "../elements/SwitchmanHutElement";
 import { TrackSignalElement } from "../elements/TrackSignalElement";
 import { AudioButtonElement } from "../elements/AudioButtonElement";
 import { AudioListButtonElement } from "../elements/AudioListButtonElement";
@@ -113,6 +114,9 @@ export class ElementFactory {
 
       case ELEMENT_TYPES.STATION_BUILDING:
         return StationBuildingElement.fromJSON(data);
+
+      case ELEMENT_TYPES.SWITCHMAN_HUT:
+        return SwitchmanHutElement.fromJSON(data);
 
       case ELEMENT_TYPES.LABEL:
         return LabelElement.fromJSON(data);
