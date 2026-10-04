@@ -338,6 +338,33 @@ bool MovementRuntime::arrived(
       leg.arrivedWhen);
 }
 
+bool MovementRuntime::leaveSatisfied(
+    Execution& execution,
+    const MovementPlanLeg& leg) const {
+  if (leg.leaveWhen.empty())
+    return true;
+
+  if (leg.leaveWhenExplicit)
+    return conditionsSatisfied(
+        leg.leaveWhen);
+
+  if (leg.from.sensorAddress == 0)
+    return false;
+
+  bool occupied = false;
+  if (!_layout.getSensorState(
+          leg.from.sensorAddress,
+          occupied))
+    return false;
+
+  if (occupied) {
+    execution.leaveSeenOccupied = true;
+    return false;
+  }
+
+  return execution.leaveSeenOccupied;
+}
+
 bool MovementRuntime::legSafetyFree(
     const MovementPlanLeg& leg) const {
   for (const auto sensor :
@@ -379,37 +406,137 @@ void MovementRuntime::processExecution(
       execution.plan.legs[
           execution.legIndex];
 
-  if (!arrived(leg))
-    return;
+  if (!execution.departed) {
+    if (!leg.departWhen.empty() &&
+        !conditionsSatisfied(
+            leg.departWhen)) {
+      if (execution.state.moving)
+        applySpeed(execution, 0);
 
-  const size_t nextIndex =
-      execution.legIndex + 1;
-  const bool hasNext =
-      nextIndex <
-      execution.plan.legs.size();
+      execution.state.info =
+          "Waiting for departure condition at " +
+          leg.from.name;
+      publishChanged();
+      return;
+    }
 
-  // ARRIVED is committed before the previous block's leave edge catches up.
-  // This mirrors Windows: the committed destination becomes the legal source
-  // of the next dispatcher leg.
-  if (!_layout.setBlock(
-          leg.to.blockId,
-          String(execution.state.locoAddress),
-          execution.state.locoAddress)) {
-    finish(
-        execution,
-        "error",
-        "movement_destination_commit_failed");
-    return;
+    execution.departed = true;
+    execution.leaveSeenOccupied = false;
+
+    if (leg.from.sensorAddress != 0) {
+      bool occupied = false;
+      if (_layout.getSensorState(
+              leg.from.sensorAddress,
+              occupied) &&
+          occupied)
+        execution.leaveSeenOccupied = true;
+    }
+
+    if (!execution.state.moving &&
+        !applySpeed(
+            execution,
+            execution.state.desiredSpeed)) {
+      finish(
+          execution,
+          "error",
+          "movement_loco_command_failed");
+      return;
+    }
   }
 
-  execution.state.currentBlockId =
-      leg.to.blockId;
-  execution.state.currentResourceKey =
-      leg.to.key;
+  if (!execution.approachFired &&
+      !leg.approachWhen.empty() &&
+      conditionsSatisfied(
+          leg.approachWhen)) {
+    execution.approachFired = true;
+    execution.state.info =
+        "Approaching: " +
+        leg.to.name;
+    publishChanged();
+  }
 
-  // The old authority must be gone before the just-committed destination can
-  // be reserved as the source of the next leg.
-  releaseAuthority(execution);
+  if (!execution.arrivedCommitted) {
+    if (!arrived(leg))
+      return;
+
+    if (!_layout.setBlock(
+            leg.to.blockId,
+            String(execution.state.locoAddress),
+            execution.state.locoAddress)) {
+      finish(
+          execution,
+          "error",
+          "movement_destination_commit_failed");
+      return;
+    }
+
+    execution.arrivedCommitted = true;
+    execution.state.currentBlockId =
+        leg.to.blockId;
+    execution.state.currentResourceKey =
+        leg.to.key;
+
+    // ARRIVED makes the destination the legal source for the next leg.
+    // Release old route authority now, but retain the old block occupancy
+    // until its LEAVE condition has actually fired.
+    releaseAuthority(execution);
+
+    const size_t nextIndex =
+        execution.legIndex + 1;
+    const bool hasNext =
+        nextIndex <
+        execution.plan.legs.size();
+
+    if (execution.stopping ||
+        !hasNext) {
+      applySpeed(execution, 0);
+    } else {
+      const auto& next =
+          execution.plan.legs[nextIndex];
+
+      const bool mayKeepRolling =
+          next.departWhen.empty() &&
+          targetBasicallyFree(next) &&
+          legSafetyFree(next);
+
+      if (!mayKeepRolling) {
+        if (!applySpeed(execution, 0)) {
+          finish(
+              execution,
+              "error",
+              "movement_loco_command_failed");
+          return;
+        }
+      } else {
+        String error;
+        if (!acquireLeg(
+                execution,
+                nextIndex,
+                error,
+                true)) {
+          applySpeed(execution, 0);
+          execution.state.info =
+              "Waiting at " +
+              leg.to.name +
+              ": " +
+              error;
+          publishChanged();
+        } else {
+          execution.state.info =
+              "Next leg prepared: " +
+              next.from.name +
+              " -> " +
+              next.to.name;
+          publishChanged();
+        }
+      }
+    }
+  }
+
+  if (!leaveSatisfied(
+          execution,
+          leg))
+    return;
 
   RuntimeBlock* source =
       _layout.findBlockById(
@@ -423,79 +550,60 @@ void MovementRuntime::processExecution(
         source->locoId);
 
   ++execution.legIndex;
+  execution.departed = false;
+  execution.approachFired = false;
+  execution.arrivedCommitted = false;
+  execution.leaveSeenOccupied = false;
 
   if (execution.stopping ||
-      !hasNext) {
+      execution.legIndex >=
+          execution.plan.legs.size()) {
     finish(execution, "finished");
     return;
   }
 
   const auto& next =
-      execution.plan.legs[nextIndex];
+      execution.plan.legs[
+          execution.legIndex];
 
-  // Through-block fast path: stay rolling only when the next destination and
-  // every effective safety detector are already clear. Dispatcher acquisition
-  // still repeats all checks and obtains SwitchMan authority before the lease
-  // becomes prepared.
-  const bool mayKeepRolling =
-      targetBasicallyFree(next) &&
-      legSafetyFree(next);
+  if (!execution.preparedLegOwnerId.isEmpty() &&
+      execution.preparedLegIndex ==
+          execution.legIndex) {
+    execution.activeLegOwnerId =
+        execution.preparedLegOwnerId;
+    execution.preparedLegOwnerId = "";
+    execution.preparedLegIndex =
+        static_cast<size_t>(-1);
+  } else {
+    String error;
+    if (!acquireLeg(
+            execution,
+            execution.legIndex,
+            error)) {
+      finish(execution, "error", error);
+      return;
+    }
+  }
 
-  if (!mayKeepRolling) {
-    if (!applySpeed(execution, 0)) {
+  if (next.departWhen.empty()) {
+    execution.departed = true;
+
+    if (!execution.state.moving &&
+        !applySpeed(
+            execution,
+            execution.state.desiredSpeed)) {
       finish(
           execution,
           "error",
           "movement_loco_command_failed");
       return;
     }
-  }
-
-  String error;
-  if (!acquireLeg(
-          execution,
-          nextIndex,
-          error,
-          mayKeepRolling)) {
-    if (mayKeepRolling)
-      applySpeed(execution, 0);
-
-    finish(execution, "error", error);
-    return;
-  }
-
-  if (mayKeepRolling) {
-    execution.activeLegOwnerId =
-        execution.preparedLegOwnerId;
-    execution.preparedLegOwnerId = "";
-    execution.preparedLegIndex =
-        static_cast<size_t>(-1);
-
+  } else {
+    applySpeed(execution, 0);
     execution.state.info =
-        "Next leg prepared: " +
-        next.from.name +
-        " -> " +
-        next.to.name;
+        "Waiting for departure condition at " +
+        next.from.name;
     publishChanged();
-    return;
-  }
-
-  if (!execution.preparedLegOwnerId.isEmpty()) {
-    execution.activeLegOwnerId =
-        execution.preparedLegOwnerId;
-    execution.preparedLegOwnerId = "";
-    execution.preparedLegIndex =
-        static_cast<size_t>(-1);
-  }
-
-  if (!applySpeed(
-          execution,
-          execution.state.desiredSpeed)) {
-    finish(
-        execution,
-        "error",
-        "movement_loco_command_failed");
-    return;
   }
 }
 
