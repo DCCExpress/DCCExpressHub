@@ -185,6 +185,7 @@
     "showSignalAddress": "Show signal address",
     "showSegments": "Show segments",
     "showBlockNames": "Show block names",
+    "showBuildings": "Show buildings",
     "showGrid": "Show grid"
   },
   "controlPanel": {
