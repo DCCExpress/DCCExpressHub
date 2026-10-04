@@ -84,8 +84,7 @@ jobs:
           set -euo pipefail
 
           targets=(
-            "m5stack-basic-dccex"
-            "esp32dev-dccex"
+            "sunton-8048s043-dccex"
           )
 
           for target in "${targets[@]}"; do
@@ -106,8 +105,7 @@ jobs:
           version="$RELEASE_VERSION"
 
           expected=(
-            "dist/firmware/DCCExpressHub-M5Stack-Basic-DCCEX-v${version}-merged.bin"
-            "dist/firmware/DCCExpressHub-ESP32-DevKit-DCCEX-v${version}-merged.bin"
+            "dist/firmware/DCCExpressHub-Sunton-ESP32-8048S043-DCCEX-v${version}-merged.bin"
           )
 
           mkdir -p artifacts/release
