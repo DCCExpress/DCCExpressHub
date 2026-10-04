@@ -8,6 +8,10 @@ import type {
   BaseElement,
 } from "../../models/editor/core/BaseElement";
 
+import {
+  INVALID_LAYOUT_ELEMENT_ID,
+} from "@domain/layout/layoutDto";
+
 import type {
   LayoutView,
 } from "../../models/editor/core/LayoutView";
@@ -39,8 +43,11 @@ export type TrackCanvasKeyboardContext = {
   editModeRef: TrackCanvasRef<boolean>;
   currentCursorRef: TrackCanvasRef<BaseElement | null>;
   selectedElementRef: TrackCanvasRef<BaseElement | null>;
+  copiedElementRef: TrackCanvasRef<BaseElement | null>;
+  pendingCopiedCursorRef: TrackCanvasRef<BaseElement | null>;
   viewRef: TrackCanvasRef<ViewState>;
   setCurrentCursor: Dispatch<SetStateAction<BaseElement | null>>;
+  onToolChange?: Dispatch<SetStateAction<EditorTool>> | undefined;
   onBeforeLayoutChange?: (() => void) | undefined;
   onLayoutChange: Dispatch<SetStateAction<LayoutView>>;
   onSelectedElementChange: (element: BaseElement | null) => void;
@@ -106,6 +113,73 @@ export function handleTrackCanvasKeyDown(
   }
 
   if (!currentEditMode) {
+    return;
+  }
+
+  const isCtrlOrMeta =
+    event.ctrlKey || event.metaKey;
+
+  if (
+    isCtrlOrMeta &&
+    event.key.toLowerCase() === "c"
+  ) {
+    if (selectedElements.length !== 1) {
+      return;
+    }
+
+    event.preventDefault();
+
+    const copied =
+      selectedElements[0]!.clone();
+
+    copied.id =
+      INVALID_LAYOUT_ELEMENT_ID;
+
+    copied.selected = false;
+    copied.marked = false;
+
+    context.copiedElementRef.current =
+      copied;
+
+    return;
+  }
+
+  if (
+    isCtrlOrMeta &&
+    event.key.toLowerCase() === "v"
+  ) {
+    const copied =
+      context.copiedElementRef.current;
+
+    if (!copied) {
+      return;
+    }
+
+    event.preventDefault();
+
+    const cursor =
+      copied.clone();
+
+    cursor.id =
+      INVALID_LAYOUT_ELEMENT_ID;
+
+    cursor.selected = true;
+    cursor.marked = false;
+
+    context.pendingCopiedCursorRef.current =
+      cursor;
+
+    context.setCurrentCursor(
+      cursor
+    );
+
+    context.onToolChange?.({
+      mode: "draw",
+      elementType: cursor.type,
+    });
+
+    context.canvasRef.current?.focus();
+    context.invalidate();
     return;
   }
 
