@@ -422,6 +422,8 @@ void WsProtocol::begin()
     lastCpuSampleAtMs =
         millis();
 
+    _scripts.begin();
+
     _lastCommandCenterConnected =
         _commandCenter.connected();
 
@@ -439,6 +441,15 @@ void WsProtocol::loop()
         millis();
 
     updateCpuUsage();
+
+    _scripts.loop();
+
+    if (
+        _scripts.takeChanged() &&
+        _wsClientCount > 0)
+    {
+        broadcastAutomationScriptSnapshot();
+    }
 
     _locoCounters.loop();
 
@@ -640,6 +651,32 @@ void WsProtocol::broadcastPowerInfo()
 
     broadcast(
         "powerInfo",
+        data);
+}
+
+void WsProtocol::sendAutomationScriptSnapshot(
+    AsyncWebSocketClient* client)
+{
+    JsonDocument data;
+
+    _scripts.appendSnapshot(
+        data.to<JsonObject>());
+
+    send(
+        client,
+        "automationScriptSnapshot",
+        data.as<JsonVariantConst>());
+}
+
+void WsProtocol::broadcastAutomationScriptSnapshot()
+{
+    JsonDocument data;
+
+    _scripts.appendSnapshot(
+        data.to<JsonObject>());
+
+    broadcast(
+        "automationScriptSnapshot",
         data);
 }
 
@@ -3742,6 +3779,9 @@ void WsProtocol::handleEvent(
         sendSwitchManSnapshot(
             client);
 
+        sendAutomationScriptSnapshot(
+            client);
+
         return;
     }
 
@@ -3971,6 +4011,174 @@ void WsProtocol::handleMessage(
         handleSwitchManCommand(
             client,
             data);
+
+        return;
+    }
+
+    if (
+        strcmp(
+            type,
+            "scriptCommand") ==
+        0)
+    {
+        const String requestId =
+            data["requestId"] |
+            "";
+
+        const String action =
+            data["action"] |
+            "";
+
+        String error;
+        bool ok =
+            true;
+        bool includeState =
+            false;
+        bool includeSnapshot =
+            false;
+
+        if (
+            action ==
+            "snapshot")
+        {
+            includeSnapshot =
+                true;
+        }
+        else if (
+            action ==
+            "startSaved")
+        {
+            ok =
+                _scripts.startSaved(
+                    data["scriptId"] |
+                        "",
+                    error);
+
+            includeState =
+                ok;
+        }
+        else if (
+            action ==
+            "startSource")
+        {
+            ok =
+                _scripts.startSource(
+                    data["executionId"] |
+                        "",
+                    data["name"] |
+                        "",
+                    data["executionType"] |
+                        "",
+                    data["source"] |
+                        "",
+                    error);
+
+            includeState =
+                ok;
+        }
+        else if (
+            action ==
+            "pause")
+        {
+            ok =
+                _scripts.pause(
+                    data["executionId"] |
+                        "",
+                    error);
+
+            includeState =
+                true;
+        }
+        else if (
+            action ==
+            "resume")
+        {
+            ok =
+                _scripts.resume(
+                    data["executionId"] |
+                        "",
+                    error);
+
+            includeState =
+                true;
+        }
+        else if (
+            action ==
+            "abort")
+        {
+            ok =
+                _scripts.abort(
+                    data["executionId"] |
+                        "",
+                    error);
+
+            includeState =
+                true;
+        }
+        else if (
+            action ==
+            "setFinishing")
+        {
+            _scripts.setFinishing(
+                data["finishing"] |
+                    false);
+
+            includeSnapshot =
+                true;
+        }
+        else
+        {
+            ok =
+                false;
+            error =
+                "script_action_not_supported_on_esp32";
+        }
+
+        JsonDocument response;
+
+        response["requestId"] =
+            requestId;
+        response["action"] =
+            action;
+        response["ok"] =
+            ok;
+
+        if (!error.isEmpty())
+        {
+            response["message"] =
+                error;
+        }
+
+        JsonObject extra =
+            response["extra"]
+                .to<JsonObject>();
+
+        if (includeState)
+        {
+            _scripts.appendState(
+                extra["state"]
+                    .to<JsonObject>());
+        }
+
+        if (includeSnapshot)
+        {
+            JsonObject snapshot =
+                extra["snapshot"]
+                    .to<JsonObject>();
+
+            _scripts.appendSnapshot(
+                snapshot);
+        }
+
+        send(
+            client,
+            "automationScriptResponse",
+            response.as<JsonVariantConst>());
+
+        if (ok)
+        {
+            broadcastAutomationScriptSnapshot();
+        }
 
         return;
     }
