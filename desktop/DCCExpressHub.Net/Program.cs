@@ -30,7 +30,9 @@ var commandCenterProtocol =
         .ToLowerInvariant();
 
 var useZ21 =
-    commandCenterProtocol == "z21";
+    commandCenterProtocol is
+        "z21" or
+        "yamorc7010";
 
 
 builder.Services.AddSingleton<HubState>();
