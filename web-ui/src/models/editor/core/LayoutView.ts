@@ -409,10 +409,22 @@ export class LayoutView
     this.sensors.draw(ctx, options);
     this.signals.draw(ctx, options);
     this.blocks.draw(ctx, options);
-    this.buildings.draw(ctx, options);
+
+    if (options.showBuildings !== false) {
+      this.buildings.draw(ctx, options);
+    }
 
     this.getAllElements().forEach(
-      element => element.drawMarked(ctx)
+      element => {
+        if (
+          options.showBuildings === false &&
+          element.layerName === "buildings"
+        ) {
+          return;
+        }
+
+        element.drawMarked(ctx);
+      }
     );
   }
 
