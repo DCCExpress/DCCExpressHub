@@ -24,6 +24,15 @@ if (!string.IsNullOrWhiteSpace(desktopUrl))
     builder.WebHost.UseUrls(desktopUrl);
 
 
+var commandCenterProtocol =
+    (builder.Configuration["CommandCenter:Protocol"] ?? "")
+        .Trim()
+        .ToLowerInvariant();
+
+var useZ21 =
+    commandCenterProtocol == "z21";
+
+
 builder.Services.AddSingleton<HubState>();
 builder.Services.AddSingleton<LayoutRuntime>();
 builder.Services.AddSingleton<SignalAutomationEngine>();
@@ -35,14 +44,44 @@ builder.Services.AddSingleton<AutomationStorageCoordinator>();
 builder.Services.AddSingleton<LocoStorageCoordinator>();
 builder.Services.AddSingleton<AutomationExclusiveGate>();
 builder.Services.AddSingleton<CommandCenterConfigStore>();
-builder.Services.AddSingleton<IDccExTransport>(sp =>
-    string.Equals(builder.Configuration["DccEx:Transport"], "Serial", StringComparison.OrdinalIgnoreCase)
-        ? new SerialDccExTransport(builder.Configuration)
-        : new TcpDccExTransport(builder.Configuration));
-builder.Services.AddSingleton<DccExCommandCenter>();
-builder.Services.AddSingleton<ConfiguredCommandCenter>();
-builder.Services.AddSingleton<ICommandCenter>(sp => sp.GetRequiredService<ConfiguredCommandCenter>());
-builder.Services.AddHostedService(sp => sp.GetRequiredService<DccExCommandCenter>());
+
+if (useZ21)
+{
+    builder.Services.AddSingleton<Z21CommandCenter>();
+    builder.Services.AddHostedService(
+        sp => sp.GetRequiredService<Z21CommandCenter>());
+}
+else
+{
+    builder.Services.AddSingleton<IDccExTransport>(sp =>
+        string.Equals(
+            builder.Configuration["DccEx:Transport"],
+            "Serial",
+            StringComparison.OrdinalIgnoreCase)
+                ? new SerialDccExTransport(builder.Configuration)
+                : new TcpDccExTransport(builder.Configuration));
+
+    builder.Services.AddSingleton<DccExCommandCenter>();
+    builder.Services.AddHostedService(
+        sp => sp.GetRequiredService<DccExCommandCenter>());
+}
+
+builder.Services.AddSingleton<ConfiguredCommandCenter>(
+    sp =>
+    {
+        ICommandCenter inner =
+            useZ21
+                ? sp.GetRequiredService<Z21CommandCenter>()
+                : sp.GetRequiredService<DccExCommandCenter>();
+
+        return new ConfiguredCommandCenter(
+            inner,
+            sp.GetRequiredService<IWebHostEnvironment>(),
+            sp.GetRequiredService<ILogger<ConfiguredCommandCenter>>());
+    });
+
+builder.Services.AddSingleton<ICommandCenter>(
+    sp => sp.GetRequiredService<ConfiguredCommandCenter>());
 builder.Services.AddSingleton<FastClockRuntime>();
 builder.Services.AddSingleton<SwitchManManager>();
 builder.Services.AddSingleton<DispatcherRuntime>();
@@ -62,17 +101,19 @@ builder.Services.AddHostedService<WsRuntimeCoordinator>();
 var app = builder.Build();
 var ccConfigStore = app.Services.GetRequiredService<CommandCenterConfigStore>();
 var persistedCc = ccConfigStore.Current;
-var physicalCommandCenter = app.Services.GetRequiredService<DccExCommandCenter>();
-physicalCommandCenter.SetCommandIntervalMs(
+var configuredCommandCenter = app.Services.GetRequiredService<ConfiguredCommandCenter>();
+
+configuredCommandCenter.SetCommandIntervalMs(
     persistedCc.CommandIntervalMs);
-physicalCommandCenter.SetEndpoint(
+
+configuredCommandCenter.SetEndpoint(
     persistedCc.IsSerial
         ? persistedCc.SerialPort
         : persistedCc.TcpHost,
     persistedCc.IsSerial
         ? CommandCenterSettings.DccExSerialBaudRate
         : persistedCc.TcpPort);
-var configuredCommandCenter = app.Services.GetRequiredService<ConfiguredCommandCenter>();
+
 configuredCommandCenter.ReloadLocomotiveConfiguration();
 var runtimeStateStore = app.Services.GetRequiredService<RuntimeStateStore>();
 
