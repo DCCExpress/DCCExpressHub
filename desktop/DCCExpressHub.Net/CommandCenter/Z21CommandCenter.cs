@@ -2503,10 +2503,14 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                 Version =
                     BcdVersion(firmware),
                 Processor =
-                    "Z21 LAN",
+                    _isYaMoRc7010
+                        ? "Z21 LAN + LocoNet LBServer"
+                        : "Z21 LAN",
                 Hardware =
-                    HardwareName(
-                        hardwareType),
+                    _isYaMoRc7010
+                        ? "YaMoRC YD7010"
+                        : HardwareName(
+                            hardwareType),
                 MaxLocos = 0
             };
 
