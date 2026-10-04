@@ -370,6 +370,23 @@ namespace DCCExpressHub.Desktop
             object sender,
             SelectionChangedEventArgs e)
         {
+            if (!_initializingSetup)
+            {
+                var portText =
+                    TcpPortText.Text.Trim();
+
+                if (SelectedProtocol == "z21" &&
+                    portText == "2560")
+                {
+                    TcpPortText.Text = "21105";
+                }
+                else if (SelectedProtocol == "tcp" &&
+                         portText == "21105")
+                {
+                    TcpPortText.Text = "2560";
+                }
+            }
+
             UpdateProtocolPanels();
             HideTestResult();
         }
@@ -380,7 +397,7 @@ namespace DCCExpressHub.Desktop
                 SelectedProtocol;
 
             TcpPanel.Visibility =
-                protocol == "tcp"
+                protocol is "tcp" or "z21"
                     ? Visibility.Visible
                     : Visibility.Collapsed;
 
@@ -391,7 +408,7 @@ namespace DCCExpressHub.Desktop
 
             TestButton.IsEnabled =
                 !_setupBusy &&
-                protocol is "tcp" or "serial";
+                protocol is "tcp" or "serial" or "z21";
         }
 
         private void RefreshSerialButton_Click(
@@ -495,11 +512,20 @@ namespace DCCExpressHub.Desktop
             try
             {
                 TestResult result =
-                    testSettings.Protocol == "tcp"
-                        ? await TestTcpAsync(
-                            testSettings)
-                        : await TestSerialAsync(
-                            testSettings);
+                    testSettings.Protocol switch
+                    {
+                        "tcp" =>
+                            await TestTcpAsync(
+                                testSettings),
+
+                        "z21" =>
+                            await TestZ21Async(
+                                testSettings),
+
+                        _ =>
+                            await TestSerialAsync(
+                                testSettings)
+                    };
 
                 ShowTestResult(
                     result.Message,
@@ -518,7 +544,8 @@ namespace DCCExpressHub.Desktop
                     !_setupBusy &&
                     SelectedProtocol is
                         "tcp" or
-                        "serial";
+                        "serial" or
+                        "z21";
             }
         }
 
@@ -559,6 +586,117 @@ namespace DCCExpressHub.Desktop
                 : new TestResult(
                     true,
                     L("dccReachable") + reply);
+        }
+
+        private async Task<TestResult> TestZ21Async(
+            DesktopSettings settings)
+        {
+            using var timeout =
+                new CancellationTokenSource(
+                    TimeSpan.FromSeconds(3));
+
+            IPAddress? address;
+
+            if (IPAddress.TryParse(
+                    settings.TcpHost,
+                    out var literal))
+            {
+                address = literal;
+            }
+            else
+            {
+                var addresses =
+                    await Dns.GetHostAddressesAsync(
+                        settings.TcpHost,
+                        timeout.Token);
+
+                address =
+                    addresses.FirstOrDefault(
+                        x =>
+                            x.AddressFamily ==
+                            AddressFamily.InterNetwork) ??
+                    addresses.FirstOrDefault();
+            }
+
+            if (address is null)
+            {
+                return new TestResult(
+                    false,
+                    "Z21 host could not be resolved.");
+            }
+
+            using var udp =
+                new UdpClient(
+                    address.AddressFamily);
+
+            udp.Connect(
+                new IPEndPoint(
+                    address,
+                    settings.TcpPort));
+
+            // LAN_SYSTEMSTATE_GETDATA:
+            // DataLen=4, Header=0x0085.
+            var request =
+                new byte[]
+                {
+                    0x04,
+                    0x00,
+                    0x85,
+                    0x00
+                };
+
+            await udp.SendAsync(
+                request,
+                request.Length);
+
+            while (!timeout.IsCancellationRequested)
+            {
+                var datagram =
+                    await udp.ReceiveAsync(
+                        timeout.Token);
+
+                var buffer =
+                    datagram.Buffer;
+
+                var offset = 0;
+
+                while (offset + 4 <= buffer.Length)
+                {
+                    var dataLen =
+                        buffer[offset] |
+                        (
+                            buffer[offset + 1]
+                            << 8
+                        );
+
+                    if (dataLen < 4 ||
+                        offset + dataLen >
+                        buffer.Length)
+                    {
+                        break;
+                    }
+
+                    var header =
+                        buffer[offset + 2] |
+                        (
+                            buffer[offset + 3]
+                            << 8
+                        );
+
+                    if (header == 0x0084)
+                    {
+                        return new TestResult(
+                            true,
+                            $"Z21 reachable on {settings.TcpHost}:{settings.TcpPort} UDP.");
+                    }
+
+                    offset += dataLen;
+                }
+            }
+
+            return new TestResult(
+                false,
+                "Z21 did not answer the LAN system-state request.");
         }
 
         private static async Task<string?> ReadHeartbeatAsync(
@@ -766,7 +904,7 @@ namespace DCCExpressHub.Desktop
                 SelectedProtocol;
 
             if (protocol is not
-                ("tcp" or "serial"))
+                ("tcp" or "serial" or "z21"))
             {
                 error =
                     L("validationChooseProtocol");
@@ -790,7 +928,7 @@ namespace DCCExpressHub.Desktop
                     ? "server"
                     : "local";
 
-            if (protocol == "tcp")
+            if (protocol is "tcp" or "z21")
             {
                 var host =
                     TcpHostText.Text.Trim();
@@ -1665,6 +1803,9 @@ namespace DCCExpressHub.Desktop
             psi.Environment["DCCEXPRESS_DESKTOP_SHUTDOWN_TOKEN"] =
                 _backendShutdownToken;
 
+            psi.Environment["CommandCenter__Protocol"] =
+                _settings.Protocol;
+
             psi.Environment["DccEx__Transport"] =
                 _settings.Protocol == "serial"
                     ? "Serial"
@@ -1681,6 +1822,12 @@ namespace DCCExpressHub.Desktop
 
             psi.Environment["DccEx__BaudRate"] =
                 _settings.SerialBaudRate.ToString();
+
+            psi.Environment["Z21__Host"] =
+                _settings.TcpHost;
+
+            psi.Environment["Z21__Port"] =
+                _settings.TcpPort.ToString();
 
             _backendExpectedStop = false;
 
