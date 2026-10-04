@@ -8,13 +8,13 @@ namespace DCCExpressHub.Net.CommandCenter;
 /// </summary>
 public sealed class ConfiguredCommandCenter : ICommandCenter
 {
-    private readonly DccExCommandCenter _inner;
+    private readonly ICommandCenter _inner;
     private readonly ILogger<ConfiguredCommandCenter> _log;
     private readonly object _gate=new();
     private HashSet<int> _inverted=[];
     private string _locosPath="";
 
-    public ConfiguredCommandCenter(DccExCommandCenter inner,IWebHostEnvironment env,ILogger<ConfiguredCommandCenter> log)
+    public ConfiguredCommandCenter(ICommandCenter inner,IWebHostEnvironment env,ILogger<ConfiguredCommandCenter> log)
     {
         _inner=inner;_log=log;
         _locosPath=Path.Combine(env.ContentRootPath,"data","config","locos.json");
@@ -77,6 +77,24 @@ public sealed class ConfiguredCommandCenter : ICommandCenter
 
     public bool LocomotiveDirectionInverted(int address){lock(_gate)return _inverted.Contains(address);}
     private bool MapDirection(int address,bool forward)=>LocomotiveDirectionInverted(address)?!forward:forward;
+
+    public void SetCommandIntervalMs(int intervalMs)
+    {
+        if (_inner is DccExCommandCenter dccEx)
+            dccEx.SetCommandIntervalMs(intervalMs);
+    }
+
+    public bool SetEndpoint(string endpoint,int value) =>
+        _inner switch
+        {
+            DccExCommandCenter dccEx =>
+                dccEx.SetEndpoint(endpoint,value),
+
+            Z21CommandCenter z21 =>
+                z21.SetEndpoint(endpoint,value),
+
+            _ => false
+        };
 
     public bool Connected=>_inner.Connected;
     public string Type=>_inner.Type;
