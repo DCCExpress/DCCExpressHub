@@ -300,10 +300,10 @@ export class StationBuildingElement extends BaseElement {
 
     this.beginDraw(ctx, options);
 
-    const width = this.width;
-    const height = this.height;
     const x = this.posLeft;
     const logicalY = this.posTop;
+    const width = this.width;
+    const height = this.height;
 
     const buildingOffsetY =
       this.variant === "stairs"
@@ -314,7 +314,7 @@ export class StationBuildingElement extends BaseElement {
       logicalY +
       buildingOffsetY;
 
-    const normalizedRoofColor =
+    const roofColor =
       normalizeHexColor(
         this.roofColor,
         "#b96354"
@@ -323,103 +323,65 @@ export class StationBuildingElement extends BaseElement {
     const palette = {
       edge:
         shadeHexColor(
-          normalizedRoofColor,
-          -0.42
+          roofColor,
+          -0.46
         ),
-      side:
+      dark:
         shadeHexColor(
-          normalizedRoofColor,
-          -0.2
+          roofColor,
+          -0.22
         ),
       top:
-        normalizedRoofColor,
-      highlight:
+        roofColor,
+      light:
         shadeHexColor(
-          normalizedRoofColor,
-          0.22
+          roofColor,
+          0.2
         ),
       ridge:
         shadeHexColor(
-          normalizedRoofColor,
-          0.42
+          roofColor,
+          0.34
         ),
       dormer:
         shadeHexColor(
-          normalizedRoofColor,
+          roofColor,
           -0.28
         ),
     };
 
-    // Draw the entrance first so the building shadow and lower roof/wall
-    // naturally overlap its inner edge.
-    this.drawEntranceVariant(
-      ctx,
-      x,
-      y,
-      width,
-      height,
-      palette
-    );
+    // Same almost-orthographic language as the switchman's hut:
+    // a very thin front facade, with the roof carrying most of the shape.
+    const facadeDepth = 5;
+    const roofMarginX = 4;
+    const roofMarginTop = 4;
+    const roofMarginBottom =
+      facadeDepth + 2;
 
-    // Soft building shadow.
-    ctx.fillStyle =
-      "rgba(0,0,0,0.22)";
-    ctx.beginPath();
-    ctx.roundRect(
-      x + 4,
-      y + 5,
-      width,
-      height - 2,
-      4
-    );
-    ctx.fill();
-
-    // A narrow wall rim remains visible around the roof in top view.
-    const wallMargin = 3;
-    const wallGradient =
-      ctx.createLinearGradient(
-        x,
-        y,
-        x,
-        y + height
+    const roofX =
+      x + roofMarginX;
+    const roofY =
+      y + roofMarginTop;
+    const roofWidth =
+      Math.max(
+        18,
+        width - roofMarginX * 2
+      );
+    const roofHeight =
+      Math.max(
+        12,
+        height -
+          roofMarginTop -
+          roofMarginBottom
       );
 
-    wallGradient.addColorStop(
-      0,
-      "#e1d1b7"
-    );
-    wallGradient.addColorStop(
-      1,
-      "#bda98a"
-    );
-
-    ctx.fillStyle = wallGradient;
-    ctx.strokeStyle = "#65584a";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.roundRect(
-      x + wallMargin,
-      y + wallMargin,
-      width - wallMargin * 2,
-      height - wallMargin * 2,
-      3
-    );
-    ctx.fill();
-    ctx.stroke();
-
-    // Hipped / tent roof.
-    const roofMargin = 5;
-    const roofX = x + roofMargin;
-    const roofY = y + roofMargin;
-    const roofWidth =
-      width - roofMargin * 2;
-    const roofHeight =
-      height - roofMargin * 2;
-
     const ridgeInset =
-      Math.min(
-        15,
-        roofWidth * 0.18
+      Math.max(
+        4,
+        Math.min(
+          8,
+          roofWidth * 0.055
+        )
       );
 
     const ridgeY =
@@ -427,8 +389,94 @@ export class StationBuildingElement extends BaseElement {
     const ridgeX1 =
       roofX + ridgeInset;
     const ridgeX2 =
-      roofX + roofWidth - ridgeInset;
+      roofX +
+      roofWidth -
+      ridgeInset;
 
+    // Entrance details stay tucked under the lower roof edge.
+    this.drawEntranceVariant(
+      ctx,
+      x,
+      y,
+      width,
+      height,
+      {
+        edge: palette.edge,
+        side: palette.dark,
+        top: palette.top,
+        highlight: palette.light,
+        ridge: palette.ridge,
+        dormer: palette.dormer,
+      }
+    );
+
+    // Soft shadow.
+    ctx.fillStyle =
+      "rgba(0,0,0,0.22)";
+    ctx.beginPath();
+    ctx.roundRect(
+      x + 4,
+      y + 5,
+      width - 3,
+      height - 3,
+      3
+    );
+    ctx.fill();
+
+    // Narrow plaster facade visible only on the lower edge.
+    const wallX = x + 6;
+    const wallY =
+      roofY + roofHeight - 1;
+    const wallWidth =
+      Math.max(
+        12,
+        width - 12
+      );
+
+    const wallGradient =
+      ctx.createLinearGradient(
+        wallX,
+        wallY,
+        wallX,
+        wallY + facadeDepth + 1
+      );
+
+    wallGradient.addColorStop(
+      0,
+      "#e2d4bc"
+    );
+    wallGradient.addColorStop(
+      1,
+      "#c5b292"
+    );
+
+    ctx.fillStyle = wallGradient;
+    ctx.strokeStyle = "#766957";
+    ctx.lineWidth = 0.9;
+    ctx.fillRect(
+      wallX,
+      wallY,
+      wallWidth,
+      facadeDepth + 1
+    );
+    ctx.strokeRect(
+      wallX,
+      wallY,
+      wallWidth,
+      facadeDepth + 1
+    );
+
+    // Foundation strip.
+    ctx.fillStyle = "#8a8881";
+    ctx.fillRect(
+      wallX,
+      wallY + facadeDepth - 0.5,
+      wallWidth,
+      1.5
+    );
+
+    // Main gable roof, matching the switchman's hut rather than the old
+    // hipped-roof station silhouette.
     let gradient =
       ctx.createLinearGradient(
         roofX,
@@ -439,16 +487,19 @@ export class StationBuildingElement extends BaseElement {
 
     gradient.addColorStop(
       0,
-      palette.side
+      palette.dark
     );
     gradient.addColorStop(
       1,
-      palette.top
+      palette.light
     );
 
     ctx.fillStyle = gradient;
     ctx.beginPath();
-    ctx.moveTo(roofX, roofY);
+    ctx.moveTo(
+      roofX,
+      roofY
+    );
     ctx.lineTo(
       roofX + roofWidth,
       roofY
@@ -474,7 +525,7 @@ export class StationBuildingElement extends BaseElement {
 
     gradient.addColorStop(
       0,
-      palette.side
+      palette.dark
     );
     gradient.addColorStop(
       1,
@@ -502,24 +553,9 @@ export class StationBuildingElement extends BaseElement {
     ctx.closePath();
     ctx.fill();
 
-    gradient =
-      ctx.createLinearGradient(
-        roofX,
-        ridgeY,
-        ridgeX1,
-        ridgeY
-      );
+    // Gable end caps.
+    ctx.fillStyle = palette.dark;
 
-    gradient.addColorStop(
-      0,
-      palette.edge
-    );
-    gradient.addColorStop(
-      1,
-      palette.top
-    );
-
-    ctx.fillStyle = gradient;
     ctx.beginPath();
     ctx.moveTo(
       roofX,
@@ -536,24 +572,6 @@ export class StationBuildingElement extends BaseElement {
     ctx.closePath();
     ctx.fill();
 
-    gradient =
-      ctx.createLinearGradient(
-        roofX + roofWidth,
-        ridgeY,
-        ridgeX2,
-        ridgeY
-      );
-
-    gradient.addColorStop(
-      0,
-      palette.edge
-    );
-    gradient.addColorStop(
-      1,
-      palette.top
-    );
-
-    ctx.fillStyle = gradient;
     ctx.beginPath();
     ctx.moveTo(
       roofX + roofWidth,
@@ -570,9 +588,10 @@ export class StationBuildingElement extends BaseElement {
     ctx.closePath();
     ctx.fill();
 
+    // Roof outline + ridge.
     ctx.strokeStyle =
       palette.edge;
-    ctx.lineWidth = 1.2;
+    ctx.lineWidth = 1.1;
     ctx.strokeRect(
       roofX,
       roofY,
@@ -581,46 +600,8 @@ export class StationBuildingElement extends BaseElement {
     );
 
     ctx.strokeStyle =
-      "rgba(255,255,255,0.14)";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(
-      roofX,
-      roofY
-    );
-    ctx.lineTo(
-      ridgeX1,
-      ridgeY
-    );
-    ctx.moveTo(
-      roofX,
-      roofY + roofHeight
-    );
-    ctx.lineTo(
-      ridgeX1,
-      ridgeY
-    );
-    ctx.moveTo(
-      roofX + roofWidth,
-      roofY
-    );
-    ctx.lineTo(
-      ridgeX2,
-      ridgeY
-    );
-    ctx.moveTo(
-      roofX + roofWidth,
-      roofY + roofHeight
-    );
-    ctx.lineTo(
-      ridgeX2,
-      ridgeY
-    );
-    ctx.stroke();
-
-    ctx.strokeStyle =
       palette.ridge;
-    ctx.lineWidth = 1.8;
+    ctx.lineWidth = 1.7;
     ctx.beginPath();
     ctx.moveTo(
       ridgeX1,
@@ -632,39 +613,102 @@ export class StationBuildingElement extends BaseElement {
     );
     ctx.stroke();
 
-    // Roof "eyebrows". Their count grows gently with the building size.
-    const pairCount =
+    // Subtle tile rows, same visual texture as the switchman's hut.
+    ctx.strokeStyle =
+      "rgba(54,34,27,0.22)";
+    ctx.lineWidth = 0.6;
+
+    const tileRows =
+      this.size >= 5
+        ? 4
+        : 3;
+
+    for (
+      let row = 1;
+      row <= tileRows;
+      row += 1
+    ) {
+      const fraction =
+        row /
+        (tileRows + 1);
+
+      const upperY =
+        roofY +
+        (ridgeY - roofY) *
+          fraction;
+
+      const lowerY =
+        ridgeY +
+        (roofY +
+          roofHeight -
+          ridgeY) *
+          fraction;
+
+      ctx.beginPath();
+      ctx.moveTo(
+        roofX + 2,
+        upperY
+      );
+      ctx.lineTo(
+        roofX +
+          roofWidth -
+          2,
+        upperY
+      );
+      ctx.moveTo(
+        roofX + 2,
+        lowerY
+      );
+      ctx.lineTo(
+        roofX +
+          roofWidth -
+          2,
+        lowerY
+      );
+      ctx.stroke();
+    }
+
+    // Keep the station-building roof windows / vents from the previous
+    // design. The count scales gently with building length.
+    const dormerCount =
       Math.max(
         1,
         Math.min(
           4,
           Math.floor(
-            (this.size + 1) / 2
+            (this.size + 1) /
+              2
           )
         )
       );
 
     for (
       let index = 0;
-      index < pairCount;
+      index < dormerCount;
       index += 1
     ) {
       const progress =
         (index + 1) /
-        (pairCount + 1);
+        (dormerCount + 1);
 
-      const eyebrowX =
+      const dormerX =
         ridgeX1 +
-        (ridgeX2 - ridgeX1) *
+        (ridgeX2 -
+          ridgeX1) *
           progress;
 
       this.drawEyebrowDormer(
         ctx,
-        eyebrowX,
+        dormerX,
         roofY,
         roofHeight,
         "top",
-        palette
+        {
+          edge: palette.edge,
+          top: palette.top,
+          highlight: palette.light,
+          dormer: palette.dormer,
+        }
       );
 
       if (
@@ -673,42 +717,162 @@ export class StationBuildingElement extends BaseElement {
       ) {
         this.drawEyebrowDormer(
           ctx,
-          eyebrowX,
+          dormerX,
           roofY,
           roofHeight,
           "bottom",
-          palette
+          {
+            edge: palette.edge,
+            top: palette.top,
+            highlight: palette.light,
+            dormer: palette.dormer,
+          }
         );
       }
     }
 
+    // Chimney.
     if (this.size >= 2) {
       const chimneyX =
-        ridgeX2 -
-        Math.min(
-          10,
-          (ridgeX2 - ridgeX1) *
-            0.15
-        );
-
+        roofX +
+        roofWidth * 0.76;
       const chimneyY =
-        ridgeY - 5;
+        ridgeY - 4;
 
-      ctx.fillStyle = "#6b625b";
-      ctx.strokeStyle = "#3f3934";
-      ctx.lineWidth = 1;
+      ctx.fillStyle = "#795142";
+      ctx.strokeStyle = "#47372f";
+      ctx.lineWidth = 0.9;
       ctx.fillRect(
         chimneyX - 2.5,
-        chimneyY - 3,
+        chimneyY - 2.5,
         5,
-        6
+        5
       );
       ctx.strokeRect(
         chimneyX - 2.5,
-        chimneyY - 3,
+        chimneyY - 2.5,
         5,
-        6
+        5
       );
+
+      ctx.fillStyle = "#2f2925";
+      ctx.fillRect(
+        chimneyX - 1,
+        chimneyY - 1,
+        2,
+        2
+      );
+    }
+
+    // Central entrance, kept shallow so the asset still reads as top-down.
+    const centerX =
+      x + width / 2;
+    const doorWidth =
+      Math.max(
+        5,
+        Math.min(
+          8,
+          width * 0.075
+        )
+      );
+
+    ctx.fillStyle = "#304437";
+    ctx.strokeStyle = "#202c25";
+    ctx.lineWidth = 0.8;
+    ctx.fillRect(
+      centerX - doorWidth / 2,
+      wallY + 0.5,
+      doorWidth,
+      facadeDepth
+    );
+    ctx.strokeRect(
+      centerX - doorWidth / 2,
+      wallY + 0.5,
+      doorWidth,
+      facadeDepth
+    );
+
+    const canopyWidth =
+      doorWidth + 8;
+
+    ctx.fillStyle =
+      palette.top;
+    ctx.strokeStyle =
+      palette.edge;
+    ctx.beginPath();
+    ctx.moveTo(
+      centerX,
+      wallY - 3.5
+    );
+    ctx.lineTo(
+      centerX -
+        canopyWidth / 2,
+      wallY + 0.5
+    );
+    ctx.lineTo(
+      centerX +
+        canopyWidth / 2,
+      wallY + 0.5
+    );
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Platform-facing windows.
+    if (this.size >= 2) {
+      ctx.fillStyle = "#394b4d";
+      ctx.strokeStyle = "#e0d8c9";
+      ctx.lineWidth = 0.7;
+
+      const windowY =
+        wallY + 1.1;
+
+      const windowCount =
+        Math.max(
+          2,
+          Math.min(
+            6,
+            this.size + 1
+          )
+        );
+
+      for (
+        let index = 0;
+        index < windowCount;
+        index += 1
+      ) {
+        const progress =
+          (index + 1) /
+          (windowCount + 1);
+
+        const windowX =
+          wallX +
+          wallWidth *
+            progress;
+
+        if (
+          Math.abs(
+            windowX -
+              centerX
+          ) <
+          doorWidth + 5
+        ) {
+          continue;
+        }
+
+        ctx.fillRect(
+          windowX - 2,
+          windowY,
+          4,
+          2.4
+        );
+        ctx.strokeRect(
+          windowX - 2,
+          windowY,
+          4,
+          2.4
+        );
+      }
     }
 
     this.endDraw(ctx);
