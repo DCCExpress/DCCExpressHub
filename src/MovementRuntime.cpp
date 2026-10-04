@@ -384,6 +384,7 @@ bool MovementRuntime::start(
   execution.state.info =
       "Starting from " +
       plan.blocks.front().name;
+  execution.sourceLocoId = source->locoId;
   execution.plan =
       std::move(plan);
   loadActions(
@@ -503,6 +504,24 @@ bool MovementRuntime::targetBasicallyFree(
 
   return target &&
          !target->hasRuntimeState();
+}
+
+bool MovementRuntime::waitEventDelay(
+    Execution& execution,
+    const String& key,
+    int delayMs) {
+  delayMs = std::max(0, std::min(600000, delayMs));
+  if (delayMs == 0) return true;
+  if (execution.eventDelayKey != key) {
+    execution.eventDelayKey = key;
+    execution.eventDelayUntilMs = millis() + static_cast<unsigned long>(delayMs);
+    return false;
+  }
+  if (static_cast<long>(millis() - execution.eventDelayUntilMs) < 0)
+    return false;
+  execution.eventDelayKey = "";
+  execution.eventDelayUntilMs = 0;
+  return true;
 }
 
 bool MovementRuntime::resourceEventSatisfied(
@@ -1169,6 +1188,10 @@ void MovementRuntime::processExecution(
       !leg.approachWhen.empty() &&
       conditionsSatisfied(
           leg.approachWhen)) {
+    if (!waitEventDelay(execution,
+            leg.to.key + "|approach",
+            leg.approachDelayMs))
+      return;
     startBackgroundActions(
         execution,
         leg.to.key,
@@ -1195,6 +1218,10 @@ void MovementRuntime::processExecution(
     if (!arrived(leg))
       return;
 
+    if (!waitEventDelay(execution,
+            leg.to.key + "|arrived",
+            leg.arrivedDelayMs))
+      return;
     startBackgroundActions(
         execution,
         leg.to.key,
@@ -1212,7 +1239,9 @@ void MovementRuntime::processExecution(
 
     if (!_layout.setBlockTransition(
             leg.to.blockId,
-            String(execution.state.locoAddress),
+            execution.sourceLocoId.isEmpty()
+                ? String(execution.state.locoAddress)
+                : execution.sourceLocoId,
             execution.state.locoAddress)) {
       finish(
           execution,
@@ -1289,6 +1318,10 @@ void MovementRuntime::processExecution(
           leg))
     return;
 
+  if (!waitEventDelay(execution,
+          leg.from.key + "|leave",
+          leg.leaveDelayMs))
+    return;
   startBackgroundActions(
       execution,
       leg.from.key,
