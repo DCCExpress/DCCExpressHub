@@ -61,6 +61,17 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
     private DateTime _lastSensorFeedbackUtc = DateTime.MinValue;
     private DateTime _onlineSinceUtc = DateTime.MinValue;
 
+    private int _systemMainCurrentMa;
+    private int _systemProgCurrentMa;
+    private int _systemFilteredMainCurrentMa;
+    private int _systemTemperatureC;
+    private int _systemSupplyVoltageMv;
+    private int _systemTrackVoltageMv;
+    private byte _systemCentralState;
+    private byte _systemCentralStateEx;
+    private byte _systemCapabilities;
+    private DateTime _lastSystemStateUtc = DateTime.MinValue;
+
     private UdpClient? _udp;
     private string _host;
     private int _port;
@@ -86,7 +97,7 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
             Processor: "Z21 LAN",
             Hardware: "Z21-compatible",
             Build: "",
-            MaxLocos: 100);
+            MaxLocos: 0);
 
     public Z21CommandCenter(
         IConfiguration configuration,
@@ -153,7 +164,7 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                     Processor: "Z21 LAN + LocoNet LBServer",
                     Hardware: "YaMoRC YD7010",
                     Build: "",
-                    MaxLocos: 100);
+                    MaxLocos: 0);
         }
     }
 
@@ -208,6 +219,26 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                         : Math.Max(
                             0,
                             (long)(now - _onlineSinceUtc).TotalMilliseconds),
+                MainCurrentMa:
+                    Volatile.Read(ref _systemMainCurrentMa),
+                ProgCurrentMa:
+                    Volatile.Read(ref _systemProgCurrentMa),
+                FilteredMainCurrentMa:
+                    Volatile.Read(ref _systemFilteredMainCurrentMa),
+                TemperatureC:
+                    Volatile.Read(ref _systemTemperatureC),
+                SupplyVoltageMv:
+                    Volatile.Read(ref _systemSupplyVoltageMv),
+                TrackVoltageMv:
+                    Volatile.Read(ref _systemTrackVoltageMv),
+                CentralState:
+                    _systemCentralState,
+                CentralStateEx:
+                    _systemCentralStateEx,
+                Capabilities:
+                    _systemCapabilities,
+                LastSystemStateAgeMs:
+                    AgeMs(_lastSystemStateUtc),
                 LbServerEnabled:
                     _lbServerFeedbackEnabled,
                 LbServerConnected:
@@ -220,6 +251,8 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                         : Math.Max(
                             0,
                             (long)(now - _lbServerConnectedSinceUtc).TotalMilliseconds),
+                LastLbServerRxAgeMs:
+                    AgeMs(_lastLbServerRxUtc),
                 LbServerLinesObserved:
                     Volatile.Read(
                         ref _lbServerLinesObserved),
@@ -1672,7 +1705,8 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
             {
                 lock (_stateGate)
                     _lbServerVersion =
-                        trimmed;
+                        SanitizeLbServerVersion(
+                            trimmed);
             }
 
             var observed =
@@ -2372,16 +2406,69 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
         if (data.Length < 16)
             return;
 
-        CurrentTelemetryChanged?.Invoke(
-            [
-                BinaryPrimitives.ReadInt16LittleEndian(
-                    data.Slice(0, 2)),
-                BinaryPrimitives.ReadInt16LittleEndian(
-                    data.Slice(2, 2))
-            ]);
+        var mainCurrent =
+            BinaryPrimitives.ReadInt16LittleEndian(
+                data.Slice(0, 2));
+
+        var progCurrent =
+            BinaryPrimitives.ReadInt16LittleEndian(
+                data.Slice(2, 2));
+
+        var filteredMainCurrent =
+            BinaryPrimitives.ReadInt16LittleEndian(
+                data.Slice(4, 2));
+
+        var temperature =
+            BinaryPrimitives.ReadInt16LittleEndian(
+                data.Slice(6, 2));
+
+        var supplyVoltage =
+            BinaryPrimitives.ReadUInt16LittleEndian(
+                data.Slice(8, 2));
+
+        var trackVoltage =
+            BinaryPrimitives.ReadUInt16LittleEndian(
+                data.Slice(10, 2));
 
         var centralState =
             data[12];
+
+        Volatile.Write(
+            ref _systemMainCurrentMa,
+            mainCurrent);
+        Volatile.Write(
+            ref _systemProgCurrentMa,
+            progCurrent);
+        Volatile.Write(
+            ref _systemFilteredMainCurrentMa,
+            filteredMainCurrent);
+        Volatile.Write(
+            ref _systemTemperatureC,
+            temperature);
+        Volatile.Write(
+            ref _systemSupplyVoltageMv,
+            supplyVoltage);
+        Volatile.Write(
+            ref _systemTrackVoltageMv,
+            trackVoltage);
+
+        lock (_stateGate)
+        {
+            _systemCentralState =
+                centralState;
+            _systemCentralStateEx =
+                data[13];
+            _systemCapabilities =
+                data[15];
+            _lastSystemStateUtc =
+                DateTime.UtcNow;
+        }
+
+        CurrentTelemetryChanged?.Invoke(
+            [
+                mainCurrent,
+                progCurrent
+            ]);
 
         UpdateEmergencyState(
             (centralState & 0x01) != 0,
@@ -2420,7 +2507,7 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                 Hardware =
                     HardwareName(
                         hardwareType),
-                MaxLocos = 100
+                MaxLocos = 0
             };
 
         StationInfoChanged?.Invoke(
@@ -2615,6 +2702,76 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
 
         if (address >= 128)
             msb |= 0xC0;
+    }
+
+    private static string SanitizeLbServerVersion(
+        string line)
+    {
+        var tokens =
+            line.Split(
+                ' ',
+                StringSplitOptions.RemoveEmptyEntries |
+                StringSplitOptions.TrimEntries);
+
+        string serverVersion = "";
+        string model = "";
+        string firmware = "";
+
+        for (var index = 0;
+             index < tokens.Length;
+             ++index)
+        {
+            if (
+                string.Equals(
+                    tokens[index],
+                    "version",
+                    StringComparison.OrdinalIgnoreCase) &&
+                index + 1 < tokens.Length
+            )
+            {
+                serverVersion =
+                    tokens[index + 1];
+            }
+
+            if (
+                tokens[index].StartsWith(
+                    "YD7010",
+                    StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                model =
+                    tokens[index]
+                        .Split(
+                            '-',
+                            2,
+                            StringSplitOptions.TrimEntries)[0];
+            }
+
+            if (
+                tokens[index].StartsWith(
+                    "V",
+                    StringComparison.OrdinalIgnoreCase) &&
+                tokens[index].Length > 1 &&
+                char.IsDigit(
+                    tokens[index][1])
+            )
+            {
+                firmware =
+                    tokens[index];
+            }
+        }
+
+        return string.Join(
+            " · ",
+            new[]
+            {
+                serverVersion.Length > 0
+                    ? "LBServer " + serverVersion
+                    : "",
+                model,
+                firmware
+            }.Where(value =>
+                value.Length > 0));
     }
 
     private static string BcdVersion(
