@@ -259,7 +259,42 @@ DispatcherAcquireResult DispatcherRuntime::acquireLeg(
 
     turnoutAuthority = true;
 
-    // Safety must be checked again after waiting for turnout authority.
+    if (!raw.turnouts.empty()) {
+      if (!_turnoutSet) {
+        if (_turnoutRelease) {
+          _turnoutRelease(
+              raw.turnoutAddresses,
+              raw.ownerId);
+        }
+        result.error = "turnout_set_unavailable";
+        return result;
+      }
+
+      for (const auto& requirement :
+           raw.turnouts) {
+        if (
+            requirement.address == 0 ||
+            std::find(
+                raw.turnoutAddresses.begin(),
+                raw.turnoutAddresses.end(),
+                requirement.address) ==
+                raw.turnoutAddresses.end() ||
+            !_turnoutSet(
+                requirement.address,
+                requirement.closed,
+                raw.ownerId)) {
+          if (_turnoutRelease) {
+            _turnoutRelease(
+                raw.turnoutAddresses,
+                raw.ownerId);
+          }
+          result.error = "turnout_command_failed";
+          return result;
+        }
+      }
+    }
+
+    // Safety must be checked again after turnout commands and authority.
     sourceError =
         validateSource(
             raw.fromBlockId,
