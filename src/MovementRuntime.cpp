@@ -508,13 +508,36 @@ bool MovementRuntime::targetBasicallyFree(
 bool MovementRuntime::resourceEventSatisfied(
     const MovementPlanResource& resource,
     bool leaving) const {
-  if (resource.detectors.empty())
-    return false;
+  const String eventName = leaving ? "leave" : "enter";
+  const MovementResourceEventRule* explicitRule = nullptr;
+  for (const auto& rule : _activePlanForResourceRules->resourceEventRules) {
+    if (rule.resourceKey == resource.key && rule.event == eventName) {
+      explicitRule = &rule;
+      break;
+    }
+  }
+
+  if (explicitRule) {
+    if (explicitRule->conditions.empty()) return false;
+    bool any = false;
+    for (const auto& condition : explicitRule->conditions) {
+      bool on = false;
+      const bool matches = _layout.getSensorState(condition.sensor, on) &&
+          on == condition.state;
+      if (explicitRule->match == "any") {
+        if (matches) any = true;
+      } else if (!matches) {
+        return false;
+      }
+    }
+    return explicitRule->match == "any" ? any : true;
+  }
+
+  if (resource.detectors.empty()) return false;
   bool any = false;
   for (const uint16_t sensor : resource.detectors) {
     bool on = false;
-    if (!_layout.getSensorState(sensor, on))
-      return false;
+    if (!_layout.getSensorState(sensor, on)) return false;
     if (leaving) {
       if (on) return false;
     } else if (on) {
