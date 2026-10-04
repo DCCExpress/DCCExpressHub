@@ -737,8 +737,9 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
 
         if (ok && on)
         {
-            _emergencyKnown = true;
-            _emergencyPaused = false;
+            UpdateEmergencyState(
+                false,
+                "track power on command");
         }
 
         return ok;
@@ -897,16 +898,15 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
 
     public Task<bool> SetTurnoutAsync(
         int address,
-        bool closed,
+        bool physicalValue,
         CancellationToken ct = default)
     {
-        // Despite the historic parameter name, callers pass the already
-        // resolved physical accessory value here (ClosedValue polarity has
-        // already been applied). Preserve the same bool semantics as DCC-EX:
-        // false -> Z21 P=0, true -> Z21 P=1.
+        // Callers pass the already resolved physical accessory value here
+        // (ClosedValue polarity has already been applied). Preserve the same
+        // bool semantics as DCC-EX: false -> Z21 P=0, true -> Z21 P=1.
         return SendAccessoryCommandAsync(
             address,
-            closed,
+            physicalValue,
             ct);
     }
 
@@ -930,6 +930,12 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
         var functionAddress =
             address - 1;
 
+        _log.LogInformation(
+            "Z21 turnout/accessory #{Address}: physical={PhysicalValue}, functionAddress={FunctionAddress}",
+            address,
+            position,
+            functionAddress);
+
         await _accessoryGate.WaitAsync(
             ct);
 
@@ -944,7 +950,7 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                     position,
                     activate: true,
                     queue: false,
-                    ct))
+                    ct: ct))
             {
                 return false;
             }
@@ -958,7 +964,7 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                     position,
                     activate: false,
                     queue: false,
-                    ct))
+                    ct: ct))
             {
                 return false;
             }
