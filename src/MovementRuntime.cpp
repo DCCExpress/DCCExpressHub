@@ -60,6 +60,24 @@ bool MovementRuntime::begin() {
   return true;
 }
 
+void MovementRuntime::audioCompleted(
+    const String& requestId,
+    bool ok) {
+  if (requestId.isEmpty())
+    return;
+
+  for (auto& execution : _executions) {
+    if (execution.pendingAudioRequestId !=
+        requestId)
+      continue;
+
+    execution.pendingAudioCompleted = true;
+    execution.pendingAudioOk = ok;
+    publishChanged();
+    return;
+  }
+}
+
 MovementRuntime::Execution* MovementRuntime::findExecution(
     const String& pageId) {
   for (auto& execution : _executions)
@@ -595,12 +613,11 @@ bool MovementRuntime::executeAction(
       return false;
     }
 
-    // Existing ESP32 audio protocol has no completion ACK yet. Fire-and-
-    // forget is correct for non-waiting actions; waitForEnd is added once the
-    // client->backend completion message exists.
     if (action.audioWaitForEnd) {
-      error = "movement_audio_wait_not_supported";
-      return false;
+      execution.pendingAudioRequestId =
+          requestId;
+      execution.pendingAudioCompleted = false;
+      execution.pendingAudioOk = false;
     }
 
     return true;
@@ -686,6 +703,23 @@ bool MovementRuntime::runBlockingActions(
     return false;
   }
 
+  if (!execution.pendingAudioRequestId.isEmpty()) {
+    if (!execution.pendingAudioCompleted)
+      return false;
+
+    if (!execution.pendingAudioOk) {
+      error = "movement_audio_failed";
+      execution.pendingAudioRequestId = "";
+      execution.pendingAudioCompleted = false;
+      return false;
+    }
+
+    execution.pendingAudioRequestId = "";
+    execution.pendingAudioCompleted = false;
+    execution.pendingAudioOk = false;
+    ++execution.blockingActionPosition;
+  }
+
   if (execution.actionWaitUntilMs != 0) {
     if (static_cast<long>(
             millis() -
@@ -718,7 +752,8 @@ bool MovementRuntime::runBlockingActions(
             error))
       return false;
 
-    if (execution.actionWaitUntilMs != 0)
+    if (execution.actionWaitUntilMs != 0 ||
+        !execution.pendingAudioRequestId.isEmpty())
       return false;
 
     ++execution.blockingActionPosition;
