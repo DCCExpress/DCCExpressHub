@@ -5,6 +5,7 @@
 #include <ESPAsyncWebServer.h>
 #include <vector>
 
+#include "AutomationScriptRuntime.h"
 #include "FastClockRuntime.h"
 #include "ICommandCenter.h"
 #include "LayoutRuntime.h"
@@ -135,6 +136,9 @@ private:
   RuntimeStateStore& _stateStore;
   LocoCounterRuntime& _locoCounters;
   FastClockRuntime _fastClock;
+  AutomationScriptRuntime _scripts{
+      _commandCenter,
+      _runtime};
 
   bool _trackPower = false;
   bool _programmingPower = false;
@@ -334,6 +338,11 @@ private:
 
   void broadcastDccExStatus();
   void broadcastPowerInfo();
+
+  void sendAutomationScriptSnapshot(
+      AsyncWebSocketClient* client);
+
+  void broadcastAutomationScriptSnapshot();
 
   void sendLocoCounterSnapshot(
       AsyncWebSocketClient* client);
