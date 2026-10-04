@@ -437,6 +437,23 @@ void WsProtocol::begin()
 
     _scripts.begin();
     _flows.begin();
+    _movements.setAudioRequestCallback(
+        [this](
+            const String& requestId,
+            const String& fileName) -> bool
+        {
+            if (requestId.isEmpty() ||
+                fileName.isEmpty() ||
+                fileName.length() > 240)
+                return false;
+
+            JsonDocument out;
+            out["requestId"] = requestId;
+            out["fileName"] = fileName;
+            broadcast("playAudio", out);
+            return true;
+        });
+
     _movements.begin();
 
     _dispatcher.setTurnoutAuthority(
