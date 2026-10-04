@@ -171,8 +171,10 @@ public sealed class CommandCenterConfigStore
                 TcpPort = configured.TcpPort,
                 SerialPort = configured.SerialPort,
                 PowerIncludesProgramming =
-                    persistedPower ??
-                    configured.PowerIncludesProgramming,
+                    configured.IsZ21
+                        ? false
+                        : persistedPower ??
+                          configured.PowerIncludesProgramming,
                 CommandIntervalMs =
                     persistedInterval ??
                     configured.CommandIntervalMs
