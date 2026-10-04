@@ -142,7 +142,8 @@ private:
       _runtime};
 
   FlowRuntime _flows{
-      _scripts};
+      _scripts,
+      _runtime};
 
   bool _trackPower = false;
   bool _programmingPower = false;
