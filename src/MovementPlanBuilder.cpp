@@ -3,6 +3,45 @@
 #include <LittleFS.h>
 #include <algorithm>
 
+String MovementPlanBuilder::canonicalRouteKey(JsonObjectConst route) {
+  JsonDocument out;
+  out["fromBlockId"] = route["fromBlockId"] | 0;
+  out["toBlockId"] = route["toBlockId"] | 0;
+  JsonArray blocks = out["blockPath"].to<JsonArray>();
+  for (JsonObjectConst block : route["blockPath"].as<JsonArrayConst>())
+    blocks.add(String(block["id"] | 0) + "@" + String(block["nodeIndex"] | 0));
+  JsonArray nodes = out["nodes"].to<JsonArray>();
+  for (JsonVariantConst node : route["nodes"].as<JsonArrayConst>()) nodes.add(node.as<String>());
+  JsonArray edges = out["edgePath"].to<JsonArray>();
+  for (JsonObjectConst edge : route["edgePath"].as<JsonArrayConst>()) {
+    JsonObject item = edges.add<JsonObject>();
+    item["from"] = edge["from"] | "";
+    item["to"] = edge["to"] | "";
+    item["direction"] = edge["locoDirection"] | "unknown";
+    JsonArray statesOut = item["turnoutStates"].to<JsonArray>();
+    std::vector<std::pair<int, bool>> states;
+    for (JsonObjectConst state : edge["turnoutStates"].as<JsonArrayConst>())
+      if ((state["address"] | 0) > 0) states.push_back({state["address"] | 0, state["closed"] | false});
+    std::sort(states.begin(), states.end());
+    for (const auto& state : states) statesOut.add(String(state.first) + ":" + (state.second ? "1" : "0"));
+    JsonArray paths = item["turnoutPath"].to<JsonArray>();
+    for (JsonObjectConst passage : edge["turnoutPath"].as<JsonArrayConst>()) {
+      JsonObject po = paths.add<JsonObject>();
+      po["elementId"] = passage["elementId"] | 0;
+      JsonArray ps = po["states"].to<JsonArray>();
+      std::vector<std::pair<int, bool>> pv;
+      for (JsonObjectConst state : passage["turnoutStates"].as<JsonArrayConst>())
+        if ((state["address"] | 0) > 0) pv.push_back({state["address"] | 0, state["closed"] | false});
+      std::sort(pv.begin(), pv.end());
+      for (const auto& state : pv) ps.add(String(state.first) + ":" + (state.second ? "1" : "0"));
+    }
+  }
+  out["direction"] = route["locoDirection"] | "unknown";
+  String result;
+  serializeJson(out, result);
+  return result;
+}
+
 bool MovementPlanBuilder::validId(int value) {
   return value >= 1 && value <= 65535;
 }
