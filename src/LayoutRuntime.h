@@ -121,6 +121,11 @@ public:
       const String& locoId,
       uint16_t locoAddress = 0);
 
+  bool setBlockTransition(
+      uint16_t blockId,
+      const String& locoId,
+      uint16_t locoAddress);
+
   bool removeBlock(
       uint16_t blockId,
       const String& locoId = String());
