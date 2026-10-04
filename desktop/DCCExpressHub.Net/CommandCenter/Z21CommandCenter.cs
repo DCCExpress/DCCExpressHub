@@ -1095,8 +1095,8 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
         {
             var target =
                 data[1] == 0x02
-                    ? "programming"
-                    : "all";
+                    ? "Programming"
+                    : "All";
 
             var on =
                 data[1] is 0x01 or 0x02;
@@ -1136,8 +1136,8 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                 new PowerFeedback(
                     (status & 0x02) == 0,
                     (status & 0x20) != 0
-                        ? "programming"
-                        : "all"));
+                        ? "Programming"
+                        : "All"));
 
             return;
         }
@@ -1275,8 +1275,8 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
             new PowerFeedback(
                 (centralState & 0x02) == 0,
                 (centralState & 0x20) != 0
-                    ? "programming"
-                    : "all"));
+                    ? "Programming"
+                    : "All"));
     }
 
     private void ProcessHardwareInfo(
