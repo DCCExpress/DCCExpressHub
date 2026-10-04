@@ -19,8 +19,13 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
     private const int AccessoryPulseMs = 120;
 
     // Driving/switching + R-BUS + system state + all changed locos +
-    // LocoNet detector occupancy.
-    private const uint BroadcastFlags = 0x08010103;
+    // LocoNet detector occupancy + raw LocoNet messages.
+    //
+    // YaMoRC maps S88/ES-Link feedback into its common feedback address space.
+    // On the Z21-compatible LAN interface those changes can arrive as raw
+    // LocoNet OPC_INPUT_REP messages, therefore 0x01000000 is required in
+    // addition to the standard detector broadcast 0x08000000.
+    private const uint BroadcastFlags = 0x09010103;
 
     private readonly ILogger<Z21CommandCenter> _log;
     private readonly object _stateGate = new();
@@ -1082,6 +1087,11 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                 ProcessHardwareInfo(payload);
                 break;
 
+            case 0x00A0:
+            case 0x00A1:
+                ProcessLocoNetMessage(payload);
+                break;
+
             case 0x00A4:
                 ProcessLocoNetDetector(payload);
                 break;
@@ -1361,6 +1371,70 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
         }
     }
 
+    private void ProcessLocoNetMessage(
+        ReadOnlySpan<byte> data)
+    {
+        if (data.Length < 4)
+            return;
+
+        // OPC_INPUT_REP:
+        //   B2 IN1 IN2 CKSUM
+        //
+        // IN1 = 0,A6..A0
+        // IN2 = 0,X,I,L,A10..A7
+        //
+        // For general LocoNet sensors the I bit selects the odd/even contact.
+        // This is the same 1-based contact-number mapping used by JMRI and
+        // allows YaMoRC's S88/ES-Link feedback addresses (1..2048) to pass
+        // through unchanged into the Hub sensor address space.
+        if (data[0] != 0xB2)
+            return;
+
+        var in1 =
+            data[1];
+
+        var in2 =
+            data[2];
+
+        var baseAddress =
+            (
+                (
+                    (in2 & 0x0F) *
+                    128
+                ) +
+                (in1 & 0x7F)
+            );
+
+        var address =
+            baseAddress *
+            2 +
+            (
+                (in2 & 0x20) != 0
+                    ? 2
+                    : 1
+            );
+
+        if (address is < 1 or > 4096)
+            return;
+
+        var occupied =
+            (in2 & 0x10) != 0;
+
+        _log.LogInformation(
+            "Z21 LocoNet feedback #{Address}: {State}",
+            address,
+            occupied
+                ? "ON"
+                : "OFF");
+
+        RawInfo?.Invoke(
+            $"Z21 sensor #{address} {(occupied ? "ON" : "OFF")}");
+
+        SensorFeedbackChanged?.Invoke(
+            address,
+            occupied);
+    }
+
     private void ProcessLocoNetDetector(
         ReadOnlySpan<byte> data)
     {
@@ -1395,6 +1469,17 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
 
         if (occupied.HasValue)
         {
+            _log.LogInformation(
+                "Z21 detector feedback #{Address}: {State} type=0x{Type:X2}",
+                address,
+                occupied.Value
+                    ? "ON"
+                    : "OFF",
+                type);
+
+            RawInfo?.Invoke(
+                $"Z21 sensor #{address} {(occupied.Value ? "ON" : "OFF")}");
+
             SensorFeedbackChanged?.Invoke(
                 address,
                 occupied.Value);
