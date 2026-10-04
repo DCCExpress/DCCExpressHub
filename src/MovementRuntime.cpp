@@ -311,18 +311,31 @@ bool MovementRuntime::start(
   return true;
 }
 
-bool MovementRuntime::arrived(
-    const MovementPlanLeg& leg) const {
-  // The physical occupancy detector carried by the movement plan is
-  // authoritative. A target reservation marker alone never counts as ARRIVED.
-  if (leg.to.sensorAddress == 0)
+bool MovementRuntime::conditionsSatisfied(
+    const std::vector<MovementSensorCondition>& conditions) const {
+  if (conditions.empty())
     return false;
 
-  bool on = false;
-  return _layout.getSensorState(
-             leg.to.sensorAddress,
-             on) &&
-         on;
+  for (const auto& condition :
+       conditions) {
+    if (condition.sensor == 0)
+      return false;
+
+    bool on = false;
+    if (!_layout.getSensorState(
+            condition.sensor,
+            on) ||
+        on != condition.state)
+      return false;
+  }
+
+  return true;
+}
+
+bool MovementRuntime::arrived(
+    const MovementPlanLeg& leg) const {
+  return conditionsSatisfied(
+      leg.arrivedWhen);
 }
 
 bool MovementRuntime::legSafetyFree(
