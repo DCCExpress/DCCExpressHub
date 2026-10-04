@@ -172,7 +172,7 @@ app.MapGet("/api/command-center-config", (CommandCenterConfigStore store, IComma
     });
 });
 
-app.MapPost("/api/command-center-config", async (HttpRequest req, CommandCenterConfigStore store, DccExCommandCenter physical, WsHub ws, CancellationToken ct) =>
+app.MapPost("/api/command-center-config", async (HttpRequest req, CommandCenterConfigStore store, ConfiguredCommandCenter physical, WsHub ws, CancellationToken ct) =>
 {
     if (!req.HasFormContentType)
     {
@@ -293,11 +293,17 @@ app.MapPost("/api/command-center-config", async (HttpRequest req, CommandCenterC
 
         next = new CommandCenterSettings
         {
-            Transport = "tcp",
+            Transport =
+                current.IsZ21
+                    ? "z21"
+                    : "tcp",
             TcpHost = host,
             TcpPort = port,
             SerialPort = current.SerialPort,
-            PowerIncludesProgramming = powerProg,
+            PowerIncludesProgramming =
+                current.IsZ21
+                    ? false
+                    : powerProg,
             CommandIntervalMs = commandIntervalMs
         };
 
@@ -343,7 +349,7 @@ app.MapPost("/api/command-center-config", async (HttpRequest req, CommandCenterC
     });
 });
 
-app.MapPost("/api/command-center-test", async (HttpRequest req, CancellationToken ct) =>
+app.MapPost("/api/command-center-test", async (HttpRequest req, CommandCenterConfigStore store, CancellationToken ct) =>
 {
     if (!req.HasFormContentType)
         return Results.Json(new { ok = false, message = "Invalid host" }, statusCode: 400);
@@ -365,7 +371,16 @@ app.MapPost("/api/command-center-test", async (HttpRequest req, CancellationToke
     if (!int.TryParse(portText, out var port) || port is < 1 or > 65535)
         return Results.Json(new { ok = false, message = "Invalid port" }, statusCode: 400);
 
-    var probe = await CommandCenterProbe.ProbeDccExAsync(host, port, ct);
+    var probe =
+        store.Current.IsZ21
+            ? await CommandCenterProbe.ProbeZ21Async(
+                host,
+                port,
+                ct)
+            : await CommandCenterProbe.ProbeDccExAsync(
+                host,
+                port,
+                ct);
     if (probe.DccExAlive)
         return Results.Json(new { ok = true, tcpConnected = probe.TcpConnected, dccExAlive = true, reply = probe.Reply, elapsedMs = probe.ElapsedMs });
 
@@ -389,7 +404,10 @@ app.MapGet("/api/command-center-info", (ICommandCenter cc, CommandCenterConfigSt
         type = cc.Type,
         name = cc.Name,
         transport = x.Transport,
-        defaultPort = 2560,
+        defaultPort =
+            x.IsZ21
+                ? Z21CommandCenter.DefaultPort
+                : 2560,
         defaultBaudRate = CommandCenterSettings.DccExSerialBaudRate,
         connected = cc.Connected,
         host = x.IsSerial ? "" : x.TcpHost,
@@ -399,9 +417,9 @@ app.MapGet("/api/command-center-info", (ICommandCenter cc, CommandCenterConfigSt
         capabilities = new
         {
             trackPower = true,
-            programmingTrackPower = true,
-            rawCommand = true,
-            vPin = true,
+            programmingTrackPower = !x.IsZ21,
+            rawCommand = !x.IsZ21,
+            vPin = !x.IsZ21,
             extendedAccessory = true,
             currentTelemetry = true,
             trackConfiguration = true,
@@ -414,7 +432,7 @@ app.MapGet("/api/command-center-info", (ICommandCenter cc, CommandCenterConfigSt
     });
 });
 
-app.MapGet("/api/capabilities", () => Results.Json(new
+app.MapGet("/api/capabilities", (ICommandCenter cc) => Results.Json(new
 {
     ok = true,
     javascriptAutomation = false,
@@ -422,7 +440,11 @@ app.MapGet("/api/capabilities", () => Results.Json(new
     deviceConfiguration = true,
     gamepad = true,
     s88 = false,
-    programmingTrack = true
+    programmingTrack =
+        !string.Equals(
+            cc.Type,
+            "z21",
+            StringComparison.OrdinalIgnoreCase)
 }));
 
 static string DataFile(IWebHostEnvironment env, string name)
