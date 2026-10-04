@@ -120,7 +120,7 @@
   "emergencyStop": "Vészleállítás",
   "safetyEmergencyStopTitle": "Biztonsági vészleállítás",
   "automaticSafetyEmergencyStop": "Automatikus safety E-STOP",
-  "safetyUnknownOccupancy": "Foglalt blokkot érzékeltünk ismert vagy oda lefoglalt mozdony nélkül.",
+  "safetyUnknownOccupancy": "Melléfoglalás / ismeretlen foglaltság: egy blokk foglalttá vált ismert vagy oda lefoglalt mozdony nélkül.",
   "safetyTargetOccupancyMismatch": "A célblokkot nem az aktív Movement által várt mozdony foglalta el.",
   "safetyReason": "Ok",
   "expectedLocomotive": "Várt mozdony",
