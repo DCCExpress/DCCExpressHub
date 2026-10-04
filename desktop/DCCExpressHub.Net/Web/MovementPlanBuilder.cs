@@ -919,10 +919,53 @@ public sealed class MovementPlanBuilder
                 routeTable);
 
         var routeDirection =
-            Str(
-                route,
-                "locoDirection",
-                "unknown");
+            "unknown";
+
+        var savedRouteDirection =
+            "unknown";
+
+        if (!string.IsNullOrWhiteSpace(
+                page.RouteKey))
+        {
+            try
+            {
+                using var routeIdentity =
+                    JsonDocument.Parse(
+                        page.RouteKey);
+
+                if (routeIdentity.RootElement.ValueKind ==
+                        JsonValueKind.Object &&
+                    routeIdentity.RootElement.TryGetProperty(
+                        "direction",
+                        out var directionElement) &&
+                    directionElement.ValueKind ==
+                        JsonValueKind.String)
+                {
+                    var value =
+                        directionElement.GetString();
+
+                    if (value is "forward" or "reverse")
+                    {
+                        savedRouteDirection =
+                            value;
+                        routeDirection =
+                            value;
+                    }
+                }
+            }
+            catch (JsonException)
+            {
+                // The exact route identity is optional for legacy Movement
+                // definitions. Fall back to persisted topology below.
+            }
+        }
+
+        if (routeDirection is not ("forward" or "reverse"))
+            routeDirection =
+                Str(
+                    route,
+                    "locoDirection",
+                    "unknown");
 
         var trackAddresses =
             TrackAddressMap(root);
@@ -1035,6 +1078,58 @@ public sealed class MovementPlanBuilder
                         edge.Clone())
                     .ToArray()
                 : [];
+
+        var edgeDirection =
+            "unknown";
+
+        var edgeDirectionConflict =
+            false;
+
+        if (routeDirection is not ("forward" or "reverse"))
+        {
+            foreach (var edge in edges)
+            {
+                var current =
+                    Str(
+                        edge,
+                        "locoDirection",
+                        "unknown");
+
+                if (current is not ("forward" or "reverse"))
+                    continue;
+
+                if (edgeDirection == "unknown")
+                {
+                    edgeDirection =
+                        current;
+                    continue;
+                }
+
+                if (!string.Equals(
+                        edgeDirection,
+                        current,
+                        StringComparison.Ordinal))
+                {
+                    edgeDirectionConflict =
+                        true;
+                    break;
+                }
+            }
+
+            if (!edgeDirectionConflict &&
+                edgeDirection is "forward" or "reverse")
+                routeDirection =
+                    edgeDirection;
+        }
+
+        if (routeDirection is not ("forward" or "reverse"))
+            throw new InvalidOperationException(
+                "movement_direction_unknown" +
+                $" savedKeyDirection={savedRouteDirection}" +
+                $" topologyDirection={Str(route, "locoDirection", "unknown")}" +
+                $" edgeDirection={edgeDirection}" +
+                $" edgeConflict={edgeDirectionConflict}" +
+                $" edgeCount={edges.Length}");
 
         var routeNodeNames =
             routeNodes
