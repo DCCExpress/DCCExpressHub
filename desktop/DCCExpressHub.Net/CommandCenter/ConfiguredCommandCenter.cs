@@ -79,6 +79,11 @@ public sealed class ConfiguredCommandCenter : ICommandCenter
     public bool LocomotiveDirectionInverted(int address){lock(_gate)return _inverted.Contains(address);}
     private bool MapDirection(int address,bool forward)=>LocomotiveDirectionInverted(address)?!forward:forward;
 
+    public Z21RuntimeDiagnostics? GetZ21Diagnostics() =>
+        _inner is Z21CommandCenter z21
+            ? z21.Diagnostics
+            : null;
+
     public void SetCommandIntervalMs(int intervalMs)
     {
         if (_inner is DccExCommandCenter dccEx)
