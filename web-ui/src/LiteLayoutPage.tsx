@@ -58,6 +58,7 @@ import SignalLogicDialog from "@/components/SignalLogicDialog";
 import IntegrityCheckDialog from "@/components/IntegrityCheckDialog";
 import LayoutRuntimeLogPanel from "@/components/LayoutRuntimeLogPanel";
 import SystemInfoPanel from "@/components/SystemInfoPanel";
+import SafetyEmergencyStopDialog from "@/components/SafetyEmergencyStopDialog";
 import VisibilitySettings from "@/components/VisibilitySettings";
 import { useCommandCenter } from "@/context/CommandCenterContext";
 import { useLayoutPageShortcuts } from "@/hooks/layout/useLayoutPageShortcuts";
@@ -2577,6 +2578,8 @@ export default function LiteLayoutPage({
           <Button color="red" onClick={() => setTemperatureAlertOpened(false)}>{i18next.t("ui.acknowledge")}</Button>
         </Stack>
       </Modal>
+
+      <SafetyEmergencyStopDialog />
 
       <SignalLogicDialog
         opened={signalLogicOpened}
