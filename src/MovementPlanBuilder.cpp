@@ -602,7 +602,11 @@ bool MovementPlanBuilder::build(
 
       for (JsonVariantConst detector :
            node["detectors"].as<JsonArrayConst>()) {
-        const int address = detector | 0;
+        int address = 0;
+        if (detector.is<JsonObjectConst>())
+          address = detector.as<JsonObjectConst>()["address"] | 0;
+        else
+          address = detector | 0;
         if (!validId(address)) continue;
 
         const uint16_t sensor =
