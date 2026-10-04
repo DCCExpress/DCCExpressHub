@@ -178,6 +178,7 @@ public sealed class MovementRuntime
         public int DesiredSpeed { get; set; }
         public bool Moving { get; set; }
         public bool EmergencyAbort { get; set; }
+        public string? SafetyError { get; set; }
         public bool MotionStartedPublished { get; set; }
         public bool ResumeAfterExternalHold { get; set; }
         public string? ActiveLegOwnerId { get; set; }
@@ -212,6 +213,7 @@ public sealed class MovementRuntime
     readonly Dictionary<string, MovementRuntimeState> _states = new(StringComparer.Ordinal);
     readonly ConcurrentDictionary<string, TaskCompletionSource<bool>> _pendingAudio = new(StringComparer.Ordinal);
     readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web);
+    int _occupancySafetyTripActive;
 
     public event Action<MovementRuntimeState>? Changed;
     public event Action<string, long>? MotionStarted;
@@ -244,9 +246,190 @@ public sealed class MovementRuntime
         _automationStorage = automationStorage;
         _exclusiveGate = exclusiveGate;
         _log = log;
+
+        _layout.Changed +=
+            OnLayoutRuntimeChanged;
     }
 
     static long NowMs() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+    static string OccupancyError(
+        RuntimeBlock block) =>
+        "Unknown occupancy detected: block " +
+        (string.IsNullOrWhiteSpace(block.Name)
+            ? "#" + block.Id
+            : block.Name + " (#" + block.Id + ")") +
+        ", sensor #" +
+        block.SensorAddress +
+        ".";
+
+    RuntimeBlock? FindUnknownOccupiedBlock()
+    {
+        foreach (var block in
+                 _layout.BlocksForPersistence())
+        {
+            if (block.SensorAddress == 0 ||
+                !_layout.TryGetSensorState(
+                    block.SensorAddress,
+                    out var occupied) ||
+                !occupied)
+                continue;
+
+            // A live block sensor is only known/safe when a real locomotive is
+            // already assigned to that block, or Dispatcher has explicitly
+            // reserved it for a target locomotive.
+            if (block.Occupied)
+                continue;
+
+            if (block.TargetOnly &&
+                block.TargetLocoAddress > 0)
+                continue;
+
+            return block;
+        }
+
+        return null;
+    }
+
+    RuntimeBlock? FindTargetOccupancyMismatch(
+        IReadOnlyList<Execution> executions)
+    {
+        var blocks =
+            _layout.BlocksForPersistence();
+
+        foreach (var execution in executions)
+        {
+            if (execution.TargetBlockId is not
+                (>= 1 and <= 65535))
+                continue;
+
+            var block =
+                blocks.FirstOrDefault(x =>
+                    x.Id ==
+                    (ushort)execution.TargetBlockId.Value);
+
+            if (block is null ||
+                block.SensorAddress == 0 ||
+                !_layout.TryGetSensorState(
+                    block.SensorAddress,
+                    out var occupied) ||
+                !occupied)
+                continue;
+
+            // The target sensor is allowed to become occupied only by the
+            // locomotive that this Movement is actually sending there.
+            var correctRealLoco =
+                block.LocoAddress ==
+                execution.LocoAddress;
+
+            var correctTargetLoco =
+                block.TargetOnly &&
+                block.TargetLocoAddress ==
+                execution.LocoAddress;
+
+            if (!correctRealLoco &&
+                !correctTargetLoco)
+                return block;
+        }
+
+        return null;
+    }
+
+    void OnLayoutRuntimeChanged(
+        string type,
+        object _)
+    {
+        if (!string.Equals(
+                type,
+                "sensorChanged",
+                StringComparison.Ordinal))
+            return;
+
+        Execution[] executions;
+
+        lock (_gate)
+            executions =
+                _executions.Values.ToArray();
+
+        if (executions.Length == 0)
+            return;
+
+        var violation =
+            FindUnknownOccupiedBlock() ??
+            FindTargetOccupancyMismatch(
+                executions);
+
+        if (violation is null)
+            return;
+
+        _ =
+            TripUnknownOccupancyAsync(
+                OccupancyError(
+                    violation));
+    }
+
+    async Task TripUnknownOccupancyAsync(
+        string error)
+    {
+        if (Interlocked.Exchange(
+                ref _occupancySafetyTripActive,
+                1) != 0)
+            return;
+
+        try
+        {
+            Execution[] executions;
+
+            lock (_gate)
+                executions =
+                    _executions.Values.ToArray();
+
+            if (executions.Length == 0)
+                return;
+
+            _log.LogCritical(
+                "{Error} Emergency stop requested.",
+                error);
+
+            foreach (var execution in executions)
+            {
+                execution.SafetyError =
+                    error;
+                execution.EmergencyAbort =
+                    true;
+                execution.Moving =
+                    false;
+                execution.DesiredSpeed =
+                    0;
+
+                Patch(
+                    execution,
+                    status:
+                        "error",
+                    desiredSpeed:
+                        0,
+                    info:
+                        "Emergency stop: unknown occupancy",
+                    setInfo:
+                        true,
+                    error:
+                        error,
+                    setError:
+                        true);
+            }
+
+            await EnsureEmergencyStopAsync();
+
+            foreach (var execution in executions)
+                execution.Cancellation.Cancel();
+        }
+        finally
+        {
+            Interlocked.Exchange(
+                ref _occupancySafetyTripActive,
+                0);
+        }
+    }
 
     void EmitTrainEvent(
         Execution execution,
@@ -2851,11 +3034,16 @@ public sealed class MovementRuntime
             {
             }
 
+            var safetyError =
+                execution.SafetyError;
+
             Publish(
                 execution,
                 execution.State with
                 {
-                    Status = "idle",
+                    Status = safetyError is null
+                        ? "idle"
+                        : "error",
                     StoppedAt = NowMs(),
                     DesiredSpeed = 0,
                     Moving = false,
@@ -2863,10 +3051,12 @@ public sealed class MovementRuntime
                     TargetBlockId = null,
                     CurrentResourceKey = null,
                     ActiveRouteResourceKey = null,
-                    Info = execution.EmergencyAbort
-                        ? "Movement aborted"
-                        : "Movement stopped",
-                    Error = null
+                    Info = safetyError is not null
+                        ? "Emergency stop: unknown occupancy"
+                        : execution.EmergencyAbort
+                            ? "Movement aborted"
+                            : "Movement stopped",
+                    Error = safetyError
                 });
         }
         catch (Exception ex)
@@ -3141,6 +3331,47 @@ public sealed class MovementRuntime
         if (sourceBlock is null ||
             sourceBlock.LocoAddress == 0)
             return (false, "movement_source_loco_missing");
+
+        if (source.SensorAddress is not
+            (>= 1 and <= 65535))
+            return (
+                false,
+                "movement_source_sensor_missing");
+
+        if (!_layout.TryGetSensorState(
+                (ushort)source.SensorAddress.Value,
+                out var sourceOccupied) ||
+            !sourceOccupied)
+            return (
+                false,
+                "Movement cannot start: locomotive #" +
+                sourceBlock.LocoAddress +
+                " is assigned to block " +
+                source.Name +
+                " but occupancy sensor #" +
+                source.SensorAddress.Value +
+                " is not ON.");
+
+        var unknownOccupancy =
+            FindUnknownOccupiedBlock();
+
+        if (unknownOccupancy is not null)
+        {
+            var occupancyError =
+                OccupancyError(
+                    unknownOccupancy);
+
+            _log.LogCritical(
+                "{Error} Movement start blocked and emergency stop requested.",
+                occupancyError);
+
+            _ =
+                EnsureEmergencyStopAsync();
+
+            return (
+                false,
+                occupancyError);
+        }
 
         if (page.ExpectedLocoAddress is > 0 &&
             sourceBlock.LocoAddress !=
