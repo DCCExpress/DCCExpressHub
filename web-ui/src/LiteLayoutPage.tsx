@@ -2127,6 +2127,7 @@ export default function LiteLayoutPage({
           <TrackCanvas
             editMode={editMode}
             tool={tool}
+            onToolChange={setTool}
             layout={layout}
             onLayoutChange={setLayout}
             selectedElement={selectedElement}
