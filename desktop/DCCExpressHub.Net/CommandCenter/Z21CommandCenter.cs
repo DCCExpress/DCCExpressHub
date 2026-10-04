@@ -376,13 +376,13 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
 
         ok &=
             await SendXBusCoreAsync(
-                [0xF1, 0x0A],
+                new byte[] { 0xF1, 0x0A },
                 false,
                 ct);
 
         ok &=
             await SendXBusCoreAsync(
-                [0x21, 0x24],
+                new byte[] { 0x21, 0x24 },
                 false,
                 ct);
 
@@ -629,12 +629,13 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
     {
         var ok =
             await SendXBusAsync(
-                [
+                new byte[]
+                {
                     0x21,
                     on
                         ? (byte)0x81
                         : (byte)0x80
-                ],
+                },
                 true,
                 ct);
 
@@ -672,7 +673,7 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
 
         var ok =
             await SendXBusAsync(
-                [0x80],
+                new byte[] { 0x80 },
                 true,
                 ct);
 
@@ -711,13 +712,14 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
             speedByte |= 0x80;
 
         return await SendXBusAsync(
-            [
+            new byte[]
+            {
                 0xE4,
                 0x13,
                 msb,
                 lsb,
                 speedByte
-            ],
+            },
             true,
             ct);
     }
@@ -735,12 +737,13 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
             out var lsb);
 
         return SendXBusAsync(
-            [
+            new byte[]
+            {
                 0xE3,
                 0xF0,
                 msb,
                 lsb
-            ],
+            },
             false,
             ct);
     }
@@ -770,13 +773,14 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                 (fn & 0x3F));
 
         return SendXBusAsync(
-            [
+            new byte[]
+            {
                 0xE4,
                 0xF8,
                 msb,
                 lsb,
                 function
-            ],
+            },
             true,
             ct);
     }
@@ -856,12 +860,13 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
             control |= 0x01;
 
         return SendXBusAsync(
-            [
+            new byte[]
+            {
                 0x53,
                 (byte)(functionAddress >> 8),
                 (byte)(functionAddress & 0xFF),
                 control
-            ],
+            },
             true,
             ct);
     }
@@ -905,13 +910,14 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
             address + 3;
 
         return SendXBusAsync(
-            [
+            new byte[]
+            {
                 0x54,
                 (byte)(rawAddress >> 8),
                 (byte)(rawAddress & 0xFF),
                 (byte)aspect,
                 0x00
-            ],
+            },
             true,
             ct);
     }
