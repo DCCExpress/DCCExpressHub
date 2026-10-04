@@ -73,7 +73,7 @@ from pathlib import Path
 import edge_tts
 
 
-DEFAULT_VOICE = "hu-HU-NoemiNeural"
+DEFAULT_VOICE = "hu-HU-TamasNeural"
 DEFAULT_RATE = "-8%"
 DEFAULT_PITCH = "-2Hz"
 DEFAULT_VOLUME = "+0%"

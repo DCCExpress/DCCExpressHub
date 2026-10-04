@@ -1,0 +1,1 @@
+import{tt as e}from"./c-Divr_zUk.js";import{t}from"./c-C2cqyZvn.js";var n=e();function r({document:e,onDocumentChange:r,onBack:i}){return(0,n.jsx)(t,{opened:!0,initialPageId:e.activePageId,onSaved:r,onClose:i})}export{r as default};

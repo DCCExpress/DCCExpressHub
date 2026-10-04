@@ -41,6 +41,7 @@ export class TrackCrossingElement extends TrackElement {
     super(x, y);
     this.type = ELEMENT_TYPES.TRACK_CROSSING;
     this.rotationStep = 45;
+    this.debug = false;
   }
   override draw(ctx: CanvasRenderingContext2D, options?: DrawOptions): void {
     if (!this.visible) return;
