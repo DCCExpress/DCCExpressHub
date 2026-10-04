@@ -101,6 +101,9 @@ private:
       Execution& execution,
       uint8_t speed);
 
+  bool conditionsSatisfied(
+      const std::vector<MovementSensorCondition>& conditions) const;
+
   bool arrived(
       const MovementPlanLeg& leg) const;
 
