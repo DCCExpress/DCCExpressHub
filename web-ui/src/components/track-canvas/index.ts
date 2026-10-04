@@ -14,6 +14,7 @@ export * from "./trackCanvasViewStorage";
 // Interaction
 export * from "./trackCanvasClickableActions";
 export * from "./trackCanvasCursor";
+export * from "./trackCanvasClone";
 export * from "./trackCanvasEventListeners";
 export * from "./trackCanvasInteractionStop";
 export * from "./trackCanvasKeyboard";
