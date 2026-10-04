@@ -80,6 +80,7 @@ import {
 export default function TrackCanvas({
   editMode = false,
   tool,
+  onToolChange,
   layout,
   onLayoutChange,
   onBeforeLayoutChange,
@@ -169,6 +170,8 @@ export default function TrackCanvas({
   const editModeRef = useRef(editMode);
   const selectedElementRef = useRef<BaseElement | null>(selectedElement);
   const currentCursorRef = useRef<BaseElement | null>(currentCursor);
+  const copiedElementRef = useRef<BaseElement | null>(null);
+  const pendingCopiedCursorRef = useRef<BaseElement | null>(null);
   const signalAspectPopoverRef = useRef(signalAspectPopover);
   const doubleTurnoutPopoverRef = useRef(doubleTurnoutPopover);
   const commandCenterRef = useRef(commandCenter);
@@ -569,6 +572,29 @@ export default function TrackCanvas({
     if (tool.mode !== "draw") {
       setCurrentCursor(null);
       layoutRef.current.unselectAll();
+      return;
+    }
+
+    const pendingCopiedCursor =
+      pendingCopiedCursorRef.current;
+
+    if (
+      pendingCopiedCursor &&
+      pendingCopiedCursor.type ===
+        tool.elementType
+    ) {
+      pendingCopiedCursorRef.current =
+        null;
+
+      pendingCopiedCursor.selected =
+        true;
+
+      canvasRef.current?.focus();
+
+      setCurrentCursor(
+        pendingCopiedCursor
+      );
+
       return;
     }
 
@@ -1341,8 +1367,11 @@ export default function TrackCanvas({
         editModeRef,
         currentCursorRef,
         selectedElementRef,
+        copiedElementRef,
+        pendingCopiedCursorRef,
         viewRef,
         setCurrentCursor,
+        onToolChange,
         onBeforeLayoutChange,
         onLayoutChange,
         onSelectedElementChange,
