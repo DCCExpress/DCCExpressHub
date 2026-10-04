@@ -696,6 +696,21 @@ app.MapPost("/api/layout", async (HttpRequest req, IWebHostEnvironment env, Layo
         }
 
         File.Move(tempPath, finalPath, true);
+
+        var topologyOnly =
+            string.Equals(
+                req.Query["topologyOnly"],
+                "1",
+                StringComparison.Ordinal);
+
+        if (topologyOnly)
+            return Results.Json(new
+            {
+                ok = true,
+                bytes,
+                topologyOnly = true
+            });
+
         runtime.Rebuild();
 
         // Firmware parity: IDs used by signal rules are resolved against the newly
