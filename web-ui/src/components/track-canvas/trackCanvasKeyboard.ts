@@ -157,6 +157,82 @@ export function handleTrackCanvasKeyDown(
 
     event.preventDefault();
 
+    const pasted =
+      copied.clone();
+
+    pasted.id =
+      INVALID_LAYOUT_ELEMENT_ID;
+
+    pasted.selected = false;
+    pasted.marked = false;
+
+    const stepX =
+      Math.max(
+        1,
+        Math.ceil(
+          pasted.w
+        )
+      );
+
+    const stepY =
+      Math.max(
+        1,
+        Math.ceil(
+          pasted.h
+        )
+      );
+
+    let pasteX =
+      copied.x + stepX;
+
+    let pasteY =
+      copied.y + stepY;
+
+    let foundFreePosition =
+      false;
+
+    for (
+      let offset = 1;
+      offset <= 64;
+      offset += 1
+    ) {
+      pasteX =
+        copied.x +
+        stepX * offset;
+
+      pasteY =
+        copied.y +
+        stepY * offset;
+
+      if (
+        !currentLayout.getLayeredElement(
+          pasted,
+          pasteX,
+          pasteY
+        )
+      ) {
+        foundFreePosition =
+          true;
+        break;
+      }
+    }
+
+    if (foundFreePosition) {
+      context.onBeforeLayoutChange?.();
+
+      pasted.x = pasteX;
+      pasted.y = pasteY;
+
+      currentLayout.addElement(
+        pasted,
+        pasted.layerName
+      );
+
+      context.onLayoutChange(
+        previous => previous
+      );
+    }
+
     const cursor =
       copied.clone();
 
