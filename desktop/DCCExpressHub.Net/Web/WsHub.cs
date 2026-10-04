@@ -2525,8 +2525,19 @@ public sealed class WsHub
         var x =
             CommandCenterConfigStore.Current;
 
+        var z21 =
+            (CommandCenter as
+                ConfiguredCommandCenter)?
+                .GetZ21Diagnostics();
+
         return new
         {
+            commandCenterType =
+                CommandCenter.Type,
+            commandCenterName =
+                CommandCenter.Name,
+            commandCenterProfile =
+                z21?.Profile,
             version = HubState.Station.Version,
             processor = HubState.Station.Processor,
             hardware = HubState.Station.Hardware,
@@ -2541,8 +2552,73 @@ public sealed class WsHub
             alive = CommandCenter.Connected,
             maxLocos = HubState.Station.MaxLocos,
             trackVoltageOn = HubState.TrackPower,
+            emergencyStop =
+                HubState.EmergencyStop,
             mainCurrentMa = HubState.Tracks.GetValueOrDefault(0)?.CurrentMa ?? 0,
             progCurrentMa = HubState.Tracks.GetValueOrDefault(1)?.CurrentMa ?? 0,
+            linkUptimeMs =
+                z21 is not null &&
+                z21.UdpUptimeMs >= 0
+                    ? z21.UdpUptimeMs
+                    : (long?)null,
+            z21 =
+                z21 is null
+                    ? null
+                    : new
+                    {
+                        profile =
+                            z21.Profile,
+                        broadcastFlags =
+                            $"0x{z21.BroadcastFlags:X8}",
+                        udpUptimeMs =
+                            z21.UdpUptimeMs,
+                        mainCurrentMa =
+                            z21.MainCurrentMa,
+                        progCurrentMa =
+                            z21.ProgCurrentMa,
+                        filteredMainCurrentMa =
+                            z21.FilteredMainCurrentMa,
+                        temperatureC =
+                            z21.TemperatureC,
+                        supplyVoltageMv =
+                            z21.SupplyVoltageMv,
+                        trackVoltageMv =
+                            z21.TrackVoltageMv,
+                        centralState =
+                            z21.CentralState,
+                        centralStateEx =
+                            z21.CentralStateEx,
+                        capabilities =
+                            z21.Capabilities,
+                        lastSystemStateAgeMs =
+                            z21.LastSystemStateAgeMs,
+                        lbServerEnabled =
+                            z21.LbServerEnabled,
+                        lbServerConnected =
+                            z21.LbServerConnected,
+                        lbServerPort =
+                            z21.LbServerPort,
+                        lbServerUptimeMs =
+                            z21.LbServerUptimeMs,
+                        lastLbServerRxAgeMs =
+                            z21.LastLbServerRxAgeMs,
+                        lbServerLinesObserved =
+                            z21.LbServerLinesObserved,
+                        lbServerVersion =
+                            z21.LbServerVersion,
+                        sensorFeedbackCount =
+                            z21.SensorFeedbackCount,
+                        lastSensorAddress =
+                            z21.LastSensorAddress,
+                        lastSensorOn =
+                            z21.LastSensorOn,
+                        lastSensorFeedbackAgeMs =
+                            z21.LastSensorFeedbackAgeMs,
+                        lastInterrogateAgeMs =
+                            z21.LastInterrogateAgeMs,
+                        interrogateEnabled =
+                            z21.InterrogateEnabled
+                    },
             tracks = HubState.Tracks.OrderBy(track => track.Key).Select(track => new
             {
                 letter = ((char)('A' + track.Key)).ToString(),
