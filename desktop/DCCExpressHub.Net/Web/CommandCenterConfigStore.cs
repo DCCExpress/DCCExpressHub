@@ -124,10 +124,20 @@ public sealed class CommandCenterConfigStore
     {
         get
         {
-            if (string.Equals(
-                    _configuration["CommandCenter:Protocol"],
+            var protocol =
+                (_configuration["CommandCenter:Protocol"] ?? "")
+                    .Trim();
+
+            if (
+                string.Equals(
+                    protocol,
                     "z21",
-                    StringComparison.OrdinalIgnoreCase))
+                    StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(
+                    protocol,
+                    "yamorc7010",
+                    StringComparison.OrdinalIgnoreCase)
+            )
             {
                 return "z21";
             }
