@@ -7,6 +7,7 @@
 
 #include "AutomationScriptRuntime.h"
 #include "FastClockRuntime.h"
+#include "FlowRuntime.h"
 #include "ICommandCenter.h"
 #include "LayoutRuntime.h"
 #include "LocoCounterRuntime.h"
@@ -139,6 +140,9 @@ private:
   AutomationScriptRuntime _scripts{
       _commandCenter,
       _runtime};
+
+  FlowRuntime _flows{
+      _scripts};
 
   bool _trackPower = false;
   bool _programmingPower = false;
@@ -343,6 +347,11 @@ private:
       AsyncWebSocketClient* client);
 
   void broadcastAutomationScriptSnapshot();
+
+  void sendFlowSnapshot(
+      AsyncWebSocketClient* client);
+
+  void broadcastFlowSnapshot();
 
   void sendLocoCounterSnapshot(
       AsyncWebSocketClient* client);
