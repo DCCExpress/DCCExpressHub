@@ -5,4 +5,21 @@ namespace DCCExpressHub.Net.CommandCenter
     public sealed record TrackInfo(int Index, string Mode);
     public sealed record PowerFeedback(bool On, string Target, int TrackIndex = -1);
     public sealed record LocoFeedback(int Address, int Speed, bool Forward, uint FunctionsMask);
+
+    public sealed record Z21RuntimeDiagnostics(
+        string Profile,
+        uint BroadcastFlags,
+        long UdpUptimeMs,
+        bool LbServerEnabled,
+        bool LbServerConnected,
+        int LbServerPort,
+        long LbServerUptimeMs,
+        int LbServerLinesObserved,
+        string LbServerVersion,
+        long SensorFeedbackCount,
+        int LastSensorAddress,
+        bool? LastSensorOn,
+        long LastSensorFeedbackAgeMs,
+        long LastInterrogateAgeMs,
+        bool InterrogateEnabled);
 }
