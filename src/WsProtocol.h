@@ -8,6 +8,7 @@
 #include "AutomationScriptRuntime.h"
 #include "FastClockRuntime.h"
 #include "FlowRuntime.h"
+#include "DispatcherRuntime.h"
 #include "ICommandCenter.h"
 #include "LayoutRuntime.h"
 #include "LocoCounterRuntime.h"
@@ -145,6 +146,9 @@ private:
       _scripts,
       _runtime};
 
+  DispatcherRuntime _dispatcher{
+      _runtime};
+
   bool _trackPower = false;
   bool _programmingPower = false;
   bool _programmingJoined = false;
@@ -266,6 +270,11 @@ private:
   bool switchManOwns(
       uint16_t address,
       const String& ownerId) const;
+
+  bool dispatcherSetTurnout(
+      uint16_t address,
+      bool logicalClosed,
+      const String& ownerId);
 
   const SwitchManLock* switchManFind(
       uint16_t address) const;
