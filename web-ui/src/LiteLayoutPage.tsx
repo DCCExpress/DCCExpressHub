@@ -1674,6 +1674,47 @@ export default function LiteLayoutPage({
     }
   }, [wsStatus, layout]);
 
+  const persistRouteTopology = useCallback(async (): Promise<void> => {
+    const ensuredRouteGraph =
+      ensureClientRouteGraph(
+        layout
+      );
+
+    if (ensuredRouteGraph.rebuilt) {
+      invalidate();
+    }
+
+    const response = await fetch(
+      "/api/layout",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+        body:
+          serializeLayoutOnly(
+            layout
+          ),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        await readHttpErrorMessage(
+          response,
+          i18next.t(
+            "ui.theLayoutCouldNotBeSavedToTheExCsb1"
+          )
+        )
+      );
+    }
+  }, [
+    i18next.resolvedLanguage,
+    layout,
+    invalidate,
+  ]);
+
   const saveLayout = useCallback(async () => {
     setSaving(true);
     setError(null);
@@ -2539,6 +2580,7 @@ export default function LiteLayoutPage({
         movements={movementDocument}
         editingMovementId={routesMovementPageId}
         onMovementsChange={setMovementDocument}
+        onPersistRouteTopology={persistRouteTopology}
         onGenerated={invalidate}
       />
 
