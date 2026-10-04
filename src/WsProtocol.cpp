@@ -4137,8 +4137,6 @@ void WsProtocol::handleMessage(
             extra["count"] =
                 _scripts.startAllSaved();
 
-            includeSnapshot =
-                true;
         }
         else if (
             action ==
@@ -4147,8 +4145,6 @@ void WsProtocol::handleMessage(
             extra["count"] =
                 _scripts.pauseAll();
 
-            includeSnapshot =
-                true;
         }
         else if (
             action ==
@@ -4157,8 +4153,6 @@ void WsProtocol::handleMessage(
             extra["count"] =
                 _scripts.resumeAll();
 
-            includeSnapshot =
-                true;
         }
         else if (
             action ==
@@ -4167,8 +4161,6 @@ void WsProtocol::handleMessage(
             extra["count"] =
                 _scripts.abortAll();
 
-            includeSnapshot =
-                true;
         }
         else if (
             action ==
@@ -4177,8 +4169,6 @@ void WsProtocol::handleMessage(
             extra["count"] =
                 _scripts.pauseAllSaved();
 
-            includeSnapshot =
-                true;
         }
         else if (
             action ==
@@ -4187,8 +4177,6 @@ void WsProtocol::handleMessage(
             extra["count"] =
                 _scripts.resumeAllSaved();
 
-            includeSnapshot =
-                true;
         }
         else if (
             action ==
@@ -4197,8 +4185,6 @@ void WsProtocol::handleMessage(
             extra["count"] =
                 _scripts.abortAllSaved();
 
-            includeSnapshot =
-                true;
         }
         else if (
             action ==
@@ -4208,8 +4194,8 @@ void WsProtocol::handleMessage(
                 data["finishing"] |
                     false);
 
-            includeSnapshot =
-                true;
+            extra["finishing"] =
+                _scripts.finishing();
         }
         else
         {
