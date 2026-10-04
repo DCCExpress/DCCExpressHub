@@ -68,6 +68,10 @@ import {
   getAllLayoutElements,
 } from "./trackCanvasSelection";
 
+import {
+  cloneElementForPlacement,
+} from "./trackCanvasClone";
+
 import type {
   MultiMotorTurnout,
 } from "./trackCanvasDoubleTurnoutPopoverState";
@@ -375,7 +379,10 @@ export function handleTrackCanvasMouseDown(
 
     onBeforeLayoutChange?.();
 
-    const newElement = cursor.clone();
+    const newElement =
+      cloneElementForPlacement(
+        cursor
+      );
     newElement.x = cursorAnchor.x;
     newElement.y = cursorAnchor.y;
     newElement.selected = false;
