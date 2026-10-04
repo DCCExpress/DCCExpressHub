@@ -349,6 +349,54 @@ void ApiServer::handleLayoutBody(
 
   const String tempPath = _layoutUpload.tempPath();
 
+  const bool topologyOnly =
+      request->hasParam("topologyOnly") &&
+      request->getParam("topologyOnly")->value() == "1";
+
+  if (topologyOnly) {
+    File validationFile =
+        _files.openRead(
+            tempPath.c_str());
+
+    JsonDocument validation;
+    const DeserializationError validationError =
+        validationFile
+            ? deserializeJson(
+                  validation,
+                  validationFile)
+            : DeserializationError::EmptyInput;
+
+    if (validationFile)
+      validationFile.close();
+
+    if (validationError ||
+        !validation.is<JsonObject>()) {
+      _layoutUpload.abort();
+      response["ok"] = false;
+      response["message"] = "Invalid layout JSON";
+      sendJson(request, 400, response);
+      return;
+    }
+
+    if (!_layoutUpload.commit()) {
+      response["ok"] = false;
+      response["message"] = "Layout atomic rename failed";
+      sendJson(request, 500, response);
+      return;
+    }
+
+    Logger::info(
+        "Route topology saved without runtime rebuild: " +
+        String(total) +
+        " bytes");
+
+    response["ok"] = true;
+    response["bytes"] = total;
+    response["topologyOnly"] = true;
+    sendJson(request, 200, response);
+    return;
+  }
+
   if (!_runtime.rebuildFromLayout(tempPath.c_str())) {
     _layoutUpload.abort();
     _runtime.rebuildFromLayout(LAYOUT_PATH);
