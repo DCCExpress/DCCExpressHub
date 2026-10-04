@@ -1685,7 +1685,7 @@ export default function LiteLayoutPage({
     }
 
     const response = await fetch(
-      "/api/layout",
+      "/api/layout?topologyOnly=1",
       {
         method: "POST",
         headers: {
