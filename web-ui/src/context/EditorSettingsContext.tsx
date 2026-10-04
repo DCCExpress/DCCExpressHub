@@ -70,7 +70,10 @@ function loadSettings(): EditorSettings {
                 typeof parsed.showBlockNames === "boolean"
                     ? parsed.showBlockNames
                     : defaultEditorSettings.showBlockNames,
-
+            showBuildings:
+                typeof parsed.showBuildings === "boolean"
+                    ? parsed.showBuildings
+                    : defaultEditorSettings.showBuildings,
 
             showGrid:
                 typeof parsed.showGrid === "boolean"
