@@ -5,8 +5,10 @@
 #include "Logger.h"
 
 FlowRuntime::FlowRuntime(
-    AutomationScriptRuntime& scripts)
-    : _scripts(scripts) {}
+    AutomationScriptRuntime& scripts,
+    LayoutRuntime& runtime)
+    : _scripts(scripts),
+      _runtime(runtime) {}
 
 bool FlowRuntime::begin() {
   _lastIntervalTick =
@@ -870,10 +872,461 @@ void FlowRuntime::cleanupExecutions() {
   }
 }
 
+void FlowRuntime::runMatchingInputs(
+    const String& kind,
+    uint16_t address,
+    bool state,
+    int intState,
+    JsonVariantConst payload) {
+  if (_scripts.finishing()) {
+    return;
+  }
+
+  std::vector<PageDef> pages;
+  std::vector<NodeDef> nodes;
+  std::vector<EdgeDef> edges;
+  String error;
+
+  if (!loadDocument(
+          pages,
+          nodes,
+          edges,
+          error)) {
+    return;
+  }
+
+  for (const auto& page : pages) {
+    if (!page.enabled) {
+      continue;
+    }
+
+    for (const auto& input : nodes) {
+      if (
+          input.pageId != page.id ||
+          input.kind != kind
+      ) {
+        continue;
+      }
+
+      JsonDocument dataDocument;
+
+      if (
+          deserializeJson(
+              dataDocument,
+              input.dataJson)
+      ) {
+        continue;
+      }
+
+      JsonObjectConst data =
+          dataDocument.as<JsonObjectConst>();
+
+      bool match =
+          false;
+
+      if (kind == "sensorInput") {
+        match =
+            intValue(
+                data,
+                "sensorAddress") ==
+                address &&
+            boolValue(
+                data,
+                "sensorState",
+                true) ==
+                state;
+      } else if (kind == "turnoutInput") {
+        match =
+            intValue(
+                data,
+                "turnoutAddress") ==
+            address;
+
+        if (!match) {
+          for (
+              JsonVariantConst item :
+              data["turnoutAddresses"]
+                  .as<JsonArrayConst>()
+          ) {
+            if (
+                item.as<int>() ==
+                address
+            ) {
+              match =
+                  true;
+              break;
+            }
+          }
+        }
+      } else if (
+          kind ==
+              "basicAccessoryInput" ||
+          kind ==
+              "extendedAccessoryInput"
+      ) {
+        match =
+            intValue(
+                data,
+                "accessoryAddress") ==
+            address;
+      } else if (kind == "blockInput") {
+        match =
+            intValue(
+                data,
+                "blockElementId") ==
+            address;
+      } else if (kind == "locoInput") {
+        match =
+            intValue(
+                data,
+                "locoAddress") ==
+            address;
+      }
+
+      if (!match) {
+        continue;
+      }
+
+      String runError;
+
+      runInput(
+          pages,
+          nodes,
+          edges,
+          page,
+          input,
+          payload,
+          false,
+          "event",
+          runError);
+    }
+  }
+}
+
+void FlowRuntime::onRuntimeChange(
+    RuntimeChangeKind kind,
+    uint16_t id,
+    uint8_t channel) {
+  JsonDocument payload;
+
+  switch (kind) {
+    case RuntimeChangeKind::Sensor: {
+      bool on =
+          false;
+
+      if (!_runtime.getSensorState(
+              id,
+              on)) {
+        return;
+      }
+
+      payload["eventType"] =
+          "sensorChanged";
+      payload["address"] =
+          id;
+      payload["on"] =
+          on;
+      payload["sensorAddress"] =
+          id;
+      payload["sensorState"] =
+          on;
+
+      runMatchingInputs(
+          "sensorInput",
+          id,
+          on,
+          on ? 1 : 0,
+          payload.as<JsonVariantConst>());
+      break;
+    }
+
+    case RuntimeChangeKind::Turnout: {
+      bool closed =
+          false;
+
+      if (!_runtime.getTurnoutClosed(
+              id,
+              closed)) {
+        return;
+      }
+
+      payload["eventType"] =
+          "turnoutChanged";
+      payload["address"] =
+          id;
+      payload["closed"] =
+          closed;
+      payload["channel"] =
+          channel;
+
+      runMatchingInputs(
+          "turnoutInput",
+          id,
+          closed,
+          closed ? 1 : 0,
+          payload.as<JsonVariantConst>());
+      break;
+    }
+
+    case RuntimeChangeKind::Accessory: {
+      bool active =
+          false;
+
+      if (!_runtime.getBasicAccessoryState(
+              id,
+              active)) {
+        return;
+      }
+
+      payload["eventType"] =
+          "accessoryChanged";
+      payload["address"] =
+          id;
+      payload["active"] =
+          active;
+
+      runMatchingInputs(
+          "basicAccessoryInput",
+          id,
+          active,
+          active ? 1 : 0,
+          payload.as<JsonVariantConst>());
+      break;
+    }
+
+    case RuntimeChangeKind::Signal: {
+      int16_t aspect =
+          0;
+
+      if (!_runtime.getSignalValue(
+              id,
+              aspect)) {
+        return;
+      }
+
+      payload["eventType"] =
+          "signalAspectChanged";
+      payload["address"] =
+          id;
+      payload["aspect"] =
+          aspect;
+
+      runMatchingInputs(
+          "extendedAccessoryInput",
+          id,
+          false,
+          aspect,
+          payload.as<JsonVariantConst>());
+      break;
+    }
+
+    case RuntimeChangeKind::Block: {
+      RuntimeBlock* block =
+          _runtime.findBlockById(
+              id);
+
+      if (!block) {
+        return;
+      }
+
+      payload["eventType"] =
+          "blockStateChanged";
+      payload["blockId"] =
+          String(id);
+      payload["locoId"] =
+          block->locoId;
+      payload["locoAddress"] =
+          block->locoAddress;
+      payload["occupied"] =
+          block->occupied();
+
+      runMatchingInputs(
+          "blockInput",
+          id,
+          block->occupied(),
+          block->locoAddress,
+          payload.as<JsonVariantConst>());
+      break;
+    }
+
+    default:
+      break;
+  }
+}
+
+void FlowRuntime::onLocoFeedback(
+    const CommandCenterLocoFeedback& info) {
+  JsonDocument payload;
+
+  payload["eventType"] =
+      "locoState";
+  payload["locoAddress"] =
+      info.address;
+  payload["speed"] =
+      info.speed;
+  payload["direction"] =
+      info.forward
+          ? "forward"
+          : "reverse";
+  payload["functionsMask"] =
+      info.functionsMask;
+
+  JsonObject loco =
+      payload["loco"]
+          .to<JsonObject>();
+
+  loco["address"] =
+      info.address;
+  loco["speed"] =
+      info.speed;
+  loco["direction"] =
+      info.forward
+          ? "forward"
+          : "reverse";
+  loco["functionsMask"] =
+      info.functionsMask;
+
+  runMatchingInputs(
+      "locoInput",
+      info.address,
+      info.forward,
+      info.speed,
+      payload.as<JsonVariantConst>());
+}
+
 void FlowRuntime::tickIntervals() {
-  // Interval inputs are parsed here in the first port, but automatic execution
-  // is enabled only after event/state subscriptions are wired. This prevents a
-  // newly flashed ESP32 from unexpectedly firing saved flows.
+  if (_scripts.finishing()) {
+    return;
+  }
+
+  std::vector<PageDef> pages;
+  std::vector<NodeDef> nodes;
+  std::vector<EdgeDef> edges;
+  String error;
+
+  if (!loadDocument(
+          pages,
+          nodes,
+          edges,
+          error)) {
+    return;
+  }
+
+  const uint32_t now =
+      millis();
+
+  for (const auto& page : pages) {
+    if (!page.enabled) {
+      continue;
+    }
+
+    for (const auto& input : nodes) {
+      if (
+          input.pageId != page.id ||
+          input.kind != "trigger"
+      ) {
+        continue;
+      }
+
+      JsonDocument dataDocument;
+
+      if (
+          deserializeJson(
+              dataDocument,
+              input.dataJson)
+      ) {
+        continue;
+      }
+
+      JsonObjectConst data =
+          dataDocument.as<JsonObjectConst>();
+
+      if (
+          stringValue(
+              data,
+              "triggerMode") !=
+          "interval"
+      ) {
+        continue;
+      }
+
+      const uint32_t intervalMs =
+          static_cast<uint32_t>(
+              std::max(
+                  1000,
+                  std::min(
+                      86400000,
+                      intValue(
+                          data,
+                          "intervalMs",
+                          60000))));
+
+      const String key =
+          page.id +
+          ":" +
+          input.id;
+
+      // Deterministic phase per input avoids storing a separate unbounded
+      // scheduler map on the ESP32 while preserving a stable cadence.
+      uint32_t hash =
+          2166136261u;
+
+      for (
+          size_t i = 0;
+          i < key.length();
+          ++i
+      ) {
+        hash ^=
+            static_cast<uint8_t>(
+                key[i]);
+        hash *=
+            16777619u;
+      }
+
+      const uint32_t phase =
+          intervalMs > 0
+              ? hash %
+                    intervalMs
+              : 0;
+
+      const uint32_t previous =
+          now -
+          250U;
+
+      if (
+          (previous / intervalMs) ==
+              (now / intervalMs) &&
+          !(
+              (previous % intervalMs) <
+                  phase &&
+              (now % intervalMs) >=
+                  phase
+          )
+      ) {
+        continue;
+      }
+
+      JsonDocument payload;
+
+      payload["eventType"] =
+          "interval";
+      payload["timestamp"] =
+          now;
+
+      String runError;
+
+      runInput(
+          pages,
+          nodes,
+          edges,
+          page,
+          input,
+          payload.as<JsonVariantConst>(),
+          false,
+          "interval",
+          runError);
+    }
+  }
 }
 
 void FlowRuntime::loop() {
