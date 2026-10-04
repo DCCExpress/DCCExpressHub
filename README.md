@@ -214,9 +214,7 @@ This keeps layout, configuration and state data separate from the installed appl
 
 **ESP32-S3 is the only supported ESP32 platform for current DCCExpressHub development.**
 
-Classic ESP32 targets such as generic ESP32 DevKit and M5Stack Basic are no longer considered supported runtime platforms.
-
-The current reference embedded hardware is:
+The current supported embedded hardware is:
 
 - **Sunton ESP32-8048S043**
 - ESP32-S3
