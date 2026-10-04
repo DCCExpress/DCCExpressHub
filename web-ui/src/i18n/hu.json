@@ -185,6 +185,7 @@
     "showSignalAddress": "Jelzőcím mutatása",
     "showSegments": "Szegmensek mutatása",
     "showBlockNames": "Blokknevek mutatása",
+    "showBuildings": "Épületek mutatása",
     "showGrid": "Rács mutatása"
   },
   "controlPanel": {
