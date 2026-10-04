@@ -34,11 +34,6 @@ export type BasicAccessoryDebugState =
 export type ExtendedAccessoryDebugState =
   Map<number, DebugStateValue<number>>;
 
-type RawInfoPayload = {
-  raw: string;
-};
-
-
 type TurnoutConfig = {
   outputMode: "accessory" | "extended" | "vpin";
   closedValue: boolean;
@@ -133,9 +128,6 @@ function buildTurnoutConfig(layoutValue: unknown): Map<number, TurnoutConfig> {
 
   return result;
 }
-const SENSOR_FRAME =
-  /^<([Qq])\s+(\d+)>$/;
-
 function updatedMap<T>(
   previous: Map<number, DebugStateValue<T>>,
   address: number,
@@ -193,12 +185,6 @@ export function useRuntimeDebugState(
       data: {},
     });
 
-    wsClient.send({
-      type: "writeDccExDirectCommand",
-      data: {
-        command: "<Q>",
-      },
-    });
   }, []);
 
   useEffect(
@@ -281,30 +267,14 @@ export function useRuntimeDebugState(
           return;
         }
 
-        if (message.type !== "rawInfo") {
-          return;
-        }
+        // Sensor state is handled through the backend-neutral
+        // sensorChanged / sensorSnapshot protocol below.
+        return;
+      });
 
-        const data =
-          message.data as RawInfoPayload | undefined;
-
-        const raw = data?.raw?.trim();
-        if (!raw) {
-          return;
-        }
-
-        const match = SENSOR_FRAME.exec(raw);
-        if (!match) {
-          return;
-        }
-
-        const addressText = match[2];
-        if (!addressText) {
-          return;
-        }
-
-        const address =
-          Number.parseInt(addressText, 10);
+    const unsubscribeSensorChanged =
+      wsClient.on("sensorChanged", data => {
+        const address = Number(data.address);
 
         if (
           !Number.isInteger(address) ||
@@ -314,11 +284,55 @@ export function useRuntimeDebugState(
           return;
         }
 
-        const on = match[1] === "Q";
-
         setSensors(previous =>
-          updatedMap(previous, address, on)
+          updatedMap(
+            previous,
+            address,
+            Boolean(data.on)
+          )
         );
+      });
+
+    const unsubscribeSensorSnapshot =
+      wsClient.on("sensorSnapshot", data => {
+        const next: SensorDebugState =
+          new Map();
+
+        const now = Date.now();
+
+        for (
+          const [
+            baseAddress,
+            activeBits,
+            knownBits,
+          ] of data.groups
+        ) {
+          for (let bit = 0; bit < 16; bit += 1) {
+            const mask = 1 << bit;
+
+            if ((knownBits & mask) === 0) {
+              continue;
+            }
+
+            const address =
+              baseAddress + bit;
+
+            if (
+              address <= 0 ||
+              address > 65535
+            ) {
+              continue;
+            }
+
+            next.set(address, {
+              value:
+                (activeBits & mask) !== 0,
+              updatedAt: now,
+            });
+          }
+        }
+
+        setSensors(next);
       });
 
     const unsubscribeTurnout =
@@ -472,7 +486,7 @@ export function useRuntimeDebugState(
         });
       });
 
-    // Sensor state is intentionally rebuilt from authoritative <Q> feedback.
+    // Sensor state is rebuilt from the backend-neutral authoritative snapshot.
     setSensors(new Map());
     setTurnouts(new Map());
 
@@ -480,6 +494,8 @@ export function useRuntimeDebugState(
 
     return () => {
       unsubscribeMessages();
+      unsubscribeSensorChanged();
+      unsubscribeSensorSnapshot();
       unsubscribeTurnout();
       unsubscribeBasicAccessory();
       unsubscribeExtendedAccessory();
