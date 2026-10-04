@@ -1077,10 +1077,9 @@ void MovementRuntime::processBackgroundActions(
 
 void MovementRuntime::processExecution(
     Execution& execution) {
-  processBackgroundActions(execution);
-  if (execution.state.status != "running" &&
-      execution.state.status != "stopping")
+  if (execution.state.status != "running")
     return;
+  processBackgroundActions(execution);
 
   if (execution.legIndex >=
       execution.plan.legs.size()) {
@@ -1323,6 +1322,7 @@ void MovementRuntime::processExecution(
   execution.leaveSeenOccupied = false;
   execution.enteredResources.clear();
   execution.firedResourceEvents.clear();
+  execution.firedBackgroundEvents.clear();
 
   if (execution.stopping ||
       execution.legIndex >=
@@ -1391,9 +1391,8 @@ bool MovementRuntime::stop(
     return false;
 
   execution->stopping = true;
-  applySpeed(*execution, 0);
-  execution->state.status = "stopping";
-  execution->state.info = "Movement stop requested";
+  finish(*execution, "stopped");
+  execution->state.info = "Movement stopped";
   publishChanged();
   return true;
 }
