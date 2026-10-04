@@ -359,18 +359,20 @@ void ApiServer::handleLayoutBody(
             tempPath.c_str());
 
     JsonDocument validation;
-    const DeserializationError validationError =
-        validationFile
-            ? deserializeJson(
-                  validation,
-                  validationFile)
-            : DeserializationError::EmptyInput;
+    bool validationOk = false;
 
-    if (validationFile)
+    if (validationFile) {
+      const DeserializationError validationError =
+          deserializeJson(
+              validation,
+              validationFile);
       validationFile.close();
+      validationOk =
+          !validationError &&
+          validation.is<JsonObject>();
+    }
 
-    if (validationError ||
-        !validation.is<JsonObject>()) {
+    if (!validationOk) {
       _layoutUpload.abort();
       response["ok"] = false;
       response["message"] = "Invalid layout JSON";
