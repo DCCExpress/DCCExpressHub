@@ -186,6 +186,7 @@
     "showSignalAddress": "Signaladresse anzeigen",
     "showSegments": "Segmente anzeigen",
     "showBlockNames": "Blocknamen anzeigen",
+    "showBuildings": "Gebäude anzeigen",
     "showGrid": "Raster anzeigen"
   },
   "controlPanel": {
