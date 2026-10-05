@@ -339,8 +339,27 @@ bool MovementPlanBuilder::build(
     return false;
   }
 
+  JsonDocument legacyRouteRefDocument;
   JsonObjectConst routeRef =
       page["routeRef"].as<JsonObjectConst>();
+
+  if (!routeRef) {
+    const char* legacyRouteKey =
+        page["routeKey"] | nullptr;
+
+    if (legacyRouteKey &&
+        *legacyRouteKey &&
+        !deserializeJson(
+            legacyRouteRefDocument,
+            legacyRouteKey)) {
+      routeRef =
+          legacyRouteRefDocument
+              .as<JsonObjectConst>();
+
+      Logger::warn(
+          "Movement legacy routeKey migrated in memory to routeRef");
+    }
+  }
 
   if (!routeRef) {
     error = "movement_requires_route_ref";
@@ -370,15 +389,30 @@ bool MovementPlanBuilder::build(
   checkpoints.push_back(
       static_cast<uint16_t>(requestedFrom));
 
-  for (JsonVariantConst raw :
-       routeRef["viaBlockIds"].as<JsonArrayConst>()) {
-    const int id = raw | 0;
-    if (validId(id) &&
-        id != requestedFrom &&
-        id != requestedTo)
-      uniquePush(
-          checkpoints,
-          static_cast<uint16_t>(id));
+  if (routeRef["viaBlockIds"].is<JsonArrayConst>()) {
+    for (JsonVariantConst raw :
+         routeRef["viaBlockIds"].as<JsonArrayConst>()) {
+      const int id = raw | 0;
+      if (validId(id) &&
+          id != requestedFrom &&
+          id != requestedTo)
+        uniquePush(
+            checkpoints,
+            static_cast<uint16_t>(id));
+    }
+  } else if (routeRef["blockPath"].is<JsonArrayConst>()) {
+    // Legacy routeKey stored the complete block path instead of viaBlockIds.
+    for (JsonObjectConst raw :
+         routeRef["blockPath"].as<JsonArrayConst>()) {
+      const int id =
+          raw["id"] | 0;
+      if (validId(id) &&
+          id != requestedFrom &&
+          id != requestedTo)
+        uniquePush(
+            checkpoints,
+            static_cast<uint16_t>(id));
+    }
   }
 
   checkpoints.push_back(
