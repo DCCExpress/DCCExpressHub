@@ -1662,10 +1662,44 @@ void ApiServer::setupStaticFiles() {
 }
 
 void ApiServer::begin() {
+  Logger::info(
+      "HTTP 01 setup API routes");
+
   setupApi();
+
+  Logger::info(
+      "HTTP 01 OK");
+
+  Logger::info(
+      "HTTP 02 setup static files");
+
   setupStaticFiles();
+
+  Logger::info(
+      "HTTP 02 OK");
+
+  Logger::info(
+      "HTTP 03 WsProtocol begin");
+
   _wsProtocol.begin();
-  _server.addHandler(&_ws);
+
+  Logger::info(
+      "HTTP 03 OK");
+
+  Logger::info(
+      "HTTP 04 attach websocket handler");
+
+  _server.addHandler(
+      &_ws);
+
+  Logger::info(
+      "HTTP 04 OK");
+
+  Logger::info(
+      "HTTP 05 server begin");
+
   _server.begin();
-  Logger::info("HTTP/WS server started");
+
+  Logger::info(
+      "HTTP 05 OK HTTP/WS server started");
 }
