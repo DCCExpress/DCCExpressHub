@@ -55,9 +55,8 @@ public:
 
   bool feedbackLinkConnected() const override {
 #if defined(HUB_CC_YAMORC7010)
-    return
-        _lbConnected ||
-        _lnBinaryConnected;
+    // LBServer/1234 is the authoritative YaMoRC sensor link.
+    return _lbConnected;
 #else
     return false;
 #endif
@@ -306,6 +305,10 @@ private:
 
   static constexpr unsigned long
       LB_RECONNECT_MS = 2000;
+
+  static constexpr uint32_t
+      FEEDBACK_CONNECT_TIMEOUT_MS = 150;
+
 
   static constexpr unsigned long
       LB_INTERROGATE_QUIET_MS = 1250;
