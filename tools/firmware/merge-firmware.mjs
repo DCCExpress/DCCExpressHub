@@ -49,8 +49,15 @@ const targetDefinitions = {
   "sunton-8048s043-z21": {
     id: "sunton-8048s043",
     commandCenter: "z21",
-    displayName: "Sunton ESP32-8048S043 / Z21 + YaMoRC",
+    displayName: "Sunton ESP32-8048S043 / Z21",
     fileTag: "Sunton-ESP32-8048S043-Z21",
+    bootloaderAddress: 0x0000,
+  },
+  "sunton-8048s043-yamorc7010": {
+    id: "sunton-8048s043",
+    commandCenter: "yamorc7010",
+    displayName: "Sunton ESP32-8048S043 / YaMoRC YD7010",
+    fileTag: "Sunton-ESP32-8048S043-YD7010",
     bootloaderAddress: 0x0000,
   },
 };
