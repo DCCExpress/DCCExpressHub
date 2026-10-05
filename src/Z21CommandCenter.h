@@ -217,12 +217,20 @@ private:
   static constexpr unsigned long
       RESOLVE_RETRY_MS = 3000;
 
+  // Z21 broadcast subscriptions:
+  // 0x00000001 driving/switching
+  // 0x00000002 R-BUS feedback
+  // 0x00000100 system state
+  // 0x00010000 all changed locomotives
+  // 0x08000000 LocoNet detector feedback
+  // YD7010 additionally forwards generic LocoNet bus traffic (0x01000000),
+  // which carries OPC_INPUT_REP feedback used by S88/LocoNet bridges.
   static constexpr uint32_t
       BROADCAST_FLAGS =
 #if defined(HUB_CC_YAMORC7010)
-          0x00010101UL;
+          0x09010103UL;
 #else
-          0x00000101UL;
+          0x08010103UL;
 #endif
 
   static constexpr uint8_t
