@@ -34,12 +34,12 @@ public sealed class YaMoRcZ21CommandCenter : RocoZ21CommandCenter
             new(
                 Version: "",
                 Processor: Z21ProcessorName,
-                Hardware: "YaMoRC YD7010",
+                Hardware: "YD7010",
                 Build: "",
                 MaxLocos: 0);
     }
 
-    public override string Name => "YaMoRC YD7010";
+    public override string Name => "YD7010";
     protected override string Z21Profile => "yamorc7010";
     protected override uint BroadcastFlags => YaMoRcBroadcastFlags;
     protected override bool LbServerFeedbackEnabled =>
@@ -50,5 +50,5 @@ public sealed class YaMoRcZ21CommandCenter : RocoZ21CommandCenter
         "Z21 LAN + LocoNet LBServer";
     protected override string Z21HardwareName(
         uint hardwareType) =>
-        "YaMoRC YD7010";
+        "YD7010";
 }
