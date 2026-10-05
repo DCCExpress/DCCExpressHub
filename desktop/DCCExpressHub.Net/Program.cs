@@ -29,10 +29,15 @@ var commandCenterProtocol =
         .Trim()
         .ToLowerInvariant();
 
+var useRocoZ21 =
+    commandCenterProtocol == "z21";
+
+var useYaMoRcZ21 =
+    commandCenterProtocol == "yamorc7010";
+
 var useZ21 =
-    commandCenterProtocol is
-        "z21" or
-        "yamorc7010";
+    useRocoZ21 ||
+    useYaMoRcZ21;
 
 
 builder.Services.AddSingleton<HubState>();
@@ -47,11 +52,17 @@ builder.Services.AddSingleton<LocoStorageCoordinator>();
 builder.Services.AddSingleton<AutomationExclusiveGate>();
 builder.Services.AddSingleton<CommandCenterConfigStore>();
 
-if (useZ21)
+if (useYaMoRcZ21)
 {
-    builder.Services.AddSingleton<Z21CommandCenter>();
+    builder.Services.AddSingleton<YaMoRcZ21CommandCenter>();
     builder.Services.AddHostedService(
-        sp => sp.GetRequiredService<Z21CommandCenter>());
+        sp => sp.GetRequiredService<YaMoRcZ21CommandCenter>());
+}
+else if (useRocoZ21)
+{
+    builder.Services.AddSingleton<RocoZ21CommandCenter>();
+    builder.Services.AddHostedService(
+        sp => sp.GetRequiredService<RocoZ21CommandCenter>());
 }
 else
 {
@@ -72,9 +83,11 @@ builder.Services.AddSingleton<ConfiguredCommandCenter>(
     sp =>
     {
         ICommandCenter inner =
-            useZ21
-                ? sp.GetRequiredService<Z21CommandCenter>()
-                : sp.GetRequiredService<DccExCommandCenter>();
+            useYaMoRcZ21
+                ? sp.GetRequiredService<YaMoRcZ21CommandCenter>()
+                : useRocoZ21
+                    ? sp.GetRequiredService<RocoZ21CommandCenter>()
+                    : sp.GetRequiredService<DccExCommandCenter>();
 
         return new ConfiguredCommandCenter(
             inner,
