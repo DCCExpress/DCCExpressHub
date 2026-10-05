@@ -1431,7 +1431,7 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
     {
         // LAN_X_SET_TURNOUT DB2 = 100QA00P.
         //
-        // Q=1 is intentional for the Windows Z21/YaMoRC backend: every
+        // Q=1 is intentional for the Windows Z21 backend: every
         // turnout/basic-accessory activate and deactivate command is placed
         // into the command station's own switching FIFO. Do not mix Q=0 and
         // Q=1 commands in this backend.
@@ -1762,7 +1762,7 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
                     };
 
                 // JMRI keeps its receive handler alive while the 8-phase
-                // interrogation is sent. Do the same so YaMoRC replies are
+                // interrogation is sent. Do the same so LBServer replies are
                 // consumed immediately on the very same LBServer session.
                 var readTask =
                     ReadLbServerAsync(
@@ -2256,8 +2256,8 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
             }
         }
 
-        // OPC_INPUT_REP is the normal LocoNet general sensor report. YaMoRC
-        // emits S88 / ES-Link feedback into the same feedback address space.
+        // OPC_INPUT_REP is the normal LocoNet general sensor report.
+        // Compatible feedback bridges may expose S88 / detector states here.
         if (packet[0] == 0xB2 &&
             packet.Length >= 4)
         {
