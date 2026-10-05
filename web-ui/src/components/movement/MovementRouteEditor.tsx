@@ -159,16 +159,16 @@ export default function MovementRouteEditor({
   );
 
   const routeSignature =
-    [
-      page.routeKey,
-      page.fromBlockId ??
-        0,
-      ...page.viaBlockIds,
-      page.toBlockId ??
-        0,
-    ].join(
-      ":"
-    );
+    page.routeRef
+      ? [
+          page.routeRef.fromBlockId,
+          ...page.routeRef.viaBlockIds,
+          page.routeRef.toBlockId,
+          page.routeRef.direction,
+        ].join(
+          ":"
+        )
+      : "";
 
   useEffect(
     () => {
@@ -176,9 +176,7 @@ export default function MovementRouteEditor({
         false;
 
       if (
-        page.fromBlockId ===
-          null ||
-        page.toBlockId ===
+        page.routeRef ===
           null
       ) {
         setPlan(
@@ -570,9 +568,7 @@ export default function MovementRouteEditor({
       }
 
       {
-        page.fromBlockId ===
-          null ||
-        page.toBlockId ===
+        page.routeRef ===
           null
           ? (
             <Alert
@@ -619,11 +615,11 @@ export default function MovementRouteEditor({
                     }
                     isSource={
                       selectedResource.key ===
-                      `block:${page.fromBlockId}`
+                      `block:${page.routeRef?.fromBlockId ?? 0}`
                     }
                     isDestination={
                       selectedResource.key ===
-                      `block:${page.toBlockId}`
+                      `block:${page.routeRef?.toBlockId ?? 0}`
                     }
                     rule={
                       selectedResource.blockId ===
@@ -722,11 +718,11 @@ export default function MovementRouteEditor({
                               }
                               isSource={
                                 resource.key ===
-                                `block:${page.fromBlockId}`
+                                `block:${page.routeRef?.fromBlockId ?? 0}`
                               }
                               isDestination={
                                 resource.key ===
-                                `block:${page.toBlockId}`
+                                `block:${page.routeRef?.toBlockId ?? 0}`
                               }
                               isCurrent={
                                 runtimeState.status !==
