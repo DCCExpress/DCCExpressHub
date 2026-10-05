@@ -226,16 +226,16 @@ export default function MovementRouteVectorPreview({
     );
 
   const routeSignature =
-    [
-      page.routeKey,
-      page.fromBlockId ??
-        0,
-      ...page.viaBlockIds,
-      page.toBlockId ??
-        0,
-    ].join(
-      ":"
-    );
+    page.routeRef
+      ? [
+          page.routeRef.fromBlockId,
+          ...page.routeRef.viaBlockIds,
+          page.routeRef.toBlockId,
+          page.routeRef.direction,
+        ].join(
+          ":"
+        )
+      : "";
 
   useEffect(
     () => {
@@ -243,9 +243,7 @@ export default function MovementRouteVectorPreview({
         false;
 
       if (
-        page.fromBlockId ===
-          null ||
-        page.toBlockId ===
+        page.routeRef ===
           null
       ) {
         setItems(
@@ -339,9 +337,7 @@ export default function MovementRouteVectorPreview({
   );
 
   if (
-    page.fromBlockId ===
-      null ||
-    page.toBlockId ===
+    page.routeRef ===
       null
   ) {
     return null;
