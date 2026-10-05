@@ -366,15 +366,13 @@ void ApiServer::handleLayoutBody(
     return;
   }
 
-  _runtime.rebuildFromLayout(LAYOUT_PATH);
-
-  // The layout runtime has just been rebuilt from the committed file.
-  // Signal automation rules are ID-based and are resolved against that
-  // runtime, so always reload and re-evaluate them after a layout commit.
-  // Do NOT call begin() here: begin() registers the runtime callback and
-  // doing that more than once would duplicate automation callbacks.
+  // The validated temp file was already loaded into LayoutRuntime before the
+  // atomic commit. The committed file contains those exact bytes, so parsing
+  // layout.json a second time only burns CPU/flash-read time on the ESP32.
+  // Signal automation still needs to rebind to the new runtime topology, but a
+  // layout save must not trigger command-center sensor interrogation.
   const bool signalAutomationReloaded =
-      _signalAutomation.reload();
+      _signalAutomation.reload(false);
 
   if (signalAutomationReloaded) {
     _signalAutomation.evaluate();
@@ -384,13 +382,6 @@ void ApiServer::handleLayoutBody(
   }
 
   _locoCounters.requestSave();
-
-  // Match the Windows backend: a committed layout may introduce sensor
-  // addresses that were not part of the previous runtime. Refresh the
-  // command-center-owned sensor state immediately.
-  const bool sensorSnapshotRequested =
-      _dcc.requestSensorSnapshot(
-          false);
 
   Logger::info(
       "Layout saved: " +
@@ -407,7 +398,6 @@ void ApiServer::handleLayoutBody(
   response["accessories"] = _runtime.accessoryCount();
   response["sensors"] = _runtime.sensorCount();
   response["signalAutomationReloaded"] = signalAutomationReloaded;
-  response["sensorSnapshotRequested"] = sensorSnapshotRequested;
 
   sendJson(request, 200, response);
   _wsProtocol.broadcastRuntimeSnapshot();
