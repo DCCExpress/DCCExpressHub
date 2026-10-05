@@ -305,6 +305,8 @@ private:
   uint8_t _lbInterrogatePhase = 0;
   char _lbLine[256] = {};
   size_t _lbLineLength = 0;
+  uint32_t _lbLinesObserved = 0;
+  uint32_t _lbPacketsObserved = 0;
 #endif
 
   bool startUdp();
