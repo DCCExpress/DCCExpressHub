@@ -1,6 +1,11 @@
 export type CommandCenterCapabilities = {
   trackPower: boolean;
   programmingTrackPower: boolean;
+  serviceModeProgramming: boolean;
+  pomProgramming: boolean;
+  pomRead: boolean;
+  accessoryPomProgramming: boolean;
+  accessoryPomRead: boolean;
   rawCommand: boolean;
   vPin: boolean;
   extendedAccessory: boolean;
