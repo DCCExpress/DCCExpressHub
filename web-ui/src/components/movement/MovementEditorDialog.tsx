@@ -195,15 +195,13 @@ export default function MovementEditorDialog({
     document.pages[0];
 
   const activeRouteSignature =
-    activePage
+    activePage?.routeRef
       ? [
           activePage.id,
-          activePage.routeKey,
-          activePage.fromBlockId ??
-            0,
-          ...activePage.viaBlockIds,
-          activePage.toBlockId ??
-            0,
+          activePage.routeRef.fromBlockId,
+          ...activePage.routeRef.viaBlockIds,
+          activePage.routeRef.toBlockId,
+          activePage.routeRef.direction,
         ].join(
           ":"
         )
@@ -222,21 +220,11 @@ export default function MovementEditorDialog({
 
 
   const activeRouteNames =
-    activePage
+    activePage?.routeRef
       ? [
-          ...(activePage.fromBlockId ===
-            null
-            ? []
-            : [
-                activePage.fromBlockId,
-              ]),
-          ...activePage.viaBlockIds,
-          ...(activePage.toBlockId ===
-            null
-            ? []
-            : [
-                activePage.toBlockId,
-              ]),
+          activePage.routeRef.fromBlockId,
+          ...activePage.routeRef.viaBlockIds,
+          activePage.routeRef.toBlockId,
         ].map(
           blockId =>
             catalog.find(
@@ -899,9 +887,7 @@ export default function MovementEditorDialog({
                         />
                       }
                       disabled={
-                        activePage.fromBlockId ===
-                          null ||
-                        activePage.toBlockId ===
+                        activePage.routeRef ===
                           null
                       }
                       onClick={
