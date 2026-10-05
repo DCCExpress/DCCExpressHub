@@ -88,6 +88,9 @@ public:
 
   void appendSnapshot(JsonArray array) const;
 
+  static uint32_t resourceToken(
+      const String& resourceKey);
+
 private:
   LayoutRuntime& _runtime;
   std::vector<DispatcherLegLease> _leases;
@@ -122,9 +125,6 @@ private:
   static String targetMarker(
       uint16_t locoAddress,
       const String& ownerId);
-
-  static uint32_t resourceToken(
-      const String& resourceKey);
 
   static uint32_t blockResourceToken(
       uint16_t blockId);
