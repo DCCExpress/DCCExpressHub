@@ -460,6 +460,91 @@ app.MapGet("/api/capabilities", (ICommandCenter cc) => Results.Json(new
 static string DataFile(IWebHostEnvironment env, string name)
     => Path.Combine(env.ContentRootPath, "data", "config", name);
 
+app.MapGet("/api/loco-counters", async (IWebHostEnvironment env) =>
+{
+    var path =
+        Path.Combine(
+            env.ContentRootPath,
+            "data",
+            "state",
+            "loco-counters.json");
+
+    return Results.Text(
+        File.Exists(path)
+            ? await File.ReadAllTextAsync(path)
+            : "{\"version\":1,\"items\":[]}",
+        "application/json");
+});
+
+app.MapPost("/api/loco-counters", async (HttpRequest req, IWebHostEnvironment env, LocoCounterRuntime counters) =>
+{
+    JsonObject document;
+
+    try
+    {
+        document =
+            await JsonNode.ParseAsync(
+                req.Body,
+                cancellationToken:
+                    req.HttpContext.RequestAborted) as
+            JsonObject ??
+            throw new JsonException();
+    }
+    catch
+    {
+        return Results.Json(
+            new { ok = false, message = "Invalid locomotive counter state" },
+            statusCode: 400);
+    }
+
+    if (document["items"] is not JsonArray)
+    {
+        return Results.Json(
+            new { ok = false, message = "Invalid locomotive counter state" },
+            statusCode: 400);
+    }
+
+    var directory =
+        Path.Combine(
+            env.ContentRootPath,
+            "data",
+            "state");
+
+    Directory.CreateDirectory(directory);
+
+    var path =
+        Path.Combine(
+            directory,
+            "loco-counters.json");
+
+    var temp =
+        path + ".tmp";
+
+    await File.WriteAllTextAsync(
+        temp,
+        document.ToJsonString(
+            new JsonSerializerOptions
+            {
+                WriteIndented = true
+            }),
+        req.HttpContext.RequestAborted);
+
+    File.Move(
+        temp,
+        path,
+        true);
+
+    if (!counters.ReloadConfiguration(false))
+    {
+        return Results.Json(
+            new { ok = false, message = "Counter state committed but runtime reload failed" },
+            statusCode: 500);
+    }
+
+    return Results.Json(
+        new { ok = true });
+});
+
 app.MapGet("/api/locos", async (IWebHostEnvironment env) =>
 {
     var p = DataFile(env, "locos.json");
