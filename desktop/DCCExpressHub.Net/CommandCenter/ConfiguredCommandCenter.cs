@@ -163,4 +163,10 @@ public sealed class ConfiguredCommandCenter : ICommandCenter
     public Task<bool> RequestCurrentTelemetryAsync(CancellationToken ct=default)=>_inner.RequestCurrentTelemetryAsync(ct);
     public Task<bool> RequestTripTelemetryAsync(CancellationToken ct=default)=>_inner.RequestTripTelemetryAsync(ct);
     public Task<bool> RequestSensorSnapshotAsync(CancellationToken ct=default)=>_inner.RequestSensorSnapshotAsync(ct);
+    public Task<CommandCenterProgrammingResult> ReadServiceCvAsync(int cv,CancellationToken ct=default)=>_inner.ReadServiceCvAsync(cv,ct);
+    public Task<CommandCenterProgrammingResult> WriteServiceCvAsync(int cv,int value,CancellationToken ct=default)=>_inner.WriteServiceCvAsync(cv,value,ct);
+    public Task<CommandCenterProgrammingResult> ReadPomCvAsync(int address,int cv,CancellationToken ct=default)=>_inner.ReadPomCvAsync(address,cv,ct);
+    public Task<CommandCenterProgrammingResult> WritePomCvAsync(int address,int cv,int value,CancellationToken ct=default)=>_inner.WritePomCvAsync(address,cv,value,ct);
+    public Task<CommandCenterProgrammingResult> ReadAccessoryPomCvAsync(int decoderAddress,int cv,CancellationToken ct=default)=>_inner.ReadAccessoryPomCvAsync(decoderAddress,cv,ct);
+    public Task<CommandCenterProgrammingResult> WriteAccessoryPomCvAsync(int decoderAddress,int cv,int value,CancellationToken ct=default)=>_inner.WriteAccessoryPomCvAsync(decoderAddress,cv,value,ct);
 }
