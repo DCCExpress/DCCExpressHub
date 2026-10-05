@@ -1686,17 +1686,17 @@ test("control station badges are distinct from WS status and appear in the layou
 
   const indicator =
     read(
-      "src/services/dccExHeartbeatStatusIndicator.ts"
+      "src/services/commandCenterStatusIndicator.ts"
     );
 
   assert.match(
     app,
-    /data-dccex-status-role="home-ws"/
+    /data-command-center-status-role="home-ws"/
   );
 
   assert.match(
     layout,
-    /data-dccex-status-role="layout-ws"/
+    /data-command-center-status-role="layout-ws"/
   );
 
   assert.match(
@@ -1712,6 +1712,21 @@ test("control station badges are distinct from WS status and appear in the layou
   assert.doesNotMatch(
     indicator,
     /querySelector<HTMLElement>\(\s*"\.mantine-Badge-root"/
+  );
+
+  assert.match(
+    indicator,
+    /formatCommandCenterLabel/
+  );
+
+  assert.match(
+    indicator,
+    /data\.name\?\.trim\(\)/
+  );
+
+  assert.doesNotMatch(
+    indicator,
+    /`DCC-EX: \$\{commandCenterTarget/
   );
 });
 
