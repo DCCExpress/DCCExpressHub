@@ -1,6 +1,7 @@
 #include "DispatcherRuntime.h"
 
 #include <algorithm>
+#include <utility>
 
 RuntimeBlock* DispatcherRuntime::findBlock(
     uint16_t id) const {
