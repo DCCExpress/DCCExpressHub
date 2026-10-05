@@ -1976,7 +1976,15 @@ public sealed class WsHub
                                 "safetySensors"),
                             ReadStringArray(
                                 data,
-                                "resourceKeys"),
+                                "resourceKeys")
+                                .Select(
+                                    DispatcherRuntime.ResourceToken)
+                                .Where(token =>
+                                    token != 0)
+                                .Distinct()
+                                .OrderBy(token =>
+                                    token)
+                                .ToArray(),
                             Math.Clamp(
                                 IOr(
                                     data,
@@ -2103,7 +2111,15 @@ public sealed class WsHub
                                         data),
                                     ReadStringArray(
                                         data,
-                                        "resourceKeys"),
+                                        "resourceKeys")
+                                        .Select(
+                                            DispatcherRuntime.ResourceToken)
+                                        .Where(token =>
+                                            token != 0)
+                                        .Distinct()
+                                        .OrderBy(token =>
+                                            token)
+                                        .ToArray(),
                                     Math.Clamp(
                                         IOr(
                                             data,
