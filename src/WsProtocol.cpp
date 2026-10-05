@@ -391,27 +391,6 @@ void WsProtocol::begin()
                 info);
         });
 
-    _commandCenter.onSensorFeedback(
-        [this](
-            const CommandCenterSensorFeedback& info)
-        {
-            _runtime.setSensor(
-                info.address,
-                info.on);
-
-            JsonDocument out;
-
-            out["address"] =
-                info.address;
-
-            out["on"] =
-                info.on;
-
-            broadcast(
-                "sensorChanged",
-                out);
-        });
-
     _runtime.onChange(
         [this](
             RuntimeChangeKind kind,
