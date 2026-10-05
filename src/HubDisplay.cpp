@@ -98,6 +98,12 @@ void HubDisplay::showBoot() {
   _ccConnected =
       false;
 
+  _feedbackLinkName =
+      "";
+
+  _feedbackLinkConnected =
+      false;
+
   _infoPage =
       false;
 
@@ -190,6 +196,30 @@ void HubDisplay::showCommandCenter(
       port;
 
   _ccConnected =
+      connected;
+
+  _dirty =
+      true;
+}
+
+void HubDisplay::showFeedbackLink(
+    const String& name,
+    bool connected) {
+  if (!_initialized) {
+    return;
+  }
+
+  if (
+      _feedbackLinkName == name &&
+      _feedbackLinkConnected == connected
+  ) {
+    return;
+  }
+
+  _feedbackLinkName =
+      name;
+
+  _feedbackLinkConnected =
       connected;
 
   _dirty =
@@ -535,6 +565,29 @@ void HubDisplay::redraw() {
         "-");
   }
 
+  if (_feedbackLinkName.length()) {
+    _display.print(
+        _feedbackLinkName);
+
+    _display.print(
+        ": ");
+
+    _display.setTextColor(
+        _feedbackLinkConnected
+            ? HubDisplayDevice::LIME
+            : HubDisplayDevice::RED,
+        HubDisplayDevice::BLACK);
+
+    _display.println(
+        _feedbackLinkConnected
+            ? "OK"
+            : "NOK");
+
+    _display.setTextColor(
+        HubDisplayDevice::WHITE,
+        HubDisplayDevice::BLACK);
+  }
+
   redrawControlButtons();
 }
 
@@ -556,6 +609,10 @@ void HubDisplay::showWifiFailed() {}
 void HubDisplay::showCommandCenter(
     const String&,
     uint16_t,
+    bool) {}
+
+void HubDisplay::showFeedbackLink(
+    const String&,
     bool) {}
 
 void HubDisplay::showEmergencyStopActive(
