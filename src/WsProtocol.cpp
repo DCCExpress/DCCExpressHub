@@ -714,19 +714,32 @@ void WsProtocol::send(
     const char *type,
     JsonVariantConst data)
 {
-    JsonDocument out;
-
-    out["type"] =
-        type;
-
-    out["data"].set(
-        data);
-
     String body;
 
+    const size_t estimated =
+        measureJson(data) +
+        strlen(type) +
+        24;
+
+    body.reserve(
+        estimated);
+
+    body +=
+        "{\"type\":";
+
     serializeJson(
-        out,
+        type,
         body);
+
+    body +=
+        ",\"data\":";
+
+    serializeJson(
+        data,
+        body);
+
+    body +=
+        "}";
 
     client->text(
         body);
@@ -736,19 +749,35 @@ void WsProtocol::broadcast(
     const char *type,
     JsonDocument &data)
 {
-    JsonDocument out;
-
-    out["type"] =
-        type;
-
-    out["data"].set(
-        data.as<JsonVariantConst>());
-
     String body;
 
+    const JsonVariantConst payload =
+        data.as<JsonVariantConst>();
+
+    const size_t estimated =
+        measureJson(payload) +
+        strlen(type) +
+        24;
+
+    body.reserve(
+        estimated);
+
+    body +=
+        "{\"type\":";
+
     serializeJson(
-        out,
+        type,
         body);
+
+    body +=
+        ",\"data\":";
+
+    serializeJson(
+        payload,
+        body);
+
+    body +=
+        "}";
 
     _ws.textAll(
         body);
