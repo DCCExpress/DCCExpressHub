@@ -55,7 +55,9 @@ public:
 
   bool feedbackLinkConnected() const override {
 #if defined(HUB_CC_YAMORC7010)
-    return _lbConnected;
+    return
+        _lbConnected ||
+        _lnBinaryConnected;
 #else
     return false;
 #endif
@@ -291,6 +293,9 @@ private:
   static constexpr uint16_t
       LB_SERVER_PORT = 1234;
 
+  static constexpr uint16_t
+      LN_BINARY_PORT = 5560;
+
   static constexpr unsigned long
       LB_RECONNECT_MS = 2000;
 
@@ -307,6 +312,14 @@ private:
   size_t _lbLineLength = 0;
   uint32_t _lbLinesObserved = 0;
   uint32_t _lbPacketsObserved = 0;
+
+  WiFiClient _lnBinaryClient;
+  bool _lnBinaryConnected = false;
+  unsigned long _nextLnBinaryConnectAt = 0;
+  uint8_t _lnBinaryPacket[128] = {};
+  size_t _lnBinaryPacketLength = 0;
+  size_t _lnBinaryExpectedLength = 0;
+  uint32_t _lnBinaryPacketsObserved = 0;
 #endif
 
   bool startUdp();
@@ -342,6 +355,19 @@ private:
 
   void processLbServerLine(
       const char* line);
+
+  void loopLocoNetBinary(
+      unsigned long now);
+
+  bool connectLocoNetBinary();
+
+  void disconnectLocoNetBinary();
+
+  void processLocoNetBinaryIncoming();
+
+  static size_t locoNetMessageLength(
+      const uint8_t* packet,
+      size_t packetLength);
 
   void processLocoNetPacket(
       const uint8_t* packet,
