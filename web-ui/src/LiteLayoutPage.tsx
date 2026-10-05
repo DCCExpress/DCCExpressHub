@@ -2115,7 +2115,7 @@ export default function LiteLayoutPage({
         <Group justify="space-between" wrap="nowrap" gap="xs">
           <Group gap={6} wrap="nowrap">
             <Badge
-              data-dccex-status-role="layout-ws"
+              data-command-center-status-role="layout-ws"
               size="sm"
               variant={wsStatus === "connected" ? "light" : "filled"}
               color={wsStatus === "connected" ? "green" : "red"}
