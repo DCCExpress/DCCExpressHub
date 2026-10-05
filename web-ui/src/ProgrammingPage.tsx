@@ -2021,11 +2021,6 @@ function Z21ProgrammingPage({
                 {i18next.t("ui.z21PomRailComInfo")}
               </Alert>
 
-              <CvHelpPanel
-                cv={serviceCvNumber}
-                value={serviceCvValue}
-                onChange={setServiceValue}
-              />
             </Stack>
           </Tabs.Panel>
         </Tabs>
