@@ -75,6 +75,9 @@ private:
   static constexpr const char* SIGNAL_LOGIC_PATH =
       "/config/signal-logic.ndjson";
 
+  static constexpr const char* LOCO_COUNTERS_PATH =
+      "/state/loco-counters.json";
+
   AsyncWebServer _server;
 
   AutomationsEndpoint _automationsEndpoint;
@@ -104,6 +107,7 @@ private:
   AtomicFileUpload _locosUpload;
   AtomicFileUpload _functionBindingsUpload;
   AtomicFileUpload _signalLogicUpload;
+  AtomicFileUpload _locoCountersUpload;
 
   void setupApi();
   void setupStaticFiles();
@@ -130,6 +134,13 @@ private:
       size_t total);
 
   void handleSignalLogicBody(
+      AsyncWebServerRequest* request,
+      uint8_t* data,
+      size_t len,
+      size_t index,
+      size_t total);
+
+  void handleLocoCountersBody(
       AsyncWebServerRequest* request,
       uint8_t* data,
       size_t len,
