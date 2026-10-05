@@ -17,14 +17,19 @@ const DispatcherLegLease* DispatcherRuntime::findLease(
 }
 
 bool DispatcherRuntime::resourceOwnedByOther(
-    const String& resourceKey,
+    uint32_t resourceToken,
     const String& ownerId) const {
   for (const auto& lease : _leases) {
     if (lease.ownerId == ownerId) continue;
-    for (const auto& key : lease.resourceKeys) {
-      if (key == resourceKey) return true;
-    }
+
+    if (std::find(
+            lease.resourceTokens.begin(),
+            lease.resourceTokens.end(),
+            resourceToken) !=
+        lease.resourceTokens.end())
+      return true;
   }
+
   return false;
 }
 
