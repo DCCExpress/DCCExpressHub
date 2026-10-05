@@ -1179,6 +1179,15 @@ void WsProtocol::appendDccExStatus(
         }
     }
 
+    data["commandCenterType"] =
+        _commandCenter.type();
+
+    data["commandCenterName"] =
+        _commandCenter.name();
+
+    data["commandCenterProfile"] =
+        CommandCenterBuild::profile();
+
     data["version"] =
         _dccVersion;
 
