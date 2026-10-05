@@ -24,7 +24,7 @@ inline const char* name() {
 #if defined(HUB_CC_DCCEX)
   return "DCC-EX";
 #else
-  return "Roco Z21";
+  return "Z21";
 #endif
 }
 
