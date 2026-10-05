@@ -114,11 +114,15 @@ function routeLabel(
       );
     };
 
-  return [
-    page.fromBlockId,
-    ...page.viaBlockIds,
-    page.toBlockId,
-  ]
+  return (
+    page.routeRef
+      ? [
+          page.routeRef.fromBlockId,
+          ...page.routeRef.viaBlockIds,
+          page.routeRef.toBlockId,
+        ]
+      : []
+  )
     .map(
       name
     )
@@ -154,22 +158,17 @@ function MovementCard({
     );
 
   const hasRoute =
-    page.fromBlockId !==
-      null &&
-    page.toBlockId !==
+    page.routeRef !==
       null;
 
-  const routeIds = [
-    page.fromBlockId,
-    ...page.viaBlockIds,
-    page.toBlockId,
-  ].filter(
-    (
-      value
-    ): value is number =>
-      value !==
-      null
-  );
+  const routeIds =
+    page.routeRef
+      ? [
+          page.routeRef.fromBlockId,
+          ...page.routeRef.viaBlockIds,
+          page.routeRef.toBlockId,
+        ]
+      : [];
 
   const routeResolved =
     hasRoute &&
