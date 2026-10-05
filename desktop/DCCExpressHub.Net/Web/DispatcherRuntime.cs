@@ -14,7 +14,7 @@ public sealed record DispatcherLegRequest(
     ushort ToBlockId,
     DispatcherTurnoutRequirement[] Turnouts,
     ushort[] SafetySensors,
-    string[] ResourceKeys,
+    uint[] ResourceTokens,
     int TurnoutLockTimeoutMs = 0,
     int TurnoutSetDelayMs = 250);
 
@@ -26,7 +26,7 @@ public sealed record DispatcherLegLeaseInfo(
     ushort ToBlockId,
     ushort[] TurnoutAddresses,
     ushort[] SafetySensors,
-    string[] ResourceKeys,
+    uint[] ResourceTokens,
     string TargetMarker,
     long AcquiredAtMs);
 
@@ -53,7 +53,7 @@ public sealed record DispatcherRouteRequest(
     ushort SourceBlockId,
     DispatcherRouteBlockRequirement[] DownstreamBlocks,
     DispatcherTurnoutRequirement[] Turnouts,
-    string[] ResourceKeys,
+    uint[] ResourceTokens,
     int TurnoutLockTimeoutMs = 0,
     int TurnoutSetDelayMs = 250);
 
@@ -65,7 +65,7 @@ public sealed record DispatcherRouteLeaseInfo(
     ushort DestinationBlockId,
     ushort[] RouteBlockIds,
     ushort[] TurnoutAddresses,
-    string[] ResourceKeys,
+    uint[] ResourceTokens,
     DispatcherRouteTargetLease[] Targets,
     long AcquiredAtMs);
 
@@ -111,8 +111,7 @@ public sealed class DispatcherRuntime
         new(StringComparer.Ordinal);
 
     readonly Dictionary<ushort, string> _destinationOwners = new();
-    readonly Dictionary<string, string> _resourceOwners =
-        new(StringComparer.Ordinal);
+    readonly Dictionary<uint, string> _resourceOwners = new();
 
     public event Action<DispatcherLegLeaseInfo[]?>? Changed;
 
@@ -208,35 +207,59 @@ public sealed class DispatcherRuntime
             .OrderBy(x => x)
             .ToArray();
 
-    static string[] NormalizeResources(
-        ushort fromBlockId,
-        ushort toBlockId,
-        IEnumerable<string>? resourceKeys)
+    public static uint ResourceToken(
+        string resourceKey)
     {
-        var keys =
-            new HashSet<string>(
-                StringComparer.Ordinal)
-            {
-                "block:" +
-                    fromBlockId,
-                "block:" +
-                    toBlockId
-            };
+        uint hash =
+            2166136261u;
 
-        foreach (var raw in resourceKeys ?? Array.Empty<string>())
+        foreach (var value in resourceKey ?? "")
         {
-            var key =
-                (raw ?? "")
-                    .Trim();
+            hash ^=
+                (byte)value;
 
-            if (key.Length is > 0 and <= 240)
-                keys.Add(key);
+            hash *=
+                16777619u;
         }
 
-        return keys
+        return hash == 0
+            ? 1u
+            : hash;
+    }
+
+    static uint BlockResourceToken(
+        ushort blockId) =>
+        ResourceToken(
+            "block:" +
+            blockId);
+
+    static uint[] NormalizeResources(
+        ushort fromBlockId,
+        ushort toBlockId,
+        IEnumerable<uint>? resourceTokens)
+    {
+        var tokens =
+            new HashSet<uint>
+            {
+                BlockResourceToken(
+                    fromBlockId),
+                BlockResourceToken(
+                    toBlockId)
+            };
+
+        foreach (var token in
+                 resourceTokens ??
+                 Array.Empty<uint>())
+        {
+            if (token != 0)
+                tokens.Add(
+                    token);
+        }
+
+        return tokens
             .OrderBy(
-                key => key,
-                StringComparer.Ordinal)
+                token =>
+                    token)
             .ToArray();
     }
 
@@ -320,8 +343,8 @@ public sealed class DispatcherRuntime
     bool TryReserveLegResources(
         ushort destinationBlockId,
         string ownerId,
-        IReadOnlyList<string> resourceKeys,
-        out string? blockingResource)
+        IReadOnlyList<uint> resourceTokens,
+        out uint? blockingResource)
     {
         lock (_gate)
         {
@@ -337,13 +360,13 @@ public sealed class DispatcherRuntime
                     StringComparison.Ordinal))
             {
                 blockingResource =
-                    "block:" +
-                    destinationBlockId;
+                    BlockResourceToken(
+                        destinationBlockId);
 
                 return false;
             }
 
-            foreach (var key in resourceKeys)
+            foreach (var key in resourceTokens)
             {
                 if (_resourceOwners.TryGetValue(
                         key,
@@ -364,7 +387,7 @@ public sealed class DispatcherRuntime
                 destinationBlockId] =
                 ownerId;
 
-            foreach (var key in resourceKeys)
+            foreach (var key in resourceTokens)
                 _resourceOwners[key] =
                     ownerId;
 
@@ -375,7 +398,7 @@ public sealed class DispatcherRuntime
     void ReleaseLegResources(
         ushort destinationBlockId,
         string ownerId,
-        IEnumerable<string> resourceKeys)
+        IEnumerable<uint> resourceTokens)
     {
         lock (_gate)
         {
@@ -389,7 +412,7 @@ public sealed class DispatcherRuntime
                 _destinationOwners.Remove(
                     destinationBlockId);
 
-            foreach (var key in resourceKeys)
+            foreach (var key in resourceTokens)
             {
                 if (_resourceOwners.TryGetValue(
                         key,
@@ -406,15 +429,15 @@ public sealed class DispatcherRuntime
 
     bool TryReserveResources(
         string ownerId,
-        IReadOnlyList<string> resourceKeys,
-        out string? blockingResource)
+        IReadOnlyList<uint> resourceTokens,
+        out uint? blockingResource)
     {
         lock (_gate)
         {
             blockingResource =
                 null;
 
-            foreach (var key in resourceKeys)
+            foreach (var key in resourceTokens)
             {
                 if (_resourceOwners.TryGetValue(
                         key,
@@ -430,7 +453,7 @@ public sealed class DispatcherRuntime
                 }
             }
 
-            foreach (var key in resourceKeys)
+            foreach (var key in resourceTokens)
                 _resourceOwners[key] =
                     ownerId;
 
@@ -440,11 +463,11 @@ public sealed class DispatcherRuntime
 
     void ReleaseResources(
         string ownerId,
-        IEnumerable<string> resourceKeys)
+        IEnumerable<uint> resourceTokens)
     {
         lock (_gate)
         {
-            foreach (var key in resourceKeys)
+            foreach (var key in resourceTokens)
             {
                 if (_resourceOwners.TryGetValue(
                         key,
@@ -459,38 +482,36 @@ public sealed class DispatcherRuntime
         }
     }
 
-    static string[] NormalizeRouteResources(
+    static uint[] NormalizeRouteResources(
         ushort sourceBlockId,
         IEnumerable<DispatcherRouteBlockRequirement> downstreamBlocks,
-        IEnumerable<string>? resourceKeys)
+        IEnumerable<uint>? resourceTokens)
     {
-        var keys =
-            new HashSet<string>(
-                StringComparer.Ordinal)
+        var tokens =
+            new HashSet<uint>
             {
-                "block:" +
-                    sourceBlockId
+                BlockResourceToken(
+                    sourceBlockId)
             };
 
         foreach (var block in downstreamBlocks)
-            keys.Add(
-                "block:" +
-                block.BlockId);
+            tokens.Add(
+                BlockResourceToken(
+                    block.BlockId));
 
-        foreach (var raw in resourceKeys ?? Array.Empty<string>())
+        foreach (var token in
+                 resourceTokens ??
+                 Array.Empty<uint>())
         {
-            var key =
-                (raw ?? "")
-                    .Trim();
-
-            if (key.Length is > 0 and <= 240)
-                keys.Add(key);
+            if (token != 0)
+                tokens.Add(
+                    token);
         }
 
-        return keys
+        return tokens
             .OrderBy(
-                key => key,
-                StringComparer.Ordinal)
+                token =>
+                    token)
             .ToArray();
     }
 
@@ -660,11 +681,11 @@ public sealed class DispatcherRuntime
         var sensors =
             NormalizeSensors(request.SafetySensors);
 
-        var resourceKeys =
+        var resourceTokens =
             NormalizeResources(
                 request.FromBlockId,
                 request.ToBlockId,
-                request.ResourceKeys);
+                request.ResourceTokens);
 
         var sourceError =
             ValidateSourceBlock(
@@ -684,17 +705,16 @@ public sealed class DispatcherRuntime
         if (!TryReserveLegResources(
                 request.ToBlockId,
                 request.OwnerId,
-                resourceKeys,
+                resourceTokens,
                 out var blockingResource))
             return new(
                 false,
-                "dispatcher_resource_locked:" +
-                    blockingResource,
+                "dispatcher_resource_locked",
                 null,
                 BlockingBlock:
                     blockingResource ==
-                        "block:" +
-                        request.ToBlockId
+                        BlockResourceToken(
+                            request.ToBlockId)
                         ? request.ToBlockId
                         : null);
 
@@ -886,7 +906,7 @@ public sealed class DispatcherRuntime
                     request.ToBlockId,
                     turnoutAddresses,
                     sensors,
-                    resourceKeys,
+                    resourceTokens,
                     marker,
                     Environment.TickCount64);
 
@@ -926,7 +946,7 @@ public sealed class DispatcherRuntime
                 ReleaseLegResources(
                     request.ToBlockId,
                     request.OwnerId,
-                    resourceKeys);
+                    resourceTokens);
             }
         }
     }
@@ -1009,20 +1029,19 @@ public sealed class DispatcherRuntime
                 BlockingBlock:
                     blockingBlock);
 
-        var resourceKeys =
+        var resourceTokens =
             NormalizeRouteResources(
                 request.SourceBlockId,
                 downstream,
-                request.ResourceKeys);
+                request.ResourceTokens);
 
         if (!TryReserveResources(
                 request.OwnerId,
-                resourceKeys,
+                resourceTokens,
                 out var blockingResource))
             return new(
                 false,
-                "dispatcher_resource_locked:" +
-                    blockingResource,
+                "dispatcher_resource_locked",
                 null);
 
         var turnoutAddresses =
@@ -1222,7 +1241,7 @@ public sealed class DispatcherRuntime
                     downstream[^1].BlockId,
                     routeBlockIds,
                     turnoutAddresses,
-                    resourceKeys,
+                    resourceTokens,
                     targets.ToArray(),
                     Environment.TickCount64);
 
@@ -1269,7 +1288,7 @@ public sealed class DispatcherRuntime
 
                 ReleaseResources(
                     request.OwnerId,
-                    resourceKeys);
+                    resourceTokens);
             }
         }
     }
@@ -1354,7 +1373,7 @@ public sealed class DispatcherRuntime
 
         ReleaseResources(
             ownerId,
-            lease.ResourceKeys);
+            lease.ResourceTokens);
 
         _log.LogInformation(
             "Dispatcher released full route {SourceBlock}->{DestinationBlock} for loco #{LocoAddress}, owner {OwnerId}",
@@ -1425,7 +1444,7 @@ public sealed class DispatcherRuntime
         lock (_gate)
         {
             foreach (var key in
-                     lease.ResourceKeys)
+                     lease.ResourceTokens)
             {
                 if (!_resourceOwners.TryGetValue(
                         key,
@@ -1515,7 +1534,7 @@ public sealed class DispatcherRuntime
 
         lock (_gate)
         {
-            foreach (var key in lease.ResourceKeys)
+            foreach (var key in lease.ResourceTokens)
             {
                 if (!_resourceOwners.TryGetValue(
                         key,
@@ -1587,7 +1606,7 @@ public sealed class DispatcherRuntime
         ReleaseLegResources(
             lease.ToBlockId,
             ownerId,
-            lease.ResourceKeys);
+            lease.ResourceTokens);
 
         _log.LogInformation(
             "Dispatcher released leg {FromBlock}->{ToBlock} for loco #{LocoAddress}, owner {OwnerId}",
