@@ -62,6 +62,14 @@ struct CommandCenterSensorFeedback {
   bool on = false;
 };
 
+struct CommandCenterProgrammingFeedback {
+  bool ok = false;
+  uint16_t cv = 0;
+  int16_t value = -1;
+  String message;
+  String raw;
+};
+
 class ICommandCenter {
 public:
   using RawInfoCallback =
@@ -101,6 +109,11 @@ public:
       std::function<
           void(
               const CommandCenterSensorFeedback&)>;
+
+  using ProgrammingFeedbackCallback =
+      std::function<
+          void(
+              const CommandCenterProgrammingFeedback&)>;
 
   virtual ~ICommandCenter() = default;
 
@@ -223,6 +236,61 @@ public:
   virtual bool requestSensorSnapshot(
       bool logCommand = false) {
     (void)logCommand;
+    return false;
+  }
+
+  virtual void onProgrammingFeedback(
+      ProgrammingFeedbackCallback callback) {
+    (void)callback;
+  }
+
+  virtual bool readServiceCv(
+      uint16_t cv) {
+    (void)cv;
+    return false;
+  }
+
+  virtual bool writeServiceCv(
+      uint16_t cv,
+      uint8_t value) {
+    (void)cv;
+    (void)value;
+    return false;
+  }
+
+  virtual bool readPomCv(
+      uint16_t address,
+      uint16_t cv) {
+    (void)address;
+    (void)cv;
+    return false;
+  }
+
+  virtual bool writePomCv(
+      uint16_t address,
+      uint16_t cv,
+      uint8_t value) {
+    (void)address;
+    (void)cv;
+    (void)value;
+    return false;
+  }
+
+  virtual bool readAccessoryPomCv(
+      uint16_t decoderAddress,
+      uint16_t cv) {
+    (void)decoderAddress;
+    (void)cv;
+    return false;
+  }
+
+  virtual bool writeAccessoryPomCv(
+      uint16_t decoderAddress,
+      uint16_t cv,
+      uint8_t value) {
+    (void)decoderAddress;
+    (void)cv;
+    (void)value;
     return false;
   }
 
