@@ -45,6 +45,22 @@ public:
 #endif
   }
 
+  const char* feedbackLinkName() const override {
+#if defined(HUB_CC_YAMORC7010)
+    return "LocoNet";
+#else
+    return "";
+#endif
+  }
+
+  bool feedbackLinkConnected() const override {
+#if defined(HUB_CC_YAMORC7010)
+    return _lbConnected;
+#else
+    return false;
+#endif
+  }
+
   void onRawInfo(
       RawInfoCallback callback) override {
     _rawInfoCallback =
