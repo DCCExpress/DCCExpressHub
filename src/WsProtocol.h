@@ -239,8 +239,8 @@ private:
   std::vector<SwitchManLock>
       _switchManLocks;
 
-  std::vector<String>
-      _switchManRevokedOwners;
+  std::vector<uint32_t>
+      _switchManRevokedOwnerTokens;
 
   uint32_t _switchManManualSequence = 0;
 
