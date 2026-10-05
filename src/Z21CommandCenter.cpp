@@ -1655,11 +1655,6 @@ bool Z21CommandCenter::connectLbServer() {
       String(
           LB_SERVER_PORT));
 
-  if (_rawInfoCallback) {
-    _rawInfoCallback(
-        "YD7010 LBServer connected");
-  }
-
   startLocoNetInterrogate(
       true);
 
@@ -1775,11 +1770,6 @@ bool Z21CommandCenter::connectLocoNetBinary() {
       ":" +
       String(
           LN_BINARY_PORT));
-
-  if (_rawInfoCallback) {
-    _rawInfoCallback(
-        "YD7010 LocoNet Binary connected");
-  }
 
   if (!_lbConnected) {
     startLocoNetInterrogate(
@@ -2370,10 +2360,6 @@ void Z21CommandCenter::startLocoNetInterrogate(
   _lastLbTrafficAt =
       now;
 
-  if (_rawInfoCallback) {
-    _rawInfoCallback(
-        "YD7010 LocoNet sensor interrogation started");
-  }
 }
 
 void Z21CommandCenter::processLocoNetInterrogate(
@@ -2511,10 +2497,6 @@ void Z21CommandCenter::processLocoNetInterrogate(
     _lastLbInterrogateAt =
         now;
 
-    if (_rawInfoCallback) {
-      _rawInfoCallback(
-          "YD7010 LocoNet sensor interrogation sent");
-    }
   }
 }
 
