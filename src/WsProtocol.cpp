@@ -136,6 +136,9 @@ namespace
     uint32_t cpuIdlePrevious[2] = {0, 0};
     uint8_t cpuUsagePercent[2] = {0, 0};
     unsigned long lastCpuSampleAtMs = 0;
+    size_t runtimeMinimumFreeHeapBytes = 0;
+    size_t runtimeMinimumInternalFreeHeapBytes = 0;
+    size_t runtimeMinimumFreePsramBytes = 0;
     esp_reset_reason_t bootResetReason =
         ESP_RST_UNKNOWN;
 
@@ -480,6 +483,18 @@ void WsProtocol::begin()
     lastCpuSampleAtMs =
         millis();
 
+    // Runtime low-water marks start only after the Hub's boot/initialization
+    // phase, so framework startup allocations do not permanently contaminate
+    // the diagnostics.
+    runtimeMinimumFreeHeapBytes =
+        ESP.getFreeHeap();
+    runtimeMinimumInternalFreeHeapBytes =
+        heap_caps_get_free_size(
+            MALLOC_CAP_INTERNAL |
+            MALLOC_CAP_8BIT);
+    runtimeMinimumFreePsramBytes =
+        ESP.getFreePsram();
+
     _scripts.begin();
     _flows.begin();
     _movements.setAudioRequestCallback(
@@ -557,6 +572,41 @@ void WsProtocol::loop()
         millis();
 
     updateCpuUsage();
+
+    const size_t currentFreeHeap =
+        ESP.getFreeHeap();
+    if (
+        runtimeMinimumFreeHeapBytes == 0 ||
+        currentFreeHeap <
+            runtimeMinimumFreeHeapBytes)
+    {
+        runtimeMinimumFreeHeapBytes =
+            currentFreeHeap;
+    }
+
+    const size_t currentInternalFreeHeap =
+        heap_caps_get_free_size(
+            MALLOC_CAP_INTERNAL |
+            MALLOC_CAP_8BIT);
+    if (
+        runtimeMinimumInternalFreeHeapBytes == 0 ||
+        currentInternalFreeHeap <
+            runtimeMinimumInternalFreeHeapBytes)
+    {
+        runtimeMinimumInternalFreeHeapBytes =
+            currentInternalFreeHeap;
+    }
+
+    const size_t currentFreePsram =
+        ESP.getFreePsram();
+    if (
+        runtimeMinimumFreePsramBytes == 0 ||
+        currentFreePsram <
+            runtimeMinimumFreePsramBytes)
+    {
+        runtimeMinimumFreePsramBytes =
+            currentFreePsram;
+    }
 
     _scripts.loop();
     _flows.loop();
@@ -1105,6 +1155,9 @@ void WsProtocol::appendHubStatus(
     hub["minimumFreeHeapBytes"] =
         ESP.getMinFreeHeap();
 
+    hub["runtimeMinimumFreeHeapBytes"] =
+        runtimeMinimumFreeHeapBytes;
+
     hub["largestFreeHeapBlockBytes"] =
         ESP.getMaxAllocHeap();
 
@@ -1117,6 +1170,9 @@ void WsProtocol::appendHubStatus(
         heap_caps_get_minimum_free_size(
             MALLOC_CAP_INTERNAL |
             MALLOC_CAP_8BIT);
+
+    hub["runtimeMinimumInternalFreeHeapBytes"] =
+        runtimeMinimumInternalFreeHeapBytes;
 
     hub["largestInternalFreeHeapBlockBytes"] =
         heap_caps_get_largest_free_block(
@@ -1132,6 +1188,9 @@ void WsProtocol::appendHubStatus(
     hub["minimumFreePsramBytes"] =
         heap_caps_get_minimum_free_size(
             MALLOC_CAP_SPIRAM);
+
+    hub["runtimeMinimumFreePsramBytes"] =
+        runtimeMinimumFreePsramBytes;
 
     hub["largestFreePsramBlockBytes"] =
         heap_caps_get_largest_free_block(
