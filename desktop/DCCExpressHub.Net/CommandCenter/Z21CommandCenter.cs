@@ -1327,7 +1327,7 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
             address - 1;
 
         _log.LogInformation(
-            "Z21 turnout #{Address}: physical={PhysicalValue}, functionAddress={FunctionAddress}",
+            "Z21 turnout #{Address}: physical={PhysicalValue}, functionAddress={FunctionAddress}, Q=1",
             address,
             position,
             functionAddress);
@@ -1354,7 +1354,6 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                     functionAddress,
                     position,
                     activate: true,
-                    queue: false,
                     ct: ct))
             {
                 return false;
@@ -1362,9 +1361,10 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
 
             activated = true;
 
-            // JMRI sends Q=0 and waits for LAN_X_TURNOUT_INFO before turning
-            // the decoder output off. Keep a hard pulse ceiling as a coil
-            // safety fallback in case feedback is lost.
+            // Q=1 delegates turnout switching order to the Z21/YaMoRC
+            // internal accessory FIFO. We still keep a hard pulse ceiling and
+            // authoritative LAN_X_TURNOUT_INFO confirmation around the
+            // transaction as an additional Hub-side safety layer.
             var first =
                 await Task.WhenAny(
                     feedback.Completion.Task,
@@ -1385,7 +1385,6 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                     functionAddress,
                     position,
                     activate: false,
-                    queue: false,
                     ct: CancellationToken.None,
                     priority: true,
                     ensureTransport: false))
@@ -1447,7 +1446,6 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                         functionAddress,
                         position,
                         activate: false,
-                        queue: false,
                         ct: CancellationToken.None,
                         priority: true);
                 }
@@ -1493,7 +1491,6 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                     functionAddress,
                     position,
                     activate: true,
-                    queue: false,
                     ct: ct))
             {
                 return false;
@@ -1510,7 +1507,6 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                     functionAddress,
                     position,
                     activate: false,
-                    queue: false,
                     ct: CancellationToken.None,
                     priority: true,
                     ensureTransport: false);
@@ -1541,7 +1537,6 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                         functionAddress,
                         position,
                         activate: false,
-                        queue: false,
                         ct: CancellationToken.None,
                         priority: true);
                 }
@@ -1576,16 +1571,17 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
         int functionAddress,
         bool position,
         bool activate,
-        bool queue,
         CancellationToken ct,
         bool priority = false,
         bool ensureTransport = true)
     {
         // LAN_X_SET_TURNOUT DB2 = 100QA00P.
-        byte control = 0x80;
-
-        if (queue)
-            control |= 0x20;
+        //
+        // Q=1 is intentional for the Windows Z21/YaMoRC backend: every
+        // turnout/basic-accessory activate and deactivate command is placed
+        // into the command station's own switching FIFO. Do not mix Q=0 and
+        // Q=1 commands in this backend.
+        byte control = 0xA0;
 
         if (activate)
             control |= 0x08;
