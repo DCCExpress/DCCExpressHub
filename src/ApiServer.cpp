@@ -635,6 +635,90 @@ void ApiServer::handleFunctionBindingsBody(
       response);
 }
 
+void ApiServer::handleLocoCountersBody(
+    AsyncWebServerRequest* request,
+    uint8_t* data,
+    size_t len,
+    size_t index,
+    size_t total) {
+  if (index == 0) {
+    _locoCountersUpload.begin(
+        _files,
+        LOCO_COUNTERS_PATH,
+        total);
+  }
+
+  if (!_locoCountersUpload.failed()) {
+    _locoCountersUpload.write(
+        data,
+        len);
+  }
+
+  if (index + len != total) {
+    return;
+  }
+
+  JsonDocument response;
+
+  if (!_locoCountersUpload.finish()) {
+    _locoCountersUpload.abort();
+    response["ok"] = false;
+    response["message"] = "Locomotive counter upload failed";
+    sendJson(request, 507, response);
+    return;
+  }
+
+  const String tempPath =
+      _locoCountersUpload.tempPath();
+
+  File file =
+      _files.openRead(
+          tempPath.c_str());
+
+  JsonDocument document;
+  const auto error =
+      file
+          ? deserializeJson(
+                document,
+                file)
+          : DeserializationError(
+                DeserializationError::EmptyInput);
+
+  if (file) {
+    file.close();
+  }
+
+  if (
+      error ||
+      !document.is<JsonObject>() ||
+      !document["items"].is<JsonArray>()
+  ) {
+    _locoCountersUpload.abort();
+    response["ok"] = false;
+    response["message"] = "Invalid locomotive counter state";
+    sendJson(request, 400, response);
+    return;
+  }
+
+  if (!_locoCountersUpload.commit()) {
+    response["ok"] = false;
+    response["message"] = "Locomotive counter state commit failed";
+    sendJson(request, 500, response);
+    return;
+  }
+
+  if (!_locoCounters.reloadConfiguration(false)) {
+    response["ok"] = false;
+    response["message"] = "Counter state committed but runtime reload failed";
+    sendJson(request, 500, response);
+    return;
+  }
+
+  response["ok"] = true;
+  response["bytes"] = total;
+  sendJson(request, 200, response);
+}
+
 bool ApiServer::verifySignalLogicTemp() {
   const String tempPath = _signalLogicUpload.tempPath();
   return _signalAutomation.validateFile(tempPath.c_str());
@@ -1090,6 +1174,50 @@ void ApiServer::setupApi() {
       nullptr,
       [this](AsyncWebServerRequest* request, uint8_t* data, size_t len, size_t index, size_t total) {
         handleLocosBody(request, data, len, index, total);
+      });
+
+  _server.on(
+      "/api/loco-counters",
+      HTTP_GET,
+      [this](AsyncWebServerRequest* request) {
+        if (!_files.exists(LOCO_COUNTERS_PATH)) {
+          auto* response =
+              request->beginResponse(
+                  200,
+                  "application/json",
+                  "{\"version\":1,\"items\":[]}");
+          response->addHeader("Cache-Control", "no-store");
+          request->send(response);
+          return;
+        }
+
+        auto* response =
+            request->beginResponse(
+                LittleFS,
+                LOCO_COUNTERS_PATH,
+                "application/json",
+                false);
+        response->addHeader("Cache-Control", "no-store");
+        request->send(response);
+      });
+
+  _server.on(
+      "/api/loco-counters",
+      HTTP_POST,
+      [](AsyncWebServerRequest*) {},
+      nullptr,
+      [this](
+          AsyncWebServerRequest* request,
+          uint8_t* data,
+          size_t len,
+          size_t index,
+          size_t total) {
+        handleLocoCountersBody(
+            request,
+            data,
+            len,
+            index,
+            total);
       });
 
   _server.on(
