@@ -329,6 +329,14 @@ void WsProtocol::begin()
                 raw);
         });
 
+    _commandCenter.onProgrammingFeedback(
+        [this](
+            const CommandCenterProgrammingFeedback& feedback)
+        {
+            handleProgrammingFeedback(
+                feedback);
+        });
+
     _commandCenter.onStationInfo(
         [this](
             const CommandCenterStationInfo &info)
@@ -2224,6 +2232,48 @@ void WsProtocol::handleProgrammingRawResponse(
         clearPendingProgramming();
     }
 }
+void WsProtocol::handleProgrammingFeedback(
+    const CommandCenterProgrammingFeedback& feedback)
+{
+    if (!_pendingProgramming.active)
+    {
+        return;
+    }
+
+    if (
+        feedback.cv > 0 &&
+        _pendingProgramming.expectedCv > 0 &&
+        feedback.cv !=
+            _pendingProgramming.expectedCv
+    )
+    {
+        return;
+    }
+
+    const String requestId =
+        _pendingProgramming.requestId;
+
+    const String action =
+        _pendingProgramming.action;
+
+    clearPendingProgramming();
+
+    sendProgrammingResponse(
+        requestId,
+        action,
+        feedback.ok,
+        feedback.message.isEmpty()
+            ? (
+                feedback.ok
+                    ? "Programming operation completed."
+                    : "Programming operation failed.")
+            : feedback.message,
+        feedback.ok
+            ? feedback.value
+            : -1,
+        feedback.raw);
+}
+
 
 void WsProtocol::broadcastRawInfo(
     const String &raw)
