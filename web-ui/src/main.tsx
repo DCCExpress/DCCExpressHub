@@ -57,7 +57,7 @@ installApiFetchTimeout();
 
 installFileViewerEnhancer();
 installSignalLogicStatusIndicator();
-installDccExHeartbeatStatusIndicator();
+installCommandCenterStatusIndicator();
 installBlockTargetLocoRuntime();
 
 ReactDOM.createRoot(
