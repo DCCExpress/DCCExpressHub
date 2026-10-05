@@ -128,6 +128,37 @@ public:
   bool requestTripTelemetry(
       bool logCommand = false) override;
 
+  void onProgrammingFeedback(
+      ProgrammingFeedbackCallback callback) override {
+    _programmingFeedbackCallback =
+        std::move(callback);
+  }
+
+  bool readServiceCv(
+      uint16_t cv) override;
+
+  bool writeServiceCv(
+      uint16_t cv,
+      uint8_t value) override;
+
+  bool readPomCv(
+      uint16_t address,
+      uint16_t cv) override;
+
+  bool writePomCv(
+      uint16_t address,
+      uint16_t cv,
+      uint8_t value) override;
+
+  bool readAccessoryPomCv(
+      uint16_t decoderAddress,
+      uint16_t cv) override;
+
+  bool writeAccessoryPomCv(
+      uint16_t decoderAddress,
+      uint16_t cv,
+      uint8_t value) override;
+
   bool supportsRawCommand() const override {
     return false;
   }
@@ -233,6 +264,25 @@ private:
       bool logPacket = false);
 
   bool setBroadcastFlags();
+
+  bool sendCvDirect(
+      bool write,
+      uint16_t cv,
+      uint8_t value);
+
+  bool sendPomCv(
+      bool accessory,
+      bool write,
+      uint16_t address,
+      uint16_t cv,
+      uint8_t value);
+
+  void emitProgrammingFeedback(
+      bool ok,
+      uint16_t cv,
+      int16_t value,
+      const String& message,
+      const String& raw);
 
   bool sendAccessoryPulse(
       uint16_t functionAddress,
