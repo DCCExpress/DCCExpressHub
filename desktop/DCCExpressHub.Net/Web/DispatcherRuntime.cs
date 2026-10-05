@@ -221,8 +221,10 @@ public sealed class DispatcherRuntime
             hash ^=
                 value;
 
-            hash *=
-                16777619u;
+            hash =
+                unchecked(
+                    hash *
+                    16777619u);
         }
 
         return hash == 0
