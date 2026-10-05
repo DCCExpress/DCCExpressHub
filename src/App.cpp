@@ -8,6 +8,7 @@
 
 #include "Logger.h"
 #include "CommandCenterBuild.h"
+#include "FileStore.h"
 
 namespace {
 
@@ -40,6 +41,68 @@ void sendWsJson(
   serializeJson(document, body);
 
   ws.textAll(body);
+}
+
+bool ensureDefaultAutomationsFile() {
+  FileStore files(
+      LittleFS);
+
+  static constexpr const char* path =
+      "/config/automations.json";
+
+  if (
+      files.exists(
+          path)
+  ) {
+    return true;
+  }
+
+  LittleFS.mkdir(
+      "/config");
+
+  File file =
+      LittleFS.open(
+          path,
+          "w");
+
+  if (!file) {
+    Logger::error(
+        "Could not create default automations.json");
+
+    return false;
+  }
+
+  static constexpr const char* emptyDocument =
+      "{\"version\":1,\"scripts\":[],\"visualFlow\":{\"pages\":[],\"nodes\":[],\"edges\":[]}}";
+
+  const size_t expected =
+      strlen(
+          emptyDocument);
+
+  const size_t written =
+      file.write(
+          reinterpret_cast<
+              const uint8_t*>(
+              emptyDocument),
+          expected);
+
+  file.flush();
+  file.close();
+
+  if (
+      written !=
+      expected
+  ) {
+    Logger::error(
+        "Default automations.json write failed");
+
+    return false;
+  }
+
+  Logger::warn(
+      "Missing /config/automations.json; created empty automation storage");
+
+  return true;
 }
 
 }  // namespace
@@ -292,6 +355,8 @@ void App::begin() {
 
   Logger::info(
       "BOOT 05 OK");
+
+  ensureDefaultAutomationsFile();
 
   bootStep(
       "06",
