@@ -205,6 +205,10 @@ void App::updateDisplay() {
         connected);
   }
 
+  _display.showFeedbackLink(
+      _commandCenter.feedbackLinkName(),
+      _commandCenter.feedbackLinkConnected());
+
   _display.loop();
 }
 
@@ -295,6 +299,10 @@ void App::begin() {
       _commandCenter.host(),
       _commandCenter.port(),
       _lastCommandCenterConnected);
+
+  _display.showFeedbackLink(
+      _commandCenter.feedbackLinkName(),
+      _commandCenter.feedbackLinkConnected());
 
   const bool signalAutomationStarted =
       _signalAutomation.begin(LittleFS);
