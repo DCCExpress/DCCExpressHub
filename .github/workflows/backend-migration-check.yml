@@ -35,6 +35,7 @@ jobs:
           set -euo pipefail
           pio run -e sunton-8048s043-dccex
           pio run -e sunton-8048s043-z21
+          pio run -e sunton-8048s043-yamorc7010
 
   web-ui:
     runs-on: ubuntu-latest
