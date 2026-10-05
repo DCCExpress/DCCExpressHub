@@ -29,7 +29,8 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $targets = @(
-    "sunton-8048s043-dccex"
+    "sunton-8048s043-dccex",
+    "sunton-8048s043-z21"
 )
 
 foreach ($target in $targets) {
