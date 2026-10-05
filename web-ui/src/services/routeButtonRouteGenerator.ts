@@ -2,6 +2,10 @@ import type {
   RunnableBlockRoute,
 } from "@domain/railway/graph";
 
+import type {
+  RouteReferenceDto,
+} from "@domain/layout/layoutDto";
+
 import {
   isTurnoutElement,
   type LayoutView,
@@ -23,7 +27,8 @@ import {
 } from "./clientRouteGraphCache";
 
 export type GeneratedRouteButtonCandidate = {
-  key: string;
+  id: string;
+  routeRef: RouteReferenceDto | null;
   label: string;
   fromBlockName: string;
   toBlockName: string;
@@ -36,44 +41,88 @@ export type GeneratedRouteButtonCandidate = {
   routeTurnouts: RouteTurnoutItem[];
 };
 
-function routeKey(
-  route:
-    RunnableBlockRoute
+function candidateId(
+  route: RunnableBlockRoute
 ): string {
-  const edgePath =
+  const nodes =
+    route.solution.nodes
+      .map(node => node.name)
+      .join(">");
+
+  const turnouts =
     route.solution.edges
-      .map(
-        edge => {
-          const turnouts =
-            edge.turnoutPath
-              .map(
-                passage => {
-                  const states =
-                    passage.turnoutStates
-                      .map(
-                        state =>
-                          `${state.address}:${state.closed ? 1 : 0}`
-                      )
-                      .join(",");
-
-                  return `${passage.elementId}[${states}]`;
-                }
-              )
-              .join(">");
-
-          return (
-            `${edge.from.name}>${edge.to.name}` +
-            `:${turnouts}` +
-            `:${edge.locoDirection}`
-          );
-        }
+      .flatMap(edge =>
+        edge.turnoutPath.flatMap(
+          passage =>
+            passage.turnoutStates.map(
+              state =>
+                `${state.address}:${state.closed ? 1 : 0}`
+            )
+        )
       )
-      .join("|");
+      .join(",");
 
   return (
     `${route.fromBlock.id}->${route.toBlock.id}` +
-    `|${edgePath}`
+    `|${route.solution.locoDirection}` +
+    `|${nodes}` +
+    `|${turnouts}`
   );
+}
+
+function routeRef(
+  route: RunnableBlockRoute
+): RouteReferenceDto | null {
+  if (
+    route.solution.locoDirection !== "forward" &&
+    route.solution.locoDirection !== "reverse"
+  ) {
+    return null;
+  }
+
+  const blockIds =
+    route.solution.path
+      .filter(
+        item => item.type === "block"
+      )
+      .map(
+        item => item.block.id
+      )
+      .filter(
+        (id, index, ids) =>
+          index === 0 ||
+          id !== ids[index - 1]
+      );
+
+  if (blockIds.length < 2) {
+    return null;
+  }
+
+  return {
+    fromBlockId:
+      route.fromBlock.id,
+    toBlockId:
+      route.toBlock.id,
+    direction:
+      route.solution.locoDirection,
+    viaBlockIds:
+      blockIds.slice(1, -1),
+  };
+}
+
+function routeRefSignature(
+  value: RouteReferenceDto
+): string {
+  return JSON.stringify({
+    fromBlockId:
+      value.fromBlockId,
+    toBlockId:
+      value.toBlockId,
+    direction:
+      value.direction,
+    viaBlockIds:
+      value.viaBlockIds,
+  });
 }
 
 function collectBlockPath(
@@ -256,7 +305,7 @@ export function getAvailableGeneratedRouteButtonCandidates(
       layout
     );
 
-  const usedKeys =
+  const usedRouteRefs =
     new Set(
       layout
         .getAllElements()
@@ -266,25 +315,25 @@ export function getAvailableGeneratedRouteButtonCandidates(
               RouteButtonElement &&
             element.id !==
               currentRouteButtonId &&
-            element.generatedRouteKey
-              .trim()
-              .length >
-              0
+            element.generatedRouteRef !==
+              null
         )
         .map(
           element =>
-            (
-              element as
-                RouteButtonElement
-            ).generatedRouteKey
+            routeRefSignature(
+              (
+                element as
+                  RouteButtonElement
+              ).generatedRouteRef!
+            )
         )
     );
 
   return ensured.result.routes
     .map(
       route => {
-        const key =
-          routeKey(
+        const ref =
+          routeRef(
             route
           );
 
@@ -294,7 +343,12 @@ export function getAvailableGeneratedRouteButtonCandidates(
           );
 
         return {
-          key,
+          id:
+            candidateId(
+              route
+            ),
+          routeRef:
+            ref,
           label:
             `${route.fromBlock.name} → ${route.toBlock.name}`,
           fromBlockName:
@@ -319,8 +373,11 @@ export function getAvailableGeneratedRouteButtonCandidates(
     )
     .filter(
       candidate =>
-        !usedKeys.has(
-          candidate.key
+        candidate.routeRef === null ||
+        !usedRouteRefs.has(
+          routeRefSignature(
+            candidate.routeRef
+          )
         )
     )
     .sort(
@@ -357,8 +414,15 @@ export function applyGeneratedRouteButtonCandidate(
       })
     );
 
-  routeButton.generatedRouteKey =
-    candidate.key;
+  routeButton.generatedRouteRef =
+    candidate.routeRef
+      ? {
+          ...candidate.routeRef,
+          viaBlockIds: [
+            ...candidate.routeRef.viaBlockIds,
+          ],
+        }
+      : null;
 
   routeButton.label =
     candidate.label;
