@@ -30,7 +30,11 @@ jobs:
       - name: Install PlatformIO
         run: pip install platformio
       - name: Build ESP32-S3 firmware
-        run: pio run -e sunton-8048s043-dccex
+        shell: bash
+        run: |
+          set -euo pipefail
+          pio run -e sunton-8048s043-dccex
+          pio run -e sunton-8048s043-z21
 
   web-ui:
     runs-on: ubuntu-latest
