@@ -170,7 +170,7 @@ bool SignalAutomationEngine::validateFile(const char* path){
   bool e=false;std::vector<SignalRuleSet>s;return parseFile(path,e,s);
 }
 
-bool SignalAutomationEngine::reload(){
+bool SignalAutomationEngine::reload(bool requestSensorSnapshot){
   if(!_fs)return false;
   FileStore store(*_fs);
 
@@ -178,10 +178,9 @@ bool SignalAutomationEngine::reload(){
     _enabled=false;
     _signals.clear();
 
-    // A layout commit can introduce or remap sensor addresses even when no
-    // automation file exists. Refresh Q/q state so LayoutRuntime stays
-    // authoritative by physical sensor address.
-    _commandCenter.requestSensorSnapshot(false);
+    if (requestSensorSnapshot) {
+      _commandCenter.requestSensorSnapshot(false);
+    }
     return true;
   }
 
@@ -191,10 +190,9 @@ bool SignalAutomationEngine::reload(){
 
   Logger::info("SignalAutomation: physical-runtime model, loaded "+String(_signals.size())+" signal(s)");
 
-  // reload() is used after layout and signal-logic commits. The topology may
-  // now refer to sensor addresses that were not part of the previous runtime.
-  // Request the authoritative DCC-EX Q/q snapshot immediately.
-  _commandCenter.requestSensorSnapshot(false);
+  if (requestSensorSnapshot) {
+    _commandCenter.requestSensorSnapshot(false);
+  }
   return true;
 }
 
