@@ -1046,10 +1046,13 @@ void MovementRuntime::startBackgroundActions(
       continue;
 
     const uint32_t sequenceToken =
-        action.sequenceId.isEmpty()
-            ? backgroundEventToken
-            : DispatcherRuntime::resourceToken(
-                  action.sequenceId);
+        DispatcherRuntime::resourceToken(
+            action.sequenceId.isEmpty()
+                ? "legacy:" +
+                      resourceKey +
+                      ":" +
+                      when
+                : action.sequenceId);
 
     auto found = std::find(
         sequenceTokens.begin(),
