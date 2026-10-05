@@ -20,6 +20,18 @@ jobs:
       - name: Build Windows backend
         run: dotnet build desktop/DCCExpressHub.Net/DCCExpressHub.Net.csproj -c Release
 
+  esp32-s3:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install PlatformIO
+        run: pip install platformio
+      - name: Build ESP32-S3 firmware
+        run: pio run -e sunton-8048s043-dccex
+
   web-ui:
     runs-on: ubuntu-latest
     steps:
