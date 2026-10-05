@@ -377,7 +377,7 @@
                    <ComboBoxItem x:Name="ProtocolChooseItem" Tag=""/>
                    <ComboBoxItem Content="DCC-EX TCP" Tag="tcp"/>
                    <ComboBoxItem Content="DCC-EX Serial" Tag="serial"/>
-                   <ComboBoxItem Content="Z21 UDP" Tag="z21"/>
+                   <ComboBoxItem Content="Roco Z21" Tag="z21"/>
                    <ComboBoxItem Content="YaMoRC YD7010" Tag="yamorc7010"/>
                  </ComboBox>
 
