@@ -1,3 +1,4 @@
+using System.Text;
 using DCCExpressHub.Net.CommandCenter;
 
 namespace DCCExpressHub.Net.Web;
@@ -213,10 +214,12 @@ public sealed class DispatcherRuntime
         uint hash =
             2166136261u;
 
-        foreach (var value in resourceKey ?? "")
+        foreach (var value in
+                 Encoding.UTF8.GetBytes(
+                     resourceKey ?? ""))
         {
             hash ^=
-                (byte)value;
+                value;
 
             hash *=
                 16777619u;
