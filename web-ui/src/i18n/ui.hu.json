@@ -819,7 +819,6 @@
   "z21PomWriteNoFeedback": "A Z21 LAN protokollban a POM írásra nincs dekóder-visszaigazolás. A sikeres eredmény azt jelenti, hogy a parancs elküldésre került.",
   "accessoryDecoderAddress": "Kiegészítődekóder címe",
   "z21AccessoryAddressInfo": "Az emberi, 1–512 közötti dekódercímet add meg. A Hub ezt belül Z21 LAN dekódercímre alakítja.",
-  "help": "Súgó",
   "pomMainTrack": "POM / fővágány",
   "pomCanWriteButNormallyCannotConfirmTheResultNever": "A POM képes írni, de az eredményt általában nem tudja ellenőrizni. Mozdonycímet soha ne módosíts POM-mal.",
   "value": "Érték",
