@@ -472,6 +472,69 @@ bool ConfiguredCommandCenter::requestSensorSnapshot(
           logCommand);
 }
 
+void ConfiguredCommandCenter::onProgrammingFeedback(
+    ProgrammingFeedbackCallback callback) {
+  _inner.onProgrammingFeedback(
+      std::move(
+          callback));
+}
+
+bool ConfiguredCommandCenter::readServiceCv(
+    uint16_t cv) {
+  return
+      _inner.readServiceCv(
+          cv);
+}
+
+bool ConfiguredCommandCenter::writeServiceCv(
+    uint16_t cv,
+    uint8_t value) {
+  return
+      _inner.writeServiceCv(
+          cv,
+          value);
+}
+
+bool ConfiguredCommandCenter::readPomCv(
+    uint16_t address,
+    uint16_t cv) {
+  return
+      _inner.readPomCv(
+          address,
+          cv);
+}
+
+bool ConfiguredCommandCenter::writePomCv(
+    uint16_t address,
+    uint16_t cv,
+    uint8_t value) {
+  return
+      _inner.writePomCv(
+          address,
+          cv,
+          value);
+}
+
+bool ConfiguredCommandCenter::readAccessoryPomCv(
+    uint16_t decoderAddress,
+    uint16_t cv) {
+  return
+      _inner.readAccessoryPomCv(
+          decoderAddress,
+          cv);
+}
+
+bool ConfiguredCommandCenter::writeAccessoryPomCv(
+    uint16_t decoderAddress,
+    uint16_t cv,
+    uint8_t value) {
+  return
+      _inner.writeAccessoryPomCv(
+          decoderAddress,
+          cv,
+          value);
+}
+
 bool ConfiguredCommandCenter::supportsRawCommand() const {
   return
       _inner.supportsRawCommand();
