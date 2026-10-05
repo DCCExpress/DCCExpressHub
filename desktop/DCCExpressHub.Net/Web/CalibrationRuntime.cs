@@ -6,8 +6,7 @@ namespace DCCExpressHub.Net.Web;
 public sealed record CalibrationStartRequest(
     string LocoId,
     int LocoAddress,
-    string RouteKey,
-    string ReverseRouteKey,
+    MovementRouteRefModel RouteRef,
     string RouteLabel,
     double RouteLengthMm,
     int MaxSpeed,
@@ -23,8 +22,7 @@ public sealed record CalibrationRuntimeState(
     string Status,
     string? LocoId,
     int? LocoAddress,
-    string? RouteKey,
-    string? ReverseRouteKey,
+    MovementRouteRefModel? RouteRef,
     string? RouteLabel,
     double RouteLengthMm,
     int MaxSpeed,
@@ -58,7 +56,6 @@ public sealed class CalibrationRuntime
     static CalibrationRuntimeState Idle() =>
         new(
             "idle",
-            null,
             null,
             null,
             null,
@@ -145,10 +142,8 @@ public sealed class CalibrationRuntime
 
         if (string.IsNullOrWhiteSpace(
                 request.LocoId) ||
-            string.IsNullOrWhiteSpace(
-                request.RouteKey) ||
-            string.IsNullOrWhiteSpace(
-                request.ReverseRouteKey))
+            !ValidRouteRef(
+                request.RouteRef))
             return (
                 false,
                 "calibration_route_missing");
@@ -198,10 +193,9 @@ public sealed class CalibrationRuntime
             {
                 LocoId =
                     request.LocoId.Trim(),
-                RouteKey =
-                    request.RouteKey.Trim(),
-                ReverseRouteKey =
-                    request.ReverseRouteKey.Trim(),
+                RouteRef =
+                    NormalizeRouteRef(
+                        request.RouteRef),
                 RouteLabel =
                     (
                         request.RouteLabel ??
@@ -244,8 +238,7 @@ public sealed class CalibrationRuntime
                     "running",
                     normalized.LocoId,
                     normalized.LocoAddress,
-                    normalized.RouteKey,
-                    normalized.ReverseRouteKey,
+                    normalized.RouteRef,
                     normalized.RouteLabel,
                     normalized.RouteLengthMm,
                     normalized.MaxSpeed,
@@ -289,7 +282,7 @@ public sealed class CalibrationRuntime
                     request,
                     speed,
                     "outbound",
-                    request.RouteKey,
+                    request.RouteRef,
                     cancellation.Token);
 
                 cancellation.Token.ThrowIfCancellationRequested();
@@ -302,7 +295,8 @@ public sealed class CalibrationRuntime
                     request,
                     speed,
                     "return",
-                    request.ReverseRouteKey,
+                    ReverseRouteRef(
+                        request.RouteRef),
                     cancellation.Token);
 
                 cancellation.Token.ThrowIfCancellationRequested();
@@ -411,117 +405,57 @@ public sealed class CalibrationRuntime
         }
     }
 
-    static MovementRouteRefModel CalibrationRouteRef(
-        string routeKey)
-    {
-        using var document =
-            JsonDocument.Parse(
-                routeKey);
+    static bool ValidRouteRef(
+        MovementRouteRefModel? routeRef) =>
+        routeRef is not null &&
+        routeRef.FromBlockId is >= 1 and <= 65535 &&
+        routeRef.ToBlockId is >= 1 and <= 65535 &&
+        routeRef.FromBlockId != routeRef.ToBlockId &&
+        routeRef.Direction is "forward" or "reverse";
 
-        var root =
-            document.RootElement;
-
-        if (root.ValueKind !=
-                JsonValueKind.Object ||
-            !root.TryGetProperty(
-                "fromBlockId",
-                out var rawFrom) ||
-            !rawFrom.TryGetInt32(
-                out var fromBlockId) ||
-            !root.TryGetProperty(
-                "toBlockId",
-                out var rawTo) ||
-            !rawTo.TryGetInt32(
-                out var toBlockId) ||
-            !root.TryGetProperty(
-                "direction",
-                out var rawDirection) ||
-            rawDirection.ValueKind !=
-                JsonValueKind.String)
-            throw new InvalidOperationException(
-                "calibration_route_invalid");
-
-        var direction =
-            rawDirection.GetString() ??
-            "";
-
-        if (fromBlockId is < 1 or > 65535 ||
-            toBlockId is < 1 or > 65535 ||
-            fromBlockId == toBlockId ||
-            direction is not ("forward" or "reverse"))
-            throw new InvalidOperationException(
-                "calibration_route_invalid");
-
-        var blockIds =
-            new List<int>();
-
-        if (root.TryGetProperty(
-                "blockPath",
-                out var rawBlockPath) &&
-            rawBlockPath.ValueKind ==
-                JsonValueKind.Array)
-        {
-            foreach (var rawBlock in
-                     rawBlockPath.EnumerateArray())
-            {
-                if (rawBlock.ValueKind !=
-                    JsonValueKind.String)
-                    continue;
-
-                var text =
-                    rawBlock.GetString() ??
-                    "";
-
-                var separator =
-                    text.IndexOf(
-                        '@');
-
-                var idText =
-                    separator >= 0
-                        ? text[..separator]
-                        : text;
-
-                if (int.TryParse(
-                        idText,
-                        out var blockId) &&
-                    blockId is >= 1 and <= 65535)
-                    blockIds.Add(
-                        blockId);
-            }
-        }
-
-        var viaBlockIds =
-            blockIds.Count >= 2 &&
-            blockIds[0] == fromBlockId &&
-            blockIds[^1] == toBlockId
-                ? blockIds
-                    .Skip(1)
-                    .SkipLast(1)
-                    .Where(id =>
-                        id != fromBlockId &&
-                        id != toBlockId)
-                    .Distinct()
-                    .ToArray()
-                : [];
-
-        return new MovementRouteRefModel
+    static MovementRouteRefModel NormalizeRouteRef(
+        MovementRouteRefModel routeRef) =>
+        new()
         {
             FromBlockId =
-                fromBlockId,
+                routeRef.FromBlockId,
             ToBlockId =
-                toBlockId,
+                routeRef.ToBlockId,
             Direction =
-                direction,
+                routeRef.Direction,
             ViaBlockIds =
-                viaBlockIds
+                (routeRef.ViaBlockIds ?? [])
+                    .Where(id =>
+                        id is >= 1 and <= 65535 &&
+                        id != routeRef.FromBlockId &&
+                        id != routeRef.ToBlockId)
+                    .Distinct()
+                    .ToArray()
         };
-    }
+
+    static MovementRouteRefModel ReverseRouteRef(
+        MovementRouteRefModel routeRef) =>
+        new()
+        {
+            FromBlockId =
+                routeRef.ToBlockId,
+            ToBlockId =
+                routeRef.FromBlockId,
+            Direction =
+                routeRef.Direction == "forward"
+                    ? "reverse"
+                    : "forward",
+            ViaBlockIds =
+                (routeRef.ViaBlockIds ?? [])
+                    .Reverse()
+                    .ToArray()
+        };
 
     async Task RunPass(
         CalibrationStartRequest request,
         int speed,
         string direction,
-        string routeKey,
+        MovementRouteRefModel routeRef,
         CancellationToken cancellationToken)
     {
         var pageId =
@@ -635,8 +569,7 @@ public sealed class CalibrationRuntime
                     Speed =
                         speed,
                     RouteRef =
-                        CalibrationRouteRef(
-                            routeKey),
+                        routeRef,
                     ExpectedLocoAddress =
                         request.LocoAddress,
                     BlockRules =
@@ -821,10 +754,9 @@ public sealed class CalibrationRuntime
                 target["calibration"] =
                     new JsonObject
                     {
-                        ["routeKey"] =
-                            request.RouteKey,
-                        ["reverseRouteKey"] =
-                            request.ReverseRouteKey,
+                        ["routeRef"] =
+                            JsonSerializer.SerializeToNode(
+                                request.RouteRef),
                         ["routeLabel"] =
                             request.RouteLabel,
                         ["routeLengthMm"] =
