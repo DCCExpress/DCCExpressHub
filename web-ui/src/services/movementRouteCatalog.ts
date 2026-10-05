@@ -168,19 +168,14 @@ function pageSequence(
   page:
     MovementPage
 ): number[] {
-  if (
-    page.fromBlockId ===
-      null ||
-    page.toBlockId ===
-      null
-  ) {
+  if (!page.routeRef) {
     return [];
   }
 
   return [
-    page.fromBlockId,
-    ...page.viaBlockIds,
-    page.toBlockId,
+    page.routeRef.fromBlockId,
+    ...page.routeRef.viaBlockIds,
+    page.routeRef.toBlockId,
   ];
 }
 
@@ -268,64 +263,6 @@ export function buildMovementRouteCandidates(
     throw new Error(
       "No route topology is available. Generate the route graph first."
     );
-  }
-
-  const usedRouteKeys =
-    new Map<
-      string,
-      string[]
-    >();
-
-  const usedLegacySequences:
-    Array<{
-      checkpoints: number[];
-      movementName: string;
-    }> = [];
-
-  for (
-    const page of
-    document.pages
-  ) {
-    if (
-      page.routeKey
-        .trim()
-        .length >
-        0
-    ) {
-      const names =
-        usedRouteKeys.get(
-          page.routeKey
-        ) ??
-        [];
-
-      names.push(
-        page.name
-      );
-
-      usedRouteKeys.set(
-        page.routeKey,
-        names
-      );
-
-      continue;
-    }
-
-    const sequence =
-      pageSequence(
-        page
-      );
-
-    if (
-      sequence.length >=
-        2
-    ) {
-      usedLegacySequences.push({
-        checkpoints:
-          sequence,
-        movementName:
-          page.name,
-      });
-    }
   }
 
   const blockTypes =
@@ -476,36 +413,51 @@ export function buildMovementRouteCandidates(
       );
 
     const usedByMovementNames =
-      [
-        ...(
-          usedRouteKeys.get(
-            key
-          ) ??
-          []
-        ),
-        ...usedLegacySequences
-          .filter(
-            entry =>
-              containsCheckpointsInOrder(
-                candidateBlockIds,
-                entry.checkpoints
-              )
-          )
-          .map(
-            entry =>
-              entry.movementName
-          ),
-      ].filter(
-        (
-          name,
-          index,
-          all
-        ) =>
-          all.indexOf(
-            name
-          ) ===
-          index
-      );
+      document.pages
+        .filter(
+          page => {
+            const routeRef =
+              page.routeRef;
+
+            if (
+              !routeRef ||
+              routeRef.direction !==
+                routeDirection(
+                  raw.locoDirection
+                ) ||
+              routeRef.fromBlockId !==
+                fromBlockId ||
+              routeRef.toBlockId !==
+                toBlockId
+            ) {
+              return false;
+            }
+
+            return containsCheckpointsInOrder(
+              candidateBlockIds,
+              [
+                routeRef.fromBlockId,
+                ...routeRef.viaBlockIds,
+                routeRef.toBlockId,
+              ]
+            );
+          }
+        )
+        .map(
+          page =>
+            page.name
+        )
+        .filter(
+          (
+            name,
+            index,
+            all
+          ) =>
+            all.indexOf(
+              name
+            ) ===
+            index
+        );
 
     const turnoutCount =
       new Set(
@@ -682,26 +634,29 @@ export function applyMovementRouteCandidate(
     ...page,
     name:
       generatedName,
-    routeKey:
-      candidate.key,
-    fromBlockId:
-      blockIds[0] ??
-      null,
-    viaBlockIds:
-      blockIds.length >
-        2
-        ? blockIds.slice(
-            1,
-            -1
-          )
-        : [],
-    toBlockId:
-      blockIds.length >=
-        2
-        ? blockIds[
-            blockIds.length -
-              1
-          ]!
+    routeRef:
+      blockIds.length >= 2 &&
+      candidate.locoDirection !==
+        "unknown"
+        ? {
+            fromBlockId:
+              blockIds[0]!,
+            toBlockId:
+              blockIds[
+                blockIds.length -
+                  1
+              ]!,
+            direction:
+              candidate.locoDirection,
+            viaBlockIds:
+              blockIds.length >
+                2
+                ? blockIds.slice(
+                    1,
+                    -1
+                  )
+                : [],
+          }
         : null,
     /*
      * Keep only user-authored block rules. Default ARRIVED must stay implicit:
