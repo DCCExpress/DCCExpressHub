@@ -5,6 +5,7 @@
 #include <LittleFS.h>
 #include <WiFi.h>
 #include <esp_heap_caps.h>
+#include <cstring>
 
 #include "Logger.h"
 #include "CommandCenterBuild.h"
