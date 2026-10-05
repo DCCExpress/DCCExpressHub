@@ -46,6 +46,13 @@ const targetDefinitions = {
     fileTag: "Sunton-ESP32-8048S043-DCCEX",
     bootloaderAddress: 0x0000,
   },
+  "sunton-8048s043-z21": {
+    id: "sunton-8048s043",
+    commandCenter: "z21",
+    displayName: "Sunton ESP32-8048S043 / Z21 + YaMoRC",
+    fileTag: "Sunton-ESP32-8048S043-Z21",
+    bootloaderAddress: 0x0000,
+  },
 };
 
 const target =
