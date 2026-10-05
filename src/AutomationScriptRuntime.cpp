@@ -1,6 +1,7 @@
 #include "AutomationScriptRuntime.h"
 
 #include "Logger.h"
+#include "FileStore.h"
 
 AutomationScriptRuntime::AutomationScriptRuntime(
     ICommandCenter& commandCenter,
@@ -295,13 +296,25 @@ bool AutomationScriptRuntime::loadSavedScripts(
     String& error) {
   scripts.clear();
 
+  FileStore files(
+      LittleFS);
+
+  if (
+      !files.exists(
+          AUTOMATIONS_PATH)
+  ) {
+    return true;
+  }
+
   File file =
       LittleFS.open(
           AUTOMATIONS_PATH,
           "r");
 
   if (!file) {
-    return true;
+    error =
+        "automation_storage_open_failed";
+    return false;
   }
 
   JsonDocument document;
