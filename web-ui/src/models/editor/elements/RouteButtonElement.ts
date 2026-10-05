@@ -23,7 +23,7 @@ export class RouteButtonElement extends ClickableBaseElement implements IRouteBu
     this.layerName = "buildings";
   }
   clearGeneratedRoute(): void {
-    this.generatedRouteRef = undefined;
+    delete this.generatedRouteRef;
   }
 
   addOrUpdateTurnout(turnoutId: LayoutElementId, closed: boolean, secondClosed?: boolean): void {
@@ -145,7 +145,7 @@ export class RouteButtonElement extends ClickableBaseElement implements IRouteBu
     e.fg = data.fg;
     e.colorOn = data.colorOn;
     e.label = data.label;
-    e.generatedRouteRef =
+    if (
       data.generatedRouteRef &&
       typeof data.generatedRouteRef === "object" &&
       Number.isInteger(data.generatedRouteRef.fromBlockId) &&
@@ -155,14 +155,23 @@ export class RouteButtonElement extends ClickableBaseElement implements IRouteBu
         data.generatedRouteRef.direction === "reverse"
       ) &&
       Array.isArray(data.generatedRouteRef.viaBlockIds)
-        ? {
-            fromBlockId: data.generatedRouteRef.fromBlockId,
-            toBlockId: data.generatedRouteRef.toBlockId,
-            direction: data.generatedRouteRef.direction,
-            viaBlockIds: data.generatedRouteRef.viaBlockIds
-              .filter(id => Number.isInteger(id) && id > 0),
-          }
-        : undefined;
+    ) {
+      e.generatedRouteRef = {
+        fromBlockId:
+          data.generatedRouteRef.fromBlockId,
+        toBlockId:
+          data.generatedRouteRef.toBlockId,
+        direction:
+          data.generatedRouteRef.direction,
+        viaBlockIds:
+          data.generatedRouteRef.viaBlockIds
+            .filter(
+              id =>
+                Number.isInteger(id) &&
+                id > 0
+            ),
+      };
+    }
     e.routeTurnouts = Array.isArray(data.routeTurnouts)
       ? data.routeTurnouts
           .filter((item) => Number.isInteger(item?.turnoutId) && item.turnoutId > 0)
@@ -188,14 +197,14 @@ export class RouteButtonElement extends ClickableBaseElement implements IRouteBu
     copy.selected = this.selected;
     copy.label = this.label;
     copy.colorOn = this.colorOn;
-    copy.generatedRouteRef = this.generatedRouteRef
-      ? {
-          ...this.generatedRouteRef,
-          viaBlockIds: [
-            ...this.generatedRouteRef.viaBlockIds,
-          ],
-        }
-      : undefined;
+    if (this.generatedRouteRef) {
+      copy.generatedRouteRef = {
+        ...this.generatedRouteRef,
+        viaBlockIds: [
+          ...this.generatedRouteRef.viaBlockIds,
+        ],
+      };
+    }
     copy.routeTurnouts = this.routeTurnouts.map((item) => ({ ...item }));
     return copy;
   }
