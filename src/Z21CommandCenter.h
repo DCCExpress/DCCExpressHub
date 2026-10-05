@@ -382,6 +382,9 @@ private:
 
   QueueHandle_t _networkTxQueue = nullptr;
   QueueHandle_t _networkRxQueue = nullptr;
+#if defined(HUB_CC_YAMORC7010)
+  QueueHandle_t _feedbackRxQueue = nullptr;
+#endif
   QueueHandle_t _networkControlQueue = nullptr;
   SemaphoreHandle_t _endpointMutex = nullptr;
   TaskHandle_t _networkTaskHandle = nullptr;
@@ -391,6 +394,9 @@ private:
 
   StaticQueue_t _networkTxQueueControl = {};
   StaticQueue_t _networkRxQueueControl = {};
+#if defined(HUB_CC_YAMORC7010)
+  StaticQueue_t _feedbackRxQueueControl = {};
+#endif
   StaticQueue_t _networkControlQueueControl = {};
   StaticSemaphore_t _endpointMutexControl = {};
   StaticTask_t _networkTaskControl = {};
@@ -404,6 +410,11 @@ private:
   uint8_t _networkRxQueueStorage[
       NETWORK_RX_QUEUE_LENGTH *
       sizeof(NetworkRxFrame)] = {};
+#if defined(HUB_CC_YAMORC7010)
+  uint8_t _feedbackRxQueueStorage[
+      NETWORK_RX_QUEUE_LENGTH *
+      sizeof(NetworkRxFrame)] = {};
+#endif
   uint8_t _networkControlQueueStorage[
       NETWORK_CONTROL_QUEUE_LENGTH *
       sizeof(NetworkControl)] = {};
