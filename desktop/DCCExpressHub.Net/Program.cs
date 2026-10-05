@@ -428,6 +428,11 @@ app.MapGet("/api/command-center-info", (ICommandCenter cc, CommandCenterConfigSt
         {
             trackPower = true,
             programmingTrackPower = !x.IsZ21,
+            serviceModeProgramming = true,
+            pomProgramming = true,
+            pomRead = x.IsZ21,
+            accessoryPomProgramming = x.IsZ21,
+            accessoryPomRead = x.IsZ21,
             rawCommand = !x.IsZ21,
             vPin = !x.IsZ21,
             extendedAccessory = true,
@@ -450,11 +455,7 @@ app.MapGet("/api/capabilities", (ICommandCenter cc) => Results.Json(new
     deviceConfiguration = true,
     gamepad = true,
     s88 = false,
-    programmingTrack =
-        !string.Equals(
-            cc.Type,
-            "z21",
-            StringComparison.OrdinalIgnoreCase)
+    programmingTrack = true
 }));
 
 static string DataFile(IWebHostEnvironment env, string name)
