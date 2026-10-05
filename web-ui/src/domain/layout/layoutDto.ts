@@ -23,6 +23,13 @@ export type RouteTurnoutItemDto = {
   closed: boolean;
 };
 
+export type RouteReferenceDto = {
+  fromBlockId: LayoutElementId;
+  toBlockId: LayoutElementId;
+  direction: "forward" | "reverse";
+  viaBlockIds: LayoutElementId[];
+};
+
 export type SerializedRouteTurnoutItemDto = {
   turnoutId?: LayoutElementId | string;
   closed?: boolean;
@@ -97,7 +104,7 @@ export type SerializedLayoutElementDto = {
   roadColor?: string;
 
   routeTurnouts?: SerializedRouteTurnoutItemDto[];
-  generatedRouteKey?: string;
+  generatedRouteRef?: RouteReferenceDto;
 
   fromBlockId?: LayoutElementId | string;
   toBlockId?: LayoutElementId | string;
@@ -316,7 +323,7 @@ export interface RouteButtonElementDto extends BaseElementDto {
   colorOn: string;
   label: string;
   routeTurnouts: RouteTurnoutItemDto[];
-  generatedRouteKey?: string;
+  generatedRouteRef?: RouteReferenceDto;
 }
 
 export interface ExtendedRouteButtonElementDto extends BaseElementDto {
