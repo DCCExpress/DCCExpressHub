@@ -42,6 +42,10 @@ public sealed class YaMoRcZ21CommandCenter : RocoZ21CommandCenter
     public override string Name => "YD7010";
     protected override string Z21Profile => "yamorc7010";
     protected override uint BroadcastFlags => YaMoRcBroadcastFlags;
+    protected override bool LocoNetFeedbackEnabled =>
+        Configuration.GetValue(
+            "Z21:LocoNetFeedback",
+            true);
     protected override bool LbServerFeedbackEnabled =>
         _lbServerFeedbackEnabled;
     protected override int LbServerPort =>
