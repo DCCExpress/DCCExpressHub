@@ -401,7 +401,7 @@
   "lastSystemState": "Last system-state update",
   "feedback": "Feedback",
   "z21FeedbackSource": "Z21 broadcast · R-BUS / detector",
-  "z21TelemetryBroadcastHint": "Z21 system telemetry is received by broadcast; the Hub does not poll it every second.",
+  "z21TelemetryBroadcastHint": "Z21 system telemetry is received by broadcast.",
   "lbServer": "LBServer",
   "lbServerVersion": "LBServer / YaMoRC version",
   "lbServerUptime": "LBServer uptime",
