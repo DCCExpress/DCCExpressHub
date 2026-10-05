@@ -56,6 +56,28 @@ void MovementRuntime::loadActions(
   }
 }
 
+uint32_t MovementRuntime::eventToken(
+    const String& resourceKey,
+    const String& eventName) {
+  uint32_t hash =
+      DispatcherRuntime::resourceToken(
+          resourceKey);
+
+  for (size_t i = 0;
+       i < eventName.length();
+       ++i) {
+    hash ^=
+        static_cast<uint8_t>(
+            eventName[i]);
+    hash *=
+        16777619u;
+  }
+
+  return hash == 0
+      ? 1u
+      : hash;
+}
+
 bool MovementRuntime::begin() {
   _executions.clear();
   _changed = true;
@@ -538,24 +560,44 @@ bool MovementRuntime::targetBasicallyFree(
 
 bool MovementRuntime::waitEventDelay(
     Execution& execution,
-    const String& key,
+    uint32_t token,
     int delayMs) {
-  delayMs = std::max(0, std::min(600000, delayMs));
-  if (delayMs == 0) return true;
-  if (std::find(execution.completedEventDelays.begin(),
-          execution.completedEventDelays.end(), key) !=
+  delayMs =
+      std::max(
+          0,
+          std::min(
+              600000,
+              delayMs));
+
+  if (delayMs == 0)
+    return true;
+
+  if (std::find(
+          execution.completedEventDelays.begin(),
+          execution.completedEventDelays.end(),
+          token) !=
       execution.completedEventDelays.end())
     return true;
-  if (execution.eventDelayKey != key) {
-    execution.eventDelayKey = key;
-    execution.eventDelayUntilMs = millis() + static_cast<unsigned long>(delayMs);
+
+  if (execution.eventDelayToken != token) {
+    execution.eventDelayToken =
+        token;
+    execution.eventDelayUntilMs =
+        millis() +
+        static_cast<unsigned long>(
+            delayMs);
     return false;
   }
-  if (static_cast<long>(millis() - execution.eventDelayUntilMs) < 0)
+
+  if (static_cast<long>(
+          millis() -
+          execution.eventDelayUntilMs) < 0)
     return false;
-  execution.eventDelayKey = "";
+
+  execution.eventDelayToken = 0;
   execution.eventDelayUntilMs = 0;
-  execution.completedEventDelays.push_back(key);
+  execution.completedEventDelays.push_back(
+      token);
   return true;
 }
 
@@ -612,19 +654,32 @@ bool MovementRuntime::runResourceEvents(
     if (resource.kind != "segment" && resource.kind != "turnout")
       continue;
 
+    const uint32_t resourceToken =
+        DispatcherRuntime::resourceToken(
+            resource.key);
+
     const bool entered = std::find(
         execution.enteredResources.begin(),
         execution.enteredResources.end(),
-        resource.key) != execution.enteredResources.end();
+        resourceToken) != execution.enteredResources.end();
 
     if (!entered && resourceEventSatisfied(execution.plan, resource, false)) {
-      const String enterEvent = resource.kind == "turnout" ? "approach" : "enter";
-      const String eventKey = resource.key + "|" + enterEvent;
+      const String enterEvent =
+          resource.kind == "turnout"
+              ? "approach"
+              : "enter";
+
+      const uint32_t enterToken =
+          eventToken(
+              resource.key,
+              enterEvent);
       startBackgroundActions(execution, resource.key, enterEvent);
       if (!runBlockingActions(execution, resource.key, enterEvent, error))
         return false;
-      execution.enteredResources.push_back(resource.key);
-      execution.firedResourceEvents.push_back(eventKey);
+      execution.enteredResources.push_back(
+          resourceToken);
+      execution.firedResourceEvents.push_back(
+          enterToken);
       execution.state.currentResourceKey = resource.key;
       publishChanged();
     }
@@ -632,18 +687,24 @@ bool MovementRuntime::runResourceEvents(
     const bool nowEntered = std::find(
         execution.enteredResources.begin(),
         execution.enteredResources.end(),
-        resource.key) != execution.enteredResources.end();
-    const String leaveKey = resource.key + "|leave";
+        resourceToken) != execution.enteredResources.end();
+
+    const uint32_t leaveToken =
+        eventToken(
+            resource.key,
+            "leave");
+
     const bool left = std::find(
         execution.firedResourceEvents.begin(),
         execution.firedResourceEvents.end(),
-        leaveKey) != execution.firedResourceEvents.end();
+        leaveToken) != execution.firedResourceEvents.end();
 
     if (nowEntered && !left && resourceEventSatisfied(execution.plan, resource, true)) {
       startBackgroundActions(execution, resource.key, "leave");
       if (!runBlockingActions(execution, resource.key, "leave", error))
         return false;
-      execution.firedResourceEvents.push_back(leaveKey);
+      execution.firedResourceEvents.push_back(
+          leaveToken);
       publishChanged();
     }
   }
@@ -854,14 +915,16 @@ bool MovementRuntime::runBlockingActions(
     const String& resourceKey,
     const String& when,
     String& error) {
-  const String eventKey =
-      resourceKey + "|" + when;
+  const uint32_t token =
+      eventToken(
+          resourceKey,
+          when);
 
   if (!execution.blockingActionsActive) {
     execution.blockingActionIndexes.clear();
     execution.blockingActionPosition = 0;
-    execution.blockingEventKey =
-        eventKey;
+    execution.blockingEventToken =
+        token;
 
     for (size_t i = 0;
          i < execution.actions.size();
@@ -884,8 +947,8 @@ bool MovementRuntime::runBlockingActions(
     if (!execution.blockingActionsActive)
       return true;
   } else if (
-      execution.blockingEventKey !=
-      eventKey) {
+      execution.blockingEventToken !=
+      token) {
     error = "movement_blocking_action_overlap";
     return false;
   }
@@ -949,7 +1012,7 @@ bool MovementRuntime::runBlockingActions(
   execution.blockingActionsActive = false;
   execution.blockingActionIndexes.clear();
   execution.blockingActionPosition = 0;
-  execution.blockingEventKey = "";
+  execution.blockingEventToken = 0;
   return true;
 }
 
@@ -957,20 +1020,22 @@ void MovementRuntime::startBackgroundActions(
     Execution& execution,
     const String& resourceKey,
     const String& when) {
-  const String eventKey =
-      resourceKey + "|" + when;
+  const uint32_t backgroundEventToken =
+      eventToken(
+          resourceKey,
+          when);
 
   if (std::find(
           execution.firedBackgroundEvents.begin(),
           execution.firedBackgroundEvents.end(),
-          eventKey) !=
+          backgroundEventToken) !=
       execution.firedBackgroundEvents.end())
     return;
 
   execution.firedBackgroundEvents.push_back(
-      eventKey);
+      backgroundEventToken);
 
-  std::vector<String> sequenceIds;
+  std::vector<uint32_t> sequenceTokens;
   for (size_t i = 0;
        i < execution.actions.size();
        ++i) {
@@ -980,24 +1045,27 @@ void MovementRuntime::startBackgroundActions(
         action.sequenceMode != "background")
       continue;
 
-    String id = action.sequenceId;
-    if (id.isEmpty())
-      id = "legacy:" + eventKey;
+    const uint32_t sequenceToken =
+        action.sequenceId.isEmpty()
+            ? backgroundEventToken
+            : DispatcherRuntime::resourceToken(
+                  action.sequenceId);
 
     auto found = std::find(
-        sequenceIds.begin(),
-        sequenceIds.end(),
-        id);
+        sequenceTokens.begin(),
+        sequenceTokens.end(),
+        sequenceToken);
 
-    if (found == sequenceIds.end()) {
-      sequenceIds.push_back(id);
+    if (found == sequenceTokens.end()) {
+      sequenceTokens.push_back(
+          sequenceToken);
       execution.backgroundSequences.emplace_back();
       execution.backgroundSequences.back()
           .actionIndexes.push_back(i);
     } else {
       const size_t index =
           static_cast<size_t>(
-              found - sequenceIds.begin());
+              found - sequenceTokens.begin());
       execution.backgroundSequences[index]
           .actionIndexes.push_back(i);
     }
@@ -1223,8 +1291,11 @@ void MovementRuntime::processExecution(
       !leg.approachWhen.empty() &&
       conditionsSatisfied(
           leg.approachWhen)) {
-    if (!waitEventDelay(execution,
-            leg.to.key + "|approach",
+    if (!waitEventDelay(
+            execution,
+            eventToken(
+                leg.to.key,
+                "approach"),
             leg.approachDelayMs))
       return;
     startBackgroundActions(
@@ -1253,8 +1324,11 @@ void MovementRuntime::processExecution(
     if (!arrived(leg))
       return;
 
-    if (!waitEventDelay(execution,
-            leg.to.key + "|arrived",
+    if (!waitEventDelay(
+            execution,
+            eventToken(
+                leg.to.key,
+                "arrived"),
             leg.arrivedDelayMs))
       return;
     startBackgroundActions(
@@ -1353,8 +1427,11 @@ void MovementRuntime::processExecution(
           leg))
     return;
 
-  if (!waitEventDelay(execution,
-          leg.from.key + "|leave",
+  if (!waitEventDelay(
+          execution,
+          eventToken(
+              leg.from.key,
+              "leave"),
           leg.leaveDelayMs))
     return;
   startBackgroundActions(
