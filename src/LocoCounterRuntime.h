@@ -10,7 +10,8 @@ public:
 
   bool begin(
       fs::FS& fs,
-      const char* path = "/config/locos.json");
+      const char* configPath = "/config/locos.json",
+      const char* statePath = "/state/loco-counters.json");
 
   bool reloadConfiguration(
       bool preserveRuntimeTotals = true);
@@ -49,7 +50,8 @@ private:
   };
 
   fs::FS* _fs = nullptr;
-  String _path = "/config/locos.json";
+  String _configPath = "/config/locos.json";
+  String _statePath = "/state/loco-counters.json";
   Entry _entries[MAX_LOCOS];
   bool _trackPowerOn = false;
   bool _changed = false;
