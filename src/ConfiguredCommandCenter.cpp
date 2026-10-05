@@ -207,6 +207,15 @@ const char* ConfiguredCommandCenter::name() const {
       _inner.name();
 }
 
+const char* ConfiguredCommandCenter::feedbackLinkName() const {
+  return _inner.feedbackLinkName();
+}
+
+bool ConfiguredCommandCenter::feedbackLinkConnected() const {
+  return _inner.feedbackLinkConnected();
+}
+
+
 void ConfiguredCommandCenter::setCommandIntervalMs(
     uint16_t intervalMs) {
   _inner.setCommandIntervalMs(
