@@ -789,18 +789,18 @@ namespace DCCExpressHub.Desktop
                 {
                     return new TestResult(
                         true,
-                        $"YaMoRC YD7010 reachable: Z21 UDP/{settings.TcpPort} + LBServer TCP/1234 · {line}");
+                        $"YD7010 reachable: Z21 UDP/{settings.TcpPort} + LBServer TCP/1234 · {line}");
                 }
 
                 return new TestResult(
                     true,
-                    $"YaMoRC YD7010 reachable: Z21 UDP/{settings.TcpPort} + LBServer TCP/1234.");
+                    $"YD7010 reachable: Z21 UDP/{settings.TcpPort} + LBServer TCP/1234.");
             }
             catch (OperationCanceledException)
             {
                 return new TestResult(
                     true,
-                    $"YaMoRC YD7010 reachable: Z21 UDP/{settings.TcpPort} + LBServer TCP/1234.");
+                    $"YD7010 reachable: Z21 UDP/{settings.TcpPort} + LBServer TCP/1234.");
             }
         }
 
