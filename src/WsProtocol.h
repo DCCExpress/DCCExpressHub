@@ -345,6 +345,8 @@ private:
   void sendCommandCenterInfo(
       AsyncWebSocketClient* client);
 
+  void broadcastCommandCenterInfo();
+
   void sendPowerInfo(
       AsyncWebSocketClient* client);
 
