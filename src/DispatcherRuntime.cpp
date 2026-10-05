@@ -203,25 +203,27 @@ DispatcherAcquireResult DispatcherRuntime::acquireLeg(
     return result;
   }
 
-  std::vector<String> resources =
-      raw.resourceKeys;
+  std::vector<uint32_t> resources =
+      raw.resourceTokens;
 
   normalizeResources(
       raw.fromBlockId,
       raw.toBlockId,
       resources);
 
-  for (const auto& key : resources) {
+  const uint32_t targetBlockToken =
+      blockResourceToken(
+          raw.toBlockId);
+
+  for (const auto token : resources) {
     if (resourceOwnedByOther(
-            key,
+            token,
             raw.ownerId)) {
       result.error =
-          "dispatcher_resource_locked:" +
-          key;
+          "dispatcher_resource_locked";
 
-      if (key ==
-          "block:" +
-              String(raw.toBlockId)) {
+      if (token ==
+          targetBlockToken) {
         result.blockingBlock =
             raw.toBlockId;
       }
@@ -391,7 +393,7 @@ DispatcherAcquireResult DispatcherRuntime::acquireLeg(
   lease.fromBlockId = raw.fromBlockId;
   lease.toBlockId = raw.toBlockId;
   lease.safetySensors = raw.safetySensors;
-  lease.resourceKeys = resources;
+  lease.resourceTokens = std::move(resources);
   lease.turnoutAddresses = raw.turnoutAddresses;
   lease.targetMarker = marker;
   lease.acquiredAtMs = millis();
@@ -488,12 +490,12 @@ void DispatcherRuntime::appendSnapshot(
     }
 
     JsonArray resources =
-        item["resourceKeys"]
+        item["resourceTokens"]
             .to<JsonArray>();
 
-    for (const auto& key :
-         lease.resourceKeys) {
-      resources.add(key);
+    for (const auto token :
+         lease.resourceTokens) {
+      resources.add(token);
     }
   }
 }
