@@ -5034,15 +5034,251 @@ void WsProtocol::handleMessage(
             return;
         }
 
-        if (!_commandCenter.supportsRawCommand())
-        {
-            failProgramming("Decoder programming requires a DCC-EX command center.");
-            return;
-        }
-
         if (_pendingProgramming.active)
         {
             failProgramming("Another decoder programming request is already running.");
+            return;
+        }
+
+        if (action == "accessoryLearn")
+        {
+            const int address = data["address"] | 0;
+            const bool active = data["active"] | false;
+
+            if (address <= 0 || address > 2044)
+            {
+                failProgramming("Invalid accessory address.");
+                return;
+            }
+
+            const bool sent =
+                _commandCenter.setAccessory(
+                    static_cast<uint16_t>(address),
+                    active);
+
+            sendProgrammingResponse(
+                requestId,
+                action,
+                sent,
+                sent
+                    ? "Accessory programming command sent."
+                    : "Accessory programming command could not be sent.",
+                address);
+
+            return;
+        }
+
+        if (
+            strcmp(
+                _commandCenter.type(),
+                "z21") == 0)
+        {
+            const int address =
+                data["address"] |
+                0;
+
+            const int cv =
+                data["cv"] |
+                0;
+
+            const int value =
+                data["value"] |
+                -1;
+
+            bool waitForResponse =
+                false;
+
+            bool sent =
+                false;
+
+            auto beginPending =
+                [this, &requestId, &action, &cv]()
+                {
+                    _pendingProgramming.active =
+                        true;
+
+                    _pendingProgramming.requestId =
+                        requestId;
+
+                    _pendingProgramming.action =
+                        action;
+
+                    _pendingProgramming.expectedCv =
+                        cv;
+
+                    _pendingProgramming.deadlineAt =
+                        millis() +
+                        PROGRAMMING_TIMEOUT_MS;
+                };
+
+            if (
+                action == "readCv" ||
+                action == "writeCv" ||
+                action == "pomReadCv" ||
+                action == "accessoryPomReadCv")
+            {
+                if (cv <= 0 || cv > 1024)
+                {
+                    failProgramming("Invalid CV number.");
+                    return;
+                }
+
+                if (
+                    (
+                        action == "writeCv"
+                    ) &&
+                    (
+                        value < 0 ||
+                        value > 255
+                    )
+                )
+                {
+                    failProgramming("Invalid CV value.");
+                    return;
+                }
+
+                if (
+                    action == "pomReadCv" &&
+                    (
+                        address <= 0 ||
+                        address > 9999
+                    )
+                )
+                {
+                    failProgramming("Invalid locomotive POM address.");
+                    return;
+                }
+
+                if (
+                    action == "accessoryPomReadCv" &&
+                    (
+                        address <= 0 ||
+                        address > 512
+                    )
+                )
+                {
+                    failProgramming("Invalid accessory decoder address.");
+                    return;
+                }
+
+                waitForResponse =
+                    true;
+
+                beginPending();
+
+                if (action == "readCv")
+                {
+                    sent =
+                        _commandCenter.readServiceCv(
+                            static_cast<uint16_t>(cv));
+                }
+                else if (action == "writeCv")
+                {
+                    sent =
+                        _commandCenter.writeServiceCv(
+                            static_cast<uint16_t>(cv),
+                            static_cast<uint8_t>(value));
+                }
+                else if (action == "pomReadCv")
+                {
+                    sent =
+                        _commandCenter.readPomCv(
+                            static_cast<uint16_t>(address),
+                            static_cast<uint16_t>(cv));
+                }
+                else
+                {
+                    sent =
+                        _commandCenter.readAccessoryPomCv(
+                            static_cast<uint16_t>(address),
+                            static_cast<uint16_t>(cv));
+                }
+            }
+            else if (
+                action == "pomWriteCv" ||
+                action == "accessoryPomWriteCv")
+            {
+                if (
+                    cv <= 0 ||
+                    cv > 1024 ||
+                    value < 0 ||
+                    value > 255
+                )
+                {
+                    failProgramming("Invalid CV number or value.");
+                    return;
+                }
+
+                if (
+                    action == "pomWriteCv")
+                {
+                    if (
+                        address <= 0 ||
+                        address > 9999
+                    )
+                    {
+                        failProgramming("Invalid locomotive POM address.");
+                        return;
+                    }
+
+                    sent =
+                        _commandCenter.writePomCv(
+                            static_cast<uint16_t>(address),
+                            static_cast<uint16_t>(cv),
+                            static_cast<uint8_t>(value));
+                }
+                else
+                {
+                    if (
+                        address <= 0 ||
+                        address > 512
+                    )
+                    {
+                        failProgramming("Invalid accessory decoder address.");
+                        return;
+                    }
+
+                    sent =
+                        _commandCenter.writeAccessoryPomCv(
+                            static_cast<uint16_t>(address),
+                            static_cast<uint16_t>(cv),
+                            static_cast<uint8_t>(value));
+                }
+            }
+            else
+            {
+                failProgramming("Unsupported Z21 programming action.");
+                return;
+            }
+
+            if (!sent)
+            {
+                if (waitForResponse)
+                {
+                    clearPendingProgramming();
+                }
+
+                failProgramming("Z21 programming command could not be sent.");
+                return;
+            }
+
+            if (!waitForResponse)
+            {
+                sendProgrammingResponse(
+                    requestId,
+                    action,
+                    true,
+                    "Z21 POM write command sent; the protocol does not confirm the decoder write.",
+                    value,
+                    "Z21 POM");
+            }
+
+            return;
+        }
+
+        if (!_commandCenter.supportsRawCommand())
+        {
+            failProgramming("Decoder programming is not supported by this command center.");
             return;
         }
 
@@ -5118,33 +5354,6 @@ void WsProtocol::handleMessage(
                 ">";
 
             waitForResponse = false;
-        }
-        else if (action == "accessoryLearn")
-        {
-            const int address = data["address"] | 0;
-            const bool active = data["active"] | false;
-
-            if (address <= 0 || address > 2044)
-            {
-                failProgramming("Invalid accessory address.");
-                return;
-            }
-
-            const bool sent =
-                _commandCenter.setAccessory(
-                    static_cast<uint16_t>(address),
-                    active);
-
-            sendProgrammingResponse(
-                requestId,
-                action,
-                sent,
-                sent
-                    ? "Accessory programming command sent."
-                    : "Accessory programming command could not be sent.",
-                address);
-
-            return;
         }
         else
         {
