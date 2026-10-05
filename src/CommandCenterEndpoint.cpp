@@ -5,7 +5,7 @@
 
 #include "CommandCenterBuild.h"
 
-#if defined(HUB_CC_Z21)
+#if defined(HUB_CC_Z21) || defined(HUB_CC_YAMORC7010)
 #include <WiFiUdp.h>
 #endif
 
@@ -22,7 +22,7 @@ bool isZeroAddress(
           0);
 }
 
-#if defined(HUB_CC_Z21)
+#if defined(HUB_CC_Z21) || defined(HUB_CC_YAMORC7010)
 
 uint16_t readLe16(
     const uint8_t* data) {
@@ -298,7 +298,7 @@ CommandCenterProbeResult probeDccExEndpoint(
     uint16_t port,
     uint32_t connectTimeoutMs,
     uint32_t totalTimeoutMs) {
-#if defined(HUB_CC_Z21)
+#if defined(HUB_CC_Z21) || defined(HUB_CC_YAMORC7010)
 
   return
       probeCompiledZ21(
