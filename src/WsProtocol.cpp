@@ -11,6 +11,7 @@
 #include <LittleFS.h>
 #include <WiFi.h>
 #include <esp_freertos_hooks.h>
+#include <esp_heap_caps.h>
 #include <esp_system.h>
 #include <stdlib.h>
 #include <algorithm>
@@ -1112,6 +1113,14 @@ void WsProtocol::appendHubStatus(
 
     hub["freePsramBytes"] =
         ESP.getFreePsram();
+
+    hub["minimumFreePsramBytes"] =
+        heap_caps_get_minimum_free_size(
+            MALLOC_CAP_SPIRAM);
+
+    hub["largestFreePsramBlockBytes"] =
+        heap_caps_get_largest_free_block(
+            MALLOC_CAP_SPIRAM);
 
     const char *wifiHostname =
         WiFi.getHostname();
