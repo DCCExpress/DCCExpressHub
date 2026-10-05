@@ -126,22 +126,22 @@ private:
     bool arrivedCommitted = false;
     bool leaveSeenOccupied = false;
     bool runtimeDirty = true;
-    std::vector<String> firedResourceEvents;
-    std::vector<String> enteredResources;
+    std::vector<uint32_t> firedResourceEvents;
+    std::vector<uint32_t> enteredResources;
     std::vector<MovementAction> actions;
     std::vector<BackgroundSequence> backgroundSequences;
-    std::vector<String> firedBackgroundEvents;
+    std::vector<uint32_t> firedBackgroundEvents;
     std::vector<size_t> blockingActionIndexes;
     size_t blockingActionPosition = 0;
     bool blockingActionsActive = false;
-    String blockingEventKey;
+    uint32_t blockingEventToken = 0;
     unsigned long actionWaitUntilMs = 0;
     bool hornActive = false;
     uint8_t hornFunction = 0;
     String sourceLocoId;
-    String eventDelayKey;
+    uint32_t eventDelayToken = 0;
     unsigned long eventDelayUntilMs = 0;
-    std::vector<String> completedEventDelays;
+    std::vector<uint32_t> completedEventDelays;
     String pendingAudioRequestId;
     bool pendingAudioCompleted = false;
     bool pendingAudioOk = false;
@@ -206,7 +206,7 @@ private:
 
   bool waitEventDelay(
       Execution& execution,
-      const String& key,
+      uint32_t eventToken,
       int delayMs);
 
   void releasePreparedAuthority(
@@ -241,6 +241,10 @@ private:
 
   void releaseAuthority(
       Execution& execution);
+
+  static uint32_t eventToken(
+      const String& resourceKey,
+      const String& eventName);
 
   void publishChanged() {
     _changed = true;
