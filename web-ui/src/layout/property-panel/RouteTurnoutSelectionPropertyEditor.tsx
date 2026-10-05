@@ -474,7 +474,7 @@ export default function RouteTurnoutSelectionPropertyEditor({
                       candidate => (
                         <Table.Tr
                           key={
-                            candidate.key
+                            candidate.id
                           }
                         >
                           <Table.Td>
