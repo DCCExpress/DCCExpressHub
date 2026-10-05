@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { useCommandCenter } from "@/context/CommandCenterContext";
 import i18next from "i18next";
 import {
   Badge,
@@ -352,15 +353,24 @@ export default function SystemInfoPanel({
   version,
 }: SystemInfoPanelProps) {
   useTranslation();
+  const commandCenter =
+    useCommandCenter();
+
   const telemetry =
     status as ExtendedDccExStatus | null;
 
   const hub =
     telemetry?.hub;
 
+  // CommandCenterContext is the UI's authoritative live connection state.
+  // dccExStatus is periodic telemetry and can briefly lag behind a real Z21
+  // connection transition, so use it only as a compatibility fallback.
   const dccAlive =
     wsStatus === "connected" &&
-    Boolean(telemetry?.alive);
+    (
+      commandCenter.alive ||
+      Boolean(telemetry?.alive)
+    );
 
   const z21 =
     telemetry?.z21 ?? null;
