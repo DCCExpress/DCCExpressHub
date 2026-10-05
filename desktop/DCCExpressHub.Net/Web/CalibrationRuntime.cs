@@ -410,6 +410,112 @@ public sealed class CalibrationRuntime
         }
     }
 
+    static MovementRouteRefModel CalibrationRouteRef(
+        string routeKey)
+    {
+        using var document =
+            JsonDocument.Parse(
+                routeKey);
+
+        var root =
+            document.RootElement;
+
+        if (root.ValueKind !=
+                JsonValueKind.Object ||
+            !root.TryGetProperty(
+                "fromBlockId",
+                out var rawFrom) ||
+            !rawFrom.TryGetInt32(
+                out var fromBlockId) ||
+            !root.TryGetProperty(
+                "toBlockId",
+                out var rawTo) ||
+            !rawTo.TryGetInt32(
+                out var toBlockId) ||
+            !root.TryGetProperty(
+                "direction",
+                out var rawDirection) ||
+            rawDirection.ValueKind !=
+                JsonValueKind.String)
+            throw new InvalidOperationException(
+                "calibration_route_invalid");
+
+        var direction =
+            rawDirection.GetString() ??
+            "";
+
+        if (fromBlockId is < 1 or > 65535 ||
+            toBlockId is < 1 or > 65535 ||
+            fromBlockId == toBlockId ||
+            direction is not ("forward" or "reverse"))
+            throw new InvalidOperationException(
+                "calibration_route_invalid");
+
+        var blockIds =
+            new List<int>();
+
+        if (root.TryGetProperty(
+                "blockPath",
+                out var rawBlockPath) &&
+            rawBlockPath.ValueKind ==
+                JsonValueKind.Array)
+        {
+            foreach (var rawBlock in
+                     rawBlockPath.EnumerateArray())
+            {
+                if (rawBlock.ValueKind !=
+                    JsonValueKind.String)
+                    continue;
+
+                var text =
+                    rawBlock.GetString() ??
+                    "";
+
+                var separator =
+                    text.IndexOf(
+                        '@');
+
+                var idText =
+                    separator >= 0
+                        ? text[..separator]
+                        : text;
+
+                if (int.TryParse(
+                        idText,
+                        out var blockId) &&
+                    blockId is >= 1 and <= 65535)
+                    blockIds.Add(
+                        blockId);
+            }
+        }
+
+        var viaBlockIds =
+            blockIds.Count >= 2 &&
+            blockIds[0] == fromBlockId &&
+            blockIds[^1] == toBlockId
+                ? blockIds
+                    .Skip(1)
+                    .SkipLast(1)
+                    .Where(id =>
+                        id != fromBlockId &&
+                        id != toBlockId)
+                    .Distinct()
+                    .ToArray()
+                : [];
+
+        return new MovementRouteRefModel
+        {
+            FromBlockId =
+                fromBlockId,
+            ToBlockId =
+                toBlockId,
+            Direction =
+                direction,
+            ViaBlockIds =
+                viaBlockIds
+        };
+    }
+
     async Task RunPass(
         CalibrationStartRequest request,
         int speed,
@@ -527,8 +633,9 @@ public sealed class CalibrationRuntime
                         true,
                     Speed =
                         speed,
-                    RouteKey =
-                        routeKey,
+                    RouteRef =
+                        CalibrationRouteRef(
+                            routeKey),
                     ExpectedLocoAddress =
                         request.LocoAddress,
                     BlockRules =
