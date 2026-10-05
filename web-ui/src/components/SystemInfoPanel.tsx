@@ -367,9 +367,9 @@ export default function SystemInfoPanel({
 
   const commandCenterTitle =
     isYaMoRc
-      ? "YaMoRC YD7010"
+      ? "YD7010"
       : isZ21
-        ? "Roco Z21"
+        ? "Z21"
         : "DCC-EX / EX-CSB1";
 
   const target =
