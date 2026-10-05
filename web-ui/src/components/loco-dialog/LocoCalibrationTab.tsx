@@ -34,6 +34,7 @@ import type {
 
 import {
   createEmptyMovementDocument,
+  type MovementRouteRef,
 } from "@domain/movement";
 
 import {
@@ -82,101 +83,101 @@ function candidateLabel(
     );
 }
 
-function sameNumbers(
-  left: readonly number[],
-  right: readonly number[]
-): boolean {
-  return (
-    left.length ===
-      right.length &&
-    left.every(
-      (
-        value,
-        index
-      ) =>
-        value ===
-        right[
-          index
-        ]
-    )
-  );
+function routeRefForCandidate(
+  candidate: MovementRouteCandidate
+): MovementRouteRef | null {
+  if (
+    candidate.locoDirection !== "forward" &&
+    candidate.locoDirection !== "reverse"
+  ) {
+    return null;
+  }
+
+  const blockIds =
+    candidate.blockPath.map(
+      block => block.id
+    );
+
+  return {
+    fromBlockId:
+      candidate.fromBlockId,
+    toBlockId:
+      candidate.toBlockId,
+    direction:
+      candidate.locoDirection,
+    viaBlockIds:
+      blockIds.slice(1, -1),
+  };
 }
 
-function sameStrings(
-  left: readonly string[],
-  right: readonly string[]
+function reverseRouteRef(
+  routeRef: MovementRouteRef
+): MovementRouteRef {
+  return {
+    fromBlockId:
+      routeRef.toBlockId,
+    toBlockId:
+      routeRef.fromBlockId,
+    direction:
+      routeRef.direction === "forward"
+        ? "reverse"
+        : "forward",
+    viaBlockIds:
+      [...routeRef.viaBlockIds].reverse(),
+  };
+}
+
+function candidateMatchesRouteRef(
+  candidate: MovementRouteCandidate,
+  routeRef: MovementRouteRef
 ): boolean {
+  const candidateRef =
+    routeRefForCandidate(
+      candidate
+    );
+
   return (
-    left.length ===
-      right.length &&
-    left.every(
-      (
-        value,
-        index
-      ) =>
-        value ===
-        right[
-          index
-        ]
+    candidateRef !== null &&
+    candidateRef.fromBlockId === routeRef.fromBlockId &&
+    candidateRef.toBlockId === routeRef.toBlockId &&
+    candidateRef.direction === routeRef.direction &&
+    candidateRef.viaBlockIds.length === routeRef.viaBlockIds.length &&
+    candidateRef.viaBlockIds.every(
+      (value, index) =>
+        value === routeRef.viaBlockIds[index]
     )
   );
 }
 
 function reverseFor(
-  selected:
-    MovementRouteCandidate,
-  candidates:
-    MovementRouteCandidate[]
+  selected: MovementRouteCandidate,
+  candidates: MovementRouteCandidate[]
 ): MovementRouteCandidate | null {
-  const reverseBlocks =
-    selected.blockPath
-      .map(
-        block =>
-          block.id
-      )
-      .reverse();
+  const selectedRef =
+    routeRefForCandidate(
+      selected
+    );
 
-  const reverseNodes =
-    [
-      ...selected.nodePath,
-    ].reverse();
+  if (!selectedRef) {
+    return null;
+  }
 
-  const exact =
-    candidates.find(
+  const reverseRef =
+    reverseRouteRef(
+      selectedRef
+    );
+
+  const matches =
+    candidates.filter(
       candidate =>
-        candidate.fromBlockId ===
-          selected.toBlockId &&
-        candidate.toBlockId ===
-          selected.fromBlockId &&
-        sameNumbers(
-          candidate.blockPath.map(
-            block =>
-              block.id
-          ),
-          reverseBlocks
-        ) &&
-        sameStrings(
-          candidate.nodePath,
-          reverseNodes
+        candidateMatchesRouteRef(
+          candidate,
+          reverseRef
         )
     );
 
-  if (exact) {
-    return exact;
-  }
-
-  const endpointMatches =
-    candidates.filter(
-      candidate =>
-        candidate.fromBlockId ===
-          selected.toBlockId &&
-        candidate.toBlockId ===
-          selected.fromBlockId
-    );
-
-  return endpointMatches.length ===
-    1
-    ? endpointMatches[0]!
+  return matches.length === 1
+    ? matches[0]!
     : null;
 }
 
@@ -189,9 +190,7 @@ function emptyRuntime():
       null,
     locoAddress:
       null,
-    routeKey:
-      null,
-    reverseRouteKey:
+    routeRef:
       null,
     routeLabel:
       null,
@@ -412,18 +411,15 @@ export default function LocoCalibrationTab({
           loco.id ||
         runtime.results.length ===
           0 ||
-        !runtime.routeKey ||
-        !runtime.reverseRouteKey
+        !runtime.routeRef
       ) {
         return;
       }
 
       const signature =
         JSON.stringify({
-          routeKey:
-            runtime.routeKey,
-          reverseRouteKey:
-            runtime.reverseRouteKey,
+          routeRef:
+            runtime.routeRef,
           routeLengthMm:
             runtime.routeLengthMm,
           maxSpeed:
@@ -446,10 +442,8 @@ export default function LocoCalibrationTab({
 
       const profile:
         LocoCalibrationProfile = {
-        routeKey:
-          runtime.routeKey,
-        reverseRouteKey:
-          runtime.reverseRouteKey,
+        routeRef:
+          runtime.routeRef,
         routeLabel:
           runtime.routeLabel ??
           "",
@@ -484,7 +478,7 @@ export default function LocoCalibrationTab({
 
   const loadRoutes =
     async (
-      preferredRouteKey?: string
+      preferredRouteRef?: MovementRouteRef
     ): Promise<void> => {
       try {
         setLoadingRoutes(
@@ -524,21 +518,34 @@ export default function LocoCalibrationTab({
           loaded
         );
 
-        const savedKey =
-          preferredRouteKey ??
-          selectedRoute?.key ??
-          loco.calibration
-            ?.routeKey ??
-          "";
+        const selectedRef =
+          selectedRoute
+            ? routeRefForCandidate(
+                selectedRoute
+              )
+            : null;
 
-        if (savedKey) {
-          const saved =
-            loaded.find(
+        const savedRef =
+          preferredRouteRef ??
+          selectedRef ??
+          loco.calibration
+            ?.routeRef ??
+          null;
+
+        if (savedRef) {
+          const matches =
+            loaded.filter(
               candidate =>
-                candidate.key ===
-                savedKey
-            ) ??
-            null;
+                candidateMatchesRouteRef(
+                  candidate,
+                  savedRef
+                )
+            );
+
+          const saved =
+            matches.length === 1
+              ? matches[0]!
+              : null;
 
           setSelectedRoute(
             saved
@@ -552,6 +559,14 @@ export default function LocoCalibrationTab({
                 )
               : null
           );
+
+          if (!saved) {
+            setRouteError(
+              matches.length > 1
+                ? "Calibration route is ambiguous. Select the route again."
+                : "Calibration route no longer exists. Select the route again."
+            );
+          }
         }
       } catch (error) {
         setRouteError(
@@ -587,8 +602,7 @@ export default function LocoCalibrationTab({
 
       void loadRoutes(
         loco.calibration
-          ?.routeKey ??
-        ""
+          ?.routeRef
       );
     },
     [
@@ -1078,10 +1092,10 @@ export default function LocoCalibrationTab({
                               loco.id,
                             locoAddress:
                               loco.address,
-                            routeKey:
-                              selectedRoute.key,
-                            reverseRouteKey:
-                              reverseRoute.key,
+                            routeRef:
+                              routeRefForCandidate(
+                                selectedRoute
+                              )!,
                             routeLabel:
                               candidateLabel(
                                 selectedRoute
