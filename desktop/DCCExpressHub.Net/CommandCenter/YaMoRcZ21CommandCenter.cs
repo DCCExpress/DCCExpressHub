@@ -14,7 +14,8 @@ public sealed class YaMoRcZ21CommandCenter : RocoZ21CommandCenter
         ILogger<YaMoRcZ21CommandCenter> log)
         : base(
             configuration,
-            log)
+            log,
+            true)
     {
         _lbServerFeedbackEnabled =
             configuration.GetValue(
