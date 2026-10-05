@@ -37,21 +37,14 @@ function routeLabel(
   catalog:
     AutomationBlockOption[]
 ): string {
-  const ids = [
-    ...(page.fromBlockId ===
-      null
-      ? []
-      : [
-          page.fromBlockId,
-        ]),
-    ...page.viaBlockIds,
-    ...(page.toBlockId ===
-      null
-      ? []
-      : [
-          page.toBlockId,
-        ]),
-  ];
+  const ids =
+    page.routeRef
+      ? [
+          page.routeRef.fromBlockId,
+          ...page.routeRef.viaBlockIds,
+          page.routeRef.toBlockId,
+        ]
+      : [];
 
   if (
     ids.length ===
@@ -88,22 +81,17 @@ export default function MovementSidebarCard({
       page.id
     );
 
-  const routeIds = [
-    page.fromBlockId,
-    ...page.viaBlockIds,
-    page.toBlockId,
-  ].filter(
-    (
-      value
-    ): value is number =>
-      value !==
-      null
-  );
+  const routeIds =
+    page.routeRef
+      ? [
+          page.routeRef.fromBlockId,
+          ...page.routeRef.viaBlockIds,
+          page.routeRef.toBlockId,
+        ]
+      : [];
 
   const routeResolved =
-    page.fromBlockId !==
-      null &&
-    page.toBlockId !==
+    page.routeRef !==
       null &&
     routeIds.every(
       blockId =>
