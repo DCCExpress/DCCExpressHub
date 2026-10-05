@@ -1,5 +1,11 @@
 namespace DCCExpressHub.Net.CommandCenter
 {
+    public sealed record CommandCenterProgrammingResult(
+        bool Ok,
+        int Cv,
+        int Value,
+        string Message,
+        string Raw = "");
 
     public interface ICommandCenter
     {
@@ -36,5 +42,71 @@ namespace DCCExpressHub.Net.CommandCenter
         Task<bool> RequestCurrentTelemetryAsync(CancellationToken ct = default);
         Task<bool> RequestTripTelemetryAsync(CancellationToken ct = default);
         Task<bool> RequestSensorSnapshotAsync(CancellationToken ct = default);
+        Task<CommandCenterProgrammingResult> ReadServiceCvAsync(
+            int cv,
+            CancellationToken ct = default) =>
+            Task.FromResult(
+                new CommandCenterProgrammingResult(
+                    false,
+                    cv,
+                    -1,
+                    "Service-mode programming is not supported."));
+
+        Task<CommandCenterProgrammingResult> WriteServiceCvAsync(
+            int cv,
+            int value,
+            CancellationToken ct = default) =>
+            Task.FromResult(
+                new CommandCenterProgrammingResult(
+                    false,
+                    cv,
+                    -1,
+                    "Service-mode programming is not supported."));
+
+        Task<CommandCenterProgrammingResult> ReadPomCvAsync(
+            int address,
+            int cv,
+            CancellationToken ct = default) =>
+            Task.FromResult(
+                new CommandCenterProgrammingResult(
+                    false,
+                    cv,
+                    -1,
+                    "POM read is not supported."));
+
+        Task<CommandCenterProgrammingResult> WritePomCvAsync(
+            int address,
+            int cv,
+            int value,
+            CancellationToken ct = default) =>
+            Task.FromResult(
+                new CommandCenterProgrammingResult(
+                    false,
+                    cv,
+                    -1,
+                    "POM write is not supported."));
+
+        Task<CommandCenterProgrammingResult> ReadAccessoryPomCvAsync(
+            int decoderAddress,
+            int cv,
+            CancellationToken ct = default) =>
+            Task.FromResult(
+                new CommandCenterProgrammingResult(
+                    false,
+                    cv,
+                    -1,
+                    "Accessory POM read is not supported."));
+
+        Task<CommandCenterProgrammingResult> WriteAccessoryPomCvAsync(
+            int decoderAddress,
+            int cv,
+            int value,
+            CancellationToken ct = default) =>
+            Task.FromResult(
+                new CommandCenterProgrammingResult(
+                    false,
+                    cv,
+                    -1,
+                    "Accessory POM write is not supported."));
     }
 }
