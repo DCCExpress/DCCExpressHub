@@ -2560,17 +2560,19 @@ public sealed class ScriptRuntime
             })
             .ToArray();
 
-    static string[] RouteResourceKeys(
+    static uint[] RouteResourceTokens(
         MovementPlanModel plan) =>
         plan.Resources
             .Where(resource =>
                 resource.Kind ==
                 "segment")
             .Select(resource =>
-                "segment:" +
-                resource.Name)
-            .Distinct(
-                StringComparer.Ordinal)
+                DispatcherRuntime.ResourceToken(
+                    "segment:" +
+                    resource.Name))
+            .Distinct()
+            .OrderBy(token =>
+                token)
             .ToArray();
 
     async Task<string> AcquireDispatcherRoute(
@@ -2686,7 +2688,7 @@ public sealed class ScriptRuntime
                         downstream,
                         RouteTurnouts(
                             plan),
-                        RouteResourceKeys(
+                        RouteResourceTokens(
                             plan),
                         0,
                         setDelayMs),
@@ -2716,8 +2718,9 @@ public sealed class ScriptRuntime
                 result.Error ??
                 "dispatcher_failed";
 
-            if (error.StartsWith(
-                    "dispatcher_resource_locked:",
+            if (string.Equals(
+                    error,
+                    "dispatcher_resource_locked",
                     StringComparison.Ordinal))
             {
                 if (timeoutMs >= 0 &&
@@ -3162,10 +3165,12 @@ public sealed class ScriptRuntime
                                 resource.Kind ==
                                 "segment")
                             .Select(resource =>
-                                "segment:" +
-                                resource.Name)
-                            .Distinct(
-                                StringComparer.Ordinal)
+                                DispatcherRuntime.ResourceToken(
+                                    "segment:" +
+                                    resource.Name))
+                            .Distinct()
+                            .OrderBy(token =>
+                                token)
                             .ToArray();
 
                     var attempt =
@@ -3209,8 +3214,9 @@ public sealed class ScriptRuntime
                             "safety_sensor_not_free" or
                             "turnout_locked" or
                             "turnout_lock_timeout" ||
-                        error.StartsWith(
-                            "dispatcher_resource_locked:",
+                        string.Equals(
+                            error,
+                            "dispatcher_resource_locked",
                             StringComparison.Ordinal))
                     {
                         PulseSmartBlocked(
