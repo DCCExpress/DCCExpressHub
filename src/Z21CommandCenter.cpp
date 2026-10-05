@@ -93,6 +93,17 @@ bool Z21CommandCenter::ensureNetworkInfrastructure() {
             &_networkRxQueueControl);
   }
 
+#if defined(HUB_CC_YAMORC7010)
+  if (!_feedbackRxQueue) {
+    _feedbackRxQueue =
+        xQueueCreateStatic(
+            NETWORK_RX_QUEUE_LENGTH,
+            sizeof(NetworkRxFrame),
+            _feedbackRxQueueStorage,
+            &_feedbackRxQueueControl);
+  }
+#endif
+
   if (!_networkControlQueue) {
     _networkControlQueue =
         xQueueCreateStatic(
@@ -106,6 +117,9 @@ bool Z21CommandCenter::ensureNetworkInfrastructure() {
       !_endpointMutex ||
       !_networkTxQueue ||
       !_networkRxQueue ||
+#if defined(HUB_CC_YAMORC7010)
+      !_feedbackRxQueue ||
+#endif
       !_networkControlQueue
   ) {
     return false;
@@ -184,13 +198,29 @@ bool Z21CommandCenter::enqueueNetworkRx(
     const uint8_t* data,
     size_t length) {
   if (
-      !_networkRxQueue ||
       !data ||
       length == 0 ||
       length >
           sizeof(
               NetworkRxFrame::data)
   ) {
+    return false;
+  }
+
+  QueueHandle_t queue =
+      _networkRxQueue;
+
+#if defined(HUB_CC_YAMORC7010)
+  if (
+      kind !=
+      NetworkRxKind::UdpDatagram
+  ) {
+    queue =
+        _feedbackRxQueue;
+  }
+#endif
+
+  if (!queue) {
     return false;
   }
 
@@ -208,7 +238,7 @@ bool Z21CommandCenter::enqueueNetworkRx(
 
   if (
       xQueueSend(
-          _networkRxQueue,
+          queue,
           &frame,
           0) !=
       pdTRUE
@@ -241,46 +271,65 @@ bool Z21CommandCenter::queueNetworkControl(
 }
 
 void Z21CommandCenter::processNetworkRx() {
-  if (!_networkRxQueue) {
-    return;
-  }
-
   NetworkRxFrame frame;
-  uint8_t processed =
-      0;
 
-  while (
-      processed <
-          NETWORK_RX_QUEUE_LENGTH &&
-      xQueueReceive(
-          _networkRxQueue,
-          &frame,
-          0) ==
-          pdTRUE
-  ) {
-    ++processed;
+  if (_networkRxQueue) {
+    uint8_t processed =
+        0;
 
-    switch (frame.kind) {
-      case NetworkRxKind::UdpDatagram:
-        processDatagram(
-            frame.data,
-            frame.length);
-        break;
+    while (
+        processed <
+            NETWORK_RX_QUEUE_LENGTH &&
+        xQueueReceive(
+            _networkRxQueue,
+            &frame,
+            0) ==
+            pdTRUE
+    ) {
+      ++processed;
 
-      case NetworkRxKind::LbServerLine:
-        processLbServerLine(
-            reinterpret_cast<
-                const char*>(
-                frame.data));
-        break;
-
-      case NetworkRxKind::LocoNetBinary:
-        processLocoNetPacket(
-            frame.data,
-            frame.length);
-        break;
+      processDatagram(
+          frame.data,
+          frame.length);
     }
   }
+
+#if defined(HUB_CC_YAMORC7010)
+  if (_feedbackRxQueue) {
+    uint8_t processed =
+        0;
+
+    while (
+        processed <
+            NETWORK_RX_QUEUE_LENGTH &&
+        xQueueReceive(
+            _feedbackRxQueue,
+            &frame,
+            0) ==
+            pdTRUE
+    ) {
+      ++processed;
+
+      switch (frame.kind) {
+        case NetworkRxKind::LbServerLine:
+          processLbServerLine(
+              reinterpret_cast<
+                  const char*>(
+                  frame.data));
+          break;
+
+        case NetworkRxKind::LocoNetBinary:
+          processLocoNetPacket(
+              frame.data,
+              frame.length);
+          break;
+
+        case NetworkRxKind::UdpDatagram:
+          break;
+      }
+    }
+  }
+#endif
 }
 
 void Z21CommandCenter::networkTask() {
