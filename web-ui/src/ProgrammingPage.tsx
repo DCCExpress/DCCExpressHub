@@ -1900,13 +1900,6 @@ function Z21ProgrammingPage({
                 {i18next.t("ui.z21PomRailComInfo")}
               </Alert>
 
-              <Alert
-                color="yellow"
-                icon={<IconAlertTriangle size={18} />}
-              >
-                {i18next.t("ui.z21AccessoryAddressInfo")}
-              </Alert>
-
               <Card withBorder radius={5} p="lg">
                 <Stack gap="md">
                   <SimpleGrid cols={{ base: 1, sm: 3 }}>
