@@ -298,7 +298,7 @@ test("Movement editor is split into reusable components", () => {
 
   assert.match(
     routeIdentity,
-    /createMovementRouteKey/
+    /createMovementRouteCandidateId/
   );
 
   assert.match(
@@ -623,7 +623,7 @@ test("Movement generated route selector keeps used routes visible but marks them
 
   assert.doesNotMatch(
     plan,
-    /createMovementRouteKey/
+    /createMovementRouteCandidateId/
   );
 
   assert.match(
@@ -1617,7 +1617,7 @@ test("selected Movement route stores full graph block path and exact route key",
 
   assert.match(
     plan,
-    /createMovementRouteKey\([\s\S]*route/
+    /createMovementRouteCandidateId\([\s\S]*route/
   );
 
   assert.match(
