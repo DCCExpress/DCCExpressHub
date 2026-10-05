@@ -19,7 +19,7 @@ struct DispatcherLegRequest {
   uint16_t fromBlockId = 0;
   uint16_t toBlockId = 0;
   std::vector<uint16_t> safetySensors;
-  std::vector<String> resourceKeys;
+  std::vector<uint32_t> resourceTokens;
   std::vector<uint16_t> turnoutAddresses;
   std::vector<DispatcherTurnoutRequirement> turnouts;
 };
@@ -31,7 +31,7 @@ struct DispatcherLegLease {
   uint16_t fromBlockId = 0;
   uint16_t toBlockId = 0;
   std::vector<uint16_t> safetySensors;
-  std::vector<String> resourceKeys;
+  std::vector<uint32_t> resourceTokens;
   std::vector<uint16_t> turnoutAddresses;
   String targetMarker;
   unsigned long acquiredAtMs = 0;
@@ -100,7 +100,7 @@ private:
       const String& ownerId) const;
 
   bool resourceOwnedByOther(
-      const String& resourceKey,
+      uint32_t resourceToken,
       const String& ownerId) const;
 
   bool destinationOwnedByOther(
@@ -123,8 +123,14 @@ private:
       uint16_t locoAddress,
       const String& ownerId);
 
+  static uint32_t resourceToken(
+      const String& resourceKey);
+
+  static uint32_t blockResourceToken(
+      uint16_t blockId);
+
   static void normalizeResources(
       uint16_t fromBlockId,
       uint16_t toBlockId,
-      std::vector<String>& resources);
+      std::vector<uint32_t>& resources);
 };
