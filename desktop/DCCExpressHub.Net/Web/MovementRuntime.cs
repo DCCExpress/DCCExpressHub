@@ -83,16 +83,21 @@ public sealed class MovementActionModel
     public string Message { get; set; } = "";
 }
 
+public sealed class MovementRouteRefModel
+{
+    public int FromBlockId { get; set; }
+    public int ToBlockId { get; set; }
+    public string Direction { get; set; } = "";
+    public int[] ViaBlockIds { get; set; } = [];
+}
+
 public sealed class MovementPageModel
 {
     public string Id { get; set; } = "";
     public string Name { get; set; } = "";
     public bool Enabled { get; set; } = true;
     public int Speed { get; set; } = 20;
-    public string RouteKey { get; set; } = "";
-    public int? FromBlockId { get; set; }
-    public int[] ViaBlockIds { get; set; } = [];
-    public int? ToBlockId { get; set; }
+    public MovementRouteRefModel? RouteRef { get; set; }
     public int? ExpectedLocoAddress { get; set; }
     public MovementBlockRule[] BlockRules { get; set; } = [];
     public MovementResourceEventRule[] ResourceEventRules { get; set; } = [];
@@ -3280,16 +3285,28 @@ public sealed class MovementRuntime
                 0,
                 126);
 
-        page.RouteKey =
-            (page.RouteKey ?? "")
-                .Trim();
+        if (page.RouteRef is not null)
+        {
+            page.RouteRef.Direction =
+                (page.RouteRef.Direction ?? "")
+                    .Trim()
+                    .ToLowerInvariant();
 
-        page.ViaBlockIds =
-            (page.ViaBlockIds ?? [])
-                .Where(id =>
-                    id is >= 1 and <= 65535)
-                .Distinct()
-                .ToArray();
+            page.RouteRef.ViaBlockIds =
+                (page.RouteRef.ViaBlockIds ?? [])
+                    .Where(id =>
+                        id is >= 1 and <= 65535 &&
+                        id != page.RouteRef.FromBlockId &&
+                        id != page.RouteRef.ToBlockId)
+                    .Distinct()
+                    .ToArray();
+
+            if (page.RouteRef.FromBlockId is < 1 or > 65535 ||
+                page.RouteRef.ToBlockId is < 1 or > 65535 ||
+                page.RouteRef.FromBlockId == page.RouteRef.ToBlockId ||
+                page.RouteRef.Direction is not ("forward" or "reverse"))
+                page.RouteRef = null;
+        }
 
         page.BlockRules ??= [];
         page.ResourceEventRules ??= [];
