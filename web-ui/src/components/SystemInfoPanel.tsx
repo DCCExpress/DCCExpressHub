@@ -52,6 +52,9 @@ type HubTelemetry = {
   freeHeapBytes?: number;
   minimumFreeHeapBytes?: number;
   largestFreeHeapBlockBytes?: number;
+  internalFreeHeapBytes?: number;
+  minimumInternalFreeHeapBytes?: number;
+  largestInternalFreeHeapBlockBytes?: number;
   psramSizeBytes?: number;
   freePsramBytes?: number;
   minimumFreePsramBytes?: number;
@@ -1016,6 +1019,35 @@ export default function SystemInfoPanel({
                   ? "red"
                   : "blue"
               }
+            />
+
+            <InfoRow
+              label={i18next.t("ui.internalHeapFree")}
+              value={formatBytes(
+                hub?.internalFreeHeapBytes,
+              )}
+              color="cyan"
+            />
+
+            <InfoRow
+              label={i18next.t("ui.minimumInternalHeap")}
+              value={formatBytes(
+                hub?.minimumInternalFreeHeapBytes,
+              )}
+              color={
+                (hub?.minimumInternalFreeHeapBytes ??
+                  999999) < 40000
+                  ? "red"
+                  : "cyan"
+              }
+            />
+
+            <InfoRow
+              label={i18next.t("ui.largestInternalHeapBlock")}
+              value={formatBytes(
+                hub?.largestInternalFreeHeapBlockBytes,
+              )}
+              color="cyan"
             />
 
             {(hub?.psramSizeBytes ?? 0) > 0 && (
