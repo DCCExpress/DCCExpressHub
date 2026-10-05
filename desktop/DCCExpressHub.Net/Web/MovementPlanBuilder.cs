@@ -974,7 +974,7 @@ public sealed class MovementPlanBuilder
         if (routeDirection is not ("forward" or "reverse"))
             throw new InvalidOperationException(
                 "movement_direction_unknown" +
-                $" savedKeyDirection={savedRouteDirection}" +
+                $" routeRefDirection={page.RouteRef?.Direction ?? "missing"}" +
                 $" topologyDirection={Str(route, "locoDirection", "unknown")}" +
                 $" edgeDirection={edgeDirection}" +
                 $" edgeConflict={edgeDirectionConflict}" +
