@@ -440,6 +440,10 @@ void Z21CommandCenter::feedbackTask() {
       0;
   unsigned long nextBinaryAttemptAt =
       0;
+  uint8_t lbConnectFailures =
+      0;
+  uint8_t binaryConnectFailures =
+      0;
 
   for (;;) {
     const unsigned long now =
@@ -515,7 +519,31 @@ void Z21CommandCenter::feedbackTask() {
             now +
             LB_RECONNECT_MS;
 
-        connectLbServer();
+        if (connectLbServer()) {
+          lbConnectFailures =
+              0;
+        } else {
+          ++lbConnectFailures;
+
+          if (
+              lbConnectFailures == 1 ||
+              lbConnectFailures >= 5
+          ) {
+            Logger::warn(
+                "YD7010 LBServer connect failed " +
+                _remoteIp.toString() +
+                ":" +
+                String(
+                    LB_SERVER_PORT));
+
+            if (
+                lbConnectFailures >= 5
+            ) {
+              lbConnectFailures =
+                  0;
+            }
+          }
+        }
       }
     } else {
       processLbServerIncoming();
@@ -548,7 +576,31 @@ void Z21CommandCenter::feedbackTask() {
             now +
             LB_RECONNECT_MS;
 
-        connectLocoNetBinary();
+        if (connectLocoNetBinary()) {
+          binaryConnectFailures =
+              0;
+        } else {
+          ++binaryConnectFailures;
+
+          if (
+              binaryConnectFailures == 1 ||
+              binaryConnectFailures >= 5
+          ) {
+            Logger::warn(
+                "YD7010 LocoNet Binary connect failed " +
+                _remoteIp.toString() +
+                ":" +
+                String(
+                    LN_BINARY_PORT));
+
+            if (
+                binaryConnectFailures >= 5
+            ) {
+              binaryConnectFailures =
+                  0;
+            }
+          }
+        }
       }
     } else {
       processLocoNetBinaryIncoming();
