@@ -32,6 +32,11 @@ import {
 } from "@/services/automationApi";
 
 import {
+  loadSandboxSource,
+  saveSandboxSource,
+} from "@/api/sandboxApi";
+
+import {
   getFunctionBindings,
   saveFunctionBindings,
 } from "@/api/domainApi";
@@ -64,6 +69,10 @@ export type DccExpressHubBackup = {
   functionBindings?: FunctionBinding[];
   locoCounters?: LocoCounterBackup;
   audio?: BinaryAssetBackup[];
+  sandboxScript?: {
+    path: "/scripts/sandbox.js";
+    source: string;
+  };
 };
 
 export type BackupOperationResult = {
@@ -582,6 +591,25 @@ export async function exportFullBackup(): Promise<BackupOperationResult> {
         );
       }
     })(),
+
+    (async () => {
+      try {
+        backup.sandboxScript = {
+          path:
+            "/scripts/sandbox.js",
+          source:
+            await loadSandboxSource(),
+        };
+
+        completed.push(
+          "JavaScript Sandbox script"
+        );
+      } catch (error) {
+        warnings.push(
+          `Sandbox script: ${errorMessage(error)}`
+        );
+      }
+    })(),
   ]);
 
   if (
@@ -774,6 +802,17 @@ export async function importFullBackup(
       ? parsed.audio as BinaryAssetBackup[]
       : null;
 
+  const sandboxScript =
+    isRecord(
+      parsed.sandboxScript
+    ) &&
+    parsed.sandboxScript.path ===
+      "/scripts/sandbox.js" &&
+    typeof parsed.sandboxScript.source ===
+      "string"
+      ? parsed.sandboxScript.source
+      : null;
+
   if (
     !hasLayout &&
     locos === null &&
@@ -783,7 +822,8 @@ export async function importFullBackup(
     automations === null &&
     functionBindings === null &&
     locoCounters === null &&
-    audio === null
+    audio === null &&
+    sandboxScript === null
   ) {
     throw new Error(
       i18next.t("ui.theFileContainsNoLayoutLocomotiveImageSignalLogicHal")
@@ -938,6 +978,24 @@ export async function importFullBackup(
     } catch (error) {
       warnings.push(
         `audio: ${errorMessage(error)}`
+      );
+    }
+  }
+
+  if (
+    sandboxScript !== null
+  ) {
+    try {
+      await saveSandboxSource(
+        sandboxScript
+      );
+
+      completed.push(
+        "JavaScript Sandbox script"
+      );
+    } catch (error) {
+      warnings.push(
+        `Sandbox script: ${errorMessage(error)}`
       );
     }
   }
