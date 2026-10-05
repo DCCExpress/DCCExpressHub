@@ -3471,7 +3471,7 @@ public sealed class MovementRuntime
             var diagnostic =
                 "movement_direction_unknown" +
                 $" planDirection={plan.Direction}" +
-                $" routeKeyLength={page.RouteKey?.Length ?? 0}";
+                $" routeRefDirection={page.RouteRef?.Direction ?? "missing"}";
 
             _log.LogError(
                 "Movement direction validation failed for {Movement}: {Diagnostic}",
