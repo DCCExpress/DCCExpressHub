@@ -401,7 +401,7 @@
   "lastSystemState": "Utolsó system-state frissítés",
   "feedback": "Visszajelzés",
   "z21FeedbackSource": "Z21 broadcast · R-BUS / detector",
-  "z21TelemetryBroadcastHint": "A Z21 rendszertelemetria broadcastból érkezik; a Hub nem kérdezi le másodpercenként.",
+  "z21TelemetryBroadcastHint": "A Z21 rendszertelemetria broadcastból érkezik.",
   "lbServer": "LBServer",
   "lbServerVersion": "LBServer / YaMoRC verzió",
   "lbServerUptime": "LBServer üzemidő",
