@@ -195,7 +195,10 @@ export type ProgrammingCommandAction =
   | "writeAddress"
   | "readCv"
   | "writeCv"
+  | "pomReadCv"
   | "pomWriteCv"
+  | "accessoryPomReadCv"
+  | "accessoryPomWriteCv"
   | "accessoryLearn";
 
 export type ProgrammingCommandPayload = {
