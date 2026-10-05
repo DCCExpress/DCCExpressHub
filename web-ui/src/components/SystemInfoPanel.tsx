@@ -54,6 +54,8 @@ type HubTelemetry = {
   largestFreeHeapBlockBytes?: number;
   psramSizeBytes?: number;
   freePsramBytes?: number;
+  minimumFreePsramBytes?: number;
+  largestFreePsramBlockBytes?: number;
   hostname?: string;
   wifiIp?: string;
   wifiRssiDbm?: number;
@@ -1017,15 +1019,33 @@ export default function SystemInfoPanel({
             />
 
             {(hub?.psramSizeBytes ?? 0) > 0 && (
-              <InfoRow
-                label={i18next.t("ui.psramFreeTotal")}
-                value={`${formatBytes(
-                  hub?.freePsramBytes,
-                )} / ${formatBytes(
-                  hub?.psramSizeBytes,
-                )}`}
-                color="indigo"
-              />
+              <>
+                <InfoRow
+                  label={i18next.t("ui.psramFreeTotal")}
+                  value={`${formatBytes(
+                    hub?.freePsramBytes,
+                  )} / ${formatBytes(
+                    hub?.psramSizeBytes,
+                  )}`}
+                  color="indigo"
+                />
+
+                <InfoRow
+                  label={i18next.t("ui.minimumFreePsram")}
+                  value={formatBytes(
+                    hub?.minimumFreePsramBytes,
+                  )}
+                  color="indigo"
+                />
+
+                <InfoRow
+                  label={i18next.t("ui.largestFreePsramBlock")}
+                  value={formatBytes(
+                    hub?.largestFreePsramBlockBytes,
+                  )}
+                  color="indigo"
+                />
+              </>
             )}
 
             <InfoRow
