@@ -2,6 +2,9 @@
 
 #include <Arduino.h>
 #include <WiFiUdp.h>
+#if defined(HUB_CC_YAMORC7010)
+#include <WiFiClient.h>
+#endif
 
 #include "ICommandCenter.h"
 
@@ -35,7 +38,11 @@ public:
   }
 
   const char* name() const override {
+#if defined(HUB_CC_YAMORC7010)
+    return "YD7010";
+#else
     return "Z21";
+#endif
   }
 
   void onRawInfo(
@@ -77,6 +84,12 @@ public:
   void onLocoFeedback(
       LocoFeedbackCallback callback) override {
     _locoFeedbackCallback =
+        std::move(callback);
+  }
+
+  void onSensorFeedback(
+      SensorFeedbackCallback callback) override {
+    _sensorFeedbackCallback =
         std::move(callback);
   }
 
@@ -126,6 +139,9 @@ public:
       bool logCommand = false) override;
 
   bool requestTripTelemetry(
+      bool logCommand = false) override;
+
+  bool requestSensorSnapshot(
       bool logCommand = false) override;
 
   void onProgrammingFeedback(
@@ -184,7 +200,12 @@ private:
       RESOLVE_RETRY_MS = 3000;
 
   static constexpr uint32_t
-      BROADCAST_FLAGS = 0x00000101UL;
+      BROADCAST_FLAGS =
+#if defined(HUB_CC_YAMORC7010)
+          0x00010101UL;
+#else
+          0x00000101UL;
+#endif
 
   static constexpr uint8_t
       MAX_PACKET_BYTES = 128;
@@ -247,6 +268,26 @@ private:
   ProgrammingFeedbackCallback
       _programmingFeedbackCallback;
 
+#if defined(HUB_CC_YAMORC7010)
+  static constexpr uint16_t
+      LB_SERVER_PORT = 1234;
+
+  static constexpr unsigned long
+      LB_RECONNECT_MS = 2000;
+
+  static constexpr unsigned long
+      LB_INTERROGATE_QUIET_MS = 1250;
+
+  WiFiClient _lbClient;
+  bool _lbConnected = false;
+  unsigned long _nextLbConnectAt = 0;
+  unsigned long _lastLbTrafficAt = 0;
+  unsigned long _lastLbInterrogateAt = 0;
+  uint8_t _lbInterrogatePhase = 0;
+  char _lbLine[256] = {};
+  size_t _lbLineLength = 0;
+#endif
+
   bool startUdp();
   bool resolveRemote();
 
@@ -267,6 +308,34 @@ private:
       bool logPacket = false);
 
   bool setBroadcastFlags();
+
+#if defined(HUB_CC_YAMORC7010)
+  void loopLbServer(
+      unsigned long now);
+
+  bool connectLbServer();
+
+  void disconnectLbServer();
+
+  void processLbServerIncoming();
+
+  void processLbServerLine(
+      const char* line);
+
+  void processLocoNetPacket(
+      const uint8_t* packet,
+      size_t length);
+
+  void processLocoNetInputReport(
+      const uint8_t* packet,
+      size_t length);
+
+  void startLocoNetInterrogate(
+      bool force);
+
+  void processLocoNetInterrogate(
+      unsigned long now);
+#endif
 
   bool sendCvDirect(
       bool write,
