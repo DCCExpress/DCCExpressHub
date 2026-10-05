@@ -7,10 +7,6 @@ import type {
   MovementSensorCondition,
 } from "../domain/movement";
 
-import {
-  createMovementRouteKey,
-} from "./movementRouteIdentity";
-
 type RawTurnoutState = {
   address: number;
   closed: boolean;
@@ -287,21 +283,16 @@ function checkpointIds(
   page:
     MovementPage
 ): number[] {
-  if (
-    page.fromBlockId ===
-      null ||
-    page.toBlockId ===
-      null
-  ) {
+  if (!page.routeRef) {
     throw new Error(
-      "Movement requires FROM and TO blocks."
+      "Movement requires a selected route."
     );
   }
 
   return [
-    page.fromBlockId,
-    ...page.viaBlockIds,
-    page.toBlockId,
+    page.routeRef.fromBlockId,
+    ...page.routeRef.viaBlockIds,
+    page.routeRef.toBlockId,
   ];
 }
 
@@ -406,53 +397,33 @@ function selectRoute(
   topology:
     RawRouteTopology
 ): RawRouteEntry {
+  const routeRef =
+    page.routeRef;
+
+  if (!routeRef) {
+    throw new Error(
+      "Movement requires a selected route."
+    );
+  }
+
   const routeTable =
     topology.routeTable ??
     [];
-
-  if (
-    page.routeKey.trim().length >
-      0
-  ) {
-    const exact =
-      routeTable.find(
-        route =>
-          createMovementRouteKey(
-            route
-          ) ===
-          page.routeKey
-      );
-
-    if (exact) {
-      return exact;
-    }
-
-    throw new Error(
-      "The selected Movement route no longer exists in the saved route topology. Select the route again."
-    );
-  }
 
   const checkpoints =
     checkpointIds(
       page
     );
 
-  const first =
-    checkpoints[0]!;
-
-  const last =
-    checkpoints[
-      checkpoints.length -
-      1
-    ]!;
-
   const candidates =
     routeTable.filter(
       route =>
         route.fromBlockId ===
-          first &&
+          routeRef.fromBlockId &&
         route.toBlockId ===
-          last &&
+          routeRef.toBlockId &&
+        route.locoDirection ===
+          routeRef.direction &&
         containsCheckpointsInOrder(
           route,
           checkpoints
@@ -464,7 +435,7 @@ function selectRoute(
     0
   ) {
     throw new Error(
-      "Movement route not found for the selected FROM / VIA / TO blocks."
+      "The selected Movement route no longer exists in the saved route topology."
     );
   }
 
@@ -473,7 +444,7 @@ function selectRoute(
     1
   ) {
     throw new Error(
-      "Movement route is ambiguous. Select an exact generated route in the Movement editor."
+      "Movement route is ambiguous for the saved route reference."
     );
   }
 
