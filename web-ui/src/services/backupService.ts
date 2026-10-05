@@ -4,6 +4,7 @@ import {
 } from "@mantine/notifications";
 
 import type {
+  FunctionBinding,
   Loco,
   SignalLogicDocumentDto,
 } from "@domain/types";
@@ -30,9 +31,29 @@ import {
   type AutomationStoragePayload,
 } from "@/services/automationApi";
 
+import {
+  getFunctionBindings,
+  saveFunctionBindings,
+} from "@/api/domainApi";
+
+export type BinaryAssetBackup = {
+  name: string;
+  contentType: string;
+  dataBase64: string;
+};
+
+export type LocoCounterBackup = {
+  version?: number;
+  items: Array<{
+    address: number;
+    totalKm: number;
+    totalHours: number;
+  }>;
+};
+
 export type DccExpressHubBackup = {
   format: "dcc-express-lite-backup";
-  version: 3;
+  version: 4;
   exportedAt: string;
   layout?: unknown;
   locos?: Loco[];
@@ -40,6 +61,9 @@ export type DccExpressHubBackup = {
   signalLogic?: SignalLogicDocumentDto;
   devices?: DeviceConfigurationDocument;
   automations?: AutomationStoragePayload;
+  functionBindings?: FunctionBinding[];
+  locoCounters?: LocoCounterBackup;
+  audio?: BinaryAssetBackup[];
 };
 
 export type BackupOperationResult = {
@@ -63,6 +87,216 @@ function isRecord(
     value !== null &&
     !Array.isArray(value)
   );
+}
+
+
+function blobToBase64(
+  blob: Blob
+): Promise<string> {
+  return new Promise(
+    (resolve, reject) => {
+      const reader =
+        new FileReader();
+
+      reader.onload = () => {
+        const result =
+          String(
+            reader.result ||
+            ""
+          );
+
+        resolve(
+          result.slice(
+            result.indexOf(",") +
+              1
+          )
+        );
+      };
+
+      reader.onerror = () =>
+        reject(
+          reader.error ||
+            new Error(
+              "Backup asset could not be encoded."
+            )
+        );
+
+      reader.readAsDataURL(
+        blob
+      );
+    }
+  );
+}
+
+function base64ToFile(
+  asset: BinaryAssetBackup
+): File {
+  const binary =
+    atob(
+      asset.dataBase64
+    );
+
+  const bytes =
+    new Uint8Array(
+      binary.length
+    );
+
+  for (
+    let index = 0;
+    index < binary.length;
+    index += 1
+  ) {
+    bytes[index] =
+      binary.charCodeAt(
+        index
+      );
+  }
+
+  return new File(
+    [bytes],
+    asset.name,
+    {
+      type:
+        asset.contentType ||
+        "application/octet-stream",
+    }
+  );
+}
+
+async function exportStorageDirectory(
+  directory: string
+): Promise<BinaryAssetBackup[]> {
+  const listResponse =
+    await fetch(
+      `/list?path=${encodeURIComponent(
+        directory
+      )}`,
+      {
+        cache: "no-store",
+      }
+    );
+
+  if (!listResponse.ok) {
+    throw new Error(
+      `${directory}: HTTP ${listResponse.status}`
+    );
+  }
+
+  const payload =
+    await listResponse.json() as
+      | Array<{
+          name: string;
+          path?: string;
+          type?: string;
+        }>
+      | {
+          entries?: Array<{
+            name: string;
+            path?: string;
+            type?: string;
+          }>;
+        };
+
+  const entries =
+    Array.isArray(payload)
+      ? payload
+      : payload.entries;
+
+  if (!Array.isArray(entries)) {
+    throw new Error(
+      `${directory}: invalid directory listing`
+    );
+  }
+
+  const files =
+    entries.filter(
+      item =>
+        item.type !==
+        "directory"
+    );
+
+  return Promise.all(
+    files.map(
+      async item => {
+        const path =
+          item.path ||
+          `${directory.replace(
+            /\/$/,
+            ""
+          )}/${item.name}`;
+
+        const response =
+          await fetch(
+            `/api/storage/file?path=${encodeURIComponent(
+              path
+            )}`,
+            {
+              cache:
+                "no-store",
+            }
+          );
+
+        if (!response.ok) {
+          throw new Error(
+            `${path}: HTTP ${response.status}`
+          );
+        }
+
+        const blob =
+          await response.blob();
+
+        return {
+          name:
+            item.name,
+          contentType:
+            blob.type ||
+            "application/octet-stream",
+          dataBase64:
+            await blobToBase64(
+              blob
+            ),
+        };
+      }
+    )
+  );
+}
+
+async function importStorageDirectory(
+  directory: string,
+  files: BinaryAssetBackup[]
+): Promise<void> {
+  for (const asset of files) {
+    const formData =
+      new FormData();
+
+    const file =
+      base64ToFile(
+        asset
+      );
+
+    formData.append(
+      "file",
+      file,
+      file.name
+    );
+
+    const response =
+      await fetch(
+        `/upload?path=${encodeURIComponent(
+          directory
+        )}`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+    if (!response.ok) {
+      throw new Error(
+        `${directory}/${file.name}: HTTP ${response.status}`
+      );
+    }
+  }
 }
 
 async function fetchJson(
@@ -137,7 +371,7 @@ export async function exportFullBackup(): Promise<BackupOperationResult> {
     DccExpressHubBackup = {
       format:
         "dcc-express-lite-backup",
-      version: 3,
+      version: 4,
       exportedAt:
         new Date().toISOString(),
     };
@@ -276,6 +510,75 @@ export async function exportFullBackup(): Promise<BackupOperationResult> {
       } catch (error) {
         warnings.push(
           `automations: ${errorMessage(error)}`
+        );
+      }
+    })(),
+
+    (async () => {
+      try {
+        const bindings =
+          await getFunctionBindings();
+
+        backup.functionBindings =
+          bindings;
+
+        completed.push(
+          `${bindings.length} function bindings`
+        );
+      } catch (error) {
+        warnings.push(
+          `function bindings: ${errorMessage(error)}`
+        );
+      }
+    })(),
+
+    (async () => {
+      try {
+        const counters =
+          await fetchJson(
+            "/api/loco-counters"
+          );
+
+        if (
+          !isRecord(counters) ||
+          !Array.isArray(
+            counters.items
+          )
+        ) {
+          throw new Error(
+            i18next.t("ui.invalidResponse")
+          );
+        }
+
+        backup.locoCounters =
+          counters as unknown as LocoCounterBackup;
+
+        completed.push(
+          `${backup.locoCounters.items.length} loco counters`
+        );
+      } catch (error) {
+        warnings.push(
+          `loco counters: ${errorMessage(error)}`
+        );
+      }
+    })(),
+
+    (async () => {
+      try {
+        const audio =
+          await exportStorageDirectory(
+            "/sd/audio"
+          );
+
+        backup.audio =
+          audio;
+
+        completed.push(
+          `${audio.length} audio files`
+        );
+      } catch (error) {
+        warnings.push(
+          `audio: ${errorMessage(error)}`
         );
       }
     })(),
@@ -447,13 +750,40 @@ export async function importFullBackup(
       ? parsed.automations as unknown as AutomationStoragePayload
       : null;
 
+  const functionBindings =
+    Array.isArray(
+      parsed.functionBindings
+    )
+      ? parsed.functionBindings as FunctionBinding[]
+      : null;
+
+  const locoCounters =
+    isRecord(
+      parsed.locoCounters
+    ) &&
+    Array.isArray(
+      parsed.locoCounters.items
+    )
+      ? parsed.locoCounters as unknown as LocoCounterBackup
+      : null;
+
+  const audio =
+    Array.isArray(
+      parsed.audio
+    )
+      ? parsed.audio as BinaryAssetBackup[]
+      : null;
+
   if (
     !hasLayout &&
     locos === null &&
     images === null &&
     signalLogic === null &&
     devices === null &&
-    automations === null
+    automations === null &&
+    functionBindings === null &&
+    locoCounters === null &&
+    audio === null
   ) {
     throw new Error(
       i18next.t("ui.theFileContainsNoLayoutLocomotiveImageSignalLogicHal")
@@ -556,6 +886,62 @@ export async function importFullBackup(
     }
   }
 
+  if (
+    functionBindings !== null
+  ) {
+    try {
+      await saveFunctionBindings(
+        functionBindings
+      );
+
+      completed.push(
+        `${functionBindings.length} function bindings`
+      );
+    } catch (error) {
+      warnings.push(
+        `function bindings: ${errorMessage(error)}`
+      );
+    }
+  }
+
+  if (
+    locoCounters !== null
+  ) {
+    try {
+      await postJson(
+        "/api/loco-counters",
+        locoCounters
+      );
+
+      completed.push(
+        `${locoCounters.items.length} loco counters`
+      );
+    } catch (error) {
+      warnings.push(
+        `loco counters: ${errorMessage(error)}`
+      );
+    }
+  }
+
+  if (
+    audio !== null
+  ) {
+    try {
+      await importStorageDirectory(
+        "/sd/audio",
+        audio
+      );
+
+      completed.push(
+        `${audio.length} audio files`
+      );
+    } catch (error) {
+      warnings.push(
+        `audio: ${errorMessage(error)}`
+      );
+    }
+  }
+
   // Device configuration stays last because future firmware may
   // restart immediately after applying it.
   if (
@@ -606,7 +992,9 @@ export async function importFullBackup(
   if (
     hasLayout ||
     locos !== null ||
-    automations !== null
+    automations !== null ||
+    functionBindings !== null ||
+    locoCounters !== null
   ) {
     window.setTimeout(
       () =>
