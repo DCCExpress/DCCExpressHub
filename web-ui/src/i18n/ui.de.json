@@ -809,7 +809,6 @@
   "configurationVariable": "Konfigurationsvariable",
   "readOrWriteOneCvAtATime": "Eine CV auf einmal lesen oder schreiben",
   "connectToTheCommandCenterBeforeSendingProgrammingCommands": "Vor dem Senden von Programmierbefehlen mit der Zentrale verbinden.",
-  "z21AddressHelperInfo": "Die Lokadresse wird aus den standardmäßigen DCC-Adress-CVs (CV1, CV17, CV18 und CV29) gelesen bzw. geschrieben.",
   "z21ProgrammingSubtitle": "Native Z21-/YaMoRC-Decoderprogrammierung",
   "programmingTrack": "Programmiergleis",
   "locoPom": "Lok-POM",
