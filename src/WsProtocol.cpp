@@ -1108,6 +1108,21 @@ void WsProtocol::appendHubStatus(
     hub["largestFreeHeapBlockBytes"] =
         ESP.getMaxAllocHeap();
 
+    hub["internalFreeHeapBytes"] =
+        heap_caps_get_free_size(
+            MALLOC_CAP_INTERNAL |
+            MALLOC_CAP_8BIT);
+
+    hub["minimumInternalFreeHeapBytes"] =
+        heap_caps_get_minimum_free_size(
+            MALLOC_CAP_INTERNAL |
+            MALLOC_CAP_8BIT);
+
+    hub["largestInternalFreeHeapBlockBytes"] =
+        heap_caps_get_largest_free_block(
+            MALLOC_CAP_INTERNAL |
+            MALLOC_CAP_8BIT);
+
     hub["psramSizeBytes"] =
         ESP.getPsramSize();
 
