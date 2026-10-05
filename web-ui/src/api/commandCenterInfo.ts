@@ -28,10 +28,6 @@ export type CommandCenterInfo = {
   message?: string;
 };
 
-let cachedInfo:
-  CommandCenterInfo | null =
-    null;
-
 let pending:
   Promise<CommandCenterInfo> | null =
     null;
@@ -39,13 +35,9 @@ let pending:
 export async function getCommandCenterInfo(
   force = false,
 ): Promise<CommandCenterInfo> {
-  if (
-    !force &&
-    cachedInfo
-  ) {
-    return cachedInfo;
-  }
-
+  // This payload contains live connection state. Never return a cached
+  // connected=false/true value after the command station state has changed.
+  // Keep only in-flight request coalescing for callers mounting together.
   if (
     !force &&
     pending
@@ -84,9 +76,6 @@ export async function getCommandCenterInfo(
             "Invalid command-center capability response.",
         );
       }
-
-      cachedInfo =
-        info;
 
       return info;
     })();
