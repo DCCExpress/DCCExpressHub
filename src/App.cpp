@@ -32,43 +32,6 @@ void sendWsJson(
 
 }  // namespace
 
-void App::publishSensorChanged(
-    uint16_t address,
-    bool on) {
-  if (address == 0) {
-    return;
-  }
-
-  _runtime.setSensor(
-      address,
-      on);
-
-  JsonDocument message;
-  message["type"] =
-      "sensorChanged";
-
-  JsonObject data =
-      message["data"]
-          .to<JsonObject>();
-
-  data["address"] =
-      address;
-
-  data["on"] =
-      on;
-
-  sendWsJson(
-      _ws,
-      message);
-
-  Logger::info(
-      "Sensor runtime: address=" +
-      String(address) +
-      " on=" +
-      String(on ? "true" : "false"));
-}
-
-
 void App::loadConfiguration() {
   _config.begin();
 
@@ -252,16 +215,6 @@ void App::begin() {
       _runtime);
 
   _stateStore.load();
-
-  // Every physical sensor source ends up in the same runtime state.
-  _commandCenter.onSensorFeedback(
-      [this](
-          const CommandCenterSensorFeedback& feedback) {
-        publishSensorChanged(
-            feedback.address,
-            feedback.on);
-      });
-
 
   connectWifi();
 
