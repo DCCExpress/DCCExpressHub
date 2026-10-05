@@ -59,8 +59,11 @@ public:
 
   bool feedbackLinkConnected() const override {
 #if defined(HUB_CC_YAMORC7010)
-    // LBServer/1234 is the authoritative YaMoRC sensor link.
-    return _lbConnected;
+    // YaMoRC feedback is healthy when either the preferred LBServer/1234
+    // transport or the LocoNet Binary/5560 fallback is connected.
+    return
+        _lbConnected ||
+        _lnBinaryConnected;
 #else
     return false;
 #endif
