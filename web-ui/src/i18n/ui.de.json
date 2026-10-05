@@ -817,7 +817,6 @@
   "z21PomRailComInfo": "Für POM-Lesen muss RailCom in der Zentrale aktiviert sein und vom Decoder unterstützt/aktiviert werden.",
   "z21PomWriteNoFeedback": "Z21-POM-Schreibbefehle haben im LAN-Protokoll keine Decoderbestätigung. Erfolg bedeutet, dass der Befehl gesendet wurde.",
   "accessoryDecoderAddress": "Zubehördecoder-Adresse",
-  "z21AccessoryAddressInfo": "Verwende die sichtbare Decoderadresse 1–512. Der Hub wandelt sie intern in die Z21-LAN-Decoderadresse um.",
   "pomMainTrack": "POM / Hauptgleis",
   "pomCanWriteButNormallyCannotConfirmTheResultNever": "POM kann schreiben, das Ergebnis aber normalerweise nicht bestätigen. Ändere eine Lokadresse niemals mit POM.",
   "value": "Wert",
