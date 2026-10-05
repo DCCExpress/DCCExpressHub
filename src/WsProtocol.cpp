@@ -861,6 +861,50 @@ void WsProtocol::sendCommandCenterInfo(
         data.as<JsonVariantConst>());
 }
 
+void WsProtocol::broadcastCommandCenterInfo()
+{
+    JsonDocument data;
+
+    data["alive"] =
+        _commandCenter.connected();
+
+    data["power"] =
+        _trackPower;
+
+    data["type"] =
+        _commandCenter.type();
+
+    data["name"] =
+        _commandCenter.name();
+
+    data["transport"] =
+        CommandCenterBuild::isDccEx()
+            ? "tcp"
+            : "udp";
+
+    data["serialPort"] =
+        "";
+
+    data["baudRate"] =
+        0;
+
+    data["ip"] =
+        _commandCenter.host();
+
+    data["port"] =
+        _commandCenter.port();
+
+    data["connectionString"] =
+        _commandCenter.host() +
+        ":" +
+        String(
+            _commandCenter.port());
+
+    broadcast(
+        "commandCenterInfo",
+        data);
+}
+
 void WsProtocol::sendPowerInfo(
     AsyncWebSocketClient *client)
 {
@@ -1827,6 +1871,12 @@ void WsProtocol::handleCommandCenterConnectionState(
                 false;
         }
 
+        if (_wsClientCount > 0)
+        {
+            broadcastCommandCenterInfo();
+            broadcastDccExStatus();
+        }
+
         return;
     }
 
@@ -1850,6 +1900,12 @@ void WsProtocol::handleCommandCenterConnectionState(
 
     beginConfiguredLocoStateSync(
         now);
+
+    if (_wsClientCount > 0)
+    {
+        broadcastCommandCenterInfo();
+        broadcastDccExStatus();
+    }
 }
 
 void WsProtocol::pollDccExTelemetry(
