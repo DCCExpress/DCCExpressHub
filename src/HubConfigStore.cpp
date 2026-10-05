@@ -1,6 +1,8 @@
 #include "HubConfigStore.h"
 
+#if __has_include("config.h")
 #include "config.h"
+#endif
 
 #ifndef DEFAULT_HUB_HTTP_PORT
 #define DEFAULT_HUB_HTTP_PORT 80
