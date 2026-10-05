@@ -373,7 +373,7 @@ public sealed class CommandCenterConfigStore
                     isZ21
                         ? _configuration.GetValue(
                             "Z21:Port",
-                            Z21CommandCenter.DefaultPort)
+                            RocoZ21CommandCenter.DefaultPort)
                         : _configuration.GetValue(
                             "DccEx:Port",
                             2560),
@@ -474,7 +474,7 @@ public sealed class CommandCenterConfigStore
         {
             tcpPort =
                 isZ21
-                    ? Z21CommandCenter.DefaultPort
+                    ? RocoZ21CommandCenter.DefaultPort
                     : 2560;
         }
 
