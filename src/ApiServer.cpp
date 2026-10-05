@@ -381,12 +381,10 @@ void ApiServer::handleLayoutBody(
         "Layout saved, but signal automation reload failed");
   }
 
-  _locoCounters.requestSave();
-
   Logger::info(
       "Layout saved: " +
       String(total) +
-      " bytes; loco counters=checkpoint-queued; runtime " +
+      " bytes; runtime " +
       String(_runtime.accessoryCount()) +
       " accessories / " +
       String(_runtime.sensorCount()) +
