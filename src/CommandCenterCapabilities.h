@@ -12,6 +12,38 @@ inline bool programmingTrackPower() {
 #endif
 }
 
+inline bool serviceModeProgramming() {
+  return true;
+}
+
+inline bool pomProgramming() {
+  return true;
+}
+
+inline bool pomRead() {
+#if defined(HUB_CC_Z21)
+  return true;
+#else
+  return false;
+#endif
+}
+
+inline bool accessoryPomProgramming() {
+#if defined(HUB_CC_Z21)
+  return true;
+#else
+  return false;
+#endif
+}
+
+inline bool accessoryPomRead() {
+#if defined(HUB_CC_Z21)
+  return true;
+#else
+  return false;
+#endif
+}
+
 inline bool rawCommand() {
 #if defined(HUB_CC_DCCEX)
   return true;
