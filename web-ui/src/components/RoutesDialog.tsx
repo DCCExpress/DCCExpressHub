@@ -42,10 +42,6 @@ import {
 } from "@/services/clientRouteGraphCache";
 
 import {
-  createMovementRouteKey,
-} from "@/services/movementRouteIdentity";
-
-import {
   createMovementPage,
   type MovementDocument,
   type MovementPage,
@@ -133,58 +129,6 @@ function previewMovementPage(
         }
       );
 
-  const routeKey =
-    createMovementRouteKey({
-      fromBlockId:
-        Number(
-          route.fromBlock.id
-        ),
-      toBlockId:
-        Number(
-          route.toBlock.id
-        ),
-      blockPath,
-      nodes:
-        route.solution.nodes.map(
-          node =>
-            node.name
-        ),
-      edgePath:
-        route.solution.edges.map(
-          edge => ({
-            from:
-              edge.from.name,
-            to:
-              edge.to.name,
-            locoDirection:
-              edge.locoDirection,
-            turnoutStates:
-              edge.turnoutStates.map(
-                state => ({
-                  ...state,
-                })
-              ),
-            turnoutPath:
-              edge.turnoutPath.map(
-                passage => ({
-                  elementId:
-                    Number(
-                      passage.elementId
-                    ),
-                  turnoutStates:
-                    passage.turnoutStates.map(
-                      state => ({
-                        ...state,
-                      })
-                    ),
-                })
-              ),
-          })
-        ),
-      locoDirection:
-        route.solution.locoDirection,
-    });
-
   return {
     id:
       "route-preview",
@@ -200,27 +144,36 @@ function previewMovementPage(
       null,
     stoppedAt:
       null,
-    routeKey,
-    fromBlockId:
-      Number(
-        route.fromBlock.id
-      ),
-    viaBlockIds:
-      blockPath
-        .slice(
-          1,
-          -1
-        )
-        .map(
-          block =>
-            Number(
-              block.id
-            )
-        ),
-    toBlockId:
-      Number(
-        route.toBlock.id
-      ),
+    routeRef:
+      route.solution.locoDirection ===
+        "forward" ||
+      route.solution.locoDirection ===
+        "reverse"
+        ? {
+            fromBlockId:
+              Number(
+                route.fromBlock.id
+              ),
+            toBlockId:
+              Number(
+                route.toBlock.id
+              ),
+            direction:
+              route.solution.locoDirection,
+            viaBlockIds:
+              blockPath
+                .slice(
+                  1,
+                  -1
+                )
+                .map(
+                  block =>
+                    Number(
+                      block.id
+                    )
+                ),
+          }
+        : null,
     blockRules: [],
     resourceEventRules: [],
     safetyRules: [],
@@ -532,9 +485,7 @@ export default function RoutesDialog({
       );
 
       setExactRouteFilter(
-        editingPage?.routeKey?.trim()
-          ? editingPage.routeKey
-          : null
+        null
       );
 
       setSelectFromFilter(
@@ -585,38 +536,36 @@ export default function RoutesDialog({
               if (
                 editingPage
               ) {
+                const routeRef =
+                  editingPage.routeRef;
+
                 const current =
-                  (
-                    editingPage.routeKey.trim()
-                      ? loaded.find(
-                          candidate =>
-                            candidate.key ===
-                            editingPage.routeKey
-                        )
-                      : null
-                  ) ??
-                  loaded.find(
-                    candidate =>
-                      candidate.fromBlockId ===
-                        editingPage.fromBlockId &&
-                      candidate.toBlockId ===
-                        editingPage.toBlockId &&
-                      candidate.blockPath
-                        .slice(
-                          1,
-                          -1
-                        )
-                        .map(
-                          block =>
-                            block.id
-                        )
-                        .join(
-                          ","
-                        ) ===
-                        editingPage.viaBlockIds.join(
-                          ","
-                        )
-                  );
+                  routeRef
+                    ? loaded.find(
+                        candidate =>
+                          candidate.fromBlockId ===
+                            routeRef.fromBlockId &&
+                          candidate.toBlockId ===
+                            routeRef.toBlockId &&
+                          candidate.locoDirection ===
+                            routeRef.direction &&
+                          candidate.blockPath
+                            .slice(
+                              1,
+                              -1
+                            )
+                            .map(
+                              block =>
+                                block.id
+                            )
+                            .join(
+                              ","
+                            ) ===
+                            routeRef.viaBlockIds.join(
+                              ","
+                            )
+                      )
+                    : null;
 
                 if (current) {
                   setSelectFromFilter(
@@ -639,9 +588,9 @@ export default function RoutesDialog({
                     loaded.find(
                       candidate =>
                         candidate.fromBlockId ===
-                          editingPage.fromBlockId &&
+                          editingPage.routeRef?.fromBlockId &&
                         candidate.toBlockId ===
-                          editingPage.toBlockId
+                          editingPage.routeRef?.toBlockId
                     );
 
                   if (sameEndpoints) {
