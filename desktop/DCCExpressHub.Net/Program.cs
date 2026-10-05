@@ -416,7 +416,7 @@ app.MapGet("/api/command-center-info", (ICommandCenter cc, CommandCenterConfigSt
         transport = x.Transport,
         defaultPort =
             x.IsZ21
-                ? Z21CommandCenter.DefaultPort
+                ? RocoZ21CommandCenter.DefaultPort
                 : 2560,
         defaultBaudRate = CommandCenterSettings.DccExSerialBaudRate,
         connected = cc.Connected,
