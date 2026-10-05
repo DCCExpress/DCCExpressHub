@@ -725,14 +725,30 @@ void WsProtocol::send(
         estimated);
 
     body +=
-        "{\"type\":";
+        "{\"type\":\"";
 
-    serializeJson(
-        type,
-        body);
+    for (
+        const char* cursor = type;
+        cursor && *cursor;
+        ++cursor)
+    {
+        const char ch =
+            *cursor;
+
+        if (
+            ch == '\\' ||
+            ch == '"')
+        {
+            body +=
+                '\\';
+        }
+
+        body +=
+            ch;
+    }
 
     body +=
-        ",\"data\":";
+        "\",\"data\":";
 
     serializeJson(
         data,
@@ -763,14 +779,30 @@ void WsProtocol::broadcast(
         estimated);
 
     body +=
-        "{\"type\":";
+        "{\"type\":\"";
 
-    serializeJson(
-        type,
-        body);
+    for (
+        const char* cursor = type;
+        cursor && *cursor;
+        ++cursor)
+    {
+        const char ch =
+            *cursor;
+
+        if (
+            ch == '\\' ||
+            ch == '"')
+        {
+            body +=
+                '\\';
+        }
+
+        body +=
+            ch;
+    }
 
     body +=
-        ",\"data\":";
+        "\",\"data\":";
 
     serializeJson(
         payload,
