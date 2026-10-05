@@ -33,6 +33,7 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
     private const int OnlineTimeoutMs = 45_000;
     private const int AccessoryPulseMs = 120;
     private const int AccessorySettleMs = 50;
+    private const int TurnoutActivateRepeatCount = 2;
     private const int TurnoutFeedbackTimeoutMs = 750;
     private const int LocoNetInterrogateRestMs = 1250;
 
@@ -1327,10 +1328,11 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
             address - 1;
 
         _log.LogInformation(
-            "Z21 turnout #{Address}: physical={PhysicalValue}, functionAddress={FunctionAddress}, Q=1",
+            "Z21 turnout #{Address}: physical={PhysicalValue}, functionAddress={FunctionAddress}, Q=1, activateRepeat={RepeatCount}",
             address,
             position,
-            functionAddress);
+            functionAddress,
+            TurnoutActivateRepeatCount);
 
         await _accessoryGate.WaitAsync(
             ct);
@@ -1350,16 +1352,28 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
 
         try
         {
-            if (!await SendAccessoryPulseAsync(
-                    functionAddress,
-                    position,
-                    activate: true,
-                    ct: ct))
+            for (
+                var repeat = 0;
+                repeat < TurnoutActivateRepeatCount;
+                ++repeat)
             {
-                return false;
-            }
+                if (!await SendAccessoryPulseAsync(
+                        functionAddress,
+                        position,
+                        activate: true,
+                        ct: ct))
+                {
+                    return false;
+                }
 
-            activated = true;
+                activated = true;
+
+                _log.LogInformation(
+                    "Z21 turnout #{Address}: queued activate {Repeat}/{RepeatCount}",
+                    address,
+                    repeat + 1,
+                    TurnoutActivateRepeatCount);
+            }
 
             // Q=1 delegates turnout switching order to the Z21/YaMoRC
             // internal accessory FIFO. We still keep a hard pulse ceiling and
