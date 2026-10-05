@@ -3064,8 +3064,6 @@ bool WsProtocol::switchManOwnerRevoked(
             _switchManRevokedOwnerTokens.end(),
             ownerToken) !=
         _switchManRevokedOwnerTokens.end();
-
-    return false;
 }
 
 bool WsProtocol::switchManOwns(
