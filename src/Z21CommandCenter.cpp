@@ -71,7 +71,9 @@ void Z21CommandCenter::setEndpoint(
 
 #if defined(HUB_CC_YAMORC7010)
   disconnectLbServer();
+  disconnectLocoNetBinary();
   _nextLbConnectAt = 0;
+  _nextLnBinaryConnectAt = 0;
   _lastLbTrafficAt = 0;
   _lastLbInterrogateAt = 0;
   _lbInterrogatePhase = 0;
@@ -258,6 +260,9 @@ void Z21CommandCenter::loop() {
 
 #if defined(HUB_CC_YAMORC7010)
   loopLbServer(
+      now);
+
+  loopLocoNetBinary(
       now);
 #endif
 
@@ -1245,8 +1250,10 @@ void Z21CommandCenter::disconnectLbServer() {
   _lbLineLength =
       0;
 
-  _lbInterrogatePhase =
-      0;
+  if (!_lnBinaryConnected) {
+    _lbInterrogatePhase =
+        0;
+  }
 }
 
 void Z21CommandCenter::loopLbServer(
@@ -1273,6 +1280,306 @@ void Z21CommandCenter::loopLbServer(
 
   processLocoNetInterrogate(
       now);
+}
+
+bool Z21CommandCenter::connectLocoNetBinary() {
+  if (
+      _lnBinaryConnected &&
+      _lnBinaryClient.connected()
+  ) {
+    return true;
+  }
+
+  disconnectLocoNetBinary();
+
+  if (
+      WiFi.status() !=
+          WL_CONNECTED ||
+      !resolveRemote()
+  ) {
+    return false;
+  }
+
+  const unsigned long now =
+      millis();
+
+  if (
+      _nextLnBinaryConnectAt != 0 &&
+      static_cast<long>(
+          now -
+          _nextLnBinaryConnectAt) < 0
+  ) {
+    return false;
+  }
+
+  _nextLnBinaryConnectAt =
+      now +
+      LB_RECONNECT_MS;
+
+  if (
+      !_lnBinaryClient.connect(
+          _remoteIp,
+          LN_BINARY_PORT)
+  ) {
+    return false;
+  }
+
+  _lnBinaryClient.setNoDelay(
+      true);
+
+  _lnBinaryConnected =
+      true;
+
+  _lnBinaryPacketLength =
+      0;
+
+  _lnBinaryExpectedLength =
+      0;
+
+  Logger::info(
+      "YD7010 LocoNet Binary connected " +
+      _remoteIp.toString() +
+      ":" +
+      String(
+          LN_BINARY_PORT));
+
+  if (_rawInfoCallback) {
+    _rawInfoCallback(
+        "YD7010 LocoNet Binary connected");
+  }
+
+  if (!_lbConnected) {
+    startLocoNetInterrogate(
+        true);
+  }
+
+  return true;
+}
+
+void Z21CommandCenter::disconnectLocoNetBinary() {
+  if (_lnBinaryClient) {
+    _lnBinaryClient.stop();
+  }
+
+  if (_lnBinaryConnected) {
+    Logger::warn(
+        "YD7010 LocoNet Binary disconnected");
+  }
+
+  _lnBinaryConnected =
+      false;
+
+  _lnBinaryPacketLength =
+      0;
+
+  _lnBinaryExpectedLength =
+      0;
+
+  if (!_lbConnected) {
+    _lbInterrogatePhase =
+        0;
+  }
+}
+
+void Z21CommandCenter::loopLocoNetBinary(
+    unsigned long now) {
+  if (
+      !_lnBinaryConnected ||
+      !_lnBinaryClient.connected()
+  ) {
+    connectLocoNetBinary();
+    return;
+  }
+
+  processLocoNetBinaryIncoming();
+
+  if (!_lnBinaryClient.connected()) {
+    disconnectLocoNetBinary();
+
+    _nextLnBinaryConnectAt =
+        now +
+        LB_RECONNECT_MS;
+  }
+}
+
+size_t Z21CommandCenter::locoNetMessageLength(
+    const uint8_t* packet,
+    size_t packetLength) {
+  if (
+      !packet ||
+      packetLength == 0
+  ) {
+    return 0;
+  }
+
+  const uint8_t opcode =
+      packet[0];
+
+  if (
+      (opcode &
+       0x60) ==
+      0x60
+  ) {
+    if (
+        packetLength <
+        2
+    ) {
+      return 0;
+    }
+
+    return
+        packet[1];
+  }
+
+  return
+      static_cast<size_t>(
+          (
+              (opcode &
+               0x60) >>
+              4
+          ) +
+          2);
+}
+
+void Z21CommandCenter::processLocoNetBinaryIncoming() {
+  while (
+      _lnBinaryClient.connected() &&
+      _lnBinaryClient.available() >
+          0
+  ) {
+    const int readValue =
+        _lnBinaryClient.read();
+
+    if (readValue < 0) {
+      break;
+    }
+
+    const uint8_t value =
+        static_cast<uint8_t>(
+            readValue);
+
+    if (
+        (value &
+         0x80) != 0
+    ) {
+      _lnBinaryPacket[0] =
+          value;
+
+      _lnBinaryPacketLength =
+          1;
+
+      _lnBinaryExpectedLength =
+          locoNetMessageLength(
+              _lnBinaryPacket,
+              _lnBinaryPacketLength);
+
+      continue;
+    }
+
+    if (
+        _lnBinaryPacketLength ==
+        0
+    ) {
+      continue;
+    }
+
+    if (
+        _lnBinaryPacketLength >=
+        sizeof(
+            _lnBinaryPacket)
+    ) {
+      _lnBinaryPacketLength =
+          0;
+
+      _lnBinaryExpectedLength =
+          0;
+
+      continue;
+    }
+
+    _lnBinaryPacket[
+        _lnBinaryPacketLength++] =
+        value;
+
+    _lnBinaryExpectedLength =
+        locoNetMessageLength(
+            _lnBinaryPacket,
+            _lnBinaryPacketLength);
+
+    if (
+        _lnBinaryExpectedLength ==
+            0 ||
+        _lnBinaryPacketLength <
+            _lnBinaryExpectedLength
+    ) {
+      continue;
+    }
+
+    if (
+        _lnBinaryExpectedLength >
+            sizeof(
+                _lnBinaryPacket) ||
+        _lnBinaryPacketLength !=
+            _lnBinaryExpectedLength
+    ) {
+      _lnBinaryPacketLength =
+          0;
+
+      _lnBinaryExpectedLength =
+          0;
+
+      continue;
+    }
+
+    ++_lnBinaryPacketsObserved;
+
+    if (
+        _lnBinaryPacketsObserved <=
+            12 &&
+        _rawInfoCallback
+    ) {
+      String raw =
+          "YD7010 BIN RX";
+
+      for (
+          size_t index = 0;
+          index <
+              _lnBinaryPacketLength;
+          ++index
+      ) {
+        raw +=
+            " ";
+
+        if (
+            _lnBinaryPacket[index] <
+            0x10
+        ) {
+          raw +=
+              "0";
+        }
+
+        raw +=
+            String(
+                _lnBinaryPacket[index],
+                HEX);
+      }
+
+      raw.toUpperCase();
+
+      _rawInfoCallback(
+          raw);
+    }
+
+    processLocoNetPacket(
+        _lnBinaryPacket,
+        _lnBinaryPacketLength);
+
+    _lnBinaryPacketLength =
+        0;
+
+    _lnBinaryExpectedLength =
+        0;
+  }
 }
 
 void Z21CommandCenter::processLbServerIncoming() {
@@ -1657,12 +1964,23 @@ void Z21CommandCenter::startLocoNetInterrogate(
 
 void Z21CommandCenter::processLocoNetInterrogate(
     unsigned long now) {
+  const bool lbReady =
+      _lbConnected &&
+      _lbClient.connected();
+
+  const bool binaryReady =
+      _lnBinaryConnected &&
+      _lnBinaryClient.connected();
+
   if (
       _lbInterrogatePhase <
           1 ||
       _lbInterrogatePhase >
           8 ||
-      !_lbClient.connected()
+      (
+          !lbReady &&
+          !binaryReady
+      )
   ) {
     return;
   }
@@ -1700,44 +2018,67 @@ void Z21CommandCenter::processLocoNetInterrogate(
           _lbInterrogatePhase -
           1);
 
-  const uint8_t opcode =
-      0xB0;
-
-  const uint8_t checksum =
-      static_cast<uint8_t>(
-          0xFF ^
-          opcode ^
-          sw1[index] ^
-          sw2[index]);
-
-  char line[32];
-
-  snprintf(
-      line,
-      sizeof(
-          line),
-      "SEND %02X %02X %02X %02X\r\n",
-      opcode,
+  const uint8_t packet[4] = {
+      0xB0,
       sw1[index],
       sw2[index],
-      checksum);
+      static_cast<uint8_t>(
+          0xFF ^
+          0xB0 ^
+          sw1[index] ^
+          sw2[index])};
 
-  const size_t lineLength =
-      strlen(
-          line);
+  bool sent =
+      false;
 
-  const size_t written =
-      _lbClient.write(
-          reinterpret_cast<
-              const uint8_t*>(
-              line),
-          lineLength);
+  if (lbReady) {
+    char line[32];
+
+    snprintf(
+        line,
+        sizeof(
+            line),
+        "SEND %02X %02X %02X %02X\r\n",
+        packet[0],
+        packet[1],
+        packet[2],
+        packet[3]);
+
+    const size_t lineLength =
+        strlen(
+            line);
+
+    sent =
+        _lbClient.write(
+            reinterpret_cast<
+                const uint8_t*>(
+                line),
+            lineLength) ==
+        lineLength;
+
+    if (!sent) {
+      disconnectLbServer();
+    }
+  }
 
   if (
-      written !=
-      lineLength
+      !sent &&
+      binaryReady
   ) {
-    disconnectLbServer();
+    sent =
+        _lnBinaryClient.write(
+            packet,
+            sizeof(
+                packet)) ==
+        sizeof(
+            packet);
+
+    if (!sent) {
+      disconnectLocoNetBinary();
+    }
+  }
+
+  if (!sent) {
     return;
   }
 
