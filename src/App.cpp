@@ -4,6 +4,7 @@
 #include <ESPmDNS.h>
 #include <LittleFS.h>
 #include <WiFi.h>
+#include <esp_heap_caps.h>
 
 #include "Logger.h"
 
@@ -178,6 +179,22 @@ void App::updateDisplay() {
 void App::begin() {
   Logger::begin();
   Logger::info("DCCExpressHub booting");
+
+  // Keep scarce internal SRAM available for Wi-Fi/AsyncTCP and other
+  // internal-memory-only allocations. On the N16R8 S3, prefer PSRAM for
+  // larger ordinary malloc/new requests.
+  if (ESP.getPsramSize() > 0) {
+    heap_caps_malloc_extmem_enable(8192);
+
+    Logger::info(
+        "PSRAM enabled: total=" +
+        String(ESP.getPsramSize() / 1024) +
+        " KB free=" +
+        String(ESP.getFreePsram() / 1024) +
+        " KB; malloc >= 8 KB prefers PSRAM");
+  } else {
+    Logger::warn("PSRAM not detected");
+  }
 
   _display.begin();
   _display.showBoot();
