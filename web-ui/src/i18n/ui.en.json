@@ -817,7 +817,6 @@
   "z21PomRailComInfo": "POM read requires RailCom to be enabled in the command center and supported/enabled in the decoder.",
   "z21PomWriteNoFeedback": "Z21 POM writes have no decoder acknowledgement in the LAN protocol. A successful result means the command was sent.",
   "accessoryDecoderAddress": "Accessory decoder address",
-  "z21AccessoryAddressInfo": "Use the human-facing decoder address 1–512. The Hub converts it to the Z21 LAN decoder address internally.",
   "pomMainTrack": "POM / main track",
   "pomCanWriteButNormallyCannotConfirmTheResultNever": "POM can write but normally cannot confirm the result. Never change a locomotive address with POM.",
   "value": "Value",
