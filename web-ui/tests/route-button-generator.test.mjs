@@ -84,7 +84,7 @@ test("generated RouteButton candidates come from graph and hide already assigned
 
   assert.match(
     generator,
-    /element\.generatedRouteKey/
+    /element\.generatedRouteRef/
   );
 
   assert.match(
@@ -143,7 +143,7 @@ test("generated route identity persists and manual turnout editing clears it", (
 
   assert.match(
     element,
-    /generatedRouteKey/
+    /generatedRouteRef/
   );
 
   assert.match(
@@ -163,17 +163,17 @@ test("generated route identity persists and manual turnout editing clears it", (
 
   assert.match(
     element,
-    /toJSON\(\)[\s\S]*generatedRouteKey/
+    /toJSON\(\)[\s\S]*generatedRouteRef/
   );
 
   assert.match(
     element,
-    /fromJSON[\s\S]*generatedRouteKey/
+    /fromJSON[\s\S]*generatedRouteRef/
   );
 
   assert.match(
     dto,
-    /generatedRouteKey\?: string/
+    /generatedRouteRef\?: RouteReferenceDto/
   );
 });
 
