@@ -1134,20 +1134,68 @@ bool Z21CommandCenter::requestTripTelemetry(
 
 bool Z21CommandCenter::requestSensorSnapshot(
     bool logCommand) {
-  (void)logCommand;
+  const uint8_t rbus0[] = {
+      0x00};
+
+  const uint8_t rbus1[] = {
+      0x01};
+
+  const uint8_t loconetDetector[] = {
+      0x80,
+      0x00,
+      0x00};
+
+  const bool rbus0Sent =
+      sendPacket(
+          0x0081,
+          rbus0,
+          sizeof(
+              rbus0),
+          logCommand);
+
+  const bool rbus1Sent =
+      sendPacket(
+          0x0081,
+          rbus1,
+          sizeof(
+              rbus1),
+          logCommand);
+
+  const bool detectorSent =
+      sendPacket(
+          0x00A4,
+          loconetDetector,
+          sizeof(
+              loconetDetector),
+          logCommand);
+
+  bool locoNetInterrogate =
+      false;
 
 #if defined(HUB_CC_YAMORC7010)
-  if (!connectLbServer()) {
-    return false;
+  const bool lbReady =
+      connectLbServer();
+
+  const bool binaryReady =
+      connectLocoNetBinary();
+
+  if (
+      lbReady ||
+      binaryReady
+  ) {
+    startLocoNetInterrogate(
+        true);
+
+    locoNetInterrogate =
+        true;
   }
-
-  startLocoNetInterrogate(
-      true);
-
-  return true;
-#else
-  return false;
 #endif
+
+  return
+      rbus0Sent ||
+      rbus1Sent ||
+      detectorSent ||
+      locoNetInterrogate;
 }
 
 
@@ -2239,6 +2287,12 @@ void Z21CommandCenter::processDataset(
           payloadLen);
       break;
 
+    case 0x0080:
+      processRBus(
+          payload,
+          payloadLen);
+      break;
+
     case 0x0084:
       processSystemState(
           payload,
@@ -2247,6 +2301,19 @@ void Z21CommandCenter::processDataset(
 
     case 0x001A:
       processHardwareInfo(
+          payload,
+          payloadLen);
+      break;
+
+    case 0x00A0:
+    case 0x00A1:
+      processLocoNetMessage(
+          payload,
+          payloadLen);
+      break;
+
+    case 0x00A4:
+      processLocoNetDetector(
           payload,
           payloadLen);
       break;
@@ -2676,6 +2743,179 @@ void Z21CommandCenter::processSystemState(
     _powerFeedbackCallback(
         power);
   }
+}
+
+void Z21CommandCenter::processRBus(
+    const uint8_t* data,
+    size_t length) {
+  if (
+      !data ||
+      length <
+          11
+  ) {
+    return;
+  }
+
+  const uint8_t group =
+      data[0];
+
+  if (group > 1) {
+    return;
+  }
+
+  for (
+      uint8_t byteIndex = 0;
+      byteIndex < 10;
+      ++byteIndex
+  ) {
+    const uint8_t status =
+        data[
+            1 +
+            byteIndex];
+
+    for (
+        uint8_t bit = 0;
+        bit < 8;
+        ++bit
+    ) {
+      const uint16_t address =
+          static_cast<uint16_t>(
+              (
+                  group *
+                      10 +
+                  byteIndex
+              ) *
+                  8 +
+              bit +
+              1);
+
+      const bool occupied =
+          (
+              status &
+              (
+                  1U <<
+                  bit
+              )
+          ) != 0;
+
+      if (_sensorFeedbackCallback) {
+        CommandCenterSensorFeedback
+            feedback;
+
+        feedback.address =
+            address;
+
+        feedback.on =
+            occupied;
+
+        _sensorFeedbackCallback(
+            feedback);
+      }
+    }
+  }
+}
+
+void Z21CommandCenter::processLocoNetMessage(
+    const uint8_t* data,
+    size_t length) {
+  if (
+      !data ||
+      length <
+          4 ||
+      data[0] !=
+          0xB2
+  ) {
+    return;
+  }
+
+  processLocoNetInputReport(
+      data,
+      length);
+}
+
+void Z21CommandCenter::processLocoNetDetector(
+    const uint8_t* data,
+    size_t length) {
+  if (
+      !data ||
+      length <
+          4
+  ) {
+    return;
+  }
+
+  const uint8_t type =
+      data[0];
+
+  const uint16_t address =
+      readLe16(
+          data +
+          1);
+
+  if (address == 0) {
+    return;
+  }
+
+  bool known =
+      true;
+
+  bool occupied =
+      false;
+
+  switch (type) {
+    case 0x01:
+    case 0x11:
+      occupied =
+          data[3] !=
+          0;
+      break;
+
+    case 0x02:
+      occupied =
+          true;
+      break;
+
+    case 0x03:
+      occupied =
+          false;
+      break;
+
+    default:
+      known =
+          false;
+      break;
+  }
+
+  if (
+      !known ||
+      !_sensorFeedbackCallback
+  ) {
+    return;
+  }
+
+  if (_rawInfoCallback) {
+    _rawInfoCallback(
+        "Z21 detector #" +
+        String(
+            address) +
+        (
+            occupied
+                ? " ON"
+                : " OFF"
+        ));
+  }
+
+  CommandCenterSensorFeedback
+      feedback;
+
+  feedback.address =
+      address;
+
+  feedback.on =
+      occupied;
+
+  _sensorFeedbackCallback(
+      feedback);
 }
 
 void Z21CommandCenter::processHardwareInfo(
