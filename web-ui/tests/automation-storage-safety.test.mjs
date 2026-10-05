@@ -151,29 +151,24 @@ test(".NET keeps a persistent previous automation snapshot", () => {
 });
 
 
-test("project export and import include timetable data", () => {
-  const page =
+test("unified backup export and import preserve timetable data through automations payload", () => {
+  const service =
     read(
-      "src/LiteLayoutPage.tsx"
+      "src/services/backupService.ts"
     );
 
   assert.match(
-    page,
-    /loadAutomationTimetable/
+    service,
+    /loadAutomationPayload/
   );
 
   assert.match(
-    page,
-    /createProjectExport\([\s\S]*timetable/
+    service,
+    /backup\.automations/
   );
 
   assert.match(
-    page,
-    /normalizeTimetableEntries\([\s\S]*automations\.timetable/
-  );
-
-  assert.match(
-    page,
-    /saveAutomationTimetable\(imported\.timetable\)/
+    service,
+    /saveAutomationPayload/
   );
 });
