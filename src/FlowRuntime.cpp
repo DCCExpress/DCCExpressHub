@@ -690,7 +690,7 @@ String FlowRuntime::buildBranchSource(
   }
 
   String source;
-  std::vector<String> visited;
+  std::vector<uint16_t> visited;
 
   const NodeDef* current =
       findNode(
@@ -698,18 +698,39 @@ String FlowRuntime::buildBranchSource(
           nextId);
 
   while (current) {
+    const auto iterator =
+        std::find_if(
+            nodes.begin(),
+            nodes.end(),
+            [current](
+                const NodeDef& node) {
+              return
+                  &node ==
+                  current;
+            });
+
+    if (iterator ==
+        nodes.end()) {
+      break;
+    }
+
+    const uint16_t currentIndex =
+        static_cast<uint16_t>(
+            iterator -
+            nodes.begin());
+
     if (
         std::find(
             visited.begin(),
             visited.end(),
-            current->id) !=
+            currentIndex) !=
         visited.end()
     ) {
       break;
     }
 
     visited.push_back(
-        current->id);
+        currentIndex);
 
     if (!inputKind(
             current->kind)) {
