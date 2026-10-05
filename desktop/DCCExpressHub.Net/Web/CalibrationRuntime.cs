@@ -755,8 +755,21 @@ public sealed class CalibrationRuntime
                     new JsonObject
                     {
                         ["routeRef"] =
-                            JsonSerializer.SerializeToNode(
-                                request.RouteRef),
+                            new JsonObject
+                            {
+                                ["fromBlockId"] =
+                                    request.RouteRef.FromBlockId,
+                                ["toBlockId"] =
+                                    request.RouteRef.ToBlockId,
+                                ["direction"] =
+                                    request.RouteRef.Direction,
+                                ["viaBlockIds"] =
+                                    new JsonArray(
+                                        (request.RouteRef.ViaBlockIds ?? [])
+                                            .Select(id =>
+                                                JsonValue.Create(id))
+                                            .ToArray())
+                            },
                         ["routeLabel"] =
                             request.RouteLabel,
                         ["routeLengthMm"] =
