@@ -1,3 +1,5 @@
+import type { MovementRouteRef } from "@domain/movement";
+
 export type CalibrationResultRow = {
   speedStep: number;
   direction:
@@ -15,8 +17,7 @@ export type CalibrationRuntimeState = {
     | "error";
   locoId: string | null;
   locoAddress: number | null;
-  routeKey: string | null;
-  reverseRouteKey: string | null;
+  routeRef: MovementRouteRef | null;
   routeLabel: string | null;
   routeLengthMm: number;
   maxSpeed: number;
@@ -34,8 +35,7 @@ export type CalibrationRuntimeState = {
 export type CalibrationStartRequest = {
   locoId: string;
   locoAddress: number;
-  routeKey: string;
-  reverseRouteKey: string;
+  routeRef: MovementRouteRef;
   routeLabel: string;
   routeLengthMm: number;
   maxSpeed: number;
