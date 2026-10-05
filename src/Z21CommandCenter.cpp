@@ -1176,8 +1176,13 @@ bool Z21CommandCenter::requestSensorSnapshot(
   const bool lbReady =
       connectLbServer();
 
+  // YaMoRC LBServer/1234 is the authoritative path. Only try the Binary
+  // side-channel as a fallback, otherwise a disabled 5560 port can stall the
+  // embedded main loop with repeated TCP connection attempts.
   const bool binaryReady =
-      connectLocoNetBinary();
+      lbReady
+          ? false
+          : connectLocoNetBinary();
 
   if (
       lbReady ||
@@ -1247,7 +1252,8 @@ bool Z21CommandCenter::connectLbServer() {
   if (
       !_lbClient.connect(
           _remoteIp,
-          LB_SERVER_PORT)
+          LB_SERVER_PORT,
+          FEEDBACK_CONNECT_TIMEOUT_MS)
   ) {
     return false;
   }
@@ -1367,7 +1373,8 @@ bool Z21CommandCenter::connectLocoNetBinary() {
   if (
       !_lnBinaryClient.connect(
           _remoteIp,
-          LN_BINARY_PORT)
+          LN_BINARY_PORT,
+          FEEDBACK_CONNECT_TIMEOUT_MS)
   ) {
     return false;
   }
@@ -1431,6 +1438,19 @@ void Z21CommandCenter::disconnectLocoNetBinary() {
 
 void Z21CommandCenter::loopLocoNetBinary(
     unsigned long now) {
+  // LBServer is the primary YaMoRC feedback transport. Do not keep probing
+  // the optional Binary service while LBServer is healthy.
+  if (
+      _lbConnected &&
+      _lbClient.connected()
+  ) {
+    if (_lnBinaryConnected) {
+      disconnectLocoNetBinary();
+    }
+
+    return;
+  }
+
   if (
       !_lnBinaryConnected ||
       !_lnBinaryClient.connected()
