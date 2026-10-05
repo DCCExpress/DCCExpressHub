@@ -8,7 +8,7 @@ import {
 } from "../domain/movement";
 
 import {
-  createMovementRouteKey,
+  createMovementRouteCandidateId,
   type MovementRouteIdentityEntry,
 } from "./movementRouteIdentity";
 
@@ -402,7 +402,7 @@ export function buildMovementRouteCandidates(
       };
 
     const key =
-      createMovementRouteKey(
+      createMovementRouteCandidateId(
         identityRoute
       );
 
