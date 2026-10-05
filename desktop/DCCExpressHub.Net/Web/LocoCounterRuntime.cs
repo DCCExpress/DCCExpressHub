@@ -31,6 +31,7 @@ public sealed class LocoCounterRuntime : IDisposable
     private readonly object _gate = new();
     private readonly SemaphoreSlim _saveGate = new(1, 1);
     private readonly string _locosPath;
+    private readonly string _statePath;
     private readonly Dictionary<int, Entry> _entries = new();
     private readonly Timer _timer;
     private bool _trackPowerOn;
@@ -44,6 +45,12 @@ public sealed class LocoCounterRuntime : IDisposable
             "data",
             "config",
             "locos.json");
+
+        _statePath = Path.Combine(
+            env.ContentRootPath,
+            "data",
+            "state",
+            "loco-counters.json");
 
         _timer = new Timer(
             _ => Tick(),
@@ -140,6 +147,45 @@ public sealed class LocoCounterRuntime : IDisposable
         if (locos is null)
             return false;
 
+        var persistedTotals =
+            new Dictionary<int, (double Km, double Hours)>();
+
+        if (File.Exists(_statePath))
+        {
+            try
+            {
+                var state =
+                    JsonNode.Parse(
+                        File.ReadAllText(_statePath)) as JsonObject;
+
+                if (state?["items"] is JsonArray items)
+                {
+                    foreach (var node in items)
+                    {
+                        if (node is not JsonObject item)
+                            continue;
+
+                        var address =
+                            item["address"]?.GetValue<int>() ?? 0;
+
+                        if (address <= 0)
+                            continue;
+
+                        persistedTotals[address] =
+                            (
+                                NonNegative(item["totalKm"]),
+                                NonNegative(item["totalHours"])
+                            );
+                    }
+                }
+            }
+            catch
+            {
+                // Keep legacy locos.json totals as the fallback seed if the
+                // dedicated counter state is missing or corrupt.
+            }
+        }
+
         lock (_gate)
         {
             var now = Environment.TickCount64;
@@ -160,11 +206,24 @@ public sealed class LocoCounterRuntime : IDisposable
 
                 if (!_entries.TryGetValue(address, out var entry))
                 {
+                    var legacyKm =
+                        NonNegative(loco["odometerKm"]);
+
+                    var legacyHours =
+                        NonNegative(loco["operatingHours"]);
+
+                    var persisted =
+                        persistedTotals.TryGetValue(
+                            address,
+                            out var stored)
+                                ? stored
+                                : (legacyKm, legacyHours);
+
                     entry = new Entry
                     {
                         Address = address,
-                        TotalKm = NonNegative(loco["odometerKm"]),
-                        TotalHours = NonNegative(loco["operatingHours"]),
+                        TotalKm = persisted.Item1,
+                        TotalHours = persisted.Item2,
                         LastUpdateTicks = now
                     };
 
@@ -172,8 +231,21 @@ public sealed class LocoCounterRuntime : IDisposable
                 }
                 else if (!preserveRuntimeTotals)
                 {
-                    entry.TotalKm = NonNegative(loco["odometerKm"]);
-                    entry.TotalHours = NonNegative(loco["operatingHours"]);
+                    var legacyKm =
+                        NonNegative(loco["odometerKm"]);
+
+                    var legacyHours =
+                        NonNegative(loco["operatingHours"]);
+
+                    var persisted =
+                        persistedTotals.TryGetValue(
+                            address,
+                            out var stored)
+                                ? stored
+                                : (legacyKm, legacyHours);
+
+                    entry.TotalKm = persisted.Item1;
+                    entry.TotalHours = persisted.Item2;
                     entry.DailyKm = 0;
                     entry.DailyHours = 0;
                 }
@@ -277,24 +349,6 @@ public sealed class LocoCounterRuntime : IDisposable
 
         try
         {
-            JsonArray? locos;
-
-            try
-            {
-                if (!File.Exists(_locosPath))
-                    return false;
-
-                locos = JsonNode.Parse(
-                    await File.ReadAllTextAsync(_locosPath)) as JsonArray;
-            }
-            catch
-            {
-                return false;
-            }
-
-            if (locos is null)
-                return false;
-
             Dictionary<int, (double Km, double Hours)> totals;
 
             lock (_gate)
@@ -306,42 +360,47 @@ public sealed class LocoCounterRuntime : IDisposable
                     x => (x.TotalKm, x.TotalHours));
             }
 
-            foreach (var node in locos)
+            var root =
+                new JsonObject
+                {
+                    ["version"] = 1
+                };
+
+            var items =
+                new JsonArray();
+
+            foreach (var pair in totals.OrderBy(x => x.Key))
             {
-                if (node is not JsonObject loco)
-                    continue;
-
-                var address =
-                    loco["address"]?.GetValue<int>() ?? 0;
-
-                if (!totals.TryGetValue(address, out var total))
-                    continue;
-
-                loco["odometerKm"] = total.Km;
-                loco["operatingHours"] = total.Hours;
+                items.Add(
+                    new JsonObject
+                    {
+                        ["address"] = pair.Key,
+                        ["totalKm"] = pair.Value.Km,
+                        ["totalHours"] = pair.Value.Hours
+                    });
             }
 
+            root["items"] = items;
+
             var directory =
-                Path.GetDirectoryName(_locosPath)!;
+                Path.GetDirectoryName(_statePath)!;
 
             Directory.CreateDirectory(directory);
 
             var tempPath =
-                _locosPath + ".counter.tmp";
-
-            var options =
-                new JsonSerializerOptions
-                {
-                    WriteIndented = true
-                };
+                _statePath + ".tmp";
 
             await File.WriteAllTextAsync(
                 tempPath,
-                locos.ToJsonString(options));
+                root.ToJsonString(
+                    new JsonSerializerOptions
+                    {
+                        WriteIndented = true
+                    }));
 
             File.Move(
                 tempPath,
-                _locosPath,
+                _statePath,
                 true);
 
             return true;
