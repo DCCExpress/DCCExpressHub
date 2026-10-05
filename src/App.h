@@ -65,8 +65,4 @@ private:
   void connectWifi();
   void loadConfiguration();
   void updateDisplay();
-
-  void publishSensorChanged(
-      uint16_t address,
-      bool on);
 };
