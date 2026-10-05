@@ -1979,35 +1979,6 @@ void WsProtocol::sendRuntimeSnapshot(
     }
 
     for (
-        const auto &sensor :
-        _runtime.sensors())
-    {
-        bool on =
-            false;
-
-        if (
-            !_runtime.getSensorState(
-                sensor.address,
-                on))
-        {
-            continue;
-        }
-
-        JsonDocument data;
-
-        data["address"] =
-            sensor.address;
-
-        data["on"] =
-            on;
-
-        send(
-            client,
-            "sensorChanged",
-            data.as<JsonVariantConst>());
-    }
-
-    for (
         size_t index = 0;
         index <
             _locoCount;
@@ -2173,34 +2144,6 @@ void WsProtocol::broadcastRuntimeSnapshot()
 
             break;
         }
-    }
-
-    for (
-        const auto &sensor :
-        _runtime.sensors())
-    {
-        bool on =
-            false;
-
-        if (
-            !_runtime.getSensorState(
-                sensor.address,
-                on))
-        {
-            continue;
-        }
-
-        JsonDocument data;
-
-        data["address"] =
-            sensor.address;
-
-        data["on"] =
-            on;
-
-        broadcast(
-            "sensorChanged",
-            data);
     }
 
     broadcastSensorSnapshot();
