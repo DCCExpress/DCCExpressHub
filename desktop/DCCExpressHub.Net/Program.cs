@@ -731,7 +731,7 @@ app.MapGet("/api/layout", async (IWebHostEnvironment env) =>
     return Results.Text(File.Exists(p) ? await File.ReadAllTextAsync(p) : "{}", "application/json");
 });
 
-app.MapPost("/api/layout", async (HttpRequest req, IWebHostEnvironment env, LayoutRuntime runtime, SignalAutomationEngine automation, WsHub ws, ICommandCenter cc, LocoCounterRuntime counters) =>
+app.MapPost("/api/layout", async (HttpRequest req, IWebHostEnvironment env, LayoutRuntime runtime, SignalAutomationEngine automation, WsHub ws, LocoCounterRuntime counters) =>
 {
     var finalPath = DataFile(env, "layout.json");
     var tempPath = finalPath + ".upload.tmp";
@@ -768,11 +768,9 @@ app.MapPost("/api/layout", async (HttpRequest req, IWebHostEnvironment env, Layo
         var signalAutomationReloaded = automation.Reload();
         if (signalAutomationReloaded) await automation.EvaluateAsync();
 
-        // A layout edit can map a sensor to a physical address that was not part
-        // of the previous runtime. Request the authoritative DCC-EX sensor state
-        // immediately; incoming Q/q feedback updates LayoutRuntime by address and
-        // is broadcast to the WebUI through the existing runtime coordinator.
-        var sensorSnapshotRequested = await cc.RequestSensorSnapshotAsync(req.HttpContext.RequestAborted);
+        // Layout persistence must not wait for command-center sensor interrogation.
+        // Runtime sensor state is maintained independently by live command-center
+        // feedback and connection-time snapshot logic.
 
         var locoCountersSaved =
             await counters.SaveAsync();
@@ -785,7 +783,6 @@ app.MapPost("/api/layout", async (HttpRequest req, IWebHostEnvironment env, Layo
             accessories = runtime.AccessoryCount,
             sensors = runtime.SensorCount,
             signalAutomationReloaded,
-            sensorSnapshotRequested,
             locoCountersSaved
         });
     }
