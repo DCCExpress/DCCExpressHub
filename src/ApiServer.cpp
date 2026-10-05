@@ -841,6 +841,11 @@ void ApiServer::setupApi() {
         JsonObject capabilities = doc["capabilities"].to<JsonObject>();
         capabilities["trackPower"] = true;
         capabilities["programmingTrackPower"] = CommandCenterCapabilities::programmingTrackPower();
+        capabilities["serviceModeProgramming"] = CommandCenterCapabilities::serviceModeProgramming();
+        capabilities["pomProgramming"] = CommandCenterCapabilities::pomProgramming();
+        capabilities["pomRead"] = CommandCenterCapabilities::pomRead();
+        capabilities["accessoryPomProgramming"] = CommandCenterCapabilities::accessoryPomProgramming();
+        capabilities["accessoryPomRead"] = CommandCenterCapabilities::accessoryPomRead();
         capabilities["rawCommand"] = CommandCenterCapabilities::rawCommand();
         capabilities["vPin"] = CommandCenterCapabilities::vPin();
         capabilities["extendedAccessory"] = CommandCenterCapabilities::extendedAccessory();
