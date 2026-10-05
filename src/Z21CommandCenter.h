@@ -265,6 +265,9 @@ private:
   LocoFeedbackCallback
       _locoFeedbackCallback;
 
+  SensorFeedbackCallback
+      _sensorFeedbackCallback;
+
   ProgrammingFeedbackCallback
       _programmingFeedbackCallback;
 
