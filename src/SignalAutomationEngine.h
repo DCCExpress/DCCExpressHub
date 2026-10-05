@@ -11,7 +11,7 @@ class SignalAutomationEngine {
 public:
   SignalAutomationEngine(ICommandCenter& commandCenter, LayoutRuntime& runtime, AsyncWebSocket& ws);
   bool begin(fs::FS& fs,const char* path="/config/signal-logic.ndjson");
-  bool reload();
+  bool reload(bool requestSensorSnapshot = true);
   bool validateFile(const char* path);
   void evaluate();
   bool enabled() const { return _enabled; }
