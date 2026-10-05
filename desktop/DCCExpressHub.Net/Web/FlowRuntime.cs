@@ -1779,8 +1779,7 @@ public sealed class FlowRuntime : BackgroundService
             new List<string>();
 
         var visited =
-            new HashSet<string>(
-                StringComparer.Ordinal);
+            new HashSet<int>();
 
         var current =
             FindNode(
@@ -1789,8 +1788,14 @@ public sealed class FlowRuntime : BackgroundService
 
         while (current is not null)
         {
-            if (!visited.Add(
-                    current.Id))
+            var currentIndex =
+                Array.IndexOf(
+                    document.Nodes,
+                    current);
+
+            if (currentIndex < 0 ||
+                !visited.Add(
+                    currentIndex))
                 break;
 
             if (!InputKind(
