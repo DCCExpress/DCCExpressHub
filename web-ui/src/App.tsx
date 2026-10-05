@@ -201,7 +201,7 @@ function AppHeader({
         wrap="nowrap"
       >
         <Badge
-          data-dccex-status-role="home-ws"
+          data-command-center-status-role="home-ws"
           color={statusColor(status)}
           variant={status === "connected" ? "light" : "filled"}
           size="lg"
