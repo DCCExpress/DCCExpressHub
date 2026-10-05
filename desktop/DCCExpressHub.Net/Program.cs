@@ -35,11 +35,6 @@ var useRocoZ21 =
 var useYaMoRcZ21 =
     commandCenterProtocol == "yamorc7010";
 
-var useZ21 =
-    useRocoZ21 ||
-    useYaMoRcZ21;
-
-
 builder.Services.AddSingleton<HubState>();
 builder.Services.AddSingleton<LayoutRuntime>();
 builder.Services.AddSingleton<SignalAutomationEngine>();
