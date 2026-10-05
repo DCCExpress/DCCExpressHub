@@ -96,36 +96,60 @@ String DispatcherRuntime::targetMarker(
   return marker;
 }
 
+uint32_t DispatcherRuntime::resourceToken(
+    const String& resourceKey) {
+  uint32_t hash =
+      2166136261u;
+
+  for (size_t i = 0;
+       i < resourceKey.length();
+       ++i) {
+    hash ^=
+        static_cast<uint8_t>(
+            resourceKey[i]);
+    hash *=
+        16777619u;
+  }
+
+  return hash == 0
+      ? 1u
+      : hash;
+}
+
+uint32_t DispatcherRuntime::blockResourceToken(
+    uint16_t blockId) {
+  return resourceToken(
+      "block:" +
+      String(blockId));
+}
+
 void DispatcherRuntime::normalizeResources(
     uint16_t fromBlockId,
     uint16_t toBlockId,
-    std::vector<String>& resources) {
-  resources.push_back("block:" + String(fromBlockId));
-  resources.push_back("block:" + String(toBlockId));
+    std::vector<uint32_t>& resources) {
+  resources.push_back(
+      blockResourceToken(
+          fromBlockId));
+
+  resources.push_back(
+      blockResourceToken(
+          toBlockId));
 
   resources.erase(
-      std::remove_if(
+      std::remove(
           resources.begin(),
           resources.end(),
-          [](const String& value) {
-            return value.isEmpty() || value.length() > 240;
-          }),
+          0u),
       resources.end());
 
   std::sort(
       resources.begin(),
-      resources.end(),
-      [](const String& a, const String& b) {
-        return a.compareTo(b) < 0;
-      });
+      resources.end());
 
   resources.erase(
       std::unique(
           resources.begin(),
-          resources.end(),
-          [](const String& a, const String& b) {
-            return a == b;
-          }),
+          resources.end()),
       resources.end());
 }
 
