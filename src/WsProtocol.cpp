@@ -414,8 +414,6 @@ void WsProtocol::begin()
                 "sensorChanged",
                 data);
 
-            broadcastSensorSnapshot();
-
             Logger::info(
                 "Sensor runtime: address=" +
                 String(feedback.address) +
