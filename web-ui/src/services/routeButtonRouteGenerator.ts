@@ -316,7 +316,7 @@ export function getAvailableGeneratedRouteButtonCandidates(
             element.id !==
               currentRouteButtonId &&
             element.generatedRouteRef !==
-              null
+              undefined
         )
         .map(
           element =>
@@ -422,7 +422,7 @@ export function applyGeneratedRouteButtonCandidate(
             ...candidate.routeRef.viaBlockIds,
           ],
         }
-      : null;
+      : undefined;
 
   routeButton.label =
     candidate.label;
