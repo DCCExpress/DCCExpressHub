@@ -152,6 +152,8 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
     protected IConfiguration Configuration { get; }
     protected virtual string Z21Profile => "z21";
     protected virtual uint BroadcastFlags => RocoBroadcastFlags;
+    protected virtual bool LocoNetFeedbackEnabled =>
+        _locoNetFeedbackEnabled;
     protected virtual bool LbServerFeedbackEnabled => false;
     protected virtual int LbServerPort => 1234;
     protected virtual string Z21ProcessorName => "Z21 LAN";
@@ -318,7 +320,7 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
                 txCts.Token);
 
         var locoNetFeedbackTask =
-            _locoNetFeedbackEnabled
+            LocoNetFeedbackEnabled
                 ? RunLocoNetFeedbackAsync(
                     stoppingToken)
                 : Task.CompletedTask;
