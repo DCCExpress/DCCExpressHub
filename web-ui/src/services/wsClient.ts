@@ -102,6 +102,9 @@ class WsClient {
     private latestCommandCenterInfo:
         ServerWsPayloadMap["commandCenterInfo"] | null = null;
 
+    private latestDccExStatus:
+        ServerWsPayloadMap["dccExStatus"] | null = null;
+
     private reconnectTimer: number | null = null;
     private heartbeatTimer: number | null = null;
 
@@ -195,6 +198,11 @@ class WsClient {
                  */
                 if (message.type === "commandCenterInfo") {
                     this.latestCommandCenterInfo =
+                        message.data;
+                }
+
+                if (message.type === "dccExStatus") {
+                    this.latestDccExStatus =
                         message.data;
                 }
 
@@ -510,6 +518,24 @@ class WsClient {
             );
         }
 
+        if (
+            type === "dccExStatus" &&
+            this.latestDccExStatus
+        ) {
+            const data =
+                this.latestDccExStatus;
+
+            const raw = {
+                type: "dccExStatus",
+                data,
+            } as TypedServerWsMessage;
+
+            listener(
+                data as ServerWsPayloadMap[ServerWsMessageType],
+                raw
+            );
+        }
+
         /*
          * locoState is sticky.
          *
@@ -794,6 +820,7 @@ class WsClient {
          */
         this.latestSensorStates.clear();
         this.latestCommandCenterInfo = null;
+        this.latestDccExStatus = null;
 
         this.socket = null;
 
