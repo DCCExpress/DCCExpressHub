@@ -10,6 +10,16 @@
 
 namespace {
 
+void bootStep(
+    const char* step,
+    const String& message) {
+  Logger::info(
+      String("BOOT ") +
+      step +
+      " " +
+      message);
+}
+
 bool parseIp(
     const String& text,
     IPAddress& out,
@@ -34,10 +44,24 @@ void sendWsJson(
 }  // namespace
 
 void App::loadConfiguration() {
+  bootStep(
+      "02A",
+      "configuration store begin");
+
   _config.begin();
 
   const auto& commandCenter =
       _config.commandCenter();
+
+  Logger::info(
+      "CONFIG CC host=" +
+      commandCenter.host +
+      " port=" +
+      String(
+          commandCenter.port) +
+      " profile=" +
+      String(
+          CommandCenterBuild::profile()));
 
   _wsProtocol.setPowerIncludesProgramming(
       commandCenter.powerIncludesProgramming);
@@ -101,12 +125,40 @@ void App::connectWifi() {
       "Connecting Wi-Fi: " +
       network.wifiSsid);
 
-  const unsigned long started = millis();
+  const unsigned long started =
+      millis();
+
+  unsigned long nextProgressAt =
+      started;
 
   while (
       WiFi.status() != WL_CONNECTED &&
       millis() - started < 15000
   ) {
+    const unsigned long now =
+        millis();
+
+    if (
+        static_cast<long>(
+            now -
+            nextProgressAt) >= 0)
+    {
+      Logger::info(
+          "WAIT Wi-Fi status=" +
+          String(
+              static_cast<int>(
+                  WiFi.status())) +
+          " elapsed=" +
+          String(
+              now -
+              started) +
+          "ms");
+
+      nextProgressAt =
+          now +
+          1000;
+    }
+
     _serialConfigurator.loop();
 
     _display.loop();
@@ -178,7 +230,13 @@ void App::updateDisplay() {
 
 void App::begin() {
   Logger::begin();
-  Logger::info("DCCExpressHub booting");
+  bootStep(
+      "00",
+      "App::begin entered");
+
+  bootStep(
+      "01",
+      "memory policy");
 
   // Keep scarce internal SRAM available for Wi-Fi/AsyncTCP and other
   // internal-memory-only allocations. On the N16R8 S3, prefer PSRAM for
@@ -196,17 +254,47 @@ void App::begin() {
     Logger::warn("PSRAM not detected");
   }
 
+  bootStep(
+      "02",
+      "display begin");
+
   _display.begin();
   _display.showBoot();
 
+  bootStep(
+      "03",
+      "load configuration");
+
   loadConfiguration();
+
+  Logger::info(
+      "BOOT 03 OK");
+
+  bootStep(
+      "04",
+      "serial configurator begin");
 
   _serialConfigurator.begin();
 
+  Logger::info(
+      "BOOT 04 OK");
+
+  bootStep(
+      "05",
+      "LittleFS mount");
+
   if (!LittleFS.begin(true)) {
-    Logger::error("LittleFS mount failed");
+    Logger::error(
+        "BOOT 05 FAIL LittleFS mount failed");
     return;
   }
+
+  Logger::info(
+      "BOOT 05 OK");
+
+  bootStep(
+      "06",
+      "locomotive configuration");
 
   if (
       !_commandCenter
@@ -214,18 +302,40 @@ void App::begin() {
                LittleFS)
   ) {
     Logger::warn(
-        "Locomotive direction configuration could not be loaded");
+        "BOOT 06 WARN locomotive direction configuration could not be loaded");
+  } else {
+    Logger::info(
+        "BOOT 06 OK");
   }
+
+  bootStep(
+      "07",
+      "locomotive counters");
 
   if (
       !_locoCounters.begin(
           LittleFS)
   ) {
     Logger::warn(
-        "Locomotive counter configuration could not be loaded");
+        "BOOT 07 WARN locomotive counter configuration could not be loaded");
+  } else {
+    Logger::info(
+        "BOOT 07 OK");
   }
 
-  _runtime.begin(LittleFS);
+  bootStep(
+      "08",
+      "layout runtime begin");
+
+  _runtime.begin(
+      LittleFS);
+
+  Logger::info(
+      "BOOT 08 OK");
+
+  bootStep(
+      "09",
+      "runtime state store load");
 
   _stateStore.begin(
       LittleFS,
@@ -233,7 +343,26 @@ void App::begin() {
 
   _stateStore.load();
 
+  Logger::info(
+      "BOOT 09 OK");
+
+  bootStep(
+      "10",
+      "Wi-Fi connect");
+
   connectWifi();
+
+  Logger::info(
+      String("BOOT 10 ") +
+      (
+          WiFi.status() ==
+                  WL_CONNECTED
+              ? "OK"
+              : "FAIL"));
+
+  bootStep(
+      "11",
+      "construct HTTP/API server");
 
   _apiServer.reset(
       new ApiServer(
@@ -252,18 +381,74 @@ void App::begin() {
                     .reloadLocomotiveConfiguration();
           }));
 
+  Logger::info(
+      "BOOT 11 OK");
+
+  bootStep(
+      "12",
+      "HTTP/WS server begin");
+
   _apiServer->begin();
 
   Logger::info(
-      "Hub HTTP/API started on port " +
-      String(_config.network().httpPort));
+      "BOOT 12 OK HTTP/API port=" +
+      String(
+          _config.network().httpPort));
 
-  if (WiFi.status() == WL_CONNECTED) {
-    _commandCenter.ensureConnected();
+  bootStep(
+      "13",
+      "command center connect");
+
+  if (
+      WiFi.status() ==
+      WL_CONNECTED)
+  {
+    const unsigned long ccStarted =
+        millis();
+
+    Logger::info(
+        "CC ensureConnected begin host=" +
+        _commandCenter.host() +
+        ":" +
+        String(
+            _commandCenter.port()));
+
+    const bool ccKick =
+        _commandCenter.ensureConnected();
+
+    Logger::info(
+        "CC ensureConnected end queued=" +
+        String(
+            ccKick
+                ? "true"
+                : "false") +
+        " elapsed=" +
+        String(
+            millis() -
+            ccStarted) +
+        "ms");
+  }
+  else
+  {
+    Logger::warn(
+        "CC connect skipped: Wi-Fi is not connected");
   }
 
   _lastCommandCenterConnected =
       _commandCenter.connected();
+
+  Logger::info(
+      "BOOT 13 state CC=" +
+      String(
+          _lastCommandCenterConnected
+              ? "OK"
+              : "NOK") +
+      " feedback=" +
+      String(
+          _commandCenter
+                  .feedbackLinkConnected()
+              ? "OK"
+              : "NOK"));
 
   _display.showCommandCenter(
       _commandCenter.host(),
@@ -273,6 +458,10 @@ void App::begin() {
   _display.showFeedbackLink(
       _commandCenter.feedbackLinkName(),
       _commandCenter.feedbackLinkConnected());
+
+  bootStep(
+      "14",
+      "signal automation begin");
 
   const bool signalAutomationStarted =
       _signalAutomation.begin(LittleFS);
@@ -288,12 +477,26 @@ void App::begin() {
   // If the command center was already online before automation came up,
   // refresh its authoritative physical sensor state now.
   if (_lastCommandCenterConnected) {
+    Logger::info(
+        "BOOT 15 requesting initial sensor snapshot");
+
     _commandCenter
         .requestSensorSnapshot(
             false);
   }
 
   updateDisplay();
+
+  Logger::info(
+      "BOOT COMPLETE heap=" +
+      String(
+          ESP.getFreeHeap() /
+          1024) +
+      "KB psram=" +
+      String(
+          ESP.getFreePsram() /
+          1024) +
+      "KB");
 }
 
 void App::loop() {
