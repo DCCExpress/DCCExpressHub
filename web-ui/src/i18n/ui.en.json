@@ -809,7 +809,6 @@
   "configurationVariable": "Configuration variable",
   "readOrWriteOneCvAtATime": "Read or write one CV at a time",
   "connectToTheCommandCenterBeforeSendingProgrammingCommands": "Connect to the command center before sending programming commands.",
-  "z21AddressHelperInfo": "Locomotive address read/write is implemented from the standard DCC address CVs (CV1, CV17, CV18 and CV29).",
   "z21ProgrammingSubtitle": "Native Z21 / YaMoRC decoder programming",
   "programmingTrack": "Programming track",
   "locoPom": "Locomotive POM",
