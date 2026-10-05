@@ -91,6 +91,17 @@ class WsClient {
     private readonly latestSensorStates =
         new Map<number, boolean>();
 
+    /*
+     * Sticky command-center status cache.
+     *
+     * The ESP32 sends commandCenterInfo immediately when a WebSocket client
+     * connects. During an F5/full reload React providers can subscribe a few
+     * milliseconds later, which used to lose the authoritative alive=true
+     * snapshot and leave the UI showing the command center as disconnected.
+     */
+    private latestCommandCenterInfo:
+        ServerWsPayloadMap["commandCenterInfo"] | null = null;
+
     private reconnectTimer: number | null = null;
     private heartbeatTimer: number | null = null;
 
@@ -182,6 +193,11 @@ class WsClient {
                  * once, and the server snapshot may arrive before either one
                  * subscribes.
                  */
+                if (message.type === "commandCenterInfo") {
+                    this.latestCommandCenterInfo =
+                        message.data;
+                }
+
                 if (message.type === "locoState") {
                     const address =
                         message.data.loco?.address;
@@ -476,6 +492,24 @@ class WsClient {
             listeners
         );
 
+        if (
+            type === "commandCenterInfo" &&
+            this.latestCommandCenterInfo
+        ) {
+            const data =
+                this.latestCommandCenterInfo;
+
+            const raw = {
+                type: "commandCenterInfo",
+                data,
+            } as TypedServerWsMessage;
+
+            listener(
+                data as ServerWsPayloadMap[ServerWsMessageType],
+                raw
+            );
+        }
+
         /*
          * locoState is sticky.
          *
@@ -759,6 +793,7 @@ class WsClient {
          * connection. A fresh snapshot/live edge will repopulate this cache.
          */
         this.latestSensorStates.clear();
+        this.latestCommandCenterInfo = null;
 
         this.socket = null;
 
