@@ -1649,9 +1649,6 @@ function Z21ProgrammingPage({
                       {i18next.t("ui.locomotiveAddress")}
                     </Title>
 
-                    <Text size="sm" c="dimmed" mt={4}>
-                      {i18next.t("ui.z21AddressHelperInfo")}
-                    </Text>
                   </div>
 
                   <NumberInput
