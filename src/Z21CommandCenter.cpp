@@ -68,6 +68,431 @@ void Z21CommandCenter::setEndpoint(
       0;
 }
 
+bool Z21CommandCenter::ensureNetworkInfrastructure() {
+  if (!_endpointMutex) {
+    _endpointMutex =
+        xSemaphoreCreateMutexStatic(
+            &_endpointMutexControl);
+  }
+
+  if (!_networkTxQueue) {
+    _networkTxQueue =
+        xQueueCreateStatic(
+            NETWORK_TX_QUEUE_LENGTH,
+            sizeof(NetworkTxPacket),
+            _networkTxQueueStorage,
+            &_networkTxQueueControl);
+  }
+
+  if (!_networkRxQueue) {
+    _networkRxQueue =
+        xQueueCreateStatic(
+            NETWORK_RX_QUEUE_LENGTH,
+            sizeof(NetworkRxFrame),
+            _networkRxQueueStorage,
+            &_networkRxQueueControl);
+  }
+
+  if (!_networkControlQueue) {
+    _networkControlQueue =
+        xQueueCreateStatic(
+            NETWORK_CONTROL_QUEUE_LENGTH,
+            sizeof(NetworkControl),
+            _networkControlQueueStorage,
+            &_networkControlQueueControl);
+  }
+
+  if (
+      !_endpointMutex ||
+      !_networkTxQueue ||
+      !_networkRxQueue ||
+      !_networkControlQueue
+  ) {
+    return false;
+  }
+
+  if (!_networkTaskHandle) {
+    _networkTaskHandle =
+        xTaskCreateStaticPinnedToCore(
+            networkTaskEntry,
+            "z21-net",
+            NETWORK_TASK_STACK_BYTES,
+            this,
+            2,
+            _networkTaskStack,
+            &_networkTaskControl,
+            0);
+  }
+
+  return
+      _networkTaskHandle !=
+      nullptr;
+}
+
+void Z21CommandCenter::networkTaskEntry(
+    void* parameter) {
+  auto* self =
+      static_cast<Z21CommandCenter*>(
+          parameter);
+
+  if (self) {
+    self->networkTask();
+  }
+
+  vTaskDelete(
+      nullptr);
+}
+
+bool Z21CommandCenter::enqueueNetworkRx(
+    NetworkRxKind kind,
+    const uint8_t* data,
+    size_t length) {
+  if (
+      !_networkRxQueue ||
+      !data ||
+      length == 0 ||
+      length >
+          sizeof(
+              NetworkRxFrame::data)
+  ) {
+    return false;
+  }
+
+  NetworkRxFrame frame;
+  frame.kind =
+      kind;
+  frame.length =
+      static_cast<uint16_t>(
+          length);
+
+  memcpy(
+      frame.data,
+      data,
+      length);
+
+  if (
+      xQueueSend(
+          _networkRxQueue,
+          &frame,
+          0) !=
+      pdTRUE
+  ) {
+    ++_networkRxDrops;
+    return false;
+  }
+
+  return true;
+}
+
+bool Z21CommandCenter::queueNetworkControl(
+    NetworkControlKind kind) {
+  if (
+      !ensureNetworkInfrastructure()
+  ) {
+    return false;
+  }
+
+  NetworkControl control;
+  control.kind =
+      kind;
+
+  return
+      xQueueSend(
+          _networkControlQueue,
+          &control,
+          0) ==
+      pdTRUE;
+}
+
+void Z21CommandCenter::processNetworkRx() {
+  if (!_networkRxQueue) {
+    return;
+  }
+
+  NetworkRxFrame frame;
+  uint8_t processed =
+      0;
+
+  while (
+      processed <
+          NETWORK_RX_QUEUE_LENGTH &&
+      xQueueReceive(
+          _networkRxQueue,
+          &frame,
+          0) ==
+          pdTRUE
+  ) {
+    ++processed;
+
+    switch (frame.kind) {
+      case NetworkRxKind::UdpDatagram:
+        processDatagram(
+            frame.data,
+            frame.length);
+        break;
+
+      case NetworkRxKind::LbServerLine:
+        processLbServerLine(
+            reinterpret_cast<
+                const char*>(
+                frame.data));
+        break;
+
+      case NetworkRxKind::LocoNetBinary:
+        processLocoNetPacket(
+            frame.data,
+            frame.length);
+        break;
+    }
+  }
+}
+
+void Z21CommandCenter::networkTask() {
+  uint32_t activeEndpointRevision =
+      0;
+
+#if defined(HUB_CC_YAMORC7010)
+  unsigned long nextLbAttemptAt =
+      0;
+  unsigned long nextBinaryAttemptAt =
+      0;
+#endif
+
+  for (;;) {
+    const unsigned long now =
+        millis();
+
+    if (
+        activeEndpointRevision !=
+        _endpointRevision
+    ) {
+      activeEndpointRevision =
+          _endpointRevision;
+
+      if (_udpStarted) {
+        _udp.stop();
+        _udpStarted =
+            false;
+      }
+
+      _resolved =
+          false;
+      _remoteIp =
+          IPAddress();
+      _nextResolveAt =
+          0;
+
+#if defined(HUB_CC_YAMORC7010)
+      disconnectLbServer();
+      disconnectLocoNetBinary();
+      nextLbAttemptAt =
+          0;
+      nextBinaryAttemptAt =
+          0;
+#endif
+    }
+
+    if (
+        WiFi.status() !=
+        WL_CONNECTED
+    ) {
+#if defined(HUB_CC_YAMORC7010)
+      if (_lbConnected) {
+        disconnectLbServer();
+      }
+
+      if (_lnBinaryConnected) {
+        disconnectLocoNetBinary();
+      }
+#endif
+
+      vTaskDelay(
+          pdMS_TO_TICKS(
+              20));
+      continue;
+    }
+
+    if (
+        !startUdp() ||
+        !resolveRemote()
+    ) {
+      vTaskDelay(
+          pdMS_TO_TICKS(
+              10));
+      continue;
+    }
+
+    NetworkTxPacket tx;
+    uint8_t txProcessed =
+        0;
+
+    while (
+        txProcessed < 8 &&
+        xQueueReceive(
+            _networkTxQueue,
+            &tx,
+            0) ==
+            pdTRUE
+    ) {
+      ++txProcessed;
+
+      uint16_t port =
+          DEFAULT_PORT;
+
+      if (_endpointMutex) {
+        xSemaphoreTake(
+            _endpointMutex,
+            portMAX_DELAY);
+      }
+
+      port =
+          _port;
+
+      if (_endpointMutex) {
+        xSemaphoreGive(
+            _endpointMutex);
+      }
+
+      bool ok =
+          _udp.beginPacket(
+              _remoteIp,
+              port) == 1;
+
+      if (ok) {
+        ok =
+            _udp.write(
+                tx.data,
+                tx.length) ==
+            tx.length;
+      }
+
+      if (ok) {
+        ok =
+            _udp.endPacket() ==
+            1;
+      }
+
+      if (
+          !ok &&
+          tx.logPacket
+      ) {
+        Logger::warn(
+            "Z21 UDP TX failed in network task");
+      }
+    }
+
+    for (
+        uint8_t rxCount = 0;
+        rxCount < 8;
+        ++rxCount
+    ) {
+      const int packetSize =
+          _udp.parsePacket();
+
+      if (packetSize <= 0) {
+        break;
+      }
+
+      uint8_t buffer[
+          MAX_PACKET_BYTES] = {};
+
+      const int read =
+          _udp.read(
+              buffer,
+              min(
+                  packetSize,
+                  static_cast<int>(
+                      sizeof(
+                          buffer))));
+
+      if (read > 0) {
+        enqueueNetworkRx(
+            NetworkRxKind::UdpDatagram,
+            buffer,
+            static_cast<size_t>(
+                read));
+      }
+    }
+
+#if defined(HUB_CC_YAMORC7010)
+    if (
+        !_lbConnected ||
+        !_lbClient.connected()
+    ) {
+      _lbConnected =
+          false;
+
+      if (
+          static_cast<long>(
+              now -
+              nextLbAttemptAt) >= 0
+      ) {
+        nextLbAttemptAt =
+            now +
+            LB_RECONNECT_MS;
+
+        connectLbServer();
+      }
+    } else {
+      processLbServerIncoming();
+    }
+
+    if (
+        _lbConnected &&
+        _lbClient.connected()
+    ) {
+      if (_lnBinaryConnected) {
+        disconnectLocoNetBinary();
+      }
+    } else if (
+        !_lnBinaryConnected ||
+        !_lnBinaryClient.connected()
+    ) {
+      _lnBinaryConnected =
+          false;
+
+      if (
+          static_cast<long>(
+              now -
+              nextBinaryAttemptAt) >= 0
+      ) {
+        nextBinaryAttemptAt =
+            now +
+            LB_RECONNECT_MS;
+
+        connectLocoNetBinary();
+      }
+    } else {
+      processLocoNetBinaryIncoming();
+    }
+
+    NetworkControl control;
+    while (
+        xQueueReceive(
+            _networkControlQueue,
+            &control,
+            0) ==
+            pdTRUE
+    ) {
+      if (
+          control.kind ==
+          NetworkControlKind::Interrogate
+      ) {
+        startLocoNetInterrogate(
+            true);
+      }
+    }
+
+    processLocoNetInterrogate(
+        now);
+#endif
+
+    vTaskDelay(
+        pdMS_TO_TICKS(
+            2));
+  }
+}
+
 bool Z21CommandCenter::startUdp() {
   if (_udpStarted) {
     return true;
