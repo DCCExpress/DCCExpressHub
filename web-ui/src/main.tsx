@@ -37,9 +37,6 @@ import {
   installFileViewerEnhancer,
 } from "@/services/fileViewerEnhancer";
 import {
-  installLayoutExportOverride,
-} from "@/services/layoutExportOverride";
-import {
   installBlockTargetLocoRuntime,
 } from "@/services/blockTargetLocoRuntime";
 import {
@@ -61,7 +58,6 @@ installApiFetchTimeout();
 installFileViewerEnhancer();
 installSignalLogicStatusIndicator();
 installDccExHeartbeatStatusIndicator();
-installLayoutExportOverride();
 installBlockTargetLocoRuntime();
 
 ReactDOM.createRoot(
