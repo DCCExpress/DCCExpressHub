@@ -276,15 +276,17 @@ bool MovementRuntime::acquireLeg(
        leg.turnouts) {
     request.turnoutAddresses.push_back(
         turnout.address);
-    request.resourceKeys.push_back(
-        "turnout:" +
-        String(turnout.address));
+    request.resourceTokens.push_back(
+        DispatcherRuntime::resourceToken(
+            "turnout:" +
+            String(turnout.address)));
   }
 
   for (const auto& resource :
        leg.resources)
-    request.resourceKeys.push_back(
-        resource.key);
+    request.resourceTokens.push_back(
+        DispatcherRuntime::resourceToken(
+            resource.key));
 
   const auto result =
       _dispatcher.acquireLeg(request);
