@@ -306,13 +306,12 @@ private:
   static constexpr unsigned long
       LB_RECONNECT_MS = 2000;
 
-  // YaMoRC LBServer can take noticeably longer than a LAN UDP roundtrip to
-  // accept a TCP connection. 150 ms proved too aggressive on real YD7010
-  // hardware. Keep this well below the Windows backend's 3 s timeout so the
-  // ESP32 main loop cannot stall for seconds, but allow enough time for a
-  // normal LBServer accept/reconnect.
+  // TCP connect runs on the ESP32 main loop. A healthy YaMoRC LBServer on
+  // the same LAN accepts within a few milliseconds; a long timeout only stalls
+  // the whole Hub when the service is unavailable. Retry frequently instead of
+  // blocking the runtime.
   static constexpr uint32_t
-      FEEDBACK_CONNECT_TIMEOUT_MS = 750;
+      FEEDBACK_CONNECT_TIMEOUT_MS = 150;
 
 
   static constexpr unsigned long
