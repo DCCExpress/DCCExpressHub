@@ -3054,13 +3054,16 @@ bool WsProtocol::switchManOwnerRevoked(
         return false;
     }
 
-    for (const auto& revoked : _switchManRevokedOwners)
-    {
-        if (revoked == ownerId)
-        {
-            return true;
-        }
-    }
+    const uint32_t ownerToken =
+        DispatcherRuntime::resourceToken(
+            ownerId);
+
+    return
+        std::find(
+            _switchManRevokedOwnerTokens.begin(),
+            _switchManRevokedOwnerTokens.end(),
+            ownerToken) !=
+        _switchManRevokedOwnerTokens.end();
 
     return false;
 }
@@ -3707,7 +3710,7 @@ void WsProtocol::handleSwitchManCommand(
         action ==
         "forceReleaseAll")
     {
-        _switchManRevokedOwners.clear();
+        _switchManRevokedOwnerTokens.clear();
 
         for (
             const auto& item :
@@ -3715,13 +3718,15 @@ void WsProtocol::handleSwitchManCommand(
         {
             if (
                 std::find(
-                    _switchManRevokedOwners.begin(),
-                    _switchManRevokedOwners.end(),
-                    item.ownerId) ==
-                _switchManRevokedOwners.end())
+                    _switchManRevokedOwnerTokens.begin(),
+                    _switchManRevokedOwnerTokens.end(),
+                    DispatcherRuntime::resourceToken(
+                        item.ownerId)) ==
+                _switchManRevokedOwnerTokens.end())
             {
-                _switchManRevokedOwners.push_back(
-                    item.ownerId);
+                _switchManRevokedOwnerTokens.push_back(
+                    DispatcherRuntime::resourceToken(
+                        item.ownerId));
             }
         }
 
