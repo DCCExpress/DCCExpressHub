@@ -13,8 +13,16 @@ void Z21CommandCenter::begin(
           ? DEFAULT_PORT
           : port);
 
+#if defined(HUB_CC_YAMORC7010)
+  _stationInfo.processor =
+      "Z21 LAN + LocoNet LBServer";
+
+  _stationInfo.hardware =
+      "YD7010";
+#else
   _stationInfo.processor =
       "Z21 LAN";
+#endif
 
   _stationInfo.maxLocos =
       100;
@@ -58,6 +66,14 @@ void Z21CommandCenter::setEndpoint(
     _udpStarted =
         false;
   }
+
+#if defined(HUB_CC_YAMORC7010)
+  disconnectLbServer();
+  _nextLbConnectAt = 0;
+  _lastLbTrafficAt = 0;
+  _lastLbInterrogateAt = 0;
+  _lbInterrogatePhase = 0;
+#endif
 }
 
 bool Z21CommandCenter::startUdp() {
@@ -237,6 +253,11 @@ void Z21CommandCenter::loop() {
 
   processAccessoryPulses(
       now);
+
+#if defined(HUB_CC_YAMORC7010)
+  loopLbServer(
+      now);
+#endif
 
   if (
       _nextKeepaliveAt == 0 ||
@@ -1104,6 +1125,25 @@ bool Z21CommandCenter::requestTripTelemetry(
   return true;
 }
 
+bool Z21CommandCenter::requestSensorSnapshot(
+    bool logCommand) {
+  (void)logCommand;
+
+#if defined(HUB_CC_YAMORC7010)
+  if (!connectLbServer()) {
+    return false;
+  }
+
+  startLocoNetInterrogate(
+      true);
+
+  return true;
+#else
+  return false;
+#endif
+}
+
+
 bool Z21CommandCenter::sendRawCommand(
     String command,
     bool logCommand) {
@@ -1112,6 +1152,580 @@ bool Z21CommandCenter::sendRawCommand(
 
   return false;
 }
+
+#if defined(HUB_CC_YAMORC7010)
+
+bool Z21CommandCenter::connectLbServer() {
+  if (
+      _lbConnected &&
+      _lbClient.connected()
+  ) {
+    return true;
+  }
+
+  disconnectLbServer();
+
+  if (
+      WiFi.status() !=
+          WL_CONNECTED ||
+      !resolveRemote()
+  ) {
+    return false;
+  }
+
+  const unsigned long now =
+      millis();
+
+  if (
+      _nextLbConnectAt != 0 &&
+      static_cast<long>(
+          now -
+          _nextLbConnectAt) < 0
+  ) {
+    return false;
+  }
+
+  _nextLbConnectAt =
+      now +
+      LB_RECONNECT_MS;
+
+  if (
+      !_lbClient.connect(
+          _remoteIp,
+          LB_SERVER_PORT)
+  ) {
+    return false;
+  }
+
+  _lbClient.setNoDelay(
+      true);
+
+  _lbConnected =
+      true;
+
+  _lbLineLength =
+      0;
+
+  _lastLbTrafficAt =
+      now;
+
+  Logger::info(
+      "YD7010 LBServer connected " +
+      _remoteIp.toString() +
+      ":" +
+      String(
+          LB_SERVER_PORT));
+
+  if (_rawInfoCallback) {
+    _rawInfoCallback(
+        "YD7010 LBServer connected");
+  }
+
+  startLocoNetInterrogate(
+      true);
+
+  return true;
+}
+
+void Z21CommandCenter::disconnectLbServer() {
+  if (_lbClient) {
+    _lbClient.stop();
+  }
+
+  if (_lbConnected) {
+    Logger::warn(
+        "YD7010 LBServer disconnected");
+  }
+
+  _lbConnected =
+      false;
+
+  _lbLineLength =
+      0;
+
+  _lbInterrogatePhase =
+      0;
+}
+
+void Z21CommandCenter::loopLbServer(
+    unsigned long now) {
+  if (
+      !_lbConnected ||
+      !_lbClient.connected()
+  ) {
+    connectLbServer();
+    return;
+  }
+
+  processLbServerIncoming();
+
+  if (!_lbClient.connected()) {
+    disconnectLbServer();
+
+    _nextLbConnectAt =
+        now +
+        LB_RECONNECT_MS;
+
+    return;
+  }
+
+  processLocoNetInterrogate(
+      now);
+}
+
+void Z21CommandCenter::processLbServerIncoming() {
+  while (
+      _lbClient.connected() &&
+      _lbClient.available() >
+          0
+  ) {
+    const int value =
+        _lbClient.read();
+
+    if (value < 0) {
+      break;
+    }
+
+    const char ch =
+        static_cast<char>(
+            value);
+
+    if (
+        ch == '\r' ||
+        ch == '\n'
+    ) {
+      if (_lbLineLength > 0) {
+        _lbLine[_lbLineLength] =
+            '\0';
+
+        processLbServerLine(
+            _lbLine);
+
+        _lbLineLength =
+            0;
+      }
+
+      continue;
+    }
+
+    if (
+        _lbLineLength +
+            1 <
+        sizeof(
+            _lbLine)
+    ) {
+      _lbLine[
+          _lbLineLength++] =
+          ch;
+    } else {
+      _lbLineLength =
+          0;
+    }
+  }
+}
+
+void Z21CommandCenter::processLbServerLine(
+    const char* line) {
+  if (!line) {
+    return;
+  }
+
+  while (
+      *line == ' ' ||
+      *line == '\t'
+  ) {
+    ++line;
+  }
+
+  if (*line == '\0') {
+    return;
+  }
+
+  _lastLbTrafficAt =
+      millis();
+
+  if (
+      strncmp(
+          line,
+          "VERSION ",
+          8) == 0
+  ) {
+    if (_rawInfoCallback) {
+      _rawInfoCallback(
+          "YD7010 LBServer " +
+          String(
+              line));
+    }
+
+    return;
+  }
+
+  if (
+      strncmp(
+          line,
+          "RECEIVE ",
+          8) != 0
+  ) {
+    return;
+  }
+
+  uint8_t packet[128] = {};
+  size_t packetLength =
+      0;
+
+  const char* cursor =
+      line +
+      8;
+
+  while (
+      *cursor != '\0' &&
+      packetLength <
+          sizeof(
+              packet)
+  ) {
+    while (
+        *cursor == ' ' ||
+        *cursor == '\t'
+    ) {
+      ++cursor;
+    }
+
+    if (*cursor == '\0') {
+      break;
+    }
+
+    char* end =
+        nullptr;
+
+    const unsigned long parsed =
+        strtoul(
+            cursor,
+            &end,
+            16);
+
+    if (
+        end == cursor ||
+        parsed >
+            0xFF
+    ) {
+      return;
+    }
+
+    packet[
+        packetLength++] =
+        static_cast<uint8_t>(
+            parsed);
+
+    cursor =
+        end;
+  }
+
+  processLocoNetPacket(
+      packet,
+      packetLength);
+}
+
+void Z21CommandCenter::processLocoNetPacket(
+    const uint8_t* packet,
+    size_t length) {
+  if (
+      !packet ||
+      length <
+          2
+  ) {
+    return;
+  }
+
+  uint8_t checksum =
+      0;
+
+  for (
+      size_t index = 0;
+      index <
+          length;
+      ++index
+  ) {
+    checksum ^=
+        packet[index];
+  }
+
+  if (
+      checksum !=
+      0xFF
+  ) {
+    return;
+  }
+
+  if (
+      packet[0] ==
+          0xB1 ||
+      packet[0] ==
+          0xB2
+  ) {
+    _lastLbTrafficAt =
+        millis();
+  } else if (
+      length >=
+          4 &&
+      (
+          packet[0] ==
+              0xB0 ||
+          packet[0] ==
+              0xBD
+      )
+  ) {
+    const uint16_t address =
+        static_cast<uint16_t>(
+            packet[1] &
+            0x7F) +
+        static_cast<uint16_t>(
+            128 *
+            (
+                packet[2] &
+                0x0F
+            ));
+
+    if (
+        address >=
+            0x3F8 &&
+        address <=
+            0x3FB
+    ) {
+      _lastLbTrafficAt =
+          millis();
+    }
+  }
+
+  if (
+      packet[0] ==
+          0xB2 &&
+      length >=
+          4
+  ) {
+    processLocoNetInputReport(
+        packet,
+        length);
+  }
+}
+
+void Z21CommandCenter::processLocoNetInputReport(
+    const uint8_t* packet,
+    size_t length) {
+  if (
+      !packet ||
+      length <
+          4
+  ) {
+    return;
+  }
+
+  const uint8_t in1 =
+      packet[1];
+
+  const uint8_t in2 =
+      packet[2];
+
+  uint16_t address =
+      static_cast<uint16_t>(
+          (
+              in1 |
+              (
+                  (
+                      in2 &
+                      0x0F
+                  ) <<
+                  7
+              )
+          ) <<
+          1);
+
+  address +=
+      (
+          in2 &
+          0x20
+      ) != 0
+          ? 2
+          : 1;
+
+  if (
+      address <
+          1 ||
+      address >
+          4096
+  ) {
+    return;
+  }
+
+  const bool occupied =
+      (
+          in2 &
+          0x10
+      ) != 0;
+
+  if (_rawInfoCallback) {
+    _rawInfoCallback(
+        "YD7010 sensor #" +
+        String(
+            address) +
+        (
+            occupied
+                ? " ON"
+                : " OFF"
+        ));
+  }
+
+  if (_sensorFeedbackCallback) {
+    CommandCenterSensorFeedback
+        feedback;
+
+    feedback.address =
+        address;
+
+    feedback.on =
+        occupied;
+
+    _sensorFeedbackCallback(
+        feedback);
+  }
+}
+
+void Z21CommandCenter::startLocoNetInterrogate(
+    bool force) {
+  const unsigned long now =
+      millis();
+
+  if (
+      !force &&
+      _lastLbInterrogateAt !=
+          0 &&
+      now -
+          _lastLbInterrogateAt <
+          10000
+  ) {
+    return;
+  }
+
+  _lbInterrogatePhase =
+      1;
+
+  _lastLbTrafficAt =
+      now;
+
+  if (_rawInfoCallback) {
+    _rawInfoCallback(
+        "YD7010 LocoNet sensor interrogation started");
+  }
+}
+
+void Z21CommandCenter::processLocoNetInterrogate(
+    unsigned long now) {
+  if (
+      _lbInterrogatePhase <
+          1 ||
+      _lbInterrogatePhase >
+          8 ||
+      !_lbClient.connected()
+  ) {
+    return;
+  }
+
+  if (
+      now -
+          _lastLbTrafficAt <
+      LB_INTERROGATE_QUIET_MS
+  ) {
+    return;
+  }
+
+  static const uint8_t sw1[8] = {
+      0x78,
+      0x79,
+      0x7A,
+      0x7B,
+      0x78,
+      0x79,
+      0x7A,
+      0x7B};
+
+  static const uint8_t sw2[8] = {
+      0x27,
+      0x27,
+      0x27,
+      0x27,
+      0x07,
+      0x07,
+      0x07,
+      0x07};
+
+  const uint8_t index =
+      static_cast<uint8_t>(
+          _lbInterrogatePhase -
+          1);
+
+  const uint8_t opcode =
+      0xB0;
+
+  const uint8_t checksum =
+      static_cast<uint8_t>(
+          0xFF ^
+          opcode ^
+          sw1[index] ^
+          sw2[index]);
+
+  char line[32];
+
+  snprintf(
+      line,
+      sizeof(
+          line),
+      "SEND %02X %02X %02X %02X\r\n",
+      opcode,
+      sw1[index],
+      sw2[index],
+      checksum);
+
+  const size_t lineLength =
+      strlen(
+          line);
+
+  const size_t written =
+      _lbClient.write(
+          reinterpret_cast<
+              const uint8_t*>(
+              line),
+          lineLength);
+
+  if (
+      written !=
+      lineLength
+  ) {
+    disconnectLbServer();
+    return;
+  }
+
+  _lastLbTrafficAt =
+      now;
+
+  ++_lbInterrogatePhase;
+
+  if (
+      _lbInterrogatePhase >
+          8
+  ) {
+    _lbInterrogatePhase =
+        0;
+
+    _lastLbInterrogateAt =
+        now;
+
+    if (_rawInfoCallback) {
+      _rawInfoCallback(
+          "YD7010 LocoNet sensor interrogation sent");
+    }
+  }
+}
+
+#endif
 
 void Z21CommandCenter::processIncoming() {
   while (true) {
@@ -1704,12 +2318,20 @@ void Z21CommandCenter::processHardwareInfo(
           data +
           4);
 
+#if defined(HUB_CC_YAMORC7010)
+  _stationInfo.hardware =
+      "YD7010";
+
+  _stationInfo.processor =
+      "Z21 LAN + LocoNet LBServer";
+#else
   _stationInfo.hardware =
       hardwareName(
           hardwareType);
 
   _stationInfo.processor =
       "Z21 LAN";
+#endif
 
   _stationInfo.version =
       bcdVersion(
