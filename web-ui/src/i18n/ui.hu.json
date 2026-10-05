@@ -814,7 +814,7 @@
   "programmingTrack": "Programozóvágány",
   "locoPom": "Mozdony POM",
   "accessoryPom": "Kiegészítő POM",
-  "z21ServiceModeInfo": "A közvetlen CV-olvasás/írás a Z21 programozóvágányos szervizmódját használja. Nincsenek DCC-EX MAIN/PROG/JOIN parancsok.",
+  "z21ServiceModeInfo": "Közvetlen CV-olvasás és -írás a programozóvágányon.",
   "z21PomRailComInfo": "A POM olvasáshoz a RailComnak engedélyezve kell lennie a központban, és a dekódernek is támogatnia/engedélyeznie kell.",
   "z21PomWriteNoFeedback": "A Z21 LAN protokollban a POM írásra nincs dekóder-visszaigazolás. A sikeres eredmény azt jelenti, hogy a parancs elküldésre került.",
   "accessoryDecoderAddress": "Kiegészítődekóder címe",
