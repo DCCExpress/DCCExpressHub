@@ -1264,6 +1264,253 @@ function Z21ProgrammingPage({
     }
   };
 
+  const programmingRequest = async (
+    action: ProgrammingCommandAction,
+    values: {
+      address?: number;
+      cv?: number;
+      value?: number;
+    },
+  ): Promise<ProgrammingResponsePayload> => {
+    const requestId =
+      `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
+    return wsApi.programmingRequest(
+      requestId,
+      action,
+      values,
+    );
+  };
+
+  const readZ21Address = async (): Promise<void> => {
+    setBusy(true);
+    setResult(null);
+
+    try {
+      const cv29 =
+        await programmingRequest(
+          "readCv",
+          { cv: 29 },
+        );
+
+      if (
+        !cv29.ok ||
+        typeof cv29.value !== "number"
+      ) {
+        throw new Error(
+          cv29.message ??
+            "Could not read CV29.",
+        );
+      }
+
+      let address: number;
+
+      if (
+        (cv29.value & 0x20) !== 0
+      ) {
+        const cv17 =
+          await programmingRequest(
+            "readCv",
+            { cv: 17 },
+          );
+
+        const cv18 =
+          await programmingRequest(
+            "readCv",
+            { cv: 18 },
+          );
+
+        if (
+          !cv17.ok ||
+          !cv18.ok ||
+          typeof cv17.value !== "number" ||
+          typeof cv18.value !== "number"
+        ) {
+          throw new Error(
+            cv17.message ??
+              cv18.message ??
+              "Could not read long locomotive address.",
+          );
+        }
+
+        address =
+          ((cv17.value & 0x3f) << 8) |
+          cv18.value;
+      } else {
+        const cv1 =
+          await programmingRequest(
+            "readCv",
+            { cv: 1 },
+          );
+
+        if (
+          !cv1.ok ||
+          typeof cv1.value !== "number"
+        ) {
+          throw new Error(
+            cv1.message ??
+              "Could not read short locomotive address.",
+          );
+        }
+
+        address =
+          cv1.value;
+      }
+
+      setLocoAddress(
+        address
+      );
+
+      setResult({
+        requestId: "z21-address-read",
+        action: "readAddress",
+        ok: true,
+        message:
+          "Locomotive address read from DCC address CVs.",
+        value:
+          address,
+      });
+    } catch (error) {
+      setResult({
+        requestId: "z21-address-read",
+        action: "readAddress",
+        ok: false,
+        message:
+          error instanceof Error
+            ? error.message
+            : String(error),
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const writeZ21Address = async (): Promise<void> => {
+    const address =
+      numberValue(locoAddress);
+
+    if (
+      address < 1 ||
+      address > 10239
+    ) {
+      setResult({
+        requestId: "z21-address-write",
+        action: "writeAddress",
+        ok: false,
+        message:
+          "Invalid locomotive address.",
+      });
+      return;
+    }
+
+    if (
+      !window.confirm(
+        `Write locomotive address ${address} on the programming track?`,
+      )
+    ) {
+      return;
+    }
+
+    setBusy(true);
+    setResult(null);
+
+    try {
+      const cv29 =
+        await programmingRequest(
+          "readCv",
+          { cv: 29 },
+        );
+
+      if (
+        !cv29.ok ||
+        typeof cv29.value !== "number"
+      ) {
+        throw new Error(
+          cv29.message ??
+            "Could not read CV29 before changing the address.",
+        );
+      }
+
+      const writes:
+        Array<{
+          cv: number;
+          value: number;
+        }> =
+        address <= 127
+          ? [
+              {
+                cv: 1,
+                value: address,
+              },
+              {
+                cv: 29,
+                value:
+                  cv29.value &
+                  ~0x20,
+              },
+            ]
+          : [
+              {
+                cv: 17,
+                value:
+                  0xc0 |
+                  ((address >> 8) & 0x3f),
+              },
+              {
+                cv: 18,
+                value:
+                  address &
+                  0xff,
+              },
+              {
+                cv: 29,
+                value:
+                  cv29.value |
+                  0x20,
+              },
+            ];
+
+      for (
+        const write of writes
+      ) {
+        const response =
+          await programmingRequest(
+            "writeCv",
+            write,
+          );
+
+        if (!response.ok) {
+          throw new Error(
+            response.message ??
+              `Could not write CV${write.cv}.`,
+          );
+        }
+      }
+
+      setResult({
+        requestId: "z21-address-write",
+        action: "writeAddress",
+        ok: true,
+        message:
+          "Locomotive address written through standard DCC address CVs.",
+        value:
+          address,
+      });
+    } catch (error) {
+      setResult({
+        requestId: "z21-address-write",
+        action: "writeAddress",
+        ok: false,
+        message:
+          error instanceof Error
+            ? error.message
+            : String(error),
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const serviceCvNumber =
     numberValue(serviceCv);
 
@@ -1394,6 +1641,53 @@ function Z21ProgrammingPage({
               >
                 {i18next.t("ui.z21ServiceModeInfo")}
               </Alert>
+
+              <Card withBorder radius={5} p="lg">
+                <Stack gap="md">
+                  <div>
+                    <Title order={4}>
+                      {i18next.t("ui.locomotiveAddress")}
+                    </Title>
+
+                    <Text size="sm" c="dimmed" mt={4}>
+                      {i18next.t("ui.z21AddressHelperInfo")}
+                    </Text>
+                  </div>
+
+                  <NumberInput
+                    label={i18next.t("ui.address")}
+                    value={locoAddress}
+                    onChange={setLocoAddress}
+                    min={1}
+                    max={10239}
+                    allowDecimal={false}
+                  />
+
+                  <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                    <Button
+                      variant="light"
+                      leftSection={<IconRefresh size={17} />}
+                      disabled={busy || disconnected}
+                      onClick={() =>
+                        void readZ21Address()
+                      }
+                    >
+                      {i18next.t("ui.readAddress")}
+                    </Button>
+
+                    <Button
+                      color="orange"
+                      leftSection={<IconDeviceFloppy size={17} />}
+                      disabled={busy || disconnected}
+                      onClick={() =>
+                        void writeZ21Address()
+                      }
+                    >
+                      {i18next.t("ui.writeAddress")}
+                    </Button>
+                  </SimpleGrid>
+                </Stack>
+              </Card>
 
               <Card withBorder radius={5} p="lg">
                 <Stack gap="md">
