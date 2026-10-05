@@ -104,13 +104,15 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
         ILogger<RocoZ21CommandCenter> log)
         : this(
             configuration,
-            log)
+            log,
+            true)
     {
     }
 
     protected RocoZ21CommandCenter(
         IConfiguration configuration,
-        ILogger log)
+        ILogger log,
+        bool derivedProfile)
     {
         Configuration = configuration;
         _log = log;
