@@ -2828,9 +2828,74 @@ void Z21CommandCenter::processLocoNetMessage(
     return;
   }
 
-  processLocoNetInputReport(
-      data,
-      length);
+  const uint8_t in1 =
+      data[1];
+
+  const uint8_t in2 =
+      data[2];
+
+  uint16_t address =
+      static_cast<uint16_t>(
+          (
+              in1 |
+              (
+                  (
+                      in2 &
+                      0x0F
+                  ) <<
+                  7
+              )
+          ) <<
+          1);
+
+  address +=
+      (
+          in2 &
+          0x20
+      ) != 0
+          ? 2
+          : 1;
+
+  if (
+      address <
+          1 ||
+      address >
+          4096
+  ) {
+    return;
+  }
+
+  const bool occupied =
+      (
+          in2 &
+          0x10
+      ) != 0;
+
+  if (_rawInfoCallback) {
+    _rawInfoCallback(
+        "Z21 LocoNet sensor #" +
+        String(
+            address) +
+        (
+            occupied
+                ? " ON"
+                : " OFF"
+        ));
+  }
+
+  if (_sensorFeedbackCallback) {
+    CommandCenterSensorFeedback
+        feedback;
+
+    feedback.address =
+        address;
+
+    feedback.on =
+        occupied;
+
+    _sensorFeedbackCallback(
+        feedback);
+  }
 }
 
 void Z21CommandCenter::processLocoNetDetector(
