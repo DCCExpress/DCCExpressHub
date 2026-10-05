@@ -184,14 +184,14 @@ void App::begin() {
   // internal-memory-only allocations. On the N16R8 S3, prefer PSRAM for
   // larger ordinary malloc/new requests.
   if (ESP.getPsramSize() > 0) {
-    heap_caps_malloc_extmem_enable(8192);
+    heap_caps_malloc_extmem_enable(1024);
 
     Logger::info(
         "PSRAM enabled: total=" +
         String(ESP.getPsramSize() / 1024) +
         " KB free=" +
         String(ESP.getFreePsram() / 1024) +
-        " KB; malloc >= 8 KB prefers PSRAM");
+        " KB; malloc >= 1 KB prefers PSRAM");
   } else {
     Logger::warn("PSRAM not detected");
   }
