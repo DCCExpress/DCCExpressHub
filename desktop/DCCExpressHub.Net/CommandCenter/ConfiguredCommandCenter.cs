@@ -80,7 +80,7 @@ public sealed class ConfiguredCommandCenter : ICommandCenter
     private bool MapDirection(int address,bool forward)=>LocomotiveDirectionInverted(address)?!forward:forward;
 
     public Z21RuntimeDiagnostics? GetZ21Diagnostics() =>
-        _inner is Z21CommandCenter z21
+        _inner is RocoZ21CommandCenter z21
             ? z21.Diagnostics
             : null;
 
@@ -96,7 +96,7 @@ public sealed class ConfiguredCommandCenter : ICommandCenter
             DccExCommandCenter dccEx =>
                 dccEx.SetEndpoint(endpoint,value),
 
-            Z21CommandCenter z21 =>
+            RocoZ21CommandCenter z21 =>
                 z21.SetEndpoint(endpoint,value),
 
             _ => false
