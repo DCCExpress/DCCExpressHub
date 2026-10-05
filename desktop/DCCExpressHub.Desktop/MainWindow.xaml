@@ -377,8 +377,8 @@
                    <ComboBoxItem x:Name="ProtocolChooseItem" Tag=""/>
                    <ComboBoxItem Content="DCC-EX TCP" Tag="tcp"/>
                    <ComboBoxItem Content="DCC-EX Serial" Tag="serial"/>
-                   <ComboBoxItem Content="Z21" Tag="z21"/>
-                   <ComboBoxItem Content="YD7010" Tag="yamorc7010"/>
+                   <ComboBoxItem Content="Roco Z21" Tag="z21"/>
+                   <ComboBoxItem Content="YaMoRC YD7010" Tag="yamorc7010"/>
                  </ComboBox>
 
                  <Grid x:Name="TcpPanel" Margin="0,12,0,0" Visibility="Collapsed">
