@@ -1,6 +1,8 @@
 #include "Z21CommandCenter.h"
 
 #include <WiFi.h>
+#include <strings.h>
+#include <ctype.h>
 
 #include "Logger.h"
 
@@ -1344,27 +1346,44 @@ void Z21CommandCenter::processLbServerLine(
   _lastLbTrafficAt =
       millis();
 
+  ++_lbLinesObserved;
+
   if (
-      strncmp(
+      _lbLinesObserved <=
+          12 &&
+      _rawInfoCallback
+  ) {
+    _rawInfoCallback(
+        "YD7010 LB RX " +
+        String(
+            line));
+  }
+
+  if (
+      strncasecmp(
           line,
           "VERSION ",
           8) == 0
   ) {
-    if (_rawInfoCallback) {
-      _rawInfoCallback(
-          "YD7010 LBServer " +
-          String(
-              line));
-    }
-
     return;
   }
 
+  const char* cursor =
+      line;
+
   if (
-      strncmp(
+      strncasecmp(
           line,
           "RECEIVE ",
-          8) != 0
+          8) == 0
+  ) {
+    cursor =
+        line +
+        8;
+  } else if (
+      !isxdigit(
+          static_cast<unsigned char>(
+              *line))
   ) {
     return;
   }
@@ -1372,10 +1391,6 @@ void Z21CommandCenter::processLbServerLine(
   uint8_t packet[128] = {};
   size_t packetLength =
       0;
-
-  const char* cursor =
-      line +
-      8;
 
   while (
       *cursor != '\0' &&
@@ -1406,7 +1421,12 @@ void Z21CommandCenter::processLbServerLine(
     if (
         end == cursor ||
         parsed >
-            0xFF
+            0xFF ||
+        (
+            *end != '\0' &&
+            *end != ' ' &&
+            *end != '\t'
+        )
     ) {
       return;
     }
@@ -1419,6 +1439,12 @@ void Z21CommandCenter::processLbServerLine(
     cursor =
         end;
   }
+
+  if (packetLength == 0) {
+    return;
+  }
+
+  ++_lbPacketsObserved;
 
   processLocoNetPacket(
       packet,
@@ -1453,6 +1479,18 @@ void Z21CommandCenter::processLocoNetPacket(
       checksum !=
       0xFF
   ) {
+    if (
+        _lbPacketsObserved <=
+            12 &&
+        _rawInfoCallback
+    ) {
+      _rawInfoCallback(
+          "YD7010 LB invalid checksum opcode=0x" +
+          String(
+              packet[0],
+              HEX));
+    }
+
     return;
   }
 
