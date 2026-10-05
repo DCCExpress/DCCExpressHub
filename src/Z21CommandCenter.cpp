@@ -183,29 +183,98 @@ bool Z21CommandCenter::resolveRemote() {
 }
 
 bool Z21CommandCenter::ensureConnected() {
+  Logger::info(
+      "Z21 CONNECT 01 start UDP");
+
   if (!startUdp()) {
+    Logger::warn(
+        "Z21 CONNECT 01 FAIL UDP start");
     return false;
   }
+
+  Logger::info(
+      "Z21 CONNECT 01 OK");
+
+  Logger::info(
+      "Z21 CONNECT 02 resolve remote");
 
   if (!resolveRemote()) {
+    Logger::warn(
+        "Z21 CONNECT 02 FAIL remote resolve");
     return false;
   }
 
-  setBroadcastFlags();
-  requestHardwareInfo(
-      false);
-  requestFirmwareVersion(
-      false);
-  requestStatus(
-      false);
-  requestSystemState(
-      false);
+  Logger::info(
+      "Z21 CONNECT 02 OK remote=" +
+      _remoteIp.toString() +
+      ":" +
+      String(
+          _port));
+
+  const bool broadcastOk =
+      setBroadcastFlags();
+
+  Logger::info(
+      "Z21 CONNECT 03 broadcast flags=" +
+      String(
+          broadcastOk
+              ? "OK"
+              : "FAIL"));
+
+  const bool hardwareOk =
+      requestHardwareInfo(
+          false);
+
+  Logger::info(
+      "Z21 CONNECT 04 hardware request=" +
+      String(
+          hardwareOk
+              ? "OK"
+              : "FAIL"));
+
+  const bool firmwareOk =
+      requestFirmwareVersion(
+          false);
+
+  Logger::info(
+      "Z21 CONNECT 05 firmware request=" +
+      String(
+          firmwareOk
+              ? "OK"
+              : "FAIL"));
+
+  const bool statusOk =
+      requestStatus(
+          false);
+
+  Logger::info(
+      "Z21 CONNECT 06 status request=" +
+      String(
+          statusOk
+              ? "OK"
+              : "FAIL"));
+
+  const bool systemOk =
+      requestSystemState(
+          false);
+
+  Logger::info(
+      "Z21 CONNECT 07 system-state request=" +
+      String(
+          systemOk
+              ? "OK"
+              : "FAIL"));
 
   _nextKeepaliveAt =
       millis() +
       KEEPALIVE_MS;
 
-  return true;
+  return
+      broadcastOk ||
+      hardwareOk ||
+      firmwareOk ||
+      statusOk ||
+      systemOk;
 }
 
 bool Z21CommandCenter::connected() {
@@ -254,6 +323,77 @@ void Z21CommandCenter::loop() {
 
   const unsigned long now =
       millis();
+
+  static unsigned long
+      nextNetworkDiagnosticAt = 0;
+
+  if (
+      nextNetworkDiagnosticAt == 0 ||
+      static_cast<long>(
+          now -
+          nextNetworkDiagnosticAt) >= 0
+  ) {
+    const unsigned long rxAge =
+        _lastRxAt == 0
+            ? 0
+            : now -
+                _lastRxAt;
+
+    String diagnostic =
+        "NET state wifi=" +
+        String(
+            WiFi.status() ==
+                    WL_CONNECTED
+                ? "OK"
+                : "NOK") +
+        " udp=" +
+        String(
+            _udpStarted
+                ? "OK"
+                : "NOK") +
+        " resolved=" +
+        String(
+            _resolved
+                ? "OK"
+                : "NOK") +
+        " cc=" +
+        String(
+            _online
+                ? "OK"
+                : "NOK") +
+        " lastUdpRxAge=" +
+        String(
+            rxAge) +
+        "ms";
+
+#if defined(HUB_CC_YAMORC7010)
+    diagnostic +=
+        " lb=" +
+        String(
+            _lbConnected
+                ? "OK"
+                : "NOK") +
+        " bin=" +
+        String(
+            _lnBinaryConnected
+                ? "OK"
+                : "NOK");
+#endif
+
+    if (
+        !_online
+#if defined(HUB_CC_YAMORC7010)
+        || !_lbConnected
+#endif
+    ) {
+      Logger::warn(
+          diagnostic);
+    }
+
+    nextNetworkDiagnosticAt =
+        now +
+        5000;
+  }
 
   processAccessoryPulses(
       now);
@@ -1249,14 +1389,42 @@ bool Z21CommandCenter::connectLbServer() {
       now +
       LB_RECONNECT_MS;
 
+  Logger::info(
+      "LNET LB connect begin " +
+      _remoteIp.toString() +
+      ":" +
+      String(
+          LB_SERVER_PORT) +
+      " timeout=" +
+      String(
+          FEEDBACK_CONNECT_TIMEOUT_MS) +
+      "ms");
+
+  const unsigned long connectStarted =
+      millis();
+
   if (
       !_lbClient.connect(
           _remoteIp,
           LB_SERVER_PORT,
           FEEDBACK_CONNECT_TIMEOUT_MS)
   ) {
+    Logger::warn(
+        "LNET LB connect FAIL elapsed=" +
+        String(
+            millis() -
+            connectStarted) +
+        "ms");
+
     return false;
   }
+
+  Logger::info(
+      "LNET LB connect OK elapsed=" +
+      String(
+          millis() -
+          connectStarted) +
+      "ms");
 
   _lbClient.setNoDelay(
       true);
@@ -1370,14 +1538,42 @@ bool Z21CommandCenter::connectLocoNetBinary() {
       now +
       LB_RECONNECT_MS;
 
+  Logger::info(
+      "LNET BIN connect begin " +
+      _remoteIp.toString() +
+      ":" +
+      String(
+          LN_BINARY_PORT) +
+      " timeout=" +
+      String(
+          FEEDBACK_CONNECT_TIMEOUT_MS) +
+      "ms");
+
+  const unsigned long connectStarted =
+      millis();
+
   if (
       !_lnBinaryClient.connect(
           _remoteIp,
           LN_BINARY_PORT,
           FEEDBACK_CONNECT_TIMEOUT_MS)
   ) {
+    Logger::warn(
+        "LNET BIN connect FAIL elapsed=" +
+        String(
+            millis() -
+            connectStarted) +
+        "ms");
+
     return false;
   }
+
+  Logger::info(
+      "LNET BIN connect OK elapsed=" +
+      String(
+          millis() -
+          connectStarted) +
+      "ms");
 
   _lnBinaryClient.setNoDelay(
       true);
