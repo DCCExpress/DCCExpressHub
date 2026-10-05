@@ -808,6 +808,8 @@
   "writeAddress": "Cím írása",
   "configurationVariable": "Konfigurációs változó",
   "readOrWriteOneCvAtATime": "Egyszerre egy CV olvasása vagy írása",
+  "connectToTheCommandCenterBeforeSendingProgrammingCommands": "Programozási parancsok küldése előtt csatlakozz a központhoz.",
+  "z21AddressHelperInfo": "A mozdonycím olvasását/írását a szabványos DCC cím-CV-kből (CV1, CV17, CV18 és CV29) végzi a Hub.",
   "z21ProgrammingSubtitle": "Natív Z21 / YaMoRC dekóderprogramozás",
   "programmingTrack": "Programozóvágány",
   "locoPom": "Mozdony POM",
