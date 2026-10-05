@@ -20,7 +20,7 @@ public sealed class SwitchManManager
 {
     readonly object _gate = new();
     readonly Dictionary<ushort, SwitchManLockInfo> _locks = new();
-    readonly HashSet<string> _revokedOwners = new(StringComparer.Ordinal);
+    readonly HashSet<uint> _revokedOwnerTokens = [];
     TaskCompletionSource<bool> _changed = NewSignal();
 
     public event Action<SwitchManLockInfo[]?>? Changed;
@@ -74,7 +74,9 @@ public sealed class SwitchManManager
         string ownerId,
         string ownerName)
     {
-        if (_revokedOwners.Contains(ownerId))
+        if (_revokedOwnerTokens.Contains(
+                DispatcherRuntime.ResourceToken(
+                    ownerId)))
             return new(false, "switchman_owner_revoked", Array.Empty<SwitchManLockInfo>(), Array.Empty<SwitchManLockInfo>());
 
         var conflicts = addresses
@@ -224,10 +226,12 @@ public sealed class SwitchManManager
         lock (_gate)
         {
             released = _locks.Count;
-            _revokedOwners.Clear();
+            _revokedOwnerTokens.Clear();
 
             foreach (var ownerId in _locks.Values.Select(x => x.OwnerId).Distinct(StringComparer.Ordinal))
-                _revokedOwners.Add(ownerId);
+                _revokedOwnerTokens.Add(
+                    DispatcherRuntime.ResourceToken(
+                        ownerId));
 
             _locks.Clear();
             PulseLocked();
