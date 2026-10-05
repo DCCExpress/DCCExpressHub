@@ -10,9 +10,8 @@ import {
   loadMovementPlan,
 } from "./movementPlan";
 
-import {
-  createMovementRouteKey,
-  type MovementRouteIdentityEntry,
+import type {
+  MovementRouteIdentityEntry,
 } from "./movementRouteIdentity";
 
 export type MovementRouteVectorRole =
@@ -451,19 +450,14 @@ function routeCheckpoints(
   page:
     MovementPage
 ): number[] {
-  if (
-    page.fromBlockId ===
-      null ||
-    page.toBlockId ===
-      null
-  ) {
+  if (!page.routeRef) {
     return [];
   }
 
   return [
-    page.fromBlockId,
-    ...page.viaBlockIds,
-    page.toBlockId,
+    page.routeRef.fromBlockId,
+    ...page.routeRef.viaBlockIds,
+    page.routeRef.toBlockId,
   ];
 }
 
@@ -554,28 +548,6 @@ export function resolveMovementRouteVectorEntry(
             )
       );
 
-  if (
-    page.routeKey.trim().length >
-      0
-  ) {
-    const exact =
-      routeTable.find(
-        route =>
-          createMovementRouteKey(
-            route
-          ) ===
-          page.routeKey
-      );
-
-    if (exact) {
-      return exact;
-    }
-
-    throw new Error(
-      "The selected Movement route no longer exists in the saved route topology."
-    );
-  }
-
   const checkpoints =
     routeCheckpoints(
       page
@@ -599,6 +571,9 @@ export function resolveMovementRouteVectorEntry(
         1
     ]!;
 
+  const routeRef =
+    page.routeRef!;
+
   const candidates =
     routeTable.filter(
       route =>
@@ -610,6 +585,8 @@ export function resolveMovementRouteVectorEntry(
           route.toBlockId
         ) ===
           last &&
+        route.locoDirection ===
+          routeRef.direction &&
         containsCheckpointsInOrder(
           route,
           checkpoints
