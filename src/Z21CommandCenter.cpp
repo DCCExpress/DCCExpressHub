@@ -486,6 +486,212 @@ bool Z21CommandCenter::setProgrammingPower(
   return false;
 }
 
+void Z21CommandCenter::emitProgrammingFeedback(
+    bool ok,
+    uint16_t cv,
+    int16_t value,
+    const String& message,
+    const String& raw) {
+  if (!_programmingFeedbackCallback) {
+    return;
+  }
+
+  CommandCenterProgrammingFeedback feedback;
+  feedback.ok = ok;
+  feedback.cv = cv;
+  feedback.value = value;
+  feedback.message = message;
+  feedback.raw = raw;
+
+  _programmingFeedbackCallback(
+      feedback);
+}
+
+bool Z21CommandCenter::sendCvDirect(
+    bool write,
+    uint16_t cv,
+    uint8_t value) {
+  if (cv == 0 || cv > 1024) {
+    return false;
+  }
+
+  const uint16_t cvAddress =
+      static_cast<uint16_t>(
+          cv - 1);
+
+  if (write) {
+    const uint8_t payload[] = {
+        0x24,
+        0x12,
+        static_cast<uint8_t>(
+            cvAddress >> 8),
+        static_cast<uint8_t>(
+            cvAddress & 0xFF),
+        value};
+
+    return sendXBus(
+        payload,
+        sizeof(payload),
+        true);
+  }
+
+  const uint8_t payload[] = {
+      0x23,
+      0x11,
+      static_cast<uint8_t>(
+          cvAddress >> 8),
+      static_cast<uint8_t>(
+          cvAddress & 0xFF)};
+
+  return sendXBus(
+      payload,
+      sizeof(payload),
+      true);
+}
+
+bool Z21CommandCenter::sendPomCv(
+    bool accessory,
+    bool write,
+    uint16_t address,
+    uint16_t cv,
+    uint8_t value) {
+  if (cv == 0 || cv > 1024) {
+    return false;
+  }
+
+  const uint16_t cvAddress =
+      static_cast<uint16_t>(
+          cv - 1);
+
+  uint8_t addressMsb = 0;
+  uint8_t addressLsb = 0;
+
+  if (accessory) {
+    // Hub/UI accessory decoder addresses are human-facing 1..512 while the
+    // Z21 LAN protocol uses Decoder_Address 0..511.
+    if (address == 0 || address > 512) {
+      return false;
+    }
+
+    const uint16_t decoderAddress =
+        static_cast<uint16_t>(
+            address - 1);
+
+    const uint16_t encoded =
+        static_cast<uint16_t>(
+            (decoderAddress & 0x01FF) <<
+            4);
+
+    addressMsb =
+        static_cast<uint8_t>(
+            encoded >> 8);
+
+    addressLsb =
+        static_cast<uint8_t>(
+            encoded & 0xFF);
+  } else {
+    if (address == 0 || address > 9999) {
+      return false;
+    }
+
+    encodeLocoAddress(
+        address,
+        addressMsb,
+        addressLsb);
+  }
+
+  const uint8_t option =
+      static_cast<uint8_t>(
+          (write
+               ? 0xEC
+               : 0xE4) |
+          ((cvAddress >> 8) &
+           0x03));
+
+  const uint8_t payload[] = {
+      0xE6,
+      static_cast<uint8_t>(
+          accessory
+              ? 0x31
+              : 0x30),
+      addressMsb,
+      addressLsb,
+      option,
+      static_cast<uint8_t>(
+          cvAddress & 0xFF),
+      write
+          ? value
+          : static_cast<uint8_t>(0)};
+
+  return sendXBus(
+      payload,
+      sizeof(payload),
+      true);
+}
+
+bool Z21CommandCenter::readServiceCv(
+    uint16_t cv) {
+  return sendCvDirect(
+      false,
+      cv,
+      0);
+}
+
+bool Z21CommandCenter::writeServiceCv(
+    uint16_t cv,
+    uint8_t value) {
+  return sendCvDirect(
+      true,
+      cv,
+      value);
+}
+
+bool Z21CommandCenter::readPomCv(
+    uint16_t address,
+    uint16_t cv) {
+  return sendPomCv(
+      false,
+      false,
+      address,
+      cv,
+      0);
+}
+
+bool Z21CommandCenter::writePomCv(
+    uint16_t address,
+    uint16_t cv,
+    uint8_t value) {
+  return sendPomCv(
+      false,
+      true,
+      address,
+      cv,
+      value);
+}
+
+bool Z21CommandCenter::readAccessoryPomCv(
+    uint16_t decoderAddress,
+    uint16_t cv) {
+  return sendPomCv(
+      true,
+      false,
+      decoderAddress,
+      cv,
+      0);
+}
+
+bool Z21CommandCenter::writeAccessoryPomCv(
+    uint16_t decoderAddress,
+    uint16_t cv,
+    uint8_t value) {
+  return sendPomCv(
+      true,
+      true,
+      decoderAddress,
+      cv,
+      value);
+}
+
 bool Z21CommandCenter::emergencyStop() {
   const uint8_t payload[] = {
       0x80};
@@ -1069,6 +1275,59 @@ void Z21CommandCenter::processXBus(
 
   const uint8_t xHeader =
       data[0];
+
+  if (
+      xHeader == 0x64 &&
+      length >= 6 &&
+      data[1] == 0x14
+  ) {
+    const uint16_t cv =
+        static_cast<uint16_t>(
+            (
+                static_cast<uint16_t>(
+                    data[2]) <<
+                8
+            ) |
+            data[3]) +
+        1;
+
+    const int16_t value =
+        data[4];
+
+    emitProgrammingFeedback(
+        true,
+        cv,
+        value,
+        "CV operation completed.",
+        "Z21 CV_RESULT");
+
+    return;
+  }
+
+  if (
+      xHeader == 0x61 &&
+      length >= 3 &&
+      (
+          data[1] == 0x12 ||
+          data[1] == 0x13
+      )
+  ) {
+    const bool shortCircuit =
+        data[1] == 0x12;
+
+    emitProgrammingFeedback(
+        false,
+        0,
+        -1,
+        shortCircuit
+            ? "Programming track short circuit."
+            : "Decoder did not acknowledge the programming command.",
+        shortCircuit
+            ? "Z21 CV_NACK_SC"
+            : "Z21 CV_NACK");
+
+    return;
+  }
 
   if (
       xHeader == 0x61 &&
