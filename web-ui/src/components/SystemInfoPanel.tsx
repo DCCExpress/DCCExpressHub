@@ -51,13 +51,16 @@ type HubTelemetry = {
   heapSizeBytes?: number;
   freeHeapBytes?: number;
   minimumFreeHeapBytes?: number;
+  runtimeMinimumFreeHeapBytes?: number;
   largestFreeHeapBlockBytes?: number;
   internalFreeHeapBytes?: number;
   minimumInternalFreeHeapBytes?: number;
+  runtimeMinimumInternalFreeHeapBytes?: number;
   largestInternalFreeHeapBlockBytes?: number;
   psramSizeBytes?: number;
   freePsramBytes?: number;
   minimumFreePsramBytes?: number;
+  runtimeMinimumFreePsramBytes?: number;
   largestFreePsramBlockBytes?: number;
   hostname?: string;
   wifiIp?: string;
@@ -1009,6 +1012,19 @@ export default function SystemInfoPanel({
             />
 
             <InfoRow
+              label={i18next.t("ui.runtimeMinimumFreeHeap")}
+              value={formatBytes(
+                hub?.runtimeMinimumFreeHeapBytes,
+              )}
+              color={
+                (hub?.runtimeMinimumFreeHeapBytes ??
+                  999999) < 40000
+                  ? "red"
+                  : "teal"
+              }
+            />
+
+            <InfoRow
               label={i18next.t("ui.largestFreeBlock")}
               value={formatBytes(
                 hub?.largestFreeHeapBlockBytes,
@@ -1043,6 +1059,19 @@ export default function SystemInfoPanel({
             />
 
             <InfoRow
+              label={i18next.t("ui.runtimeMinimumInternalHeap")}
+              value={formatBytes(
+                hub?.runtimeMinimumInternalFreeHeapBytes,
+              )}
+              color={
+                (hub?.runtimeMinimumInternalFreeHeapBytes ??
+                  999999) < 40000
+                  ? "red"
+                  : "teal"
+              }
+            />
+
+            <InfoRow
               label={i18next.t("ui.largestInternalHeapBlock")}
               value={formatBytes(
                 hub?.largestInternalFreeHeapBlockBytes,
@@ -1066,6 +1095,14 @@ export default function SystemInfoPanel({
                   label={i18next.t("ui.minimumFreePsram")}
                   value={formatBytes(
                     hub?.minimumFreePsramBytes,
+                  )}
+                  color="indigo"
+                />
+
+                <InfoRow
+                  label={i18next.t("ui.runtimeMinimumFreePsram")}
+                  value={formatBytes(
+                    hub?.runtimeMinimumFreePsramBytes,
                   )}
                   color="indigo"
                 />
