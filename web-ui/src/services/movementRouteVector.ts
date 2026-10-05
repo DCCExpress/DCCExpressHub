@@ -854,9 +854,7 @@ export async function loadMovementRouteVector(
     SerializedLayoutDto
 ): Promise<MovementRouteVectorItem[]> {
   if (
-    page.fromBlockId ===
-      null ||
-    page.toBlockId ===
+    page.routeRef ===
       null
   ) {
     return [];
@@ -1069,10 +1067,10 @@ export async function loadMovementRouteVector(
             "normal",
           role:
             blockId ===
-              page.fromBlockId
+              page.routeRef!.fromBlockId
               ? "source"
               : blockId ===
-                  page.toBlockId
+                  page.routeRef!.toBlockId
                 ? "destination"
                 : "intermediate",
         };
