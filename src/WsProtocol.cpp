@@ -310,6 +310,9 @@ WsProtocol::WsProtocol(
 
 void WsProtocol::begin()
 {
+    Logger::info(
+        "WS 01 begin / register callbacks");
+
     _ws.onEvent(
         [this](
             AsyncWebSocket *server,
@@ -428,6 +431,9 @@ void WsProtocol::begin()
                         : "false"));
         });
 
+    Logger::info(
+        "WS 01 callbacks registered");
+
     _runtime.onChange(
         [this](
             RuntimeChangeKind kind,
@@ -452,8 +458,14 @@ void WsProtocol::begin()
             }
         });
 
+    Logger::info(
+        "WS 02 runtime callback registered");
+
     bootResetReason =
         esp_reset_reason();
+
+    Logger::info(
+        "WS 03 CPU idle hooks");
 
     esp_register_freertos_idle_hook_for_cpu(
         cpuIdleHook0,
@@ -495,8 +507,21 @@ void WsProtocol::begin()
     runtimeMinimumFreePsramBytes =
         ESP.getFreePsram();
 
+    Logger::info(
+        "WS 04 scripts begin");
+
     _scripts.begin();
+
+    Logger::info(
+        "WS 04 OK");
+
+    Logger::info(
+        "WS 05 flows begin");
+
     _flows.begin();
+
+    Logger::info(
+        "WS 05 OK");
     _movements.setAudioRequestCallback(
         [this](
             const String& requestId,
@@ -514,7 +539,16 @@ void WsProtocol::begin()
             return true;
         });
 
+    Logger::info(
+        "WS 06 movements begin");
+
     _movements.begin();
+
+    Logger::info(
+        "WS 06 OK");
+
+    Logger::info(
+        "WS 07 dispatcher callbacks");
 
     _dispatcher.setTurnoutAuthority(
         [this](
@@ -564,6 +598,13 @@ void WsProtocol::begin()
         _commandCenterConnectedSinceAt =
             millis();
     }
+
+    Logger::info(
+        "WS 07 OK / WsProtocol ready CC=" +
+        String(
+            _lastCommandCenterConnected
+                ? "OK"
+                : "NOK"));
 }
 
 void WsProtocol::loop()
