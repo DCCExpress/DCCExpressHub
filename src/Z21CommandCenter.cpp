@@ -29,12 +29,18 @@ void Z21CommandCenter::begin(
   _stationInfo.maxLocos =
       100;
 
-  startUdp();
+  ensureNetworkInfrastructure();
 }
 
 void Z21CommandCenter::setEndpoint(
     const String& host,
     uint16_t port) {
+  if (_endpointMutex) {
+    xSemaphoreTake(
+        _endpointMutex,
+        portMAX_DELAY);
+  }
+
   _host =
       host;
 
@@ -45,8 +51,12 @@ void Z21CommandCenter::setEndpoint(
           ? DEFAULT_PORT
           : port;
 
-  _resolved =
-      false;
+  ++_endpointRevision;
+
+  if (_endpointMutex) {
+    xSemaphoreGive(
+        _endpointMutex);
+  }
 
   _online =
       false;
@@ -56,28 +66,6 @@ void Z21CommandCenter::setEndpoint(
 
   _nextKeepaliveAt =
       0;
-
-  _nextResolveAt =
-      0;
-
-  _remoteIp =
-      IPAddress();
-
-  if (_udpStarted) {
-    _udp.stop();
-    _udpStarted =
-        false;
-  }
-
-#if defined(HUB_CC_YAMORC7010)
-  disconnectLbServer();
-  disconnectLocoNetBinary();
-  _nextLbConnectAt = 0;
-  _nextLnBinaryConnectAt = 0;
-  _lastLbTrafficAt = 0;
-  _lastLbInterrogateAt = 0;
-  _lbInterrogatePhase = 0;
-#endif
 }
 
 bool Z21CommandCenter::startUdp() {
@@ -137,11 +125,31 @@ bool Z21CommandCenter::resolveRemote() {
     return false;
   }
 
+  String host;
+  uint16_t port =
+      DEFAULT_PORT;
+
+  if (_endpointMutex) {
+    xSemaphoreTake(
+        _endpointMutex,
+        portMAX_DELAY);
+  }
+
+  host =
+      _host;
+  port =
+      _port;
+
+  if (_endpointMutex) {
+    xSemaphoreGive(
+        _endpointMutex);
+  }
+
   IPAddress parsed;
 
   if (
       parsed.fromString(
-          _host)
+          host)
   ) {
     _remoteIp =
         parsed;
@@ -151,7 +159,7 @@ bool Z21CommandCenter::resolveRemote() {
   } else {
     const int result =
         WiFi.hostByName(
-            _host.c_str(),
+            host.c_str(),
             _remoteIp);
 
     _resolved =
@@ -165,47 +173,48 @@ bool Z21CommandCenter::resolveRemote() {
 
     Logger::warn(
         "Z21 host resolve failed: " +
-        _host);
+        host);
 
     return false;
   }
 
   Logger::info(
       "Z21 endpoint resolved " +
-      _host +
+      host +
       " -> " +
       _remoteIp.toString() +
       ":" +
       String(
-          _port));
+          port));
 
   return true;
 }
 
 bool Z21CommandCenter::ensureConnected() {
-  if (!startUdp()) {
+  if (
+      WiFi.status() !=
+      WL_CONNECTED ||
+      !ensureNetworkInfrastructure()
+  ) {
     return false;
   }
 
-  if (!resolveRemote()) {
-    return false;
-  }
-
-  setBroadcastFlags();
-  requestHardwareInfo(
-      false);
-  requestFirmwareVersion(
-      false);
-  requestStatus(
-      false);
-  requestSystemState(
-      false);
+  const bool queued =
+      setBroadcastFlags() &&
+      requestHardwareInfo(
+          false) &&
+      requestFirmwareVersion(
+          false) &&
+      requestStatus(
+          false) &&
+      requestSystemState(
+          false);
 
   _nextKeepaliveAt =
       millis() +
       KEEPALIVE_MS;
 
-  return true;
+  return queued;
 }
 
 bool Z21CommandCenter::connected() {
@@ -242,29 +251,14 @@ void Z21CommandCenter::loop() {
     return;
   }
 
-  if (!startUdp()) {
-    return;
-  }
-
-  if (!resolveRemote()) {
-    return;
-  }
-
-  processIncoming();
+  ensureNetworkInfrastructure();
+  processNetworkRx();
 
   const unsigned long now =
       millis();
 
   processAccessoryPulses(
       now);
-
-#if defined(HUB_CC_YAMORC7010)
-  loopLbServer(
-      now);
-
-  loopLocoNetBinary(
-      now);
-#endif
 
   if (
       _nextKeepaliveAt == 0 ||
@@ -301,8 +295,7 @@ bool Z21CommandCenter::sendPacket(
     size_t dataLen,
     bool logPacket) {
   if (
-      !startUdp() ||
-      !resolveRemote()
+      !ensureNetworkInfrastructure()
   ) {
     return false;
   }
@@ -318,16 +311,19 @@ bool Z21CommandCenter::sendPacket(
     return false;
   }
 
-  uint8_t packet[
-      MAX_PACKET_BYTES] = {};
-
-  writeLe16(
-      packet,
+  NetworkTxPacket packet;
+  packet.length =
       static_cast<uint16_t>(
-          totalLen));
+          totalLen);
+  packet.logPacket =
+      logPacket;
 
   writeLe16(
-      packet +
+      packet.data,
+      packet.length);
+
+  writeLe16(
+      packet.data +
           2,
       header);
 
@@ -336,50 +332,25 @@ bool Z21CommandCenter::sendPacket(
       dataLen > 0
   ) {
     memcpy(
-        packet +
+        packet.data +
             4,
         data,
         dataLen);
   }
 
   if (
-      !_udp.beginPacket(
-          _remoteIp,
-          _port)
+      xQueueSend(
+          _networkTxQueue,
+          &packet,
+          0) !=
+      pdTRUE
   ) {
+    ++_networkTxDrops;
+
     Logger::warn(
-        "Z21 UDP beginPacket failed");
+        "Z21 network TX queue full");
 
     return false;
-  }
-
-  const size_t written =
-      _udp.write(
-          packet,
-          totalLen);
-
-  const int result =
-      _udp.endPacket();
-
-  if (
-      written != totalLen ||
-      result != 1
-  ) {
-    Logger::warn(
-        "Z21 UDP TX failed");
-
-    return false;
-  }
-
-  if (logPacket) {
-    Logger::info(
-        "Z21 UDP TX header=0x" +
-        String(
-            header,
-            HEX) +
-        " bytes=" +
-        String(
-            totalLen));
   }
 
   return true;
@@ -1169,31 +1140,13 @@ bool Z21CommandCenter::requestSensorSnapshot(
               loconetDetector),
           logCommand);
 
-  bool locoNetInterrogate =
-      false;
-
 #if defined(HUB_CC_YAMORC7010)
-  const bool lbReady =
-      connectLbServer();
-
-  // YaMoRC LBServer/1234 is the authoritative path. Only try the Binary
-  // side-channel as a fallback, otherwise a disabled 5560 port can stall the
-  // embedded main loop with repeated TCP connection attempts.
-  const bool binaryReady =
-      lbReady
-          ? false
-          : connectLocoNetBinary();
-
-  if (
-      lbReady ||
-      binaryReady
-  ) {
-    startLocoNetInterrogate(
-        true);
-
-    locoNetInterrogate =
-        true;
-  }
+  const bool locoNetInterrogate =
+      queueNetworkControl(
+          NetworkControlKind::Interrogate);
+#else
+  const bool locoNetInterrogate =
+      false;
 #endif
 
   return
@@ -1601,44 +1554,8 @@ void Z21CommandCenter::processLocoNetBinaryIncoming() {
 
     ++_lnBinaryPacketsObserved;
 
-    if (
-        _lnBinaryPacketsObserved <=
-            12 &&
-        _rawInfoCallback
-    ) {
-      String raw =
-          "YD7010 BIN RX";
-
-      for (
-          size_t index = 0;
-          index <
-              _lnBinaryPacketLength;
-          ++index
-      ) {
-        raw +=
-            " ";
-
-        if (
-            _lnBinaryPacket[index] <
-            0x10
-        ) {
-          raw +=
-              "0";
-        }
-
-        raw +=
-            String(
-                _lnBinaryPacket[index],
-                HEX);
-      }
-
-      raw.toUpperCase();
-
-      _rawInfoCallback(
-          raw);
-    }
-
-    processLocoNetPacket(
+    enqueueNetworkRx(
+        NetworkRxKind::LocoNetBinary,
         _lnBinaryPacket,
         _lnBinaryPacketLength);
 
@@ -1675,8 +1592,12 @@ void Z21CommandCenter::processLbServerIncoming() {
         _lbLine[_lbLineLength] =
             '\0';
 
-        processLbServerLine(
-            _lbLine);
+        enqueueNetworkRx(
+            NetworkRxKind::LbServerLine,
+            reinterpret_cast<const uint8_t*>(
+                _lbLine),
+            _lbLineLength +
+                1);
 
         _lbLineLength =
             0;
