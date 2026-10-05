@@ -1,6 +1,6 @@
 import i18next from "i18next";
 import { ELEMENT_TYPES } from "@domain/layout/elementTypes";
-import type { LayoutElementId, RouteTurnoutItemDto } from "@domain/layout/layoutDto";
+import type { LayoutElementId, RouteReferenceDto, RouteTurnoutItemDto } from "@domain/layout/layoutDto";
 import { drawPolarLine, getPolarXy } from "../../../graphics";
 import { ClickableBaseElement } from "../core/ClickableBaseElement";
 import { DrawOptions, IRouteButtonElement } from "../types/EditorTypes";
@@ -15,7 +15,7 @@ export class RouteButtonElement extends ClickableBaseElement implements IRouteBu
   colorOn: string = "lime";
   active: boolean = false;
   routeTurnouts: RouteTurnoutItem[] = [];
-  generatedRouteKey: string = "";
+  generatedRouteRef: RouteReferenceDto | null = null;
   constructor(x: number, y: number) {
     super(x, y);
     this.type = ELEMENT_TYPES.BUTTON_ROUTE;
@@ -23,7 +23,7 @@ export class RouteButtonElement extends ClickableBaseElement implements IRouteBu
     this.layerName = "buildings";
   }
   clearGeneratedRoute(): void {
-    this.generatedRouteKey = "";
+    this.generatedRouteRef = null;
   }
 
   addOrUpdateTurnout(turnoutId: LayoutElementId, closed: boolean, secondClosed?: boolean): void {
@@ -124,10 +124,14 @@ export class RouteButtonElement extends ClickableBaseElement implements IRouteBu
       label: this.label,
       colorOn: this.colorOn,
       routeTurnouts: this.routeTurnouts ?? [],
-      ...(this.generatedRouteKey
+      ...(this.generatedRouteRef
         ? {
-            generatedRouteKey:
-              this.generatedRouteKey,
+            generatedRouteRef: {
+              ...this.generatedRouteRef,
+              viaBlockIds: [
+                ...this.generatedRouteRef.viaBlockIds,
+              ],
+            },
           }
         : {}),
     };
@@ -141,10 +145,24 @@ export class RouteButtonElement extends ClickableBaseElement implements IRouteBu
     e.fg = data.fg;
     e.colorOn = data.colorOn;
     e.label = data.label;
-    e.generatedRouteKey =
-      typeof data.generatedRouteKey === "string"
-        ? data.generatedRouteKey
-        : "";
+    e.generatedRouteRef =
+      data.generatedRouteRef &&
+      typeof data.generatedRouteRef === "object" &&
+      Number.isInteger(data.generatedRouteRef.fromBlockId) &&
+      Number.isInteger(data.generatedRouteRef.toBlockId) &&
+      (
+        data.generatedRouteRef.direction === "forward" ||
+        data.generatedRouteRef.direction === "reverse"
+      ) &&
+      Array.isArray(data.generatedRouteRef.viaBlockIds)
+        ? {
+            fromBlockId: data.generatedRouteRef.fromBlockId,
+            toBlockId: data.generatedRouteRef.toBlockId,
+            direction: data.generatedRouteRef.direction,
+            viaBlockIds: data.generatedRouteRef.viaBlockIds
+              .filter(id => Number.isInteger(id) && id > 0),
+          }
+        : null;
     e.routeTurnouts = Array.isArray(data.routeTurnouts)
       ? data.routeTurnouts
           .filter((item) => Number.isInteger(item?.turnoutId) && item.turnoutId > 0)
@@ -170,7 +188,14 @@ export class RouteButtonElement extends ClickableBaseElement implements IRouteBu
     copy.selected = this.selected;
     copy.label = this.label;
     copy.colorOn = this.colorOn;
-    copy.generatedRouteKey = this.generatedRouteKey;
+    copy.generatedRouteRef = this.generatedRouteRef
+      ? {
+          ...this.generatedRouteRef,
+          viaBlockIds: [
+            ...this.generatedRouteRef.viaBlockIds,
+          ],
+        }
+      : null;
     copy.routeTurnouts = this.routeTurnouts.map((item) => ({ ...item }));
     return copy;
   }
