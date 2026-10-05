@@ -135,30 +135,23 @@ import {
 } from "@/services/trainTrackingRuntime";
 import {
   createAutomationId,
-  createAutomationPayload,
   loadAutomationMovement,
   loadAutomationScripts,
-  loadAutomationTimetable,
   normalizeAutomationScripts,
-  normalizeTimetableEntries,
-  saveAutomationFlow,
-  saveAutomationMovement,
   saveAutomationScripts,
-  saveAutomationTimetable,
   type AutomationScriptDefinition,
-  type AutomationStoragePayload,
-  type TimetableEntryDefinition,
 } from "@/services/automationApi";
-import {
-  createEmptyAutomationFlowDocument,
-  normalizeAutomationFlowDocument,
-  type AutomationFlowDocument,
+import type {
+  AutomationFlowDocument,
 } from "@/domain/automationFlow";
 import {
   createEmptyMovementDocument,
-  normalizeMovementDocument,
   type MovementDocument,
 } from "@/domain/movement";
+import {
+  exportFullBackup,
+  importFullBackup,
+} from "@/services/backupService";
 import "@/styles/propertypanel.css";
 import DebugDialog from "@/components/debug/DebugDialog";
 type LiteLayoutPageProps = {
@@ -202,14 +195,6 @@ type LayoutWithLegacyAutomation = {
     [key: string]: unknown;
   }>;
   [key: string]: unknown;
-};
-
-type DccExpressProjectExport = {
-  format: "dccexpress-project";
-  version: 1;
-  exportedAt: string;
-  layout: unknown;
-  automations: AutomationStoragePayload;
 };
 
 function prepareLayoutForLoad(raw: unknown): {
@@ -297,85 +282,6 @@ function serializeLayoutOnly(layout: LayoutView): string {
   );
 
   return JSON.stringify(plainLayout);
-}
-
-function createProjectExport(
-  layout: LayoutView,
-  automationScripts: AutomationScriptDefinition[],
-  timetable: TimetableEntryDefinition[],
-  visualFlow: AutomationFlowDocument,
-  movement: MovementDocument
-): DccExpressProjectExport {
-  return {
-    format: "dccexpress-project",
-    version: 1,
-    exportedAt: new Date().toISOString(),
-    layout: JSON.parse(serializeLayoutOnly(layout)),
-    automations:
-      createAutomationPayload(
-        automationScripts,
-        timetable,
-        visualFlow,
-        movement
-      ),
-  };
-}
-
-function parseImportedProject(raw: unknown): {
-  layoutData: unknown;
-  automationScripts: AutomationScriptDefinition[];
-  timetable: TimetableEntryDefinition[];
-  visualFlow: AutomationFlowDocument;
-  movement: MovementDocument;
-} {
-  if (raw && typeof raw === "object") {
-    const candidate = raw as Record<string, unknown>;
-
-    if (
-      candidate.format === "dccexpress-project" &&
-      Number(candidate.version) === 1 &&
-      "layout" in candidate
-    ) {
-      const prepared = prepareLayoutForLoad(candidate.layout);
-      const automations =
-        candidate.automations && typeof candidate.automations === "object"
-          ? candidate.automations as Record<string, unknown>
-          : {};
-      const importedScripts = normalizeAutomationScripts(automations.scripts);
-
-      return {
-        layoutData: prepared.layoutData,
-        automationScripts:
-          importedScripts.length > 0
-            ? importedScripts
-            : prepared.legacyAutomationScripts,
-        timetable:
-          normalizeTimetableEntries(
-            automations.timetable
-          ),
-        visualFlow:
-          normalizeAutomationFlowDocument(
-            automations.visualFlow
-          ),
-        movement:
-          normalizeMovementDocument(
-            automations.movement
-          ),
-      };
-    }
-  }
-
-  const prepared = prepareLayoutForLoad(raw);
-
-  return {
-    layoutData: prepared.layoutData,
-    automationScripts: prepared.legacyAutomationScripts,
-    timetable: [],
-    visualFlow:
-      createEmptyAutomationFlowDocument(),
-    movement:
-      createEmptyMovementDocument(),
-  };
 }
 
 function createClockPreview(): ClockElement {
@@ -1803,42 +1709,14 @@ export default function LiteLayoutPage({
   }, [i18next.resolvedLanguage, layout, automationScripts, invalidate]);
 
   const exportLayout = useCallback(async () => {
+    setSaving(true);
+    setError(null);
+
     try {
-      const ensuredRouteGraph =
-        ensureClientRouteGraph(
-          layout
-        );
-
-      if (ensuredRouteGraph.rebuilt) {
-        invalidate();
-      }
-
-      const timetable =
-        await loadAutomationTimetable();
-
-      const project =
-        createProjectExport(
-          layout,
-          automationScripts,
-          timetable,
-          automationFlow,
-          movementDocument
-        );
-      const json = JSON.stringify(project, null, 2);
-      const blob = new Blob([json], { type: "application/json;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      const now = new Date();
-      const pad = (value: number) => String(value).padStart(2, "0");
-      const stamp =
-        `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-` +
-        `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `dccexpress-project-${stamp}.json`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 0);
+      // Export/import has one authoritative implementation. Persist the current
+      // editor layout first so the backup service always reads the latest project.
+      await saveLayout();
+      await exportFullBackup();
     } catch (exportError) {
       const message =
         exportError instanceof Error
@@ -1846,14 +1724,10 @@ export default function LiteLayoutPage({
           : String(exportError);
 
       setError(message);
-
-      showNotification({
-        color: "red",
-        title: "Export sikertelen",
-        message,
-      });
+    } finally {
+      setSaving(false);
     }
-  }, [layout, automationScripts, automationFlow, movementDocument, invalidate]);
+  }, [saveLayout]);
 
   const importProject = useCallback(
     async (file: File): Promise<void> => {
@@ -1861,76 +1735,23 @@ export default function LiteLayoutPage({
       setError(null);
 
       try {
-        const parsed = JSON.parse(await file.text()) as unknown;
-        const imported = parseImportedProject(parsed);
-        const nextLayout = LayoutView.fromJSON(imported.layoutData);
-
-        restorePersistedTopologyMetadata(
-          nextLayout,
-          imported.layoutData
-        );
-
-        hydrateClientRouteGraphCache(
-          nextLayout,
-          imported.layoutData
-        );
-
-        ensureClientRouteGraph(
-          nextLayout
-        );
-
-        nextLayout.checkRoutes();
-
-        const layoutResponse = await fetch(
-          "/api/layout",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: serializeLayoutOnly(nextLayout),
-          }
-        );
-
-        if (!layoutResponse.ok) {
-          throw new Error(
-            await readHttpErrorMessage(
-              layoutResponse,
-              i18next.t("ui.importedLayoutCouldNotBeSavedToTheHub")
-            )
-          );
-        }
-
-        await saveAutomationScripts(imported.automationScripts);
-        await saveAutomationTimetable(imported.timetable);
-        await saveAutomationFlow(imported.visualFlow);
-        await saveAutomationMovement(imported.movement);
-        setLayout(nextLayout);
-        setAutomationScripts(imported.automationScripts);
-        setMovementDocument(imported.movement);
-        onAutomationFlowChange(
-          imported.visualFlow
-        );
-        setSelectedElement(null);
-
-        showNotification({
-          color: "teal",
-          title: i18next.t("ui.projectImported"),
-          message: i18next.t("ui.layoutAndAutomationScriptSWereRestored", { value1: imported.automationScripts.length }),
-        });
+        await importFullBackup(file);
       } catch (importError) {
-        const message = importError instanceof Error ? importError.message : String(importError);
+        const message =
+          importError instanceof Error
+            ? importError.message
+            : String(importError);
+
         setError(message);
-        showNotification({ color: "red", title: i18next.t("ui.importFailed"), message });
       } finally {
         setSaving(false);
+
         if (importFileRef.current) {
           importFileRef.current.value = "";
         }
       }
     },
-    [
-      i18next.resolvedLanguage,
-      onAutomationFlowChange,
-    ]
+    []
   );
 
   useLayoutPageShortcuts({
