@@ -27,6 +27,7 @@ public:
   void showWifiConnected(const String& ip, uint16_t httpPort);
   void showWifiFailed();
   void showCommandCenter(const String& host, uint16_t port, bool connected);
+  void showFeedbackLink(const String& name, bool connected);
   void showEmergencyStopActive(bool active);
   void showPowerActive(bool active);
   void loop();
@@ -42,6 +43,8 @@ private:
   String _ccHost;
   uint16_t _ccPort = 0;
   bool _ccConnected = false;
+  String _feedbackLinkName;
+  bool _feedbackLinkConnected = false;
   bool _initialized = false;
   bool _dirty = false;
   bool _infoPage = false;
