@@ -132,7 +132,7 @@ bool Z21CommandCenter::ensureNetworkInfrastructure() {
             "z21-udp",
             NETWORK_TASK_STACK_BYTES,
             this,
-            2,
+            4,
             _networkTaskStack,
             &_networkTaskControl,
             0);
@@ -146,7 +146,7 @@ bool Z21CommandCenter::ensureNetworkInfrastructure() {
             "z21-fb",
             NETWORK_TASK_STACK_BYTES,
             this,
-            2,
+            1,
             _feedbackTaskStack,
             &_feedbackTaskControl,
             0);
