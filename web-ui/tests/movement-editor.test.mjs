@@ -423,44 +423,54 @@ test("Movement editor is split into reusable components", () => {
   );
 });
 
-test("Layout project import and export preserve Movement pages", () => {
-  const source =
+test("Unified backup import and export preserve Movement pages", () => {
+  const page =
     read(
       "src/LiteLayoutPage.tsx"
     );
 
+  const backup =
+    read(
+      "src/services/backupService.ts"
+    );
+
   assert.match(
-    source,
-    /movement: MovementDocument/
+    page,
+    /exportFullBackup/
   );
 
   assert.match(
-    source,
-    /normalizeMovementDocument\(\s*automations\.movement/
+    page,
+    /importFullBackup/
   );
 
   assert.match(
-    source,
+    backup,
+    /loadAutomationPayload/
+  );
+
+  assert.match(
+    backup,
+    /saveAutomationPayload/
+  );
+
+  assert.match(
+    page,
     /createEmptyMovementDocument/
   );
 
   assert.match(
-    source,
+    page,
     /loadAutomationMovement/
   );
 
   assert.match(
-    source,
-    /saveAutomationMovement\(imported\.movement\)/
-  );
-
-  assert.match(
-    source,
+    page,
     /<MovementEditorDialog/
   );
 
   assert.match(
-    source,
+    page,
     /movements=\{movementDocument\}/
   );
 });
