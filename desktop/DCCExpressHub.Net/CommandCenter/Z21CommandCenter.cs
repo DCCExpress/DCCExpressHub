@@ -1353,7 +1353,6 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                     position,
                     activate: false,
                     ct: CancellationToken.None,
-                    priority: true,
                     ensureTransport: false);
 
             if (!ok)
