@@ -2,6 +2,10 @@
 
 #include <Arduino.h>
 #include <WiFiUdp.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
+#include <freertos/semphr.h>
+#include <freertos/task.h>
 #if defined(HUB_CC_YAMORC7010)
 #include <WiFiClient.h>
 #endif
@@ -318,7 +322,7 @@ private:
       LB_INTERROGATE_QUIET_MS = 1250;
 
   WiFiClient _lbClient;
-  bool _lbConnected = false;
+  volatile bool _lbConnected = false;
   unsigned long _nextLbConnectAt = 0;
   unsigned long _lastLbTrafficAt = 0;
   unsigned long _lastLbInterrogateAt = 0;
@@ -329,13 +333,91 @@ private:
   uint32_t _lbPacketsObserved = 0;
 
   WiFiClient _lnBinaryClient;
-  bool _lnBinaryConnected = false;
+  volatile bool _lnBinaryConnected = false;
   unsigned long _nextLnBinaryConnectAt = 0;
   uint8_t _lnBinaryPacket[128] = {};
   size_t _lnBinaryPacketLength = 0;
   size_t _lnBinaryExpectedLength = 0;
   uint32_t _lnBinaryPacketsObserved = 0;
 #endif
+
+  enum class NetworkRxKind : uint8_t {
+    UdpDatagram,
+    LbServerLine,
+    LocoNetBinary
+  };
+
+  enum class NetworkControlKind : uint8_t {
+    Interrogate
+  };
+
+  struct NetworkTxPacket {
+    uint16_t length = 0;
+    bool logPacket = false;
+    uint8_t data[MAX_PACKET_BYTES] = {};
+  };
+
+  struct NetworkRxFrame {
+    NetworkRxKind kind =
+        NetworkRxKind::UdpDatagram;
+    uint16_t length = 0;
+    uint8_t data[256] = {};
+  };
+
+  struct NetworkControl {
+    NetworkControlKind kind =
+        NetworkControlKind::Interrogate;
+  };
+
+  static constexpr uint8_t
+      NETWORK_TX_QUEUE_LENGTH = 20;
+  static constexpr uint8_t
+      NETWORK_RX_QUEUE_LENGTH = 16;
+  static constexpr uint8_t
+      NETWORK_CONTROL_QUEUE_LENGTH = 8;
+  static constexpr uint32_t
+      NETWORK_TASK_STACK_BYTES = 8192;
+
+  QueueHandle_t _networkTxQueue = nullptr;
+  QueueHandle_t _networkRxQueue = nullptr;
+  QueueHandle_t _networkControlQueue = nullptr;
+  SemaphoreHandle_t _endpointMutex = nullptr;
+  TaskHandle_t _networkTaskHandle = nullptr;
+
+  StaticQueue_t _networkTxQueueControl = {};
+  StaticQueue_t _networkRxQueueControl = {};
+  StaticQueue_t _networkControlQueueControl = {};
+  StaticSemaphore_t _endpointMutexControl = {};
+  StaticTask_t _networkTaskControl = {};
+
+  uint8_t _networkTxQueueStorage[
+      NETWORK_TX_QUEUE_LENGTH *
+      sizeof(NetworkTxPacket)] = {};
+  uint8_t _networkRxQueueStorage[
+      NETWORK_RX_QUEUE_LENGTH *
+      sizeof(NetworkRxFrame)] = {};
+  uint8_t _networkControlQueueStorage[
+      NETWORK_CONTROL_QUEUE_LENGTH *
+      sizeof(NetworkControl)] = {};
+  StackType_t _networkTaskStack[
+      NETWORK_TASK_STACK_BYTES /
+      sizeof(StackType_t)] = {};
+
+  volatile uint32_t _endpointRevision = 1;
+  volatile uint32_t _networkRxDrops = 0;
+  volatile uint32_t _networkTxDrops = 0;
+
+  bool ensureNetworkInfrastructure();
+  void networkTask();
+  static void networkTaskEntry(
+      void* parameter);
+  void processNetworkRx();
+  bool queueNetworkControl(
+      NetworkControlKind kind);
+  bool enqueueNetworkRx(
+      NetworkRxKind kind,
+      const uint8_t* data,
+      size_t length);
 
   bool startUdp();
   bool resolveRemote();
