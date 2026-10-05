@@ -906,8 +906,11 @@ void WsProtocol::broadcastCommandCenterInfo()
 {
     JsonDocument data;
 
-    data["alive"] =
+    const bool alive =
         _commandCenter.connected();
+
+    data["alive"] =
+        alive;
 
     data["power"] =
         _trackPower;
@@ -940,6 +943,16 @@ void WsProtocol::broadcastCommandCenterInfo()
         ":" +
         String(
             _commandCenter.port());
+
+    Logger::info(
+        "WS commandCenterInfo broadcast alive=" +
+        String(
+            alive
+                ? "true"
+                : "false") +
+        " clients=" +
+        String(
+            _wsClientCount));
 
     broadcast(
         "commandCenterInfo",
