@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.Encodings.Web;
 
 namespace DCCExpressHub.Net.Web;
 
@@ -100,173 +99,6 @@ public sealed class MovementPlanBuilder
         return UniqueTurnoutStates(result);
     }
 
-    static string[] ReadIdentityStates(
-        JsonElement parent,
-        string propertyName)
-    {
-        if (!parent.TryGetProperty(propertyName, out var states) ||
-            states.ValueKind != JsonValueKind.Array)
-            return [];
-
-        return states
-            .EnumerateArray()
-            .Select(state =>
-            {
-                var address =
-                    state.TryGetProperty("address", out var addressElement) &&
-                    addressElement.TryGetDouble(out var numeric)
-                        ? numeric
-                        : 0d;
-
-                var closed =
-                    state.TryGetProperty("closed", out var rawClosed) &&
-                    rawClosed.ValueKind == JsonValueKind.True;
-
-                return new
-                {
-                    Address =
-                        address,
-                    Closed =
-                        closed
-                };
-            })
-            .Where(state =>
-                state.Address > 0 &&
-                Math.Abs(
-                    state.Address -
-                    Math.Round(
-                        state.Address)) <
-                    double.Epsilon)
-            .OrderBy(state =>
-                state.Address)
-            .Select(state =>
-                state.Address.ToString(
-                    "0",
-                    System.Globalization.CultureInfo.InvariantCulture) +
-                ":" +
-                (state.Closed
-                    ? "1"
-                    : "0"))
-            .ToArray();
-    }
-
-    static string CanonicalRouteKey(
-        JsonElement route)
-    {
-        var blockPath =
-            route.TryGetProperty("blockPath", out var rawBlocks) &&
-            rawBlocks.ValueKind == JsonValueKind.Array
-                ? rawBlocks
-                    .EnumerateArray()
-                    .Select(block =>
-                        $"{Int(block, "id")}@{Int(block, "nodeIndex")}")
-                    .ToArray()
-                : [];
-
-        var nodes =
-            route.TryGetProperty("nodes", out var rawNodes) &&
-            rawNodes.ValueKind == JsonValueKind.Array
-                ? rawNodes
-                    .EnumerateArray()
-                    .Select(node =>
-                        node.ValueKind == JsonValueKind.String
-                            ? node.GetString() ?? ""
-                            : "")
-                    .ToArray()
-                : [];
-
-        object[] edgePath;
-
-        if (route.TryGetProperty("edgePath", out var rawEdges) &&
-            rawEdges.ValueKind == JsonValueKind.Array)
-        {
-            edgePath =
-                rawEdges
-                    .EnumerateArray()
-                    .Select(edge =>
-                    {
-                        var states =
-                            ReadIdentityStates(
-                                edge,
-                                "turnoutStates");
-
-                        object[] passages =
-                            edge.TryGetProperty("turnoutPath", out var rawPassages) &&
-                            rawPassages.ValueKind == JsonValueKind.Array
-                                ? rawPassages
-                                    .EnumerateArray()
-                                    .Select(passage =>
-                                        (object)new
-                                        {
-                                            elementId =
-                                                Int(
-                                                    passage,
-                                                    "elementId"),
-                                            states =
-                                                ReadIdentityStates(
-                                                    passage,
-                                                    "turnoutStates")
-                                        })
-                                    .ToArray()
-                                : [];
-
-                        return (object)new
-                        {
-                            from =
-                                Str(
-                                    edge,
-                                    "from"),
-                            to =
-                                Str(
-                                    edge,
-                                    "to"),
-                            direction =
-                                Str(
-                                    edge,
-                                    "locoDirection",
-                                    "unknown"),
-                            turnoutStates =
-                                states,
-                            turnoutPath =
-                                passages
-                        };
-                    })
-                    .ToArray();
-        }
-        else
-        {
-            edgePath = [];
-        }
-
-        return JsonSerializer.Serialize(
-            new
-            {
-                fromBlockId =
-                    Int(
-                        route,
-                        "fromBlockId"),
-                toBlockId =
-                    Int(
-                        route,
-                        "toBlockId"),
-                blockPath,
-                nodes,
-                edgePath,
-                direction =
-                    Str(
-                        route,
-                        "locoDirection",
-                        "unknown")
-            },
-            new JsonSerializerOptions
-            {
-                Encoder =
-                    JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-                WriteIndented =
-                    false
-            });
-    }
-
     static bool ContainsCheckpoints(
         JsonElement route,
         IReadOnlyList<int> checkpoints)
@@ -291,49 +123,93 @@ public sealed class MovementPlanBuilder
                checkpoints.Count;
     }
 
+    static MovementRouteRefModel RouteRefFromRoute(
+        JsonElement route)
+    {
+        var blockIds =
+            route.TryGetProperty("blockPath", out var blocks) &&
+            blocks.ValueKind == JsonValueKind.Array
+                ? blocks
+                    .EnumerateArray()
+                    .Select(block =>
+                        Int(block, "id"))
+                    .Where(ValidId)
+                    .ToArray()
+                : [];
+
+        if (blockIds.Length < 2)
+            throw new InvalidOperationException(
+                "movement_route_incomplete");
+
+        var direction =
+            Str(
+                route,
+                "locoDirection",
+                "unknown");
+
+        if (direction is not ("forward" or "reverse"))
+            throw new InvalidOperationException(
+                "movement_direction_unknown");
+
+        return new MovementRouteRefModel
+        {
+            FromBlockId =
+                blockIds[0],
+            ToBlockId =
+                blockIds[^1],
+            Direction =
+                direction,
+            ViaBlockIds =
+                blockIds.Length > 2
+                    ? blockIds[1..^1]
+                    : []
+        };
+    }
+
     static JsonElement SelectRoute(
         MovementPageModel page,
         JsonElement routeTable)
     {
-        if (!string.IsNullOrWhiteSpace(page.RouteKey))
-        {
-            foreach (var route in routeTable.EnumerateArray())
-                if (string.Equals(
-                        CanonicalRouteKey(route),
-                        page.RouteKey,
-                        StringComparison.Ordinal))
-                    return route.Clone();
-
+        var routeRef =
+            page.RouteRef ??
             throw new InvalidOperationException(
-                "movement_selected_route_not_found");
-        }
+                "movement_requires_route_ref");
 
-        if (!page.FromBlockId.HasValue ||
-            !page.ToBlockId.HasValue)
+        if (!ValidId(routeRef.FromBlockId) ||
+            !ValidId(routeRef.ToBlockId) ||
+            routeRef.FromBlockId == routeRef.ToBlockId ||
+            routeRef.Direction is not ("forward" or "reverse"))
             throw new InvalidOperationException(
-                "movement_requires_from_to_blocks");
+                "movement_route_ref_invalid");
 
         var checkpoints =
             new List<int>
             {
-                page.FromBlockId.Value
+                routeRef.FromBlockId
             };
 
         checkpoints.AddRange(
-            page.ViaBlockIds
+            (routeRef.ViaBlockIds ?? [])
                 .Where(ValidId));
 
         checkpoints.Add(
-            page.ToBlockId.Value);
+            routeRef.ToBlockId);
 
         var candidates =
             routeTable
                 .EnumerateArray()
                 .Where(route =>
                     Int(route, "fromBlockId") ==
-                        checkpoints[0] &&
+                        routeRef.FromBlockId &&
                     Int(route, "toBlockId") ==
-                        checkpoints[^1] &&
+                        routeRef.ToBlockId &&
+                    string.Equals(
+                        Str(
+                            route,
+                            "locoDirection",
+                            "unknown"),
+                        routeRef.Direction,
+                        StringComparison.Ordinal) &&
                     ContainsCheckpoints(
                         route,
                         checkpoints))
@@ -343,7 +219,7 @@ public sealed class MovementPlanBuilder
 
         if (candidates.Length == 0)
             throw new InvalidOperationException(
-                "movement_route_not_found");
+                "movement_selected_route_not_found");
 
         if (candidates.Length > 1)
             throw new InvalidOperationException(
@@ -861,8 +737,8 @@ public sealed class MovementPlanBuilder
                     "script-route",
                 Name =
                     "Script route",
-                RouteKey =
-                    CanonicalRouteKey(
+                RouteRef =
+                    RouteRefFromRoute(
                         candidates[0])
             });
     }
@@ -919,53 +795,26 @@ public sealed class MovementPlanBuilder
                 routeTable);
 
         var routeDirection =
+            page.RouteRef?.Direction ??
             "unknown";
-
-        var savedRouteDirection =
-            "unknown";
-
-        if (!string.IsNullOrWhiteSpace(
-                page.RouteKey))
-        {
-            try
-            {
-                using var routeIdentity =
-                    JsonDocument.Parse(
-                        page.RouteKey);
-
-                if (routeIdentity.RootElement.ValueKind ==
-                        JsonValueKind.Object &&
-                    routeIdentity.RootElement.TryGetProperty(
-                        "direction",
-                        out var directionElement) &&
-                    directionElement.ValueKind ==
-                        JsonValueKind.String)
-                {
-                    var value =
-                        directionElement.GetString();
-
-                    if (value is "forward" or "reverse")
-                    {
-                        savedRouteDirection =
-                            value;
-                        routeDirection =
-                            value;
-                    }
-                }
-            }
-            catch (JsonException)
-            {
-                // The exact route identity is optional for legacy Movement
-                // definitions. Fall back to persisted topology below.
-            }
-        }
 
         if (routeDirection is not ("forward" or "reverse"))
-            routeDirection =
-                Str(
-                    route,
-                    "locoDirection",
-                    "unknown");
+            throw new InvalidOperationException(
+                "movement_direction_unknown");
+
+        var topologyDirection =
+            Str(
+                route,
+                "locoDirection",
+                "unknown");
+
+        if (topologyDirection is "forward" or "reverse" &&
+            !string.Equals(
+                topologyDirection,
+                routeDirection,
+                StringComparison.Ordinal))
+            throw new InvalidOperationException(
+                "movement_route_direction_mismatch");
 
         var trackAddresses =
             TrackAddressMap(root);
