@@ -739,7 +739,7 @@ app.MapGet("/api/layout", async (IWebHostEnvironment env) =>
     return Results.Text(File.Exists(p) ? await File.ReadAllTextAsync(p) : "{}", "application/json");
 });
 
-app.MapPost("/api/layout", async (HttpRequest req, IWebHostEnvironment env, LayoutRuntime runtime, SignalAutomationEngine automation, WsHub ws, LocoCounterRuntime counters) =>
+app.MapPost("/api/layout", async (HttpRequest req, IWebHostEnvironment env, LayoutRuntime runtime, SignalAutomationEngine automation, WsHub ws) =>
 {
     var finalPath = DataFile(env, "layout.json");
     var tempPath = finalPath + ".upload.tmp";
@@ -780,9 +780,6 @@ app.MapPost("/api/layout", async (HttpRequest req, IWebHostEnvironment env, Layo
         // Runtime sensor state is maintained independently by live command-center
         // feedback and connection-time snapshot logic.
 
-        var locoCountersSaved =
-            await counters.SaveAsync();
-
         await ws.BroadcastRuntimeSnapshot();
         return Results.Json(new
         {
@@ -790,8 +787,7 @@ app.MapPost("/api/layout", async (HttpRequest req, IWebHostEnvironment env, Layo
             bytes,
             accessories = runtime.AccessoryCount,
             sensors = runtime.SensorCount,
-            signalAutomationReloaded,
-            locoCountersSaved
+            signalAutomationReloaded
         });
     }
     catch (IOException)
