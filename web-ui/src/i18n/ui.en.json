@@ -438,6 +438,8 @@
   "minimumFreeHeap": "Minimum free heap",
   "largestFreeBlock": "Largest free block",
   "psramFreeTotal": "PSRAM free / total",
+  "minimumFreePsram": "Minimum free PSRAM",
+  "largestFreePsramBlock": "Largest free PSRAM block",
   "websocketClients": "WebSocket clients",
   "runtimeObjects": "Runtime objects",
   "flashChip": "Flash chip",
