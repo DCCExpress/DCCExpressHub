@@ -15,7 +15,7 @@ export class RouteButtonElement extends ClickableBaseElement implements IRouteBu
   colorOn: string = "lime";
   active: boolean = false;
   routeTurnouts: RouteTurnoutItem[] = [];
-  generatedRouteRef: RouteReferenceDto | undefined = undefined;
+  generatedRouteRef?: RouteReferenceDto;
   constructor(x: number, y: number) {
     super(x, y);
     this.type = ELEMENT_TYPES.BUTTON_ROUTE;
