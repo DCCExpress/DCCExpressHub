@@ -29,18 +29,12 @@ void Z21CommandCenter::begin(
   _stationInfo.maxLocos =
       100;
 
-  ensureNetworkInfrastructure();
+  startUdp();
 }
 
 void Z21CommandCenter::setEndpoint(
     const String& host,
     uint16_t port) {
-  if (_endpointMutex) {
-    xSemaphoreTake(
-        _endpointMutex,
-        portMAX_DELAY);
-  }
-
   _host =
       host;
 
@@ -51,12 +45,8 @@ void Z21CommandCenter::setEndpoint(
           ? DEFAULT_PORT
           : port;
 
-  ++_endpointRevision;
-
-  if (_endpointMutex) {
-    xSemaphoreGive(
-        _endpointMutex);
-  }
+  _resolved =
+      false;
 
   _online =
       false;
@@ -66,625 +56,29 @@ void Z21CommandCenter::setEndpoint(
 
   _nextKeepaliveAt =
       0;
-}
 
-bool Z21CommandCenter::ensureNetworkInfrastructure() {
-  if (!_endpointMutex) {
-    _endpointMutex =
-        xSemaphoreCreateMutexStatic(
-            &_endpointMutexControl);
-  }
-
-  if (!_networkTxQueue) {
-    _networkTxQueue =
-        xQueueCreateStatic(
-            NETWORK_TX_QUEUE_LENGTH,
-            sizeof(NetworkTxPacket),
-            _networkTxQueueStorage,
-            &_networkTxQueueControl);
-  }
-
-  if (!_networkRxQueue) {
-    _networkRxQueue =
-        xQueueCreateStatic(
-            NETWORK_RX_QUEUE_LENGTH,
-            sizeof(NetworkRxFrame),
-            _networkRxQueueStorage,
-            &_networkRxQueueControl);
-  }
-
-#if defined(HUB_CC_YAMORC7010)
-  if (!_feedbackRxQueue) {
-    _feedbackRxQueue =
-        xQueueCreateStatic(
-            NETWORK_RX_QUEUE_LENGTH,
-            sizeof(NetworkRxFrame),
-            _feedbackRxQueueStorage,
-            &_feedbackRxQueueControl);
-  }
-#endif
-
-  if (!_networkControlQueue) {
-    _networkControlQueue =
-        xQueueCreateStatic(
-            NETWORK_CONTROL_QUEUE_LENGTH,
-            sizeof(NetworkControl),
-            _networkControlQueueStorage,
-            &_networkControlQueueControl);
-  }
-
-  if (
-      !_endpointMutex ||
-      !_networkTxQueue ||
-      !_networkRxQueue ||
-#if defined(HUB_CC_YAMORC7010)
-      !_feedbackRxQueue ||
-#endif
-      !_networkControlQueue
-  ) {
-    return false;
-  }
-
-  if (!_networkTaskHandle) {
-    _networkTaskHandle =
-        xTaskCreateStaticPinnedToCore(
-            networkTaskEntry,
-            "z21-udp",
-            NETWORK_TASK_STACK_BYTES,
-            this,
-            4,
-            _networkTaskStack,
-            &_networkTaskControl,
-            0);
-  }
-
-#if defined(HUB_CC_YAMORC7010)
-  if (!_feedbackTaskHandle) {
-    _feedbackTaskHandle =
-        xTaskCreateStaticPinnedToCore(
-            feedbackTaskEntry,
-            "z21-fb",
-            NETWORK_TASK_STACK_BYTES,
-            this,
-            1,
-            _feedbackTaskStack,
-            &_feedbackTaskControl,
-            0);
-  }
-#endif
-
-  return
-      _networkTaskHandle !=
-          nullptr
-#if defined(HUB_CC_YAMORC7010)
-      && _feedbackTaskHandle !=
-          nullptr
-#endif
-      ;
-}
-
-void Z21CommandCenter::networkTaskEntry(
-    void* parameter) {
-  auto* self =
-      static_cast<Z21CommandCenter*>(
-          parameter);
-
-  if (self) {
-    self->networkTask();
-  }
-
-  vTaskDelete(
-      nullptr);
-}
-
-#if defined(HUB_CC_YAMORC7010)
-void Z21CommandCenter::feedbackTaskEntry(
-    void* parameter) {
-  auto* self =
-      static_cast<Z21CommandCenter*>(
-          parameter);
-
-  if (self) {
-    self->feedbackTask();
-  }
-
-  vTaskDelete(
-      nullptr);
-}
-#endif
-
-bool Z21CommandCenter::enqueueNetworkRx(
-    NetworkRxKind kind,
-    const uint8_t* data,
-    size_t length) {
-  if (
-      !data ||
-      length == 0 ||
-      length >
-          sizeof(
-              NetworkRxFrame::data)
-  ) {
-    return false;
-  }
-
-  QueueHandle_t queue =
-      _networkRxQueue;
-
-#if defined(HUB_CC_YAMORC7010)
-  if (
-      kind !=
-      NetworkRxKind::UdpDatagram
-  ) {
-    queue =
-        _feedbackRxQueue;
-  }
-#endif
-
-  if (!queue) {
-    return false;
-  }
-
-  NetworkRxFrame frame;
-  frame.kind =
-      kind;
-  frame.length =
-      static_cast<uint16_t>(
-          length);
-
-  memcpy(
-      frame.data,
-      data,
-      length);
-
-  if (
-      xQueueSend(
-          queue,
-          &frame,
-          0) !=
-      pdTRUE
-  ) {
-    ++_networkRxDrops;
-    return false;
-  }
-
-  return true;
-}
-
-bool Z21CommandCenter::queueNetworkControl(
-    NetworkControlKind kind) {
-  if (
-      !ensureNetworkInfrastructure()
-  ) {
-    return false;
-  }
-
-  NetworkControl control;
-  control.kind =
-      kind;
-
-  return
-      xQueueSend(
-          _networkControlQueue,
-          &control,
-          0) ==
-      pdTRUE;
-}
-
-void Z21CommandCenter::processNetworkRx() {
-  NetworkRxFrame frame;
-
-  if (_networkRxQueue) {
-    uint8_t processed =
-        0;
-
-    while (
-        processed <
-            NETWORK_RX_QUEUE_LENGTH &&
-        xQueueReceive(
-            _networkRxQueue,
-            &frame,
-            0) ==
-            pdTRUE
-    ) {
-      ++processed;
-
-      processDatagram(
-          frame.data,
-          frame.length);
-    }
-  }
-
-#if defined(HUB_CC_YAMORC7010)
-  if (_feedbackRxQueue) {
-    uint8_t processed =
-        0;
-
-    while (
-        processed <
-            NETWORK_RX_QUEUE_LENGTH &&
-        xQueueReceive(
-            _feedbackRxQueue,
-            &frame,
-            0) ==
-            pdTRUE
-    ) {
-      ++processed;
-
-      switch (frame.kind) {
-        case NetworkRxKind::LbServerLine:
-          processLbServerLine(
-              reinterpret_cast<
-                  const char*>(
-                  frame.data));
-          break;
-
-        case NetworkRxKind::LocoNetBinary:
-          processLocoNetPacket(
-              frame.data,
-              frame.length);
-          break;
-
-        case NetworkRxKind::UdpDatagram:
-          break;
-      }
-    }
-  }
-#endif
-}
-
-void Z21CommandCenter::networkTask() {
-  uint32_t activeEndpointRevision =
+  _nextResolveAt =
       0;
 
-  for (;;) {
-    const unsigned long now =
-        millis();
+  _remoteIp =
+      IPAddress();
 
-    if (
-        activeEndpointRevision !=
-        _endpointRevision
-    ) {
-      activeEndpointRevision =
-          _endpointRevision;
-
-      if (_udpStarted) {
-        _udp.stop();
-        _udpStarted =
-            false;
-      }
-
-      _resolved =
-          false;
-      _remoteIp =
-          IPAddress();
-      _nextResolveAt =
-          0;
-
-    }
-
-    if (
-        WiFi.status() !=
-        WL_CONNECTED
-    ) {
-      vTaskDelay(
-          pdMS_TO_TICKS(
-              20));
-      continue;
-    }
-
-    if (
-        !startUdp() ||
-        !resolveRemote()
-    ) {
-      vTaskDelay(
-          pdMS_TO_TICKS(
-              10));
-      continue;
-    }
-
-    NetworkTxPacket tx;
-    uint8_t txProcessed =
-        0;
-
-    while (
-        txProcessed < 8 &&
-        xQueueReceive(
-            _networkTxQueue,
-            &tx,
-            0) ==
-            pdTRUE
-    ) {
-      ++txProcessed;
-
-      uint16_t port =
-          DEFAULT_PORT;
-
-      if (_endpointMutex) {
-        xSemaphoreTake(
-            _endpointMutex,
-            portMAX_DELAY);
-      }
-
-      port =
-          _port;
-
-      if (_endpointMutex) {
-        xSemaphoreGive(
-            _endpointMutex);
-      }
-
-      bool ok =
-          _udp.beginPacket(
-              _remoteIp,
-              port) == 1;
-
-      if (ok) {
-        ok =
-            _udp.write(
-                tx.data,
-                tx.length) ==
-            tx.length;
-      }
-
-      if (ok) {
-        ok =
-            _udp.endPacket() ==
-            1;
-      }
-
-      if (
-          !ok &&
-          tx.logPacket
-      ) {
-        Logger::warn(
-            "Z21 UDP TX failed in network task");
-      }
-    }
-
-    for (
-        uint8_t rxCount = 0;
-        rxCount < 8;
-        ++rxCount
-    ) {
-      const int packetSize =
-          _udp.parsePacket();
-
-      if (packetSize <= 0) {
-        break;
-      }
-
-      uint8_t buffer[
-          MAX_PACKET_BYTES] = {};
-
-      const int read =
-          _udp.read(
-              buffer,
-              min(
-                  packetSize,
-                  static_cast<int>(
-                      sizeof(
-                          buffer))));
-
-      if (read > 0) {
-        enqueueNetworkRx(
-            NetworkRxKind::UdpDatagram,
-            buffer,
-            static_cast<size_t>(
-                read));
-      }
-    }
-
-
-    vTaskDelay(
-        pdMS_TO_TICKS(
-            2));
+  if (_udpStarted) {
+    _udp.stop();
+    _udpStarted =
+        false;
   }
-}
 
 #if defined(HUB_CC_YAMORC7010)
-void Z21CommandCenter::feedbackTask() {
-  uint32_t activeEndpointRevision =
-      0;
-  unsigned long nextLbAttemptAt =
-      0;
-  unsigned long nextBinaryAttemptAt =
-      0;
-  uint8_t lbConnectFailures =
-      0;
-  uint8_t binaryConnectFailures =
-      0;
-
-  for (;;) {
-    const unsigned long now =
-        millis();
-
-    if (
-        activeEndpointRevision !=
-        _endpointRevision
-    ) {
-      activeEndpointRevision =
-          _endpointRevision;
-
-      disconnectLbServer();
-      disconnectLocoNetBinary();
-
-      _nextLbConnectAt =
-          0;
-      _nextLnBinaryConnectAt =
-          0;
-      _lastLbTrafficAt =
-          0;
-      _lastLbInterrogateAt =
-          0;
-      _lbInterrogatePhase =
-          0;
-
-      nextLbAttemptAt =
-          0;
-      nextBinaryAttemptAt =
-          0;
-    }
-
-    if (
-        WiFi.status() !=
-        WL_CONNECTED
-    ) {
-      if (_lbConnected) {
-        disconnectLbServer();
-      }
-
-      if (_lnBinaryConnected) {
-        disconnectLocoNetBinary();
-      }
-
-      vTaskDelay(
-          pdMS_TO_TICKS(
-              50));
-      continue;
-    }
-
-    // The UDP worker owns endpoint resolution. Feedback waits for the same
-    // resolved YaMoRC address, so TCP connect/DNS can never stall Z21 UDP.
-    if (!_resolved) {
-      vTaskDelay(
-          pdMS_TO_TICKS(
-              20));
-      continue;
-    }
-
-    if (
-        !_lbConnected ||
-        !_lbClient.connected()
-    ) {
-      _lbConnected =
-          false;
-
-      if (
-          static_cast<long>(
-              now -
-              nextLbAttemptAt) >= 0
-      ) {
-        nextLbAttemptAt =
-            now +
-            LB_RECONNECT_MS;
-
-        if (connectLbServer()) {
-          lbConnectFailures =
-              0;
-        } else {
-          ++lbConnectFailures;
-
-          if (
-              lbConnectFailures == 1 ||
-              lbConnectFailures >= 5
-          ) {
-            Logger::warn(
-                "YD7010 LBServer connect failed " +
-                _remoteIp.toString() +
-                ":" +
-                String(
-                    LB_SERVER_PORT));
-
-            if (
-                lbConnectFailures >= 5
-            ) {
-              lbConnectFailures =
-                  0;
-            }
-          }
-        }
-      }
-    } else {
-      processLbServerIncoming();
-
-      if (!_lbClient.connected()) {
-        disconnectLbServer();
-      }
-    }
-
-    if (
-        _lbConnected &&
-        _lbClient.connected()
-    ) {
-      if (_lnBinaryConnected) {
-        disconnectLocoNetBinary();
-      }
-    } else if (
-        !_lnBinaryConnected ||
-        !_lnBinaryClient.connected()
-    ) {
-      _lnBinaryConnected =
-          false;
-
-      if (
-          static_cast<long>(
-              now -
-              nextBinaryAttemptAt) >= 0
-      ) {
-        nextBinaryAttemptAt =
-            now +
-            LB_RECONNECT_MS;
-
-        if (connectLocoNetBinary()) {
-          binaryConnectFailures =
-              0;
-        } else {
-          ++binaryConnectFailures;
-
-          if (
-              binaryConnectFailures == 1 ||
-              binaryConnectFailures >= 5
-          ) {
-            Logger::warn(
-                "YD7010 LocoNet Binary connect failed " +
-                _remoteIp.toString() +
-                ":" +
-                String(
-                    LN_BINARY_PORT));
-
-            if (
-                binaryConnectFailures >= 5
-            ) {
-              binaryConnectFailures =
-                  0;
-            }
-          }
-        }
-      }
-    } else {
-      processLocoNetBinaryIncoming();
-
-      if (!_lnBinaryClient.connected()) {
-        disconnectLocoNetBinary();
-      }
-    }
-
-    NetworkControl control;
-    while (
-        xQueueReceive(
-            _networkControlQueue,
-            &control,
-            0) ==
-            pdTRUE
-    ) {
-      if (
-          control.kind ==
-          NetworkControlKind::Interrogate
-      ) {
-        startLocoNetInterrogate(
-            true);
-      }
-    }
-
-    processLocoNetInterrogate(
-        now);
-
-    vTaskDelay(
-        pdMS_TO_TICKS(
-            2));
-  }
-}
+  disconnectLbServer();
+  disconnectLocoNetBinary();
+  _nextLbConnectAt = 0;
+  _nextLnBinaryConnectAt = 0;
+  _lastLbTrafficAt = 0;
+  _lastLbInterrogateAt = 0;
+  _lbInterrogatePhase = 0;
 #endif
+}
 
 bool Z21CommandCenter::startUdp() {
   if (_udpStarted) {
@@ -743,31 +137,11 @@ bool Z21CommandCenter::resolveRemote() {
     return false;
   }
 
-  String host;
-  uint16_t port =
-      DEFAULT_PORT;
-
-  if (_endpointMutex) {
-    xSemaphoreTake(
-        _endpointMutex,
-        portMAX_DELAY);
-  }
-
-  host =
-      _host;
-  port =
-      _port;
-
-  if (_endpointMutex) {
-    xSemaphoreGive(
-        _endpointMutex);
-  }
-
   IPAddress parsed;
 
   if (
       parsed.fromString(
-          host)
+          _host)
   ) {
     _remoteIp =
         parsed;
@@ -777,7 +151,7 @@ bool Z21CommandCenter::resolveRemote() {
   } else {
     const int result =
         WiFi.hostByName(
-            host.c_str(),
+            _host.c_str(),
             _remoteIp);
 
     _resolved =
@@ -791,48 +165,47 @@ bool Z21CommandCenter::resolveRemote() {
 
     Logger::warn(
         "Z21 host resolve failed: " +
-        host);
+        _host);
 
     return false;
   }
 
   Logger::info(
       "Z21 endpoint resolved " +
-      host +
+      _host +
       " -> " +
       _remoteIp.toString() +
       ":" +
       String(
-          port));
+          _port));
 
   return true;
 }
 
 bool Z21CommandCenter::ensureConnected() {
-  if (
-      WiFi.status() !=
-      WL_CONNECTED ||
-      !ensureNetworkInfrastructure()
-  ) {
+  if (!startUdp()) {
     return false;
   }
 
-  const bool queued =
-      setBroadcastFlags() &&
-      requestHardwareInfo(
-          false) &&
-      requestFirmwareVersion(
-          false) &&
-      requestStatus(
-          false) &&
-      requestSystemState(
-          false);
+  if (!resolveRemote()) {
+    return false;
+  }
+
+  setBroadcastFlags();
+  requestHardwareInfo(
+      false);
+  requestFirmwareVersion(
+      false);
+  requestStatus(
+      false);
+  requestSystemState(
+      false);
 
   _nextKeepaliveAt =
       millis() +
       KEEPALIVE_MS;
 
-  return queued;
+  return true;
 }
 
 bool Z21CommandCenter::connected() {
@@ -869,14 +242,29 @@ void Z21CommandCenter::loop() {
     return;
   }
 
-  ensureNetworkInfrastructure();
-  processNetworkRx();
+  if (!startUdp()) {
+    return;
+  }
+
+  if (!resolveRemote()) {
+    return;
+  }
+
+  processIncoming();
 
   const unsigned long now =
       millis();
 
   processAccessoryPulses(
       now);
+
+#if defined(HUB_CC_YAMORC7010)
+  loopLbServer(
+      now);
+
+  loopLocoNetBinary(
+      now);
+#endif
 
   if (
       _nextKeepaliveAt == 0 ||
@@ -913,7 +301,8 @@ bool Z21CommandCenter::sendPacket(
     size_t dataLen,
     bool logPacket) {
   if (
-      !ensureNetworkInfrastructure()
+      !startUdp() ||
+      !resolveRemote()
   ) {
     return false;
   }
@@ -929,19 +318,16 @@ bool Z21CommandCenter::sendPacket(
     return false;
   }
 
-  NetworkTxPacket packet;
-  packet.length =
+  uint8_t packet[
+      MAX_PACKET_BYTES] = {};
+
+  writeLe16(
+      packet,
       static_cast<uint16_t>(
-          totalLen);
-  packet.logPacket =
-      logPacket;
+          totalLen));
 
   writeLe16(
-      packet.data,
-      packet.length);
-
-  writeLe16(
-      packet.data +
+      packet +
           2,
       header);
 
@@ -950,25 +336,50 @@ bool Z21CommandCenter::sendPacket(
       dataLen > 0
   ) {
     memcpy(
-        packet.data +
+        packet +
             4,
         data,
         dataLen);
   }
 
   if (
-      xQueueSend(
-          _networkTxQueue,
-          &packet,
-          0) !=
-      pdTRUE
+      !_udp.beginPacket(
+          _remoteIp,
+          _port)
   ) {
-    ++_networkTxDrops;
-
     Logger::warn(
-        "Z21 network TX queue full");
+        "Z21 UDP beginPacket failed");
 
     return false;
+  }
+
+  const size_t written =
+      _udp.write(
+          packet,
+          totalLen);
+
+  const int result =
+      _udp.endPacket();
+
+  if (
+      written != totalLen ||
+      result != 1
+  ) {
+    Logger::warn(
+        "Z21 UDP TX failed");
+
+    return false;
+  }
+
+  if (logPacket) {
+    Logger::info(
+        "Z21 UDP TX header=0x" +
+        String(
+            header,
+            HEX) +
+        " bytes=" +
+        String(
+            totalLen));
   }
 
   return true;
@@ -1758,13 +1169,31 @@ bool Z21CommandCenter::requestSensorSnapshot(
               loconetDetector),
           logCommand);
 
-#if defined(HUB_CC_YAMORC7010)
-  const bool locoNetInterrogate =
-      queueNetworkControl(
-          NetworkControlKind::Interrogate);
-#else
-  const bool locoNetInterrogate =
+  bool locoNetInterrogate =
       false;
+
+#if defined(HUB_CC_YAMORC7010)
+  const bool lbReady =
+      connectLbServer();
+
+  // YaMoRC LBServer/1234 is the authoritative path. Only try the Binary
+  // side-channel as a fallback, otherwise a disabled 5560 port can stall the
+  // embedded main loop with repeated TCP connection attempts.
+  const bool binaryReady =
+      lbReady
+          ? false
+          : connectLocoNetBinary();
+
+  if (
+      lbReady ||
+      binaryReady
+  ) {
+    startLocoNetInterrogate(
+        true);
+
+    locoNetInterrogate =
+        true;
+  }
 #endif
 
   return
@@ -1847,6 +1276,11 @@ bool Z21CommandCenter::connectLbServer() {
       ":" +
       String(
           LB_SERVER_PORT));
+
+  if (_rawInfoCallback) {
+    _rawInfoCallback(
+        "YD7010 LBServer connected");
+  }
 
   startLocoNetInterrogate(
       true);
@@ -1963,6 +1397,11 @@ bool Z21CommandCenter::connectLocoNetBinary() {
       ":" +
       String(
           LN_BINARY_PORT));
+
+  if (_rawInfoCallback) {
+    _rawInfoCallback(
+        "YD7010 LocoNet Binary connected");
+  }
 
   if (!_lbConnected) {
     startLocoNetInterrogate(
@@ -2162,8 +1601,44 @@ void Z21CommandCenter::processLocoNetBinaryIncoming() {
 
     ++_lnBinaryPacketsObserved;
 
-    enqueueNetworkRx(
-        NetworkRxKind::LocoNetBinary,
+    if (
+        _lnBinaryPacketsObserved <=
+            12 &&
+        _rawInfoCallback
+    ) {
+      String raw =
+          "YD7010 BIN RX";
+
+      for (
+          size_t index = 0;
+          index <
+              _lnBinaryPacketLength;
+          ++index
+      ) {
+        raw +=
+            " ";
+
+        if (
+            _lnBinaryPacket[index] <
+            0x10
+        ) {
+          raw +=
+              "0";
+        }
+
+        raw +=
+            String(
+                _lnBinaryPacket[index],
+                HEX);
+      }
+
+      raw.toUpperCase();
+
+      _rawInfoCallback(
+          raw);
+    }
+
+    processLocoNetPacket(
         _lnBinaryPacket,
         _lnBinaryPacketLength);
 
@@ -2200,12 +1675,8 @@ void Z21CommandCenter::processLbServerIncoming() {
         _lbLine[_lbLineLength] =
             '\0';
 
-        enqueueNetworkRx(
-            NetworkRxKind::LbServerLine,
-            reinterpret_cast<const uint8_t*>(
-                _lbLine),
-            _lbLineLength +
-                1);
+        processLbServerLine(
+            _lbLine);
 
         _lbLineLength =
             0;
@@ -2553,6 +2024,10 @@ void Z21CommandCenter::startLocoNetInterrogate(
   _lastLbTrafficAt =
       now;
 
+  if (_rawInfoCallback) {
+    _rawInfoCallback(
+        "YD7010 LocoNet sensor interrogation started");
+  }
 }
 
 void Z21CommandCenter::processLocoNetInterrogate(
@@ -2690,6 +2165,10 @@ void Z21CommandCenter::processLocoNetInterrogate(
     _lastLbInterrogateAt =
         now;
 
+    if (_rawInfoCallback) {
+      _rawInfoCallback(
+          "YD7010 LocoNet sensor interrogation sent");
+    }
   }
 }
 
