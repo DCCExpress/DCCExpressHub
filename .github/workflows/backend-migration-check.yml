@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/windows-backend-movement-engine
+      - alpha3
 
 permissions:
   contents: read
