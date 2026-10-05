@@ -21,7 +21,7 @@ inline bool pomProgramming() {
 }
 
 inline bool pomRead() {
-#if defined(HUB_CC_Z21)
+#if defined(HUB_CC_Z21) || defined(HUB_CC_YAMORC7010)
   return true;
 #else
   return false;
@@ -29,7 +29,7 @@ inline bool pomRead() {
 }
 
 inline bool accessoryPomProgramming() {
-#if defined(HUB_CC_Z21)
+#if defined(HUB_CC_Z21) || defined(HUB_CC_YAMORC7010)
   return true;
 #else
   return false;
@@ -37,7 +37,7 @@ inline bool accessoryPomProgramming() {
 }
 
 inline bool accessoryPomRead() {
-#if defined(HUB_CC_Z21)
+#if defined(HUB_CC_Z21) || defined(HUB_CC_YAMORC7010)
   return true;
 #else
   return false;
