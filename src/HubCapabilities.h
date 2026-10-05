@@ -29,8 +29,11 @@ public:
   }
 
   static bool programmingTrack() {
+    // This capability controls whether the decoder Programming UI is
+    // available. Z21 service-mode CV programming is supported even though
+    // Z21 does not expose DCC-EX's separate PROG power toggle abstraction.
     return
         CommandCenterCapabilities::
-            programmingTrackPower();
+            serviceModeProgramming();
   }
 };
