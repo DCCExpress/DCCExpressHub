@@ -97,6 +97,15 @@ export type MovementAction = {
   message: string;
 };
 
+export type MovementRouteRef = {
+  fromBlockId: number;
+  toBlockId: number;
+  direction:
+    | "forward"
+    | "reverse";
+  viaBlockIds: number[];
+};
+
 export type MovementPage = {
   id: string;
   name: string;
@@ -104,10 +113,7 @@ export type MovementPage = {
   speed: number;
   startedAt: number | null;
   stoppedAt: number | null;
-  routeKey: string;
-  fromBlockId: number | null;
-  viaBlockIds: number[];
-  toBlockId: number | null;
+  routeRef: MovementRouteRef | null;
   blockRules: MovementBlockRule[];
   resourceEventRules:
     MovementResourceEventRule[];
@@ -193,10 +199,7 @@ export function createMovementPage(
     speed: 20,
     startedAt: null,
     stoppedAt: null,
-    routeKey: "",
-    fromBlockId: null,
-    viaBlockIds: [],
-    toBlockId: null,
+    routeRef: null,
     blockRules: [],
     resourceEventRules: [],
     safetyRules: [],
@@ -849,15 +852,27 @@ function normalizeMovementPage(
       ? raw as Record<string, unknown>
       : {};
 
+  const rawRouteRef =
+    candidate.routeRef &&
+    typeof candidate.routeRef === "object"
+      ? candidate.routeRef as Record<string, unknown>
+      : null;
+
   const fromBlockId =
     positiveInteger(
-      candidate.fromBlockId
+      rawRouteRef?.fromBlockId
     );
 
   const toBlockId =
     positiveInteger(
-      candidate.toBlockId
+      rawRouteRef?.toBlockId
     );
+
+  const direction =
+    rawRouteRef?.direction === "forward" ||
+    rawRouteRef?.direction === "reverse"
+      ? rawRouteRef.direction
+      : null;
 
   const viaBlockIds:
     number[] = [];
@@ -865,9 +880,9 @@ function normalizeMovementPage(
   for (
     const rawBlockId of
     Array.isArray(
-      candidate.viaBlockIds
+      rawRouteRef?.viaBlockIds
     )
-      ? candidate.viaBlockIds
+      ? rawRouteRef.viaBlockIds
       : []
   ) {
     const blockId =
@@ -890,6 +905,20 @@ function normalizeMovementPage(
       blockId
     );
   }
+
+  const routeRef:
+    MovementRouteRef | null =
+    fromBlockId !== null &&
+    toBlockId !== null &&
+    fromBlockId !== toBlockId &&
+    direction !== null
+      ? {
+          fromBlockId,
+          toBlockId,
+          direction,
+          viaBlockIds,
+        }
+      : null;
 
   return {
     id:
@@ -924,18 +953,7 @@ function normalizeMovementPage(
       timestampOrNull(
         candidate.stoppedAt
       ),
-    routeKey:
-      typeof candidate.routeKey ===
-        "string"
-        ? candidate.routeKey
-        : "",
-    fromBlockId,
-    viaBlockIds,
-    toBlockId:
-      toBlockId ===
-      fromBlockId
-        ? null
-        : toBlockId,
+    routeRef,
     blockRules:
       normalizeBlockRules(
         candidate.blockRules
