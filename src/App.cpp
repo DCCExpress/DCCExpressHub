@@ -7,6 +7,7 @@
 #include <esp_heap_caps.h>
 
 #include "Logger.h"
+#include "CommandCenterBuild.h"
 
 namespace {
 
