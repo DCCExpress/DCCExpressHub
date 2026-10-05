@@ -115,7 +115,7 @@ bool Z21CommandCenter::ensureNetworkInfrastructure() {
     _networkTaskHandle =
         xTaskCreateStaticPinnedToCore(
             networkTaskEntry,
-            "z21-net",
+            "z21-udp",
             NETWORK_TASK_STACK_BYTES,
             this,
             2,
@@ -124,9 +124,29 @@ bool Z21CommandCenter::ensureNetworkInfrastructure() {
             0);
   }
 
+#if defined(HUB_CC_YAMORC7010)
+  if (!_feedbackTaskHandle) {
+    _feedbackTaskHandle =
+        xTaskCreateStaticPinnedToCore(
+            feedbackTaskEntry,
+            "z21-fb",
+            NETWORK_TASK_STACK_BYTES,
+            this,
+            2,
+            _feedbackTaskStack,
+            &_feedbackTaskControl,
+            0);
+  }
+#endif
+
   return
       _networkTaskHandle !=
-      nullptr;
+          nullptr
+#if defined(HUB_CC_YAMORC7010)
+      && _feedbackTaskHandle !=
+          nullptr
+#endif
+      ;
 }
 
 void Z21CommandCenter::networkTaskEntry(
@@ -142,6 +162,22 @@ void Z21CommandCenter::networkTaskEntry(
   vTaskDelete(
       nullptr);
 }
+
+#if defined(HUB_CC_YAMORC7010)
+void Z21CommandCenter::feedbackTaskEntry(
+    void* parameter) {
+  auto* self =
+      static_cast<Z21CommandCenter*>(
+          parameter);
+
+  if (self) {
+    self->feedbackTask();
+  }
+
+  vTaskDelete(
+      nullptr);
+}
+#endif
 
 bool Z21CommandCenter::enqueueNetworkRx(
     NetworkRxKind kind,
@@ -251,13 +287,6 @@ void Z21CommandCenter::networkTask() {
   uint32_t activeEndpointRevision =
       0;
 
-#if defined(HUB_CC_YAMORC7010)
-  unsigned long nextLbAttemptAt =
-      0;
-  unsigned long nextBinaryAttemptAt =
-      0;
-#endif
-
   for (;;) {
     const unsigned long now =
         millis();
@@ -282,30 +311,12 @@ void Z21CommandCenter::networkTask() {
       _nextResolveAt =
           0;
 
-#if defined(HUB_CC_YAMORC7010)
-      disconnectLbServer();
-      disconnectLocoNetBinary();
-      nextLbAttemptAt =
-          0;
-      nextBinaryAttemptAt =
-          0;
-#endif
     }
 
     if (
         WiFi.status() !=
         WL_CONNECTED
     ) {
-#if defined(HUB_CC_YAMORC7010)
-      if (_lbConnected) {
-        disconnectLbServer();
-      }
-
-      if (_lnBinaryConnected) {
-        disconnectLocoNetBinary();
-      }
-#endif
-
       vTaskDelay(
           pdMS_TO_TICKS(
               20));
@@ -414,7 +425,80 @@ void Z21CommandCenter::networkTask() {
       }
     }
 
+
+    vTaskDelay(
+        pdMS_TO_TICKS(
+            2));
+  }
+}
+
 #if defined(HUB_CC_YAMORC7010)
+void Z21CommandCenter::feedbackTask() {
+  uint32_t activeEndpointRevision =
+      0;
+  unsigned long nextLbAttemptAt =
+      0;
+  unsigned long nextBinaryAttemptAt =
+      0;
+
+  for (;;) {
+    const unsigned long now =
+        millis();
+
+    if (
+        activeEndpointRevision !=
+        _endpointRevision
+    ) {
+      activeEndpointRevision =
+          _endpointRevision;
+
+      disconnectLbServer();
+      disconnectLocoNetBinary();
+
+      _nextLbConnectAt =
+          0;
+      _nextLnBinaryConnectAt =
+          0;
+      _lastLbTrafficAt =
+          0;
+      _lastLbInterrogateAt =
+          0;
+      _lbInterrogatePhase =
+          0;
+
+      nextLbAttemptAt =
+          0;
+      nextBinaryAttemptAt =
+          0;
+    }
+
+    if (
+        WiFi.status() !=
+        WL_CONNECTED
+    ) {
+      if (_lbConnected) {
+        disconnectLbServer();
+      }
+
+      if (_lnBinaryConnected) {
+        disconnectLocoNetBinary();
+      }
+
+      vTaskDelay(
+          pdMS_TO_TICKS(
+              50));
+      continue;
+    }
+
+    // The UDP worker owns endpoint resolution. Feedback waits for the same
+    // resolved YaMoRC address, so TCP connect/DNS can never stall Z21 UDP.
+    if (!_resolved) {
+      vTaskDelay(
+          pdMS_TO_TICKS(
+              20));
+      continue;
+    }
+
     if (
         !_lbConnected ||
         !_lbClient.connected()
@@ -435,6 +519,10 @@ void Z21CommandCenter::networkTask() {
       }
     } else {
       processLbServerIncoming();
+
+      if (!_lbClient.connected()) {
+        disconnectLbServer();
+      }
     }
 
     if (
@@ -464,6 +552,10 @@ void Z21CommandCenter::networkTask() {
       }
     } else {
       processLocoNetBinaryIncoming();
+
+      if (!_lnBinaryClient.connected()) {
+        disconnectLocoNetBinary();
+      }
     }
 
     NetworkControl control;
@@ -485,13 +577,13 @@ void Z21CommandCenter::networkTask() {
 
     processLocoNetInterrogate(
         now);
-#endif
 
     vTaskDelay(
         pdMS_TO_TICKS(
             2));
   }
 }
+#endif
 
 bool Z21CommandCenter::startUdp() {
   if (_udpStarted) {
