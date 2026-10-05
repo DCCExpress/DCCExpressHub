@@ -3,7 +3,10 @@
 #include "Logger.h"
 #include "CommandCenterBuild.h"
 #include "FileStore.h"
+
+#if __has_include("config.h")
 #include "config.h"
+#endif
 
 #include <LittleFS.h>
 #include <WiFi.h>
