@@ -244,6 +244,9 @@ private:
   LocoFeedbackCallback
       _locoFeedbackCallback;
 
+  ProgrammingFeedbackCallback
+      _programmingFeedbackCallback;
+
   bool startUdp();
   bool resolveRemote();
 
