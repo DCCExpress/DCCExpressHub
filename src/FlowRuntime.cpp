@@ -3,6 +3,7 @@
 #include <algorithm>
 
 #include "Logger.h"
+#include "FileStore.h"
 
 FlowRuntime::FlowRuntime(
     AutomationScriptRuntime& scripts,
@@ -109,13 +110,25 @@ bool FlowRuntime::loadDocument(
   nodes.clear();
   edges.clear();
 
+  FileStore files(
+      LittleFS);
+
+  if (
+      !files.exists(
+          AUTOMATIONS_PATH)
+  ) {
+    return true;
+  }
+
   File file =
       LittleFS.open(
           AUTOMATIONS_PATH,
           "r");
 
   if (!file) {
-    return true;
+    error =
+        "automation_storage_open_failed";
+    return false;
   }
 
   JsonDocument document;
