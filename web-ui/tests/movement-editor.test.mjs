@@ -598,20 +598,20 @@ test("Movement generated route selector keeps used routes visible but marks them
 
   assert.match(
     domain,
-    /routeKey:\s*string/
+    /routeRef:\s*MovementRouteRef \| null/
   );
 
   assert.match(
     domain,
-    /routeKey:\s*""/
+    /routeRef:\s*null/
   );
 
   assert.match(
     plan,
-    /page\.routeKey\.trim/
+    /page\.routeRef/
   );
 
-  assert.match(
+  assert.doesNotMatch(
     plan,
     /createMovementRouteKey/
   );
@@ -1592,7 +1592,7 @@ test("selected Movement route stores full graph block path and exact route key",
 
   assert.match(
     catalog,
-    /routeKey:[\s\S]*candidate\.key/
+    /routeRef:[\s\S]*candidate\.locoDirection/
   );
 
   assert.match(
@@ -1902,7 +1902,7 @@ test("Movement physical plan reloads when exact route key changes", () => {
 
   assert.match(
     editor,
-    /const routeSignature =[\s\S]*page\.routeKey/
+    /const routeSignature =[\s\S]*page\.routeRef/
   );
 });
 
@@ -2898,7 +2898,7 @@ test("New Movement station blocks get blocking dwell defaults only on first rout
 
   assert.match(
     catalog,
-    /applyNewMovementDefaults[\s\S]*page\.routeKey\.trim\(\)\.length[\s\S]*page\.fromBlockId[\s\S]*page\.toBlockId[\s\S]*page\.actions\.length/
+    /applyNewMovementDefaults[\s\S]*page\.routeRef[\s\S]*page\.actions\.length/
   );
 
   assert.match(
