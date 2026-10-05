@@ -137,6 +137,14 @@ public:
   virtual const char* type() const = 0;
   virtual const char* name() const = 0;
 
+  virtual const char* feedbackLinkName() const {
+    return "";
+  }
+
+  virtual bool feedbackLinkConnected() const {
+    return false;
+  }
+
   // Optional transport pacing. Command centers that do not need host-side
   // pacing can keep the no-op/default implementation.
   virtual void setCommandIntervalMs(
