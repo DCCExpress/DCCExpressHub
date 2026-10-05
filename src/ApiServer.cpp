@@ -676,23 +676,23 @@ void ApiServer::handleLocoCountersBody(
           tempPath.c_str());
 
   JsonDocument document;
-  const auto error =
-      file
-          ? deserializeJson(
-                document,
-                file)
-          : DeserializationError(
-                DeserializationError::EmptyInput);
+  bool invalid = !file;
 
   if (file) {
+    const auto error =
+        deserializeJson(
+            document,
+            file);
+
     file.close();
+
+    invalid =
+        error ||
+        !document.is<JsonObject>() ||
+        !document["items"].is<JsonArray>();
   }
 
-  if (
-      error ||
-      !document.is<JsonObject>() ||
-      !document["items"].is<JsonArray>()
-  ) {
+  if (invalid) {
     _locoCountersUpload.abort();
     response["ok"] = false;
     response["message"] = "Invalid locomotive counter state";
