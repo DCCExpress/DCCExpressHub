@@ -300,6 +300,9 @@ private:
   void handleProgrammingRawResponse(
       const String& raw);
 
+  void handleProgrammingFeedback(
+      const CommandCenterProgrammingFeedback& feedback);
+
   void handleEvent(
       AsyncWebSocket* server,
       AsyncWebSocketClient* client,
