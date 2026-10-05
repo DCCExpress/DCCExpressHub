@@ -31,8 +31,8 @@ import {
   installSignalLogicStatusIndicator,
 } from "@/services/signalLogicStatusIndicator";
 import {
-  installDccExHeartbeatStatusIndicator,
-} from "@/services/dccExHeartbeatStatusIndicator";
+  installCommandCenterStatusIndicator,
+} from "@/services/commandCenterStatusIndicator";
 import {
   installFileViewerEnhancer,
 } from "@/services/fileViewerEnhancer";
