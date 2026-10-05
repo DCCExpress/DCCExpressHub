@@ -1,3 +1,5 @@
+import type { MovementRouteRef } from "./movement";
+
 export type Direction =
   | "forward"
   | "reverse";
@@ -112,8 +114,7 @@ export type LocoCalibrationResult = {
 };
 
 export type LocoCalibrationProfile = {
-  routeKey: string;
-  reverseRouteKey: string;
+  routeRef: MovementRouteRef;
   routeLabel: string;
   routeLengthMm: number;
   maxSpeed: number;
