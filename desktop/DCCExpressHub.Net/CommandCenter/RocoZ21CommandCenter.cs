@@ -2349,15 +2349,23 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
                     $"LocoNet LBServer RX {trimmed}");
             }
 
-            if (!trimmed.StartsWith(
+            var packetText =
+                trimmed.StartsWith(
                     "RECEIVE ",
-                    StringComparison.OrdinalIgnoreCase))
-            {
+                    StringComparison.OrdinalIgnoreCase)
+                    ? trimmed[8..]
+                    : trimmed;
+
+            var first =
+                packetText.Length > 0
+                    ? packetText[0]
+                    : '\0';
+
+            if (!Uri.IsHexDigit(first))
                 continue;
-            }
 
             var tokens =
-                trimmed[8..]
+                packetText
                     .Split(
                         ' ',
                         StringSplitOptions.RemoveEmptyEntries |
