@@ -445,6 +445,18 @@ private:
       const uint8_t* data,
       size_t length);
 
+  void processRBus(
+      const uint8_t* data,
+      size_t length);
+
+  void processLocoNetMessage(
+      const uint8_t* data,
+      size_t length);
+
+  void processLocoNetDetector(
+      const uint8_t* data,
+      size_t length);
+
   void processHardwareInfo(
       const uint8_t* data,
       size_t length);
