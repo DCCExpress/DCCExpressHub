@@ -70,7 +70,7 @@ function normalizedStates(
     );
 }
 
-export function createMovementRouteKey(
+export function createMovementRouteCandidateId(
   route:
     MovementRouteIdentityEntry
 ): string {
