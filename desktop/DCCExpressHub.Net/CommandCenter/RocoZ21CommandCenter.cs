@@ -174,7 +174,7 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
     }
 
     public string Type => "z21";
-    public virtual string Name => "Roco Z21";
+    public virtual string Name => "Z21";
     public string Endpoint => $"{_host}:{_port}/udp";
     public bool EmergencyPauseStateKnown => _emergencyKnown;
     public bool EmergencyPaused => _emergencyPaused;
