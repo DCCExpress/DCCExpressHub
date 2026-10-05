@@ -19,11 +19,6 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
         CancellationToken CancellationToken,
         TaskCompletionSource<bool> Completion);
 
-    private sealed record PendingTurnoutFeedback(
-        int Address,
-        bool ExpectedPhysicalValue,
-        TaskCompletionSource<bool> Completion);
-
     public const int DefaultPort = 21105;
 
     // Z21 clients only need to communicate once per minute to stay registered.
@@ -33,7 +28,7 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
     private const int OnlineTimeoutMs = 45_000;
     private const int AccessoryPulseMs = 120;
     private const int AccessorySettleMs = 50;
-    private const int TurnoutFeedbackTimeoutMs = 750;
+    private const int TurnoutActiveMs = 500;
     private const int LocoNetInterrogateRestMs = 1250;
 
     // Generic Z21: driving/switching + R-BUS + system state + all changed
@@ -106,9 +101,6 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
     private bool _powerFeedbackKnown;
     private bool _lastPowerOn;
     private string _lastPowerTarget = "";
-
-    private readonly object _turnoutFeedbackGate = new();
-    private PendingTurnoutFeedback? _pendingTurnoutFeedback;
 
     private StationInfo _stationInfo =
         new(
@@ -673,19 +665,6 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
     private void ResetTransport()
     {
         CancelPendingTxRequests();
-
-        PendingTurnoutFeedback? pendingTurnout;
-
-        lock (_turnoutFeedbackGate)
-        {
-            pendingTurnout =
-                _pendingTurnoutFeedback;
-            _pendingTurnoutFeedback =
-                null;
-        }
-
-        pendingTurnout?.Completion.TrySetResult(
-            false);
 
         UdpClient? old;
         bool wasOnline;
@@ -1327,145 +1306,69 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
             address - 1;
 
         _log.LogInformation(
-            "Z21 turnout #{Address}: physical={PhysicalValue}, functionAddress={FunctionAddress}, Q=1",
+            "Z21 turnout #{Address}: physical={PhysicalValue}, functionAddress={FunctionAddress}, Q=1, activeMs={ActiveMs}",
             address,
             position,
-            functionAddress);
+            functionAddress,
+            TurnoutActiveMs);
 
-        await _accessoryGate.WaitAsync(
-            ct);
-
-        var feedback =
-            new PendingTurnoutFeedback(
-                address,
+        // Mirror the proven DCCExpress Z21 behavior:
+        //   LAN_X_SET_TURNOUT_WITH_Q(address, true, position)
+        //   setTimeout(... false ..., 500 ms)
+        //
+        // The command returns as soon as the activate packet has been queued
+        // and sent. Deactivation is scheduled independently. There is no
+        // turnout-feedback wait and no GET_TURNOUT_INFO in the command path.
+        if (!await SendAccessoryPulseAsync(
+                functionAddress,
                 position,
-                new TaskCompletionSource<bool>(
-                    TaskCreationOptions.RunContinuationsAsynchronously));
+                activate: true,
+                ct: ct))
+        {
+            return false;
+        }
 
-        lock (_turnoutFeedbackGate)
-            _pendingTurnoutFeedback =
-                feedback;
+        _ =
+            DeactivateTurnoutAfterDelayAsync(
+                address,
+                functionAddress,
+                position);
 
-        var activated = false;
+        return true;
+    }
 
+    private async Task DeactivateTurnoutAfterDelayAsync(
+        int address,
+        int functionAddress,
+        bool position)
+    {
         try
         {
-            if (!await SendAccessoryPulseAsync(
-                    functionAddress,
-                    position,
-                    activate: true,
-                    ct: ct))
-            {
-                return false;
-            }
+            await Task.Delay(
+                TurnoutActiveMs);
 
-            activated = true;
-
-            // Q=1 delegates turnout switching order to the Z21/YaMoRC
-            // internal accessory FIFO. We still keep a hard pulse ceiling and
-            // authoritative LAN_X_TURNOUT_INFO confirmation around the
-            // transaction as an additional Hub-side safety layer.
-            var first =
-                await Task.WhenAny(
-                    feedback.Completion.Task,
-                    Task.Delay(
-                        AccessoryPulseMs,
-                        ct));
-
-            var confirmed =
-                first ==
-                    feedback.Completion.Task &&
-                feedback.Completion.Task
-                    .IsCompletedSuccessfully &&
-                feedback.Completion.Task.Result;
-
-            // Deactivate is safety-critical. Put it at the front of the global
-            // Z21 TX queue and do it even if the caller was cancelled.
-            if (!await SendAccessoryPulseAsync(
+            var ok =
+                await SendAccessoryPulseAsync(
                     functionAddress,
                     position,
                     activate: false,
                     ct: CancellationToken.None,
                     priority: true,
-                    ensureTransport: false))
-            {
-                return false;
-            }
+                    ensureTransport: false);
 
-            activated = false;
-
-            if (!confirmed)
-            {
-                // Ask for the authoritative state once. The broadcast reply
-                // resolves the same pending feedback waiter.
-                await RequestTurnoutInfoAsync(
-                    address,
-                    CancellationToken.None);
-
-                var final =
-                    await Task.WhenAny(
-                        feedback.Completion.Task,
-                        Task.Delay(
-                            TurnoutFeedbackTimeoutMs,
-                            CancellationToken.None));
-
-                confirmed =
-                    final ==
-                        feedback.Completion.Task &&
-                    feedback.Completion.Task
-                        .IsCompletedSuccessfully &&
-                    feedback.Completion.Task.Result;
-            }
-
-            await Task.Delay(
-                AccessorySettleMs,
-                CancellationToken.None);
-
-            if (!confirmed)
+            if (!ok)
             {
                 _log.LogWarning(
-                    "Z21 turnout #{Address} command not confirmed by LAN_X_TURNOUT_INFO (expected physical={PhysicalValue})",
-                    address,
-                    position);
+                    "Z21 turnout #{Address}: queued deactivate failed",
+                    address);
             }
-
-            return confirmed;
         }
-        catch (OperationCanceledException)
-            when (ct.IsCancellationRequested)
+        catch (Exception ex)
         {
-            return false;
-        }
-        finally
-        {
-            if (activated)
-            {
-                try
-                {
-                    await SendAccessoryPulseAsync(
-                        functionAddress,
-                        position,
-                        activate: false,
-                        ct: CancellationToken.None,
-                        priority: true);
-                }
-                catch
-                {
-                }
-            }
-
-            lock (_turnoutFeedbackGate)
-            {
-                if (ReferenceEquals(
-                        _pendingTurnoutFeedback,
-                        feedback))
-                {
-                    _pendingTurnoutFeedback =
-                        null;
-                }
-            }
-
-            _accessoryGate.Release();
+            _log.LogWarning(
+                ex,
+                "Z21 turnout #{Address}: delayed deactivate failed",
+                address);
         }
     }
 
@@ -1547,24 +1450,6 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
 
             _accessoryGate.Release();
         }
-    }
-
-    private Task<bool> RequestTurnoutInfoAsync(
-        int address,
-        CancellationToken ct)
-    {
-        var functionAddress =
-            address - 1;
-
-        return SendXBusCoreAsync(
-            new byte[]
-            {
-                0x43,
-                (byte)(functionAddress >> 8),
-                (byte)(functionAddress & 0xFF)
-            },
-            false,
-            ct);
     }
 
     private Task<bool> SendAccessoryPulseAsync(
@@ -2820,35 +2705,6 @@ public sealed class Z21CommandCenter : BackgroundService, ICommandCenter
                 AccessoryFeedbackChanged?.Invoke(
                     address,
                     physicalValue);
-
-                PendingTurnoutFeedback? pending;
-
-                lock (_turnoutFeedbackGate)
-                    pending =
-                        _pendingTurnoutFeedback;
-
-                if (
-                    pending is not null &&
-                    pending.Address == address
-                )
-                {
-                    if (
-                        physicalValue ==
-                        pending.ExpectedPhysicalValue
-                    )
-                    {
-                        pending.Completion.TrySetResult(
-                            true);
-                    }
-                    else
-                    {
-                        _log.LogDebug(
-                            "Z21 turnout #{Address} feedback physical={PhysicalValue}; waiting for expected physical={ExpectedPhysicalValue}",
-                            address,
-                            physicalValue,
-                            pending.ExpectedPhysicalValue);
-                    }
-                }
             }
             else
             {
