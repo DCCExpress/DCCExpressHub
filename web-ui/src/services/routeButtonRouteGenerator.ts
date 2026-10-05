@@ -414,15 +414,16 @@ export function applyGeneratedRouteButtonCandidate(
       })
     );
 
-  routeButton.generatedRouteRef =
-    candidate.routeRef
-      ? {
-          ...candidate.routeRef,
-          viaBlockIds: [
-            ...candidate.routeRef.viaBlockIds,
-          ],
-        }
-      : undefined;
+  if (candidate.routeRef) {
+    routeButton.generatedRouteRef = {
+      ...candidate.routeRef,
+      viaBlockIds: [
+        ...candidate.routeRef.viaBlockIds,
+      ],
+    };
+  } else {
+    delete routeButton.generatedRouteRef;
+  }
 
   routeButton.label =
     candidate.label;
