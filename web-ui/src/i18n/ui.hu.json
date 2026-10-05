@@ -438,6 +438,8 @@
   "minimumFreeHeap": "Legkisebb szabad heap",
   "largestFreeBlock": "Legnagyobb szabad blokk",
   "psramFreeTotal": "Szabad / összes PSRAM",
+  "minimumFreePsram": "Legkisebb szabad PSRAM",
+  "largestFreePsramBlock": "Legnagyobb szabad PSRAM blokk",
   "websocketClients": "WebSocket-kliensek",
   "runtimeObjects": "Futásidejű objektumok",
   "flashChip": "Flash chip",
