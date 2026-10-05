@@ -313,12 +313,11 @@ private:
   static constexpr unsigned long
       LB_RECONNECT_MS = 2000;
 
-  // TCP connect runs on the ESP32 main loop. A healthy YaMoRC LBServer on
-  // the same LAN accepts within a few milliseconds; a long timeout only stalls
-  // the whole Hub when the service is unavailable. Retry frequently instead of
-  // blocking the runtime.
+  // Feedback TCP runs on its own FreeRTOS worker, so it can use the same
+  // forgiving connection window as the Windows backend without stalling Z21
+  // UDP, WebSocket, Movement or the main runtime.
   static constexpr uint32_t
-      FEEDBACK_CONNECT_TIMEOUT_MS = 150;
+      FEEDBACK_CONNECT_TIMEOUT_MS = 3000;
 
 
   static constexpr unsigned long
@@ -386,12 +385,18 @@ private:
   QueueHandle_t _networkControlQueue = nullptr;
   SemaphoreHandle_t _endpointMutex = nullptr;
   TaskHandle_t _networkTaskHandle = nullptr;
+#if defined(HUB_CC_YAMORC7010)
+  TaskHandle_t _feedbackTaskHandle = nullptr;
+#endif
 
   StaticQueue_t _networkTxQueueControl = {};
   StaticQueue_t _networkRxQueueControl = {};
   StaticQueue_t _networkControlQueueControl = {};
   StaticSemaphore_t _endpointMutexControl = {};
   StaticTask_t _networkTaskControl = {};
+#if defined(HUB_CC_YAMORC7010)
+  StaticTask_t _feedbackTaskControl = {};
+#endif
 
   uint8_t _networkTxQueueStorage[
       NETWORK_TX_QUEUE_LENGTH *
@@ -405,6 +410,11 @@ private:
   StackType_t _networkTaskStack[
       NETWORK_TASK_STACK_BYTES /
       sizeof(StackType_t)] = {};
+#if defined(HUB_CC_YAMORC7010)
+  StackType_t _feedbackTaskStack[
+      NETWORK_TASK_STACK_BYTES /
+      sizeof(StackType_t)] = {};
+#endif
 
   volatile uint32_t _endpointRevision = 1;
   volatile uint32_t _networkRxDrops = 0;
@@ -414,6 +424,11 @@ private:
   void networkTask();
   static void networkTaskEntry(
       void* parameter);
+#if defined(HUB_CC_YAMORC7010)
+  void feedbackTask();
+  static void feedbackTaskEntry(
+      void* parameter);
+#endif
   void processNetworkRx();
   bool queueNetworkControl(
       NetworkControlKind kind);
