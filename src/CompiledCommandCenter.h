@@ -165,7 +165,7 @@ private:
   bool _pauseQuerySent = false;
 };
 
-#elif defined(HUB_CC_Z21)
+#elif defined(HUB_CC_Z21) || defined(HUB_CC_YAMORC7010)
 
 #include "Z21CommandCenter.h"
 
