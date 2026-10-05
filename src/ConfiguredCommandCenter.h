@@ -127,6 +127,34 @@ public:
   bool requestSensorSnapshot(
       bool logCommand = false) override;
 
+  void onProgrammingFeedback(
+      ProgrammingFeedbackCallback callback) override;
+
+  bool readServiceCv(
+      uint16_t cv) override;
+
+  bool writeServiceCv(
+      uint16_t cv,
+      uint8_t value) override;
+
+  bool readPomCv(
+      uint16_t address,
+      uint16_t cv) override;
+
+  bool writePomCv(
+      uint16_t address,
+      uint16_t cv,
+      uint8_t value) override;
+
+  bool readAccessoryPomCv(
+      uint16_t decoderAddress,
+      uint16_t cv) override;
+
+  bool writeAccessoryPomCv(
+      uint16_t decoderAddress,
+      uint16_t cv,
+      uint8_t value) override;
+
   bool supportsRawCommand() const override;
 
   bool sendRawCommand(
