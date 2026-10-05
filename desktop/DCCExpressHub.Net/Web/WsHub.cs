@@ -2322,6 +2322,94 @@ public sealed class WsHub
         if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(action)) { await Fail("Invalid programming request."); return; }
         if (!CommandCenter.Connected) { await Fail("Command center is not connected."); return; }
 
+        if (action == "accessoryLearn")
+        {
+            int address = I(d, "address");
+            if (address <= 0 || address > 2044) { await Fail("Invalid accessory address."); return; }
+
+            bool sent =
+                await CommandCenter.SetAccessoryAsync(
+                    address,
+                    B(d, "active"),
+                    ct);
+
+            await SendProgrammingResponse(
+                id,
+                action,
+                sent,
+                sent
+                    ? "Accessory programming command sent."
+                    : "Accessory programming command could not be sent.",
+                address);
+
+            return;
+        }
+
+        if (string.Equals(
+                CommandCenter.Type,
+                "z21",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            int address = I(d, "address");
+            int cv = I(d, "cv");
+            int value = IOr(d, "value", -1);
+
+            CommandCenterProgrammingResult result;
+
+            if (action == "readCv")
+                result =
+                    await CommandCenter.ReadServiceCvAsync(
+                        cv,
+                        ct);
+            else if (action == "writeCv")
+                result =
+                    await CommandCenter.WriteServiceCvAsync(
+                        cv,
+                        value,
+                        ct);
+            else if (action == "pomReadCv")
+                result =
+                    await CommandCenter.ReadPomCvAsync(
+                        address,
+                        cv,
+                        ct);
+            else if (action == "pomWriteCv")
+                result =
+                    await CommandCenter.WritePomCvAsync(
+                        address,
+                        cv,
+                        value,
+                        ct);
+            else if (action == "accessoryPomReadCv")
+                result =
+                    await CommandCenter.ReadAccessoryPomCvAsync(
+                        address,
+                        cv,
+                        ct);
+            else if (action == "accessoryPomWriteCv")
+                result =
+                    await CommandCenter.WriteAccessoryPomCvAsync(
+                        address,
+                        cv,
+                        value,
+                        ct);
+            else
+            {
+                await Fail("Unsupported Z21 programming action.");
+                return;
+            }
+
+            await SendProgrammingResponse(
+                id,
+                action,
+                result.Ok,
+                result.Message,
+                result.Value,
+                result.Raw);
+
+            return;
+        }
+
         lock (_programmingGate)
             if (_pendingProgramming != null) { _ = Fail("Another decoder programming request is already running."); return; }
 
@@ -2348,16 +2436,6 @@ public sealed class WsHub
             int address = I(d, "address"), cv = I(d, "cv"), value = IOr(d, "value", -1);
             if (address <= 0 || address > 10239 || cv <= 0 || cv > 1024 || value < 0 || value > 255) { await Fail("Invalid POM address, CV or value."); return; }
             cmd = $"<w {address} {cv} {value}>"; wait = false;
-        }
-        else if (action == "accessoryLearn")
-        {
-            int address = I(d, "address");
-            if (address <= 0 || address > 2044) { await Fail("Invalid accessory address."); return; }
-            bool sent = await CommandCenter.SetAccessoryAsync(address, B(d, "active"), ct);
-            await SendProgrammingResponse(id, action, sent,
-                sent ? "Accessory programming command sent." : "Accessory programming command could not be sent.",
-                address);
-            return;
         }
         else
         {
