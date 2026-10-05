@@ -43,6 +43,10 @@ public:
   const char* type() const override;
   const char* name() const override;
 
+  const char* feedbackLinkName() const override;
+
+  bool feedbackLinkConnected() const override;
+
   void setCommandIntervalMs(
       uint16_t intervalMs) override;
 
