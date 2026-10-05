@@ -85,6 +85,7 @@ jobs:
 
           targets=(
             "sunton-8048s043-dccex"
+            "sunton-8048s043-z21"
           )
 
           for target in "${targets[@]}"; do
@@ -106,6 +107,7 @@ jobs:
 
           expected=(
             "dist/firmware/DCCExpressHub-Sunton-ESP32-8048S043-DCCEX-v${version}-merged.bin"
+            "dist/firmware/DCCExpressHub-Sunton-ESP32-8048S043-Z21-v${version}-merged.bin"
           )
 
           mkdir -p artifacts/release
@@ -124,7 +126,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: merged-firmware-release
-          path: artifacts/release/DCCExpressHub-*-DCCEX-v*-merged.bin
+          path: artifacts/release/DCCExpressHub-*-v*-merged.bin
           if-no-files-found: error
 
   github-release:
