@@ -42,6 +42,10 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
     private readonly Queue<TxRequest> _priorityTxQueue = new();
     private readonly Queue<TxRequest> _normalTxQueue = new();
     private readonly SemaphoreSlim _locoNetInterrogateGate = new(1, 1);
+    private readonly SemaphoreSlim _programmingGate = new(1, 1);
+    private readonly object _programmingStateGate = new();
+    private TaskCompletionSource<CommandCenterProgrammingResult>? _programmingCompletion;
+    private int _programmingExpectedCv;
 
     private DateTime _lastLocoNetInterrogateUtc = DateTime.MinValue;
 
@@ -1020,6 +1024,332 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
                 logPacket,
                 ct,
                 priority);
+    }
+
+    private async Task<CommandCenterProgrammingResult> SendProgrammingAndWaitAsync(
+        byte[] payload,
+        int cv,
+        CancellationToken ct)
+    {
+        if (cv is < 1 or > 1024)
+            return new(false, cv, -1, "Invalid CV number.");
+
+        await _programmingGate.WaitAsync(ct);
+
+        try
+        {
+            var completion =
+                new TaskCompletionSource<CommandCenterProgrammingResult>(
+                    TaskCreationOptions.RunContinuationsAsynchronously);
+
+            lock (_programmingStateGate)
+            {
+                _programmingCompletion =
+                    completion;
+
+                _programmingExpectedCv =
+                    cv;
+            }
+
+            var sent =
+                await SendXBusAsync(
+                    payload,
+                    true,
+                    ct);
+
+            if (!sent)
+            {
+                lock (_programmingStateGate)
+                {
+                    if (ReferenceEquals(
+                            _programmingCompletion,
+                            completion))
+                        _programmingCompletion = null;
+                }
+
+                return new(
+                    false,
+                    cv,
+                    -1,
+                    "Z21 programming command could not be sent.");
+            }
+
+            try
+            {
+                return await completion.Task.WaitAsync(
+                    TimeSpan.FromSeconds(24),
+                    ct);
+            }
+            catch (TimeoutException)
+            {
+                return new(
+                    false,
+                    cv,
+                    -1,
+                    "Z21 programming command timed out.");
+            }
+            finally
+            {
+                lock (_programmingStateGate)
+                {
+                    if (ReferenceEquals(
+                            _programmingCompletion,
+                            completion))
+                        _programmingCompletion = null;
+                }
+            }
+        }
+        finally
+        {
+            _programmingGate.Release();
+        }
+    }
+
+    private static byte[] ServiceCvPayload(
+        bool write,
+        int cv,
+        int value)
+    {
+        var cvAddress =
+            cv - 1;
+
+        return write
+            ? new byte[]
+            {
+                0x24,
+                0x12,
+                (byte)(cvAddress >> 8),
+                (byte)(cvAddress & 0xFF),
+                (byte)value
+            }
+            : new byte[]
+            {
+                0x23,
+                0x11,
+                (byte)(cvAddress >> 8),
+                (byte)(cvAddress & 0xFF)
+            };
+    }
+
+    private static byte[] PomCvPayload(
+        bool accessory,
+        bool write,
+        int address,
+        int cv,
+        int value)
+    {
+        var cvAddress =
+            cv - 1;
+
+        byte addressMsb;
+        byte addressLsb;
+
+        if (accessory)
+        {
+            // Human-facing accessory decoder address 1..512; Z21 LAN uses
+            // Decoder_Address 0..511.
+            var decoderAddress =
+                address - 1;
+
+            var encoded =
+                (decoderAddress & 0x01FF) <<
+                4;
+
+            addressMsb =
+                (byte)(encoded >> 8);
+
+            addressLsb =
+                (byte)(encoded & 0xFF);
+        }
+        else
+        {
+            EncodeLocoAddress(
+                address,
+                out addressMsb,
+                out addressLsb);
+        }
+
+        var option =
+            (byte)(
+                (write
+                    ? 0xEC
+                    : 0xE4) |
+                ((cvAddress >> 8) & 0x03));
+
+        return
+        [
+            0xE6,
+            accessory
+                ? (byte)0x31
+                : (byte)0x30,
+            addressMsb,
+            addressLsb,
+            option,
+            (byte)(cvAddress & 0xFF),
+            write
+                ? (byte)value
+                : (byte)0
+        ];
+    }
+
+    public Task<CommandCenterProgrammingResult> ReadServiceCvAsync(
+        int cv,
+        CancellationToken ct = default) =>
+        SendProgrammingAndWaitAsync(
+            ServiceCvPayload(
+                false,
+                cv,
+                0),
+            cv,
+            ct);
+
+    public Task<CommandCenterProgrammingResult> WriteServiceCvAsync(
+        int cv,
+        int value,
+        CancellationToken ct = default)
+    {
+        if (cv is < 1 or > 1024 ||
+            value is < 0 or > 255)
+            return Task.FromResult(
+                new CommandCenterProgrammingResult(
+                    false,
+                    cv,
+                    -1,
+                    "Invalid CV number or value."));
+
+        return SendProgrammingAndWaitAsync(
+            ServiceCvPayload(
+                true,
+                cv,
+                value),
+            cv,
+            ct);
+    }
+
+    public Task<CommandCenterProgrammingResult> ReadPomCvAsync(
+        int address,
+        int cv,
+        CancellationToken ct = default)
+    {
+        if (address is < 1 or > 9999 ||
+            cv is < 1 or > 1024)
+            return Task.FromResult(
+                new CommandCenterProgrammingResult(
+                    false,
+                    cv,
+                    -1,
+                    "Invalid locomotive POM address or CV."));
+
+        return SendProgrammingAndWaitAsync(
+            PomCvPayload(
+                false,
+                false,
+                address,
+                cv,
+                0),
+            cv,
+            ct);
+    }
+
+    public async Task<CommandCenterProgrammingResult> WritePomCvAsync(
+        int address,
+        int cv,
+        int value,
+        CancellationToken ct = default)
+    {
+        if (address is < 1 or > 9999 ||
+            cv is < 1 or > 1024 ||
+            value is < 0 or > 255)
+            return new(
+                false,
+                cv,
+                -1,
+                "Invalid locomotive POM address, CV or value.");
+
+        var sent =
+            await SendXBusAsync(
+                PomCvPayload(
+                    false,
+                    true,
+                    address,
+                    cv,
+                    value),
+                true,
+                ct);
+
+        return new(
+            sent,
+            cv,
+            sent ? value : -1,
+            sent
+                ? "Z21 locomotive POM write sent; the protocol does not confirm the decoder write."
+                : "Z21 locomotive POM write could not be sent.",
+            sent
+                ? "Z21 POM"
+                : "");
+    }
+
+    public Task<CommandCenterProgrammingResult> ReadAccessoryPomCvAsync(
+        int decoderAddress,
+        int cv,
+        CancellationToken ct = default)
+    {
+        if (decoderAddress is < 1 or > 512 ||
+            cv is < 1 or > 1024)
+            return Task.FromResult(
+                new CommandCenterProgrammingResult(
+                    false,
+                    cv,
+                    -1,
+                    "Invalid accessory decoder address or CV."));
+
+        return SendProgrammingAndWaitAsync(
+            PomCvPayload(
+                true,
+                false,
+                decoderAddress,
+                cv,
+                0),
+            cv,
+            ct);
+    }
+
+    public async Task<CommandCenterProgrammingResult> WriteAccessoryPomCvAsync(
+        int decoderAddress,
+        int cv,
+        int value,
+        CancellationToken ct = default)
+    {
+        if (decoderAddress is < 1 or > 512 ||
+            cv is < 1 or > 1024 ||
+            value is < 0 or > 255)
+            return new(
+                false,
+                cv,
+                -1,
+                "Invalid accessory decoder address, CV or value.");
+
+        var sent =
+            await SendXBusAsync(
+                PomCvPayload(
+                    true,
+                    true,
+                    decoderAddress,
+                    cv,
+                    value),
+                true,
+                ct);
+
+        return new(
+            sent,
+            cv,
+            sent ? value : -1,
+            sent
+                ? "Z21 accessory POM write sent; the protocol does not confirm the decoder write."
+                : "Z21 accessory POM write could not be sent.",
+            sent
+                ? "Z21 accessory POM"
+                : "");
     }
 
     public Task<bool> SendRawAsync(
@@ -2506,6 +2836,69 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
             return;
 
         var xHeader = data[0];
+
+        if (xHeader == 0x64 &&
+            data.Length >= 6 &&
+            data[1] == 0x14)
+        {
+            var cv =
+                ((data[2] << 8) |
+                 data[3]) +
+                1;
+
+            var value =
+                data[4];
+
+            TaskCompletionSource<CommandCenterProgrammingResult>? completion;
+
+            lock (_programmingStateGate)
+                completion =
+                    _programmingCompletion;
+
+            completion?.TrySetResult(
+                new(
+                    true,
+                    cv,
+                    value,
+                    "CV operation completed.",
+                    "Z21 CV_RESULT"));
+
+            return;
+        }
+
+        if (xHeader == 0x61 &&
+            data.Length >= 3 &&
+            data[1] is 0x12 or 0x13)
+        {
+            TaskCompletionSource<CommandCenterProgrammingResult>? completion;
+            int cv;
+
+            lock (_programmingStateGate)
+            {
+                completion =
+                    _programmingCompletion;
+
+                cv =
+                    _programmingExpectedCv;
+            }
+
+            var shortCircuit =
+                data[1] == 0x12;
+
+            completion?.TrySetResult(
+                new(
+                    false,
+                    cv,
+                    -1,
+                    shortCircuit
+                        ? "Programming track short circuit."
+                        : "Decoder did not acknowledge the programming command.",
+                    shortCircuit
+                        ? "Z21 CV_NACK_SC"
+                        : "Z21 CV_NACK"));
+
+            return;
+        }
 
         if (xHeader == 0x61 &&
             data.Length >= 3)
