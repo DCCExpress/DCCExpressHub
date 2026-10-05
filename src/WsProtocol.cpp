@@ -391,6 +391,41 @@ void WsProtocol::begin()
                 info);
         });
 
+    _commandCenter.onSensorFeedback(
+        [this](
+            const CommandCenterSensorFeedback &feedback)
+        {
+            if (feedback.address == 0)
+            {
+                return;
+            }
+
+            _runtime.setSensor(
+                feedback.address,
+                feedback.on);
+
+            JsonDocument data;
+            data["address"] =
+                feedback.address;
+            data["on"] =
+                feedback.on;
+
+            broadcast(
+                "sensorChanged",
+                data);
+
+            broadcastSensorSnapshot();
+
+            Logger::info(
+                "Sensor runtime: address=" +
+                String(feedback.address) +
+                " on=" +
+                String(
+                    feedback.on
+                        ? "true"
+                        : "false"));
+        });
+
     _runtime.onChange(
         [this](
             RuntimeChangeKind kind,
