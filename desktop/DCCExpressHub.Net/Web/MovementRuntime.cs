@@ -203,10 +203,10 @@ public sealed class MovementRuntime
         public int? TargetBlockId { get; set; }
         public ConcurrentBag<Task> BackgroundTasks { get; } = [];
         public Dictionary<int, int> FunctionNumbersByBindingId { get; } = [];
-        public Dictionary<string, ResourceLeaveState> ResourceLeaves { get; } =
-            new(StringComparer.Ordinal);
-        public HashSet<string> ResourceLeaveFired { get; } =
-            new(StringComparer.Ordinal);
+        public Dictionary<uint, ResourceLeaveState> ResourceLeaves { get; } =
+            [];
+        public HashSet<uint> ResourceLeaveFired { get; } =
+            [];
         public HashSet<string> ExternalHolds { get; } =
             new(StringComparer.Ordinal);
         public Dictionary<int, DispatcherLegLeaseInfo> PreparedLegLeases { get; } =
@@ -1704,22 +1704,24 @@ public sealed class MovementRuntime
                 string.Equals(x.When, when, StringComparison.Ordinal))
             .ToArray();
 
-        var sequenceOrder = new List<string>();
-        var groups = new Dictionary<string, List<MovementActionModel>>(StringComparer.Ordinal);
-        var modes = new Dictionary<string, string>(StringComparer.Ordinal);
+        var sequenceOrder = new List<uint>();
+        var groups = new Dictionary<uint, List<MovementActionModel>>();
+        var modes = new Dictionary<uint, string>();
 
         foreach (var action in matching)
         {
-            var id = string.IsNullOrWhiteSpace(action.SequenceId)
-                ? "legacy:" + resourceKey + ":" + when
-                : action.SequenceId;
+            var sequenceToken =
+                DispatcherRuntime.ResourceToken(
+                    string.IsNullOrWhiteSpace(action.SequenceId)
+                        ? "legacy:" + resourceKey + ":" + when
+                        : action.SequenceId);
 
-            if (!groups.TryGetValue(id, out var items))
+            if (!groups.TryGetValue(sequenceToken, out var items))
             {
                 items = [];
-                groups[id] = items;
-                modes[id] = action.SequenceMode;
-                sequenceOrder.Add(id);
+                groups[sequenceToken] = items;
+                modes[sequenceToken] = action.SequenceMode;
+                sequenceOrder.Add(sequenceToken);
             }
 
             items.Add(action);
@@ -1758,8 +1760,12 @@ public sealed class MovementRuntime
         Execution execution,
         MovementPlanResourceModel resource)
     {
+        var resourceToken =
+            DispatcherRuntime.ResourceToken(
+                resource.Key);
+
         execution.ResourceLeaveFired.Remove(
-            resource.Key);
+            resourceToken);
 
         var rule =
             EffectiveResourceRule(
@@ -1771,7 +1777,7 @@ public sealed class MovementRuntime
             return false;
 
         execution.ResourceLeaves[
-            resource.Key] =
+            resourceToken] =
             new ResourceLeaveState
             {
                 Resource =
@@ -1824,14 +1830,18 @@ public sealed class MovementRuntime
         await DrainReadyResourceLeaves(
             execution);
 
+        var resourceToken =
+            DispatcherRuntime.ResourceToken(
+                resource.Key);
+
         if (execution.ResourceLeaveFired.Contains(
-                resource.Key) ||
+                resourceToken) ||
             execution.ResourceLeaves.ContainsKey(
-                resource.Key))
+                resourceToken))
             return;
 
         execution.ResourceLeaveFired.Add(
-            resource.Key);
+            resourceToken);
 
         EmitTrainEvent(
             execution,
@@ -2293,8 +2303,9 @@ public sealed class MovementRuntime
                 error,
                 "turnout_lock_timeout",
                 StringComparison.Ordinal) ||
-            error.StartsWith(
-                "dispatcher_resource_locked:",
+            string.Equals(
+                error,
+                "dispatcher_resource_locked",
                 StringComparison.Ordinal);
     }
 
@@ -2337,13 +2348,12 @@ public sealed class MovementRuntime
                                     "segment",
                                     StringComparison.Ordinal))
                             .Select(resource =>
-                                "segment:" +
-                                resource.Name)
-                            .Distinct(
-                                StringComparer.Ordinal)
+                                DispatcherRuntime.ResourceToken(
+                                    "segment:" +
+                                    resource.Name))
+                            .Distinct()
                             .OrderBy(
-                                key => key,
-                                StringComparer.Ordinal)
+                                token => token)
                             .ToArray(),
                         0),
                     execution.Cancellation.Token);
