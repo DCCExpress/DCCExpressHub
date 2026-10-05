@@ -5,45 +5,6 @@
 #include <LittleFS.h>
 #include <algorithm>
 
-String MovementPlanBuilder::canonicalRouteKey(JsonObjectConst route) {
-  JsonDocument out;
-  out["fromBlockId"] = route["fromBlockId"] | 0;
-  out["toBlockId"] = route["toBlockId"] | 0;
-  JsonArray blocks = out["blockPath"].to<JsonArray>();
-  for (JsonObjectConst block : route["blockPath"].as<JsonArrayConst>())
-    blocks.add(String(block["id"] | 0) + "@" + String(block["nodeIndex"] | 0));
-  JsonArray nodes = out["nodes"].to<JsonArray>();
-  for (JsonVariantConst node : route["nodes"].as<JsonArrayConst>()) nodes.add(node.as<String>());
-  JsonArray edges = out["edgePath"].to<JsonArray>();
-  for (JsonObjectConst edge : route["edgePath"].as<JsonArrayConst>()) {
-    JsonObject item = edges.add<JsonObject>();
-    item["from"] = edge["from"] | "";
-    item["to"] = edge["to"] | "";
-    item["direction"] = edge["locoDirection"] | "unknown";
-    JsonArray statesOut = item["turnoutStates"].to<JsonArray>();
-    std::vector<std::pair<int, bool>> states;
-    for (JsonObjectConst state : edge["turnoutStates"].as<JsonArrayConst>())
-      if ((state["address"] | 0) > 0) states.push_back({state["address"] | 0, state["closed"] | false});
-    std::sort(states.begin(), states.end());
-    for (const auto& state : states) statesOut.add(String(state.first) + ":" + (state.second ? "1" : "0"));
-    JsonArray paths = item["turnoutPath"].to<JsonArray>();
-    for (JsonObjectConst passage : edge["turnoutPath"].as<JsonArrayConst>()) {
-      JsonObject po = paths.add<JsonObject>();
-      po["elementId"] = passage["elementId"] | 0;
-      JsonArray ps = po["states"].to<JsonArray>();
-      std::vector<std::pair<int, bool>> pv;
-      for (JsonObjectConst state : passage["turnoutStates"].as<JsonArrayConst>())
-        if ((state["address"] | 0) > 0) pv.push_back({state["address"] | 0, state["closed"] | false});
-      std::sort(pv.begin(), pv.end());
-      for (const auto& state : pv) ps.add(String(state.first) + ":" + (state.second ? "1" : "0"));
-    }
-  }
-  out["direction"] = route["locoDirection"] | "unknown";
-  String result;
-  serializeJson(out, result);
-  return result;
-}
-
 bool MovementPlanBuilder::validId(int value) {
   return value >= 1 && value <= 65535;
 }
@@ -378,14 +339,30 @@ bool MovementPlanBuilder::build(
     return false;
   }
 
+  JsonObjectConst routeRef =
+      page["routeRef"].as<JsonObjectConst>();
+
+  if (!routeRef) {
+    error = "movement_requires_route_ref";
+    return false;
+  }
+
   const int requestedFrom =
-      page["fromBlockId"] | 0;
+      routeRef["fromBlockId"] | 0;
   const int requestedTo =
-      page["toBlockId"] | 0;
+      routeRef["toBlockId"] | 0;
+  const String requestedDirection =
+      str(
+          routeRef,
+          "direction",
+          "unknown");
 
   if (!validId(requestedFrom) ||
-      !validId(requestedTo)) {
-    error = "movement_requires_from_to_blocks";
+      !validId(requestedTo) ||
+      requestedFrom == requestedTo ||
+      (requestedDirection != "forward" &&
+       requestedDirection != "reverse")) {
+    error = "movement_route_ref_invalid";
     return false;
   }
 
@@ -394,9 +371,11 @@ bool MovementPlanBuilder::build(
       static_cast<uint16_t>(requestedFrom));
 
   for (JsonVariantConst raw :
-       page["viaBlockIds"].as<JsonArrayConst>()) {
+       routeRef["viaBlockIds"].as<JsonArrayConst>()) {
     const int id = raw | 0;
-    if (validId(id))
+    if (validId(id) &&
+        id != requestedFrom &&
+        id != requestedTo)
       uniquePush(
           checkpoints,
           static_cast<uint16_t>(id));
@@ -408,96 +387,38 @@ bool MovementPlanBuilder::build(
   JsonObjectConst selected;
   size_t candidates = 0;
 
-  // routeKey is itself a JSON string stored inside automations.json. Read the
-  // string variant directly; do not route it through the generic str() helper.
-  const String requestedRouteKey =
-      page["routeKey"].is<const char*>()
-          ? page["routeKey"].as<String>()
-          : String();
+  for (JsonObjectConst route :
+       topology["routeTable"].as<JsonArrayConst>()) {
+    if ((route["fromBlockId"] | 0) != requestedFrom ||
+        (route["toBlockId"] | 0) != requestedTo ||
+        str(
+            route,
+            "locoDirection",
+            "unknown") !=
+            requestedDirection)
+      continue;
 
-  auto normalizedPhysicalRouteKey =
-      [](String key) -> String {
-        // Direction metadata may be stale in persisted layout topology while
-        // the physical route identity (blocks/nodes/turnouts) is still exact.
-        // Normalize ONLY direction fields; every physical field must still
-        // match bit-for-bit.
-        key.replace(
-            "\"direction\":\"forward\"",
-            "\"direction\":\"unknown\"");
-        key.replace(
-            "\"direction\":\"reverse\"",
-            "\"direction\":\"unknown\"");
-        return key;
-      };
+    size_t checkpointIndex = 0;
 
-  if (!requestedRouteKey.isEmpty()) {
-    // First require the full canonical identity.
-    for (JsonObjectConst route :
-         topology["routeTable"].as<JsonArrayConst>()) {
-      if ((route["fromBlockId"] | 0) != requestedFrom ||
-          (route["toBlockId"] | 0) != requestedTo)
-        continue;
-
-      if (canonicalRouteKey(route) ==
-          requestedRouteKey) {
-        selected = route;
-        candidates = 1;
+    for (JsonObjectConst block :
+         route["blockPath"].as<JsonArrayConst>()) {
+      if (checkpointIndex >= checkpoints.size())
         break;
-      }
+
+      if ((block["id"] | 0) ==
+          checkpoints[checkpointIndex])
+        ++checkpointIndex;
     }
 
-    // If only direction metadata differs, accept the exact same physical
-    // route. This does NOT fall back to an arbitrary from/to route.
-    if (candidates == 0) {
-      const String requestedPhysicalKey =
-          normalizedPhysicalRouteKey(
-              requestedRouteKey);
+    if (checkpointIndex != checkpoints.size())
+      continue;
 
-      for (JsonObjectConst route :
-           topology["routeTable"].as<JsonArrayConst>()) {
-        if ((route["fromBlockId"] | 0) != requestedFrom ||
-            (route["toBlockId"] | 0) != requestedTo)
-          continue;
-
-        if (normalizedPhysicalRouteKey(
-                canonicalRouteKey(route)) !=
-            requestedPhysicalKey)
-          continue;
-
-        selected = route;
-        ++candidates;
-      }
-    }
-  } else {
-    // Legacy Movement without routeKey: retain the old checkpoint lookup.
-    for (JsonObjectConst route :
-         topology["routeTable"].as<JsonArrayConst>()) {
-      if ((route["fromBlockId"] | 0) != requestedFrom ||
-          (route["toBlockId"] | 0) != requestedTo)
-        continue;
-
-      size_t checkpointIndex = 0;
-
-      for (JsonObjectConst block :
-           route["blockPath"].as<JsonArrayConst>()) {
-        if (checkpointIndex >= checkpoints.size()) break;
-        if ((block["id"] | 0) ==
-            checkpoints[checkpointIndex])
-          ++checkpointIndex;
-      }
-
-      if (checkpointIndex != checkpoints.size())
-        continue;
-
-      selected = route;
-      ++candidates;
-    }
+    selected = route;
+    ++candidates;
   }
 
   if (candidates == 0) {
-    error = requestedRouteKey.isEmpty()
-        ? "movement_route_not_found"
-        : "movement_selected_route_not_found";
+    error = "movement_selected_route_not_found";
     return false;
   }
 
@@ -506,87 +427,8 @@ bool MovementPlanBuilder::build(
     return false;
   }
 
-  // routeKey is the exact route identity selected by the UI. It already
-  // contains the route direction. Do not deserialize that JSON string again:
-  // on ESP32 this is unnecessary allocation and was the source of misleading
-  // "unknown" results. Read the canonical marker directly from the saved text.
-  plan.direction = "unknown";
-
-  if (!requestedRouteKey.isEmpty()) {
-    // In the canonical key the route-level direction is the final property.
-    // Use endsWith() so an edge direction cannot be mistaken for the route
-    // direction.
-    if (requestedRouteKey.endsWith(
-            "\"direction\":\"reverse\"}"))
-      plan.direction = "reverse";
-    else if (requestedRouteKey.endsWith(
-                 "\"direction\":\"forward\"}"))
-      plan.direction = "forward";
-  }
-
-  if (plan.direction != "forward" &&
-      plan.direction != "reverse")
-    plan.direction =
-        str(selected, "locoDirection", "unknown");
-
-  // Older/stale route-table entries can have an unknown or missing route-level
-  // direction while each physical edge still carries the authoritative
-  // locoDirection. Reconstruct the route direction exactly like the client
-  // graph builder: unknown edges do not override a known direction, but a
-  // forward/reverse conflict makes the route invalid.
-  String derivedDirection = "unknown";
-  bool directionConflict = false;
-
-  if (plan.direction != "forward" &&
-      plan.direction != "reverse") {
-
-    for (JsonObjectConst edge :
-         selected["edgePath"].as<JsonArrayConst>()) {
-      const String edgeDirection =
-          str(edge, "locoDirection", "unknown");
-
-      if (edgeDirection != "forward" &&
-          edgeDirection != "reverse")
-        continue;
-
-      if (derivedDirection == "unknown") {
-        derivedDirection = edgeDirection;
-        continue;
-      }
-
-      if (derivedDirection != edgeDirection) {
-        directionConflict = true;
-        break;
-      }
-    }
-
-    if (!directionConflict &&
-        (derivedDirection == "forward" ||
-         derivedDirection == "reverse"))
-      plan.direction = derivedDirection;
-  }
-
-  if (plan.direction != "forward" &&
-      plan.direction != "reverse") {
-    const String topologyDirection =
-        str(selected, "locoDirection", "unknown");
-    const String diagnostic =
-        "movement_direction_unknown" +
-        String(" routeKeyDirection=") + plan.direction +
-        " topologyDirection=" + topologyDirection +
-        " edgeDirection=" + derivedDirection +
-        " edgeConflict=" + (directionConflict ? "true" : "false") +
-        " routeKeyLength=" + String(requestedRouteKey.length()) +
-        " edgeCount=" +
-        String(
-            selected["edgePath"]
-                .as<JsonArrayConst>()
-                .size());
-
-    Logger::error(diagnostic);
-    error = diagnostic;
-    return false;
-  }
+  plan.direction =
+      requestedDirection;
 
   std::vector<std::pair<uint16_t, uint16_t>> blockSensors;
 
