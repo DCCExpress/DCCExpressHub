@@ -1,5 +1,6 @@
 #include "LocoCounterRuntime.h"
 
+#include "FileStore.h"
 #include "Logger.h"
 
 #include <math.h>
@@ -71,12 +72,17 @@ LocoCounterRuntime::findOrAllocate(
 
 bool LocoCounterRuntime::begin(
     fs::FS& fs,
-    const char* path) {
+    const char* configPath,
+    const char* statePath) {
   _fs = &fs;
-  _path =
-      path && *path
-          ? path
+  _configPath =
+      configPath && *configPath
+          ? configPath
           : "/config/locos.json";
+  _statePath =
+      statePath && *statePath
+          ? statePath
+          : "/state/loco-counters.json";
 
   for (auto& entry : _entries) {
     entry = Entry{};
@@ -96,7 +102,7 @@ bool LocoCounterRuntime::reloadConfiguration(
   }
 
   File file = _fs->open(
-      _path,
+      _configPath,
       "r");
 
   if (!file) {
@@ -118,6 +124,54 @@ bool LocoCounterRuntime::reloadConfiguration(
         "LocoCounter: invalid locos.json");
     return false;
   }
+
+  JsonDocument stateDocument;
+  bool hasState = false;
+
+  {
+    File stateFile =
+        _fs->open(
+            _statePath,
+            "r");
+
+    if (stateFile) {
+      const auto stateError =
+          deserializeJson(
+              stateDocument,
+              stateFile);
+
+      stateFile.close();
+
+      hasState =
+          !stateError &&
+          stateDocument["items"]
+              .is<JsonArray>();
+    }
+  }
+
+  auto readPersistedTotal =
+      [&](uint16_t address,
+          const char* field,
+          double fallback) {
+        if (!hasState) {
+          return fallback;
+        }
+
+        for (JsonObjectConst item :
+             stateDocument["items"]
+                 .as<JsonArrayConst>()) {
+          if ((item["address"] | 0) != address) {
+            continue;
+          }
+
+          return
+              nonNegative(
+                  item[field],
+                  fallback);
+        }
+
+        return fallback;
+      };
 
   bool seen[MAX_LOCOS] = {};
 
@@ -161,13 +215,25 @@ bool LocoCounterRuntime::reloadConfiguration(
         existed;
 
     if (!hadRuntime) {
-      entry->totalKm =
+      const double legacyKm =
           nonNegative(
               loco["odometerKm"]);
 
-      entry->totalHours =
+      const double legacyHours =
           nonNegative(
               loco["operatingHours"]);
+
+      entry->totalKm =
+          readPersistedTotal(
+              address,
+              "totalKm",
+              legacyKm);
+
+      entry->totalHours =
+          readPersistedTotal(
+              address,
+              "totalHours",
+              legacyHours);
 
       entry->dailyKm = 0.0;
       entry->dailyHours = 0.0;
@@ -416,124 +482,45 @@ bool LocoCounterRuntime::save() {
   integrateAll(
       millis());
 
-  File input =
-      _fs->open(
-          _path,
-          "r");
-
-  if (!input) {
-    Logger::warn(
-        "LocoCounter: locos.json missing during save");
-    return false;
-  }
-
   JsonDocument document;
-  const auto error =
-      deserializeJson(
-          document,
-          input);
-  input.close();
+  document["version"] = 1;
 
-  if (error ||
-      !document.is<JsonArray>()) {
-    Logger::error(
-        "LocoCounter: cannot parse locos.json during save");
-    return false;
-  }
+  JsonArray items =
+      document["items"]
+          .to<JsonArray>();
 
-  for (JsonObject loco :
-       document.as<JsonArray>()) {
-    const uint16_t address =
-        loco["address"] | 0;
-
-    const Entry* entry =
-        find(
-            address);
-
-    if (!entry) {
+  for (const auto& entry : _entries) {
+    if (!entry.active) {
       continue;
     }
 
-    loco["odometerKm"] =
-        entry->totalKm;
+    JsonObject item =
+        items.add<JsonObject>();
 
-    loco["operatingHours"] =
-        entry->totalHours;
+    item["address"] =
+        entry.address;
+
+    item["totalKm"] =
+        entry.totalKm;
+
+    item["totalHours"] =
+        entry.totalHours;
   }
 
-  const String tempPath =
-      _path + ".counter.tmp";
+  FileStore store(*_fs);
 
-  const String backupPath =
-      _path + ".counter.bak";
-
-  _fs->remove(
-      tempPath);
-
-  _fs->remove(
-      backupPath);
-
-  File output =
-      _fs->open(
-          tempPath,
-          "w");
-
-  if (!output) {
+  if (!store.saveJson(
+          _statePath.c_str(),
+          document)) {
     Logger::error(
-        "LocoCounter: cannot open temp file");
+        "LocoCounter: state save failed");
+
     return false;
   }
-
-  const size_t written =
-      serializeJson(
-          document,
-          output);
-
-  output.flush();
-  output.close();
-
-  if (written == 0) {
-    _fs->remove(
-        tempPath);
-
-    Logger::error(
-        "LocoCounter: temp save failed");
-    return false;
-  }
-
-  if (_fs->exists(_path)) {
-    if (!_fs->rename(
-            _path,
-            backupPath)) {
-      _fs->remove(
-          tempPath);
-
-      Logger::error(
-          "LocoCounter: backup rename failed");
-      return false;
-    }
-  }
-
-  if (!_fs->rename(
-          tempPath,
-          _path)) {
-    if (_fs->exists(
-            backupPath)) {
-      _fs->rename(
-          backupPath,
-          _path);
-    }
-
-    Logger::error(
-        "LocoCounter: commit rename failed");
-    return false;
-  }
-
-  _fs->remove(
-      backupPath);
 
   Logger::info(
-      "LocoCounter: totals saved");
+      "LocoCounter: totals saved to " +
+      _statePath);
 
   return true;
 }
