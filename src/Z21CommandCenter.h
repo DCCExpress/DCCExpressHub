@@ -35,7 +35,7 @@ public:
   }
 
   const char* name() const override {
-    return "Roco Z21";
+    return "Z21";
   }
 
   void onRawInfo(
