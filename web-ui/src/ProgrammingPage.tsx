@@ -1163,6 +1163,586 @@ function DccExProgrammingPage({
   );
 }
 
+function Z21ProgrammingPage({
+  onBack,
+  status,
+  info,
+}: Props & {
+  info: CommandCenterInfo;
+}) {
+  useTranslation();
+
+  const [busy, setBusy] =
+    useState(false);
+
+  const [result, setResult] =
+    useState<ProgrammingResponsePayload | null>(null);
+
+  const [serviceCv, setServiceCv] =
+    useState<NumberValue>(1);
+
+  const [serviceValue, setServiceValue] =
+    useState<NumberValue>(0);
+
+  const [locoAddress, setLocoAddress] =
+    useState<NumberValue>(3);
+
+  const [locoCv, setLocoCv] =
+    useState<NumberValue>(1);
+
+  const [locoValue, setLocoValue] =
+    useState<NumberValue>(0);
+
+  const [accessoryAddress, setAccessoryAddress] =
+    useState<NumberValue>(1);
+
+  const [accessoryCv, setAccessoryCv] =
+    useState<NumberValue>(1);
+
+  const [accessoryValue, setAccessoryValue] =
+    useState<NumberValue>(0);
+
+  const disconnected =
+    status !== "connected";
+
+  const run = async (
+    action: ProgrammingCommandAction,
+    values: {
+      address?: number;
+      cv?: number;
+      value?: number;
+    },
+    onValue?: (value: number) => void,
+    confirmText?: string,
+  ) => {
+    if (
+      confirmText &&
+      !window.confirm(
+        confirmText
+      )
+    ) {
+      return;
+    }
+
+    setBusy(true);
+    setResult(null);
+
+    try {
+      const requestId =
+        `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
+      const response =
+        await wsApi.programmingRequest(
+          requestId,
+          action,
+          values,
+        );
+
+      setResult(response);
+
+      if (
+        response.ok &&
+        typeof response.value === "number" &&
+        response.value >= 0
+      ) {
+        onValue?.(
+          response.value
+        );
+      }
+    } catch (error) {
+      setResult({
+        requestId: "local",
+        action,
+        ok: false,
+        message:
+          error instanceof Error
+            ? error.message
+            : "Programming request failed.",
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const serviceCvNumber =
+    numberValue(serviceCv);
+
+  const serviceCvValue =
+    numberValue(serviceValue);
+
+  const locoCvNumber =
+    numberValue(locoCv);
+
+  const locoCvValue =
+    numberValue(locoValue);
+
+  const accessoryCvNumber =
+    numberValue(accessoryCv);
+
+  const accessoryCvValue =
+    numberValue(accessoryValue);
+
+  return (
+    <Stack gap="lg">
+      <Group justify="space-between">
+        <Button
+          variant="subtle"
+          color="gray"
+          leftSection={<IconArrowLeft size={18} />}
+          onClick={onBack}
+        >
+          {i18next.t("ui.backToHome")}
+        </Button>
+
+        <Group gap="xs">
+          <Badge variant="light" color="blue">
+            {info.name}
+          </Badge>
+
+          <Badge
+            color={disconnected ? "red" : "teal"}
+            variant={disconnected ? "filled" : "light"}
+          >
+            {disconnected
+              ? i18next.t("ui.offline2")
+              : i18next.t("ui.connected2")}
+          </Badge>
+        </Group>
+      </Group>
+
+      <Group gap="sm" wrap="nowrap">
+        <ThemeIcon
+          size={42}
+          radius="md"
+          variant="light"
+          color="orange"
+        >
+          <IconTool size={24} />
+        </ThemeIcon>
+
+        <div>
+          <Title order={3}>
+            {i18next.t("ui.decoderProgramming")}
+          </Title>
+
+          <Text size="sm" c="dimmed">
+            {i18next.t("ui.z21ProgrammingSubtitle")}
+          </Text>
+        </div>
+      </Group>
+
+      {disconnected && (
+        <Alert
+          color="red"
+          icon={<IconAlertTriangle size={18} />}
+        >
+          {i18next.t("ui.connectToTheCommandCenterBeforeSendingProgrammingCommands")}
+        </Alert>
+      )}
+
+      <ProgrammingResult result={result} />
+
+      <fieldset
+        disabled={busy || disconnected}
+        style={{
+          border: 0,
+          padding: 0,
+          margin: 0,
+          minWidth: 0,
+        }}
+      >
+        <Tabs
+          defaultValue="service"
+          keepMounted={false}
+        >
+          <Tabs.List grow>
+            <Tabs.Tab
+              value="service"
+              leftSection={<IconTool size={16} />}
+            >
+              {i18next.t("ui.programmingTrack")}
+            </Tabs.Tab>
+
+            <Tabs.Tab
+              value="loco-pom"
+              leftSection={<IconTrain size={16} />}
+            >
+              {i18next.t("ui.locoPom")}
+            </Tabs.Tab>
+
+            <Tabs.Tab
+              value="accessory-pom"
+              leftSection={<IconDeviceFloppy size={16} />}
+            >
+              {i18next.t("ui.accessoryPom")}
+            </Tabs.Tab>
+
+            <Tabs.Tab
+              value="help"
+              leftSection={<IconHelpCircle size={16} />}
+            >
+              {i18next.t("ui.help")}
+            </Tabs.Tab>
+          </Tabs.List>
+
+          <Tabs.Panel value="service" pt="md">
+            <Stack gap="md">
+              <Alert
+                color="yellow"
+                icon={<IconAlertTriangle size={18} />}
+                title={i18next.t("ui.programmingTrackSafety")}
+              >
+                {i18next.t("ui.z21ServiceModeInfo")}
+              </Alert>
+
+              <Card withBorder radius={5} p="lg">
+                <Stack gap="md">
+                  <Title order={4}>
+                    {i18next.t("ui.configurationVariable")}
+                  </Title>
+
+                  <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                    <NumberInput
+                      label="CV"
+                      value={serviceCv}
+                      onChange={setServiceCv}
+                      min={1}
+                      max={1024}
+                      allowDecimal={false}
+                    />
+
+                    <NumberInput
+                      label={i18next.t("ui.value")}
+                      value={serviceValue}
+                      onChange={setServiceValue}
+                      min={0}
+                      max={255}
+                      allowDecimal={false}
+                    />
+                  </SimpleGrid>
+
+                  <BitEditor
+                    value={serviceCvValue}
+                    onChange={setServiceValue}
+                  />
+
+                  <CvValueFormats
+                    value={serviceCvValue}
+                  />
+
+                  <CvHelpPanel
+                    cv={serviceCvNumber}
+                    value={serviceCvValue}
+                    onChange={setServiceValue}
+                  />
+
+                  <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                    <Button
+                      variant="light"
+                      leftSection={<IconRefresh size={17} />}
+                      disabled={
+                        busy ||
+                        disconnected ||
+                        !info.capabilities.serviceModeProgramming
+                      }
+                      onClick={() =>
+                        void run(
+                          "readCv",
+                          {
+                            cv: serviceCvNumber,
+                          },
+                          setServiceValue,
+                        )
+                      }
+                    >
+                      {i18next.t("ui.readCv")}
+                    </Button>
+
+                    <Button
+                      color="orange"
+                      leftSection={<IconDeviceFloppy size={17} />}
+                      disabled={
+                        busy ||
+                        disconnected ||
+                        !info.capabilities.serviceModeProgramming
+                      }
+                      onClick={() =>
+                        void run(
+                          "writeCv",
+                          {
+                            cv: serviceCvNumber,
+                            value: serviceCvValue,
+                          },
+                          undefined,
+                          `Write CV ${serviceCvNumber} = ${serviceCvValue} on the programming track?`,
+                        )
+                      }
+                    >
+                      {i18next.t("ui.writeCv")}
+                    </Button>
+                  </SimpleGrid>
+                </Stack>
+              </Card>
+            </Stack>
+          </Tabs.Panel>
+
+          <Tabs.Panel value="loco-pom" pt="md">
+            <Stack gap="md">
+              <Alert
+                color="blue"
+                icon={<IconHelpCircle size={18} />}
+              >
+                {i18next.t("ui.z21PomRailComInfo")}
+              </Alert>
+
+              <Alert
+                color="yellow"
+                icon={<IconAlertTriangle size={18} />}
+              >
+                {i18next.t("ui.z21PomWriteNoFeedback")}
+              </Alert>
+
+              <Card withBorder radius={5} p="lg">
+                <Stack gap="md">
+                  <SimpleGrid cols={{ base: 1, sm: 3 }}>
+                    <NumberInput
+                      label={i18next.t("ui.locomotiveAddress")}
+                      value={locoAddress}
+                      onChange={setLocoAddress}
+                      min={1}
+                      max={9999}
+                      allowDecimal={false}
+                    />
+
+                    <NumberInput
+                      label="CV"
+                      value={locoCv}
+                      onChange={setLocoCv}
+                      min={1}
+                      max={1024}
+                      allowDecimal={false}
+                    />
+
+                    <NumberInput
+                      label={i18next.t("ui.value")}
+                      value={locoValue}
+                      onChange={setLocoValue}
+                      min={0}
+                      max={255}
+                      allowDecimal={false}
+                    />
+                  </SimpleGrid>
+
+                  <BitEditor
+                    value={locoCvValue}
+                    onChange={setLocoValue}
+                  />
+
+                  <CvValueFormats
+                    value={locoCvValue}
+                  />
+
+                  <CvHelpPanel
+                    cv={locoCvNumber}
+                    value={locoCvValue}
+                    onChange={setLocoValue}
+                  />
+
+                  <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                    <Button
+                      variant="light"
+                      leftSection={<IconRefresh size={17} />}
+                      disabled={
+                        busy ||
+                        disconnected ||
+                        !info.capabilities.pomRead
+                      }
+                      onClick={() =>
+                        void run(
+                          "pomReadCv",
+                          {
+                            address: numberValue(locoAddress),
+                            cv: locoCvNumber,
+                          },
+                          setLocoValue,
+                        )
+                      }
+                    >
+                      {i18next.t("ui.readCv")}
+                    </Button>
+
+                    <Button
+                      color="orange"
+                      leftSection={<IconDeviceFloppy size={17} />}
+                      disabled={
+                        busy ||
+                        disconnected ||
+                        !info.capabilities.pomProgramming
+                      }
+                      onClick={() =>
+                        void run(
+                          "pomWriteCv",
+                          {
+                            address: numberValue(locoAddress),
+                            cv: locoCvNumber,
+                            value: locoCvValue,
+                          },
+                          undefined,
+                          `Write CV ${locoCvNumber} = ${locoCvValue} to locomotive ${numberValue(locoAddress)} on the main track?`,
+                        )
+                      }
+                    >
+                      {i18next.t("ui.writeCv")}
+                    </Button>
+                  </SimpleGrid>
+                </Stack>
+              </Card>
+            </Stack>
+          </Tabs.Panel>
+
+          <Tabs.Panel value="accessory-pom" pt="md">
+            <Stack gap="md">
+              <Alert
+                color="blue"
+                icon={<IconHelpCircle size={18} />}
+              >
+                {i18next.t("ui.z21PomRailComInfo")}
+              </Alert>
+
+              <Alert
+                color="yellow"
+                icon={<IconAlertTriangle size={18} />}
+              >
+                {i18next.t("ui.z21AccessoryAddressInfo")}
+              </Alert>
+
+              <Card withBorder radius={5} p="lg">
+                <Stack gap="md">
+                  <SimpleGrid cols={{ base: 1, sm: 3 }}>
+                    <NumberInput
+                      label={i18next.t("ui.accessoryDecoderAddress")}
+                      value={accessoryAddress}
+                      onChange={setAccessoryAddress}
+                      min={1}
+                      max={512}
+                      allowDecimal={false}
+                    />
+
+                    <NumberInput
+                      label="CV"
+                      value={accessoryCv}
+                      onChange={setAccessoryCv}
+                      min={1}
+                      max={1024}
+                      allowDecimal={false}
+                    />
+
+                    <NumberInput
+                      label={i18next.t("ui.value")}
+                      value={accessoryValue}
+                      onChange={setAccessoryValue}
+                      min={0}
+                      max={255}
+                      allowDecimal={false}
+                    />
+                  </SimpleGrid>
+
+                  <BitEditor
+                    value={accessoryCvValue}
+                    onChange={setAccessoryValue}
+                  />
+
+                  <CvValueFormats
+                    value={accessoryCvValue}
+                  />
+
+                  <CvHelpPanel
+                    cv={accessoryCvNumber}
+                    value={accessoryCvValue}
+                    onChange={setAccessoryValue}
+                  />
+
+                  <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                    <Button
+                      variant="light"
+                      leftSection={<IconRefresh size={17} />}
+                      disabled={
+                        busy ||
+                        disconnected ||
+                        !info.capabilities.accessoryPomRead
+                      }
+                      onClick={() =>
+                        void run(
+                          "accessoryPomReadCv",
+                          {
+                            address: numberValue(accessoryAddress),
+                            cv: accessoryCvNumber,
+                          },
+                          setAccessoryValue,
+                        )
+                      }
+                    >
+                      {i18next.t("ui.readCv")}
+                    </Button>
+
+                    <Button
+                      color="orange"
+                      leftSection={<IconDeviceFloppy size={17} />}
+                      disabled={
+                        busy ||
+                        disconnected ||
+                        !info.capabilities.accessoryPomProgramming
+                      }
+                      onClick={() =>
+                        void run(
+                          "accessoryPomWriteCv",
+                          {
+                            address: numberValue(accessoryAddress),
+                            cv: accessoryCvNumber,
+                            value: accessoryCvValue,
+                          },
+                          undefined,
+                          `Write accessory decoder CV ${accessoryCvNumber} = ${accessoryCvValue} to decoder ${numberValue(accessoryAddress)} on the main track?`,
+                        )
+                      }
+                    >
+                      {i18next.t("ui.writeCv")}
+                    </Button>
+                  </SimpleGrid>
+                </Stack>
+              </Card>
+            </Stack>
+          </Tabs.Panel>
+
+          <Tabs.Panel value="help" pt="md">
+            <Stack gap="md">
+              <Alert
+                color="blue"
+                icon={<IconHelpCircle size={18} />}
+              >
+                {i18next.t("ui.z21ServiceModeInfo")}
+              </Alert>
+
+              <Alert
+                color="blue"
+                icon={<IconHelpCircle size={18} />}
+              >
+                {i18next.t("ui.z21PomRailComInfo")}
+              </Alert>
+
+              <CvHelpPanel
+                cv={serviceCvNumber}
+                value={serviceCvValue}
+                onChange={setServiceValue}
+              />
+            </Stack>
+          </Tabs.Panel>
+        </Tabs>
+      </fieldset>
+    </Stack>
+  );
+}
+
 export default function ProgrammingPage(props: Props) {
   useTranslation();
   const [info, setInfo] = useState<CommandCenterInfo | null>(null);
@@ -1218,14 +1798,28 @@ export default function ProgrammingPage(props: Props) {
     );
   }
 
-  if (!info.capabilities.programmingTrackPower) {
+  if (
+    info.type.toLowerCase() === "z21"
+  ) {
     return (
-      <ProgrammingUnsupported
+      <Z21ProgrammingPage
+        {...props}
         info={info}
-        onBack={props.onBack}
       />
     );
   }
 
-  return <DccExProgrammingPage {...props} />;
+  if (
+    info.capabilities.serviceModeProgramming &&
+    info.capabilities.rawCommand
+  ) {
+    return <DccExProgrammingPage {...props} />;
+  }
+
+  return (
+    <ProgrammingUnsupported
+      info={info}
+      onBack={props.onBack}
+    />
+  );
 }
