@@ -5,7 +5,7 @@ namespace DCCExpressHub.Net.CommandCenter;
 /// </summary>
 public sealed class YaMoRcZ21CommandCenter : RocoZ21CommandCenter
 {
-    private const uint YaMoRcBroadcastFlags = 0x00010101;
+    private const uint YaMoRcBroadcastFlags = 0x09010103;
     private readonly bool _lbServerFeedbackEnabled;
     private readonly int _lbServerPort;
 
