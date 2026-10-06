@@ -52,6 +52,10 @@ export type CommandCenterInfoPayload = {
   serialPort?: string;
   baudRate?: number;
   connectionString?: string;
+  feedbackLinkName?: string;
+  feedbackLinkConnected?: boolean;
+  feedbackHost?: string;
+  feedbackPort?: number;
 };
 
 export type DccExStatusPayload = {
