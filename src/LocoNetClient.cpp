@@ -1,6 +1,9 @@
 #include "LocoNetClient.h"
 
 #include <WiFi.h>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <ctype.h>
 #include <strings.h>
 
