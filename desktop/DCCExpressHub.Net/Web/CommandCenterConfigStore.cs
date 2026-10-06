@@ -14,6 +14,7 @@ public sealed class CommandCenterSettings
     public string SerialPort { get; init; } = "COM3";
     public bool PowerIncludesProgramming { get; init; } = true;
     public int CommandIntervalMs { get; init; } = 25;
+    public int RBusOffset { get; init; } = 0;
 
     [JsonIgnore]
     public bool IsSerial =>
@@ -120,6 +121,13 @@ public sealed class CommandCenterConfigStore
         }
     }
 
+    private bool IsRocoZ21Runtime =>
+        string.Equals(
+            (_configuration["CommandCenter:Protocol"] ?? "")
+                .Trim(),
+            "z21",
+            StringComparison.OrdinalIgnoreCase);
+
     private string RuntimeTransport
     {
         get
@@ -174,6 +182,9 @@ public sealed class CommandCenterConfigStore
             var persistedInterval =
                 ReadPersistedCommandIntervalPreference();
 
+            var persistedRBusOffset =
+                ReadPersistedRBusOffsetPreference();
+
             return new CommandCenterSettings
             {
                 Transport = configured.Transport,
@@ -187,7 +198,13 @@ public sealed class CommandCenterConfigStore
                           configured.PowerIncludesProgramming,
                 CommandIntervalMs =
                     persistedInterval ??
-                    configured.CommandIntervalMs
+                    configured.CommandIntervalMs,
+
+                RBusOffset =
+                    IsRocoZ21Runtime
+                        ? persistedRBusOffset ??
+                          configured.RBusOffset
+                        : 0
             };
         }
 
@@ -336,6 +353,33 @@ public sealed class CommandCenterConfigStore
         }
     }
 
+    private int? ReadPersistedRBusOffsetPreference()
+    {
+        try
+        {
+            if (!File.Exists(_path))
+                return null;
+
+            using var document =
+                JsonDocument.Parse(
+                    File.ReadAllText(_path));
+
+            var value =
+                GetNullableInt(
+                    document.RootElement,
+                    "rBusOffset",
+                    "RBusOffset");
+
+            return value is >= 0 and <= RocoZ21CommandCenter.MaxRBusOffset
+                ? value
+                : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     private bool IsCompatibleWithRuntime(
         CommandCenterSettings? settings) =>
         settings is not null &&
@@ -388,7 +432,17 @@ public sealed class CommandCenterConfigStore
                 CommandIntervalMs =
                     _configuration.GetValue(
                         "DccEx:CommandIntervalMs",
-                        25)
+                        25),
+
+                RBusOffset =
+                    IsRocoZ21Runtime
+                        ? Math.Clamp(
+                            _configuration.GetValue(
+                                "Z21:RBusOffset",
+                                0),
+                            0,
+                            RocoZ21CommandCenter.MaxRBusOffset)
+                        : 0
             };
 
         return Normalize(settings) ??
@@ -509,7 +563,13 @@ public sealed class CommandCenterConfigStore
                 Math.Clamp(
                     value.CommandIntervalMs,
                     0,
-                    1000)
+                    1000),
+
+            RBusOffset =
+                Math.Clamp(
+                    value.RBusOffset,
+                    0,
+                    RocoZ21CommandCenter.MaxRBusOffset)
         };
     }
 
