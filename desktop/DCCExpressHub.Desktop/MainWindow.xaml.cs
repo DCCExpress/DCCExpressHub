@@ -196,6 +196,9 @@ namespace DCCExpressHub.Desktop
             TcpPortText.Text =
                 _settings.TcpPort.ToString();
 
+            RBusOffsetText.Text =
+                _settings.RBusOffset.ToString();
+
             HttpPortText.Text =
                 _settings.HttpPort.ToString();
 
@@ -301,6 +304,12 @@ namespace DCCExpressHub.Desktop
 
             TcpPortLabelText.Text =
                 L("port");
+
+            RBusOffsetLabelText.Text =
+                L("rBusOffset");
+
+            RBusOffsetDescriptionText.Text =
+                L("rBusOffsetDescription");
 
             SerialPortLabelText.Text =
                 L("serialPort");
@@ -409,6 +418,11 @@ namespace DCCExpressHub.Desktop
 
             SerialPanel.Visibility =
                 protocol == "serial"
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
+
+            RBusOffsetPanel.Visibility =
+                protocol == "z21"
                     ? Visibility.Visible
                     : Visibility.Collapsed;
 
@@ -1058,6 +1072,28 @@ namespace DCCExpressHub.Desktop
 
                 settings.TcpHost = host;
                 settings.TcpPort = port;
+
+                if (protocol == "z21")
+                {
+                    if (
+                        !int.TryParse(
+                            RBusOffsetText.Text.Trim(),
+                            out var rBusOffset) ||
+                        rBusOffset is < 0 or > 65375
+                    )
+                    {
+                        error =
+                            L("validationRBusOffset");
+                        return false;
+                    }
+
+                    settings.RBusOffset =
+                        rBusOffset;
+                }
+                else
+                {
+                    settings.RBusOffset = 0;
+                }
             }
             else
             {
@@ -1247,6 +1283,7 @@ namespace DCCExpressHub.Desktop
             LanguageCombo.IsEnabled = !busy;
             TcpHostText.IsEnabled = !busy;
             TcpPortText.IsEnabled = !busy;
+            RBusOffsetText.IsEnabled = !busy;
             SerialPortCombo.IsEnabled = !busy;
             RefreshSerialButton.IsEnabled = !busy;
             LocalModeRadio.IsEnabled = !busy;
@@ -1933,6 +1970,13 @@ namespace DCCExpressHub.Desktop
 
             psi.Environment["Z21__Port"] =
                 _settings.TcpPort.ToString();
+
+            psi.Environment["Z21__RBusOffset"] =
+                (
+                    _settings.Protocol == "z21"
+                        ? _settings.RBusOffset
+                        : 0
+                ).ToString();
 
             psi.Environment["Z21__LbServerFeedback"] =
                 (_settings.Protocol == "yamorc7010")
