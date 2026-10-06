@@ -398,7 +398,10 @@ void Z21CommandCenter::loop() {
         String(
             _lnBinaryConnected
                 ? "OK"
-                : "NOK");
+                : "NOK") +
+        " lnDrop=" +
+        String(
+            _locoNetMessagesDropped);
 #endif
 
     if (
@@ -1494,6 +1497,9 @@ void Z21CommandCenter::disconnectLbServer() {
   if (!_lnBinaryConnected) {
     _lbInterrogatePhase =
         0;
+
+    _nextLbInterrogateStepAt =
+        0;
   }
 }
 
@@ -1648,11 +1654,27 @@ void Z21CommandCenter::disconnectLocoNetBinary() {
   if (!_lbConnected) {
     _lbInterrogatePhase =
         0;
+
+    _nextLbInterrogateStepAt =
+        0;
   }
 }
 
 void Z21CommandCenter::loopLocoNetBinary(
     unsigned long now) {
+  // LBServer is the primary YaMoRC feedback transport. Do not probe Binary
+  // during startup; give the primary TCP service its own clean connection
+  // window first.
+  if (
+      _z21BootstrapReadyAt == 0 ||
+      now -
+          _z21BootstrapReadyAt <
+          FEEDBACK_START_DELAY_MS +
+              LOCONET_BINARY_FALLBACK_DELAY_MS
+  ) {
+    return;
+  }
+
   // LBServer is the primary YaMoRC feedback transport. Do not keep probing
   // the optional Binary service while LBServer is healthy.
   if (
@@ -1816,46 +1838,63 @@ void Z21CommandCenter::processLocoNetBinaryIncoming() {
 
     ++_lnBinaryPacketsObserved;
 
-    if (
-        _lnBinaryPacketsObserved <=
-            12 &&
-        _rawInfoCallback
-    ) {
-      String raw =
-          "YD7010 BIN RX";
+    const unsigned long packetNow =
+        millis();
 
-      for (
-          size_t index = 0;
-          index <
-              _lnBinaryPacketLength;
-          ++index
+    const bool processPacket =
+        _nextLocoNetProcessAt == 0 ||
+        static_cast<long>(
+            packetNow -
+            _nextLocoNetProcessAt) >= 0;
+
+    if (processPacket) {
+      if (
+          _lnBinaryPacketsObserved <=
+              12 &&
+          _rawInfoCallback
       ) {
-        raw +=
-            " ";
+        String raw =
+            "YD7010 BIN RX";
 
-        if (
-            _lnBinaryPacket[index] <
-            0x10
+        for (
+            size_t index = 0;
+            index <
+                _lnBinaryPacketLength;
+            ++index
         ) {
           raw +=
-              "0";
+              " ";
+
+          if (
+              _lnBinaryPacket[index] <
+              0x10
+          ) {
+            raw +=
+                "0";
+          }
+
+          raw +=
+              String(
+                  _lnBinaryPacket[index],
+                  HEX);
         }
 
-        raw +=
-            String(
-                _lnBinaryPacket[index],
-                HEX);
+        raw.toUpperCase();
+
+        _rawInfoCallback(
+            raw);
       }
 
-      raw.toUpperCase();
+      processLocoNetPacket(
+          _lnBinaryPacket,
+          _lnBinaryPacketLength);
 
-      _rawInfoCallback(
-          raw);
+      _nextLocoNetProcessAt =
+          packetNow +
+          LOCONET_PROCESS_INTERVAL_MS;
+    } else {
+      ++_locoNetMessagesDropped;
     }
-
-    processLocoNetPacket(
-        _lnBinaryPacket,
-        _lnBinaryPacketLength);
 
     _lnBinaryPacketLength =
         0;
@@ -1866,6 +1905,15 @@ void Z21CommandCenter::processLocoNetBinaryIncoming() {
 }
 
 void Z21CommandCenter::processLbServerIncoming() {
+  const unsigned long now =
+      millis();
+
+  bool processOnePacket =
+      _nextLocoNetProcessAt == 0 ||
+      static_cast<long>(
+          now -
+          _nextLocoNetProcessAt) >= 0;
+
   while (
       _lbClient.connected() &&
       _lbClient.available() >
@@ -1890,8 +1938,33 @@ void Z21CommandCenter::processLbServerIncoming() {
         _lbLine[_lbLineLength] =
             '\0';
 
-        processLbServerLine(
-            _lbLine);
+        _lastLbTrafficAt =
+            millis();
+
+        const bool metadataLine =
+            strncasecmp(
+                _lbLine,
+                "VERSION ",
+                8) == 0;
+
+        if (
+            metadataLine ||
+            processOnePacket
+        ) {
+          processLbServerLine(
+              _lbLine);
+
+          if (!metadataLine) {
+            processOnePacket =
+                false;
+
+            _nextLocoNetProcessAt =
+                millis() +
+                LOCONET_PROCESS_INTERVAL_MS;
+          }
+        } else {
+          ++_locoNetMessagesDropped;
+        }
 
         _lbLineLength =
             0;
@@ -2236,8 +2309,9 @@ void Z21CommandCenter::startLocoNetInterrogate(
   _lbInterrogatePhase =
       1;
 
-  _lastLbTrafficAt =
-      now;
+  _nextLbInterrogateStepAt =
+      now +
+      LOCONET_INTERROGATE_INTERVAL_MS;
 
   if (_rawInfoCallback) {
     _rawInfoCallback(
@@ -2269,9 +2343,10 @@ void Z21CommandCenter::processLocoNetInterrogate(
   }
 
   if (
-      now -
-          _lastLbTrafficAt <
-      LB_INTERROGATE_QUIET_MS
+      _nextLbInterrogateStepAt != 0 &&
+      static_cast<long>(
+          now -
+          _nextLbInterrogateStepAt) < 0
   ) {
     return;
   }
@@ -2370,11 +2445,18 @@ void Z21CommandCenter::processLocoNetInterrogate(
 
   ++_lbInterrogatePhase;
 
+  _nextLbInterrogateStepAt =
+      now +
+      LOCONET_INTERROGATE_INTERVAL_MS;
+
   if (
       _lbInterrogatePhase >
           8
   ) {
     _lbInterrogatePhase =
+        0;
+
+    _nextLbInterrogateStepAt =
         0;
 
     _lastLbInterrogateAt =
