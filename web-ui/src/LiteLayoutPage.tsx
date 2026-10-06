@@ -59,6 +59,8 @@ import SignalLogicDialog from "@/components/SignalLogicDialog";
 import IntegrityCheckDialog from "@/components/IntegrityCheckDialog";
 import LayoutRuntimeLogPanel from "@/components/LayoutRuntimeLogPanel";
 import SystemInfoPanel from "@/components/SystemInfoPanel";
+import { useTrackPowerOn } from "@/hooks/useTrackPowerOn";
+import { setTrackPowerRuntimeState } from "@/services/trackPowerRuntime";
 import SafetyEmergencyStopDialog from "@/components/SafetyEmergencyStopDialog";
 import VisibilitySettings from "@/components/VisibilitySettings";
 import { useCommandCenter } from "@/context/CommandCenterContext";
@@ -880,6 +882,7 @@ export default function LiteLayoutPage({
 }: LiteLayoutPageProps) {
   useTranslation();
   const commandCenter = useCommandCenter();
+  const trackPowerOn = useTrackPowerOn();
   const [
     broadcastAudioEnabled,
     setBroadcastAudioEnabledState,
@@ -1425,6 +1428,9 @@ export default function LiteLayoutPage({
 
         if (active) {
           setDccExStatus(next);
+          setTrackPowerRuntimeState(
+            next.trackVoltageOn === true
+          );
         }
       } catch {
         // WebSocket remains the primary transport. HTTP is a resilience path
@@ -1963,13 +1969,13 @@ export default function LiteLayoutPage({
 
             <Button
               size="xs"
-              variant={commandCenter.powerInfo?.trackVoltageOn ? "filled" : "light"}
-              color={commandCenter.powerInfo?.trackVoltageOn ? "green" : "red"}
+              variant={trackPowerOn ? "filled" : "light"}
+              color={trackPowerOn ? "green" : "red"}
               leftSection={<IconPower size={16} />}
               disabled={wsStatus !== "connected"}
-              onClick={() => wsApi.setTrackPower(!commandCenter.powerInfo?.trackVoltageOn)}
-              title={commandCenter.powerInfo?.trackVoltageOn ? i18next.t("ui.turnTrackPowerOff") : i18next.t("ui.turnTrackPowerOn")}
-            > {i18next.t("ui.power")} {commandCenter.powerInfo?.trackVoltageOn ? i18next.t("ui.on") : i18next.t("ui.off")}
+              onClick={() => wsApi.setTrackPower(!trackPowerOn)}
+              title={trackPowerOn ? i18next.t("ui.turnTrackPowerOff") : i18next.t("ui.turnTrackPowerOn")}
+            > {i18next.t("ui.power")} {trackPowerOn ? i18next.t("ui.on") : i18next.t("ui.off")}
             </Button>
 
             <Divider orientation="vertical" className="lite-toolbar-divider" />
