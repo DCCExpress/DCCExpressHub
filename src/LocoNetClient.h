@@ -8,7 +8,7 @@
 
 class LocoNetClient {
 public:
-  void configure(const String& host);
+  void configure(const String& host, uint16_t port = 1234);
   void start();
   void stop();
   void loop();
@@ -21,7 +21,7 @@ public:
   }
   bool requestSensorSnapshot(bool force = true);
 private:
-  static constexpr uint16_t LB_SERVER_PORT = 1234;
+  static constexpr uint16_t DEFAULT_LB_SERVER_PORT = 1234;
   static constexpr uint16_t BINARY_PORT = 5560;
   static constexpr unsigned long RECONNECT_MS = 2000;
   static constexpr unsigned long RESOLVE_RETRY_MS = 3000;
@@ -30,6 +30,7 @@ private:
   static constexpr unsigned long SNAPSHOT_SETTLE_MS = 1500;
   static constexpr unsigned long BINARY_FALLBACK_DELAY_MS = 5000;
   String _host;
+  uint16_t _port = DEFAULT_LB_SERVER_PORT;
   IPAddress _remoteIp;
   bool _enabled = false;
   bool _resolved = false;
