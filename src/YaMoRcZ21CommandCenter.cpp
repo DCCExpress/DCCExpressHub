@@ -115,6 +115,11 @@ void YaMoRcZ21CommandCenter::onSensorFeedback(
 
 void YaMoRcZ21CommandCenter::onSensorSnapshotComplete(
     SensorSnapshotCompleteCallback callback) {
+  // Z21/R-BUS and LocoNet each finish their own initial sensor batch. Both
+  // completion events publish the same consolidated runtime snapshot.
+  Z21CommandCenter::onSensorSnapshotComplete(
+      callback);
+
   _locoNet.onSensorSnapshotComplete(
       std::move(callback));
 }
