@@ -1346,9 +1346,29 @@ bool Z21CommandCenter::requestSensorSnapshot(
               rbus1),
           logCommand);
 
+#if defined(HUB_CC_YAMORC7010)
   return
       rbus0Sent ||
       rbus1Sent;
+#else
+  const uint8_t loconetDetector[] = {
+      0x80,
+      0x00,
+      0x00};
+
+  const bool detectorSent =
+      sendPacket(
+          0x00A4,
+          loconetDetector,
+          sizeof(
+              loconetDetector),
+          logCommand);
+
+  return
+      rbus0Sent ||
+      rbus1Sent ||
+      detectorSent;
+#endif
 }
 
 
