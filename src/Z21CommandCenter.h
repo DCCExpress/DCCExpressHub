@@ -327,6 +327,11 @@ private:
   static constexpr unsigned long
       LOCONET_INTERROGATE_INTERVAL_MS = 1000;
 
+  // Prefer LBServer first. Only probe the optional Binary fallback after the
+  // primary feedback path had a few seconds to connect on its own.
+  static constexpr unsigned long
+      LOCONET_BINARY_FALLBACK_DELAY_MS = 5000;
+
   // TCP connect runs on the ESP32 main loop. A healthy YaMoRC LBServer on
   // the same LAN accepts within a few milliseconds; a long timeout only stalls
   // the whole Hub when the service is unavailable. Retry frequently instead of
