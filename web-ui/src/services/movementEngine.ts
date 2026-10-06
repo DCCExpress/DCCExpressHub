@@ -14,6 +14,11 @@ import {
   isTrackPowerOn,
 } from "./trackPowerRuntime";
 
+import {
+  loadAutomationMovement,
+  saveAutomationMovement,
+} from "./automationApi";
+
 export type MovementEngineStatus =
   | "idle"
   | "running"
@@ -356,6 +361,36 @@ export async function startMovement(
       "Track power is OFF. Turn it on before starting Movement."
     );
   }
+
+  const stored =
+    await loadAutomationMovement();
+
+  const existingIndex =
+    stored.pages.findIndex(
+      item =>
+        item.id === page.id
+    );
+
+  const pages =
+    existingIndex >= 0
+      ? stored.pages.map(
+          item =>
+            item.id === page.id
+              ? page
+              : item
+        )
+      : [
+          ...stored.pages,
+          page,
+        ];
+
+  await saveAutomationMovement({
+    ...stored,
+    pages,
+    activePageId:
+      stored.activePageId ||
+      page.id,
+  });
 
   const id =
     requestId(
