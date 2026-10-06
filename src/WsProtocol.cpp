@@ -416,7 +416,7 @@ void WsProtocol::begin()
                     previous);
 
             const bool changed =
-                knownBefore &&
+                !knownBefore ||
                 previous !=
                     feedback.on;
 
@@ -424,10 +424,12 @@ void WsProtocol::begin()
                 feedback.address,
                 feedback.on);
 
-            // First observation initializes authoritative runtime state and is
-            // included in the next full sensorSnapshot. Only subsequent real
-            // changes are sent as individual websocket events.
+            // Snapshot feedback always updates authoritative runtime state but
+            // never emits per-sensor websocket deltas. The command center
+            // raises onSensorSnapshotComplete() once the batch is settled,
+            // which sends one consolidated sensorSnapshot instead.
             if (
+                !feedback.snapshot &&
                 changed &&
                 _wsClientCount > 0)
             {
