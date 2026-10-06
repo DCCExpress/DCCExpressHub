@@ -9,7 +9,7 @@
 void Z21CommandCenter::begin(
     const String& host,
     uint16_t port) {
-  setEndpoint(
+  Z21CommandCenter::setEndpoint(
       host,
       port == 0
           ? DEFAULT_PORT
@@ -285,6 +285,12 @@ bool Z21CommandCenter::connected() {
     _online =
         false;
 
+    _systemStateSeen =
+        false;
+
+    _systemStateSeenAt =
+        0;
+
     return false;
   }
 
@@ -299,7 +305,11 @@ void Z21CommandCenter::loop() {
     _online =
         false;
 
+    _systemStateSeen =
+        false;
 
+    _systemStateSeenAt =
+        0;
 
     return;
   }
@@ -402,6 +412,12 @@ void Z21CommandCenter::loop() {
   ) {
     _online =
         false;
+
+    _systemStateSeen =
+        false;
+
+    _systemStateSeenAt =
+        0;
 
     Logger::warn(
         "Z21 UDP session offline: reply timeout");
