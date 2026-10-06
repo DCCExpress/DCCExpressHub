@@ -142,9 +142,7 @@ void Z21CommandCenter::loop() {
         " udp=" +
         String(_udpStarted ? "OK" : "NOK") +
         " resolved=" + String(_resolved ? "OK" : "NOK") + " cc=" + String(_online ? "OK" : "NOK") + " lastUdpRxAge=" + String(rxAge) + "ms";
-    if (
-        !_online
-    ) {
+    if (!_online) {
       Logger::warn(diagnostic);
     }
     nextNetworkDiagnosticAt = now + 5000;
@@ -925,10 +923,7 @@ int16_t Z21CommandCenter::readLeS16(const uint8_t* data) {
 
 uint32_t Z21CommandCenter::readLe32(const uint8_t* data) {
   return
-      static_cast<uint32_t>(data[0]) |
-      (static_cast<uint32_t>(data[1]) << 8) |
-      (static_cast<uint32_t>(data[2]) << 16) |
-      (static_cast<uint32_t>(data[3]) << 24);
+      static_cast<uint32_t>(data[0]) | (static_cast<uint32_t>(data[1]) << 8) | (static_cast<uint32_t>(data[2]) << 16) | (static_cast<uint32_t>(data[3]) << 24);
 }
 
 void Z21CommandCenter::writeLe16(uint8_t* data, uint16_t value) {
