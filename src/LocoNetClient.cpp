@@ -92,15 +92,11 @@ void LocoNetClient::stop() {
 }
 
 bool LocoNetClient::connected() const {
+  // Socket liveness is refreshed by loop(); keep this accessor const-safe for
+  // ICommandCenter::feedbackLinkConnected().
   return
-      (
-          _lbConnected &&
-          _lbClient.connected()
-      ) ||
-      (
-          _binaryConnected &&
-          _binaryClient.connected()
-      );
+      _lbConnected ||
+      _binaryConnected;
 }
 
 bool LocoNetClient::resolveRemote() {
