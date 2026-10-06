@@ -18,6 +18,15 @@ public:
   bool feedbackLinkConnected() const override {
     return _locoNet.connected();
   }
+  void setFeedbackEndpoint(
+      const String& host,
+      uint16_t port) override;
+  String feedbackHost() const override {
+    return _locoNetHost;
+  }
+  uint16_t feedbackPort() const override {
+    return _locoNetPort;
+  }
   void onStationInfo(StationInfoCallback callback) override;
   void onSensorFeedback(SensorFeedbackCallback callback) override;
   void onSensorSnapshotComplete(SensorSnapshotCompleteCallback callback) override;
@@ -31,6 +40,8 @@ protected:
 private:
   static constexpr unsigned long LOCONET_START_DELAY_MS = 3000;
   LocoNetClient _locoNet;
+  String _locoNetHost;
+  uint16_t _locoNetPort = 1234;
   bool _locoNetStarted = false;
   void stopLocoNet();
 };
