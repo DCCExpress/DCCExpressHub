@@ -940,7 +940,9 @@ void ApiServer::setupApi() {
         settings.powerIncludesProgramming = powerIncludesProgramming;
         settings.commandIntervalMs = commandIntervalMs;
 
-        if (CommandCenterBuild::isYaMoRc7010()) {
+        if (CommandCenterBuild::isYaMoRc7010() &&
+            request->hasParam("feedbackHost", true) &&
+            request->hasParam("feedbackPort", true)) {
           String feedbackHost;
           uint16_t feedbackPort = 0;
 
@@ -953,12 +955,7 @@ void ApiServer::setupApi() {
           }
 
           String feedbackPortText;
-          if (!readPostValue(request, "feedbackPort", feedbackPortText)) {
-            doc["ok"] = false;
-            doc["message"] = "Missing LocoNet port";
-            sendJson(request, 400, doc);
-            return;
-          }
+          readPostValue(request, "feedbackPort", feedbackPortText);
 
           char* feedbackPortEnd = nullptr;
           const long parsedFeedbackPort =
@@ -974,10 +971,12 @@ void ApiServer::setupApi() {
             return;
           }
 
-          settings.feedbackHost = feedbackHost;
-          settings.feedbackPort =
+          feedbackPort =
               static_cast<uint16_t>(parsedFeedbackPort);
-        } else {
+
+          settings.feedbackHost = feedbackHost;
+          settings.feedbackPort = feedbackPort;
+        } else if (!CommandCenterBuild::isYaMoRc7010()) {
           settings.feedbackHost = host;
           settings.feedbackPort = 1234;
         }
