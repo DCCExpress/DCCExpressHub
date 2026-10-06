@@ -9,10 +9,11 @@
 
 #include "Logger.h"
 
-void LocoNetClient::configure(const String& host) {
+void LocoNetClient::configure(const String& host, uint16_t port) {
   stop();
   _host = host;
   _host.trim();
+  _port = port == 0 ? DEFAULT_LB_SERVER_PORT : port;
   _remoteIp = IPAddress();
   _resolved = false;
   _nextResolveAt = 0;
@@ -35,7 +36,7 @@ void LocoNetClient::start() {
   _startedAt = millis();
   _nextLbConnectAt = 0;
   _nextBinaryConnectAt = 0;
-  Logger::info("LocoNet client START host=" + _host);
+  Logger::info("LocoNet client START host=" + _host + ":" + String(_port));
 }
 
 void LocoNetClient::stop() {
@@ -113,9 +114,9 @@ bool LocoNetClient::connectLbServer() {
     return false;
   }
   _nextLbConnectAt = now + RECONNECT_MS;
-  Logger::info("LNET LB connect begin " + _remoteIp.toString() + ":" + String(LB_SERVER_PORT) + " timeout=" + String(CONNECT_TIMEOUT_MS) + "ms");
+  Logger::info("LNET LB connect begin " + _remoteIp.toString() + ":" + String(_port) + " timeout=" + String(CONNECT_TIMEOUT_MS) + "ms");
   const unsigned long connectStarted = millis();
-  if (!_lbClient.connect(_remoteIp, LB_SERVER_PORT, CONNECT_TIMEOUT_MS)) {
+  if (!_lbClient.connect(_remoteIp, _port, CONNECT_TIMEOUT_MS)) {
     Logger::warn("LNET LB connect FAIL elapsed=" + String(millis() - connectStarted) + "ms");
     return false;
   }
