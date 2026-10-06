@@ -14,6 +14,8 @@ public sealed class DesktopSettings
     public string TcpHost { get; set; } = "127.0.0.1";
     public int TcpPort { get; set; } = 2560;
     public int RBusOffset { get; set; } = 0;
+    public int YaMoRcRBusOffset { get; set; } = 0;
+    public int YaMoRcLocoNetOffset { get; set; } = 0;
     public string SerialPort { get; set; } = "";
     public int SerialBaudRate { get; set; } = 115200;
     public string RunMode { get; set; } = "local";
@@ -34,6 +36,8 @@ public sealed class DesktopSettings
         TcpHost = TcpHost,
         TcpPort = TcpPort,
         RBusOffset = RBusOffset,
+        YaMoRcRBusOffset = YaMoRcRBusOffset,
+        YaMoRcLocoNetOffset = YaMoRcLocoNetOffset,
         SerialPort = SerialPort,
         SerialBaudRate = SerialBaudRate,
         RunMode = RunMode,
@@ -104,6 +108,12 @@ public static class DesktopSettingsStore
 
             if (settings.RBusOffset is < 0 or > 65375)
                 settings.RBusOffset = 0;
+
+            if (settings.YaMoRcRBusOffset is < 0 or > 65375)
+                settings.YaMoRcRBusOffset = 0;
+
+            if (settings.YaMoRcLocoNetOffset is < 0 or > 61439)
+                settings.YaMoRcLocoNetOffset = 0;
 
             if (settings.SerialBaudRate <= 0)
                 settings.SerialBaudRate = 115200;
