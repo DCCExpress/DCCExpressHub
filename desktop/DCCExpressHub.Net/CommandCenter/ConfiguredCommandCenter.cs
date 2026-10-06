@@ -90,6 +90,10 @@ public sealed class ConfiguredCommandCenter : ICommandCenter
             dccEx.SetCommandIntervalMs(intervalMs);
     }
 
+    public bool SetRBusOffset(int offset) =>
+        _inner is RocoZ21CommandCenter z21 &&
+        z21.SetRBusOffset(offset);
+
     public bool SetEndpoint(string endpoint,int value) =>
         _inner switch
         {
