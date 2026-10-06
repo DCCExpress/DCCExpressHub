@@ -1919,7 +1919,10 @@ export default function LiteLayoutPage({
               variant={commandCenter.powerInfo?.trackVoltageOn ? "filled" : "light"}
               color={commandCenter.powerInfo?.trackVoltageOn ? "green" : "red"}
               leftSection={<IconPower size={16} />}
-              disabled={wsStatus !== "connected" || !commandCenter.alive}
+              disabled={
+                wsStatus !== "connected" ||
+                (!commandCenter.alive && !commandCenter.z21SystemState)
+              }
               onClick={() => wsApi.setTrackPower(!commandCenter.powerInfo?.trackVoltageOn)}
               title={commandCenter.powerInfo?.trackVoltageOn ? i18next.t("ui.turnTrackPowerOff") : i18next.t("ui.turnTrackPowerOn")}
             > {i18next.t("ui.power")} {commandCenter.powerInfo?.trackVoltageOn ? i18next.t("ui.on") : i18next.t("ui.off")}
