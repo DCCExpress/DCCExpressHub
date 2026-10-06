@@ -255,6 +255,11 @@ private:
   unsigned long _nextKeepaliveAt = 0;
   unsigned long _nextResolveAt = 0;
 
+#if defined(HUB_CC_YAMORC7010)
+  bool _z21BootstrapReady = false;
+  unsigned long _z21BootstrapReadyAt = 0;
+#endif
+
   CommandCenterStationInfo
       _stationInfo;
 
@@ -306,6 +311,22 @@ private:
   static constexpr unsigned long
       LB_RECONNECT_MS = 2000;
 
+  // Start feedback only after the authoritative Z21 UDP bootstrap completed
+  // and the UI/runtime had time to consume its initial status snapshot.
+  static constexpr unsigned long
+      FEEDBACK_START_DELAY_MS = 3000;
+
+  // LocoNet feedback is deliberately low-rate on the embedded runtime.
+  // At most one complete LocoNet message is processed per second; any extra
+  // messages arriving inside the window are drained and discarded.
+  static constexpr unsigned long
+      LOCONET_PROCESS_INTERVAL_MS = 1000;
+
+  // Interrogation is also paced at one request per second. Never burst an
+  // eight-step sensor scan into the same window as the UI startup snapshot.
+  static constexpr unsigned long
+      LOCONET_INTERROGATE_INTERVAL_MS = 1000;
+
   // TCP connect runs on the ESP32 main loop. A healthy YaMoRC LBServer on
   // the same LAN accepts within a few milliseconds; a long timeout only stalls
   // the whole Hub when the service is unavailable. Retry frequently instead of
@@ -314,14 +335,14 @@ private:
       FEEDBACK_CONNECT_TIMEOUT_MS = 150;
 
 
-  static constexpr unsigned long
-      LB_INTERROGATE_QUIET_MS = 1250;
-
   WiFiClient _lbClient;
   bool _lbConnected = false;
   unsigned long _nextLbConnectAt = 0;
   unsigned long _lastLbTrafficAt = 0;
   unsigned long _lastLbInterrogateAt = 0;
+  unsigned long _nextLbInterrogateStepAt = 0;
+  unsigned long _nextLocoNetProcessAt = 0;
+  uint32_t _locoNetMessagesDropped = 0;
   uint8_t _lbInterrogatePhase = 0;
   char _lbLine[256] = {};
   size_t _lbLineLength = 0;
