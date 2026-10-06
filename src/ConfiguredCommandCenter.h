@@ -76,6 +76,9 @@ public:
   void onSensorFeedback(
       SensorFeedbackCallback callback) override;
 
+  void onSensorSnapshotComplete(
+      SensorSnapshotCompleteCallback callback) override;
+
   bool setTrackPower(
       bool on,
       bool includeProgramming = true) override;
