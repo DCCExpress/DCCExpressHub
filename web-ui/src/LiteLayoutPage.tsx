@@ -45,6 +45,7 @@ import {
   IconListCheck,
   IconRoute,
   IconVolume,
+  IconServerCog,
 } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { showNotification } from "@mantine/notifications";
@@ -154,6 +155,8 @@ import {
 } from "@/services/backupService";
 import "@/styles/propertypanel.css";
 import DebugDialog from "@/components/debug/DebugDialog";
+import EmbeddedCommandCenterConfigDialog from "@/components/EmbeddedCommandCenterConfigDialog";
+import { getCommandCenterInfo } from "@/api/commandCenterInfo";
 type LiteLayoutPageProps = {
   version: string;
   locos: Loco[];
@@ -968,6 +971,31 @@ export default function LiteLayoutPage({
     []
   );
 
+  useEffect(
+    () => {
+      let active = true;
+
+      void getCommandCenterInfo(true)
+        .then(info => {
+          if (active) {
+            setEmbeddedCommandCenter(
+              info.embedded === true
+            );
+          }
+        })
+        .catch(() => {
+          if (active) {
+            setEmbeddedCommandCenter(false);
+          }
+        });
+
+      return () => {
+        active = false;
+      };
+    },
+    []
+  );
+
   const [layout, setLayout] = useState(() => new LayoutView());
   const [automationScripts, setAutomationScripts] = useState<AutomationScriptDefinition[]>([]);
   const [movementDocument, setMovementDocument] =
@@ -1009,6 +1037,8 @@ export default function LiteLayoutPage({
   const resizeRef = useRef<{ side: "left" | "right"; startX: number; startWidth: number } | null>(null);
   const temperatureCriticalRef = useRef(false);
   const [debugOpened, setDebugOpened] = useState(false);
+  const [commandCenterConfigOpened, setCommandCenterConfigOpened] = useState(false);
+  const [embeddedCommandCenter, setEmbeddedCommandCenter] = useState(false);
   const [timetableOpened, setTimetableOpened] = useState(false);
   const [routesOpened, setRoutesOpened] = useState(false);
   const [routesMovementPageId, setRoutesMovementPageId] =
@@ -1870,6 +1900,20 @@ export default function LiteLayoutPage({
             </ActionIcon>
 
             <Divider orientation="vertical" className="lite-toolbar-divider" />
+
+            {embeddedCommandCenter && (
+              <Button
+                size="xs"
+                variant="light"
+                color="cyan"
+                leftSection={<IconServerCog size={16} />}
+                onClick={() => setCommandCenterConfigOpened(true)}
+                title="Configure command center"
+              >
+                CC Config
+              </Button>
+            )}
+
             <Button
               size="xs"
               variant={commandCenter.powerInfo?.trackVoltageOn ? "filled" : "light"}
@@ -2399,6 +2443,11 @@ export default function LiteLayoutPage({
           <Button color="red" onClick={() => setTemperatureAlertOpened(false)}>{i18next.t("ui.acknowledge")}</Button>
         </Stack>
       </Modal>
+
+      <EmbeddedCommandCenterConfigDialog
+        opened={commandCenterConfigOpened}
+        onClose={() => setCommandCenterConfigOpened(false)}
+      />
 
       <SafetyEmergencyStopDialog />
 
