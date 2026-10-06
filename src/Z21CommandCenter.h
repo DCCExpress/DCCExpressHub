@@ -86,6 +86,12 @@ public:
         std::move(callback);
   }
 
+  void onSensorSnapshotComplete(
+      SensorSnapshotCompleteCallback callback) override {
+    _sensorSnapshotCompleteCallback =
+        std::move(callback);
+  }
+
   bool setTrackPower(
       bool on,
       bool includeProgramming = true) override;
@@ -242,6 +248,7 @@ private:
 
   bool _systemStateSeen = false;
   unsigned long _systemStateSeenAt = 0;
+  uint8_t _rbusSnapshotPendingMask = 0;
 
   CommandCenterStationInfo
       _stationInfo;
@@ -280,6 +287,9 @@ private:
 
   SensorFeedbackCallback
       _sensorFeedbackCallback;
+
+  SensorSnapshotCompleteCallback
+      _sensorSnapshotCompleteCallback;
 
   ProgrammingFeedbackCallback
       _programmingFeedbackCallback;
