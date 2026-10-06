@@ -549,9 +549,10 @@ installCommandCenterStatusIndicator():
     PAINT_INTERVAL_MS
   );
 
-  if (wsClient.getStatus() === "connected") {
-    void refreshFromHttp();
-  }
+  // Hydrate immediately as well. The HTTP endpoint exists independently of
+  // WebSocket timing, so the UI should never sit on the default
+  // "Command center: ?" while the Hub is already serving the page.
+  void refreshFromHttp();
 
   paint();
 }
