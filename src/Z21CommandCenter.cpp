@@ -15,16 +15,9 @@ void Z21CommandCenter::begin(
           ? DEFAULT_PORT
           : port);
 
-#if defined(HUB_CC_YAMORC7010)
-  _stationInfo.processor =
-      "Z21 LAN + LocoNet LBServer";
-
-  _stationInfo.hardware =
-      "YD7010";
-#else
   _stationInfo.processor =
       "Z21 LAN";
-#endif
+
 
   _stationInfo.maxLocos =
       100;
@@ -60,6 +53,12 @@ void Z21CommandCenter::setEndpoint(
   _nextResolveAt =
       0;
 
+  _systemStateSeen =
+      false;
+
+  _systemStateSeenAt =
+      0;
+
   _remoteIp =
       IPAddress();
 
@@ -69,18 +68,7 @@ void Z21CommandCenter::setEndpoint(
         false;
   }
 
-#if defined(HUB_CC_YAMORC7010)
-  disconnectLbServer();
-  disconnectLocoNetBinary();
-  _z21BootstrapReady = false;
-  _z21BootstrapReadyAt = 0;
-  _nextLbConnectAt = 0;
-  _nextLnBinaryConnectAt = 0;
-  _lastLbTrafficAt = 0;
-  _lastLbInterrogateAt = 0;
-  _nextLbInterrogateStepAt = 0;
-  _lbInterrogatePhase = 0;
-#endif
+
 }
 
 bool Z21CommandCenter::startUdp() {
@@ -311,16 +299,7 @@ void Z21CommandCenter::loop() {
     _online =
         false;
 
-#if defined(HUB_CC_YAMORC7010)
-    _z21BootstrapReady =
-        false;
 
-    _z21BootstrapReadyAt =
-        0;
-
-    disconnectLbServer();
-    disconnectLocoNetBinary();
-#endif
 
     return;
   }
@@ -380,36 +359,11 @@ void Z21CommandCenter::loop() {
             rxAge) +
         "ms";
 
-#if defined(HUB_CC_YAMORC7010)
-    diagnostic +=
-        " bootstrap=" +
-        String(
-            _z21BootstrapReady
-                ? "READY"
-                : "WAIT") +
-        " lb=" +
-        String(
-            _lbConnected
-                ? "OK"
-                : "NOK") +
-        " bin=" +
-        String(
-            _lnBinaryConnected
-                ? "OK"
-                : "NOK");
-#endif
+
 
     if (
         !_online
-#if defined(HUB_CC_YAMORC7010)
-        || (
-            _z21BootstrapReady &&
-            now -
-                _z21BootstrapReadyAt >=
-                FEEDBACK_START_DELAY_MS &&
-            !_lbConnected
-        )
-#endif
+
     ) {
       Logger::warn(
           diagnostic);
@@ -423,31 +377,7 @@ void Z21CommandCenter::loop() {
   processAccessoryPulses(
       now);
 
-#if defined(HUB_CC_YAMORC7010)
-  const bool feedbackStartupReady =
-      _online &&
-      _z21BootstrapReady &&
-      _z21BootstrapReadyAt != 0 &&
-      now -
-          _z21BootstrapReadyAt >=
-          FEEDBACK_START_DELAY_MS;
 
-  if (feedbackStartupReady) {
-    loopLbServer(
-        now);
-
-    loopLocoNetBinary(
-        now);
-  } else {
-    if (_lbConnected) {
-      disconnectLbServer();
-    }
-
-    if (_lnBinaryConnected) {
-      disconnectLocoNetBinary();
-    }
-  }
-#endif
 
   if (
       _nextKeepaliveAt == 0 ||
@@ -624,7 +554,7 @@ bool Z21CommandCenter::setBroadcastFlags() {
 
   writeLe32(
       data,
-      BROADCAST_FLAGS);
+      broadcastFlags());
 
   return sendPacket(
       0x0050,
@@ -1315,7 +1245,7 @@ bool Z21CommandCenter::requestTripTelemetry(
   return true;
 }
 
-bool Z21CommandCenter::requestSensorSnapshot(
+bool Z21CommandCenter::requestRBusSnapshot(
     bool logCommand) {
   const uint8_t rbus0[] = {
       0x00};
@@ -1323,8 +1253,6 @@ bool Z21CommandCenter::requestSensorSnapshot(
   const uint8_t rbus1[] = {
       0x01};
 
-  // Snapshot requests stay on the authoritative Z21 UDP transport. They must
-  // never open a TCP feedback connection or start a LocoNet interrogation.
   const bool rbus0Sent =
       sendPacket(
           0x0081,
@@ -1341,11 +1269,17 @@ bool Z21CommandCenter::requestSensorSnapshot(
               rbus1),
           logCommand);
 
-#if defined(HUB_CC_YAMORC7010)
   return
       rbus0Sent ||
       rbus1Sent;
-#else
+}
+
+bool Z21CommandCenter::requestSensorSnapshot(
+    bool logCommand) {
+  const bool rbusSent =
+      requestRBusSnapshot(
+          logCommand);
+
   const uint8_t loconetDetector[] = {
       0x80,
       0x00,
@@ -1360,12 +1294,9 @@ bool Z21CommandCenter::requestSensorSnapshot(
           logCommand);
 
   return
-      rbus0Sent ||
-      rbus1Sent ||
+      rbusSent ||
       detectorSent;
-#endif
 }
-
 
 bool Z21CommandCenter::sendRawCommand(
     String command,
@@ -1376,1040 +1307,7 @@ bool Z21CommandCenter::sendRawCommand(
   return false;
 }
 
-#if defined(HUB_CC_YAMORC7010)
 
-bool Z21CommandCenter::connectLbServer() {
-  if (
-      _lbConnected &&
-      _lbClient.connected()
-  ) {
-    return true;
-  }
-
-  disconnectLbServer();
-
-  if (
-      WiFi.status() !=
-          WL_CONNECTED ||
-      !resolveRemote()
-  ) {
-    return false;
-  }
-
-  const unsigned long now =
-      millis();
-
-  if (
-      _nextLbConnectAt != 0 &&
-      static_cast<long>(
-          now -
-          _nextLbConnectAt) < 0
-  ) {
-    return false;
-  }
-
-  _nextLbConnectAt =
-      now +
-      LB_RECONNECT_MS;
-
-  Logger::info(
-      "LNET LB connect begin " +
-      _remoteIp.toString() +
-      ":" +
-      String(
-          LB_SERVER_PORT) +
-      " timeout=" +
-      String(
-          FEEDBACK_CONNECT_TIMEOUT_MS) +
-      "ms");
-
-  const unsigned long connectStarted =
-      millis();
-
-  if (
-      !_lbClient.connect(
-          _remoteIp,
-          LB_SERVER_PORT,
-          FEEDBACK_CONNECT_TIMEOUT_MS)
-  ) {
-    Logger::warn(
-        "LNET LB connect FAIL elapsed=" +
-        String(
-            millis() -
-            connectStarted) +
-        "ms");
-
-    return false;
-  }
-
-  Logger::info(
-      "LNET LB connect OK elapsed=" +
-      String(
-          millis() -
-          connectStarted) +
-      "ms");
-
-  _lbClient.setNoDelay(
-      true);
-
-  _lbConnected =
-      true;
-
-  _lbLineLength =
-      0;
-
-  _lastLbTrafficAt =
-      now;
-
-  Logger::info(
-      "YD7010 LBServer connected " +
-      _remoteIp.toString() +
-      ":" +
-      String(
-          LB_SERVER_PORT));
-
-  if (_rawInfoCallback) {
-    _rawInfoCallback(
-        "YD7010 LBServer connected");
-  }
-
-  startLocoNetInterrogate(
-      true);
-
-  return true;
-}
-
-void Z21CommandCenter::disconnectLbServer() {
-  if (_lbClient) {
-    _lbClient.stop();
-  }
-
-  if (_lbConnected) {
-    Logger::warn(
-        "YD7010 LBServer disconnected");
-  }
-
-  _lbConnected =
-      false;
-
-  _lbLineLength =
-      0;
-
-  if (!_lnBinaryConnected) {
-    _lbInterrogatePhase =
-        0;
-
-    _nextLbInterrogateStepAt =
-        0;
-  }
-}
-
-void Z21CommandCenter::loopLbServer(
-    unsigned long now) {
-  if (
-      !_lbConnected ||
-      !_lbClient.connected()
-  ) {
-    connectLbServer();
-    return;
-  }
-
-  processLbServerIncoming();
-
-  if (!_lbClient.connected()) {
-    disconnectLbServer();
-
-    _nextLbConnectAt =
-        now +
-        LB_RECONNECT_MS;
-
-    return;
-  }
-
-  processLocoNetInterrogate(
-      now);
-}
-
-bool Z21CommandCenter::connectLocoNetBinary() {
-  if (
-      _lnBinaryConnected &&
-      _lnBinaryClient.connected()
-  ) {
-    return true;
-  }
-
-  disconnectLocoNetBinary();
-
-  if (
-      WiFi.status() !=
-          WL_CONNECTED ||
-      !resolveRemote()
-  ) {
-    return false;
-  }
-
-  const unsigned long now =
-      millis();
-
-  if (
-      _nextLnBinaryConnectAt != 0 &&
-      static_cast<long>(
-          now -
-          _nextLnBinaryConnectAt) < 0
-  ) {
-    return false;
-  }
-
-  _nextLnBinaryConnectAt =
-      now +
-      LB_RECONNECT_MS;
-
-  Logger::info(
-      "LNET BIN connect begin " +
-      _remoteIp.toString() +
-      ":" +
-      String(
-          LN_BINARY_PORT) +
-      " timeout=" +
-      String(
-          FEEDBACK_CONNECT_TIMEOUT_MS) +
-      "ms");
-
-  const unsigned long connectStarted =
-      millis();
-
-  if (
-      !_lnBinaryClient.connect(
-          _remoteIp,
-          LN_BINARY_PORT,
-          FEEDBACK_CONNECT_TIMEOUT_MS)
-  ) {
-    Logger::warn(
-        "LNET BIN connect FAIL elapsed=" +
-        String(
-            millis() -
-            connectStarted) +
-        "ms");
-
-    return false;
-  }
-
-  Logger::info(
-      "LNET BIN connect OK elapsed=" +
-      String(
-          millis() -
-          connectStarted) +
-      "ms");
-
-  _lnBinaryClient.setNoDelay(
-      true);
-
-  _lnBinaryConnected =
-      true;
-
-  _lnBinaryPacketLength =
-      0;
-
-  _lnBinaryExpectedLength =
-      0;
-
-  Logger::info(
-      "YD7010 LocoNet Binary connected " +
-      _remoteIp.toString() +
-      ":" +
-      String(
-          LN_BINARY_PORT));
-
-  if (_rawInfoCallback) {
-    _rawInfoCallback(
-        "YD7010 LocoNet Binary connected");
-  }
-
-  if (!_lbConnected) {
-    startLocoNetInterrogate(
-        true);
-  }
-
-  return true;
-}
-
-void Z21CommandCenter::disconnectLocoNetBinary() {
-  if (_lnBinaryClient) {
-    _lnBinaryClient.stop();
-  }
-
-  if (_lnBinaryConnected) {
-    Logger::warn(
-        "YD7010 LocoNet Binary disconnected");
-  }
-
-  _lnBinaryConnected =
-      false;
-
-  _lnBinaryPacketLength =
-      0;
-
-  _lnBinaryExpectedLength =
-      0;
-
-  if (!_lbConnected) {
-    _lbInterrogatePhase =
-        0;
-
-    _nextLbInterrogateStepAt =
-        0;
-  }
-}
-
-void Z21CommandCenter::loopLocoNetBinary(
-    unsigned long now) {
-  // LBServer is the primary YaMoRC feedback transport. Do not probe Binary
-  // during startup; give the primary TCP service its own clean connection
-  // window first.
-  if (
-      _z21BootstrapReadyAt == 0 ||
-      now -
-          _z21BootstrapReadyAt <
-          FEEDBACK_START_DELAY_MS +
-              LOCONET_BINARY_FALLBACK_DELAY_MS
-  ) {
-    return;
-  }
-
-  // LBServer is the primary YaMoRC feedback transport. Do not keep probing
-  // the optional Binary service while LBServer is healthy.
-  if (
-      _lbConnected &&
-      _lbClient.connected()
-  ) {
-    if (_lnBinaryConnected) {
-      disconnectLocoNetBinary();
-    }
-
-    return;
-  }
-
-  if (
-      !_lnBinaryConnected ||
-      !_lnBinaryClient.connected()
-  ) {
-    connectLocoNetBinary();
-    return;
-  }
-
-  processLocoNetBinaryIncoming();
-
-  if (!_lnBinaryClient.connected()) {
-    disconnectLocoNetBinary();
-
-    _nextLnBinaryConnectAt =
-        now +
-        LB_RECONNECT_MS;
-  }
-}
-
-size_t Z21CommandCenter::locoNetMessageLength(
-    const uint8_t* packet,
-    size_t packetLength) {
-  if (
-      !packet ||
-      packetLength == 0
-  ) {
-    return 0;
-  }
-
-  const uint8_t opcode =
-      packet[0];
-
-  if (
-      (opcode &
-       0x60) ==
-      0x60
-  ) {
-    if (
-        packetLength <
-        2
-    ) {
-      return 0;
-    }
-
-    return
-        packet[1];
-  }
-
-  return
-      static_cast<size_t>(
-          (
-              (opcode &
-               0x60) >>
-              4
-          ) +
-          2);
-}
-
-void Z21CommandCenter::processLocoNetBinaryIncoming() {
-  while (
-      _lnBinaryClient.connected() &&
-      _lnBinaryClient.available() >
-          0
-  ) {
-    const int readValue =
-        _lnBinaryClient.read();
-
-    if (readValue < 0) {
-      break;
-    }
-
-    const uint8_t value =
-        static_cast<uint8_t>(
-            readValue);
-
-    if (
-        (value &
-         0x80) != 0
-    ) {
-      _lnBinaryPacket[0] =
-          value;
-
-      _lnBinaryPacketLength =
-          1;
-
-      _lnBinaryExpectedLength =
-          locoNetMessageLength(
-              _lnBinaryPacket,
-              _lnBinaryPacketLength);
-
-      continue;
-    }
-
-    if (
-        _lnBinaryPacketLength ==
-        0
-    ) {
-      continue;
-    }
-
-    if (
-        _lnBinaryPacketLength >=
-        sizeof(
-            _lnBinaryPacket)
-    ) {
-      _lnBinaryPacketLength =
-          0;
-
-      _lnBinaryExpectedLength =
-          0;
-
-      continue;
-    }
-
-    _lnBinaryPacket[
-        _lnBinaryPacketLength++] =
-        value;
-
-    _lnBinaryExpectedLength =
-        locoNetMessageLength(
-            _lnBinaryPacket,
-            _lnBinaryPacketLength);
-
-    if (
-        _lnBinaryExpectedLength ==
-            0 ||
-        _lnBinaryPacketLength <
-            _lnBinaryExpectedLength
-    ) {
-      continue;
-    }
-
-    if (
-        _lnBinaryExpectedLength >
-            sizeof(
-                _lnBinaryPacket) ||
-        _lnBinaryPacketLength !=
-            _lnBinaryExpectedLength
-    ) {
-      _lnBinaryPacketLength =
-          0;
-
-      _lnBinaryExpectedLength =
-          0;
-
-      continue;
-    }
-
-    ++_lnBinaryPacketsObserved;
-
-    if (
-        _lnBinaryPacketsObserved <=
-            12 &&
-        _rawInfoCallback
-    ) {
-      String raw =
-          "YD7010 BIN RX";
-
-      for (
-          size_t index = 0;
-          index <
-              _lnBinaryPacketLength;
-          ++index
-      ) {
-        raw +=
-            " ";
-
-        if (
-            _lnBinaryPacket[index] <
-            0x10
-        ) {
-          raw +=
-              "0";
-        }
-
-        raw +=
-            String(
-                _lnBinaryPacket[index],
-                HEX);
-      }
-
-      raw.toUpperCase();
-
-      Logger::info(
-          raw);
-    }
-
-    processLocoNetPacket(
-        _lnBinaryPacket,
-        _lnBinaryPacketLength);
-
-    _lnBinaryPacketLength =
-        0;
-
-    _lnBinaryExpectedLength =
-        0;
-  }
-}
-
-void Z21CommandCenter::processLbServerIncoming() {
-  while (
-      _lbClient.connected() &&
-      _lbClient.available() >
-          0
-  ) {
-    const int value =
-        _lbClient.read();
-
-    if (value < 0) {
-      break;
-    }
-
-    const char ch =
-        static_cast<char>(
-            value);
-
-    if (
-        ch == '\r' ||
-        ch == '\n'
-    ) {
-      if (_lbLineLength > 0) {
-        _lbLine[_lbLineLength] =
-            '\0';
-
-        processLbServerLine(
-            _lbLine);
-
-        _lbLineLength =
-            0;
-      }
-
-      continue;
-    }
-
-    if (
-        _lbLineLength +
-            1 <
-        sizeof(
-            _lbLine)
-    ) {
-      _lbLine[
-          _lbLineLength++] =
-          ch;
-    } else {
-      _lbLineLength =
-          0;
-    }
-  }
-}
-
-void Z21CommandCenter::processLbServerLine(
-    const char* line) {
-  if (!line) {
-    return;
-  }
-
-  while (
-      *line == ' ' ||
-      *line == '\t'
-  ) {
-    ++line;
-  }
-
-  if (*line == '\0') {
-    return;
-  }
-
-  _lastLbTrafficAt =
-      millis();
-
-  ++_lbLinesObserved;
-
-  if (
-      _lbLinesObserved <=
-          12
-  ) {
-    Logger::info(
-        "YD7010 LB RX " +
-        String(
-            line));
-  }
-
-  if (
-      strncasecmp(
-          line,
-          "VERSION ",
-          8) == 0
-  ) {
-    return;
-  }
-
-  const char* cursor =
-      line;
-
-  if (
-      strncasecmp(
-          line,
-          "RECEIVE ",
-          8) == 0
-  ) {
-    cursor =
-        line +
-        8;
-  } else if (
-      !isxdigit(
-          static_cast<unsigned char>(
-              *line))
-  ) {
-    return;
-  }
-
-  uint8_t packet[128] = {};
-  size_t packetLength =
-      0;
-
-  while (
-      *cursor != '\0' &&
-      packetLength <
-          sizeof(
-              packet)
-  ) {
-    while (
-        *cursor == ' ' ||
-        *cursor == '\t'
-    ) {
-      ++cursor;
-    }
-
-    if (*cursor == '\0') {
-      break;
-    }
-
-    char* end =
-        nullptr;
-
-    const unsigned long parsed =
-        strtoul(
-            cursor,
-            &end,
-            16);
-
-    if (
-        end == cursor ||
-        parsed >
-            0xFF ||
-        (
-            *end != '\0' &&
-            *end != ' ' &&
-            *end != '\t'
-        )
-    ) {
-      return;
-    }
-
-    packet[
-        packetLength++] =
-        static_cast<uint8_t>(
-            parsed);
-
-    cursor =
-        end;
-  }
-
-  if (packetLength == 0) {
-    return;
-  }
-
-  ++_lbPacketsObserved;
-
-  processLocoNetPacket(
-      packet,
-      packetLength);
-}
-
-void Z21CommandCenter::processLocoNetPacket(
-    const uint8_t* packet,
-    size_t length) {
-  if (
-      !packet ||
-      length <
-          2
-  ) {
-    return;
-  }
-
-  uint8_t checksum =
-      0;
-
-  for (
-      size_t index = 0;
-      index <
-          length;
-      ++index
-  ) {
-    checksum ^=
-        packet[index];
-  }
-
-  if (
-      checksum !=
-      0xFF
-  ) {
-    if (
-        _lbPacketsObserved <=
-            12
-    ) {
-      Logger::warn(
-          "YD7010 LB invalid checksum opcode=0x" +
-          String(
-              packet[0],
-              HEX));
-    }
-
-    return;
-  }
-
-  if (
-      packet[0] ==
-          0xB1 ||
-      packet[0] ==
-          0xB2
-  ) {
-    _lastLbTrafficAt =
-        millis();
-  } else if (
-      length >=
-          4 &&
-      (
-          packet[0] ==
-              0xB0 ||
-          packet[0] ==
-              0xBD
-      )
-  ) {
-    const uint16_t address =
-        static_cast<uint16_t>(
-            packet[1] &
-            0x7F) +
-        static_cast<uint16_t>(
-            128 *
-            (
-                packet[2] &
-                0x0F
-            ));
-
-    if (
-        address >=
-            0x3F8 &&
-        address <=
-            0x3FB
-    ) {
-      _lastLbTrafficAt =
-          millis();
-    }
-  }
-
-  if (
-      packet[0] ==
-          0xB2 &&
-      length >=
-          4
-  ) {
-    processLocoNetInputReport(
-        packet,
-        length);
-  }
-}
-
-void Z21CommandCenter::processLocoNetInputReport(
-    const uint8_t* packet,
-    size_t length) {
-  if (
-      !packet ||
-      length <
-          4
-  ) {
-    return;
-  }
-
-  const uint8_t in1 =
-      packet[1];
-
-  const uint8_t in2 =
-      packet[2];
-
-  uint16_t address =
-      static_cast<uint16_t>(
-          (
-              in1 |
-              (
-                  (
-                      in2 &
-                      0x0F
-                  ) <<
-                  7
-              )
-          ) <<
-          1);
-
-  address +=
-      (
-          in2 &
-          0x20
-      ) != 0
-          ? 2
-          : 1;
-
-  if (
-      address <
-          1 ||
-      address >
-          4096
-  ) {
-    return;
-  }
-
-  const bool occupied =
-      (
-          in2 &
-          0x10
-      ) != 0;
-
-  if (_sensorFeedbackCallback) {
-    CommandCenterSensorFeedback
-        feedback;
-
-    feedback.address =
-        address;
-
-    feedback.on =
-        occupied;
-
-    _sensorFeedbackCallback(
-        feedback);
-  }
-}
-
-void Z21CommandCenter::startLocoNetInterrogate(
-    bool force) {
-  const unsigned long now =
-      millis();
-
-  if (
-      !force &&
-      _lastLbInterrogateAt !=
-          0 &&
-      now -
-          _lastLbInterrogateAt <
-          10000
-  ) {
-    return;
-  }
-
-  _lbInterrogatePhase =
-      1;
-
-  _nextLbInterrogateStepAt =
-      now +
-      LOCONET_INTERROGATE_INTERVAL_MS;
-
-  if (_rawInfoCallback) {
-    _rawInfoCallback(
-        "YD7010 LocoNet sensor interrogation started");
-  }
-}
-
-void Z21CommandCenter::processLocoNetInterrogate(
-    unsigned long now) {
-  const bool lbReady =
-      _lbConnected &&
-      _lbClient.connected();
-
-  const bool binaryReady =
-      _lnBinaryConnected &&
-      _lnBinaryClient.connected();
-
-  if (
-      _lbInterrogatePhase <
-          1 ||
-      _lbInterrogatePhase >
-          8 ||
-      (
-          !lbReady &&
-          !binaryReady
-      )
-  ) {
-    return;
-  }
-
-  if (
-      _nextLbInterrogateStepAt != 0 &&
-      static_cast<long>(
-          now -
-          _nextLbInterrogateStepAt) < 0
-  ) {
-    return;
-  }
-
-  static const uint8_t sw1[8] = {
-      0x78,
-      0x79,
-      0x7A,
-      0x7B,
-      0x78,
-      0x79,
-      0x7A,
-      0x7B};
-
-  static const uint8_t sw2[8] = {
-      0x27,
-      0x27,
-      0x27,
-      0x27,
-      0x07,
-      0x07,
-      0x07,
-      0x07};
-
-  const uint8_t index =
-      static_cast<uint8_t>(
-          _lbInterrogatePhase -
-          1);
-
-  const uint8_t packet[4] = {
-      0xB0,
-      sw1[index],
-      sw2[index],
-      static_cast<uint8_t>(
-          0xFF ^
-          0xB0 ^
-          sw1[index] ^
-          sw2[index])};
-
-  bool sent =
-      false;
-
-  if (lbReady) {
-    char line[32];
-
-    snprintf(
-        line,
-        sizeof(
-            line),
-        "SEND %02X %02X %02X %02X\r\n",
-        packet[0],
-        packet[1],
-        packet[2],
-        packet[3]);
-
-    const size_t lineLength =
-        strlen(
-            line);
-
-    sent =
-        _lbClient.write(
-            reinterpret_cast<
-                const uint8_t*>(
-                line),
-            lineLength) ==
-        lineLength;
-
-    if (!sent) {
-      disconnectLbServer();
-    }
-  }
-
-  if (
-      !sent &&
-      binaryReady
-  ) {
-    sent =
-        _lnBinaryClient.write(
-            packet,
-            sizeof(
-                packet)) ==
-        sizeof(
-            packet);
-
-    if (!sent) {
-      disconnectLocoNetBinary();
-    }
-  }
-
-  if (!sent) {
-    return;
-  }
-
-  _lastLbTrafficAt =
-      now;
-
-  ++_lbInterrogatePhase;
-
-  _nextLbInterrogateStepAt =
-      now +
-      LOCONET_INTERROGATE_INTERVAL_MS;
-
-  if (
-      _lbInterrogatePhase >
-          8
-  ) {
-    _lbInterrogatePhase =
-        0;
-
-    _nextLbInterrogateStepAt =
-        0;
-
-    _lastLbInterrogateAt =
-        now;
-
-    if (_rawInfoCallback) {
-      _rawInfoCallback(
-          "YD7010 LocoNet sensor interrogation sent");
-    }
-
-    if (_sensorSnapshotCompleteCallback) {
-      _sensorSnapshotCompleteCallback();
-    }
-  }
-}
-
-#endif
 
 void Z21CommandCenter::processIncoming() {
   while (true) {
@@ -2959,21 +1857,17 @@ void Z21CommandCenter::processSystemState(
     return;
   }
 
-#if defined(HUB_CC_YAMORC7010)
-  if (!_z21BootstrapReady) {
-    _z21BootstrapReady =
+  if (!_systemStateSeen) {
+    _systemStateSeen =
         true;
 
-    _z21BootstrapReadyAt =
+    _systemStateSeenAt =
         millis();
 
     Logger::info(
-        "Z21 bootstrap READY; delaying LocoNet feedback start by " +
-        String(
-            FEEDBACK_START_DELAY_MS) +
-        "ms");
+        "Z21 bootstrap READY");
   }
-#endif
+
 
   CommandCenterCurrentTelemetry
       current;
@@ -3275,20 +2169,14 @@ void Z21CommandCenter::processHardwareInfo(
           data +
           4);
 
-#if defined(HUB_CC_YAMORC7010)
-  _stationInfo.hardware =
-      "YD7010";
 
-  _stationInfo.processor =
-      "Z21 LAN + LocoNet LBServer";
-#else
   _stationInfo.hardware =
       hardwareName(
           hardwareType);
 
   _stationInfo.processor =
       "Z21 LAN";
-#endif
+
 
   _stationInfo.version =
       bcdVersion(
