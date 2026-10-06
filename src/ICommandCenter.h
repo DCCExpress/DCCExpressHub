@@ -110,6 +110,9 @@ public:
           void(
               const CommandCenterSensorFeedback&)>;
 
+  using SensorSnapshotCompleteCallback =
+      std::function<void()>;
+
   using ProgrammingFeedbackCallback =
       std::function<
           void(
@@ -181,6 +184,11 @@ public:
   // sensor feedback can keep the default no-op implementation.
   virtual void onSensorFeedback(
       SensorFeedbackCallback callback) {
+    (void)callback;
+  }
+
+  virtual void onSensorSnapshotComplete(
+      SensorSnapshotCompleteCallback callback) {
     (void)callback;
   }
 
