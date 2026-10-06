@@ -184,6 +184,7 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
         _locoNetFeedbackEnabled;
     protected virtual bool LbServerFeedbackEnabled => false;
     protected virtual int LbServerPort => 1234;
+    protected virtual int LocoNetSensorOffset => 0;
     protected virtual string Z21ProcessorName => "Z21 LAN";
     protected virtual string Z21HardwareName(uint hardwareType) =>
         HardwareName(hardwareType);
@@ -2658,7 +2659,7 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
         var in2 =
             packet[2];
 
-        var address =
+        var rawAddress =
             (
                 in1 |
                 (
@@ -2667,12 +2668,19 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
                 )
             ) << 1;
 
-        address +=
+        rawAddress +=
             (in2 & 0x20) != 0
                 ? 2
                 : 1;
 
-        if (address is < 1 or > 4096)
+        if (rawAddress is < 1 or > 4096)
+            return;
+
+        var address =
+            rawAddress +
+            LocoNetSensorOffset;
+
+        if (address is < 1 or > 65535)
             return;
 
         var occupied =
@@ -2696,7 +2704,8 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
                 DateTime.UtcNow;
 
         _log.LogInformation(
-            "Z21 S88/LocoNet feedback #{Address}: {State}",
+            "Z21 S88/LocoNet feedback raw #{RawAddress} -> Hub #{Address}: {State}",
+            rawAddress,
             address,
             occupied
                 ? "ON"
@@ -3358,7 +3367,7 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
                 (in1 & 0x7F)
             );
 
-        var address =
+        var rawAddress =
             baseAddress *
             2 +
             (
@@ -3367,14 +3376,22 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
                     : 1
             );
 
-        if (address is < 1 or > 4096)
+        if (rawAddress is < 1 or > 4096)
+            return;
+
+        var address =
+            rawAddress +
+            LocoNetSensorOffset;
+
+        if (address is < 1 or > 65535)
             return;
 
         var occupied =
             (in2 & 0x10) != 0;
 
         _log.LogInformation(
-            "Z21 LocoNet feedback #{Address}: {State}",
+            "Z21 LocoNet feedback raw #{RawAddress} -> Hub #{Address}: {State}",
+            rawAddress,
             address,
             occupied
                 ? "ON"
