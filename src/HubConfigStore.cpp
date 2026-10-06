@@ -175,6 +175,20 @@ void HubConfigStore::loadCommandCenter() {
         CommandCenterBuild::defaultPort();
   }
 
+  _commandCenter.feedbackHost =
+      _prefs.getString(
+          "feedbackHost",
+          _commandCenter.host);
+
+  _commandCenter.feedbackPort =
+      _prefs.getUShort(
+          "feedbackPort",
+          1234);
+
+  if (_commandCenter.feedbackPort == 0) {
+    _commandCenter.feedbackPort = 1234;
+  }
+
   _commandCenter.powerIncludesProgramming =
       _prefs.getBool(
           "powerProg",
@@ -288,6 +302,17 @@ bool HubConfigStore::saveCommandCenter(
       _prefs.putUShort(
           "csbPort",
           _commandCenter.port) == 2;
+
+  ok &=
+      _prefs.putString(
+          "feedbackHost",
+          _commandCenter.feedbackHost) > 0 ||
+      _commandCenter.feedbackHost.isEmpty();
+
+  ok &=
+      _prefs.putUShort(
+          "feedbackPort",
+          _commandCenter.feedbackPort) == 2;
 
   ok &=
       _prefs.putBool(
