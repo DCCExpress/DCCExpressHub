@@ -72,10 +72,15 @@ void Z21CommandCenter::setEndpoint(
 #if defined(HUB_CC_YAMORC7010)
   disconnectLbServer();
   disconnectLocoNetBinary();
+  _z21BootstrapReady = false;
+  _z21BootstrapReadyAt = 0;
   _nextLbConnectAt = 0;
   _nextLnBinaryConnectAt = 0;
   _lastLbTrafficAt = 0;
   _lastLbInterrogateAt = 0;
+  _nextLbInterrogateStepAt = 0;
+  _nextLocoNetProcessAt = 0;
+  _locoNetMessagesDropped = 0;
   _lbInterrogatePhase = 0;
 #endif
 }
@@ -308,6 +313,17 @@ void Z21CommandCenter::loop() {
     _online =
         false;
 
+#if defined(HUB_CC_YAMORC7010)
+    _z21BootstrapReady =
+        false;
+
+    _z21BootstrapReadyAt =
+        0;
+
+    disconnectLbServer();
+    disconnectLocoNetBinary();
+#endif
+
     return;
   }
 
@@ -368,6 +384,11 @@ void Z21CommandCenter::loop() {
 
 #if defined(HUB_CC_YAMORC7010)
     diagnostic +=
+        " bootstrap=" +
+        String(
+            _z21BootstrapReady
+                ? "READY"
+                : "WAIT") +
         " lb=" +
         String(
             _lbConnected
@@ -383,7 +404,13 @@ void Z21CommandCenter::loop() {
     if (
         !_online
 #if defined(HUB_CC_YAMORC7010)
-        || !_lbConnected
+        || (
+            _z21BootstrapReady &&
+            now -
+                _z21BootstrapReadyAt >=
+                FEEDBACK_START_DELAY_MS &&
+            !_lbConnected
+        )
 #endif
     ) {
       Logger::warn(
@@ -399,11 +426,29 @@ void Z21CommandCenter::loop() {
       now);
 
 #if defined(HUB_CC_YAMORC7010)
-  loopLbServer(
-      now);
+  const bool feedbackStartupReady =
+      _online &&
+      _z21BootstrapReady &&
+      _z21BootstrapReadyAt != 0 &&
+      now -
+          _z21BootstrapReadyAt >=
+          FEEDBACK_START_DELAY_MS;
 
-  loopLocoNetBinary(
-      now);
+  if (feedbackStartupReady) {
+    loopLbServer(
+        now);
+
+    loopLocoNetBinary(
+        now);
+  } else {
+    if (_lbConnected) {
+      disconnectLbServer();
+    }
+
+    if (_lnBinaryConnected) {
+      disconnectLocoNetBinary();
+    }
+  }
 #endif
 
   if (
@@ -1285,6 +1330,8 @@ bool Z21CommandCenter::requestSensorSnapshot(
       0x00,
       0x00};
 
+  // Snapshot requests stay on the authoritative Z21 UDP transport. They must
+  // never open a TCP feedback connection or start a LocoNet interrogation.
   const bool rbus0Sent =
       sendPacket(
           0x0081,
@@ -1309,38 +1356,10 @@ bool Z21CommandCenter::requestSensorSnapshot(
               loconetDetector),
           logCommand);
 
-  bool locoNetInterrogate =
-      false;
-
-#if defined(HUB_CC_YAMORC7010)
-  const bool lbReady =
-      connectLbServer();
-
-  // YaMoRC LBServer/1234 is the authoritative path. Only try the Binary
-  // side-channel as a fallback, otherwise a disabled 5560 port can stall the
-  // embedded main loop with repeated TCP connection attempts.
-  const bool binaryReady =
-      lbReady
-          ? false
-          : connectLocoNetBinary();
-
-  if (
-      lbReady ||
-      binaryReady
-  ) {
-    startLocoNetInterrogate(
-        true);
-
-    locoNetInterrogate =
-        true;
-  }
-#endif
-
   return
       rbus0Sent ||
       rbus1Sent ||
-      detectorSent ||
-      locoNetInterrogate;
+      detectorSent;
 }
 
 
@@ -2917,6 +2936,22 @@ void Z21CommandCenter::processSystemState(
   ) {
     return;
   }
+
+#if defined(HUB_CC_YAMORC7010)
+  if (!_z21BootstrapReady) {
+    _z21BootstrapReady =
+        true;
+
+    _z21BootstrapReadyAt =
+        millis();
+
+    Logger::info(
+        "Z21 bootstrap READY; delaying LocoNet feedback start by " +
+        String(
+            FEEDBACK_START_DELAY_MS) +
+        "ms");
+  }
+#endif
 
   CommandCenterCurrentTelemetry
       current;
