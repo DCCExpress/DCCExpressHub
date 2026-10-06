@@ -20,10 +20,19 @@ export type CommandCenterCapabilities = {
 
 export type CommandCenterInfo = {
   ok: boolean;
+  embedded?: boolean;
+  profile?: string;
   type: string;
   name: string;
+  transport?: string;
   defaultPort: number;
   connected: boolean;
+  host?: string;
+  port?: number;
+  feedbackLinkName?: string;
+  feedbackHost?: string;
+  feedbackPort?: number;
+  feedbackConfigurable?: boolean;
   capabilities: CommandCenterCapabilities;
   message?: string;
 };
