@@ -1328,11 +1328,6 @@ bool Z21CommandCenter::requestSensorSnapshot(
   const uint8_t rbus1[] = {
       0x01};
 
-  const uint8_t loconetDetector[] = {
-      0x80,
-      0x00,
-      0x00};
-
   // Snapshot requests stay on the authoritative Z21 UDP transport. They must
   // never open a TCP feedback connection or start a LocoNet interrogation.
   const bool rbus0Sent =
@@ -1351,18 +1346,9 @@ bool Z21CommandCenter::requestSensorSnapshot(
               rbus1),
           logCommand);
 
-  const bool detectorSent =
-      sendPacket(
-          0x00A4,
-          loconetDetector,
-          sizeof(
-              loconetDetector),
-          logCommand);
-
   return
       rbus0Sent ||
-      rbus1Sent ||
-      detectorSent;
+      rbus1Sent;
 }
 
 
