@@ -18,6 +18,7 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
         TaskCompletionSource<bool> Completion);
 
     public const int DefaultPort = 21105;
+    public const int MaxRBusOffset = 65535 - 160;
 
     // Z21 clients only need to communicate once per minute to stay registered.
     // Use a lightweight 30 s keepalive and leave system-state/current updates
@@ -54,6 +55,7 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
 
     private int _binaryPacketsObserved;
     private int _lbServerLinesObserved;
+    private int _rBusOffset;
 
     private bool _lbServerConnected;
     private DateTime _lbServerConnectedSinceUtc = DateTime.MinValue;
@@ -147,9 +149,35 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
 
         if (_locoNetPort is < 1 or > 65535)
             _locoNetPort = 5560;
+
+        SetRBusOffset(
+            configuration.GetValue(
+                "Z21:RBusOffset",
+                0));
     }
 
     protected IConfiguration Configuration { get; }
+
+    public int RBusOffset =>
+        Volatile.Read(
+            ref _rBusOffset);
+
+    public bool SetRBusOffset(
+        int offset)
+    {
+        if (offset is < 0 or > MaxRBusOffset)
+            return false;
+
+        Interlocked.Exchange(
+            ref _rBusOffset,
+            offset);
+
+        _log.LogInformation(
+            "Z21 R-BUS address offset = {Offset}",
+            offset);
+
+        return true;
+    }
     protected virtual string Z21Profile => "z21";
     protected virtual uint BroadcastFlags => RocoBroadcastFlags;
     protected virtual bool LocoNetFeedbackEnabled =>
@@ -3263,13 +3291,17 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
                  bit < 8;
                  ++bit)
             {
-                var address =
+                var rawAddress =
                     (
                         group * 10 +
                         byteIndex
                     ) * 8 +
                     bit +
                     1;
+
+                var address =
+                    rawAddress +
+                    RBusOffset;
 
                 var occupied =
                     (status &
@@ -3278,7 +3310,8 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
                 if (occupied)
                 {
                     _log.LogInformation(
-                        "Z21 R-BUS sensor #{Address}: ON (module {Module}, input {Input})",
+                        "Z21 R-BUS sensor raw #{RawAddress} -> Hub #{Address}: ON (module {Module}, input {Input})",
+                        rawAddress,
                         address,
                         group * 10 + byteIndex + 1,
                         bit + 1);
