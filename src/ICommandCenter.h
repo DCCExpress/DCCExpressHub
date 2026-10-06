@@ -153,6 +153,21 @@ public:
     return false;
   }
 
+  virtual void setFeedbackEndpoint(
+      const String& host,
+      uint16_t port) {
+    (void)host;
+    (void)port;
+  }
+
+  virtual String feedbackHost() const {
+    return String();
+  }
+
+  virtual uint16_t feedbackPort() const {
+    return 0;
+  }
+
   // Optional transport pacing. Command centers that do not need host-side
   // pacing can keep the no-op/default implementation.
   virtual void setCommandIntervalMs(
