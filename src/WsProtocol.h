@@ -132,6 +132,11 @@ public:
   void broadcastRawInfo(
       const String& raw);
 
+  void appendStatusSnapshot(
+      JsonDocument& data) {
+    appendDccExStatus(data);
+  }
+
 private:
   AsyncWebSocket& _ws;
   ICommandCenter& _commandCenter;
