@@ -1006,6 +1006,9 @@ void LocoNetClient::processInputReport(
           0x10
       ) != 0;
 
+  feedback.snapshot =
+      _interrogatePhase != 0;
+
   _sensorFeedbackCallback(
       feedback);
 }
@@ -1058,6 +1061,35 @@ void LocoNetClient::processInterrogate(
   const bool binaryReady =
       _binaryConnected &&
       _binaryClient.connected();
+
+  if (_interrogatePhase == 9) {
+    if (
+        _nextInterrogateStepAt != 0 &&
+        static_cast<long>(
+            now -
+            _nextInterrogateStepAt) < 0
+    ) {
+      return;
+    }
+
+    _interrogatePhase =
+        0;
+
+    _nextInterrogateStepAt =
+        0;
+
+    _lastInterrogateAt =
+        now;
+
+    Logger::info(
+        "LocoNet sensor snapshot complete");
+
+    if (_sensorSnapshotCompleteCallback) {
+      _sensorSnapshotCompleteCallback();
+    }
+
+    return;
+  }
 
   if (
       _interrogatePhase <
@@ -1175,28 +1207,25 @@ void LocoNetClient::processInterrogate(
 
   ++_interrogatePhase;
 
-  _nextInterrogateStepAt =
-      now +
-      INTERROGATE_INTERVAL_MS;
-
   if (
       _interrogatePhase >
           8
   ) {
+    // Keep snapshot mode active while the final interrogation replies arrive.
     _interrogatePhase =
-        0;
+        9;
 
     _nextInterrogateStepAt =
-        0;
-
-    _lastInterrogateAt =
-        now;
+        now +
+        SNAPSHOT_SETTLE_MS;
 
     Logger::info(
-        "LocoNet sensor interrogation complete");
+        "LocoNet sensor interrogation sent; settling replies");
 
-    if (_sensorSnapshotCompleteCallback) {
-      _sensorSnapshotCompleteCallback();
-    }
+    return;
   }
+
+  _nextInterrogateStepAt =
+      now +
+      INTERROGATE_INTERVAL_MS;
 }
