@@ -13,6 +13,7 @@ public sealed class DesktopSettings
     public string Protocol { get; set; } = "";
     public string TcpHost { get; set; } = "127.0.0.1";
     public int TcpPort { get; set; } = 2560;
+    public int RBusOffset { get; set; } = 0;
     public string SerialPort { get; set; } = "";
     public int SerialBaudRate { get; set; } = 115200;
     public string RunMode { get; set; } = "local";
@@ -32,6 +33,7 @@ public sealed class DesktopSettings
         Protocol = Protocol,
         TcpHost = TcpHost,
         TcpPort = TcpPort,
+        RBusOffset = RBusOffset,
         SerialPort = SerialPort,
         SerialBaudRate = SerialBaudRate,
         RunMode = RunMode,
@@ -99,6 +101,9 @@ public static class DesktopSettingsStore
 
             if (settings.TcpPort is < 1 or > 65535)
                 settings.TcpPort = 2560;
+
+            if (settings.RBusOffset is < 0 or > 65375)
+                settings.RBusOffset = 0;
 
             if (settings.SerialBaudRate <= 0)
                 settings.SerialBaudRate = 115200;
