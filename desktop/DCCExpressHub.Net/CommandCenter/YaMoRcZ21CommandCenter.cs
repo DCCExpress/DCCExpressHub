@@ -5,9 +5,12 @@ namespace DCCExpressHub.Net.CommandCenter;
 /// </summary>
 public sealed class YaMoRcZ21CommandCenter : RocoZ21CommandCenter
 {
+    public const int MaxLocoNetSensorOffset = 65535 - 4096;
+
     private const uint YaMoRcBroadcastFlags = 0x09010103;
     private readonly bool _lbServerFeedbackEnabled;
     private readonly int _lbServerPort;
+    private readonly int _locoNetSensorOffset;
 
     public YaMoRcZ21CommandCenter(
         IConfiguration configuration,
@@ -30,6 +33,14 @@ public sealed class YaMoRcZ21CommandCenter : RocoZ21CommandCenter
         if (_lbServerPort is < 1 or > 65535)
             _lbServerPort = 1234;
 
+        _locoNetSensorOffset =
+            Math.Clamp(
+                configuration.GetValue(
+                    "Z21:LocoNetSensorOffset",
+                    0),
+                0,
+                MaxLocoNetSensorOffset);
+
         _stationInfo =
             new(
                 Version: "",
@@ -50,6 +61,8 @@ public sealed class YaMoRcZ21CommandCenter : RocoZ21CommandCenter
         _lbServerFeedbackEnabled;
     protected override int LbServerPort =>
         _lbServerPort;
+    protected override int LocoNetSensorOffset =>
+        _locoNetSensorOffset;
     protected override string Z21ProcessorName =>
         "Z21 LAN + LocoNet LBServer";
     protected override string Z21HardwareName(
