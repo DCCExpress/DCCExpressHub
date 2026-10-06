@@ -866,15 +866,6 @@ void ApiServer::setupApi() {
       });
 
   _server.on(
-      "/api/command-center-status",
-      HTTP_GET,
-      [this](AsyncWebServerRequest* request) {
-        JsonDocument doc;
-        _wsProtocol.appendStatusSnapshot(doc);
-        sendJson(request, 200, doc);
-      });
-
-  _server.on(
       "/api/command-center-config",
       HTTP_GET,
       [this](AsyncWebServerRequest* request) {

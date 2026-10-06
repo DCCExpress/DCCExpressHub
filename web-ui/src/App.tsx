@@ -64,7 +64,6 @@ import {
 } from "@/services/wsClient";
 import DeviceConfigurationPage from "./DeviceConfigurationPage";
 import { useCommandCenter } from "./context/CommandCenterContext";
-import { useTrackPowerOn } from "@/hooks/useTrackPowerOn";
 import {
   createEmptyAutomationFlowDocument,
   normalizeAutomationFlowDocument,
@@ -151,7 +150,6 @@ function AppHeader({
 }) {
   const { t } = useTranslation();
   const commandCenter = useCommandCenter();
-  const trackPowerOn = useTrackPowerOn();
   const [commandCenterSettingsOpened, setCommandCenterSettingsOpened] =
     useState(false);
 
@@ -227,13 +225,13 @@ function AppHeader({
 
       <Button
         size="xs"
-        variant={trackPowerOn ? "filled" : "light"}
-        color={trackPowerOn ? "green" : "red"}
+        variant={commandCenter.powerInfo?.trackVoltageOn ? "filled" : "light"}
+        color={commandCenter.powerInfo?.trackVoltageOn ? "green" : "red"}
         leftSection={<IconPower size={16} />}
-        disabled={status !== "connected"}
-        onClick={() => wsApi.setTrackPower(!trackPowerOn)}
-        title={trackPowerOn ? t("homeHub.powerOffTitle") : t("homeHub.powerOnTitle")}
-      > {i18next.t("ui.power")} {trackPowerOn ? i18next.t("ui.on") : i18next.t("ui.off")}
+        disabled={status !== "connected" || !commandCenter.alive}
+        onClick={() => wsApi.setTrackPower(!commandCenter.powerInfo?.trackVoltageOn)}
+        title={commandCenter.powerInfo?.trackVoltageOn ? t("homeHub.powerOffTitle") : t("homeHub.powerOnTitle")}
+      > {i18next.t("ui.power")} {commandCenter.powerInfo?.trackVoltageOn ? i18next.t("ui.on") : i18next.t("ui.off")}
       </Button>
 
       {/* <Button

@@ -1,8 +1,7 @@
 param(
     [ValidateSet(
         "sunton-8048s043-dccex",
-        "sunton-8048s043-z21",
-        "sunton-8048s043-yamorc7010"
+        "sunton-8048s043-z21"
     )]
     [string]$Environment = "sunton-8048s043-dccex",
 
@@ -55,15 +54,8 @@ function Get-FirmwareTarget {
 
         "sunton-8048s043-z21" {
             return @{
-                DisplayName = "Sunton ESP32-8048S043 / Z21"
+                DisplayName = "Sunton ESP32-8048S043 / Z21 + YaMoRC"
                 FileTag = "Sunton-ESP32-8048S043-Z21"
-            }
-        }
-
-        "sunton-8048s043-yamorc7010" {
-            return @{
-                DisplayName = "Sunton ESP32-8048S043 / YaMoRC YD7010"
-                FileTag = "Sunton-ESP32-8048S043-YD7010"
             }
         }
 

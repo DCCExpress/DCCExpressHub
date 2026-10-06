@@ -198,7 +198,6 @@ function formatCommandCenterTarget(
   data: {
     type?: string;
     ip?: string;
-    host?: string;
     port?: number;
     serialPort?: string;
     connectionString?: string;
@@ -219,8 +218,7 @@ function formatCommandCenterTarget(
   }
 
   const ip =
-    data.ip?.trim() ||
-    data.host?.trim();
+    data.ip?.trim();
 
   if (!ip) {
     return null;
@@ -234,52 +232,6 @@ function formatCommandCenterTarget(
       : 2560;
 
   return `${ip}:${data.port ?? defaultPort}`;
-}
-
-async function refreshFromHttp(): Promise<void> {
-  try {
-    const response = await fetch(
-      "/api/command-center-info",
-      {
-        cache: "no-store",
-      }
-    );
-
-    if (!response.ok) {
-      return;
-    }
-
-    const data = await response.json() as {
-      connected?: boolean;
-      alive?: boolean;
-      type?: string;
-      name?: string;
-      host?: string;
-      ip?: string;
-      port?: number;
-      serialPort?: string;
-      connectionString?: string;
-    };
-
-    commandCenterAlive =
-      data.alive === true ||
-      data.connected === true;
-
-    commandCenterLabel =
-      formatCommandCenterLabel(
-        data
-      );
-
-    commandCenterTarget =
-      formatCommandCenterTarget(
-        data
-      );
-
-    paint();
-  } catch {
-    // WebSocket remains the primary live source. HTTP is only a robust
-    // hydration/fallback path for late or missed initial status frames.
-  }
 }
 
 function paintHome(): void {
@@ -488,8 +440,6 @@ installCommandCenterStatusIndicator():
         "connected"
       ) {
         commandCenterAlive = false;
-      } else {
-        void refreshFromHttp();
       }
 
       paint();
@@ -522,25 +472,6 @@ installCommandCenterStatusIndicator():
     }
   );
 
-  // A valid Z21 SYSTEMSTATE frame is authoritative proof that the command
-  // station is alive. Keep the imperative header/status-bar indicator aligned
-  // with CommandCenterContext, which uses the same rule. This also prevents a
-  // stale commandCenterInfo=false frame from leaving YaMoRC/Z21 shown offline
-  // while live Z21 telemetry is already arriving.
-  wsClient.on(
-    "z21SystemState",
-    () => {
-      if (wsStatus !== "connected") {
-        return;
-      }
-
-      commandCenterAlive =
-        true;
-
-      paint();
-    }
-  );
-
   // Kept only because the header/layout badges can be mounted after this
   // service is installed. The timer repaints existing state; it does not
   // calculate connection state or implement a heartbeat timeout.
@@ -548,11 +479,6 @@ installCommandCenterStatusIndicator():
     paint,
     PAINT_INTERVAL_MS
   );
-
-  // Hydrate immediately as well. The HTTP endpoint exists independently of
-  // WebSocket timing, so the UI should never sit on the default
-  // "Command center: ?" while the Hub is already serving the page.
-  void refreshFromHttp();
 
   paint();
 }

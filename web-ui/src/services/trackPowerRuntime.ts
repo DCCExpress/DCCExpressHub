@@ -64,46 +64,21 @@ function install(): void {
     "commandCenterInfo",
     data => {
       if (
-        typeof data.power ===
-        "boolean"
-      ) {
-        setTrackPowerRuntimeState(
-          data.power
-        );
-
-        return;
-      }
-
-      if (
         data.alive
       ) {
         return;
       }
 
-      setTrackPowerRuntimeState(
-        false
-      );
-    }
-  );
+      if (
+        !trackPowerOn
+      ) {
+        return;
+      }
 
-  wsClient.on(
-    "z21SystemState",
-    data => {
-      setTrackPowerRuntimeState(
-        data.powerInfo
-          .trackVoltageOn ===
-          true
-      );
-    }
-  );
+      trackPowerOn =
+        false;
 
-  wsClient.on(
-    "dccExStatus",
-    data => {
-      setTrackPowerRuntimeState(
-        data.trackVoltageOn ===
-        true
-      );
+      emit();
     }
   );
 

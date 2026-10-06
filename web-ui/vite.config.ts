@@ -19,11 +19,6 @@ export default defineConfig(({ mode }) => {
             changeOrigin: true,
           },
 
-          "/version.json": {
-            target: device,
-            changeOrigin: true,
-          },
-
           "/images": {
             target: device,
             changeOrigin: true,

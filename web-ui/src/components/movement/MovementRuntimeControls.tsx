@@ -35,8 +35,9 @@ import {
 } from "../../services/movementEngine";
 
 import {
-  useTrackPowerOn,
-} from "@/hooks/useTrackPowerOn";
+  isTrackPowerOn,
+  subscribeTrackPower,
+} from "../../services/trackPowerRuntime";
 
 import {
   useMovementTranslation,
@@ -82,6 +83,27 @@ export function movementRuntimeStatusColor(
   }
 
   return "gray";
+}
+
+export function useTrackPowerOn(): boolean {
+  const [
+    powerOn,
+    setPowerOn,
+  ] =
+    useState(
+      () =>
+        isTrackPowerOn()
+    );
+
+  useEffect(
+    () =>
+      subscribeTrackPower(
+        setPowerOn
+      ),
+    []
+  );
+
+  return powerOn;
 }
 
 export function useMovementRuntimeState(
