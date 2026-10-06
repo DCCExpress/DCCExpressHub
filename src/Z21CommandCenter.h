@@ -110,6 +110,12 @@ public:
         std::move(callback);
   }
 
+  void onSensorSnapshotComplete(
+      SensorSnapshotCompleteCallback callback) override {
+    _sensorSnapshotCompleteCallback =
+        std::move(callback);
+  }
+
   bool setTrackPower(
       bool on,
       bool includeProgramming = true) override;
@@ -301,6 +307,9 @@ private:
   SensorFeedbackCallback
       _sensorFeedbackCallback;
 
+  SensorSnapshotCompleteCallback
+      _sensorSnapshotCompleteCallback;
+
   ProgrammingFeedbackCallback
       _programmingFeedbackCallback;
 
@@ -318,12 +327,6 @@ private:
   // and the UI/runtime had time to consume its initial status snapshot.
   static constexpr unsigned long
       FEEDBACK_START_DELAY_MS = 3000;
-
-  // LocoNet feedback is deliberately low-rate on the embedded runtime.
-  // At most one complete LocoNet message is processed per second; any extra
-  // messages arriving inside the window are drained and discarded.
-  static constexpr unsigned long
-      LOCONET_PROCESS_INTERVAL_MS = 1000;
 
   // Interrogation is also paced at one request per second. Never burst an
   // eight-step sensor scan into the same window as the UI startup snapshot.
@@ -349,8 +352,6 @@ private:
   unsigned long _lastLbTrafficAt = 0;
   unsigned long _lastLbInterrogateAt = 0;
   unsigned long _nextLbInterrogateStepAt = 0;
-  unsigned long _nextLocoNetProcessAt = 0;
-  uint32_t _locoNetMessagesDropped = 0;
   uint8_t _lbInterrogatePhase = 0;
   char _lbLine[256] = {};
   size_t _lbLineLength = 0;
