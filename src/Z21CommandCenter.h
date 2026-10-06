@@ -222,12 +222,15 @@ private:
   // 0x00000100 system state
   // 0x00010000 all changed locomotives
   // 0x08000000 LocoNet detector feedback
-  // YD7010 additionally forwards generic LocoNet bus traffic (0x01000000),
-  // which carries OPC_INPUT_REP feedback used by S88/LocoNet bridges.
+  //
+  // YaMoRC deliberately does NOT subscribe to Z21 LocoNet broadcasts here.
+  // LBServer/1234 is the single authoritative LocoNet feedback transport and
+  // is separately staged/rate-limited after the Z21 UDP bootstrap. This avoids
+  // duplicate UDP+TCP sensor storms during UI startup.
   static constexpr uint32_t
       BROADCAST_FLAGS =
 #if defined(HUB_CC_YAMORC7010)
-          0x09010103UL;
+          0x00010103UL;
 #else
           0x08010103UL;
 #endif
