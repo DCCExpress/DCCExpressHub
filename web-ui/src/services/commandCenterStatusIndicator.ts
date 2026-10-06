@@ -472,6 +472,25 @@ installCommandCenterStatusIndicator():
     }
   );
 
+  // A valid Z21 SYSTEMSTATE frame is authoritative proof that the command
+  // station is alive. Keep the imperative header/status-bar indicator aligned
+  // with CommandCenterContext, which uses the same rule. This also prevents a
+  // stale commandCenterInfo=false frame from leaving YaMoRC/Z21 shown offline
+  // while live Z21 telemetry is already arriving.
+  wsClient.on(
+    "z21SystemState",
+    () => {
+      if (wsStatus !== "connected") {
+        return;
+      }
+
+      commandCenterAlive =
+        true;
+
+      paint();
+    }
+  );
+
   // Kept only because the header/layout badges can be mounted after this
   // service is installed. The timer repaints existing state; it does not
   // calculate connection state or implement a heartbeat timeout.
