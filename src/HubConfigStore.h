@@ -30,6 +30,11 @@ struct CommandCenterSettings {
   uint16_t port =
       CommandCenterBuild::defaultPort();
 
+  String feedbackHost;
+
+  uint16_t feedbackPort =
+      1234;
+
   bool powerIncludesProgramming =
       true;
 
