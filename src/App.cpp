@@ -615,5 +615,11 @@ void App::loop() {
     Logger::info("DISPLAY INFO requested");
   }
 
+  if (_apiServer && _apiServer->takeRestartRequest()) {
+    Logger::warn("Command center configuration saved; rebooting ESP32");
+    delay(150);
+    ESP.restart();
+  }
+
   delay(1);
 }
