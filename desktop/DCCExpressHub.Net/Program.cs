@@ -116,6 +116,12 @@ var configuredCommandCenter = app.Services.GetRequiredService<ConfiguredCommandC
 configuredCommandCenter.SetCommandIntervalMs(
     persistedCc.CommandIntervalMs);
 
+if (useRocoZ21)
+{
+    configuredCommandCenter.SetRBusOffset(
+        persistedCc.RBusOffset);
+}
+
 configuredCommandCenter.SetEndpoint(
     persistedCc.IsSerial
         ? persistedCc.SerialPort
@@ -178,6 +184,8 @@ app.MapGet("/api/command-center-config", (CommandCenterConfigStore store, IComma
         baudRate = x.IsSerial ? CommandCenterSettings.DccExSerialBaudRate : 0,
         powerIncludesProgramming = x.PowerIncludesProgramming,
         commandIntervalMs = x.CommandIntervalMs,
+        rBusOffset = useRocoZ21 ? x.RBusOffset : 0,
+        rBusOffsetConfigurable = useRocoZ21,
         connected = cc.Connected
     });
 });
@@ -226,6 +234,36 @@ app.MapPost("/api/command-center-config", async (HttpRequest req, CommandCenterC
         }
     }
 
+    var rBusOffset =
+        useRocoZ21
+            ? current.RBusOffset
+            : 0;
+
+    if (
+        useRocoZ21 &&
+        form.TryGetValue(
+            "rBusOffset",
+            out var rBusOffsetValue)
+    )
+    {
+        if (
+            !int.TryParse(
+                rBusOffsetValue.ToString(),
+                out rBusOffset) ||
+            rBusOffset is < 0 or > RocoZ21CommandCenter.MaxRBusOffset
+        )
+        {
+            return Results.Json(
+                new
+                {
+                    ok = false,
+                    message =
+                        $"R-BUS offset must be between 0 and {RocoZ21CommandCenter.MaxRBusOffset}"
+                },
+                statusCode: 400);
+        }
+    }
+
     CommandCenterSettings next;
     string endpoint;
     int endpointValue;
@@ -261,7 +299,8 @@ app.MapPost("/api/command-center-config", async (HttpRequest req, CommandCenterC
             TcpPort = current.TcpPort,
             SerialPort = serialPort,
             PowerIncludesProgramming = powerProg,
-            CommandIntervalMs = commandIntervalMs
+            CommandIntervalMs = commandIntervalMs,
+            RBusOffset = rBusOffset
         };
 
         endpoint = serialPort;
@@ -314,7 +353,8 @@ app.MapPost("/api/command-center-config", async (HttpRequest req, CommandCenterC
                 current.IsZ21
                     ? false
                     : powerProg,
-            CommandIntervalMs = commandIntervalMs
+            CommandIntervalMs = commandIntervalMs,
+            RBusOffset = rBusOffset
         };
 
         endpoint = host;
@@ -330,6 +370,17 @@ app.MapPost("/api/command-center-config", async (HttpRequest req, CommandCenterC
 
     physical.SetCommandIntervalMs(
         next.CommandIntervalMs);
+
+    if (
+        useRocoZ21 &&
+        !physical.SetRBusOffset(
+            next.RBusOffset)
+    )
+    {
+        return Results.Json(
+            new { ok = false, message = "Runtime R-BUS offset change is unavailable" },
+            statusCode: 500);
+    }
 
     if (!physical.SetEndpoint(
             endpoint,
@@ -355,6 +406,8 @@ app.MapPost("/api/command-center-config", async (HttpRequest req, CommandCenterC
         baudRate = saved.IsSerial ? CommandCenterSettings.DccExSerialBaudRate : 0,
         powerIncludesProgramming = saved.PowerIncludesProgramming,
         commandIntervalMs = saved.CommandIntervalMs,
+        rBusOffset = useRocoZ21 ? saved.RBusOffset : 0,
+        rBusOffsetConfigurable = useRocoZ21,
         connected = physical.Connected
     });
 });
