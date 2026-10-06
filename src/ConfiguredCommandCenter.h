@@ -47,6 +47,14 @@ public:
 
   bool feedbackLinkConnected() const override;
 
+  void setFeedbackEndpoint(
+      const String& host,
+      uint16_t port) override;
+
+  String feedbackHost() const override;
+
+  uint16_t feedbackPort() const override;
+
   void setCommandIntervalMs(
       uint16_t intervalMs) override;
 
