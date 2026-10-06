@@ -362,6 +362,22 @@ export default function SystemInfoPanel({
   const hub =
     telemetry?.hub;
 
+  const fallbackType =
+    commandCenter.type ??
+    undefined;
+
+  const fallbackName =
+    commandCenter.name ??
+    undefined;
+
+  const fallbackHost =
+    commandCenter.ip ??
+    undefined;
+
+  const fallbackPort =
+    commandCenter.port ??
+    undefined;
+
   // CommandCenterContext is the UI's authoritative live connection state.
   // dccExStatus is periodic telemetry and can briefly lag behind a real Z21
   // connection transition, so use it only as a compatibility fallback.
@@ -377,18 +393,29 @@ export default function SystemInfoPanel({
 
   const isZ21 =
     telemetry?.commandCenterType === "z21" ||
+    fallbackType === "z21" ||
     z21 !== null;
 
   const isYaMoRc =
     telemetry?.commandCenterProfile === "yamorc7010" ||
-    z21?.profile === "yamorc7010";
+    z21?.profile === "yamorc7010" ||
+    fallbackName === "YD7010";
 
   const commandCenterTitle =
     isYaMoRc
       ? "YD7010"
       : isZ21
         ? "Z21"
-        : "DCC-EX / EX-CSB1";
+        : fallbackName ||
+          "DCC-EX / EX-CSB1";
+
+  const targetHost =
+    telemetry?.host ??
+    fallbackHost;
+
+  const targetPort =
+    telemetry?.port ??
+    fallbackPort;
 
   const target =
     telemetry?.transport === "serial" ||
@@ -396,8 +423,8 @@ export default function SystemInfoPanel({
       ? telemetry?.serialPort
         ? `${telemetry.serialPort} @ ${telemetry.baudRate ?? 115200} baud`
         : "—"
-      : telemetry?.host
-        ? `${telemetry.host}:${telemetry.port ?? (isZ21 ? 21105 : 2560)}${isZ21 ? " / UDP" : ""}`
+      : targetHost
+        ? `${targetHost}:${targetPort ?? (isZ21 ? 21105 : 2560)}${isZ21 ? " / UDP" : ""}`
         : "—";
 
   const commandVersion =
@@ -566,12 +593,14 @@ export default function SystemInfoPanel({
             <InfoRow
               label={i18next.t("ui.trackPower")}
               value={
-                telemetry?.trackVoltageOn
+                (telemetry?.trackVoltageOn ??
+                  commandCenter.powerInfo?.trackVoltageOn)
                   ? "ON"
                   : "OFF"
               }
               color={
-                telemetry?.trackVoltageOn
+                (telemetry?.trackVoltageOn ??
+                  commandCenter.powerInfo?.trackVoltageOn)
                   ? "green"
                   : "red"
               }
