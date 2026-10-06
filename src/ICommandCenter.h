@@ -60,6 +60,11 @@ struct CommandCenterLocoFeedback {
 struct CommandCenterSensorFeedback {
   uint16_t address = 0;
   bool on = false;
+
+  // True while the command center is collecting an initial/full sensor
+  // snapshot. Runtime state must still be updated, but websocket deltas are
+  // suppressed until the snapshot-complete event sends one consolidated view.
+  bool snapshot = false;
 };
 
 struct CommandCenterProgrammingFeedback {
