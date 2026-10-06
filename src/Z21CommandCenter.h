@@ -7,7 +7,8 @@
 
 class Z21CommandCenter
     : public ICommandCenter {
-public: void begin(const String& host, uint16_t port) override;
+public:
+  void begin(const String& host, uint16_t port) override;
   void loop() override;
   bool ensureConnected() override;
   void setEndpoint(const String& host, uint16_t port) override;
@@ -78,7 +79,8 @@ public: void begin(const String& host, uint16_t port) override;
     return false;
   }
   bool sendRawCommand(String command, bool logCommand = true) override;
-protected: virtual uint32_t broadcastFlags() const {
+protected:
+  virtual uint32_t broadcastFlags() const {
     return BROADCAST_FLAGS;
   }
   bool z21SystemStateSeen() const {
@@ -88,15 +90,12 @@ protected: virtual uint32_t broadcastFlags() const {
     return _systemStateSeenAt;
   }
   bool requestRBusSnapshot(bool logCommand = false);
-private: static constexpr uint16_t DEFAULT_PORT = 21105;
-  static constexpr uint16_t
-      LOCAL_PORT = 21105;
-  static constexpr unsigned long
-      KEEPALIVE_MS = 10000;
-  static constexpr unsigned long
-      ONLINE_TIMEOUT_MS = 30000;
-  static constexpr unsigned long
-      RESOLVE_RETRY_MS = 3000;
+private:
+  static constexpr uint16_t DEFAULT_PORT = 21105;
+  static constexpr uint16_t LOCAL_PORT = 21105;
+  static constexpr unsigned long KEEPALIVE_MS = 10000;
+  static constexpr unsigned long ONLINE_TIMEOUT_MS = 30000;
+  static constexpr unsigned long RESOLVE_RETRY_MS = 3000;
 
   // Z21 broadcast subscriptions:
   // 0x00000001 driving/switching
@@ -104,14 +103,10 @@ private: static constexpr uint16_t DEFAULT_PORT = 21105;
   // 0x00000100 system state
   // 0x00010000 all changed locomotives
   // 0x08000000 LocoNet detector feedback transported by Z21 LAN.
-  static constexpr uint32_t
-      BROADCAST_FLAGS = 0x08010103UL;
-  static constexpr uint8_t
-      MAX_PACKET_BYTES = 128;
-  static constexpr uint8_t
-      MAX_PENDING_PULSES = 16;
-  static constexpr unsigned long
-      ACCESSORY_PULSE_MS = 120;
+  static constexpr uint32_t BROADCAST_FLAGS = 0x08010103UL;
+  static constexpr uint8_t MAX_PACKET_BYTES = 128;
+  static constexpr uint8_t MAX_PENDING_PULSES = 16;
+  static constexpr unsigned long ACCESSORY_PULSE_MS = 120;
   WiFiUDP _udp;
   String _host;
   uint16_t _port = DEFAULT_PORT;
@@ -125,37 +120,24 @@ private: static constexpr uint16_t DEFAULT_PORT = 21105;
   bool _systemStateSeen = false;
   unsigned long _systemStateSeenAt = 0;
   uint8_t _rbusSnapshotPendingMask = 0;
-  CommandCenterStationInfo
-      _stationInfo;
+  CommandCenterStationInfo _stationInfo;
   struct PendingAccessoryPulse {
     bool active = false;
     uint16_t functionAddress = 0;
     bool position = false;
     unsigned long dueAt = 0;
   };
-  PendingAccessoryPulse
-      _pendingPulses[
-          MAX_PENDING_PULSES];
-  RawInfoCallback
-      _rawInfoCallback;
-  StationInfoCallback
-      _stationInfoCallback;
-  TrackConfigurationCallback
-      _trackConfigurationCallback;
-  CurrentTelemetryCallback
-      _currentTelemetryCallback;
-  TripTelemetryCallback
-      _tripTelemetryCallback;
-  PowerFeedbackCallback
-      _powerFeedbackCallback;
-  LocoFeedbackCallback
-      _locoFeedbackCallback;
-  SensorFeedbackCallback
-      _sensorFeedbackCallback;
-  SensorSnapshotCompleteCallback
-      _sensorSnapshotCompleteCallback;
-  ProgrammingFeedbackCallback
-      _programmingFeedbackCallback;
+  PendingAccessoryPulse _pendingPulses[MAX_PENDING_PULSES];
+  RawInfoCallback _rawInfoCallback;
+  StationInfoCallback _stationInfoCallback;
+  TrackConfigurationCallback _trackConfigurationCallback;
+  CurrentTelemetryCallback _currentTelemetryCallback;
+  TripTelemetryCallback _tripTelemetryCallback;
+  PowerFeedbackCallback _powerFeedbackCallback;
+  LocoFeedbackCallback _locoFeedbackCallback;
+  SensorFeedbackCallback _sensorFeedbackCallback;
+  SensorSnapshotCompleteCallback _sensorSnapshotCompleteCallback;
+  ProgrammingFeedbackCallback _programmingFeedbackCallback;
   bool startUdp();
   bool resolveRemote();
   bool sendPacket(uint16_t header, const uint8_t* data, size_t dataLen, bool logPacket = false);
