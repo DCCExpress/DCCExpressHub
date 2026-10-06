@@ -934,6 +934,18 @@ void WsProtocol::sendCommandCenterInfo(
         String(
             _commandCenter.port());
 
+    data["feedbackLinkName"] =
+        _commandCenter.feedbackLinkName();
+
+    data["feedbackLinkConnected"] =
+        _commandCenter.feedbackLinkConnected();
+
+    data["feedbackHost"] =
+        _commandCenter.feedbackHost();
+
+    data["feedbackPort"] =
+        _commandCenter.feedbackPort();
+
     send(
         client,
         "commandCenterInfo",
@@ -981,6 +993,18 @@ void WsProtocol::broadcastCommandCenterInfo()
         ":" +
         String(
             _commandCenter.port());
+
+    data["feedbackLinkName"] =
+        _commandCenter.feedbackLinkName();
+
+    data["feedbackLinkConnected"] =
+        _commandCenter.feedbackLinkConnected();
+
+    data["feedbackHost"] =
+        _commandCenter.feedbackHost();
+
+    data["feedbackPort"] =
+        _commandCenter.feedbackPort();
 
     Logger::info(
         "WS commandCenterInfo broadcast alive=" +
