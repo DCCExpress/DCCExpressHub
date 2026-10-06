@@ -62,6 +62,12 @@ public:
 
   void begin();
 
+  bool takeRestartRequest() {
+    const bool requested = _restartRequested;
+    _restartRequested = false;
+    return requested;
+  }
+
 private:
   static constexpr const char* LAYOUT_PATH =
       "/config/layout.json";
@@ -96,6 +102,8 @@ private:
   WsProtocol& _wsProtocol;
   LocoCounterRuntime& _locoCounters;
   SignalAutomationEngine& _signalAutomation;
+
+  bool _restartRequested = false;
 
   std::function<bool()>
       _onLocomotivesSaved;
