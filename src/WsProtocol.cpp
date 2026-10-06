@@ -407,28 +407,64 @@ void WsProtocol::begin()
                 return;
             }
 
+            bool previous =
+                false;
+
+            const bool knownBefore =
+                _runtime.getSensorState(
+                    feedback.address,
+                    previous);
+
+            const bool changed =
+                knownBefore &&
+                previous !=
+                    feedback.on;
+
             _runtime.setSensor(
                 feedback.address,
                 feedback.on);
 
-            JsonDocument data;
-            data["address"] =
-                feedback.address;
-            data["on"] =
-                feedback.on;
+            // First observation initializes authoritative runtime state and is
+            // included in the next full sensorSnapshot. Only subsequent real
+            // changes are sent as individual websocket events.
+            if (
+                changed &&
+                _wsClientCount > 0)
+            {
+                JsonDocument data;
+                data["address"] =
+                    feedback.address;
+                data["on"] =
+                    feedback.on;
 
-            broadcast(
-                "sensorChanged",
-                data);
+                broadcast(
+                    "sensorChanged",
+                    data);
+
+                Logger::info(
+                    "Sensor changed: address=" +
+                    String(feedback.address) +
+                    " on=" +
+                    String(
+                        feedback.on
+                            ? "true"
+                            : "false"));
+            }
+        });
+
+    _commandCenter.onSensorSnapshotComplete(
+        [this]()
+        {
+            if (_wsClientCount > 0)
+            {
+                broadcastSensorSnapshot();
+            }
 
             Logger::info(
-                "Sensor runtime: address=" +
-                String(feedback.address) +
-                " on=" +
+                "Sensor snapshot complete: " +
                 String(
-                    feedback.on
-                        ? "true"
-                        : "false"));
+                    _runtime.sensorCount()) +
+                " runtime sensor(s)");
         });
 
     Logger::info(
