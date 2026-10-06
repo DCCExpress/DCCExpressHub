@@ -336,6 +336,7 @@ bool LayoutRuntime::rebuildFromLayout(const char* path) {
     _basicAccessoryStates.clear();
     _extendedAccessoryStates.clear();
     _vpinStates.clear();
+    _sensorStates.clear();
     return true;
   }
 
@@ -374,6 +375,13 @@ bool LayoutRuntime::rebuildFromLayout(const char* path) {
 
   if (error) {
     Logger::error(String("LayoutRuntime parse failed: ") + error.c_str());
+    _accessories.clear();
+    _sensors.clear();
+    _blocks.clear();
+    _basicAccessoryStates.clear();
+    _extendedAccessoryStates.clear();
+    _vpinStates.clear();
+    _sensorStates.clear();
     return false;
   }
 
