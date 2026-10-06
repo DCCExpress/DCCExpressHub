@@ -852,84 +852,11 @@ function normalizeMovementPage(
       ? raw as Record<string, unknown>
       : {};
 
-  let rawRouteRef =
+  const rawRouteRef =
     candidate.routeRef &&
     typeof candidate.routeRef === "object"
       ? candidate.routeRef as Record<string, unknown>
       : null;
-
-  if (
-    !rawRouteRef &&
-    typeof candidate.routeKey ===
-      "string" &&
-    candidate.routeKey.trim()
-  ) {
-    try {
-      const legacy =
-        JSON.parse(
-          candidate.routeKey
-        ) as unknown;
-
-      if (
-        legacy &&
-        typeof legacy ===
-          "object"
-      ) {
-        const legacyRoute =
-          legacy as Record<
-            string,
-            unknown
-          >;
-
-        const legacyBlockPath =
-          Array.isArray(
-            legacyRoute.blockPath
-          )
-            ? legacyRoute.blockPath
-            : [];
-
-        const legacyViaBlockIds =
-          legacyBlockPath
-            .map(
-              rawBlock =>
-                rawBlock &&
-                typeof rawBlock ===
-                  "object"
-                  ? positiveInteger(
-                      (
-                        rawBlock as Record<
-                          string,
-                          unknown
-                        >
-                      ).id
-                    )
-                  : null
-            )
-            .filter(
-              (
-                id
-              ): id is number =>
-                id !== null
-            );
-
-        rawRouteRef = {
-          fromBlockId:
-            legacyRoute.fromBlockId,
-          toBlockId:
-            legacyRoute.toBlockId,
-          direction:
-            legacyRoute.direction,
-          viaBlockIds:
-            legacyViaBlockIds.slice(
-              1,
-              -1
-            ),
-        };
-      }
-    } catch {
-      // Invalid legacy routeKey remains unmigrated and will fail closed below.
-    }
-  }
 
   const fromBlockId =
     positiveInteger(
