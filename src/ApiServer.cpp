@@ -821,6 +821,8 @@ void ApiServer::setupApi() {
       [this](AsyncWebServerRequest* request) {
         JsonDocument doc;
         doc["ok"] = true;
+        doc["embedded"] = true;
+        doc["profile"] = CommandCenterBuild::profile();
         doc["type"] = CommandCenterBuild::type();
         doc["name"] = CommandCenterBuild::name();
         doc["transport"] =
@@ -835,6 +837,10 @@ void ApiServer::setupApi() {
         doc["connected"] = _dcc.connected();
         doc["host"] = _dcc.host();
         doc["port"] = _dcc.port();
+        doc["feedbackLinkName"] = _dcc.feedbackLinkName();
+        doc["feedbackHost"] = _dcc.feedbackHost();
+        doc["feedbackPort"] = _dcc.feedbackPort();
+        doc["feedbackConfigurable"] = CommandCenterBuild::isYaMoRc7010();
         doc["serialPort"] = "";
         doc["baudRate"] = 0;
 
@@ -871,6 +877,9 @@ void ApiServer::setupApi() {
                 : "udp";
         doc["host"] = _dcc.host();
         doc["port"] = _dcc.port();
+        doc["feedbackHost"] = _config.commandCenter().feedbackHost;
+        doc["feedbackPort"] = _config.commandCenter().feedbackPort;
+        doc["feedbackConfigurable"] = CommandCenterBuild::isYaMoRc7010();
         doc["serialPort"] = "";
         doc["baudRate"] = 0;
         doc["powerIncludesProgramming"] = _wsProtocol.powerIncludesProgramming();
@@ -931,25 +940,68 @@ void ApiServer::setupApi() {
         settings.powerIncludesProgramming = powerIncludesProgramming;
         settings.commandIntervalMs = commandIntervalMs;
 
-        const bool persisted = _config.saveCommandCenter(settings);
-        _wsProtocol.setPowerIncludesProgramming(powerIncludesProgramming);
-        _dcc.setCommandIntervalMs(commandIntervalMs);
+        if (CommandCenterBuild::isYaMoRc7010()) {
+          String feedbackHost;
+          uint16_t feedbackPort = 0;
 
-        const bool endpointChanged = host != _dcc.host() || port != _dcc.port();
-        if (endpointChanged) {
-          Logger::info("Command center endpoint changed to " + host + ":" + String(port));
-          _dcc.setEndpoint(host, port);
+          if (!readPostValue(request, "feedbackHost", feedbackHost) ||
+              !isValidCommandCenterHost(feedbackHost)) {
+            doc["ok"] = false;
+            doc["message"] = "Invalid LocoNet host";
+            sendJson(request, 400, doc);
+            return;
+          }
+
+          String feedbackPortText;
+          if (!readPostValue(request, "feedbackPort", feedbackPortText)) {
+            doc["ok"] = false;
+            doc["message"] = "Missing LocoNet port";
+            sendJson(request, 400, doc);
+            return;
+          }
+
+          char* feedbackPortEnd = nullptr;
+          const long parsedFeedbackPort =
+              strtol(feedbackPortText.c_str(), &feedbackPortEnd, 10);
+
+          if (feedbackPortEnd == feedbackPortText.c_str() ||
+              *feedbackPortEnd != '\0' ||
+              parsedFeedbackPort < 1 ||
+              parsedFeedbackPort > 65535) {
+            doc["ok"] = false;
+            doc["message"] = "LocoNet port must be between 1 and 65535";
+            sendJson(request, 400, doc);
+            return;
+          }
+
+          settings.feedbackHost = feedbackHost;
+          settings.feedbackPort =
+              static_cast<uint16_t>(parsedFeedbackPort);
+        } else {
+          settings.feedbackHost = host;
+          settings.feedbackPort = 1234;
         }
 
-        _wsProtocol.broadcastRuntimeSnapshot();
+        const bool persisted = _config.saveCommandCenter(settings);
+
         doc["ok"] = persisted;
-        doc["host"] = _dcc.host();
-        doc["port"] = _dcc.port();
-        doc["powerIncludesProgramming"] = _wsProtocol.powerIncludesProgramming();
-        doc["commandIntervalMs"] = _dcc.commandIntervalMs();
-        doc["connected"] = _dcc.connected();
-        if (!persisted) doc["message"] = "Command center settings were applied but persistence reported an error";
-        sendJson(request, persisted ? 200 : 500, doc);
+        doc["host"] = settings.host;
+        doc["port"] = settings.port;
+        doc["feedbackHost"] = settings.feedbackHost;
+        doc["feedbackPort"] = settings.feedbackPort;
+        doc["rebooting"] = persisted;
+
+        if (!persisted) {
+          doc["message"] = "Command center settings could not be persisted";
+          sendJson(request, 500, doc);
+          return;
+        }
+
+        Logger::info(
+            "Command center configuration saved; reboot requested");
+
+        sendJson(request, 200, doc);
+        _restartRequested = true;
       });
 
   _server.on(
