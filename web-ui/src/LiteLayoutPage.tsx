@@ -1401,6 +1401,53 @@ export default function LiteLayoutPage({
   useEffect(() => wsClient.on("dccExStatus", setDccExStatus), []);
 
   useEffect(() => {
+    if (wsStatus !== "connected") {
+      return;
+    }
+
+    let active = true;
+
+    const refreshCommandCenterStatus = async (): Promise<void> => {
+      try {
+        const response = await fetch(
+          "/api/command-center-status",
+          {
+            cache: "no-store",
+          }
+        );
+
+        if (!response.ok) {
+          return;
+        }
+
+        const next =
+          await response.json() as DccExStatusPayload;
+
+        if (active) {
+          setDccExStatus(next);
+        }
+      } catch {
+        // WebSocket remains the primary transport. HTTP is a resilience path
+        // for embedded status/telemetry hydration.
+      }
+    };
+
+    void refreshCommandCenterStatus();
+
+    const timer = window.setInterval(
+      () => {
+        void refreshCommandCenterStatus();
+      },
+      2000
+    );
+
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [wsStatus]);
+
+  useEffect(() => {
     const temperature = dccExStatus?.chipTemperatureC;
     if (temperature === undefined) return;
 
