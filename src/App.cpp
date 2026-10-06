@@ -134,6 +134,10 @@ void App::loadConfiguration() {
   _commandCenter.setCommandIntervalMs(
       commandCenter.commandIntervalMs);
 
+  _commandCenter.setFeedbackEndpoint(
+      commandCenter.feedbackHost,
+      commandCenter.feedbackPort);
+
   _commandCenter.begin(
       commandCenter.host,
       commandCenter.port);
