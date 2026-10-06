@@ -145,13 +145,16 @@ export function CommandCenterProvider({
         setCommandCenterInfo(toCommandCenterInfoState(data));
 
         if (typeof data.power === "boolean") {
+          const trackPowerOn =
+            data.power;
+
           setPowerInfo(prev => ({
             emergencyStop:
               prev?.emergencyStop ?? false,
             trackVoltageOn:
-              data.power,
+              trackPowerOn,
             trackVoltageOff:
-              !data.power,
+              !trackPowerOn,
             shortCircuit:
               prev?.shortCircuit ?? false,
             programmingModeActive:
@@ -159,7 +162,7 @@ export function CommandCenterProvider({
           }));
 
           setTrackPowerRuntimeState(
-            data.power
+            trackPowerOn
           );
         }
 
