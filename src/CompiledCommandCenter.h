@@ -167,20 +167,21 @@ private:
 
 #elif defined(HUB_CC_Z21) || defined(HUB_CC_YAMORC7010)
 
+#if defined(HUB_CC_YAMORC7010)
+#include "YaMoRcZ21CommandCenter.h"
+using PhysicalZ21CommandCenter =
+    YaMoRcZ21CommandCenter;
+#else
 #include "Z21CommandCenter.h"
+using PhysicalZ21CommandCenter =
+    Z21CommandCenter;
+#endif
 
-// The Z21 firmware intentionally exposes only operations that have a safe,
-// well-defined Z21 equivalent.
-//
-// In particular, DCCExpressHub's current "programming power" abstraction is
-// DCC-EX-specific. It must never be translated into a MAIN-track power-on
-// operation merely because a caller sends setProgrammingPower(false).
-//
-// Z21 emergency stop is not a DCC-EX-style latched pause. The first toggle
-// sends the native Z21 emergency stop; the second toggle only releases the
-// Hub's visual/logic latch so normal throttle commands may continue.
+// The Z21 family firmware intentionally exposes only operations that have a
+// safe, well-defined Z21 equivalent. YaMoRC derives from the same Z21 command
+// path and adds its LocoNet feedback client by composition.
 class CompiledCommandCenter final
-    : public Z21CommandCenter {
+    : public PhysicalZ21CommandCenter {
 public:
   bool setProgrammingPower(
       bool) override {
@@ -206,7 +207,7 @@ public:
   bool emergencyStop() override {
     if (!_emergencyActive) {
       if (
-          !Z21CommandCenter::emergencyStop()
+          !PhysicalZ21CommandCenter::emergencyStop()
       ) {
         return false;
       }
