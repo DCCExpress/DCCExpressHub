@@ -7,7 +7,8 @@
 #include "ICommandCenter.h"
 
 class LocoNetClient {
-public: void configure(const String& host);
+public:
+  void configure(const String& host);
   void start();
   void stop();
   void loop();
@@ -19,21 +20,15 @@ public: void configure(const String& host);
     _sensorSnapshotCompleteCallback = std::move(callback);
   }
   bool requestSensorSnapshot(bool force = true);
-private: static constexpr uint16_t LB_SERVER_PORT = 1234;
-  static constexpr uint16_t
-      BINARY_PORT = 5560;
-  static constexpr unsigned long
-      RECONNECT_MS = 2000;
-  static constexpr unsigned long
-      RESOLVE_RETRY_MS = 3000;
-  static constexpr uint32_t
-      CONNECT_TIMEOUT_MS = 150;
-  static constexpr unsigned long
-      INTERROGATE_INTERVAL_MS = 1000;
-  static constexpr unsigned long
-      SNAPSHOT_SETTLE_MS = 1500;
-  static constexpr unsigned long
-      BINARY_FALLBACK_DELAY_MS = 5000;
+private:
+  static constexpr uint16_t LB_SERVER_PORT = 1234;
+  static constexpr uint16_t BINARY_PORT = 5560;
+  static constexpr unsigned long RECONNECT_MS = 2000;
+  static constexpr unsigned long RESOLVE_RETRY_MS = 3000;
+  static constexpr uint32_t CONNECT_TIMEOUT_MS = 150;
+  static constexpr unsigned long INTERROGATE_INTERVAL_MS = 1000;
+  static constexpr unsigned long SNAPSHOT_SETTLE_MS = 1500;
+  static constexpr unsigned long BINARY_FALLBACK_DELAY_MS = 5000;
   String _host;
   IPAddress _remoteIp;
   bool _enabled = false;
@@ -58,10 +53,8 @@ private: static constexpr uint16_t LB_SERVER_PORT = 1234;
   size_t _binaryPacketLength = 0;
   size_t _binaryExpectedLength = 0;
   uint32_t _binaryPacketsObserved = 0;
-  ICommandCenter::SensorFeedbackCallback
-      _sensorFeedbackCallback;
-  ICommandCenter::SensorSnapshotCompleteCallback
-      _sensorSnapshotCompleteCallback;
+  ICommandCenter::SensorFeedbackCallback _sensorFeedbackCallback;
+  ICommandCenter::SensorSnapshotCompleteCallback _sensorSnapshotCompleteCallback;
   bool resolveRemote();
   void loopLbServer(unsigned long now);
   bool connectLbServer();
