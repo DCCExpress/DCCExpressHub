@@ -77,6 +77,8 @@ type CommandCenterConfigDto = {
   baudRate?: number;
   powerIncludesProgramming: boolean;
   commandIntervalMs?: number;
+  rBusOffset?: number;
+  rBusOffsetConfigurable?: boolean;
   connected: boolean;
   message?: string;
 };
@@ -178,6 +180,16 @@ export default function CommandCenterSettingsDialog(
     commandIntervalMs,
     setCommandIntervalMs,
   ] = useState(25);
+
+  const [
+    rBusOffset,
+    setRBusOffset,
+  ] = useState(0);
+
+  const [
+    rBusOffsetConfigurable,
+    setRBusOffsetConfigurable,
+  ] = useState(false);
 
   const [connected, setConnected] =
     useState(false);
@@ -337,6 +349,24 @@ export default function CommandCenterSettingsDialog(
                   ),
                 )
               : 25,
+          );
+
+          setRBusOffsetConfigurable(
+            config.rBusOffsetConfigurable === true,
+          );
+
+          setRBusOffset(
+            Number.isInteger(
+              config.rBusOffset,
+            )
+              ? Math.max(
+                  0,
+                  Math.min(
+                    65375,
+                    config.rBusOffset ?? 0,
+                  ),
+                )
+              : 0,
           );
 
           setConnected(
@@ -620,6 +650,13 @@ export default function CommandCenterSettingsDialog(
                 ),
             };
 
+      if (rBusOffsetConfigurable) {
+        values.rBusOffset =
+          String(
+            rBusOffset,
+          );
+      }
+
       const response =
         await fetch(
           "/api/command-center-config",
@@ -650,6 +687,17 @@ export default function CommandCenterSettingsDialog(
         throw new Error(
           result.message ??
             "Could not save command-center settings.",
+        );
+      }
+
+      if (
+        rBusOffsetConfigurable &&
+        Number.isInteger(
+          result.rBusOffset,
+        )
+      ) {
+        setRBusOffset(
+          result.rBusOffset ?? 0,
         );
       }
 
@@ -837,7 +885,11 @@ export default function CommandCenterSettingsDialog(
               )
               : (
                 isZ21
-                  ? 500
+                  ? (
+                    rBusOffsetConfigurable
+                      ? 590
+                      : 500
+                  )
                   : 580
               ),
 
@@ -851,7 +903,11 @@ export default function CommandCenterSettingsDialog(
               )
               : (
                 isZ21
-                  ? 500
+                  ? (
+                    rBusOffsetConfigurable
+                      ? 590
+                      : 500
+                  )
                   : 580
               ),
         },
@@ -969,6 +1025,36 @@ export default function CommandCenterSettingsDialog(
                 }
               />
             </>
+          )
+        }
+
+        {
+          rBusOffsetConfigurable && (
+            <NumberInput
+              label="R-BUS offset"
+              description="Added to raw R-BUS sensor addresses. Example: offset 1000 maps 1 → 1001."
+              value={
+                rBusOffset
+              }
+              min={0}
+              max={65375}
+              step={1}
+              clampBehavior="strict"
+              onChange={
+                value =>
+                  setRBusOffset(
+                    typeof value ===
+                      "number"
+                      ? value
+                      : 0,
+                  )
+              }
+              disabled={
+                loading ||
+                saving ||
+                testing
+              }
+            />
           )
         }
 
