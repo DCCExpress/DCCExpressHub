@@ -326,6 +326,13 @@ void ConfiguredCommandCenter::onSensorFeedback(
           callback));
 }
 
+void ConfiguredCommandCenter::onSensorSnapshotComplete(
+    SensorSnapshotCompleteCallback callback) {
+  _inner.onSensorSnapshotComplete(
+      std::move(
+          callback));
+}
+
 bool ConfiguredCommandCenter::setTrackPower(
     bool on,
     bool includeProgramming) {
