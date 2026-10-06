@@ -144,11 +144,26 @@ export function CommandCenterProvider({
       (data) => {
         setCommandCenterInfo(toCommandCenterInfoState(data));
 
-        if (!data.alive) {
-          setPowerInfo(null);
+        if (typeof data.power === "boolean") {
+          setPowerInfo(prev => ({
+            emergencyStop:
+              prev?.emergencyStop ?? false,
+            trackVoltageOn:
+              data.power,
+            trackVoltageOff:
+              !data.power,
+            shortCircuit:
+              prev?.shortCircuit ?? false,
+            programmingModeActive:
+              prev?.programmingModeActive ?? false,
+          }));
+
           setTrackPowerRuntimeState(
-            false
+            data.power
           );
+        }
+
+        if (!data.alive) {
           setZ21SystemState(null);
           setLockState(emptyLockState);
         }
