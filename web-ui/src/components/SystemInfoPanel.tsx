@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useCommandCenter } from "@/context/CommandCenterContext";
+import { useTrackPowerOn } from "@/hooks/useTrackPowerOn";
 import i18next from "i18next";
 import {
   Badge,
@@ -356,6 +357,9 @@ export default function SystemInfoPanel({
   const commandCenter =
     useCommandCenter();
 
+  const trackPowerOn =
+    useTrackPowerOn();
+
   const telemetry =
     status as ExtendedDccExStatus | null;
 
@@ -593,14 +597,12 @@ export default function SystemInfoPanel({
             <InfoRow
               label={i18next.t("ui.trackPower")}
               value={
-                (telemetry?.trackVoltageOn ??
-                  commandCenter.powerInfo?.trackVoltageOn)
+                trackPowerOn
                   ? "ON"
                   : "OFF"
               }
               color={
-                (telemetry?.trackVoltageOn ??
-                  commandCenter.powerInfo?.trackVoltageOn)
+                trackPowerOn
                   ? "green"
                   : "red"
               }
