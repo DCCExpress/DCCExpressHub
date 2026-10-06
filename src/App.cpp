@@ -390,28 +390,23 @@ void App::begin() {
         "BOOT 07 OK");
   }
 
-  bootStep(
-      "08",
-      "layout runtime begin");
+  bootStep("08", "layout runtime begin");
 
-  _runtime.begin(
-      LittleFS);
+  if (!_runtime.begin(LittleFS)) {
+    Logger::warn("BOOT 08 WARN layout could not be loaded; using empty runtime");
+  } else {
+    Logger::info("BOOT 08 OK");
+  }
 
-  Logger::info(
-      "BOOT 08 OK");
+  bootStep("09", "runtime state store load");
 
-  bootStep(
-      "09",
-      "runtime state store load");
-
-  _stateStore.begin(
-      LittleFS,
-      _runtime);
-
-  _stateStore.load();
-
-  Logger::info(
-      "BOOT 09 OK");
+  if (!_stateStore.begin(LittleFS, _runtime)) {
+    Logger::warn("BOOT 09 WARN runtime state store could not be initialized");
+  } else if (!_stateStore.load()) {
+    Logger::warn("BOOT 09 WARN runtime state could not be restored");
+  } else {
+    Logger::info("BOOT 09 OK");
+  }
 
   bootStep(
       "10",
