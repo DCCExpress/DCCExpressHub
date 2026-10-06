@@ -215,6 +215,19 @@ bool ConfiguredCommandCenter::feedbackLinkConnected() const {
   return _inner.feedbackLinkConnected();
 }
 
+void ConfiguredCommandCenter::setFeedbackEndpoint(
+    const String& host,
+    uint16_t port) {
+  _inner.setFeedbackEndpoint(host, port);
+}
+
+String ConfiguredCommandCenter::feedbackHost() const {
+  return _inner.feedbackHost();
+}
+
+uint16_t ConfiguredCommandCenter::feedbackPort() const {
+  return _inner.feedbackPort();
+}
 
 void ConfiguredCommandCenter::setCommandIntervalMs(
     uint16_t intervalMs) {
