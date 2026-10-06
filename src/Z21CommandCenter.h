@@ -2,9 +2,6 @@
 
 #include <Arduino.h>
 #include <WiFiUdp.h>
-#if defined(HUB_CC_YAMORC7010)
-#include <WiFiClient.h>
-#endif
 
 #include "ICommandCenter.h"
 
@@ -38,28 +35,7 @@ public:
   }
 
   const char* name() const override {
-#if defined(HUB_CC_YAMORC7010)
-    return "YD7010";
-#else
     return "Z21";
-#endif
-  }
-
-  const char* feedbackLinkName() const override {
-#if defined(HUB_CC_YAMORC7010)
-    return "LocoNet";
-#else
-    return "";
-#endif
-  }
-
-  bool feedbackLinkConnected() const override {
-#if defined(HUB_CC_YAMORC7010)
-    // LBServer/1234 is the authoritative YaMoRC sensor link.
-    return _lbConnected;
-#else
-    return false;
-#endif
   }
 
   void onRawInfo(
@@ -107,12 +83,6 @@ public:
   void onSensorFeedback(
       SensorFeedbackCallback callback) override {
     _sensorFeedbackCallback =
-        std::move(callback);
-  }
-
-  void onSensorSnapshotComplete(
-      SensorSnapshotCompleteCallback callback) override {
-    _sensorSnapshotCompleteCallback =
         std::move(callback);
   }
 
@@ -206,6 +176,22 @@ public:
       String command,
       bool logCommand = true) override;
 
+protected:
+  virtual uint32_t broadcastFlags() const {
+    return BROADCAST_FLAGS;
+  }
+
+  bool z21SystemStateSeen() const {
+    return _systemStateSeen;
+  }
+
+  unsigned long z21SystemStateSeenAt() const {
+    return _systemStateSeenAt;
+  }
+
+  bool requestRBusSnapshot(
+      bool logCommand = false);
+
 private:
   static constexpr uint16_t
       DEFAULT_PORT = 21105;
@@ -227,20 +213,9 @@ private:
   // 0x00000002 R-BUS feedback
   // 0x00000100 system state
   // 0x00010000 all changed locomotives
-  // 0x08000000 LocoNet detector feedback
-  //
-  // YaMoRC deliberately does NOT subscribe to Z21 LocoNet broadcasts here.
-  // LBServer/1234 is the single authoritative LocoNet feedback transport and
-  // starts only after the Z21 UDP bootstrap. Incoming LocoNet feedback itself
-  // is processed at full rate; only the one-time interrogation requests are
-  // paced to avoid a startup burst.
+  // 0x08000000 LocoNet detector feedback transported by Z21 LAN.
   static constexpr uint32_t
-      BROADCAST_FLAGS =
-#if defined(HUB_CC_YAMORC7010)
-          0x00010103UL;
-#else
-          0x08010103UL;
-#endif
+      BROADCAST_FLAGS = 0x08010103UL;
 
   static constexpr uint8_t
       MAX_PACKET_BYTES = 128;
@@ -265,10 +240,8 @@ private:
   unsigned long _nextKeepaliveAt = 0;
   unsigned long _nextResolveAt = 0;
 
-#if defined(HUB_CC_YAMORC7010)
-  bool _z21BootstrapReady = false;
-  unsigned long _z21BootstrapReadyAt = 0;
-#endif
+  bool _systemStateSeen = false;
+  unsigned long _systemStateSeenAt = 0;
 
   CommandCenterStationInfo
       _stationInfo;
@@ -308,65 +281,8 @@ private:
   SensorFeedbackCallback
       _sensorFeedbackCallback;
 
-  SensorSnapshotCompleteCallback
-      _sensorSnapshotCompleteCallback;
-
   ProgrammingFeedbackCallback
       _programmingFeedbackCallback;
-
-#if defined(HUB_CC_YAMORC7010)
-  static constexpr uint16_t
-      LB_SERVER_PORT = 1234;
-
-  static constexpr uint16_t
-      LN_BINARY_PORT = 5560;
-
-  static constexpr unsigned long
-      LB_RECONNECT_MS = 2000;
-
-  // Start feedback only after the authoritative Z21 UDP bootstrap completed
-  // and the UI/runtime had time to consume its initial status snapshot.
-  static constexpr unsigned long
-      FEEDBACK_START_DELAY_MS = 3000;
-
-  // Interrogation is also paced at one request per second. Never burst an
-  // eight-step sensor scan into the same window as the UI startup snapshot.
-  static constexpr unsigned long
-      LOCONET_INTERROGATE_INTERVAL_MS = 1000;
-
-  // Prefer LBServer first. Only probe the optional Binary fallback after the
-  // primary feedback path had a few seconds to connect on its own.
-  static constexpr unsigned long
-      LOCONET_BINARY_FALLBACK_DELAY_MS = 5000;
-
-  // TCP connect runs on the ESP32 main loop. A healthy YaMoRC LBServer on
-  // the same LAN accepts within a few milliseconds; a long timeout only stalls
-  // the whole Hub when the service is unavailable. Retry frequently instead of
-  // blocking the runtime.
-  static constexpr uint32_t
-      FEEDBACK_CONNECT_TIMEOUT_MS = 150;
-
-
-  WiFiClient _lbClient;
-  bool _lbConnected = false;
-  unsigned long _nextLbConnectAt = 0;
-  unsigned long _lastLbTrafficAt = 0;
-  unsigned long _lastLbInterrogateAt = 0;
-  unsigned long _nextLbInterrogateStepAt = 0;
-  uint8_t _lbInterrogatePhase = 0;
-  char _lbLine[256] = {};
-  size_t _lbLineLength = 0;
-  uint32_t _lbLinesObserved = 0;
-  uint32_t _lbPacketsObserved = 0;
-
-  WiFiClient _lnBinaryClient;
-  bool _lnBinaryConnected = false;
-  unsigned long _nextLnBinaryConnectAt = 0;
-  uint8_t _lnBinaryPacket[128] = {};
-  size_t _lnBinaryPacketLength = 0;
-  size_t _lnBinaryExpectedLength = 0;
-  uint32_t _lnBinaryPacketsObserved = 0;
-#endif
 
   bool startUdp();
   bool resolveRemote();
@@ -388,47 +304,6 @@ private:
       bool logPacket = false);
 
   bool setBroadcastFlags();
-
-#if defined(HUB_CC_YAMORC7010)
-  void loopLbServer(
-      unsigned long now);
-
-  bool connectLbServer();
-
-  void disconnectLbServer();
-
-  void processLbServerIncoming();
-
-  void processLbServerLine(
-      const char* line);
-
-  void loopLocoNetBinary(
-      unsigned long now);
-
-  bool connectLocoNetBinary();
-
-  void disconnectLocoNetBinary();
-
-  void processLocoNetBinaryIncoming();
-
-  static size_t locoNetMessageLength(
-      const uint8_t* packet,
-      size_t packetLength);
-
-  void processLocoNetPacket(
-      const uint8_t* packet,
-      size_t length);
-
-  void processLocoNetInputReport(
-      const uint8_t* packet,
-      size_t length);
-
-  void startLocoNetInterrogate(
-      bool force);
-
-  void processLocoNetInterrogate(
-      unsigned long now);
-#endif
 
   bool sendCvDirect(
       bool write,
