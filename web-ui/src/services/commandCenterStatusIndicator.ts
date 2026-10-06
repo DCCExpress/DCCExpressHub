@@ -198,6 +198,7 @@ function formatCommandCenterTarget(
   data: {
     type?: string;
     ip?: string;
+    host?: string;
     port?: number;
     serialPort?: string;
     connectionString?: string;
@@ -218,7 +219,8 @@ function formatCommandCenterTarget(
   }
 
   const ip =
-    data.ip?.trim();
+    data.ip?.trim() ||
+    data.host?.trim();
 
   if (!ip) {
     return null;
@@ -232,6 +234,52 @@ function formatCommandCenterTarget(
       : 2560;
 
   return `${ip}:${data.port ?? defaultPort}`;
+}
+
+async function refreshFromHttp(): Promise<void> {
+  try {
+    const response = await fetch(
+      "/api/command-center-info",
+      {
+        cache: "no-store",
+      }
+    );
+
+    if (!response.ok) {
+      return;
+    }
+
+    const data = await response.json() as {
+      connected?: boolean;
+      alive?: boolean;
+      type?: string;
+      name?: string;
+      host?: string;
+      ip?: string;
+      port?: number;
+      serialPort?: string;
+      connectionString?: string;
+    };
+
+    commandCenterAlive =
+      data.alive === true ||
+      data.connected === true;
+
+    commandCenterLabel =
+      formatCommandCenterLabel(
+        data
+      );
+
+    commandCenterTarget =
+      formatCommandCenterTarget(
+        data
+      );
+
+    paint();
+  } catch {
+    // WebSocket remains the primary live source. HTTP is only a robust
+    // hydration/fallback path for late or missed initial status frames.
+  }
 }
 
 function paintHome(): void {
@@ -440,6 +488,8 @@ installCommandCenterStatusIndicator():
         "connected"
       ) {
         commandCenterAlive = false;
+      } else {
+        void refreshFromHttp();
       }
 
       paint();
@@ -498,6 +548,10 @@ installCommandCenterStatusIndicator():
     paint,
     PAINT_INTERVAL_MS
   );
+
+  if (wsClient.getStatus() === "connected") {
+    void refreshFromHttp();
+  }
 
   paint();
 }
