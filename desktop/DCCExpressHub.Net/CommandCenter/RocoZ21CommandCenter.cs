@@ -1863,6 +1863,9 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
     public async Task<bool> RequestSensorSnapshotAsync(
         CancellationToken ct = default)
     {
+        _log.LogInformation(
+            "Z21 R-BUS snapshot request: groups 0 and 1");
+
         var rbus0 =
             await SendPacketAsync(
                 0x0081,
@@ -1876,6 +1879,11 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
                 new byte[] { 0x01 },
                 false,
                 ct);
+
+        _log.LogInformation(
+            "Z21 R-BUS snapshot request sent: group0={Group0} group1={Group1}",
+            rbus0,
+            rbus1);
 
         // Standard Z21 stationary detector interrogation.
         var loconet =
@@ -3219,12 +3227,28 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
         ReadOnlySpan<byte> data)
     {
         if (data.Length < 11)
+        {
+            _log.LogWarning(
+                "Z21 R-BUS packet too short: {Length} byte(s)",
+                data.Length);
             return;
+        }
 
         var group = data[0];
 
         if (group > 1)
+        {
+            _log.LogWarning(
+                "Z21 R-BUS unsupported group {Group}",
+                group);
             return;
+        }
+
+        _log.LogInformation(
+            "Z21 R-BUS RX group {Group}: {Bytes}",
+            group,
+            Convert.ToHexString(
+                data.Slice(1, 10)));
 
         for (var byteIndex = 0;
              byteIndex < 10;
@@ -3250,6 +3274,15 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
                 var occupied =
                     (status &
                      (1 << bit)) != 0;
+
+                if (occupied)
+                {
+                    _log.LogInformation(
+                        "Z21 R-BUS sensor #{Address}: ON (module {Module}, input {Input})",
+                        address,
+                        group * 10 + byteIndex + 1,
+                        bit + 1);
+                }
 
                 SensorFeedbackChanged?.Invoke(
                     address,
