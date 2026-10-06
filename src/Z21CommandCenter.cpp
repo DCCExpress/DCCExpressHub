@@ -59,6 +59,9 @@ void Z21CommandCenter::setEndpoint(
   _systemStateSeenAt =
       0;
 
+  _rbusSnapshotPendingMask =
+      0;
+
   _remoteIp =
       IPAddress();
 
@@ -1285,9 +1288,14 @@ bool Z21CommandCenter::requestRBusSnapshot(
               rbus1),
           logCommand);
 
+  _rbusSnapshotPendingMask =
+      static_cast<uint8_t>(
+          (rbus0Sent ? 0x01 : 0x00) |
+          (rbus1Sent ? 0x02 : 0x00));
+
   return
-      rbus0Sent ||
-      rbus1Sent;
+      _rbusSnapshotPendingMask !=
+      0;
 }
 
 bool Z21CommandCenter::requestSensorSnapshot(
@@ -1946,6 +1954,17 @@ void Z21CommandCenter::processRBus(
     return;
   }
 
+  const uint8_t groupBit =
+      static_cast<uint8_t>(
+          1U <<
+          group);
+
+  const bool snapshotBatch =
+      (
+          _rbusSnapshotPendingMask &
+          groupBit
+      ) != 0;
+
   for (
       uint8_t byteIndex = 0;
       byteIndex < 10;
@@ -1991,9 +2010,27 @@ void Z21CommandCenter::processRBus(
         feedback.on =
             occupied;
 
+        feedback.snapshot =
+            snapshotBatch;
+
         _sensorFeedbackCallback(
             feedback);
       }
+    }
+  }
+
+  if (snapshotBatch) {
+    _rbusSnapshotPendingMask =
+        static_cast<uint8_t>(
+            _rbusSnapshotPendingMask &
+            ~groupBit);
+
+    if (
+        _rbusSnapshotPendingMask ==
+            0 &&
+        _sensorSnapshotCompleteCallback
+    ) {
+      _sensorSnapshotCompleteCallback();
     }
   }
 }
