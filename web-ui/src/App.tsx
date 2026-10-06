@@ -228,10 +228,7 @@ function AppHeader({
         variant={commandCenter.powerInfo?.trackVoltageOn ? "filled" : "light"}
         color={commandCenter.powerInfo?.trackVoltageOn ? "green" : "red"}
         leftSection={<IconPower size={16} />}
-        disabled={
-          status !== "connected" ||
-          (!commandCenter.alive && !commandCenter.z21SystemState)
-        }
+        disabled={status !== "connected"}
         onClick={() => wsApi.setTrackPower(!commandCenter.powerInfo?.trackVoltageOn)}
         title={commandCenter.powerInfo?.trackVoltageOn ? t("homeHub.powerOffTitle") : t("homeHub.powerOnTitle")}
       > {i18next.t("ui.power")} {commandCenter.powerInfo?.trackVoltageOn ? i18next.t("ui.on") : i18next.t("ui.off")}
