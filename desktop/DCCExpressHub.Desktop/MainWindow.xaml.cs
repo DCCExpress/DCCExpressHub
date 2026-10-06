@@ -199,6 +199,12 @@ namespace DCCExpressHub.Desktop
             RBusOffsetText.Text =
                 _settings.RBusOffset.ToString();
 
+            YaMoRcRBusOffsetText.Text =
+                _settings.YaMoRcRBusOffset.ToString();
+
+            YaMoRcLocoNetOffsetText.Text =
+                _settings.YaMoRcLocoNetOffset.ToString();
+
             HttpPortText.Text =
                 _settings.HttpPort.ToString();
 
@@ -310,6 +316,18 @@ namespace DCCExpressHub.Desktop
 
             RBusOffsetDescriptionText.Text =
                 L("rBusOffsetDescription");
+
+            YaMoRcRBusOffsetLabelText.Text =
+                L("yamorcRBusOffset");
+
+            YaMoRcRBusOffsetDescriptionText.Text =
+                L("yamorcRBusOffsetDescription");
+
+            YaMoRcLocoNetOffsetLabelText.Text =
+                L("yamorcLocoNetOffset");
+
+            YaMoRcLocoNetOffsetDescriptionText.Text =
+                L("yamorcLocoNetOffsetDescription");
 
             SerialPortLabelText.Text =
                 L("serialPort");
@@ -423,6 +441,11 @@ namespace DCCExpressHub.Desktop
 
             RBusOffsetPanel.Visibility =
                 protocol == "z21"
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
+
+            YaMoRcOffsetsPanel.Visibility =
+                protocol == "yamorc7010"
                     ? Visibility.Visible
                     : Visibility.Collapsed;
 
@@ -1090,9 +1113,38 @@ namespace DCCExpressHub.Desktop
                     settings.RBusOffset =
                         rBusOffset;
                 }
-                else
+
+                if (protocol == "yamorc7010")
                 {
-                    settings.RBusOffset = 0;
+                    if (
+                        !int.TryParse(
+                            YaMoRcRBusOffsetText.Text.Trim(),
+                            out var yaMoRcRBusOffset) ||
+                        yaMoRcRBusOffset is < 0 or > 65375
+                    )
+                    {
+                        error =
+                            L("validationYaMoRcRBusOffset");
+                        return false;
+                    }
+
+                    if (
+                        !int.TryParse(
+                            YaMoRcLocoNetOffsetText.Text.Trim(),
+                            out var yaMoRcLocoNetOffset) ||
+                        yaMoRcLocoNetOffset is < 0 or > 61439
+                    )
+                    {
+                        error =
+                            L("validationYaMoRcLocoNetOffset");
+                        return false;
+                    }
+
+                    settings.YaMoRcRBusOffset =
+                        yaMoRcRBusOffset;
+
+                    settings.YaMoRcLocoNetOffset =
+                        yaMoRcLocoNetOffset;
                 }
             }
             else
@@ -1284,6 +1336,8 @@ namespace DCCExpressHub.Desktop
             TcpHostText.IsEnabled = !busy;
             TcpPortText.IsEnabled = !busy;
             RBusOffsetText.IsEnabled = !busy;
+            YaMoRcRBusOffsetText.IsEnabled = !busy;
+            YaMoRcLocoNetOffsetText.IsEnabled = !busy;
             SerialPortCombo.IsEnabled = !busy;
             RefreshSerialButton.IsEnabled = !busy;
             LocalModeRadio.IsEnabled = !busy;
@@ -1975,6 +2029,15 @@ namespace DCCExpressHub.Desktop
                 (
                     _settings.Protocol == "z21"
                         ? _settings.RBusOffset
+                        : _settings.Protocol == "yamorc7010"
+                            ? _settings.YaMoRcRBusOffset
+                            : 0
+                ).ToString();
+
+            psi.Environment["Z21__LocoNetSensorOffset"] =
+                (
+                    _settings.Protocol == "yamorc7010"
+                        ? _settings.YaMoRcLocoNetOffset
                         : 0
                 ).ToString();
 
