@@ -53,6 +53,9 @@ private:
       INTERROGATE_INTERVAL_MS = 1000;
 
   static constexpr unsigned long
+      SNAPSHOT_SETTLE_MS = 1500;
+
+  static constexpr unsigned long
       BINARY_FALLBACK_DELAY_MS = 5000;
 
   String _host;
