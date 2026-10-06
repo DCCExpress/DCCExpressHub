@@ -231,8 +231,9 @@ private:
   //
   // YaMoRC deliberately does NOT subscribe to Z21 LocoNet broadcasts here.
   // LBServer/1234 is the single authoritative LocoNet feedback transport and
-  // is separately staged/rate-limited after the Z21 UDP bootstrap. This avoids
-  // duplicate UDP+TCP sensor storms during UI startup.
+  // starts only after the Z21 UDP bootstrap. Incoming LocoNet feedback itself
+  // is processed at full rate; only the one-time interrogation requests are
+  // paced to avoid a startup burst.
   static constexpr uint32_t
       BROADCAST_FLAGS =
 #if defined(HUB_CC_YAMORC7010)
