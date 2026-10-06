@@ -1872,7 +1872,7 @@ void Z21CommandCenter::processLocoNetBinaryIncoming() {
 
       raw.toUpperCase();
 
-      _rawInfoCallback(
+      Logger::info(
           raw);
     }
 
@@ -1963,10 +1963,9 @@ void Z21CommandCenter::processLbServerLine(
 
   if (
       _lbLinesObserved <=
-          12 &&
-      _rawInfoCallback
+          12
   ) {
-    _rawInfoCallback(
+    Logger::info(
         "YD7010 LB RX " +
         String(
             line));
@@ -2094,10 +2093,9 @@ void Z21CommandCenter::processLocoNetPacket(
   ) {
     if (
         _lbPacketsObserved <=
-            12 &&
-        _rawInfoCallback
+            12
     ) {
-      _rawInfoCallback(
+      Logger::warn(
           "YD7010 LB invalid checksum opcode=0x" +
           String(
               packet[0],
@@ -2212,18 +2210,6 @@ void Z21CommandCenter::processLocoNetInputReport(
           in2 &
           0x10
       ) != 0;
-
-  if (_rawInfoCallback) {
-    _rawInfoCallback(
-        "YD7010 sensor #" +
-        String(
-            address) +
-        (
-            occupied
-                ? " ON"
-                : " OFF"
-        ));
-  }
 
   if (_sensorFeedbackCallback) {
     CommandCenterSensorFeedback
