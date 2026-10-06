@@ -3,14 +3,26 @@
 #include "Logger.h"
 
 void YaMoRcZ21CommandCenter::begin(const String& host, uint16_t port) {
-  _locoNet.configure(host);
+  if (_locoNetHost.isEmpty()) {
+    _locoNetHost = host;
+  }
+  _locoNet.configure(_locoNetHost, _locoNetPort);
   _locoNetStarted = false;
   Z21CommandCenter::begin(host, port);
 }
 
+void YaMoRcZ21CommandCenter::setFeedbackEndpoint(
+    const String& host,
+    uint16_t port) {
+  stopLocoNet();
+  _locoNetHost = host;
+  _locoNetHost.trim();
+  _locoNetPort = port == 0 ? 1234 : port;
+  _locoNet.configure(_locoNetHost, _locoNetPort);
+}
+
 void YaMoRcZ21CommandCenter::setEndpoint(const String& host, uint16_t port) {
   stopLocoNet();
-  _locoNet.configure(host);
   Z21CommandCenter::setEndpoint(host, port);
 }
 
