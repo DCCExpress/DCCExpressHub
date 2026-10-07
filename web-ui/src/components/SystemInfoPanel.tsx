@@ -375,6 +375,9 @@ export default function SystemInfoPanel({
   const z21 =
     telemetry?.z21 ?? null;
 
+  const locoNet =
+    telemetry?.locoNet ?? null;
+
   const isZ21 =
     telemetry?.commandCenterType === "z21" ||
     z21 !== null;
@@ -749,7 +752,7 @@ export default function SystemInfoPanel({
           </Stack>
         </Card>
 
-        {isYaMoRc && z21 && (
+        {isYaMoRc && locoNet && (
           <Card withBorder p="sm">
             <Stack gap="xs">
               <Group justify="space-between">
@@ -759,17 +762,17 @@ export default function SystemInfoPanel({
 
                 <Badge
                   color={
-                    z21.lbServerConnected
+                    locoNet.lbServerConnected
                       ? "green"
                       : "red"
                   }
                   variant={
-                    z21.lbServerConnected
+                    locoNet.lbServerConnected
                       ? "light"
                       : "filled"
                   }
                 >
-                  {z21.lbServerConnected
+                  {locoNet.lbServerConnected
                     ? i18next.t("ui.online")
                     : i18next.t("ui.offline")}
                 </Badge>
@@ -778,10 +781,10 @@ export default function SystemInfoPanel({
               <InfoRow
                 label={i18next.t("ui.lbServer")}
                 value={
-                  `${telemetry?.host ?? "—"}:${z21.lbServerPort} / TCP`
+                  `${locoNet.host || "—"}:${locoNet.lbServerPort} / TCP`
                 }
                 color={
-                  z21.lbServerConnected
+                  locoNet.lbServerConnected
                     ? "green"
                     : "red"
                 }
@@ -789,14 +792,14 @@ export default function SystemInfoPanel({
 
               <InfoRow
                 label={i18next.t("ui.lbServerVersion")}
-                value={z21.lbServerVersion || "—"}
+                value={locoNet.lbServerVersion || "—"}
                 color="violet"
               />
 
               <InfoRow
                 label={i18next.t("ui.lbServerUptime")}
                 value={formatUptime(
-                  z21.lbServerUptimeMs,
+                  locoNet.lbServerUptimeMs,
                 )}
                 color="teal"
               />
@@ -804,7 +807,7 @@ export default function SystemInfoPanel({
               <InfoRow
                 label={i18next.t("ui.lbServerRx")}
                 value={
-                  `${z21.lbServerLinesObserved} · ${formatAge(z21.lastLbServerRxAgeMs)}`
+                  `${locoNet.lbServerLinesObserved} · ${formatAge(locoNet.lastLbServerRxAgeMs)}`
                 }
                 color="cyan"
               />
@@ -818,10 +821,10 @@ export default function SystemInfoPanel({
               <InfoRow
                 label={i18next.t("ui.s88FeedbackReports")}
                 value={String(
-                  z21.sensorFeedbackCount,
+                  locoNet.sensorFeedbackCount,
                 )}
                 color={
-                  z21.sensorFeedbackCount > 0
+                  locoNet.sensorFeedbackCount > 0
                     ? "green"
                     : "yellow"
                 }
@@ -830,13 +833,13 @@ export default function SystemInfoPanel({
               <InfoRow
                 label={i18next.t("ui.lastS88Feedback")}
                 value={
-                  z21.sensorFeedbackCount > 0 &&
-                  z21.lastSensorAddress > 0
-                    ? `#${z21.lastSensorAddress} ${z21.lastSensorOn ? "ON" : "OFF"} · ${formatAge(z21.lastSensorFeedbackAgeMs)}`
+                  locoNet.sensorFeedbackCount > 0 &&
+                  locoNet.lastSensorAddress > 0
+                    ? `#${locoNet.lastSensorAddress} ${locoNet.lastSensorOn ? "ON" : "OFF"} · ${formatAge(locoNet.lastSensorFeedbackAgeMs)}`
                     : "—"
                 }
                 color={
-                  z21.sensorFeedbackCount > 0
+                  locoNet.sensorFeedbackCount > 0
                     ? "green"
                     : "yellow"
                 }
@@ -845,12 +848,12 @@ export default function SystemInfoPanel({
               <InfoRow
                 label={i18next.t("ui.sensorInterrogation")}
                 value={
-                  z21.interrogateEnabled
-                    ? `${i18next.t("ui.enabled")} · ${formatAge(z21.lastInterrogateAgeMs)}`
+                  locoNet.interrogateEnabled
+                    ? `${i18next.t("ui.enabled")} · ${formatAge(locoNet.lastInterrogateAgeMs)}`
                     : i18next.t("ui.disabled")
                 }
                 color={
-                  z21.interrogateEnabled
+                  locoNet.interrogateEnabled
                     ? "green"
                     : "red"
                 }
