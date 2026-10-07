@@ -33,9 +33,9 @@ or the existing configuration key/environment variable:
 
 ## Linux launcher script
 
-For normal headless Linux use, run:
+For normal headless Linux use, run the repository-root launcher:
 
-    ./run-linux.sh
+    ../../run-linux.sh
 
 On the first run it asks which command center to use:
 
@@ -52,14 +52,15 @@ That file is ignored by Git through the repository's `.env.*` rule.
 
 Useful commands:
 
-    ./run-linux.sh --configure   # change command center/settings and launch
-    ./run-linux.sh --show        # show the saved profile
-    ./run-linux.sh --build       # build the backend
-    ./run-linux.sh --help
+    ../../run-linux.sh --configure   # change command center/settings and launch
+    ../../run-linux.sh --show        # show the saved profile
+    ../../run-linux.sh --build       # build the backend
+    ../../run-linux.sh --help
 
-The launcher sets `DCCEXPRESS_CONTENT_ROOT`, `DCCEXPRESS_WEB_ROOT` and
-`DCCEXPRESS_HTTP_URL` automatically, so it can be started from any working
-directory.
+The launcher lives in the repository root and sets `DCCEXPRESS_CONTENT_ROOT`,
+`DCCEXPRESS_WEB_ROOT` and `DCCEXPRESS_HTTP_URL` automatically. The local
+`.env.linux` profile is still stored beside the backend project under
+`desktop/DCCExpressHub.Net/`.
 
 ## Filesystem roots
 
