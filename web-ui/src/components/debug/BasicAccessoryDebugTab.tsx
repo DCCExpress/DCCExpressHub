@@ -2,13 +2,13 @@ import {
   Badge,
   Group,
   ScrollArea,
-  Stack,
   Switch,
   Table,
   Text,
 } from "@mantine/core";
 
 import { wsApi } from "@/services/wsApi";
+import DebugLayoutOwnerCells from "./DebugLayoutOwnerCells";
 import type {
   BasicAccessoryDebugState,
   BasicAccessoryLayoutOwners,
@@ -55,40 +55,7 @@ export default function BasicAccessoryDebugTab({
             return (
             <Table.Tr key={address}>
               <Table.Td><Badge variant="light" color="gray">{address}</Badge></Table.Td>
-              <Table.Td>
-                {owners.length ? (
-                  <Stack gap={2}>
-                    {owners.map((owner, index) => (
-                      <Badge
-                        key={`${owner.type}:${owner.name}:${index}`}
-                        variant="light"
-                        color="blue"
-                        size="sm"
-                      >
-                        {owner.type}
-                      </Badge>
-                    ))}
-                  </Stack>
-                ) : (
-                  <Text size="sm" c="dimmed">—</Text>
-                )}
-              </Table.Td>
-              <Table.Td>
-                {owners.length ? (
-                  <Stack gap={2}>
-                    {owners.map((owner, index) => (
-                      <Text
-                        key={`${owner.type}:${owner.name}:${index}`}
-                        size="sm"
-                      >
-                        {owner.name}
-                      </Text>
-                    ))}
-                  </Stack>
-                ) : (
-                  <Text size="sm" c="dimmed">—</Text>
-                )}
-              </Table.Td>
+              <DebugLayoutOwnerCells owners={owners} />
               <Table.Td>
                 <Badge color={state.value ? "green" : "gray"} variant={state.value ? "filled" : "light"}>
                   {state.value ? "1 / ON" : "0 / OFF"}
