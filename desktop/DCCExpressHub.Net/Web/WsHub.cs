@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Channels;
 using DCCExpressHub.Net.CommandCenter;
 
 namespace DCCExpressHub.Net.Web;
@@ -24,6 +25,25 @@ public sealed class WsHub
     private readonly FastClockRuntime FastClock;
     private readonly ConcurrentDictionary<Guid, IHubWebSocketClient> Clients = new();
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+
+    private readonly Channel<QueuedBroadcast> _stateBroadcastQueue =
+        Channel.CreateBounded<QueuedBroadcast>(
+            new BoundedChannelOptions(256)
+            {
+                SingleReader = true,
+                SingleWriter = false,
+                FullMode = BoundedChannelFullMode.Wait
+            });
+
+    private readonly SemaphoreSlim _runtimeSnapshotGate =
+        new(
+            1,
+            1);
+
+    private int _stateBroadcastResyncRequested;
+
+    private sealed record QueuedBroadcast(
+        byte[] Payload);
     private readonly object _programmingGate = new();
     private readonly object _audioAckGate = new();
     private Guid? _audioSubscriberConnectionId;
@@ -42,7 +62,7 @@ public sealed class WsHub
     private static readonly TimeSpan WebSocketSendTimeout = TimeSpan.FromSeconds(2);
     public int ClientCount => Clients.Count;
 
-    public WsHub(ICommandCenter cc, HubState state, LayoutRuntime runtime, RuntimeStateStore stateStore, CommandCenterConfigStore ccConfig, LocoCounterRuntime locoCounters, FastClockRuntime fastClock, SwitchManManager switchMan, DispatcherRuntime dispatcher, MovementRuntime movement, TrainTrackingRuntime trainTracking, ScriptRuntime scripts, FlowRuntime flows, TimetableRuntime timetable, ILogger<WsHub> log)
+    public WsHub(ICommandCenter cc, HubState state, LayoutRuntime runtime, RuntimeStateStore stateStore, CommandCenterConfigStore ccConfig, LocoCounterRuntime locoCounters, FastClockRuntime fastClock, SwitchManManager switchMan, DispatcherRuntime dispatcher, MovementRuntime movement, TrainTrackingRuntime trainTracking, ScriptRuntime scripts, FlowRuntime flows, TimetableRuntime timetable, ILogger<WsHub> log, IHostApplicationLifetime lifetime)
     {
         CommandCenter = cc;
         HubState = state;
@@ -58,48 +78,109 @@ public sealed class WsHub
         Flows = flows;
         Timetable = timetable;
         CommandCenterConfigStore = ccConfig;
-        LayoutRuntime.Changed += (type, data) => _ = Broadcast(type, data);
-        SwitchMan.Changed += snapshot => _ = Broadcast("switchManChanged", new { locks = snapshot ?? SwitchMan.Snapshot() });
-        Dispatcher.Changed += snapshot => _ = Broadcast(
-            "dispatcherChanged",
-            new
-            {
-                leases =
-                    snapshot ??
-                    Dispatcher.Snapshot(),
-                routes =
-                    Dispatcher.RouteSnapshot()
-            });
-        Movement.Changed += state => _ = Broadcast("movementStateChanged", state);
+        LayoutRuntime.Changed +=
+            (type, data) =>
+                QueueStateBroadcast(
+                    type,
+                    data);
+        SwitchMan.Changed +=
+            snapshot =>
+                QueueStateBroadcast(
+                    "switchManChanged",
+                    new
+                    {
+                        locks =
+                            snapshot ??
+                            SwitchMan.Snapshot()
+                    });
+        Dispatcher.Changed +=
+            snapshot =>
+                QueueStateBroadcast(
+                    "dispatcherChanged",
+                    new
+                    {
+                        leases =
+                            snapshot ??
+                            Dispatcher.Snapshot(),
+                        routes =
+                            Dispatcher.RouteSnapshot()
+                    });
+        Movement.Changed +=
+            state =>
+                QueueStateBroadcast(
+                    "movementStateChanged",
+                    state);
         Movement.AudioRequested += request => _ = HandleMovementAudioRequest(request);
-        Movement.LocoChanged += loco => _ = BroadcastLoco(loco);
-        Movement.PowerStateChanged += () => _ = BroadcastPower();
+        Movement.LocoChanged +=
+            loco =>
+                QueueLocoBroadcast(
+                    loco);
+        Movement.PowerStateChanged +=
+            () =>
+                QueuePowerBroadcast();
         Movement.SafetyEmergencyStop += trip =>
             _ = Broadcast(
                 "safetyEmergencyStop",
                 trip);
 
-        TrainTracking.Changed += state =>
-            _ = Broadcast(
-                "trainTrackingChanged",
-                state);
+        TrainTracking.Changed +=
+            state =>
+                QueueStateBroadcast(
+                    "trainTrackingChanged",
+                    state);
 
-        Scripts.Changed += state => _ = Broadcast("automationScriptStateChanged", state);
-        Scripts.LogChanged += entry => _ = Broadcast("automationScriptLog", entry);
+        Scripts.Changed +=
+            state =>
+                QueueStateBroadcast(
+                    "automationScriptStateChanged",
+                    state);
+        Scripts.LogChanged +=
+            entry =>
+                QueueStateBroadcast(
+                    "automationScriptLog",
+                    entry,
+                    resyncOnDrop:
+                        false);
         Scripts.AudioRequested += request => _ = HandleScriptAudioRequest(request);
-        Scripts.LocoChanged += loco => _ = BroadcastLoco(loco);
-        Scripts.PowerStateChanged += () => _ = BroadcastPower();
+        Scripts.LocoChanged +=
+            loco =>
+                QueueLocoBroadcast(
+                    loco);
+        Scripts.PowerStateChanged +=
+            () =>
+                QueuePowerBroadcast();
 
-        Flows.Changed += state => _ = Broadcast("flowStateChanged", state);
-        Flows.LogChanged += entry => _ = Broadcast("flowLog", entry);
+        Flows.Changed +=
+            state =>
+                QueueStateBroadcast(
+                    "flowStateChanged",
+                    state);
+        Flows.LogChanged +=
+            entry =>
+                QueueStateBroadcast(
+                    "flowLog",
+                    entry,
+                    resyncOnDrop:
+                        false);
 
-        Timetable.Changed += state => _ = Broadcast("timetableStateChanged", state);
+        Timetable.Changed +=
+            state =>
+                QueueStateBroadcast(
+                    "timetableStateChanged",
+                    state);
         Logger = log;
 
-        LocoCounters.Changed += () =>
-            _ = Broadcast(
-                "locoCounterSnapshot",
-                LocoCounters.Snapshot());
+        _ = Task.Run(
+            () =>
+                StateBroadcastLoop(
+                    lifetime.ApplicationStopping),
+            CancellationToken.None);
+
+        LocoCounters.Changed +=
+            () =>
+                QueueStateBroadcast(
+                    "locoCounterSnapshot",
+                    LocoCounters.Snapshot());
 
         cc.RawInfo += raw =>
         {
@@ -107,9 +188,16 @@ public sealed class WsHub
             if (CommandCenter.EmergencyPauseStateKnown && HubState.EmergencyStop != CommandCenter.EmergencyPaused)
             {
                 HubState.EmergencyStop = CommandCenter.EmergencyPaused;
-                _ = BroadcastPower();
+                QueuePowerBroadcast();
             }
-            _ = Broadcast("rawInfo", new { raw });
+            QueueStateBroadcast(
+                "rawInfo",
+                new
+                {
+                    raw
+                },
+                resyncOnDrop:
+                    false);
         };
         cc.StationInfoChanged += x => HubState.Station = x;
         cc.TrackConfigurationChanged += x => HubState.Tracks.GetOrAdd(x.Index, _ => new()).Mode = x.Mode;
@@ -139,14 +227,15 @@ public sealed class WsHub
                 _ = LocoCounters.SaveAsync();
             }
 
-            _ = BroadcastPower();
+            QueuePowerBroadcast();
         };
 
         cc.LocoFeedbackChanged += x =>
         {
             HubState.Locos[x.Address] = x;
             LocoCounters.UpdateLoco(x);
-            _ = BroadcastLoco(x);
+            QueueLocoBroadcast(
+                x);
         };
         cc.ConnectionChanged += connected =>
         {
@@ -164,12 +253,134 @@ public sealed class WsHub
             // connectivity. Push the authoritative state immediately when the
             // TCP/Serial transport changes instead of waiting for the next
             // browser heartbeat.
-            _ = Broadcast(
+            QueueStateBroadcast(
                 "commandCenterInfo",
                 CommandCenterInfo());
 
-            _ = BroadcastStatus();
+            QueueStateBroadcast(
+                "dccExStatus",
+                Status());
         };
+    }
+
+    private void QueueStateBroadcast(
+        string type,
+        object data,
+        bool resyncOnDrop = true)
+    {
+        if (Clients.IsEmpty)
+            return;
+
+        var payload =
+            SerializeMessage(
+                type,
+                data);
+
+        if (
+            !_stateBroadcastQueue.Writer
+                .TryWrite(
+                    new QueuedBroadcast(
+                        payload)) &&
+            resyncOnDrop
+        )
+        {
+            Interlocked.Exchange(
+                ref _stateBroadcastResyncRequested,
+                1);
+        }
+    }
+
+    private void QueuePowerBroadcast() =>
+        QueueStateBroadcast(
+            "powerInfo",
+            new
+            {
+                emergencyStop =
+                    HubState.EmergencyStop,
+                trackVoltageOn =
+                    HubState.TrackPower,
+                trackVoltageOff =
+                    !HubState.TrackPower,
+                shortCircuit =
+                    false,
+                programmingModeActive =
+                    HubState.ProgrammingPower,
+                programmingJoined =
+                    HubState.ProgrammingJoined
+            });
+
+    private void QueueLocoBroadcast(
+        LocoFeedback loco) =>
+        QueueStateBroadcast(
+            "locoState",
+            new
+            {
+                address =
+                    loco.Address,
+                speed =
+                    loco.Speed,
+                forward =
+                    loco.Forward,
+                functionsMask =
+                    loco.FunctionsMask
+            });
+
+    private async Task StateBroadcastLoop(
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (
+                await _stateBroadcastQueue
+                    .Reader
+                    .WaitToReadAsync(
+                        cancellationToken)
+            )
+            {
+                while (
+                    _stateBroadcastQueue
+                        .Reader
+                        .TryRead(
+                            out var item)
+                )
+                {
+                    await BroadcastSerialized(
+                        item.Payload);
+
+                    if (
+                        Interlocked.Exchange(
+                            ref _stateBroadcastResyncRequested,
+                            0) != 0
+                    )
+                    {
+                        // The bounded state queue overflowed. Intermediate
+                        // telemetry may be stale, so discard the remaining
+                        // lossy state updates and send one authoritative
+                        // runtime snapshot instead.
+                        while (
+                            _stateBroadcastQueue
+                                .Reader
+                                .TryRead(
+                                    out _)
+                        )
+                        {
+                        }
+
+                        await BroadcastRuntimeSnapshotCore();
+                        break;
+                    }
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(
+                ex,
+                "WebSocket state broadcast loop failed");
+        }
     }
 
     private void CompleteAudioWait(
@@ -2626,6 +2837,8 @@ public sealed class WsHub
 
     private async Task BroadcastRuntimeSnapshotCore()
     {
+        await _runtimeSnapshotGate.WaitAsync();
+
         try
         {
             await Broadcast(
@@ -2643,7 +2856,13 @@ public sealed class WsHub
         }
         catch (Exception ex)
         {
-            Logger.LogWarning(ex, "Runtime snapshot broadcast failed");
+            Logger.LogWarning(
+                ex,
+                "Runtime snapshot broadcast failed");
+        }
+        finally
+        {
+            _runtimeSnapshotGate.Release();
         }
     }
 
@@ -2881,50 +3100,83 @@ public sealed class WsHub
         });
     }
 
-    public async Task Broadcast(string type, object data)
+    public Task Broadcast(
+        string type,
+        object data) =>
+        BroadcastSerialized(
+            SerializeMessage(
+                type,
+                data));
+
+    private async Task BroadcastSerialized(
+        byte[] payload)
     {
-        foreach (var kv in Clients.ToArray())
+        foreach (
+            var kv in
+                Clients.ToArray()
+        )
         {
             try
             {
-                await Send(kv.Value, type, data);
+                await SendSerialized(
+                    kv.Value,
+                    payload);
             }
             catch (OperationCanceledException)
             {
-                Clients.TryRemove(kv.Key, out _);
-                await SafeClose(kv.Value);
+                Clients.TryRemove(
+                    kv.Key,
+                    out _);
+
+                await SafeClose(
+                    kv.Value);
             }
             catch
             {
-                Clients.TryRemove(kv.Key, out _);
-                await SafeClose(kv.Value);
+                Clients.TryRemove(
+                    kv.Key,
+                    out _);
+
+                await SafeClose(
+                    kv.Value);
             }
         }
     }
 
-    private static async Task Send(
+    private static Task Send(
         IHubWebSocketClient ws,
         string type,
-        object data)
+        object data) =>
+        SendSerialized(
+            ws,
+            SerializeMessage(
+                type,
+                data));
+
+    private static byte[] SerializeMessage(
+        string type,
+        object data) =>
+        JsonSerializer.SerializeToUtf8Bytes(
+            new
+            {
+                type,
+                data
+            },
+            Json);
+
+    private static async Task SendSerialized(
+        IHubWebSocketClient ws,
+        byte[] payload)
     {
         if (!ws.IsConnected)
             return;
-
-        var bytes =
-            JsonSerializer.SerializeToUtf8Bytes(
-                new
-                {
-                    type,
-                    data
-                },
-                Json);
 
         using var timeout =
             new CancellationTokenSource(
                 WebSocketSendTimeout);
 
         await ws.SendTextAsync(
-            bytes,
+            payload,
             timeout.Token);
     }
 
