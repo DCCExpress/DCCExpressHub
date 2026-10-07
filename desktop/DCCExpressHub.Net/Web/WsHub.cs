@@ -315,14 +315,20 @@ public sealed class WsHub
             "locoState",
             new
             {
-                address =
-                    loco.Address,
-                speed =
-                    loco.Speed,
-                forward =
-                    loco.Forward,
-                functionsMask =
-                    loco.FunctionsMask
+                loco =
+                    new
+                    {
+                        address =
+                            loco.Address,
+                        speed =
+                            loco.Speed,
+                        direction =
+                            loco.Forward
+                                ? "forward"
+                                : "reverse",
+                        functionsMask =
+                            loco.FunctionsMask
+                    }
             });
 
     private async Task StateBroadcastLoop(
