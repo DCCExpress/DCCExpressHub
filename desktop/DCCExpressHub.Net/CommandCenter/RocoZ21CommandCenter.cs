@@ -57,6 +57,12 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
     private int _rBusOffset;
     private readonly bool[] _rBusKnown = new bool[160];
     private readonly bool[] _rBusStates = new bool[160];
+    private readonly byte[][] _rBusLastGroupPayloads =
+    [
+        new byte[10],
+        new byte[10]
+    ];
+    private readonly bool[] _rBusGroupPayloadKnown = new bool[2];
 
     private DateTime _onlineSinceUtc = DateTime.MinValue;
 
@@ -513,6 +519,19 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
                 _rBusStates,
                 0,
                 _rBusStates.Length);
+
+            Array.Clear(
+                _rBusGroupPayloadKnown,
+                0,
+                _rBusGroupPayloadKnown.Length);
+
+            foreach (var payload in _rBusLastGroupPayloads)
+            {
+                Array.Clear(
+                    payload,
+                    0,
+                    payload.Length);
+            }
         }
     }
 
@@ -2482,11 +2501,42 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
             return;
         }
 
-        _log.LogDebug(
-            "Z21 R-BUS RX group {Group}: {Bytes}",
-            group,
-            Convert.ToHexString(
-                data.Slice(1, 10)));
+        var groupPayload =
+            data.Slice(
+                1,
+                10);
+
+        bool groupPayloadChanged;
+
+        lock (_stateGate)
+        {
+            groupPayloadChanged =
+                !_rBusGroupPayloadKnown[
+                    group] ||
+                !groupPayload.SequenceEqual(
+                    _rBusLastGroupPayloads[
+                        group]);
+
+            if (groupPayloadChanged)
+            {
+                groupPayload.CopyTo(
+                    _rBusLastGroupPayloads[
+                        group]);
+
+                _rBusGroupPayloadKnown[
+                    group] =
+                    true;
+            }
+        }
+
+        if (groupPayloadChanged)
+        {
+            _log.LogInformation(
+                "Z21 R-BUS RAW group {Group} changed: {Bytes}",
+                group,
+                Convert.ToHexString(
+                    groupPayload));
+        }
 
         for (var byteIndex = 0;
              byteIndex < 10;
