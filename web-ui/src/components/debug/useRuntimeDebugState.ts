@@ -31,6 +31,14 @@ export type TurnoutDebugState =
 export type BasicAccessoryDebugState =
   Map<number, DebugStateValue<boolean>>;
 
+export type BasicAccessoryLayoutOwner = {
+  type: string;
+  name: string;
+};
+
+export type BasicAccessoryLayoutOwners =
+  Map<number, BasicAccessoryLayoutOwner[]>;
+
 export type ExtendedAccessoryDebugState =
   Map<number, DebugStateValue<number>>;
 
@@ -56,6 +64,145 @@ function turnoutMode(value: unknown): TurnoutConfig["outputMode"] {
   if (value === "extended") return "extended";
   if (value === "vpin") return "vpin";
   return "accessory";
+}
+
+function buildBasicAccessoryLayoutOwners(
+  layoutValue: unknown
+): BasicAccessoryLayoutOwners {
+  const result: BasicAccessoryLayoutOwners = new Map();
+  const layout = objectValue(layoutValue);
+  const layers = Array.isArray(layout?.layers) ? layout.layers : [];
+
+  const add = (
+    addressValue: unknown,
+    type: string,
+    name: string
+  ) => {
+    const address = integerValue(addressValue);
+    if (address <= 0 || address > 65535) return;
+
+    const owners = result.get(address) ?? [];
+
+    if (
+      !owners.some(
+        owner =>
+          owner.type === type &&
+          owner.name === name
+      )
+    ) {
+      owners.push({ type, name });
+      result.set(address, owners);
+    }
+  };
+
+  const addRange = (
+    startValue: unknown,
+    countValue: unknown,
+    type: string,
+    name: string
+  ) => {
+    const start = integerValue(startValue);
+    const count = Math.max(1, integerValue(countValue, 1));
+
+    if (start <= 0 || start > 65535) return;
+
+    for (let offset = 0; offset < count; offset += 1) {
+      add(start + offset, type, name);
+    }
+  };
+
+  for (const rawLayer of layers) {
+    const layer = objectValue(rawLayer);
+    const elements = Array.isArray(layer?.elements) ? layer.elements : [];
+
+    for (const rawElement of elements) {
+      const element = objectValue(rawElement);
+      if (!element) continue;
+
+      const type = String(element.type ?? "");
+      const name = String(element.name ?? "").trim() || "—";
+
+      const isTurnout = [
+        "trackturnout",
+        "trackturnoutleft",
+        "trackturnoutright",
+        "trackturnoutdouble",
+        "trackturnouttwoway",
+        "trackturnouttreeway",
+      ].includes(type);
+
+      if (isTurnout) {
+        if (turnoutMode(element.outputMode) !== "accessory") {
+          continue;
+        }
+
+        if (
+          type === "trackturnoutdouble" ||
+          type === "trackturnouttreeway"
+        ) {
+          add(element.turnout1Address, type, name);
+          add(element.turnout2Address, type, name);
+        } else {
+          add(
+            integerValue(element.turnoutAddress) ||
+              integerValue(element.address),
+            type,
+            name
+          );
+        }
+
+        continue;
+      }
+
+      if (type === "button") {
+        if (element.outputMode !== "extended") {
+          add(element.address, type, name);
+        }
+        continue;
+      }
+
+      const signalOutput = objectValue(element.signalOutput);
+
+      if (type === "tracklevelcrossing") {
+        if (signalOutput?.protocol === "dcc") {
+          addRange(
+            signalOutput.address,
+            signalOutput.outputCount,
+            type,
+            name
+          );
+        } else if (!signalOutput) {
+          add(element.basicAccessoryAddress, type, name);
+        }
+        continue;
+      }
+
+      if (
+        type === "tracksignal" ||
+        type === "tracksignal2" ||
+        type === "tracksignal3" ||
+        type === "tracksignal4"
+      ) {
+        if (signalOutput?.protocol === "dcc") {
+          addRange(
+            signalOutput.address,
+            signalOutput.outputCount,
+            type,
+            name
+          );
+        } else if (!signalOutput) {
+          addRange(
+            element.address,
+            element.addressLength,
+            type,
+            name
+          );
+        }
+      }
+    }
+  }
+
+  return result;
 }
 
 function buildTurnoutConfig(layoutValue: unknown): Map<number, TurnoutConfig> {
@@ -151,6 +298,12 @@ export function useRuntimeDebugState(
   const [basicAccessories, setBasicAccessories] =
     useState<BasicAccessoryDebugState>(() => new Map());
 
+  const [
+    basicAccessoryLayoutOwners,
+    setBasicAccessoryLayoutOwners,
+  ] =
+    useState<BasicAccessoryLayoutOwners>(() => new Map());
+
   const [extendedAccessories, setExtendedAccessories] =
     useState<ExtendedAccessoryDebugState>(() => new Map());
 
@@ -168,8 +321,14 @@ export function useRuntimeDebugState(
     try {
       const response = await fetch("/api/layout", { cache: "no-store" });
       if (response.ok) {
+        const layoutValue = await response.json();
+
         turnoutConfigRef.current =
-          buildTurnoutConfig(await response.json());
+          buildTurnoutConfig(layoutValue);
+
+        setBasicAccessoryLayoutOwners(
+          buildBasicAccessoryLayoutOwners(layoutValue)
+        );
       }
     } catch {
       // Runtime snapshot is still useful even if layout metadata fetch fails.
@@ -507,6 +666,7 @@ export function useRuntimeDebugState(
       sensors,
       turnouts,
       basicAccessories,
+      basicAccessoryLayoutOwners,
       extendedAccessories,
       refresh,
       connected,
@@ -515,6 +675,7 @@ export function useRuntimeDebugState(
       sensors,
       turnouts,
       basicAccessories,
+      basicAccessoryLayoutOwners,
       extendedAccessories,
       refresh,
       connected,
