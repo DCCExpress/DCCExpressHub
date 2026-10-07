@@ -36,6 +36,13 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
     private readonly ILogger _log;
     private readonly object _stateGate = new();
     private readonly SemaphoreSlim _connectGate = new(1, 1);
+    // One shared gate for all Basic DCC magnetic-accessory pulses.
+    //
+    // Z21 Q=1 officially supports queued/mixed turnout commands, but keeping
+    // each ON -> OFF -> settle cycle globally serialized prevents large route
+    // bursts from overwhelming compatible command stations/decoders and keeps
+    // deactivate timing deterministic across concurrent Movement/SwitchMan
+    // owners.
     private readonly SemaphoreSlim _accessoryGate = new(1, 1);
     private readonly System.Collections.Concurrent.ConcurrentDictionary<int, SemaphoreSlim> _turnoutGates = new();
     private readonly SemaphoreSlim _txSignal = new(0);
@@ -1569,6 +1576,9 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
         await gate.WaitAsync(
             ct);
 
+        var accessoryGateHeld =
+            false;
+
         var functionAddress =
             address - 1;
 
@@ -1576,6 +1586,11 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
 
         try
         {
+            await _accessoryGate.WaitAsync(
+                ct);
+
+            accessoryGateHeld =
+                true;
             _log.LogInformation(
                 "Z21 turnout #{Address}: physical={PhysicalValue}, functionAddress={FunctionAddress}, Q=1, activeMs={ActiveMs}",
                 address,
@@ -1653,6 +1668,9 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
                         address);
                 }
             }
+
+            if (accessoryGateHeld)
+                _accessoryGate.Release();
 
             gate.Release();
         }
