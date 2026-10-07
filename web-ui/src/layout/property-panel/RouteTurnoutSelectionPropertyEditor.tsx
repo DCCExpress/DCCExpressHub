@@ -9,6 +9,7 @@ import {
   Group,
   Modal,
   ScrollArea,
+  Select,
   Stack,
   Table,
   Text,
@@ -29,7 +30,7 @@ import {
 } from "../../models/editor/elements/TrackTurnoutThreeWayElement";
 import ElementPreview from "../../models/editor/rendering/ElementPreviewRenderer";
 import { useCommandCenter } from "../../context/CommandCenterContext";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { showWarningMessage } from "../../helpers";
 import { executeLegacyRouteButton } from "../../services/routeButtonExecutor";
 import {
@@ -155,6 +156,20 @@ export default function RouteTurnoutSelectionPropertyEditor({
   >([]);
 
   const [
+    fromFilter,
+    setFromFilter,
+  ] = useState<string | null>(
+    null
+  );
+
+  const [
+    toFilter,
+    setToFilter,
+  ] = useState<string | null>(
+    null
+  );
+
+  const [
     routeSelectError,
     setRouteSelectError,
   ] = useState<string | null>(
@@ -171,6 +186,14 @@ export default function RouteTurnoutSelectionPropertyEditor({
 
     try {
       setRouteSelectError(
+        null
+      );
+
+      setFromFilter(
+        null
+      );
+
+      setToFilter(
         null
       );
 
@@ -216,6 +239,101 @@ export default function RouteTurnoutSelectionPropertyEditor({
       routeSelectRequest,
     ]
   );
+
+  const routeFilterOptions =
+    useMemo(
+      () => {
+        const from =
+          new Set<string>();
+
+        const to =
+          new Set<string>();
+
+        for (
+          const candidate of
+          routeCandidates
+        ) {
+          from.add(
+            candidate.fromBlockName
+          );
+
+          to.add(
+            candidate.toBlockName
+          );
+        }
+
+        const sortOptions =
+          (
+            values:
+              Iterable<string>
+          ) =>
+            Array.from(
+              values
+            )
+              .sort(
+                (
+                  left,
+                  right
+                ) =>
+                  left.localeCompare(
+                    right,
+                    undefined,
+                    {
+                      numeric:
+                        true,
+                      sensitivity:
+                        "base",
+                    }
+                  )
+              )
+              .map(
+                value => ({
+                  value,
+                  label:
+                    value,
+                })
+              );
+
+        return {
+          from:
+            sortOptions(
+              from
+            ),
+          to:
+            sortOptions(
+              to
+            ),
+        };
+      },
+      [
+        routeCandidates,
+      ]
+    );
+
+  const filteredRouteCandidates =
+    useMemo(
+      () =>
+        routeCandidates.filter(
+          candidate =>
+            (
+              fromFilter ===
+                null ||
+              candidate.fromBlockName ===
+                fromFilter
+            ) &&
+            (
+              toFilter ===
+                null ||
+              candidate.toBlockName ===
+                toFilter
+            )
+        ),
+      [
+        routeCandidates,
+        fromFilter,
+        toFilter,
+      ]
+    );
 
   const applyRouteCandidate = (
     candidate:
@@ -390,6 +508,49 @@ export default function RouteTurnoutSelectionPropertyEditor({
             )}
           </Text>
 
+          <Group
+            grow
+            align="flex-end"
+          >
+            <Select
+              label={
+                i18next.t(
+                  "ui.from"
+                )
+              }
+              data={
+                routeFilterOptions.from
+              }
+              value={
+                fromFilter
+              }
+              onChange={
+                setFromFilter
+              }
+              searchable
+              clearable
+            />
+
+            <Select
+              label={
+                i18next.t(
+                  "ui.to"
+                )
+              }
+              data={
+                routeFilterOptions.to
+              }
+              value={
+                toFilter
+              }
+              onChange={
+                setToFilter
+              }
+              searchable
+              clearable
+            />
+          </Group>
+
           {routeSelectError && (
             <Alert
               color="red"
@@ -470,7 +631,25 @@ export default function RouteTurnoutSelectionPropertyEditor({
                   </Table.Thead>
 
                   <Table.Tbody>
-                    {routeCandidates.map(
+                    {filteredRouteCandidates.length === 0 && (
+                      <Table.Tr>
+                        <Table.Td
+                          colSpan={5}
+                        >
+                          <Text
+                            c="dimmed"
+                            ta="center"
+                            size="sm"
+                          >
+                            {i18next.t(
+                              "ui.noUnusedGeneratedRoutes"
+                            )}
+                          </Text>
+                        </Table.Td>
+                      </Table.Tr>
+                    )}
+
+                    {filteredRouteCandidates.map(
                       candidate => (
                         <Table.Tr
                           key={
