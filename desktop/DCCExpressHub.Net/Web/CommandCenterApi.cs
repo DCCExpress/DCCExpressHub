@@ -26,7 +26,7 @@ public sealed class CommandCenterApi
     readonly ConfiguredCommandCenter _physical;
     readonly ICommandCenter _commandCenter;
     readonly WsHub _ws;
-    readonly bool _useRocoZ21;
+    readonly bool _useZ21RBus;
 
     public CommandCenterApi(
         CommandCenterConfigStore store,
@@ -40,11 +40,18 @@ public sealed class CommandCenterApi
         _commandCenter = commandCenter;
         _ws = ws;
 
-        _useRocoZ21 =
+        var protocol =
+            (configuration["CommandCenter:Protocol"] ?? "")
+                .Trim();
+
+        _useZ21RBus =
             string.Equals(
-                (configuration["CommandCenter:Protocol"] ?? "")
-                    .Trim(),
+                protocol,
                 "z21",
+                StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(
+                protocol,
+                "yamorc7010",
                 StringComparison.OrdinalIgnoreCase);
     }
 
@@ -69,11 +76,11 @@ public sealed class CommandCenterApi
                 commandIntervalMs =
                     x.CommandIntervalMs,
                 rBusOffset =
-                    _useRocoZ21
+                    _useZ21RBus
                         ? x.RBusOffset
                         : 0,
                 rBusOffsetConfigurable =
-                    _useRocoZ21,
+                    _useZ21RBus,
                 connected =
                     _commandCenter.Connected
             });
@@ -141,12 +148,12 @@ public sealed class CommandCenterApi
         }
 
         var rBusOffset =
-            _useRocoZ21
+            _useZ21RBus
                 ? current.RBusOffset
                 : 0;
 
         if (
-            _useRocoZ21 &&
+            _useZ21RBus &&
             request.RBusOffset is not null
         )
         {
@@ -305,7 +312,7 @@ public sealed class CommandCenterApi
             next.CommandIntervalMs);
 
         if (
-            _useRocoZ21 &&
+            _useZ21RBus &&
             !_physical.SetRBusOffset(
                 next.RBusOffset)
         )
@@ -368,11 +375,11 @@ public sealed class CommandCenterApi
                 commandIntervalMs =
                     saved.CommandIntervalMs,
                 rBusOffset =
-                    _useRocoZ21
+                    _useZ21RBus
                         ? saved.RBusOffset
                         : 0,
                 rBusOffsetConfigurable =
-                    _useRocoZ21,
+                    _useZ21RBus,
                 connected =
                     _physical.Connected
             });
