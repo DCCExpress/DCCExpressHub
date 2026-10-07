@@ -50,6 +50,7 @@ type CommandCenterCapabilities = {
   turnoutControl: boolean;
   basicAccessory: boolean;
   signalAspect: boolean;
+  locoNet?: boolean;
 };
 
 type CommandCenterInfoDto = {
@@ -92,6 +93,19 @@ type CommandCenterTestDto = {
 
   reply?: string;
   elapsedMs?: number;
+  message?: string;
+};
+
+type LocoNetTestDto = {
+  ok: boolean;
+  tcpConnected: boolean;
+  host?: string;
+  port?: number;
+  reply?: string;
+  elapsedMs?: number;
+  backgroundConnected?: boolean;
+  lbServerVersion?: string;
+  lbServerLinesObserved?: number;
   message?: string;
 };
 
@@ -211,6 +225,20 @@ export default function CommandCenterSettingsDialog(
       null,
     );
 
+  const [
+    locoNetTesting,
+    setLocoNetTesting,
+  ] =
+    useState(false);
+
+  const [
+    locoNetTestResult,
+    setLocoNetTestResult,
+  ] =
+    useState<LocoNetTestDto | null>(
+      null,
+    );
+
   const [error, setError] =
     useState("");
 
@@ -221,6 +249,10 @@ export default function CommandCenterSettingsDialog(
   const isSerial =
     transport ===
     "serial";
+
+  const hasLocoNet =
+    info?.capabilities
+      .locoNet === true;
 
   const commandCenterName =
     info?.name ??
@@ -254,6 +286,7 @@ export default function CommandCenterSettingsDialog(
         setLoading(true);
         setError("");
         setTestResult(null);
+        setLocoNetTestResult(null);
 
         try {
           const [
@@ -593,6 +626,80 @@ export default function CommandCenterSettingsDialog(
     }
   }
 
+  async function testLocoNetConnection():
+    Promise<void> {
+    const cleanHost =
+      host.trim();
+
+    if (!cleanHost) {
+      setLocoNetTestResult({
+        ok: false,
+        tcpConnected: false,
+        message:
+          i18next.t("ui.ipAddressHostnameIsRequired"),
+      });
+
+      return;
+    }
+
+    setLocoNetTesting(true);
+    setError("");
+    setLocoNetTestResult(null);
+
+    try {
+      const response =
+        await fetch(
+          "/api/command-center-loconet-test",
+          {
+            method:
+              "POST",
+
+            headers: {
+              "Content-Type":
+                "application/x-www-form-urlencoded;charset=UTF-8",
+            },
+
+            body:
+              formBody({
+                host:
+                  cleanHost,
+              }),
+          },
+        );
+
+      let result:
+        LocoNetTestDto;
+
+      try {
+        result =
+          await response.json() as
+            LocoNetTestDto;
+      } catch {
+        result = {
+          ok: false,
+          tcpConnected: false,
+          message:
+            i18next.t("ui.invalidTestResponseHttp", { value1: response.status }),
+        };
+      }
+
+      setLocoNetTestResult(
+        result,
+      );
+    } catch (cause) {
+      setLocoNetTestResult({
+        ok: false,
+        tcpConnected: false,
+        message:
+          cause instanceof Error
+            ? cause.message
+            : String(cause),
+      });
+    } finally {
+      setLocoNetTesting(false);
+    }
+  }
+
   async function saveConfig():
     Promise<void> {
     const endpoint =
@@ -858,6 +965,90 @@ export default function CommandCenterSettingsDialog(
       ],
     );
 
+  const locoNetPresentation =
+    useMemo(
+      () => {
+        let color =
+          "gray";
+
+        let title =
+          "LocoNet / LBServer test";
+
+        let message =
+          "Press LOCONET TEST to verify the YaMoRC LBServer service independently from Z21.";
+
+        let reply =
+          "LBServer: —";
+
+        let elapsed =
+          "Elapsed: —";
+
+        if (locoNetTesting) {
+          title =
+            "Testing LocoNet / LBServer...";
+
+          message =
+            `Checking ${host.trim() || "host"}:1234`;
+
+          reply =
+            "Waiting for LBServer TCP connection...";
+        } else if (locoNetTestResult) {
+          color =
+            locoNetTestResult.ok
+              ? "green"
+              : "red";
+
+          title =
+            locoNetTestResult.ok
+              ? "LocoNet / LBServer connection OK"
+              : "LocoNet / LBServer connection failed";
+
+          message =
+            locoNetTestResult.message ??
+            (
+              locoNetTestResult.ok
+                ? "The YaMoRC LBServer accepted the connection."
+                : "The YaMoRC LBServer did not accept the connection."
+            );
+
+          const target =
+            `${(locoNetTestResult.host ?? host.trim()) || "—"}:${locoNetTestResult.port ?? 1234}`;
+
+          const background =
+            locoNetTestResult.backgroundConnected
+              ? "feedback ONLINE"
+              : "feedback OFFLINE";
+
+          const version =
+            locoNetTestResult.lbServerVersion?.trim() ||
+            locoNetTestResult.reply?.trim() ||
+            "no version";
+
+          reply =
+            `${target} · ${background} · ${version} · lines ${locoNetTestResult.lbServerLinesObserved ?? 0}`;
+
+          elapsed =
+            locoNetTestResult.elapsedMs ===
+              undefined
+                ? "Elapsed: —"
+                : `Elapsed: ${locoNetTestResult.elapsedMs} ms`;
+        }
+
+        return {
+          color,
+          title,
+          message,
+          reply,
+          elapsed,
+        };
+      },
+      [
+        host,
+        locoNetTestResult,
+        locoNetTesting,
+      ],
+    );
+
   return (
     <Modal
       opened={opened}
@@ -867,48 +1058,58 @@ export default function CommandCenterSettingsDialog(
       centered
       closeOnClickOutside={
         !saving &&
-        !testing
+        !testing &&
+        !locoNetTesting
       }
       closeOnEscape={
         !saving &&
-        !testing
+        !testing &&
+        !locoNetTesting
       }
       styles={{
         content: {
           height:
-            info?.capabilities
-              .programmingTrackPower
-              ? (
-                isZ21
-                  ? 570
-                  : 650
-              )
+            hasLocoNet
+              ? 720
               : (
-                isZ21
+                info?.capabilities
+                  .programmingTrackPower
                   ? (
-                    rBusOffsetConfigurable
-                      ? 590
-                      : 500
+                    isZ21
+                      ? 570
+                      : 650
                   )
-                  : 580
+                  : (
+                    isZ21
+                      ? (
+                        rBusOffsetConfigurable
+                          ? 590
+                          : 500
+                      )
+                      : 580
+                  )
               ),
 
           maxHeight:
-            info?.capabilities
-              .programmingTrackPower
-              ? (
-                isZ21
-                  ? 570
-                  : 650
-              )
+            hasLocoNet
+              ? 720
               : (
-                isZ21
+                info?.capabilities
+                  .programmingTrackPower
                   ? (
-                    rBusOffsetConfigurable
-                      ? 590
-                      : 500
+                    isZ21
+                      ? 570
+                      : 650
                   )
-                  : 580
+                  : (
+                    isZ21
+                      ? (
+                        rBusOffsetConfigurable
+                          ? 590
+                          : 500
+                      )
+                      : 580
+                  )
               ),
         },
 
@@ -979,7 +1180,8 @@ export default function CommandCenterSettingsDialog(
               disabled={
                 loading ||
                 saving ||
-                testing
+                testing ||
+                locoNetTesting
               }
             />
           ) : (
@@ -1052,7 +1254,8 @@ export default function CommandCenterSettingsDialog(
               disabled={
                 loading ||
                 saving ||
-                testing
+                testing ||
+                locoNetTesting
               }
             />
           )
@@ -1083,7 +1286,8 @@ export default function CommandCenterSettingsDialog(
               disabled={
                 loading ||
                 saving ||
-                testing
+                testing ||
+                locoNetTesting
               }
             />
           )
@@ -1105,7 +1309,8 @@ export default function CommandCenterSettingsDialog(
               disabled={
                 loading ||
                 saving ||
-                testing
+                testing ||
+                locoNetTesting
               }
               label={i18next.t("ui.powerButtonAlsoControlsTheProgTrack")}
               description={
@@ -1161,6 +1366,54 @@ export default function CommandCenterSettingsDialog(
           </Stack>
         </Alert>
 
+        {
+          hasLocoNet && (
+            <Alert
+              color={
+                locoNetPresentation.color
+              }
+              variant="light"
+              style={{
+                height:
+                  112,
+
+                overflowY:
+                  "auto",
+
+                flexShrink:
+                  0,
+              }}
+            >
+              <Stack gap={4}>
+                <Text
+                  size="sm"
+                  fw={700}
+                >
+                  {locoNetPresentation.title}
+                </Text>
+
+                <Text size="xs">
+                  {locoNetPresentation.message}
+                </Text>
+
+                <Text
+                  size="xs"
+                  ff="monospace"
+                >
+                  {locoNetPresentation.reply}
+                </Text>
+
+                <Text
+                  size="xs"
+                  c="dimmed"
+                >
+                  {locoNetPresentation.elapsed}
+                </Text>
+              </Stack>
+            </Alert>
+          )
+        }
+
         <Text
           size="xs"
           c="red"
@@ -1182,25 +1435,55 @@ export default function CommandCenterSettingsDialog(
           justify="space-between"
           mt="auto"
         >
-          <Button
-            variant="light"
-            color="cyan"
-            leftSection={
-              <IconPlugConnected
-                size={16}
-              />
-            }
-            loading={testing}
-            disabled={
-              loading ||
-              saving
-            }
-            onClick={
-              () => {
-                void testConnection();
+          <Group gap="xs">
+            <Button
+              variant="light"
+              color="cyan"
+              leftSection={
+                <IconPlugConnected
+                  size={16}
+                />
               }
+              loading={testing}
+              disabled={
+                loading ||
+                saving ||
+                locoNetTesting
+              }
+              onClick={
+                () => {
+                  void testConnection();
+                }
+              }
+            > {isZ21 ? "Z21 TEST" : i18next.t("ui.test")} </Button>
+
+            {
+              hasLocoNet && (
+                <Button
+                  variant="light"
+                  color="grape"
+                  leftSection={
+                    <IconPlugConnected
+                      size={16}
+                    />
+                  }
+                  loading={
+                    locoNetTesting
+                  }
+                  disabled={
+                    loading ||
+                    saving ||
+                    testing
+                  }
+                  onClick={
+                    () => {
+                      void testLocoNetConnection();
+                    }
+                  }
+                > LOCONET TEST </Button>
+              )
             }
-          > {i18next.t("ui.test")} </Button>
+          </Group>
 
           <Group gap="xs">
             <Button
@@ -1209,7 +1492,8 @@ export default function CommandCenterSettingsDialog(
               onClick={onClose}
               disabled={
                 saving ||
-                testing
+                testing ||
+                locoNetTesting
               }
             > {i18next.t("ui.cancel")} </Button>
 
@@ -1223,7 +1507,8 @@ export default function CommandCenterSettingsDialog(
               loading={saving}
               disabled={
                 loading ||
-                testing
+                testing ||
+                locoNetTesting
               }
               onClick={
                 () => {
