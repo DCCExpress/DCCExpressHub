@@ -90,6 +90,25 @@ public sealed class ConfiguredCommandCenter : ICommandCenter
             ? yamorc.LocoNetDiagnostics
             : null;
 
+    public Task<LocoNetConnectionTestResult?> TestLocoNetConnectionAsync(
+        string? hostOverride = null,
+        CancellationToken ct = default) =>
+        _inner is YaMoRcZ21CommandCenter yamorc
+            ? TestYaMoRcLocoNetConnectionAsync(
+                yamorc,
+                hostOverride,
+                ct)
+            : Task.FromResult<LocoNetConnectionTestResult?>(
+                null);
+
+    private static async Task<LocoNetConnectionTestResult?> TestYaMoRcLocoNetConnectionAsync(
+        YaMoRcZ21CommandCenter yamorc,
+        string? hostOverride,
+        CancellationToken ct) =>
+        await yamorc.TestLocoNetConnectionAsync(
+            hostOverride,
+            ct);
+
     public void SetCommandIntervalMs(int intervalMs)
     {
         if (_inner is DccExCommandCenter dccEx)
