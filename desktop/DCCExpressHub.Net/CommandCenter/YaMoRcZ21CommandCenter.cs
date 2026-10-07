@@ -70,6 +70,24 @@ public sealed class YaMoRcZ21CommandCenter : RocoZ21CommandCenter
     public LocoNetRuntimeDiagnostics LocoNetDiagnostics =>
         _locoNet.Diagnostics;
 
+    public new bool SetEndpoint(
+        string host,
+        int port)
+    {
+        if (!base.SetEndpoint(
+                host,
+                port))
+        {
+            return false;
+        }
+
+        return
+            _locoNet.SetHost(
+                host) &&
+            _xpressNet.SetHost(
+                host);
+    }
+
     protected override async Task ExecuteAsync(
         CancellationToken stoppingToken)
     {
