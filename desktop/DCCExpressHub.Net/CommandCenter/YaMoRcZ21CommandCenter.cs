@@ -3,8 +3,9 @@ namespace DCCExpressHub.Net.CommandCenter;
 /// <summary>
 /// YaMoRC YD7010 composition root.
 ///
-/// The YD7010 exposes two independent protocols to the Hub:
-///   - Z21 LAN for command-station control and R-BUS feedback;
+/// The YD7010 exposes independent network protocols to the Hub:
+///   - Z21 LAN for command-station control;
+///   - XpressNet-LAN for XBus/R-BUS feedback;
 ///   - LocoNet/LBServer for LocoNet and bridged S88 feedback.
 ///
 /// The protocol implementations stay separate and are only aggregated here
@@ -13,6 +14,7 @@ namespace DCCExpressHub.Net.CommandCenter;
 public sealed class YaMoRcZ21CommandCenter : RocoZ21CommandCenter
 {
     private readonly YaMoRcLocoNetClient _locoNet;
+    private readonly YaMoRcXpressNetClient _xpressNet;
 
     public YaMoRcZ21CommandCenter(
         IConfiguration configuration,
@@ -27,10 +29,21 @@ public sealed class YaMoRcZ21CommandCenter : RocoZ21CommandCenter
                 configuration,
                 log);
 
+        _xpressNet =
+            new YaMoRcXpressNetClient(
+                configuration,
+                log);
+
         _locoNet.RawInfo +=
             PublishRawInfo;
 
         _locoNet.SensorFeedbackChanged +=
+            PublishSensorFeedback;
+
+        _xpressNet.RawInfo +=
+            PublishRawInfo;
+
+        _xpressNet.SensorFeedbackChanged +=
             PublishSensorFeedback;
 
         _stationInfo =
@@ -60,33 +73,38 @@ public sealed class YaMoRcZ21CommandCenter : RocoZ21CommandCenter
     protected override async Task ExecuteAsync(
         CancellationToken stoppingToken)
     {
+        var z21Task =
+            base.ExecuteAsync(
+                stoppingToken);
+
         var locoNetTask =
             _locoNet.RunAsync(
                 stoppingToken);
 
+        var xpressNetTask =
+            _xpressNet.RunAsync(
+                stoppingToken);
+
         try
         {
-            await base.ExecuteAsync(
-                stoppingToken);
+            await Task.WhenAll(
+                z21Task,
+                locoNetTask,
+                xpressNetTask);
         }
-        finally
+        catch (OperationCanceledException)
+            when (stoppingToken.IsCancellationRequested)
         {
-            try
-            {
-                await locoNetTask;
-            }
-            catch (OperationCanceledException)
-                when (stoppingToken.IsCancellationRequested)
-            {
-            }
         }
     }
 
     public override async Task<bool> RequestSensorSnapshotAsync(
         CancellationToken ct = default)
     {
-        var z21 =
-            await base.RequestSensorSnapshotAsync(
+        // YaMoRC physical R-BUS feedback belongs to XpressNet-LAN, not to
+        // the Z21 UDP R-BUS transport. Keep the three protocols independent.
+        var xpressNet =
+            await _xpressNet.RequestSensorSnapshotAsync(
                 ct);
 
         var locoNet =
@@ -94,7 +112,7 @@ public sealed class YaMoRcZ21CommandCenter : RocoZ21CommandCenter
                 ct);
 
         return
-            z21 ||
+            xpressNet ||
             locoNet;
     }
 }
