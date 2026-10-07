@@ -122,6 +122,7 @@ export default function DebugDialog({ opened, onClose }: Props) {
         <Tabs.Panel value="basic-accessories" style={panelStyle}>
           <BasicAccessoryDebugTab
             accessories={runtime.basicAccessories}
+            layoutOwners={runtime.basicAccessoryLayoutOwners}
             connected={runtime.connected}
           />
         </Tabs.Panel>
