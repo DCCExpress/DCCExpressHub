@@ -122,7 +122,7 @@ public sealed class SerialDccExTransport : IDccExTransport
 
     public SerialDccExTransport(IConfiguration cfg)
         : this(
-            cfg["DccEx:SerialPort"] ?? "COM3")
+            cfg["DccEx:SerialPort"] ?? SerialPortName.PlatformDefault)
     {
     }
 
@@ -158,8 +158,12 @@ public sealed class SerialDccExTransport : IDccExTransport
     {
         name = name.Trim();
 
-        if (name.Length == 0 ||
-            baud != BaudRate)
+        if (
+            !SerialPortName
+                .IsValidForCurrentPlatform(
+                    name) ||
+            baud != BaudRate
+        )
         {
             return false;
         }

@@ -7,6 +7,8 @@ var builder =
 
 var contentRoot =
     Environment.GetEnvironmentVariable(
+        "DCCEXPRESS_CONTENT_ROOT") ??
+    Environment.GetEnvironmentVariable(
         "ASPNETCORE_CONTENTROOT");
 
 if (
@@ -20,6 +22,8 @@ if (
 }
 
 var webRoot =
+    Environment.GetEnvironmentVariable(
+        "DCCEXPRESS_WEB_ROOT") ??
     Environment.GetEnvironmentVariable(
         "ASPNETCORE_WEBROOT");
 

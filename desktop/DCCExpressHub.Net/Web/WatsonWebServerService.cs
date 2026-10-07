@@ -1748,6 +1748,8 @@ public sealed class WatsonWebServerService :
     {
         var raw =
             Environment.GetEnvironmentVariable(
+                "DCCEXPRESS_HTTP_URL") ??
+            Environment.GetEnvironmentVariable(
                 "DCCEXPRESS_DESKTOP_URL");
 
         if (

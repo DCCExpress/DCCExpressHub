@@ -11,7 +11,7 @@ public sealed class CommandCenterSettings
     public string Transport { get; init; } = "tcp";
     public string TcpHost { get; init; } = "127.0.0.1";
     public int TcpPort { get; init; } = 2560;
-    public string SerialPort { get; init; } = "COM3";
+    public string SerialPort { get; init; } = SerialPortName.PlatformDefault;
     public bool PowerIncludesProgramming { get; init; } = true;
     public int CommandIntervalMs { get; init; } = 25;
     public int RBusOffset { get; init; } = 0;
@@ -45,7 +45,7 @@ public sealed class CommandCenterSettings
         PowerIncludesProgramming =
             powerIncludesProgramming;
 
-        if (LooksLikeWindowsSerialPort(host))
+        if (LooksLikeSerialPort(host))
         {
             Transport = "serial";
             SerialPort = host.Trim();
@@ -58,26 +58,10 @@ public sealed class CommandCenterSettings
         }
     }
 
-    public static bool LooksLikeWindowsSerialPort(
-        string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-            return false;
-
-        var text = value.Trim();
-
-        if (!text.StartsWith(
-                "COM",
-                StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        return int.TryParse(
-                   text[3..],
-                   out var number) &&
-               number > 0;
-    }
+    public static bool LooksLikeSerialPort(
+        string? value) =>
+        SerialPortName.LooksLikeSerialPort(
+            value);
 }
 
 public sealed class CommandCenterConfigStore
@@ -424,7 +408,7 @@ public sealed class CommandCenterConfigStore
 
                 SerialPort =
                     _configuration["DccEx:SerialPort"] ??
-                    "COM3",
+                    SerialPortName.PlatformDefault,
 
                 PowerIncludesProgramming =
                     !isZ21,
@@ -533,12 +517,15 @@ public sealed class CommandCenterConfigStore
         }
 
         if (serialPort.Length == 0)
-            serialPort = "COM3";
+            serialPort =
+                SerialPortName.PlatformDefault;
 
-        if (isSerial &&
-            !CommandCenterSettings
-                .LooksLikeWindowsSerialPort(
-                    serialPort))
+        if (
+            isSerial &&
+            !SerialPortName
+                .IsValidForCurrentPlatform(
+                    serialPort)
+        )
         {
             return null;
         }

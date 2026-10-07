@@ -16,9 +16,9 @@ public sealed record CommandCenterTestRequest(
     string Port);
 
 /// <summary>
-/// Command-center HTTP/API business logic without ASP.NET request/response
-/// types. The current ASP.NET routes are only transport adapters; a future
-/// Watson server can call this service unchanged.
+/// Command-center HTTP/API business logic without web-server request/response
+/// types. Watson is only the transport adapter; this service stays independent
+/// from the HTTP host.
 /// </summary>
 public sealed class CommandCenterApi
 {
@@ -183,8 +183,8 @@ public sealed class CommandCenterApi
                     request.Host.Trim();
 
             if (
-                !CommandCenterSettings
-                    .LooksLikeWindowsSerialPort(
+                !SerialPortName
+                    .IsValidForCurrentPlatform(
                         serialPort)
             )
             {
@@ -194,7 +194,9 @@ public sealed class CommandCenterApi
                     {
                         ok = false,
                         message =
-                            "Invalid serial COM port"
+                            OperatingSystem.IsWindows()
+                                ? "Invalid serial COM port"
+                                : "Invalid serial device path"
                     });
             }
 

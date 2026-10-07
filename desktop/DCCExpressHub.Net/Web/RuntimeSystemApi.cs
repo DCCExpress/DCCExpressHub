@@ -51,22 +51,33 @@ public sealed class RuntimeSystemApi
             _commandCenterConfig.Current;
 
         var urls =
+            Environment.GetEnvironmentVariable(
+                "DCCEXPRESS_HTTP_URL") ??
+            Environment.GetEnvironmentVariable(
+                "DCCEXPRESS_DESKTOP_URL") ??
             _configuration["Urls"] ??
             "http://0.0.0.0:5174";
 
         var httpPort =
             5174;
 
-        var lastColon =
-            urls.LastIndexOf(
-                ':');
+        var firstUrl =
+            urls.Split(
+                    ';',
+                    StringSplitOptions.RemoveEmptyEntries |
+                    StringSplitOptions.TrimEntries)
+                .FirstOrDefault();
 
-        if (lastColon >= 0)
+        if (
+            firstUrl is not null &&
+            Uri.TryCreate(
+                firstUrl,
+                UriKind.Absolute,
+                out var uri)
+        )
         {
-            int.TryParse(
-                urls[(lastColon + 1)..]
-                    .TrimEnd('/'),
-                out httpPort);
+            httpPort =
+                uri.Port;
         }
 
         return HubApiResponse.Ok(
