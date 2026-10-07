@@ -143,6 +143,12 @@ public sealed class MovementPlanModel
     public MovementPlanLegModel[] Legs { get; set; } = [];
 }
 
+public sealed record MovementSafetyExpectedBlock(
+    string MovementName,
+    int LocoAddress,
+    int BlockId,
+    string BlockName);
+
 public sealed record MovementSafetyEmergencyStop(
     string Code,
     string Reason,
@@ -151,6 +157,7 @@ public sealed record MovementSafetyEmergencyStop(
     string BlockName,
     int SensorAddress,
     int? ExpectedLocoAddress,
+    MovementSafetyExpectedBlock[] ExpectedBlocks,
     int[] ActiveLocoAddresses,
     string[] MovementNames,
     bool EmergencyStopActive);
@@ -399,6 +406,50 @@ public sealed class MovementRuntime
                         block)
             };
 
+        var blocks =
+            _layout.BlocksForPersistence();
+
+        var expectedBlocks =
+            executions
+                .Where(x =>
+                    x.TargetBlockId is
+                        >= 1 and <= 65535)
+                .Select(x =>
+                {
+                    var blockId =
+                        x.TargetBlockId!.Value;
+
+                    var target =
+                        blocks.FirstOrDefault(
+                            block =>
+                                block.Id ==
+                                (ushort)blockId);
+
+                    var targetName =
+                        target is null ||
+                        string.IsNullOrWhiteSpace(
+                            target.Name)
+                            ? "#" + blockId
+                            : target.Name;
+
+                    return new MovementSafetyExpectedBlock(
+                        MovementName:
+                            x.Page.Name,
+                        LocoAddress:
+                            x.LocoAddress,
+                        BlockId:
+                            blockId,
+                        BlockName:
+                            targetName);
+                })
+                .Distinct()
+                .OrderBy(x =>
+                    x.MovementName,
+                    StringComparer.Ordinal)
+                .ThenBy(x =>
+                    x.LocoAddress)
+                .ToArray();
+
         return new MovementSafetyEmergencyStop(
             Code:
                 code,
@@ -414,6 +465,8 @@ public sealed class MovementRuntime
                 block.SensorAddress,
             ExpectedLocoAddress:
                 expectedLocoAddress,
+            ExpectedBlocks:
+                expectedBlocks,
             ActiveLocoAddresses:
                 executions
                     .Select(x =>
