@@ -147,8 +147,6 @@ bool LayoutRuntime::isSignalType(const char* type) {
   if (!type) return false;
   return strcmp(type, "tracksignal") == 0 ||
          strcmp(type, "tracksignal2") == 0 ||
-         strcmp(type, "tracksignal3") == 0 ||
-         strcmp(type, "tracksignal4") == 0 ||
          strcmp(type, "tracklevelcrossing") == 0;
 }
 

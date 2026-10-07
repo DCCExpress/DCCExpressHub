@@ -254,9 +254,7 @@ public sealed class MovementPlanBuilder
                         StringComparison.Ordinal) ||
                     type is
                         "tracksignal" or
-                        "tracksignal2" or
-                        "tracksignal3" or
-                        "tracksignal4")
+                        "tracksignal2")
                     continue;
 
                 var id =

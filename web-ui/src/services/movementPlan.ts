@@ -193,11 +193,7 @@ function trackAddressMap(
         type ===
           "tracksignal" ||
         type ===
-          "tracksignal2" ||
-        type ===
-          "tracksignal3" ||
-        type ===
-          "tracksignal4"
+          "tracksignal2"
       ) {
         continue;
       }

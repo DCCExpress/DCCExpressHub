@@ -151,8 +151,6 @@ public sealed class LayoutRuntime
     static bool SignalType(string t) =>
         t is "tracksignal" or
             "tracksignal2" or
-            "tracksignal3" or
-            "tracksignal4" or
             "tracklevelcrossing";
 
     static int I(JsonElement e, string n, int d = 0) =>

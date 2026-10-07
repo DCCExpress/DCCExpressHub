@@ -25,12 +25,10 @@ export const ELEMENT_TYPES = {
   TRACK_SIGNAL: "tracksignal",
 
   /**
-   * Legacy layout values. Do not use for new picker items.
-   * ElementFactory migrates them to TrackSignalElement.
+   * Legacy layout value. Do not use for new picker items.
+   * ElementFactory migrates it to TrackSignalElement.
    */
   TRACK_SIGNAL2: "tracksignal2",
-  TRACK_SIGNAL3: "tracksignal3",
-  TRACK_SIGNAL4: "tracksignal4",
 
   TRACK_BLOCK: "trackblock",
 

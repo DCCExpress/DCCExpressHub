@@ -505,14 +505,9 @@ export class TrackSignalElement extends TrackElement {
       return element;
     }
     /**
-     * Legacy 2/3/4-light layout migration.
+     * Legacy signal layout migration.
      */
-    const lampCount =
-      data.type === "tracksignal4"
-        ? 4
-        : data.type === "tracksignal3"
-          ? 3
-          : Math.max(2, Math.min(4, data.aspect ?? 2));
+    const lampCount = Math.max(2, Math.min(4, data.aspect ?? 2));
     const outputCount = Math.max(1, data.addressLength ?? lampCount);
     const directions = (bitmask: number) =>
       Array.from({ length: outputCount }, (_, index) =>
