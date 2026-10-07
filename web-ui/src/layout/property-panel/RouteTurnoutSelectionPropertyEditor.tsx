@@ -30,7 +30,7 @@ import {
 } from "../../models/editor/elements/TrackTurnoutThreeWayElement";
 import ElementPreview from "../../models/editor/rendering/ElementPreviewRenderer";
 import { useCommandCenter } from "../../context/CommandCenterContext";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { showWarningMessage } from "../../helpers";
 import { executeLegacyRouteButton } from "../../services/routeButtonExecutor";
 import {
@@ -176,6 +176,11 @@ export default function RouteTurnoutSelectionPropertyEditor({
     null
   );
 
+  const previousRouteSelectRequest =
+    useRef(
+      routeSelectRequest
+    );
+
   const openRouteSelect = (): void => {
     if (
       !(selectedElement instanceof
@@ -227,11 +232,14 @@ export default function RouteTurnoutSelectionPropertyEditor({
   useEffect(
     () => {
       if (
-        routeSelectRequest <=
-          0
+        routeSelectRequest ===
+          previousRouteSelectRequest.current
       ) {
         return;
       }
+
+      previousRouteSelectRequest.current =
+        routeSelectRequest;
 
       openRouteSelect();
     },
