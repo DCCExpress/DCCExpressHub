@@ -95,9 +95,6 @@ Z21      -> locomotive / turnout / signal / power
 LocoNet  -> occupancy / feedback
 ```
 
-The Z21 and LocoNet implementations remain separate inside DCCExpressHub even
-when both connect to the same YD7010.
-
 # Windows
 
 ## Windows requirements
