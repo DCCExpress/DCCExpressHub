@@ -52,15 +52,22 @@ That file is ignored by Git through the repository's `.env.*` rule.
 
 Useful commands:
 
-    ../../run-linux.sh --configure   # change command center/settings and launch
-    ../../run-linux.sh --show        # show the saved profile
-    ../../run-linux.sh --build       # build the backend
+    ../../run-linux.sh --configure      # change command center/settings and launch
+    ../../run-linux.sh --show           # show the saved profile
+    ../../run-linux.sh --build          # build Web UI, then backend
+    ../../run-linux.sh --build-ui       # npm ci + npm run build
+    ../../run-linux.sh --build-backend  # dotnet build
     ../../run-linux.sh --help
 
 The launcher lives in the repository root and sets `DCCEXPRESS_CONTENT_ROOT`,
 `DCCEXPRESS_WEB_ROOT` and `DCCEXPRESS_HTTP_URL` automatically. The local
 `.env.linux` profile is still stored beside the backend project under
 `desktop/DCCExpressHub.Net/`.
+
+For a Git/source installation the launcher builds the React/Vite UI from
+`web-ui/` and serves `web-ui/dist` directly. It automatically rebuilds the
+UI when the checked-out `web-ui` source tree changes. Vite 8 requires Node.js
+`^20.19.0` or `>=22.12.0`.
 
 ## Filesystem roots
 

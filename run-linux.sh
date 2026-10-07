@@ -3,6 +3,9 @@ set -Eeuo pipefail
 
 REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="${REPO_ROOT}/desktop/DCCExpressHub.Net"
+WEBUI_DIR="${REPO_ROOT}/web-ui"
+WEBUI_DIST="${WEBUI_DIR}/dist"
+UI_STAMP="${WEBUI_DIST}/.dccexpress-source-tree"
 ENV_FILE="${BACKEND_DIR}/.env.linux"
 PROJECT="${BACKEND_DIR}/DCCExpressHub.Net.csproj"
 
@@ -45,7 +48,7 @@ save_common_env() {
         echo "# Local machine configuration; ignored by Git."
         write_env_value "DCCEXPRESS_HTTP_URL" "$http_url"
         write_env_value "DCCEXPRESS_CONTENT_ROOT" "$BACKEND_DIR"
-        write_env_value "DCCEXPRESS_WEB_ROOT" "$BACKEND_DIR/wwwroot"
+        write_env_value "DCCEXPRESS_WEB_ROOT" "$WEBUI_DIST"
     } > "$ENV_FILE"
 }
 
@@ -53,6 +56,100 @@ append_env() {
     local key="$1"
     local value="$2"
     write_env_value "$key" "$value" >> "$ENV_FILE"
+}
+
+check_node_version() {
+    command_exists node ||
+        die "Node.js is required to build the Web UI."
+
+    command_exists npm ||
+        die "npm is required to build the Web UI."
+
+    local version
+    local major
+    local minor
+    local patch
+
+    version="$(node -p 'process.versions.node')"
+    IFS='.' read -r major minor patch <<< "$version"
+
+    if (( major == 20 && minor >= 19 )); then
+        return
+    fi
+
+    if (( major == 22 && minor >= 12 )); then
+        return
+    fi
+
+    if (( major > 22 )); then
+        return
+    fi
+
+    die "Node.js $version is too old for Vite 8. Need Node ^20.19.0 or >=22.12.0."
+}
+
+webui_source_tree() {
+    if command_exists git &&
+       git -C "$REPO_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        git -C "$REPO_ROOT" rev-parse HEAD:web-ui 2>/dev/null || true
+    fi
+}
+
+ui_needs_build() {
+    [[ -f "$WEBUI_DIST/index.html" ]] || return 0
+
+    local source_tree
+    local built_tree
+
+    source_tree="$(webui_source_tree)"
+
+    # Outside a Git checkout, an existing dist directory is sufficient.
+    [[ -n "$source_tree" ]] || return 1
+
+    built_tree=""
+    if [[ -f "$UI_STAMP" ]]; then
+        built_tree="$(cat "$UI_STAMP")"
+    fi
+
+    [[ "$source_tree" != "$built_tree" ]]
+}
+
+build_ui() {
+    check_node_version
+
+    echo
+    echo "Building React Web UI..."
+    echo "  source: $WEBUI_DIR"
+    echo "  output: $WEBUI_DIST"
+    echo
+
+    cd "$WEBUI_DIR"
+
+    npm ci
+    npm run build
+
+    [[ -f "$WEBUI_DIST/index.html" ]] ||
+        die "Web UI build completed without dist/index.html."
+
+    local source_tree
+    source_tree="$(webui_source_tree)"
+
+    if [[ -n "$source_tree" ]]; then
+        printf '%s\n' "$source_tree" > "$UI_STAMP"
+    fi
+
+    echo
+    echo "Web UI build complete."
+}
+
+ensure_ui() {
+    if ui_needs_build; then
+        echo
+        echo "Web UI is missing or older than the checked-out web-ui source."
+        build_ui
+    fi
+
+    export DCCEXPRESS_WEB_ROOT="$WEBUI_DIST"
 }
 
 configure_yamorc() {
@@ -212,6 +309,13 @@ load_env() {
     # escaped export statements.
     # shellcheck disable=SC1090
     source "$ENV_FILE"
+
+    # Profiles created by older launcher versions pointed at the tracked
+    # backend wwwroot. Git/source installs now serve the locally built Vite
+    # output directly.
+    if [[ "${DCCEXPRESS_WEB_ROOT:-}" == "$BACKEND_DIR/wwwroot" ]]; then
+        export DCCEXPRESS_WEB_ROOT="$WEBUI_DIST"
+    fi
 }
 
 show_config() {
@@ -255,11 +359,14 @@ Usage:
   ./run-linux.sh --configure
   ./run-linux.sh --show
   ./run-linux.sh --build
+  ./run-linux.sh --build-ui
+  ./run-linux.sh --build-backend
   ./run-linux.sh --help
 
 Default behavior:
   - if .env.linux does not exist, configure interactively
   - if it exists, reuse the saved configuration
+  - rebuild the Web UI automatically when the checked-out web-ui source changed
   - launch DCCExpressHub.Net with dotnet run
 EOF
 }
@@ -276,7 +383,9 @@ main() {
         --configure)
             configure
             load_env
+            ensure_ui
             show_config
+            cd "$BACKEND_DIR"
             exec dotnet run --project "$PROJECT"
             ;;
         --show)
@@ -285,6 +394,15 @@ main() {
             exit 0
             ;;
         --build)
+            build_ui
+            cd "$BACKEND_DIR"
+            exec dotnet build "$PROJECT"
+            ;;
+        --build-ui)
+            build_ui
+            exit 0
+            ;;
+        --build-backend)
             cd "$BACKEND_DIR"
             exec dotnet build "$PROJECT"
             ;;
@@ -304,6 +422,7 @@ main() {
     fi
 
     load_env
+    ensure_ui
     show_config
 
     cd "$BACKEND_DIR"

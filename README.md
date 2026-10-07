@@ -6,7 +6,8 @@ It provides one interface for driving locomotives, operating turnouts and signal
 
 You can run DCCExpressHub on:
 
-- **Windows Desktop / Server** — the primary platform and recommended choice for automation.
+- **Windows Desktop / Server** — packaged desktop application with WPF + WebView2.
+- **Linux Server / headless** — the same .NET 10 backend runs natively with Watson HTTP/WebSocket hosting.
 - **ESP32-S3 Hub** — the supported standalone embedded platform.
 
 The same layout can be controlled from PCs, notebooks, tablets and phones on the local network.
@@ -24,7 +25,7 @@ The same layout can be controlled from PCs, notebooks, tablets and phones on the
          |
          v
    DCCExpressHub
-   Windows or ESP32-S3
+ Windows / Linux / ESP32-S3
          |
          v
   Command station
@@ -49,7 +50,7 @@ Main improvements:
 - locomotive calibration,
 - improved DCC-EX sensor and console support,
 - new layout decorations and buildings,
-- Windows as the primary automation platform,
+- cross-platform .NET backend for Windows and Linux,
 - ESP32-S3 as the supported standalone embedded platform.
 
 ### Movement / Dispatcher
@@ -113,7 +114,7 @@ The Windows version is the **primary DCCExpressHub platform**.
 
 It can run locally on the same PC as the user interface or as a network server for other PCs, tablets and phones.
 
-The Windows backend supports these command-station connections:
+The cross-platform .NET backend supports these command-station connections on Windows and Linux:
 
 - **DCC-EX TCP/IP**
 - **DCC-EX Serial / USB COM port**
@@ -134,7 +135,7 @@ Typical architecture:
          |
          v
  DCCExpressHub.Net
-   ASP.NET Core
+ .NET 10 + Watson
          |
    TCP / USB / UDP
          |
@@ -207,6 +208,99 @@ Default location:
 
 This keeps layout, configuration and state data separate from the installed application files.
 
+## Linux / headless server
+
+The same **DCCExpressHub.Net** backend used by the Windows desktop build runs
+natively on Linux. The backend targets `.NET 10` (not `net10.0-windows`) and
+uses the .NET Generic Host plus **Watson 7** for HTTP, WebSocket, static-file
+and SSE transport.
+
+The WPF/WebView2 desktop shell remains Windows-only; on Linux the Hub runs as a
+headless server and the UI is opened in a browser from the Linux machine or
+another PC/tablet/phone on the LAN.
+
+### Install from Git
+
+Requirements:
+
+- .NET 10 SDK
+- Node.js **^20.19.0 or >=22.12.0**
+- npm
+- Git
+
+Clone the repository and run the root Linux launcher:
+
+```bash
+git clone https://github.com/DCCExpress/DCCExpressHub.git
+cd DCCExpressHub
+./run-linux.sh
+```
+
+The launcher asks for the command-center type and connection settings on first
+start. It supports:
+
+- YaMoRC YD7010 (Z21 + separate LocoNet feedback)
+- Roco Z21
+- DCC-EX TCP
+- DCC-EX Serial / USB
+
+Machine-local settings are stored in:
+
+```text
+desktop/DCCExpressHub.Net/.env.linux
+```
+
+This file is ignored by Git.
+
+### Building the Web UI from source
+
+A Git checkout contains the React/Vite source under `web-ui/`. On Linux the
+launcher builds that UI locally and serves the resulting `web-ui/dist`
+directory directly; no manual copy into the backend `wwwroot` is required.
+
+The launcher automatically rebuilds the UI when the checked-out `web-ui`
+source tree changes.
+
+Manual commands:
+
+```bash
+./run-linux.sh --build-ui       # npm ci + npm run build
+./run-linux.sh --build-backend  # dotnet build
+./run-linux.sh --build          # build UI, then backend
+./run-linux.sh --configure      # change command center and launch
+./run-linux.sh --show           # show saved Linux profile
+```
+
+The equivalent manual UI build is:
+
+```bash
+cd web-ui
+npm ci
+npm run build
+```
+
+Vite writes the production UI to:
+
+```text
+web-ui/dist
+```
+
+The Linux launcher sets `DCCEXPRESS_WEB_ROOT` to that directory.
+
+The backend listens on port `5174` by default:
+
+```text
+http://<linux-host-ip>:5174
+```
+
+DCC-EX serial devices can use Linux paths such as:
+
+```text
+/dev/ttyACM0
+/dev/ttyUSB0
+/dev/serial/by-id/...
+```
+
 ## ESP32-S3 Hub
 
 **ESP32-S3 is the only supported ESP32 platform for current DCCExpressHub development.**
@@ -235,7 +329,7 @@ The ESP32-S3 Hub can host the shared browser interface and connect to the DCC-EX
        DCC-EX
 ```
 
-The **Windows backend remains the primary target for advanced automation**. ESP32-S3 is maintained as the embedded / standalone platform.
+The **.NET backend (Windows/Linux) remains the primary target for advanced automation**. ESP32-S3 is maintained as the embedded / standalone platform.
 
 ### Build ESP32-S3 firmware
 
@@ -283,9 +377,9 @@ DCC-EX TCP port:  2560
 
 ## Command station support
 
-DCCExpressHub is developed primarily against **DCC-EX**, including **EX-CSB1**, but the Windows backend also contains native support for **Roco Z21** and **YaMoRC YD7010**.
+DCCExpressHub is developed primarily against **DCC-EX**, including **EX-CSB1**, but the cross-platform .NET backend also contains native support for **Roco Z21** and **YaMoRC YD7010**.
 
-| Command station | Windows backend | Published release |
+| Command station | .NET backend (Windows/Linux) | Published Windows release |
 | --- | --- | --- |
 | DCC-EX TCP | Supported | Yes |
 | DCC-EX Serial / USB | Supported | Yes |
@@ -307,7 +401,7 @@ This allows block occupancy and route sensors to use the same backend runtime th
 
 ### Roco Z21
 
-The Windows backend contains native Z21 LAN support.
+The cross-platform .NET backend contains native Z21 LAN support.
 
 Current implementation includes:
 
@@ -329,7 +423,7 @@ Roco Z21 support is currently **source-code / development-build only** and is no
 
 ### YaMoRC YD7010
 
-The Windows backend has a dedicated **YaMoRC YD7010** profile.
+The cross-platform .NET backend has a dedicated **YaMoRC YD7010** profile.
 
 Control and feedback use two parallel network connections:
 
@@ -443,9 +537,10 @@ DCCExpressHub can be controlled from a modern browser on:
 - tablets,
 - phones.
 
-Clients connect either to:
+Clients connect to:
 
-- Windows Desktop running in **Server mode**, or
+- Windows Desktop running in **Server mode**,
+- a Linux/headless DCCExpressHub.Net server, or
 - an ESP32-S3 Hub.
 
 ## Build and development
@@ -458,6 +553,12 @@ For Windows development:
 - .NET 10 SDK
 - Microsoft Edge WebView2 Runtime
 - Visual Studio optional
+
+For Linux/headless development:
+
+- Node.js ^20.19.0 or >=22.12.0 / npm
+- .NET 10 SDK
+- Git
 
 For ESP32-S3 development:
 
@@ -496,6 +597,19 @@ The publish output is written under:
 dist\desktop
 ```
 
+### Linux/headless development build
+
+From the repository root:
+
+```bash
+./run-linux.sh --build
+./run-linux.sh
+```
+
+`--build` builds both the React/Vite UI and the .NET backend. A normal
+`./run-linux.sh` automatically rebuilds the UI when the checked-out
+`web-ui` source has changed.
+
 ### Web UI development
 
 ```powershell
@@ -526,7 +640,7 @@ DCCExpressHub/
 ├── include/                     firmware headers / defaults
 ├── web-ui/                      shared React + Mantine frontend
 ├── desktop/
-│   ├── DCCExpressHub.Net/       ASP.NET Core 10 backend
+│   ├── DCCExpressHub.Net/       Cross-platform .NET 10 + Watson backend
 │   ├── DCCExpressHub.Desktop/   WPF + WebView2 shell
 │   └── DCCExpressHub.Desktop.slnx
 ├── dcc-ex/                      DCC-EX HAL integrations
@@ -559,7 +673,7 @@ Alpha releases are published as **pre-releases**.
 
 DCCExpressHub is under active **alpha development**.
 
-The Windows backend is the primary runtime and development target. ESP32-S3 is the supported embedded target.
+The .NET backend is the primary runtime and development target. It runs on Windows and Linux; the WPF desktop shell is Windows-only. ESP32-S3 is the supported embedded target.
 
 Interfaces, automation behaviour and hardware support may still change while the project evolves.
 
