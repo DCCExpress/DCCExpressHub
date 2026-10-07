@@ -56,6 +56,8 @@ builder.Services.AddSingleton<LocomotiveConfigApi>();
 builder.Services.AddSingleton<LayoutConfigApi>();
 builder.Services.AddSingleton<AutomationConfigApi>();
 builder.Services.AddSingleton<DeviceConfigApi>();
+builder.Services.AddSingleton<CalibrationApi>();
+builder.Services.AddSingleton<RuntimeSystemApi>();
 
 if (useYaMoRcZ21)
 {
@@ -389,77 +391,40 @@ app.MapPost(
                 ct)));
 
 
-app.MapGet("/api/calibration", (CalibrationRuntime calibration) =>
-    Results.Json(calibration.Snapshot()));
+app.MapGet(
+    "/api/calibration",
+    (CalibrationApi api) =>
+        ToHttpResult(
+            api.Get()));
 
-app.MapPost("/api/calibration/start", async (HttpRequest req, CalibrationRuntime calibration) =>
-{
-    CalibrationStartRequest? request;
-
-    try
-    {
-        request =
-            await JsonSerializer.DeserializeAsync<CalibrationStartRequest>(
+app.MapPost(
+    "/api/calibration/start",
+    async (
+        HttpRequest req,
+        CalibrationApi api,
+        CancellationToken ct) =>
+        ToHttpResult(
+            await api.StartAsync(
                 req.Body,
-                new JsonSerializerOptions(JsonSerializerDefaults.Web),
-                req.HttpContext.RequestAborted);
-    }
-    catch
-    {
-        return Results.Json(
-            new { ok = false, message = "invalid_calibration_request" },
-            statusCode: 400);
-    }
+                ct)));
 
-    if (request is null)
-        return Results.Json(
-            new { ok = false, message = "invalid_calibration_request" },
-            statusCode: 400);
+app.MapPost(
+    "/api/calibration/stop",
+    (CalibrationApi api) =>
+        ToHttpResult(
+            api.Stop()));
 
-    var result =
-        calibration.Start(
-            request);
+app.MapPost(
+    "/api/calibration/abort",
+    (CalibrationApi api) =>
+        ToHttpResult(
+            api.Abort()));
 
-    return result.Ok
-        ? Results.Json(
-            new
-            {
-                ok = true,
-                state = calibration.Snapshot()
-            })
-        : Results.Json(
-            new
-            {
-                ok = false,
-                message = result.Error,
-                state = calibration.Snapshot()
-            },
-            statusCode: 409);
-});
-
-app.MapPost("/api/calibration/stop", (CalibrationRuntime calibration) =>
-    Results.Json(
-        new
-        {
-            ok = calibration.Stop(),
-            state = calibration.Snapshot()
-        }));
-
-app.MapPost("/api/calibration/abort", (CalibrationRuntime calibration) =>
-    Results.Json(
-        new
-        {
-            ok = calibration.Abort(false),
-            state = calibration.Snapshot()
-        }));
-
-app.MapPost("/api/calibration/estop", (CalibrationRuntime calibration) =>
-    Results.Json(
-        new
-        {
-            ok = calibration.Abort(true),
-            state = calibration.Snapshot()
-        }));
+app.MapPost(
+    "/api/calibration/estop",
+    (CalibrationApi api) =>
+        ToHttpResult(
+            api.EmergencyStop()));
 
 app.MapGet(
     "/api/function-bindings",
@@ -565,59 +530,26 @@ app.MapPost(
                 req.Body,
                 ct)));
 
-app.MapGet("/api/runtime", (LayoutRuntime runtime) => Results.Json(new
-{
-    ok = true,
-    blockState = runtime.BlockSnapshot(),
-    sensorSnapshot = runtime.SensorSnapshot()
-}));
+app.MapGet(
+    "/api/runtime",
+    (RuntimeSystemApi api) =>
+        ToHttpResult(
+            api.GetRuntime()));
 
-app.MapGet("/api/status", (ICommandCenter cc, LayoutRuntime runtime, CommandCenterConfigStore ccStore, IConfiguration cfg) =>
-{
-    var x = ccStore.Current;
-    var urls = cfg["Urls"] ?? "http://0.0.0.0:5174";
-    int httpPort = 5174;
-    var lastColon = urls.LastIndexOf(':');
-    if (lastColon >= 0) int.TryParse(urls[(lastColon + 1)..].TrimEnd('/'), out httpPort);
-    return Results.Json(new
-    {
-        ok = true,
-        // ESP-only network telemetry has neutral native values, while the JSON contract remains identical.
-        wifiConnected = false,
-        wifiSsid = "",
-        deviceIp = "",
-        rssi = 0,
-        csbConnected = cc.Connected,
-        csbTransport = x.Transport,
-        csbHost = x.IsSerial ? "" : x.TcpHost,
-        csbPort = x.IsSerial ? 0 : x.TcpPort,
-        csbSerialPort = x.IsSerial ? x.SerialPort : "",
-        csbBaudRate = x.IsSerial ? CommandCenterSettings.DccExSerialBaudRate : 0,
-        hubHostname = Environment.MachineName,
-        hubHttpPort = httpPort,
-        hubDhcp = true,
-        uptimeMs = Environment.TickCount64,
-        freeHeapBytes = GC.GetGCMemoryInfo().TotalAvailableMemoryBytes,
-        accessories = runtime.AccessoryCount,
-        sensors = runtime.SensorCount
-    });
-});
+app.MapGet(
+    "/api/status",
+    (RuntimeSystemApi api) =>
+        ToHttpResult(
+            api.GetStatus()));
 
-app.MapPost("/api/emergency-stop", async (ICommandCenter cc, HubState state, WsHub ws) =>
-{
-    var ok = await cc.EmergencyStopAsync();
-    if (ok)
-    {
-        state.EmergencyStop = cc.EmergencyPauseStateKnown ? cc.EmergencyPaused : !state.EmergencyStop;
-        await ws.BroadcastPowerState();
-    }
-    return Results.Json(new
-    {
-        ok,
-        emergencyStop = state.EmergencyStop,
-        message = ok ? null : "Emergency stop command could not be sent"
-    }, statusCode: ok ? 200 : 503);
-});
+app.MapPost(
+    "/api/emergency-stop",
+    async (
+        RuntimeSystemApi api,
+        CancellationToken ct) =>
+        ToHttpResult(
+            await api.EmergencyStopAsync(
+                ct)));
 
 // Native parity endpoints used by the current React UI.
 app.MapGet(
@@ -642,29 +574,11 @@ app.MapPost(
                 ct)));
 
 // Native backend currently has no physical S88 I2C master.
-app.MapGet("/api/s88-status", () => Results.Json(new
-{
-    enabled = false,
-    online = false,
-    snapshotKnown = false,
-    dataFresh = false,
-    ready = false,
-    adapterInfoKnown = false,
-    protocolVersion = 0,
-    firmwareVersion = "",
-    firmwareMajor = 0,
-    firmwareMinor = 0,
-    firmwarePatch = 0,
-    maxByteCount = 0,
-    capabilities = 0,
-    address = 0,
-    addressHex = "0x00",
-    baseAddress = 0,
-    groupCount = 0,
-    byteCount = 0,
-    sensorCount = 0,
-    groups = Array.Empty<object>()
-}));
+app.MapGet(
+    "/api/s88-status",
+    (RuntimeSystemApi api) =>
+        ToHttpResult(
+            api.GetS88Status()));
 
 // File-manager flash statistics. On native, report the data volume.
 app.MapGet("/fsinfo", (HubFileStorage files) =>
