@@ -165,6 +165,136 @@ public sealed class YaMoRcLocoNetClient
         }
     }
 
+    public async Task<LocoNetConnectionTestResult> TestConnectionAsync(
+        string? hostOverride = null,
+        CancellationToken ct = default)
+    {
+        var targetHost =
+            string.IsNullOrWhiteSpace(
+                hostOverride)
+                ? _host
+                : hostOverride.Trim();
+
+        var started =
+            System.Diagnostics.Stopwatch.StartNew();
+
+        if (!_lbServerEnabled)
+        {
+            return new LocoNetConnectionTestResult(
+                Ok: false,
+                TcpConnected: false,
+                Host: targetHost,
+                Port: _lbServerPort,
+                Reply: "",
+                ElapsedMs: started.ElapsedMilliseconds,
+                BackgroundConnected: false,
+                LbServerVersion: "",
+                LbServerLinesObserved: 0,
+                Message: "YaMoRC LocoNet LBServer feedback is disabled.");
+        }
+
+        try
+        {
+            using var client =
+                new TcpClient
+                {
+                    NoDelay = true
+                };
+
+            using var connectCts =
+                CancellationTokenSource
+                    .CreateLinkedTokenSource(
+                        ct);
+
+            connectCts.CancelAfter(
+                TimeSpan.FromMilliseconds(
+                    ConnectTimeoutMs));
+
+            await client.ConnectAsync(
+                targetHost,
+                _lbServerPort,
+                connectCts.Token);
+
+            var diagnostics =
+                Diagnostics;
+
+            var reply =
+                !string.IsNullOrWhiteSpace(
+                    diagnostics.LbServerVersion)
+                    ? diagnostics.LbServerVersion
+                    : "TCP connection accepted";
+
+            return new LocoNetConnectionTestResult(
+                Ok: true,
+                TcpConnected: true,
+                Host: targetHost,
+                Port: _lbServerPort,
+                Reply: reply,
+                ElapsedMs: started.ElapsedMilliseconds,
+                BackgroundConnected:
+                    diagnostics.LbServerConnected,
+                LbServerVersion:
+                    diagnostics.LbServerVersion,
+                LbServerLinesObserved:
+                    diagnostics.LbServerLinesObserved,
+                Message:
+                    diagnostics.LbServerConnected
+                        ? "LocoNet LBServer reachable; background feedback stream is connected."
+                        : "LocoNet LBServer reachable; background feedback stream is currently reconnecting/offline.");
+        }
+        catch (OperationCanceledException)
+            when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (OperationCanceledException)
+        {
+            var diagnostics =
+                Diagnostics;
+
+            return new LocoNetConnectionTestResult(
+                Ok: false,
+                TcpConnected: false,
+                Host: targetHost,
+                Port: _lbServerPort,
+                Reply: "",
+                ElapsedMs: started.ElapsedMilliseconds,
+                BackgroundConnected:
+                    diagnostics.LbServerConnected,
+                LbServerVersion:
+                    diagnostics.LbServerVersion,
+                LbServerLinesObserved:
+                    diagnostics.LbServerLinesObserved,
+                Message: "LocoNet LBServer connection timed out.");
+        }
+        catch (Exception ex)
+        {
+            var diagnostics =
+                Diagnostics;
+
+            _log.LogWarning(
+                ex,
+                "YaMoRC LocoNet LBServer connection test failed: {Host}:{Port}",
+                targetHost,
+                _lbServerPort);
+
+            return new LocoNetConnectionTestResult(
+                Ok: false,
+                TcpConnected: false,
+                Host: targetHost,
+                Port: _lbServerPort,
+                Reply: ex.Message,
+                ElapsedMs: started.ElapsedMilliseconds,
+                BackgroundConnected:
+                    diagnostics.LbServerConnected,
+                LbServerVersion:
+                    diagnostics.LbServerVersion,
+                LbServerLinesObserved:
+                    diagnostics.LbServerLinesObserved,
+                Message: "LocoNet LBServer connection failed.");
+        }
+    }
+
     public async Task RunAsync(
         CancellationToken ct)
     {
