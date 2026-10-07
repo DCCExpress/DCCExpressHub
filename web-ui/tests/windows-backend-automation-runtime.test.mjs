@@ -302,58 +302,32 @@ test("Timetable starts scripts directly in backend ScriptRuntime", () => {
   );
 });
 
-test("Control Station disconnect does not own backend automation lifetime", () => {
+test("command center disconnect safely stops active backend execution", () => {
   const hub =
     read(
       "desktop/DCCExpressHub.Net/Web/WsHub.cs"
     );
 
-  const start =
-    hub.indexOf(
-      "private async Task OnControlStationReleased()"
-    );
-
-  assert.ok(
-    start >= 0
+  assert.match(
+    hub,
+    /cc\.ConnectionChanged\s*\+=/
   );
 
-  const end =
-    hub.indexOf(
-      "\n    }",
-      start
-    );
-
-  assert.ok(
-    end > start
+  assert.match(
+    hub,
+    /if \(!connected\)[\s\S]*Movement\.StopAll\(false\)/
   );
 
-  const body =
-    hub.slice(
-      start,
-      end
-    );
-
-  assert.doesNotMatch(
-    body,
-    /Timetable\.StopScheduler/
+  assert.match(
+    hub,
+    /if \(!connected\)[\s\S]*Scripts\.AbortAll/
   );
 
-  assert.doesNotMatch(
-    body,
-    /Scripts\.AbortAll/
-  );
-
-  assert.doesNotMatch(
-    body,
-    /Flows\.AbortAll/
-  );
-
-  assert.doesNotMatch(
-    body,
-    /Movement\.StopAll/
+  assert.match(
+    hub,
+    /if \(!connected\)[\s\S]*Timetable\.StopScheduler\(\)/
   );
 });
-
 test("old Timetable browser-script bridge is absent", () => {
   const hub =
     read(
@@ -471,7 +445,7 @@ test("backend SmartDispatcher keeps safe arrival and authority semantics", () =>
   }
 });
 
-test("backend audio cannot deadlock automation when browser authority disappears", () => {
+test("backend audio cannot deadlock when the authoritative audio subscriber disappears", () => {
   const hub =
     read(
       "desktop/DCCExpressHub.Net/Web/WsHub.cs"
@@ -489,17 +463,22 @@ test("backend audio cannot deadlock automation when browser authority disappears
 
   assert.match(
     hub,
-    /!HasControlStationOwner\(\)/
+    /StartAudioWait\s*\(/
   );
 
   assert.match(
     hub,
-    /Movement\.CompleteAudio\s*\(/
+    /_audioSubscriberConnectionId/
   );
 
   assert.match(
     hub,
-    /Scripts\.CompleteAudio\s*\(/
+    /RemovePendingAudioForClientLocked\s*\(/
+  );
+
+  assert.match(
+    hub,
+    /CompleteFailedAudioWaits\s*\(/
   );
 
   assert.match(
@@ -517,7 +496,6 @@ test("backend audio cannot deadlock automation when browser authority disappears
     /Scripts\.FailPendingAudio\(\)/
   );
 });
-
 test("Automation Script and Flow WebSocket namespaces are explicit", () => {
   const hub =
     read(
