@@ -2623,10 +2623,17 @@ public sealed class WsHub
         var x =
             CommandCenterConfigStore.Current;
 
+        var configured =
+            CommandCenter as
+                ConfiguredCommandCenter;
+
         var z21 =
-            (CommandCenter as
-                ConfiguredCommandCenter)?
+            configured?
                 .GetZ21Diagnostics();
+
+        var locoNet =
+            configured?
+                .GetLocoNetDiagnostics();
 
         return new
         {
@@ -2689,33 +2696,45 @@ public sealed class WsHub
                         capabilities =
                             z21.Capabilities,
                         lastSystemStateAgeMs =
-                            z21.LastSystemStateAgeMs,
+                            z21.LastSystemStateAgeMs
+                    },
+            locoNet =
+                locoNet is null
+                    ? null
+                    : new
+                    {
                         lbServerEnabled =
-                            z21.LbServerEnabled,
+                            locoNet.LbServerEnabled,
                         lbServerConnected =
-                            z21.LbServerConnected,
+                            locoNet.LbServerConnected,
+                        host =
+                            locoNet.Host,
                         lbServerPort =
-                            z21.LbServerPort,
+                            locoNet.LbServerPort,
                         lbServerUptimeMs =
-                            z21.LbServerUptimeMs,
+                            locoNet.LbServerUptimeMs,
                         lastLbServerRxAgeMs =
-                            z21.LastLbServerRxAgeMs,
+                            locoNet.LastLbServerRxAgeMs,
                         lbServerLinesObserved =
-                            z21.LbServerLinesObserved,
+                            locoNet.LbServerLinesObserved,
                         lbServerVersion =
-                            z21.LbServerVersion,
+                            locoNet.LbServerVersion,
+                        binaryFeedbackEnabled =
+                            locoNet.BinaryFeedbackEnabled,
+                        binaryPort =
+                            locoNet.BinaryPort,
                         sensorFeedbackCount =
-                            z21.SensorFeedbackCount,
+                            locoNet.SensorFeedbackCount,
                         lastSensorAddress =
-                            z21.LastSensorAddress,
+                            locoNet.LastSensorAddress,
                         lastSensorOn =
-                            z21.LastSensorOn,
+                            locoNet.LastSensorOn,
                         lastSensorFeedbackAgeMs =
-                            z21.LastSensorFeedbackAgeMs,
+                            locoNet.LastSensorFeedbackAgeMs,
                         lastInterrogateAgeMs =
-                            z21.LastInterrogateAgeMs,
+                            locoNet.LastInterrogateAgeMs,
                         interrogateEnabled =
-                            z21.InterrogateEnabled
+                            locoNet.InterrogateEnabled
                     },
             tracks = HubState.Tracks.OrderBy(track => track.Key).Select(track => new
             {
