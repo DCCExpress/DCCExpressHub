@@ -28,11 +28,10 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
     private const int AccessoryPulseMs = 120;
     private const int AccessorySettleMs = 50;
     private const int TurnoutActiveMs = 500;
-    private const int LocoNetInterrogateRestMs = 1250;
 
-    // Roco Z21: driving/switching + R-BUS + system state + all changed
-    // locos + LocoNet detector occupancy.
-    protected const uint RocoBroadcastFlags = 0x08010103;
+    // Pure Z21 LAN: driving/switching + R-BUS + system state + all changed locos.
+    // LocoNet forwarding flags intentionally do not belong to this protocol.
+    protected const uint RocoBroadcastFlags = 0x00010103;
 
     private readonly ILogger _log;
     private readonly object _stateGate = new();
@@ -42,29 +41,13 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
     private readonly object _txQueueGate = new();
     private readonly Queue<TxRequest> _priorityTxQueue = new();
     private readonly Queue<TxRequest> _normalTxQueue = new();
-    private readonly SemaphoreSlim _locoNetInterrogateGate = new(1, 1);
     private readonly SemaphoreSlim _programmingGate = new(1, 1);
     private readonly object _programmingStateGate = new();
     private TaskCompletionSource<CommandCenterProgrammingResult>? _programmingCompletion;
     private int _programmingExpectedCv;
 
-    private DateTime _lastLocoNetInterrogateUtc = DateTime.MinValue;
-
-    private readonly bool _locoNetFeedbackEnabled;
-    private readonly int _locoNetPort;
-
-    private int _binaryPacketsObserved;
-    private int _lbServerLinesObserved;
     private int _rBusOffset;
 
-    private bool _lbServerConnected;
-    private DateTime _lbServerConnectedSinceUtc = DateTime.MinValue;
-    private DateTime _lastLbServerRxUtc = DateTime.MinValue;
-    private string _lbServerVersion = "";
-    private long _sensorFeedbackCount;
-    private int _lastSensorAddress;
-    private int _lastSensorOn = -1;
-    private DateTime _lastSensorFeedbackUtc = DateTime.MinValue;
     private DateTime _onlineSinceUtc = DateTime.MinValue;
 
     private int _systemMainCurrentMa;
@@ -86,9 +69,6 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
     private bool _sessionRegistered;
     private DateTime _lastRxUtc = DateTime.MinValue;
     private DateTime _lastTxUtc = DateTime.MinValue;
-
-    private long _lastLocoNetSensorTrafficTicks =
-        DateTime.UtcNow.Ticks;
 
     private bool _emergencyKnown;
     private bool _emergencyPaused;
@@ -137,19 +117,6 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
         if (_port is < 1 or > 65535)
             _port = DefaultPort;
 
-        _locoNetFeedbackEnabled =
-            configuration.GetValue(
-                "Z21:LocoNetFeedback",
-                false);
-
-        _locoNetPort =
-            configuration.GetValue(
-                "Z21:LocoNetPort",
-                5560);
-
-        if (_locoNetPort is < 1 or > 65535)
-            _locoNetPort = 5560;
-
         SetRBusOffset(
             configuration.GetValue(
                 "Z21:RBusOffset",
@@ -180,11 +147,6 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
     }
     protected virtual string Z21Profile => "z21";
     protected virtual uint BroadcastFlags => RocoBroadcastFlags;
-    protected virtual bool LocoNetFeedbackEnabled =>
-        _locoNetFeedbackEnabled;
-    protected virtual bool LbServerFeedbackEnabled => false;
-    protected virtual int LbServerPort => 1234;
-    protected virtual int LocoNetSensorOffset => 0;
     protected virtual string Z21ProcessorName => "Z21 LAN";
     protected virtual string Z21HardwareName(uint hardwareType) =>
         HardwareName(hardwareType);
@@ -254,48 +216,7 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
                 Capabilities:
                     _systemCapabilities,
                 LastSystemStateAgeMs:
-                    AgeMs(_lastSystemStateUtc),
-                LbServerEnabled:
-                    LbServerFeedbackEnabled,
-                LbServerConnected:
-                    _lbServerConnected,
-                LbServerPort:
-                    LbServerPort,
-                LbServerUptimeMs:
-                    _lbServerConnectedSinceUtc == DateTime.MinValue
-                        ? -1
-                        : Math.Max(
-                            0,
-                            (long)(now - _lbServerConnectedSinceUtc).TotalMilliseconds),
-                LastLbServerRxAgeMs:
-                    AgeMs(_lastLbServerRxUtc),
-                LbServerLinesObserved:
-                    Volatile.Read(
-                        ref _lbServerLinesObserved),
-                LbServerVersion:
-                    _lbServerVersion,
-                SensorFeedbackCount:
-                    Interlocked.Read(
-                        ref _sensorFeedbackCount),
-                LastSensorAddress:
-                    Volatile.Read(
-                        ref _lastSensorAddress),
-                LastSensorOn:
-                    Volatile.Read(
-                        ref _lastSensorOn) switch
-                    {
-                        0 => false,
-                        1 => true,
-                        _ => null
-                    },
-                LastSensorFeedbackAgeMs:
-                    AgeMs(
-                        _lastSensorFeedbackUtc),
-                LastInterrogateAgeMs:
-                    AgeMs(
-                        _lastLocoNetInterrogateUtc),
-                InterrogateEnabled:
-                    LbServerFeedbackEnabled);
+                    AgeMs(_lastSystemStateUtc));
         }
     }
 
@@ -309,6 +230,16 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
     public event Action<int, bool>? SensorFeedbackChanged;
     public event Action<int, bool>? AccessoryFeedbackChanged;
     public event Action<bool>? ConnectionChanged;
+
+    protected void PublishRawInfo(string raw) =>
+        RawInfo?.Invoke(raw);
+
+    protected void PublishSensorFeedback(
+        int address,
+        bool on) =>
+        SensorFeedbackChanged?.Invoke(
+            address,
+            on);
 
     public bool SetEndpoint(
         string host,
@@ -347,18 +278,6 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
         var txTask =
             RunTxQueueAsync(
                 txCts.Token);
-
-        var locoNetFeedbackTask =
-            LocoNetFeedbackEnabled
-                ? RunLocoNetFeedbackAsync(
-                    stoppingToken)
-                : Task.CompletedTask;
-
-        var lbServerFeedbackTask =
-            LbServerFeedbackEnabled
-                ? RunLbServerFeedbackAsync(
-                    stoppingToken)
-                : Task.CompletedTask;
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -494,22 +413,6 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
         }
         catch
         {
-        }
-
-        try
-        {
-            await Task.WhenAll(
-                locoNetFeedbackTask,
-                lbServerFeedbackTask);
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        catch (Exception ex)
-        {
-            _log.LogDebug(
-                ex,
-                "Z21 feedback side-channel task stopped");
         }
 
         txCts.Cancel();
@@ -1889,7 +1792,7 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
         return Task.FromResult(true);
     }
 
-    public async Task<bool> RequestSensorSnapshotAsync(
+    public virtual async Task<bool> RequestSensorSnapshotAsync(
         CancellationToken ct = default)
     {
         _log.LogInformation(
@@ -1914,809 +1817,9 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
             rbus0,
             rbus1);
 
-        // Standard Z21 stationary detector interrogation.
-        var loconet =
-            await SendPacketAsync(
-                0x00A4,
-                new byte[]
-                {
-                    0x80,
-                    0x00,
-                    0x00
-                },
-                false,
-                ct);
-
-        var lbServer =
-            await RequestLbServerSensorSnapshotAsync(
-                ct);
-
         return
             rbus0 ||
-            rbus1 ||
-            loconet ||
-            lbServer;
-    }
-
-    private async Task<bool> RequestLbServerSensorSnapshotAsync(
-        CancellationToken ct)
-    {
-        if (!LbServerFeedbackEnabled)
-            return false;
-
-        try
-        {
-            using var client =
-                new TcpClient
-                {
-                    NoDelay = true
-                };
-
-            using var connectCts =
-                CancellationTokenSource
-                    .CreateLinkedTokenSource(
-                        ct);
-
-            connectCts.CancelAfter(
-                TimeSpan.FromSeconds(3));
-
-            await client.ConnectAsync(
-                _host,
-                LbServerPort,
-                connectCts.Token);
-
-            using var stream =
-                client.GetStream();
-
-            using var writer =
-                new StreamWriter(
-                    stream)
-                {
-                    AutoFlush = true,
-                    NewLine = "\r\n"
-                };
-
-            return await SendLocoNetInterrogateAsync(
-                writer,
-                ct);
-        }
-        catch (OperationCanceledException)
-            when (ct.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            _log.LogWarning(
-                ex,
-                "Z21 LocoNet sensor interrogation failed: {Host}:{Port}",
-                _host,
-                LbServerPort);
-
-            return false;
-        }
-    }
-
-    private async Task RunLocoNetFeedbackAsync(
-        CancellationToken ct)
-    {
-        while (!ct.IsCancellationRequested)
-        {
-            try
-            {
-                using var client =
-                    new TcpClient
-                    {
-                        NoDelay = true
-                    };
-
-                using var connectCts =
-                    CancellationTokenSource
-                        .CreateLinkedTokenSource(
-                            ct);
-
-                connectCts.CancelAfter(
-                    TimeSpan.FromSeconds(3));
-
-                await client.ConnectAsync(
-                    _host,
-                    _locoNetPort,
-                    connectCts.Token);
-
-                _log.LogInformation(
-                    "Z21 LocoNet Binary feedback connected: {Host}:{Port}",
-                    _host,
-                    _locoNetPort);
-
-                RawInfo?.Invoke(
-                    $"Z21 LocoNet Binary connected {_host}:{_locoNetPort}");
-
-                using var stream =
-                    client.GetStream();
-
-                await ReadLocoNetBinaryAsync(
-                    stream,
-                    ct);
-            }
-            catch (OperationCanceledException)
-                when (ct.IsCancellationRequested)
-            {
-                break;
-            }
-            catch (OperationCanceledException)
-            {
-                _log.LogDebug(
-                    "Z21 LocoNet Binary feedback connect timed out: {Host}:{Port}",
-                    _host,
-                    _locoNetPort);
-            }
-            catch (Exception ex)
-            {
-                _log.LogDebug(
-                    ex,
-                    "Z21 LocoNet Binary feedback unavailable: {Host}:{Port}",
-                    _host,
-                    _locoNetPort);
-            }
-
-            try
-            {
-                await Task.Delay(
-                    2000,
-                    ct);
-            }
-            catch (OperationCanceledException)
-            {
-                break;
-            }
-        }
-    }
-
-    private async Task RunLbServerFeedbackAsync(
-        CancellationToken ct)
-    {
-        while (!ct.IsCancellationRequested)
-        {
-            try
-            {
-                using var client =
-                    new TcpClient
-                    {
-                        NoDelay = true
-                    };
-
-                using var connectCts =
-                    CancellationTokenSource
-                        .CreateLinkedTokenSource(
-                            ct);
-
-                connectCts.CancelAfter(
-                    TimeSpan.FromSeconds(3));
-
-                await client.ConnectAsync(
-                    _host,
-                    LbServerPort,
-                    connectCts.Token);
-
-                lock (_stateGate)
-                {
-                    _lbServerConnected = true;
-                    _lbServerConnectedSinceUtc =
-                        DateTime.UtcNow;
-                    _lastLbServerRxUtc =
-                        DateTime.MinValue;
-                }
-
-                _log.LogInformation(
-                    "Z21 LocoNet LBServer feedback connected: {Host}:{Port}",
-                    _host,
-                    LbServerPort);
-
-                RawInfo?.Invoke(
-                    $"Z21 LocoNet LBServer connected {_host}:{LbServerPort}");
-
-                using var stream =
-                    client.GetStream();
-
-                using var reader =
-                    new StreamReader(
-                        stream);
-
-                using var writer =
-                    new StreamWriter(
-                        stream)
-                    {
-                        AutoFlush = true,
-                        NewLine = "\r\n"
-                    };
-
-                // JMRI keeps its receive handler alive while the 8-phase
-                // interrogation is sent. Do the same so LBServer replies are
-                // consumed immediately on the very same LBServer session.
-                var readTask =
-                    ReadLbServerAsync(
-                        reader,
-                        ct);
-
-                _ =
-                    await SendLocoNetInterrogateAsync(
-                        writer,
-                        ct);
-
-                await readTask;
-            }
-            catch (OperationCanceledException)
-                when (ct.IsCancellationRequested)
-            {
-                break;
-            }
-            catch (OperationCanceledException)
-            {
-                _log.LogDebug(
-                    "Z21 LocoNet LBServer connect timed out: {Host}:{Port}",
-                    _host,
-                    LbServerPort);
-            }
-            catch (Exception ex)
-            {
-                _log.LogDebug(
-                    ex,
-                    "Z21 LocoNet LBServer unavailable: {Host}:{Port}",
-                    _host,
-                    LbServerPort);
-            }
-
-            lock (_stateGate)
-            {
-                _lbServerConnected = false;
-                _lbServerConnectedSinceUtc =
-                    DateTime.MinValue;
-            }
-
-            try
-            {
-                await Task.Delay(
-                    2000,
-                    ct);
-            }
-            catch (OperationCanceledException)
-            {
-                break;
-            }
-        }
-    }
-
-    private void MarkLocoNetSensorTraffic()
-    {
-        Interlocked.Exchange(
-            ref _lastLocoNetSensorTrafficTicks,
-            DateTime.UtcNow.Ticks);
-    }
-
-    private async Task WaitForLocoNetQuietPeriodAsync(
-        CancellationToken ct)
-    {
-        while (true)
-        {
-            var lastTicks =
-                Interlocked.Read(
-                    ref _lastLocoNetSensorTrafficTicks);
-
-            var elapsed =
-                DateTime.UtcNow -
-                new DateTime(
-                    lastTicks,
-                    DateTimeKind.Utc);
-
-            var remaining =
-                TimeSpan.FromMilliseconds(
-                    LocoNetInterrogateRestMs) -
-                elapsed;
-
-            if (remaining <=
-                TimeSpan.Zero)
-            {
-                return;
-            }
-
-            await Task.Delay(
-                remaining >
-                    TimeSpan.FromMilliseconds(100)
-                    ? TimeSpan.FromMilliseconds(100)
-                    : remaining,
-                ct);
-        }
-    }
-
-    private async Task<bool> SendLocoNetInterrogateAsync(
-        StreamWriter writer,
-        CancellationToken ct)
-    {
-        await _locoNetInterrogateGate.WaitAsync(
-            ct);
-
-        try
-        {
-            var now =
-                DateTime.UtcNow;
-
-            if (
-                _lastLocoNetInterrogateUtc !=
-                    DateTime.MinValue &&
-                now - _lastLocoNetInterrogateUtc <
-                    TimeSpan.FromSeconds(10)
-            )
-            {
-                _log.LogDebug(
-                    "Z21 LocoNet sensor interrogation skipped: recent request still authoritative");
-
-                return true;
-            }
-
-        // Same 8-phase LocoNet sensor interrogation sequence used by JMRI.
-        // A compatible command station with LocoNet interrogation
-        // enabled responds by publishing the current feedback states.
-        var sw1 =
-            new byte[]
-            {
-                0x78,
-                0x79,
-                0x7A,
-                0x7B,
-                0x78,
-                0x79,
-                0x7A,
-                0x7B
-            };
-
-        var sw2 =
-            new byte[]
-            {
-                0x27,
-                0x27,
-                0x27,
-                0x27,
-                0x07,
-                0x07,
-                0x07,
-                0x07
-            };
-
-        RawInfo?.Invoke(
-            "Z21 LocoNet sensor interrogation started");
-
-        _log.LogInformation(
-            "Starting Z21 LocoNet sensor interrogation");
-
-        for (var index = 0;
-             index < sw1.Length;
-             ++index)
-        {
-            // JMRI waits until the LocoNet has been quiet for the configured
-            // resting interval. Any sensor/turnout feedback received while
-            // interrogating pushes the next phase out again.
-            await WaitForLocoNetQuietPeriodAsync(
-                ct);
-
-            var opcode =
-                (byte)0xB0;
-
-            var checksum =
-                (byte)(
-                    0xFF ^
-                    opcode ^
-                    sw1[index] ^
-                    sw2[index]);
-
-            var line =
-                $"SEND {opcode:X2} {sw1[index]:X2} {sw2[index]:X2} {checksum:X2}";
-
-            _log.LogInformation(
-                "LocoNet interrogate TX {Phase}/8: {Line}",
-                index + 1,
-                line);
-
-            RawInfo?.Invoke(
-                $"LocoNet interrogate TX {index + 1}/8");
-
-            await writer.WriteLineAsync(
-                line.AsMemory(),
-                ct);
-
-            MarkLocoNetSensorTraffic();
-        }
-
-        RawInfo?.Invoke(
-            "Z21 LocoNet sensor interrogation sent");
-
-            _lastLocoNetInterrogateUtc =
-                DateTime.UtcNow;
-
-            return true;
-        }
-        finally
-        {
-            _locoNetInterrogateGate.Release();
-        }
-    }
-
-    private async Task ReadLbServerAsync(
-        StreamReader reader,
-        CancellationToken ct)
-    {
-        while (!ct.IsCancellationRequested)
-        {
-            var line =
-                await reader.ReadLineAsync(
-                    ct);
-
-            if (line is null)
-                return;
-
-            var trimmed =
-                line.Trim();
-
-            if (trimmed.Length == 0)
-                continue;
-
-            lock (_stateGate)
-                _lastLbServerRxUtc =
-                    DateTime.UtcNow;
-
-            if (trimmed.StartsWith(
-                    "VERSION ",
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                lock (_stateGate)
-                    _lbServerVersion =
-                        SanitizeLbServerVersion(
-                            trimmed);
-            }
-
-            var observed =
-                Interlocked.Increment(
-                    ref _lbServerLinesObserved);
-
-            if (observed <= 12)
-            {
-                _log.LogInformation(
-                    "LocoNet LBServer RX #{Count}: {Line}",
-                    observed,
-                    trimmed);
-
-                RawInfo?.Invoke(
-                    $"LocoNet LBServer RX {trimmed}");
-            }
-
-            var packetText =
-                trimmed.StartsWith(
-                    "RECEIVE ",
-                    StringComparison.OrdinalIgnoreCase)
-                    ? trimmed[8..]
-                    : trimmed;
-
-            var first =
-                packetText.Length > 0
-                    ? packetText[0]
-                    : '\0';
-
-            if (!Uri.IsHexDigit(first))
-                continue;
-
-            var tokens =
-                packetText
-                    .Split(
-                        ' ',
-                        StringSplitOptions.RemoveEmptyEntries |
-                        StringSplitOptions.TrimEntries);
-
-            if (tokens.Length == 0 ||
-                tokens.Length > 128)
-            {
-                continue;
-            }
-
-            var packet =
-                new byte[tokens.Length];
-
-            var valid = true;
-
-            for (var index = 0;
-                 index < tokens.Length;
-                 ++index)
-            {
-                try
-                {
-                    packet[index] =
-                        Convert.ToByte(
-                            tokens[index],
-                            16);
-                }
-                catch
-                {
-                    valid = false;
-                    break;
-                }
-            }
-
-            if (valid)
-            {
-                ProcessLocoNetBinaryPacket(
-                    packet);
-            }
-        }
-    }
-
-    private async Task ReadLocoNetBinaryAsync(
-        NetworkStream stream,
-        CancellationToken ct)
-    {
-        var readBuffer =
-            new byte[512];
-
-        var packet =
-            new byte[128];
-
-        var packetLength = 0;
-        var expectedLength = 0;
-
-        while (!ct.IsCancellationRequested)
-        {
-            var count =
-                await stream.ReadAsync(
-                    readBuffer,
-                    ct);
-
-            if (count <= 0)
-                return;
-
-            for (var index = 0;
-                 index < count;
-                 ++index)
-            {
-                var value =
-                    readBuffer[index];
-
-                if ((value & 0x80) != 0)
-                {
-                    packet[0] = value;
-                    packetLength = 1;
-                    expectedLength =
-                        LocoNetMessageLength(
-                            packet,
-                            packetLength);
-
-                    continue;
-                }
-
-                if (packetLength == 0)
-                    continue;
-
-                if (packetLength >= packet.Length)
-                {
-                    packetLength = 0;
-                    expectedLength = 0;
-                    continue;
-                }
-
-                packet[packetLength++] =
-                    value;
-
-                expectedLength =
-                    LocoNetMessageLength(
-                        packet,
-                        packetLength);
-
-                if (expectedLength <= 0)
-                    continue;
-
-                if (expectedLength >
-                    packet.Length)
-                {
-                    packetLength = 0;
-                    expectedLength = 0;
-                    continue;
-                }
-
-                if (packetLength <
-                    expectedLength)
-                {
-                    continue;
-                }
-
-                if (packetLength ==
-                    expectedLength)
-                {
-                    ProcessLocoNetBinaryPacket(
-                        packet.AsSpan(
-                            0,
-                            packetLength));
-                }
-
-                packetLength = 0;
-                expectedLength = 0;
-            }
-        }
-    }
-
-    private static int LocoNetMessageLength(
-        byte[] packet,
-        int packetLength)
-    {
-        if (packetLength <= 0)
-            return 0;
-
-        var opcode =
-            packet[0];
-
-        if ((opcode & 0x60) ==
-            0x60)
-        {
-            if (packetLength < 2)
-                return 0;
-
-            return packet[1];
-        }
-
-        return
-            ((opcode & 0x60) >> 4) +
-            2;
-    }
-
-    private void ProcessLocoNetBinaryPacket(
-        ReadOnlySpan<byte> packet)
-    {
-        if (packet.Length < 2)
-            return;
-
-        var observed =
-            Interlocked.Increment(
-                ref _binaryPacketsObserved);
-
-        if (observed <= 12)
-        {
-            var hex =
-                Convert.ToHexString(
-                    packet);
-
-            _log.LogInformation(
-                "LocoNet Binary RX #{Count}: {Packet}",
-                observed,
-                hex);
-
-            RawInfo?.Invoke(
-                $"LocoNet Binary RX {hex}");
-        }
-
-        byte checksum = 0;
-
-        foreach (var value in packet)
-            checksum ^= value;
-
-        if (checksum != 0xFF)
-        {
-            _log.LogDebug(
-                "Ignoring LocoNet Binary packet with invalid checksum: {Packet}",
-                Convert.ToHexString(
-                    packet));
-
-            return;
-        }
-
-        if (
-            packet[0] is
-                0xB1 or // OPC_SW_REP
-                0xB2    // OPC_INPUT_REP
-        )
-        {
-            MarkLocoNetSensorTraffic();
-        }
-        else if (
-            packet.Length >= 4 &&
-            packet[0] is
-                0xB0 or // OPC_SW_REQ
-                0xBD    // OPC_SW_ACK
-        )
-        {
-            var address =
-                (packet[1] & 0x7F) +
-                128 *
-                (packet[2] & 0x0F);
-
-            if (address is
-                0x3F8 or
-                0x3F9 or
-                0x3FA or
-                0x3FB)
-            {
-                MarkLocoNetSensorTraffic();
-            }
-        }
-
-        // OPC_INPUT_REP is the normal LocoNet general sensor report.
-        // Compatible feedback bridges may expose S88 / detector states here.
-        if (packet[0] == 0xB2 &&
-            packet.Length >= 4)
-        {
-            ProcessLocoNetInputReport(
-                packet);
-
-            return;
-        }
-
-        _log.LogTrace(
-            "LocoNet Binary RX {Packet}",
-            Convert.ToHexString(
-                packet));
-    }
-
-    private void ProcessLocoNetInputReport(
-        ReadOnlySpan<byte> packet)
-    {
-        var in1 =
-            packet[1];
-
-        var in2 =
-            packet[2];
-
-        var rawAddress =
-            (
-                in1 |
-                (
-                    (in2 & 0x0F)
-                    << 7
-                )
-            ) << 1;
-
-        rawAddress +=
-            (in2 & 0x20) != 0
-                ? 2
-                : 1;
-
-        if (rawAddress is < 1 or > 4096)
-            return;
-
-        var address =
-            rawAddress +
-            LocoNetSensorOffset;
-
-        if (address is < 1 or > 65535)
-            return;
-
-        var occupied =
-            (in2 & 0x10) != 0;
-
-        Interlocked.Increment(
-            ref _sensorFeedbackCount);
-
-        Volatile.Write(
-            ref _lastSensorAddress,
-            address);
-
-        Volatile.Write(
-            ref _lastSensorOn,
-            occupied
-                ? 1
-                : 0);
-
-        lock (_stateGate)
-            _lastSensorFeedbackUtc =
-                DateTime.UtcNow;
-
-        _log.LogInformation(
-            "Z21 S88/LocoNet feedback raw #{RawAddress} -> Hub #{Address}: {State}",
-            rawAddress,
-            address,
-            occupied
-                ? "ON"
-                : "OFF");
-
-        RawInfo?.Invoke(
-            $"Z21 sensor #{address} {(occupied ? "ON" : "OFF")}");
-
-        SensorFeedbackChanged?.Invoke(
-            address,
-            occupied);
+            rbus1;
     }
 
     private void ProcessDatagram(
@@ -2811,14 +1914,6 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
                 ProcessHardwareInfo(payload);
                 break;
 
-            case 0x00A0:
-            case 0x00A1:
-                ProcessLocoNetMessage(payload);
-                break;
-
-            case 0x00A4:
-                ProcessLocoNetDetector(payload);
-                break;
         }
     }
 
@@ -3333,129 +2428,6 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
         }
     }
 
-    private void ProcessLocoNetMessage(
-        ReadOnlySpan<byte> data)
-    {
-        if (data.Length < 4)
-            return;
-
-        // OPC_INPUT_REP:
-        //   B2 IN1 IN2 CKSUM
-        //
-        // IN1 = 0,A6..A0
-        // IN2 = 0,X,I,L,A10..A7
-        //
-        // For general LocoNet sensors the I bit selects the odd/even contact.
-        // This is the same 1-based contact-number mapping used by JMRI and
-        // allows compatible S88/LocoNet feedback addresses (1..2048) to pass
-        // through unchanged into the Hub sensor address space.
-        if (data[0] != 0xB2)
-            return;
-
-        var in1 =
-            data[1];
-
-        var in2 =
-            data[2];
-
-        var baseAddress =
-            (
-                (
-                    (in2 & 0x0F) *
-                    128
-                ) +
-                (in1 & 0x7F)
-            );
-
-        var rawAddress =
-            baseAddress *
-            2 +
-            (
-                (in2 & 0x20) != 0
-                    ? 2
-                    : 1
-            );
-
-        if (rawAddress is < 1 or > 4096)
-            return;
-
-        var address =
-            rawAddress +
-            LocoNetSensorOffset;
-
-        if (address is < 1 or > 65535)
-            return;
-
-        var occupied =
-            (in2 & 0x10) != 0;
-
-        _log.LogInformation(
-            "Z21 LocoNet feedback raw #{RawAddress} -> Hub #{Address}: {State}",
-            rawAddress,
-            address,
-            occupied
-                ? "ON"
-                : "OFF");
-
-        RawInfo?.Invoke(
-            $"Z21 sensor #{address} {(occupied ? "ON" : "OFF")}");
-
-        SensorFeedbackChanged?.Invoke(
-            address,
-            occupied);
-    }
-
-    private void ProcessLocoNetDetector(
-        ReadOnlySpan<byte> data)
-    {
-        if (data.Length < 4)
-            return;
-
-        var type = data[0];
-
-        var address =
-            BinaryPrimitives
-                .ReadUInt16LittleEndian(
-                    data.Slice(1, 2));
-
-        if (address == 0)
-            return;
-
-        bool? occupied =
-            type switch
-            {
-                0x01 or 0x11 =>
-                    data[3] != 0,
-
-                0x02 =>
-                    true,
-
-                0x03 =>
-                    false,
-
-                _ =>
-                    null
-            };
-
-        if (occupied.HasValue)
-        {
-            _log.LogInformation(
-                "Z21 detector feedback #{Address}: {State} type=0x{Type:X2}",
-                address,
-                occupied.Value
-                    ? "ON"
-                    : "OFF",
-                type);
-
-            RawInfo?.Invoke(
-                $"Z21 sensor #{address} {(occupied.Value ? "ON" : "OFF")}");
-
-            SensorFeedbackChanged?.Invoke(
-                address,
-                occupied.Value);
-        }
-    }
-
     private void EmitTrackConfiguration()
     {
         TrackConfigurationChanged?.Invoke(
@@ -3486,76 +2458,6 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
 
         if (address >= 128)
             msb |= 0xC0;
-    }
-
-    private static string SanitizeLbServerVersion(
-        string line)
-    {
-        var tokens =
-            line.Split(
-                ' ',
-                StringSplitOptions.RemoveEmptyEntries |
-                StringSplitOptions.TrimEntries);
-
-        string serverVersion = "";
-        string model = "";
-        string firmware = "";
-
-        for (var index = 0;
-             index < tokens.Length;
-             ++index)
-        {
-            if (
-                string.Equals(
-                    tokens[index],
-                    "version",
-                    StringComparison.OrdinalIgnoreCase) &&
-                index + 1 < tokens.Length
-            )
-            {
-                serverVersion =
-                    tokens[index + 1];
-            }
-
-            if (
-                tokens[index].StartsWith(
-                    "YD7010",
-                    StringComparison.OrdinalIgnoreCase)
-            )
-            {
-                model =
-                    tokens[index]
-                        .Split(
-                            '-',
-                            2,
-                            StringSplitOptions.TrimEntries)[0];
-            }
-
-            if (
-                tokens[index].StartsWith(
-                    "V",
-                    StringComparison.OrdinalIgnoreCase) &&
-                tokens[index].Length > 1 &&
-                char.IsDigit(
-                    tokens[index][1])
-            )
-            {
-                firmware =
-                    tokens[index];
-            }
-        }
-
-        return string.Join(
-            " · ",
-            new[]
-            {
-                serverVersion.Length > 0
-                    ? "LBServer " + serverVersion
-                    : "",
-                model,
-                firmware
-            }.Where(value =>
-                value.Length > 0));
     }
 
     private static string BcdVersion(
