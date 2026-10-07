@@ -1,20 +1,19 @@
 # DCCExpressHub
 
-DCCExpressHub is a control and automation system for model railways using **DCC-EX**, **Roco Z21** or **YaMoRC YD7010** command stations.
+DCCExpressHub is a control, layout and automation system for model railways using **DCC-EX**, **Roco Z21** or **YaMoRC YD7010** command stations.
 
-It provides one interface for driving locomotives, operating turnouts and signals, editing the layout, following trains, running automatic movements and timetables, and using sensors for safer operation.
+It provides one interface for driving locomotives, operating turnouts and signals, editing the layout, following trains, running automatic movements and timetables, and using occupancy sensors for safer operation.
 
-You can run DCCExpressHub on:
+DCCExpressHub runs on:
 
-- **Windows Desktop / Server** — packaged desktop application with WPF + WebView2.
-- **Linux Server / headless** — the same .NET 10 backend runs natively with Watson HTTP/WebSocket hosting.
-- **ESP32-S3 Hub** — the supported standalone embedded platform.
+- **Windows** — packaged desktop application with WPF + WebView2 and the native .NET backend.
+- **Linux** — the same .NET 10 backend runs headless and serves the browser UI over HTTP/WebSocket.
 
-The same layout can be controlled from PCs, notebooks, tablets and phones on the local network.
+The browser interface can be opened from PCs, notebooks, tablets and phones on the local network.
 
 > **DCCExpressHub is not a command station.**
 >
-> The connected command station still generates the DCC track signal. DCCExpressHub sits above it and provides the control, layout and automation functions.
+> The connected command station still generates the DCC track signal. DCCExpressHub sits above it and provides the control, layout, tracking and automation functions.
 
 ![DCCExpressHub screenshot](doc/images/Screenshot_2026-09-23_182817.png)
 
@@ -23,9 +22,13 @@ The same layout can be controlled from PCs, notebooks, tablets and phones on the
 ```text
  PC / tablet / phone
          |
+      HTTP / WS
+         |
          v
    DCCExpressHub
- Windows / Linux / ESP32-S3
+  Windows or Linux
+         |
+  TCP / USB / UDP
          |
          v
   Command station
@@ -35,122 +38,294 @@ The same layout can be controlled from PCs, notebooks, tablets and phones on the
  Model railway layout
 ```
 
-## Alpha2 highlights
+## Features
 
-Alpha2 is a major step forward for automatic operation and layout control.
+### Locomotive control
 
-Main improvements:
-
-- automatic train movements with route and turnout handling,
-- train tracking using occupancy sensors,
-- safer route execution and unknown occupancy detection,
-- timetable operation,
-- visual automation flows and scripts,
-- improved route preview and block event configuration,
+- locomotive speed and direction,
+- functions F0-F28,
+- locomotive function bindings,
+- per-locomotive actions,
 - locomotive calibration,
-- improved DCC-EX sensor and console support,
-- new layout decorations and buildings,
-- cross-platform .NET backend for Windows and Linux,
-- ESP32-S3 as the supported standalone embedded platform.
+- runtime locomotive statistics,
+- optional function activation when the backend connects.
 
-### Movement / Dispatcher
+### Layout editor
 
-The backend Movement engine provides:
+The browser layout editor supports:
 
-- route execution,
+- track elements,
+- blocks,
+- occupancy sensors,
+- turnouts,
+- signals,
+- track directions,
+- route topology,
+- decorative layers,
+- buildings and scenery,
+- copy/clone workflow for repeated elements.
+
+The layout is stored by the backend and is shared by every browser connected to the Hub.
+
+### Movement and Dispatcher
+
+The backend Movement/Dispatcher engine provides:
+
+- automatic route execution,
 - target block reservation,
 - turnout reservation and release,
 - route and sensor safety checks,
-- unknown occupancy handling,
+- unknown occupancy detection,
 - emergency-stop integration,
-- movement events and actions,
-- blocking and background action sequences,
-- hold / release support,
 - cruise speed handling,
+- movement events and actions,
+- station hold/release handling,
 - runtime logging.
 
 ### Train tracking
 
-Train tracking can follow locomotives through the layout using:
+Train tracking follows locomotives through the layout using:
 
-- DCC-EX sensor states,
 - the generated route graph,
 - turnout positions,
 - block occupancy,
-- active sensor history,
-- direction and movement state.
+- active sensor state,
+- direction,
+- Movement/Dispatcher state.
 
-### Route and block configuration
+Tracking can maintain multiple active sensors for longer trains and exposes the current block, target and route state to the UI.
 
-The layout runtime includes:
+### Routes and block events
 
-- generated route graph,
+DCCExpressHub generates route vectors from the current layout instead of storing a second independent route representation.
+
+Route and block configuration includes:
+
+- generated graph and route network,
 - route direction validation,
 - segment parts,
-- composite block / segment sensor nodes,
-- dynamic route-vector previews,
-- per-direction block event configuration,
-- configurable **APPROACH**, **ARRIVED** and **LEAVE** sensor conditions,
-- per-event delays.
+- composite block/segment sensor nodes,
+- route preview,
+- per-direction block event conditions,
+- **APPROACH**, **ARRIVED** and **LEAVE** events,
+- per-event delays,
+- sensor-based route safety.
 
-### Layout editor
+### Timetable
 
-The layout editor supports track elements, blocks, sensors, signals, turnouts and decorative layers.
+The backend timetable engine can:
 
-Current decoration elements include:
+- start Movements and Scripts,
+- use the fast clock,
+- keep running rows pinned,
+- skip disabled rows,
+- finish active work cleanly when the timetable is stopped.
 
-- trees,
-- bushes,
-- lamps,
-- station building,
-- switchman's hut,
-- garden house.
+### Flows and Scripts
 
-Buildings can be hidden independently with the **Building visibility** display option.
+Automation runs in the .NET backend rather than in the browser.
 
-## Windows Desktop
+Features include:
 
-The Windows version is the **primary DCCExpressHub platform**.
+- visual Flow automation,
+- JavaScript automation using Jint,
+- TrainEvent triggers,
+- locomotive and turnout actions,
+- audio playback actions,
+- blocking and non-blocking actions,
+- automation logs,
+- runtime state exposed to every connected browser.
 
-It can run locally on the same PC as the user interface or as a network server for other PCs, tablets and phones.
+### Audio
 
-The cross-platform .NET backend supports these command-station connections on Windows and Linux:
+The Hub can store and serve audio files used by automation.
+
+The backend supports:
+
+- file upload,
+- browser playback,
+- HTTP byte ranges for seeking,
+- blocking audio actions that can wait for playback completion.
+
+### Command-center protocols
+
+The cross-platform .NET backend supports:
 
 - **DCC-EX TCP/IP**
-- **DCC-EX Serial / USB COM port**
+- **DCC-EX Serial / USB**
 - **Roco Z21 UDP**
 - **YaMoRC YD7010**
 
-> **Source-code status**
->
-> Roco Z21 and YaMoRC YD7010 support are currently available in the source code / development build only.
-> They are **not yet included in the current published release package**.
+DCC-EX remains the primary reference command station.
 
-Typical architecture:
+## Command station support
+
+| Command station | Windows source build | Linux source build | Published Windows release |
+| --- | --- | --- | --- |
+| DCC-EX TCP | Supported | Supported | Yes |
+| DCC-EX Serial / USB | Supported | Supported | Yes |
+| Roco Z21 | Supported | Supported | Not yet |
+| YaMoRC YD7010 | Supported | Supported | Not yet |
+
+### DCC-EX
+
+DCC-EX is supported over TCP/IP and USB/serial.
+
+Sensor feedback is received through normal DCC-EX sensor events such as:
 
 ```text
- Browser / Desktop UI
-         |
-      HTTP / WS
-         |
-         v
- DCCExpressHub.Net
- .NET 10 + Watson
-         |
-   TCP / USB / UDP
-         |
-         v
-  Command station
- DCC-EX / Z21 / YD7010
+<Q ...>
+<q ...>
 ```
 
-### Download and install
+This feeds the same backend runtime used by block occupancy, tracking, Movement and Dispatcher safety.
 
-Download the Windows package from:
+The default DCC-EX TCP port is:
+
+```text
+2560
+```
+
+DCC-EX USB/serial uses:
+
+```text
+115200 baud
+```
+
+Typical Windows serial port:
+
+```text
+COM3
+```
+
+Typical Linux serial devices:
+
+```text
+/dev/ttyACM0
+/dev/ttyUSB0
+/dev/serial/by-id/...
+```
+
+### Roco Z21
+
+The .NET backend contains native Z21 LAN support.
+
+Current implementation includes:
+
+- Z21 UDP connection,
+- track power control,
+- emergency stop and release,
+- locomotive speed and direction,
+- locomotive functions,
+- turnout/basic accessory control,
+- signal aspects,
+- Z21 feedback handling.
+
+The default Z21 LAN port is:
+
+```text
+21105 / UDP
+```
+
+### YaMoRC YD7010
+
+YaMoRC uses separate protocol connections inside DCCExpressHub:
+
+```text
+DCCExpressHub.Net
+      |
+      +---- Z21 UDP 21105 --------> locomotive / turnout / power
+      |
+      +---- LocoNet LBServer 1234 -> occupancy / S88 feedback
+      |
+   YaMoRC YD7010
+```
+
+The Z21 and LocoNet implementations are intentionally separate protocol components even when they connect to the same physical YD7010.
+
+Recommended YaMoRC settings:
+
+```text
+Z21                  ON
+Z21 port             21105
+
+LocoNet LBServer     ON
+LBServer port        1234
+
+LocoNet -> Expert
+Interrogate: Report All Feedbacks = ON
+```
+
+For S88 address mapping, configure the YaMoRC **1ter Kontakt im Rückmeldebereich** value so that its generated feedback addresses match the Hub sensor addresses.
+
+Example:
+
+```text
+First Hub sensor address:                   1001
+YaMoRC "1ter Kontakt im Rückmeldebereich": 1000
+
+S88 input 1  -> Hub sensor 1001
+S88 input 6  -> Hub sensor 1006
+S88 input 7  -> Hub sensor 1007
+S88 input 20 -> Hub sensor 1020
+```
+
+## Architecture
+
+The primary runtime is the cross-platform **DCCExpressHub.Net** backend:
+
+```text
+                    Browser UI
+                        |
+                   HTTP + WS
+                        |
+                        v
+                DCCExpressHub.Net
+               .NET 10 + Watson 7
+                        |
+        +---------------+---------------+
+        |               |               |
+      DCC-EX           Z21           LocoNet
+        |               |               |
+        +---------------+---------------+
+                        |
+                 Model railway
+```
+
+The backend owns:
+
+- command-center communication,
+- layout runtime state,
+- Movement/Dispatcher,
+- train tracking,
+- Flows,
+- JavaScript Scripts,
+- Timetable,
+- fast clock,
+- file storage,
+- WebSocket runtime synchronization.
+
+The React UI is a client of the backend and does not execute the automation engines.
+
+# Windows
+
+## Windows requirements
+
+For the published Windows package:
+
+- Windows 10 or Windows 11 x64,
+- Microsoft Edge WebView2 Runtime,
+- LAN/USB access to the selected command station.
+
+The release package contains the required .NET runtime and does not require a separate .NET SDK installation.
+
+## Windows installation
+
+Download the current Windows release from:
 
 https://github.com/DCCExpress/DCCExpressHub/releases
 
-The published package is typically named:
+The package is typically named:
 
 ```text
 DCCExpressHub-<version>-win-x64.zip
@@ -166,27 +341,23 @@ Do not run the application directly from inside the ZIP archive.
 
 ### Windows SmartScreen
 
-DCCExpressHub alpha releases may not be digitally signed.
+Alpha builds may not be digitally signed.
 
-If Microsoft Defender SmartScreen reports an unknown publisher, first verify that the package came from the official DCCExpressHub GitHub Releases page.
+If Microsoft Defender SmartScreen reports an unknown publisher, verify that the package was downloaded from the official DCCExpressHub GitHub Releases page.
 
-### Local mode
+## Windows Local mode
 
-The default Desktop Hub port is:
+The Desktop application can run the Hub only for the local PC.
 
-```text
-5174
-```
-
-Local mode listens only on:
+Default URL:
 
 ```text
-127.0.0.1:5174
+http://127.0.0.1:5174
 ```
 
-### Server mode
+## Windows Server mode
 
-Server mode exposes the Hub to the local network so another PC, tablet or phone can connect using the Windows PC's LAN address.
+Server mode exposes DCCExpressHub to the trusted local network.
 
 Example:
 
@@ -194,11 +365,11 @@ Example:
 http://192.168.1.100:5174
 ```
 
-Use Server mode only on a trusted local network.
+Other PCs, tablets and phones can then open the same layout in a modern browser.
 
-### Persistent workspace
+## Windows persistent workspace
 
-User data is stored outside the application directory.
+The Desktop application keeps runtime data outside the application directory.
 
 Default location:
 
@@ -206,365 +377,104 @@ Default location:
 %LOCALAPPDATA%\DCCExpressHub\workspace
 ```
 
-This keeps layout, configuration and state data separate from the installed application files.
+This includes layout/configuration/state data and keeps user data separate from the installed binaries.
 
-## Linux / headless server
-
-The same **DCCExpressHub.Net** backend used by the Windows desktop build runs
-natively on Linux. The backend targets `.NET 10` (not `net10.0-windows`) and
-uses the .NET Generic Host plus **Watson 7** for HTTP, WebSocket, static-file
-and SSE transport.
-
-The WPF/WebView2 desktop shell remains Windows-only; on Linux the Hub runs as a
-headless server and the UI is opened in a browser from the Linux machine or
-another PC/tablet/phone on the LAN.
-
-### Install from Git
+## Building on Windows from source
 
 Requirements:
 
-- .NET 10 SDK
-- Node.js **^20.19.0 or >=22.12.0**
-- npm
-- Git
+- Git,
+- Node.js **^20.19.0 or >=22.12.0**,
+- npm,
+- .NET 10 SDK,
+- Microsoft Edge WebView2 Runtime,
+- PowerShell,
+- Visual Studio 2022/2026 optional.
 
-Clone the repository and run the root Linux launcher:
-
-```bash
-git clone https://github.com/DCCExpress/DCCExpressHub.git
-cd DCCExpressHub
-./run-linux.sh
-```
-
-The launcher asks for the command-center type and connection settings on first
-start. It supports:
-
-- YaMoRC YD7010 (Z21 + separate LocoNet feedback)
-- Roco Z21
-- DCC-EX TCP
-- DCC-EX Serial / USB
-
-Machine-local settings are stored in:
-
-```text
-desktop/DCCExpressHub.Net/.env.linux
-```
-
-This file is ignored by Git.
-
-### Building the Web UI from source
-
-A Git checkout contains the React/Vite source under `web-ui/`. On Linux the
-launcher builds that UI locally and serves the resulting `web-ui/dist`
-directory directly; no manual copy into the backend `wwwroot` is required.
-
-The launcher automatically rebuilds the UI when the checked-out `web-ui`
-source tree changes.
-
-Manual commands:
-
-```bash
-./run-linux.sh --build-ui       # npm ci + npm run build
-./run-linux.sh --build-backend  # dotnet build
-./run-linux.sh --build          # build UI, then backend
-./run-linux.sh --configure      # change command center and launch
-./run-linux.sh --show           # show saved Linux profile
-```
-
-The equivalent manual UI build is:
-
-```bash
-cd web-ui
-npm ci
-npm run build
-```
-
-Vite writes the production UI to:
-
-```text
-web-ui/dist
-```
-
-The Linux launcher sets `DCCEXPRESS_WEB_ROOT` to that directory.
-
-The backend listens on port `5174` by default:
-
-```text
-http://<linux-host-ip>:5174
-```
-
-DCC-EX serial devices can use Linux paths such as:
-
-```text
-/dev/ttyACM0
-/dev/ttyUSB0
-/dev/serial/by-id/...
-```
-
-## ESP32-S3 Hub
-
-**ESP32-S3 is the only supported ESP32 platform for current DCCExpressHub development.**
-
-The current supported embedded hardware is:
-
-- **Sunton ESP32-8048S043**
-- ESP32-S3
-- 4.3" display
-- 16 MB flash
-- PSRAM
-
-The ESP32-S3 Hub can host the shared browser interface and connect to the DCC-EX command station over TCP/IP.
-
-```text
- PC / tablet / phone
-         |
-      HTTP / WS
-         |
-         v
- DCCExpressHub ESP32-S3
-         |
-       TCP/IP
-         |
-         v
-       DCC-EX
-```
-
-The **.NET backend (Windows/Linux) remains the primary target for advanced automation**. ESP32-S3 is maintained as the embedded / standalone platform.
-
-### Build ESP32-S3 firmware
-
-The current reference PlatformIO environment is:
-
-```text
-sunton-8048s043-dccex
-```
-
-Build a merged image with:
+Clone:
 
 ```powershell
-.\build-merged.ps1 -Environment sunton-8048s043-dccex
+git clone https://github.com/DCCExpress/DCCExpressHub.git
+cd DCCExpressHub
 ```
 
-Merged firmware is written to:
+Build the Web UI and Windows Desktop application:
+
+```powershell
+.\build-desktop.ps1
+```
+
+Release configuration:
+
+```powershell
+.\build-desktop.ps1 -Configuration Release
+```
+
+Create the self-contained Windows x64 release package:
+
+```powershell
+.\build-desktop.ps1 -Clean -Publish
+```
+
+The generated ZIP is written under:
 
 ```text
-dist\firmware
+dist\desktop
 ```
 
-### Installation
-
-The DCCExpressHub Web Installer is available at:
-
-https://dccexpress.github.io/DCCExpressHubWeb/installer/
-
-Use desktop **Google Chrome** or **Microsoft Edge** for Web Serial / ESP Web Tools support.
-
-The serial console uses:
+The build script performs:
 
 ```text
-115200 baud
+web-ui
+   |
+npm build
+   |
+web-ui/dist
+   |
+sync
+   |
+desktop/DCCExpressHub.Net/wwwroot
+   |
+.NET backend + WPF Desktop build
 ```
 
-Typical configuration:
+# Linux
+
+DCCExpressHub runs natively on Linux as a headless .NET backend.
+
+There is currently no packaged Linux release. Linux installations are built directly from the Git repository.
+
+The UI is served by the backend and is opened in a browser.
+
+## Linux requirements
+
+Required:
+
+- x64 or ARM64 Linux,
+- .NET 10 SDK,
+- Git,
+- Node.js **^20.19.0 or >=22.12.0**,
+- npm.
+
+Tested development environment:
 
 ```text
-Hub hostname:     dccexpresshub
-Browser URL:      http://dccexpresshub.local
-
-DCC-EX host:      dccex.local
-DCC-EX TCP port:  2560
+Debian GNU/Linux 12 (bookworm)
+linux-x64
+.NET 10
 ```
 
-## Command station support
+For DCC-EX USB/serial, the Linux user must also have permission to access the serial device.
 
-DCCExpressHub is developed primarily against **DCC-EX**, including **EX-CSB1**, but the cross-platform .NET backend also contains native support for **Roco Z21** and **YaMoRC YD7010**.
+On Debian-based systems this commonly means membership in the `dialout` group:
 
-| Command station | .NET backend (Windows/Linux) | Published Windows release |
-| --- | --- | --- |
-| DCC-EX TCP | Supported | Yes |
-| DCC-EX Serial / USB | Supported | Yes |
-| Roco Z21 | Supported in source | Not yet |
-| YaMoRC YD7010 | Supported in source | Not yet |
-
-### DCC-EX
-
-DCC-EX remains the current reference backend.
-
-Sensor feedback is received through normal DCC-EX sensor events such as:
-
-```text
-<Q ...>
-<q ...>
+```bash
+sudo usermod -aG dialout $USER
 ```
 
-This allows block occupancy and route sensors to use the same backend runtime that drives tracking, Movement and Dispatcher safety.
+Log out and back in after changing group membership.
 
-### Roco Z21
-
-The cross-platform .NET backend contains native Z21 LAN support.
-
-Current implementation includes:
-
-- Z21 UDP connection,
-- track power control,
-- emergency stop and release,
-- locomotive speed and direction,
-- locomotive functions,
-- turnout / basic accessory control,
-- Z21 feedback handling.
-
-The default Z21 LAN port is:
-
-```text
-21105 / UDP
-```
-
-Roco Z21 support is currently **source-code / development-build only** and is not yet included in the published release package.
-
-### YaMoRC YD7010
-
-The cross-platform .NET backend has a dedicated **YaMoRC YD7010** profile.
-
-Control and feedback use two parallel network connections:
-
-```text
-DCCExpressHub.Net
-      |
-      +---- Z21 UDP 21105 --------> locomotive / turnout / power control
-      |
-      +---- LocoNet LBServer 1234 -> S88 / occupancy feedback
-      |
-   YaMoRC YD7010
-```
-
-YaMoRC YD7010 support is currently **source-code / development-build only** and is not yet included in the published release package.
-
-#### Required YaMoRC YD7010 settings
-
-In the YaMoRC configuration utility configure the following:
-
-1. Under the network / LAN protocol settings:
-
-   ```text
-   Z21                 ON
-   Z21 port            21105
-
-   LocoNet LBServer    ON
-   LBServer port       1234
-   ```
-
-   DCCExpressHub does not require the separate **LocoNet Binary** connection for the YD7010 profile.
-
-2. Under:
-
-   ```text
-   LocoNet -> Expert
-   ```
-
-   enable:
-
-   ```text
-   Interrogate: Report All Feedbacks
-   ```
-
-   DCCExpressHub uses the same LocoNet interrogation mechanism used by JMRI to request the current feedback state after connecting.
-
-3. Under:
-
-   ```text
-   ES-Link / s88N-IN
-   ```
-
-   configure **1ter Kontakt im Rückmeldebereich** so that the generated YaMoRC feedback addresses match the sensor addresses used by the Hub.
-
-   Important: the YaMoRC value is **one below** the first Hub sensor address.
-
-   Example:
-
-   ```text
-   First Hub sensor address:                   1001
-   YaMoRC "1ter Kontakt im Rückmeldebereich": 1000
-   ```
-
-   The resulting S88 addresses are then:
-
-   ```text
-   S88 input 1  -> Hub sensor 1001
-   S88 input 6  -> Hub sensor 1006
-   S88 input 7  -> Hub sensor 1007
-   S88 input 20 -> Hub sensor 1020
-   ```
-
-4. Save YaMoRC configuration changes with the **green check mark**.
-
-The Desktop launcher provides a **YaMoRC YD7010** connection profile. Its connection test checks both the Z21 control connection and the LBServer feedback connection required for automation.
-
-## S88 / s88-N feedback
-
-With **YaMoRC YD7010**, S88 feedback is received directly through the YD7010 LocoNet LBServer connection described above.
-
-With **DCC-EX**, S88 feedback can be integrated through the companion **DCCExpress-S88Adapter** project:
-
-https://github.com/DCCExpress/DCCExpress-S88Adapter
-
-The preferred integration is through the DCC-EX HAL driver included under:
-
-```text
-dcc-ex/
-├── IO_DCCExpressS88.h
-├── myHal.example.cpp
-└── sensors-1001-1032.txt
-```
-
-The adapter then appears to DCC-EX as normal VPIN inputs and DCC-EX emits standard sensor messages to DCCExpressHub.
-
-Example:
-
-```cpp
-#include "IO_DCCExpressS88.h"
-
-void halSetup() {
-    DCCExpressS88::create(1001, 32, 0x30);
-}
-```
-
-## PC, tablet and mobile use
-
-DCCExpressHub can be controlled from a modern browser on:
-
-- Windows PCs,
-- notebooks,
-- tablets,
-- phones.
-
-Clients connect to:
-
-- Windows Desktop running in **Server mode**,
-- a Linux/headless DCCExpressHub.Net server, or
-- an ESP32-S3 Hub.
-
-## Build and development
-
-### Requirements
-
-For Windows development:
-
-- Node.js / npm
-- .NET 10 SDK
-- Microsoft Edge WebView2 Runtime
-- Visual Studio optional
-
-For Linux/headless development:
-
-- Node.js ^20.19.0 or >=22.12.0 / npm
-- .NET 10 SDK
-- Git
-
-For ESP32-S3 development:
-
-- Node.js / npm
-- PlatformIO
-- ESP32-S3 PlatformIO toolchain
+## Linux installation from Git
 
 Clone:
 
@@ -573,44 +483,183 @@ git clone https://github.com/DCCExpress/DCCExpressHub.git
 cd DCCExpressHub
 ```
 
-### Windows Desktop development build
+For the current alpha development branch:
 
-```powershell
-.\build-desktop.ps1
+```bash
+git fetch origin
+git switch alpha3
+git pull --ff-only origin alpha3
 ```
 
-Release build:
-
-```powershell
-.\build-desktop.ps1 -Configuration Release
-```
-
-Create a publish package:
-
-```powershell
-.\build-desktop.ps1 -Clean -Publish
-```
-
-The publish output is written under:
-
-```text
-dist\desktop
-```
-
-### Linux/headless development build
-
-From the repository root:
+Build everything:
 
 ```bash
 ./run-linux.sh --build
+```
+
+Then configure and start:
+
+```bash
 ./run-linux.sh
 ```
 
-`--build` builds both the React/Vite UI and the .NET backend. A normal
-`./run-linux.sh` automatically rebuilds the UI when the checked-out
-`web-ui` source has changed.
+On the first run the launcher asks which command center to use:
 
-### Web UI development
+```text
+1) YaMoRC YD7010 (Z21 + separate LocoNet)
+2) Roco Z21
+3) DCC-EX TCP
+4) DCC-EX Serial
+```
+
+The machine-local settings are stored in:
+
+```text
+desktop/DCCExpressHub.Net/.env.linux
+```
+
+The file is ignored by Git.
+
+## Linux Web UI build
+
+A source checkout contains the React/Vite UI under:
+
+```text
+web-ui/
+```
+
+The Linux launcher builds it using:
+
+```bash
+npm ci
+npm run build
+```
+
+Production output:
+
+```text
+web-ui/dist/
+```
+
+Watson serves this directory directly. No manual copy into the backend is required.
+
+A normal:
+
+```bash
+git pull
+./run-linux.sh
+```
+
+automatically rebuilds the UI if the checked-out `web-ui` source tree changed.
+
+Useful launcher commands:
+
+```bash
+./run-linux.sh --build          # build UI and backend
+./run-linux.sh --build-ui       # build only React/Vite UI
+./run-linux.sh --build-backend  # build only .NET backend
+./run-linux.sh --configure      # change command-center settings and start
+./run-linux.sh --show           # show saved Linux configuration
+./run-linux.sh --help
+```
+
+## Linux backend URL
+
+The default listen address is:
+
+```text
+http://0.0.0.0:5174
+```
+
+Open it from another machine using the Linux host's LAN address, for example:
+
+```text
+http://192.168.1.50:5174
+```
+
+The listen URL can be overridden with:
+
+```bash
+export DCCEXPRESS_HTTP_URL=http://0.0.0.0:5174
+```
+
+## Linux manual build
+
+The launcher is recommended, but the components can also be built manually.
+
+Web UI:
+
+```bash
+cd web-ui
+npm ci
+npm run build
+cd ..
+```
+
+Backend:
+
+```bash
+dotnet restore desktop/DCCExpressHub.Net/DCCExpressHub.Net.csproj
+dotnet build desktop/DCCExpressHub.Net/DCCExpressHub.Net.csproj
+```
+
+Run manually:
+
+```bash
+export DCCEXPRESS_CONTENT_ROOT="$PWD/desktop/DCCExpressHub.Net"
+export DCCEXPRESS_WEB_ROOT="$PWD/web-ui/dist"
+export DCCEXPRESS_HTTP_URL=http://0.0.0.0:5174
+
+dotnet run --project desktop/DCCExpressHub.Net/DCCExpressHub.Net.csproj
+```
+
+For normal use, `run-linux.sh` is easier because it also manages command-center configuration.
+
+## Linux publish examples
+
+Framework-dependent x64:
+
+```bash
+dotnet publish desktop/DCCExpressHub.Net/DCCExpressHub.Net.csproj \
+  -c Release \
+  -r linux-x64 \
+  --self-contained false
+```
+
+Framework-dependent ARM64:
+
+```bash
+dotnet publish desktop/DCCExpressHub.Net/DCCExpressHub.Net.csproj \
+  -c Release \
+  -r linux-arm64 \
+  --self-contained false
+```
+
+## macOS
+
+The .NET backend is intentionally written using cross-platform APIs, but macOS is **not currently an officially tested or supported DCCExpressHub platform**.
+
+There is no macOS Desktop package or automated macOS build/test process at this time.
+
+# Development
+
+## Web UI development
+
+Start the backend first, then run Vite:
+
+```bash
+cd web-ui
+npm install
+DCCEXPRESS_DEVICE_URL=http://127.0.0.1:5174 npm run dev
+```
+
+Vite development server:
+
+```text
+http://localhost:5173
+```
+
+On PowerShell:
 
 ```powershell
 cd web-ui
@@ -619,61 +668,46 @@ $env:DCCEXPRESS_DEVICE_URL="http://127.0.0.1:5174"
 npm run dev
 ```
 
-Vite uses:
-
-```text
-http://localhost:5173
-```
-
-Demo mode:
-
-```powershell
-cd web-ui
-npm run dev:demo
-```
-
 ## Repository structure
 
 ```text
 DCCExpressHub/
-├── src/                         ESP32-S3 firmware
-├── include/                     firmware headers / defaults
-├── web-ui/                      shared React + Mantine frontend
+├── web-ui/                        React + Vite + Mantine frontend
 ├── desktop/
-│   ├── DCCExpressHub.Net/       Cross-platform .NET 10 + Watson backend
-│   ├── DCCExpressHub.Desktop/   WPF + WebView2 shell
+│   ├── DCCExpressHub.Net/         cross-platform .NET 10 + Watson backend
+│   ├── DCCExpressHub.Desktop/     Windows WPF + WebView2 shell
 │   └── DCCExpressHub.Desktop.slnx
-├── dcc-ex/                      DCC-EX HAL integrations
-├── data/                        prepared embedded Web UI / LittleFS data
-├── tools/
-├── platformio.ini
+├── dcc-ex/                        DCC-EX integrations
+├── doc/                           documentation and screenshots
+├── run-linux.sh                   Linux build/config/run launcher
+├── build-desktop.ps1              Windows build/release script
 ├── VERSION
-├── build-web.ps1
-├── build-desktop.ps1
-└── build-merged.ps1
+└── README.md
 ```
 
-## Versioning and releases
+## Versioning
 
 The repository-root `VERSION` file is the project version source.
 
-Current alpha2 version:
+Current development version:
 
 ```text
-0.1.0-alpha.2
+0.1.0-alpha.3
 ```
 
-GitHub releases:
+GitHub Releases:
 
 https://github.com/DCCExpress/DCCExpressHub/releases
 
-Alpha releases are published as **pre-releases**.
+Alpha releases are published as pre-releases.
 
 ## Project status
 
-DCCExpressHub is under active **alpha development**.
+DCCExpressHub is under active alpha development.
 
-The .NET backend is the primary runtime and development target. It runs on Windows and Linux; the WPF desktop shell is Windows-only. ESP32-S3 is the supported embedded target.
+The **.NET backend is the primary runtime** and runs on Windows and Linux.
+
+The Windows WPF shell provides the packaged desktop application. Linux runs the same backend headlessly and uses the browser UI.
 
 Interfaces, automation behaviour and hardware support may still change while the project evolves.
 
@@ -686,10 +720,6 @@ https://dccexpress.github.io/DCCExpressHubWeb/
 GitHub Releases:
 
 https://github.com/DCCExpress/DCCExpressHub/releases
-
-ESP32-S3 Web Installer:
-
-https://dccexpress.github.io/DCCExpressHubWeb/installer/
 
 DCC-EX:
 
