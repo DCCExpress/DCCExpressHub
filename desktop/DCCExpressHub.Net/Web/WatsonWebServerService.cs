@@ -141,6 +141,23 @@ public sealed class WatsonWebServerService :
     void RegisterRoutes(
         Webserver server)
     {
+        // Preserve the old Kestrel behavior for a plain HTTP request to the
+        // WebSocket path. Actual upgrade requests are handled by the Watson
+        // WebSocket route registered in StartAsync.
+        Add(
+            server,
+            WatsonHttpMethod.GET,
+            "/ws",
+            async ctx =>
+            {
+                ctx.Response.StatusCode =
+                    400;
+
+                await ctx.Response.Send(
+                    Array.Empty<byte>(),
+                    ctx.Token);
+            });
+
         Add(
             server,
             WatsonHttpMethod.GET,
@@ -1638,8 +1655,7 @@ public sealed class WatsonWebServerService :
 
         if (
             raw.Contains(
-                ',',
-                StringComparison.Ordinal)
+                ',')
         )
         {
             return false;

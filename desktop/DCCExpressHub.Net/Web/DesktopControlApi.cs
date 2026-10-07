@@ -55,7 +55,19 @@ public sealed class DesktopControlApi
                 remoteIp) ||
             !IPAddress.TryParse(
                 remoteIp,
-                out var address) ||
+                out var address)
+        )
+        {
+            return false;
+        }
+
+        if (address.IsIPv4MappedToIPv6)
+        {
+            address =
+                address.MapToIPv4();
+        }
+
+        if (
             !IPAddress.IsLoopback(
                 address)
         )
