@@ -78,8 +78,12 @@ instructions.
 
 ### Roco Z21
 
-Roco Z21 is supported through the native Z21 LAN protocol for locomotive,
-turnout, signal, power and feedback handling.
+Roco Z21 is supported through the native Z21 LAN protocol. The current
+DCCExpressHub implementation covers the feature set available on the white
+**z21 / z21start**, including **R-BUS feedback**.
+
+Black Z21-specific external buses such as native **CAN** and **LocoNet** are
+not currently handled directly by the Z21 profile.
 
 ### YaMoRC YD7010
 
