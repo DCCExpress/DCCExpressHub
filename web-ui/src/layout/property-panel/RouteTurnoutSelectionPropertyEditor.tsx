@@ -30,7 +30,7 @@ import {
 } from "../../models/editor/elements/TrackTurnoutThreeWayElement";
 import ElementPreview from "../../models/editor/rendering/ElementPreviewRenderer";
 import { useCommandCenter } from "../../context/CommandCenterContext";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { showWarningMessage } from "../../helpers";
 import { executeLegacyRouteButton } from "../../services/routeButtonExecutor";
 import {
@@ -52,7 +52,8 @@ type RouteTurnoutSelectionPropertyEditorProps = {
   onLayoutChange: LayoutSetter;
   onUpdateSelectedElement: SelectedElementUpdateHandler;
   setBusy?: (busy: boolean, text?: string) => void;
-  routeSelectRequest?: number;
+  routeSelectOpened: boolean;
+  onRouteSelectClose: () => void;
 };
 
 function findElementById(layout: LayoutView, id: LayoutElementId) {
@@ -136,17 +137,13 @@ export default function RouteTurnoutSelectionPropertyEditor({
   onLayoutChange,
   onUpdateSelectedElement,
   setBusy,
-  routeSelectRequest = 0,
+  routeSelectOpened,
+  onRouteSelectClose,
 }: RouteTurnoutSelectionPropertyEditorProps) {
   useTranslation();
   const commandCenter = useCommandCenter();
   const items = getItems(selectedElement, prop);
   const hasTurnouts = items.length > 0;
-
-  const [
-    routeSelectOpened,
-    setRouteSelectOpened,
-  ] = useState(false);
 
   const [
     routeCandidates,
@@ -176,11 +173,6 @@ export default function RouteTurnoutSelectionPropertyEditor({
     null
   );
 
-  const previousRouteSelectRequest =
-    useRef(
-      routeSelectRequest
-    );
-
   const openRouteSelect = (): void => {
     if (
       !(selectedElement instanceof
@@ -208,10 +200,6 @@ export default function RouteTurnoutSelectionPropertyEditor({
           selectedElement.id
         )
       );
-
-      setRouteSelectOpened(
-        true
-      );
     } catch (error) {
       setRouteCandidates(
         []
@@ -222,29 +210,23 @@ export default function RouteTurnoutSelectionPropertyEditor({
           ? error.message
           : String(error)
       );
-
-      setRouteSelectOpened(
-        true
-      );
     }
   };
 
   useEffect(
     () => {
       if (
-        routeSelectRequest ===
-          previousRouteSelectRequest.current
+        !routeSelectOpened
       ) {
         return;
       }
 
-      previousRouteSelectRequest.current =
-        routeSelectRequest;
-
       openRouteSelect();
     },
     [
-      routeSelectRequest,
+      routeSelectOpened,
+      selectedElement,
+      layout,
     ]
   );
 
@@ -372,9 +354,7 @@ export default function RouteTurnoutSelectionPropertyEditor({
         previous
     );
 
-    setRouteSelectOpened(
-      false
-    );
+    onRouteSelectClose();
   };
 
   const setRouteTurnoutState = (
@@ -493,10 +473,7 @@ export default function RouteTurnoutSelectionPropertyEditor({
           routeSelectOpened
         }
         onClose={
-          () =>
-            setRouteSelectOpened(
-              false
-            )
+          onRouteSelectClose
         }
         title={
           i18next.t(

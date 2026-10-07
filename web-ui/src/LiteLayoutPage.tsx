@@ -562,9 +562,9 @@ function LitePropertyPanel({
   useTranslation();
 
   const [
-    routeSelectRequest,
-    setRouteSelectRequest,
-  ] = useState(0);
+    routeSelectOpened,
+    setRouteSelectOpened,
+  ] = useState(false);
 
   const properties = useMemo(
     () => selectedElement?.getEditableProperties() ?? [],
@@ -798,10 +798,8 @@ function LitePropertyPanel({
               }
               onClick={
                 () =>
-                  setRouteSelectRequest(
-                    value =>
-                      value +
-                      1
+                  setRouteSelectOpened(
+                    true
                   )
               }
             >
@@ -824,8 +822,14 @@ function LitePropertyPanel({
                 onLayoutChange={setLayout}
                 onUpdateSelectedElement={() => invalidate()}
                 setBusy={setBusy}
-                routeSelectRequest={
-                  routeSelectRequest
+                routeSelectOpened={
+                  routeSelectOpened
+                }
+                onRouteSelectClose={
+                  () =>
+                    setRouteSelectOpened(
+                      false
+                    )
                 }
               />
             ) : property.type === "bittoggle" ? (
