@@ -121,7 +121,19 @@ finally {
     Pop-Location
 }
 
+$Version = (Get-Content $VersionFile -Raw).Trim()
+if ([string]::IsNullOrWhiteSpace($Version)) {
+    throw "VERSION file is empty."
+}
+
+[System.IO.File]::WriteAllText(
+    (Join-Path $Dist "version.json"),
+    ('{"version":"' + $Version + '"}' + [Environment]::NewLine),
+    (New-Object System.Text.UTF8Encoding($false))
+)
+
 Require (Join-Path $Dist "index.html") "Built WebUI index.html"
+Require (Join-Path $Dist "version.json") "Built WebUI version.json"
 
 Step "Refreshing desktop\DCCExpressHub.Net\wwwroot"
 
@@ -197,11 +209,6 @@ Require $RuntimeIndex "Desktop runtime WebUI"
 
 if ($Publish) {
     Step "Publishing clean self-contained Windows x64 release"
-
-    $Version = (Get-Content $VersionFile -Raw).Trim()
-    if ([string]::IsNullOrWhiteSpace($Version)) {
-        throw "VERSION file is empty."
-    }
 
     $PublishRoot = Join-Path $Root "dist\desktop"
     $PublishDir = Join-Path $PublishRoot "win-x64"

@@ -93,7 +93,7 @@ if (useYaMoRcZ21)
                 sp.GetRequiredService<
                     YaMoRcZ21CommandCenter>());
 }
-else if (useRocoZ21 || useYaMoRcZ21)
+else if (useRocoZ21)
 {
     builder.Services
         .AddSingleton<RocoZ21CommandCenter>();
@@ -218,7 +218,7 @@ configuredCommandCenter
     .SetCommandIntervalMs(
         persistedCc.CommandIntervalMs);
 
-if (useRocoZ21)
+if (useRocoZ21 || useYaMoRcZ21)
 {
     configuredCommandCenter
         .SetRBusOffset(

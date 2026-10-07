@@ -8,6 +8,7 @@ WEBUI_DIST="${WEBUI_DIR}/dist"
 UI_STAMP="${WEBUI_DIST}/.dccexpress-source-tree"
 ENV_FILE="${BACKEND_DIR}/.env.linux"
 PROJECT="${BACKEND_DIR}/DCCExpressHub.Net.csproj"
+VERSION_FILE="${REPO_ROOT}/VERSION"
 
 DEFAULT_HTTP_URL="http://0.0.0.0:5174"
 
@@ -127,6 +128,17 @@ build_ui() {
 
     npm ci
     npm run build
+
+    [[ -f "$VERSION_FILE" ]] ||
+        die "VERSION file not found: $VERSION_FILE"
+
+    local app_version
+    app_version="$(tr -d '\r\n' < "$VERSION_FILE")"
+
+    [[ -n "$app_version" ]] ||
+        die "VERSION file is empty."
+
+    printf '{"version":"%s"}\n' "$app_version" > "$WEBUI_DIST/version.json"
 
     [[ -f "$WEBUI_DIST/index.html" ]] ||
         die "Web UI build completed without dist/index.html."
