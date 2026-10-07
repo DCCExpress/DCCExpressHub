@@ -1,64 +1,118 @@
 # DCCExpressHub .NET 10 backend
 
-Cross-platform Windows/Linux backend for the existing DCCExpressHub React UI.
+Cross-platform DCCExpressHub backend for Windows and Linux.
+
+The backend uses the .NET Generic Host for dependency injection, logging and
+background services, and Watson 7 for HTTP, WebSocket, static-file and SSE
+transport. It does not depend on ASP.NET Core or Kestrel.
+
+The Windows WPF/WebView2 desktop shell is a separate Windows-only application;
+`DCCExpressHub.Net` itself can run headless on Linux.
 
 ## Quick start
 
-1. Install .NET 10 SDK.
-2. Edit `appsettings.json`.
-3. For DCC-EX TCP use `"Transport": "Tcp"`, host and port 2560.
-4. For USB/UART use `"Transport": "Serial"`, e.g. `COM3` on Windows or `/dev/ttyACM0` on Linux.
-5. Copy the **contents** of the React/Vite `dist` folder into `wwwroot`.
-6. Run:
+1. Install the .NET 10 SDK.
+2. Edit `appsettings.json` or provide configuration through environment variables.
+3. Copy the contents of the React/Vite `dist` directory into `wwwroot`.
+4. Run:
 
-    dotnet restore
-    dotnet run
+       dotnet restore
+       dotnet run
 
-7. Open `http://localhost:5174`.
+5. Open `http://localhost:5174`.
 
-## Implemented DCC-EX parity
+The default listen URL is `http://0.0.0.0:5174`.
 
-- TCP and Serial transports
-- reconnect loop
-- `<#>` heartbeat / alive state
-- startup `<s>`
-- DCC-EX frame parser
-- station info `<i...>` and max locos `<# n>`
-- track config `<= A ...>`
-- current `<jI...>` and trip `<jG...>` telemetry
-- power feedback `<p0...>` / `<p1...>`
-- loco feedback `<l ...>`
-- track/programming power
-- emergency stop
-- loco speed/direction
-- loco functions F0-F28
-- turnout/basic accessory
-- extended signal aspect
-- VPin
-- raw DCC-EX command
-- WebSocket `/ws` using the existing `{ type, data }` contract
-- basic decoder-programming command sending
-- `wwwroot` SPA hosting
-- `/api/command-center-info`, `/api/capabilities`, `/api/locos`, `/api/layout`
+You can override it with either:
 
-## Deliberately not claimed as complete firmware parity yet
+    DCCEXPRESS_HTTP_URL=http://0.0.0.0:5174
 
-The ESP32 firmware contains much more than DCC-EX transport: LayoutRuntime, blocks, S88, JS sandbox/automation, file manager, signal automation and device configuration. This first .NET backend focuses on the requested DCC-EX communication + the UI transport contract. Unknown WS commands return the same style `ack` instead of crashing.
+or the existing configuration key/environment variable:
 
-One known parity gap in this first build is the firmware's full correlated decoder-programming reply state machine (`<r ...>` / `<v ...>` timeout/correlation). Commands are sent and raw replies are exposed; the complete correlator should be ported next.
+    Urls=http://0.0.0.0:5174
 
-## LittleFS compatibility layer
+## Filesystem roots
 
-This build adds a native filesystem implementation for the ESP32 LittleFS-facing UI contract.
+By default the process content root is used. For a service installation the
+roots can be set explicitly:
+
+    DCCEXPRESS_CONTENT_ROOT=/opt/dccexpresshub
+    DCCEXPRESS_WEB_ROOT=/opt/dccexpresshub/wwwroot
+
+The Windows desktop launcher still supplies the older
+`ASPNETCORE_CONTENTROOT` and `ASPNETCORE_WEBROOT` names. They are accepted
+only as backward-compatible aliases; ASP.NET Core is not used by the backend.
+
+## Command-center transports
+
+DCC-EX TCP:
+
+    DccEx__Transport=Tcp
+    DccEx__Host=192.168.1.100
+    DccEx__Port=2560
+
+DCC-EX Serial on Windows:
+
+    DccEx__Transport=Serial
+    DccEx__SerialPort=COM3
+
+DCC-EX Serial on Linux:
+
+    DccEx__Transport=Serial
+    DccEx__SerialPort=/dev/ttyACM0
+
+Linux USB serial devices are commonly exposed as `/dev/ttyACM*`,
+`/dev/ttyUSB*`, or stable `/dev/serial/by-id/...` paths. The service user
+must have permission to open the device (for example through the appropriate
+serial-device group on the distribution).
+
+Z21/YaMoRC use the normal network configuration and do not require a
+platform-specific transport layer.
+
+## Linux publish examples
+
+Framework-dependent x64 build:
+
+    dotnet publish -c Release -r linux-x64 --self-contained false
+
+Framework-dependent ARM64 build:
+
+    dotnet publish -c Release -r linux-arm64 --self-contained false
+
+The same backend source targets `net10.0`; there is no `-windows` target
+framework on `DCCExpressHub.Net`.
+
+## HTTP/WebSocket contract
+
+The existing React UI contract is preserved.
+
+- WebSocket: `/ws` using the existing `{ type, data }` JSON contract
+- command-center/configuration APIs under `/api/*`
+- server-sent events for script info
+- SPA hosting from `wwwroot`
+- byte-range file serving for audio/media
+- multipart file upload
+- firmware-compatible virtual storage paths
+
+The Watson migration changes the backend transport implementation, not the
+WebUI API contract.
+
+## Storage compatibility
+
+The native backend keeps the firmware-facing storage namespaces:
 
 - `/list?path=...`
 - `POST /upload?path=...` (`multipart/form-data`, field `file`)
 - `GET|DELETE /delete?path=...`
 - `/api/files/text?path=...`
 - `/flash/*`
+- `/sd/*`
 - `/images/*`
 - `/version.json` fallback
 
-The ESP32's LittleFS is represented by the local `data/` directory. Copy only the built React `dist` files into `wwwroot/`; configuration and uploaded files stay under `data/`.
+The ESP32 LittleFS-facing `/flash` namespace is represented by the local
+`data/` directory. The `/sd` namespace is represented by the local `sd/`
+directory. Built React files live separately under `wwwroot/`.
 
-Missing `/api/*` routes now return JSON 404 instead of falling through to `index.html`, so frontend errors no longer become `Unexpected token '<'`.
+Missing `/api/*` routes return JSON 404 instead of falling through to the SPA
+index.

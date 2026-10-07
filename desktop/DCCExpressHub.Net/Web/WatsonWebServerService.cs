@@ -961,10 +961,12 @@ public sealed class WatsonWebServerService :
             )
             {
                 var data =
-                    JsonSerializer.Serialize(
-                        evt.Data,
-                        evt.Data.GetType(),
-                        Json);
+                    evt.Data is null
+                        ? "null"
+                        : JsonSerializer.Serialize(
+                            evt.Data,
+                            evt.Data.GetType(),
+                            Json);
 
                 await ctx.Response
                     .SendEvent(
