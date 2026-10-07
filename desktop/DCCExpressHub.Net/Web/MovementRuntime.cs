@@ -283,12 +283,30 @@ public sealed class MovementRuntime
 
     static long NowMs() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
+    static string BlockLabel(
+        RuntimeBlock block)
+    {
+        var idLabel =
+            "#" + block.Id;
+
+        if (string.IsNullOrWhiteSpace(
+                block.Name))
+            return idLabel;
+
+        var name =
+            block.Name.Trim();
+
+        return name.Contains(
+                idLabel,
+                StringComparison.OrdinalIgnoreCase)
+            ? name
+            : name + " (" + idLabel + ")";
+    }
+
     static string OccupancyError(
         RuntimeBlock block) =>
         "Unknown occupancy detected: block " +
-        (string.IsNullOrWhiteSpace(block.Name)
-            ? "#" + block.Id
-            : block.Name + " (#" + block.Id + ")") +
+        BlockLabel(block) +
         ", sensor #" +
         block.SensorAddress +
         ".";
@@ -381,17 +399,15 @@ public sealed class MovementRuntime
             string.IsNullOrWhiteSpace(
                 block.Name)
                 ? "#" + block.Id
-                : block.Name;
+                : block.Name.Trim();
 
         string reason =
             code switch
             {
                 "target_occupancy_mismatch" =>
                     "Unexpected target occupancy: block " +
-                    blockName +
-                    " (#" +
-                    block.Id +
-                    "), sensor #" +
+                    BlockLabel(block) +
+                    ", sensor #" +
                     block.SensorAddress +
                     " became occupied but Movement " +
                     (string.IsNullOrWhiteSpace(movementName)
