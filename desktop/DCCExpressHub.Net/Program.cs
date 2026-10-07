@@ -172,9 +172,18 @@ app.Map("/ws", async ctx =>
 {
     if (!ctx.WebSockets.IsWebSocketRequest)
     {
-        ctx.Response.StatusCode = 400; return;
+        ctx.Response.StatusCode = 400;
+        return;
     }
-    await ctx.RequestServices.GetRequiredService<WsHub>().Accept(ctx);
+
+    var socket =
+        await ctx.WebSockets.AcceptWebSocketAsync();
+
+    await ctx.RequestServices
+        .GetRequiredService<WsHub>()
+        .Accept(
+            socket,
+            ctx.RequestAborted);
 });
 
 

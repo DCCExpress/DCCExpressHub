@@ -457,19 +457,49 @@ public sealed class WsHub
         else if (p.Target == "Track" && p.TrackIndex >= 0) HubState.Tracks.GetOrAdd(p.TrackIndex, _ => new()).Power = p.On;
     }
 
-    public async Task Accept(HttpContext ctx)
+    public async Task Accept(
+        WebSocket ws,
+        CancellationToken cancellationToken)
     {
-        var ws = await ctx.WebSockets.AcceptWebSocketAsync(); var id = Guid.NewGuid(); Clients[id] = ws;
+        var id = Guid.NewGuid();
+        Clients[id] = ws;
+
         try
         {
             await Send(ws, "ws:welcome", new { message = "DCCExpressHub" });
             await SendSnapshot(ws);
             var buf = new byte[64 * 1024];
+
             while (ws.State == WebSocketState.Open)
             {
-                var ms = new MemoryStream(); WebSocketReceiveResult r;
-                do { r = await ws.ReceiveAsync(buf, ctx.RequestAborted); if (r.MessageType == WebSocketMessageType.Close) return; ms.Write(buf, 0, r.Count); } while (!r.EndOfMessage);
-                var text = Encoding.UTF8.GetString(ms.ToArray()); await Handle(id, ws, text, ctx.RequestAborted);
+                var ms = new MemoryStream();
+                WebSocketReceiveResult r;
+
+                do
+                {
+                    r = await ws.ReceiveAsync(
+                        buf,
+                        cancellationToken);
+
+                    if (r.MessageType == WebSocketMessageType.Close)
+                        return;
+
+                    ms.Write(
+                        buf,
+                        0,
+                        r.Count);
+                }
+                while (!r.EndOfMessage);
+
+                var text =
+                    Encoding.UTF8.GetString(
+                        ms.ToArray());
+
+                await Handle(
+                    id,
+                    ws,
+                    text,
+                    cancellationToken);
             }
         }
         finally
