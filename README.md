@@ -98,43 +98,6 @@ LocoNet  -> occupancy / feedback
 The Z21 and LocoNet implementations remain separate inside DCCExpressHub even
 when both connect to the same YD7010.
 
-## Architecture
-
-The primary runtime is the cross-platform **DCCExpressHub.Net** backend:
-
-```text
-                    Browser UI
-                        |
-                   HTTP + WS
-                        |
-                        v
-                DCCExpressHub.Net
-               .NET 10 + Watson 7
-                        |
-        +---------------+---------------+
-        |               |               |
-      DCC-EX           Z21           LocoNet
-        |               |               |
-        +---------------+---------------+
-                        |
-                 Model railway
-```
-
-The backend owns:
-
-- command-center communication,
-- layout runtime state,
-- Movement/Dispatcher,
-- train tracking,
-- Flows,
-- JavaScript Scripts,
-- Timetable,
-- fast clock,
-- file storage,
-- WebSocket runtime synchronization.
-
-The React UI is a client of the backend and does not execute the automation engines.
-
 # Windows
 
 ## Windows requirements
