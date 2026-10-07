@@ -214,10 +214,9 @@ public sealed class FileManagerApi
                     safeName));
 
         if (
-            !target.StartsWith(
-                _files.Root +
-                    Path.DirectorySeparatorChar,
-                StringComparison.OrdinalIgnoreCase)
+            !FileSystemPath.IsInsideOrEqual(
+                target,
+                _files.Root)
         )
         {
             return HubApiResponse.Error(

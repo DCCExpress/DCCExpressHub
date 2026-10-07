@@ -215,11 +215,12 @@ public sealed class HubFileStorage
             return null;
         }
 
-        if (!allowRoot &&
-            string.Equals(
+        if (
+            !allowRoot &&
+            FileSystemPath.Equals(
                 full,
-                root,
-                StringComparison.OrdinalIgnoreCase))
+                root)
+        )
         {
             return null;
         }
@@ -229,22 +230,10 @@ public sealed class HubFileStorage
 
     private static bool IsPathInsideOrEqual(
         string full,
-        string root)
-    {
-        if (string.Equals(
-                full,
-                root,
-                StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return
-            full.StartsWith(
-                root +
-                Path.DirectorySeparatorChar,
-                StringComparison.OrdinalIgnoreCase);
-    }
+        string root) =>
+        FileSystemPath.IsInsideOrEqual(
+            full,
+            root);
 
     public static string ToVirtualPath(
         string relativePath) =>

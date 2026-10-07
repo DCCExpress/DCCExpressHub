@@ -1580,21 +1580,10 @@ public sealed class WatsonWebServerService :
                         fullRoot,
                         relative));
 
-            if (
-                string.Equals(
-                    full,
-                    fullRoot,
-                    StringComparison.OrdinalIgnoreCase)
-            )
-            {
-                return full;
-            }
-
             return
-                full.StartsWith(
-                    fullRoot +
-                    Path.DirectorySeparatorChar,
-                    StringComparison.OrdinalIgnoreCase)
+                FileSystemPath.IsInsideOrEqual(
+                    full,
+                    fullRoot)
                     ? full
                     : null;
         }
