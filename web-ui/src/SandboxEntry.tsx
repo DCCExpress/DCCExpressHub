@@ -1,9 +1,7 @@
 import {
   Alert,
-  Badge,
   Box,
   Button,
-  Card,
   Group,
   Loader,
   Stack,
@@ -23,10 +21,6 @@ import {
   useEffect,
   useState,
 } from "react";
-
-import {
-  createPortal,
-} from "react-dom";
 
 import {
   EMPTY_HUB_CAPABILITIES,
@@ -50,124 +44,6 @@ function isSandboxHash(): boolean {
   return (
     normalizedHash() ===
     "sandbox"
-  );
-}
-
-function isHomeHash(): boolean {
-  const hash =
-    normalizedHash();
-
-  return (
-    hash === "" ||
-    hash === "home"
-  );
-}
-
-function findHomeGrid(): HTMLElement | null {
-  if (!isHomeHash()) {
-    return null;
-  }
-
-  const firstActionCard =
-    document.querySelector(
-      ".action-card",
-    );
-
-  const candidate =
-    firstActionCard
-      ?.parentElement;
-
-  return (
-    candidate instanceof HTMLElement
-      ? candidate
-      : null
-  );
-}
-
-function SandboxHomeCard({
-  capabilities,
-  onOpen,
-}: {
-  capabilities: HubCapabilities | null;
-  onOpen: () => void;
-}) {
-  const supported =
-    capabilities
-      ?.javascriptAutomation === true;
-
-  const loading =
-    capabilities === null;
-
-  return (
-    <Card
-      className="action-card"
-      withBorder
-      radius={5}
-      p="lg"
-      aria-disabled={!supported}
-      onClick={
-        supported
-          ? onOpen
-          : undefined
-      }
-      style={{
-        opacity:
-          supported
-            ? 1
-            : 0.55,
-
-        cursor:
-          supported
-            ? "pointer"
-            : "not-allowed",
-      }}
-    >
-      <Group
-        justify="space-between"
-        align="flex-start"
-      >
-        <ThemeIcon
-          size={48}
-          radius="lg"
-          color="violet"
-          variant="light"
-        >
-          <IconTerminal2
-            size={27}
-          />
-        </ThemeIcon>
-
-        {!supported && (
-          <Badge
-            color="gray"
-            variant="light"
-          >
-            {loading
-              ? "Checking..."
-              : "Not supported"}
-          </Badge>
-        )}
-      </Group>
-
-      <Title
-        order={4}
-        mt="md"
-      >
-        JavaScript Sandbox
-      </Title>
-
-      <Text
-        size="sm"
-        c="dimmed"
-        mt={4}
-      >
-        {loading
-          ? "Checking firmware capability..."
-          : supported
-            ? "Edit, run and inspect QuickJS automation scripts."
-            : "Not supported on this device. JavaScript Sandbox currently requires a supported ESP32-S3 build."}
-      </Text>
-    </Card>
   );
 }
 
@@ -297,24 +173,6 @@ export default function SandboxEntry() {
       null,
     );
 
-  const [
-    homeGrid,
-    setHomeGrid,
-  ] =
-    useState<HTMLElement | null>(
-      null,
-    );
-
-  const refreshHomeGrid =
-    useCallback(
-      () => {
-        setHomeGrid(
-          findHomeGrid(),
-        );
-      },
-      [],
-    );
-
   useEffect(
     () => {
       let cancelled =
@@ -369,9 +227,6 @@ export default function SandboxEntry() {
             isSandboxHash(),
           );
 
-          window.requestAnimationFrame(
-            refreshHomeGrid,
-          );
         };
 
       window.addEventListener(
@@ -386,55 +241,7 @@ export default function SandboxEntry() {
         );
       };
     },
-    [
-      refreshHomeGrid,
-    ],
-  );
-
-  useEffect(
-    () => {
-      if (sandboxOpen) {
-        setHomeGrid(
-          null,
-        );
-
-        return;
-      }
-
-      refreshHomeGrid();
-
-      const observer =
-        new MutationObserver(
-          () => {
-            refreshHomeGrid();
-          },
-        );
-
-      observer.observe(
-        document.body,
-        {
-          childList: true,
-          subtree: true,
-        },
-      );
-
-      const frame =
-        window.requestAnimationFrame(
-          refreshHomeGrid,
-        );
-
-      return () => {
-        observer.disconnect();
-
-        window.cancelAnimationFrame(
-          frame,
-        );
-      };
-    },
-    [
-      sandboxOpen,
-      refreshHomeGrid,
-    ],
+    [],
   );
 
   const openSandbox =
@@ -509,21 +316,6 @@ export default function SandboxEntry() {
   }
 
   return (
-    <>
-      <App />
-
-      {homeGrid &&
-        createPortal(
-          <SandboxHomeCard
-            capabilities={
-              capabilities
-            }
-            onOpen={
-              openSandbox
-            }
-          />,
-          homeGrid,
-        )}
-    </>
+    <App />
   );
 }
