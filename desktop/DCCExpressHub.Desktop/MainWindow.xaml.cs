@@ -336,7 +336,12 @@ namespace DCCExpressHub.Desktop
                 L("refresh");
 
             TestButton.Content =
-                L("testConnection");
+                SelectedProtocol == "yamorc7010"
+                    ? L("testZ21Connection")
+                    : L("testConnection");
+
+            LocoNetTestButton.Content =
+                L("testLocoNetConnection");
 
             YaMoRcHelpTitleText.Text =
                 L("yamorcHelpTitle");
@@ -449,12 +454,32 @@ namespace DCCExpressHub.Desktop
                     ? Visibility.Visible
                     : Visibility.Collapsed;
 
+            var isYaMoRc =
+                protocol == "yamorc7010";
+
+            TestButton.Content =
+                isYaMoRc
+                    ? L("testZ21Connection")
+                    : L("testConnection");
+
             TestButton.IsEnabled =
                 !_setupBusy &&
                 protocol is "tcp" or "serial" or "z21" or "yamorc7010";
 
+            LocoNetTestButton.Content =
+                L("testLocoNetConnection");
+
+            LocoNetTestButton.Visibility =
+                isYaMoRc
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
+
+            LocoNetTestButton.IsEnabled =
+                !_setupBusy &&
+                isYaMoRc;
+
             YaMoRcHelpPanel.Visibility =
-                protocol == "yamorc7010"
+                isYaMoRc
                     ? Visibility.Visible
                     : Visibility.Collapsed;
         }
@@ -552,6 +577,7 @@ namespace DCCExpressHub.Desktop
 
             ValidationText.Text = "";
             TestButton.IsEnabled = false;
+            LocoNetTestButton.IsEnabled = false;
 
             ShowTestResult(
                 L("testing"),
@@ -571,7 +597,7 @@ namespace DCCExpressHub.Desktop
                                 testSettings),
 
                         "yamorc7010" =>
-                            await TestYaMoRc7010Async(
+                            await TestZ21Async(
                                 testSettings),
 
                         _ =>
@@ -592,13 +618,57 @@ namespace DCCExpressHub.Desktop
             }
             finally
             {
-                TestButton.IsEnabled =
-                    !_setupBusy &&
-                    SelectedProtocol is
-                        "tcp" or
-                        "serial" or
-                        "z21" or
-                        "yamorc7010";
+                UpdateProtocolPanels();
+            }
+        }
+
+        private async void LocoNetTestButton_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            if (_setupBusy ||
+                SelectedProtocol != "yamorc7010")
+            {
+                return;
+            }
+
+            if (!TryReadSettings(
+                    out var testSettings,
+                    out var error,
+                    validateWorkspace: false))
+            {
+                ShowValidation(error);
+                return;
+            }
+
+            ValidationText.Text = "";
+            TestButton.IsEnabled = false;
+            LocoNetTestButton.IsEnabled = false;
+
+            ShowTestResult(
+                L("testing"),
+                success: null);
+
+            try
+            {
+                var result =
+                    await TestYaMoRcLocoNetAsync(
+                        testSettings);
+
+                ShowTestResult(
+                    result.Message,
+                    result.Ok);
+            }
+            catch (Exception ex)
+            {
+                ShowTestResult(
+                    L("failed") +
+                    ex.Message,
+                    false);
+            }
+            finally
+            {
+                UpdateProtocolPanels();
             }
         }
 
@@ -762,20 +832,9 @@ namespace DCCExpressHub.Desktop
                 "Z21 did not answer the LAN system-state request.");
         }
 
-        private async Task<TestResult> TestYaMoRc7010Async(
+        private async Task<TestResult> TestYaMoRcLocoNetAsync(
             DesktopSettings settings)
         {
-            var z21 =
-                await TestZ21Async(
-                    settings);
-
-            if (!z21.Ok)
-            {
-                return new TestResult(
-                    false,
-                    $"YaMoRC Z21 test failed: {z21.Message}");
-            }
-
             using var timeout =
                 new CancellationTokenSource(
                     TimeSpan.FromSeconds(3));
@@ -793,11 +852,18 @@ namespace DCCExpressHub.Desktop
                     1234,
                     timeout.Token);
             }
+            catch (OperationCanceledException)
+                when (timeout.IsCancellationRequested)
+            {
+                return new TestResult(
+                    false,
+                    "YaMoRC LocoNet LBServer TCP/1234 connection timed out.");
+            }
             catch (Exception ex)
             {
                 return new TestResult(
                     false,
-                    $"Z21 UDP is reachable, but YaMoRC LBServer TCP/1234 is not reachable: {ex.Message}");
+                    $"YaMoRC LocoNet LBServer TCP/1234 is not reachable: {ex.Message}");
             }
 
             using var stream =
@@ -826,18 +892,21 @@ namespace DCCExpressHub.Desktop
                 {
                     return new TestResult(
                         true,
-                        $"YD7010 reachable: Z21 UDP/{settings.TcpPort} + LBServer TCP/1234 · {line}");
+                        $"YaMoRC LocoNet LBServer reachable on {settings.TcpHost}:1234 · {line}");
                 }
 
                 return new TestResult(
                     true,
-                    $"YD7010 reachable: Z21 UDP/{settings.TcpPort} + LBServer TCP/1234.");
+                    $"YaMoRC LocoNet LBServer reachable on {settings.TcpHost}:1234.");
             }
             catch (OperationCanceledException)
             {
+                // A quiet LocoNet bus may not produce a line during the probe.
+                // The accepted TCP connection still proves the LBServer service
+                // is reachable; bus traffic is shown separately at runtime.
                 return new TestResult(
                     true,
-                    $"YD7010 reachable: Z21 UDP/{settings.TcpPort} + LBServer TCP/1234.");
+                    $"YaMoRC LocoNet LBServer reachable on {settings.TcpHost}:1234.");
             }
         }
 
@@ -1347,6 +1416,7 @@ namespace DCCExpressHub.Desktop
             BrowseWorkspaceButton.IsEnabled = !busy;
             SetupCancelButton.IsEnabled = !busy;
             StartBackendButton.IsEnabled = !busy;
+            LocoNetTestButton.IsEnabled = !busy;
 
             UpdateProtocolPanels();
         }
