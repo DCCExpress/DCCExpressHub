@@ -850,15 +850,15 @@ public sealed class DispatcherRuntime
                 var turnout =
                     turnouts[index];
 
+                var runtimeTurnout =
+                    _runtime.FindAccessory(
+                        RuntimeAccessoryKind.Turnout,
+                        turnout.Address);
+
                 var needsChange =
-                    (!(
-                        _runtime.FindAccessory(
-                            RuntimeAccessoryKind.Turnout,
-                            turnout.Address
-                        ) is { } runtimeTurnout
-                    ) ||
-                     (!runtimeTurnout.TurnoutExtended &&
-                      !runtimeTurnout.TurnoutVPin)) ||
+                    runtimeTurnout is null ||
+                    (!runtimeTurnout.TurnoutExtended &&
+                     !runtimeTurnout.TurnoutVPin) ||
                     !_runtime.TryGetTurnoutClosed(
                         turnout.Address,
                         out var currentClosed) ||
@@ -1162,15 +1162,15 @@ public sealed class DispatcherRuntime
                 var turnout =
                     turnouts[index];
 
+                var runtimeTurnout =
+                    _runtime.FindAccessory(
+                        RuntimeAccessoryKind.Turnout,
+                        turnout.Address);
+
                 var needsChange =
-                    (!(
-                        _runtime.FindAccessory(
-                            RuntimeAccessoryKind.Turnout,
-                            turnout.Address
-                        ) is { } runtimeTurnout
-                    ) ||
-                     (!runtimeTurnout.TurnoutExtended &&
-                      !runtimeTurnout.TurnoutVPin)) ||
+                    runtimeTurnout is null ||
+                    (!runtimeTurnout.TurnoutExtended &&
+                     !runtimeTurnout.TurnoutVPin) ||
                     !_runtime.TryGetTurnoutClosed(
                         turnout.Address,
                         out var currentClosed) ||
