@@ -57,6 +57,13 @@ public sealed class YaMoRcZ21CommandCenter : RocoZ21CommandCenter
     public LocoNetRuntimeDiagnostics LocoNetDiagnostics =>
         _locoNet.Diagnostics;
 
+    public Task<LocoNetConnectionTestResult> TestLocoNetConnectionAsync(
+        string? hostOverride = null,
+        CancellationToken ct = default) =>
+        _locoNet.TestConnectionAsync(
+            hostOverride,
+            ct);
+
     protected override async Task ExecuteAsync(
         CancellationToken stoppingToken)
     {
