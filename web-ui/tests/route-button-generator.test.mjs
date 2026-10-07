@@ -42,7 +42,7 @@ test("RouteButton editor exposes generated one-way route selector", () => {
 
   assert.match(
     editor,
-    /routeCandidates\.map/
+    /filteredRouteCandidates\.map/
   );
 
   assert.match(
@@ -89,7 +89,7 @@ test("generated RouteButton candidates come from graph and hide already assigned
 
   assert.match(
     generator,
-    /!usedKeys\.has/
+    /!usedRouteRefs\.has/
   );
 
   assert.match(
@@ -237,17 +237,32 @@ test("generated route selector button lives in RouteButton property panel header
 
   assert.match(
     page,
-    /routeSelectRequest/
+    /routeSelectOpened/
   );
 
   assert.match(
     editor,
-    /routeSelectRequest/
+    /routeSelectOpened/
+  );
+
+  assert.match(
+    editor,
+    /onRouteSelectClose/
   );
 
   assert.match(
     editor,
     /useEffect[\s\S]*openRouteSelect/
+  );
+
+  assert.doesNotMatch(
+    page,
+    /routeSelectRequest/
+  );
+
+  assert.doesNotMatch(
+    editor,
+    /routeSelectRequest/
   );
 
   assert.doesNotMatch(
