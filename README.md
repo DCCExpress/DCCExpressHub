@@ -71,9 +71,8 @@ through the same mobile control workflow for:
 - operating the **layout**, including the controls exposed by the mobile
   layout view.
 
-Gamepad support is therefore not limited to locomotive functions F0-F3. The
-gamepad works together with the mobile control surface, so locomotive and
-layout operation remain part of the same control interface.
+The gamepad works together with the mobile control surface, keeping
+locomotive and layout operation in the same control interface.
 
 Button assignments can be changed from the **Gamepad** page and are stored
 locally for that browser/device. The page also provides live controller
