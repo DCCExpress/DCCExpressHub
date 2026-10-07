@@ -167,7 +167,71 @@ linux-x64
 .NET 10
 ```
 
-### Install
+### Install prerequisites on Debian / Ubuntu
+
+#### Debian 12 / 13
+
+Install the basic tools and Microsoft package repository:
+
+```bash
+sudo apt update
+sudo apt install -y curl wget git ca-certificates
+
+source /etc/os-release
+wget https://packages.microsoft.com/config/debian/$VERSION_ID/packages-microsoft-prod.deb -O packages-microsoft-prod.deb
+sudo dpkg -i packages-microsoft-prod.deb
+rm packages-microsoft-prod.deb
+```
+
+Install the .NET 10 SDK:
+
+```bash
+sudo apt update
+sudo apt install -y dotnet-sdk-10.0
+```
+
+Install Node.js 22 LTS and npm:
+
+```bash
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt install -y nodejs
+```
+
+#### Ubuntu 24.04 or newer
+
+Install Git, curl, .NET 10, then Node.js 22 LTS:
+
+```bash
+sudo apt update
+sudo apt install -y curl git ca-certificates dotnet-sdk-10.0
+
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt install -y nodejs
+```
+
+For Ubuntu 22.04, enable the Ubuntu .NET backports repository first:
+
+```bash
+sudo apt update
+sudo apt install -y curl git ca-certificates software-properties-common
+sudo add-apt-repository -y ppa:dotnet/backports
+sudo apt update
+sudo apt install -y dotnet-sdk-10.0
+
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt install -y nodejs
+```
+
+Verify the required tools:
+
+```bash
+dotnet --version
+node --version
+npm --version
+git --version
+```
+
+### Install DCCExpressHub
 
 Clone the repository:
 
