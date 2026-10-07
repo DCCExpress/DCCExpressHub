@@ -17,6 +17,11 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
         CancellationToken CancellationToken,
         TaskCompletionSource<bool> Completion);
 
+    private sealed record PendingTurnoutFeedback(
+        int Address,
+        bool ExpectedPhysicalValue,
+        TaskCompletionSource<bool> Completion);
+
     public const int DefaultPort = 21105;
     public const int MaxRBusOffset = 65535 - 160;
 
@@ -28,6 +33,8 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
     private const int AccessoryPulseMs = 120;
     private const int AccessorySettleMs = 50;
     private const int TurnoutActiveMs = 150;
+    private const int TurnoutFeedbackTimeoutMs = 500;
+    private const int TurnoutCommandAttempts = 2;
 
     // Pure Z21 LAN: driving/switching + R-BUS + system state + all changed locos.
     // LocoNet forwarding flags intentionally do not belong to this protocol.
@@ -92,6 +99,9 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
     private bool _powerFeedbackKnown;
     private bool _lastPowerOn;
     private string _lastPowerTarget = "";
+
+    private readonly object _turnoutFeedbackGate = new();
+    private PendingTurnoutFeedback? _pendingTurnoutFeedback;
 
     protected StationInfo _stationInfo =
         new(
@@ -622,6 +632,19 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
     private void ResetTransport()
     {
         CancelPendingTxRequests();
+
+        PendingTurnoutFeedback? pendingTurnout;
+
+        lock (_turnoutFeedbackGate)
+        {
+            pendingTurnout =
+                _pendingTurnoutFeedback;
+            _pendingTurnoutFeedback =
+                null;
+        }
+
+        pendingTurnout?.Completion.TrySetResult(
+            false);
 
         UdpClient? old;
         bool wasOnline;
@@ -1564,9 +1587,9 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
         if (address is < 1 or > 2048)
             return false;
 
-        // Serialize a complete ON -> OFF pulse per physical turnout address.
-        // JMRI and Rocrail use the same principle: a second operation must not
-        // overlap the first turnout activation/deactivation cycle.
+        // Keep repeated operations for the same address serialized, and also
+        // serialize Basic DCC magnetic-accessory pulses globally so concurrent
+        // Movement/SwitchMan owners cannot burst commands into the station.
         var gate =
             _turnoutGates.GetOrAdd(
                 address,
@@ -1582,7 +1605,12 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
         var functionAddress =
             address - 1;
 
-        var activated = false;
+        var feedback =
+            new PendingTurnoutFeedback(
+                address,
+                physicalValue,
+                new TaskCompletionSource<bool>(
+                    TaskCreationOptions.RunContinuationsAsynchronously));
 
         try
         {
@@ -1591,56 +1619,151 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
 
             accessoryGateHeld =
                 true;
-            _log.LogInformation(
-                "Z21 turnout #{Address}: physical={PhysicalValue}, functionAddress={FunctionAddress}, Q=1, activeMs={ActiveMs}",
+
+            lock (_turnoutFeedbackGate)
+                _pendingTurnoutFeedback =
+                    feedback;
+
+            for (var attempt = 1;
+                 attempt <= TurnoutCommandAttempts;
+                 attempt++)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                var activated =
+                    false;
+
+                try
+                {
+                    _log.LogInformation(
+                        "Z21 turnout #{Address}: attempt {Attempt}/{Attempts}, physical={PhysicalValue}, functionAddress={FunctionAddress}, Q=1, activeMs={ActiveMs}",
+                        address,
+                        attempt,
+                        TurnoutCommandAttempts,
+                        physicalValue,
+                        functionAddress,
+                        TurnoutActiveMs);
+
+                    if (!await SendAccessoryPulseAsync(
+                            functionAddress,
+                            physicalValue,
+                            activate: true,
+                            ct: ct))
+                    {
+                        continue;
+                    }
+
+                    activated =
+                        true;
+
+                    await Task.Delay(
+                        TurnoutActiveMs,
+                        ct);
+
+                    var offOk =
+                        await SendAccessoryPulseAsync(
+                            functionAddress,
+                            physicalValue,
+                            activate: false,
+                            ct: CancellationToken.None,
+                            priority: true,
+                            ensureTransport: false);
+
+                    activated =
+                        false;
+
+                    if (!offOk)
+                    {
+                        _log.LogWarning(
+                            "Z21 turnout #{Address}: deactivate failed on attempt {Attempt}",
+                            address,
+                            attempt);
+
+                        continue;
+                    }
+
+                    await Task.Delay(
+                        AccessorySettleMs,
+                        CancellationToken.None);
+
+                    if (feedback.Completion.Task.IsCompletedSuccessfully &&
+                        feedback.Completion.Task.Result)
+                    {
+                        _log.LogInformation(
+                            "Z21 turnout #{Address}: confirmed by LAN_X_TURNOUT_INFO",
+                            address);
+
+                        return true;
+                    }
+
+                    if (!await RequestTurnoutInfoAsync(
+                            address,
+                            CancellationToken.None))
+                    {
+                        _log.LogWarning(
+                            "Z21 turnout #{Address}: GET_TURNOUT_INFO send failed on attempt {Attempt}",
+                            address,
+                            attempt);
+
+                        continue;
+                    }
+
+                    var confirmed =
+                        await Task.WhenAny(
+                            feedback.Completion.Task,
+                            Task.Delay(
+                                TurnoutFeedbackTimeoutMs,
+                                CancellationToken.None));
+
+                    if (confirmed ==
+                            feedback.Completion.Task &&
+                        feedback.Completion.Task.IsCompletedSuccessfully &&
+                        feedback.Completion.Task.Result)
+                    {
+                        _log.LogInformation(
+                            "Z21 turnout #{Address}: confirmed after GET_TURNOUT_INFO",
+                            address);
+
+                        return true;
+                    }
+
+                    _log.LogWarning(
+                        "Z21 turnout #{Address}: no matching feedback on attempt {Attempt}/{Attempts}; retrying={Retrying}",
+                        address,
+                        attempt,
+                        TurnoutCommandAttempts,
+                        attempt < TurnoutCommandAttempts);
+                }
+                finally
+                {
+                    if (activated)
+                    {
+                        try
+                        {
+                            await SendAccessoryPulseAsync(
+                                functionAddress,
+                                physicalValue,
+                                activate: false,
+                                ct: CancellationToken.None,
+                                priority: true);
+                        }
+                        catch (Exception ex)
+                        {
+                            _log.LogWarning(
+                                ex,
+                                "Z21 turnout #{Address}: emergency deactivate failed",
+                                address);
+                        }
+                    }
+                }
+            }
+
+            _log.LogError(
+                "Z21 turnout #{Address}: command FAILED - station did not confirm physical={PhysicalValue}",
                 address,
-                physicalValue,
-                functionAddress,
-                TurnoutActiveMs);
+                physicalValue);
 
-            if (!await SendAccessoryPulseAsync(
-                    functionAddress,
-                    physicalValue,
-                    activate: true,
-                    ct: ct))
-            {
-                return false;
-            }
-
-            activated = true;
-
-            await Task.Delay(
-                TurnoutActiveMs,
-                ct);
-
-            var ok =
-                await SendAccessoryPulseAsync(
-                    functionAddress,
-                    physicalValue,
-                    activate: false,
-                    ct: CancellationToken.None,
-                    priority: true,
-                    ensureTransport: false);
-
-            activated = false;
-
-            if (!ok)
-            {
-                _log.LogWarning(
-                    "Z21 turnout #{Address}: deactivate failed",
-                    address);
-
-                return false;
-            }
-
-            // Keep the per-address gate until the decoder output has had time
-            // to settle. WsHub therefore also keeps the SwitchMan lease for the
-            // whole physical switching operation.
-            await Task.Delay(
-                AccessorySettleMs,
-                CancellationToken.None);
-
-            return true;
+            return false;
         }
         catch (OperationCanceledException)
             when (ct.IsCancellationRequested)
@@ -1649,23 +1772,14 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
         }
         finally
         {
-            if (activated)
+            lock (_turnoutFeedbackGate)
             {
-                try
+                if (ReferenceEquals(
+                        _pendingTurnoutFeedback,
+                        feedback))
                 {
-                    await SendAccessoryPulseAsync(
-                        functionAddress,
-                        physicalValue,
-                        activate: false,
-                        ct: CancellationToken.None,
-                        priority: true);
-                }
-                catch (Exception ex)
-                {
-                    _log.LogWarning(
-                        ex,
-                        "Z21 turnout #{Address}: emergency deactivate failed",
-                        address);
+                    _pendingTurnoutFeedback =
+                        null;
                 }
             }
 
@@ -1674,6 +1788,25 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
 
             gate.Release();
         }
+    }
+
+    private Task<bool> RequestTurnoutInfoAsync(
+        int address,
+        CancellationToken ct)
+    {
+        var functionAddress =
+            address - 1;
+
+        return SendXBusCoreAsync(
+            new byte[]
+            {
+                0x43,
+                (byte)(functionAddress >> 8),
+                (byte)(functionAddress & 0xFF)
+            },
+            false,
+            ct,
+            priority: true);
     }
 
     public Task<bool> SetAccessoryAsync(
@@ -2297,6 +2430,31 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
                 AccessoryFeedbackChanged?.Invoke(
                     address,
                     physicalValue);
+
+                PendingTurnoutFeedback? pending;
+
+                lock (_turnoutFeedbackGate)
+                    pending =
+                        _pendingTurnoutFeedback;
+
+                if (pending is not null &&
+                    pending.Address == address)
+                {
+                    if (physicalValue ==
+                        pending.ExpectedPhysicalValue)
+                    {
+                        pending.Completion.TrySetResult(
+                            true);
+                    }
+                    else
+                    {
+                        _log.LogWarning(
+                            "Z21 turnout #{Address}: feedback physical={PhysicalValue}, expected={ExpectedPhysicalValue}",
+                            address,
+                            physicalValue,
+                            pending.ExpectedPhysicalValue);
+                    }
+                }
             }
             else
             {
