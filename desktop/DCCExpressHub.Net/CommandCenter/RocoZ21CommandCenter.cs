@@ -29,13 +29,6 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
     private const int AccessorySettleMs = 50;
     private const int TurnoutActiveMs = 150;
 
-    // Some Z21-compatible command stations answer LAN_RMBUS_GETDATA correctly
-    // but do not reliably emit every asynchronous LAN_RMBUS_DATACHANGED frame.
-    // Alternate one tiny group request every 100 ms. Each of the two groups is
-    // therefore refreshed every 200 ms, while ProcessRBus deduplicates states
-    // before they enter the Hub runtime.
-    private const int RBusRefreshIntervalMs = 100;
-
     // Pure Z21 LAN: driving/switching + R-BUS + system state + all changed locos.
     // LocoNet forwarding flags intentionally do not belong to this protocol.
     protected const uint RocoBroadcastFlags = 0x00010103;
@@ -299,10 +292,6 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
             RunTxQueueAsync(
                 txCts.Token);
 
-        var rBusRefreshTask =
-            RunRBusRefreshAsync(
-                stoppingToken);
-
         while (!stoppingToken.IsCancellationRequested)
         {
             try
@@ -439,15 +428,6 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
         {
         }
 
-        try
-        {
-            await rBusRefreshTask;
-        }
-        catch (OperationCanceledException)
-            when (stoppingToken.IsCancellationRequested)
-        {
-        }
-
         txCts.Cancel();
 
         try
@@ -461,49 +441,6 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
         CancelPendingTxRequests();
 
         ResetTransport();
-    }
-
-    private async Task RunRBusRefreshAsync(
-        CancellationToken ct)
-    {
-        var group = 0;
-
-        _log.LogInformation(
-            "Z21 R-BUS refresh active: each group every {IntervalMs} ms",
-            RBusRefreshIntervalMs * 2);
-
-        while (!ct.IsCancellationRequested)
-        {
-            bool ready;
-
-            lock (_stateGate)
-            {
-                ready =
-                    _sessionRegistered &&
-                    _udp is not null;
-            }
-
-            if (ready)
-            {
-                await SendPacketAsync(
-                    0x0081,
-                    new byte[]
-                    {
-                        (byte)group
-                    },
-                    false,
-                    ct);
-
-                group =
-                    group == 0
-                        ? 1
-                        : 0;
-            }
-
-            await Task.Delay(
-                RBusRefreshIntervalMs,
-                ct);
-        }
     }
 
     private void ResetRBusState()
