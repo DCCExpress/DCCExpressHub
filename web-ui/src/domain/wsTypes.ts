@@ -333,6 +333,13 @@ export type DispatcherChangedPayload = {
   routes: unknown[];
 };
 
+export type SafetyEmergencyExpectedBlock = {
+  movementName: string;
+  locoAddress: number;
+  blockId: number;
+  blockName: string;
+};
+
 export type SafetyEmergencyStopPayload = {
   code:
     | "unknown_occupancy"
@@ -344,6 +351,7 @@ export type SafetyEmergencyStopPayload = {
   blockName: string;
   sensorAddress: number;
   expectedLocoAddress: number | null;
+  expectedBlocks: SafetyEmergencyExpectedBlock[];
   activeLocoAddresses: number[];
   movementNames: string[];
   emergencyStopActive: boolean;
