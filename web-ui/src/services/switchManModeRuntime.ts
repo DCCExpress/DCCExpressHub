@@ -42,6 +42,14 @@ type Listener = (
 const OWNER_STORAGE_KEY =
   "dcc-express.switchman.owner-id";
 
+// Keep manual SwitchMan operations friendly to every backend. The Windows Z21
+// backend waits for its complete 150 ms ON + 50 ms settle cycle before ACKing,
+// while the ESP32 backend acknowledges after queueing the pulse. Enforcing a
+// small minimum cycle here prevents a large selected route from filling the
+// ESP32 pulse slots or hammering a Z21-compatible station with a burst.
+const MIN_TURNOUT_OPERATION_CYCLE_MS =
+  225;
+
 let installed = false;
 let enabled = false;
 let sequence = 0;
@@ -752,9 +760,16 @@ export async function operateSwitchManTurnouts(
     }
 
     for (
-      const command of
-      commands
+      let index = 0;
+      index < commands.length;
+      index += 1
     ) {
+      const command =
+        commands[index]!;
+
+      const startedAt =
+        Date.now();
+
       const response =
         await request(
           "set",
@@ -779,6 +794,31 @@ export async function operateSwitchManTurnouts(
           )
         );
         return false;
+      }
+
+      if (
+        index + 1 <
+          commands.length
+      ) {
+        const remainingMs =
+          MIN_TURNOUT_OPERATION_CYCLE_MS -
+          (
+            Date.now() -
+            startedAt
+          );
+
+        if (
+          remainingMs >
+          0
+        ) {
+          await new Promise<void>(
+            resolve =>
+              window.setTimeout(
+                resolve,
+                remainingMs
+              )
+          );
+        }
       }
     }
 
