@@ -29,6 +29,13 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
     private const int AccessorySettleMs = 50;
     private const int TurnoutActiveMs = 150;
 
+    // Some Z21-compatible command stations answer LAN_RMBUS_GETDATA correctly
+    // but do not reliably emit every asynchronous LAN_RMBUS_DATACHANGED frame.
+    // Alternate one tiny group request every 100 ms. Each of the two groups is
+    // therefore refreshed every 200 ms, while ProcessRBus deduplicates states
+    // before they enter the Hub runtime.
+    private const int RBusRefreshIntervalMs = 100;
+
     // Pure Z21 LAN: driving/switching + R-BUS + system state + all changed locos.
     // LocoNet forwarding flags intentionally do not belong to this protocol.
     protected const uint RocoBroadcastFlags = 0x00010103;
@@ -48,6 +55,8 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
     private int _programmingExpectedCv;
 
     private int _rBusOffset;
+    private readonly bool[] _rBusKnown = new bool[160];
+    private readonly bool[] _rBusStates = new bool[160];
 
     private DateTime _onlineSinceUtc = DateTime.MinValue;
 
@@ -136,9 +145,13 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
         if (offset is < 0 or > MaxRBusOffset)
             return false;
 
-        Interlocked.Exchange(
-            ref _rBusOffset,
-            offset);
+        var previous =
+            Interlocked.Exchange(
+                ref _rBusOffset,
+                offset);
+
+        if (previous != offset)
+            ResetRBusState();
 
         _log.LogInformation(
             "Z21 R-BUS address offset = {Offset}",
@@ -280,6 +293,10 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
             RunTxQueueAsync(
                 txCts.Token);
 
+        var rBusRefreshTask =
+            RunRBusRefreshAsync(
+                stoppingToken);
+
         while (!stoppingToken.IsCancellationRequested)
         {
             try
@@ -416,6 +433,15 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
         {
         }
 
+        try
+        {
+            await rBusRefreshTask;
+        }
+        catch (OperationCanceledException)
+            when (stoppingToken.IsCancellationRequested)
+        {
+        }
+
         txCts.Cancel();
 
         try
@@ -429,6 +455,57 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
         CancelPendingTxRequests();
 
         ResetTransport();
+    }
+
+    private async Task RunRBusRefreshAsync(
+        CancellationToken ct)
+    {
+        var group = 0;
+
+        while (!ct.IsCancellationRequested)
+        {
+            bool ready;
+
+            lock (_stateGate)
+            {
+                ready =
+                    _sessionRegistered &&
+                    _udp is not null;
+            }
+
+            if (ready)
+            {
+                await SendPacketAsync(
+                    0x0081,
+                    new byte[]
+                    {
+                        (byte)group
+                    },
+                    false,
+                    ct);
+
+                group =
+                    group == 0
+                        ? 1
+                        : 0;
+            }
+
+            await Task.Delay(
+                RBusRefreshIntervalMs,
+                ct);
+        }
+    }
+
+    private void ResetRBusState()
+    {
+        lock (_stateGate)
+        {
+            Array.Clear(
+                _rBusKnown);
+
+            Array.Clear(
+                _rBusStates);
+        }
     }
 
     private async Task<bool> EnsureTransportAsync(
@@ -598,6 +675,8 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
         catch
         {
         }
+
+        ResetRBusState();
 
         if (wasOnline)
             ConnectionChanged?.Invoke(false);
@@ -2395,7 +2474,7 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
             return;
         }
 
-        _log.LogInformation(
+        _log.LogDebug(
             "Z21 R-BUS RX group {Group}: {Bytes}",
             group,
             Convert.ToHexString(
@@ -2422,23 +2501,49 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
                     bit +
                     1;
 
-                var address =
-                    rawAddress +
-                    RBusOffset;
-
                 var occupied =
                     (status &
                      (1 << bit)) != 0;
 
-                if (occupied)
+                var stateIndex =
+                    rawAddress - 1;
+
+                bool changed;
+
+                lock (_stateGate)
                 {
-                    _log.LogInformation(
-                        "Z21 R-BUS sensor raw #{RawAddress} -> Hub #{Address}: ON (module {Module}, input {Input})",
-                        rawAddress,
-                        address,
-                        group * 10 + byteIndex + 1,
-                        bit + 1);
+                    changed =
+                        !_rBusKnown[
+                            stateIndex] ||
+                        _rBusStates[
+                            stateIndex] !=
+                            occupied;
+
+                    _rBusKnown[
+                        stateIndex] =
+                        true;
+
+                    _rBusStates[
+                        stateIndex] =
+                        occupied;
                 }
+
+                if (!changed)
+                    continue;
+
+                var address =
+                    rawAddress +
+                    RBusOffset;
+
+                _log.LogInformation(
+                    "Z21 R-BUS sensor raw #{RawAddress} -> Hub #{Address}: {State} (module {Module}, input {Input})",
+                    rawAddress,
+                    address,
+                    occupied
+                        ? "ON"
+                        : "OFF",
+                    group * 10 + byteIndex + 1,
+                    bit + 1);
 
                 SensorFeedbackChanged?.Invoke(
                     address,
