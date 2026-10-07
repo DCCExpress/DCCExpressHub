@@ -49,7 +49,7 @@ export default function DebugDialog({ opened, onClose }: Props) {
           <Text fw={700}>Runtime Debug</Text>
         </Group>
       }
-      size="90vw"
+      size="50vw"
       centered
       draggable
       styles={{
