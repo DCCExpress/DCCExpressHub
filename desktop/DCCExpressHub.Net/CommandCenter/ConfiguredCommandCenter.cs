@@ -106,9 +106,6 @@ public sealed class ConfiguredCommandCenter : ICommandCenter
             DccExCommandCenter dccEx =>
                 dccEx.SetEndpoint(endpoint,value),
 
-            YaMoRcZ21CommandCenter yamorc =>
-                yamorc.SetEndpoint(endpoint,value),
-
             RocoZ21CommandCenter z21 =>
                 z21.SetEndpoint(endpoint,value),
 
