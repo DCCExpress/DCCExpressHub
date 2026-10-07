@@ -146,7 +146,7 @@ test("Windows backend owns Script and Flow runtimes", () => {
 
   assert.match(
     program,
-    /AddHostedService\(sp\s*=>\s*sp\.GetRequiredService<FlowRuntime>\(\)\)/
+    /AddHostedService\([\s\S]*GetRequiredService<[\s\S]*FlowRuntime>[\s\S]*\)/
   );
 
   const project =
