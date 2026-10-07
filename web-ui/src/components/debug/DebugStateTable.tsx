@@ -6,12 +6,17 @@ import {
 } from "@mantine/core";
 
 import type { ReactNode } from "react";
-import type { DebugStateValue } from "./useRuntimeDebugState";
+import DebugLayoutOwnerCells from "./DebugLayoutOwnerCells";
+import type {
+  DebugLayoutOwners,
+  DebugStateValue,
+} from "./useRuntimeDebugState";
 
 type Props<T> = {
   values: Map<number, DebugStateValue<T>>;
   valueHeader: string;
   renderValue: (value: T) => ReactNode;
+  layoutOwners?: DebugLayoutOwners;
 };
 
 function formatTime(timestamp: number): string {
@@ -22,6 +27,7 @@ export default function DebugStateTable<T>({
   values,
   valueHeader,
   renderValue,
+  layoutOwners,
 }: Props<T>) {
   const rows = [...values.entries()].sort(([left], [right]) => left - right);
 
@@ -35,6 +41,8 @@ export default function DebugStateTable<T>({
         <Table.Thead>
           <Table.Tr>
             <Table.Th>Address</Table.Th>
+            <Table.Th>Type</Table.Th>
+            <Table.Th>Name</Table.Th>
             <Table.Th>{valueHeader}</Table.Th>
             <Table.Th>Last update</Table.Th>
           </Table.Tr>
@@ -43,6 +51,9 @@ export default function DebugStateTable<T>({
           {rows.map(([address, state]) => (
             <Table.Tr key={address}>
               <Table.Td><Badge variant="light" color="gray">{address}</Badge></Table.Td>
+              <DebugLayoutOwnerCells
+                owners={layoutOwners?.get(address) ?? []}
+              />
               <Table.Td>{renderValue(state.value)}</Table.Td>
               <Table.Td><Text size="sm" c="dimmed">{formatTime(state.updatedAt)}</Text></Table.Td>
             </Table.Tr>
