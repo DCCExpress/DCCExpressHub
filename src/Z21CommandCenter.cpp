@@ -25,6 +25,9 @@ void Z21CommandCenter::setEndpoint(const String& host, uint16_t port) {
   _systemStateSeen = false;
   _systemStateSeenAt = 0;
   _rbusSnapshotPendingMask = 0;
+  for (auto& pulse : _pendingPulses) {
+    pulse = PendingAccessoryPulse{};
+  }
   _remoteIp = IPAddress();
   if (_udpStarted) {
     _udp.stop();
@@ -434,27 +437,140 @@ bool Z21CommandCenter::sendAccessoryPulse(uint16_t functionAddress, bool positio
   return sendXBus(payload, sizeof(payload), true);
 }
 
-void Z21CommandCenter::queueAccessoryDeactivate(uint16_t functionAddress, bool position) {
-  const unsigned long dueAt = millis() + ACCESSORY_PULSE_MS;
+bool Z21CommandCenter::queueAccessoryPulse(
+    uint16_t functionAddress,
+    bool position,
+    unsigned long pulseMs) {
+  const unsigned long now = millis();
+
+  // One physical decoder output may only have one ON -> OFF cycle in flight.
+  // If another command arrives while the pulse or settle phase is active,
+  // remember only the latest requested position.
+  for (auto& pulse : _pendingPulses) {
+    if (!pulse.active || pulse.functionAddress != functionAddress) {
+      continue;
+    }
+
+    if (position == pulse.position) {
+      // Latest desired state matches the operation already in progress.
+      // This also cancels an older queued opposite command.
+      pulse.queued = false;
+    } else {
+      pulse.queued = true;
+      pulse.queuedPosition = position;
+      pulse.queuedPulseMs = pulseMs;
+    }
+
+    Logger::info(
+        "Z21 accessory #" +
+        String(functionAddress + 1) +
+        " command coalesced while pulse is pending");
+
+    return true;
+  }
+
+  PendingAccessoryPulse* slot = nullptr;
+
   for (auto& pulse : _pendingPulses) {
     if (!pulse.active) {
-      pulse.active = true;
-      pulse.functionAddress = functionAddress;
-      pulse.position = position;
-      pulse.dueAt = dueAt;
-      return;
+      slot = &pulse;
+      break;
     }
   }
-  Logger::warn("Z21 accessory pulse queue full; decoder must self-release output");
+
+  if (slot == nullptr) {
+    Logger::warn(
+        "Z21 accessory pulse queue full; command rejected before activation");
+    return false;
+  }
+
+  if (!sendAccessoryPulse(
+          functionAddress,
+          position,
+          true)) {
+    return false;
+  }
+
+  slot->active = true;
+  slot->outputActive = true;
+  slot->functionAddress = functionAddress;
+  slot->position = position;
+  slot->dueAt = now + pulseMs;
+  slot->queued = false;
+  slot->queuedPosition = false;
+  slot->queuedPulseMs = 0;
+
+  return true;
 }
 
 void Z21CommandCenter::processAccessoryPulses(unsigned long now) {
   for (auto& pulse : _pendingPulses) {
-    if (!pulse.active || static_cast<long>(now - pulse.dueAt) < 0) {
+    if (!pulse.active ||
+        static_cast<long>(now - pulse.dueAt) < 0) {
       continue;
     }
-    sendAccessoryPulse(pulse.functionAddress, pulse.position, false);
-    pulse.active = false;
+
+    if (pulse.outputActive) {
+      if (!sendAccessoryPulse(
+              pulse.functionAddress,
+              pulse.position,
+              false)) {
+        // Keep the address locked and retry the OFF command shortly. Never
+        // start another activation while the previous output may still be on.
+        pulse.dueAt =
+            now +
+            ACCESSORY_SETTLE_MS;
+
+        Logger::warn(
+            "Z21 accessory #" +
+            String(pulse.functionAddress + 1) +
+            " deactivate failed; retrying");
+
+        continue;
+      }
+
+      pulse.outputActive = false;
+      pulse.dueAt =
+          now +
+          ACCESSORY_SETTLE_MS;
+
+      continue;
+    }
+
+    if (!pulse.queued) {
+      pulse = PendingAccessoryPulse{};
+      continue;
+    }
+
+    const bool nextPosition =
+        pulse.queuedPosition;
+
+    const unsigned long nextPulseMs =
+        pulse.queuedPulseMs > 0
+            ? pulse.queuedPulseMs
+            : ACCESSORY_PULSE_MS;
+
+    pulse.queued = false;
+    pulse.queuedPulseMs = 0;
+
+    if (!sendAccessoryPulse(
+            pulse.functionAddress,
+            nextPosition,
+            true)) {
+      Logger::warn(
+          "Z21 accessory #" +
+          String(pulse.functionAddress + 1) +
+          " queued activation failed");
+
+      pulse = PendingAccessoryPulse{};
+      continue;
+    }
+
+    pulse.position = nextPosition;
+    pulse.outputActive = true;
+    pulse.dueAt =
+        now +
+        nextPulseMs;
   }
 }
 
@@ -462,27 +578,28 @@ bool Z21CommandCenter::setTurnout(uint16_t address, bool closed) {
   if (address == 0 || address > 2048) {
     return false;
   }
-  const uint16_t functionAddress = basicAccessoryAddress(address);
+
+  const uint16_t functionAddress =
+      basicAccessoryAddress(address);
 
   // Hub "closed" maps to Z21 P=0, thrown maps to P=1.
   const bool position = !closed;
-  if (!sendAccessoryPulse(functionAddress, position, true)) {
-    return false;
-  }
-  queueAccessoryDeactivate(functionAddress, position);
-  return true;
+
+  return queueAccessoryPulse(
+      functionAddress,
+      position,
+      TURNOUT_PULSE_MS);
 }
 
 bool Z21CommandCenter::setAccessory(uint16_t address, bool active) {
   if (address == 0 || address > 2048) {
     return false;
   }
-  const uint16_t functionAddress = basicAccessoryAddress(address);
-  if (!sendAccessoryPulse(functionAddress, active, true)) {
-    return false;
-  }
-  queueAccessoryDeactivate(functionAddress, active);
-  return true;
+
+  return queueAccessoryPulse(
+      basicAccessoryAddress(address),
+      active,
+      ACCESSORY_PULSE_MS);
 }
 
 bool Z21CommandCenter::setSignalAspect(uint16_t address, int16_t aspect) {

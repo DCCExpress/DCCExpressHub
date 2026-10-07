@@ -27,7 +27,7 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
     private const int OnlineTimeoutMs = 45_000;
     private const int AccessoryPulseMs = 120;
     private const int AccessorySettleMs = 50;
-    private const int TurnoutActiveMs = 500;
+    private const int TurnoutActiveMs = 150;
 
     // Pure Z21 LAN: driving/switching + R-BUS + system state + all changed locos.
     // LocoNet forwarding flags intentionally do not belong to this protocol.
@@ -37,6 +37,7 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
     private readonly object _stateGate = new();
     private readonly SemaphoreSlim _connectGate = new(1, 1);
     private readonly SemaphoreSlim _accessoryGate = new(1, 1);
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<int, SemaphoreSlim> _turnoutGates = new();
     private readonly SemaphoreSlim _txSignal = new(0);
     private readonly object _txQueueGate = new();
     private readonly Queue<TxRequest> _priorityTxQueue = new();
@@ -1505,18 +1506,113 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
             ct);
     }
 
-    public Task<bool> SetTurnoutAsync(
+    public async Task<bool> SetTurnoutAsync(
         int address,
         bool physicalValue,
         CancellationToken ct = default)
     {
-        // Callers pass the already resolved physical accessory value here
-        // (ClosedValue polarity has already been applied). Preserve the same
-        // bool semantics as DCC-EX: false -> Z21 P=0, true -> Z21 P=1.
-        return SendTurnoutCommandAsync(
-            address,
-            physicalValue,
+        if (address is < 1 or > 2048)
+            return false;
+
+        // Serialize a complete ON -> OFF pulse per physical turnout address.
+        // JMRI and Rocrail use the same principle: a second operation must not
+        // overlap the first turnout activation/deactivation cycle.
+        var gate =
+            _turnoutGates.GetOrAdd(
+                address,
+                static _ =>
+                    new SemaphoreSlim(1, 1));
+
+        await gate.WaitAsync(
             ct);
+
+        var functionAddress =
+            address - 1;
+
+        var activated = false;
+
+        try
+        {
+            _log.LogInformation(
+                "Z21 turnout #{Address}: physical={PhysicalValue}, functionAddress={FunctionAddress}, Q=1, activeMs={ActiveMs}",
+                address,
+                physicalValue,
+                functionAddress,
+                TurnoutActiveMs);
+
+            if (!await SendAccessoryPulseAsync(
+                    functionAddress,
+                    physicalValue,
+                    activate: true,
+                    ct: ct))
+            {
+                return false;
+            }
+
+            activated = true;
+
+            await Task.Delay(
+                TurnoutActiveMs,
+                ct);
+
+            var ok =
+                await SendAccessoryPulseAsync(
+                    functionAddress,
+                    physicalValue,
+                    activate: false,
+                    ct: CancellationToken.None,
+                    priority: true,
+                    ensureTransport: false);
+
+            activated = false;
+
+            if (!ok)
+            {
+                _log.LogWarning(
+                    "Z21 turnout #{Address}: deactivate failed",
+                    address);
+
+                return false;
+            }
+
+            // Keep the per-address gate until the decoder output has had time
+            // to settle. WsHub therefore also keeps the SwitchMan lease for the
+            // whole physical switching operation.
+            await Task.Delay(
+                AccessorySettleMs,
+                CancellationToken.None);
+
+            return true;
+        }
+        catch (OperationCanceledException)
+            when (ct.IsCancellationRequested)
+        {
+            return false;
+        }
+        finally
+        {
+            if (activated)
+            {
+                try
+                {
+                    await SendAccessoryPulseAsync(
+                        functionAddress,
+                        physicalValue,
+                        activate: false,
+                        ct: CancellationToken.None,
+                        priority: true);
+                }
+                catch (Exception ex)
+                {
+                    _log.LogWarning(
+                        ex,
+                        "Z21 turnout #{Address}: emergency deactivate failed",
+                        address);
+                }
+            }
+
+            gate.Release();
+        }
     }
 
     public Task<bool> SetAccessoryAsync(
@@ -1527,83 +1623,6 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
             address,
             active,
             ct);
-
-    private async Task<bool> SendTurnoutCommandAsync(
-        int address,
-        bool position,
-        CancellationToken ct)
-    {
-        if (address is < 1 or > 2048)
-            return false;
-
-        var functionAddress =
-            address - 1;
-
-        _log.LogInformation(
-            "Z21 turnout #{Address}: physical={PhysicalValue}, functionAddress={FunctionAddress}, Q=1, activeMs={ActiveMs}",
-            address,
-            position,
-            functionAddress,
-            TurnoutActiveMs);
-
-        // Mirror the proven DCCExpress Z21 behavior:
-        //   LAN_X_SET_TURNOUT_WITH_Q(address, true, position)
-        //   setTimeout(... false ..., 500 ms)
-        //
-        // The command returns as soon as the activate packet has been queued
-        // and sent. Deactivation is scheduled independently. There is no
-        // turnout-feedback wait and no GET_TURNOUT_INFO in the command path.
-        if (!await SendAccessoryPulseAsync(
-                functionAddress,
-                position,
-                activate: true,
-                ct: ct))
-        {
-            return false;
-        }
-
-        _ =
-            DeactivateTurnoutAfterDelayAsync(
-                address,
-                functionAddress,
-                position);
-
-        return true;
-    }
-
-    private async Task DeactivateTurnoutAfterDelayAsync(
-        int address,
-        int functionAddress,
-        bool position)
-    {
-        try
-        {
-            await Task.Delay(
-                TurnoutActiveMs);
-
-            var ok =
-                await SendAccessoryPulseAsync(
-                    functionAddress,
-                    position,
-                    activate: false,
-                    ct: CancellationToken.None,
-                    ensureTransport: false);
-
-            if (!ok)
-            {
-                _log.LogWarning(
-                    "Z21 turnout #{Address}: queued deactivate failed",
-                    address);
-            }
-        }
-        catch (Exception ex)
-        {
-            _log.LogWarning(
-                ex,
-                "Z21 turnout #{Address}: delayed deactivate failed",
-                address);
-        }
-    }
 
     private async Task<bool> SendTimedAccessoryPulseAsync(
         int address,

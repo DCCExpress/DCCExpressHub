@@ -107,6 +107,8 @@ private:
   static constexpr uint8_t MAX_PACKET_BYTES = 128;
   static constexpr uint8_t MAX_PENDING_PULSES = 16;
   static constexpr unsigned long ACCESSORY_PULSE_MS = 120;
+  static constexpr unsigned long TURNOUT_PULSE_MS = 150;
+  static constexpr unsigned long ACCESSORY_SETTLE_MS = 50;
   WiFiUDP _udp;
   String _host;
   uint16_t _port = DEFAULT_PORT;
@@ -123,9 +125,13 @@ private:
   CommandCenterStationInfo _stationInfo;
   struct PendingAccessoryPulse {
     bool active = false;
+    bool outputActive = false;
     uint16_t functionAddress = 0;
     bool position = false;
     unsigned long dueAt = 0;
+    bool queued = false;
+    bool queuedPosition = false;
+    unsigned long queuedPulseMs = 0;
   };
   PendingAccessoryPulse _pendingPulses[MAX_PENDING_PULSES];
   RawInfoCallback _rawInfoCallback;
@@ -148,7 +154,7 @@ private:
   bool sendPomCv(bool accessory, bool write, uint16_t address, uint16_t cv, uint8_t value);
   void emitProgrammingFeedback(bool ok, uint16_t cv, int16_t value, const String& message, const String& raw);
   bool sendAccessoryPulse(uint16_t functionAddress, bool position, bool activate);
-  void queueAccessoryDeactivate(uint16_t functionAddress, bool position);
+  bool queueAccessoryPulse(uint16_t functionAddress, bool position, unsigned long pulseMs);
   void processAccessoryPulses(unsigned long now);
   bool requestSystemState(bool logPacket = false);
   bool requestHardwareInfo(bool logPacket = false);
