@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using DCCExpressHub.Net.CommandCenter;
@@ -23,7 +22,7 @@ public sealed class WsHub
     readonly TimetableRuntime Timetable;
     private readonly ILogger<WsHub> Logger;
     private readonly FastClockRuntime FastClock;
-    private readonly ConcurrentDictionary<Guid, WebSocket> Clients = new();
+    private readonly ConcurrentDictionary<Guid, IHubWebSocketClient> Clients = new();
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     private readonly object _programmingGate = new();
     private readonly object _audioAckGate = new();
@@ -458,43 +457,35 @@ public sealed class WsHub
     }
 
     public async Task Accept(
-        WebSocket ws,
+        IHubWebSocketClient ws,
         CancellationToken cancellationToken)
     {
-        var id = Guid.NewGuid();
-        Clients[id] = ws;
+        var id =
+            Guid.NewGuid();
+
+        Clients[id] =
+            ws;
 
         try
         {
-            await Send(ws, "ws:welcome", new { message = "DCCExpressHub" });
-            await SendSnapshot(ws);
-            var buf = new byte[64 * 1024];
-
-            while (ws.State == WebSocketState.Open)
-            {
-                var ms = new MemoryStream();
-                WebSocketReceiveResult r;
-
-                do
+            await Send(
+                ws,
+                "ws:welcome",
+                new
                 {
-                    r = await ws.ReceiveAsync(
-                        buf,
-                        cancellationToken);
+                    message =
+                        "DCCExpressHub"
+                });
 
-                    if (r.MessageType == WebSocketMessageType.Close)
-                        return;
+            await SendSnapshot(
+                ws);
 
-                    ms.Write(
-                        buf,
-                        0,
-                        r.Count);
-                }
-                while (!r.EndOfMessage);
-
-                var text =
-                    Encoding.UTF8.GetString(
-                        ms.ToArray());
-
+            await foreach (
+                var text in
+                    ws.ReadTextMessagesAsync(
+                        cancellationToken)
+            )
+            {
                 await Handle(
                     id,
                     ws,
@@ -504,7 +495,10 @@ public sealed class WsHub
         }
         finally
         {
-            Clients.TryRemove(id, out _);
+            Clients.TryRemove(
+                id,
+                out _);
+
             await RemoveAudioClient(
                 id);
 
@@ -514,11 +508,18 @@ public sealed class WsHub
                 Scripts.FailPendingAudio();
             }
 
-            try { await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "bye", CancellationToken.None); } catch { }
+            try
+            {
+                await ws.CloseAsync(
+                    CancellationToken.None);
+            }
+            catch
+            {
+            }
         }
     }
 
-    private async Task Handle(Guid connectionId, WebSocket ws, string text, CancellationToken ct)
+    private async Task Handle(Guid connectionId, IHubWebSocketClient ws, string text, CancellationToken ct)
     {
         JsonDocument json;
         try
@@ -849,7 +850,7 @@ public sealed class WsHub
     }
 
     private async Task<(bool Ok, string? OwnerId)> AcquireManualTurnoutOperation(
-        WebSocket ws,
+        IHubWebSocketClient ws,
         ushort address,
         CancellationToken ct)
     {
@@ -882,7 +883,7 @@ public sealed class WsHub
         return (false, null);
     }
 
-    private async Task HandleSwitchManCommand(WebSocket ws, JsonElement data, CancellationToken ct)
+    private async Task HandleSwitchManCommand(IHubWebSocketClient ws, JsonElement data, CancellationToken ct)
     {
         var requestId = S(data, "requestId");
         var action = S(data, "action");
@@ -1073,7 +1074,7 @@ public sealed class WsHub
 
     private async Task HandleFlowCommand(
         Guid connectionId,
-        WebSocket ws,
+        IHubWebSocketClient ws,
         JsonElement data)
     {
         var requestId =
@@ -1216,7 +1217,7 @@ public sealed class WsHub
 
     private async Task HandleScriptCommand(
         Guid connectionId,
-        WebSocket ws,
+        IHubWebSocketClient ws,
         JsonElement data)
     {
         var requestId =
@@ -1508,7 +1509,7 @@ public sealed class WsHub
 
     private async Task HandleTimetableCommand(
         Guid connectionId,
-        WebSocket ws,
+        IHubWebSocketClient ws,
         JsonElement data)
     {
         var requestId =
@@ -1577,7 +1578,7 @@ public sealed class WsHub
     }
 
     private async Task HandleTrainTrackingCommand(
-        WebSocket ws,
+        IHubWebSocketClient ws,
         JsonElement data,
         CancellationToken ct)
     {
@@ -1658,7 +1659,7 @@ public sealed class WsHub
 
     private async Task HandleMovementCommand(
         Guid connectionId,
-        WebSocket ws,
+        IHubWebSocketClient ws,
         JsonElement data,
         CancellationToken ct)
     {
@@ -1807,7 +1808,7 @@ public sealed class WsHub
 
     private async Task HandleDispatcherCommand(
         Guid connectionId,
-        WebSocket ws,
+        IHubWebSocketClient ws,
         JsonElement data,
         CancellationToken ct)
     {
@@ -2266,7 +2267,7 @@ public sealed class WsHub
         }
     }
 
-    private async Task HandleFastClockCommand(WebSocket ws, JsonElement data)
+    private async Task HandleFastClockCommand(IHubWebSocketClient ws, JsonElement data)
     {
         var requestId = S(data, "requestId");
         var action = S(data, "action");
@@ -2806,7 +2807,7 @@ public sealed class WsHub
         }
     });
 
-    private async Task SendSnapshot(WebSocket ws)
+    private async Task SendSnapshot(IHubWebSocketClient ws)
     {
         await SendCommandCenterInfo(ws);
         await SendPower(ws);
@@ -2859,7 +2860,7 @@ public sealed class WsHub
         await Send(ws, "timetableStateChanged", Timetable.Snapshot());
     }
 
-    private Task SendCommandCenterInfo(WebSocket ws)
+    private Task SendCommandCenterInfo(IHubWebSocketClient ws)
     {
         return Send(
             ws,
@@ -2867,7 +2868,7 @@ public sealed class WsHub
             CommandCenterInfo());
     }
 
-    private Task SendPower(WebSocket ws)
+    private Task SendPower(IHubWebSocketClient ws)
     {
         return Send(ws, "powerInfo", new
         {
@@ -2891,37 +2892,49 @@ public sealed class WsHub
             catch (OperationCanceledException)
             {
                 Clients.TryRemove(kv.Key, out _);
-                TryAbort(kv.Value);
+                await SafeClose(kv.Value);
             }
             catch
             {
                 Clients.TryRemove(kv.Key, out _);
-                TryAbort(kv.Value);
+                await SafeClose(kv.Value);
             }
         }
     }
 
-    private static async Task Send(WebSocket ws, string type, object data)
+    private static async Task Send(
+        IHubWebSocketClient ws,
+        string type,
+        object data)
     {
-        if (ws.State != WebSocketState.Open)
+        if (!ws.IsConnected)
             return;
 
-        var bytes = JsonSerializer.SerializeToUtf8Bytes(new { type, data }, Json);
+        var bytes =
+            JsonSerializer.SerializeToUtf8Bytes(
+                new
+                {
+                    type,
+                    data
+                },
+                Json);
 
-        using var timeout = new CancellationTokenSource(WebSocketSendTimeout);
+        using var timeout =
+            new CancellationTokenSource(
+                WebSocketSendTimeout);
 
-        await ws.SendAsync(
+        await ws.SendTextAsync(
             bytes,
-            WebSocketMessageType.Text,
-            true,
             timeout.Token);
     }
 
-    private static void TryAbort(WebSocket ws)
+    private static async Task SafeClose(
+        IHubWebSocketClient ws)
     {
         try
         {
-            ws.Abort();
+            await ws.CloseAsync(
+                CancellationToken.None);
         }
         catch
         {

@@ -207,7 +207,8 @@ app.Map("/ws", async ctx =>
     await ctx.RequestServices
         .GetRequiredService<WsHub>()
         .Accept(
-            socket,
+            new SystemWebSocketClient(
+                socket),
             ctx.RequestAborted);
 });
 
