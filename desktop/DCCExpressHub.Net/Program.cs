@@ -52,6 +52,10 @@ builder.Services.AddSingleton<LocoStorageCoordinator>();
 builder.Services.AddSingleton<AutomationExclusiveGate>();
 builder.Services.AddSingleton<CommandCenterConfigStore>();
 builder.Services.AddSingleton<CommandCenterApi>();
+builder.Services.AddSingleton<LocomotiveConfigApi>();
+builder.Services.AddSingleton<LayoutConfigApi>();
+builder.Services.AddSingleton<AutomationConfigApi>();
+builder.Services.AddSingleton<DeviceConfigApi>();
 
 if (useYaMoRcZ21)
 {
@@ -115,6 +119,22 @@ builder.Services.AddSingleton<WsHub>();
 builder.Services.AddHostedService<WsRuntimeCoordinator>();
 
 var app = builder.Build();
+
+static IResult ToHttpResult(
+    HubApiResponse response) =>
+    response.BodyKind ==
+        HubApiBodyKind.Text
+        ? Results.Text(
+            response.Body as string ?? "",
+            response.ContentType,
+            System.Text.Encoding.UTF8,
+            statusCode:
+                response.StatusCode)
+        : Results.Json(
+            response.Body,
+            statusCode:
+                response.StatusCode);
+
 var appPaths =
     app.Services.GetRequiredService<AppPaths>();
 var ccConfigStore = app.Services.GetRequiredService<CommandCenterConfigStore>();
@@ -328,233 +348,45 @@ app.MapGet(
                 response.StatusCode);
     });
 
-static string DataFile(AppPaths env, string name)
-    => Path.Combine(env.ContentRootPath, "data", "config", name);
+app.MapGet(
+    "/api/loco-counters",
+    async (
+        LocomotiveConfigApi api,
+        CancellationToken ct) =>
+        ToHttpResult(
+            await api.GetCountersAsync(
+                ct)));
 
-app.MapGet("/api/loco-counters", async (AppPaths env) =>
-{
-    var path =
-        Path.Combine(
-            env.ContentRootPath,
-            "data",
-            "state",
-            "loco-counters.json");
-
-    return Results.Text(
-        File.Exists(path)
-            ? await File.ReadAllTextAsync(path)
-            : "{\"version\":1,\"items\":[]}",
-        "application/json");
-});
-
-app.MapPost("/api/loco-counters", async (HttpRequest req, AppPaths env, LocoCounterRuntime counters) =>
-{
-    JsonObject document;
-
-    try
-    {
-        document =
-            await JsonNode.ParseAsync(
+app.MapPost(
+    "/api/loco-counters",
+    async (
+        HttpRequest req,
+        LocomotiveConfigApi api,
+        CancellationToken ct) =>
+        ToHttpResult(
+            await api.SaveCountersAsync(
                 req.Body,
-                cancellationToken:
-                    req.HttpContext.RequestAborted) as
-            JsonObject ??
-            throw new JsonException();
-    }
-    catch
-    {
-        return Results.Json(
-            new { ok = false, message = "Invalid locomotive counter state" },
-            statusCode: 400);
-    }
+                ct)));
 
-    if (document["items"] is not JsonArray)
-    {
-        return Results.Json(
-            new { ok = false, message = "Invalid locomotive counter state" },
-            statusCode: 400);
-    }
+app.MapGet(
+    "/api/locos",
+    async (
+        LocomotiveConfigApi api,
+        CancellationToken ct) =>
+        ToHttpResult(
+            await api.GetLocosAsync(
+                ct)));
 
-    var directory =
-        Path.Combine(
-            env.ContentRootPath,
-            "data",
-            "state");
-
-    Directory.CreateDirectory(directory);
-
-    var path =
-        Path.Combine(
-            directory,
-            "loco-counters.json");
-
-    var temp =
-        path + ".tmp";
-
-    await File.WriteAllTextAsync(
-        temp,
-        document.ToJsonString(
-            new JsonSerializerOptions
-            {
-                WriteIndented = true
-            }),
-        req.HttpContext.RequestAborted);
-
-    File.Move(
-        temp,
-        path,
-        true);
-
-    if (!counters.ReloadConfiguration(false))
-    {
-        return Results.Json(
-            new { ok = false, message = "Counter state committed but runtime reload failed" },
-            statusCode: 500);
-    }
-
-    return Results.Json(
-        new { ok = true });
-});
-
-app.MapGet("/api/locos", async (AppPaths env) =>
-{
-    var p = DataFile(env, "locos.json");
-    return Results.Text(File.Exists(p) ? await File.ReadAllTextAsync(p) : "[]", "application/json");
-});
-
-app.MapPost("/api/locos", async (HttpRequest req, AppPaths env, ConfiguredCommandCenter configuredCc, LocoCounterRuntime counters, LocoStorageCoordinator locoStorage) =>
-{
-    using var sr = new StreamReader(req.Body);
-    var body = await sr.ReadToEndAsync();
-
-    JsonArray incoming;
-
-    try
-    {
-        incoming =
-            JsonNode.Parse(
-                body) as
-            JsonArray ??
-            throw new JsonException();
-    }
-    catch
-    {
-        return Results.Json(new { ok = false, message = "Expected locomotive JSON array" }, statusCode: 400);
-    }
-
-    var normalizedBody =
-        await locoStorage.ExecuteAsync(
-            async () =>
-            {
-                var path =
-                    DataFile(
-                        env,
-                        "locos.json");
-
-                /*
-                 * Calibration is backend-owned runtime data. A Loco Editor that
-                 * was opened before/during a calibration run may hold an older
-                 * copy of the locomotive array. Merge the newest backend
-                 * calibration profile while holding the same write lock used by
-                 * CalibrationRuntime.
-                 */
-                if (File.Exists(path))
-                {
-                    try
-                    {
-                        var existing =
-                            JsonNode.Parse(
-                                await File.ReadAllTextAsync(
-                                    path)) as
-                                JsonArray;
-
-                        if (existing is not null)
-                        {
-                            var calibrationById =
-                                new Dictionary<
-                                    string,
-                                    JsonNode?>(
-                                    StringComparer.Ordinal);
-
-                            foreach (var node in existing)
-                            {
-                                if (node is not JsonObject loco)
-                                    continue;
-
-                                var id =
-                                    loco["id"]?
-                                        .GetValue<string>();
-
-                                if (string.IsNullOrWhiteSpace(id) ||
-                                    loco["calibration"] is null)
-                                    continue;
-
-                                calibrationById[id] =
-                                    loco["calibration"]!
-                                        .DeepClone();
-                            }
-
-                            foreach (var node in incoming)
-                            {
-                                if (node is not JsonObject loco)
-                                    continue;
-
-                                var id =
-                                    loco["id"]?
-                                        .GetValue<string>();
-
-                                if (string.IsNullOrWhiteSpace(id) ||
-                                    !calibrationById.TryGetValue(
-                                        id,
-                                        out var calibration) ||
-                                    calibration is null)
-                                    continue;
-
-                                loco["calibration"] =
-                                    calibration.DeepClone();
-                            }
-                        }
-                    }
-                    catch
-                    {
-                        // Keep normal locomotive editing usable if an old/corrupt
-                        // file cannot be merged; the incoming document was
-                        // already validated.
-                    }
-                }
-
-                var body =
-                    incoming.ToJsonString(
-                        new JsonSerializerOptions
-                        {
-                            WriteIndented =
-                                false
-                        });
-
-                var temp =
-                    path +
-                    ".tmp";
-
-                await File.WriteAllTextAsync(
-                    temp,
-                    body);
-
-                File.Move(
-                    temp,
-                    path,
-                    true);
-
-                return body;
-            },
-            req.HttpContext.RequestAborted);
-
-    if (!configuredCc.ReloadLocomotiveConfiguration())
-        return Results.Json(new { ok = false, message = "Locomotive configuration committed but runtime reload failed" }, statusCode: 500);
-
-    counters.ReloadConfiguration(true);
-
-    return Results.Json(new { ok = true, bytes = System.Text.Encoding.UTF8.GetByteCount(normalizedBody) });
-});
+app.MapPost(
+    "/api/locos",
+    async (
+        HttpRequest req,
+        LocomotiveConfigApi api,
+        CancellationToken ct) =>
+        ToHttpResult(
+            await api.SaveLocosAsync(
+                req.Body,
+                ct)));
 
 
 app.MapGet("/api/calibration", (CalibrationRuntime calibration) =>
@@ -629,129 +461,45 @@ app.MapPost("/api/calibration/estop", (CalibrationRuntime calibration) =>
             state = calibration.Snapshot()
         }));
 
-app.MapGet("/api/function-bindings", async (AppPaths env) =>
-{
-    var p = DataFile(env, "function-bindings.json");
-    return Results.Text(
-        File.Exists(p) ? await File.ReadAllTextAsync(p) : "[]",
-        "application/json");
-});
+app.MapGet(
+    "/api/function-bindings",
+    async (
+        LocomotiveConfigApi api,
+        CancellationToken ct) =>
+        ToHttpResult(
+            await api.GetFunctionBindingsAsync(
+                ct)));
 
-app.MapPost("/api/function-bindings", async (HttpRequest req, AppPaths env) =>
-{
-    using var sr = new StreamReader(req.Body);
-    var body = await sr.ReadToEndAsync();
+app.MapPost(
+    "/api/function-bindings",
+    async (
+        HttpRequest req,
+        LocomotiveConfigApi api,
+        CancellationToken ct) =>
+        ToHttpResult(
+            await api.SaveFunctionBindingsAsync(
+                req.Body,
+                ct)));
 
-    try
-    {
-        using var doc = JsonDocument.Parse(body);
+app.MapGet(
+    "/api/layout",
+    async (
+        LayoutConfigApi api,
+        CancellationToken ct) =>
+        ToHttpResult(
+            await api.GetLayoutAsync(
+                ct)));
 
-        if (doc.RootElement.ValueKind != JsonValueKind.Array)
-            return Results.Json(
-                new { ok = false, message = "Expected function binding JSON array" },
-                statusCode: 400);
-
-        var usedIds = new HashSet<int>();
-
-        foreach (var item in doc.RootElement.EnumerateArray())
-        {
-            if (item.ValueKind != JsonValueKind.Object ||
-                !item.TryGetProperty("id", out var idElement) ||
-                !idElement.TryGetInt32(out var id) ||
-                id is <= 0 or > 65535 ||
-                !usedIds.Add(id) ||
-                !item.TryGetProperty("name", out var nameElement) ||
-                nameElement.ValueKind != JsonValueKind.String ||
-                string.IsNullOrWhiteSpace(nameElement.GetString()))
-            {
-                return Results.Json(
-                    new { ok = false, message = "Function bindings require unique positive numeric id and non-empty name" },
-                    statusCode: 400);
-            }
-        }
-    }
-    catch
-    {
-        return Results.Json(
-            new { ok = false, message = "Expected function binding JSON array" },
-            statusCode: 400);
-    }
-
-    var path = DataFile(env, "function-bindings.json");
-    var temp = path + ".tmp";
-    await File.WriteAllTextAsync(temp, body);
-    File.Move(temp, path, true);
-
-    return Results.Json(new
-    {
-        ok = true,
-        bytes = System.Text.Encoding.UTF8.GetByteCount(body)
-    });
-});
-
-app.MapGet("/api/layout", async (AppPaths env) =>
-{
-    var p = DataFile(env, "layout.json");
-    return Results.Text(File.Exists(p) ? await File.ReadAllTextAsync(p) : "{}", "application/json");
-});
-
-app.MapPost("/api/layout", async (HttpRequest req, AppPaths env, LayoutRuntime runtime, SignalAutomationEngine automation, WsHub ws) =>
-{
-    var finalPath = DataFile(env, "layout.json");
-    var tempPath = finalPath + ".upload.tmp";
-    long bytes = 0;
-    try
-    {
-        await using (var output = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
-        {
-            await req.Body.CopyToAsync(output, req.HttpContext.RequestAborted);
-            bytes = output.Length;
-        }
-
-        // Validate the temporary file before replacing the authoritative layout.
-        try
-        {
-            using var doc = JsonDocument.Parse(await File.ReadAllTextAsync(tempPath, req.HttpContext.RequestAborted));
-            if (doc.RootElement.ValueKind != JsonValueKind.Object)
-            {
-                File.Delete(tempPath);
-                return Results.Json(new { ok = false, message = "Invalid layout JSON" }, statusCode: 400);
-            }
-        }
-        catch
-        {
-            if (File.Exists(tempPath)) File.Delete(tempPath);
-            return Results.Json(new { ok = false, message = "Invalid layout JSON" }, statusCode: 400);
-        }
-
-        File.Move(tempPath, finalPath, true);
-        runtime.Rebuild();
-
-        // Firmware parity: IDs used by signal rules are resolved against the newly
-        // rebuilt runtime, therefore reload + evaluate after every committed layout.
-        var signalAutomationReloaded = automation.Reload();
-        if (signalAutomationReloaded) await automation.EvaluateAsync();
-
-        // Layout persistence must not wait for command-center sensor interrogation.
-        // Runtime sensor state is maintained independently by live command-center
-        // feedback and connection-time snapshot logic.
-
-        await ws.BroadcastRuntimeSnapshot();
-        return Results.Json(new
-        {
-            ok = true,
-            bytes,
-            accessories = runtime.AccessoryCount,
-            sensors = runtime.SensorCount,
-            signalAutomationReloaded
-        });
-    }
-    catch (IOException)
-    {
-        try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
-        return Results.Json(new { ok = false, message = "Layout upload failed" }, statusCode: 507);
-    }
-});
+app.MapPost(
+    "/api/layout",
+    async (
+        HttpRequest req,
+        LayoutConfigApi api,
+        CancellationToken ct) =>
+        ToHttpResult(
+            await api.SaveLayoutAsync(
+                req.Body,
+                ct)));
 
 // version.json is generated by the ESP32 web build. The native backend supplies
 // a compatible fallback if the copied React dist does not contain one.
@@ -765,242 +513,57 @@ app.MapGet("/version.json", (AppPaths env) =>
 
 
 // Automation storage contract: exact native equivalent of AutomationsEndpoint.
-// ESP32: /config/automations.json in LittleFS
-// .NET:  data/config/automations.json
-app.MapGet("/api/automations", async (AppPaths env) =>
-{
-    var path = DataFile(env, "automations.json");
-    if (!File.Exists(path))
-        return Results.Json(new { version = 1, scripts = Array.Empty<object>() });
+app.MapGet(
+    "/api/automations",
+    async (
+        AutomationConfigApi api,
+        CancellationToken ct) =>
+        ToHttpResult(
+            await api.GetAsync(
+                ct)));
 
-    return Results.Text(
-        await File.ReadAllTextAsync(path),
-        "application/json",
-        System.Text.Encoding.UTF8);
-});
+app.MapGet(
+    "/api/automations/previous",
+    async (
+        AutomationConfigApi api,
+        CancellationToken ct) =>
+        ToHttpResult(
+            await api.GetPreviousAsync(
+                ct)));
 
-app.MapGet("/api/automations/previous", async (AppPaths env) =>
-{
-    var path = DataFile(env, "automations.json.previous");
-
-    if (!File.Exists(path))
-        return Results.Json(
-            new { ok = false, message = "No previous automation snapshot" },
-            statusCode: StatusCodes.Status404NotFound);
-
-    return Results.Text(
-        await File.ReadAllTextAsync(path),
-        "application/json",
-        System.Text.Encoding.UTF8);
-});
-
-app.MapPost("/api/automations", async (HttpRequest req, AppPaths env, AutomationStorageCoordinator automationStorage) =>
-{
-    const int maxBytes = 512 * 1024;
-
-    if (req.ContentLength is > maxBytes)
-        return Results.Json(
-            new { ok = false, message = "Automation storage exceeds 512 KB" },
-            statusCode: StatusCodes.Status413PayloadTooLarge);
-
-    using var memory = new MemoryStream();
-    await req.Body.CopyToAsync(memory);
-
-    if (memory.Length > maxBytes)
-        return Results.Json(
-            new { ok = false, message = "Automation storage exceeds 512 KB" },
-            statusCode: StatusCodes.Status413PayloadTooLarge);
-
-    System.Text.Json.JsonDocument document;
-    try
-    {
-        memory.Position = 0;
-        document = await System.Text.Json.JsonDocument.ParseAsync(memory);
-    }
-    catch (System.Text.Json.JsonException)
-    {
-        return Results.Json(
-            new { ok = false, message = "Invalid automation JSON" },
-            statusCode: StatusCodes.Status400BadRequest);
-    }
-
-    using (document)
-    {
-        var root = document.RootElement;
-
-        if (root.ValueKind != System.Text.Json.JsonValueKind.Object)
-            return Results.Json(
-                new { ok = false, message = "Automation root must be an object" },
-                statusCode: StatusCodes.Status400BadRequest);
-
-        if (!root.TryGetProperty("version", out var version) ||
-            version.ValueKind != System.Text.Json.JsonValueKind.Number ||
-            !version.TryGetInt32(out var versionNumber) ||
-            versionNumber != 1)
-            return Results.Json(
-                new { ok = false, message = "Unsupported automation storage version" },
-                statusCode: StatusCodes.Status400BadRequest);
-
-        if (!root.TryGetProperty("scripts", out var scripts) ||
-            scripts.ValueKind != System.Text.Json.JsonValueKind.Array)
-            return Results.Json(
-                new { ok = false, message = "Automation scripts must be an array" },
-                statusCode: StatusCodes.Status400BadRequest);
-
-        foreach (var script in scripts.EnumerateArray())
-        {
-            if (script.ValueKind != System.Text.Json.JsonValueKind.Object)
-                return Results.Json(
-                    new { ok = false, message = "Automation script entry must be an object" },
-                    statusCode: StatusCodes.Status400BadRequest);
-
-            if (!script.TryGetProperty("id", out var id) ||
-                id.ValueKind != System.Text.Json.JsonValueKind.String ||
-                !script.TryGetProperty("name", out var name) ||
-                name.ValueKind != System.Text.Json.JsonValueKind.String ||
-                !script.TryGetProperty("script", out var code) ||
-                code.ValueKind != System.Text.Json.JsonValueKind.String)
-                return Results.Json(
-                    new { ok = false, message = "Automation script requires id, name and script strings" },
-                    statusCode: StatusCodes.Status400BadRequest);
-
-            var idValue = id.GetString() ?? "";
-            var nameValue = name.GetString() ?? "";
-
-            if (idValue.Length == 0 || idValue.Length > 160)
-                return Results.Json(
-                    new { ok = false, message = "Automation id is invalid" },
-                    statusCode: StatusCodes.Status400BadRequest);
-
-            if (nameValue.Length == 0 || nameValue.Length > 160)
-                return Results.Json(
-                    new { ok = false, message = "Automation name is invalid" },
-                    statusCode: StatusCodes.Status400BadRequest);
-        }
-    }
-
-    return await automationStorage.ExecuteAsync<IResult>(
-        async () =>
-        {
-            var finalPath =
-                DataFile(
-                    env,
-                    "automations.json");
-
-            var tempPath =
-                finalPath +
-                ".tmp";
-
-            try
-            {
-                Directory.CreateDirectory(
-                    Path.GetDirectoryName(
-                        finalPath)!);
-
-                // Write to a temporary file first, then atomically replace/move it,
-                // matching the firmware's AtomicFileUpload semantics.
-                memory.Position = 0;
-
-                await using (var output = new FileStream(
-                    tempPath,
-                    FileMode.Create,
-                    FileAccess.Write,
-                    FileShare.None,
-                    81920,
-                    FileOptions.Asynchronous |
-                    FileOptions.WriteThrough))
-                {
-                    await memory.CopyToAsync(
-                        output);
-
-                    await output.FlushAsync();
-                }
-
-                var previousPath =
-                    DataFile(
-                        env,
-                        "automations.json.previous");
-
-                if (File.Exists(
-                        finalPath))
-                    File.Copy(
-                        finalPath,
-                        previousPath,
-                        true);
-
-                File.Move(
-                    tempPath,
-                    finalPath,
-                    true);
-
-                return Results.Json(
-                    new
-                    {
-                        ok = true,
-                        bytes =
-                            memory.Length
-                    });
-            }
-            catch
-            {
-                try
-                {
-                    if (File.Exists(
-                            tempPath))
-                        File.Delete(
-                            tempPath);
-                }
-                catch
-                {
-                }
-
-                return Results.Json(
-                    new
-                    {
-                        ok = false,
-                        message =
-                            "Automation atomic rename failed"
-                    },
-                    statusCode:
-                        StatusCodes.Status500InternalServerError);
-            }
-        });
-});
-
+app.MapPost(
+    "/api/automations",
+    async (
+        HttpRequest req,
+        AutomationConfigApi api,
+        CancellationToken ct) =>
+        ToHttpResult(
+            await api.SaveAsync(
+                req.Body,
+                req.ContentLength,
+                ct)));
 
 
 // Firmware HTTP parity that is platform-neutral.
-app.MapGet("/api/signal-logic", async (AppPaths env) =>
-{
-    var path = Path.Combine(env.ContentRootPath, "data", "config", "signal-logic.ndjson");
-    if (!File.Exists(path)) return Results.Text("Not found", "text/plain", statusCode: 404);
-    return Results.Text(await File.ReadAllTextAsync(path), "application/x-ndjson", System.Text.Encoding.UTF8);
-});
+app.MapGet(
+    "/api/signal-logic",
+    async (
+        LayoutConfigApi api,
+        CancellationToken ct) =>
+        ToHttpResult(
+            await api.GetSignalLogicAsync(
+                ct)));
 
-app.MapPost("/api/signal-logic", async (HttpRequest req, AppPaths env, SignalAutomationEngine automation) =>
-{
-    var final = Path.Combine(env.ContentRootPath, "data", "config", "signal-logic.ndjson");
-    var temp = final + ".tmp"; Directory.CreateDirectory(Path.GetDirectoryName(final)!);
-    using var sr = new StreamReader(req.Body); var body = await sr.ReadToEndAsync();
-
-    if (!automation.Validate(body))
-        return Results.Json(new { ok = false, message = "Invalid signal automation NDJSON v2" }, statusCode: 400);
-
-    try
-    {
-        await File.WriteAllTextAsync(temp, body);
-        File.Move(temp, final, true);
-        if (!automation.Reload())
-            return Results.Json(new { ok = false, message = "Signal automation committed but runtime reload failed" }, statusCode: 500);
-        await automation.EvaluateAsync();
-        return Results.Json(new { ok = true, bytes = System.Text.Encoding.UTF8.GetByteCount(body) });
-    }
-    catch
-    {
-        try { if (File.Exists(temp)) File.Delete(temp); } catch { }
-        return Results.Json(new { ok = false, message = "Signal automation atomic rename failed" }, statusCode: 500);
-    }
-});
+app.MapPost(
+    "/api/signal-logic",
+    async (
+        HttpRequest req,
+        LayoutConfigApi api,
+        CancellationToken ct) =>
+        ToHttpResult(
+            await api.SaveSignalLogicAsync(
+                req.Body,
+                ct)));
 
 app.MapGet("/api/runtime", (LayoutRuntime runtime) => Results.Json(new
 {
@@ -1057,114 +620,26 @@ app.MapPost("/api/emergency-stop", async (ICommandCenter cc, HubState state, WsH
 });
 
 // Native parity endpoints used by the current React UI.
+app.MapGet(
+    "/api/device-config",
+    async (
+        DeviceConfigApi api,
+        CancellationToken ct) =>
+        ToHttpResult(
+            await api.GetAsync(
+                ct)));
 
-app.MapGet("/api/device-config", async (AppPaths env) =>
-{
-    var path = DataFile(env, "device-config.json");
-    return Results.Text(
-        File.Exists(path) ? await File.ReadAllTextAsync(path) : "{\"version\":1,\"devices\":[]}",
-        "application/json", System.Text.Encoding.UTF8);
-});
-
-app.MapPost("/api/device-config", async (HttpRequest req, AppPaths env) =>
-{
-    const int maxBytes = 256 * 1024;
-    if (req.ContentLength is > maxBytes)
-        return Results.Json(new { ok = false, message = "Device configuration exceeds 256 KB" }, statusCode: 413);
-
-    using var ms = new MemoryStream();
-    await req.Body.CopyToAsync(ms);
-    if (ms.Length > maxBytes)
-        return Results.Json(new { ok = false, message = "Device configuration exceeds 256 KB" }, statusCode: 413);
-
-    System.Text.Json.JsonDocument doc;
-    try { ms.Position = 0; doc = await System.Text.Json.JsonDocument.ParseAsync(ms); }
-    catch { return Results.Json(new { ok = false, message = "Invalid device configuration JSON" }, statusCode: 400); }
-
-    using (doc)
-    {
-        var root = doc.RootElement;
-        if (root.ValueKind != System.Text.Json.JsonValueKind.Object)
-            return Results.Json(new { ok = false, message = "Invalid device configuration JSON" }, statusCode: 400);
-        if (!root.TryGetProperty("version", out var v) || !v.TryGetInt32(out var vn) || vn != 1)
-            return Results.Json(new { ok = false, message = "Unsupported device configuration version" }, statusCode: 400);
-        if (!root.TryGetProperty("devices", out var devices) || devices.ValueKind != System.Text.Json.JsonValueKind.Array)
-            return Results.Json(new { ok = false, message = "Device configuration requires a devices array" }, statusCode: 400);
-
-        var ids = new HashSet<string>(StringComparer.Ordinal);
-        var addresses = new HashSet<int>();
-        var ranges = new List<(int First, int Last)>();
-        int s88Count = 0;
-
-        foreach (var d in devices.EnumerateArray())
-        {
-            if (d.ValueKind != System.Text.Json.JsonValueKind.Object ||
-                !d.TryGetProperty("id", out var idEl) || idEl.ValueKind != System.Text.Json.JsonValueKind.String ||
-                !d.TryGetProperty("name", out var nameEl) || nameEl.ValueKind != System.Text.Json.JsonValueKind.String ||
-                !d.TryGetProperty("type", out var typeEl) || typeEl.ValueKind != System.Text.Json.JsonValueKind.String)
-                return Results.Json(new { ok = false, message = "Every device requires id, name and type" }, statusCode: 400);
-
-            var id = idEl.GetString() ?? ""; var name = nameEl.GetString() ?? ""; var type = typeEl.GetString() ?? "";
-            if (id.Length == 0 || name.Length == 0 || type.Length == 0)
-                return Results.Json(new { ok = false, message = "Every device requires id, name and type" }, statusCode: 400);
-            if (!ids.Add(id))
-                return Results.Json(new { ok = false, message = "Device IDs must be unique" }, statusCode: 400);
-            if (!d.TryGetProperty("enabled", out var en) || (en.ValueKind != System.Text.Json.JsonValueKind.True && en.ValueKind != System.Text.Json.JsonValueKind.False) ||
-                !d.TryGetProperty("address", out var addrEl) || !addrEl.TryGetInt32(out var address))
-                return Results.Json(new { ok = false, message = "Device configuration contains invalid required fields" }, statusCode: 400);
-
-            bool enabled = en.GetBoolean();
-            bool s88 = type == "s88adapter";
-            bool pca = type == "pca9685";
-            bool legacy = pca || type == "mcp23017" || type == "pcf8574" || type == "pcf8575";
-            if (!s88 && !legacy)
-                return Results.Json(new { ok = false, message = $"Unsupported device type: {type}" }, statusCode: 400);
-            if (address < 0x08 || address > 0x77)
-                return Results.Json(new { ok = false, message = "I2C address must be between 0x08 and 0x77" }, statusCode: 400);
-            if (enabled && !addresses.Add(address))
-                return Results.Json(new { ok = false, message = "Enabled devices cannot share the same I2C address" }, statusCode: 400);
-
-            if (s88) { if (++s88Count > 1) return Results.Json(new { ok = false, message = "Only one S88 adapter is currently supported" }, statusCode: 400); }
-            else
-            {
-                if (!d.TryGetProperty("firstVpin", out var fv) || !fv.TryGetInt32(out var first) ||
-                    !d.TryGetProperty("pinCount", out var pc) || !pc.TryGetInt32(out var count))
-                    return Results.Json(new { ok = false, message = "HAL device requires firstVpin and pinCount" }, statusCode: 400);
-                int expected = type == "pcf8574" ? 8 : 16;
-                if (first < 40 || first > 32767 || count != expected || first + count - 1 > 32767)
-                    return Results.Json(new { ok = false, message = "HAL device VPIN range or pin count is invalid" }, statusCode: 400);
-                if (pca && (address < 0x40 || address > 0x7d))
-                    return Results.Json(new { ok = false, message = "PCA9685 I2C address must be between 0x40 and 0x7D" }, statusCode: 400);
-                if (!pca && (address < 0x20 || address > 0x27))
-                    return Results.Json(new { ok = false, message = "Configured digital I2C expander address must be between 0x20 and 0x27" }, statusCode: 400);
-                var last = first + count - 1;
-                if (enabled && ranges.Any(r => first <= r.Last && last >= r.First))
-                    return Results.Json(new { ok = false, message = "Enabled HAL device VPIN ranges cannot overlap" }, statusCode: 400);
-                if (enabled) ranges.Add((first, last));
-            }
-        }
-    }
-
-    var final = DataFile(env, "device-config.json"); var temp = final + ".tmp";
-    try
-    {
-        ms.Position = 0; await using (var f = File.Create(temp)) { await ms.CopyToAsync(f); await f.FlushAsync(); }
-        File.Move(temp, final, true);
-        return Results.Json(new
-        {
-            ok = true,
-            bytes = ms.Length,
-            s88Applied = false,
-            s88Online = false,
-            message = "Device configuration saved; native backend does not expose an S88 I2C bus"
-        });
-    }
-    catch
-    {
-        try { if (File.Exists(temp)) File.Delete(temp); } catch { }
-        return Results.Json(new { ok = false, message = "Device configuration atomic rename failed" }, statusCode: 500);
-    }
-});
+app.MapPost(
+    "/api/device-config",
+    async (
+        HttpRequest req,
+        DeviceConfigApi api,
+        CancellationToken ct) =>
+        ToHttpResult(
+            await api.SaveAsync(
+                req.Body,
+                req.ContentLength,
+                ct)));
 
 // Native backend currently has no physical S88 I2C master.
 app.MapGet("/api/s88-status", () => Results.Json(new
