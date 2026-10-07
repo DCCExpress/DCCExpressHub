@@ -20,7 +20,7 @@ public sealed class YaMoRcLocoNetClient
     private const int InterrogateRestMs = 1250;
 
     private readonly ILogger _log;
-    private string _host;
+    private readonly string _host;
     private readonly int _lbServerPort;
     private readonly int _binaryPort;
     private readonly bool _lbServerEnabled;
@@ -91,17 +91,6 @@ public sealed class YaMoRcLocoNetClient
 
     public event Action<string>? RawInfo;
     public event Action<int, bool>? SensorFeedbackChanged;
-
-    public bool SetHost(string host)
-    {
-        host = (host ?? "").Trim();
-
-        if (host.Length == 0)
-            return false;
-
-        _host = host;
-        return true;
-    }
 
     public LocoNetRuntimeDiagnostics Diagnostics
     {
