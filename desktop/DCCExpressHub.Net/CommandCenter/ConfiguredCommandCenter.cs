@@ -84,6 +84,11 @@ public sealed class ConfiguredCommandCenter : ICommandCenter
             ? z21.Diagnostics
             : null;
 
+    public LocoNetRuntimeDiagnostics? GetLocoNetDiagnostics() =>
+        _inner is YaMoRcZ21CommandCenter yamorc
+            ? yamorc.LocoNetDiagnostics
+            : null;
+
     public void SetCommandIntervalMs(int intervalMs)
     {
         if (_inner is DccExCommandCenter dccEx)
