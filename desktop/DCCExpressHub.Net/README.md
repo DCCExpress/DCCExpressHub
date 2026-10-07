@@ -31,6 +31,36 @@ or the existing configuration key/environment variable:
 
     Urls=http://0.0.0.0:5174
 
+## Linux launcher script
+
+For normal headless Linux use, run:
+
+    ./run-linux.sh
+
+On the first run it asks which command center to use:
+
+- YaMoRC YD7010 (Z21 + separate LocoNet)
+- Roco Z21
+- DCC-EX TCP
+- DCC-EX Serial
+
+The selected machine-local settings are saved to:
+
+    .env.linux
+
+That file is ignored by Git through the repository's `.env.*` rule.
+
+Useful commands:
+
+    ./run-linux.sh --configure   # change command center/settings and launch
+    ./run-linux.sh --show        # show the saved profile
+    ./run-linux.sh --build       # build the backend
+    ./run-linux.sh --help
+
+The launcher sets `DCCEXPRESS_CONTENT_ROOT`, `DCCEXPRESS_WEB_ROOT` and
+`DCCEXPRESS_HTTP_URL` automatically, so it can be started from any working
+directory.
+
 ## Filesystem roots
 
 By default the process content root is used. For a service installation the
