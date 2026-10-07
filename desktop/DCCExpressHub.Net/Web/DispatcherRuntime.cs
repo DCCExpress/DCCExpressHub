@@ -593,7 +593,19 @@ public sealed class DispatcherRuntime
         if (!_switchMan.IsOwnedBy(requirement.Address, ownerId))
             return false;
 
-        if (_runtime.TryGetTurnoutClosed(requirement.Address, out var current) &&
+        // Basic DCC turnout state is only a cached/last-known state. On Z21-
+        // compatible stations a previously sent command may have been lost even though
+        // the Hub cache already contains the requested position. Re-assert Basic DCC
+        // turnouts for every protected route acquisition; SetTurnoutAsync performs the
+        // command-station feedback confirmation.
+        //
+        // Extended/VPin outputs keep the old cache short-circuit because they do not
+        // use the magnetic-accessory turnout pulse/feedback path.
+        if ((turnout.TurnoutExtended ||
+             turnout.TurnoutVPin) &&
+            _runtime.TryGetTurnoutClosed(
+                requirement.Address,
+                out var current) &&
             current == requirement.Closed)
             return true;
 
@@ -839,6 +851,14 @@ public sealed class DispatcherRuntime
                     turnouts[index];
 
                 var needsChange =
+                    (!(
+                        _runtime.FindAccessory(
+                            RuntimeAccessoryKind.Turnout,
+                            turnout.Address
+                        ) is { } runtimeTurnout
+                    ) ||
+                     (!runtimeTurnout.TurnoutExtended &&
+                      !runtimeTurnout.TurnoutVPin)) ||
                     !_runtime.TryGetTurnoutClosed(
                         turnout.Address,
                         out var currentClosed) ||
@@ -1143,6 +1163,14 @@ public sealed class DispatcherRuntime
                     turnouts[index];
 
                 var needsChange =
+                    (!(
+                        _runtime.FindAccessory(
+                            RuntimeAccessoryKind.Turnout,
+                            turnout.Address
+                        ) is { } runtimeTurnout
+                    ) ||
+                     (!runtimeTurnout.TurnoutExtended &&
+                      !runtimeTurnout.TurnoutVPin)) ||
                     !_runtime.TryGetTurnoutClosed(
                         turnout.Address,
                         out var currentClosed) ||
