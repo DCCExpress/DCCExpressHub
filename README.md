@@ -59,16 +59,21 @@ layout and runtime state.
 ### Gamepad control
 
 DCCExpressHub can use **Bluetooth and USB game controllers** through the
-browser Gamepad API to drive the locomotive currently selected in the
-locomotive panel.
+browser Gamepad API. Gamepad control is integrated with the **mobile control
+interface** instead of being a separate, limited locomotive throttle.
 
-The configurable gamepad actions currently include:
+A controller paired with the phone, tablet or computer can therefore be used
+through the same mobile control workflow for:
 
-- speed up / speed down,
-- forward / reverse,
-- stop,
-- emergency stop,
-- locomotive functions **F0-F3**.
+- locomotive speed and direction,
+- stop and emergency stop,
+- **all locomotive functions available from the mobile controller**,
+- operating the **layout**, including the controls exposed by the mobile
+  layout view.
+
+Gamepad support is therefore not limited to locomotive functions F0-F3. The
+gamepad works together with the mobile control surface, so locomotive and
+layout operation remain part of the same control interface.
 
 Button assignments can be changed from the **Gamepad** page and are stored
 locally for that browser/device. The page also provides live controller
@@ -76,7 +81,7 @@ diagnostics for buttons and axes.
 
 When more than one controller is connected, one controller is explicitly
 selected as active. DCCExpressHub remembers that selection and does not
-silently hand locomotive control to another gamepad if the selected controller
+silently hand control to another gamepad if the selected controller
 disconnects.
 
 Gamepad support depends on the Gamepad API provided by the browser or embedded
