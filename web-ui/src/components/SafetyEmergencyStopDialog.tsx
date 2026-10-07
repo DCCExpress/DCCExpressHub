@@ -39,6 +39,22 @@ function DetailRow({
   );
 }
 
+function formatBlockLabel(
+  name: string,
+  blockId: number
+): string {
+  const idLabel = `#${blockId}`;
+  const trimmed = name.trim();
+
+  if (!trimmed) {
+    return idLabel;
+  }
+
+  return trimmed.includes(idLabel)
+    ? trimmed
+    : `${trimmed} (${idLabel})`;
+}
+
 export default function SafetyEmergencyStopDialog() {
   useTranslation();
 
@@ -113,16 +129,39 @@ export default function SafetyEmergencyStopDialog() {
           />
 
           <DetailRow
-            label={i18next.t("ui.block")}
+            label={i18next.t(
+              "ui.safetyExpectedBlocks"
+            )}
             value={
-              trip.blockName
-                ? `${trip.blockName} (#${trip.blockId})`
-                : `#${trip.blockId}`
+              trip.expectedBlocks.length > 0
+                ? trip.expectedBlocks
+                    .map(expected =>
+                      `${expected.movementName}: #${expected.locoAddress} → ${formatBlockLabel(
+                        expected.blockName,
+                        expected.blockId
+                      )}`
+                    )
+                    .join(", ")
+                : "—"
             }
           />
 
           <DetailRow
-            label={i18next.t("ui.sensor")}
+            label={i18next.t(
+              "ui.safetyDetectedBlock"
+            )}
+            value={
+              formatBlockLabel(
+                trip.blockName,
+                trip.blockId
+              )
+            }
+          />
+
+          <DetailRow
+            label={i18next.t(
+              "ui.safetySensor"
+            )}
             value={
               `#${trip.sensorAddress}`
             }
