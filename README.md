@@ -50,10 +50,37 @@ DCCExpressHub provides a browser-based interface for:
 - timetable operation,
 - visual Flows and JavaScript automation,
 - audio and event-driven actions,
+- Bluetooth / USB gamepad control with configurable button assignments,
 - multi-client operation from PCs, tablets and phones.
 
 Automation runs in the .NET backend, so connected browsers share the same
 layout and runtime state.
+
+### Gamepad control
+
+DCCExpressHub can use **Bluetooth and USB game controllers** through the
+browser Gamepad API to drive the locomotive currently selected in the
+locomotive panel.
+
+The configurable gamepad actions currently include:
+
+- speed up / speed down,
+- forward / reverse,
+- stop,
+- emergency stop,
+- locomotive functions **F0-F3**.
+
+Button assignments can be changed from the **Gamepad** page and are stored
+locally for that browser/device. The page also provides live controller
+diagnostics for buttons and axes.
+
+When more than one controller is connected, one controller is explicitly
+selected as active. DCCExpressHub remembers that selection and does not
+silently hand locomotive control to another gamepad if the selected controller
+disconnects.
+
+Gamepad support depends on the Gamepad API provided by the browser or embedded
+WebView.
 
 ## Command station support
 
