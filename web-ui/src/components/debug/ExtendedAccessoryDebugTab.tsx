@@ -12,6 +12,7 @@ import { useEffect, useState } from "react";
 import { wsApi } from "@/services/wsApi";
 import DebugLayoutOwnerCells from "./DebugLayoutOwnerCells";
 import type {
+  DebugLayoutOwner,
   DebugLayoutOwners,
   DebugStateValue,
   ExtendedAccessoryDebugState,
@@ -26,7 +27,7 @@ type Props = {
 type RowProps = {
   address: number;
   state: DebugStateValue<number>;
-  owners: DebugLayoutOwners extends Map<number, infer T> ? T : never;
+  owners: DebugLayoutOwner[];
   connected: boolean;
 };
 
