@@ -462,6 +462,10 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
     {
         var group = 0;
 
+        _log.LogInformation(
+            "Z21 R-BUS refresh active: each group every {IntervalMs} ms",
+            RBusRefreshIntervalMs * 2);
+
         while (!ct.IsCancellationRequested)
         {
             bool ready;
@@ -501,10 +505,14 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
         lock (_stateGate)
         {
             Array.Clear(
-                _rBusKnown);
+                _rBusKnown,
+                0,
+                _rBusKnown.Length);
 
             Array.Clear(
-                _rBusStates);
+                _rBusStates,
+                0,
+                _rBusStates.Length);
         }
     }
 
