@@ -11,7 +11,9 @@ import {
 
 import { useEffect, useState } from "react";
 import { wsApi } from "@/services/wsApi";
+import DebugLayoutOwnerCells from "./DebugLayoutOwnerCells";
 import type {
+  DebugLayoutOwners,
   DebugStateValue,
   TurnoutDebugState,
   TurnoutDebugValue,
@@ -19,6 +21,7 @@ import type {
 
 type Props = {
   turnouts: TurnoutDebugState;
+  layoutOwners: DebugLayoutOwners;
   connected: boolean;
 };
 
@@ -75,7 +78,11 @@ function ExtendedTurnoutControl({ address, state, connected }: ExtendedRowProps)
   );
 }
 
-export default function TurnoutDebugTab({ turnouts, connected }: Props) {
+export default function TurnoutDebugTab({
+  turnouts,
+  layoutOwners,
+  connected,
+}: Props) {
   const rows = [...turnouts.entries()].sort(([left], [right]) => left - right);
 
   if (!rows.length) {
@@ -88,6 +95,8 @@ export default function TurnoutDebugTab({ turnouts, connected }: Props) {
         <Table.Thead>
           <Table.Tr>
             <Table.Th>Address</Table.Th>
+            <Table.Th>Type</Table.Th>
+            <Table.Th>Name</Table.Th>
             <Table.Th>Mode</Table.Th>
             <Table.Th>State</Table.Th>
             <Table.Th>Control</Table.Th>
@@ -102,6 +111,9 @@ export default function TurnoutDebugTab({ turnouts, connected }: Props) {
             return (
               <Table.Tr key={address}>
                 <Table.Td><Badge variant="light" color="gray">{address}</Badge></Table.Td>
+                <DebugLayoutOwnerCells
+                  owners={layoutOwners.get(address) ?? []}
+                />
 
                 <Table.Td>
                   <Badge
