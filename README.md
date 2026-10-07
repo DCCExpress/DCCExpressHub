@@ -15,7 +15,7 @@ The browser interface can be opened from PCs, notebooks, tablets and phones on t
 >
 > The connected command station still generates the DCC track signal. DCCExpressHub sits above it and provides the control, layout, tracking and automation functions.
 
-![DCCExpressHub screenshot](doc/images/Screenshot_2026-09-23_182817.png)
+![DCCExpressHub screenshot](doc/images/DccExpressHub.2026-10-07%20170732.png)
 
 
 ## How it works
