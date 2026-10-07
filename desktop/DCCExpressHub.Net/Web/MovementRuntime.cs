@@ -2994,7 +2994,7 @@ public sealed class MovementRuntime
                     IsHeld(
                         execution);
 
-                var mayKeepRolling =
+                var mayPrepareNext =
                     !held &&
                     next is not null &&
                     !blockApproachState.NextLegTurnoutBlocked &&
@@ -3004,15 +3004,35 @@ public sealed class MovementRuntime
                     SafetyFree(
                         EffectiveSafetySensors(
                             execution.Page,
-                            next));
+                            next)) &&
+                    !HasBlockingAction(
+                        execution.Page,
+                        leg.To.Key,
+                        "arrived") &&
+                    !HasBlockingAction(
+                        execution.Page,
+                        next.From.Key,
+                        "beforeDepart");
 
+                /*
+                 * Safety invariant:
+                 * no train may continue out of the newly arrived block until
+                 * the NEXT leg has its own Dispatcher lease. That lease owns
+                 * every required SwitchMan turnout and SetTurnoutAsync must
+                 * complete before motion is allowed again.
+                 *
+                 * Previously mayKeepRolling was applied BEFORE AcquireLeg().
+                 * This created a gap where the previous leg had already
+                 * released its turnouts but the train was still moving while
+                 * the next leg had not acquired/confirmed them yet.
+                 */
                 execution.DesiredSpeed =
                     held
                         ? 0
                         : execution.Page.Speed;
 
                 execution.Moving =
-                    mayKeepRolling;
+                    false;
 
                 Patch(
                     execution,
@@ -3023,23 +3043,10 @@ public sealed class MovementRuntime
                     execution,
                     force: true);
 
-                /*
-                 * Fast through-block preparation. Do not pre-hold the next
-                 * route across a blocking ARRIVED or BEFORE DEPART sequence;
-                 * that preserves station dwell semantics.
-                 */
-                if (mayKeepRolling &&
+                if (mayPrepareNext &&
                     next is not null &&
                     !IsHeld(
-                        execution) &&
-                    !HasBlockingAction(
-                        execution.Page,
-                        leg.To.Key,
-                        "arrived") &&
-                    !HasBlockingAction(
-                        execution.Page,
-                        next.From.Key,
-                        "beforeDepart"))
+                        execution))
                 {
                     var nextLease =
                         await AcquireLeg(
@@ -3075,14 +3082,27 @@ public sealed class MovementRuntime
                     }
                     else
                     {
+                        execution.Moving =
+                            true;
+
+                        execution.DesiredSpeed =
+                            execution.Page.Speed;
+
                         Patch(
                             execution,
+                            desiredSpeed:
+                                execution.DesiredSpeed,
                             info:
-                                "Next leg prepared: " +
+                                "Next leg prepared and protected: " +
                                 next.From.Name +
                                 " -> " +
                                 next.To.Name,
                             setInfo:
+                                true);
+
+                        await ApplySpeed(
+                            execution,
+                            force:
                                 true);
                     }
                 }
