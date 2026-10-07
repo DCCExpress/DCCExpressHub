@@ -2034,19 +2034,28 @@ namespace DCCExpressHub.Desktop
                             : 0
                 ).ToString();
 
-            psi.Environment["Z21__LocoNetSensorOffset"] =
+            psi.Environment["LocoNet__Host"] =
+                _settings.TcpHost;
+
+            psi.Environment["LocoNet__SensorOffset"] =
                 (
                     _settings.Protocol == "yamorc7010"
                         ? _settings.YaMoRcLocoNetOffset
                         : 0
                 ).ToString();
 
-            psi.Environment["Z21__LbServerFeedback"] =
+            psi.Environment["LocoNet__LbServerFeedback"] =
                 (_settings.Protocol == "yamorc7010")
                     .ToString();
 
-            psi.Environment["Z21__LbServerPort"] =
+            psi.Environment["LocoNet__LbServerPort"] =
                 "1234";
+
+            psi.Environment["LocoNet__BinaryFeedback"] =
+                "false";
+
+            psi.Environment["LocoNet__BinaryPort"] =
+                "5560";
 
             _backendExpectedStop = false;
 
