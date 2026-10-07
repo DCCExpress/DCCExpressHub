@@ -21,6 +21,18 @@ namespace DCCExpressHub.Net.CommandCenter
         byte Capabilities,
         long LastSystemStateAgeMs);
 
+    public sealed record LocoNetConnectionTestResult(
+        bool Ok,
+        bool TcpConnected,
+        string Host,
+        int Port,
+        string Reply,
+        long ElapsedMs,
+        bool BackgroundConnected,
+        string LbServerVersion,
+        int LbServerLinesObserved,
+        string Message);
+
     public sealed record LocoNetRuntimeDiagnostics(
         bool LbServerEnabled,
         bool LbServerConnected,
