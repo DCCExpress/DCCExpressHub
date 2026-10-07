@@ -51,6 +51,7 @@ builder.Services.AddSingleton<AutomationStorageCoordinator>();
 builder.Services.AddSingleton<LocoStorageCoordinator>();
 builder.Services.AddSingleton<AutomationExclusiveGate>();
 builder.Services.AddSingleton<CommandCenterConfigStore>();
+builder.Services.AddSingleton<CommandCenterApi>();
 
 if (useYaMoRcZ21)
 {
@@ -187,345 +188,145 @@ app.Map("/ws", async ctx =>
 });
 
 
-app.MapGet("/api/command-center-config", (CommandCenterConfigStore store, ICommandCenter cc) =>
-{
-    var x = store.Current;
-    return Results.Json(new
+app.MapGet(
+    "/api/command-center-config",
+    (CommandCenterApi api) =>
     {
-        ok = true,
-        transport = x.Transport,
-        host = x.IsSerial ? "" : x.TcpHost,
-        port = x.IsSerial ? 0 : x.TcpPort,
-        serialPort = x.IsSerial ? x.SerialPort : "",
-        baudRate = x.IsSerial ? CommandCenterSettings.DccExSerialBaudRate : 0,
-        powerIncludesProgramming = x.PowerIncludesProgramming,
-        commandIntervalMs = x.CommandIntervalMs,
-        rBusOffset = useRocoZ21 ? x.RBusOffset : 0,
-        rBusOffsetConfigurable = useRocoZ21,
-        connected = cc.Connected
+        var response =
+            api.GetConfig();
+
+        return Results.Json(
+            response.Body,
+            statusCode:
+                response.StatusCode);
     });
-});
 
-app.MapPost("/api/command-center-config", async (HttpRequest req, CommandCenterConfigStore store, ConfiguredCommandCenter physical, WsHub ws, CancellationToken ct) =>
-{
-    if (!req.HasFormContentType)
+app.MapPost(
+    "/api/command-center-config",
+    async (
+        HttpRequest req,
+        CommandCenterApi api,
+        CancellationToken ct) =>
     {
-        return Results.Json(new { ok = false, message = "Missing command-center settings" }, statusCode: 400);
-    }
-
-    var form = await req.ReadFormAsync(ct);
-    var current = store.Current;
-
-    bool powerProg = current.PowerIncludesProgramming;
-    if (form.TryGetValue("powerIncludesProgramming", out var pv))
-    {
-        var v = pv.ToString().Trim().ToLowerInvariant();
-        if (v is "true" or "1" or "yes" or "on")
-        {
-            powerProg = true;
-        }
-        else if (v is "false" or "0" or "no" or "off")
-        {
-            powerProg = false;
-        }
-        else
-        {
-            return Results.Json(new { ok = false, message = "Invalid powerIncludesProgramming" }, statusCode: 400);
-        }
-    }
-
-    var commandIntervalMs =
-        current.CommandIntervalMs;
-
-    if (form.TryGetValue("commandIntervalMs", out var intervalValue))
-    {
-        if (!int.TryParse(
-                intervalValue.ToString(),
-                out commandIntervalMs) ||
-            commandIntervalMs is < 0 or > 1000)
-        {
-            return Results.Json(
-                new { ok = false, message = "Command interval must be between 0 and 1000 ms" },
-                statusCode: 400);
-        }
-    }
-
-    var rBusOffset =
-        useRocoZ21
-            ? current.RBusOffset
-            : 0;
-
-    if (
-        useRocoZ21 &&
-        form.TryGetValue(
-            "rBusOffset",
-            out var rBusOffsetValue)
-    )
-    {
-        if (
-            !int.TryParse(
-                rBusOffsetValue.ToString(),
-                out rBusOffset) ||
-            rBusOffset is < 0 or > RocoZ21CommandCenter.MaxRBusOffset
-        )
+        if (!req.HasFormContentType)
         {
             return Results.Json(
                 new
                 {
                     ok = false,
                     message =
-                        $"R-BUS offset must be between 0 and {RocoZ21CommandCenter.MaxRBusOffset}"
+                        "Missing command-center settings"
                 },
-                statusCode: 400);
-        }
-    }
-
-    CommandCenterSettings next;
-    string endpoint;
-    int endpointValue;
-
-    if (current.IsSerial)
-    {
-        var serialPort =
-            form["serialPort"]
-                .ToString()
-                .Trim();
-
-        // Backward-compatible input for an older client that still sends the
-        // COM name in the old host field. The old port field is never baud.
-        if (serialPort.Length == 0)
-        {
-            serialPort =
-                form["host"]
-                    .ToString()
-                    .Trim();
+                statusCode:
+                    400);
         }
 
-        if (!CommandCenterSettings.LooksLikeWindowsSerialPort(serialPort))
-        {
-            return Results.Json(
-                new { ok = false, message = "Invalid serial COM port" },
-                statusCode: 400);
-        }
-
-        next = new CommandCenterSettings
-        {
-            Transport = "serial",
-            TcpHost = current.TcpHost,
-            TcpPort = current.TcpPort,
-            SerialPort = serialPort,
-            PowerIncludesProgramming = powerProg,
-            CommandIntervalMs = commandIntervalMs,
-            RBusOffset = rBusOffset
-        };
-
-        endpoint = serialPort;
-        endpointValue =
-            CommandCenterSettings.DccExSerialBaudRate;
-    }
-    else
-    {
-        var host =
-            form["host"]
-                .ToString()
-                .Trim();
-
-        var portText =
-            form["port"]
-                .ToString()
-                .Trim();
-
-        static bool ValidHost(string h) =>
-            h.Length is > 0 and <= 253 &&
-            !h.Any(c =>
-                c <= 32 ||
-                c is '/' or '\\' or ':' or '<' or '>');
-
-        if (!ValidHost(host))
-        {
-            return Results.Json(
-                new { ok = false, message = "Invalid host" },
-                statusCode: 400);
-        }
-
-        if (!int.TryParse(portText, out var port) ||
-            port is < 1 or > 65535)
-        {
-            return Results.Json(
-                new { ok = false, message = "Port must be between 1 and 65535" },
-                statusCode: 400);
-        }
-
-        next = new CommandCenterSettings
-        {
-            Transport =
-                current.IsZ21
-                    ? "z21"
-                    : "tcp",
-            TcpHost = host,
-            TcpPort = port,
-            SerialPort = current.SerialPort,
-            PowerIncludesProgramming =
-                current.IsZ21
-                    ? false
-                    : powerProg,
-            CommandIntervalMs = commandIntervalMs,
-            RBusOffset = rBusOffset
-        };
-
-        endpoint = host;
-        endpointValue = port;
-    }
-
-    if (!await store.SaveAsync(next))
-    {
-        return Results.Json(
-            new { ok = false, message = "Command center configuration could not be saved" },
-            statusCode: 500);
-    }
-
-    physical.SetCommandIntervalMs(
-        next.CommandIntervalMs);
-
-    if (
-        useRocoZ21 &&
-        !physical.SetRBusOffset(
-            next.RBusOffset)
-    )
-    {
-        return Results.Json(
-            new { ok = false, message = "Runtime R-BUS offset change is unavailable" },
-            statusCode: 500);
-    }
-
-    if (!physical.SetEndpoint(
-            endpoint,
-            endpointValue))
-    {
-        return Results.Json(
-            new { ok = false, message = "Runtime endpoint change is unavailable" },
-            statusCode: 500);
-    }
-
-    await ws.BroadcastStatus();
-    await ws.BroadcastRuntimeSnapshot();
-
-    var saved = store.Current;
-
-    return Results.Json(new
-    {
-        ok = true,
-        transport = saved.Transport,
-        host = saved.IsSerial ? "" : saved.TcpHost,
-        port = saved.IsSerial ? 0 : saved.TcpPort,
-        serialPort = saved.IsSerial ? saved.SerialPort : "",
-        baudRate = saved.IsSerial ? CommandCenterSettings.DccExSerialBaudRate : 0,
-        powerIncludesProgramming = saved.PowerIncludesProgramming,
-        commandIntervalMs = saved.CommandIntervalMs,
-        rBusOffset = useRocoZ21 ? saved.RBusOffset : 0,
-        rBusOffsetConfigurable = useRocoZ21,
-        connected = physical.Connected
-    });
-});
-
-app.MapPost("/api/command-center-test", async (HttpRequest req, CommandCenterConfigStore store, CancellationToken ct) =>
-{
-    if (!req.HasFormContentType)
-        return Results.Json(new { ok = false, message = "Invalid host" }, statusCode: 400);
-
-    var form = await req.ReadFormAsync(ct);
-    var host = (form["host"].ToString() ?? "").Trim();
-    var portText = form["port"].ToString();
-
-    static bool ValidHost(string value)
-    {
-        if (value.Length is 0 or > 253) return false;
-        foreach (var c in value)
-            if (c <= 32 || c is '/' or '\\' or ':' or '<' or '>') return false;
-        return true;
-    }
-
-    if (!ValidHost(host))
-        return Results.Json(new { ok = false, message = "Invalid host" }, statusCode: 400);
-    if (!int.TryParse(portText, out var port) || port is < 1 or > 65535)
-        return Results.Json(new { ok = false, message = "Invalid port" }, statusCode: 400);
-
-    var probe =
-        store.Current.IsZ21
-            ? await CommandCenterProbe.ProbeZ21Async(
-                host,
-                port,
-                ct)
-            : await CommandCenterProbe.ProbeDccExAsync(
-                host,
-                port,
+        var form =
+            await req.ReadFormAsync(
                 ct);
-    if (probe.DccExAlive)
-        return Results.Json(new { ok = true, tcpConnected = probe.TcpConnected, dccExAlive = true, reply = probe.Reply, elapsedMs = probe.ElapsedMs });
 
-    return Results.Json(new
-    {
-        ok = false,
-        tcpConnected = probe.TcpConnected,
-        dccExAlive = false,
-        reply = probe.Reply,
-        elapsedMs = probe.ElapsedMs,
-        message = probe.TcpConnected ? "Command center did not answer" : "Command center connection failed"
-    }, statusCode: 502);
-});
+        static string? Optional(
+            IFormCollection values,
+            string name) =>
+            values.TryGetValue(
+                name,
+                out var value)
+                ? value.ToString()
+                : null;
 
-app.MapGet("/api/command-center-info", (ICommandCenter cc, CommandCenterConfigStore store) =>
-{
-    var x = store.Current;
-    return Results.Json(new
-    {
-        ok = true,
-        type = cc.Type,
-        name = cc.Name,
-        transport = x.Transport,
-        defaultPort =
-            x.IsZ21
-                ? RocoZ21CommandCenter.DefaultPort
-                : 2560,
-        defaultBaudRate = CommandCenterSettings.DccExSerialBaudRate,
-        connected = cc.Connected,
-        host = x.IsSerial ? "" : x.TcpHost,
-        port = x.IsSerial ? 0 : x.TcpPort,
-        serialPort = x.IsSerial ? x.SerialPort : "",
-        baudRate = x.IsSerial ? CommandCenterSettings.DccExSerialBaudRate : 0,
-        capabilities = new
-        {
-            trackPower = true,
-            programmingTrackPower = !x.IsZ21,
-            serviceModeProgramming = true,
-            pomProgramming = true,
-            pomRead = x.IsZ21,
-            accessoryPomProgramming = x.IsZ21,
-            accessoryPomRead = x.IsZ21,
-            rawCommand = !x.IsZ21,
-            vPin = !x.IsZ21,
-            extendedAccessory = true,
-            currentTelemetry = true,
-            trackConfiguration = true,
-            locomotiveControl = true,
-            locomotiveFunctions = true,
-            turnoutControl = true,
-            basicAccessory = true,
-            signalAspect = true
-        }
+        var response =
+            await api.SaveConfigAsync(
+                new CommandCenterConfigRequest(
+                    Host:
+                        form["host"].ToString(),
+                    Port:
+                        form["port"].ToString(),
+                    SerialPort:
+                        form["serialPort"].ToString(),
+                    PowerIncludesProgramming:
+                        Optional(
+                            form,
+                            "powerIncludesProgramming"),
+                    CommandIntervalMs:
+                        Optional(
+                            form,
+                            "commandIntervalMs"),
+                    RBusOffset:
+                        Optional(
+                            form,
+                            "rBusOffset")),
+                ct);
+
+        return Results.Json(
+            response.Body,
+            statusCode:
+                response.StatusCode);
     });
-});
 
-app.MapGet("/api/capabilities", (ICommandCenter cc) => Results.Json(new
-{
-    ok = true,
-    javascriptAutomation = false,
-    fileManager = true,
-    deviceConfiguration = true,
-    gamepad = true,
-    s88 = false,
-    programmingTrack = true
-}));
+app.MapPost(
+    "/api/command-center-test",
+    async (
+        HttpRequest req,
+        CommandCenterApi api,
+        CancellationToken ct) =>
+    {
+        if (!req.HasFormContentType)
+        {
+            return Results.Json(
+                new
+                {
+                    ok = false,
+                    message =
+                        "Invalid host"
+                },
+                statusCode:
+                    400);
+        }
+
+        var form =
+            await req.ReadFormAsync(
+                ct);
+
+        var response =
+            await api.TestAsync(
+                new CommandCenterTestRequest(
+                    Host:
+                        form["host"].ToString(),
+                    Port:
+                        form["port"].ToString()),
+                ct);
+
+        return Results.Json(
+            response.Body,
+            statusCode:
+                response.StatusCode);
+    });
+
+app.MapGet(
+    "/api/command-center-info",
+    (CommandCenterApi api) =>
+    {
+        var response =
+            api.GetInfo();
+
+        return Results.Json(
+            response.Body,
+            statusCode:
+                response.StatusCode);
+    });
+
+app.MapGet(
+    "/api/capabilities",
+    (CommandCenterApi api) =>
+    {
+        var response =
+            api.GetCapabilities();
+
+        return Results.Json(
+            response.Body,
+            statusCode:
+                response.StatusCode);
+    });
 
 static string DataFile(AppPaths env, string name)
     => Path.Combine(env.ContentRootPath, "data", "config", name);
