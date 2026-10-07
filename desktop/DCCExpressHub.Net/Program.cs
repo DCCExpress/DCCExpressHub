@@ -58,6 +58,8 @@ builder.Services.AddSingleton<AutomationConfigApi>();
 builder.Services.AddSingleton<DeviceConfigApi>();
 builder.Services.AddSingleton<CalibrationApi>();
 builder.Services.AddSingleton<RuntimeSystemApi>();
+builder.Services.AddSingleton<FileManagerApi>();
+builder.Services.AddSingleton<ScriptInfoApi>();
 
 if (useYaMoRcZ21)
 {
@@ -581,94 +583,135 @@ app.MapGet(
             api.GetS88Status()));
 
 // File-manager flash statistics. On native, report the data volume.
-app.MapGet("/fsinfo", (HubFileStorage files) =>
-{
-    var root = new DriveInfo(Path.GetPathRoot(files.Root)!);
-    long used = root.TotalSize - root.AvailableFreeSpace;
-    return Results.Json(new { total = root.TotalSize, used, free = root.AvailableFreeSpace });
-});
+app.MapGet(
+    "/fsinfo",
+    (FileManagerApi api) =>
+        ToHttpResult(
+            api.GetFsInfo()));
 
 // Stream a virtual storage file with its real MIME type (audio manager uses this).
-app.MapGet("/api/storage/file", (string? path, HubFileStorage files) =>
-{
-    var full = files.Resolve(path);
-    if (full is null) return Results.Json(new { ok = false, message = "Invalid path" }, statusCode: 400);
-    if (!File.Exists(full)) return Results.Json(new { ok = false, message = "File not found" }, statusCode: 404);
-    return Results.File(full, files.ContentType(full), enableRangeProcessing: true);
-});
+app.MapGet(
+    "/api/storage/file",
+    (
+        string? path,
+        FileManagerApi api) =>
+    {
+        var result =
+            api.GetFile(
+                path);
+
+        if (result.Error is not null)
+        {
+            return ToHttpResult(
+                result.Error);
+        }
+
+        var file =
+            result.File!;
+
+        return Results.File(
+            file.FilePath,
+            file.ContentType,
+            enableRangeProcessing:
+                file.EnableRangeProcessing);
+    });
 
 // LittleFS compatibility: /list
-app.MapGet("/list", (string? path, HubFileStorage files) =>
-{
-    try { return Results.Json(files.List(path)); }
-    catch (DirectoryNotFoundException) { return Results.Json(new { ok = false, message = "Directory not found" }, statusCode: 404); }
-});
+app.MapGet(
+    "/list",
+    (
+        string? path,
+        FileManagerApi api) =>
+        ToHttpResult(
+            api.List(
+                path)));
 
 // LittleFS compatibility: read text files
-app.MapGet("/api/files/text", async (string? path, HubFileStorage files) =>
-{
-    var full = files.Resolve(path);
-    if (full is null) return Results.Json(new { ok = false, message = "Invalid path" }, statusCode: 400);
-    if (!File.Exists(full)) return Results.Json(new { ok = false, message = "File not found" }, statusCode: 404);
-    return Results.Text(await File.ReadAllTextAsync(full), "text/plain; charset=utf-8");
-});
+app.MapGet(
+    "/api/files/text",
+    async (
+        string? path,
+        FileManagerApi api,
+        CancellationToken ct) =>
+        ToHttpResult(
+            await api.ReadTextAsync(
+                path,
+                ct)));
 
 // LittleFS compatibility: multipart upload into a virtual directory.
-app.MapPost("/upload", async (HttpRequest req, string? path, HubFileStorage files) =>
-{
-    if (!req.HasFormContentType)
-        return Results.Json(new { ok = false, message = "multipart/form-data required" }, statusCode: 400);
+app.MapPost(
+    "/upload",
+    async (
+        HttpRequest req,
+        string? path,
+        FileManagerApi api,
+        CancellationToken ct) =>
+    {
+        if (!req.HasFormContentType)
+        {
+            return ToHttpResult(
+                HubApiResponse.Error(
+                    400,
+                    new
+                    {
+                        ok = false,
+                        message =
+                            "multipart/form-data required"
+                    }));
+        }
 
-    var directory = files.Resolve(path, allowRoot: false);
-    if (directory is null)
-        return Results.Json(new { ok = false, message = "Invalid upload path" }, statusCode: 400);
+        var form =
+            await req.ReadFormAsync(
+                ct);
 
-    Directory.CreateDirectory(directory);
-    var form = await req.ReadFormAsync();
-    var upload = form.Files.GetFile("file") ?? form.Files.FirstOrDefault();
-    if (upload is null)
-        return Results.Json(new { ok = false, message = "No uploaded file received" }, statusCode: 400);
+        var upload =
+            form.Files.GetFile(
+                "file") ??
+            form.Files
+                .FirstOrDefault();
 
-    var safeName = Path.GetFileName(upload.FileName);
-    if (string.IsNullOrWhiteSpace(safeName) || safeName.Contains(".."))
-        return Results.Json(new { ok = false, message = "Invalid upload filename" }, statusCode: 400);
+        if (upload is null)
+        {
+            return ToHttpResult(
+                HubApiResponse.Error(
+                    400,
+                    new
+                    {
+                        ok = false,
+                        message =
+                            "No uploaded file received"
+                    }));
+        }
 
-    var target = Path.GetFullPath(Path.Combine(directory, safeName));
-    if (!target.StartsWith(files.Root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
-        return Results.Json(new { ok = false, message = "Invalid upload target" }, statusCode: 400);
-    if (files.IsProtected(target) || files.IsManagedConfig(target))
-        return Results.Json(new { ok = false, message = "Upload destination is protected or managed" }, statusCode: 403);
+        await using var input =
+            upload.OpenReadStream();
 
-    await using (var output = File.Create(target))
-        await upload.CopyToAsync(output);
-
-    return Results.Json(new { ok = true, message = $"File uploaded: {path}/{safeName}" });
-});
+        return ToHttpResult(
+            await api.UploadAsync(
+                path,
+                upload.FileName,
+                input,
+                ct));
+    });
 
 // Firmware supports GET and DELETE for backwards compatibility.
-async Task<IResult> DeletePath(string? path, HubFileStorage files)
-{
-    var full = files.Resolve(path, allowRoot: false);
-    if (full is null) return Results.Json(new { ok = false, message = "Invalid path" }, statusCode: 400);
-    if (files.IsProtected(full)) return Results.Json(new { ok = false, message = "Path is protected" }, statusCode: 403);
+app.MapDelete(
+    "/delete",
+    (
+        string? path,
+        FileManagerApi api) =>
+        ToHttpResult(
+            api.Delete(
+                path)));
 
-    if (File.Exists(full))
-    {
-        File.Delete(full);
-        return Results.Json(new { ok = true, message = "Deleted" });
-    }
-    if (Directory.Exists(full))
-    {
-        if (Directory.EnumerateFileSystemEntries(full).Any())
-            return Results.Json(new { ok = false, message = "Directory is not empty" }, statusCode: 409);
-        Directory.Delete(full);
-        return Results.Json(new { ok = true, message = "Deleted" });
-    }
-    return Results.Json(new { ok = false, message = "Path not found" }, statusCode: 404);
-}
-app.MapDelete("/delete", DeletePath);
-
-app.MapGet("/delete", DeletePath);
+app.MapGet(
+    "/delete",
+    (
+        string? path,
+        FileManagerApi api) =>
+        ToHttpResult(
+            api.Delete(
+                path)));
 
 // Expose the native equivalents of the firmware storage namespaces.
 // Keep the same virtual URLs on Windows and ESP32:
@@ -713,53 +756,76 @@ app.Map("/api/{**path}", async ctx =>
 
 
 // Firmware parity: ScriptInfoEndpoint runtime store + SSE.
-app.MapGet("/api/script-info", (ScriptInfoStore store) =>
-    Results.Json(new { items = store.Snapshot() }));
+app.MapGet(
+    "/api/script-info",
+    (ScriptInfoApi api) =>
+        ToHttpResult(
+            api.Get()));
 
-app.MapPost("/api/script-info", async (HttpRequest req, ScriptInfoStore store) =>
-{
-    JsonDocument doc;
-    try { doc = await JsonDocument.ParseAsync(req.Body); }
-    catch { return Results.Json(new { ok = false, message = "JSON object expected" }, statusCode: 400); }
-    using (doc)
+app.MapPost(
+    "/api/script-info",
+    async (
+        HttpRequest req,
+        ScriptInfoApi api,
+        CancellationToken ct) =>
+        ToHttpResult(
+            await api.UpdateAsync(
+                req.Body,
+                ct)));
+
+app.MapGet(
+    "/api/script-info/events",
+    async (
+        HttpContext ctx,
+        ScriptInfoApi api) =>
     {
-        if (doc.RootElement.ValueKind != JsonValueKind.Object)
-            return Results.Json(new { ok = false, message = "JSON object expected" }, statusCode: 400);
+        ctx.Response.StatusCode =
+            200;
+        ctx.Response.ContentType =
+            "text/event-stream";
+        ctx.Response.Headers.CacheControl =
+            "no-store";
+        ctx.Response.Headers.Connection =
+            "keep-alive";
 
-        var root = doc.RootElement;
-        string executionId = root.TryGetProperty("executionId", out var e) && e.ValueKind == JsonValueKind.String ? e.GetString() ?? "" : "";
-        string ownerId = root.TryGetProperty("ownerId", out var o) && o.ValueKind == JsonValueKind.String ? o.GetString() ?? "" : "";
-        string message = root.TryGetProperty("message", out var m) && m.ValueKind == JsonValueKind.String ? m.GetString() ?? "" : "";
-        bool force = root.TryGetProperty("force", out var f) && f.ValueKind == JsonValueKind.True;
+        var subscription =
+            api.Subscribe();
 
-        var r = store.Update(executionId, ownerId, message, force);
-        if (!r.ok) return Results.Json(new { ok = false, message = r.error }, statusCode: r.status);
-        return message.Length == 0
-            ? Results.Json(new { ok = true, cleared = r.cleared })
-            : Results.Json(new { ok = true });
-    }
-});
-
-app.MapGet("/api/script-info/events", async (HttpContext ctx, ScriptInfoStore store) =>
-{
-    ctx.Response.StatusCode = 200;
-    ctx.Response.ContentType = "text/event-stream";
-    ctx.Response.Headers.CacheControl = "no-store";
-    ctx.Response.Headers.Connection = "keep-alive";
-    var sub = store.Subscribe();
-    try
-    {
-        await foreach (var evt in sub.Reader.ReadAllAsync(ctx.RequestAborted))
+        try
         {
-            var json = JsonSerializer.Serialize(evt.Data);
-            await ctx.Response.WriteAsync($"event: {evt.EventName}\n", ctx.RequestAborted);
-            await ctx.Response.WriteAsync($"data: {json}\n\n", ctx.RequestAborted);
-            await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
+            await foreach (
+                var evt in
+                    subscription.Reader
+                        .ReadAllAsync(
+                            ctx.RequestAborted)
+            )
+            {
+                var json =
+                    JsonSerializer.Serialize(
+                        evt.Data);
+
+                await ctx.Response.WriteAsync(
+                    $"event: {evt.EventName}\n",
+                    ctx.RequestAborted);
+
+                await ctx.Response.WriteAsync(
+                    $"data: {json}\n\n",
+                    ctx.RequestAborted);
+
+                await ctx.Response.Body
+                    .FlushAsync(
+                        ctx.RequestAborted);
+            }
         }
-    }
-    catch (OperationCanceledException) { }
-    finally { store.Unsubscribe(sub.Id); }
-});
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            api.Unsubscribe(
+                subscription.Id);
+        }
+    });
 
 app.MapFallback(async ctx =>
 {

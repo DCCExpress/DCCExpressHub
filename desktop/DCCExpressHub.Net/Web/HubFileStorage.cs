@@ -1,5 +1,3 @@
-using Microsoft.AspNetCore.StaticFiles;
-
 namespace DCCExpressHub.Net.Web;
 
 public sealed class HubFileStorage
@@ -8,8 +6,34 @@ public sealed class HubFileStorage
     private readonly string _flashRoot;
     private readonly string _sdRoot;
 
-    private readonly FileExtensionContentTypeProvider _contentTypes =
-        new();
+    private static readonly IReadOnlyDictionary<string, string> ContentTypes =
+        new Dictionary<string, string>(
+            StringComparer.OrdinalIgnoreCase)
+        {
+            [".aac"] = "audio/aac",
+            [".css"] = "text/css",
+            [".csv"] = "text/csv",
+            [".flac"] = "audio/flac",
+            [".gif"] = "image/gif",
+            [".htm"] = "text/html",
+            [".html"] = "text/html",
+            [".ico"] = "image/x-icon",
+            [".jpeg"] = "image/jpeg",
+            [".jpg"] = "image/jpeg",
+            [".js"] = "text/javascript",
+            [".json"] = "application/json",
+            [".m4a"] = "audio/mp4",
+            [".mp3"] = "audio/mpeg",
+            [".mp4"] = "video/mp4",
+            [".ogg"] = "audio/ogg",
+            [".png"] = "image/png",
+            [".svg"] = "image/svg+xml",
+            [".txt"] = "text/plain",
+            [".wav"] = "audio/wav",
+            [".webm"] = "video/webm",
+            [".webp"] = "image/webp",
+            [".xml"] = "application/xml"
+        };
 
     public HubFileStorage(
         AppPaths env)
@@ -469,11 +493,18 @@ public sealed class HubFileStorage
     }
 
     public string ContentType(
-        string path) =>
-        _contentTypes
-            .TryGetContentType(
-                path,
+        string path)
+    {
+        var extension =
+            Path.GetExtension(
+                path);
+
+        return
+            extension.Length > 0 &&
+            ContentTypes.TryGetValue(
+                extension,
                 out var contentType)
-            ? contentType
-            : "application/octet-stream";
+                ? contentType
+                : "application/octet-stream";
+    }
 }
