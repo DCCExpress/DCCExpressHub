@@ -19,14 +19,19 @@ namespace DCCExpressHub.Net.CommandCenter
         byte CentralState,
         byte CentralStateEx,
         byte Capabilities,
-        long LastSystemStateAgeMs,
+        long LastSystemStateAgeMs);
+
+    public sealed record LocoNetRuntimeDiagnostics(
         bool LbServerEnabled,
         bool LbServerConnected,
+        string Host,
         int LbServerPort,
         long LbServerUptimeMs,
         long LastLbServerRxAgeMs,
         int LbServerLinesObserved,
         string LbServerVersion,
+        bool BinaryFeedbackEnabled,
+        int BinaryPort,
         long SensorFeedbackCount,
         int LastSensorAddress,
         bool? LastSensorOn,
