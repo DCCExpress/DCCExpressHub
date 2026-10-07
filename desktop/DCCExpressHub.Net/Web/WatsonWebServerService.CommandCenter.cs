@@ -35,6 +35,12 @@ public sealed partial class WatsonWebServerService
 
         Add(
             server,
+            WatsonHttpMethod.POST,
+            "/api/command-center-loconet-test",
+            TestCommandCenterLocoNetAsync);
+
+        Add(
+            server,
             WatsonHttpMethod.GET,
             "/api/command-center-info",
             async ctx =>
@@ -155,6 +161,42 @@ public sealed partial class WatsonWebServerService
                                 "port")),
                     ctx.Token));
     }
+
+    async Task TestCommandCenterLocoNetAsync(
+        HttpContextBase ctx)
+    {
+        if (!IsUrlEncodedForm(ctx))
+        {
+            await SendAsync(
+                ctx,
+                HubApiResponse.Error(
+                    400,
+                    new
+                    {
+                        ok = false,
+                        message =
+                            "Invalid host"
+                    }));
+
+            return;
+        }
+
+        var form =
+            await ReadUrlEncodedFormAsync(
+                ctx);
+
+        await SendAsync(
+            ctx,
+            await Service<CommandCenterApi>()
+                .TestLocoNetAsync(
+                    new CommandCenterLocoNetTestRequest(
+                        Host:
+                            Get(
+                                form,
+                                "host")),
+                    ctx.Token));
+    }
+
 
 
 }
