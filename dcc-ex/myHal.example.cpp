@@ -12,6 +12,8 @@ void halSetup() {
 
     for (int i = 0; i < SENSOR_COUNT; i++) {
         const int id = FIRST_VPIN + i;
-        Sensor::create(id, id, 1);
+        // The S88 HAL driver already returns the logical active state.
+        // No MCU internal pull-up is required for these virtual pins.
+        Sensor::create(id, id, 0);
     }
 }
