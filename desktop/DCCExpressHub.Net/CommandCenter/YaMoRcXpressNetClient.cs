@@ -26,7 +26,7 @@ public sealed class YaMoRcXpressNetClient
         TimeSpan.FromSeconds(30);
 
     private readonly ILogger _log;
-    private readonly string _host;
+    private string _host;
     private readonly int _port;
     private readonly bool _enabled;
 
@@ -67,6 +67,17 @@ public sealed class YaMoRcXpressNetClient
 
     public event Action<string>? RawInfo;
     public event Action<int, bool>? SensorFeedbackChanged;
+
+    public bool SetHost(string host)
+    {
+        host = (host ?? "").Trim();
+
+        if (host.Length == 0)
+            return false;
+
+        _host = host;
+        return true;
+    }
 
     public bool Enabled => _enabled;
 
