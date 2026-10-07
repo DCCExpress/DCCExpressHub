@@ -306,14 +306,6 @@ git clone https://github.com/DCCExpress/DCCExpressHub.git
 cd DCCExpressHub
 ```
 
-For the current alpha development branch:
-
-```bash
-git fetch origin
-git switch alpha3
-git pull --ff-only origin alpha3
-```
-
 Build everything:
 
 ```bash
