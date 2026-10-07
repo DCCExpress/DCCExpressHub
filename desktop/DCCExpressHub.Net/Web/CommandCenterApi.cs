@@ -15,6 +15,9 @@ public sealed record CommandCenterTestRequest(
     string Host,
     string Port);
 
+public sealed record CommandCenterLocoNetTestRequest(
+    string Host);
+
 /// <summary>
 /// Command-center HTTP/API business logic without web-server request/response
 /// types. Watson is only the transport adapter; this service stays independent
@@ -465,6 +468,74 @@ public sealed class CommandCenterApi
             });
     }
 
+    public async Task<HubApiResponse> TestLocoNetAsync(
+        CommandCenterLocoNetTestRequest request,
+        CancellationToken cancellationToken)
+    {
+        var host =
+            request.Host.Trim();
+
+        if (!ValidHost(host))
+        {
+            return HubApiResponse.Error(
+                400,
+                new
+                {
+                    ok = false,
+                    message = "Invalid host"
+                });
+        }
+
+        var result =
+            await _physical.TestLocoNetConnectionAsync(
+                host,
+                cancellationToken);
+
+        if (result is null)
+        {
+            return HubApiResponse.Error(
+                400,
+                new
+                {
+                    ok = false,
+                    message =
+                        "LocoNet test is only available for YaMoRC YD7010."
+                });
+        }
+
+        var payload =
+            new
+            {
+                ok =
+                    result.Ok,
+                tcpConnected =
+                    result.TcpConnected,
+                host =
+                    result.Host,
+                port =
+                    result.Port,
+                reply =
+                    result.Reply,
+                elapsedMs =
+                    result.ElapsedMs,
+                backgroundConnected =
+                    result.BackgroundConnected,
+                lbServerVersion =
+                    result.LbServerVersion,
+                lbServerLinesObserved =
+                    result.LbServerLinesObserved,
+                message =
+                    result.Message
+            };
+
+        return result.Ok
+            ? HubApiResponse.Ok(
+                payload)
+            : HubApiResponse.Error(
+                502,
+                payload);
+    }
+
     public HubApiResponse GetInfo()
     {
         var x =
@@ -529,7 +600,9 @@ public sealed class CommandCenterApi
                         locomotiveFunctions = true,
                         turnoutControl = true,
                         basicAccessory = true,
-                        signalAspect = true
+                        signalAspect = true,
+                        locoNet =
+                            _physical.GetLocoNetDiagnostics() is not null
                     }
             });
     }
