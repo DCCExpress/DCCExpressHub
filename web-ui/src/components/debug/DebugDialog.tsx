@@ -49,7 +49,7 @@ export default function DebugDialog({ opened, onClose }: Props) {
           <Text fw={700}>Runtime Debug</Text>
         </Group>
       }
-      size="xl"
+      size="90vw"
       centered
       draggable
       styles={{
@@ -109,12 +109,16 @@ export default function DebugDialog({ opened, onClose }: Props) {
         </Tabs.List>
 
         <Tabs.Panel value="sensors" style={panelStyle}>
-          <SensorDebugTab sensors={runtime.sensors} />
+          <SensorDebugTab
+            sensors={runtime.sensors}
+            layoutOwners={runtime.sensorLayoutOwners}
+          />
         </Tabs.Panel>
 
         <Tabs.Panel value="turnouts" style={panelStyle}>
           <TurnoutDebugTab
             turnouts={runtime.turnouts}
+            layoutOwners={runtime.turnoutLayoutOwners}
             connected={runtime.connected}
           />
         </Tabs.Panel>
@@ -130,6 +134,7 @@ export default function DebugDialog({ opened, onClose }: Props) {
         <Tabs.Panel value="extended-accessories" style={panelStyle}>
           <ExtendedAccessoryDebugTab
             accessories={runtime.extendedAccessories}
+            layoutOwners={runtime.extendedAccessoryLayoutOwners}
             connected={runtime.connected}
           />
         </Tabs.Panel>
