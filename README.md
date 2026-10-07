@@ -40,250 +40,58 @@ The browser interface can be opened from PCs, notebooks, tablets and phones on t
 
 ## Features
 
-### Locomotive control
+DCCExpressHub provides a browser-based interface for:
 
-- locomotive speed and direction,
-- functions F0-F28,
-- locomotive function bindings,
-- per-locomotive actions,
-- locomotive calibration,
-- runtime locomotive statistics,
-- optional function activation when the backend connects.
+- locomotive, function, turnout and signal control,
+- visual layout editing,
+- occupancy sensing and train tracking,
+- route planning and automatic train movements,
+- timetable operation,
+- visual Flows and JavaScript automation,
+- audio and event-driven actions,
+- multi-client operation from PCs, tablets and phones.
 
-### Layout editor
-
-The browser layout editor supports:
-
-- track elements,
-- blocks,
-- occupancy sensors,
-- turnouts,
-- signals,
-- track directions,
-- route topology,
-- decorative layers,
-- buildings and scenery,
-- copy/clone workflow for repeated elements.
-
-The layout is stored by the backend and is shared by every browser connected to the Hub.
-
-### Movement and Dispatcher
-
-The backend Movement/Dispatcher engine provides:
-
-- automatic route execution,
-- target block reservation,
-- turnout reservation and release,
-- route and sensor safety checks,
-- unknown occupancy detection,
-- emergency-stop integration,
-- cruise speed handling,
-- movement events and actions,
-- station hold/release handling,
-- runtime logging.
-
-### Train tracking
-
-Train tracking follows locomotives through the layout using:
-
-- the generated route graph,
-- turnout positions,
-- block occupancy,
-- active sensor state,
-- direction,
-- Movement/Dispatcher state.
-
-Tracking can maintain multiple active sensors for longer trains and exposes the current block, target and route state to the UI.
-
-### Routes and block events
-
-DCCExpressHub generates route vectors from the current layout instead of storing a second independent route representation.
-
-Route and block configuration includes:
-
-- generated graph and route network,
-- route direction validation,
-- segment parts,
-- composite block/segment sensor nodes,
-- route preview,
-- per-direction block event conditions,
-- **APPROACH**, **ARRIVED** and **LEAVE** events,
-- per-event delays,
-- sensor-based route safety.
-
-### Timetable
-
-The backend timetable engine can:
-
-- start Movements and Scripts,
-- use the fast clock,
-- keep running rows pinned,
-- skip disabled rows,
-- finish active work cleanly when the timetable is stopped.
-
-### Flows and Scripts
-
-Automation runs in the .NET backend rather than in the browser.
-
-Features include:
-
-- visual Flow automation,
-- JavaScript automation using Jint,
-- TrainEvent triggers,
-- locomotive and turnout actions,
-- audio playback actions,
-- blocking and non-blocking actions,
-- automation logs,
-- runtime state exposed to every connected browser.
-
-### Audio
-
-The Hub can store and serve audio files used by automation.
-
-The backend supports:
-
-- file upload,
-- browser playback,
-- HTTP byte ranges for seeking,
-- blocking audio actions that can wait for playback completion.
-
-### Command-center protocols
-
-The cross-platform .NET backend supports:
-
-- **DCC-EX TCP/IP**
-- **DCC-EX Serial / USB**
-- **Roco Z21 UDP**
-- **YaMoRC YD7010**
-
-DCC-EX remains the primary reference command station.
+Automation runs in the .NET backend, so connected browsers share the same
+layout and runtime state.
 
 ## Command station support
 
-| Command station | Windows source build | Linux source build | Published Windows release |
-| --- | --- | --- | --- |
-| DCC-EX TCP | Supported | Supported | Yes |
-| DCC-EX Serial / USB | Supported | Supported | Yes |
-| Roco Z21 | Supported | Supported | Not yet |
-| YaMoRC YD7010 | Supported | Supported | Not yet |
+| Command station | Windows | Linux |
+| --- | --- | --- |
+| DCC-EX TCP | Supported | Supported |
+| DCC-EX Serial / USB | Supported | Supported |
+| Roco Z21 | Supported | Supported |
+| YaMoRC YD7010 | Supported | Supported |
 
 ### DCC-EX
 
 DCC-EX is supported over TCP/IP and USB/serial.
 
-Sensor feedback is received through normal DCC-EX sensor events such as:
-
-```text
-<Q ...>
-<q ...>
-```
-
-This feeds the same backend runtime used by block occupancy, tracking, Movement and Dispatcher safety.
-
-The default DCC-EX TCP port is:
-
-```text
-2560
-```
-
-DCC-EX USB/serial uses:
-
-```text
-115200 baud
-```
-
-Typical Windows serial port:
-
-```text
-COM3
-```
-
-Typical Linux serial devices:
-
-```text
-/dev/ttyACM0
-/dev/ttyUSB0
-/dev/serial/by-id/...
-```
-
-#### S88 / s88-N feedback with DCC-EX
-
-DCC-EX can be extended with S88 / s88-N occupancy feedback using the companion
+S88 / s88-N feedback can be added to a DCC-EX command station with the
 **DCCExpress-S88Adapter**:
 
 https://github.com/DCCExpress/DCCExpress-S88Adapter
 
-The adapter integrates with **DCC-EX CommandStation-EX** and exposes S88 inputs
-as normal DCC-EX sensors. DCCExpressHub therefore receives the usual
-`<Q ...>` / `<q ...>` sensor events and can use them for occupancy,
-tracking and automation.
-
-Full hardware, Arduino and DCC-EX integration instructions are maintained in
-the adapter repository.
+The adapter repository contains the complete Arduino and DCC-EX integration
+instructions.
 
 ### Roco Z21
 
-The .NET backend contains native Z21 LAN support.
-
-Current implementation includes:
-
-- Z21 UDP connection,
-- track power control,
-- emergency stop and release,
-- locomotive speed and direction,
-- locomotive functions,
-- turnout/basic accessory control,
-- signal aspects,
-- Z21 feedback handling.
-
-The default Z21 LAN port is:
-
-```text
-21105 / UDP
-```
+Roco Z21 is supported through the native Z21 LAN protocol for locomotive,
+turnout, signal, power and feedback handling.
 
 ### YaMoRC YD7010
 
-YaMoRC uses separate protocol connections inside DCCExpressHub:
+YaMoRC YD7010 is supported with separate protocol paths for control and
+feedback:
 
 ```text
-DCCExpressHub.Net
-      |
-      +---- Z21 UDP 21105 --------> locomotive / turnout / power
-      |
-      +---- LocoNet LBServer 1234 -> occupancy / S88 feedback
-      |
-   YaMoRC YD7010
+Z21      -> locomotive / turnout / signal / power
+LocoNet  -> occupancy / feedback
 ```
 
-The Z21 and LocoNet implementations are intentionally separate protocol components even when they connect to the same physical YD7010.
-
-Recommended YaMoRC settings:
-
-```text
-Z21                  ON
-Z21 port             21105
-
-LocoNet LBServer     ON
-LBServer port        1234
-
-LocoNet -> Expert
-Interrogate: Report All Feedbacks = ON
-```
-
-For S88 address mapping, configure the YaMoRC **1ter Kontakt im Rückmeldebereich** value so that its generated feedback addresses match the Hub sensor addresses.
-
-Example:
-
-```text
-First Hub sensor address:                   1001
-YaMoRC "1ter Kontakt im Rückmeldebereich": 1000
-
-S88 input 1  -> Hub sensor 1001
-S88 input 6  -> Hub sensor 1006
-S88 input 7  -> Hub sensor 1007
-S88 input 20 -> Hub sensor 1020
-```
+The Z21 and LocoNet implementations remain separate inside DCCExpressHub even
+when both connect to the same YD7010.
 
 ## Architecture
 
