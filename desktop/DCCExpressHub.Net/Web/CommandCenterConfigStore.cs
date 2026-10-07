@@ -105,12 +105,25 @@ public sealed class CommandCenterConfigStore
         }
     }
 
-    private bool IsRocoZ21Runtime =>
-        string.Equals(
-            (_configuration["CommandCenter:Protocol"] ?? "")
-                .Trim(),
-            "z21",
-            StringComparison.OrdinalIgnoreCase);
+    private bool IsRocoZ21Runtime
+    {
+        get
+        {
+            var protocol =
+                (_configuration["CommandCenter:Protocol"] ?? "")
+                    .Trim();
+
+            return
+                string.Equals(
+                    protocol,
+                    "z21",
+                    StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(
+                    protocol,
+                    "yamorc7010",
+                    StringComparison.OrdinalIgnoreCase);
+        }
+    }
 
     private string RuntimeTransport
     {

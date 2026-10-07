@@ -93,7 +93,7 @@ if (useYaMoRcZ21)
                 sp.GetRequiredService<
                     YaMoRcZ21CommandCenter>());
 }
-else if (useRocoZ21)
+else if (useRocoZ21 || useYaMoRcZ21)
 {
     builder.Services
         .AddSingleton<RocoZ21CommandCenter>();

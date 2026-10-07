@@ -157,6 +157,7 @@ configure_yamorc() {
     local z21_port
     local lb_port
     local binary_port
+    local rbus_offset
     local sensor_offset
     local binary_feedback
 
@@ -164,6 +165,7 @@ configure_yamorc() {
     z21_port="$(prompt "Z21 UDP port" "21105")"
     lb_port="$(prompt "LocoNet LBServer TCP port" "1234")"
     binary_port="$(prompt "LocoNet binary TCP port" "5560")"
+    rbus_offset="$(prompt "R-BUS sensor offset" "0")"
     sensor_offset="$(prompt "LocoNet sensor offset" "0")"
 
     read -r -p "Enable LocoNet binary feedback? [y/N]: " binary_feedback
@@ -172,6 +174,7 @@ configure_yamorc() {
     append_env "CommandCenter__Protocol" "yamorc7010"
     append_env "Z21__Host" "$host"
     append_env "Z21__Port" "$z21_port"
+    append_env "Z21__RBusOffset" "$rbus_offset"
 
     append_env "LocoNet__Host" "$host"
     append_env "LocoNet__LbServerPort" "$lb_port"
@@ -190,13 +193,16 @@ configure_yamorc() {
 configure_z21() {
     local host
     local port
+    local rbus_offset
 
     host="$(prompt "Z21 IP / hostname" "192.168.1.111")"
     port="$(prompt "Z21 UDP port" "21105")"
+    rbus_offset="$(prompt "R-BUS sensor offset" "0")"
 
     append_env "CommandCenter__Protocol" "z21"
     append_env "Z21__Host" "$host"
     append_env "Z21__Port" "$port"
+    append_env "Z21__RBusOffset" "$rbus_offset"
 }
 
 configure_dccex_tcp() {
@@ -282,6 +288,7 @@ clear_backend_env() {
 
     unset Z21__Host || true
     unset Z21__Port || true
+    unset Z21__RBusOffset || true
 
     unset LocoNet__Host || true
     unset LocoNet__LbServerPort || true
@@ -329,13 +336,15 @@ show_config() {
         yamorc7010)
             echo "Command center:  YaMoRC YD7010"
             echo "Z21:             ${Z21__Host:-?}:${Z21__Port:-21105}"
+            echo "R-BUS offset:    ${Z21__RBusOffset:-0}"
             echo "LocoNet:         ${LocoNet__Host:-?}:${LocoNet__LbServerPort:-1234}"
             echo "Binary feedback: ${LocoNet__BinaryFeedback:-false}"
-            echo "Sensor offset:   ${LocoNet__SensorOffset:-0}"
+            echo "LocoNet offset:  ${LocoNet__SensorOffset:-0}"
             ;;
         z21)
             echo "Command center:  Roco Z21"
             echo "Z21:             ${Z21__Host:-?}:${Z21__Port:-21105}"
+            echo "R-BUS offset:    ${Z21__RBusOffset:-0}"
             ;;
         *)
             if [[ "${DccEx__Transport:-Tcp}" == "Serial" ]]; then
