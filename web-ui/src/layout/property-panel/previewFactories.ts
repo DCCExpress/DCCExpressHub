@@ -103,7 +103,7 @@ export function createSignalPreview(
   selectedElement: BaseElement,
   color: SignalPreviewColor
 ): BaseElement {
-  if (selectedElement.type !== ELEMENT_TYPES.TRACK_SIGNAL2) {
+  if (selectedElement.type !== ELEMENT_TYPES.TRACK_SIGNAL) {
     return createFallbackTurnoutPreview();
   }
 

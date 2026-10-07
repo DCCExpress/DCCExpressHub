@@ -75,7 +75,7 @@ export class ElementFactory {
       case ELEMENT_TYPES.TRACK_SENSOR:
         return TrackSensorElement.fromJSON(data);
 
-      case ELEMENT_TYPES.TRACK_SIGNAL2:
+      case ELEMENT_TYPES.TRACK_SIGNAL:
         return TrackSignalElement.fromJSON(data);
 
       case ELEMENT_TYPES.BUTTON:

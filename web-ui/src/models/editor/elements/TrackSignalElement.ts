@@ -289,7 +289,7 @@ export class TrackSignalElement extends TrackElement {
       this.currentStateIndex = matchedIndex;
     }
   }
-  override type: typeof ELEMENT_TYPES.TRACK_SIGNAL2 = ELEMENT_TYPES.TRACK_SIGNAL2;
+  override type: typeof ELEMENT_TYPES.TRACK_SIGNAL = ELEMENT_TYPES.TRACK_SIGNAL;
   constructor(x: number, y: number) {
     super(x, y);
     this.address = 0;
@@ -462,7 +462,7 @@ export class TrackSignalElement extends TrackElement {
   override toJSON(): ITrackSignalElement {
     return {
       ...super.toJSON(),
-      type: ELEMENT_TYPES.TRACK_SIGNAL2,
+      type: ELEMENT_TYPES.TRACK_SIGNAL,
       address: this.signalOutput.address,
       signalOutput: cloneSignalOutputConfiguration(this.signalOutput),
       currentStateIndex: this.currentStateIndex,

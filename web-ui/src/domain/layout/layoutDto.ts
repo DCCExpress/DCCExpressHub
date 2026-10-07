@@ -421,7 +421,7 @@ export interface LabelElementDto extends BaseElementDto {
 }
 
 export interface TrackSignalElementDto extends TrackElementDto {
-  type: "tracksignal2";
+  type: "tracksignal";
 
   signalOutput?: SignalOutputConfiguration;
   currentStateIndex?: number;

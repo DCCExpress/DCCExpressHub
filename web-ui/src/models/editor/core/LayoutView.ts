@@ -57,7 +57,11 @@ import {
 import type {
   LayoutElementDto,
   SerializedLayoutDto,
+  SerializedLayoutElementDto,
 } from "@domain/layout/layoutDto";
+import {
+  ELEMENT_TYPES,
+} from "@domain/layout/elementTypes";
 import {
   LayerView,
   type LayerId,
@@ -138,6 +142,19 @@ type RouteStateReference = {
 
 type RouteStateMap =
   Map<number, RouteStateReference>;
+
+function normalizeLegacyElementType(
+  element: SerializedLayoutElementDto
+): SerializedLayoutElementDto {
+  if (element.type === "tracksignal2") {
+    return {
+      ...element,
+      type: ELEMENT_TYPES.TRACK_SIGNAL,
+    };
+  }
+
+  return element;
+}
 
 function routeStatesMatch(
   turnoutStates: readonly {
@@ -489,7 +506,8 @@ export class LayoutView
 
       layer.elements =
         ElementFactory.createMany(
-          (layerData.elements ?? []) as LayoutElementDto[]
+          (layerData.elements ?? [])
+            .map(normalizeLegacyElementType) as LayoutElementDto[]
         );
     }
 

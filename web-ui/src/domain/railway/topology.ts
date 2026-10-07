@@ -363,7 +363,8 @@ function createTopologyElement(data: SerializedLayoutElementDto): RailwayTopolog
     case ELEMENT_TYPES.TRACK_TURNOUT_DOUBLE: return createTurnoutDoubleElement(data);
     case ELEMENT_TYPES.TRACK_BLOCK: return createBlockElement(data);
     case ELEMENT_TYPES.TRACK_SENSOR: return createSensorElement(data);
-    case ELEMENT_TYPES.TRACK_SIGNAL2:
+    case ELEMENT_TYPES.TRACK_SIGNAL:
+    case "tracksignal2":
       return createSignalElement(data);
     default:
       return null;

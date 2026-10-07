@@ -139,7 +139,7 @@ export const demoSeedLayout = {
       "elements": [
         {
           "id": "d39fe15-ab04-4623-900b-8ee991e1",
-          "type": "tracksignal2",
+          "type": "tracksignal",
           "name": "element",
           "layerName": "signals",
           "x": 10,
@@ -163,7 +163,7 @@ export const demoSeedLayout = {
         },
         {
           "id": "4984b2e-46d1-49c1-b14f-2294c9b2",
-          "type": "tracksignal2",
+          "type": "tracksignal",
           "name": "element",
           "layerName": "signals",
           "x": 7,
@@ -187,7 +187,7 @@ export const demoSeedLayout = {
         },
         {
           "id": "cd53253-43f8-4aab-bece-eee93635",
-          "type": "tracksignal2",
+          "type": "tracksignal",
           "name": "element",
           "layerName": "signals",
           "x": 7,

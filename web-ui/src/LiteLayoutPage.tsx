@@ -368,7 +368,7 @@ const RAILWAY_PICKER_ITEMS: PickerItem[] = [
   { type: ELEMENT_TYPES.TRACK_TURNOUT_DOUBLE, get label() { return i18next.t("ui.doubleTurnout2"); }, preview: new TrackTurnoutDoubleElement(0, 0) },
   { type: ELEMENT_TYPES.TRACK_SENSOR, get label() { return i18next.t("ui.sensor2"); }, preview: new TrackSensorElement(0, 0) },
   { type: ELEMENT_TYPES.TRACK_BLOCK, get label() { return i18next.t("ui.block2"); }, preview: new BlockElement(0, 0) },
-  { type: ELEMENT_TYPES.TRACK_SIGNAL2, get label() { return i18next.t("ui.signal2"); }, preview: createSignalPreview() },
+  { type: ELEMENT_TYPES.TRACK_SIGNAL, get label() { return i18next.t("ui.signal2"); }, preview: createSignalPreview() },
   { type: ELEMENT_TYPES.BUTTON, get label() { return i18next.t("ui.outputButton"); }, preview: new ButtonElement(0, 0) },
   { type: ELEMENT_TYPES.BUTTON_ROUTE, get label() { return i18next.t("ui.route"); }, preview: new RouteButtonElement(0, 0) },
   { type: ELEMENT_TYPES.BUTTON_AUDIO, get label() { return i18next.t("ui.audioButton"); }, preview: new AudioButtonElement(0, 0) },

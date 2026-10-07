@@ -90,7 +90,7 @@ export function createCursorElement(tool: EditorTool): BaseElement | null {
     case ELEMENT_TYPES.SWITCHMAN_HUT: return cursorSwitchmanHutElement;
     case ELEMENT_TYPES.GARDEN_HOUSE: return cursorGardenHouseElement;
     case ELEMENT_TYPES.TRACK_BLOCK: return cursorBlockElement;
-    case ELEMENT_TYPES.TRACK_SIGNAL2:
+    case ELEMENT_TYPES.TRACK_SIGNAL:
       return cursorTrackSignalElement;
     case ELEMENT_TYPES.LABEL: return cursorLabelElement;
     default: return null;
