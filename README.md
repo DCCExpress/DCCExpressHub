@@ -91,7 +91,7 @@ YaMoRC YD7010 is supported with separate protocol paths for control and
 feedback:
 
 ```text
-Z21      -> locomotive / turnout / signal / power
+Z21      -> locomotive / turnout / signal / power + R-BUS feedback
 LocoNet  -> occupancy / feedback
 ```
 
