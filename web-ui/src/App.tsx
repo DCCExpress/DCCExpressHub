@@ -44,7 +44,6 @@ import {
   IconCpu,
   IconPower,
   IconTerminal2,
-  IconGitBranch,
 } from "@tabler/icons-react";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -304,18 +303,6 @@ function HomePage({
           <Title order={4} mt="md">{t("homeHub.cards.layout.title")}</Title>
           <Text size="sm" c="dimmed" mt={4}>
             {t("homeHub.cards.layout.description")}
-          </Text>
-        </Card>
-
-        <Card className="action-card" withBorder radius={5} p="lg" onClick={() => onNavigate("flows")}>
-          <ThemeIcon size={48} radius="lg" color="violet" variant="light">
-            <IconGitBranch size={27} />
-          </ThemeIcon>
-          <Title order={4} mt="md">
-            {t("homeHub.cards.flows.title", { defaultValue: "Flow Automation" })}
-          </Title>
-          <Text size="sm" c="dimmed" mt={4}>
-            {t("homeHub.cards.flows.description", { defaultValue: "Build and manage event-driven automation flows." })}
           </Text>
         </Card>
 
