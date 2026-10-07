@@ -109,13 +109,19 @@ export type DccExStatusPayload = {
     centralStateEx: number;
     capabilities: number;
     lastSystemStateAgeMs: number;
+  } | null;
+
+  locoNet?: {
     lbServerEnabled: boolean;
     lbServerConnected: boolean;
+    host: string;
     lbServerPort: number;
     lbServerUptimeMs: number;
     lastLbServerRxAgeMs: number;
     lbServerLinesObserved: number;
     lbServerVersion: string;
+    binaryFeedbackEnabled: boolean;
+    binaryPort: number;
     sensorFeedbackCount: number;
     lastSensorAddress: number;
     lastSensorOn: boolean | null;
