@@ -17,6 +17,7 @@ The browser interface can be opened from PCs, notebooks, tablets and phones on t
 
 ![DCCExpressHub screenshot](doc/images/Screenshot_2026-09-23_182817.png)
 
+
 ## How it works
 
 ```text
@@ -61,6 +62,8 @@ layout and runtime state.
 DCCExpressHub can use **Bluetooth and USB game controllers** through the
 browser Gamepad API. Gamepad control is integrated with the **mobile control
 interface** instead of being a separate, limited locomotive throttle.
+
+![DCCExpressHub Gamepad](doc/images/20261007_165630.jpg)
 
 A controller paired with the phone, tablet or computer can therefore be used
 through the same mobile control workflow for:
