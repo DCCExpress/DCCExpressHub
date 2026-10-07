@@ -31,13 +31,19 @@ export type TurnoutDebugState =
 export type BasicAccessoryDebugState =
   Map<number, DebugStateValue<boolean>>;
 
-export type BasicAccessoryLayoutOwner = {
+export type DebugLayoutOwner = {
   type: string;
   name: string;
 };
 
+export type DebugLayoutOwners =
+  Map<number, DebugLayoutOwner[]>;
+
+export type BasicAccessoryLayoutOwner =
+  DebugLayoutOwner;
+
 export type BasicAccessoryLayoutOwners =
-  Map<number, BasicAccessoryLayoutOwner[]>;
+  DebugLayoutOwners;
 
 export type ExtendedAccessoryDebugState =
   Map<number, DebugStateValue<number>>;
@@ -205,6 +211,243 @@ function buildBasicAccessoryLayoutOwners(
   return result;
 }
 
+function buildSensorLayoutOwners(
+  layoutValue: unknown
+): DebugLayoutOwners {
+  const result: DebugLayoutOwners = new Map();
+  const layout = objectValue(layoutValue);
+  const layers = Array.isArray(layout?.layers) ? layout.layers : [];
+
+  const add = (
+    addressValue: unknown,
+    type: string,
+    name: string
+  ) => {
+    const address = integerValue(addressValue);
+    if (address <= 0 || address > 65535) return;
+
+    const owners = result.get(address) ?? [];
+
+    if (!owners.some(owner => owner.type === type && owner.name === name)) {
+      owners.push({ type, name });
+      result.set(address, owners);
+    }
+  };
+
+  const addConditions = (
+    value: unknown,
+    type: string,
+    name: string
+  ) => {
+    if (!Array.isArray(value)) return;
+
+    for (const rawCondition of value) {
+      const condition = objectValue(rawCondition);
+      if (!condition) continue;
+      add(condition.sensor, type, name);
+    }
+  };
+
+  for (const rawLayer of layers) {
+    const layer = objectValue(rawLayer);
+    const elements = Array.isArray(layer?.elements) ? layer.elements : [];
+
+    for (const rawElement of elements) {
+      const element = objectValue(rawElement);
+      if (!element) continue;
+
+      const type = String(element.type ?? "");
+      const name = String(element.name ?? "").trim() || "—";
+
+      if (type === "tracksensor") {
+        add(element.address, type, name);
+        continue;
+      }
+
+      if (type !== "trackblock") {
+        continue;
+      }
+
+      add(element.sensorAddress, type, name);
+
+      const eventConfig = objectValue(element.eventConfig);
+
+      for (const directionName of ["forward", "reverse"]) {
+        const direction = objectValue(eventConfig?.[directionName]);
+
+        if (!direction) continue;
+
+        for (const eventName of [
+          "arrival",
+          "arrived",
+          "depart",
+          "leave",
+        ]) {
+          addConditions(
+            direction[eventName],
+            type,
+            name
+          );
+        }
+      }
+    }
+  }
+
+  return result;
+}
+
+function buildTurnoutLayoutOwners(
+  layoutValue: unknown
+): DebugLayoutOwners {
+  const result: DebugLayoutOwners = new Map();
+  const layout = objectValue(layoutValue);
+  const layers = Array.isArray(layout?.layers) ? layout.layers : [];
+
+  const add = (
+    addressValue: unknown,
+    type: string,
+    name: string
+  ) => {
+    const address = integerValue(addressValue);
+    if (address <= 0 || address > 65535) return;
+
+    const owners = result.get(address) ?? [];
+
+    if (!owners.some(owner => owner.type === type && owner.name === name)) {
+      owners.push({ type, name });
+      result.set(address, owners);
+    }
+  };
+
+  for (const rawLayer of layers) {
+    const layer = objectValue(rawLayer);
+    const elements = Array.isArray(layer?.elements) ? layer.elements : [];
+
+    for (const rawElement of elements) {
+      const element = objectValue(rawElement);
+      if (!element) continue;
+
+      const type = String(element.type ?? "");
+      const name = String(element.name ?? "").trim() || "—";
+
+      if (![
+        "trackturnout",
+        "trackturnoutleft",
+        "trackturnoutright",
+        "trackturnoutdouble",
+        "trackturnouttwoway",
+        "trackturnouttreeway",
+      ].includes(type)) {
+        continue;
+      }
+
+      if (
+        type === "trackturnoutdouble" ||
+        type === "trackturnouttreeway"
+      ) {
+        add(element.turnout1Address, type, name);
+        add(element.turnout2Address, type, name);
+      } else {
+        add(
+          integerValue(element.turnoutAddress) ||
+            integerValue(element.address),
+          type,
+          name
+        );
+      }
+    }
+  }
+
+  return result;
+}
+
+function buildExtendedAccessoryLayoutOwners(
+  layoutValue: unknown
+): DebugLayoutOwners {
+  const result: DebugLayoutOwners = new Map();
+  const layout = objectValue(layoutValue);
+  const layers = Array.isArray(layout?.layers) ? layout.layers : [];
+
+  const add = (
+    addressValue: unknown,
+    type: string,
+    name: string
+  ) => {
+    const address = integerValue(addressValue);
+    if (address <= 0 || address > 65535) return;
+
+    const owners = result.get(address) ?? [];
+
+    if (!owners.some(owner => owner.type === type && owner.name === name)) {
+      owners.push({ type, name });
+      result.set(address, owners);
+    }
+  };
+
+  for (const rawLayer of layers) {
+    const layer = objectValue(rawLayer);
+    const elements = Array.isArray(layer?.elements) ? layer.elements : [];
+
+    for (const rawElement of elements) {
+      const element = objectValue(rawElement);
+      if (!element) continue;
+
+      const type = String(element.type ?? "");
+      const name = String(element.name ?? "").trim() || "—";
+
+      const isTurnout = [
+        "trackturnout",
+        "trackturnoutleft",
+        "trackturnoutright",
+        "trackturnoutdouble",
+        "trackturnouttwoway",
+        "trackturnouttreeway",
+      ].includes(type);
+
+      if (isTurnout && turnoutMode(element.outputMode) === "extended") {
+        if (
+          type === "trackturnoutdouble" ||
+          type === "trackturnouttreeway"
+        ) {
+          add(element.turnout1Address, type, name);
+          add(element.turnout2Address, type, name);
+        } else {
+          add(
+            integerValue(element.turnoutAddress) ||
+              integerValue(element.address),
+            type,
+            name
+          );
+        }
+
+        continue;
+      }
+
+      if (type === "button" && element.outputMode === "extended") {
+        add(element.address, type, name);
+        continue;
+      }
+
+      const signalOutput = objectValue(element.signalOutput);
+
+      if (
+        (
+          type === "tracksignal" ||
+          type === "tracksignal2" ||
+          type === "tracksignal3" ||
+          type === "tracksignal4" ||
+          type === "tracklevelcrossing"
+        ) &&
+        signalOutput?.protocol === "dccext"
+      ) {
+        add(signalOutput.address, type, name);
+      }
+    }
+  }
+
+  return result;
+}
+
 function buildTurnoutConfig(layoutValue: unknown): Map<number, TurnoutConfig> {
   const result = new Map<number, TurnoutConfig>();
   const layout = objectValue(layoutValue);
@@ -304,6 +547,24 @@ export function useRuntimeDebugState(
   ] =
     useState<BasicAccessoryLayoutOwners>(() => new Map());
 
+  const [
+    sensorLayoutOwners,
+    setSensorLayoutOwners,
+  ] =
+    useState<DebugLayoutOwners>(() => new Map());
+
+  const [
+    turnoutLayoutOwners,
+    setTurnoutLayoutOwners,
+  ] =
+    useState<DebugLayoutOwners>(() => new Map());
+
+  const [
+    extendedAccessoryLayoutOwners,
+    setExtendedAccessoryLayoutOwners,
+  ] =
+    useState<DebugLayoutOwners>(() => new Map());
+
   const [extendedAccessories, setExtendedAccessories] =
     useState<ExtendedAccessoryDebugState>(() => new Map());
 
@@ -328,6 +589,18 @@ export function useRuntimeDebugState(
 
         setBasicAccessoryLayoutOwners(
           buildBasicAccessoryLayoutOwners(layoutValue)
+        );
+
+        setSensorLayoutOwners(
+          buildSensorLayoutOwners(layoutValue)
+        );
+
+        setTurnoutLayoutOwners(
+          buildTurnoutLayoutOwners(layoutValue)
+        );
+
+        setExtendedAccessoryLayoutOwners(
+          buildExtendedAccessoryLayoutOwners(layoutValue)
         );
       }
     } catch {
@@ -667,6 +940,9 @@ export function useRuntimeDebugState(
       turnouts,
       basicAccessories,
       basicAccessoryLayoutOwners,
+      sensorLayoutOwners,
+      turnoutLayoutOwners,
+      extendedAccessoryLayoutOwners,
       extendedAccessories,
       refresh,
       connected,
@@ -676,6 +952,9 @@ export function useRuntimeDebugState(
       turnouts,
       basicAccessories,
       basicAccessoryLayoutOwners,
+      sensorLayoutOwners,
+      turnoutLayoutOwners,
+      extendedAccessoryLayoutOwners,
       extendedAccessories,
       refresh,
       connected,
