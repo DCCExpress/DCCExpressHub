@@ -95,31 +95,34 @@ Z21      -> locomotive / turnout / signal / power
 LocoNet  -> occupancy / feedback
 ```
 
-# Windows
+# Installation
 
-## Windows requirements
+## Windows
 
-For the published Windows package:
+The recommended Windows installation is the published release package.
 
-- Windows 10 or Windows 11 x64,
-- Microsoft Edge WebView2 Runtime,
-- LAN/USB access to the selected command station.
+### Requirements
 
-The release package contains the required .NET runtime and does not require a separate .NET SDK installation.
+- Windows 10 or Windows 11 x64
+- Microsoft Edge WebView2 Runtime
+- LAN or USB access to the selected command station
 
-## Windows installation
+The release package contains the required .NET runtime, so a separate .NET SDK
+installation is not required.
+
+### Install
 
 Download the current Windows release from:
 
 https://github.com/DCCExpress/DCCExpressHub/releases
 
-The package is typically named:
+Extract:
 
 ```text
 DCCExpressHub-<version>-win-x64.zip
 ```
 
-Extract the complete archive to a writable directory and run:
+to a writable directory and run:
 
 ```text
 DCCExpressHub.Desktop.exe
@@ -127,66 +130,117 @@ DCCExpressHub.Desktop.exe
 
 Do not run the application directly from inside the ZIP archive.
 
-### Windows SmartScreen
+Alpha builds may not be digitally signed. If Microsoft Defender SmartScreen
+reports an unknown publisher, verify that the package came from the official
+DCCExpressHub GitHub Releases page.
 
-Alpha builds may not be digitally signed.
+The Desktop application can run locally or expose the Hub to other devices on
+the trusted local network.
 
-If Microsoft Defender SmartScreen reports an unknown publisher, verify that the package was downloaded from the official DCCExpressHub GitHub Releases page.
-
-## Windows Local mode
-
-The Desktop application can run the Hub only for the local PC.
-
-Default URL:
-
-```text
-http://127.0.0.1:5174
-```
-
-## Windows Server mode
-
-Server mode exposes DCCExpressHub to the trusted local network.
-
-Example:
-
-```text
-http://192.168.1.100:5174
-```
-
-Other PCs, tablets and phones can then open the same layout in a modern browser.
-
-## Windows persistent workspace
-
-The Desktop application keeps runtime data outside the application directory.
-
-Default location:
+User data is stored separately from the application files under:
 
 ```text
 %LOCALAPPDATA%\DCCExpressHub\workspace
 ```
 
-This includes layout/configuration/state data and keeps user data separate from the installed binaries.
+## Linux
 
-## Building on Windows from source
+DCCExpressHub runs on Linux as a headless server with the UI opened in a web
+browser.
 
-Requirements:
+There is currently no packaged Linux release, so Linux installation is built
+directly from the Git repository.
 
-- Git,
-- Node.js **^20.19.0 or >=22.12.0**,
-- npm,
-- .NET 10 SDK,
-- Microsoft Edge WebView2 Runtime,
-- PowerShell,
-- Visual Studio 2022/2026 optional.
+### Requirements
 
-Clone:
+- x64 or ARM64 Linux
+- .NET 10 SDK
+- Git
+- Node.js **^20.19.0 or >=22.12.0**
+- npm
 
-```powershell
+Tested environment:
+
+```text
+Debian GNU/Linux 12 (bookworm)
+linux-x64
+.NET 10
+```
+
+### Install
+
+Clone the repository:
+
+```bash
 git clone https://github.com/DCCExpress/DCCExpressHub.git
 cd DCCExpressHub
 ```
 
-Build the Web UI and Windows Desktop application:
+Build the Web UI and backend:
+
+```bash
+./run-linux.sh --build
+```
+
+Then start DCCExpressHub:
+
+```bash
+./run-linux.sh
+```
+
+On first start the launcher asks for the command-center type and connection
+settings. The saved machine-local configuration is stored in:
+
+```text
+desktop/DCCExpressHub.Net/.env.linux
+```
+
+A normal update is:
+
+```bash
+git pull
+./run-linux.sh
+```
+
+The launcher automatically rebuilds the Web UI when the checked-out UI source
+has changed.
+
+For DCC-EX USB/serial connections, the Linux user must have permission to
+access the serial device. On Debian-based systems this commonly means:
+
+```bash
+sudo usermod -aG dialout $USER
+```
+
+Log out and back in after changing group membership.
+
+# Development
+
+## Development requirements
+
+For source builds:
+
+- Git
+- Node.js **^20.19.0 or >=22.12.0**
+- npm
+- .NET 10 SDK
+
+Windows development additionally requires:
+
+- PowerShell
+- Microsoft Edge WebView2 Runtime
+- Visual Studio optional
+
+Clone:
+
+```bash
+git clone https://github.com/DCCExpress/DCCExpressHub.git
+cd DCCExpressHub
+```
+
+## Windows source build
+
+Build the Web UI, backend and Windows Desktop application:
 
 ```powershell
 .\build-desktop.ps1
@@ -204,228 +258,60 @@ Create the self-contained Windows x64 release package:
 .\build-desktop.ps1 -Clean -Publish
 ```
 
-The generated ZIP is written under:
+The generated package is written under:
 
 ```text
 dist\desktop
 ```
 
-The build script performs:
+## Linux source build
 
-```text
-web-ui
-   |
-npm build
-   |
-web-ui/dist
-   |
-sync
-   |
-desktop/DCCExpressHub.Net/wwwroot
-   |
-.NET backend + WPF Desktop build
-```
-
-# Linux
-
-DCCExpressHub runs natively on Linux as a headless .NET backend.
-
-There is currently no packaged Linux release. Linux installations are built directly from the Git repository.
-
-The UI is served by the backend and is opened in a browser.
-
-## Linux requirements
-
-Required:
-
-- x64 or ARM64 Linux,
-- .NET 10 SDK,
-- Git,
-- Node.js **^20.19.0 or >=22.12.0**,
-- npm.
-
-Tested development environment:
-
-```text
-Debian GNU/Linux 12 (bookworm)
-linux-x64
-.NET 10
-```
-
-For DCC-EX USB/serial, the Linux user must also have permission to access the serial device.
-
-On Debian-based systems this commonly means membership in the `dialout` group:
-
-```bash
-sudo usermod -aG dialout $USER
-```
-
-Log out and back in after changing group membership.
-
-## Linux installation from Git
-
-Clone:
-
-```bash
-git clone https://github.com/DCCExpress/DCCExpressHub.git
-cd DCCExpressHub
-```
-
-Build everything:
+The root launcher handles both the React/Vite UI and the .NET backend:
 
 ```bash
 ./run-linux.sh --build
 ```
 
-Then configure and start:
+Useful development commands:
 
 ```bash
-./run-linux.sh
-```
-
-On the first run the launcher asks which command center to use:
-
-```text
-1) YaMoRC YD7010 (Z21 + separate LocoNet)
-2) Roco Z21
-3) DCC-EX TCP
-4) DCC-EX Serial
-```
-
-The machine-local settings are stored in:
-
-```text
-desktop/DCCExpressHub.Net/.env.linux
-```
-
-The file is ignored by Git.
-
-## Linux Web UI build
-
-A source checkout contains the React/Vite UI under:
-
-```text
-web-ui/
-```
-
-The Linux launcher builds it using:
-
-```bash
-npm ci
-npm run build
-```
-
-Production output:
-
-```text
-web-ui/dist/
-```
-
-Watson serves this directory directly. No manual copy into the backend is required.
-
-A normal:
-
-```bash
-git pull
-./run-linux.sh
-```
-
-automatically rebuilds the UI if the checked-out `web-ui` source tree changed.
-
-Useful launcher commands:
-
-```bash
-./run-linux.sh --build          # build UI and backend
-./run-linux.sh --build-ui       # build only React/Vite UI
-./run-linux.sh --build-backend  # build only .NET backend
-./run-linux.sh --configure      # change command-center settings and start
-./run-linux.sh --show           # show saved Linux configuration
+./run-linux.sh --build-ui
+./run-linux.sh --build-backend
+./run-linux.sh --configure
+./run-linux.sh --show
 ./run-linux.sh --help
 ```
 
-## Linux backend URL
-
-The default listen address is:
+The production Web UI is built to:
 
 ```text
-http://0.0.0.0:5174
+web-ui/dist
 ```
 
-Open it from another machine using the Linux host's LAN address, for example:
+and is served directly by the Linux backend.
 
-```text
-http://192.168.1.50:5174
-```
-
-The listen URL can be overridden with:
-
-```bash
-export DCCEXPRESS_HTTP_URL=http://0.0.0.0:5174
-```
-
-## Linux manual build
-
-The launcher is recommended, but the components can also be built manually.
-
-Web UI:
-
-```bash
-cd web-ui
-npm ci
-npm run build
-cd ..
-```
-
-Backend:
+Manual backend build:
 
 ```bash
 dotnet restore desktop/DCCExpressHub.Net/DCCExpressHub.Net.csproj
 dotnet build desktop/DCCExpressHub.Net/DCCExpressHub.Net.csproj
 ```
 
-Run manually:
-
-```bash
-export DCCEXPRESS_CONTENT_ROOT="$PWD/desktop/DCCExpressHub.Net"
-export DCCEXPRESS_WEB_ROOT="$PWD/web-ui/dist"
-export DCCEXPRESS_HTTP_URL=http://0.0.0.0:5174
-
-dotnet run --project desktop/DCCExpressHub.Net/DCCExpressHub.Net.csproj
-```
-
-For normal use, `run-linux.sh` is easier because it also manages command-center configuration.
-
-## Linux publish examples
-
-Framework-dependent x64:
+Example Linux publish targets:
 
 ```bash
 dotnet publish desktop/DCCExpressHub.Net/DCCExpressHub.Net.csproj \
-  -c Release \
-  -r linux-x64 \
-  --self-contained false
-```
+  -c Release -r linux-x64 --self-contained false
 
-Framework-dependent ARM64:
-
-```bash
 dotnet publish desktop/DCCExpressHub.Net/DCCExpressHub.Net.csproj \
-  -c Release \
-  -r linux-arm64 \
-  --self-contained false
+  -c Release -r linux-arm64 --self-contained false
 ```
-
-## macOS
-
-The .NET backend is intentionally written using cross-platform APIs, but macOS is **not currently an officially tested or supported DCCExpressHub platform**.
-
-There is no macOS Desktop package or automated macOS build/test process at this time.
-
-# Development
 
 ## Web UI development
 
-Start the backend first, then run Vite:
+Start the backend first, then run Vite.
+
+Linux/macOS shell:
 
 ```bash
 cd web-ui
@@ -433,19 +319,19 @@ npm install
 DCCEXPRESS_DEVICE_URL=http://127.0.0.1:5174 npm run dev
 ```
 
-Vite development server:
-
-```text
-http://localhost:5173
-```
-
-On PowerShell:
+PowerShell:
 
 ```powershell
 cd web-ui
 npm install
 $env:DCCEXPRESS_DEVICE_URL="http://127.0.0.1:5174"
 npm run dev
+```
+
+The Vite development server runs on:
+
+```text
+http://localhost:5173
 ```
 
 ## Repository structure
