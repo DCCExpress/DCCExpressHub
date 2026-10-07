@@ -2,7 +2,7 @@
 
 DCCExpressHub is a control, layout and automation system for model railways using **DCC-EX**, **Roco Z21** or **YaMoRC YD7010** command stations.
 
-It provides one interface for driving locomotives, operating turnouts and signals, editing the layout, following trains, running automatic movements and timetables, and using occupancy sensors for safer operation.
+It provides one interface for driving locomotives, programming decoder CVs, operating turnouts and signals, editing the layout, following trains, running automatic movements and timetables, and using occupancy sensors for safer operation.
 
 DCCExpressHub runs on:
 
@@ -43,6 +43,7 @@ The browser interface can be opened from PCs, notebooks, tablets and phones on t
 DCCExpressHub provides a browser-based interface for:
 
 - locomotive, function, turnout and signal control,
+- decoder CV programming,
 - visual layout editing,
 - occupancy sensing and train tracking,
 - route planning and automatic train movements,
