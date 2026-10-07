@@ -42,7 +42,7 @@ public sealed class CalibrationRuntime
     readonly TimetableRuntime _timetable;
     readonly AutomationExclusiveGate _exclusiveGate;
     readonly LocoStorageCoordinator _locoStorage;
-    readonly IWebHostEnvironment _env;
+    readonly AppPaths _env;
     readonly ILogger<CalibrationRuntime> _log;
 
     CancellationTokenSource? _cancellation;
@@ -76,7 +76,7 @@ public sealed class CalibrationRuntime
         TimetableRuntime timetable,
         AutomationExclusiveGate exclusiveGate,
         LocoStorageCoordinator locoStorage,
-        IWebHostEnvironment env,
+        AppPaths env,
         ILogger<CalibrationRuntime> log)
     {
         _movement = movement;

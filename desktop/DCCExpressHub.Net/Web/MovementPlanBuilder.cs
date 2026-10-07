@@ -9,10 +9,10 @@ namespace DCCExpressHub.Net.Web;
 /// </summary>
 public sealed class MovementPlanBuilder
 {
-    readonly IWebHostEnvironment _env;
+    readonly AppPaths _env;
 
     public MovementPlanBuilder(
-        IWebHostEnvironment env)
+        AppPaths env)
     {
         _env = env;
     }

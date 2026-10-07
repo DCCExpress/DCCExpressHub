@@ -24,14 +24,14 @@ public sealed record TrainEventPayload(
 
 public sealed class TrainEventRuntime
 {
-    readonly IWebHostEnvironment _env;
+    readonly AppPaths _env;
     readonly ILogger<TrainEventRuntime> _log;
 
     public event Action<TrainEventPayload>? Changed;
     public event Func<TrainEventPayload, CancellationToken, Task>? Blocking;
 
     public TrainEventRuntime(
-        IWebHostEnvironment env,
+        AppPaths env,
         ILogger<TrainEventRuntime> log)
     {
         _env = env;

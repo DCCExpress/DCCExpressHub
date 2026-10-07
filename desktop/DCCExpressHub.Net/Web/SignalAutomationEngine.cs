@@ -34,7 +34,7 @@ public sealed class SignalAutomationEngine
 
     readonly ICommandCenter _cc;
     readonly LayoutRuntime _runtime;
-    readonly IWebHostEnvironment _env;
+    readonly AppPaths _env;
     readonly SemaphoreSlim _evalGate = new(1, 1);
 
     List<SignalRuleSet> _signals = [];
@@ -53,7 +53,7 @@ public sealed class SignalAutomationEngine
     public SignalAutomationEngine(
         ICommandCenter cc,
         LayoutRuntime runtime,
-        IWebHostEnvironment env)
+        AppPaths env)
     {
         _cc = cc;
         _runtime = runtime;

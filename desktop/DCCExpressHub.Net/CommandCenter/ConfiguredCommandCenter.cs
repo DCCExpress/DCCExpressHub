@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DCCExpressHub.Net.Web;
 
 namespace DCCExpressHub.Net.CommandCenter;
 
@@ -14,7 +15,7 @@ public sealed class ConfiguredCommandCenter : ICommandCenter
     private HashSet<int> _inverted=[];
     private string _locosPath="";
 
-    public ConfiguredCommandCenter(ICommandCenter inner,IWebHostEnvironment env,ILogger<ConfiguredCommandCenter> log)
+    public ConfiguredCommandCenter(ICommandCenter inner,AppPaths env,ILogger<ConfiguredCommandCenter> log)
     {
         _inner=inner;_log=log;
         _locosPath=Path.Combine(env.ContentRootPath,"data","config","locos.json");

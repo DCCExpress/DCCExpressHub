@@ -9,7 +9,7 @@ public sealed class WsRuntimeCoordinator : BackgroundService
     readonly WsHub _ws;
     readonly LayoutRuntime _runtime;
     readonly SignalAutomationEngine _signalAutomation;
-    readonly IWebHostEnvironment _env;
+    readonly AppPaths _env;
     readonly ILogger<WsRuntimeCoordinator> _log;
     volatile bool _connected;
     volatile bool _connectionChanged;
@@ -22,7 +22,7 @@ public sealed class WsRuntimeCoordinator : BackgroundService
         WsHub ws,
         LayoutRuntime runtime,
         SignalAutomationEngine signalAutomation,
-        IWebHostEnvironment env,
+        AppPaths env,
         ILogger<WsRuntimeCoordinator> log)
     {
         _cc=cc;

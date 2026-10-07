@@ -227,7 +227,7 @@ public sealed class MovementRuntime
     readonly TrainEventRuntime _trainEvents;
     readonly ICommandCenter _commandCenter;
     readonly HubState _hubState;
-    readonly IWebHostEnvironment _env;
+    readonly AppPaths _env;
     readonly AutomationStorageCoordinator _automationStorage;
     readonly AutomationExclusiveGate _exclusiveGate;
     readonly ILogger<MovementRuntime> _log;
@@ -253,7 +253,7 @@ public sealed class MovementRuntime
         TrainEventRuntime trainEvents,
         ICommandCenter commandCenter,
         HubState hubState,
-        IWebHostEnvironment env,
+        AppPaths env,
         AutomationStorageCoordinator automationStorage,
         AutomationExclusiveGate exclusiveGate,
         ILogger<MovementRuntime> log)

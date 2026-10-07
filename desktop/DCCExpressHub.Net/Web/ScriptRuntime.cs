@@ -115,7 +115,7 @@ public sealed class ScriptRuntime
     readonly MovementRuntime _movement;
     readonly ICommandCenter _commandCenter;
     readonly HubState _hubState;
-    readonly IWebHostEnvironment _env;
+    readonly AppPaths _env;
     readonly ScriptInfoStore _scriptInfo;
     readonly AutomationExclusiveGate _exclusiveGate;
     readonly ILogger<ScriptRuntime> _log;
@@ -142,7 +142,7 @@ public sealed class ScriptRuntime
         MovementRuntime movement,
         ICommandCenter commandCenter,
         HubState hubState,
-        IWebHostEnvironment env,
+        AppPaths env,
         ScriptInfoStore scriptInfo,
         AutomationExclusiveGate exclusiveGate,
         ILogger<ScriptRuntime> log)

@@ -12,7 +12,7 @@ public sealed class HubFileStorage
         new();
 
     public HubFileStorage(
-        IWebHostEnvironment env)
+        AppPaths env)
     {
         _workspaceRoot =
             Path.GetFullPath(

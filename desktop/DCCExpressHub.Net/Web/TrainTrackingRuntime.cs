@@ -91,7 +91,7 @@ public sealed class TrainTrackingRuntime
         int SensorIndex);
 
     readonly object _gate = new();
-    readonly IWebHostEnvironment _env;
+    readonly AppPaths _env;
     readonly LayoutRuntime _layout;
     readonly HubState _hubState;
     readonly ICommandCenter _commandCenter;
@@ -119,7 +119,7 @@ public sealed class TrainTrackingRuntime
     public event Action<TrainTrackingSnapshot>? Changed;
 
     public TrainTrackingRuntime(
-        IWebHostEnvironment env,
+        AppPaths env,
         LayoutRuntime layout,
         HubState hubState,
         ICommandCenter commandCenter,

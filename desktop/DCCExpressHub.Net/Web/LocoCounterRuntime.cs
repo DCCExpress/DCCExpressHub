@@ -38,7 +38,7 @@ public sealed class LocoCounterRuntime : IDisposable
 
     public event Action? Changed;
 
-    public LocoCounterRuntime(IWebHostEnvironment env)
+    public LocoCounterRuntime(AppPaths env)
     {
         _locosPath = Path.Combine(
             env.ContentRootPath,

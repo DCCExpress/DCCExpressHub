@@ -9,7 +9,7 @@ public sealed class RuntimeStateStore
     readonly ILogger<RuntimeStateStore> _log;
     static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { WriteIndented = true };
 
-    public RuntimeStateStore(LayoutRuntime runtime, IWebHostEnvironment env, ILogger<RuntimeStateStore> log)
+    public RuntimeStateStore(LayoutRuntime runtime, AppPaths env, ILogger<RuntimeStateStore> log)
     {
         _runtime = runtime;
         _log = log;

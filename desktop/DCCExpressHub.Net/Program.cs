@@ -6,6 +6,11 @@ using Microsoft.Extensions.FileProviders;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddSingleton(
+    new AppPaths(
+        builder.Environment.ContentRootPath,
+        builder.Environment.WebRootPath));
+
 //var webUiDist = Path.GetFullPath(
 //    Path.Combine(
 //        builder.Environment.ContentRootPath,
@@ -86,7 +91,7 @@ builder.Services.AddSingleton<ConfiguredCommandCenter>(
 
         return new ConfiguredCommandCenter(
             inner,
-            sp.GetRequiredService<IWebHostEnvironment>(),
+            sp.GetRequiredService<AppPaths>(),
             sp.GetRequiredService<ILogger<ConfiguredCommandCenter>>());
     });
 
@@ -109,6 +114,8 @@ builder.Services.AddSingleton<WsHub>();
 builder.Services.AddHostedService<WsRuntimeCoordinator>();
 
 var app = builder.Build();
+var appPaths =
+    app.Services.GetRequiredService<AppPaths>();
 var ccConfigStore = app.Services.GetRequiredService<CommandCenterConfigStore>();
 var persistedCc = ccConfigStore.Current;
 var configuredCommandCenter = app.Services.GetRequiredService<ConfiguredCommandCenter>();
@@ -141,8 +148,8 @@ await runtimeStateStore.LoadAsync();
 _ = app.Services.GetRequiredService<SignalAutomationEngine>();
 
 
-var dataRoot = Path.Combine(app.Environment.ContentRootPath, "data");
-var sdRoot = Path.Combine(app.Environment.ContentRootPath, "sd");
+var dataRoot = Path.Combine(appPaths.ContentRootPath, "data");
+var sdRoot = Path.Combine(appPaths.ContentRootPath, "sd");
 Directory.CreateDirectory(Path.Combine(dataRoot, "config"));
 Directory.CreateDirectory(Path.Combine(dataRoot, "images"));
 Directory.CreateDirectory(Path.Combine(dataRoot, "state"));
@@ -511,10 +518,10 @@ app.MapGet("/api/capabilities", (ICommandCenter cc) => Results.Json(new
     programmingTrack = true
 }));
 
-static string DataFile(IWebHostEnvironment env, string name)
+static string DataFile(AppPaths env, string name)
     => Path.Combine(env.ContentRootPath, "data", "config", name);
 
-app.MapGet("/api/loco-counters", async (IWebHostEnvironment env) =>
+app.MapGet("/api/loco-counters", async (AppPaths env) =>
 {
     var path =
         Path.Combine(
@@ -530,7 +537,7 @@ app.MapGet("/api/loco-counters", async (IWebHostEnvironment env) =>
         "application/json");
 });
 
-app.MapPost("/api/loco-counters", async (HttpRequest req, IWebHostEnvironment env, LocoCounterRuntime counters) =>
+app.MapPost("/api/loco-counters", async (HttpRequest req, AppPaths env, LocoCounterRuntime counters) =>
 {
     JsonObject document;
 
@@ -599,13 +606,13 @@ app.MapPost("/api/loco-counters", async (HttpRequest req, IWebHostEnvironment en
         new { ok = true });
 });
 
-app.MapGet("/api/locos", async (IWebHostEnvironment env) =>
+app.MapGet("/api/locos", async (AppPaths env) =>
 {
     var p = DataFile(env, "locos.json");
     return Results.Text(File.Exists(p) ? await File.ReadAllTextAsync(p) : "[]", "application/json");
 });
 
-app.MapPost("/api/locos", async (HttpRequest req, IWebHostEnvironment env, ConfiguredCommandCenter configuredCc, LocoCounterRuntime counters, LocoStorageCoordinator locoStorage) =>
+app.MapPost("/api/locos", async (HttpRequest req, AppPaths env, ConfiguredCommandCenter configuredCc, LocoCounterRuntime counters, LocoStorageCoordinator locoStorage) =>
 {
     using var sr = new StreamReader(req.Body);
     var body = await sr.ReadToEndAsync();
@@ -812,7 +819,7 @@ app.MapPost("/api/calibration/estop", (CalibrationRuntime calibration) =>
             state = calibration.Snapshot()
         }));
 
-app.MapGet("/api/function-bindings", async (IWebHostEnvironment env) =>
+app.MapGet("/api/function-bindings", async (AppPaths env) =>
 {
     var p = DataFile(env, "function-bindings.json");
     return Results.Text(
@@ -820,7 +827,7 @@ app.MapGet("/api/function-bindings", async (IWebHostEnvironment env) =>
         "application/json");
 });
 
-app.MapPost("/api/function-bindings", async (HttpRequest req, IWebHostEnvironment env) =>
+app.MapPost("/api/function-bindings", async (HttpRequest req, AppPaths env) =>
 {
     using var sr = new StreamReader(req.Body);
     var body = await sr.ReadToEndAsync();
@@ -872,13 +879,13 @@ app.MapPost("/api/function-bindings", async (HttpRequest req, IWebHostEnvironmen
     });
 });
 
-app.MapGet("/api/layout", async (IWebHostEnvironment env) =>
+app.MapGet("/api/layout", async (AppPaths env) =>
 {
     var p = DataFile(env, "layout.json");
     return Results.Text(File.Exists(p) ? await File.ReadAllTextAsync(p) : "{}", "application/json");
 });
 
-app.MapPost("/api/layout", async (HttpRequest req, IWebHostEnvironment env, LayoutRuntime runtime, SignalAutomationEngine automation, WsHub ws) =>
+app.MapPost("/api/layout", async (HttpRequest req, AppPaths env, LayoutRuntime runtime, SignalAutomationEngine automation, WsHub ws) =>
 {
     var finalPath = DataFile(env, "layout.json");
     var tempPath = finalPath + ".upload.tmp";
@@ -938,7 +945,7 @@ app.MapPost("/api/layout", async (HttpRequest req, IWebHostEnvironment env, Layo
 
 // version.json is generated by the ESP32 web build. The native backend supplies
 // a compatible fallback if the copied React dist does not contain one.
-app.MapGet("/version.json", (IWebHostEnvironment env) =>
+app.MapGet("/version.json", (AppPaths env) =>
 {
     var physical = Path.Combine(env.WebRootPath ?? "wwwroot", "version.json");
     if (File.Exists(physical))
@@ -950,7 +957,7 @@ app.MapGet("/version.json", (IWebHostEnvironment env) =>
 // Automation storage contract: exact native equivalent of AutomationsEndpoint.
 // ESP32: /config/automations.json in LittleFS
 // .NET:  data/config/automations.json
-app.MapGet("/api/automations", async (IWebHostEnvironment env) =>
+app.MapGet("/api/automations", async (AppPaths env) =>
 {
     var path = DataFile(env, "automations.json");
     if (!File.Exists(path))
@@ -962,7 +969,7 @@ app.MapGet("/api/automations", async (IWebHostEnvironment env) =>
         System.Text.Encoding.UTF8);
 });
 
-app.MapGet("/api/automations/previous", async (IWebHostEnvironment env) =>
+app.MapGet("/api/automations/previous", async (AppPaths env) =>
 {
     var path = DataFile(env, "automations.json.previous");
 
@@ -977,7 +984,7 @@ app.MapGet("/api/automations/previous", async (IWebHostEnvironment env) =>
         System.Text.Encoding.UTF8);
 });
 
-app.MapPost("/api/automations", async (HttpRequest req, IWebHostEnvironment env, AutomationStorageCoordinator automationStorage) =>
+app.MapPost("/api/automations", async (HttpRequest req, AppPaths env, AutomationStorageCoordinator automationStorage) =>
 {
     const int maxBytes = 512 * 1024;
 
@@ -1153,14 +1160,14 @@ app.MapPost("/api/automations", async (HttpRequest req, IWebHostEnvironment env,
 
 
 // Firmware HTTP parity that is platform-neutral.
-app.MapGet("/api/signal-logic", async (IWebHostEnvironment env) =>
+app.MapGet("/api/signal-logic", async (AppPaths env) =>
 {
     var path = Path.Combine(env.ContentRootPath, "data", "config", "signal-logic.ndjson");
     if (!File.Exists(path)) return Results.Text("Not found", "text/plain", statusCode: 404);
     return Results.Text(await File.ReadAllTextAsync(path), "application/x-ndjson", System.Text.Encoding.UTF8);
 });
 
-app.MapPost("/api/signal-logic", async (HttpRequest req, IWebHostEnvironment env, SignalAutomationEngine automation) =>
+app.MapPost("/api/signal-logic", async (HttpRequest req, AppPaths env, SignalAutomationEngine automation) =>
 {
     var final = Path.Combine(env.ContentRootPath, "data", "config", "signal-logic.ndjson");
     var temp = final + ".tmp"; Directory.CreateDirectory(Path.GetDirectoryName(final)!);
@@ -1241,7 +1248,7 @@ app.MapPost("/api/emergency-stop", async (ICommandCenter cc, HubState state, WsH
 
 // Native parity endpoints used by the current React UI.
 
-app.MapGet("/api/device-config", async (IWebHostEnvironment env) =>
+app.MapGet("/api/device-config", async (AppPaths env) =>
 {
     var path = DataFile(env, "device-config.json");
     return Results.Text(
@@ -1249,7 +1256,7 @@ app.MapGet("/api/device-config", async (IWebHostEnvironment env) =>
         "application/json", System.Text.Encoding.UTF8);
 });
 
-app.MapPost("/api/device-config", async (HttpRequest req, IWebHostEnvironment env) =>
+app.MapPost("/api/device-config", async (HttpRequest req, AppPaths env) =>
 {
     const int maxBytes = 256 * 1024;
     if (req.ContentLength is > maxBytes)
@@ -1557,7 +1564,7 @@ app.MapGet("/api/script-info/events", async (HttpContext ctx, ScriptInfoStore st
 
 app.MapFallback(async ctx =>
 {
-    var index = Path.Combine(app.Environment.WebRootPath ?? "wwwroot", "index.html");
+    var index = Path.Combine(appPaths.WebRootPath ?? "wwwroot", "index.html");
     if (File.Exists(index))
     {
         ctx.Response.ContentType = "text/html; charset=utf-8";

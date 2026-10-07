@@ -86,7 +86,7 @@ public sealed record RuntimeSnapshotItem(string Type, object Data);
 public sealed class LayoutRuntime
 {
     readonly object _gate = new();
-    readonly IWebHostEnvironment _env;
+    readonly AppPaths _env;
 
     // Semantic/layout bindings. These never own authoritative physical state.
     List<RuntimeAccessory> _accessories = [];
@@ -134,7 +134,7 @@ public sealed class LayoutRuntime
         }
     }
 
-    public LayoutRuntime(IWebHostEnvironment env)
+    public LayoutRuntime(AppPaths env)
     {
         _env = env;
         Rebuild();

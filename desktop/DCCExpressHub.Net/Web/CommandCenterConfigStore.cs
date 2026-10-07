@@ -95,7 +95,7 @@ public sealed class CommandCenterConfigStore
         };
 
     public CommandCenterConfigStore(
-        IWebHostEnvironment env,
+        AppPaths env,
         IConfiguration configuration)
     {
         _configuration =

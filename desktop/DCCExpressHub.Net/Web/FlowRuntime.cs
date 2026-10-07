@@ -51,7 +51,7 @@ public sealed class FlowRuntime : BackgroundService
         EdgeDef[] Edges);
 
     readonly object _gate = new();
-    readonly IWebHostEnvironment _env;
+    readonly AppPaths _env;
     readonly LayoutRuntime _layout;
     readonly HubState _hubState;
     readonly ICommandCenter _commandCenter;
@@ -77,7 +77,7 @@ public sealed class FlowRuntime : BackgroundService
     public event Action<FlowRuntimeLog>? LogChanged;
 
     public FlowRuntime(
-        IWebHostEnvironment env,
+        AppPaths env,
         LayoutRuntime layout,
         HubState hubState,
         ICommandCenter commandCenter,

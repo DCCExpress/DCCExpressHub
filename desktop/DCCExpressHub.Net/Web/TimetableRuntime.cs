@@ -37,7 +37,7 @@ public sealed class TimetableRuntime : BackgroundService
     const long MaxCatchUpMs = 180 * MinuteMs;
 
     readonly object _gate = new();
-    readonly IWebHostEnvironment _env;
+    readonly AppPaths _env;
     readonly FastClockRuntime _fastClock;
     readonly MovementRuntime _movement;
     readonly ScriptRuntime _scripts;
@@ -59,7 +59,7 @@ public sealed class TimetableRuntime : BackgroundService
     public event Action<TimetableRuntimeState>? Changed;
 
     public TimetableRuntime(
-        IWebHostEnvironment env,
+        AppPaths env,
         FastClockRuntime fastClock,
         MovementRuntime movement,
         ScriptRuntime scripts,
