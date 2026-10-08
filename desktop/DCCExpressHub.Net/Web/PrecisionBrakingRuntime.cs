@@ -117,10 +117,21 @@ public sealed class PrecisionBrakingRuntime
             return (false, "command_center_not_ready");
         if (!_exclusive.TryEnterCalibration())
             return (false, "calibration_active");
-        lock (_sync) _ownsGate = true;
+        var preparing = new CancellationTokenSource();
+        var preparingToken = preparing.Token;
+        lock (_sync)
+        {
+            _ownsGate = true;
+            _cts = preparing;
+            _active = request;
+            _status = "preparing";
+            _error = null;
+            _referenceSensor = null;
+        }
         var started = false;
         try
         {
+            preparingToken.ThrowIfCancellationRequested();
             if (Busy()) return (false, "automation_active");
             if (!File.Exists(LocoFile)) return (false, "locomotive_data_missing");
             var root = JsonNode.Parse(await File.ReadAllTextAsync(LocoFile)) as JsonArray;
@@ -171,11 +182,12 @@ public sealed class PrecisionBrakingRuntime
             // A command acknowledgment alone does not prove mechanical position.
             foreach (var turnout in turnoutStates)
             {
+                preparingToken.ThrowIfCancellationRequested();
                 if (!_commandCenter.Connected)
                     return (false, "command_center_disconnected");
-                if (!await _commandCenter.SetTurnoutAsync(turnout.Key, turnout.Value))
+                if (!await _commandCenter.SetTurnoutAsync(turnout.Key, turnout.Value, preparingToken))
                     return (false, "braking_turnout_command_failed");
-                await Task.Delay(250);
+                await Task.Delay(250, preparingToken);
                 if (!_layout.TryGetTurnoutClosed(turnout.Key, out var closed)
                     || closed != turnout.Value)
                     return (false, "braking_turnout_unverified");
@@ -217,10 +229,10 @@ public sealed class PrecisionBrakingRuntime
                     }
                     catch (JsonException) { }
 
+            preparingToken.ThrowIfCancellationRequested();
             lock (_sync)
             {
-                if (_cts is not null) return (false, "braking_trial_already_running");
-                _active = request;
+                preparingToken.ThrowIfCancellationRequested();
                 _referenceSensor = referenceSensor;
                 _currentSpeedMmS = speed.Value;
                 _trials = learned;
@@ -228,19 +240,19 @@ public sealed class PrecisionBrakingRuntime
                 _actual = null;
                 _error = null;
                 _status = "armed";
-                _cts = new CancellationTokenSource();
             }
 
             // The operator must place the locomotive BEFORE the reference sensor.
             // Stop immediately if issuing the initial speed command fails.
+            preparingToken.ThrowIfCancellationRequested();
             if (!await _commandCenter.SetLocoAsync(request.LocoAddress,
-                    request.SpeedStep, actualRoute.Direction == "forward"))
+                    request.SpeedStep, actualRoute.Direction == "forward", preparingToken))
             {
                 await StopAsync();
                 return (false, "locomotive_command_failed");
             }
             started = true;
-            var watchdogToken = _cts!.Token;
+            var watchdogToken = preparingToken;
             _ = Task.Run(async () =>
             {
                 try
@@ -262,6 +274,10 @@ public sealed class PrecisionBrakingRuntime
                 catch (ObjectDisposedException) { }
             });
             return (true, "");
+        }
+        catch (OperationCanceledException)
+        {
+            return (false, "braking_trial_cancelled");
         }
         catch (Exception ex)
         {
@@ -579,7 +595,7 @@ public sealed class PrecisionBrakingRuntime
         {
             trial = _active;
             _cts?.Cancel();
-            if (_status is "armed" or "braking" or "saving" or "return_preparing" or "returning")
+            if (_status is "preparing" or "armed" or "braking" or "saving" or "return_preparing" or "returning")
                 _status = "stopped";
         }
         if (trial is not null)
