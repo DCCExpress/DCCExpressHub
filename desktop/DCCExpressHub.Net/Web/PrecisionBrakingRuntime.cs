@@ -419,50 +419,22 @@ public sealed class PrecisionBrakingRuntime
     {
         try
         {
-            // v² = 2as; compute the target deceleration from measured mm/s.
-            // A stepwise throttle ramp is bounded by time and commanded to zero.
-            var initial = _currentSpeedMmS;
-            var seconds = 2 * trial.TargetDistanceMm / initial;
-            var estimated = PrecisionBrakingProfile.EstimatedStopDistance(
-                PrecisionBrakingProfile.Learn(_trials),
-                trial.RouteRef.Direction, initial);
-            if (estimated is > 0)
-                seconds *= Math.Clamp(trial.TargetDistanceMm / estimated.Value,
-                    0.6, 1.3);
-            seconds = Math.Clamp(seconds, 0.35, 8.0);
-            var segments = Math.Clamp(trial.SpeedStep, 1, 25);
-            var previousStep = trial.SpeedStep;
-            for (var i = 1; i <= segments; i++)
-            {
-                token.ThrowIfCancellationRequested();
-                var remaining = 1 - (double)i / segments;
-                var requestedMmS = initial * remaining;
-                var targetStep = 0;
-                if (i < segments)
-                {
-                    for (var candidate = 1; candidate <= previousStep; candidate++)
-                    {
-                        var calibratedMmS = PrecisionBrakingProfile.SpeedAtStep(
-                            _speedPoints, candidate);
-                        if (calibratedMmS.HasValue &&
-                            calibratedMmS.Value <= requestedMmS)
-                            targetStep = candidate;
-                    }
-                }
-                previousStep = targetStep;
-                if (!await _commandCenter.SetLocoAsync(trial.LocoAddress,
-                        targetStep, trial.RouteRef.Direction == "forward", token))
-                    throw new InvalidOperationException("braking_command_failed");
-                if (i < segments)
-                    await Task.Delay(TimeSpan.FromSeconds(seconds / segments), token);
-            }
+            // Establish the physical minimum stopping distance first.
+            // Never run the old multi-second step ramp here: it can create
+            // artificial overshoot even when the decoder brakes promptly.
+            // A normal speed=0 is NOT a global emergency stop.
+            token.ThrowIfCancellationRequested();
+            if (!await _commandCenter.SetLocoAsync(
+                    trial.LocoAddress, 0,
+                    trial.RouteRef.Direction == "forward", token))
+                throw new InvalidOperationException("braking_command_failed");
             lock (_sync)
                 if (_status == "braking") _status = "measure";
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            _log.LogError(ex, "Braking ramp failed");
+            _log.LogError(ex, "Precision braking stop command failed");
             lock (_sync)
             {
                 _error = ex.Message;
