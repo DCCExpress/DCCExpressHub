@@ -151,6 +151,18 @@ public sealed class PrecisionBrakingRuntime
             });
             if (plan.Legs.Length == 0 || plan.Direction != actualRoute.Direction)
                 return (false, "braking_route_invalid");
+            // Validate the return route before departing, not after the trial.
+            var returnRoute = Reverse(actualRoute);
+            var returnPlan = _planBuilder.Build(new MovementPageModel
+            {
+                Id = "precision-braking-return-preflight",
+                Name = "Precision Braking return",
+                RouteRef = returnRoute,
+                ExpectedLocoAddress = request.LocoAddress
+            });
+            if (returnPlan.Legs.Length == 0 ||
+                returnPlan.Direction != returnRoute.Direction)
+                return (false, "braking_return_route_invalid");
             // Fail closed when the route's actual starting block does not
             // contain the locomotive selected in the editor.
             var startBlock = _layout.BlocksForPersistence()
