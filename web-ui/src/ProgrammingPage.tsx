@@ -287,6 +287,40 @@ function DccExProgrammingPage({
 
       setResult(response);
 
+      // DCC-EX service-track writes acknowledge the requested CV, but
+      // follow them with an independent read to detect ACK/decoder failures.
+      // Never report a successful write if the decoder still holds the old value.
+      if (action === "writeCv" && response.ok) {
+        const requestedCv = values.cv;
+        const requestedValue = values.value;
+        if (requestedCv !== undefined && requestedValue !== undefined) {
+          try {
+            const verify = await wsApi.programmingRequest(
+              `${requestId}-verify`, "readCv", { cv: requestedCv },
+              30000,
+            );
+            const verified = verify.ok && verify.value === requestedValue;
+            setResult({
+              ...response,
+              ok: verified,
+              message: verified
+                ? `CV${requestedCv} = ${requestedValue} written and independently read back.`
+                : `CV${requestedCv} write NOT verified: requested ${requestedValue}, read back ${verify.ok ? String(verify.value) : "failed"}. Write reply: ${response.raw ?? "n/a"}. Read reply: ${verify.raw ?? verify.message ?? "n/a"}.`,
+              raw: verify.raw ?? response.raw,
+              value: verify.ok ? verify.value : undefined,
+            });
+            if (verified) setCvValue(requestedValue);
+          } catch (verifyError) {
+            setResult({
+              ...response,
+              ok: false,
+              message: `CV${requestedCv} write acknowledged but independent read-back failed: ${verifyError instanceof Error ? verifyError.message : String(verifyError)}. Write reply: ${response.raw ?? "n/a"}.`,
+            });
+          }
+          return;
+        }
+      }
+
       if (
         response.ok &&
         typeof response.value === "number" &&
