@@ -275,27 +275,8 @@ public sealed class PrecisionBrakingRuntime
                 return (false, "locomotive_command_failed");
             }
             started = true;
-            var watchdogToken = preparingToken;
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await Task.Delay(TimeSpan.FromSeconds(30), watchdogToken);
-                    bool timedOut;
-                    lock (_sync) timedOut = _status == "armed" && _active == request;
-                    if (timedOut)
-                    {
-                        await StopAsync();
-                        lock (_sync)
-                        {
-                            _status = "error";
-                            _error = "reference_sensor_timeout";
-                        }
-                    }
-                }
-                catch (OperationCanceledException) { }
-                catch (ObjectDisposedException) { }
-            });
+            // Supervised calibration: the operator retains Stop and E-STOP
+            // control while waiting for a physical reference-sensor report.
             return (true, "");
         }
         catch (OperationCanceledException)
@@ -545,8 +526,8 @@ public sealed class PrecisionBrakingRuntime
                 trial.LocoAddress, speed, trial.RouteRef.Direction != "forward", token))
                 throw new InvalidOperationException("braking_return_command_failed");
 
-            // Returning must stop even if the sensor is never reported.
-            await arrival.Task.WaitAsync(TimeSpan.FromSeconds(30), token);
+            // Operator-supervised return; Stop and E-STOP remain available.
+            await arrival.Task.WaitAsync(token);
             if (!await _commandCenter.SetLocoAsync(
                 trial.LocoAddress, 0, trial.RouteRef.Direction != "forward"))
                 throw new InvalidOperationException("braking_return_stop_failed");
@@ -564,8 +545,7 @@ public sealed class PrecisionBrakingRuntime
             lock (_sync)
             {
                 _status = "error";
-                _error = ex is TimeoutException
-                    ? "braking_return_sensor_timeout" : ex.Message;
+                _error = ex.Message;
             }
             try { await _commandCenter.EmergencyStopAsync(); }
             catch (Exception stopEx)
