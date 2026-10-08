@@ -832,8 +832,16 @@ export default function LocoCalibrationTab({
   const chartX = (speed: number) => 55 + (speed / chartMaxX) * 710;
   const chartY = (value: number) => 270 - (value / chartMaxY) * 225;
 
+  const hasSpeedProfile = (loco.calibration?.results.length ?? 0) > 0;
+
   return (
     <>
+      <Tabs defaultValue="speed" keepMounted>
+        <Tabs.List mb="sm">
+          <Tabs.Tab value="speed">Speed Calibration</Tabs.Tab>
+          <Tabs.Tab value="braking">Precision Braking</Tabs.Tab>
+        </Tabs.List>
+        <Tabs.Panel value="speed">
       <ScrollArea
         h="100%"
         type="auto"
@@ -1361,6 +1369,45 @@ export default function LocoCalibrationTab({
           </Card>
         </Stack>
       </ScrollArea>
+        </Tabs.Panel>
+        <Tabs.Panel value="braking">
+          <Stack gap="md">
+            <Alert color="blue" title="Precision Braking – Experimental">
+              The precision braking calibration is planned as a separate
+              procedure using the existing speed calibration results.
+              It does not change the current Movement or braking behavior.
+            </Alert>
+            <Card withBorder p="md">
+              <Stack gap="sm">
+                <Text fw={700}>Speed profile prerequisite</Text>
+                {hasSpeedProfile ? (
+                  <Group gap="xs">
+                    <Badge color="green">Available</Badge>
+                    <Text size="sm">
+                      {loco.calibration?.results.length} measured speed points
+                    </Text>
+                  </Group>
+                ) : (
+                  <Alert color="orange">
+                    Run Speed Calibration first to create a measured speed profile.
+                  </Alert>
+                )}
+                <Text size="sm" c="dimmed">
+                  The future brake-learning procedure will use an ARRIVED sensor
+                  as its reference, a configurable target stopping distance in
+                  millimeters, and a manually measured stopping distance after
+                  each trial. Trials will refine a locomotive-specific braking
+                  profile without changing the speed calibration.
+                </Text>
+                <Text size="sm" c="dimmed">
+                  Brake trials are not enabled yet; no new locomotive commands
+                  are issued from this tab.
+                </Text>
+              </Stack>
+            </Card>
+          </Stack>
+        </Tabs.Panel>
+      </Tabs>
 
       <AppModal
         opened={
