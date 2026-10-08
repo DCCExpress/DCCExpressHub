@@ -28,6 +28,7 @@ public sealed class YaMoRcLocoNetClient
     private readonly int _sensorOffset;
 
     private readonly object _stateGate = new();
+    private readonly Dictionary<int, bool> _loggedSensorStates = new();
     private readonly SemaphoreSlim _interrogateGate = new(1, 1);
 
     private bool _lbServerConnected;
@@ -88,6 +89,8 @@ public sealed class YaMoRcLocoNetClient
                 0,
                 MaxSensorOffset);
     }
+
+    public int SensorOffset => _sensorOffset;
 
     public event Action<string>? RawInfo;
     public event Action<int, bool>? SensorFeedbackChanged;
@@ -1073,17 +1076,23 @@ public sealed class YaMoRcLocoNetClient
                 ? 1
                 : 0);
 
+        bool changed;
         lock (_stateGate)
-            _lastSensorFeedbackUtc =
-                DateTime.UtcNow;
+        {
+            _lastSensorFeedbackUtc = DateTime.UtcNow;
+            changed = !_loggedSensorStates.TryGetValue(address, out var previous)
+                || previous != occupied;
+            _loggedSensorStates[address] = occupied;
+        }
 
-        _log.LogDebug(
-            "YaMoRC LocoNet/S88 raw #{RawAddress} -> Hub #{Address}: {State}",
-            rawAddress,
-            address,
-            occupied
-                ? "ON"
-                : "OFF");
+        // A small, actionable source log: one line per state transition,
+        // not one line per repeat packet. The R-BUS path logs separately.
+        if (changed)
+            _log.LogInformation(
+                "YaMoRC LocoNet/S88 sensor raw #{RawAddress} -> Hub #{Address}: {State}",
+                rawAddress,
+                address,
+                occupied ? "ON" : "OFF");
 
         SensorFeedbackChanged?.Invoke(
             address,
