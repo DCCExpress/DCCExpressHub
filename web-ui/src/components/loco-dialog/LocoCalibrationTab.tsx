@@ -54,6 +54,7 @@ import {
 
 import AppModal from "@/components/common/AppModal";
 import PrecisionBrakingPanel from "./PrecisionBrakingPanel";
+import DecoderProfilePanel from "./DecoderProfilePanel";
 
 type Props = {
   loco: Loco;
@@ -845,6 +846,7 @@ export default function LocoCalibrationTab({
         <Tabs.List mb="sm" style={{ flexShrink: 0 }}>
           <Tabs.Tab value="speed">Speed Calibration</Tabs.Tab>
           <Tabs.Tab value="braking">Precision Braking</Tabs.Tab>
+          <Tabs.Tab value="decoder">Decoder Profile</Tabs.Tab>
         </Tabs.List>
         <Tabs.Panel value="speed" style={{ flex: 1, minHeight: 0 }}>
       <ScrollArea
@@ -1379,6 +1381,9 @@ export default function LocoCalibrationTab({
           <ScrollArea h="100%" type="auto" offsetScrollbars>
             <PrecisionBrakingPanel loco={loco} onPatch={onPatch} />
           </ScrollArea>
+        </Tabs.Panel>
+        <Tabs.Panel value="decoder" style={{ flex: 1, minHeight: 0 }}>
+          <DecoderProfilePanel loco={loco} onPatch={onPatch} />
         </Tabs.Panel>
       </Tabs>
 
