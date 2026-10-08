@@ -2662,7 +2662,7 @@ public sealed class WsHub
             if (_pendingProgramming != null) { _ = Fail("Another decoder programming request is already running."); return; }
 
         string cmd; int expectedCv = -1; bool wait = true;
-        if (action == "readAddress") cmd = "<R>";
+        if (action == "readAddress") cmd = "<R LOCOID>";
         else if (action == "writeAddress")
         {
             int address = I(d, "address"); if (address <= 0 || address > 10239) { await Fail("Invalid locomotive address."); return; }
@@ -2750,51 +2750,67 @@ public sealed class WsHub
 
         if (p == null || raw.Length < 4 || !raw.EndsWith('>')) return;
 
+        // DCC-EX <R LOCOID> responds <r LOCOID address>, unlike
+        // <R> (which may return an active consist address).
+        // CV reads respond <v cv value>; address writes respond <w address>.
         bool isR = raw.StartsWith("<r ", StringComparison.Ordinal);
         bool isV = raw.StartsWith("<v ", StringComparison.Ordinal);
-
-        if (!isR && !isV) return;
-        if (p.Action == "readCv" && !isV) return;
-        if ((p.Action == "readAddress" || p.Action == "writeAddress" || p.Action == "writeCv") && !isR) return;
-
-        var body = raw.Substring(3, raw.Length - 4).Trim();
-        var parts = body.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
-
-        if (parts.Length < 1 || !long.TryParse(parts[0], out var first)) return;
-
-        long second = -1;
-        bool hasSecond = parts.Length > 1 && long.TryParse(parts[1], out second);
-
-        if (p.Action is "readAddress" or "writeAddress")
+        bool isW = raw.StartsWith("<w ", StringComparison.Ordinal);
+        if (p.Action == "readAddress")
         {
-            bool ok = first >= 0;
+            if (!isR) return;
+            var body = raw.Substring(3, raw.Length - 4).Trim();
+            var parts = body.Split((char[]?)null,
+                StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length != 2 ||
+                !string.Equals(parts[0], "LOCOID",
+                    StringComparison.OrdinalIgnoreCase) ||
+                !int.TryParse(parts[1], out var address)) return;
+
+            bool ok = address is >= 1 and <= 10239;
             ClearPendingProgramming(p.Token);
             _ = SendProgrammingResponse(
-                p.RequestId,
-                p.Action,
-                ok,
-                ok ? "Decoder address operation completed." : "Decoder address operation failed.",
-                ok ? (int)first : -1,
-                raw);
+                p.RequestId, p.Action, ok,
+                ok ? "Decoder's own address read successfully."
+                   : $"DCC-EX decoder address read failed ({address}).",
+                ok ? address : -1, raw);
             return;
         }
 
-        if (p.Action is "readCv" or "writeCv")
+        if (p.Action == "writeAddress")
         {
-            if (!hasSecond) return;
-            if (p.ExpectedCv >= 0 && first != p.ExpectedCv) return;
-
-            bool ok = second >= 0;
+            if (!isW) return;
+            var body = raw.Substring(3, raw.Length - 4).Trim();
+            if (!int.TryParse(body, out var address)) return;
+            bool ok = address is >= 1 and <= 10239;
             ClearPendingProgramming(p.Token);
-
             _ = SendProgrammingResponse(
-                p.RequestId,
-                p.Action,
-                ok,
-                ok ? "CV operation completed." : "CV operation failed.",
-                ok ? (int)second : -1,
-                raw);
+                p.RequestId, p.Action, ok,
+                ok ? "Decoder address written and verified."
+                   : $"DCC-EX address write failed ({address}).",
+                ok ? address : -1, raw);
+            return;
         }
+
+        if (p.Action == "readCv" && !isV) return;
+        if (p.Action == "writeCv" && !isR) return;
+        if (p.Action is not ("readCv" or "writeCv")) return;
+
+        var payload = raw.Substring(3, raw.Length - 4).Trim();
+        var cvParts = payload.Split((char[]?)null,
+            StringSplitOptions.RemoveEmptyEntries);
+        if (cvParts.Length != 2 ||
+            !int.TryParse(cvParts[0], out var cv) ||
+            !int.TryParse(cvParts[1], out var value) ||
+            cv != p.ExpectedCv) return;
+
+        bool success = value is >= 0 and <= 255;
+        ClearPendingProgramming(p.Token);
+        _ = SendProgrammingResponse(
+            p.RequestId, p.Action, success,
+            success ? "CV operation completed."
+                    : $"DCC-EX CV operation failed ({value}).",
+            success ? value : -1, raw);
     }
 
     private Task SendProgrammingResponse(
