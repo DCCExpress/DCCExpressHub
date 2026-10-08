@@ -43,6 +43,29 @@ public sealed partial class WatsonWebServerService
         Add(
             server,
             WatsonHttpMethod.GET,
+            "/api/decoder-profiles",
+            async ctx =>
+            {
+                await SendAsync(ctx,
+                    await Service<LocomotiveConfigApi>()
+                        .GetDecoderProfilesAsync(ctx.Token));
+            });
+
+        Add(
+            server,
+            WatsonHttpMethod.POST,
+            "/api/decoder-profiles",
+            async ctx =>
+            {
+                using var input = await ReadBodyStreamAsync(ctx);
+                await SendAsync(ctx,
+                    await Service<LocomotiveConfigApi>()
+                        .SaveDecoderProfileAsync(input, ctx.Token));
+            });
+
+        Add(
+            server,
+            WatsonHttpMethod.GET,
             "/api/locos",
             async ctx =>
             {
