@@ -43,7 +43,12 @@ function CvCurve({ values }: { values: Record<number, Result> }) {
     <Stack gap="xs">
       <Group justify="space-between">
         <Title order={5}>Extended speed table · CV67–94</Title>
-        <Badge variant="outline">{present.length}/28 read</Badge>
+        <Group gap="xs">
+          <Badge color={values[29]?.value === undefined ? "gray" : (values[29].value! & 0x10) !== 0 ? "green" : "orange"}>
+            {values[29]?.value === undefined ? "UNKNOWN · read CV29" : (values[29].value! & 0x10) !== 0 ? "IN USE" : "NOT IN USE"}
+          </Badge>
+          <Badge variant="outline">{present.length}/28 read</Badge>
+        </Group>
       </Group>
       <svg viewBox="0 0 660 260" role="img" aria-label="Extended decoder speed-table CV67 to CV94">
         {[0,64,128,192,255].map(v =>
