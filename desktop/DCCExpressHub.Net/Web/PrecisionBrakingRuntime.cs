@@ -18,7 +18,8 @@ public sealed class PrecisionBrakingRuntime
         string? LocoId, int? LocoAddress, int? SensorAddress,
         string? Direction, int? SpeedStep, double? SpeedMmPerSecond,
         double? TargetDistanceMm, double? ActualDistanceMm,
-        IReadOnlyList<PrecisionBrakingProfile.LearnedPoint> Profile);
+        IReadOnlyList<PrecisionBrakingProfile.LearnedPoint> Profile,
+        double CommandedRampSeconds);
     readonly object _sync = new();
     readonly ICommandCenter _commandCenter;
     readonly AutomationExclusiveGate _exclusive;
@@ -80,7 +81,7 @@ public sealed class PrecisionBrakingRuntime
                 _active?.RouteRef.Direction, _active?.SpeedStep,
                 _active is null ? null : _currentSpeedMmS,
                 _active?.TargetDistanceMm, _actual,
-                PrecisionBrakingProfile.Learn(_trials));
+                PrecisionBrakingProfile.Learn(_trials), _commandedRampSeconds);
     }
 
     bool Busy() =>
