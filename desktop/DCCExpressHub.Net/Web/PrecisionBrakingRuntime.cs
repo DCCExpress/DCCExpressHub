@@ -96,6 +96,57 @@ public sealed class PrecisionBrakingRuntime
         root.OfType<JsonObject>().FirstOrDefault(
             loco => string.Equals(loco["id"]?.GetValue<string>(), id, StringComparison.Ordinal));
 
+    public async Task<(bool Ok, string Error)> ResetProfileAsync(string locoId)
+    {
+        if (string.IsNullOrWhiteSpace(locoId))
+            return (false, "invalid_locomotive_id");
+        // Never erase a live trial, its return run, or an in-flight save.
+        lock (_sync)
+            if (_cts is not null || _status is "preparing" or "armed"
+                or "braking" or "measure" or "saving" or "return_preparing"
+                or "returning")
+                return (false, "braking_trial_active");
+
+        try
+        {
+            return await _storage.ExecuteAsync(async () =>
+            {
+                if (!File.Exists(LocoFile))
+                    return (false, "locomotive_data_missing");
+                var root = JsonNode.Parse(await File.ReadAllTextAsync(LocoFile)) as JsonArray;
+                var loco = root is null ? null : FindLoco(root, locoId);
+                if (loco is null)
+                    return (false, "locomotive_not_found");
+
+                // Preserve the selected route and all other locomotive data.
+                var data = loco["precisionBraking"] as JsonObject;
+                if (data is not null)
+                {
+                    data["trials"] = new JsonArray();
+                    data["updatedAt"] = DateTimeOffset.UtcNow.ToString("O");
+                    var temp = LocoFile + ".precisionbraking-reset.tmp";
+                    await File.WriteAllTextAsync(temp, root!.ToJsonString());
+                    File.Move(temp, LocoFile, true);
+                }
+                lock (_sync)
+                {
+                    // Do not let an old locomotive's profile bleed into the next one.
+                    _trials.Clear();
+                    _actual = null;
+                    if (_active?.LocoId == locoId) _active = null;
+                    _error = null;
+                    _status = "idle";
+                }
+                return (true, "");
+            });
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Failed resetting braking profile for {LocoId}", locoId);
+            return (false, "braking_profile_reset_failed");
+        }
+    }
+
     public async Task<(bool Ok, string Error)> StartAsync(TrialRequest request)
     {
         if (!request.IsolatedTestTrackConfirmed)
