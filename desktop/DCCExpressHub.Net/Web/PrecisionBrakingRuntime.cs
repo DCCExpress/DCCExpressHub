@@ -182,6 +182,23 @@ public sealed class PrecisionBrakingRuntime
                 return (false, "braking_target_block_sensor_missing");
             var referenceSensor = targetBlock.SensorAddress;
 
+            // Reject missing feedback before touching any turnouts. The same
+            // state is rechecked below immediately before sending throttle.
+            if (!_layout.TryGetSensorState(referenceSensor, out var initialSensorOn))
+            {
+                _log.LogWarning(
+                    "Precision Braking preflight: reference sensor #{Sensor} is UNKNOWN before turnout commands",
+                    referenceSensor);
+                return (false, $"reference_sensor_unknown_{referenceSensor}");
+            }
+            if (initialSensorOn)
+            {
+                _log.LogWarning(
+                    "Precision Braking preflight: reference sensor #{Sensor} is ON before turnout commands",
+                    referenceSensor);
+                return (false, $"reference_sensor_occupied_{referenceSensor}");
+            }
+
             var rows = loco["calibration"]?["results"] as JsonArray;
             if (rows is null || rows.Count == 0)
                 return (false, "speed_calibration_required");
