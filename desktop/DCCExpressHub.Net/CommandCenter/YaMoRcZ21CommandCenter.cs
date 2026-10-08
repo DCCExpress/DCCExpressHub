@@ -113,8 +113,14 @@ public sealed class YaMoRcZ21CommandCenter : RocoZ21CommandCenter
             await _locoNet.RequestSensorSnapshotAsync(
                 ct);
 
+        // The LBServer feedback stream may have stayed connected during
+        // the Z21 UDP outage. Its known states are still live, but the Hub
+        // dropped their shared sensor cache on disconnect. Replay them.
+        var replayed = _locoNet.ReplayLiveSensorStates();
+
         return
             z21 ||
-            locoNet;
+            locoNet ||
+            replayed > 0;
     }
 }
