@@ -84,6 +84,8 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [activeCv, setActiveCv] = useState<number | null>(null);
   const [fileName, setFileName] = useState("dcc-decoder-profile");
+  const [locoAddress, setLocoAddress] = useState<number | string>(3);
+  const [savedMessage, setSavedMessage] = useState("");
   const [error, setError] = useState("");
   const [customStart, setCustomStart] = useState<number | string>(1);
   const [customEnd, setCustomEnd] = useState<number | string>(1024);
@@ -136,6 +138,46 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
     .sort((a,b) => a.cv-b.cv), [results]);
   const successful = rows.filter(row => row.result.value !== undefined);
   const cv29 = results[29]?.value;
+  const identifier = {
+    manufacturerId: results[8]?.value ?? null,
+    decoderVersion: results[7]?.value ?? null,
+    userId1: results[105]?.value ?? null,
+    userId2: results[106]?.value ?? null,
+    addressFromCv: results[29]?.value === undefined ? null :
+      (results[29].value! & 0x20) !== 0
+        ? (results[17]?.value !== undefined && results[18]?.value !== undefined
+          ? ((results[17].value! & 0x3f) << 8) | results[18].value! : null)
+        : results[1]?.value ?? null,
+    verifiedUnique: false,
+  };
+  const currentProfile = () => ({
+    schemaVersion: 1,
+    type: "dcc-decoder-cv-profile",
+    address: Number(locoAddress),
+    readMode: "service-programming-track",
+    readAt: new Date().toISOString(),
+    identity: identifier,
+    cvValues: Object.fromEntries(successful.map(({cv,result}) => [String(cv),result.value!])),
+    failed: rows.filter(row => row.result.error).map(row => ({cv:row.cv,error:row.result.error})),
+  });
+  const saveToHub = async () => {
+    const address = Number(locoAddress);
+    if (!Number.isInteger(address) || address < 1 || address > 10239) {
+      setError("Enter a valid locomotive address."); return;
+    }
+    if (!successful.length) { setError("Nothing has been read successfully."); return; }
+    try {
+      const response = await fetch("/api/decoder-profiles", {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(currentProfile()),
+      });
+      if (!response.ok) throw new Error(`Profile save failed (HTTP ${response.status})`);
+      setSavedMessage(`Saved to Hub: config/profiles/loco-${address}.json`);
+      setError("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  };
   const exportProfile = () => {
     if (!successful.length) { setError("Nothing has been read successfully."); return; }
     const safeName = fileName.trim().replace(/[\\/:*?"<>|]/g, "_");
@@ -148,6 +190,7 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
       schemaVersion: 1, type: "dcc-decoder-cv-profile", exportedAt: new Date().toISOString(),
       readMode: "service-programming-track", requested: rows.length,
       cvRange: { min: rows[0]?.cv ?? 1, max: rows[rows.length-1]?.cv ?? MAX_CV },
+      identity: identifier, address: Number(locoAddress),
       values: data, failed: rows.filter(row => row.result.error)
         .map(row => ({ cv: row.cv, error: row.result.error })),
     }, null, 2);
@@ -218,14 +261,21 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
             {cv === 3 ? " acceleration" : " braking"}
           </Badge>)}
         </Group>
-        <Text size="xs" c="dimmed">
-          A physical brake-distance curve cannot be reconstructed from CV4 alone.
-          Decoder-specific constant-distance braking CVs require the decoder manual.
-        </Text>
+        <Text size="sm">CV3 — Acceleration delay: a larger value means slower acceleration (more inertia), not stronger acceleration.</Text>
+        <Text size="sm">CV4 — Braking delay: a larger value means slower deceleration and generally longer stopping distance. A smaller value usually shortens it.</Text>
+        <Text size="xs" c="dimmed">These are decoder momentum settings, not measured acceleration or braking distances. A physical brake-distance curve cannot be reconstructed from CV4 alone. Manufacturer-specific constant-distance settings may also apply.</Text>
       </Stack>
     </Card>
     <Card withBorder>
       <Stack gap="sm">
+        <Title order={5}>Decoder identification and Hub storage</Title>
+        <Text size="sm">Decoder manufacturer CV8: {identifier.manufacturerId ?? "not read"} · version CV7: {identifier.decoderVersion ?? "not read"} · user IDs CV105/106: {identifier.userId1 ?? "?"}/{identifier.userId2 ?? "?"}</Text>
+        <Text size="xs" c="dimmed">No universal unique decoder serial number is defined by these CVs. Address and manufacturer/version are clues, not proof that the same physical decoder is present. Read CV1/17/18/29/7/8/105/106 to include available identification.</Text>
+        <Group align="end">
+          <NumberInput label="Locomotive DCC address" min={1} max={10239} value={locoAddress} onChange={setLocoAddress} w={190}/>
+          <Button onClick={() => void saveToHub()} disabled={!successful.length}>Save to Hub profiles</Button>
+        </Group>
+        {savedMessage && <Text size="sm" c="green">{savedMessage}</Text>}
         <Title order={5}>Export decoder profile</Title>
         <Group align="end">
           <TextInput label="Export filename" value={fileName} onChange={e => setFileName(e.currentTarget.value)}
