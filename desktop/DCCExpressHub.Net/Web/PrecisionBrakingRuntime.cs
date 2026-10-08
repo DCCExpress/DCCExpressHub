@@ -308,6 +308,8 @@ public sealed class PrecisionBrakingRuntime
                     _cts = null;
                     _active = null;
                     _referenceSensor = null;
+                    if (_status == "preparing")
+                        _status = "error";
                 }
                 ReleaseGate();
             }
