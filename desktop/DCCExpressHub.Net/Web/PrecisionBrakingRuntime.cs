@@ -11,7 +11,7 @@ namespace DCCExpressHub.Net.Web;
 public sealed class PrecisionBrakingRuntime
 {
     public sealed record TrialRequest(string LocoId, int LocoAddress,
-        int SensorAddress, int SpeedStep, string Direction,
+        MovementRouteRefModel RouteRef, int SpeedStep,
         double TargetDistanceMm, bool IsolatedTestTrackConfirmed);
     public sealed record TrialMeasurement(double ActualDistanceMm);
     public sealed record TrialState(string Status, string? Error,
@@ -34,6 +34,7 @@ public sealed class PrecisionBrakingRuntime
     readonly ILogger<PrecisionBrakingRuntime> _log;
     CancellationTokenSource? _cts;
     bool _ownsGate;
+    int? _referenceSensor;
     int? _returnSensor;
     TaskCompletionSource<bool>? _returnArrival;
     TrialRequest? _active;
@@ -74,8 +75,8 @@ public sealed class PrecisionBrakingRuntime
     {
         lock (_sync)
             return new TrialState(_status, _error, _active?.LocoId,
-                _active?.LocoAddress, _active?.SensorAddress,
-                _active?.Direction, _active?.SpeedStep,
+                _active?.LocoAddress, _referenceSensor,
+                _active?.RouteRef.Direction, _active?.SpeedStep,
                 _active is null ? null : _currentSpeedMmS,
                 _active?.TargetDistanceMm, _actual,
                 PrecisionBrakingProfile.Learn(_trials));
@@ -101,9 +102,12 @@ public sealed class PrecisionBrakingRuntime
             return (false, "isolated_test_track_confirmation_required");
         if (string.IsNullOrWhiteSpace(request.LocoId) ||
             request.LocoAddress is < 1 or > 9999 ||
-            request.SensorAddress is < 1 or > 65535 ||
+            request.RouteRef is null ||
+            request.RouteRef.FromBlockId is < 1 or > 65535 ||
+            request.RouteRef.ToBlockId is < 1 or > 65535 ||
+            request.RouteRef.FromBlockId == request.RouteRef.ToBlockId ||
+            request.RouteRef.Direction is not ("forward" or "reverse") ||
             request.SpeedStep is < 1 or > 126 ||
-            request.Direction is not ("forward" or "reverse") ||
             !double.IsFinite(request.TargetDistanceMm) ||
             request.TargetDistanceMm is < 10 or > 10000)
             return (false, "invalid_braking_trial");
@@ -123,22 +127,10 @@ public sealed class PrecisionBrakingRuntime
             var loco = root is null ? null : FindLoco(root, request.LocoId);
             if (loco is null || loco["address"]?.GetValue<int>() != request.LocoAddress)
                 return (false, "locomotive_not_found");
-            // The persisted calibration route is resolved against the current
-            // authoritative topology; never trust client-supplied turnout states.
-            var savedRoute = loco["calibration"]?["routeRef"]?
-                .Deserialize<MovementRouteRefModel>(
-                    new JsonSerializerOptions(JsonSerializerDefaults.Web));
-            if (savedRoute is null)
-                return (false, "calibration_route_missing");
-            var actualRoute = request.Direction == savedRoute.Direction
-                ? savedRoute
-                : new MovementRouteRefModel
-                {
-                    FromBlockId = savedRoute.ToBlockId,
-                    ToBlockId = savedRoute.FromBlockId,
-                    Direction = request.Direction,
-                    ViaBlockIds = (savedRoute.ViaBlockIds ?? []).Reverse().ToArray()
-                };
+            // Route is selected explicitly in Precision Braking. Only the
+            // authoritative persisted route graph determines its physical path.
+            // Speed Calibration's saved route is not used for route authority.
+            var actualRoute = request.RouteRef;
             var plan = _planBuilder.Build(new MovementPageModel
             {
                 Id = "precision-braking-route-validation",
@@ -146,7 +138,7 @@ public sealed class PrecisionBrakingRuntime
                 RouteRef = actualRoute,
                 ExpectedLocoAddress = request.LocoAddress
             });
-            if (plan.Legs.Length == 0 || plan.Direction != request.Direction)
+            if (plan.Legs.Length == 0 || plan.Direction != actualRoute.Direction)
                 return (false, "braking_route_invalid");
             // Fail closed when the route's actual starting block does not
             // contain the locomotive selected in the editor.
@@ -158,6 +150,14 @@ public sealed class PrecisionBrakingRuntime
                 !string.Equals(startBlock.LocoId, request.LocoId,
                     StringComparison.Ordinal))
                 return (false, "braking_start_block_locomotive_mismatch");
+
+            // ARRIVED reference is derived from the selected route's target
+            // block occupancy sensor, never supplied as a user-entered address.
+            var targetBlock = _layout.BlocksForPersistence()
+                .FirstOrDefault(block => block.Id == actualRoute.ToBlockId);
+            if (targetBlock is null || targetBlock.SensorAddress == 0)
+                return (false, "braking_target_block_sensor_missing");
+            var referenceSensor = targetBlock.SensorAddress;
 
             var turnoutStates = new Dictionary<ushort, bool>();
             foreach (var turnout in plan.Legs.SelectMany(leg => leg.TurnoutStates))
@@ -182,7 +182,7 @@ public sealed class PrecisionBrakingRuntime
             }
             if (Busy() || !_commandCenter.Connected || _commandCenter.EmergencyPaused)
                 return (false, "braking_start_interlock_failed");
-            if (!_layout.TryGetSensorState((ushort)request.SensorAddress,
+            if (!_layout.TryGetSensorState(referenceSensor,
                     out var sensorOn) || sensorOn)
                 return (false, "reference_sensor_must_be_known_and_free");
 
@@ -192,7 +192,7 @@ public sealed class PrecisionBrakingRuntime
             var outboundDirection = loco["calibration"]?["routeRef"]?["direction"]?.GetValue<string>();
             if (outboundDirection is not ("forward" or "reverse"))
                 return (false, "calibration_direction_missing");
-            var measuredLeg = request.Direction == outboundDirection ? "outbound" : "return";
+            var measuredLeg = actualRoute.Direction == outboundDirection ? "outbound" : "return";
             foreach (var row in rows.OfType<JsonObject>())
             {
                 var step = row["speedStep"]?.GetValue<int>() ?? 0;
@@ -221,6 +221,7 @@ public sealed class PrecisionBrakingRuntime
             {
                 if (_cts is not null) return (false, "braking_trial_already_running");
                 _active = request;
+                _referenceSensor = referenceSensor;
                 _currentSpeedMmS = speed.Value;
                 _trials = learned;
                 _speedPoints = points;
@@ -233,7 +234,7 @@ public sealed class PrecisionBrakingRuntime
             // The operator must place the locomotive BEFORE the reference sensor.
             // Stop immediately if issuing the initial speed command fails.
             if (!await _commandCenter.SetLocoAsync(request.LocoAddress,
-                    request.SpeedStep, request.Direction == "forward"))
+                    request.SpeedStep, actualRoute.Direction == "forward"))
             {
                 await StopAsync();
                 return (false, "locomotive_command_failed");
@@ -278,6 +279,7 @@ public sealed class PrecisionBrakingRuntime
                     _cts?.Dispose();
                     _cts = null;
                     _active = null;
+                    _referenceSensor = null;
                 }
                 ReleaseGate();
             }
@@ -300,7 +302,7 @@ public sealed class PrecisionBrakingRuntime
         CancellationToken token;
         lock (_sync)
         {
-            if (_status != "armed" || _active?.SensorAddress != address || _cts is null)
+            if (_status != "armed" || _referenceSensor != address || _cts is null)
                 return;
             _status = "braking";
             trial = _active;
@@ -319,7 +321,7 @@ public sealed class PrecisionBrakingRuntime
             var seconds = 2 * trial.TargetDistanceMm / initial;
             var estimated = PrecisionBrakingProfile.EstimatedStopDistance(
                 PrecisionBrakingProfile.Learn(_trials),
-                trial.Direction, initial);
+                trial.RouteRef.Direction, initial);
             if (estimated is > 0)
                 seconds *= Math.Clamp(trial.TargetDistanceMm / estimated.Value,
                     0.6, 1.3);
@@ -345,7 +347,7 @@ public sealed class PrecisionBrakingRuntime
                 }
                 previousStep = targetStep;
                 if (!await _commandCenter.SetLocoAsync(trial.LocoAddress,
-                        targetStep, trial.Direction == "forward", token))
+                        targetStep, trial.RouteRef.Direction == "forward", token))
                     throw new InvalidOperationException("braking_command_failed");
                 if (i < segments)
                     await Task.Delay(TimeSpan.FromSeconds(seconds / segments), token);
@@ -384,7 +386,7 @@ public sealed class PrecisionBrakingRuntime
         try
         {
             var row = new PrecisionBrakingProfile.Trial(trial.SpeedStep,
-                trial.Direction, speed, trial.TargetDistanceMm,
+                trial.RouteRef.Direction, speed, trial.TargetDistanceMm,
                 measurement.ActualDistanceMm, DateTimeOffset.UtcNow);
             await _storage.ExecuteAsync(async () =>
             {
@@ -401,6 +403,8 @@ public sealed class PrecisionBrakingRuntime
                 }
                 trials.Add(JsonSerializer.SerializeToNode(row,
                     new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+                data["routeRef"] = JsonSerializer.SerializeToNode(
+                    trial.RouteRef, new JsonSerializerOptions(JsonSerializerDefaults.Web));
                 data["updatedAt"] = DateTimeOffset.UtcNow.ToString("O");
                 if (loco["precisionBraking"] is null)
                     loco["precisionBraking"] = data;
@@ -441,15 +445,8 @@ public sealed class PrecisionBrakingRuntime
                 token = _cts?.Token ?? throw new OperationCanceledException();
             token.ThrowIfCancellationRequested();
 
-            var root = JsonNode.Parse(await File.ReadAllTextAsync(LocoFile, token)) as JsonArray;
-            var loco = root is null ? null : FindLoco(root, trial.LocoId);
-            var savedRoute = loco?["calibration"]?["routeRef"]?
-                .Deserialize<MovementRouteRefModel>(
-                    new JsonSerializerOptions(JsonSerializerDefaults.Web))
-                ?? throw new InvalidOperationException("braking_return_route_missing");
-            var forwardRoute = trial.Direction == savedRoute.Direction
-                ? savedRoute
-                : Reverse(savedRoute);
+            // Return must use exactly the route selected for this trial.
+            var forwardRoute = trial.RouteRef;
             var reverseRoute = Reverse(forwardRoute);
             var origin = _layout.BlocksForPersistence()
                 .FirstOrDefault(block => block.Id == forwardRoute.FromBlockId);
@@ -504,13 +501,13 @@ public sealed class PrecisionBrakingRuntime
             // Return is positioning only, at a conservative speed.
             var speed = Math.Clamp(trial.SpeedStep / 2, 1, 15);
             if (!await _commandCenter.SetLocoAsync(
-                trial.LocoAddress, speed, trial.Direction != "forward", token))
+                trial.LocoAddress, speed, trial.RouteRef.Direction != "forward", token))
                 throw new InvalidOperationException("braking_return_command_failed");
 
             // Returning must stop even if the sensor is never reported.
             await arrival.Task.WaitAsync(TimeSpan.FromSeconds(30), token);
             if (!await _commandCenter.SetLocoAsync(
-                trial.LocoAddress, 0, trial.Direction != "forward"))
+                trial.LocoAddress, 0, trial.RouteRef.Direction != "forward"))
                 throw new InvalidOperationException("braking_return_stop_failed");
 
             lock (_sync)
@@ -557,7 +554,7 @@ public sealed class PrecisionBrakingRuntime
     async Task StopPowerOnlyAsync(TrialRequest trial)
     {
         try { await _commandCenter.SetLocoAsync(trial.LocoAddress, 0,
-            trial.Direction == "forward"); }
+            trial.RouteRef.Direction == "forward"); }
         catch (Exception ex) { _log.LogWarning(ex, "Stop command failed"); }
     }
 
@@ -591,7 +588,7 @@ public sealed class PrecisionBrakingRuntime
             lock (_sync) reverse = _returnSensor.HasValue;
             if (reverse)
                 await _commandCenter.SetLocoAsync(trial.LocoAddress, 0,
-                    trial.Direction != "forward");
+                    trial.RouteRef.Direction != "forward");
             else
                 await StopPowerOnlyAsync(trial);
         }
