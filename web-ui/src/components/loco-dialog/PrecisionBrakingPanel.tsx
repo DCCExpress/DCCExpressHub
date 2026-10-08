@@ -4,7 +4,7 @@ import type { Loco } from "@domain/types";
 import PrecisionBrakingRouteSelector, { type BrakingRouteSelection } from "./PrecisionBrakingRouteSelector";
 
 type Point = { dccStep: number; direction: string; millimetersPerSecond: number; estimatedStoppingDistanceMm: number; samples: number };
-type State = { status: string; error: string | null; locoId: string | null; locoAddress: number | null; sensorAddress: number | null; direction: string | null; speedStep: number | null; speedMmPerSecond: number | null; targetDistanceMm: number | null; actualDistanceMm: number | null; profile: Point[] };
+type State = { status: string; error: string | null; locoId: string | null; locoAddress: number | null; sensorAddress: number | null; direction: string | null; speedStep: number | null; speedMmPerSecond: number | null; targetDistanceMm: number | null; actualDistanceMm: number | null; profile: Point[]; commandedRampSeconds?: number };
 
 async function request(path: string, data?: unknown): Promise<State> {
   const init: RequestInit = {
@@ -147,7 +147,7 @@ export default function PrecisionBrakingPanel({
         </Group>
         {active && <Text size="sm">Reference sensor: {state?.sensorAddress} ·
           Approach: {state?.speedMmPerSecond?.toFixed(1) ?? "—"} mm/s ·
-          Target: {state?.targetDistanceMm} mm</Text>}
+          Target: {state?.targetDistanceMm} mm · Hold before speed 0: {state?.commandedRampSeconds?.toFixed(2) ?? "—"} s</Text>}
         {state?.status === "preparing" && active &&
           <Alert color="blue">Validating selected route, locomotive and turnout positions…</Alert>}
         {state?.status === "armed" && active && <Alert color="blue">Locomotive moving. Braking begins on sensor ON.</Alert>}
