@@ -237,7 +237,14 @@ public sealed class PrecisionBrakingRuntime
             // v² = 2as; compute the target deceleration from measured mm/s.
             // A stepwise throttle ramp is bounded by time and commanded to zero.
             var initial = _currentSpeedMmS;
-            var seconds = Math.Clamp(2 * trial.TargetDistanceMm / initial, 0.35, 8.0);
+            var seconds = 2 * trial.TargetDistanceMm / initial;
+            var estimated = PrecisionBrakingProfile.EstimatedStopDistance(
+                PrecisionBrakingProfile.Learn(_trials),
+                trial.Direction, initial);
+            if (estimated is > 0)
+                seconds *= Math.Clamp(trial.TargetDistanceMm / estimated.Value,
+                    0.6, 1.3);
+            seconds = Math.Clamp(seconds, 0.35, 8.0);
             var segments = Math.Clamp(trial.SpeedStep, 1, 25);
             var previousStep = trial.SpeedStep;
             for (var i = 1; i <= segments; i++)
