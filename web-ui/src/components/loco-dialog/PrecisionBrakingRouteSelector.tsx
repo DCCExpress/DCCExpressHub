@@ -21,7 +21,7 @@ export type BrakingRouteSelection = {
 
 type Props = {
   locoId: string;
-  savedRouteRef?: MovementRouteRef;
+  savedRouteRef?: MovementRouteRef | undefined;
   selected: BrakingRouteSelection | null;
   disabled: boolean;
   onSelect: (route: BrakingRouteSelection | null) => void;
