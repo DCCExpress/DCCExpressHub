@@ -9,6 +9,7 @@ import {
   TextInput,
   Stack,
   Table,
+  Tabs,
   Text,
 } from "@mantine/core";
 
@@ -803,6 +804,34 @@ export default function LocoCalibrationTab({
       ]
     );
 
+  const chartData = useMemo(() => {
+    const grouped = new Map<number, { outbound: number[]; return: number[] }>();
+    for (const row of visibleResults) {
+      const item = grouped.get(row.speedStep) ?? { outbound: [], return: [] };
+      item[row.direction === "outbound" ? "outbound" : "return"].push(row.millimetersPerSecond);
+      grouped.set(row.speedStep, item);
+    }
+    return [...grouped.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([speed, values]) => ({
+        speed,
+        outbound: values.outbound.length
+          ? values.outbound.reduce((a, b) => a + b, 0) / values.outbound.length
+          : null,
+        returning: values.return.length
+          ? values.return.reduce((a, b) => a + b, 0) / values.return.length
+          : null,
+      }));
+  }, [visibleResults]);
+
+  const chartMaxY = Math.max(
+    10,
+    ...chartData.flatMap(point => [point.outbound ?? 0, point.returning ?? 0])
+  ) * 1.1;
+  const chartMaxX = Math.max(1, ...chartData.map(point => point.speed));
+  const chartX = (speed: number) => 55 + (speed / chartMaxX) * 710;
+  const chartY = (value: number) => 270 - (value / chartMaxY) * 225;
+
   return (
     <>
       <ScrollArea
@@ -1156,6 +1185,12 @@ export default function LocoCalibrationTab({
                 </Text>
               </Group>
 
+              <Tabs defaultValue="table" keepMounted={false}>
+                <Tabs.List mb="sm">
+                  <Tabs.Tab value="table">Table</Tabs.Tab>
+                  <Tabs.Tab value="chart">Chart</Tabs.Tab>
+                </Tabs.List>
+                <Tabs.Panel value="table">
               <ScrollArea
                 type="auto"
                 offsetScrollbars
@@ -1264,6 +1299,64 @@ export default function LocoCalibrationTab({
                   </Table.Tbody>
                 </Table>
               </ScrollArea>
+                </Tabs.Panel>
+                <Tabs.Panel value="chart">
+                  {chartData.length === 0 ? (
+                    <Text c="dimmed" size="sm" ta="center" py="xl">
+                      {t("locodialog.calibration.noResults")}
+                    </Text>
+                  ) : (
+                    <Stack gap="xs">
+                      <svg viewBox="0 0 800 320" role="img" aria-label="Calibration speed curves" style={{ width: "100%", height: "auto" }}>
+                        {Array.from({ length: 5 }, (_, index) => {
+                          const value = chartMaxY * index / 4;
+                          const y = chartY(value);
+                          return (
+                            <g key={index}>
+                              <line x1={55} y1={y} x2={765} y2={y} stroke="currentColor" strokeOpacity={0.14} />
+                              <text x={48} y={y + 4} textAnchor="end" fontSize={12} fill="currentColor">{value.toFixed(0)}</text>
+                            </g>
+                          );
+                        })}
+                        {Array.from({ length: 6 }, (_, index) => {
+                          const value = chartMaxX * index / 5;
+                          const x = chartX(value);
+                          return (
+                            <text key={index} x={x} y={292} textAnchor="middle" fontSize={12} fill="currentColor">{value.toFixed(0)}</text>
+                          );
+                        })}
+                        <line x1={55} y1={270} x2={765} y2={270} stroke="currentColor" strokeOpacity={0.4} />
+                        <line x1={55} y1={45} x2={55} y2={270} stroke="currentColor" strokeOpacity={0.4} />
+                        <text x={410} y={315} textAnchor="middle" fontSize={13} fill="currentColor">{t("locodialog.calibration.speed")}</text>
+                        <text x={15} y={160} textAnchor="middle" fontSize={13} fill="currentColor" transform="rotate(-90 15 160)">mm/s</text>
+                        {([
+                          { key: "outbound" as const, color: "#228be6", label: t("locodialog.calibration.outbound") },
+                          { key: "returning" as const, color: "#f59f00", label: t("locodialog.calibration.return") },
+                        ]).map(series => {
+                          const points = chartData.filter(point => point[series.key] !== null);
+                          return (
+                            <g key={series.key}>
+                              <polyline
+                                points={points.map(point => `${chartX(point.speed)},${chartY(point[series.key]!)}`).join(" ")}
+                                fill="none" stroke={series.color} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"
+                              />
+                              {points.map(point => (
+                                <circle key={point.speed} cx={chartX(point.speed)} cy={chartY(point[series.key]!)} r={4} fill={series.color}>
+                                  <title>{`${series.label}: ${point.speed} → ${point[series.key]!.toFixed(2)} mm/s`}</title>
+                                </circle>
+                              ))}
+                            </g>
+                          );
+                        })}
+                      </svg>
+                      <Group gap="lg" justify="center">
+                        <Text size="xs" c="blue">● {t("locodialog.calibration.outbound")}</Text>
+                        <Text size="xs" c="orange">● {t("locodialog.calibration.return")}</Text>
+                      </Group>
+                    </Stack>
+                  )}
+                </Tabs.Panel>
+              </Tabs>
             </Stack>
           </Card>
         </Stack>
