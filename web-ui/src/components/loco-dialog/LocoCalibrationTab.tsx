@@ -251,7 +251,7 @@ export default function LocoCalibrationTab({
     routeError,
     setRouteError,
   ] =
-    useState("");
+    useState<string | null>(null);
 
   const [
     fromFilter,
