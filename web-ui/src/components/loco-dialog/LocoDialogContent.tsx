@@ -18,6 +18,7 @@ import LocoGeneralTab from "./LocoGeneralTab";
 import LocoCounterSettingsPanel from "./LocoCounterSettingsPanel";
 import LocoStatisticsTable from "./LocoStatisticsTable";
 import LocoCalibrationTab from "./LocoCalibrationTab";
+import LocoDecoderProfileEditor from "./LocoDecoderProfileEditor";
 import LocoListPanel from "./LocoListPanel";
 import type { useLocoDialogState } from "./useLocoDialogState";
 
@@ -115,6 +116,7 @@ export default function LocoDialogContent({
               <Tabs.Tab value="calibration" style={{ marginLeft: "auto" }}>
                 {t("locodialog.tabs.calibration")}
               </Tabs.Tab>
+              <Tabs.Tab value="decoder">Decoder CV</Tabs.Tab>
               <Tabs.Tab value="statistics">{t("locodialog.tabs.statistics")}</Tabs.Tab>
             </Tabs.List>
 
@@ -221,6 +223,12 @@ export default function LocoDialogContent({
                 loco={selectedLoco}
                 onPatch={updateSelectedLoco}
               />
+            </Tabs.Panel>
+
+            <Tabs.Panel value="decoder" pt="md" style={{flex:1,minHeight:0}}>
+              <ScrollArea h="100%" type="auto">
+                <LocoDecoderProfileEditor loco={selectedLoco} />
+              </ScrollArea>
             </Tabs.Panel>
 
             <Tabs.Panel
