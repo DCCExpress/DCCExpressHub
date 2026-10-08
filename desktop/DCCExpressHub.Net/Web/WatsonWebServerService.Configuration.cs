@@ -210,6 +210,31 @@ public sealed partial class WatsonWebServerService
                 }
             });
 
+        Add(server, WatsonHttpMethod.POST, "/api/precision-braking/reset",
+            async ctx =>
+            {
+                using var input = await ReadBodyStreamAsync(ctx);
+                try
+                {
+                    using var document = await System.Text.Json.JsonDocument.ParseAsync(
+                        input, cancellationToken: ctx.Token);
+                    if (!document.RootElement.TryGetProperty("locoId", out var idElement)
+                        || idElement.ValueKind != System.Text.Json.JsonValueKind.String)
+                        throw new System.Text.Json.JsonException();
+                    var result = await Service<PrecisionBrakingRuntime>()
+                        .ResetProfileAsync(idElement.GetString() ?? "");
+                    await SendAsync(ctx, result.Ok
+                        ? HubApiResponse.Ok(Service<PrecisionBrakingRuntime>().Snapshot())
+                        : HubApiResponse.Error(409,
+                            new { ok = false, message = result.Error }));
+                }
+                catch (System.Text.Json.JsonException)
+                {
+                    await SendAsync(ctx, HubApiResponse.Error(400,
+                        new { ok = false, message = "invalid_braking_reset_request" }));
+                }
+            });
+
         Add(server, WatsonHttpMethod.POST, "/api/precision-braking/stop",
             async ctx =>
             {
