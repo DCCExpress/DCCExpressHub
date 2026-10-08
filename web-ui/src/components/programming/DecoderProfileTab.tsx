@@ -84,7 +84,9 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [activeCv, setActiveCv] = useState<number | null>(null);
   const [fileName, setFileName] = useState("dcc-decoder-profile");
-  const [locoAddress, setLocoAddress] = useState<number | string>(3);
+  const [locoAddress, setLocoAddress] = useState<number | string>("");
+  const [addressRead, setAddressRead] = useState<number | null>(null);
+  const [addressError, setAddressError] = useState("");
   const [savedMessage, setSavedMessage] = useState("");
   const [error, setError] = useState("");
   const [customStart, setCustomStart] = useState<number | string>(1);
@@ -101,13 +103,37 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
     [...new Set([...Object.keys(help.cvs).map(Number), ...CURVE_CVS])]
       .filter(cv => Number.isInteger(cv) && cv >= 1 && cv <= MAX_CV)
       .sort((a,b) => a-b), [help]);
+  const readAddress = async (): Promise<number | null> => {
+    setAddressError("");
+    try {
+      // DCC-EX implements a dedicated <R> service-track address read.
+      // This is authoritative; CV1 may contain an unused short address.
+      const response = await wsApi.programmingRequest(
+        `cv-profile-address-${Date.now()}`, "readAddress", {}, 30000
+      );
+      const address = response.value;
+      if (!response.ok || typeof address !== "number" ||
+          !Number.isInteger(address) || address < 1 || address > 10239)
+        throw new Error(response.message ?? "No valid DCC-EX address reply");
+      setLocoAddress(address);
+      setAddressRead(address);
+      return address;
+    } catch (e) {
+      setAddressRead(null);
+      setAddressError(e instanceof Error ? e.message : String(e));
+      return null;
+    }
+  };
   const read = async (cvs: number[]) => {
     if (busy || disconnected || cvs.length === 0) return;
     cancel.current = false;
     setBusy(true);
     setError("");
     setProgress({ done: 0, total: cvs.length });
+    setAddressRead(null);
+    setLocoAddress("");
     try {
+      await readAddress();
       for (let i=0; i<cvs.length; i++) {
         if (cancel.current) break;
         const cv = cvs[i]!;
@@ -146,16 +172,13 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
         ? ((results[17].value! & 0x3f) << 8) | results[18].value!
         : null)
       : results[1]?.value ?? null;
-  useEffect(() => {
-    if (decodedAddress !== null && decodedAddress > 0 && decodedAddress <= 10239)
-      setLocoAddress(decodedAddress);
-  }, [decodedAddress]);
   const identifier = {
     manufacturerId: results[8]?.value ?? null,
     decoderVersion: results[7]?.value ?? null,
     userId1: results[105]?.value ?? null,
     userId2: results[106]?.value ?? null,
     addressFromCv: decodedAddress,
+    addressFromDccEx: addressRead,
     verifiedUnique: false,
   };
   const currentProfile = () => ({
@@ -170,6 +193,9 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
   });
   const saveToHub = async () => {
     const address = Number(locoAddress);
+    if (addressRead === null || address !== addressRead) {
+      setError("Read the actual decoder address with DCC-EX before saving. Manual/unverified addresses are not allowed."); return;
+    }
     if (!Number.isInteger(address) || address < 1 || address > 10239) {
       setError("Enter a valid locomotive address."); return;
     }
@@ -278,11 +304,22 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
       <Stack gap="sm">
         <Title order={5}>Decoder identification and Hub storage</Title>
         <Text size="sm">Decoder manufacturer CV8: {identifier.manufacturerId ?? "not read"} · version CV7: {identifier.decoderVersion ?? "not read"} · user IDs CV105/106: {identifier.userId1 ?? "?"}/{identifier.userId2 ?? "?"}</Text>
-        <Text size="sm">Address from decoder CVs: {decodedAddress ?? "not yet determined (read CV29 and CV1 or CV17/18)"}. {decodedAddress !== null ? "Locomotive address has been filled automatically." : ""}</Text>
+        <Group>
+          <Button variant="light" disabled={busy || disconnected}
+            onClick={() => void readAddress()}>Read DCC-EX address (&lt;R&gt;)</Button>
+          <Badge color={addressRead === null ? "gray" : "green"}>
+            {addressRead === null ? "Address not verified" : `DCC-EX address: ${addressRead}`}
+          </Badge>
+        </Group>
+        {addressError && <Alert color="red">{addressError}</Alert>}
+        <Text size="sm">CV-derived address (diagnostic): {decodedAddress ?? "incomplete"}.
+          {addressRead !== null && decodedAddress !== null && addressRead !== decodedAddress
+            ? " WARNING: CV-derived address disagrees with the direct DCC-EX address read." : ""}
+        </Text>
         <Text size="xs" c="dimmed">No universal unique decoder serial number is defined by these CVs. Address and manufacturer/version are clues, not proof that the same physical decoder is present. Read CV1/17/18/29/7/8/105/106 to include available identification.</Text>
         <Group align="end">
-          <NumberInput label="Locomotive DCC address" min={1} max={10239} value={locoAddress} onChange={setLocoAddress} w={190}/>
-          <Button onClick={() => void saveToHub()} disabled={!successful.length}>Save to Hub profiles</Button>
+          <NumberInput label="Locomotive DCC address (from DCC-EX)" min={1} max={10239} value={locoAddress} readOnly w={190}/>
+          <Button onClick={() => void saveToHub()} disabled={!successful.length || addressRead === null || Number(locoAddress) !== addressRead}>Save to Hub profiles</Button>
         </Group>
         {savedMessage && <Text size="sm" c="green">{savedMessage}</Text>}
         <Title order={5}>Export decoder profile</Title>
