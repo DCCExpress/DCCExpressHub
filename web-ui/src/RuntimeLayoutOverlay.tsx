@@ -190,7 +190,17 @@ export default function RuntimeLayoutOverlay({ locos, open }: RuntimeLayoutOverl
     invalidate();
   }), [layout, locos, invalidate]);
 
-  useEffect(() => { if (wsStatus === "connected") wsApi.getLayoutRuntimeSnapshot(); }, [wsStatus, layout]);
+  useEffect(() => {
+    if (wsStatus === "connected") {
+      wsApi.getLayoutRuntimeSnapshot();
+      return;
+    }
+    // Disconnected sensors are unknown, not a retained visual ON.
+    for (const element of layout.getAllElements()) {
+      if (element instanceof TrackSensorElement) element.on = false;
+    }
+    invalidate();
+  }, [wsStatus, layout, invalidate]);
   useEffect(() => {
     if (!open || loading || error) return;
     const frame = window.requestAnimationFrame(() => invalidate());
