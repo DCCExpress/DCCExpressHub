@@ -31,6 +31,7 @@ public sealed class PrecisionBrakingRuntime
     readonly AppPaths _paths;
     readonly ILogger<PrecisionBrakingRuntime> _log;
     CancellationTokenSource? _cts;
+    bool _ownsGate;
     TrialRequest? _active;
     double _currentSpeedMmS;
     string _status = "idle";
@@ -104,6 +105,7 @@ public sealed class PrecisionBrakingRuntime
             return (false, "command_center_not_ready");
         if (!_exclusive.TryEnterCalibration())
             return (false, "calibration_active");
+        lock (_sync) _ownsGate = true;
         var started = false;
         try
         {
@@ -180,7 +182,7 @@ public sealed class PrecisionBrakingRuntime
                     _cts = null;
                     _active = null;
                 }
-                _exclusive.ExitCalibration();
+                ReleaseGate();
             }
         }
     }
@@ -312,13 +314,16 @@ public sealed class PrecisionBrakingRuntime
 
     void ReleaseGate()
     {
+        bool release;
         lock (_sync)
         {
             _cts?.Cancel();
             _cts?.Dispose();
             _cts = null;
+            release = _ownsGate;
+            _ownsGate = false;
         }
-        _exclusive.ExitCalibration();
+        if (release) _exclusive.ExitCalibration();
     }
 
     public async Task StopAsync()
