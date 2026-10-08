@@ -38,6 +38,7 @@ public sealed class PrecisionBrakingRuntime
     string? _error;
     double? _actual;
     List<PrecisionBrakingProfile.Trial> _trials = new();
+    List<PrecisionBrakingProfile.SpeedPoint> _speedPoints = new();
 
     public PrecisionBrakingRuntime(ICommandCenter commandCenter,
         AutomationExclusiveGate exclusive, CalibrationRuntime speedCalibration,
@@ -148,6 +149,7 @@ public sealed class PrecisionBrakingRuntime
                 _active = request;
                 _currentSpeedMmS = speed.Value;
                 _trials = learned;
+                _speedPoints = points;
                 _actual = null;
                 _error = null;
                 _status = "armed";
@@ -163,11 +165,12 @@ public sealed class PrecisionBrakingRuntime
                 return (false, "locomotive_command_failed");
             }
             started = true;
+            var watchdogToken = _cts!.Token;
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(30), _cts!.Token);
+                    await Task.Delay(TimeSpan.FromSeconds(30), watchdogToken);
                     bool timedOut;
                     lock (_sync) timedOut = _status == "armed" && _active == request;
                     if (timedOut)
@@ -232,13 +235,25 @@ public sealed class PrecisionBrakingRuntime
             var initial = _currentSpeedMmS;
             var seconds = Math.Clamp(2 * trial.TargetDistanceMm / initial, 0.35, 8.0);
             var segments = Math.Clamp(trial.SpeedStep, 1, 25);
+            var previousStep = trial.SpeedStep;
             for (var i = 1; i <= segments; i++)
             {
                 token.ThrowIfCancellationRequested();
                 var remaining = 1 - (double)i / segments;
-                var targetStep = Math.Clamp(
-                    (int)Math.Floor(trial.SpeedStep * remaining),
-                    0, trial.SpeedStep);
+                var requestedMmS = initial * remaining;
+                var targetStep = 0;
+                if (i < segments)
+                {
+                    for (var candidate = 1; candidate <= previousStep; candidate++)
+                    {
+                        var calibratedMmS = PrecisionBrakingProfile.SpeedAtStep(
+                            _speedPoints, candidate);
+                        if (calibratedMmS.HasValue &&
+                            calibratedMmS.Value <= requestedMmS)
+                            targetStep = candidate;
+                    }
+                }
+                previousStep = targetStep;
                 if (!await _commandCenter.SetLocoAsync(trial.LocoAddress,
                         targetStep, trial.Direction == "forward", token))
                     throw new InvalidOperationException("braking_command_failed");
@@ -297,7 +312,8 @@ public sealed class PrecisionBrakingRuntime
                 trials.Add(JsonSerializer.SerializeToNode(row,
                     new JsonSerializerOptions(JsonSerializerDefaults.Web)));
                 data["updatedAt"] = DateTimeOffset.UtcNow.ToString("O");
-                loco["precisionBraking"] = data;
+                if (loco["precisionBraking"] is null)
+                    loco["precisionBraking"] = data;
                 var temp = LocoFile + ".precisionbraking.tmp";
                 await File.WriteAllTextAsync(temp, root.ToJsonString());
                 File.Move(temp, LocoFile, true);
