@@ -92,6 +92,32 @@ public sealed class YaMoRcLocoNetClient
 
     public int SensorOffset => _sensorOffset;
 
+    // LocoNet feedback has its own TCP connection, independent of Z21 UDP.
+    // If Z21 reconnect invalidates the Hub's sensor table while LBServer has
+    // remained online, replay the live LBServer cache instead of waiting for
+    // a physical input edge that may never occur.
+    public int ReplayLiveSensorStates()
+    {
+        KeyValuePair<int, bool>[] states;
+        lock (_stateGate)
+        {
+            if (!_lbServerConnected)
+                return 0;
+
+            states = _loggedSensorStates.ToArray();
+        }
+
+        foreach (var state in states)
+            SensorFeedbackChanged?.Invoke(state.Key, state.Value);
+
+        if (states.Length > 0)
+            _log.LogInformation(
+                "YaMoRC LocoNet: re-synced {Count} known sensor states after Z21 reconnect",
+                states.Length);
+
+        return states.Length;
+    }
+
     public event Action<string>? RawInfo;
     public event Action<int, bool>? SensorFeedbackChanged;
 
