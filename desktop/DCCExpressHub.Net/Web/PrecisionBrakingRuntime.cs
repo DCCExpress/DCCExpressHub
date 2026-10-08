@@ -591,9 +591,11 @@ public sealed class PrecisionBrakingRuntime
     public async Task StopAsync()
     {
         TrialRequest? trial;
+        bool startStillPreparing;
         lock (_sync)
         {
             trial = _active;
+            startStillPreparing = _status == "preparing";
             _cts?.Cancel();
             if (_status is "preparing" or "armed" or "braking" or "saving" or "return_preparing" or "returning")
                 _status = "stopped";
@@ -608,7 +610,10 @@ public sealed class PrecisionBrakingRuntime
             else
                 await StopPowerOnlyAsync(trial);
         }
-        ReleaseGate();
+        // The starting task owns final cleanup while it is still preparing;
+        // releasing its gate here would let a second Start overlap it.
+        if (!startStillPreparing)
+            ReleaseGate();
     }
 
     public async Task EmergencyStopAsync()
