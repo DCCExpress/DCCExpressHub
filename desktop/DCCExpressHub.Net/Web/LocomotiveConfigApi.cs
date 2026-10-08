@@ -31,6 +31,83 @@ public sealed class LocomotiveConfigApi
             _paths.ConfigRootPath,
             name);
 
+    // Decoder CV profiles are independent of locomotive calibration and
+    // physical sensor runtime state. A DCC address is a filename key, not
+    // a verified hardware serial number.
+    string DecoderProfilesRoot =>
+        Path.Combine(_paths.ConfigRootPath, "profiles");
+
+    public async Task<HubApiResponse> GetDecoderProfilesAsync(
+        CancellationToken ct = default)
+    {
+        Directory.CreateDirectory(DecoderProfilesRoot);
+        var result = new List<JsonNode>();
+        foreach (var path in Directory.EnumerateFiles(
+                     DecoderProfilesRoot, "loco-*.json"))
+        {
+            try
+            {
+                var profile = JsonNode.Parse(
+                    await File.ReadAllTextAsync(path, ct));
+                if (profile is JsonObject item)
+                    result.Add(item);
+            }
+            catch (JsonException)
+            {
+                // Do not let one invalid profile prevent other profiles loading.
+            }
+        }
+        return HubApiResponse.Text(
+            JsonSerializer.Serialize(result), "application/json");
+    }
+
+    public async Task<HubApiResponse> SaveDecoderProfileAsync(
+        Stream input, CancellationToken ct)
+    {
+        JsonObject? profile;
+        try
+        {
+            profile = await JsonNode.ParseAsync(input,
+                cancellationToken: ct) as JsonObject;
+        }
+        catch (JsonException)
+        {
+            return HubApiResponse.Error(400,
+                new { ok = false, message = "Invalid decoder profile" });
+        }
+
+        var address = 0;
+        try { address = profile?["address"]?.GetValue<int>() ?? 0; }
+        catch (InvalidOperationException) { }
+        if (address is < 1 or > 10239 ||
+            profile?["cvValues"] is not JsonObject values ||
+            values.Count == 0 ||
+            values.Count > 1024)
+            return HubApiResponse.Error(400,
+                new { ok = false, message = "Invalid address or CV values" });
+
+        foreach (var entry in values)
+        {
+            if (!int.TryParse(entry.Key, out var cv) ||
+                cv is < 1 or > 1024 ||
+                entry.Value is not JsonValue value ||
+                !value.TryGetValue<int>(out var number) ||
+                number is < 0 or > 255)
+                return HubApiResponse.Error(400,
+                    new { ok = false, message = "Invalid CV byte" });
+        }
+
+        Directory.CreateDirectory(DecoderProfilesRoot);
+        var path = Path.Combine(DecoderProfilesRoot,
+            $"loco-{address}.json");
+        var temp = path + ".tmp";
+        var data = profile!.ToJsonString(
+            new JsonSerializerOptions { WriteIndented = true });
+        await File.WriteAllTextAsync(temp, data, ct);
+        File.Move(temp, path, true);
+        return HubApiResponse.Ok(new { ok = true, address });
+    }
+
     public async Task<HubApiResponse> GetCountersAsync(
         CancellationToken cancellationToken = default)
     {
