@@ -42,6 +42,15 @@ public sealed class WsRuntimeCoordinator : BackgroundService
     {
         _connected=connected;
         _connectionChanged=true;
+
+        if (!connected)
+        {
+            // Drop stale known states, never translate a disconnect to FREE.
+            // The reconnect snapshot must be the new source of truth.
+            _runtime.InvalidateSensorStates();
+            _log.LogWarning(
+                "Command center disconnected: previous sensor states are UNKNOWN pending fresh feedback");
+        }
     }
 
     void OnSensorFeedbackChanged(int address,bool on)
