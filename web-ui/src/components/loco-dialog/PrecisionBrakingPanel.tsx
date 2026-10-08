@@ -47,8 +47,8 @@ export default function PrecisionBrakingPanel({ loco }: { loco: Loco }) {
   };
 
   const active = state?.locoId === loco.id &&
-    ["armed", "braking", "measure", "saving"].includes(state.status);
-  const other = state && ["armed", "braking", "measure", "saving"].includes(state.status) && state.locoId !== loco.id;
+    ["armed", "braking", "measure", "saving", "return_preparing", "returning"].includes(state.status);
+  const other = state && ["armed", "braking", "measure", "saving", "return_preparing", "returning"].includes(state.status) && state.locoId !== loco.id;
   const hasSpeedProfile = (loco.calibration?.results.length ?? 0) > 0;
   return <Stack gap="md">
     <Alert color="orange" title="Isolated test track only">
@@ -96,8 +96,14 @@ export default function PrecisionBrakingPanel({ loco }: { loco: Loco }) {
           <NumberInput label="Actual stopping distance after sensor (mm)" min={0} max={20000}
             value={measured} onChange={setMeasured} />
           <Button loading={busy} disabled={busy || measured === "" || Number(measured) < 0}
-            onClick={() => void action("/measure", {actualDistanceMm: Number(measured)})}>Save measured trial</Button>
+            onClick={() => void action("/measure", {actualDistanceMm: Number(measured)})}>OK — save and return to start</Button>
         </>}
+        {active && state?.status === "return_preparing" &&
+          <Alert color="blue">Measurement saved. Setting and checking turnouts for the return trip.</Alert>}
+        {active && state?.status === "returning" &&
+          <Alert color="blue">Returning to the starting block. The locomotive will stop on its starting-block sensor.</Alert>}
+        {state?.status === "completed" && state.locoId === loco.id &&
+          <Alert color="green">Returned to the starting block. Ready for the next braking trial.</Alert>}
         {(error || state?.error) && <Alert color="red">{error || state?.error}</Alert>}
       </Stack>
     </Card>
