@@ -12,7 +12,7 @@ public sealed class PrecisionBrakingRuntime
 {
     public sealed record TrialRequest(string LocoId, int LocoAddress,
         MovementRouteRefModel RouteRef, int SpeedStep,
-        double TargetDistanceMm, bool IsolatedTestTrackConfirmed);
+        double TargetDistanceMm, bool IsolatedTestTrackConfirmed, int ReturnSpeedStep = 20);
     public sealed record TrialMeasurement(double ActualDistanceMm);
     public sealed record TrialState(string Status, string? Error,
         string? LocoId, int? LocoAddress, int? SensorAddress,
@@ -159,6 +159,7 @@ public sealed class PrecisionBrakingRuntime
             request.RouteRef.FromBlockId == request.RouteRef.ToBlockId ||
             request.RouteRef.Direction is not ("forward" or "reverse") ||
             request.SpeedStep is < 1 or > 126 ||
+            request.ReturnSpeedStep is < 1 or > 126 ||
             !double.IsFinite(request.TargetDistanceMm) ||
             request.TargetDistanceMm is < 10 or > 10000)
             return (false, "invalid_braking_trial");
@@ -601,8 +602,8 @@ public sealed class PrecisionBrakingRuntime
                 _status = "returning";
             }
 
-            // Return is positioning only, at a conservative speed.
-            var speed = Math.Clamp(trial.SpeedStep / 2, 1, 15);
+            // Operator-selected return speed, validated at trial start.
+            var speed = trial.ReturnSpeedStep;
             if (!await _commandCenter.SetLocoAsync(
                 trial.LocoAddress, speed, trial.RouteRef.Direction != "forward", token))
                 throw new InvalidOperationException("braking_return_command_failed");
