@@ -163,6 +163,26 @@ public sealed class PrecisionBrakingRuntime
                 return (false, "locomotive_command_failed");
             }
             started = true;
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(30), _cts!.Token);
+                    bool timedOut;
+                    lock (_sync) timedOut = _status == "armed" && _active == request;
+                    if (timedOut)
+                    {
+                        await StopAsync();
+                        lock (_sync)
+                        {
+                            _status = "error";
+                            _error = "reference_sensor_timeout";
+                        }
+                    }
+                }
+                catch (OperationCanceledException) { }
+                catch (ObjectDisposedException) { }
+            });
             return (true, "");
         }
         catch (Exception ex)
