@@ -6,11 +6,15 @@ type Point = { dccStep: number; direction: string; millimetersPerSecond: number;
 type State = { status: string; error: string | null; locoId: string | null; locoAddress: number | null; sensorAddress: number | null; direction: string | null; speedStep: number | null; speedMmPerSecond: number | null; targetDistanceMm: number | null; actualDistanceMm: number | null; profile: Point[] };
 
 async function request(path: string, data?: unknown): Promise<State> {
-  const response = await fetch("/api/precision-braking" + path, {
-    cache: "no-store", method: data === undefined && !path ? "GET" : "POST",
-    headers: data === undefined ? undefined : { "Content-Type": "application/json" },
-    body: data === undefined ? undefined : JSON.stringify(data),
-  });
+  const init: RequestInit = {
+    cache: "no-store",
+    method: path ? "POST" : "GET",
+  };
+  if (data !== undefined) {
+    init.headers = { "Content-Type": "application/json" };
+    init.body = JSON.stringify(data);
+  }
+  const response = await fetch("/api/precision-braking" + path, init);
   const value = await response.json();
   if (!response.ok || value.ok === false) throw new Error(value.message ?? "Precision braking request failed");
   return value as State;
