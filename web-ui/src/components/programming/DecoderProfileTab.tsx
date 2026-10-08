@@ -138,16 +138,24 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
     .sort((a,b) => a.cv-b.cv), [results]);
   const successful = rows.filter(row => row.result.value !== undefined);
   const cv29 = results[29]?.value;
+  // The actual DCC address belongs to the decoder CVs, not to a
+  // manually entered default. CV29 bit 5 selects short vs extended.
+  const decodedAddress = cv29 === undefined ? null
+    : (cv29 & 0x20) !== 0
+      ? (results[17]?.value !== undefined && results[18]?.value !== undefined
+        ? ((results[17].value! & 0x3f) << 8) | results[18].value!
+        : null)
+      : results[1]?.value ?? null;
+  useEffect(() => {
+    if (decodedAddress !== null && decodedAddress > 0 && decodedAddress <= 10239)
+      setLocoAddress(decodedAddress);
+  }, [decodedAddress]);
   const identifier = {
     manufacturerId: results[8]?.value ?? null,
     decoderVersion: results[7]?.value ?? null,
     userId1: results[105]?.value ?? null,
     userId2: results[106]?.value ?? null,
-    addressFromCv: results[29]?.value === undefined ? null :
-      (results[29].value! & 0x20) !== 0
-        ? (results[17]?.value !== undefined && results[18]?.value !== undefined
-          ? ((results[17].value! & 0x3f) << 8) | results[18].value! : null)
-        : results[1]?.value ?? null,
+    addressFromCv: decodedAddress,
     verifiedUnique: false,
   };
   const currentProfile = () => ({
@@ -270,6 +278,7 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
       <Stack gap="sm">
         <Title order={5}>Decoder identification and Hub storage</Title>
         <Text size="sm">Decoder manufacturer CV8: {identifier.manufacturerId ?? "not read"} · version CV7: {identifier.decoderVersion ?? "not read"} · user IDs CV105/106: {identifier.userId1 ?? "?"}/{identifier.userId2 ?? "?"}</Text>
+        <Text size="sm">Address from decoder CVs: {decodedAddress ?? "not yet determined (read CV29 and CV1 or CV17/18)"}. {decodedAddress !== null ? "Locomotive address has been filled automatically." : ""}</Text>
         <Text size="xs" c="dimmed">No universal unique decoder serial number is defined by these CVs. Address and manufacturer/version are clues, not proof that the same physical decoder is present. Read CV1/17/18/29/7/8/105/106 to include available identification.</Text>
         <Group align="end">
           <NumberInput label="Locomotive DCC address" min={1} max={10239} value={locoAddress} onChange={setLocoAddress} w={190}/>
