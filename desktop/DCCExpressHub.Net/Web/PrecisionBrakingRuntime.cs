@@ -236,9 +236,9 @@ public sealed class PrecisionBrakingRuntime
             }
             if (Busy() || !_commandCenter.Connected || _commandCenter.EmergencyPaused)
                 return (false, "braking_start_interlock_failed");
-            if (!_layout.TryGetSensorState(referenceSensor,
-                    out var sensorOn) || sensorOn)
-                return (false, "reference_sensor_must_be_known_and_free");
+            // The user supervises this trial. The target sensor's initial
+            // known/occupied state does not block departure: braking starts
+            // only when its physical ON feedback event arrives.
 
             var learned = new List<PrecisionBrakingProfile.Trial>();
             if (loco["precisionBraking"]?["trials"] is JsonArray saved)
