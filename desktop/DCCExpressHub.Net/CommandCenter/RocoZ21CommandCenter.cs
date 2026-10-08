@@ -705,6 +705,15 @@ public class RocoZ21CommandCenter : BackgroundService, ICommandCenter
 
         if (changed)
         {
+            if (!online)
+            {
+                // The Hub invalidates input knowledge when this transport
+                // drops. Forget the decoder's change-only cache as well:
+                // otherwise an identical fresh R-BUS snapshot is suppressed,
+                // leaving the Hub with UNKNOWN sensors after reconnect.
+                ResetRBusState();
+            }
+
             _log.LogInformation(
                 "Z21 UDP session {State}",
                 online ? "ONLINE" : "OFFLINE");
