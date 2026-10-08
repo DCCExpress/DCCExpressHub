@@ -955,6 +955,22 @@ public sealed class LayoutRuntime
         return true;
     }
 
+    // A reconnect does not prove that a previously ON input is still ON,
+    // nor that it is now OFF. Drop its *known* status until new hardware
+    // feedback arrives. Dispatcher must continue to treat unknown as unsafe.
+    public void InvalidateSensorStates()
+    {
+        bool hadKnown;
+        lock (_gate)
+        {
+            hadKnown = _sensorStates.Count > 0;
+            _sensorStates.Clear();
+        }
+
+        if (hadKnown)
+            Changed?.Invoke("sensorSnapshot", SensorSnapshot());
+    }
+
     public bool SetSensor(ushort address, bool on)
     {
         bool changed;
