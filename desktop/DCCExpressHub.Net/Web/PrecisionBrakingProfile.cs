@@ -15,7 +15,8 @@ public static class PrecisionBrakingProfile
         double ApproachMillimetersPerSecond,
         double TargetDistanceMm,
         double ActualDistanceMm,
-        DateTimeOffset MeasuredAt);
+        DateTimeOffset MeasuredAt,
+        double? CommandedRampSeconds = null);
 
     public sealed record LearnedPoint(
         int DccStep,
@@ -23,6 +24,30 @@ public static class PrecisionBrakingProfile
         double MillimetersPerSecond,
         double EstimatedStoppingDistanceMm,
         int Samples);
+
+    // Every experiment must record the speed-hold time that caused its stop.
+    // Legacy measurements without this field cannot be used for control.
+    public static double NextRampSeconds(IEnumerable<Trial> trials,
+        int dccStep, string direction, double speedMmS, double targetMm)
+    {
+        const double maxRamp = 5.0;
+        if (speedMmS <= 0 || !double.IsFinite(speedMmS))
+            return 0;
+        var samples = trials.Where(t => t.DccStep == dccStep &&
+            t.Direction == direction && t.CommandedRampSeconds.HasValue &&
+            ValidTrial(t)).OrderBy(t => t.MeasuredAt).ToArray();
+        if (samples.Length == 0) return 0; // Measure actual zero-command stop first.
+
+        var last = samples[^1];
+        var lastTime = last.CommandedRampSeconds!.Value;
+        var errorMm = targetMm - last.ActualDistanceMm;
+        if (Math.Abs(errorMm) <= 5) return lastTime;
+        // Adjust the physically observed delay, not a predicted braking distance.
+        // Limit each increase to avoid large untested overshoots.
+        var delta = 0.65 * errorMm / speedMmS;
+        delta = Math.Clamp(delta, -1.25, 0.75);
+        return Math.Clamp(lastTime + delta, 0, maxRamp);
+    }
 
     public static bool ValidSpeedPoint(SpeedPoint point) =>
         point.DccStep is >= 1 and <= 126 &&
