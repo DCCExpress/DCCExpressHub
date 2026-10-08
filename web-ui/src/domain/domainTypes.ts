@@ -123,6 +123,19 @@ export type LocoCalibrationProfile = {
   results: LocoCalibrationResult[];
 };
 
+export type LocoPrecisionBrakingProfile = {
+  routeRef?: MovementRouteRef;
+  updatedAt?: string;
+  trials?: Array<{
+    dccStep: number;
+    direction: Direction;
+    approachMillimetersPerSecond: number;
+    targetDistanceMm: number;
+    actualDistanceMm: number;
+    measuredAt: string;
+  }>;
+};
+
 export type Loco = {
   id: string;
   name: string;
@@ -140,6 +153,7 @@ export type Loco = {
   functions: LocoFunction[];
   actions?: LocoActionHooks;
   calibration?: LocoCalibrationProfile;
+  precisionBraking?: LocoPrecisionBrakingProfile;
 };
 
 export type ReservationOwnerType =
