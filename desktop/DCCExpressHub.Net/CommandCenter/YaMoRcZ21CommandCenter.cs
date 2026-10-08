@@ -27,6 +27,19 @@ public sealed class YaMoRcZ21CommandCenter : RocoZ21CommandCenter
                 configuration,
                 log);
 
+        // Both protocols publish absolute Hub sensor addresses. When offsets
+        // overlap, different physical inputs can write the very same address.
+        var rbusFirst = RBusOffset + 1;
+        var rbusLast = RBusOffset + 160;
+        var loconetFirst = _locoNet.SensorOffset + 1;
+        var loconetLast = _locoNet.SensorOffset + 4096;
+        if (rbusFirst <= loconetLast && loconetFirst <= rbusLast)
+        {
+            log.LogWarning(
+                "YD7010 R-BUS/LocoNet SENSOR ADDRESS RANGE OVERLAP: R-BUS #{RbusFirst}-#{RbusLast}, LocoNet #{LocoNetFirst}-#{LocoNetLast}. Distinct inputs may report against the same Hub sensor; check both configured offsets.",
+                rbusFirst, rbusLast, loconetFirst, loconetLast);
+        }
+
         _locoNet.RawInfo +=
             PublishRawInfo;
 
