@@ -236,9 +236,22 @@ public sealed class PrecisionBrakingRuntime
             }
             if (Busy() || !_commandCenter.Connected || _commandCenter.EmergencyPaused)
                 return (false, "braking_start_interlock_failed");
-            // The user supervises this trial. The target sensor's initial
-            // known/occupied state does not block departure: braking starts
-            // only when its physical ON feedback event arrives.
+            // A supervised trial still requires live, known, FREE
+            // reference feedback before starting any locomotive movement.
+            if (!_layout.TryGetSensorState(referenceSensor, out var sensorOn))
+            {
+                _log.LogWarning(
+                    "Precision Braking start rejected: reference sensor #{Sensor} is UNKNOWN (no live feedback received)",
+                    referenceSensor);
+                return (false, $"reference_sensor_unknown_{referenceSensor}");
+            }
+            if (sensorOn)
+            {
+                _log.LogWarning(
+                    "Precision Braking start rejected: reference sensor #{Sensor} is ON (occupied)",
+                    referenceSensor);
+                return (false, $"reference_sensor_occupied_{referenceSensor}");
+            }
 
             var learned = new List<PrecisionBrakingProfile.Trial>();
             if (loco["precisionBraking"]?["trials"] is JsonArray saved)
