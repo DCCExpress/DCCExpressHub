@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { Loco } from "@domain/types";
 import PrecisionBrakingRouteSelector, { type BrakingRouteSelection } from "./PrecisionBrakingRouteSelector";
 
-type Point = { dccStep: number; direction: string; millimetersPerSecond: number; estimatedStoppingDistanceMm: number; samples: number };
+type Point = { dccStep: number; direction: string; millimetersPerSecond: number; estimatedStoppingDistanceMm: number; samples: number; baselineStoppingDistanceMm?: number | null };
 type State = { status: string; error: string | null; locoId: string | null; locoAddress: number | null; sensorAddress: number | null; direction: string | null; speedStep: number | null; speedMmPerSecond: number | null; targetDistanceMm: number | null; actualDistanceMm: number | null; profile: Point[]; commandedRampSeconds?: number };
 
 async function request(path: string, data?: unknown): Promise<State> {
@@ -177,10 +177,10 @@ export default function PrecisionBrakingPanel({
             void action("/reset", { locoId: loco.id });
           }}>Reset profile</Button>
       </Group>
-      <Text size="xs" c="dimmed" mb="sm">Learned from manually measured trials; separate for forward and reverse. Not applied to normal Movement runs.</Text>
+      <Text size="xs" c="dimmed" mb="sm">Base stop (0) is the measured stopping distance when speed 0 is commanded immediately at the sensor; it is shown separately for each speed and direction. Adaptive stop is the learned result. Not applied to normal Movement runs.</Text>
       {state?.locoId !== loco.id || !state.profile.length
         ? <Text c="dimmed" size="sm">No trial data in the current session.</Text>
-        : <Table striped><Table.Thead><Table.Tr><Table.Th>Direction</Table.Th><Table.Th>DCC</Table.Th><Table.Th>mm/s</Table.Th><Table.Th>Stop mm</Table.Th><Table.Th>Trials</Table.Th></Table.Tr></Table.Thead>
+        : <Table striped><Table.Thead><Table.Tr><Table.Th>Direction</Table.Th><Table.Th>DCC</Table.Th><Table.Th>mm/s</Table.Th><Table.Th>Base stop (0) mm</Table.Th><Table.Th>Adaptive stop mm</Table.Th><Table.Th>Trials</Table.Th></Table.Tr></Table.Thead>
           <Table.Tbody>{state.profile.map(point => <Table.Tr key={point.direction + point.dccStep}>
             <Table.Td>{point.direction}</Table.Td><Table.Td>{point.dccStep}</Table.Td>
             <Table.Td>{point.millimetersPerSecond.toFixed(1)}</Table.Td>
