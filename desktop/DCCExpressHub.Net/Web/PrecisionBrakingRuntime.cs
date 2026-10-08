@@ -42,6 +42,7 @@ public sealed class PrecisionBrakingRuntime
     string _status = "idle";
     string? _error;
     double? _actual;
+    double _commandedRampSeconds;
     List<PrecisionBrakingProfile.Trial> _trials = new();
     List<PrecisionBrakingProfile.SpeedPoint> _speedPoints = new();
 
@@ -343,6 +344,7 @@ public sealed class PrecisionBrakingRuntime
                 _trials = learned;
                 _speedPoints = points;
                 _actual = null;
+                _commandedRampSeconds = 0;
                 _error = null;
                 _status = "armed";
             }
@@ -424,6 +426,20 @@ public sealed class PrecisionBrakingRuntime
             // artificial overshoot even when the decoder brakes promptly.
             // A normal speed=0 is NOT a global emergency stop.
             token.ThrowIfCancellationRequested();
+            double seconds;
+            lock (_sync)
+            {
+                seconds = PrecisionBrakingProfile.NextRampSeconds(
+                    _trials, trial.SpeedStep, trial.RouteRef.Direction,
+                    _currentSpeedMmS, trial.TargetDistanceMm);
+                _commandedRampSeconds = seconds;
+            }
+            _log.LogInformation(
+                "Precision braking loco {Loco}: DCC {Step}, target {Target}mm, hold {Seconds:F3}s before zero",
+                trial.LocoAddress, trial.SpeedStep, trial.TargetDistanceMm, seconds);
+            if (seconds > 0)
+                await Task.Delay(TimeSpan.FromSeconds(seconds), token);
+            token.ThrowIfCancellationRequested();
             if (!await _commandCenter.SetLocoAsync(
                     trial.LocoAddress, 0,
                     trial.RouteRef.Direction == "forward", token))
@@ -463,7 +479,8 @@ public sealed class PrecisionBrakingRuntime
         {
             var row = new PrecisionBrakingProfile.Trial(trial.SpeedStep,
                 trial.RouteRef.Direction, speed, trial.TargetDistanceMm,
-                measurement.ActualDistanceMm, DateTimeOffset.UtcNow);
+                measurement.ActualDistanceMm, DateTimeOffset.UtcNow,
+                _commandedRampSeconds);
             await _storage.ExecuteAsync(async () =>
             {
                 var root = JsonNode.Parse(await File.ReadAllTextAsync(LocoFile)) as JsonArray
