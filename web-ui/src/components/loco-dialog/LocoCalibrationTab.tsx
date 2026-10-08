@@ -6,7 +6,7 @@ import {
   Group,
   NumberInput,
   ScrollArea,
-  Select,
+  TextInput,
   Stack,
   Table,
   Text,
@@ -251,25 +251,19 @@ export default function LocoCalibrationTab({
     routeError,
     setRouteError,
   ] =
-    useState<string | null>(
-      null
-    );
+    useState("");
 
   const [
     fromFilter,
     setFromFilter,
   ] =
-    useState<string | null>(
-      null
-    );
+    useState("");
 
   const [
     toFilter,
     setToFilter,
   ] =
-    useState<string | null>(
-      null
-    );
+    useState("");
 
   const [
     selectedRoute,
@@ -613,11 +607,11 @@ export default function LocoCalibrationTab({
   const openRoutePicker =
     (): void => {
       setFromFilter(
-        null
+        ""
       );
 
       setToFilter(
-        null
+        ""
       );
 
       setPickerOpened(
@@ -724,117 +718,28 @@ export default function LocoCalibrationTab({
     speedStep <=
       maxSpeed;
 
-  const routeFilterOptions =
-    useMemo(
-      () => {
-        const from =
-          new Map<
-            string,
-            string
-          >();
-
-        const to =
-          new Map<
-            string,
-            string
-          >();
-
-        for (
-          const candidate of
-          candidates
-        ) {
-          from.set(
-            String(
-              candidate.fromBlockId
-            ),
-            candidate.fromBlockName
-          );
-
-          to.set(
-            String(
-              candidate.toBlockId
-            ),
-            candidate.toBlockName
-          );
-        }
-
-        const sortOptions =
-          (
-            entries:
-              Iterable<
-                [
-                  string,
-                  string,
-                ]
-              >
-          ) =>
-            Array.from(
-              entries
-            )
-              .map(
-                ([
-                  value,
-                  label,
-                ]) => ({
-                  value,
-                  label,
-                })
-              )
-              .sort(
-                (
-                  left,
-                  right
-                ) =>
-                  left.label.localeCompare(
-                    right.label,
-                    undefined,
-                    {
-                      numeric:
-                        true,
-                      sensitivity:
-                        "base",
-                    }
-                  )
-              );
-
-        return {
-          from:
-            sortOptions(
-              from.entries()
-            ),
-          to:
-            sortOptions(
-              to.entries()
-            ),
-        };
-      },
-      [
-        candidates,
-      ]
-    );
-
   const filteredCandidates =
     useMemo(
-      () =>
-        candidates.filter(
+      () => {
+        const fromQuery =
+          fromFilter.trim().toLocaleLowerCase();
+        const toQuery =
+          toFilter.trim().toLocaleLowerCase();
+
+        return candidates.filter(
           candidate =>
             (
-              fromFilter ===
-                null ||
-              String(
-                candidate.fromBlockId
-              ) ===
-                fromFilter
+              !fromQuery ||
+              candidate.fromBlockName.toLocaleLowerCase().includes(fromQuery) ||
+              String(candidate.fromBlockId).includes(fromQuery)
             ) &&
             (
-              toFilter ===
-                null ||
-              String(
-                candidate.toBlockId
-              ) ===
-                toFilter
+              !toQuery ||
+              candidate.toBlockName.toLocaleLowerCase().includes(toQuery) ||
+              String(candidate.toBlockId).includes(toQuery)
             )
-        ),
+        );
+      },
       [
         candidates,
         fromFilter,
@@ -1423,30 +1328,22 @@ export default function LocoCalibrationTab({
             grow
             align="flex-end"
           >
-            <Select
+            <TextInput
               label={t("locodialog.calibration.from")}
-              data={
-                routeFilterOptions.from
-              }
               value={fromFilter}
-              onChange={
-                setFromFilter
+              onChange={event =>
+                setFromFilter(event.currentTarget.value)
               }
-              searchable
-              clearable
+              placeholder={t("locodialog.calibration.from")}
             />
 
-            <Select
+            <TextInput
               label={t("locodialog.calibration.to")}
-              data={
-                routeFilterOptions.to
-              }
               value={toFilter}
-              onChange={
-                setToFilter
+              onChange={event =>
+                setToFilter(event.currentTarget.value)
               }
-              searchable
-              clearable
+              placeholder={t("locodialog.calibration.to")}
             />
           </Group>
 
