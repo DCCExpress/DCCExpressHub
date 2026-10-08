@@ -183,7 +183,9 @@ builder.Services.AddHostedService(
             TimetableRuntime>());
 
 builder.Services.AddSingleton<CalibrationRuntime>();
+builder.Services.AddSingleton<PrecisionBrakingRuntime>();
 builder.Services.AddSingleton<WsHub>();
+
 builder.Services.AddHostedService<WsRuntimeCoordinator>();
 
 // Register the HTTP/WebSocket host last so command-center and automation
@@ -290,4 +292,5 @@ _ = app.Services
     .GetRequiredService<
         WsHub>();
 
+_ = app.Services.GetRequiredService<PrecisionBrakingRuntime>();
 await app.RunAsync();
