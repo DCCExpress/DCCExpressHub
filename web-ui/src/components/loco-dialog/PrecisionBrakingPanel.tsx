@@ -125,7 +125,14 @@ export default function PrecisionBrakingPanel({
       </Stack>
     </Card>
     <Card withBorder p="md">
-      <Text fw={700} mb="sm">Adaptive stopping profile</Text>
+      <Group justify="space-between" mb="sm">
+        <Text fw={700}>Adaptive stopping profile</Text>
+        <Button color="red" variant="light" size="xs" disabled={busy || !!active}
+          onClick={() => {
+            if (!window.confirm("Delete ALL saved adaptive braking measurements for this locomotive? Speed calibration and decoder CV profiles will be preserved.")) return;
+            void action("/reset", { locoId: loco.id });
+          }}>Reset profile</Button>
+      </Group>
       <Text size="xs" c="dimmed" mb="sm">Learned from manually measured trials; separate for forward and reverse. Not applied to normal Movement runs.</Text>
       {state?.locoId !== loco.id || !state.profile.length
         ? <Text c="dimmed" size="sm">No trial data in the current session.</Text>
