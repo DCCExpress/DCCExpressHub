@@ -154,7 +154,7 @@ export default function PrecisionBrakingRouteSelector({
     <Group align="center">
       <Button variant="light" onClick={() => {
         setFromFilter(""); setToFilter(""); setOpened(true);
-        void load(selected?.routeRef ?? savedRouteRef);
+        void load();
       }} disabled={disabled}>Select Route</Button>
       <Text size="sm">{selected?.label ?? "No braking route selected"}</Text>
     </Group>
