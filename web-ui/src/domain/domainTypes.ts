@@ -136,6 +136,14 @@ export type LocoPrecisionBrakingProfile = {
   }>;
 };
 
+export type LocoDecoderProfile = {
+  /** Last successful service-track reads, indexed by DCC CV number. */
+  cvValues: Record<string, number>;
+  readAt?: string;
+  source: "service";
+  /** A read failure must never be interpreted as a CV value of zero. */
+};
+
 export type Loco = {
   id: string;
   name: string;
@@ -154,6 +162,7 @@ export type Loco = {
   actions?: LocoActionHooks;
   calibration?: LocoCalibrationProfile;
   precisionBraking?: LocoPrecisionBrakingProfile;
+  decoderProfile?: LocoDecoderProfile;
 };
 
 export type ReservationOwnerType =
