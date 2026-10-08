@@ -182,6 +182,56 @@ public sealed class PrecisionBrakingRuntime
                 return (false, "braking_target_block_sensor_missing");
             var referenceSensor = targetBlock.SensorAddress;
 
+            var rows = loco["calibration"]?["results"] as JsonArray;
+            if (rows is null || rows.Count == 0)
+                return (false, "speed_calibration_required");
+
+            var outboundDirection = loco["calibration"]?["routeRef"]?["direction"]?
+                .GetValue<string>();
+            var directionKnown = outboundDirection is "forward" or "reverse";
+            var measuredLeg = directionKnown
+                ? (actualRoute.Direction == outboundDirection ? "outbound" : "return")
+                : null;
+
+            var measuredPoints = new List<PrecisionBrakingProfile.SpeedPoint>();
+            foreach (var row in rows.OfType<JsonObject>())
+            {
+                var leg = row["direction"]?.GetValue<string>();
+                if (leg is not ("outbound" or "return") ||
+                    (measuredLeg is not null && leg != measuredLeg))
+                    continue;
+
+                var step = row["speedStep"]?.GetValue<int>() ?? 0;
+                var mmS = row["millimetersPerSecond"]?.GetValue<double>() ?? 0;
+                var point = new PrecisionBrakingProfile.SpeedPoint(step, mmS);
+                if (PrecisionBrakingProfile.ValidSpeedPoint(point))
+                    measuredPoints.Add(point);
+            }
+
+            // Legacy speed-calibration profiles can contain valid outbound/return
+            // measurements without their original route direction. We cannot
+            // assign those legs to physical forward/reverse. In that case use
+            // the faster measured value at every DCC step, rather than
+            // underestimating the approach speed or guessing an orientation.
+            var points = directionKnown
+                ? measuredPoints
+                : measuredPoints
+                    .GroupBy(point => point.DccStep)
+                    .Select(group => new PrecisionBrakingProfile.SpeedPoint(
+                        group.Key, group.Max(point => point.MillimetersPerSecond)))
+                    .OrderBy(point => point.DccStep)
+                    .ToList();
+
+            var speed = PrecisionBrakingProfile.SpeedAtStep(points, request.SpeedStep);
+            if (!speed.HasValue || speed.Value <= 0)
+                return (false, "matching_speed_calibration_required");
+
+            if (!directionKnown)
+                _log.LogWarning(
+                    "Precision Braking loco #{LocoAddress}: saved Speed Calibration route direction missing; using the maximum measured mm/s at each DCC step from outbound/return samples",
+                    request.LocoAddress);
+
+
             var turnoutStates = new Dictionary<ushort, bool>();
             foreach (var turnout in plan.Legs.SelectMany(leg => leg.TurnoutStates))
             {
@@ -209,25 +259,6 @@ public sealed class PrecisionBrakingRuntime
             if (!_layout.TryGetSensorState(referenceSensor,
                     out var sensorOn) || sensorOn)
                 return (false, "reference_sensor_must_be_known_and_free");
-
-            var rows = loco["calibration"]?["results"] as JsonArray;
-            if (rows is null) return (false, "speed_calibration_required");
-            var points = new List<PrecisionBrakingProfile.SpeedPoint>();
-            var outboundDirection = loco["calibration"]?["routeRef"]?["direction"]?.GetValue<string>();
-            if (outboundDirection is not ("forward" or "reverse"))
-                return (false, "calibration_direction_missing");
-            var measuredLeg = actualRoute.Direction == outboundDirection ? "outbound" : "return";
-            foreach (var row in rows.OfType<JsonObject>())
-            {
-                var step = row["speedStep"]?.GetValue<int>() ?? 0;
-                var mmS = row["millimetersPerSecond"]?.GetValue<double>() ?? 0;
-                if (row["direction"]?.GetValue<string>() ==
-                    measuredLeg)
-                    points.Add(new(step, mmS));
-            }
-            var speed = PrecisionBrakingProfile.SpeedAtStep(points, request.SpeedStep);
-            if (!speed.HasValue || speed.Value <= 0)
-                return (false, "matching_speed_calibration_required");
 
             var learned = new List<PrecisionBrakingProfile.Trial>();
             if (loco["precisionBraking"]?["trials"] is JsonArray saved)
