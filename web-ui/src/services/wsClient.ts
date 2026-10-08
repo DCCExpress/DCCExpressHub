@@ -242,6 +242,9 @@ class WsClient {
                 }
 
                 if (message.type === "sensorSnapshot") {
+                    // Authoritative replacement, not a merge: entries omitted
+                    // from the snapshot are UNKNOWN (never implicitly FREE).
+                    this.latestSensorStates.clear();
                     for (
                         const [
                             baseAddress,
