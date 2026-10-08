@@ -137,6 +137,72 @@ public sealed partial class WatsonWebServerService
                         .EmergencyStop());
             });
 
+        Add(server, WatsonHttpMethod.GET, "/api/precision-braking",
+            async ctx => await SendAsync(ctx,
+                HubApiResponse.Ok(Service<PrecisionBrakingRuntime>().Snapshot())));
+
+        Add(server, WatsonHttpMethod.POST, "/api/precision-braking/start",
+            async ctx =>
+            {
+                using var input = await ReadBodyStreamAsync(ctx);
+                try
+                {
+                    var request = await System.Text.Json.JsonSerializer.DeserializeAsync<
+                        PrecisionBrakingRuntime.TrialRequest>(input,
+                        new System.Text.Json.JsonSerializerOptions(
+                            System.Text.Json.JsonSerializerDefaults.Web), ctx.Token);
+                    if (request is null) throw new System.Text.Json.JsonException();
+                    var result = await Service<PrecisionBrakingRuntime>().StartAsync(request);
+                    await SendAsync(ctx, result.Ok
+                        ? HubApiResponse.Ok(Service<PrecisionBrakingRuntime>().Snapshot())
+                        : HubApiResponse.Error(409, new { ok = false, message = result.Error }));
+                }
+                catch (System.Text.Json.JsonException)
+                {
+                    await SendAsync(ctx, HubApiResponse.Error(400,
+                        new { ok = false, message = "invalid_braking_request" }));
+                }
+            });
+
+        Add(server, WatsonHttpMethod.POST, "/api/precision-braking/measure",
+            async ctx =>
+            {
+                using var input = await ReadBodyStreamAsync(ctx);
+                try
+                {
+                    var measurement = await System.Text.Json.JsonSerializer.DeserializeAsync<
+                        PrecisionBrakingRuntime.TrialMeasurement>(input,
+                        new System.Text.Json.JsonSerializerOptions(
+                            System.Text.Json.JsonSerializerDefaults.Web), ctx.Token);
+                    if (measurement is null) throw new System.Text.Json.JsonException();
+                    var result = await Service<PrecisionBrakingRuntime>().RecordAsync(measurement);
+                    await SendAsync(ctx, result.Ok
+                        ? HubApiResponse.Ok(Service<PrecisionBrakingRuntime>().Snapshot())
+                        : HubApiResponse.Error(409, new { ok = false, message = result.Error }));
+                }
+                catch (System.Text.Json.JsonException)
+                {
+                    await SendAsync(ctx, HubApiResponse.Error(400,
+                        new { ok = false, message = "invalid_braking_measurement" }));
+                }
+            });
+
+        Add(server, WatsonHttpMethod.POST, "/api/precision-braking/stop",
+            async ctx =>
+            {
+                await Service<PrecisionBrakingRuntime>().StopAsync();
+                await SendAsync(ctx, HubApiResponse.Ok(
+                    Service<PrecisionBrakingRuntime>().Snapshot()));
+            });
+
+        Add(server, WatsonHttpMethod.POST, "/api/precision-braking/estop",
+            async ctx =>
+            {
+                await Service<PrecisionBrakingRuntime>().EmergencyStopAsync();
+                await SendAsync(ctx, HubApiResponse.Ok(
+                    Service<PrecisionBrakingRuntime>().Snapshot()));
+            });
+
         Add(
             server,
             WatsonHttpMethod.GET,
