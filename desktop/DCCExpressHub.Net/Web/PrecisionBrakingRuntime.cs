@@ -146,6 +146,17 @@ public sealed class PrecisionBrakingRuntime
             });
             if (plan.Legs.Length == 0 || plan.Direction != request.Direction)
                 return (false, "braking_route_invalid");
+            // Fail closed when the route's actual starting block does not
+            // contain the locomotive selected in the editor.
+            var startBlock = _layout.BlocksForPersistence()
+                .FirstOrDefault(block => block.Id == actualRoute.FromBlockId);
+            if (startBlock is null ||
+                startBlock.TargetOnly ||
+                startBlock.LocoAddress != request.LocoAddress ||
+                !string.Equals(startBlock.LocoId, request.LocoId,
+                    StringComparison.Ordinal))
+                return (false, "braking_start_block_locomotive_mismatch");
+
             var turnoutStates = new Dictionary<ushort, bool>();
             foreach (var turnout in plan.Legs.SelectMany(leg => leg.TurnoutStates))
             {
