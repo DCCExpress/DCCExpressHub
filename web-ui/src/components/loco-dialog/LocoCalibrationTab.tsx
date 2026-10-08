@@ -837,12 +837,16 @@ export default function LocoCalibrationTab({
 
   return (
     <>
-      <Tabs defaultValue="speed" keepMounted>
-        <Tabs.List mb="sm">
+      <Tabs
+        defaultValue="speed"
+        keepMounted
+        style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column" }}
+      >
+        <Tabs.List mb="sm" style={{ flexShrink: 0 }}>
           <Tabs.Tab value="speed">Speed Calibration</Tabs.Tab>
           <Tabs.Tab value="braking">Precision Braking</Tabs.Tab>
         </Tabs.List>
-        <Tabs.Panel value="speed">
+        <Tabs.Panel value="speed" style={{ flex: 1, minHeight: 0 }}>
       <ScrollArea
         h="100%"
         type="auto"
@@ -1371,8 +1375,10 @@ export default function LocoCalibrationTab({
         </Stack>
       </ScrollArea>
         </Tabs.Panel>
-        <Tabs.Panel value="braking">
-          <PrecisionBrakingPanel loco={loco} />
+        <Tabs.Panel value="braking" style={{ flex: 1, minHeight: 0 }}>
+          <ScrollArea h="100%" type="auto" offsetScrollbars>
+            <PrecisionBrakingPanel loco={loco} />
+          </ScrollArea>
         </Tabs.Panel>
       </Tabs>
 
