@@ -84,6 +84,13 @@ export default function PrecisionBrakingPanel({
   const other = state && ["preparing", "armed", "braking", "measure", "saving", "return_preparing", "returning"].includes(state.status) && state.locoId !== loco.id;
   const hasSpeedProfile = (loco.calibration?.results.length ?? 0) > 0;
   return <Stack gap="md">
+    <Group justify="flex-end">
+      <Button component="a" variant="subtle" size="xs"
+        href="https://github.com/DCCExpress/DCCExpressHub/blob/alpha3/docs/precision-braking-decoder-hu.md"
+        target="_blank" rel="noopener noreferrer">
+        Fékezési CV beállítási útmutató ↗
+      </Button>
+    </Group>
     <Alert color="orange" title="Isolated test track only">
       Trials issue physical locomotive speed commands directly. They do not reserve routes,
       check turnout locks or replace Dispatcher safety. Use only on a clear, physically isolated test track.
