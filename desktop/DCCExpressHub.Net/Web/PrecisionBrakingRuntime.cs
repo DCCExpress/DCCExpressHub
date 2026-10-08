@@ -169,6 +169,9 @@ public sealed class PrecisionBrakingRuntime
             }
             if (Busy() || !_commandCenter.Connected || _commandCenter.EmergencyPaused)
                 return (false, "braking_start_interlock_failed");
+            if (!_layout.TryGetSensorState((ushort)request.SensorAddress,
+                    out var sensorOn) || sensorOn)
+                return (false, "reference_sensor_must_be_known_and_free");
 
             var rows = loco["calibration"]?["results"] as JsonArray;
             if (rows is null) return (false, "speed_calibration_required");
