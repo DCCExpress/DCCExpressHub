@@ -306,8 +306,14 @@ function DccExProgrammingPage({
               message: verified
                 ? `CV${requestedCv} = ${requestedValue} written and independently read back.`
                 : `CV${requestedCv} write NOT verified: requested ${requestedValue}, read back ${verify.ok ? String(verify.value) : "failed"}. Write reply: ${response.raw ?? "n/a"}. Read reply: ${verify.raw ?? verify.message ?? "n/a"}.`,
-              raw: verify.raw ?? response.raw,
-              value: verify.ok ? verify.value : undefined,
+              ...(verify.raw !== undefined
+                ? { raw: verify.raw }
+                : response.raw !== undefined
+                  ? { raw: response.raw }
+                  : {}),
+              ...(verify.ok && verify.value !== undefined
+                ? { value: verify.value }
+                : {}),
             });
             if (verified) setCvValue(requestedValue);
           } catch (verifyError) {
