@@ -1586,6 +1586,11 @@ export default function LiteLayoutPage({
   }), [layout, invalidate]);
 
   useEffect(() => wsClient.on("sensorSnapshot", data => {
+    // Full replacement: a previously ON sensor absent from the latest
+    // snapshot is UNKNOWN, not still occupied.
+    for (const element of layout.getAllElements()) {
+      if (element instanceof TrackSensorElement) element.on = false;
+    }
     for (const [baseAddress, activeBits, knownBits] of data.groups) {
       for (const element of layout.getAllElements()) {
         if (!(element instanceof TrackSensorElement)) continue;
