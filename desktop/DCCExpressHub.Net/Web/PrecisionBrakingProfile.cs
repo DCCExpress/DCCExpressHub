@@ -23,7 +23,8 @@ public static class PrecisionBrakingProfile
         string Direction,
         double MillimetersPerSecond,
         double EstimatedStoppingDistanceMm,
-        int Samples);
+        int Samples,
+        double? BaselineStoppingDistanceMm = null);
 
     // Every experiment must record the speed-hold time that caused its stop.
     // Legacy measurements without this field cannot be used for control.
@@ -145,7 +146,18 @@ public static class PrecisionBrakingProfile
             };
         }
 
+        // Baseline is a measured immediate speed-zero stop (hold = 0).
+        // Never confuse it with the adaptive estimate or legacy data.
+        var baseline = trials.Where(t => ValidTrial(t) &&
+                t.CommandedRampSeconds == 0)
+            .GroupBy(t => (t.DccStep, t.Direction))
+            .ToDictionary(g => g.Key, g => (double?)g.Average(t => t.ActualDistanceMm));
         return learned.Values
+            .Select(point => point with
+            {
+                BaselineStoppingDistanceMm = baseline.GetValueOrDefault(
+                    (point.DccStep, point.Direction))
+            })
             .OrderBy(point => point.Direction, StringComparer.Ordinal)
             .ThenBy(point => point.MillimetersPerSecond)
             .ToArray();
