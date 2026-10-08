@@ -46,6 +46,9 @@ wsClient.on("sensorChanged", (data) => {
 });
 
 wsClient.on("sensorSnapshot", (data) => {
+  // A full snapshot replaces earlier cached knowledge. An omitted input
+  // is UNKNOWN, so never keep its stale occupied flag across reconnects.
+  occupancyByAddress.clear();
   for (const [baseAddress, activeBits, knownBits] of data.groups) {
     for (let offset = 0; offset < 16; ++offset) {
       const bit = 1 << offset;
@@ -58,6 +61,12 @@ wsClient.on("sensorSnapshot", (data) => {
     }
   }
 });
+wsClient.subscribeStatus(status => {
+  if (status === "disconnected" || status === "reconnecting" || status === "error") {
+    occupancyByAddress.clear();
+  }
+});
+
 export abstract class TrackElement extends BaseElement {
   address: number = 0;
 
