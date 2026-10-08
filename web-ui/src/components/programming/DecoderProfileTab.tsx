@@ -213,6 +213,9 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
     }
   };
   const exportProfile = () => {
+    if (addressRead === null || Number(locoAddress) !== addressRead) {
+      setError("Read the DCC-EX decoder address before exporting."); return;
+    }
     if (!successful.length) { setError("Nothing has been read successfully."); return; }
     const safeName = fileName.trim().replace(/[\\/:*?"<>|]/g, "_");
     if (!safeName) { setError("Enter an export filename."); return; }
@@ -326,7 +329,7 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
         <Group align="end">
           <TextInput label="Export filename" value={fileName} onChange={e => setFileName(e.currentTarget.value)}
             style={{ flex: 1 }} placeholder="my-locomotive-decoder"/>
-          <Button onClick={exportProfile} disabled={!successful.length}>Export JSON</Button>
+          <Button onClick={exportProfile} disabled={!successful.length || addressRead === null}>Export JSON</Button>
         </Group>
         <Text size="xs" c="dimmed">The export contains CV numbers, decoded names, values, and failed read addresses. No decoder values are written.</Text>
       </Stack>
