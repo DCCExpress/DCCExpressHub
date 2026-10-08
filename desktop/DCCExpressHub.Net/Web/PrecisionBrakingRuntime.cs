@@ -34,6 +34,8 @@ public sealed class PrecisionBrakingRuntime
     readonly ILogger<PrecisionBrakingRuntime> _log;
     CancellationTokenSource? _cts;
     bool _ownsGate;
+    int? _returnSensor;
+    TaskCompletionSource<bool>? _returnArrival;
     TrialRequest? _active;
     double _currentSpeedMmS;
     string _status = "idle";
@@ -285,6 +287,15 @@ public sealed class PrecisionBrakingRuntime
     void OnSensor(int address, bool active)
     {
         if (!active) return;
+        TaskCompletionSource<bool>? returnArrival = null;
+        lock (_sync)
+            if (_status == "returning" && _returnSensor == address)
+                returnArrival = _returnArrival;
+        if (returnArrival is not null)
+        {
+            returnArrival.TrySetResult(true);
+            return;
+        }
         TrialRequest? trial;
         CancellationToken token;
         lock (_sync)
@@ -402,10 +413,11 @@ public sealed class PrecisionBrakingRuntime
             {
                 _trials.Add(row);
                 _actual = measurement.ActualDistanceMm;
-                _status = "completed";
+                _status = "return_preparing";
             }
-            await StopPowerOnlyAsync(trial);
-            ReleaseGate();
+            // Save/OK is the operator's permission to restore the test position.
+            // The gate stays held until the return has stopped.
+            _ = Task.Run(() => ReturnToStartAsync(trial));
             return (true, "");
         }
         catch (Exception ex)
@@ -419,6 +431,128 @@ public sealed class PrecisionBrakingRuntime
             return (false, "braking_measurement_save_failed");
         }
     }
+
+    async Task ReturnToStartAsync(TrialRequest trial)
+    {
+        try
+        {
+            CancellationToken token;
+            lock (_sync)
+                token = _cts?.Token ?? throw new OperationCanceledException();
+            token.ThrowIfCancellationRequested();
+
+            var root = JsonNode.Parse(await File.ReadAllTextAsync(LocoFile, token)) as JsonArray;
+            var loco = root is null ? null : FindLoco(root, trial.LocoId);
+            var savedRoute = loco?["calibration"]?["routeRef"]?
+                .Deserialize<MovementRouteRefModel>(
+                    new JsonSerializerOptions(JsonSerializerDefaults.Web))
+                ?? throw new InvalidOperationException("braking_return_route_missing");
+            var forwardRoute = trial.Direction == savedRoute.Direction
+                ? savedRoute
+                : Reverse(savedRoute);
+            var reverseRoute = Reverse(forwardRoute);
+            var origin = _layout.BlocksForPersistence()
+                .FirstOrDefault(block => block.Id == forwardRoute.FromBlockId);
+            if (origin is null || origin.SensorAddress == 0 ||
+                !_layout.TryGetSensorState(origin.SensorAddress, out var occupied) ||
+                occupied)
+                throw new InvalidOperationException("braking_return_start_sensor_not_free");
+
+            var plan = _planBuilder.Build(new MovementPageModel
+            {
+                Id = "precision-braking-return-validation",
+                Name = "Precision Braking return",
+                RouteRef = reverseRoute,
+                ExpectedLocoAddress = trial.LocoAddress
+            });
+            if (plan.Legs.Length == 0 ||
+                plan.Direction != reverseRoute.Direction)
+                throw new InvalidOperationException("braking_return_route_invalid");
+
+            var turnouts = new Dictionary<ushort, bool>();
+            foreach (var turnout in plan.Legs.SelectMany(leg => leg.TurnoutStates))
+            {
+                if (turnouts.TryGetValue(turnout.Address, out var old) &&
+                    old != turnout.Closed)
+                    throw new InvalidOperationException("braking_return_turnout_conflict");
+                turnouts[turnout.Address] = turnout.Closed;
+            }
+            foreach (var turnout in turnouts)
+            {
+                token.ThrowIfCancellationRequested();
+                if (!await _commandCenter.SetTurnoutAsync(
+                    turnout.Key, turnout.Value, token))
+                    throw new InvalidOperationException("braking_return_turnout_command_failed");
+                await Task.Delay(250, token);
+                if (!_layout.TryGetTurnoutClosed(turnout.Key, out var closed) ||
+                    closed != turnout.Value)
+                    throw new InvalidOperationException("braking_return_turnout_unverified");
+            }
+            if (!_commandCenter.Connected || _commandCenter.EmergencyPaused)
+                throw new InvalidOperationException("braking_return_command_center_not_ready");
+
+            var arrival = new TaskCompletionSource<bool>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            lock (_sync)
+            {
+                token.ThrowIfCancellationRequested();
+                _returnSensor = origin.SensorAddress;
+                _returnArrival = arrival;
+                _status = "returning";
+            }
+
+            // Return is positioning only, at a conservative speed.
+            var speed = Math.Clamp(trial.SpeedStep / 2, 1, 15);
+            if (!await _commandCenter.SetLocoAsync(
+                trial.LocoAddress, speed, trial.Direction != "forward", token))
+                throw new InvalidOperationException("braking_return_command_failed");
+
+            // Returning must stop even if the sensor is never reported.
+            await arrival.Task.WaitAsync(TimeSpan.FromSeconds(30), token);
+            if (!await _commandCenter.SetLocoAsync(
+                trial.LocoAddress, 0, trial.Direction != "forward"))
+                throw new InvalidOperationException("braking_return_stop_failed");
+
+            lock (_sync)
+            {
+                _status = "completed";
+                _error = null;
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Precision Braking return failed");
+            lock (_sync)
+            {
+                _status = "error";
+                _error = ex is TimeoutException
+                    ? "braking_return_sensor_timeout" : ex.Message;
+            }
+            try { await _commandCenter.EmergencyStopAsync(); }
+            catch (Exception stopEx)
+            {
+                _log.LogError(stopEx, "Precision Braking return E-STOP failed");
+            }
+        }
+        finally
+        {
+            lock (_sync)
+            {
+                _returnArrival = null;
+                _returnSensor = null;
+            }
+            ReleaseGate();
+        }
+    }
+
+    static MovementRouteRefModel Reverse(MovementRouteRefModel route) => new()
+    {
+        FromBlockId = route.ToBlockId,
+        ToBlockId = route.FromBlockId,
+        Direction = route.Direction == "forward" ? "reverse" : "forward",
+        ViaBlockIds = (route.ViaBlockIds ?? []).Reverse().ToArray()
+    };
 
     async Task StopPowerOnlyAsync(TrialRequest trial)
     {
@@ -448,10 +582,19 @@ public sealed class PrecisionBrakingRuntime
         {
             trial = _active;
             _cts?.Cancel();
-            if (_status is "armed" or "braking" or "saving")
+            if (_status is "armed" or "braking" or "saving" or "return_preparing" or "returning")
                 _status = "stopped";
         }
-        if (trial is not null) await StopPowerOnlyAsync(trial);
+        if (trial is not null)
+        {
+            var reverse = false;
+            lock (_sync) reverse = _returnSensor.HasValue;
+            if (reverse)
+                await _commandCenter.SetLocoAsync(trial.LocoAddress, 0,
+                    trial.Direction != "forward");
+            else
+                await StopPowerOnlyAsync(trial);
+        }
         ReleaseGate();
     }
 
