@@ -47,8 +47,8 @@ export default function PrecisionBrakingPanel({ loco }: { loco: Loco }) {
   };
 
   const active = state?.locoId === loco.id &&
-    ["armed", "braking", "measure", "saving", "return_preparing", "returning"].includes(state.status);
-  const other = state && ["armed", "braking", "measure", "saving", "return_preparing", "returning"].includes(state.status) && state.locoId !== loco.id;
+    ["preparing", "armed", "braking", "measure", "saving", "return_preparing", "returning"].includes(state.status);
+  const other = state && ["preparing", "armed", "braking", "measure", "saving", "return_preparing", "returning"].includes(state.status) && state.locoId !== loco.id;
   const hasSpeedProfile = (loco.calibration?.results.length ?? 0) > 0;
   return <Stack gap="md">
     <Alert color="orange" title="Isolated test track only">
@@ -87,6 +87,8 @@ export default function PrecisionBrakingPanel({ loco }: { loco: Loco }) {
         {active && <Text size="sm">Reference sensor: {state?.sensorAddress} ·
           Approach: {state?.speedMmPerSecond?.toFixed(1) ?? "—"} mm/s ·
           Target: {state?.targetDistanceMm} mm</Text>}
+        {state?.status === "preparing" && active &&
+          <Alert color="blue">Validating selected route, locomotive and turnout positions…</Alert>}
         {state?.status === "armed" && active && <Alert color="blue">Locomotive moving. Braking begins on sensor ON.</Alert>}
         {state?.status === "braking" && active && <Alert color="blue">Applying braking ramp. Do not measure yet.</Alert>}
         {state?.status === "measure" && active && <>
