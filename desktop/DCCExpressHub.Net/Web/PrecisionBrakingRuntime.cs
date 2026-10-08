@@ -186,21 +186,14 @@ public sealed class PrecisionBrakingRuntime
             if (rows is null || rows.Count == 0)
                 return (false, "speed_calibration_required");
 
-            var outboundDirection = loco["calibration"]?["routeRef"]?["direction"]?
-                .GetValue<string>();
-            var directionKnown = outboundDirection is "forward" or "reverse";
-            var measuredLeg = directionKnown
-                ? (actualRoute.Direction == outboundDirection ? "outbound" : "return")
-                : null;
-
+            // The selected Precision Braking route alone supplies the physical
+            // direction. Speed Calibration measurements are a separate speed
+            // table, not an authority for this route or its direction.
+            // For each DCC step, use the higher measured speed of the two
+            // calibration passes (conservative when their paths differ).
             var measuredPoints = new List<PrecisionBrakingProfile.SpeedPoint>();
             foreach (var row in rows.OfType<JsonObject>())
             {
-                var leg = row["direction"]?.GetValue<string>();
-                if (leg is not ("outbound" or "return") ||
-                    (measuredLeg is not null && leg != measuredLeg))
-                    continue;
-
                 var step = row["speedStep"]?.GetValue<int>() ?? 0;
                 var mmS = row["millimetersPerSecond"]?.GetValue<double>() ?? 0;
                 var point = new PrecisionBrakingProfile.SpeedPoint(step, mmS);
@@ -208,29 +201,16 @@ public sealed class PrecisionBrakingRuntime
                     measuredPoints.Add(point);
             }
 
-            // Legacy speed-calibration profiles can contain valid outbound/return
-            // measurements without their original route direction. We cannot
-            // assign those legs to physical forward/reverse. In that case use
-            // the faster measured value at every DCC step, rather than
-            // underestimating the approach speed or guessing an orientation.
-            var points = directionKnown
-                ? measuredPoints
-                : measuredPoints
-                    .GroupBy(point => point.DccStep)
-                    .Select(group => new PrecisionBrakingProfile.SpeedPoint(
-                        group.Key, group.Max(point => point.MillimetersPerSecond)))
-                    .OrderBy(point => point.DccStep)
-                    .ToList();
+            var points = measuredPoints
+                .GroupBy(point => point.DccStep)
+                .Select(group => new PrecisionBrakingProfile.SpeedPoint(
+                    group.Key, group.Max(point => point.MillimetersPerSecond)))
+                .OrderBy(point => point.DccStep)
+                .ToList();
 
             var speed = PrecisionBrakingProfile.SpeedAtStep(points, request.SpeedStep);
             if (!speed.HasValue || speed.Value <= 0)
                 return (false, "matching_speed_calibration_required");
-
-            if (!directionKnown)
-                _log.LogWarning(
-                    "Precision Braking loco #{LocoAddress}: saved Speed Calibration route direction missing; using the maximum measured mm/s at each DCC step from outbound/return samples",
-                    request.LocoAddress);
-
 
             var turnoutStates = new Dictionary<ushort, bool>();
             foreach (var turnout in plan.Legs.SelectMany(leg => leg.TurnoutStates))
