@@ -29,6 +29,8 @@ public sealed class PrecisionBrakingRuntime
     readonly TimetableRuntime _timetable;
     readonly LocoStorageCoordinator _storage;
     readonly AppPaths _paths;
+    readonly MovementPlanBuilder _planBuilder;
+    readonly LayoutRuntime _layout;
     readonly ILogger<PrecisionBrakingRuntime> _log;
     CancellationTokenSource? _cts;
     bool _ownsGate;
@@ -44,7 +46,8 @@ public sealed class PrecisionBrakingRuntime
         AutomationExclusiveGate exclusive, CalibrationRuntime speedCalibration,
         MovementRuntime movement, ScriptRuntime scripts, FlowRuntime flows,
         TimetableRuntime timetable, LocoStorageCoordinator storage,
-        AppPaths paths, ILogger<PrecisionBrakingRuntime> log)
+        AppPaths paths, MovementPlanBuilder planBuilder,
+        LayoutRuntime layout, ILogger<PrecisionBrakingRuntime> log)
     {
         _commandCenter = commandCenter;
         _exclusive = exclusive;
@@ -55,6 +58,8 @@ public sealed class PrecisionBrakingRuntime
         _timetable = timetable;
         _storage = storage;
         _paths = paths;
+        _planBuilder = planBuilder;
+        _layout = layout;
         _log = log;
         _commandCenter.SensorFeedbackChanged += OnSensor;
         _commandCenter.ConnectionChanged += connected =>
@@ -116,6 +121,55 @@ public sealed class PrecisionBrakingRuntime
             var loco = root is null ? null : FindLoco(root, request.LocoId);
             if (loco is null || loco["address"]?.GetValue<int>() != request.LocoAddress)
                 return (false, "locomotive_not_found");
+            // The persisted calibration route is resolved against the current
+            // authoritative topology; never trust client-supplied turnout states.
+            var savedRoute = loco["calibration"]?["routeRef"]?
+                .Deserialize<MovementRouteRefModel>(
+                    new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            if (savedRoute is null)
+                return (false, "calibration_route_missing");
+            var actualRoute = request.Direction == savedRoute.Direction
+                ? savedRoute
+                : new MovementRouteRefModel
+                {
+                    FromBlockId = savedRoute.ToBlockId,
+                    ToBlockId = savedRoute.FromBlockId,
+                    Direction = request.Direction,
+                    ViaBlockIds = (savedRoute.ViaBlockIds ?? []).Reverse().ToArray()
+                };
+            var plan = _planBuilder.Build(new MovementPageModel
+            {
+                Id = "precision-braking-route-validation",
+                Name = "Precision Braking",
+                RouteRef = actualRoute,
+                ExpectedLocoAddress = request.LocoAddress
+            });
+            if (plan.Legs.Length == 0 || plan.Direction != request.Direction)
+                return (false, "braking_route_invalid");
+            var turnoutStates = new Dictionary<ushort, bool>();
+            foreach (var turnout in plan.Legs.SelectMany(leg => leg.TurnoutStates))
+            {
+                if (turnoutStates.TryGetValue(turnout.Address, out var previous)
+                    && previous != turnout.Closed)
+                    return (false, "braking_route_turnout_conflict");
+                turnoutStates[turnout.Address] = turnout.Closed;
+            }
+            // Place and verify switches BEFORE issuing any nonzero throttle.
+            // A command acknowledgment alone does not prove mechanical position.
+            foreach (var turnout in turnoutStates)
+            {
+                if (!_commandCenter.Connected)
+                    return (false, "command_center_disconnected");
+                if (!await _commandCenter.SetTurnoutAsync(turnout.Key, turnout.Value))
+                    return (false, "braking_turnout_command_failed");
+                await Task.Delay(250);
+                if (!_layout.TryGetTurnoutClosed(turnout.Key, out var closed)
+                    || closed != turnout.Value)
+                    return (false, "braking_turnout_unverified");
+            }
+            if (Busy() || !_commandCenter.Connected || _commandCenter.EmergencyPaused)
+                return (false, "braking_start_interlock_failed");
+
             var rows = loco["calibration"]?["results"] as JsonArray;
             if (rows is null) return (false, "speed_calibration_required");
             var points = new List<PrecisionBrakingProfile.SpeedPoint>();
