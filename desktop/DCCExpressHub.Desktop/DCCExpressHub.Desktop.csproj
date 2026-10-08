@@ -5,6 +5,7 @@
     <UseWPF>true</UseWPF>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationIcon>Assets\DCCExpressHub.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -20,11 +21,12 @@
     <Page Remove="StartupSettingsWindow.xaml" />
     <Compile Remove="StartupSettingsWindow.xaml.cs" />
   </ItemGroup>
+  <ItemGroup>
+    <Content Include="Assets\DCCExpressHub.ico" />
+  </ItemGroup>
 
   <Target Name="BuildBackend" BeforeTargets="Build" Condition="'$(RuntimeIdentifier)' == ''">
-    <MSBuild Projects="..\DCCExpressHub.Net\DCCExpressHub.Net.csproj"
-             Targets="Build"
-             Properties="Configuration=$(Configuration)" />
+    <MSBuild Projects="..\DCCExpressHub.Net\DCCExpressHub.Net.csproj" Targets="Build" Properties="Configuration=$(Configuration)" />
   </Target>
 
   <Target Name="PrepareBackendRuntime" AfterTargets="Build" Condition="'$(RuntimeIdentifier)' == ''">
@@ -37,16 +39,8 @@
       <WebRootFiles Include="..\DCCExpressHub.Net\wwwroot\**\*" />
     </ItemGroup>
 
-    <Copy SourceFiles="@(BackendFiles)"
-          DestinationFiles="@(BackendFiles->'$(OutDir)backend\%(RecursiveDir)%(Filename)%(Extension)')"
-          SkipUnchangedFiles="true"
-          Retries="3"
-          RetryDelayMilliseconds="250" />
+    <Copy SourceFiles="@(BackendFiles)" DestinationFiles="@(BackendFiles->'$(OutDir)backend\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Retries="3" RetryDelayMilliseconds="250" />
 
-    <Copy SourceFiles="@(WebRootFiles)"
-          DestinationFiles="@(WebRootFiles->'$(OutDir)backend\wwwroot\%(RecursiveDir)%(Filename)%(Extension)')"
-          SkipUnchangedFiles="true"
-          Retries="3"
-          RetryDelayMilliseconds="250" />
+    <Copy SourceFiles="@(WebRootFiles)" DestinationFiles="@(WebRootFiles->'$(OutDir)backend\wwwroot\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Retries="3" RetryDelayMilliseconds="250" />
   </Target>
 </Project>
