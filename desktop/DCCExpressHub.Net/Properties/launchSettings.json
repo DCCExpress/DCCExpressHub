@@ -1,12 +1,36 @@
 {
   "profiles": {
-    "DCCExpressHub.Net": {
+    "DCCExpressHub.Net - YaMoRC": {
       "commandName": "Project",
       "launchBrowser": false,
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
-      },
-      "applicationUrl": "http://127.0.0.1:5174"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "DCCEXPRESS_HTTP_URL": "http://127.0.0.1:5174",
+        "DCCEXPRESS_CONTENT_ROOT": ".",
+        "DCCEXPRESS_WEB_ROOT": "./wwwroot",
+
+        "CommandCenter__Protocol": "yamorc7010",
+        "Z21__Host": "192.168.1.100",
+        "Z21__Port": "21105",
+        "LocoNet__Host": "192.168.1.100"
+
+      }
+    },
+
+    "DCCExpressHub.Net - DCC-EX": {
+      "commandName": "Project",
+      "launchBrowser": false,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "DCCEXPRESS_HTTP_URL": "http://127.0.0.1:5174",
+        "DCCEXPRESS_CONTENT_ROOT": ".",
+        "DCCEXPRESS_WEB_ROOT": "./wwwroot",
+
+        "CommandCenter__Protocol": "dcc-ex",
+        "DccEx__Transport": "Tcp",
+        "DccEx__Host": "192.168.1.101",
+        "DccEx__Port": "2560"
+      }
     }
   }
 }
