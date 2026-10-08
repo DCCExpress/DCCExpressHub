@@ -72,7 +72,7 @@ export default function PrecisionBrakingRouteSelector({
   const [fromFilter, setFromFilter] = useState("");
   const [toFilter, setToFilter] = useState("");
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (preferred?: MovementRouteRef) => {
     setLoading(true);
     setError(null);
     try {
@@ -97,7 +97,6 @@ export default function PrecisionBrakingRouteSelector({
       setCandidates(loaded);
       setSensorByBlock(sensors);
       // A route saved by Precision Braking belongs to this tab only.
-      const preferred = selected?.routeRef ?? savedRouteRef;
       if (preferred) {
         const matches = loaded.filter(candidate => {
           const ref = refFor(candidate);
@@ -128,7 +127,7 @@ export default function PrecisionBrakingRouteSelector({
 
   useEffect(() => {
     onSelect(null);
-    void load();
+    void load(savedRouteRef);
   }, [locoId]);
 
   const filtered = useMemo(() => candidates.filter(candidate =>
@@ -154,7 +153,8 @@ export default function PrecisionBrakingRouteSelector({
   return <>
     <Group align="center">
       <Button variant="light" onClick={() => {
-        setFromFilter(""); setToFilter(""); setOpened(true); void load();
+        setFromFilter(""); setToFilter(""); setOpened(true);
+        void load(selected?.routeRef ?? savedRouteRef);
       }} disabled={disabled}>Select Route</Button>
       <Text size="sm">{selected?.label ?? "No braking route selected"}</Text>
     </Group>
