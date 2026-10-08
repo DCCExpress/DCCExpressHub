@@ -42,6 +42,7 @@ import {
 } from "@/api/commandCenterInfo";
 import { getLocos } from "@/api/domainApi";
 import { CvHelpPanel } from "@/components/programming/CvHelpPanel";
+import DecoderProfileTab from "@/components/programming/DecoderProfileTab";
 import LocoPanel from "@/layout/LocoPanel";
 import { wsApi } from "@/services/wsApi";
 import { wsClient } from "@/services/wsClient";
@@ -743,6 +744,7 @@ function DccExProgrammingPage({
       <Tabs defaultValue="locomotive" keepMounted={false}>
         <Tabs.List grow>
           <Tabs.Tab value="locomotive" leftSection={<IconTrain size={16} />}> {i18next.t("ui.locomotive")} </Tabs.Tab>
+          <Tabs.Tab value="profile">Profile</Tabs.Tab>
           <Tabs.Tab value="accessory" leftSection={<IconDeviceFloppy size={16} />}> {i18next.t("ui.accessory")} </Tabs.Tab>
           <Tabs.Tab value="digitools" leftSection={<IconTool size={16} />}>
             DigiTools
@@ -898,6 +900,10 @@ function DccExProgrammingPage({
               </Stack>
             </Card>
           </Stack>
+        </Tabs.Panel>
+
+        <Tabs.Panel value="profile" pt="md">
+          <DecoderProfileTab disconnected={status !== "connected"} />
         </Tabs.Panel>
 
         <Tabs.Panel value="accessory" pt="md">
