@@ -21,7 +21,12 @@ async function request(path: string, data?: unknown): Promise<State> {
   return value as State;
 }
 
-export default function PrecisionBrakingPanel({ loco }: { loco: Loco }) {
+export default function PrecisionBrakingPanel({
+  loco, onPatch,
+}: {
+  loco: Loco;
+  onPatch: (patch: Partial<Loco>) => void;
+}) {
   const [state, setState] = useState<State | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -66,7 +71,19 @@ export default function PrecisionBrakingPanel({ loco }: { loco: Loco }) {
         {!hasSpeedProfile && <Alert color="orange">Complete Speed Calibration for this locomotive first.</Alert>}
         {other && <Alert color="orange">Another locomotive is being calibrated.</Alert>}
         <PrecisionBrakingRouteSelector locoId={loco.id} savedRouteRef={loco.precisionBraking?.routeRef}
-          selected={selectedRoute} disabled={!!active || !!other || busy} onSelect={setSelectedRoute} />
+          selected={selectedRoute} disabled={!!active || !!other || busy}
+          onSelect={route => {
+            setSelectedRoute(route);
+            if (route) {
+              onPatch({
+                precisionBraking: {
+                  ...loco.precisionBraking,
+                  routeRef: route.routeRef,
+                  updatedAt: new Date().toISOString(),
+                },
+              });
+            }
+          }} />
         <NumberInput label="Approach speed (DCC step)" value={speedStep} onChange={setSpeedStep} min={1} max={126} disabled={!!active} />
         <NumberInput label="Target stopping distance after sensor (mm)" value={distance} onChange={setDistance}
           min={10} max={10000} disabled={!!active} />
