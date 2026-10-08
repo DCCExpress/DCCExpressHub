@@ -1,6 +1,7 @@
-import { Alert, Badge, Button, Card, Checkbox, Group, NumberInput, Select, Stack, Table, Text } from "@mantine/core";
+import { Alert, Badge, Button, Card, Checkbox, Group, NumberInput, Stack, Table, Text } from "@mantine/core";
 import { useCallback, useEffect, useState } from "react";
 import type { Loco } from "@domain/types";
+import PrecisionBrakingRouteSelector, { type BrakingRouteSelection } from "./PrecisionBrakingRouteSelector";
 
 type Point = { dccStep: number; direction: string; millimetersPerSecond: number; estimatedStoppingDistanceMm: number; samples: number };
 type State = { status: string; error: string | null; locoId: string | null; locoAddress: number | null; sensorAddress: number | null; direction: string | null; speedStep: number | null; speedMmPerSecond: number | null; targetDistanceMm: number | null; actualDistanceMm: number | null; profile: Point[] };
@@ -24,11 +25,10 @@ export default function PrecisionBrakingPanel({ loco }: { loco: Loco }) {
   const [state, setState] = useState<State | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [sensor, setSensor] = useState<number | string>(1001);
+  const [selectedRoute, setSelectedRoute] = useState<BrakingRouteSelection | null>(null);
   const [speedStep, setSpeedStep] = useState<number | string>(20);
   const [distance, setDistance] = useState<number | string>(200);
   const [measured, setMeasured] = useState<number | string>(200);
-  const [direction, setDirection] = useState("forward");
   const [confirmed, setConfirmed] = useState(false);
   const refresh = useCallback(async () => {
     try { setState(await request("")); } catch { /* backend may be offline */ }
@@ -54,7 +54,8 @@ export default function PrecisionBrakingPanel({ loco }: { loco: Loco }) {
     <Alert color="orange" title="Isolated test track only">
       Trials issue physical locomotive speed commands directly. They do not reserve routes,
       check turnout locks or replace Dispatcher safety. Use only on a clear, physically isolated test track.
-      Position the locomotive before the reference sensor. Keep an emergency stop available.
+      Select the braking route; its destination-block sensor is the reference.
+      Position the locomotive in the selected route's start block. Keep an emergency stop available.
     </Alert>
     <Card withBorder p="md">
       <Stack gap="sm">
@@ -64,22 +65,19 @@ export default function PrecisionBrakingPanel({ loco }: { loco: Loco }) {
         </Group>
         {!hasSpeedProfile && <Alert color="orange">Complete Speed Calibration for this locomotive first.</Alert>}
         {other && <Alert color="orange">Another locomotive is being calibrated.</Alert>}
-        <NumberInput label="Reference ARRIVED sensor address" value={sensor} onChange={setSensor} min={1} max={65535} disabled={!!active} />
-        <Group grow>
-          <NumberInput label="Approach speed (DCC step)" value={speedStep} onChange={setSpeedStep} min={1} max={126} disabled={!!active} />
-          <Select label="Physical direction" value={direction} onChange={value => setDirection(value ?? "forward")}
-            data={[{value:"forward",label:"Forward"},{value:"reverse",label:"Reverse"}]} disabled={!!active} />
-        </Group>
+        <PrecisionBrakingRouteSelector locoId={loco.id} savedRouteRef={loco.precisionBraking?.routeRef}
+          selected={selectedRoute} disabled={!!active || !!other || busy} onSelect={setSelectedRoute} />
+        <NumberInput label="Approach speed (DCC step)" value={speedStep} onChange={setSpeedStep} min={1} max={126} disabled={!!active} />
         <NumberInput label="Target stopping distance after sensor (mm)" value={distance} onChange={setDistance}
           min={10} max={10000} disabled={!!active} />
         <Checkbox checked={confirmed} onChange={event => setConfirmed(event.currentTarget.checked)}
           label="I confirm the track is physically isolated, clear and supervised." disabled={!!active} />
         <Group>
           <Button disabled={!confirmed || !hasSpeedProfile || !!active || !!other || busy ||
-            !Number(sensor) || !Number(speedStep) || !Number(distance)}
+            !selectedRoute || !Number(speedStep) || !Number(distance)}
             loading={busy} onClick={() => void action("/start", {
-              locoId: loco.id, locoAddress: loco.address, sensorAddress: Number(sensor),
-              speedStep: Number(speedStep), direction, targetDistanceMm: Number(distance),
+              locoId: loco.id, locoAddress: loco.address, routeRef: selectedRoute?.routeRef,
+              speedStep: Number(speedStep), targetDistanceMm: Number(distance),
               isolatedTestTrackConfirmed: confirmed,
             })}>Start trial</Button>
           <Button color="orange" variant="outline" disabled={busy || !active}
