@@ -1377,7 +1377,7 @@ export default function LocoCalibrationTab({
         </Tabs.Panel>
         <Tabs.Panel value="braking" style={{ flex: 1, minHeight: 0 }}>
           <ScrollArea h="100%" type="auto" offsetScrollbars>
-            <PrecisionBrakingPanel loco={loco} />
+            <PrecisionBrakingPanel loco={loco} onPatch={onPatch} />
           </ScrollArea>
         </Tabs.Panel>
       </Tabs>
