@@ -119,12 +119,16 @@ public sealed class PrecisionBrakingRuntime
             var rows = loco["calibration"]?["results"] as JsonArray;
             if (rows is null) return (false, "speed_calibration_required");
             var points = new List<PrecisionBrakingProfile.SpeedPoint>();
+            var outboundDirection = loco["calibration"]?["routeRef"]?["direction"]?.GetValue<string>();
+            if (outboundDirection is not ("forward" or "reverse"))
+                return (false, "calibration_direction_missing");
+            var measuredLeg = request.Direction == outboundDirection ? "outbound" : "return";
             foreach (var row in rows.OfType<JsonObject>())
             {
                 var step = row["speedStep"]?.GetValue<int>() ?? 0;
                 var mmS = row["millimetersPerSecond"]?.GetValue<double>() ?? 0;
                 if (row["direction"]?.GetValue<string>() ==
-                    (request.Direction == "forward" ? "outbound" : "return"))
+                    measuredLeg)
                     points.Add(new(step, mmS));
             }
             var speed = PrecisionBrakingProfile.SpeedAtStep(points, request.SpeedStep);
