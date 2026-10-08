@@ -34,7 +34,35 @@ export default function PrecisionBrakingPanel({
   const [speedStep, setSpeedStep] = useState<number | string>(20);
   const [distance, setDistance] = useState<number | string>(200);
   const [measured, setMeasured] = useState<number | string>(200);
+  const [returnSpeed, setReturnSpeed] = useState<number | string>(30);
   const [confirmed, setConfirmed] = useState(false);
+  // Braking trial UI preferences are local to this browser and locomotive.
+  // They do not change decoder CVs, speed calibration or saved trial data.
+  const prefsKey = `dcc-express-hub:precision-braking:${loco.id}`;
+  const savePreference = (key: "speedStep" | "returnSpeed" | "distance", value: number | string) => {
+    try {
+      const previous = JSON.parse(window.localStorage.getItem(prefsKey) ?? "{}") as Record<string, unknown>;
+      window.localStorage.setItem(prefsKey, JSON.stringify({ ...previous, [key]: value }));
+    } catch { /* Storage can be blocked; keep the live setting. */ }
+  };
+  useEffect(() => {
+    try {
+      const prefs = JSON.parse(window.localStorage.getItem(prefsKey) ?? "{}") as Record<string, unknown>;
+      if (typeof prefs.speedStep === "number" && prefs.speedStep >= 1 && prefs.speedStep <= 126)
+        setSpeedStep(prefs.speedStep);
+      else setSpeedStep(20);
+      if (typeof prefs.returnSpeed === "number" && prefs.returnSpeed >= 1 && prefs.returnSpeed <= 126)
+        setReturnSpeed(prefs.returnSpeed);
+      else setReturnSpeed(30);
+      if (typeof prefs.distance === "number" && prefs.distance >= 10 && prefs.distance <= 10000)
+        setDistance(prefs.distance);
+      else setDistance(200);
+    } catch {
+      setSpeedStep(20);
+      setReturnSpeed(30);
+      setDistance(200);
+    }
+  }, [prefsKey]);
   const refresh = useCallback(async () => {
     try { setState(await request("")); } catch { /* backend may be offline */ }
   }, []);
@@ -84,17 +112,26 @@ export default function PrecisionBrakingPanel({
               });
             }
           }} />
-        <NumberInput label="Approach speed (DCC step)" value={speedStep} onChange={setSpeedStep} min={1} max={126} disabled={!!active} />
-        <NumberInput label="Target stopping distance after sensor (mm)" value={distance} onChange={setDistance}
+        <NumberInput label="Approach speed (DCC step)" value={speedStep}
+          onChange={v => { setSpeedStep(v); savePreference("speedStep", v); }}
+          min={1} max={126} disabled={!!active} />
+        <NumberInput label="Return speed (DCC step)" value={returnSpeed}
+          onChange={v => { setReturnSpeed(v); savePreference("returnSpeed", v); }}
+          min={1} max={126} disabled={!!active}
+          description="Speed for returning to the starting block; stops on the starting-block sensor." />
+        <NumberInput label="Target stopping distance after sensor (mm)" value={distance}
+          onChange={v => { setDistance(v); savePreference("distance", v); }}
           min={10} max={10000} disabled={!!active} />
         <Checkbox checked={confirmed} onChange={event => setConfirmed(event.currentTarget.checked)}
           label="I confirm the track is physically isolated, clear and supervised." disabled={!!active} />
         <Group>
           <Button disabled={!confirmed || !hasSpeedProfile || !!active || !!other || busy ||
-            !selectedRoute || !Number(speedStep) || !Number(distance)}
+            !selectedRoute || !Number(speedStep) || !Number(returnSpeed) || !Number(distance) ||
+            Number(returnSpeed) > 126 || Number(returnSpeed) < 1}
             loading={busy} onClick={() => void action("/start", {
               locoId: loco.id, locoAddress: loco.address, routeRef: selectedRoute?.routeRef,
-              speedStep: Number(speedStep), targetDistanceMm: Number(distance),
+              speedStep: Number(speedStep), returnSpeedStep: Number(returnSpeed),
+              targetDistanceMm: Number(distance),
               isolatedTestTrackConfirmed: confirmed,
             })}>Start trial</Button>
           <Button color="orange" variant="outline" disabled={busy || !active}
