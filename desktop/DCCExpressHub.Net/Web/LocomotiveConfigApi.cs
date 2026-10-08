@@ -203,70 +203,76 @@ public sealed class LocomotiveConfigApi
 
                             if (existing is not null)
                             {
+                                // Speed Calibration results belong to its own
+                                // runtime and remain authoritative on every
+                                // ordinary locomotive editor Save.
                                 var calibrationById =
-                                    new Dictionary<
-                                        string,
-                                        JsonNode?>(
+                                    new Dictionary<string, JsonNode?>(
+                                        StringComparer.Ordinal);
+
+                                // Precision Braking route is edited independently
+                                // by the dialog. Trials are written by the
+                                // braking runtime, so ordinary Save must not
+                                // accidentally erase measured results.
+                                var precisionById =
+                                    new Dictionary<string, JsonObject>(
                                         StringComparer.Ordinal);
 
                                 foreach (var node in existing)
                                 {
-                                    if (
-                                        node is not
-                                            JsonObject loco
-                                    )
-                                    {
+                                    if (node is not JsonObject loco)
                                         continue;
-                                    }
 
-                                    var id =
-                                        loco["id"]?
-                                            .GetValue<string>();
-
-                                    if (
-                                        string.IsNullOrWhiteSpace(
-                                            id) ||
-                                        loco["calibration"] is null
-                                    )
-                                    {
+                                    var id = loco["id"]?.GetValue<string>();
+                                    if (string.IsNullOrWhiteSpace(id))
                                         continue;
-                                    }
 
-                                    calibrationById[id] =
-                                        loco["calibration"]!
-                                            .DeepClone();
+                                    if (loco["calibration"] is JsonNode calibration)
+                                        calibrationById[id] = calibration.DeepClone();
+
+                                    if (loco["precisionBraking"] is JsonObject braking)
+                                        precisionById[id] = (JsonObject)braking.DeepClone();
                                 }
 
                                 foreach (var node in incoming)
                                 {
-                                    if (
-                                        node is not
-                                            JsonObject loco
-                                    )
+                                    if (node is not JsonObject loco)
+                                        continue;
+
+                                    var id = loco["id"]?.GetValue<string>();
+                                    if (string.IsNullOrWhiteSpace(id))
+                                        continue;
+
+                                    if (calibrationById.TryGetValue(id, out var calibration)
+                                        && calibration is not null)
                                     {
+                                        loco["calibration"] = calibration.DeepClone();
+                                    }
+
+                                    if (!precisionById.TryGetValue(id, out var stored))
+                                        continue;
+
+                                    if (loco["precisionBraking"] is not JsonObject updated)
+                                    {
+                                        // Older clients omit this optional
+                                        // section; never delete the saved route.
+                                        loco["precisionBraking"] = stored.DeepClone();
                                         continue;
                                     }
 
-                                    var id =
-                                        loco["id"]?
-                                            .GetValue<string>();
-
-                                    if (
-                                        string.IsNullOrWhiteSpace(
-                                            id) ||
-                                        !calibrationById
-                                            .TryGetValue(
-                                                id,
-                                                out var calibration) ||
-                                        calibration is null
-                                    )
+                                    // The selected routeRef (including direction)
+                                    // comes from the incoming editor. Measurements
+                                    // are always preserved from the current disk
+                                    // state, even if the editor was opened before
+                                    // the latest trial was recorded.
+                                    foreach (var entry in stored)
                                     {
-                                        continue;
+                                        if (entry.Key == "trials" ||
+                                            !updated.ContainsKey(entry.Key))
+                                            updated[entry.Key] = entry.Value?.DeepClone();
                                     }
-
-                                    loco["calibration"] =
-                                        calibration.DeepClone();
                                 }
+
                             }
                         }
                         catch
