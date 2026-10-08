@@ -104,6 +104,7 @@ public sealed class PrecisionBrakingRuntime
             return (false, "command_center_not_ready");
         if (!_exclusive.TryEnterCalibration())
             return (false, "calibration_active");
+        var started = false;
         try
         {
             if (Busy()) return (false, "automation_active");
@@ -159,17 +160,28 @@ public sealed class PrecisionBrakingRuntime
                 await StopAsync();
                 return (false, "locomotive_command_failed");
             }
+            started = true;
             return (true, "");
         }
         catch (Exception ex)
         {
             _log.LogError(ex, "Precision braking trial could not start");
+            await StopAsync();
             return (false, "braking_trial_start_failed");
         }
         finally
         {
-            lock (_sync)
-                if (_cts is null) _exclusive.ExitCalibration();
+            if (!started)
+            {
+                lock (_sync)
+                {
+                    _cts?.Cancel();
+                    _cts?.Dispose();
+                    _cts = null;
+                    _active = null;
+                }
+                _exclusive.ExitCalibration();
+            }
         }
     }
 
@@ -203,7 +215,7 @@ public sealed class PrecisionBrakingRuntime
                 token.ThrowIfCancellationRequested();
                 var remaining = 1 - (double)i / segments;
                 var targetStep = Math.Clamp(
-                    (int)Math.Floor(trial.SpeedStep * Math.Sqrt(remaining)),
+                    (int)Math.Floor(trial.SpeedStep * remaining),
                     0, trial.SpeedStep);
                 if (!await _commandCenter.SetLocoAsync(trial.LocoAddress,
                         targetStep, trial.Direction == "forward", token))
@@ -254,10 +266,14 @@ public sealed class PrecisionBrakingRuntime
                 var loco = FindLoco(root, trial.LocoId)
                     ?? throw new InvalidOperationException("locomotive_not_found");
                 var data = loco["precisionBraking"] as JsonObject ?? new JsonObject();
-                var trials = data["trials"] as JsonArray ?? new JsonArray();
+                var trials = data["trials"] as JsonArray;
+                if (trials is null)
+                {
+                    trials = new JsonArray();
+                    data["trials"] = trials;
+                }
                 trials.Add(JsonSerializer.SerializeToNode(row,
                     new JsonSerializerOptions(JsonSerializerDefaults.Web)));
-                data["trials"] = trials;
                 data["updatedAt"] = DateTimeOffset.UtcNow.ToString("O");
                 loco["precisionBraking"] = data;
                 var temp = LocoFile + ".precisionbraking.tmp";
