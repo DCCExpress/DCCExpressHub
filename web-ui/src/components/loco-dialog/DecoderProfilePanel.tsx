@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Alert, Badge, Button, Group, NumberInput, Progress, ScrollArea,
   Stack, Table, Text, Title,
@@ -34,6 +34,14 @@ export default function DecoderProfilePanel({ loco, onPatch }: Props) {
   const [customCv, setCustomCv] = useState<number | string>(4);
   const cancel = useRef(false);
   const [liveValues, setLiveValues] = useState<Record<string, number> | null>(null);
+  const locoIdRef = useRef(loco.id);
+  useEffect(() => {
+    locoIdRef.current = loco.id;
+    cancel.current = true;
+    setLiveValues(null);
+    setErrors([]);
+    setMessage("");
+  }, [loco.id]);
   const saved = loco.decoderProfile?.cvValues ?? {};
   const values = liveValues ?? saved;
   const readAt = loco.decoderProfile?.readAt;
@@ -61,7 +69,7 @@ export default function DecoderProfilePanel({ loco, onPatch }: Props) {
       // Each CV is read on PROG (service mode), never via unverified POM.
       // Sequential requests avoid overloading the command station.
       for (let index = 0; index < cvs.length; index++) {
-        if (cancel.current) break;
+        if (cancel.current || locoIdRef.current !== loco.id) break;
         const cv = cvs[index]!;
         try {
           const result = await wsApi.programmingRequest(
@@ -75,6 +83,7 @@ export default function DecoderProfilePanel({ loco, onPatch }: Props) {
               result.value > 255) {
             throw new Error(result.message ?? "Decoder did not acknowledge CV");
           }
+          if (cancel.current || locoIdRef.current !== loco.id) break;
           next[String(cv)] = result.value;
           succeeded++;
           setLiveValues({ ...next });
