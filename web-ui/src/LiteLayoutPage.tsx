@@ -1642,8 +1642,14 @@ export default function LiteLayoutPage({
   useEffect(() => {
     if (wsStatus === "connected") {
       wsApi.getLayoutRuntimeSnapshot();
+      return;
     }
-  }, [wsStatus, layout]);
+    // Keep stale feedback visually neutral until a new snapshot arrives.
+    for (const element of layout.getAllElements()) {
+      if (element instanceof TrackSensorElement) element.on = false;
+    }
+    invalidate();
+  }, [wsStatus, layout, invalidate]);
 
   const persistRouteTopology = useCallback(async (): Promise<void> => {
     const ensuredRouteGraph =
