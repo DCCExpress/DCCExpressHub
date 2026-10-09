@@ -9,6 +9,45 @@ public sealed partial class WatsonWebServerService
     void RegisterFileRoutes(
         Webserver server)
     {
+        Add(server, WatsonHttpMethod.GET, "/api/backup/workspace", async ctx =>
+        {
+            try
+            {
+                var bytes = WorkspaceBackupService.Export(_paths.ContentRootPath);
+                ctx.Response.ContentType = "application/zip";
+                ctx.Response.Headers["Content-Disposition"] =
+                    "attachment; filename=\"dccexpresshub-workspace.zip\"";
+                await ctx.Response.Send(bytes, ctx.Token);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Workspace export failed");
+                await SendAsync(ctx, HubApiResponse.Error(500,
+                    new { ok = false, message = ex.Message }));
+            }
+        });
+
+        Add(server, WatsonHttpMethod.POST, "/api/backup/workspace", async ctx =>
+        {
+            try
+            {
+                var bytes = await ctx.Request.ReadBodyAsync(ctx.Token) ?? Array.Empty<byte>();
+                WorkspaceBackupService.Stage(_paths.ContentRootPath, bytes);
+                await SendAsync(ctx, HubApiResponse.Ok(new
+                {
+                    ok = true,
+                    restartRequired = true,
+                    message = "Full workspace restore staged. Restart the backend to apply it."
+                }));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Workspace restore staging rejected");
+                await SendAsync(ctx, HubApiResponse.Error(400,
+                    new { ok = false, message = ex.Message }));
+            }
+        });
+
         Add(
             server,
             WatsonHttpMethod.GET,
