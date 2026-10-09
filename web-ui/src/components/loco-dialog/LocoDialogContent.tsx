@@ -1,5 +1,6 @@
 import {
   Card,
+  Checkbox,
   Group,
   NumberInput,
   Select,
@@ -167,17 +168,14 @@ export default function LocoDialogContent({
                   label="Train length (mm)"
                   value={selectedLoco.length}
                   min={1}
-                  onChange={value => { const length = Math.max(1, Number(value) || 1); updateSelectedLoco({ length, ...(selectedLoco.trainDetectionOffsetMm !== undefined && selectedLoco.trainDetectionOffsetMm > length ? { trainDetectionOffsetMm: length } : {}) }); }}
+                  onChange={value => updateSelectedLoco({ length: Math.max(1, Number(value) || 1) })}
                 />
 
-                <NumberInput
-                  label="Detection point from train forward end (mm)"
-                  description="Measured along the entire train from the end facing the locomotive's Forward direction. 0 = forward end; train length = reverse end."
-                  value={selectedLoco.trainDetectionOffsetMm ?? ""}
-                  min={0}
-                  max={Math.max(0, selectedLoco.length)}
-                  allowDecimal={true}
-                  onChange={value => updateSelectedLoco({ trainDetectionOffsetMm: Math.max(0, Math.min(selectedLoco.length, Number(value) || 0)) })}
+                <Checkbox
+                  label="Entire train electrically detectable"
+                  description="Enable only when the last vehicle also reliably maintains block occupancy (for example, current-consuming coaches). Otherwise the sensor sees only the locomotive."
+                  checked={selectedLoco.entireTrainDetectable ?? false}
+                  onChange={event => updateSelectedLoco({ entireTrainDetectable: event.currentTarget.checked })}
                 />
                 <NumberInput
                   label="Train clearance margin (mm)"
@@ -188,14 +186,14 @@ export default function LocoDialogContent({
                   onChange={value => updateSelectedLoco({ trainClearanceMarginMm: Math.max(0, Number(value) || 0) })}
                 />
                 <Text size="xs" c="dimmed">
-                  The detection point must be confirmed for this train. Missing or uncertain geometry must not authorize automatic block release.
+                  A block detects electrical occupancy along its entire length. If only the locomotive is detectable, the cars may remain in a block after its occupancy signal goes OFF. Never use that OFF signal alone to release the train tail.
                 </Text>
 
 
                   </Stack>
                   <TrainGeometryPreview
                     trainLengthMm={selectedLoco.length}
-                    detectionOffsetMm={selectedLoco.trainDetectionOffsetMm}
+                    entireTrainDetectable={selectedLoco.entireTrainDetectable ?? false}
                     clearanceMarginMm={selectedLoco.trainClearanceMarginMm ?? 30}
                   />
                 </SimpleGrid>
