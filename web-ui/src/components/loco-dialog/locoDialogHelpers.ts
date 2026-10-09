@@ -36,7 +36,8 @@ export const createEmptyLoco = (): Loco => ({
   image: "",
   length: 200,
   trainType: "passenger",
-  occupancyDetectionPosition: "forward",
+  trainDetectionOffsetMm: 0,
+  trainClearanceMarginMm: 30,
   odometerKm: 0,
   operatingHours: 0,
   counterSettings: {
