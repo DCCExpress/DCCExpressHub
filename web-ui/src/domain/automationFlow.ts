@@ -97,6 +97,7 @@ export type AutomationFlowNodeData = Record<string, unknown> & {
 
   functionNumber?: number;
   functionBindingId?: number | null;
+  functionMode?: "momentary" | "on" | "off";
   pulseMs?: number;
   delayMs?: number;
   audioName?: string;
@@ -1497,15 +1498,22 @@ function generateStatement(
           ? `dcc.setLocoFunction(locoAddress, ${fn}, false);`
           : `dcc.setLocoFunctionBinding(locoAddress, ${bindingId}, false);`;
 
+      const mode = data.functionMode === "on" || data.functionMode === "off"
+        ? data.functionMode
+        : "momentary";
+      const commands = mode === "on"
+        ? [onCommand]
+        : mode === "off"
+          ? [offCommand]
+          : [onCommand, `await delay(${pulse});`, offCommand];
+
       return [
         "{",
         "  const locoAddress = Number(payload && typeof payload === \"object\" ? payload.locoAddress : NaN);",
         "  if (!Number.isInteger(locoAddress) || locoAddress < 1 || locoAddress > 10239) {",
         '    throw new Error("Loco Function requires payload.locoAddress (1..10239).");',
         "  }",
-        `  ${onCommand}`,
-        `  await delay(${pulse});`,
-        `  ${offCommand}`,
+        ...commands.map(command => `  ${command}`),
         "}",
       ].join("\n");
     }
