@@ -1371,8 +1371,8 @@ public sealed class TrainTrackingRuntime
                     // Do not overwrite a reservation held by another locomotive.
                     var reservedForOtherLoco = _layout.BlocksForPersistence()
                         .Any(block => block.Id == destinationBlockId &&
-                            block.TargetOnly &&
-                            block.TargetLocoAddress != state.LocoAddress);
+                            ((block.TargetOnly && block.TargetLocoAddress != state.LocoAddress) ||
+                             (block.LocoAddress > 0 && block.LocoAddress != state.LocoAddress)));
                     if (!reservedForOtherLoco)
                         _layout.SetBlock(
                             (ushort)destinationBlockId,
