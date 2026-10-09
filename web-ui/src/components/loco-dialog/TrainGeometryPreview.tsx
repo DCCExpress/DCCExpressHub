@@ -23,9 +23,15 @@ export default function TrainGeometryPreview({
   const locoWidth = 112;
   const locoX = locoAtLeft ? left : left + width - locoWidth;
   const reserveWidth = Math.min(36, Math.max(6, margin / length * width));
-  const trainStart = left;
   const blockStart = 140;
   const blockEnd = 510;
+  // Fit the example consist and its margin inside the illustrative block.
+  // This does not imply the actual layout block is long enough.
+  const exampleWidth = 255;
+  const exampleStart = (blockStart + blockEnd - exampleWidth) / 2;
+  const exampleMargin = Math.min(38, Math.max(0, margin / length * exampleWidth));
+  const exampleLocoWidth = exampleWidth * locoWidth / width;
+  const exampleLocoX = locoAtLeft ? exampleStart : exampleStart + exampleWidth - exampleLocoWidth;
 
   return (
     <Stack gap="sm">
@@ -56,10 +62,10 @@ export default function TrainGeometryPreview({
           <rect x={blockStart} y="12" width={blockEnd - blockStart} height="75" fill="#22c55e" fillOpacity=".10" stroke="#16a34a" strokeDasharray="5 4" />
           <text x={blockStart + 6} y="25" fontSize="12" fill="currentColor">Example block</text>
           <path d="M22 66 H625" stroke="#64748b" strokeWidth="3" />
-          <rect x={trainStart - reserveWidth} y="36" width={width + 2 * reserveWidth} height="51" rx="4" fill="#f59e0b" fillOpacity=".12" stroke="#d97706" strokeDasharray="4 3" />
-          <rect x={trainStart} y="44" width={width} height="35" rx="3" fill="#60a5fa" fillOpacity=".4" stroke="#2563eb" />
-          <rect x={locoX} y="44" width={locoWidth} height="35" rx="3" fill="#f97316" fillOpacity=".7" stroke="#c2410c" />
-          <text x={locoX + locoWidth / 2} y="64" fill="#431407" fontSize="11" textAnchor="middle">LOCO</text>
+          <rect x={exampleStart - exampleMargin} y="36" width={exampleWidth + 2 * exampleMargin} height="51" rx="4" fill="#f59e0b" fillOpacity=".12" stroke="#d97706" strokeDasharray="4 3" />
+          <rect x={exampleStart} y="44" width={exampleWidth} height="35" rx="3" fill="#60a5fa" fillOpacity=".4" stroke="#2563eb" />
+          <rect x={exampleLocoX} y="44" width={exampleLocoWidth} height="35" rx="3" fill="#f97316" fillOpacity=".7" stroke="#c2410c" />
+          <text x={exampleLocoX + exampleLocoWidth / 2} y="64" fill="#431407" fontSize="11" textAnchor="middle">LOCO</text>
           <text x="325" y="105" fontSize="12" fill="currentColor" textAnchor="middle">Illustration only — not a measured block or clearance authorization</text>
         </svg>
       </Card>
