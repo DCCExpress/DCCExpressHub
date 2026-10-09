@@ -1727,6 +1727,23 @@ export default function AutomationFlowPropertiesPanel({
             }
           />
 
+          <Select
+            label="Function mode"
+            data={[
+              { value: "momentary", label: "Momentary (pulse)" },
+              { value: "on", label: "ON" },
+              { value: "off", label: "OFF" },
+            ]}
+            value={data.functionMode === "on" || data.functionMode === "off"
+              ? data.functionMode
+              : "momentary"}
+            onChange={value => onChange({
+              functionMode: value === "on" || value === "off" ? value : "momentary",
+            })}
+            allowDeselect={false}
+          />
+
+          {(data.functionMode === undefined || data.functionMode === "momentary") && (
           <NumberInput
             label={
               t(
@@ -1757,6 +1774,7 @@ export default function AutomationFlowPropertiesPanel({
                 })
             }
           />
+          )}
         </>
       )}
 
