@@ -38,6 +38,10 @@ if (
             "wwwroot");
 }
 
+// Apply a validated pending workspace restore before any runtime can read state.
+if (WorkspaceBackupService.ApplyPendingOnStartup(Path.GetFullPath(contentRoot)))
+    Console.WriteLine("Workspace backup restored; previous workspace retained in .dcc-backup-previous.");
+
 builder.Services.AddSingleton(
     new AppPaths(
         contentRoot,
