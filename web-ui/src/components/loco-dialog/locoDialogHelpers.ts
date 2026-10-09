@@ -38,6 +38,7 @@ export const createEmptyLoco = (): Loco => ({
   trainType: "passenger",
   trainDetectionOffsetMm: 0,
   trainClearanceMarginMm: 30,
+  entireTrainDetectable: false,
   odometerKm: 0,
   operatingHours: 0,
   counterSettings: {
