@@ -745,6 +745,7 @@ function normalizeNodeData(
             candidate.functionBindingId
           )
         : null,
+    functionMode: candidate.functionMode === "on" || candidate.functionMode === "off" ? candidate.functionMode : "momentary",
     functionCode: typeof candidate.functionCode === "string" ? candidate.functionCode : "return payload;",
     switchRules: Array.isArray(candidate.switchRules)
       ? candidate.switchRules.filter((r) => r && typeof r.id === "string" && typeof r.value === "string")
