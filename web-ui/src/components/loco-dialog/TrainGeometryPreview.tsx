@@ -9,7 +9,7 @@ type Props = {
   clearanceMarginMm: number;
 };
 
-function Wagon({ x, width, index }: { x: number; width: number; index: number }) {
+function Wagon({ x, width }: { x: number; width: number }) {
   return (
     <g>
       <rect x={x} y={72} width={width} height={29} rx={4} fill="#60a5fa" stroke="#1e3a8a" strokeWidth={1.4} />
@@ -20,11 +20,6 @@ function Wagon({ x, width, index }: { x: number; width: number; index: number })
           fill="#dbeafe" stroke="#2563eb" strokeWidth={0.8} />
       ))}
       <path d={`M${x + width - 15} 81 v19`} stroke="#1d4ed8" strokeWidth={1} />
-      <rect x={x + 8} y={101} width={width - 16} height={4} rx={1} fill="#334155" />
-      {[x + 20, x + 34, x + width - 34, x + width - 20].map((cx, i) => (
-        <circle key={i} cx={cx} cy={108} r={4} fill="#334155" stroke="#94a3b8" strokeWidth={0.7} />
-      ))}
-      <text x={x + width / 2} y={119} textAnchor="middle" fontSize={9} fill="currentColor">W{index + 1}</text>
     </g>
   );
 }
@@ -48,10 +43,6 @@ function Locomotive({ x, width, facingRight }: { x: number; width: number; facin
         stroke="#9a3412" strokeWidth={1.3} />
       <rect x={noseX} y={79} width={9} height={20} rx={2} fill="#c2410c" />
       <circle cx={facingRight ? x + width - 3 : x + 3} cy={84} r={2.6} fill="#fef08a" />
-      <rect x={x + 5} y={101} width={width - 10} height={5} rx={1} fill="#7c2d12" />
-      {[x + 20, x + 36, x + width - 36, x + width - 20].map((cx, i) => (
-        <circle key={i} cx={cx} cy={109} r={5} fill="#334155" stroke="#94a3b8" strokeWidth={0.8} />
-      ))}
     </g>
   );
 }
@@ -97,7 +88,7 @@ export default function TrainGeometryPreview({
           <rect x={left - reserveWidth} y="56" width={width + reserveWidth * 2} height="70" rx="6" fill="#f59e0b" fillOpacity=".11" stroke="#d97706" strokeDasharray="5 4" />
           <path d="M30 114 H622" stroke="#64748b" strokeWidth="3" />
           {Array.from({ length: 28 }, (_, i) => <path key={i} d={`M${34 + i * 22} 109 v10`} stroke="#64748b" strokeWidth="2" />)}
-          {boxes.map((box, index) => <Wagon key={index} x={box.x} width={box.width} index={index} />)}
+          {boxes.map((box, index) => <Wagon key={index} x={box.x} width={box.width} />)}
           <Locomotive x={locoX} width={locoWidth} facingRight={direction === "forward"} />
           {offsetKnown && <g>
             <path d={`M${marker} 45 V131`} stroke="#dc2626" strokeWidth="2.5" strokeDasharray="5 3" />
