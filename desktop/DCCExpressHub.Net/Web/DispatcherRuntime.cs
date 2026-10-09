@@ -908,10 +908,9 @@ public sealed class DispatcherRuntime
                     null,
                     BlockingSensor: safety.BlockingSensor);
 
-            if (!_runtime.SetBlock(
+            if (!_runtime.TryReserveTargetBlock(
                     request.ToBlockId,
-                    marker,
-                    0))
+                    marker))
                 return new(
                     false,
                     "target_block_marker_failed",
