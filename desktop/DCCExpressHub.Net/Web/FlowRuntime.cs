@@ -1683,21 +1683,30 @@ public sealed class FlowRuntime : BackgroundService
                               fn +
                               ", false);";
 
+                    var mode = S(data, "functionMode", "momentary");
+
+                    var commands = mode switch
+                    {
+                        "on" => new[] { "  " + on },
+                        "off" => new[] { "  " + off },
+                        _ => new[]
+                        {
+                            "  " + on,
+                            "  await delay(" + pulse + ");",
+                            "  " + off
+                        }
+                    };
+
                     return string.Join(
                         "\n",
-                        "{",
-                        "  const locoAddress = Number(payload && typeof payload === \"object\" ? payload.locoAddress : NaN);",
-                        "  if (!Number.isInteger(locoAddress) || locoAddress < 1 || locoAddress > 10239) {",
-                        "    throw new Error(\"Loco Function requires payload.locoAddress (1..10239).\");",
-                        "  }",
-                        "  " +
-                            on,
-                        "  await delay(" +
-                            pulse +
-                            ");",
-                        "  " +
-                            off,
-                        "}");
+                        new[]
+                        {
+                            "{",
+                            "  const locoAddress = Number(payload && typeof payload === \\"object\\" ? payload.locoAddress : NaN);",
+                            "  if (!Number.isInteger(locoAddress) || locoAddress < 1 || locoAddress > 10239) {",
+                            "    throw new Error(\\"Loco Function requires payload.locoAddress (1..10239).\\");",
+                            "  }"
+                        }.Concat(commands).Append("}"));
                 }
 
             case "movementHold":
