@@ -2,7 +2,8 @@ export function drawTurnoutLockIndicator(
   ctx: CanvasRenderingContext2D,
   centerX: number,
   centerY: number,
-  locked: boolean
+  locked: boolean,
+  color: "red" | "yellow" | "white" = "red"
 ): void {
   if (!locked) {
     return;
@@ -18,8 +19,8 @@ export function drawTurnoutLockIndicator(
 
   if (blinkOn) {
     ctx.beginPath();
-    ctx.fillStyle = "rgba(255, 0, 0, 0.92)";
-    ctx.strokeStyle = "#7f1d1d";
+    ctx.fillStyle = color === "white" ? "#ffffff" : color === "yellow" ? "#facc15" : "#ef4444";
+    ctx.strokeStyle = color === "white" ? "#475569" : color === "yellow" ? "#854d0e" : "#7f1d1d";
     ctx.lineWidth = 1.0;
     ctx.arc(centerX, centerY, 5, 0, 2 * Math.PI);
     ctx.fill();
