@@ -105,7 +105,7 @@ export default function LocoDialogContent({
               <Tabs.Tab value="actions">{t("locodialog.tabs.actions")}</Tabs.Tab>
               <Tabs.Tab value="extended">{t("locodialog.extended_params")}</Tabs.Tab>
               <Tabs.Tab value="counters">Mechanical counters</Tabs.Tab>
-              <Tabs.Tab value="calibration">{t("locodialog.tabs.calibration")}</Tabs.Tab>
+              <Tabs.Tab value="calibration">{t("locodialog.tabs.calibration")} (Experimental)</Tabs.Tab>
               <Tabs.Tab value="decoder">Decoder CV</Tabs.Tab>
               <Tabs.Tab value="statistics" style={{ marginLeft: "auto" }}>
                 {t("locodialog.tabs.statistics")}
