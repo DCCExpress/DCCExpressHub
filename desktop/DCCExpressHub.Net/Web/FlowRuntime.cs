@@ -1826,13 +1826,17 @@ public sealed class FlowRuntime : BackgroundService
                 return result.ToString();
             }
 
-            var statement = node.Kind == "function"
-                ? "payload = await (async () => {\\n" +
-                  S(node.Data, "functionCode", "return payload;") +
-                  "\\n})();\\nif (payload === null) return;"
-                : Statement(node);
             var next = FirstTarget(document, node.Id);
-            return statement + "\\n" +
+            if (node.Kind == "function")
+            {
+                var code = S(node.Data, "functionCode", "return payload;");
+                var downstream = CompileBranch(document, next, ancestors);
+                return "payload = await (async () => {\\n" + code +
+                    "\\n})();\\nif (payload !== null) {\\n" +
+                    downstream + "\\n}";
+            }
+
+            return Statement(node) + "\\n" +
                 CompileBranch(document, next, ancestors);
         }
         finally
