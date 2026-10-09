@@ -422,6 +422,8 @@
                               Margin="0,0,0,7"/>
                  </Grid>
 
+                 <CheckBox x:Name="UseLocoNetCheckBox" Content="Use LocoNet (LBServer TCP)" Margin="0,12,0,0" Foreground="#CBD5E1" Visibility="Collapsed" IsChecked="True"/>
+
                  <Grid x:Name="YaMoRcOffsetsPanel" Margin="0,12,0,0" Visibility="Collapsed">
                    <Grid.ColumnDefinitions>
                      <ColumnDefinition Width="*"/>
