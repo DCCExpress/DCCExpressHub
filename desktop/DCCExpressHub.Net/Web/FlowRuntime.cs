@@ -43,7 +43,8 @@ public sealed class FlowRuntime : BackgroundService
 
     sealed record EdgeDef(
         string Source,
-        string Target);
+        string Target,
+        string SourceHandle);
 
     sealed record DocumentDef(
         PageDef[] Pages,
@@ -557,7 +558,8 @@ public sealed class FlowRuntime : BackgroundService
                 edges.Add(
                     new EdgeDef(
                         source,
-                        target));
+                        target,
+                        S(edge, "sourceHandle")));
             }
         }
 
@@ -1770,86 +1772,95 @@ public sealed class FlowRuntime : BackgroundService
         }
     }
 
+    // Each output handle owns its own branch; cycles are discarded.
+    // Branches compile to one Jint script invocation, retaining payload data.
+    string CompileBranch(
+        DocumentDef document,
+        string? nextId,
+        HashSet<string> ancestors)
+    {
+        if (string.IsNullOrEmpty(nextId) || !ancestors.Add(nextId))
+            return "";
+        try
+        {
+            var node = FindNode(document, nextId);
+            if (node is null || InputKind(node.Kind))
+                return "";
+
+            if (node.Kind == "switch")
+            {
+                var rules = new List<(string Id, string Value)>();
+                if (node.Data.TryGetProperty("switchRules", out var rawRules) &&
+                    rawRules.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var rule in rawRules.EnumerateArray())
+                    {
+                        var id = S(rule, "id");
+                        if (id.Length > 0 && rules.All(r => r.Id != id))
+                            rules.Add((id, S(rule, "value")));
+                    }
+                }
+
+                var result = new System.Text.StringBuilder();
+                result.AppendLine("{");
+                for (var index = 0; index < rules.Count; index++)
+                {
+                    var rule = rules[index];
+                    result.Append(index == 0 ? "if (" : "else if (");
+                    result.Append("payload === ");
+                    result.Append(Js(rule.Value));
+                    result.AppendLine(") {");
+                    var target = document.Edges.FirstOrDefault(edge =>
+                        edge.Source == node.Id && edge.SourceHandle == rule.Id)?.Target;
+                    result.AppendLine(CompileBranch(document, target, ancestors));
+                    result.AppendLine("}");
+                }
+                var otherwise = document.Edges.FirstOrDefault(edge =>
+                    edge.Source == node.Id && edge.SourceHandle == "otherwise")?.Target;
+                if (rules.Count > 0)
+                    result.AppendLine("else {");
+                result.AppendLine(CompileBranch(document, otherwise, ancestors));
+                if (rules.Count > 0)
+                    result.AppendLine("}");
+                result.AppendLine("}");
+                return result.ToString();
+            }
+
+            var statement = node.Kind == "function"
+                ? "payload = await (async () => {\\n" +
+                  S(node.Data, "functionCode", "return payload;") +
+                  "\\n})();\\nif (payload === null) return;"
+                : Statement(node);
+            var next = FirstTarget(document, node.Id);
+            return statement + "\\n" +
+                CompileBranch(document, next, ancestors);
+        }
+        finally
+        {
+            ancestors.Remove(nextId);
+        }
+    }
+
     string? BuildBranchSource(
         DocumentDef document,
         PageDef page,
         NodeDef input,
         JsonElement? payload)
     {
-        var nextId =
-            FirstTarget(
-                document,
-                input.Id);
-
+        var nextId = FirstTarget(document, input.Id);
         if (nextId is null)
             return null;
 
-        var statements =
-            new List<string>();
-
-        var visited =
-            new HashSet<int>();
-
-        var current =
-            FindNode(
-                document,
-                nextId);
-
-        while (current is not null)
-        {
-            var currentIndex =
-                Array.IndexOf(
-                    document.Nodes,
-                    current);
-
-            if (currentIndex < 0 ||
-                !visited.Add(
-                    currentIndex))
-                break;
-
-            if (!InputKind(
-                    current.Kind))
-            {
-                var statement =
-                    Statement(
-                        current);
-
-                if (!string.IsNullOrWhiteSpace(
-                        statement))
-                    statements.Add(
-                        statement);
-            }
-
-            var next =
-                FirstTarget(
-                    document,
-                    current.Id);
-
-            current =
-                next is null
-                    ? null
-                    : FindNode(
-                        document,
-                        next);
-        }
-
-        if (statements.Count ==
-            0)
+        var source = CompileBranch(document, nextId,
+            new HashSet<string>(StringComparer.Ordinal));
+        if (string.IsNullOrWhiteSpace(source))
             return null;
 
-        var payloadJson =
-            payload.HasValue
-                ? payload.Value.GetRawText()
-                : DefaultPayload(
-                    input);
+        var payloadJson = payload.HasValue
+            ? payload.Value.GetRawText()
+            : DefaultPayload(input);
 
-        return
-            "let payload = " +
-            payloadJson +
-            ";\n\n" +
-            string.Join(
-                "\n\n",
-                statements);
+        return "let payload = " + payloadJson + ";\\n" + source;
     }
 
     static string DefaultPayload(
