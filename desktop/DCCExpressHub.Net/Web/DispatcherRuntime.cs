@@ -1234,10 +1234,9 @@ public sealed class DispatcherRuntime
                             ":" +
                             block.BlockId);
 
-                if (!_runtime.SetBlock(
+                if (!_runtime.TryReserveTargetBlock(
                         block.BlockId,
-                        marker,
-                        0))
+                        marker))
                     return new(
                         false,
                         "target_block_marker_failed",
