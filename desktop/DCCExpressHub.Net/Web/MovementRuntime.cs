@@ -3153,7 +3153,8 @@ public sealed class MovementRuntime
 
             if (leg.From.BlockId is >= 1 and <= 65535)
                 _layout.RemoveBlock(
-                    (ushort)leg.From.BlockId.Value);
+                    (ushort)leg.From.BlockId.Value,
+                    expectedLocoAddress: (ushort)execution.LocoAddress);
 
             EmitTrainEvent(
                 execution,
