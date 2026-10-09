@@ -1367,11 +1367,23 @@ public sealed class TrainTrackingRuntime
 
                 if (!_movement.IsLocoManaged(
                         state.LocoAddress))
-                    _layout.SetBlock(
-                        (ushort)destinationBlockId,
-                        state.LocoId ??
-                        "",
-                        (ushort)state.LocoAddress);
+                {
+                    // Do not overwrite a reservation held by another locomotive.
+                    var reservedForOtherLoco = _layout.BlocksForPersistence()
+                        .Any(block => block.Id == destinationBlockId &&
+                            block.TargetOnly &&
+                            block.TargetLocoAddress != state.LocoAddress);
+                    if (!reservedForOtherLoco)
+                        _layout.SetBlock(
+                            (ushort)destinationBlockId,
+                            state.LocoId ?? "",
+                            (ushort)state.LocoAddress);
+                    else
+                        WriteLog("warn",
+                            "Tracked loco #" + state.LocoAddress +
+                            " reached a block reserved for another locomotive: " +
+                            destinationBlockId + ".");
+                }
 
                 WriteLog(
                     "match",
