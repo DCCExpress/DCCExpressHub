@@ -181,7 +181,7 @@ export default function LocoDialogContent({
                 />
 
                 <NumberInput
-                  label={t("locodialog.loco_length_mm")}
+                  label="Train length (mm)"
                   value={selectedLoco.length}
                   min={1}
                   onChange={value => updateSelectedLoco({ length: Number(value) || 0 })}
