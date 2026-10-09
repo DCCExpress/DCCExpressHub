@@ -11,7 +11,7 @@ import {
   ScrollArea,
 } from "@mantine/core";
 
-import type { LocoOccupancyDetectionPosition, LocoTrainType } from "@domain/types";
+import type { LocoTrainType } from "@domain/types";
 import LocoActionsTab from "./LocoActionsTab";
 import LocoFunctionsTab from "./LocoFunctionsTab";
 import LocoGeneralTab from "./LocoGeneralTab";
@@ -36,12 +36,6 @@ const TRAIN_TYPE_OPTIONS: LocoTrainType[] = [
   "mixed",
   "maintenance",
   "other",
-];
-
-const OCCUPANCY_DETECTION_POSITION_OPTIONS: LocoOccupancyDetectionPosition[] = [
-  "forward",
-  "reverse",
-  "both",
 ];
 
 const formatDateTime = (value: string | undefined): string => {
@@ -81,11 +75,6 @@ export default function LocoDialogContent({
   const trainTypeOptions = TRAIN_TYPE_OPTIONS.map(value => ({
     value,
     label: t(`locodialog.trainTypes.${value}`),
-  }));
-
-  const occupancyDetectionPositionOptions = OCCUPANCY_DETECTION_POSITION_OPTIONS.map(value => ({
-    value,
-    label: t(`locodialog.occupancyDetectionPositions.${value}`),
   }));
 
   return (
@@ -184,16 +173,29 @@ export default function LocoDialogContent({
                   label="Train length (mm)"
                   value={selectedLoco.length}
                   min={1}
-                  onChange={value => updateSelectedLoco({ length: Number(value) || 0 })}
+                  onChange={value => { const length = Math.max(1, Number(value) || 1); updateSelectedLoco({ length, ...(selectedLoco.trainDetectionOffsetMm !== undefined && selectedLoco.trainDetectionOffsetMm > length ? { trainDetectionOffsetMm: length } : {}) }); }}
                 />
 
-                <Select
-                  label={t("locodialog.occupancy_detection_position")}
-                  data={occupancyDetectionPositionOptions}
-                  value={selectedLoco.occupancyDetectionPosition ?? "forward"}
-                  allowDeselect={false}
-                  onChange={value => updateSelectedLoco({ occupancyDetectionPosition: (value ?? "forward") as LocoOccupancyDetectionPosition })}
+                <NumberInput
+                  label="Detection point from train forward end (mm)"
+                  description="Measured along the entire train from the end facing the locomotive's Forward direction. 0 = forward end; train length = reverse end."
+                  value={selectedLoco.trainDetectionOffsetMm ?? ""}
+                  min={0}
+                  max={Math.max(0, selectedLoco.length)}
+                  allowDecimal={true}
+                  onChange={value => updateSelectedLoco({ trainDetectionOffsetMm: value === "" ? undefined : Math.max(0, Math.min(selectedLoco.length, Number(value) || 0)) })}
                 />
+                <NumberInput
+                  label="Train clearance margin (mm)"
+                  description="Additional distance reserved around the train envelope. Used by future block release safety logic."
+                  value={selectedLoco.trainClearanceMarginMm ?? 30}
+                  min={0}
+                  max={2000}
+                  onChange={value => updateSelectedLoco({ trainClearanceMarginMm: Math.max(0, Number(value) || 0) })}
+                />
+                <Text size="xs" c="dimmed">
+                  The detection point must be confirmed for this train. Missing or uncertain geometry must not authorize automatic block release.
+                </Text>
 
                 </Stack>
               </ScrollArea>
