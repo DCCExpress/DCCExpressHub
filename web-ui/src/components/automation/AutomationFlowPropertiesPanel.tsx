@@ -1953,6 +1953,50 @@ export default function AutomationFlowPropertiesPanel({
         </>
       )}
 
+      {data.kind === "function" && (
+        <Textarea
+          label="JavaScript function body"
+          description="Input: payload. Return a value for the next node; return null to stop."
+          value={data.functionCode ?? "return payload;"}
+          minRows={12}
+          autosize
+          maxRows={24}
+          styles={{ input: { fontFamily: "monospace" } }}
+          onChange={event => onChange({ functionCode: event.currentTarget.value })}
+        />
+      )}
+
+      {data.kind === "switch" && (
+        <Stack gap="xs">
+          <Text size="sm" c="dimmed">Strict equality: payload === case value. First match wins; otherwise is used if no rule matches.</Text>
+          {(data.switchRules ?? []).map((rule, index) => (
+            <Group key={rule.id} gap="xs" wrap="nowrap">
+              <Text size="xs" w={48}>Case {index + 1}</Text>
+              <TextInput
+                style={{ flex: 1 }}
+                value={rule.value}
+                placeholder="OK"
+                onChange={event => onChange({
+                  switchRules: (data.switchRules ?? []).map(item =>
+                    item.id === rule.id ? { ...item, value: event.currentTarget.value } : item),
+                })}
+              />
+              <Button size="xs" variant="light" color="red"
+                onClick={() => onChange({ switchRules: (data.switchRules ?? []).filter(item => item.id !== rule.id) })}>
+                Remove
+              </Button>
+            </Group>
+          ))}
+          <Button variant="light" size="xs" onClick={() => onChange({
+            switchRules: [...(data.switchRules ?? []), {
+              id: `case-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+              value: "",
+            }],
+          })}>Add case</Button>
+          <Text size="xs">The Otherwise output is always available.</Text>
+        </Stack>
+      )}
+
       {data.kind ===
         "log" && (
         <Textarea
