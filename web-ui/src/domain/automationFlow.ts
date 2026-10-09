@@ -745,6 +745,10 @@ function normalizeNodeData(
             candidate.functionBindingId
           )
         : null,
+    functionCode: typeof candidate.functionCode === "string" ? candidate.functionCode : "return payload;",
+    switchRules: Array.isArray(candidate.switchRules)
+      ? candidate.switchRules.filter((r) => r && typeof r.id === "string" && typeof r.value === "string")
+      : [{ id: "case-1", value: "OK" }, { id: "case-2", value: "NOK" }],
     pulseMs:
       Math.max(
         1,
