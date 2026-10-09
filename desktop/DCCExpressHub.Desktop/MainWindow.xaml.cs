@@ -204,6 +204,7 @@ namespace DCCExpressHub.Desktop
 
             YaMoRcLocoNetOffsetText.Text =
                 _settings.YaMoRcLocoNetOffset.ToString();
+            UseLocoNetCheckBox.IsChecked = _settings.UseLocoNet;
 
             HttpPortText.Text =
                 _settings.HttpPort.ToString();
@@ -448,6 +449,9 @@ namespace DCCExpressHub.Desktop
                 protocol == "z21"
                     ? Visibility.Visible
                     : Visibility.Collapsed;
+
+            UseLocoNetCheckBox.Visibility =
+                protocol == "yamorc7010" ? Visibility.Visible : Visibility.Collapsed;
 
             YaMoRcOffsetsPanel.Visibility =
                 protocol == "yamorc7010"
@@ -1214,6 +1218,7 @@ namespace DCCExpressHub.Desktop
 
                     settings.YaMoRcLocoNetOffset =
                         yaMoRcLocoNetOffset;
+                    settings.UseLocoNet = UseLocoNetCheckBox.IsChecked == true;
                 }
             }
             else
@@ -1407,6 +1412,7 @@ namespace DCCExpressHub.Desktop
             RBusOffsetText.IsEnabled = !busy;
             YaMoRcRBusOffsetText.IsEnabled = !busy;
             YaMoRcLocoNetOffsetText.IsEnabled = !busy;
+            UseLocoNetCheckBox.IsEnabled = !busy;
             SerialPortCombo.IsEnabled = !busy;
             RefreshSerialButton.IsEnabled = !busy;
             LocalModeRadio.IsEnabled = !busy;
@@ -2115,7 +2121,7 @@ namespace DCCExpressHub.Desktop
                 ).ToString();
 
             psi.Environment["LocoNet__LbServerFeedback"] =
-                (_settings.Protocol == "yamorc7010")
+                (_settings.Protocol == "yamorc7010" && _settings.UseLocoNet)
                     .ToString();
 
             psi.Environment["LocoNet__LbServerPort"] =
