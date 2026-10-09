@@ -60,6 +60,8 @@ export abstract class BaseElement {
   rotationStep: RotationStepDto = 0;
 
   locked: boolean = false;
+  // Visual-only lock owner category; never persisted.
+  lockIndicatorColor: "red" | "yellow" | "white" = "red";
 
   visible: boolean = true;
 
