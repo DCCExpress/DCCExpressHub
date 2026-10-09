@@ -41,7 +41,8 @@ type PaletteGroup =
   | "railway"
   | "locoBlocks"
   | "sensors"
-  | "utility";
+  | "utility"
+  | "logic";
 
 type PaletteItem = {
   kind: AutomationFlowNodeKind;
@@ -88,6 +89,12 @@ const GROUPS: Array<{
     labelKey: "ui.flowGroupSensors",
     fallback: "Sensors",
     color: "teal",
+  },
+  {
+    id: "logic",
+    labelKey: "ui.flowGroupLogic",
+    fallback: "Logic",
+    color: "indigo",
   },
   {
     id: "utility",
@@ -315,6 +322,22 @@ const ITEMS: PaletteItem[] = [
     color: "green",
   },
   {
+    kind: "function",
+    group: "logic",
+    icon: <IconBolt size={16} />,
+    labelKey: "ui.flowNodeFunction",
+    fallback: "Function",
+    color: "indigo",
+  },
+  {
+    kind: "switch",
+    group: "logic",
+    icon: <IconGitBranch size={16} />,
+    labelKey: "ui.flowNodeSwitch",
+    fallback: "Switch",
+    color: "violet",
+  },
+  {
     kind: "delay",
     group: "utility",
     icon: <IconClock size={16} />,
@@ -376,6 +399,10 @@ export function createDefaultAutomationNodeData(
   };
 
   switch (kind) {
+    case "function":
+      return { ...base, functionCode: "return payload;" };
+    case "switch":
+      return { ...base, switchRules: [{ id: "case-1", value: "OK" }, { id: "case-2", value: "NOK" }] };
     case "trigger":
       return {
         ...base,
