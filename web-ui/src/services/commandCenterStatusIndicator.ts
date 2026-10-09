@@ -249,12 +249,17 @@ function paintLocoNetBadge(parent: HTMLElement, commandBadge: HTMLElement, role:
   }
   const badge = ensureBadge(parent, role);
   const online = isCommandCenterOnline() && locoNetEnabled && locoNetConnected;
-  badge.textContent = "LocoNet: " + (online ? "ON" : locoNetEnabled ? "OFF" : "DISABLED");
+  badge.textContent = "LocoNet: " + (!locoNetEnabled ? "OFF" : online ? "OK" : "NOK");
   badge.title = locoNetEndpoint
     ? `YaMoRC LocoNet TCP ${locoNetEndpoint} — ${online ? "connected" : "disconnected"}`
     : "YaMoRC LocoNet TCP " + (online ? "connected" : "disconnected");
   styleBadge(badge, online);
-  badge.classList.toggle("lite-ws-alert", !online);
+  if (!locoNetEnabled) {
+    badge.style.background = "var(--mantine-color-dark-5)";
+    badge.style.borderColor = "var(--mantine-color-gray-6)";
+    badge.style.color = "var(--mantine-color-gray-3)";
+  }
+  badge.classList.toggle("lite-ws-alert", locoNetEnabled && !online);
   if (badge.previousElementSibling !== commandBadge) {
     commandBadge.insertAdjacentElement("afterend", badge);
   }
