@@ -16,6 +16,7 @@ public sealed class DesktopSettings
     public int RBusOffset { get; set; } = 0;
     public int YaMoRcRBusOffset { get; set; } = 0;
     public int YaMoRcLocoNetOffset { get; set; } = 0;
+    public bool UseLocoNet { get; set; } = true;
     public string SerialPort { get; set; } = "";
     public int SerialBaudRate { get; set; } = 115200;
     public string RunMode { get; set; } = "local";
@@ -38,6 +39,7 @@ public sealed class DesktopSettings
         RBusOffset = RBusOffset,
         YaMoRcRBusOffset = YaMoRcRBusOffset,
         YaMoRcLocoNetOffset = YaMoRcLocoNetOffset,
+        UseLocoNet = UseLocoNet,
         SerialPort = SerialPort,
         SerialBaudRate = SerialBaudRate,
         RunMode = RunMode,
