@@ -5,7 +5,7 @@ type Direction = "forward" | "reverse";
 
 type Props = {
   trainLengthMm: number;
-  detectionOffsetMm?: number;
+  detectionOffsetMm?: number | undefined;
   clearanceMarginMm: number;
 };
 
