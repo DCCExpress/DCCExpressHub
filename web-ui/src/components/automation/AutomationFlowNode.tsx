@@ -186,6 +186,8 @@ const NODE_META:
       title:
         "Clear Target",
     },
+    function: { icon: "ƒ", color: "indigo", title: "Function" },
+    switch: { icon: "⑂", color: "violet", title: "Switch" },
     locoFunction: {
       icon: "ƒ",
       color: "pink",
@@ -234,6 +236,8 @@ function summary(
   data: AutomationFlowNodeData
 ): string {
   switch (data.kind) {
+    case "function": return "JavaScript";
+    case "switch": return `${data.switchRules?.length ?? 0} cases + otherwise`;
     case "trigger": {
       const mode =
         data.triggerMode ===
@@ -704,6 +708,17 @@ export default function AutomationFlowNode({
         </Stack>
       )}
 
+      {data.kind === "switch" ? (
+        <div style={{ display: "flex", justifyContent: "space-around", gap: 8, paddingBottom: 8 }}>
+          {[...(data.switchRules ?? []), { id: "otherwise", value: "Else" }].map(rule => (
+            <div key={rule.id} style={{ position: "relative", flex: 1, textAlign: "center", fontSize: 10 }}>
+              {rule.value}
+              <Handle type="source" id={rule.id} position={Position.Bottom}
+                className="automation-flow-handle" style={{ left: "50%", bottom: -8 }} />
+            </div>
+          ))}
+        </div>
+      ) : (
       <Handle
         type="source"
         position={
@@ -711,6 +726,7 @@ export default function AutomationFlowNode({
         }
         className="automation-flow-handle"
       />
+      )}
     </Card>
   );
 }
