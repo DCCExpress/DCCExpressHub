@@ -7,8 +7,8 @@ import {
   Tabs,
   Text,
   TextInput,
-  Image,
   ScrollArea,
+  SimpleGrid,
 } from "@mantine/core";
 
 import type { LocoTrainType } from "@domain/types";
@@ -20,6 +20,7 @@ import LocoStatisticsTable from "./LocoStatisticsTable";
 import LocoCalibrationTab from "./LocoCalibrationTab";
 import LocoDecoderProfileEditor from "./LocoDecoderProfileEditor";
 import LocoListPanel from "./LocoListPanel";
+import TrainGeometryPreview from "./TrainGeometryPreview";
 import type { useLocoDialogState } from "./useLocoDialogState";
 
 type TFunction = (key: string) => string;
@@ -150,17 +151,10 @@ export default function LocoDialogContent({
                 minHeight: 0,
               }}
             >
-              <ScrollArea h="100%">
-                <Stack gap="md" maw={620}>
+              <ScrollArea h="100%" type="auto">
+                <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="md" style={{ alignItems: "start", gridTemplateColumns: "minmax(220px, 3fr) minmax(0, 7fr)" }}>
+                  <Stack gap="md">
 
-                {/* <Card withBorder radius="md" p="xs">
-                  <Image
-                    src="/images/loco-info-card.png"
-                    alt="Locomotive direction and occupancy sensor diagram"
-                    fit="contain"
-                    radius="sm"
-                  />
-                </Card> */}
                 <Select
                   label={t("locodialog.train_type")}
                   data={trainTypeOptions}
@@ -197,7 +191,14 @@ export default function LocoDialogContent({
                   The detection point must be confirmed for this train. Missing or uncertain geometry must not authorize automatic block release.
                 </Text>
 
-                </Stack>
+
+                  </Stack>
+                  <TrainGeometryPreview
+                    trainLengthMm={selectedLoco.length}
+                    detectionOffsetMm={selectedLoco.trainDetectionOffsetMm}
+                    clearanceMarginMm={selectedLoco.trainClearanceMarginMm ?? 30}
+                  />
+                </SimpleGrid>
               </ScrollArea>
             </Tabs.Panel>
 
