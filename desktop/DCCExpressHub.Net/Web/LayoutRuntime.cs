@@ -106,6 +106,8 @@ public sealed class LayoutRuntime
     Dictionary<ushort, bool> _vpinStates = new();
 
     public event Action<string, object>? Changed;
+    // Safety runs after normal consumers, including TrainTracking, process the sensor change.
+    public event Action? SensorTransitionProcessed;
 
     public int AccessoryCount
     {
@@ -982,7 +984,10 @@ public sealed class LayoutRuntime
         }
 
         if (changed)
+        {
             Changed?.Invoke("sensorChanged", new { address, on });
+            SensorTransitionProcessed?.Invoke();
+        }
 
         return true;
     }
