@@ -29,7 +29,8 @@ export abstract class TrackMultiMotorTurnoutElement extends TrackElement {
       ctx,
       this.centerX,
       this.centerY,
-      this.locked
+      this.locked,
+      this.lockIndicatorColor
     );
     if (options?.showTurnoutAddress) this.drawAddressLabels(ctx);
     this.drawSectionInfo(ctx, options);
