@@ -18,6 +18,8 @@ export type AutomationFlowNodeKind =
   | "setExtendedAccessory"
   | "setLoco"
   | "locoFunction"
+  | "function"
+  | "switch"
   | "getBlock"
   | "setBlock"
   | "clearBlock"
@@ -99,6 +101,8 @@ export type AutomationFlowNodeData = Record<string, unknown> & {
   functionBindingId?: number | null;
   functionMode?: "momentary" | "on" | "off";
   pulseMs?: number;
+  functionCode?: string;
+  switchRules?: Array<{ id: string; value: string }>;
   delayMs?: number;
   audioName?: string;
   audioWaitForEnd?: boolean;
@@ -165,6 +169,8 @@ const NODE_KINDS =
     "setExtendedAccessory",
     "setLoco",
     "locoFunction",
+    "function",
+    "switch",
     "getBlock",
     "setBlock",
     "clearBlock",
