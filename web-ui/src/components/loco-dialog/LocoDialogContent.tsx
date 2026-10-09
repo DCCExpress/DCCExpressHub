@@ -183,7 +183,7 @@ export default function LocoDialogContent({
                   min={0}
                   max={Math.max(0, selectedLoco.length)}
                   allowDecimal={true}
-                  onChange={value => updateSelectedLoco({ trainDetectionOffsetMm: value === "" ? undefined : Math.max(0, Math.min(selectedLoco.length, Number(value) || 0)) })}
+                  onChange={value => updateSelectedLoco({ trainDetectionOffsetMm: Math.max(0, Math.min(selectedLoco.length, Number(value) || 0)) })}
                 />
                 <NumberInput
                   label="Train clearance margin (mm)"
