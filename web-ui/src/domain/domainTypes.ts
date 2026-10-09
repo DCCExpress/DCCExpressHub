@@ -154,6 +154,10 @@ export type Loco = {
   length: number;
   trainType?: LocoTrainType;
   occupancyDetectionPosition?: LocoOccupancyDetectionPosition;
+  /** Detector reference measured from train's physical forward end, in mm. */
+  trainDetectionOffsetMm?: number;
+  /** Reserved clearance beyond the inferred train envelope, in mm. */
+  trainClearanceMarginMm?: number;
   lastRunAt?: string;
   odometerKm?: number;
   operatingHours?: number;
