@@ -158,6 +158,8 @@ export type Loco = {
   trainDetectionOffsetMm?: number;
   /** Reserved clearance beyond the inferred train envelope, in mm. */
   trainClearanceMarginMm?: number;
+  /** True only when the complete consist remains electrically detectable to its last vehicle. */
+  entireTrainDetectable?: boolean;
   lastRunAt?: string;
   odometerKm?: number;
   operatingHours?: number;
