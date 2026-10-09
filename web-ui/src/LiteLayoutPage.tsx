@@ -1852,7 +1852,7 @@ export default function LiteLayoutPage({
       <input
         ref={importFileRef}
         type="file"
-        accept=".json,application/json"
+        accept=".zip,application/zip,.json,application/json"
         hidden
         onChange={event => {
           const file = event.currentTarget.files?.[0];
