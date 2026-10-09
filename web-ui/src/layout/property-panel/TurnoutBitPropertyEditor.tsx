@@ -1,4 +1,5 @@
 import i18next from "i18next";
+import { LampElement } from "../../models/editor/elements/LampElement";
 import {
   ActionIcon,
   Box,
@@ -1302,11 +1303,49 @@ function renderDoubleBasicEditor(
   );
 }
 
+
+function renderLampOutputEditor(lamp: LampElement, onChange: PropertyChangeHandler) {
+  const extended = lamp.outputMode === "extended";
+  return (
+    <Stack gap="xs">
+      <Text size="sm" fw={500}>{extended ? i18next.t("ui.extendedAccessoryAspects") : i18next.t("ui.basicAccessoryValues")}</Text>
+      {([true, false] as const).map(on => {
+        const key = extended ? (on ? "onAspect" : "offAspect") : (on ? "activeValue" : "offValue");
+        const prop: IEditableProperty = { label: on ? "ON" : "OFF", key, type: extended ? "number" : "bittoggle", min: 0, max: 255 };
+        return (
+          <Group key={key} justify="space-between" align="center" wrap="nowrap">
+            <Text size="sm" fw={600} w={44}>{on ? "ON" : "OFF"}</Text>
+            <Group gap="xs" wrap="nowrap">
+              {extended ? (
+                <NumberInput value={on ? lamp.onAspect : lamp.offAspect} min={0} max={255} w={110}
+                  allowDecimal={false} allowNegative={false} onChange={value => onChange(prop, value)} />
+              ) : (
+                <BitToggleElement value={on ? lamp.activeValue : lamp.offValue}
+                  onChange={value => {
+                    onChange(prop, value);
+                    const opposite = on ? "offValue" : "activeValue";
+                    if (lamp[opposite] === value) {
+                      onChange({ label: opposite, key: opposite, type: "bittoggle" }, !value);
+                    }
+                  }} />
+              )}
+              <TestButton title={on ? "Test ON" : "Test OFF"} onClick={() => { lamp.sendConfiguredState(on); }} />
+            </Group>
+          </Group>
+        );
+      })}
+    </Stack>
+  );
+}
+
 export default function TurnoutBitPropertyEditor({
   prop,
   selectedElement,
   onChange,
 }: TurnoutBitPropertyEditorProps) {
+  if (selectedElement instanceof LampElement) {
+    return renderLampOutputEditor(selectedElement, onChange);
+  }
   if (
     selectedElement instanceof
     ButtonElement
