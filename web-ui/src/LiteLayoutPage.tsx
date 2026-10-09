@@ -424,7 +424,17 @@ type RuntimeTab = "automation" | "timetable" | "info" | "log";
 
 type SwitchManLockSnapshotItem = {
   address?: unknown;
+  ownerId?: unknown;
 };
+
+function switchManLockColor(ownerId: string, ownOwnerId: string): "red" | "yellow" | "white" {
+  if (ownerId === ownOwnerId) return "white";
+  // Known automated owners. Unrecognized owners remain other-owner yellow.
+  if (ownerId.startsWith("movement:") || ownerId.startsWith("dispatcher:") ||
+      ownerId.startsWith("timetable:") || ownerId.startsWith("script:") ||
+      ownerId.startsWith("flow:")) return "red";
+  return "yellow";
+}
 
 function switchManTurnoutAddresses(element: BaseElement): number[] {
   if (isTurnoutElement(element)) {
@@ -452,37 +462,34 @@ function applySwitchManLocksToLayout(
   layout: LayoutView,
   rawLocks: unknown
 ): boolean {
-  const lockedAddresses = new Set<number>();
+  const ownOwnerId = getSwitchManModeState().ownerId;
+  const lockColors = new Map<number, "red" | "yellow" | "white">();
 
   if (Array.isArray(rawLocks)) {
     for (const rawLock of rawLocks) {
-      const address = Number(
-        (rawLock as SwitchManLockSnapshotItem | null)?.address
-      );
-
-      if (
-        Number.isInteger(address) &&
-        address >= 1 &&
-        address <= 2048
-      ) {
-        lockedAddresses.add(address);
+      const lock = rawLock as SwitchManLockSnapshotItem | null;
+      const address = Number(lock?.address);
+      if (Number.isInteger(address) && address >= 1 && address <= 2048) {
+        lockColors.set(address, switchManLockColor(
+          typeof lock?.ownerId === "string" ? lock.ownerId : "", ownOwnerId));
       }
     }
   }
 
   let changed = false;
-
   for (const element of layout.getAllElements()) {
     const addresses = switchManTurnoutAddresses(element);
+    if (addresses.length === 0) continue;
 
-    if (addresses.length === 0) {
-      continue;
-    }
-
-    const nextLocked = addresses.some(address => lockedAddresses.has(address));
-
-    if (element.locked !== nextLocked) {
+    const colors = addresses.map(address => lockColors.get(address)).filter(
+      (color): color is "red" | "yellow" | "white" => color !== undefined);
+    const nextLocked = colors.length > 0;
+    // Automatic authority wins on a multi-motor turnout.
+    const nextColor = colors.includes("red") ? "red"
+      : colors.includes("yellow") ? "yellow" : colors.includes("white") ? "white" : "red";
+    if (element.locked !== nextLocked || element.lockIndicatorColor !== nextColor) {
       element.locked = nextLocked;
+      element.lockIndicatorColor = nextColor;
       changed = true;
     }
   }
