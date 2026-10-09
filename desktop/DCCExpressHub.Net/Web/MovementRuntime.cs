@@ -277,8 +277,8 @@ public sealed class MovementRuntime
         _exclusiveGate = exclusiveGate;
         _log = log;
 
-        _layout.Changed +=
-            OnLayoutRuntimeChanged;
+        _layout.SensorTransitionProcessed +=
+            OnSensorTransitionProcessed;
     }
 
     static long NowMs() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -506,16 +506,8 @@ public sealed class MovementRuntime
                 false);
     }
 
-    void OnLayoutRuntimeChanged(
-        string type,
-        object _)
+    void OnSensorTransitionProcessed()
     {
-        if (!string.Equals(
-                type,
-                "sensorChanged",
-                StringComparison.Ordinal))
-            return;
-
         Execution[] executions;
 
         lock (_gate)
