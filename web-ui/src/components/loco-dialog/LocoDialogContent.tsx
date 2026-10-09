@@ -195,6 +195,13 @@ export default function LocoDialogContent({
                   onChange={value => updateSelectedLoco({ occupancyDetectionPosition: (value ?? "forward") as LocoOccupancyDetectionPosition })}
                 />
 
+                </Stack>
+              </ScrollArea>
+            </Tabs.Panel>
+
+            <Tabs.Panel value="counters" pt="md" style={{ flex: 1, minHeight: 0 }}>
+              <ScrollArea h="100%" type="auto">
+                <Stack gap="md" maw={620}>
                 <TextInput
                   label={t("locodialog.last_run_at")}
                   value={formatDateTime(selectedLoco.lastRunAt)}
@@ -203,13 +210,6 @@ export default function LocoDialogContent({
                   readOnly
                 />
 
-                </Stack>
-              </ScrollArea>
-            </Tabs.Panel>
-
-            <Tabs.Panel value="counters" pt="md" style={{ flex: 1, minHeight: 0 }}>
-              <ScrollArea h="100%" type="auto">
-                <Stack gap="md" maw={620}>
                 <LocoCounterSettingsPanel
                   loco={selectedLoco}
                   onPatch={updateSelectedLoco}
