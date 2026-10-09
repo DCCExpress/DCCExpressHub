@@ -113,11 +113,12 @@ export default function LocoDialogContent({
               <Tabs.Tab value="functions">{t("locodialog.tabs.functions")}</Tabs.Tab>
               <Tabs.Tab value="actions">{t("locodialog.tabs.actions")}</Tabs.Tab>
               <Tabs.Tab value="extended">{t("locodialog.extended_params")}</Tabs.Tab>
-              <Tabs.Tab value="calibration" style={{ marginLeft: "auto" }}>
-                {t("locodialog.tabs.calibration")}
-              </Tabs.Tab>
+              <Tabs.Tab value="counters">Mechanical counters</Tabs.Tab>
+              <Tabs.Tab value="calibration">{t("locodialog.tabs.calibration")}</Tabs.Tab>
               <Tabs.Tab value="decoder">Decoder CV</Tabs.Tab>
-              <Tabs.Tab value="statistics">{t("locodialog.tabs.statistics")}</Tabs.Tab>
+              <Tabs.Tab value="statistics" style={{ marginLeft: "auto" }}>
+                {t("locodialog.tabs.statistics")}
+              </Tabs.Tab>
             </Tabs.List>
 
             <Tabs.Panel value="general" pt="md" style={{ flex: 1, minHeight: 0 }}>
@@ -171,19 +172,19 @@ export default function LocoDialogContent({
                     radius="sm"
                   />
                 </Card> */}
-                <NumberInput
-                  label={t("locodialog.loco_length_mm")}
-                  value={selectedLoco.length}
-                  min={1}
-                  onChange={value => updateSelectedLoco({ length: Number(value) || 0 })}
-                />
-
                 <Select
                   label={t("locodialog.train_type")}
                   data={trainTypeOptions}
                   value={selectedLoco.trainType ?? "passenger"}
                   allowDeselect={false}
                   onChange={value => updateSelectedLoco({ trainType: (value ?? "passenger") as LocoTrainType })}
+                />
+
+                <NumberInput
+                  label={t("locodialog.loco_length_mm")}
+                  value={selectedLoco.length}
+                  min={1}
+                  onChange={value => updateSelectedLoco({ length: Number(value) || 0 })}
                 />
 
                 <Select
@@ -202,6 +203,13 @@ export default function LocoDialogContent({
                   readOnly
                 />
 
+                </Stack>
+              </ScrollArea>
+            </Tabs.Panel>
+
+            <Tabs.Panel value="counters" pt="md" style={{ flex: 1, minHeight: 0 }}>
+              <ScrollArea h="100%" type="auto">
+                <Stack gap="md" maw={620}>
                 <LocoCounterSettingsPanel
                   loco={selectedLoco}
                   onPatch={updateSelectedLoco}
