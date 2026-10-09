@@ -63,8 +63,8 @@ export default function TrainGeometryPreview({
             <circle cx={marker} cy="89" r="5" fill="#dc2626" stroke="white" strokeWidth="1.5" />
             <text x={marker} y="38" textAnchor="middle" fill="#dc2626" fontSize="12">Sensor reference</text>
           </g>}
-          <text x={left} y="149" fill="currentColor" fontSize="12">Forward end</text>
-          <text x={left + width} y="149" fill="currentColor" fontSize="12" textAnchor="end">Reverse end</text>
+          <text x={left} y="149" fill="currentColor" fontSize="12">{direction === "forward" ? "Forward end" : "Reverse end"}</text>
+          <text x={left + width} y="149" fill="currentColor" fontSize="12" textAnchor="end">{direction === "forward" ? "Reverse end" : "Forward end"}</text>
           <text x="325" y="17" textAnchor="middle" fill="currentColor" fontSize="13">Train length: {length} mm · Margin: {margin} mm/side</text>
           <text x="325" y="171" textAnchor="middle" fill="currentColor" fontSize="12">Motion: {direction === "forward" ? "→" : "←"} (preview only)</text>
         </svg>
