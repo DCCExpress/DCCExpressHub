@@ -9,44 +9,6 @@ type Props = {
   clearanceMarginMm: number;
 };
 
-function Wagon({ x, width }: { x: number; width: number }) {
-  return (
-    <g>
-      <rect x={x} y={72} width={width} height={29} rx={4} fill="#60a5fa" stroke="#1e3a8a" strokeWidth={1.4} />
-      <rect x={x + 5} y={75} width={width - 10} height={4} rx={2} fill="#bfdbfe" opacity={0.7} />
-      {Array.from({ length: 4 }, (_, i) => (
-        <rect key={i} x={x + 12 + i * (width - 24) / 4} y={83}
-          width={Math.min(13, (width - 30) / 5)} height={10} rx={2}
-          fill="#dbeafe" stroke="#2563eb" strokeWidth={0.8} />
-      ))}
-      <path d={`M${x + width - 15} 81 v19`} stroke="#1d4ed8" strokeWidth={1} />
-    </g>
-  );
-}
-
-function Locomotive({ x, width, facingRight }: { x: number; width: number; facingRight: boolean }) {
-  // A side elevation: cab windows, nose, engine grilles, chassis and bogies.
-  const cabX = facingRight ? x + width - 37 : x + 7;
-  const noseX = facingRight ? x + width - 9 : x;
-  return (
-    <g>
-      <rect x={x + 3} y={72} width={width - 6} height={29} rx={5}
-        fill="#f97316" stroke="#9a3412" strokeWidth={1.6} />
-      <path d={`M${x + 8} 72 H${x + width - 8}`} stroke="#fed7aa" strokeWidth={2} />
-      <rect x={cabX} y={74} width={28} height={23} rx={3}
-        fill="#ea580c" stroke="#9a3412" strokeWidth={1.1} />
-      <rect x={cabX + 4} y={78} width={9} height={10} rx={1.5}
-        fill="#bae6fd" stroke="#0369a1" strokeWidth={0.8} />
-      <rect x={cabX + 15} y={78} width={9} height={10} rx={1.5}
-        fill="#bae6fd" stroke="#0369a1" strokeWidth={0.8} />
-      <path d={`M${x + 44} 79 h18 M${x + 44} 83 h18 M${x + 44} 87 h18`}
-        stroke="#9a3412" strokeWidth={1.3} />
-      <rect x={noseX} y={79} width={9} height={20} rx={2} fill="#c2410c" />
-      <circle cx={facingRight ? x + width - 3 : x + 3} cy={84} r={2.6} fill="#fef08a" />
-    </g>
-  );
-}
-
 export default function TrainGeometryPreview({
   trainLengthMm,
   entireTrainDetectable,
@@ -58,13 +20,7 @@ export default function TrainGeometryPreview({
   const left = 54;
   const width = 540;
   const locoAtLeft = direction === "reverse";
-  const cars = 3;
   const locoWidth = 112;
-  const wagonWidth = (width - locoWidth - cars * 9) / cars;
-  const boxes = Array.from({ length: cars }, (_, index) => ({
-    x: locoAtLeft ? left + locoWidth + 9 + index * (wagonWidth + 9) : left + index * (wagonWidth + 9),
-    width: wagonWidth,
-  }));
   const locoX = locoAtLeft ? left : left + width - locoWidth;
   const reserveWidth = Math.min(36, Math.max(6, margin / length * width));
   const trainStart = left;
@@ -80,12 +36,13 @@ export default function TrainGeometryPreview({
       </Group>
       <Text size="xs" c="dimmed">The entire block detects current consumption, not a point sensor. Forward/Reverse changes the direction of travel.</Text>
       <Card withBorder p="xs">
-        <svg viewBox="0 0 650 180" width="100%" role="img" aria-label="Side view of locomotive and wagons in the clearance envelope">
+        <svg viewBox="0 0 650 180" width="100%" role="img" aria-label="Schematic train footprint and locomotive in the clearance envelope">
           <rect x={left - reserveWidth} y="56" width={width + reserveWidth * 2} height="70" rx="6" fill="#f59e0b" fillOpacity=".11" stroke="#d97706" strokeDasharray="5 4" />
           <path d="M30 114 H622" stroke="#64748b" strokeWidth="3" />
           {Array.from({ length: 28 }, (_, i) => <path key={i} d={`M${34 + i * 22} 109 v10`} stroke="#64748b" strokeWidth="2" />)}
-          {boxes.map((box, index) => <Wagon key={index} x={box.x} width={box.width} />)}
-          <Locomotive x={locoX} width={locoWidth} facingRight={direction === "forward"} />
+          <rect x={left} y="72" width={width} height="35" rx="3" fill="#60a5fa" fillOpacity=".4" stroke="#2563eb" />
+          <rect x={locoX} y="72" width={locoWidth} height="35" rx="3" fill="#f97316" fillOpacity=".7" stroke="#c2410c" />
+          <text x={locoX + locoWidth / 2} y="92" fill="#431407" fontSize="11" textAnchor="middle">LOCO</text>
 
           <text x={left} y="149" fill="currentColor" fontSize="12">{direction === "forward" ? "Reverse end" : "Forward end"}</text>
           <text x={left + width} y="149" fill="currentColor" fontSize="12" textAnchor="end">{direction === "forward" ? "Forward end" : "Reverse end"}</text>
