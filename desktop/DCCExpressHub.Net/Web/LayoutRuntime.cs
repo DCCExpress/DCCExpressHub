@@ -1046,7 +1046,30 @@ public sealed class LayoutRuntime
         return true;
     }
 
-    public bool RemoveBlock(ushort id, string locoId = "")
+    // Acquire the target marker atomically with the block-state check.
+    // A different movement may have occupied or reserved the block since
+    // Dispatcher initially validated it.
+    public bool TryReserveTargetBlock(ushort id, string marker)
+    {
+        if (string.IsNullOrWhiteSpace(marker) ||
+            !marker.StartsWith(RuntimeBlock.TargetLocoPrefix, StringComparison.Ordinal))
+            return false;
+
+        lock (_gate)
+        {
+            var block = _blocks.FirstOrDefault(x => x.Id == id);
+            if (block is null || block.HasRuntimeState)
+                return false;
+
+            block.LocoId = marker;
+            block.LocoAddress = 0;
+        }
+
+        Changed?.Invoke("blockStateChanged", BlockSnapshot());
+        return true;
+    }
+
+    public bool RemoveBlock(ushort id, string locoId = "", ushort expectedLocoAddress = 0)
     {
         lock (_gate)
         {
@@ -1058,6 +1081,11 @@ public sealed class LayoutRuntime
                 return true;
 
             if (locoId.Length > 0 && block.LocoId != locoId)
+                return false;
+
+            // Never remove a newly acquired target marker or another locomotive
+            // when the previous train's delayed LEAVE finally completes.
+            if (expectedLocoAddress > 0 && block.LocoAddress != expectedLocoAddress)
                 return false;
 
             block.LocoId = "";
