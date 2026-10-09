@@ -375,7 +375,36 @@ function downloadBackup(
   );
 }
 
+async function tryExportWorkspaceZip(): Promise<BackupOperationResult | null> {
+  const response = await fetch("/api/backup/workspace", { cache: "no-store" });
+  // Older embedded targets retain the legacy JSON export.
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    throw new Error(`Workspace backup: HTTP ${response.status} — ${await response.text()}`);
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  try {
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `dccexpresshub-workspace-${new Date().toISOString().slice(0, 10)}.zip`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  } finally {
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  }
+  showNotification({
+    color: "teal",
+    title: "Full workspace backup exported",
+    message: "All workspace data/ and sd/ files are included. Keep this ZIP safe.",
+  });
+  return { completed: ["full workspace data/ and sd/"], warnings: [] };
+}
+
 export async function exportFullBackup(): Promise<BackupOperationResult> {
+  const fullWorkspace = await tryExportWorkspaceZip();
+  if (fullWorkspace) return fullWorkspace;
   const backup:
     DccExpressHubBackup = {
       format:
@@ -707,6 +736,23 @@ async function postJson(
 export async function importFullBackup(
   file: File
 ): Promise<BackupOperationResult> {
+  if (file.name.toLowerCase().endsWith(".zip")) {
+    const response = await fetch("/api/backup/workspace", {
+      method: "POST",
+      headers: { "Content-Type": "application/zip" },
+      body: file,
+    });
+    if (!response.ok) {
+      throw new Error(`Workspace restore staging failed: HTTP ${response.status} — ${await response.text()}`);
+    }
+    showNotification({
+      color: "yellow",
+      title: "Full workspace restore staged",
+      message: "Restart the backend to apply the backup. Do not run automatic trains before restarting.",
+      autoClose: false,
+    });
+    return { completed: ["workspace restore staged (backend restart required)"], warnings: [] };
+  }
   const parsed =
     JSON.parse(
       await file.text()
