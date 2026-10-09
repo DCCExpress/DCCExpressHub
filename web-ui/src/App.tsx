@@ -845,7 +845,7 @@ function BackupPage({
           <input
             ref={importInputRef}
             type="file"
-            accept="application/json,.json"
+            accept=".zip,application/zip,.json,application/json"
             hidden
             onChange={event => {
               const file =
