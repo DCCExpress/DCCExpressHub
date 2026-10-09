@@ -21,8 +21,8 @@ export default function TrainGeometryPreview({
   const margin = Math.max(0, clearanceMarginMm);
   const left = 54;
   const width = 540;
-  const marker = left + (direction === "forward" ? offset : length - offset) / length * width;
-  const locoAtLeft = direction === "forward";
+  const marker = left + (direction === "forward" ? length - offset : offset) / length * width;
+  const locoAtLeft = direction === "reverse";
   const cars = 3;
   const locoWidth = 112;
   const wagonWidth = (width - locoWidth - cars * 9) / cars;
@@ -32,7 +32,7 @@ export default function TrainGeometryPreview({
   }));
   const locoX = locoAtLeft ? left : left + width - locoWidth;
   const reserveWidth = Math.min(36, Math.max(6, margin / length * width));
-  const trainStart = marker - (direction === "forward" ? offset : length - offset) / length * width;
+  const trainStart = marker - (direction === "forward" ? length - offset : offset) / length * width;
   const trainEnd = trainStart + width;
   const blockStart = 140;
   const blockEnd = 510;
