@@ -18,6 +18,11 @@ let commandCenterLabel =
 
 let commandCenterAlive = false;
 
+let yaMoRcSelected = false;
+let locoNetConnected = false;
+let locoNetEnabled = false;
+let locoNetEndpoint = "";
+
 const PAINT_INTERVAL_MS = 500;
 
 function formatWsStatus(
@@ -172,7 +177,7 @@ function formatCommandCenterLabel(
     data.name?.trim();
 
   if (name) {
-    return name;
+    return /^dcc-ex\s+command\s*station$/i.test(name) ? "DCC-EX" : name;
   }
 
   const type =
@@ -232,6 +237,27 @@ function formatCommandCenterTarget(
       : 2560;
 
   return `${ip}:${data.port ?? defaultPort}`;
+}
+
+function paintLocoNetBadge(parent: HTMLElement, commandBadge: HTMLElement, role: string): void {
+  const existing = parent.querySelector<HTMLElement>(
+    `[data-command-center-status-role="${role}"]`
+  );
+  if (!yaMoRcSelected) {
+    existing?.remove();
+    return;
+  }
+  const badge = ensureBadge(parent, role);
+  const online = isCommandCenterOnline() && locoNetEnabled && locoNetConnected;
+  badge.textContent = "LocoNet: " + (online ? "ON" : locoNetEnabled ? "OFF" : "DISABLED");
+  badge.title = locoNetEndpoint
+    ? `YaMoRC LocoNet TCP ${locoNetEndpoint} — ${online ? "connected" : "disconnected"}`
+    : "YaMoRC LocoNet TCP " + (online ? "connected" : "disconnected");
+  styleBadge(badge, online);
+  badge.classList.toggle("lite-ws-alert", !online);
+  if (badge.previousElementSibling !== commandBadge) {
+    commandBadge.insertAdjacentElement("afterend", badge);
+  }
 }
 
 function paintHome(): void {
@@ -300,6 +326,7 @@ function paintHome(): void {
       commandCenterBadge
     );
   }
+  paintLocoNetBadge(actions, commandCenterBadge, "home-loconet");
 }
 
 function findLayoutStatusLeftGroup():
@@ -414,6 +441,7 @@ function paintLayoutStatusBar():
       commandCenterBadge
     );
   }
+  paintLocoNetBadge(leftGroup, commandCenterBadge, "layout-loconet");
 }
 
 function paint(): void {
@@ -471,6 +499,18 @@ installCommandCenterStatusIndicator():
       paint();
     }
   );
+
+  wsClient.on("dccExStatus", data => {
+    yaMoRcSelected = data.commandCenterProfile === "yamorc7010" ||
+      data.z21?.profile === "yamorc7010";
+    const net = data.locoNet;
+    locoNetEnabled = Boolean(net?.lbServerEnabled);
+    locoNetConnected = Boolean(net?.lbServerConnected);
+    locoNetEndpoint = net?.host
+      ? `${net.host}:${net.lbServerPort}`
+      : "";
+    paint();
+  });
 
   // Kept only because the header/layout badges can be mounted after this
   // service is installed. The timer repaints existing state; it does not
