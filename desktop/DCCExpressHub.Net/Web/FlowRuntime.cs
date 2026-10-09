@@ -1702,9 +1702,9 @@ public sealed class FlowRuntime : BackgroundService
                         new[]
                         {
                             "{",
-                            "  const locoAddress = Number(payload && typeof payload === \\"object\\" ? payload.locoAddress : NaN);",
+                            "  const locoAddress = Number(payload && typeof payload === \"object\" ? payload.locoAddress : NaN);",
                             "  if (!Number.isInteger(locoAddress) || locoAddress < 1 || locoAddress > 10239) {",
-                            "    throw new Error(\\"Loco Function requires payload.locoAddress (1..10239).\\");",
+                            "    throw new Error(\"Loco Function requires payload.locoAddress (1..10239).\");",
                             "  }"
                         }.Concat(commands).Append("}"));
                 }
