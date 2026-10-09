@@ -116,9 +116,10 @@ public static class WorkspaceBackupService
         if (!Directory.Exists(pending))
             return false;
         var previous = Path.Combine(root, PreviousName);
+        // Retain one generation of recovery data. Only rotate it after a new
+        // archive has been staged and validated, immediately before applying.
         if (Directory.Exists(previous))
-            throw new InvalidOperationException(
-                "Previous backup recovery exists. Resolve it before applying another restore.");
+            Directory.Delete(previous, true);
         Directory.CreateDirectory(previous);
         var movedOld = new List<string>();
         var movedNew = new List<string>();
