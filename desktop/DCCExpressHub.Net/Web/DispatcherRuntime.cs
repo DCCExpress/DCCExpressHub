@@ -879,15 +879,15 @@ public sealed class DispatcherRuntime
                  * turnout change leave a short mechanical/command-station
                  * settling interval before issuing the next turnout command.
                  */
-                if (needsChange &&
-                    index + 1 <
-                        turnouts.Length)
+                if (needsChange)
+                {
+                    // A successful command write is not physical turnout-position
+                    // feedback. Allow the output/drive to settle before granting
+                    // route authority, including after the LAST turnout.
                     await Task.Delay(
-                        Math.Clamp(
-                            request.TurnoutSetDelayMs,
-                            0,
-                            600000),
+                        Math.Clamp(request.TurnoutSetDelayMs, 250, 600000),
                         ct);
+                }
             }
 
             // Final safety check after physical turnout commands.
@@ -1185,15 +1185,15 @@ public sealed class DispatcherRuntime
                         "turnout_command_failed",
                         null);
 
-                if (needsChange &&
-                    index + 1 <
-                        turnouts.Length)
+                if (needsChange)
+                {
+                    // A successful command write is not physical turnout-position
+                    // feedback. Allow the output/drive to settle before granting
+                    // route authority, including after the LAST turnout.
                     await Task.Delay(
-                        Math.Clamp(
-                            request.TurnoutSetDelayMs,
-                            0,
-                            600000),
+                        Math.Clamp(request.TurnoutSetDelayMs, 250, 600000),
                         ct);
+                }
             }
 
             sourceError =
