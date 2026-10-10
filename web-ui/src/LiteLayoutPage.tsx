@@ -71,6 +71,7 @@ import TurnoutBitPropertyEditor from "@/layout/property-panel/TurnoutBitProperty
 import RouteTurnoutSelectionPropertyEditor from "@/layout/property-panel/RouteTurnoutSelectionPropertyEditor";
 import LocoPanel from "@/layout/LocoPanel";
 import AutomationPanel from "@/components/AutomationPanel";
+import MovementTaskManager from "@/components/movement/MovementTaskManager";
 import TimetableDialog from "@/components/TimetableDialog";
 import TimetablePanel from "@/components/TimetablePanel";
 import RoutesDialog from "@/components/RoutesDialog";
@@ -420,7 +421,7 @@ const LAYOUT_ELEMENT_PICKER_TAB_KEY = "dcc-express-lite.layout.elementPickerTab"
 
 type LayoutElementPickerTab = "railway" | "decorations";
 type RightPanelMode = "property" | "loco";
-type RuntimeTab = "automation" | "timetable" | "info" | "log";
+type RuntimeTab = "tasks" | "automation" | "timetable" | "info" | "log";
 
 type SwitchManLockSnapshotItem = {
   address?: unknown;
@@ -515,6 +516,7 @@ function readStoredRuntimeTab(): RuntimeTab {
 
   if (
     value === "timetable" ||
+    value === "tasks" ||
     value === "info" ||
     value === "log"
   ) {
@@ -2081,6 +2083,7 @@ export default function LiteLayoutPage({
                   onChange={value => {
                     const nextTab: RuntimeTab =
                       value === "timetable" ||
+                      value === "tasks" ||
                       value === "info" ||
                       value === "log"
                         ? value
@@ -2092,11 +2095,16 @@ export default function LiteLayoutPage({
                   className="lite-runtime-tabs"
                 >
                   <Tabs.List grow mb="sm">
+                    <Tabs.Tab value="tasks">TaskMan</Tabs.Tab>
                     <Tabs.Tab value="automation">{i18next.t("ui.automation2")}</Tabs.Tab>
                     <Tabs.Tab value="timetable">{i18next.t("ui.timetable")}</Tabs.Tab>
                     <Tabs.Tab value="info">{i18next.t("ui.info")}</Tabs.Tab>
                     <Tabs.Tab value="log">{i18next.t("ui.log")}</Tabs.Tab>
                   </Tabs.List>
+
+                  <Tabs.Panel value="tasks" className="lite-info-tab-panel">
+                    <MovementTaskManager document={movementDocument} locos={locos} />
+                  </Tabs.Panel>
 
                   <Tabs.Panel value="automation" className="lite-info-tab-panel">
                     <Stack h="100%" gap="xs">
