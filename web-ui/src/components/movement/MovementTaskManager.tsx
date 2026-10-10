@@ -64,10 +64,16 @@ export default function MovementTaskManager({ document, locos }: Props) {
                 <Group gap={6} wrap="wrap">
                   <Badge color={state.status === "stopping" ? "yellow" : "green"} size="xs">{state.status}</Badge>
                   <Text size="xs" c="dimmed">Speed {state.desiredSpeed}</Text>
-                  {state.currentBlockId !== undefined && state.currentBlockId !== null &&
-                    <Text size="xs" c="dimmed">Block #{state.currentBlockId}</Text>}
-                  {state.targetBlockId !== undefined && state.targetBlockId !== null &&
-                    <Text size="xs" c="dimmed">→ #{state.targetBlockId}</Text>}
+                  {state.currentBlockId != null && (
+                    <Text size="xs" c="dimmed">
+                      Block {state.currentBlockName || `#${state.currentBlockId}`}
+                    </Text>
+                  )}
+                  {state.targetBlockId != null && (
+                    <Text size="xs" c="dimmed">
+                      → {state.targetBlockName || `#${state.targetBlockId}`}
+                    </Text>
+                  )}
                 </Group>
                 {route && <Text size="sm" fw={500} lineClamp={2}>{route}</Text>}
               </Stack>
