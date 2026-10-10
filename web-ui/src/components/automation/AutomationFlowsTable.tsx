@@ -437,7 +437,7 @@ opacity:
 
 
       </Stack>
-    </Paper
+    </Paper>
   );
 }
 
@@ -816,7 +816,7 @@ export default function AutomationFlowsTable({
                     )
                   }
                 </Text>
-              </Paper
+              </Paper>
             )
           }
         </Stack>
