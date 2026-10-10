@@ -56,6 +56,9 @@ var commandCenterProtocol =
     .Trim()
     .ToLowerInvariant();
 
+var useLocoNetTcp =
+    commandCenterProtocol == "loconet";
+
 var useRocoZ21 =
     commandCenterProtocol ==
     "z21";
@@ -86,7 +89,13 @@ builder.Services.AddSingleton<FileManagerApi>();
 builder.Services.AddSingleton<ScriptInfoApi>();
 builder.Services.AddSingleton<DesktopControlApi>();
 
-if (useYaMoRcZ21)
+if (useLocoNetTcp)
+{
+    builder.Services.AddSingleton<LocoNetTcpCommandCenter>();
+    builder.Services.AddHostedService(
+        sp => sp.GetRequiredService<LocoNetTcpCommandCenter>());
+}
+else if (useYaMoRcZ21)
 {
     builder.Services
         .AddSingleton<YaMoRcZ21CommandCenter>();
@@ -139,7 +148,9 @@ builder.Services
         sp =>
         {
             ICommandCenter inner =
-                useYaMoRcZ21
+                useLocoNetTcp
+                    ? sp.GetRequiredService<LocoNetTcpCommandCenter>()
+                    : useYaMoRcZ21
                     ? sp.GetRequiredService<
                         YaMoRcZ21CommandCenter>()
                     : useRocoZ21
