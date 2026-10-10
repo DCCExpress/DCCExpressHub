@@ -28,6 +28,13 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
     private readonly Dictionary<int, int> _speeds = new();
     private readonly Dictionary<int, bool> _sensors = new();
     private readonly SemaphoreSlim _snapshotGate = new(1, 1);
+    private readonly SemaphoreSlim _programmingGate = new(1, 1);
+    private readonly object _programmingSync = new();
+    private TaskCompletionSource<ProgrammingReply>? _pendingProgramming;
+    private int _pendingProgrammingCv;
+    private int _pendingProgrammingAddress;
+    private bool _pendingProgrammingWrite;
+    private sealed record ProgrammingReply(bool Ok, int Value, string Message, string Raw);
     private TaskCompletionSource<(int Address, int Slot, byte Status, byte Speed, byte Dirf, byte Snd)>? _pendingSlot;
     private int _pendingAddress;
 
@@ -100,6 +107,12 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
                     _pendingSlot?.TrySetCanceled();
                     _pendingSlot = null;
                 }
+                lock (_programmingSync)
+                {
+                    _pendingProgramming?.TrySetResult(new ProgrammingReply(
+                        false, -1, "LocoNet connection was lost during programming.", ""));
+                    _pendingProgramming = null;
+                }
                 lock (_connectionGate) _writer = null;
                 ConnectionChanged?.Invoke(false);
             }
@@ -155,6 +168,11 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
         }
         else if (packet[0] == 0xE7 && packet.Count == 14 && packet[1] == 0x0E)
         {
+            if (packet[2] == 0x7C)
+            {
+                ProcessProgrammingReply(packet, line);
+                return;
+            }
             int slot = packet[2];
             int address = packet[4] | (packet[9] << 7);
             byte status = packet[3];
@@ -196,6 +214,8 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
         }
         else if (packet[0] == 0xB4 && packet.Count == 4)
         {
+            if ((packet[1] & 0xEF) == 0x6F)
+                ProcessProgrammingAck(packet[2], line);
             if (packet[1] == 0x6D)
             {
                 _log.LogInformation("LocoNet OPC_IMM_PACKET ACK response {Response:X2}", packet[2]);
@@ -236,6 +256,130 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
             AccessoryFeedbackChanged?.Invoke(address, (packet[2] & 0x20) != 0);
         }
     }
+
+    private void ProcessProgrammingReply(IReadOnlyList<byte> packet, string raw)
+    {
+        int cvZero = ((packet[8] & 0x30) << 4) |
+            ((packet[8] & 0x01) << 7) | packet[9];
+        int cv = cvZero + 1;
+        int address = (packet[5] << 7) | packet[6];
+        int value = packet[10] | ((packet[8] & 0x02) << 6);
+        int error = packet[3] & 0x0F;
+        lock (_programmingSync)
+        {
+            if (_pendingProgramming is null ||
+                cv != _pendingProgrammingCv || address != _pendingProgrammingAddress)
+            {
+                _log.LogDebug("Ignored unsolicited LocoNet programming-slot reply: CV {Cv}, address {Address}", cv, address);
+                return;
+            }
+            if (error != 0)
+            {
+                var reason = (error & 0x01) != 0 ? "No decoder detected on the programming track."
+                    : (error & 0x02) != 0 ? "Decoder did not acknowledge CV write."
+                    : (error & 0x04) != 0 ? "Decoder did not acknowledge CV read."
+                    : "Programming was aborted.";
+                _pendingProgramming.TrySetResult(new ProgrammingReply(false, -1, reason, raw));
+            }
+            else
+            {
+                _pendingProgramming.TrySetResult(new ProgrammingReply(true, value,
+                    _pendingProgrammingWrite ? "CV programming completed (station reported success)." :
+                    "CV value read successfully.", raw));
+            }
+        }
+    }
+
+    private void ProcessProgrammingAck(int response, string raw)
+    {
+        lock (_programmingSync)
+        {
+            if (_pendingProgramming is null) return;
+            if (response == 0)
+                _pendingProgramming.TrySetResult(new ProgrammingReply(false, -1,
+                    "Command station programmer is busy or rejected the request.", raw));
+            else if (response == 0x40 && _pendingProgrammingWrite)
+                _pendingProgramming.TrySetResult(new ProgrammingReply(true, -1,
+                    "Command station accepted the write without decoder confirmation.", raw));
+            else if (response is not (1 or 0x23 or 0x2B or 0x6B or 0x40 or 0x7F))
+                _pendingProgramming.TrySetResult(new ProgrammingReply(false, -1,
+                    $"Unexpected LocoNet programming acknowledgement 0x{response:X2}.", raw));
+        }
+    }
+
+    private async Task<CommandCenterProgrammingResult> ProgramCvAsync(
+        int address, int cv, int value, int pcmd, bool write, CancellationToken ct)
+    {
+        if (!_connected) return new(false, cv, -1, "LocoNet command station is disconnected.");
+        if (cv is < 1 or > 1024 || (write && value is < 0 or > 255) ||
+            address is < 0 or > 10239)
+            return new(false, cv, -1, "Invalid CV number, decoder address or value.");
+
+        await _programmingGate.WaitAsync(ct);
+        try
+        {
+            var cvZero = cv - 1;
+            var command = new byte[]
+            {
+                0xEF, 0x0E, 0x7C, (byte)pcmd, 0x00,
+                (byte)((address >> 7) & 0x7F), (byte)(address & 0x7F), 0x00,
+                (byte)(((cvZero & 0x300) >> 4) |
+                    ((cvZero & 0x80) >> 7) | ((value & 0x80) >> 6)),
+                (byte)(cvZero & 0x7F), (byte)(value & 0x7F), 0x7F, 0x7F
+            };
+            var completion = new TaskCompletionSource<ProgrammingReply>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            lock (_programmingSync)
+            {
+                _pendingProgramming = completion;
+                _pendingProgrammingCv = cv;
+                _pendingProgrammingAddress = address;
+                _pendingProgrammingWrite = write;
+            }
+            _log.LogInformation("LocoNet CV {Operation}: {Mode} address {Address}, CV {Cv}",
+                write ? "write" : "read", address == 0 ? "service" : "POM", address, cv);
+            if (!await SendPacketAsync(command, ct))
+                return new(false, cv, -1, "Failed to send LocoNet programmer command.");
+
+            try
+            {
+                var reply = await completion.Task.WaitAsync(TimeSpan.FromSeconds(18), ct);
+                return new(reply.Ok, cv,
+                    reply.Ok && write ? value : reply.Value,
+                    reply.Message, reply.Raw);
+            }
+            catch (TimeoutException)
+            {
+                return new(false, cv, -1,
+                    "No programming result from YD7010 (timeout). Check PROG TRACK / decoder ACK.");
+            }
+        }
+        finally
+        {
+            lock (_programmingSync) _pendingProgramming = null;
+            _programmingGate.Release();
+        }
+    }
+
+    public Task<CommandCenterProgrammingResult> ReadServiceCvAsync(
+        int cv, CancellationToken ct = default) =>
+        ProgramCvAsync(0, cv, 0, 0x2B, false, ct);
+
+    public Task<CommandCenterProgrammingResult> WriteServiceCvAsync(
+        int cv, int value, CancellationToken ct = default) =>
+        ProgramCvAsync(0, cv, value, 0x6B, true, ct);
+
+    public Task<CommandCenterProgrammingResult> ReadPomCvAsync(
+        int address, int cv, CancellationToken ct = default) =>
+        address is >= 1 and <= 10239
+            ? ProgramCvAsync(address, cv, 0, 0x2F, false, ct)
+            : Task.FromResult(new CommandCenterProgrammingResult(false, cv, -1, "Invalid POM decoder address."));
+
+    public Task<CommandCenterProgrammingResult> WritePomCvAsync(
+        int address, int cv, int value, CancellationToken ct = default) =>
+        address is >= 1 and <= 10239
+            ? ProgramCvAsync(address, cv, value, 0x67, true, ct)
+            : Task.FromResult(new CommandCenterProgrammingResult(false, cv, -1, "Invalid POM decoder address."));
 
     private async Task<bool> SendPacketAsync(byte[] packet, CancellationToken ct)
     {
