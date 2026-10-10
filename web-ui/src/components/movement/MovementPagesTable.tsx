@@ -430,7 +430,7 @@ function MovementCard({
           }
         </Group>
       </Stack>
-    </Paper
+    </Paper>
   );
 }
 
