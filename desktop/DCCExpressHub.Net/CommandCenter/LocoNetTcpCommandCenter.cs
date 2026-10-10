@@ -494,11 +494,11 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
         // Build a three-byte DCCext packet, then wrap it as LocoNet
         // OPC_IMM_PACKET (ED 0B 7F), as done by JMRI SlotManager.
         int output = address + 3;
-        int zeroBased = output - 1;
-        int low = zeroBased & 3;
-        int board = zeroBased >> 2;
-        byte dcc0 = (byte)(0x80 | (board & 0x3F));
-        byte dcc1 = (byte)(0x01 | (((~board >> 6) & 7) << 4) | (low << 1));
+        // DCC extended accessory addressing follows RCN-213:
+        // 10AAAAAA / 0AAA0AA1. The +3 adjustment is applied once.
+        byte dcc0 = (byte)(0x80 | ((output >> 2) & 0x3F));
+        byte dcc1 = (byte)((((~output >> 4) & 0x70)) |
+            ((output << 1) & 0x06) | 0x01);
         byte dcc2 = (byte)aspect;
         // Bit 7 must be represented in the LocoNet high-bit mask.
         byte highBits = (byte)(((dcc0 >> 7) & 1) |
