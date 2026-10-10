@@ -28,6 +28,7 @@ import type {
 import AutomationFlowsTable from "./automation/AutomationFlowsTable";
 import AutomationScriptsTable from "./automation/AutomationScriptsTable";
 import MovementPagesTable from "./movement/MovementPagesTable";
+import MovementTaskManager from "./movement/MovementTaskManager";
 import TrainTrackingPanel from "./automation/TrainTrackingPanel";
 
 type AutomationPanelTab =
@@ -104,6 +105,7 @@ export default function AutomationPanel({
   onMovementsChange,
   onSelectMovementRoute,
 }: AutomationPanelProps) {
+  const [movementSubTab, setMovementSubTab] = useState<string>("movements");
   const [
     activeTab,
     setActiveTab,
@@ -265,6 +267,13 @@ export default function AutomationPanel({
             minHeight: 0,
           }}
         >
+          <Tabs value={movementSubTab} onChange={value => setMovementSubTab(value ?? "movements")} keepMounted={false} h="100%">
+            <Stack gap="xs" h="100%">
+              <Tabs.List>
+                <Tabs.Tab value="movements">Movements</Tabs.Tab>
+                <Tabs.Tab value="tasks">Task Manager</Tabs.Tab>
+              </Tabs.List>
+              <Tabs.Panel value="movements" style={{ flex: 1, minHeight: 0 }}>
           <MovementPagesTable
             document={
               movements
@@ -276,6 +285,12 @@ export default function AutomationPanel({
               onSelectMovementRoute
             }
           />
+              </Tabs.Panel>
+              <Tabs.Panel value="tasks" style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
+                <MovementTaskManager document={movements} />
+              </Tabs.Panel>
+            </Stack>
+          </Tabs>
         </Tabs.Panel>
 
         <Tabs.Panel
