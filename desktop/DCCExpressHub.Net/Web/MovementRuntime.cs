@@ -2993,6 +2993,27 @@ public sealed class MovementRuntime
                  * The committed destination is now the source of the next leg,
                  * so release the old leg before trying to reserve it again.
                  */
+                // Diagnostic: ARRIVED means the destination detector is ON.
+                // It does not guarantee that the trailing train has cleared
+                // the source block or its turnout section.
+                if (leg.From.SensorAddress is >= 1 and <= 65535 &&
+                    _layout.TryGetSensorState(
+                        (ushort)leg.From.SensorAddress.Value,
+                        out var sourceStillOccupied) &&
+                    sourceStillOccupied)
+                {
+                    _log.LogWarning(
+                        "Movement {Movement} loco #{Loco}: Dispatcher leg {From}->{To} is being released at ARRIVED while SOURCE sensor #{Sensor} remains ON; source LEAVE completed={LeaveFired}; owner={Owner}; turnouts={Turnouts}",
+                        execution.Page.Name,
+                        execution.LocoAddress,
+                        leg.From.Name,
+                        leg.To.Name,
+                        leg.From.SensorAddress.Value,
+                        blockLeaveState.Fired,
+                        lease.OwnerId,
+                        string.Join(",", lease.TurnoutAddresses));
+                }
+
                 _dispatcher.ReleaseLeg(
                     lease.OwnerId);
 
