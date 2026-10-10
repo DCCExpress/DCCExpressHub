@@ -35,6 +35,7 @@ type AutomationPanelTab =
   | "scripts"
   | "flows"
   | "movement"
+  | "tasks"
   | "tracking";
 
 const AUTOMATION_PANEL_TAB_STORAGE_KEY =
@@ -57,6 +58,10 @@ function loadAutomationPanelTab(): AutomationPanelTab {
       "flows" ||
     stored ===
       "movement" ||
+    stored ===
+      "tasks" ||
+    stored ===
+      "tracking" ||
     stored ===
       "scripts"
     ? stored
@@ -105,7 +110,6 @@ export default function AutomationPanel({
   onMovementsChange,
   onSelectMovementRoute,
 }: AutomationPanelProps) {
-  const [movementSubTab, setMovementSubTab] = useState<string>("movements");
   const [
     activeTab,
     setActiveTab,
@@ -126,6 +130,8 @@ export default function AutomationPanel({
           "flows" &&
         value !==
           "movement" &&
+        value !==
+          "tasks" &&
         value !==
           "tracking"
       ) {
@@ -166,6 +172,7 @@ export default function AutomationPanel({
         h="100%"
       >
         <Tabs.List>
+          <Tabs.Tab value="tasks">Task Manager</Tabs.Tab>
           <Tabs.Tab
             value="movement"
           >
@@ -267,30 +274,18 @@ export default function AutomationPanel({
             minHeight: 0,
           }}
         >
-          <Tabs value={movementSubTab} onChange={value => setMovementSubTab(value ?? "movements")} keepMounted={false} h="100%">
-            <Stack gap="xs" h="100%">
-              <Tabs.List>
-                <Tabs.Tab value="movements">Movements</Tabs.Tab>
-                <Tabs.Tab value="tasks">Task Manager</Tabs.Tab>
-              </Tabs.List>
-              <Tabs.Panel value="movements" style={{ flex: 1, minHeight: 0 }}>
           <MovementPagesTable
-            document={
-              movements
-            }
-            onDocumentChange={
-              onMovementsChange
-            }
-            onSelectRoute={
-              onSelectMovementRoute
-            }
+            document={movements}
+            onDocumentChange={onMovementsChange}
+            onSelectRoute={onSelectMovementRoute}
           />
-              </Tabs.Panel>
-              <Tabs.Panel value="tasks" style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
-                <MovementTaskManager document={movements} locos={locos} />
-              </Tabs.Panel>
-            </Stack>
-          </Tabs>
+        </Tabs.Panel>
+
+        <Tabs.Panel
+          value="tasks"
+          style={{ flex: 1, minHeight: 0, overflow: "auto" }}
+        >
+          <MovementTaskManager document={movements} locos={locos} />
         </Tabs.Panel>
 
         <Tabs.Panel
