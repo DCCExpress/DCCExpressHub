@@ -12,7 +12,7 @@ import {
   ActionIcon,
   Badge,
   Button,
-  Card,
+  Paper,
   Divider,
   Group,
   Loader,
@@ -395,7 +395,7 @@ function ScriptCard({
 
   return (
     <>
-      <Card
+      <Paper
         withBorder
         p="sm"
       radius="sm"
@@ -857,7 +857,7 @@ function ScriptCard({
               }
             </Badge>
         </Stack>
-      </Card>
+      </Paper
 
       <Modal
         opened={
@@ -1876,7 +1876,7 @@ export default function AutomationScriptsTable({
             draggedScriptId &&
             scripts.length >
               0 && (
-              <Card
+              <Paper
                 withBorder
                 p="sm"
                 onDragOver={
@@ -1913,7 +1913,7 @@ export default function AutomationScriptsTable({
                     )
                   }
                 </Text>
-              </Card>
+              </Paper
             )
           }
         </Stack>
