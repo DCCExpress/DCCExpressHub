@@ -1,4 +1,4 @@
-import { ActionIcon, Badge, Button, Group, Paper, Stack, Text, Tooltip, Divider, SimpleGrid } from "@mantine/core";
+import { ActionIcon, Badge, Button, Group, Paper, Stack, Text, Tooltip, Divider, SimpleGrid, ScrollArea } from "@mantine/core";
 import { IconAlertTriangle, IconPlayerStop } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import type { MovementDocument } from "../../domain/movement";
@@ -100,7 +100,7 @@ export default function MovementTaskManager({ document, locos }: Props) {
   const waiting = active.filter(({ state }) => /wait|hold|block|lock|authority|sensor/i.test(state.info || ""));
 
   return (
-    <Stack gap="xs" p="xs" style={{ minHeight: 0, overflowY: "auto" }}>
+    <Stack h="100%" gap="xs" p="xs" style={{ minHeight: 0, overflow: "hidden" }}>
       <Group justify="space-between">
         <Text fw={600}>Task Manager</Text>
         <Group gap="xs" wrap="wrap">
@@ -148,8 +148,10 @@ export default function MovementTaskManager({ document, locos }: Props) {
           ))}
         </>}
       </Paper>
-      {!active.length && <Text c="dimmed" size="sm">No running movements.</Text>}
-      {active.map(({ pageId, state }) => {
+      <ScrollArea type="auto" scrollbarSize={8} style={{ flex: "1 1 0", minHeight: 0 }}>
+        <Stack gap="xs" pr="xs">
+          {!active.length && <Text c="dimmed" size="sm">No running movements.</Text>}
+          {active.map(({ pageId, state }) => {
         const page = document.pages.find(item => item.id === pageId);
         const loco = locos.find(item => item.address === state.locoAddress);
         const isQuickRoute = pageId.startsWith("quick-route-loco-");
@@ -212,7 +214,9 @@ export default function MovementTaskManager({ document, locos }: Props) {
             )}
           </Paper>
         );
-      })}
+          })}
+        </Stack>
+      </ScrollArea>
     </Stack>
   );
 }
