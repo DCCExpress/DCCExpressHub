@@ -26,6 +26,8 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
     private readonly Dictionary<int, byte> _dirf = new();
     private readonly Dictionary<int, byte> _snd = new();
     private readonly Dictionary<int, int> _speeds = new();
+    private readonly Dictionary<int, bool> _sensors = new();
+    private readonly SemaphoreSlim _snapshotGate = new(1, 1);
     private TaskCompletionSource<(int Address, int Slot, byte Status)>? _pendingSlot;
     private int _pendingAddress;
 
@@ -94,6 +96,7 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
                     _dirf.Clear();
                     _snd.Clear();
                     _speeds.Clear();
+                    _sensors.Clear();
                     _pendingSlot?.TrySetCanceled();
                     _pendingSlot = null;
                 }
@@ -104,6 +107,26 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
             try { await Task.Delay(2000, stoppingToken); }
             catch (OperationCanceledException) { break; }
         }
+    }
+
+    private void PublishLocoSlot(int slot)
+    {
+        LocoFeedback? feedback = null;
+        lock (_slotSync)
+        {
+            foreach (var pair in _slots)
+            {
+                if (pair.Value != slot) continue;
+                var dirf = _dirf.GetValueOrDefault(slot);
+                var snd = _snd.GetValueOrDefault(slot);
+                var speed = _speeds.GetValueOrDefault(slot);
+                uint mask = (uint)(((dirf & 0x10) != 0 ? 1 : 0) |
+                    ((dirf & 0x0F) << 1) | ((snd & 0x0F) << 5));
+                feedback = new LocoFeedback(pair.Key, speed, (dirf & 0x20) == 0, mask);
+                break;
+            }
+        }
+        if (feedback is not null) LocoFeedbackChanged?.Invoke(feedback);
     }
 
     private void ProcessLine(string line)
@@ -135,17 +158,41 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
             int slot = packet[2];
             int address = packet[4] | (packet[9] << 7);
             byte status = packet[3];
+            bool known;
             lock (_slotSync)
             {
                 if (_pendingSlot is not null && _pendingAddress == address)
                     _pendingSlot.TrySetResult((address, slot, status));
-                if (_slots.TryGetValue(address, out var knownSlot) && knownSlot == slot)
+                known = _slots.TryGetValue(address, out var knownSlot) && knownSlot == slot;
+                if (known)
                 {
                     _dirf[slot] = packet[6];
                     _snd[slot] = packet[10];
+                    // LocoNet 1 is emergency step, 0 is stopped, 2..127 are 1..126.
+                    _speeds[slot] = packet[5] <= 1 ? 0 : packet[5] - 1;
                 }
             }
+            if (known) PublishLocoSlot(slot);
             RawInfo?.Invoke($"LocoNet slot RX: loco #{address}, slot {slot}, status {status:X2}");
+        }
+        else if (packet.Count == 4 && packet[0] is 0xA0 or 0xA1 or 0xA2)
+        {
+            var slot = (int)packet[1];
+            bool known;
+            lock (_slotSync)
+            {
+                known = _slots.ContainsValue(slot);
+                if (known)
+                {
+                    switch (packet[0])
+                    {
+                        case 0xA0: _speeds[slot] = packet[2] <= 1 ? 0 : packet[2] - 1; break;
+                        case 0xA1: _dirf[slot] = packet[2]; break;
+                        case 0xA2: _snd[slot] = packet[2]; break;
+                    }
+                }
+            }
+            if (known) PublishLocoSlot(slot);
         }
         else if (packet[0] == 0xB4 && packet.Count == 4)
         {
@@ -169,7 +216,13 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
             var address = ((packet[2] & 0x0F) << 7) | (packet[1] & 0x7F);
             address = (address << 1) + ((packet[2] & 0x20) != 0 ? 2 : 1);
             var occupied = (packet[2] & 0x10) != 0;
-            SensorFeedbackChanged?.Invoke(address, occupied);
+            bool changed;
+            lock (_slotSync)
+            {
+                changed = !_sensors.TryGetValue(address, out var previous) || previous != occupied;
+                _sensors[address] = occupied;
+            }
+            if (changed) SensorFeedbackChanged?.Invoke(address, occupied);
         }
         else if (packet[0] == 0xB0 && packet.Count == 4)
         {
@@ -414,6 +467,23 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
         Task.FromResult(false);
     public Task<bool> RequestTripTelemetryAsync(CancellationToken ct = default) =>
         Task.FromResult(false);
-    public Task<bool> RequestSensorSnapshotAsync(CancellationToken ct = default) =>
-        Task.FromResult(false);
+    public async Task<bool> RequestSensorSnapshotAsync(CancellationToken ct = default)
+    {
+        if (!_connected) return false;
+        if (!await _snapshotGate.WaitAsync(0, ct)) return false;
+        try
+        {
+            // YaMoRC LBServer and JMRI use eight OPC_SW_REQ interrogations
+            // for LocoNet feedback modules. Avoid flooding the shared bus.
+            byte[] sw1 = [0x78, 0x79, 0x7A, 0x7B, 0x78, 0x79, 0x7A, 0x7B];
+            byte[] sw2 = [0x27, 0x27, 0x27, 0x27, 0x07, 0x07, 0x07, 0x07];
+            for (var i = 0; i < sw1.Length; i++)
+            {
+                if (!await SendPacketAsync([0xB0, sw1[i], sw2[i]], ct)) return false;
+                await Task.Delay(250, ct);
+            }
+            return true;
+        }
+        finally { _snapshotGate.Release(); }
+    }
 }
