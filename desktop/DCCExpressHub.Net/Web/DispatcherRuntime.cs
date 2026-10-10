@@ -865,6 +865,12 @@ public sealed class DispatcherRuntime
                     currentClosed !=
                         turnout.Closed;
 
+                _log.LogInformation(
+                    "Dispatcher automated turnout owner={Owner}, loco=#{Loco}, leg={From}->{To}, index={Index}/{Total}, address=#{Address}, closed={Closed} (command about to send)",
+                    request.OwnerId, request.LocoAddress, request.FromBlockId,
+                    request.ToBlockId, index + 1, turnouts.Length,
+                    turnout.Address, turnout.Closed);
+
                 if (!await SetTurnoutAsync(
                         turnout,
                         request.OwnerId,
@@ -1177,6 +1183,12 @@ public sealed class DispatcherRuntime
                         out var currentClosed) ||
                     currentClosed !=
                         turnout.Closed;
+
+                _log.LogInformation(
+                    "Dispatcher automated turnout owner={Owner}, loco=#{Loco}, leg={From}->{To}, index={Index}/{Total}, address=#{Address}, closed={Closed} (command about to send)",
+                    request.OwnerId, request.LocoAddress, request.FromBlockId,
+                    request.ToBlockId, index + 1, turnouts.Length,
+                    turnout.Address, turnout.Closed);
 
                 if (!await SetTurnoutAsync(
                         turnout,
