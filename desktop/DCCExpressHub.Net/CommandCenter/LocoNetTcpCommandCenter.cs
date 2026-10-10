@@ -28,7 +28,7 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
     private readonly Dictionary<int, int> _speeds = new();
     private readonly Dictionary<int, bool> _sensors = new();
     private readonly SemaphoreSlim _snapshotGate = new(1, 1);
-    private TaskCompletionSource<(int Address, int Slot, byte Status)>? _pendingSlot;
+    private TaskCompletionSource<(int Address, int Slot, byte Status, byte Speed, byte Dirf, byte Snd)>? _pendingSlot;
     private int _pendingAddress;
 
     public LocoNetTcpCommandCenter(IConfiguration config, ILogger<LocoNetTcpCommandCenter> log)
@@ -162,7 +162,7 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
             lock (_slotSync)
             {
                 if (_pendingSlot is not null && _pendingAddress == address)
-                    _pendingSlot.TrySetResult((address, slot, status));
+                    _pendingSlot.TrySetResult((address, slot, status, packet[5], packet[6], packet[10]));
                 known = _slots.TryGetValue(address, out var knownSlot) && knownSlot == slot;
                 if (known)
                 {
@@ -355,16 +355,16 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
             {
                 if (_slots.TryGetValue(address, out int cached)) return cached;
                 _pendingAddress = address;
-                _pendingSlot = new TaskCompletionSource<(int Address, int Slot, byte Status)>(
+                _pendingSlot = new TaskCompletionSource<(int Address, int Slot, byte Status, byte Speed, byte Dirf, byte Snd)>(
                     TaskCreationOptions.RunContinuationsAsynchronously);
             }
-            Task<(int Address, int Slot, byte Status)> response;
+            Task<(int Address, int Slot, byte Status, byte Speed, byte Dirf, byte Snd)> response;
             lock (_slotSync) response = _pendingSlot!.Task;
             if (!await SendPacketAsync(new byte[] {
                 0xBF, (byte)((address >> 7) & 0x7F), (byte)(address & 0x7F)
             }, ct)) return null;
 
-            (int Address, int Slot, byte Status) found;
+            (int Address, int Slot, byte Status, byte Speed, byte Dirf, byte Snd) found;
             try { found = await response.WaitAsync(TimeSpan.FromSeconds(3), ct); }
             catch (TimeoutException)
             {
@@ -382,10 +382,11 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
             lock (_slotSync)
             {
                 _slots[address] = found.Slot;
-                _dirf.TryAdd(found.Slot, 0);
-                _snd.TryAdd(found.Slot, 0);
-                _speeds.TryAdd(found.Slot, 0);
+                _dirf[found.Slot] = found.Dirf;
+                _snd[found.Slot] = found.Snd;
+                _speeds[found.Slot] = found.Speed <= 1 ? 0 : found.Speed - 1;
             }
+            PublishLocoSlot(found.Slot);
             RawInfo?.Invoke($"LocoNet slot ready: #{address} -> {found.Slot}");
             return found.Slot;
         }
