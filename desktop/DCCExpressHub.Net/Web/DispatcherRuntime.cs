@@ -1186,8 +1186,8 @@ public sealed class DispatcherRuntime
 
                 _log.LogInformation(
                     "Dispatcher automated turnout owner={Owner}, loco=#{Loco}, leg={From}->{To}, index={Index}/{Total}, address=#{Address}, closed={Closed} (command about to send)",
-                    request.OwnerId, request.LocoAddress, request.FromBlockId,
-                    request.ToBlockId, index + 1, turnouts.Length,
+                    request.OwnerId, request.LocoAddress, request.SourceBlockId,
+                    request.DownstreamBlocks.LastOrDefault()?.BlockId ?? 0, index + 1, turnouts.Length,
                     turnout.Address, turnout.Closed);
 
                 if (!await SetTurnoutAsync(
