@@ -512,19 +512,25 @@ function readStoredRightPanelMode(): RightPanelMode {
 }
 
 function readStoredRuntimeTab(): RuntimeTab {
-  const value = localStorage.getItem(RUNTIME_TAB_SESSION_KEY)
-    ?? sessionStorage.getItem(RUNTIME_TAB_SESSION_KEY);
-
-  if (
-    value === "timetable" ||
-    value === "tasks" ||
-    value === "info" ||
-    value === "log"
-  ) {
-    return value;
+  let value: string | null = null;
+  try {
+    value = window.localStorage.getItem(RUNTIME_TAB_SESSION_KEY)
+      ?? window.sessionStorage.getItem(RUNTIME_TAB_SESSION_KEY);
+  } catch {
+    // Storage may be disabled; the UI still works with its default tab.
   }
+  return value === "tasks" || value === "automation" ||
+    value === "timetable" || value === "info" || value === "log"
+    ? value : "automation";
+}
 
-  return "automation";
+function persistRuntimeTab(tab: RuntimeTab): void {
+  try {
+    window.localStorage.setItem(RUNTIME_TAB_SESSION_KEY, tab);
+    window.sessionStorage.setItem(RUNTIME_TAB_SESSION_KEY, tab);
+  } catch {
+    // Keep the current in-memory choice if storage is unavailable.
+  }
 }
 
 function readStoredLayoutElementPickerTab(): LayoutElementPickerTab {
@@ -2091,7 +2097,7 @@ export default function LiteLayoutPage({
                         : "automation";
 
                     setRuntimeTab(nextTab);
-                    localStorage.setItem(RUNTIME_TAB_SESSION_KEY, nextTab);
+                    persistRuntimeTab(nextTab);
                   }}
                   className="lite-runtime-tabs"
                 >
