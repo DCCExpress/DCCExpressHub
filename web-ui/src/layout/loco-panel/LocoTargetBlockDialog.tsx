@@ -58,19 +58,20 @@ export default function LocoTargetBlockDialog({ loco, opened, onClose }: Props) 
     return () => { cancelled = true; };
   }, [opened, sourceId, validSource]);
 
-  const byTarget = useMemo(() => {
-    const map = new Map<number, MovementRouteCandidate>();
-    for (const candidate of candidates) {
-      const current = map.get(candidate.toBlockId);
-      if (!current || candidate.blockPath.length < current.blockPath.length) {
-        map.set(candidate.toBlockId, candidate);
-      }
-    }
-    return Array.from(map.values()).sort((a, b) =>
-      a.toBlockName.localeCompare(b.toBlockName, undefined, { numeric: true }));
-  }, [candidates]);
+  // Keep every generated path: two routes to the same destination may
+  // use different via blocks and require different turnout settings.
+  const availableRoutes = useMemo(() =>
+    [...candidates].sort((a, b) =>
+      a.toBlockName.localeCompare(b.toBlockName, undefined, { numeric: true }) ||
+      a.blockPath.map(block => block.name).join(" → ").localeCompare(
+        b.blockPath.map(block => block.name).join(" → "), undefined, { numeric: true }
+      )
+    ), [candidates]);
 
-  const selected = byTarget.find(route => route.key === selectedKey);
+  const routeLabel = (route: MovementRouteCandidate) =>
+    route.blockPath.map(block => block.name).join(" → ");
+
+  const selected = availableRoutes.find(route => route.key === selectedKey);
   const close = () => { if (!starting) onClose(); };
 
   const start = async () => {
@@ -89,7 +90,7 @@ export default function LocoTargetBlockDialog({ loco, opened, onClose }: Props) 
       if (!page.routeRef) throw new Error("Selected route has no valid direction.");
       // Reuse one persisted quick-movement slot per locomotive rather than accumulating entries.
       page.id = `quick-route-loco-${loco.address}`;
-      page.name = `Quick route · #${loco.address} · ${selected.fromBlockName} → ${selected.toBlockName}`;
+      page.name = `Quick route · #${loco.address} · ${routeLabel(selected)}`;
       page.speed = speed;
       page.expectedLocoAddress = loco.address;
       await startMovement(page);
@@ -107,15 +108,15 @@ export default function LocoTargetBlockDialog({ loco, opened, onClose }: Props) 
         <Text size="sm">Locomotive: <strong>{loco.name || `#${loco.address}`}</strong></Text>
         <Text size="sm">Current block: <strong>{current?.currentBlockName ?? "Unknown"}</strong></Text>
         {!validSource && <Alert color="orange">A confirmed current block and active train tracking are required. Automatic movement is not allowed while position is unknown.</Alert>}
-        {validSource && !loading && byTarget.length === 0 && !error &&
+        {validSource && !loading && availableRoutes.length === 0 && !error &&
           <Alert color="orange">No reachable destination was found in the generated route topology. Check the route network.</Alert>}
         {error && <Alert color="red">{error}</Alert>}
         <Select
           label="Destination block"
           placeholder={loading ? "Loading routes…" : "Select a reachable block"}
-          data={byTarget.map(route => ({
+          data={availableRoutes.map(route => ({
             value: route.key,
-            label: `${route.toBlockName} (#${route.toBlockId})`,
+            label: routeLabel(route),
           }))}
           searchable
           clearable
@@ -124,7 +125,7 @@ export default function LocoTargetBlockDialog({ loco, opened, onClose }: Props) 
           onChange={setSelectedKey}
           disabled={!validSource || loading || starting}
         />
-        {selected && <Text size="xs" c="dimmed">Route: {selected.blockPath.map(b => b.name).join(" → ")} · {selected.locoDirection}</Text>}
+        {selected && <Text size="xs" c="dimmed">Route: {routeLabel(selected)} · {selected.locoDirection}</Text>}
         <div>
           <Group justify="space-between" mb={8}><Text size="sm" fw={500}>Movement speed</Text><Text size="sm">{speed} / 126</Text></Group>
           <Slider min={1} max={126} step={1} value={speed}
