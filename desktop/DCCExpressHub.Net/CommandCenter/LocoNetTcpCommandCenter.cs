@@ -252,7 +252,13 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
                 changed = !_sensors.TryGetValue(address, out var previous) || previous != occupied;
                 _sensors[address] = occupied;
             }
-            if (changed) SensorFeedbackChanged?.Invoke(address, occupied);
+            if (changed)
+            {
+                _log.LogInformation(
+                    "LocoNet sensor RX OPC_INPUT_REP: raw={RawPacket}, address=#{Address}, state={State}",
+                    Convert.ToHexString(packet.ToArray()), address, occupied ? "ON" : "OFF");
+                SensorFeedbackChanged?.Invoke(address, occupied);
+            }
         }
         else if (packet[0] == 0xB0 && packet.Count == 4)
         {
@@ -820,6 +826,8 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
                 if (!await SendPacketAsync([0xB0, sw1[i], sw2[i]], ct)) return false;
                 await Task.Delay(250, ct);
             }
+            _log.LogInformation(
+                "LocoNet sensor interrogation: 8 requests sent; complete sensor snapshot is NOT confirmed by the protocol");
             return true;
         }
         finally { _snapshotGate.Release(); }
