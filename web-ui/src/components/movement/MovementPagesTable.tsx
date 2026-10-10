@@ -196,6 +196,7 @@ function MovementCard({
   return (
     <Card
       withBorder
+      radius="sm"
       p="sm"
       style={{
         opacity:
