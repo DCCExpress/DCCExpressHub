@@ -9,7 +9,7 @@ import {
   ActionIcon,
   Badge,
   Button,
-  Card,
+  Paper,
   Group,
   ScrollArea,
   Stack,
@@ -211,7 +211,7 @@ function FlowCard({
     };
 
   return (
-    <Card
+    <Paper
       withBorder
       p="sm"
       radius="sm"
@@ -437,7 +437,7 @@ opacity:
 
 
       </Stack>
-    </Card>
+    </Paper
   );
 }
 
@@ -779,7 +779,7 @@ export default function AutomationFlowsTable({
             draggedPageId &&
             document.pages.length >
               0 && (
-              <Card
+              <Paper
                 withBorder
                 p="sm"
                 onDragOver={
@@ -816,7 +816,7 @@ export default function AutomationFlowsTable({
                     )
                   }
                 </Text>
-              </Card>
+              </Paper
             )
           }
         </Stack>
