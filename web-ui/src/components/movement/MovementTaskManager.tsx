@@ -2,15 +2,17 @@ import { ActionIcon, Badge, Group, Paper, Stack, Text, Tooltip } from "@mantine/
 import { IconAlertTriangle, IconPlayerStop } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import type { MovementDocument } from "../../domain/movement";
+import type { Loco } from "../../domain/domainTypes";
+import LocoImage from "../loco/LocoImage";
 import {
   abortMovement, getMovementTaskStates, stopMovement, subscribeMovementTaskStates,
   type MovementEngineState,
 } from "../../services/movementEngine";
 
 type Task = { pageId: string; state: MovementEngineState };
-type Props = { document: MovementDocument };
+type Props = { document: MovementDocument; locos: Loco[] };
 
-export default function MovementTaskManager({ document }: Props) {
+export default function MovementTaskManager({ document, locos }: Props) {
   const [tasks, setTasks] = useState<Task[]>(getMovementTaskStates);
   useEffect(() => subscribeMovementTaskStates(() => setTasks(getMovementTaskStates())), []);
 
@@ -27,12 +29,14 @@ export default function MovementTaskManager({ document }: Props) {
       {!active.length && <Text c="dimmed" size="sm">No running movements.</Text>}
       {active.map(({ pageId, state }) => {
         const page = document.pages.find(item => item.id === pageId);
+        const loco = locos.find(item => item.address === state.locoAddress);
         const title = page?.name || (pageId.startsWith("quick-route-loco-")
           ? `Quick route · Loco #${state.locoAddress ?? pageId.slice("quick-route-loco-".length)}`
           : `Movement · ${pageId}`);
         return (
           <Paper key={pageId} withBorder p="sm" radius="sm">
             <Group justify="space-between" align="center" wrap="nowrap">
+              <LocoImage locoId={loco?.id} image={loco?.image} name={loco?.name} width={110} height={40} />
               <Stack gap={3} style={{ minWidth: 0, flex: 1 }}>
                 <Text size="sm" fw={600} truncate>{title}</Text>
                 <Group gap={6} wrap="wrap">
