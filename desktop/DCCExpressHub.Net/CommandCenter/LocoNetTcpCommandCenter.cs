@@ -381,6 +381,43 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
             ? ProgramCvAsync(address, cv, value, 0x67, true, ct)
             : Task.FromResult(new CommandCenterProgrammingResult(false, cv, -1, "Invalid POM decoder address."));
 
+    public async Task<CommandCenterProgrammingResult> WriteAccessoryPomCvAsync(
+        int decoderAddress, int cv, int value, CancellationToken ct = default)
+    {
+        if (decoderAddress is < 1 or > 511 || cv is < 1 or > 1024 || value is < 0 or > 255)
+            return new(false, cv, -1, "Invalid accessory decoder address (1..511), CV or value.");
+
+        // NMRA basic accessory decoder POM, whole decoder (CDDD=0000),
+        // following JMRI NmraPacket.accDecPktOpsMode.
+        // The decoder address is NOT the accessory's individual output address.
+        int cvZero = cv - 1;
+        int highAddress = ((~decoderAddress) >> 6) & 0x07;
+        byte[] dcc =
+        [
+            (byte)(0x80 | (decoderAddress & 0x3F)),
+            (byte)(0x80 | (highAddress << 4)),
+            (byte)(0xEC | ((cvZero >> 8) & 0x03)),
+            (byte)(cvZero & 0xFF),
+            (byte)value
+        ];
+        int mask = 0;
+        for (int i = 0; i < dcc.Length; i++)
+            mask |= ((dcc[i] >> 7) & 1) << i;
+
+        byte[] command =
+        [
+            0xED, 0x0B, 0x7F, 0x53, (byte)mask,
+            (byte)(dcc[0] & 0x7F), (byte)(dcc[1] & 0x7F),
+            (byte)(dcc[2] & 0x7F), (byte)(dcc[3] & 0x7F),
+            (byte)(dcc[4] & 0x7F)
+        ];
+        bool sent = await SendPacketAsync(command, ct);
+        return new(sent, cv, sent ? value : -1,
+            sent
+                ? "Basic accessory POM write sent on main track. Decoder write is not verified."
+                : "Could not send basic accessory POM command.");
+    }
+
     private async Task<bool> SendPacketAsync(byte[] packet, CancellationToken ct)
     {
         if (!_connected) return false;
