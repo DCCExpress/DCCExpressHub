@@ -31,6 +31,8 @@ export type MovementEngineState = {
   stoppedAt: number | null;
   locoAddress: number | null;
   desiredSpeed: number;
+  currentBlockId?: number | null;
+  targetBlockId?: number | null;
   currentResourceKey: string | null;
   activeRouteResourceKey: string | null;
   info: string | null;
@@ -96,6 +98,8 @@ const idleState =
       null,
     desiredSpeed:
       0,
+    currentBlockId: null,
+    targetBlockId: null,
     currentResourceKey:
       null,
     activeRouteResourceKey:
@@ -140,6 +144,8 @@ function applyBackendState(
       state.locoAddress,
     desiredSpeed:
       state.desiredSpeed,
+    currentBlockId: state.currentBlockId ?? null,
+    targetBlockId: state.targetBlockId ?? null,
     currentResourceKey:
       state.currentResourceKey,
     activeRouteResourceKey:
