@@ -2,7 +2,7 @@
 
 **Version: 0.1.0-alpha.4**
 
-**DCCExpressHub** is a model railway control and automation application for **DCC-EX**, **Roco Z21**, and **YaMoRC YD7010** command stations.
+**DCCExpressHub** is a model railway control and automation application supporting the **DCC-EX**, **Z21 + R-BUS**, and **LocoNet** protocols.
 
 Drive locomotives, operate turnouts and signals, design your track layout, monitor occupancy sensors, and run automatic movements and timetables—all from one interface.
 
@@ -43,7 +43,7 @@ Configure button assignments on the **Gamepad** page. Settings are saved for the
 
 DCCExpressHub supports three command-center communication profiles on **Windows** and **Linux**. Select the protocol supported by your command station and connect the corresponding interface.
 
-| Protocol / connection | Command stations | Feedback | CV programming |
+| Protocol / connection | Tested on | Feedback | CV programming |
 | --- | --- | --- | --- |
 | **DCC-EX** — TCP/IP or USB/serial | DCC-EX (including EX-CSB1) | DCC-EX sensor reporting; optional S88 adapter | Service-track CV programming and supported operations-mode programming |
 | **Z21 + R-BUS** — LAN/UDP | Roco z21 / Z21; YaMoRC YD7010 in Z21-compatible mode | R-BUS occupancy sensors, with configurable offset | Supported Z21 programming operations (subject to command station capabilities) |
