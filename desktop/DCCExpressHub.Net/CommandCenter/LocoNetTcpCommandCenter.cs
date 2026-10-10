@@ -455,7 +455,10 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
                 op = 0xA2;
             }
         }
-        return await SendPacketAsync(new byte[] { op, (byte)slot.Value, value }, ct);
+        if (!await SendPacketAsync(new byte[] { op, (byte)slot.Value, value }, ct))
+            return false;
+        PublishLocoSlot(slot.Value);
+        return true;
     }
 
     public Task<bool> SetSignalAspectAsync(int address, int aspect, CancellationToken ct = default) =>
