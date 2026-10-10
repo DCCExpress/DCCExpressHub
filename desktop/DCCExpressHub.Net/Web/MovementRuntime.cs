@@ -21,7 +21,9 @@ public sealed record MovementRuntimeState(
     string? ActiveRouteResourceKey,
     string? Info,
     string? Error,
-    string? RouteDescription = null);
+    string? RouteDescription = null,
+    string? CurrentBlockName = null,
+    string? TargetBlockName = null);
 
 public sealed record MovementAudioRequest(
     string RequestId,
@@ -817,6 +819,17 @@ public sealed class MovementRuntime
 
     void Publish(Execution execution, MovementRuntimeState state)
     {
+        // Resolve the visible block labels from the authoritative route plan,
+        // never display internal layout element IDs as user-facing names.
+        string? BlockName(int? id) =>
+            id is null ? null :
+            execution.Plan.Blocks.FirstOrDefault(block => block.BlockId == id)?.Name;
+
+        state = state with
+        {
+            CurrentBlockName = BlockName(state.CurrentBlockId),
+            TargetBlockName = BlockName(state.TargetBlockId)
+        };
         execution.State = state;
 
         lock (_gate)
