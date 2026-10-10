@@ -2624,6 +2624,7 @@ public sealed class MovementRuntime
         execution.ActiveLegOwnerId =
             lease.OwnerId;
 
+        var legCompleted = false;
         try
         {
             if (leg.DepartWhen.Length > 0)
@@ -3222,18 +3223,69 @@ public sealed class MovementRuntime
                 execution,
                 info: "Arrived: " + leg.To.Name,
                 setInfo: true);
+
+            legCompleted = true;
         }
         finally
         {
-            if (string.Equals(
-                    execution.ActiveLegOwnerId,
-                    lease.OwnerId,
-                    StringComparison.Ordinal))
-                execution.ActiveLegOwnerId =
-                    null;
+            var safeToRelease = true;
 
-            _dispatcher.ReleaseLeg(
-                lease.OwnerId);
+            if (!legCompleted)
+            {
+                // A failed/cancelled leg must STOP the physical locomotive
+                // before its Dispatcher authority and SwitchMan locks go away.
+                // RunExecution's outer catch runs only AFTER this finally.
+                execution.Moving = false;
+                execution.DesiredSpeed = 0;
+                try
+                {
+                    await ApplySpeed(
+                        execution,
+                        force: true,
+                        cancellationToken: CancellationToken.None);
+                }
+                catch (Exception stopError)
+                {
+                    safeToRelease = false;
+                    _log.LogCritical(
+                        stopError,
+                        "Movement {Movement} loco #{Loco}: zero-speed not confirmed. Retaining Dispatcher authority {Owner} and attempting E-STOP.",
+                        execution.Page.Name,
+                        execution.LocoAddress,
+                        lease.OwnerId);
+                    try
+                    {
+                        await EnsureEmergencyStopAsync();
+                    }
+                    catch (Exception emergencyError)
+                    {
+                        _log.LogCritical(
+                            emergencyError,
+                            "Movement {Movement}: emergency-stop attempt failed; route authority retained.",
+                            execution.Page.Name);
+                    }
+                }
+            }
+
+            if (safeToRelease)
+            {
+                if (string.Equals(
+                        execution.ActiveLegOwnerId,
+                        lease.OwnerId,
+                        StringComparison.Ordinal))
+                    execution.ActiveLegOwnerId =
+                        null;
+
+                _dispatcher.ReleaseLeg(
+                    lease.OwnerId);
+            }
+            else
+            {
+                _log.LogCritical(
+                    "Dispatcher lease {Owner} for loco #{Loco} remains locked after unconfirmed STOP. Operator intervention required.",
+                    lease.OwnerId,
+                    execution.LocoAddress);
+            }
 
             /*
              * When ARRIVED already prepared the next leg, keep that target
