@@ -287,7 +287,7 @@ export default function AutomationPanel({
           />
               </Tabs.Panel>
               <Tabs.Panel value="tasks" style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
-                <MovementTaskManager document={movements} />
+                <MovementTaskManager document={movements} locos={locos} />
               </Tabs.Panel>
             </Stack>
           </Tabs>
