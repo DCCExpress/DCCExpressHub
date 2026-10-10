@@ -1,5 +1,7 @@
 # DCCExpressHub
 
+**Version: 0.1.0-alpha.4**
+
 **DCCExpressHub** is a model railway control and automation application for **DCC-EX**, **Roco Z21**, and **YaMoRC YD7010** command stations.
 
 Drive locomotives, operate turnouts and signals, design your track layout, monitor occupancy sensors, and run automatic movements and timetables—all from one interface.
@@ -37,20 +39,36 @@ Use a compatible Bluetooth or USB gamepad with the mobile control interface to d
 
 Configure button assignments on the **Gamepad** page. Settings are saved for the browser/device you use. Gamepad availability depends on your browser and controller.
 
-## Supported command stations
+## Supported protocols and command stations
 
-| Command station | Windows | Linux |
-| --- | --- | --- |
-| DCC-EX (network) | Supported | Supported |
-| DCC-EX (USB/serial) | Supported | Supported |
-| Roco Z21 | Supported | Supported |
-| YaMoRC YD7010 | Supported | Supported |
+DCCExpressHub supports three command-center communication profiles on **Windows** and **Linux**. Select the protocol supported by your command station and connect the corresponding interface.
 
-**DCC-EX:** Connect by network or USB. S88 / s88-N feedback can be added using the [DCCExpress S88 Adapter](https://github.com/DCCExpress/DCCExpress-S88Adapter).
+| Protocol / connection | Command stations | Feedback | CV programming |
+| --- | --- | --- | --- |
+| **DCC-EX** — TCP/IP or USB/serial | DCC-EX (including EX-CSB1) | DCC-EX sensor reporting; optional S88 adapter | Service-track CV programming and supported operations-mode programming |
+| **Z21 + R-BUS** — LAN/UDP | Roco z21 / Z21; YaMoRC YD7010 in Z21-compatible mode | R-BUS occupancy sensors, with configurable offset | Supported Z21 programming operations (subject to command station capabilities) |
+| **LocoNet** — TCP (LBServer) | YaMoRC YD7010 with LocoNet server enabled | LocoNet occupancy feedback (including supported S88 modules), with configurable offset | Native LocoNet service-track CV reading/writing, locomotive POM, and accessory POM writing |
 
-**Roco Z21:** Supports LAN control and R-BUS feedback, including the white z21/z21start feature set. Direct support for black Z21-specific CAN and LocoNet buses is not included in this profile.
+### DCC-EX
 
-**YaMoRC YD7010:** Uses Z21 connectivity for locomotive and accessory control, with supported feedback through R-BUS and a separate LocoNet connection.
+Connect to a DCC-EX command station over **TCP/IP** or **USB/serial**. The HUB uses the DCC-EX command protocol for locomotive control, functions, turnouts, sensors, and supported CV programming.
+
+For S88 / s88-N occupancy feedback, see the separate [DCCExpress S88 Adapter](https://github.com/DCCExpress/DCCExpress-S88Adapter) project.
+
+### Z21 + R-BUS
+
+Connect over the **Z21 LAN protocol (UDP)**. This profile supports Roco z21 / Z21 and the **YaMoRC YD7010** in Z21-compatible mode. Locomotive control, functions, turnouts, and accessories use the Z21 interface. Configure **R-BUS feedback** and its sensor offset in the connection settings.
+
+The white z21 supports R-BUS; hardware variants and their available feedback interfaces differ. Do not assume that black Z21 CAN, S88, or LocoNet feedback is exposed through this R-BUS profile.
+
+### Native LocoNet TCP
+
+Connect to the **YaMoRC YD7010 LocoNet LBServer** over TCP (typically port **1234**, depending on configuration). This is a **separate protocol driver**, not an extension of the Z21 UDP driver.
+
+The HUB supports locomotive control and functions, turnouts, basic accessories, extended signal aspects, LocoNet sensor feedback, and native LocoNet CV programming. The Programming page includes the **Decoder Profile** reader. Service-mode programming requires the decoder to be connected to the command station's **isolated programming-track output**. Reading many CVs can take several minutes.
+
+**YaMoRC YD7010:** Choose either **Z21 + R-BUS** or **native LocoNet TCP** according to how you connect and which feedback bus you use. Their connection settings and sensor offsets are independent; do not enable both profiles for one connection unless you intentionally configured a supported arrangement.
+
 
 ## Installation
 
