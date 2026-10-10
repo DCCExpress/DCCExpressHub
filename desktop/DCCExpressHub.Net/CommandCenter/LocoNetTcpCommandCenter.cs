@@ -512,11 +512,13 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
             (((dcc2 >> 7) & 1) << 2));
         byte[] command =
         [
-            0xED, 0x0B, 0x7F, 0x32, highBits,
+            0xED, 0x0B, 0x7F, 0x33, highBits,
             (byte)(dcc0 & 0x7F), (byte)(dcc1 & 0x7F),
             (byte)(dcc2 & 0x7F), 0x00, 0x00
         ];
         _log.LogInformation("LocoNet DCCext TX signal #{Address}, aspect {Aspect}, DCC {Byte0:X2} {Byte1:X2} {Byte2:X2}", address, aspect, dcc0, dcc1, dcc2);
+        // Four DCC repeats as used by JMRI for command-station packet sends.
+        // This is a transport attempt, not proof that the signal decoder applied the aspect.
         return SendPacketAsync(command, ct);
     }
     public Task<bool> SetVPinAsync(int vpin, bool active, CancellationToken ct = default) =>
