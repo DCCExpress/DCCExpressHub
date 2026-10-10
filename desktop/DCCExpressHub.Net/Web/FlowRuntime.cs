@@ -1831,12 +1831,12 @@ public sealed class FlowRuntime : BackgroundService
             {
                 var code = S(node.Data, "functionCode", "return payload;");
                 var downstream = CompileBranch(document, next, ancestors);
-                return "payload = await (async () => {\\n" + code +
-                    "\\n})();\\nif (payload !== null) {\\n" +
-                    downstream + "\\n}";
+                return "payload = await (async () => {\n" + code +
+                    "\n})();\nif (payload !== null) {\n" +
+                    downstream + "\n}";
             }
 
-            return Statement(node) + "\\n" +
+            return Statement(node) + "\n" +
                 CompileBranch(document, next, ancestors);
         }
         finally
@@ -1864,7 +1864,7 @@ public sealed class FlowRuntime : BackgroundService
             ? payload.Value.GetRawText()
             : DefaultPayload(input);
 
-        return "let payload = " + payloadJson + ";\\n" + source;
+        return "let payload = " + payloadJson + ";\n" + source;
     }
 
     static string DefaultPayload(

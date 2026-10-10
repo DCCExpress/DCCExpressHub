@@ -71,6 +71,7 @@ import TurnoutBitPropertyEditor from "@/layout/property-panel/TurnoutBitProperty
 import RouteTurnoutSelectionPropertyEditor from "@/layout/property-panel/RouteTurnoutSelectionPropertyEditor";
 import LocoPanel from "@/layout/LocoPanel";
 import AutomationPanel from "@/components/AutomationPanel";
+import MovementTaskManager from "@/components/movement/MovementTaskManager";
 import TimetableDialog from "@/components/TimetableDialog";
 import TimetablePanel from "@/components/TimetablePanel";
 import RoutesDialog from "@/components/RoutesDialog";
@@ -420,7 +421,7 @@ const LAYOUT_ELEMENT_PICKER_TAB_KEY = "dcc-express-lite.layout.elementPickerTab"
 
 type LayoutElementPickerTab = "railway" | "decorations";
 type RightPanelMode = "property" | "loco";
-type RuntimeTab = "automation" | "timetable" | "info" | "log";
+type RuntimeTab = "tasks" | "automation" | "timetable" | "info" | "log";
 
 type SwitchManLockSnapshotItem = {
   address?: unknown;
@@ -511,17 +512,25 @@ function readStoredRightPanelMode(): RightPanelMode {
 }
 
 function readStoredRuntimeTab(): RuntimeTab {
-  const value = sessionStorage.getItem(RUNTIME_TAB_SESSION_KEY);
-
-  if (
-    value === "timetable" ||
-    value === "info" ||
-    value === "log"
-  ) {
-    return value;
+  let value: string | null = null;
+  try {
+    value = window.localStorage.getItem(RUNTIME_TAB_SESSION_KEY)
+      ?? window.sessionStorage.getItem(RUNTIME_TAB_SESSION_KEY);
+  } catch {
+    // Storage may be disabled; the UI still works with its default tab.
   }
+  return value === "tasks" || value === "automation" ||
+    value === "timetable" || value === "info" || value === "log"
+    ? value : "automation";
+}
 
-  return "automation";
+function persistRuntimeTab(tab: RuntimeTab): void {
+  try {
+    window.localStorage.setItem(RUNTIME_TAB_SESSION_KEY, tab);
+    window.sessionStorage.setItem(RUNTIME_TAB_SESSION_KEY, tab);
+  } catch {
+    // Keep the current in-memory choice if storage is unavailable.
+  }
 }
 
 function readStoredLayoutElementPickerTab(): LayoutElementPickerTab {
@@ -2081,22 +2090,28 @@ export default function LiteLayoutPage({
                   onChange={value => {
                     const nextTab: RuntimeTab =
                       value === "timetable" ||
+                      value === "tasks" ||
                       value === "info" ||
                       value === "log"
                         ? value
                         : "automation";
 
                     setRuntimeTab(nextTab);
-                    sessionStorage.setItem(RUNTIME_TAB_SESSION_KEY, nextTab);
+                    persistRuntimeTab(nextTab);
                   }}
                   className="lite-runtime-tabs"
                 >
                   <Tabs.List grow mb="sm">
+                    <Tabs.Tab value="tasks">TaskMan</Tabs.Tab>
                     <Tabs.Tab value="automation">{i18next.t("ui.automation2")}</Tabs.Tab>
                     <Tabs.Tab value="timetable">{i18next.t("ui.timetable")}</Tabs.Tab>
                     <Tabs.Tab value="info">{i18next.t("ui.info")}</Tabs.Tab>
                     <Tabs.Tab value="log">{i18next.t("ui.log")}</Tabs.Tab>
                   </Tabs.List>
+
+                  <Tabs.Panel value="tasks" className="lite-info-tab-panel">
+                    <MovementTaskManager document={movementDocument} locos={locos} />
+                  </Tabs.Panel>
 
                   <Tabs.Panel value="automation" className="lite-info-tab-panel">
                     <Stack h="100%" gap="xs">

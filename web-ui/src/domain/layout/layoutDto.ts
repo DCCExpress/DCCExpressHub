@@ -386,6 +386,12 @@ export type LampVariantDto = "classic" | "modern" | "double";
 export interface LampElementDto extends BaseElementDto {
   type: "lamp";
   variant: LampVariantDto;
+  outputMode?: "accessory" | "extended";
+  address?: number;
+  activeValue?: boolean;
+  offValue?: boolean;
+  onAspect?: number;
+  offAspect?: number;
 }
 
 export type StationBuildingVariantDto = "plain" | "terrace" | "coveredTerrace" | "stairs" | "classic" | "rural" | "modern";

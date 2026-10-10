@@ -1619,7 +1619,9 @@ function Z21ProgrammingPage({
           </Title>
 
           <Text size="sm" c="dimmed">
-            {i18next.t("ui.z21ProgrammingSubtitle")}
+            {info.type.toLowerCase() === "loconet"
+              ? "LocoNet TCP · YD7010 · CV programming via PROG TRACK or POM"
+              : i18next.t("ui.z21ProgrammingSubtitle")}
           </Text>
         </div>
       </Group>
@@ -1656,6 +1658,10 @@ function Z21ProgrammingPage({
               {i18next.t("ui.programmingTrack")}
             </Tabs.Tab>
 
+            <Tabs.Tab value="profile">
+              Profile
+            </Tabs.Tab>
+
             <Tabs.Tab
               value="loco-pom"
               leftSection={<IconTrain size={16} />}
@@ -1685,7 +1691,9 @@ function Z21ProgrammingPage({
                 icon={<IconAlertTriangle size={18} />}
                 title={i18next.t("ui.programmingTrackSafety")}
               >
-                {i18next.t("ui.z21ServiceModeInfo")}
+                {info.type.toLowerCase() === "loconet"
+                  ? "Service-mode CV programming uses the YD7010 PROG TRACK output. Electrically isolate the programming track from the main layout. Only place the decoder being programmed on it."
+                  : i18next.t("ui.z21ServiceModeInfo")}
               </Alert>
 
               <Card withBorder radius={5} p="lg">
@@ -1823,20 +1831,28 @@ function Z21ProgrammingPage({
             </Stack>
           </Tabs.Panel>
 
+          <Tabs.Panel value="profile" pt="md">
+            <DecoderProfileTab disconnected={disconnected} />
+          </Tabs.Panel>
+
           <Tabs.Panel value="loco-pom" pt="md">
             <Stack gap="md">
               <Alert
                 color="blue"
                 icon={<IconHelpCircle size={18} />}
               >
-                {i18next.t("ui.z21PomRailComInfo")}
+                {info.type.toLowerCase() === "loconet"
+                  ? "POM CV reading requires feedback supported by both the command station and the decoder. Some decoders may time out; POM writes do not need a programming track."
+                  : i18next.t("ui.z21PomRailComInfo")}
               </Alert>
 
               <Alert
                 color="yellow"
                 icon={<IconAlertTriangle size={18} />}
               >
-                {i18next.t("ui.z21PomWriteNoFeedback")}
+                {info.type.toLowerCase() === "loconet"
+                  ? "The command station may accept a POM write without confirmation from the decoder. Check the result before relying on changed settings."
+                  : i18next.t("ui.z21PomWriteNoFeedback")}
               </Alert>
 
               <Card withBorder radius={5} p="lg">
@@ -1939,11 +1955,20 @@ function Z21ProgrammingPage({
 
           <Tabs.Panel value="accessory-pom" pt="md">
             <Stack gap="md">
+              {info.type.toLowerCase() === "loconet" && (
+                <Alert color="yellow" icon={<IconAlertTriangle size={18} />}>
+                  LocoNet accessory POM writes address the whole basic accessory decoder
+                  (decoder address 1–511), not an individual turnout or signal output.
+                  Writes are not verified by the decoder; accessory POM reads are unavailable.
+                </Alert>
+              )}
               <Alert
                 color="blue"
                 icon={<IconHelpCircle size={18} />}
               >
-                {i18next.t("ui.z21PomRailComInfo")}
+                {info.type.toLowerCase() === "loconet"
+                  ? "POM CV reading requires feedback supported by both the command station and the decoder. Some decoders may time out; POM writes do not need a programming track."
+                  : i18next.t("ui.z21PomRailComInfo")}
               </Alert>
 
               <Card withBorder radius={5} p="lg">
@@ -1954,7 +1979,7 @@ function Z21ProgrammingPage({
                       value={accessoryAddress}
                       onChange={setAccessoryAddress}
                       min={1}
-                      max={512}
+                      max={info.type.toLowerCase() === "loconet" ? 511 : 512}
                       allowDecimal={false}
                     />
 
@@ -2050,14 +2075,18 @@ function Z21ProgrammingPage({
                 color="blue"
                 icon={<IconHelpCircle size={18} />}
               >
-                {i18next.t("ui.z21ServiceModeInfo")}
+                {info.type.toLowerCase() === "loconet"
+                  ? "Use the YD7010 PROG TRACK for service-mode CV programming. Keep it electrically separate from the main track."
+                  : i18next.t("ui.z21ServiceModeInfo")}
               </Alert>
 
               <Alert
                 color="blue"
                 icon={<IconHelpCircle size={18} />}
               >
-                {i18next.t("ui.z21PomRailComInfo")}
+                {info.type.toLowerCase() === "loconet"
+                  ? "POM CV reading requires feedback supported by both the command station and the decoder. Some decoders may time out; POM writes do not need a programming track."
+                  : i18next.t("ui.z21PomRailComInfo")}
               </Alert>
 
             </Stack>
@@ -2124,7 +2153,8 @@ export default function ProgrammingPage(props: Props) {
   }
 
   if (
-    info.type.toLowerCase() === "z21"
+    info.type.toLowerCase() === "z21" ||
+    info.type.toLowerCase() === "loconet"
   ) {
     return (
       <Z21ProgrammingPage

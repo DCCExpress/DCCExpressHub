@@ -540,6 +540,8 @@ public sealed class CommandCenterApi
     {
         var x =
             _store.Current;
+        var isLocoNet = string.Equals(
+            _commandCenter.Type, "loconet", StringComparison.OrdinalIgnoreCase);
 
         return HubApiResponse.Ok(
             new
@@ -554,7 +556,7 @@ public sealed class CommandCenterApi
                 defaultPort =
                     x.IsZ21
                         ? RocoZ21CommandCenter.DefaultPort
-                        : 2560,
+                        : isLocoNet ? 1234 : 2560,
                 defaultBaudRate =
                     CommandCenterSettings.DccExSerialBaudRate,
                 connected =
@@ -580,22 +582,22 @@ public sealed class CommandCenterApi
                     {
                         trackPower = true,
                         programmingTrackPower =
-                            !x.IsZ21,
+                            !x.IsZ21 && !isLocoNet,
                         serviceModeProgramming = true,
                         pomProgramming = true,
                         pomRead =
-                            x.IsZ21,
+                            x.IsZ21 || isLocoNet,
                         accessoryPomProgramming =
-                            x.IsZ21,
+                            x.IsZ21 || isLocoNet,
                         accessoryPomRead =
                             x.IsZ21,
                         rawCommand =
-                            !x.IsZ21,
+                            !x.IsZ21 && !isLocoNet,
                         vPin =
-                            !x.IsZ21,
+                            !x.IsZ21 && !isLocoNet,
                         extendedAccessory = true,
-                        currentTelemetry = true,
-                        trackConfiguration = true,
+                        currentTelemetry = !isLocoNet,
+                        trackConfiguration = !isLocoNet,
                         locomotiveControl = true,
                         locomotiveFunctions = true,
                         turnoutControl = true,

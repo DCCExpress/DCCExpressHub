@@ -388,6 +388,13 @@ namespace DCCExpressHub.Desktop
         private void SelectProtocol(
             string protocol)
         {
+            // Preserve previously saved combined Z21/LocoNet profiles,
+            // without offering a vendor-specific profile for new setups.
+            LegacyCombinedProtocolItem.Visibility =
+                protocol == "yamorc7010"
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
+
             foreach (var item in
                      ProtocolCombo.Items.OfType<ComboBoxItem>())
             {
@@ -419,8 +426,13 @@ namespace DCCExpressHub.Desktop
                 {
                     TcpPortText.Text = "21105";
                 }
+                else if (SelectedProtocol == "loconet" &&
+                         portText is "21105" or "2560")
+                {
+                    TcpPortText.Text = "1234";
+                }
                 else if (SelectedProtocol == "tcp" &&
-                         portText == "21105")
+                         portText is "21105" or "1234")
                 {
                     TcpPortText.Text = "2560";
                 }
@@ -436,7 +448,7 @@ namespace DCCExpressHub.Desktop
                 SelectedProtocol;
 
             TcpPanel.Visibility =
-                protocol is "tcp" or "z21" or "yamorc7010"
+                protocol is "tcp" or "z21" or "yamorc7010" or "loconet"
                     ? Visibility.Visible
                     : Visibility.Collapsed;
 
@@ -468,7 +480,7 @@ namespace DCCExpressHub.Desktop
 
             TestButton.IsEnabled =
                 !_setupBusy &&
-                protocol is "tcp" or "serial" or "z21" or "yamorc7010";
+                protocol is "tcp" or "serial" or "z21" or "yamorc7010" or "loconet";
 
             LocoNetTestButton.Content =
                 L("testLocoNetConnection");
@@ -604,6 +616,9 @@ namespace DCCExpressHub.Desktop
                             await TestZ21Async(
                                 testSettings),
 
+                        "loconet" =>
+                            await TestLocoNetTcpAsync(testSettings),
+
                         _ =>
                             await TestSerialAsync(
                                 testSettings)
@@ -674,6 +689,15 @@ namespace DCCExpressHub.Desktop
             {
                 UpdateProtocolPanels();
             }
+        }
+
+        private static async Task<TestResult> TestLocoNetTcpAsync(DesktopSettings settings)
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+            using var client = new TcpClient();
+            await client.ConnectAsync(settings.TcpHost, settings.TcpPort, timeout.Token);
+            return new TestResult(true,
+                $"LocoNet TCP reachable at {settings.TcpHost}:{settings.TcpPort} (connection only).");
         }
 
         private async Task<TestResult> TestTcpAsync(
@@ -1119,7 +1143,7 @@ namespace DCCExpressHub.Desktop
                 SelectedProtocol;
 
             if (protocol is not
-                ("tcp" or "serial" or "z21" or "yamorc7010"))
+                ("tcp" or "serial" or "z21" or "yamorc7010" or "loconet"))
             {
                 error =
                     L("validationChooseProtocol");
@@ -1143,7 +1167,7 @@ namespace DCCExpressHub.Desktop
                     ? "server"
                     : "local";
 
-            if (protocol is "tcp" or "z21" or "yamorc7010")
+            if (protocol is "tcp" or "z21" or "yamorc7010" or "loconet")
             {
                 var host =
                     TcpHostText.Text.Trim();
@@ -2125,7 +2149,7 @@ namespace DCCExpressHub.Desktop
                     .ToString();
 
             psi.Environment["LocoNet__LbServerPort"] =
-                "1234";
+                (_settings.Protocol == "loconet" ? _settings.TcpPort : 1234).ToString();
 
             psi.Environment["LocoNet__BinaryFeedback"] =
                 "false";

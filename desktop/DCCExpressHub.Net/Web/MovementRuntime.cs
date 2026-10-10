@@ -20,7 +20,10 @@ public sealed record MovementRuntimeState(
     string? CurrentResourceKey,
     string? ActiveRouteResourceKey,
     string? Info,
-    string? Error);
+    string? Error,
+    string? RouteDescription = null,
+    string? CurrentBlockName = null,
+    string? TargetBlockName = null);
 
 public sealed record MovementAudioRequest(
     string RequestId,
@@ -816,6 +819,17 @@ public sealed class MovementRuntime
 
     void Publish(Execution execution, MovementRuntimeState state)
     {
+        // Resolve the visible block labels from the authoritative route plan,
+        // never display internal layout element IDs as user-facing names.
+        string? BlockName(int? id) =>
+            id is null ? null :
+            execution.Plan.Blocks.FirstOrDefault(block => block.BlockId == id)?.Name;
+
+        state = state with
+        {
+            CurrentBlockName = BlockName(state.CurrentBlockId),
+            TargetBlockName = BlockName(state.TargetBlockId)
+        };
         execution.State = state;
 
         lock (_gate)
@@ -3266,16 +3280,23 @@ public sealed class MovementRuntime
             execution.Moving = false;
             execution.DesiredSpeed = 0;
 
+            string? stopCommandError = null;
             try
             {
+                // A user Stop is graceful: confirm the zero-speed command
+                // before the task is marked stopped or its leases are freed.
                 await ApplySpeed(
                     execution,
                     force: true,
                     cancellationToken:
                         CancellationToken.None);
             }
-            catch
+            catch (Exception ex)
             {
+                stopCommandError = ex.Message;
+                _log.LogError(ex,
+                    "Could not stop locomotive {LocoAddress} for movement {Movement}",
+                    execution.LocoAddress, execution.Page.Name);
             }
 
             var safetyError =
@@ -3285,7 +3306,7 @@ public sealed class MovementRuntime
                 execution,
                 execution.State with
                 {
-                    Status = safetyError is null
+                    Status = safetyError is null && stopCommandError is null
                         ? "idle"
                         : "error",
                     StoppedAt = NowMs(),
@@ -3297,10 +3318,12 @@ public sealed class MovementRuntime
                     ActiveRouteResourceKey = null,
                     Info = safetyError is not null
                         ? "Emergency stop: unknown occupancy"
-                        : execution.EmergencyAbort
-                            ? "Movement aborted"
-                            : "Movement stopped",
-                    Error = safetyError
+                        : stopCommandError is not null
+                            ? "Movement stop failed: locomotive stop not confirmed"
+                            : execution.EmergencyAbort
+                                ? "Movement aborted"
+                                : "Movement stopped",
+                    Error = safetyError ?? stopCommandError
                 });
         }
         catch (Exception ex)
@@ -3691,7 +3714,8 @@ public sealed class MovementRuntime
                         source.Key,
                         source.Key,
                         "Starting from " + source.Name,
-                        null)
+                        null,
+                        string.Join(" → ", plan.Blocks.Select(block => block.Name)))
             };
 
         foreach (var pair in LoadFunctionBindingMap(execution.LocoAddress))
@@ -3913,46 +3937,10 @@ public sealed class MovementRuntime
             info: "Stopping Movement...",
             setInfo: true);
 
-        _ = _commandCenter.SetLocoAsync(
-            execution.LocoAddress,
-            0,
-            execution.Forward,
-            CancellationToken.None)
-            .ContinueWith(
-                task =>
-                {
-                    if (task.IsCompletedSuccessfully &&
-                        task.Result)
-                    {
-                        var old =
-                            _hubState.Locos.GetValueOrDefault(
-                                execution.LocoAddress,
-                                new(
-                                    execution.LocoAddress,
-                                    0,
-                                    execution.Forward,
-                                    0));
-
-                        var updated =
-                            old with
-                            {
-                                Speed = 0,
-                                Forward =
-                                    execution.Forward
-                            };
-
-                        _hubState.Locos[
-                            execution.LocoAddress] =
-                            updated;
-
-                        LocoChanged?.Invoke(
-                            updated);
-                    }
-                },
-                CancellationToken.None,
-                TaskContinuationOptions.ExecuteSynchronously,
-                TaskScheduler.Default);
-
+        // The execution cancellation handler owns the final throttle command.
+        // Do not race it with a second, fire-and-forget SetLocoAsync call:
+        // RunExecution must await the zero-speed command before publishing
+        // the terminal state and releasing movement resources.
         execution.Cancellation.Cancel();
 
         return true;

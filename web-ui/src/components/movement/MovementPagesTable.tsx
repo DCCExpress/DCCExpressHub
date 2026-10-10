@@ -8,7 +8,7 @@ import {
   ActionIcon,
   Badge,
   Button,
-  Card,
+  Paper,
   Group,
   ScrollArea,
   Stack,
@@ -194,8 +194,9 @@ function MovementCard({
 
 
   return (
-    <Card
+    <Paper
       withBorder
+      radius="sm"
       p="sm"
       style={{
         opacity:
@@ -429,7 +430,7 @@ function MovementCard({
           }
         </Group>
       </Stack>
-    </Card>
+    </Paper>
   );
 }
 

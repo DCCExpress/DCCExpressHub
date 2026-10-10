@@ -1,4 +1,4 @@
-import { Badge, Card, Group, Stack, Text } from "@mantine/core";
+import { Badge, Button, Card, Group, Stack, Text } from "@mantine/core";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type {
@@ -19,6 +19,7 @@ import {
 import LocoImage from "../../components/loco/LocoImage";
 import LocoDirectionControls from "./LocoDirectionControls";
 import LocoEmergencyButton from "./LocoEmergencyButton";
+import LocoTargetBlockDialog from "./LocoTargetBlockDialog";
 import LocoSpeedControls from "./LocoSpeedControls";
 
 type LocoControlCardProps = {
@@ -60,6 +61,7 @@ export default function LocoControlCard({
   counterDisplaySettings,
 }: LocoControlCardProps) {
   const { t } = useTranslation();
+  const [targetDialogOpened, setTargetDialogOpened] = useState(false);
   const [
     counterSnapshot,
     setCounterSnapshot,
@@ -426,6 +428,9 @@ export default function LocoControlCard({
           onReverse={onReverse}
           onStop={onStop}
         />
+
+        <Button fullWidth variant="light" color="teal" disabled={controlsDisabled} onClick={() => setTargetDialogOpened(true)}>Drive to block…</Button>
+        <LocoTargetBlockDialog loco={loco} opened={targetDialogOpened} onClose={() => setTargetDialogOpened(false)} />
 
         <LocoEmergencyButton
           emergencyStop={emergencyStop}

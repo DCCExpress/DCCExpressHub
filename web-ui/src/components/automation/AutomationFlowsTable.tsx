@@ -9,14 +9,13 @@ import {
   ActionIcon,
   Badge,
   Button,
-  Card,
+  Paper,
   Group,
   ScrollArea,
   Stack,
   Switch,
   Text,
   Tooltip,
-  useComputedColorScheme,
 } from "@mantine/core";
 
 import {
@@ -153,22 +152,6 @@ function FlowCard({
       number
   ) => void;
 }) {
-  const computedColorScheme =
-    useComputedColorScheme(
-      "light"
-    );
-
-  const cardBackground =
-    computedColorScheme ===
-    "dark"
-      ? "var(--mantine-color-dark-5)"
-      : "var(--mantine-color-blue-0)";
-
-  const cardBorderColor =
-    computedColorScheme ===
-    "dark"
-      ? "var(--mantine-color-dark-3)"
-      : "var(--mantine-color-blue-2)";
 
   const saveEnabled =
     (
@@ -228,9 +211,10 @@ function FlowCard({
     };
 
   return (
-    <Card
+    <Paper
       withBorder
       p="sm"
+      radius="sm"
       draggable
       onDragStart={
         event =>
@@ -251,11 +235,7 @@ function FlowCard({
           )
       }
       style={{
-        backgroundColor:
-          cardBackground,
-        borderColor:
-          cardBorderColor,
-        opacity:
+opacity:
           draggedPageId ===
           page.id
             ? 0.35
@@ -457,7 +437,7 @@ function FlowCard({
 
 
       </Stack>
-    </Card>
+    </Paper>
   );
 }
 
@@ -799,7 +779,7 @@ export default function AutomationFlowsTable({
             draggedPageId &&
             document.pages.length >
               0 && (
-              <Card
+              <Paper
                 withBorder
                 p="sm"
                 onDragOver={
@@ -836,7 +816,7 @@ export default function AutomationFlowsTable({
                     )
                   }
                 </Text>
-              </Card>
+              </Paper>
             )
           }
         </Stack>

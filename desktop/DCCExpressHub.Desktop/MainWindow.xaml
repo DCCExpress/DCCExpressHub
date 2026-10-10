@@ -375,10 +375,11 @@
                  <ComboBox x:Name="ProtocolCombo"
                            SelectionChanged="ProtocolCombo_SelectionChanged">
                    <ComboBoxItem x:Name="ProtocolChooseItem" Tag=""/>
-                   <ComboBoxItem Content="DCC-EX TCP" Tag="tcp"/>
-                   <ComboBoxItem Content="DCC-EX Serial" Tag="serial"/>
-                   <ComboBoxItem Content="Roco Z21" Tag="z21"/>
-                   <ComboBoxItem Content="YaMoRC YD7010" Tag="yamorc7010"/>
+                   <ComboBoxItem Content="DCC-EX · TCP" Tag="tcp"/>
+                   <ComboBoxItem Content="DCC-EX · Serial" Tag="serial"/>
+                   <ComboBoxItem Content="Z21 + R-BUS" Tag="z21"/>
+                   <ComboBoxItem x:Name="LegacyCombinedProtocolItem" Content="Z21 + R-BUS + LocoNet feedback (legacy)" Tag="yamorc7010" Visibility="Collapsed"/>
+                   <ComboBoxItem Content="LocoNet TCP" Tag="loconet"/>
                  </ComboBox>
 
                  <Grid x:Name="TcpPanel" Margin="0,12,0,0" Visibility="Collapsed">

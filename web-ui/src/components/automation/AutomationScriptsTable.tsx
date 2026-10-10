@@ -12,7 +12,7 @@ import {
   ActionIcon,
   Badge,
   Button,
-  Card,
+  Paper,
   Divider,
   Group,
   Loader,
@@ -23,7 +23,6 @@ import {
   Text,
   TextInput,
   Tooltip,
-  useComputedColorScheme,
 } from "@mantine/core";
 
 import {
@@ -229,22 +228,6 @@ function ScriptCard({
       definition.id
     );
 
-  const computedColorScheme =
-    useComputedColorScheme(
-      "light"
-    );
-
-  const cardBackground =
-    computedColorScheme ===
-    "dark"
-      ? "var(--mantine-color-dark-5)"
-      : "var(--mantine-color-blue-0)";
-
-  const cardBorderColor =
-    computedColorScheme ===
-    "dark"
-      ? "var(--mantine-color-dark-3)"
-      : "var(--mantine-color-blue-2)";
 
   const [
     state,
@@ -412,9 +395,10 @@ function ScriptCard({
 
   return (
     <>
-      <Card
+      <Paper
         withBorder
         p="sm"
+      radius="sm"
         draggable
         onDragStart={
           event =>
@@ -435,11 +419,7 @@ function ScriptCard({
             )
         }
         style={{
-          backgroundColor:
-            cardBackground,
-          borderColor:
-            cardBorderColor,
-          opacity:
+  opacity:
             draggedScriptId ===
             definition.id
               ? 0.35
@@ -877,7 +857,7 @@ function ScriptCard({
               }
             </Badge>
         </Stack>
-      </Card>
+      </Paper>
 
       <Modal
         opened={
@@ -1896,7 +1876,7 @@ export default function AutomationScriptsTable({
             draggedScriptId &&
             scripts.length >
               0 && (
-              <Card
+              <Paper
                 withBorder
                 p="sm"
                 onDragOver={
@@ -1933,7 +1913,7 @@ export default function AutomationScriptsTable({
                     )
                   }
                 </Text>
-              </Card>
+              </Paper>
             )
           }
         </Stack>

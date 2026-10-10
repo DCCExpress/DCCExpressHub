@@ -26,11 +26,17 @@ export type MovementEngineStatus =
   | "error";
 
 export type MovementEngineState = {
+  movementName?: string | undefined;
+  routeDescription?: string | null | undefined;
+  currentBlockName?: string | null | undefined;
+  targetBlockName?: string | null | undefined;
   status: MovementEngineStatus;
   startedAt: number | null;
   stoppedAt: number | null;
   locoAddress: number | null;
   desiredSpeed: number;
+  currentBlockId?: number | null;
+  targetBlockId?: number | null;
   currentResourceKey: string | null;
   activeRouteResourceKey: string | null;
   info: string | null;
@@ -60,6 +66,24 @@ const listeners =
     Set<StateListener>
   >();
 
+const allStateListeners = new Set<() => void>();
+
+export function getMovementTaskStates(): Array<{ pageId: string; state: MovementEngineState }> {
+  installTracking();
+  return Array.from(states, ([pageId, state]) => ({ pageId, state: copyState(state) }));
+}
+
+export function subscribeMovementTaskStates(listener: () => void): () => void {
+  installTracking();
+  allStateListeners.add(listener);
+  listener();
+  return () => { allStateListeners.delete(listener); };
+}
+
+function notifyAllStateListeners(): void {
+  for (const listener of allStateListeners) listener();
+}
+
 let installed =
   false;
 
@@ -78,6 +102,8 @@ const idleState =
       null,
     desiredSpeed:
       0,
+    currentBlockId: null,
+    targetBlockId: null,
     currentResourceKey:
       null,
     activeRouteResourceKey:
@@ -112,6 +138,10 @@ function applyBackendState(
 
   const next:
     MovementEngineState = {
+    movementName: state.movementName,
+    routeDescription: state.routeDescription,
+    currentBlockName: state.currentBlockName,
+    targetBlockName: state.targetBlockName,
     status:
       state.status,
     startedAt:
@@ -122,6 +152,8 @@ function applyBackendState(
       state.locoAddress,
     desiredSpeed:
       state.desiredSpeed,
+    currentBlockId: state.currentBlockId ?? null,
+    targetBlockId: state.targetBlockId ?? null,
     currentResourceKey:
       state.currentResourceKey,
     activeRouteResourceKey:
@@ -136,6 +168,8 @@ function applyBackendState(
     state.pageId,
     next
   );
+
+  notifyAllStateListeners();
 
   for (
     const listener of

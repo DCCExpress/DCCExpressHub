@@ -57,6 +57,8 @@ function loadAutomationPanelTab(): AutomationPanelTab {
     stored ===
       "movement" ||
     stored ===
+      "tracking" ||
+    stored ===
       "scripts"
     ? stored
     : "scripts";
@@ -266,15 +268,9 @@ export default function AutomationPanel({
           }}
         >
           <MovementPagesTable
-            document={
-              movements
-            }
-            onDocumentChange={
-              onMovementsChange
-            }
-            onSelectRoute={
-              onSelectMovementRoute
-            }
+            document={movements}
+            onDocumentChange={onMovementsChange}
+            onSelectRoute={onSelectMovementRoute}
           />
         </Tabs.Panel>
 

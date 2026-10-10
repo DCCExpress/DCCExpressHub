@@ -264,8 +264,10 @@ public sealed class LayoutConfigApi
                     });
             }
 
-            await _automation
-                .EvaluateAsync();
+            // Saving only persists and reloads the rule definitions.
+            // Do not evaluate signals or issue DCC accessory commands here.
+            // Subsequent turnout/sensor/accessory events trigger evaluation.
+
 
             return HubApiResponse.Ok(
                 new
