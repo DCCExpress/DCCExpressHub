@@ -310,7 +310,7 @@ namespace DCCExpressHub.Desktop
                 L("tcpHost");
 
             TcpPortLabelText.Text =
-                L("port");
+                $"{L("port")} ({GetDefaultCommandPort(SelectedProtocol)})";
 
             RBusOffsetLabelText.Text =
                 L("rBusOffset");
@@ -363,7 +363,7 @@ namespace DCCExpressHub.Desktop
                 L("serverMode");
 
             HttpPortLabelText.Text =
-                L("httpPort");
+                $"{L("httpPort")} ({DesktopSettings.DefaultHttpPort})";
 
             WorkspaceTitleText.Text =
                 L("workspaceTitle");
@@ -442,10 +442,21 @@ namespace DCCExpressHub.Desktop
             HideTestResult();
         }
 
+        private static int GetDefaultCommandPort(string protocol) =>
+            protocol switch
+            {
+                "z21" or "yamorc7010" => 21105,
+                "loconet" => 1234,
+                _ => 2560
+            };
+
         private void UpdateProtocolPanels()
         {
             var protocol =
                 SelectedProtocol;
+
+            TcpPortLabelText.Text =
+                $"{L("port")} ({GetDefaultCommandPort(protocol)})";
 
             TcpPanel.Visibility =
                 protocol is "tcp" or "z21" or "yamorc7010" or "loconet"
