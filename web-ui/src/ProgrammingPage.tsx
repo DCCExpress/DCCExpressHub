@@ -1658,6 +1658,12 @@ function Z21ProgrammingPage({
               {i18next.t("ui.programmingTrack")}
             </Tabs.Tab>
 
+            {info.type.toLowerCase() === "loconet" && (
+              <Tabs.Tab value="profile">
+                Profile
+              </Tabs.Tab>
+            )}
+
             <Tabs.Tab
               value="loco-pom"
               leftSection={<IconTrain size={16} />}
@@ -1826,6 +1832,12 @@ function Z21ProgrammingPage({
               </Card>
             </Stack>
           </Tabs.Panel>
+
+          {info.type.toLowerCase() === "loconet" && (
+            <Tabs.Panel value="profile" pt="md">
+              <DecoderProfileTab disconnected={disconnected} />
+            </Tabs.Panel>
+          )}
 
           <Tabs.Panel value="loco-pom" pt="md">
             <Stack gap="md">
