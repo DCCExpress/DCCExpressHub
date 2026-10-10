@@ -2110,7 +2110,7 @@ export default function LiteLayoutPage({
                   </Tabs.List>
 
                   <Tabs.Panel value="tasks" className="lite-info-tab-panel">
-                    <MovementTaskManager document={movementDocument} locos={locos} />
+                    <MovementTaskManager document={movementDocument} locos={locos} layout={layout} />
                   </Tabs.Panel>
 
                   <Tabs.Panel value="automation" className="lite-info-tab-panel">
