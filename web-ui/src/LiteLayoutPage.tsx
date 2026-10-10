@@ -512,7 +512,8 @@ function readStoredRightPanelMode(): RightPanelMode {
 }
 
 function readStoredRuntimeTab(): RuntimeTab {
-  const value = sessionStorage.getItem(RUNTIME_TAB_SESSION_KEY);
+  const value = localStorage.getItem(RUNTIME_TAB_SESSION_KEY)
+    ?? sessionStorage.getItem(RUNTIME_TAB_SESSION_KEY);
 
   if (
     value === "timetable" ||
@@ -2090,7 +2091,7 @@ export default function LiteLayoutPage({
                         : "automation";
 
                     setRuntimeTab(nextTab);
-                    sessionStorage.setItem(RUNTIME_TAB_SESSION_KEY, nextTab);
+                    localStorage.setItem(RUNTIME_TAB_SESSION_KEY, nextTab);
                   }}
                   className="lite-runtime-tabs"
                 >
