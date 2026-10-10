@@ -36,9 +36,17 @@ export default function MovementTaskManager({ document, locos }: Props) {
       {active.map(({ pageId, state }) => {
         const page = document.pages.find(item => item.id === pageId);
         const loco = locos.find(item => item.address === state.locoAddress);
-        const title = page?.name || (pageId.startsWith("quick-route-loco-")
-          ? `Quick route · Loco #${state.locoAddress ?? pageId.slice("quick-route-loco-".length)}`
+        const isQuickRoute = pageId.startsWith("quick-route-loco-");
+        const fullName = state.movementName || page?.name || (isQuickRoute
+          ? "Quick route"
           : `Movement · ${pageId}`);
+        // Existing quick routes use "Quick route · #12 · A1 → B1".
+        // Keep the locomotive identity under its image, and show the path separately.
+        const quickRouteMatch = isQuickRoute
+          ? /^Quick route\\s*·\\s*(?:#\\d+\\s*·\\s*)?(.*)$/i.exec(fullName)
+          : null;
+        const title = isQuickRoute ? "Quick route" : fullName;
+        const route = quickRouteMatch?.[1]?.trim() || null;
         return (
           <Paper key={pageId} withBorder p="sm" radius="sm">
             <Group justify="space-between" align="center" wrap="nowrap">
@@ -53,6 +61,7 @@ export default function MovementTaskManager({ document, locos }: Props) {
               </Stack>
               <Stack gap={3} style={{ minWidth: 0, flex: 1 }}>
                 <Text size="sm" fw={600} truncate>{title}</Text>
+                {route && <Text size="sm" fw={500} lineClamp={2}>{route}</Text>}
                 <Group gap={6} wrap="wrap">
                   <Badge color={state.status === "stopping" ? "yellow" : "green"} size="xs">{state.status}</Badge>
                   <Text size="xs" c="dimmed">Speed {state.desiredSpeed}</Text>
