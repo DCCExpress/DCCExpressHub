@@ -2611,6 +2611,8 @@ public sealed class WsHub
                 result = await CommandCenter.ReadPomCvAsync(address, cv, ct);
             else if (action == "pomWriteCv")
                 result = await CommandCenter.WritePomCvAsync(address, cv, value, ct);
+            else if (action == "accessoryPomWriteCv")
+                result = await CommandCenter.WriteAccessoryPomCvAsync(address, cv, value, ct);
             else if (action == "readAddress")
             {
                 // Read CV29 first: its long-address bit tells us whether to
