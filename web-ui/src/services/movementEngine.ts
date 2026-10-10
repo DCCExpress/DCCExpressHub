@@ -28,6 +28,8 @@ export type MovementEngineStatus =
 export type MovementEngineState = {
   movementName?: string | undefined;
   routeDescription?: string | null | undefined;
+  currentBlockName?: string | null | undefined;
+  targetBlockName?: string | null | undefined;
   status: MovementEngineStatus;
   startedAt: number | null;
   stoppedAt: number | null;
@@ -138,6 +140,8 @@ function applyBackendState(
     MovementEngineState = {
     movementName: state.movementName,
     routeDescription: state.routeDescription,
+    currentBlockName: state.currentBlockName,
+    targetBlockName: state.targetBlockName,
     status:
       state.status,
     startedAt:
