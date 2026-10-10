@@ -4,6 +4,7 @@ namespace DCCExpressHub.Net.Web;
 
 public sealed class RuntimeStateStore
 {
+    readonly SemaphoreSlim _saveGate = new(1, 1);
     readonly LayoutRuntime _runtime;
     readonly string _path;
     readonly ILogger<RuntimeStateStore> _log;
@@ -171,6 +172,19 @@ public sealed class RuntimeStateStore
     }
 
     public async Task<bool> SaveAsync()
+    {
+        await _saveGate.WaitAsync();
+        try
+        {
+            return await SaveCoreAsync();
+        }
+        finally
+        {
+            _saveGate.Release();
+        }
+    }
+
+    async Task<bool> SaveCoreAsync()
     {
         try
         {
