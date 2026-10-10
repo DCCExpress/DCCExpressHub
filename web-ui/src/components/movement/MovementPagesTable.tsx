@@ -8,7 +8,7 @@ import {
   ActionIcon,
   Badge,
   Button,
-  Card,
+  Paper,
   Group,
   ScrollArea,
   Stack,
@@ -194,7 +194,7 @@ function MovementCard({
 
 
   return (
-    <Card
+    <Paper
       withBorder
       radius="sm"
       p="sm"
@@ -430,7 +430,7 @@ function MovementCard({
           }
         </Group>
       </Stack>
-    </Card>
+    </Paper
   );
 }
 
