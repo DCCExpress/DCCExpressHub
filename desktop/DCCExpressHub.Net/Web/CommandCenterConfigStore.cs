@@ -133,6 +133,9 @@ public sealed class CommandCenterConfigStore
                 (_configuration["CommandCenter:Protocol"] ?? "")
                     .Trim();
 
+            if (string.Equals(protocol, "loconet", StringComparison.OrdinalIgnoreCase))
+                return "loconet";
+
             if (
                 string.Equals(
                     protocol,
@@ -396,6 +399,9 @@ public sealed class CommandCenterConfigStore
                 "z21",
                 StringComparison.OrdinalIgnoreCase);
 
+        var isLocoNet = string.Equals(
+            transport, "loconet", StringComparison.OrdinalIgnoreCase);
+
         var settings =
             new CommandCenterSettings
             {
@@ -403,7 +409,11 @@ public sealed class CommandCenterConfigStore
                     transport,
 
                 TcpHost =
-                    isZ21
+                    isLocoNet
+                        ? _configuration["LocoNet:Host"] ??
+                          _configuration["Z21:Host"] ??
+                          "127.0.0.1"
+                    : isZ21
                         ? _configuration["Z21:Host"] ??
                           _configuration["DccEx:Host"] ??
                           "127.0.0.1"
@@ -411,7 +421,9 @@ public sealed class CommandCenterConfigStore
                           "127.0.0.1",
 
                 TcpPort =
-                    isZ21
+                    isLocoNet
+                        ? _configuration.GetValue("LocoNet:LbServerPort", 1234)
+                    : isZ21
                         ? _configuration.GetValue(
                             "Z21:Port",
                             RocoZ21CommandCenter.DefaultPort)
