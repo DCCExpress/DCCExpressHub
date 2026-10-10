@@ -19,6 +19,7 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
     private readonly object _connectionGate = new();
     private StreamWriter? _writer;
     private volatile bool _connected;
+    private volatile bool _emergencyPaused;
     private readonly SemaphoreSlim _slotGate = new(1, 1);
     private readonly object _slotSync = new();
     private readonly Dictionary<int, int> _slots = new();
@@ -38,8 +39,8 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
     public string Type => "loconet";
     public string Name => "LocoNet TCP (experimental)";
     public string Endpoint => $"{_host}:{_port}";
-    public bool EmergencyPauseStateKnown => false;
-    public bool EmergencyPaused => false;
+    public bool EmergencyPauseStateKnown => true;
+    public bool EmergencyPaused => _emergencyPaused;
 
     public event Action<string>? RawInfo;
     public event Action<StationInfo>? StationInfoChanged;
@@ -148,6 +149,11 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
             var on = packet[0] == 0x83;
             _log.LogInformation("LocoNet track power feedback: {State}", on ? "ON" : "OFF");
             RawInfo?.Invoke("LocoNet power RX: " + (on ? "ON" : "OFF"));
+            if (on && _emergencyPaused)
+            {
+                _emergencyPaused = false;
+                RawInfo?.Invoke("LocoNet emergency resume confirmed by power ON");
+            }
             PowerFeedbackChanged?.Invoke(new PowerFeedback(on, "Main"));
         }
         else if (packet[0] == 0xB2 && packet.Count == 4)
@@ -213,8 +219,19 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
         // TCP write success does not guarantee the command station changed power.
         return sent;
     }
-    public Task<bool> EmergencyStopAsync(CancellationToken ct = default) =>
-        SetTrackPowerAsync(false, ct: ct);
+    public async Task<bool> EmergencyStopAsync(CancellationToken ct = default)
+    {
+        // The Hub sends the same emergencyStop command for STOP and RESUME.
+        // LocoNet must mirror that toggle instead of sending GPOFF both times.
+        var resume = _emergencyPaused;
+        var sent = await SetTrackPowerAsync(resume, ct: ct);
+        if (!sent) return false;
+        _emergencyPaused = !resume;
+        RawInfo?.Invoke(resume
+            ? "LocoNet emergency RESUME command sent (power ON)"
+            : "LocoNet emergency STOP command sent (power OFF)");
+        return true;
+    }
 
     public Task<bool> SendRawAsync(string command, bool log = true, CancellationToken ct = default) =>
         Task.FromResult(false);
