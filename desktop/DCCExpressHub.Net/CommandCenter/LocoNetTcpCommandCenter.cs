@@ -19,6 +19,13 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
     private readonly object _connectionGate = new();
     private StreamWriter? _writer;
     private volatile bool _connected;
+    private readonly SemaphoreSlim _slotGate = new(1, 1);
+    private readonly object _slotSync = new();
+    private readonly Dictionary<int, int> _slots = new();
+    private readonly Dictionary<int, byte> _dirf = new();
+    private readonly Dictionary<int, byte> _snd = new();
+    private TaskCompletionSource<(int Address, int Slot, byte Status)>? _pendingSlot;
+    private int _pendingAddress;
 
     public LocoNetTcpCommandCenter(IConfiguration config, ILogger<LocoNetTcpCommandCenter> log)
     {
@@ -79,6 +86,14 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
             finally
             {
                 _connected = false;
+                lock (_slotSync)
+                {
+                    _slots.Clear();
+                    _dirf.Clear();
+                    _snd.Clear();
+                    _pendingSlot?.TrySetCanceled();
+                    _pendingSlot = null;
+                }
                 lock (_connectionGate) _writer = null;
                 ConnectionChanged?.Invoke(false);
             }
@@ -107,7 +122,28 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
         foreach (var item in packet) checksum ^= item;
         if (checksum != 0xFF) return;
 
-        if (packet.Count == 2 && packet[0] is 0x82 or 0x83)
+        if (packet[0] == 0xE7 && packet.Count == 14 && packet[1] == 0x0E)
+        {
+            int slot = packet[2];
+            int address = packet[4] | (packet[9] << 7);
+            byte status = packet[3];
+            lock (_slotSync)
+            {
+                if (_pendingSlot is not null && _pendingAddress == address)
+                    _pendingSlot.TrySetResult((address, slot, status));
+                if (_slots.TryGetValue(address, out var knownSlot) && knownSlot == slot)
+                {
+                    _dirf[slot] = packet[6];
+                    _snd[slot] = packet[10];
+                }
+            }
+            RawInfo?.Invoke($"LocoNet slot RX: loco #{address}, slot {slot}, status {status:X2}");
+        }
+        else if (packet[0] == 0xB4 && packet.Count == 4)
+        {
+            RawInfo?.Invoke($"LocoNet long ACK: {packet[1]:X2} {packet[2]:X2}");
+        }
+        else if (packet.Count == 2 && packet[0] is 0x82 or 0x83)
         {
             var on = packet[0] == 0x83;
             _log.LogInformation("LocoNet track power feedback: {State}", on ? "ON" : "OFF");
@@ -184,12 +220,111 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
         Task.FromResult(false);
     public Task<bool> SetProgrammingPowerAsync(bool on, CancellationToken ct = default) =>
         Task.FromResult(false);
-    public Task<bool> SetLocoAsync(int address, int speed, bool forward, CancellationToken ct = default) =>
-        Task.FromResult(false);
-    public Task<bool> RequestLocoAsync(int address, CancellationToken ct = default) =>
-        Task.FromResult(false);
-    public Task<bool> SetLocoFunctionAsync(int address, int fn, bool active, CancellationToken ct = default) =>
-        Task.FromResult(false);
+    private async Task<int?> AcquireSlotAsync(int address, CancellationToken ct)
+    {
+        if (address is < 1 or > 10239 || !_connected) return null;
+        lock (_slotSync)
+        {
+            if (_slots.TryGetValue(address, out int cached)) return cached;
+        }
+
+        await _slotGate.WaitAsync(ct);
+        try
+        {
+            lock (_slotSync)
+            {
+                if (_slots.TryGetValue(address, out int cached)) return cached;
+                _pendingAddress = address;
+                _pendingSlot = new TaskCompletionSource<(int Address, int Slot, byte Status)>(
+                    TaskCreationOptions.RunContinuationsAsynchronously);
+            }
+            Task<(int Address, int Slot, byte Status)> response;
+            lock (_slotSync) response = _pendingSlot!.Task;
+            if (!await SendPacketAsync(new byte[] {
+                0xBF, (byte)((address >> 7) & 0x7F), (byte)(address & 0x7F)
+            }, ct)) return null;
+
+            (int Address, int Slot, byte Status) found;
+            try { found = await response.WaitAsync(TimeSpan.FromSeconds(3), ct); }
+            catch (TimeoutException)
+            {
+                _log.LogWarning("No slot response for locomotive #{Address}", address);
+                return null;
+            }
+            if (found.Slot is < 1 or > 119) return null;
+            // NULL MOVE changes common/idle slot to IN_USE; do not steal one in use.
+            if ((found.Status & 0x30) != 0x30)
+            {
+                if (!await SendPacketAsync(new byte[] {
+                    0xBA, (byte)found.Slot, (byte)found.Slot
+                }, ct)) return null;
+            }
+            lock (_slotSync)
+            {
+                _slots[address] = found.Slot;
+                _dirf.TryAdd(found.Slot, 0);
+                _snd.TryAdd(found.Slot, 0);
+            }
+            RawInfo?.Invoke($"LocoNet slot ready: #{address} -> {found.Slot}");
+            return found.Slot;
+        }
+        finally
+        {
+            lock (_slotSync) { _pendingSlot = null; }
+            _slotGate.Release();
+        }
+    }
+
+    public async Task<bool> SetLocoAsync(int address, int speed, bool forward, CancellationToken ct = default)
+    {
+        if (speed is < 0 or > 126) return false;
+        var slot = await AcquireSlotAsync(address, ct);
+        if (!slot.HasValue) return false;
+        byte dirf;
+        lock (_slotSync)
+        {
+            _dirf.TryGetValue(slot.Value, out dirf);
+            dirf = (byte)((dirf & ~0x20) | (forward ? 0 : 0x20));
+            _dirf[slot.Value] = dirf;
+        }
+        if (!await SendPacketAsync(new byte[] { 0xA1, (byte)slot.Value, dirf }, ct)) return false;
+        return await SendPacketAsync(new byte[] {
+            0xA0, (byte)slot.Value, (byte)(speed == 0 ? 0 : speed + 1)
+        }, ct);
+    }
+
+    public async Task<bool> RequestLocoAsync(int address, CancellationToken ct = default) =>
+        (await AcquireSlotAsync(address, ct)).HasValue;
+
+    public async Task<bool> SetLocoFunctionAsync(int address, int fn, bool active, CancellationToken ct = default)
+    {
+        if (fn is < 0 or > 8) return false;
+        var slot = await AcquireSlotAsync(address, ct);
+        if (!slot.HasValue) return false;
+        byte value;
+        byte op;
+        lock (_slotSync)
+        {
+            if (fn <= 4)
+            {
+                _dirf.TryGetValue(slot.Value, out value);
+                int mask = fn == 0 ? 0x10 : 1 << (fn - 1);
+                value = (byte)(active ? value | mask : value & ~mask);
+                _dirf[slot.Value] = value;
+                op = 0xA1;
+            }
+            else
+            {
+                _snd.TryGetValue(slot.Value, out value);
+                int mask = 1 << (fn - 5);
+                value = (byte)(active ? value | mask : value & ~mask);
+                _snd[slot.Value] = value;
+                op = 0xA2;
+            }
+        }
+        return await SendPacketAsync(new byte[] { op, (byte)slot.Value, value }, ct);
+    }
+
     public Task<bool> SetSignalAspectAsync(int address, int aspect, CancellationToken ct = default) =>
         Task.FromResult(false);
     public Task<bool> SetVPinAsync(int vpin, bool active, CancellationToken ct = default) =>
