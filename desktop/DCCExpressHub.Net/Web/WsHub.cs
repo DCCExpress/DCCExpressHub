@@ -844,6 +844,13 @@ public sealed class WsHub
                     return;
                 case "setTrackPower":
                     ok = await CommandCenter.SetTrackPowerAsync(B(data, "on"), CommandCenterConfigStore.Current.PowerIncludesProgramming, ct);
+                    if (!B(data, "on"))
+                    {
+                        // Persist before acknowledging OFF: callers may close the app.
+                        var saved = await RuntimeStateStore.SaveAsync();
+                        if (!saved)
+                            ok = false;
+                    }
                     break;
                 case "setProgrammingPower":
                     ok = await CommandCenter.SetProgrammingPowerAsync(B(data, "on"), ct);
