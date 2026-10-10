@@ -89,6 +89,7 @@ export default function LocoTargetBlockDialog({ loco, opened, onClose }: Props) 
       if (!page.routeRef) throw new Error("Selected route has no valid direction.");
       page.name = `Quick route · #${loco.address} · ${selected.fromBlockName} → ${selected.toBlockName}`;
       page.speed = speed;
+      page.expectedLocoAddress = loco.address;
       await startMovement(page);
       onClose();
     } catch (err) {
