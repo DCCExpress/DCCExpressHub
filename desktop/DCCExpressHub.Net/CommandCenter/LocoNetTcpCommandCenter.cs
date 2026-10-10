@@ -515,10 +515,28 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
         byte high = (byte)(((a >> 7) & 0x0F) | (closed ? 0x20 : 0));
         // JMRI LnTurnout sends an ON pulse followed by OFF. The previous
         // implementation kept the accessory activation asserted indefinitely.
-        if (!await SendPacketAsync(new byte[] { 0xB0, low, (byte)(high | 0x10) }, ct))
-            return false;
-        await Task.Delay(200, ct);
-        return await SendPacketAsync(new byte[] { 0xB0, low, high }, ct);
+        bool activated = false;
+        try
+        {
+            if (!await SendPacketAsync([0xB0, low, (byte)(high | 0x10)], ct))
+                return false;
+            activated = true;
+            await Task.Delay(200, ct);
+            // Always send the OFF edge, even if the caller is cancelled.
+            var released = await SendPacketAsync([0xB0, low, high], CancellationToken.None);
+            if (released) activated = false;
+            else _log.LogWarning("LocoNet turnout #{Address}: OFF pulse failed", address);
+            return released;
+        }
+        finally
+        {
+            if (activated)
+            {
+                // Do not leave the decoder's turnout output energized.
+                if (!await SendPacketAsync([0xB0, low, high], CancellationToken.None))
+                    _log.LogError("LocoNet turnout #{Address}: failed to release output after interruption", address);
+            }
+        }
     }
 
     public async Task<bool> SetAccessoryAsync(int address, bool active, CancellationToken ct = default)
