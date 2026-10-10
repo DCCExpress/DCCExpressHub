@@ -396,11 +396,11 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
         finally
         {
             lock (_programmingSync) _pendingProgramming = null;
-            // The YD7010 programming-track operation may still be winding down
-            // after its slot-124 reply. Keep the exclusive gate during recovery
-            // so a profile scan cannot start its next service-mode CV immediately.
+            // Retain a modest settling interval between service-track commands.
+            // The previous fixed 800 ms made long decoder-profile scans slow;
+            // transient NO DECODER reads still have the separate 1200 ms retry delay.
             if (address == 0 && _connected && !ct.IsCancellationRequested)
-                await Task.Delay(800, CancellationToken.None);
+                await Task.Delay(350, CancellationToken.None);
             _programmingGate.Release();
         }
     }
