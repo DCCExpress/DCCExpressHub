@@ -326,7 +326,10 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
             address is < 0 or > 10239)
             return new(false, cv, -1, "Invalid CV number, decoder address or value.");
 
+        var totalTimer = System.Diagnostics.Stopwatch.StartNew();
         await _programmingGate.WaitAsync(ct);
+        var queueMs = totalTimer.ElapsedMilliseconds;
+        int attemptCount = 0;
         try
         {
             var cvZero = cv - 1;
@@ -344,6 +347,8 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
             int attempts = !write && address == 0 ? maxAttempts : 1;
             for (int attempt = 1; attempt <= attempts; attempt++)
             {
+                attemptCount = attempt;
+                var attemptTimer = System.Diagnostics.Stopwatch.StartNew();
                 var completion = new TaskCompletionSource<ProgrammingReply>(
                     TaskCreationOptions.RunContinuationsAsynchronously);
                 lock (_programmingSync)
@@ -372,6 +377,9 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
                         "No programming result from YD7010 (timeout). Check PROG TRACK / decoder ACK.");
                 }
 
+                _log.LogInformation(
+                    "LocoNet CV{Cv} attempt {Attempt}/{MaxAttempts}: response {ResponseMs} ms, ok={Ok}, message={Message}",
+                    cv, attempt, attempts, attemptTimer.ElapsedMilliseconds, reply.Ok, reply.Message);
                 if (reply.Ok)
                 {
                     if (address == 0)
@@ -410,8 +418,8 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
             // after clean operations; increase recovery only when decoder ACKs fail.
             if (address == 0 && _connected && !ct.IsCancellationRequested)
             {
-                _log.LogDebug("LocoNet service-track recovery delay: {Delay} ms",
-                    _serviceRecoveryMs);
+                _log.LogInformation("LocoNet CV{Cv} completed: attempts={Attempts}, queue={QueueMs} ms, operation={OperationMs} ms, recovery={RecoveryMs} ms",
+                    cv, attemptCount, queueMs, totalTimer.ElapsedMilliseconds - queueMs, _serviceRecoveryMs);
                 await Task.Delay(_serviceRecoveryMs, CancellationToken.None);
             }
             _programmingGate.Release();
