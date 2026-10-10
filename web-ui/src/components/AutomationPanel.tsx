@@ -28,14 +28,12 @@ import type {
 import AutomationFlowsTable from "./automation/AutomationFlowsTable";
 import AutomationScriptsTable from "./automation/AutomationScriptsTable";
 import MovementPagesTable from "./movement/MovementPagesTable";
-import MovementTaskManager from "./movement/MovementTaskManager";
 import TrainTrackingPanel from "./automation/TrainTrackingPanel";
 
 type AutomationPanelTab =
   | "scripts"
   | "flows"
   | "movement"
-  | "tasks"
   | "tracking";
 
 const AUTOMATION_PANEL_TAB_STORAGE_KEY =
@@ -58,8 +56,6 @@ function loadAutomationPanelTab(): AutomationPanelTab {
       "flows" ||
     stored ===
       "movement" ||
-    stored ===
-      "tasks" ||
     stored ===
       "tracking" ||
     stored ===
@@ -131,8 +127,6 @@ export default function AutomationPanel({
         value !==
           "movement" &&
         value !==
-          "tasks" &&
-        value !==
           "tracking"
       ) {
         return;
@@ -172,7 +166,6 @@ export default function AutomationPanel({
         h="100%"
       >
         <Tabs.List>
-          <Tabs.Tab value="tasks">Task Manager</Tabs.Tab>
           <Tabs.Tab
             value="movement"
           >
@@ -279,13 +272,6 @@ export default function AutomationPanel({
             onDocumentChange={onMovementsChange}
             onSelectRoute={onSelectMovementRoute}
           />
-        </Tabs.Panel>
-
-        <Tabs.Panel
-          value="tasks"
-          style={{ flex: 1, minHeight: 0, overflow: "auto" }}
-        >
-          <MovementTaskManager document={movements} locos={locos} />
         </Tabs.Panel>
 
         <Tabs.Panel
