@@ -388,6 +388,13 @@ namespace DCCExpressHub.Desktop
         private void SelectProtocol(
             string protocol)
         {
+            // Preserve previously saved combined Z21/LocoNet profiles,
+            // without offering a vendor-specific profile for new setups.
+            LegacyCombinedProtocolItem.Visibility =
+                protocol == "yamorc7010"
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
+
             foreach (var item in
                      ProtocolCombo.Items.OfType<ComboBoxItem>())
             {
