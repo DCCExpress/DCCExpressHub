@@ -1,5 +1,13 @@
 # DCCExpressHub
 
+[![Release](https://img.shields.io/github/v/release/DCCExpress/DCCExpressHub?include_prereleases&label=Release)](https://github.com/DCCExpress/DCCExpressHub/releases)
+[![Last Commit](https://img.shields.io/github/last-commit/DCCExpress/DCCExpressHub/main)](https://github.com/DCCExpress/DCCExpressHub/commits/main)
+![Windows](https://img.shields.io/badge/Platform-Windows-0078D4?logo=windows)
+![Linux](https://img.shields.io/badge/Platform-Linux-FCC624?logo=linux&logoColor=black)
+![.NET 10](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)
+![React](https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-blue?logo=typescript&logoColor=white)
+
 **Version: 0.1.0-alpha.5**
 
 **DCCExpressHub** is a model railway control and automation application supporting the **DCC-EX**, **Z21 + R-BUS**, and **LocoNet** protocols.
