@@ -109,7 +109,7 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
             var on = packet[0] == 0x83;
             _log.LogInformation("LocoNet track power feedback: {State}", on ? "ON" : "OFF");
             RawInfo?.Invoke("LocoNet power RX: " + (on ? "ON" : "OFF"));
-            PowerFeedbackChanged?.Invoke(new PowerFeedback(on, "main"));
+            PowerFeedbackChanged?.Invoke(new PowerFeedback(on, "Main"));
         }
         else if (packet[0] == 0xB2 && packet.Count == 4)
         {
