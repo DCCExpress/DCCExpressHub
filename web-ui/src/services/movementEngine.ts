@@ -60,6 +60,24 @@ const listeners =
     Set<StateListener>
   >();
 
+const allStateListeners = new Set<() => void>();
+
+export function getMovementTaskStates(): Array<{ pageId: string; state: MovementEngineState }> {
+  installTracking();
+  return Array.from(states, ([pageId, state]) => ({ pageId, state: copyState(state) }));
+}
+
+export function subscribeMovementTaskStates(listener: () => void): () => void {
+  installTracking();
+  allStateListeners.add(listener);
+  listener();
+  return () => { allStateListeners.delete(listener); };
+}
+
+function notifyAllStateListeners(): void {
+  for (const listener of allStateListeners) listener();
+}
+
 let installed =
   false;
 
@@ -136,6 +154,8 @@ function applyBackendState(
     state.pageId,
     next
   );
+
+  notifyAllStateListeners();
 
   for (
     const listener of
