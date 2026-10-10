@@ -2,6 +2,8 @@
 
 **Version: 0.1.0-alpha.4**
 
+[![GitHub Release](https://img.shields.io/github/v/release/DCCExpress/DCCExpressHub?include_prereleases&label=Release)](https://github.com/DCCExpress/DCCExpressHub/releases)
+
 **DCCExpressHub** is a model railway control and automation application supporting the **DCC-EX**, **Z21 + R-BUS**, and **LocoNet** protocols.
 
 Drive locomotives, operate turnouts and signals, design your track layout, monitor occupancy sensors, and run automatic movements and timetables—all from one interface.
