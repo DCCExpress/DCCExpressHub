@@ -129,6 +129,7 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
     cancel.current = false;
     setBusy(true);
     setError("");
+    setResults({});
     setProgress({ done: 0, total: cvs.length });
     setAddressRead(null);
     setLocoAddress("");
