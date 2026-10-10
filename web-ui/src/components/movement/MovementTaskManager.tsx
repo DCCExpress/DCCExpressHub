@@ -124,7 +124,8 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
             disabled={!active.length} onClick={() => abortAllMovements()}>Abort All</Button>
         </Group>
       </Group>
-      <Paper withBorder p="sm" radius="sm">
+
+          <Paper withBorder p="sm" radius="sm">
         <Group justify="space-between" mb="xs">
           <Text size="sm" fw={600}>Traffic control</Text>
           <Badge size="xs" color={liveTraffic ? "green" : "gray"}>{liveTraffic ? "Live backend" : "Awaiting state"}</Badge>
