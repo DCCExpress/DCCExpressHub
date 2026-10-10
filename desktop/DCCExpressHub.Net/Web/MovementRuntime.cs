@@ -20,7 +20,8 @@ public sealed record MovementRuntimeState(
     string? CurrentResourceKey,
     string? ActiveRouteResourceKey,
     string? Info,
-    string? Error);
+    string? Error,
+    string? RouteDescription = null);
 
 public sealed record MovementAudioRequest(
     string RequestId,
@@ -3700,7 +3701,8 @@ public sealed class MovementRuntime
                         source.Key,
                         source.Key,
                         "Starting from " + source.Name,
-                        null)
+                        null,
+                        string.Join(" → ", plan.Blocks.Select(block => block.Name)))
             };
 
         foreach (var pair in LoadFunctionBindingMap(execution.LocoAddress))
