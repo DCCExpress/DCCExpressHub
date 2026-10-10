@@ -126,7 +126,7 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
         if (packet.Count == 2 && packet[0] == 0x85)
         {
             _emergencyPaused = true;
-            RawInfo?.Invoke("LocoNet OPC_IDLE emergency stop received");
+            RawInfo?.Invoke("External LocoNet OPC_IDLE received; command station may require separate recovery");
         }
         else if (packet[0] == 0xE7 && packet.Count == 14 && packet[1] == 0x0E)
         {
@@ -226,21 +226,39 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
     }
     public async Task<bool> EmergencyStopAsync(CancellationToken ct = default)
     {
-        // Hub emergencyStop is a toggle. LocoNet OPC_IDLE (85 7A) is
-        // broadcast emergency stop; unlike OPC_GPOFF it keeps DCC track power on.
-        // LocoNet has no matching global "resume former speeds" opcode.
-        if (_emergencyPaused)
+        // Do not send OPC_IDLE here: on the YD7010 it leaves locomotive slots
+        // unresponsive until a command-station power cycle.
+        // LocoNet slot speed 1 = DCC emergency stop; 0 = stopped.
+        // Only slots owned by this Hub connection are under our control.
+        if (!_connected) return false;
+
+        var resume = _emergencyPaused;
+        int[] slots;
+        lock (_slotSync) slots = _slots.Values.Distinct().ToArray();
+
+        if (slots.Length == 0)
         {
-            if (!_connected) return false;
-            _emergencyPaused = false;
-            RawInfo?.Invoke("LocoNet emergency latch released; previous speeds NOT restored");
-            return true;
+            _log.LogWarning("LocoNet emergency {Action}: no Hub-owned locomotive slots; cannot guarantee a global stop",
+                resume ? "resume" : "stop");
+            return false;
         }
 
-        var sent = await SendPacketAsync(new byte[] { 0x85 }, ct);
-        if (!sent) return false;
-        _emergencyPaused = true;
-        RawInfo?.Invoke("LocoNet OPC_IDLE emergency STOP sent; track power unchanged");
+        // Latch before transmitting so other HUB speed requests cannot race a STOP.
+        if (!resume) _emergencyPaused = true;
+        foreach (var slot in slots)
+        {
+            var value = resume ? (byte)0 : (byte)1;
+            if (!await SendPacketAsync(new byte[] { 0xA0, (byte)slot, value }, ct))
+            {
+                _log.LogError("LocoNet emergency {Action} failed on slot {Slot}",
+                    resume ? "resume" : "stop", slot);
+                return false;
+            }
+        }
+        if (resume) _emergencyPaused = false;
+        RawInfo?.Invoke(resume
+            ? "LocoNet emergency RESUME: Hub locomotive slots set to speed 0; track power unchanged"
+            : "LocoNet emergency STOP: Hub locomotive slots sent emergency speed 1; track power unchanged");
         return true;
     }
 
