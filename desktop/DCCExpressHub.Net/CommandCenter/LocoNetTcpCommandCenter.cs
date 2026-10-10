@@ -29,6 +29,9 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
     private readonly Dictionary<int, bool> _sensors = new();
     private readonly SemaphoreSlim _snapshotGate = new(1, 1);
     private readonly SemaphoreSlim _programmingGate = new(1, 1);
+    // Adaptive service-track recovery: normal transactions run quickly;
+    // repeated decoder-ACK failures temporarily increase the spacing.
+    private int _serviceRecoveryMs = 100;
     private readonly object _programmingSync = new();
     private TaskCompletionSource<ProgrammingReply>? _pendingProgramming;
     private int _pendingProgrammingCv;
@@ -370,10 +373,17 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
                 }
 
                 if (reply.Ok)
+                {
+                    if (address == 0)
+                        _serviceRecoveryMs = Math.Max(100, _serviceRecoveryMs - 150);
                     return new(true, cv, write ? value : reply.Value, reply.Message, reply.Raw);
+                }
 
                 bool noDecoder = reply.Message.StartsWith(
                     "YD7010 reports NO DECODER", StringComparison.Ordinal);
+                if (address == 0 && noDecoder)
+                    _serviceRecoveryMs = Math.Min(2000,
+                        Math.Max(900, _serviceRecoveryMs * 2));
                 if (!noDecoder || attempt == attempts)
                     return new(false, cv, -1,
                         noDecoder && attempt > 1
@@ -396,11 +406,14 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
         finally
         {
             lock (_programmingSync) _pendingProgramming = null;
-            // Retain a modest settling interval between service-track commands.
-            // The previous fixed 800 ms made long decoder-profile scans slow;
-            // transient NO DECODER reads still have the separate 1200 ms retry delay.
+            // The slot-124 reply is the completion signal. Use minimal spacing
+            // after clean operations; increase recovery only when decoder ACKs fail.
             if (address == 0 && _connected && !ct.IsCancellationRequested)
-                await Task.Delay(350, CancellationToken.None);
+            {
+                _log.LogDebug("LocoNet service-track recovery delay: {Delay} ms",
+                    _serviceRecoveryMs);
+                await Task.Delay(_serviceRecoveryMs, CancellationToken.None);
+            }
             _programmingGate.Release();
         }
     }
