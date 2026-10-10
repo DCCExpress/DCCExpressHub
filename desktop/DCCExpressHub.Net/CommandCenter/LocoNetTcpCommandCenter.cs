@@ -335,32 +335,63 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
                     ((cvZero & 0x80) >> 7) | ((value & 0x80) >> 6)),
                 (byte)(cvZero & 0x7F), (byte)(value & 0x7F), 0x7F, 0x7F
             };
-            var completion = new TaskCompletionSource<ProgrammingReply>(
-                TaskCreationOptions.RunContinuationsAsynchronously);
-            lock (_programmingSync)
+            // Retry only service-track reads that the station explicitly reports
+            // as transient NO DECODER. A CV write must never be retried blindly.
+            const int maxAttempts = 3;
+            int attempts = !write && address == 0 ? maxAttempts : 1;
+            for (int attempt = 1; attempt <= attempts; attempt++)
             {
-                _pendingProgramming = completion;
-                _pendingProgrammingCv = cv;
-                _pendingProgrammingAddress = address;
-                _pendingProgrammingWrite = write;
-            }
-            _log.LogInformation("LocoNet CV {Operation}: {Mode} address {Address}, CV {Cv}",
-                write ? "write" : "read", address == 0 ? "service" : "POM", address, cv);
-            if (!await SendPacketAsync(command, ct))
-                return new(false, cv, -1, "Failed to send LocoNet programmer command.");
+                var completion = new TaskCompletionSource<ProgrammingReply>(
+                    TaskCreationOptions.RunContinuationsAsynchronously);
+                lock (_programmingSync)
+                {
+                    _pendingProgramming = completion;
+                    _pendingProgrammingCv = cv;
+                    _pendingProgrammingAddress = address;
+                    _pendingProgrammingWrite = write;
+                }
+                _log.LogInformation(
+                    "LocoNet CV {Operation}: {Mode} address {Address}, CV {Cv}, attempt {Attempt}/{Attempts}",
+                    write ? "write" : "read", address == 0 ? "service" : "POM",
+                    address, cv, attempt, attempts);
 
-            try
-            {
-                var reply = await completion.Task.WaitAsync(TimeSpan.FromSeconds(18), ct);
-                return new(reply.Ok, cv,
-                    reply.Ok && write ? value : reply.Value,
-                    reply.Message, reply.Raw);
+                if (!await SendPacketAsync(command, ct))
+                    return new(false, cv, -1, "Failed to send LocoNet programmer command.");
+
+                ProgrammingReply reply;
+                try
+                {
+                    reply = await completion.Task.WaitAsync(TimeSpan.FromSeconds(18), ct);
+                }
+                catch (TimeoutException)
+                {
+                    return new(false, cv, -1,
+                        "No programming result from YD7010 (timeout). Check PROG TRACK / decoder ACK.");
+                }
+
+                if (reply.Ok)
+                    return new(true, cv, write ? value : reply.Value, reply.Message, reply.Raw);
+
+                bool noDecoder = reply.Message.StartsWith(
+                    "YD7010 reports NO DECODER", StringComparison.Ordinal);
+                if (!noDecoder || attempt == attempts)
+                    return new(false, cv, -1,
+                        noDecoder && attempt > 1
+                            ? $"YD7010 reported NO DECODER after {attempt} read attempts. Check PROG TRACK contacts and ACK current."
+                            : reply.Message,
+                        reply.Raw);
+
+                _log.LogWarning(
+                    "LocoNet service-mode CV{Cv} returned NO DECODER on attempt {Attempt}. Retrying after recovery delay.",
+                    cv, attempt);
+                lock (_programmingSync)
+                {
+                    if (ReferenceEquals(_pendingProgramming, completion))
+                        _pendingProgramming = null;
+                }
+                await Task.Delay(1200, ct);
             }
-            catch (TimeoutException)
-            {
-                return new(false, cv, -1,
-                    "No programming result from YD7010 (timeout). Check PROG TRACK / decoder ACK.");
-            }
+            return new(false, cv, -1, "LocoNet CV read retries exhausted.");
         }
         finally
         {
