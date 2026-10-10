@@ -46,7 +46,7 @@ export default function MovementTaskManager({ document, locos }: Props) {
           ? /^Quick route\\s*·\\s*(?:#\\d+\\s*·\\s*)?(.*)$/i.exec(fullName)
           : null;
         const title = isQuickRoute ? "Quick route" : fullName;
-        const route = quickRouteMatch?.[1]?.trim() || null;
+        const route = state.routeDescription?.trim() || quickRouteMatch?.[1]?.trim() || null;
         return (
           <Paper key={pageId} withBorder p="sm" radius="sm">
             <Group justify="space-between" align="center" wrap="nowrap">
