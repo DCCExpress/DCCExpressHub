@@ -42,12 +42,19 @@ export default function MovementTaskManager({ document, locos }: Props) {
         return (
           <Paper key={pageId} withBorder p="sm" radius="sm">
             <Group justify="space-between" align="center" wrap="nowrap">
-              <LocoImage locoId={loco?.id ?? ""} image={loco?.image} name={loco?.name} width={110} height={40} />
+              <Stack gap={2} align="center" style={{ width: 110, flexShrink: 0 }}>
+                <LocoImage locoId={loco?.id ?? ""} image={loco?.image} name={loco?.name} width={110} height={40} />
+                <Text size="xs" fw={600} ta="center" style={{ maxWidth: "100%" }} lineClamp={2}>
+                  {loco?.name || "Locomotive"}
+                </Text>
+                {state.locoAddress !== null && (
+                  <Text size="xs" c="dimmed" ta="center">#{state.locoAddress}</Text>
+                )}
+              </Stack>
               <Stack gap={3} style={{ minWidth: 0, flex: 1 }}>
                 <Text size="sm" fw={600} truncate>{title}</Text>
                 <Group gap={6} wrap="wrap">
                   <Badge color={state.status === "stopping" ? "yellow" : "green"} size="xs">{state.status}</Badge>
-                  {state.locoAddress !== null && <Text size="xs" c="dimmed">Loco #{state.locoAddress}</Text>}
                   <Text size="xs" c="dimmed">Speed {state.desiredSpeed}</Text>
                   {state.currentBlockId !== undefined && state.currentBlockId !== null &&
                     <Text size="xs" c="dimmed">Block #{state.currentBlockId}</Text>}
