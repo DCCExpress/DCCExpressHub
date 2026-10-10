@@ -90,7 +90,7 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
   const [savedMessage, setSavedMessage] = useState("");
   const [error, setError] = useState("");
   const [customStart, setCustomStart] = useState<number | string>(1);
-  const [customEnd, setCustomEnd] = useState<number | string>(1024);
+  const [customEnd, setCustomEnd] = useState<number | string>(127);
   const cancel = useRef(false);
   useEffect(() => {
     void fetch("/help/cv-help.json", { cache: "no-store" })
