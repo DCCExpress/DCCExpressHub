@@ -528,35 +528,53 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
             int a = address - 1;
             byte low = (byte)(a & 0x7F);
             byte high = (byte)(((a >> 7) & 0x0F) | (closed ? 0x20 : 0));
-            // JMRI LnTurnout sends an ON pulse followed by OFF. The previous
-            // implementation kept the accessory activation asserted indefinitely.
-            bool activated = false;
-            try
+
+            // Repeat the complete ON/OFF command pair, not just the ON edge.
+            // Holding the pulse gate across both pairs prevents other turnouts
+            // from interleaving their magnet pulses.
+            for (var attempt = 1; attempt <= 2; attempt++)
             {
-                if (!await SendPacketAsync([0xB0, low, (byte)(high | 0x10)], ct))
-                    return false;
-                activated = true;
-                _log.LogInformation("LocoNet turnout #{Address}: ON sent to LBServer (not decoder-confirmed)", address);
-                await Task.Delay(200, ct);
-                // Always send the OFF edge, even if the caller is cancelled.
-                var released = await SendPacketAsync([0xB0, low, high], CancellationToken.None);
-                if (released)
+                bool activated = false;
+                try
                 {
+                    if (!await SendPacketAsync([0xB0, low, (byte)(high | 0x10)], ct))
+                        return false;
+                    activated = true;
+                    _log.LogInformation(
+                        "LocoNet turnout #{Address}: pulse {Attempt}/2 ON sent to LBServer (not decoder-confirmed)",
+                        address, attempt);
+                    await Task.Delay(200, ct);
+
+                    // Always release the output even if cancellation occurs.
+                    var released = await SendPacketAsync(
+                        [0xB0, low, high], CancellationToken.None);
+                    if (!released)
+                    {
+                        _log.LogWarning(
+                            "LocoNet turnout #{Address}: pulse {Attempt}/2 OFF failed",
+                            address, attempt);
+                        return false;
+                    }
+
                     activated = false;
-                    _log.LogInformation("LocoNet turnout #{Address}: OFF sent; TCP write only, physical position unconfirmed", address);
+                    _log.LogInformation(
+                        "LocoNet turnout #{Address}: pulse {Attempt}/2 OFF sent (physical position unconfirmed)",
+                        address, attempt);
                 }
-                else _log.LogWarning("LocoNet turnout #{Address}: OFF pulse failed", address);
-                return released;
-            }
-            finally
-            {
-                if (activated)
+                finally
                 {
-                    // Do not leave the decoder's turnout output energized.
-                    if (!await SendPacketAsync([0xB0, low, high], CancellationToken.None))
-                        _log.LogError("LocoNet turnout #{Address}: failed to release output after interruption", address);
+                    if (activated &&
+                        !await SendPacketAsync([0xB0, low, high], CancellationToken.None))
+                        _log.LogError(
+                            "LocoNet turnout #{Address}: failed to release output after interruption",
+                            address);
                 }
+
+                if (attempt == 1)
+                    await Task.Delay(250, ct);
             }
+
+            return true;
         }
         finally { _accessoryPulseGate.Release(); }
     }
