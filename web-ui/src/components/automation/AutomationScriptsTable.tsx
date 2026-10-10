@@ -857,7 +857,7 @@ function ScriptCard({
               }
             </Badge>
         </Stack>
-      </Paper
+      </Paper>
 
       <Modal
         opened={
@@ -1913,7 +1913,7 @@ export default function AutomationScriptsTable({
                     )
                   }
                 </Text>
-              </Paper
+              </Paper>
             )
           }
         </Stack>
