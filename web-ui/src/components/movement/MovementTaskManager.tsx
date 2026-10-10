@@ -70,7 +70,6 @@ export default function MovementTaskManager({ document, locos }: Props) {
                     <Text size="xs" c="dimmed">→ #{state.targetBlockId}</Text>}
                 </Group>
                 {route && <Text size="sm" fw={500} lineClamp={2}>{route}</Text>}
-                {state.info && <Text size="xs" c="dimmed" lineClamp={2}>{state.info}</Text>}
               </Stack>
               <Group gap={5} wrap="nowrap">
                 <Tooltip label="Stop movement">
@@ -84,6 +83,11 @@ export default function MovementTaskManager({ document, locos }: Props) {
                 </Tooltip>
               </Group>
             </Group>
+            {state.info && (
+              <Text size="xs" c="dimmed" mt="xs" style={{ width: "100%" }}>
+                {state.info}
+              </Text>
+            )}
           </Paper>
         );
       })}
