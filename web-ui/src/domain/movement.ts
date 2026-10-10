@@ -114,6 +114,8 @@ export type MovementPage = {
   startedAt: number | null;
   stoppedAt: number | null;
   routeRef: MovementRouteRef | null;
+  /** Optional physical locomotive identity check enforced by the .NET backend. */
+  expectedLocoAddress?: number | null;
   blockRules: MovementBlockRule[];
   resourceEventRules:
     MovementResourceEventRule[];
@@ -954,6 +956,7 @@ function normalizeMovementPage(
         candidate.stoppedAt
       ),
     routeRef,
+    expectedLocoAddress: positiveInteger(candidate.expectedLocoAddress),
     blockRules:
       normalizeBlockRules(
         candidate.blockRules
