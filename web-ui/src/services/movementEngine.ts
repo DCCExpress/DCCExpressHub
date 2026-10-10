@@ -26,7 +26,7 @@ export type MovementEngineStatus =
   | "error";
 
 export type MovementEngineState = {
-  movementName?: string;
+  movementName?: string | undefined;
   status: MovementEngineStatus;
   startedAt: number | null;
   stoppedAt: number | null;
