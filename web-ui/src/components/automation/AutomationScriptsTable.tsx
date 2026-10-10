@@ -23,7 +23,6 @@ import {
   Text,
   TextInput,
   Tooltip,
-  useComputedColorScheme,
 } from "@mantine/core";
 
 import {
@@ -229,22 +228,6 @@ function ScriptCard({
       definition.id
     );
 
-  const computedColorScheme =
-    useComputedColorScheme(
-      "light"
-    );
-
-  const cardBackground =
-    computedColorScheme ===
-    "dark"
-      ? "var(--mantine-color-dark-5)"
-      : "var(--mantine-color-blue-0)";
-
-  const cardBorderColor =
-    computedColorScheme ===
-    "dark"
-      ? "var(--mantine-color-dark-3)"
-      : "var(--mantine-color-blue-2)";
 
   const [
     state,
@@ -415,6 +398,7 @@ function ScriptCard({
       <Card
         withBorder
         p="sm"
+      radius="sm"
         draggable
         onDragStart={
           event =>
@@ -435,11 +419,7 @@ function ScriptCard({
             )
         }
         style={{
-          backgroundColor:
-            cardBackground,
-          borderColor:
-            cardBorderColor,
-          opacity:
+  opacity:
             draggedScriptId ===
             definition.id
               ? 0.35
