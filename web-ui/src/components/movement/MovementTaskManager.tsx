@@ -125,6 +125,8 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
         </Group>
       </Group>
 
+      <ScrollArea type="auto" scrollbarSize={8} style={{ flex: "1 1 0", minHeight: 0 }}>
+        <Stack gap="xs" pr="xs">
           <Paper withBorder p="sm" radius="sm">
         <Group justify="space-between" mb="xs">
           <Text size="sm" fw={600}>Traffic control</Text>
@@ -162,8 +164,7 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
           ))}
         </>}
       </Paper>
-      <ScrollArea type="auto" scrollbarSize={8} style={{ flex: "1 1 0", minHeight: 0 }}>
-        <Stack gap="xs" pr="xs">
+
           {!active.length && <Text c="dimmed" size="sm">No running movements.</Text>}
           {active.map(({ pageId, state }) => {
         const page = document.pages.find(item => item.id === pageId);
