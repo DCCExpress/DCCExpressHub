@@ -3,6 +3,8 @@ import { IconAlertTriangle, IconPlayerStop } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import type { MovementDocument } from "../../domain/movement";
 import type { Loco } from "../../domain/domainTypes";
+import type { LayoutView } from "../../models/editor/core/LayoutView";
+import { BlockElement } from "../../models/editor/elements/BlockElement";
 import LocoImage from "../loco/LocoImage";
 import { wsClient } from "../../services/wsClient";
 import {
@@ -15,9 +17,9 @@ type Lock = { address: number; ownerName: string; ownerId: string };
 type Lease = { ownerId: string; ownerName: string; locoAddress: number; fromBlockId?: number; toBlockId?: number; sourceBlockId?: number; destinationBlockId?: number };
 type Traffic = { locks: Lock[]; leases: Lease[]; routes: Lease[] };
 const emptyTraffic: Traffic = { locks: [], leases: [], routes: [] };
-type Props = { document: MovementDocument; locos: Loco[] };
+type Props = { document: MovementDocument; locos: Loco[]; layout: LayoutView };
 
-export default function MovementTaskManager({ document, locos }: Props) {
+export default function MovementTaskManager({ document, locos, layout }: Props) {
   const [tasks, setTasks] = useState<Task[]>(getMovementTaskStates);
   const [traffic, setTraffic] = useState<Traffic>(emptyTraffic);
   const [loaded, setLoaded] = useState({ locks: false, dispatcher: false });
@@ -96,6 +98,17 @@ export default function MovementTaskManager({ document, locos }: Props) {
     .filter(task => task.state.status === "running" || task.state.status === "stopping")
     .sort((a, b) => (a.state.startedAt ?? 0) - (b.state.startedAt ?? 0));
 
+  const blockNames = new Map(
+    layout.getAllElements()
+      .filter((element): element is BlockElement => element instanceof BlockElement)
+      .map(block => [block.id, block.name.trim()] as const),
+  );
+  const blockLabel = (id: number | null | undefined, backendName?: string | null) => {
+    if (id == null) return "?";
+    const name = blockNames.get(id);
+    return name && name !== "element" ? name : (backendName?.trim() || `#${id}`);
+  };
+
   const reservations = [...traffic.leases, ...traffic.routes];
   const waiting = active.filter(({ state }) => /wait|hold|block|lock|authority|sensor/i.test(state.info || ""));
 
@@ -127,7 +140,7 @@ export default function MovementTaskManager({ document, locos }: Props) {
         {loaded.dispatcher && reservations.length === 0 && <Text size="xs" c="dimmed">No active reservations.</Text>}
         {reservations.map((lease, index) => (
           <Group key={lease.ownerId + index} justify="space-between" gap="xs">
-            <Text size="xs">Loco #{lease.locoAddress}: {lease.fromBlockId ?? lease.sourceBlockId ?? "?"} → {lease.toBlockId ?? lease.destinationBlockId ?? "?"}</Text>
+            <Text size="xs">Loco #{lease.locoAddress}: {blockLabel(lease.fromBlockId ?? lease.sourceBlockId)} → {blockLabel(lease.toBlockId ?? lease.destinationBlockId)}</Text>
             <Text size="xs" c="dimmed">{lease.ownerName}</Text>
           </Group>
         ))}
@@ -184,12 +197,12 @@ export default function MovementTaskManager({ document, locos }: Props) {
                   <Text size="xs" c="dimmed">Speed {state.desiredSpeed}</Text>
                   {state.currentBlockId != null && (
                     <Text size="xs" c="dimmed">
-                      Block {state.currentBlockName || `#${state.currentBlockId}`}
+                      {blockLabel(state.currentBlockId, state.currentBlockName)}
                     </Text>
                   )}
                   {state.targetBlockId != null && (
                     <Text size="xs" c="dimmed">
-                      → {state.targetBlockName || `#${state.targetBlockId}`}
+                      → {blockLabel(state.targetBlockId, state.targetBlockName)}
                     </Text>
                   )}
                 </Group>
