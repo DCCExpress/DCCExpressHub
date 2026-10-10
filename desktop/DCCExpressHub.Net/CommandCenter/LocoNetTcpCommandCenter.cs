@@ -123,7 +123,12 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
         foreach (var item in packet) checksum ^= item;
         if (checksum != 0xFF) return;
 
-        if (packet[0] == 0xE7 && packet.Count == 14 && packet[1] == 0x0E)
+        if (packet.Count == 2 && packet[0] == 0x85)
+        {
+            _emergencyPaused = true;
+            RawInfo?.Invoke("LocoNet OPC_IDLE emergency stop received");
+        }
+        else if (packet[0] == 0xE7 && packet.Count == 14 && packet[1] == 0x0E)
         {
             int slot = packet[2];
             int address = packet[4] | (packet[9] << 7);
@@ -221,15 +226,21 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
     }
     public async Task<bool> EmergencyStopAsync(CancellationToken ct = default)
     {
-        // The Hub sends the same emergencyStop command for STOP and RESUME.
-        // LocoNet must mirror that toggle instead of sending GPOFF both times.
-        var resume = _emergencyPaused;
-        var sent = await SetTrackPowerAsync(resume, ct: ct);
+        // Hub emergencyStop is a toggle. LocoNet OPC_IDLE (85 7A) is
+        // broadcast emergency stop; unlike OPC_GPOFF it keeps DCC track power on.
+        // LocoNet has no matching global "resume former speeds" opcode.
+        if (_emergencyPaused)
+        {
+            if (!_connected) return false;
+            _emergencyPaused = false;
+            RawInfo?.Invoke("LocoNet emergency latch released; previous speeds NOT restored");
+            return true;
+        }
+
+        var sent = await SendPacketAsync(new byte[] { 0x85 }, ct);
         if (!sent) return false;
-        _emergencyPaused = !resume;
-        RawInfo?.Invoke(resume
-            ? "LocoNet emergency RESUME command sent (power ON)"
-            : "LocoNet emergency STOP command sent (power OFF)");
+        _emergencyPaused = true;
+        RawInfo?.Invoke("LocoNet OPC_IDLE emergency STOP sent; track power unchanged");
         return true;
     }
 
@@ -294,6 +305,7 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
 
     public async Task<bool> SetLocoAsync(int address, int speed, bool forward, CancellationToken ct = default)
     {
+        if (_emergencyPaused && speed > 0) return false;
         if (speed is < 0 or > 126) return false;
         var slot = await AcquireSlotAsync(address, ct);
         if (!slot.HasValue) return false;
