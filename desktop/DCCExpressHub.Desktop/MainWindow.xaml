@@ -379,6 +379,7 @@
                    <ComboBoxItem Content="DCC-EX Serial" Tag="serial"/>
                    <ComboBoxItem Content="Roco Z21" Tag="z21"/>
                    <ComboBoxItem Content="YaMoRC YD7010" Tag="yamorc7010"/>
+                   <ComboBoxItem Content="LocoNet TCP (experimental)" Tag="loconet"/>
                  </ComboBox>
 
                  <Grid x:Name="TcpPanel" Margin="0,12,0,0" Visibility="Collapsed">
