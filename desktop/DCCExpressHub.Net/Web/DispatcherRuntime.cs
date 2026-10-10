@@ -938,11 +938,13 @@ public sealed class DispatcherRuntime
                 _leases[request.OwnerId] = lease;
 
             _log.LogInformation(
-                "Dispatcher acquired leg {FromBlock}->{ToBlock} for loco #{LocoAddress}, owner {OwnerId}",
+                "Dispatcher acquired leg {FromBlock}->{ToBlock} for loco #{LocoAddress}, owner {OwnerId}; turnouts=[{Turnouts}], safetySensors=[{SafetySensors}]",
                 request.FromBlockId,
                 request.ToBlockId,
                 request.LocoAddress,
-                request.OwnerId);
+                request.OwnerId,
+                string.Join(",", turnoutAddresses),
+                string.Join(",", sensors));
 
             Changed?.Invoke(Snapshot());
 
@@ -1639,12 +1641,27 @@ public sealed class DispatcherRuntime
             ownerId,
             lease.ResourceTokens);
 
+        var sourceBlock = FindBlock(lease.FromBlockId);
+        var destinationBlock = FindBlock(lease.ToBlockId);
+        bool? sourceSensorOn = sourceBlock is not null &&
+            sourceBlock.SensorAddress > 0 &&
+            _runtime.TryGetSensorState(sourceBlock.SensorAddress, out var sourceOn)
+                ? sourceOn : null;
+        bool? destinationSensorOn = destinationBlock is not null &&
+            destinationBlock.SensorAddress > 0 &&
+            _runtime.TryGetSensorState(destinationBlock.SensorAddress, out var destinationOn)
+                ? destinationOn : null;
+
         _log.LogInformation(
-            "Dispatcher released leg {FromBlock}->{ToBlock} for loco #{LocoAddress}, owner {OwnerId}",
+            "Dispatcher released leg {FromBlock}->{ToBlock} for loco #{LocoAddress}, owner {OwnerId}; heldMs={HeldMs}, turnouts=[{Turnouts}], sourceSensorOn={SourceSensorOn}, destinationSensorOn={DestinationSensorOn}",
             lease.FromBlockId,
             lease.ToBlockId,
             lease.LocoAddress,
-            ownerId);
+            ownerId,
+            Environment.TickCount64 - lease.AcquiredAtMs,
+            string.Join(",", lease.TurnoutAddresses),
+            sourceSensorOn,
+            destinationSensorOn);
 
         Changed?.Invoke(Snapshot());
 
