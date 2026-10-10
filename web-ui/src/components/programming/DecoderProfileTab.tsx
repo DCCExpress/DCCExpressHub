@@ -134,6 +134,7 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
     setLocoAddress("");
     try {
       await readAddress();
+      let consecutiveNoDecoder = 0;
       for (let i=0; i<cvs.length; i++) {
         if (cancel.current) break;
         const cv = cvs[i]!;
@@ -153,6 +154,17 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
         }
         setResults(prev => ({ ...prev, [cv]: item }));
         setProgress({ done: i + 1, total: cvs.length });
+        if (item.error && /NO DECODER|No decoder detected/i.test(item.error))
+          consecutiveNoDecoder += 1;
+        else
+          consecutiveNoDecoder = 0;
+        if (consecutiveNoDecoder >= 2) {
+          setError(
+            "Profile read stopped: the command station reported NO DECODER twice in a row. " +
+            "Check the PROG TRACK contact and try reading a single CV before starting a full scan."
+          );
+          break;
+        }
       }
     } finally {
       setActiveCv(null);
