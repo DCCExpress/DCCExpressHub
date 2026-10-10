@@ -1,24 +1,54 @@
-import { ActionIcon, Badge, Button, Group, Paper, Stack, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Badge, Button, Group, Paper, Stack, Text, Tooltip, Divider, SimpleGrid } from "@mantine/core";
 import { IconAlertTriangle, IconPlayerStop } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import type { MovementDocument } from "../../domain/movement";
 import type { Loco } from "../../domain/domainTypes";
 import LocoImage from "../loco/LocoImage";
+import { wsClient } from "../../services/wsClient";
 import {
   abortAllMovements, abortMovement, getMovementTaskStates, stopAllMovements, stopMovement, subscribeMovementTaskStates,
   type MovementEngineState,
 } from "../../services/movementEngine";
 
 type Task = { pageId: string; state: MovementEngineState };
+type Lock = { address: number; ownerName: string; ownerId: string };
+type Lease = { ownerId: string; ownerName: string; locoAddress: number; fromBlockId?: number; toBlockId?: number; sourceBlockId?: number; destinationBlockId?: number };
+type Traffic = { locks: Lock[]; leases: Lease[]; routes: Lease[] };
+const emptyTraffic: Traffic = { locks: [], leases: [], routes: [] };
 type Props = { document: MovementDocument; locos: Loco[] };
 
 export default function MovementTaskManager({ document, locos }: Props) {
   const [tasks, setTasks] = useState<Task[]>(getMovementTaskStates);
+  const [traffic, setTraffic] = useState<Traffic>(emptyTraffic);
+  const [liveTraffic, setLiveTraffic] = useState(false);
   useEffect(() => subscribeMovementTaskStates(() => setTasks(getMovementTaskStates())), []);
+  useEffect(() => wsClient.subscribeMessages(message => {
+    const frame = message as unknown as { type?: string; data?: { locks?: Lock[]; leases?: Lease[]; routes?: Lease[] } };
+    if (frame.type === "switchManChanged" && Array.isArray(frame.data?.locks)) {
+      setTraffic(previous => ({ ...previous, locks: frame.data!.locks! }));
+      setLiveTraffic(true);
+    } else if (frame.type === "dispatcherChanged") {
+      setTraffic(previous => ({
+        ...previous,
+        leases: Array.isArray(frame.data?.leases) ? frame.data!.leases! : previous.leases,
+        routes: Array.isArray(frame.data?.routes) ? frame.data!.routes! : previous.routes,
+      }));
+      setLiveTraffic(true);
+    }
+  }), []);
+  useEffect(() => wsClient.subscribeStatus(status => {
+    if (status !== "connected") {
+      setTraffic(emptyTraffic);
+      setLiveTraffic(false);
+    }
+  }), []);
 
   const active = tasks
     .filter(task => task.state.status === "running" || task.state.status === "stopping")
     .sort((a, b) => (a.state.startedAt ?? 0) - (b.state.startedAt ?? 0));
+
+  const reservations = [...traffic.leases, ...traffic.routes];
+  const waiting = active.filter(({ state }) => /wait|hold|block|lock|authority|sensor/i.test(state.info || ""));
 
   return (
     <Stack gap="xs" p="xs" style={{ minHeight: 0, overflowY: "auto" }}>
@@ -32,6 +62,43 @@ export default function MovementTaskManager({ document, locos }: Props) {
             disabled={!active.length} onClick={() => abortAllMovements()}>Abort All</Button>
         </Group>
       </Group>
+      <Paper withBorder p="sm" radius="sm">
+        <Group justify="space-between" mb="xs">
+          <Text size="sm" fw={600}>Traffic control</Text>
+          <Badge size="xs" color={liveTraffic ? "green" : "gray"}>{liveTraffic ? "Live backend" : "Awaiting backend"}</Badge>
+        </Group>
+        <SimpleGrid cols={4} spacing="xs">
+          <Stack gap={0}><Text size="lg" fw={700}>{active.length}</Text><Text size="xs" c="dimmed">Movements</Text></Stack>
+          <Stack gap={0}><Text size="lg" fw={700}>{waiting.length}</Text><Text size="xs" c="dimmed">Waiting</Text></Stack>
+          <Stack gap={0}><Text size="lg" fw={700}>{liveTraffic ? reservations.length : "—"}</Text><Text size="xs" c="dimmed">Leases</Text></Stack>
+          <Stack gap={0}><Text size="lg" fw={700}>{liveTraffic ? traffic.locks.length : "—"}</Text><Text size="xs" c="dimmed">Locks</Text></Stack>
+        </SimpleGrid>
+        <Divider my="xs"/>
+        <Text size="sm" fw={600}>Dispatcher</Text>
+        {liveTraffic && reservations.length === 0 && <Text size="xs" c="dimmed">No active reservations.</Text>}
+        {reservations.map((lease, index) => (
+          <Group key={lease.ownerId + index} justify="space-between" gap="xs">
+            <Text size="xs">Loco #{lease.locoAddress}: {lease.fromBlockId ?? lease.sourceBlockId ?? "?"} → {lease.toBlockId ?? lease.destinationBlockId ?? "?"}</Text>
+            <Text size="xs" c="dimmed">{lease.ownerName}</Text>
+          </Group>
+        ))}
+        <Divider my="xs"/>
+        <Text size="sm" fw={600}>SwitchMan</Text>
+        {liveTraffic && traffic.locks.length === 0 && <Text size="xs" c="dimmed">No locked turnouts.</Text>}
+        {traffic.locks.map(lock => (
+          <Group key={lock.address} justify="space-between" gap="xs">
+            <Badge size="xs" color="yellow">Turnout #{lock.address}</Badge>
+            <Text size="xs" c="dimmed">{lock.ownerName}</Text>
+          </Group>
+        ))}
+        {waiting.length > 0 && <>
+          <Divider my="xs"/>
+          <Text size="sm" fw={600}>Why waiting?</Text>
+          {waiting.map(({ pageId, state }) => (
+            <Text key={pageId} size="xs">Loco #{state.locoAddress ?? "?"}: {state.info}</Text>
+          ))}
+        </>}
+      </Paper>
       {!active.length && <Text c="dimmed" size="sm">No running movements.</Text>}
       {active.map(({ pageId, state }) => {
         const page = document.pages.find(item => item.id === pageId);
