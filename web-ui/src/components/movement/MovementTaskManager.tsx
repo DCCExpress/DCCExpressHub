@@ -1,11 +1,11 @@
-import { ActionIcon, Badge, Group, Paper, Stack, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Badge, Button, Group, Paper, Stack, Text, Tooltip } from "@mantine/core";
 import { IconAlertTriangle, IconPlayerStop } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import type { MovementDocument } from "../../domain/movement";
 import type { Loco } from "../../domain/domainTypes";
 import LocoImage from "../loco/LocoImage";
 import {
-  abortMovement, getMovementTaskStates, stopMovement, subscribeMovementTaskStates,
+  abortAllMovements, abortMovement, getMovementTaskStates, stopAllMovements, stopMovement, subscribeMovementTaskStates,
   type MovementEngineState,
 } from "../../services/movementEngine";
 
@@ -24,7 +24,13 @@ export default function MovementTaskManager({ document, locos }: Props) {
     <Stack gap="xs" p="xs" style={{ minHeight: 0, overflowY: "auto" }}>
       <Group justify="space-between">
         <Text fw={600}>Task Manager</Text>
-        <Badge variant="light" color={active.length ? "green" : "gray"}>{active.length} active</Badge>
+        <Group gap="xs" wrap="wrap">
+          <Badge variant="light" color={active.length ? "green" : "gray"}>{active.length} active</Badge>
+          <Button size="xs" color="yellow" variant="light" leftSection={<IconPlayerStop size={14} />}
+            disabled={!active.length} onClick={() => stopAllMovements()}>Stop All</Button>
+          <Button size="xs" color="red" variant="light" leftSection={<IconAlertTriangle size={14} />}
+            disabled={!active.length} onClick={() => abortAllMovements()}>Abort All</Button>
+        </Group>
       </Group>
       {!active.length && <Text c="dimmed" size="sm">No running movements.</Text>}
       {active.map(({ pageId, state }) => {
