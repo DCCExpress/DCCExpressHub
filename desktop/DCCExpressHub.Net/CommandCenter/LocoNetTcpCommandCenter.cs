@@ -517,9 +517,14 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
     public async Task<bool> SetTurnoutAsync(int address, bool closed, CancellationToken ct = default)
     {
         if (address is < 1 or > 2048) return false;
+        var queuedAt = System.Diagnostics.Stopwatch.GetTimestamp();
         await _accessoryPulseGate.WaitAsync(ct);
+        var queueMs = System.Diagnostics.Stopwatch.GetElapsedTime(queuedAt).TotalMilliseconds;
         try
         {
+            _log.LogInformation(
+                "LocoNet turnout #{Address} requested closed={Closed}; pulse-gate wait={QueueMs:F1} ms",
+                address, closed, queueMs);
             int a = address - 1;
             byte low = (byte)(a & 0x7F);
             byte high = (byte)(((a >> 7) & 0x0F) | (closed ? 0x20 : 0));
@@ -531,10 +536,15 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
                 if (!await SendPacketAsync([0xB0, low, (byte)(high | 0x10)], ct))
                     return false;
                 activated = true;
+                _log.LogInformation("LocoNet turnout #{Address}: ON sent to LBServer (not decoder-confirmed)", address);
                 await Task.Delay(200, ct);
                 // Always send the OFF edge, even if the caller is cancelled.
                 var released = await SendPacketAsync([0xB0, low, high], CancellationToken.None);
-                if (released) activated = false;
+                if (released)
+                {
+                    activated = false;
+                    _log.LogInformation("LocoNet turnout #{Address}: OFF sent; TCP write only, physical position unconfirmed", address);
+                }
                 else _log.LogWarning("LocoNet turnout #{Address}: OFF pulse failed", address);
                 return released;
             }
