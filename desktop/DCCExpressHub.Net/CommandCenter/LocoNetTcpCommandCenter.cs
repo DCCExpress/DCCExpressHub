@@ -485,8 +485,34 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
         return true;
     }
 
-    public Task<bool> SetSignalAspectAsync(int address, int aspect, CancellationToken ct = default) =>
-        Task.FromResult(false);
+    public Task<bool> SetSignalAspectAsync(int address, int aspect, CancellationToken ct = default)
+    {
+        if (address is < 1 or > 2044 || aspect is < 0 or > 255)
+            return Task.FromResult(false);
+
+        // Match the Hub's existing Z21 extended-accessory addressing (+3).
+        // Build a three-byte DCCext packet, then wrap it as LocoNet
+        // OPC_IMM_PACKET (ED 0B 7F), as done by JMRI SlotManager.
+        int output = address + 3;
+        int zeroBased = output - 1;
+        int low = zeroBased & 3;
+        int board = zeroBased >> 2;
+        byte dcc0 = (byte)(0x80 | (board & 0x3F));
+        byte dcc1 = (byte)(0x01 | (((~board >> 6) & 7) << 4) | (low << 1));
+        byte dcc2 = (byte)aspect;
+        // Bit 7 must be represented in the LocoNet high-bit mask.
+        byte highBits = (byte)(((dcc0 >> 7) & 1) |
+            (((dcc1 >> 7) & 1) << 1) |
+            (((dcc2 >> 7) & 1) << 2));
+        byte[] command =
+        [
+            0xED, 0x0B, 0x7F, 0x32, highBits,
+            (byte)(dcc0 & 0x7F), (byte)(dcc1 & 0x7F),
+            (byte)(dcc2 & 0x7F), 0x00, 0x00
+        ];
+        _log.LogInformation("LocoNet DCCext signal #{Address}, aspect {Aspect}", address, aspect);
+        return SendPacketAsync(command, ct);
+    }
     public Task<bool> SetVPinAsync(int vpin, bool active, CancellationToken ct = default) =>
         Task.FromResult(false);
     public Task<bool> RequestTrackConfigurationAsync(CancellationToken ct = default) =>
