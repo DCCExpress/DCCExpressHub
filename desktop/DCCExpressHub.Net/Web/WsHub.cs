@@ -2595,6 +2595,95 @@ public sealed class WsHub
 
         if (string.Equals(
                 CommandCenter.Type,
+                "loconet",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            int address = I(d, "address");
+            int cv = I(d, "cv");
+            int value = IOr(d, "value", -1);
+            CommandCenterProgrammingResult result;
+
+            if (action == "readCv")
+                result = await CommandCenter.ReadServiceCvAsync(cv, ct);
+            else if (action == "writeCv")
+                result = await CommandCenter.WriteServiceCvAsync(cv, value, ct);
+            else if (action == "pomReadCv")
+                result = await CommandCenter.ReadPomCvAsync(address, cv, ct);
+            else if (action == "pomWriteCv")
+                result = await CommandCenter.WritePomCvAsync(address, cv, value, ct);
+            else if (action == "readAddress")
+            {
+                // Read CV29 first: its long-address bit tells us whether to
+                // report CV1 or the combined CV17/CV18 address.
+                var config = await CommandCenter.ReadServiceCvAsync(29, ct);
+                if (!config.Ok)
+                    result = config;
+                else if ((config.Value & 0x20) == 0)
+                    result = await CommandCenter.ReadServiceCvAsync(1, ct);
+                else
+                {
+                    var high = await CommandCenter.ReadServiceCvAsync(17, ct);
+                    var low = high.Ok
+                        ? await CommandCenter.ReadServiceCvAsync(18, ct)
+                        : high;
+                    result = high.Ok && low.Ok
+                        ? new CommandCenterProgrammingResult(true, 29,
+                            ((high.Value & 0x3F) << 8) | low.Value,
+                            "Long locomotive address read successfully.")
+                        : high.Ok ? low : high;
+                }
+            }
+            else if (action == "writeAddress")
+            {
+                if (address is < 1 or > 10239)
+                {
+                    await Fail("Invalid locomotive address.");
+                    return;
+                }
+
+                // Preserve unrelated CV29 settings while switching short/
+                // long addressing. Do not start writing if CV29 cannot be read.
+                var config = await CommandCenter.ReadServiceCvAsync(29, ct);
+                if (!config.Ok)
+                    result = config;
+                else if (address <= 127)
+                {
+                    var first = await CommandCenter.WriteServiceCvAsync(1, address, ct);
+                    result = first.Ok
+                        ? await CommandCenter.WriteServiceCvAsync(29, config.Value & ~0x20, ct)
+                        : first;
+                }
+                else
+                {
+                    var first = await CommandCenter.WriteServiceCvAsync(
+                        17, 0xC0 | (address >> 8), ct);
+                    var second = first.Ok
+                        ? await CommandCenter.WriteServiceCvAsync(18, address & 0xFF, ct)
+                        : first;
+                    result = first.Ok && second.Ok
+                        ? await CommandCenter.WriteServiceCvAsync(29, config.Value | 0x20, ct)
+                        : first.Ok ? second : first;
+                }
+                if (result.Ok)
+                    result = result with
+                    {
+                        Value = address,
+                        Message = "Locomotive address written on programming track."
+                    };
+            }
+            else
+            {
+                await Fail("Unsupported LocoNet programming action.");
+                return;
+            }
+
+            await SendProgrammingResponse(
+                id, action, result.Ok, result.Message, result.Value, result.Raw);
+            return;
+        }
+
+        if (string.Equals(
+                CommandCenter.Type,
                 "z21",
                 StringComparison.OrdinalIgnoreCase))
         {
