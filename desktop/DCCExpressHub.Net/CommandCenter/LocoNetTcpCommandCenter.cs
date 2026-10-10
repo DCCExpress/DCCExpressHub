@@ -269,8 +269,32 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
         return await SendPacketAsync(new byte[] { 0xB0, low, high }, ct);
     }
 
-    public Task<bool> SetAccessoryAsync(int address, bool active, CancellationToken ct = default) =>
-        SetTurnoutAsync(address, active, ct);
+    public async Task<bool> SetAccessoryAsync(int address, bool active, CancellationToken ct = default)
+    {
+        // A basic accessory is a DCC turnout-style output selection followed
+        // by an activation pulse. It must be encoded independently of the
+        // layout's logical turnout state.
+        if (address is < 1 or > 2048) return false;
+        int a = address - 1;
+        byte low = (byte)(a & 0x7F);
+        byte high = (byte)(((a >> 7) & 0x0F) | (active ? 0x20 : 0));
+        bool activated = false;
+        try
+        {
+            if (!await SendPacketAsync([0xB0, low, (byte)(high | 0x10)], ct))
+                return false;
+            activated = true;
+            await Task.Delay(200, ct);
+            var released = await SendPacketAsync([0xB0, low, high], CancellationToken.None);
+            activated = false;
+            return released;
+        }
+        finally
+        {
+            if (activated)
+                await SendPacketAsync([0xB0, low, high], CancellationToken.None);
+        }
+    }
     public async Task<bool> SetTrackPowerAsync(bool on, bool includeProgramming = true, CancellationToken ct = default)
     {
         var sent = await SendPacketAsync(new byte[] { on ? (byte)0x83 : (byte)0x82 }, ct);
