@@ -92,7 +92,7 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
     {
         if (!line.StartsWith("RECEIVE ", StringComparison.OrdinalIgnoreCase)) return;
         var fields = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (fields.Length < 5) return;
+        if (fields.Length < 3) return;
         var packet = new List<byte>();
         foreach (var field in fields.Skip(1))
         {
@@ -104,7 +104,14 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
         foreach (var item in packet) checksum ^= item;
         if (checksum != 0xFF) return;
 
-        if (packet[0] == 0xB2 && packet.Count == 4)
+        if (packet.Count == 2 && packet[0] is 0x82 or 0x83)
+        {
+            var on = packet[0] == 0x83;
+            _log.LogInformation("LocoNet track power feedback: {State}", on ? "ON" : "OFF");
+            RawInfo?.Invoke("LocoNet power RX: " + (on ? "ON" : "OFF"));
+            PowerFeedbackChanged?.Invoke(new PowerFeedback(on, "main"));
+        }
+        else if (packet[0] == 0xB2 && packet.Count == 4)
         {
             // OPC_INPUT_REP: LocoNet sensor numbering is 1-based.
             var address = ((packet[2] & 0x0F) << 7) | (packet[1] & 0x7F);
@@ -156,8 +163,14 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
 
     public Task<bool> SetAccessoryAsync(int address, bool active, CancellationToken ct = default) =>
         SetTurnoutAsync(address, active, ct);
-    public Task<bool> SetTrackPowerAsync(bool on, bool includeProgramming = true, CancellationToken ct = default) =>
-        SendPacketAsync(new byte[] { on ? (byte)0x83 : (byte)0x82 }, ct);
+    public async Task<bool> SetTrackPowerAsync(bool on, bool includeProgramming = true, CancellationToken ct = default)
+    {
+        var sent = await SendPacketAsync(new byte[] { on ? (byte)0x83 : (byte)0x82 }, ct);
+        _log.LogInformation("LocoNet power {Power}: TX {Result} to {Endpoint}",
+            on ? "ON" : "OFF", sent ? "sent" : "failed", Endpoint);
+        // TCP write success does not guarantee the command station changed power.
+        return sent;
+    }
     public Task<bool> EmergencyStopAsync(CancellationToken ct = default) =>
         SetTrackPowerAsync(false, ct: ct);
 
