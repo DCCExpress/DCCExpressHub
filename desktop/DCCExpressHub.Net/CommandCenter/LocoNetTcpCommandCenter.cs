@@ -90,7 +90,10 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
 
     private void ProcessLine(string line)
     {
-        if (!line.StartsWith("RECEIVE ", StringComparison.OrdinalIgnoreCase)) return;
+        if (line.StartsWith("RECEIVE ", StringComparison.OrdinalIgnoreCase))
+            RawInfo?.Invoke("LocoNet RX: " + line);
+        else
+            return;
         var fields = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (fields.Length < 3) return;
         var packet = new List<byte>();
@@ -150,15 +153,18 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
         finally { _txGate.Release(); }
     }
 
-    public Task<bool> SetTurnoutAsync(int address, bool closed, CancellationToken ct = default)
+    public async Task<bool> SetTurnoutAsync(int address, bool closed, CancellationToken ct = default)
     {
-        if (address is < 1 or > 2048) return Task.FromResult(false);
+        if (address is < 1 or > 2048) return false;
         int a = address - 1;
-        // OPC_SW_REQ: B0, low address, high address | closed | ON.
-        return SendPacketAsync(new byte[] {
-            0xB0, (byte)(a & 0x7F),
-            (byte)(((a >> 7) & 0x0F) | (closed ? 0x20 : 0x00) | 0x10)
-        }, ct);
+        byte low = (byte)(a & 0x7F);
+        byte high = (byte)(((a >> 7) & 0x0F) | (closed ? 0x20 : 0));
+        // JMRI LnTurnout sends an ON pulse followed by OFF. The previous
+        // implementation kept the accessory activation asserted indefinitely.
+        if (!await SendPacketAsync(new byte[] { 0xB0, low, (byte)(high | 0x10) }, ct))
+            return false;
+        await Task.Delay(200, ct);
+        return await SendPacketAsync(new byte[] { 0xB0, low, high }, ct);
     }
 
     public Task<bool> SetAccessoryAsync(int address, bool active, CancellationToken ct = default) =>
