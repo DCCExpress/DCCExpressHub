@@ -1619,7 +1619,9 @@ function Z21ProgrammingPage({
           </Title>
 
           <Text size="sm" c="dimmed">
-            {i18next.t("ui.z21ProgrammingSubtitle")}
+            {info.type.toLowerCase() === "loconet"
+              ? "LocoNet TCP · YD7010 · CV programming via PROG TRACK or POM"
+              : i18next.t("ui.z21ProgrammingSubtitle")}
           </Text>
         </div>
       </Group>
@@ -1685,7 +1687,9 @@ function Z21ProgrammingPage({
                 icon={<IconAlertTriangle size={18} />}
                 title={i18next.t("ui.programmingTrackSafety")}
               >
-                {i18next.t("ui.z21ServiceModeInfo")}
+                {info.type.toLowerCase() === "loconet"
+                  ? "Service-mode CV programming uses the YD7010 PROG TRACK output. Electrically isolate the programming track from the main layout. Only place the decoder being programmed on it."
+                  : i18next.t("ui.z21ServiceModeInfo")}
               </Alert>
 
               <Card withBorder radius={5} p="lg">
@@ -2124,7 +2128,8 @@ export default function ProgrammingPage(props: Props) {
   }
 
   if (
-    info.type.toLowerCase() === "z21"
+    info.type.toLowerCase() === "z21" ||
+    info.type.toLowerCase() === "loconet"
   ) {
     return (
       <Z21ProgrammingPage
