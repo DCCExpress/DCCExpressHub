@@ -27,7 +27,7 @@ export type MovementEngineStatus =
 
 export type MovementEngineState = {
   movementName?: string | undefined;
-  routeDescription?: string | null;
+  routeDescription?: string | null | undefined;
   status: MovementEngineStatus;
   startedAt: number | null;
   stoppedAt: number | null;
