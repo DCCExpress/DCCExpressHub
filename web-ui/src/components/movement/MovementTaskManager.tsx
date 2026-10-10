@@ -20,28 +20,77 @@ type Props = { document: MovementDocument; locos: Loco[] };
 export default function MovementTaskManager({ document, locos }: Props) {
   const [tasks, setTasks] = useState<Task[]>(getMovementTaskStates);
   const [traffic, setTraffic] = useState<Traffic>(emptyTraffic);
-  const [liveTraffic, setLiveTraffic] = useState(false);
+  const [loaded, setLoaded] = useState({ locks: false, dispatcher: false });
+  const liveTraffic = loaded.locks && loaded.dispatcher;
+
   useEffect(() => subscribeMovementTaskStates(() => setTasks(getMovementTaskStates())), []);
-  useEffect(() => wsClient.subscribeMessages(message => {
-    const frame = message as unknown as { type?: string; data?: { locks?: Lock[]; leases?: Lease[]; routes?: Lease[] } };
-    if (frame.type === "switchManChanged" && Array.isArray(frame.data?.locks)) {
-      setTraffic(previous => ({ ...previous, locks: frame.data!.locks! }));
-      setLiveTraffic(true);
-    } else if (frame.type === "dispatcherChanged") {
-      setTraffic(previous => ({
-        ...previous,
-        leases: Array.isArray(frame.data?.leases) ? frame.data!.leases! : previous.leases,
-        routes: Array.isArray(frame.data?.routes) ? frame.data!.routes! : previous.routes,
-      }));
-      setLiveTraffic(true);
-    }
-  }), []);
-  useEffect(() => wsClient.subscribeStatus(status => {
-    if (status !== "connected") {
-      setTraffic(emptyTraffic);
-      setLiveTraffic(false);
-    }
-  }), []);
+
+  // The backend's initial broadcasts may arrive before the Tasks tab mounts.
+  // Request authoritative snapshots on mount AND after every reconnect,
+  // then keep them current with the normal change broadcasts.
+  useEffect(() => {
+    const unsubscribeMessages = wsClient.subscribeMessages(message => {
+      const frame = message as unknown as {
+        type?: string;
+        data?: {
+          action?: string;
+          ok?: boolean;
+          locks?: Lock[];
+          leases?: Lease[];
+          routes?: Lease[];
+          extra?: { locks?: Lock[]; leases?: Lease[]; routes?: Lease[] } | null;
+        };
+      };
+      const isSwitchManSnapshot =
+        frame.type === "switchManResponse" &&
+        frame.data?.action === "snapshot" &&
+        frame.data.ok === true;
+      const isDispatcherSnapshot =
+        frame.type === "dispatcherResponse" &&
+        frame.data?.action === "snapshot" &&
+        frame.data.ok === true;
+
+      if (frame.type === "switchManChanged" || isSwitchManSnapshot) {
+        const locks = isSwitchManSnapshot ? frame.data?.extra?.locks : frame.data?.locks;
+        if (Array.isArray(locks)) {
+          setTraffic(previous => ({ ...previous, locks }));
+          setLoaded(previous => ({ ...previous, locks: true }));
+        }
+      } else if (frame.type === "dispatcherChanged" || isDispatcherSnapshot) {
+        const data = isDispatcherSnapshot ? frame.data?.extra : frame.data;
+        if (Array.isArray(data?.leases) && Array.isArray(data?.routes)) {
+          setTraffic(previous => ({ ...previous, leases: data.leases!, routes: data.routes! }));
+          setLoaded(previous => ({ ...previous, dispatcher: true }));
+        }
+      }
+    });
+
+    const unsubscribeStatus = wsClient.subscribeStatus(status => {
+      if (status !== "connected") {
+        setTraffic(emptyTraffic);
+        setLoaded({ locks: false, dispatcher: false });
+        return;
+      }
+
+      const requestId = () =>
+        typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+          ? crypto.randomUUID()
+          : `taskman-${Date.now()}`;
+      wsClient.send({
+        type: "switchManCommand",
+        data: { action: "snapshot", requestId: requestId() },
+      });
+      wsClient.send({
+        type: "dispatcherCommand",
+        data: { action: "snapshot", requestId: requestId() },
+      });
+    });
+
+    return () => {
+      unsubscribeMessages();
+      unsubscribeStatus();
+    };
+  }, []);
 
   const active = tasks
     .filter(task => task.state.status === "running" || task.state.status === "stopping")
@@ -65,17 +114,17 @@ export default function MovementTaskManager({ document, locos }: Props) {
       <Paper withBorder p="sm" radius="sm">
         <Group justify="space-between" mb="xs">
           <Text size="sm" fw={600}>Traffic control</Text>
-          <Badge size="xs" color={liveTraffic ? "green" : "gray"}>{liveTraffic ? "Live backend" : "Awaiting backend"}</Badge>
+          <Badge size="xs" color={liveTraffic ? "green" : "gray"}>{liveTraffic ? "Live backend" : "Awaiting state"}</Badge>
         </Group>
         <SimpleGrid cols={4} spacing="xs">
           <Stack gap={0}><Text size="lg" fw={700}>{active.length}</Text><Text size="xs" c="dimmed">Movements</Text></Stack>
           <Stack gap={0}><Text size="lg" fw={700}>{waiting.length}</Text><Text size="xs" c="dimmed">Waiting</Text></Stack>
-          <Stack gap={0}><Text size="lg" fw={700}>{liveTraffic ? reservations.length : "—"}</Text><Text size="xs" c="dimmed">Leases</Text></Stack>
-          <Stack gap={0}><Text size="lg" fw={700}>{liveTraffic ? traffic.locks.length : "—"}</Text><Text size="xs" c="dimmed">Locks</Text></Stack>
+          <Stack gap={0}><Text size="lg" fw={700}>{loaded.dispatcher ? reservations.length : "—"}</Text><Text size="xs" c="dimmed">Leases</Text></Stack>
+          <Stack gap={0}><Text size="lg" fw={700}>{loaded.locks ? traffic.locks.length : "—"}</Text><Text size="xs" c="dimmed">Locks</Text></Stack>
         </SimpleGrid>
         <Divider my="xs"/>
         <Text size="sm" fw={600}>Dispatcher</Text>
-        {liveTraffic && reservations.length === 0 && <Text size="xs" c="dimmed">No active reservations.</Text>}
+        {loaded.dispatcher && reservations.length === 0 && <Text size="xs" c="dimmed">No active reservations.</Text>}
         {reservations.map((lease, index) => (
           <Group key={lease.ownerId + index} justify="space-between" gap="xs">
             <Text size="xs">Loco #{lease.locoAddress}: {lease.fromBlockId ?? lease.sourceBlockId ?? "?"} → {lease.toBlockId ?? lease.destinationBlockId ?? "?"}</Text>
@@ -84,7 +133,7 @@ export default function MovementTaskManager({ document, locos }: Props) {
         ))}
         <Divider my="xs"/>
         <Text size="sm" fw={600}>SwitchMan</Text>
-        {liveTraffic && traffic.locks.length === 0 && <Text size="xs" c="dimmed">No locked turnouts.</Text>}
+        {loaded.locks && traffic.locks.length === 0 && <Text size="xs" c="dimmed">No locked turnouts.</Text>}
         {traffic.locks.map(lock => (
           <Group key={lock.address} justify="space-between" gap="xs">
             <Badge size="xs" color="yellow">Turnout #{lock.address}</Badge>
