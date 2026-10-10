@@ -1,6 +1,6 @@
 # DCCExpressHub
 
-**Version: 0.1.0-alpha.4**
+**Version: 0.1.0-alpha.5**
 
 **DCCExpressHub** is a model railway control and automation application supporting the **DCC-EX**, **Z21 + R-BUS**, and **LocoNet** protocols.
 
