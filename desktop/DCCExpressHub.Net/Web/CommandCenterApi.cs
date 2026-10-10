@@ -588,7 +588,7 @@ public sealed class CommandCenterApi
                         pomRead =
                             x.IsZ21 || isLocoNet,
                         accessoryPomProgramming =
-                            x.IsZ21,
+                            x.IsZ21 || isLocoNet,
                         accessoryPomRead =
                             x.IsZ21,
                         rawCommand =
