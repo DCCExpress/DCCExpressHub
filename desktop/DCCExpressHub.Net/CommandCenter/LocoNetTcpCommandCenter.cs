@@ -264,7 +264,15 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
         int cv = cvZero + 1;
         int address = (packet[5] << 7) | packet[6];
         int value = packet[10] | ((packet[8] & 0x02) << 6);
-        int error = packet[3] & 0x0F;
+        // Programmer slot 124: index 3 is PCMD (the operation);
+        // index 4 is PSTAT (the decoder acknowledgement/error flags).
+        // Reading PCMD as a status previously produced false errors because
+        // standard direct-byte commands include the reserved low bits 0x03.
+        int pcmd = packet[3];
+        int error = packet[4] & 0x0F;
+        _log.LogInformation(
+            "LocoNet programmer slot: CV {Cv}, address {Address}, PCMD 0x{Pcmd:X2}, PSTAT 0x{Status:X2}, value {Value}",
+            cv, address, pcmd, packet[4], value);
         lock (_programmingSync)
         {
             if (_pendingProgramming is null ||
@@ -275,7 +283,7 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
             }
             if (error != 0)
             {
-                var reason = (error & 0x01) != 0 ? "No decoder detected on the programming track."
+                var reason = (error & 0x01) != 0 ? "YD7010 reports NO DECODER (PSTAT bit 0). Check the isolated PROG TRACK wiring, locomotive contact and programming track current."
                     : (error & 0x02) != 0 ? "Decoder did not acknowledge CV write."
                     : (error & 0x04) != 0 ? "Decoder did not acknowledge CV read."
                     : "Programming was aborted.";
