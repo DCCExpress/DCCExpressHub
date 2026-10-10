@@ -25,6 +25,7 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
     private readonly Dictionary<int, int> _slots = new();
     private readonly Dictionary<int, byte> _dirf = new();
     private readonly Dictionary<int, byte> _snd = new();
+    private readonly Dictionary<int, int> _speeds = new();
     private TaskCompletionSource<(int Address, int Slot, byte Status)>? _pendingSlot;
     private int _pendingAddress;
 
@@ -92,6 +93,7 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
                     _slots.Clear();
                     _dirf.Clear();
                     _snd.Clear();
+                    _speeds.Clear();
                     _pendingSlot?.TrySetCanceled();
                     _pendingSlot = null;
                 }
@@ -255,6 +257,25 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
                 return false;
             }
         }
+        // Publish the actual stop to the HUB's locomotive state cache.
+        // Never restore the previous throttle setting after emergency resume.
+        (int Address, int Slot, byte Dirf, byte Snd)[] stopped;
+        lock (_slotSync)
+        {
+            stopped = _slots.Select(pair => (
+                pair.Key,
+                pair.Value,
+                _dirf.GetValueOrDefault(pair.Value),
+                _snd.GetValueOrDefault(pair.Value))).ToArray();
+            foreach (var loco in stopped) _speeds[loco.Slot] = 0;
+        }
+        foreach (var loco in stopped)
+            LocoFeedbackChanged?.Invoke(new LocoFeedback(
+                loco.Address, 0, (loco.Dirf & 0x20) == 0,
+                (uint)(((loco.Dirf & 0x10) != 0 ? 1 : 0) |
+                    ((loco.Dirf & 0x0F) << 1) |
+                    ((loco.Snd & 0x0F) << 5))));
+
         if (resume) _emergencyPaused = false;
         RawInfo?.Invoke(resume
             ? "LocoNet emergency RESUME: Hub locomotive slots set to speed 0; track power unchanged"
@@ -310,6 +331,7 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
                 _slots[address] = found.Slot;
                 _dirf.TryAdd(found.Slot, 0);
                 _snd.TryAdd(found.Slot, 0);
+                _speeds.TryAdd(found.Slot, 0);
             }
             RawInfo?.Invoke($"LocoNet slot ready: #{address} -> {found.Slot}");
             return found.Slot;
@@ -335,9 +357,19 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
             _dirf[slot.Value] = dirf;
         }
         if (!await SendPacketAsync(new byte[] { 0xA1, (byte)slot.Value, dirf }, ct)) return false;
-        return await SendPacketAsync(new byte[] {
+        if (!await SendPacketAsync(new byte[] {
             0xA0, (byte)slot.Value, (byte)(speed == 0 ? 0 : speed + 1)
-        }, ct);
+        }, ct)) return false;
+        byte snd;
+        lock (_slotSync)
+        {
+            _speeds[slot.Value] = speed;
+            snd = _snd.GetValueOrDefault(slot.Value);
+        }
+        var functions = (uint)(((dirf & 0x10) != 0 ? 1 : 0) |
+            ((dirf & 0x0F) << 1) | ((snd & 0x0F) << 5));
+        LocoFeedbackChanged?.Invoke(new LocoFeedback(address, speed, forward, functions));
+        return true;
     }
 
     public async Task<bool> RequestLocoAsync(int address, CancellationToken ct = default) =>
