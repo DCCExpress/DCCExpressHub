@@ -196,17 +196,14 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
                 <Text size="sm" fw={600} truncate>{title}</Text>
                 <Group gap={6} wrap="wrap">
                   <Badge color={state.status === "stopping" ? "yellow" : "green"} size="xs">{state.status}</Badge>
-                  <Text size="xs" c="dimmed">Speed {state.desiredSpeed}</Text>
-                  {state.currentBlockId != null && (
-                    <Text size="xs" c="dimmed">
-                      {blockLabel(state.currentBlockId, state.currentBlockName)}
-                    </Text>
-                  )}
-                  {state.targetBlockId != null && (
-                    <Text size="xs" c="dimmed">
-                      → {blockLabel(state.targetBlockId, state.targetBlockName)}
-                    </Text>
-                  )}
+                  <Text size="xs" c="dimmed" style={{ whiteSpace: "nowrap" }}>
+                    Speed {state.desiredSpeed}
+                    {state.currentBlockId != null && (
+                      <> · {blockLabel(state.currentBlockId, state.currentBlockName)}
+                        {state.targetBlockId != null && <> → {blockLabel(state.targetBlockId, state.targetBlockName)}</>}
+                      </>
+                    )}
+                  </Text>
                 </Group>
                 {route && <Text size="sm" fw={500} lineClamp={2}>{route}</Text>}
               </Stack>
