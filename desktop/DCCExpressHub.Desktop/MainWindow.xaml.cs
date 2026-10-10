@@ -419,8 +419,13 @@ namespace DCCExpressHub.Desktop
                 {
                     TcpPortText.Text = "21105";
                 }
+                else if (SelectedProtocol == "loconet" &&
+                         portText is "21105" or "2560")
+                {
+                    TcpPortText.Text = "1234";
+                }
                 else if (SelectedProtocol == "tcp" &&
-                         portText == "21105")
+                         portText is "21105" or "1234")
                 {
                     TcpPortText.Text = "2560";
                 }
