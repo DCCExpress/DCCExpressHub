@@ -61,7 +61,6 @@ export default function MovementTaskManager({ document, locos }: Props) {
               </Stack>
               <Stack gap={3} style={{ minWidth: 0, flex: 1 }}>
                 <Text size="sm" fw={600} truncate>{title}</Text>
-                {route && <Text size="sm" fw={500} lineClamp={2}>{route}</Text>}
                 <Group gap={6} wrap="wrap">
                   <Badge color={state.status === "stopping" ? "yellow" : "green"} size="xs">{state.status}</Badge>
                   <Text size="xs" c="dimmed">Speed {state.desiredSpeed}</Text>
@@ -70,6 +69,7 @@ export default function MovementTaskManager({ document, locos }: Props) {
                   {state.targetBlockId !== undefined && state.targetBlockId !== null &&
                     <Text size="xs" c="dimmed">→ #{state.targetBlockId}</Text>}
                 </Group>
+                {route && <Text size="sm" fw={500} lineClamp={2}>{route}</Text>}
                 {state.info && <Text size="xs" c="dimmed" lineClamp={2}>{state.info}</Text>}
               </Stack>
               <Group gap={5} wrap="nowrap">
