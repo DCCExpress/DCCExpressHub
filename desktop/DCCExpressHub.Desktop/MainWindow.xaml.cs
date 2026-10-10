@@ -436,7 +436,7 @@ namespace DCCExpressHub.Desktop
                 SelectedProtocol;
 
             TcpPanel.Visibility =
-                protocol is "tcp" or "z21" or "yamorc7010"
+                protocol is "tcp" or "z21" or "yamorc7010" or "loconet"
                     ? Visibility.Visible
                     : Visibility.Collapsed;
 
@@ -468,7 +468,7 @@ namespace DCCExpressHub.Desktop
 
             TestButton.IsEnabled =
                 !_setupBusy &&
-                protocol is "tcp" or "serial" or "z21" or "yamorc7010";
+                protocol is "tcp" or "serial" or "z21" or "yamorc7010" or "loconet";
 
             LocoNetTestButton.Content =
                 L("testLocoNetConnection");
@@ -604,6 +604,9 @@ namespace DCCExpressHub.Desktop
                             await TestZ21Async(
                                 testSettings),
 
+                        "loconet" =>
+                            await TestLocoNetTcpAsync(testSettings),
+
                         _ =>
                             await TestSerialAsync(
                                 testSettings)
@@ -674,6 +677,15 @@ namespace DCCExpressHub.Desktop
             {
                 UpdateProtocolPanels();
             }
+        }
+
+        private static async Task<TestResult> TestLocoNetTcpAsync(DesktopSettings settings)
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+            using var client = new TcpClient();
+            await client.ConnectAsync(settings.TcpHost, settings.TcpPort, timeout.Token);
+            return new TestResult(true,
+                $"LocoNet TCP reachable at {settings.TcpHost}:{settings.TcpPort} (connection only).");
         }
 
         private async Task<TestResult> TestTcpAsync(
@@ -1119,7 +1131,7 @@ namespace DCCExpressHub.Desktop
                 SelectedProtocol;
 
             if (protocol is not
-                ("tcp" or "serial" or "z21" or "yamorc7010"))
+                ("tcp" or "serial" or "z21" or "yamorc7010" or "loconet"))
             {
                 error =
                     L("validationChooseProtocol");
@@ -2125,7 +2137,7 @@ namespace DCCExpressHub.Desktop
                     .ToString();
 
             psi.Environment["LocoNet__LbServerPort"] =
-                "1234";
+                (_settings.Protocol == "loconet" ? _settings.TcpPort : 1234).ToString();
 
             psi.Environment["LocoNet__BinaryFeedback"] =
                 "false";
