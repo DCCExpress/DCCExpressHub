@@ -1172,6 +1172,10 @@ public sealed class MovementPlanBuilder
                         passage,
                         "turnoutStates");
 
+                if (turnoutStates.Length == 0)
+                    throw new InvalidOperationException(
+                        "movement_route_turnout_state_missing");
+
                 var fallbackAddress =
                     turnoutStates
                         .FirstOrDefault()?
