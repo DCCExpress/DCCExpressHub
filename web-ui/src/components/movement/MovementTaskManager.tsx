@@ -36,7 +36,7 @@ export default function MovementTaskManager({ document, locos }: Props) {
         return (
           <Paper key={pageId} withBorder p="sm" radius="sm">
             <Group justify="space-between" align="center" wrap="nowrap">
-              <LocoImage locoId={loco?.id} image={loco?.image} name={loco?.name} width={110} height={40} />
+              <LocoImage locoId={loco?.id ?? ""} image={loco?.image} name={loco?.name} width={110} height={40} />
               <Stack gap={3} style={{ minWidth: 0, flex: 1 }}>
                 <Text size="sm" fw={600} truncate>{title}</Text>
                 <Group gap={6} wrap="wrap">
