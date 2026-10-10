@@ -1160,7 +1160,7 @@ namespace DCCExpressHub.Desktop
                     ? "server"
                     : "local";
 
-            if (protocol is "tcp" or "z21" or "yamorc7010")
+            if (protocol is "tcp" or "z21" or "yamorc7010" or "loconet")
             {
                 var host =
                     TcpHostText.Text.Trim();
