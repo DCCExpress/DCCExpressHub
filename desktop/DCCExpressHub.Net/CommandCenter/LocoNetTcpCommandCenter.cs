@@ -196,7 +196,13 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
         }
         else if (packet[0] == 0xB4 && packet.Count == 4)
         {
-            RawInfo?.Invoke($"LocoNet long ACK: {packet[1]:X2} {packet[2]:X2}");
+            if (packet[1] == 0x6D)
+            {
+                _log.LogInformation("LocoNet OPC_IMM_PACKET ACK response {Response:X2}", packet[2]);
+                RawInfo?.Invoke($"LocoNet DCCext immediate-packet ACK: {packet[2]:X2}");
+            }
+            else
+                RawInfo?.Invoke($"LocoNet long ACK: {packet[1]:X2} {packet[2]:X2}");
         }
         else if (packet.Count == 2 && packet[0] is 0x82 or 0x83)
         {
@@ -493,15 +499,13 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
         // Match the Hub's existing Z21 extended-accessory addressing (+3).
         // Build a three-byte DCCext packet, then wrap it as LocoNet
         // OPC_IMM_PACKET (ED 0B 7F), as done by JMRI SlotManager.
-        // Match JMRI NmraPacket.accSignalDecoderPkt: 1-based board address.
-        // Keep the existing Z21 UI address offset (+3), applied exactly once.
         int output = address + 3;
-        int zeroBased = output - 1;
-        int low = zeroBased & 0x03;
-        int board = (zeroBased >> 2) + 1;
-        byte dcc0 = (byte)(0x80 | (board & 0x3F));
-        byte dcc1 = (byte)(0x01 | ((((~board) >> 6) & 0x07) << 4) | (low << 1));
-        byte dcc2 = (byte)(aspect & 0x1F);
+        // DCC extended accessory addressing follows RCN-213:
+        // 10AAAAAA / 0AAA0AA1. The +3 adjustment is applied once.
+        byte dcc0 = (byte)(0x80 | ((output >> 2) & 0x3F));
+        byte dcc1 = (byte)((((~output >> 4) & 0x70)) |
+            ((output << 1) & 0x06) | 0x01);
+        byte dcc2 = (byte)aspect;
         // Bit 7 must be represented in the LocoNet high-bit mask.
         byte highBits = (byte)(((dcc0 >> 7) & 1) |
             (((dcc1 >> 7) & 1) << 1) |
@@ -512,8 +516,7 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
             (byte)(dcc0 & 0x7F), (byte)(dcc1 & 0x7F),
             (byte)(dcc2 & 0x7F), 0x00, 0x00
         ];
-        _log.LogInformation("LocoNet DCCext signal #{Address}, aspect {Aspect}, output {Output}, DCC bytes {First:X2} {Second:X2} {Third:X2}",
-            address, aspect, output, dcc0, dcc1, dcc2);
+        _log.LogInformation("LocoNet DCCext TX signal #{Address}, aspect {Aspect}, DCC {Byte0:X2} {Byte1:X2} {Byte2:X2}", address, aspect, dcc0, dcc1, dcc2);
         return SendPacketAsync(command, ct);
     }
     public Task<bool> SetVPinAsync(int vpin, bool active, CancellationToken ct = default) =>
