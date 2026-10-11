@@ -64,8 +64,8 @@ var useRocoZ21 =
     "z21";
 
 var useYaMoRcZ21 =
-    commandCenterProtocol ==
-    "yamorc7010";
+    commandCenterProtocol is
+    "yamorc7010" or "loconet-serial";
 
 builder.Services.AddSingleton<HubState>();
 builder.Services.AddSingleton<LayoutRuntime>();
