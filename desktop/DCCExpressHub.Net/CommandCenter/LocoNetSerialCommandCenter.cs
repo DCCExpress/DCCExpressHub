@@ -653,6 +653,7 @@ public sealed class LocoNetSerialCommandCenter : BackgroundService, ICommandCent
 
     public async Task<bool> SetTrackPowerAsync(bool on, bool includeProgramming = true, CancellationToken ct = default)
     {
+        if (on && _emergencyPaused) return false;
         var sent = await SendPacketAsync(new byte[] { on ? (byte)0x83 : (byte)0x82 }, ct);
         _log.LogInformation("LocoNet power {Power}: TX {Result} to {Endpoint}",
             on ? "ON" : "OFF", sent ? "sent" : "failed", Endpoint);
@@ -661,59 +662,54 @@ public sealed class LocoNetSerialCommandCenter : BackgroundService, ICommandCent
     }
     public async Task<bool> EmergencyStopAsync(CancellationToken ct = default)
     {
-        // Do not send OPC_IDLE here: on the YD7010 it leaves locomotive slots
-        // unresponsive until a command-station power cycle.
-        // LocoNet slot speed 1 = DCC emergency stop; 0 = stopped.
-        // Only slots owned by this Hub connection are under our control.
         if (!_connected) return false;
 
-        var resume = _emergencyPaused;
-        int[] slots;
-        lock (_slotSync) slots = _slots.Values.Distinct().ToArray();
-
-        if (slots.Length == 0)
+        if (_emergencyPaused)
         {
-            _log.LogWarning("LocoNet emergency {Action}: no Hub-owned locomotive slots; cannot guarantee a global stop",
-                resume ? "resume" : "stop");
+            // Releasing the emergency latch never restores track power.
+            // A separate deliberate POWER ON action is required.
+            _emergencyPaused = false;
+            RawInfo?.Invoke("LocoNet emergency latch cleared; track power remains OFF");
+            return true;
+        }
+
+        // Fail-safe global action, even when the Hub has not acquired any loco
+        // slots: OPC_GPOFF removes track power from all locomotives.
+        _emergencyPaused = true;
+        if (!await SendPacketAsync([0x82], ct))
+        {
+            _log.LogError("LocoNet Serial emergency power OFF failed");
             return false;
         }
+        PowerFeedbackChanged?.Invoke(new PowerFeedback(false, "Main"));
 
-        // Latch before transmitting so other HUB speed requests cannot race a STOP.
-        if (!resume) _emergencyPaused = true;
+        int[] slots;
+        lock (_slotSync) slots = _slots.Values.Distinct().ToArray();
+        var allSlotsStopped = true;
         foreach (var slot in slots)
         {
-            var value = resume ? (byte)0 : (byte)1;
-            if (!await SendPacketAsync(new byte[] { 0xA0, (byte)slot, value }, ct))
-            {
-                _log.LogError("LocoNet emergency {Action} failed on slot {Slot}",
-                    resume ? "resume" : "stop", slot);
-                return false;
-            }
+            // LocoNet speed 0 clears a Hub-controlled loco's stored speed.
+            if (!await SendPacketAsync([0xA0, (byte)slot, 0x00], ct))
+                allSlotsStopped = false;
         }
-        // Publish the actual stop to the HUB's locomotive state cache.
-        // Never restore the previous throttle setting after emergency resume.
+
         (int Address, int Slot, byte Dirf, byte Snd)[] stopped;
         lock (_slotSync)
         {
             stopped = _slots.Select(pair => (
-                pair.Key,
-                pair.Value,
+                pair.Key, pair.Value,
                 _dirf.GetValueOrDefault(pair.Value),
                 _snd.GetValueOrDefault(pair.Value))).ToArray();
-            foreach (var loco in stopped) _speeds[loco.Slot] = 0;
+            if (allSlotsStopped)
+                foreach (var loco in stopped) _speeds[loco.Slot] = 0;
         }
-        foreach (var loco in stopped)
-            LocoFeedbackChanged?.Invoke(new LocoFeedback(
-                loco.Address, 0, (loco.Dirf & 0x20) == 0,
-                (uint)(((loco.Dirf & 0x10) != 0 ? 1 : 0) |
-                    ((loco.Dirf & 0x0F) << 1) |
-                    ((loco.Snd & 0x0F) << 5))));
+        if (allSlotsStopped)
+            foreach (var loco in stopped)
+                PublishLocoSlot(loco.Slot);
 
-        if (resume) _emergencyPaused = false;
-        RawInfo?.Invoke(resume
-            ? "LocoNet emergency RESUME: Hub locomotive slots set to speed 0; track power unchanged"
-            : "LocoNet emergency STOP: Hub locomotive slots sent emergency speed 1; track power unchanged");
-        return true;
+        RawInfo?.Invoke("LocoNet Serial E-STOP: track power OFF; " +
+            (allSlotsStopped ? "known loco speeds cleared" : "some loco zero-speed commands FAILED"));
+        return allSlotsStopped;
     }
 
     public Task<bool> SendRawAsync(string command, bool log = true, CancellationToken ct = default) =>
