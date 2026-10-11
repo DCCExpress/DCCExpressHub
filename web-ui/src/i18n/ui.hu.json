@@ -524,6 +524,7 @@
   "s88Payload": "S88-adatok",
   "ownedAndReportedByTheAdapter": "Az adapter határozza meg és jelenti",
   "protocol": "Protokoll",
+  "interface": "Interfész",
   "readOnlyAdapterCapabilityInformation": "Csak olvasható adapterképesség-információ",
   "s88AdapterEnabled": "S88-adapter engedélyezve",
   "inputRange": "Bemeneti tartomány:",
