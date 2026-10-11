@@ -486,7 +486,7 @@ export default function SystemInfoPanel({
 
   return (
     <Stack gap="sm">
-        <Card withBorder p="sm">
+        <Card withBorder p="sm" bg="var(--mantine-color-body)">
           <Stack gap="xs">
             <Group justify="space-between">
               <Text fw={700}>
@@ -746,7 +746,7 @@ export default function SystemInfoPanel({
         </Card>
 
         {isYaMoRc && locoNet && (
-          <Card withBorder p="sm">
+          <Card withBorder p="sm" bg="var(--mantine-color-body)">
             <Stack gap="xs">
               <Group justify="space-between">
                 <Text fw={700}>
@@ -859,7 +859,7 @@ export default function SystemInfoPanel({
           </Card>
         )}
 
-        <Card withBorder p="sm">
+        <Card withBorder p="sm" bg="var(--mantine-color-body)">
           <Stack gap="xs">
             <Group justify="space-between">
               <Text fw={700}>
