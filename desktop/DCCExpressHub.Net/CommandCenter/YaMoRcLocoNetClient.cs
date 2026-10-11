@@ -78,7 +78,8 @@ public sealed class YaMoRcLocoNetClient
         var savedSerial = YaMoRcLocoNetSerialSettings.Load();
         _serialPortName = savedSerial.Port.Trim();
         _serialBaudRate = savedSerial.BaudRate;
-        _serialFeedbackEnabled = savedSerial.Enabled;
+        _serialFeedbackEnabled = savedSerial.Enabled ||
+            string.Equals(configuration["CommandCenter:Protocol"], "loconet-serial", StringComparison.OrdinalIgnoreCase);
 
         // Never activate two concurrent LocoNet feedback sources for the
         // same physical sensors. USB Serial takes priority only when enabled.
