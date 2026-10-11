@@ -5,6 +5,7 @@ export type LayerId =
   | "track"
   | "blocks"
   | "buildings"
+  | "buttons"
   | "sensors"
   | "signals"
   | string;
