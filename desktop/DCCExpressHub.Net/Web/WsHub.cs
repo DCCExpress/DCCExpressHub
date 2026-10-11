@@ -23,6 +23,9 @@ public sealed class WsHub
     readonly TimetableRuntime Timetable;
     private readonly ILogger<WsHub> Logger;
     private readonly FastClockRuntime FastClock;
+    private readonly object _manualTurnoutTimingGate = new();
+    private readonly Dictionary<ushort, long> _manualTurnoutLastIssued = new();
+    private long _manualTurnoutLastGlobalIssued = -1;
     private readonly ConcurrentDictionary<Guid, IHubWebSocketClient> Clients = new();
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
@@ -944,6 +947,7 @@ public sealed class WsHub
                         finally
                         {
                             if (leaseOwner is not null)
+                                await Task.Delay(LayoutRuntime.TurnoutSettlingTimeMs, CancellationToken.None);
                                 SwitchMan.ReleaseOwned(new[] { a }, leaseOwner);
                         }
                         break;
@@ -974,6 +978,7 @@ public sealed class WsHub
                         finally
                         {
                             if (leaseOwner is not null)
+                                await Task.Delay(LayoutRuntime.TurnoutSettlingTimeMs, CancellationToken.None);
                                 SwitchMan.ReleaseOwned(new[] { a }, leaseOwner);
                         }
                         break;
@@ -998,6 +1003,7 @@ public sealed class WsHub
                         finally
                         {
                             if (leaseOwner is not null)
+                                await Task.Delay(LayoutRuntime.TurnoutSettlingTimeMs, CancellationToken.None);
                                 SwitchMan.ReleaseOwned(new[] { a }, leaseOwner);
                         }
                         break;
@@ -1022,6 +1028,7 @@ public sealed class WsHub
                         finally
                         {
                             if (leaseOwner is not null)
+                                await Task.Delay(LayoutRuntime.TurnoutSettlingTimeMs, CancellationToken.None);
                                 SwitchMan.ReleaseOwned(new[] { a }, leaseOwner);
                         }
                         break;
@@ -1117,7 +1124,33 @@ public sealed class WsHub
             ct);
 
         if (result.Ok)
+        {
+            long remaining;
+            lock (_manualTurnoutTimingGate)
+            {
+                var now = Environment.TickCount64;
+                var interval = LayoutRuntime.TurnoutCommandIntervalMs;
+                var settling = LayoutRuntime.TurnoutSettlingTimeMs;
+                var globalRemaining = _manualTurnoutLastGlobalIssued < 0
+                    ? 0 : interval - (now - _manualTurnoutLastGlobalIssued);
+                var localRemaining = _manualTurnoutLastIssued.TryGetValue(address, out var last)
+                    ? Math.Max(interval, settling) - (now - last) : 0;
+                remaining = Math.Max(0, Math.Max(globalRemaining, localRemaining));
+                if (remaining == 0)
+                {
+                    _manualTurnoutLastIssued[address] = now;
+                    _manualTurnoutLastGlobalIssued = now;
+                }
+            }
+
+            if (remaining > 0)
+            {
+                SwitchMan.ReleaseOwned(new[] { address }, ownerId);
+                await Send(ws, "error", new { message = "turnout_cooldown", address, retryAfterMs = remaining });
+                return (false, null);
+            }
             return (true, ownerId);
+        }
 
         var blockingLock = result.Conflicts.FirstOrDefault();
         await Send(ws, "error", new
