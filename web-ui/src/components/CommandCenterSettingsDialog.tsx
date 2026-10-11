@@ -148,8 +148,10 @@ function normalizeTransport(
   type: CommandCenterType | null | undefined,
 ): CommandCenterTransport {
   if (
-    value?.toLowerCase() === "serial" ||
-    type === "dcc-ex-serial"
+    (value?.toLowerCase() === "serial" ||
+     value?.toLowerCase() === "loconet-serial") ||
+    type === "dcc-ex-serial" ||
+    type === "loconet-serial"
   ) {
     return "serial";
   }
