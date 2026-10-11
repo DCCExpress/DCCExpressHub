@@ -69,7 +69,7 @@ public sealed class CommandCenterApi
 
     public HubApiResponse SaveLocoNetSerialSettings(bool enabled, string port, int baudRate)
     {
-        if (!string.Equals(_commandCenter.Type, "yamorc7010", StringComparison.OrdinalIgnoreCase) &&
+        if (!string.Equals(_commandCenter.Type, "loconet-serial", StringComparison.OrdinalIgnoreCase) &&
             _physical.GetLocoNetDiagnostics() is null)
             return HubApiResponse.Error(400, new { ok = false, message = "LocoNet USB Serial is available only for YaMoRC YD7010." });
 
@@ -246,6 +246,16 @@ public sealed class CommandCenterApi
                                 ? "Invalid serial COM port"
                                 : "Invalid serial device path"
                     });
+            }
+
+            if (current.Transport == "loconet-serial" &&
+                !serialPort.Equals(_commandCenter.Endpoint, StringComparison.OrdinalIgnoreCase))
+            {
+                return HubApiResponse.Error(409, new
+                {
+                    ok = false,
+                    message = "Change the LocoNet Serial COM port in the Desktop launcher and restart the backend."
+                });
             }
 
             next =
@@ -614,9 +624,9 @@ public sealed class CommandCenterApi
                         ? 0
                         : x.TcpPort,
                 serialPort =
-                    x.IsSerial
-                        ? x.SerialPort
-                        : "",
+                    isLocoNetSerial
+                        ? _commandCenter.Endpoint
+                        : x.IsSerial ? x.SerialPort : "",
                 baudRate =
                     x.IsSerial
                         ? CommandCenterSettings.DccExSerialBaudRate
