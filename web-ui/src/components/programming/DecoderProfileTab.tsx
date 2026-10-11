@@ -134,7 +134,11 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
     setAddressRead(null);
     setLocoAddress("");
     try {
-      await readAddress();
+      // A profile scan must not silently perform an additional multi-CV
+      // address read (CV29 then CV1/CV17/CV18) before the selected CVs.
+      // That preliminary transaction can leave the service-track programmer
+      // busy and is unrelated to the selected scan. Address verification
+      // remains available explicitly through the separate button.
       let consecutiveNoDecoder = 0;
       for (let i=0; i<cvs.length; i++) {
         if (cancel.current) break;
