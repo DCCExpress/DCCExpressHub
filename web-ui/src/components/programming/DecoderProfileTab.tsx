@@ -104,6 +104,9 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
       .filter(cv => Number.isInteger(cv) && cv >= 1 && cv <= MAX_CV)
       .sort((a,b) => a-b), [help]);
   const readAddress = async (): Promise<number | null> => {
+    // Never display a previous address while a fresh read is pending.
+    setAddressRead(null);
+    setLocoAddress("");
     setAddressError("");
     try {
       // DCC-EX implements a dedicated <R> service-track address read.
@@ -120,7 +123,7 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
       return address;
     } catch (e) {
       setAddressRead(null);
-      setAddressError(e instanceof Error ? e.message : String(e));
+      setAddressError(`NOK — ${e instanceof Error ? e.message : String(e)}`);
       return null;
     }
   };
@@ -130,6 +133,7 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
     setBusy(true);
     setError("");
     setResults({});
+    setSavedMessage("");
     setProgress({ done: 0, total: cvs.length });
     setAddressRead(null);
     setLocoAddress("");
@@ -399,7 +403,7 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
                   </Stack> : null}
                   {result.error && <Text size="xs" c="red">{result.error}</Text>}
                 </Table.Td>
-                <Table.Td>{format?.decimal ?? "—"}</Table.Td>
+                <Table.Td>{format?.decimal ?? (result.error ? "NOK" : "—")}</Table.Td>
                 <Table.Td ff="monospace">{format?.hex ?? "—"}</Table.Td>
                 <Table.Td ff="monospace">{format?.binary ?? "—"}</Table.Td>
               </Table.Tr>;
