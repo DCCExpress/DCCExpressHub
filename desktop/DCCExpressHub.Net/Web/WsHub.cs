@@ -907,8 +907,32 @@ public sealed class WsHub
                         break;
                     }
                 case "getLoco":
-                    ok = await CommandCenter.RequestLocoAsync(I(data, "locoAddress"), ct);
-                    break;
+                    {
+                        int address = I(data, "locoAddress");
+                        if (address is < 1 or > 10239) return;
+
+                        // Switching the throttle must always restore the last
+                        // authoritative Hub state for THIS locomotive, even
+                        // when the physical command station responds later or
+                        // cannot immediately return its function mask.
+                        // A later hardware feedback message can correct it.
+                        if (HubState.Locos.TryGetValue(address, out var cached))
+                        {
+                            await Send(ws, "locoState", new
+                            {
+                                loco = new
+                                {
+                                    address = cached.Address,
+                                    speed = cached.Speed,
+                                    direction = cached.Forward ? "forward" : "reverse",
+                                    functionsMask = cached.FunctionsMask
+                                }
+                            });
+                        }
+
+                        ok = await CommandCenter.RequestLocoAsync(address, ct);
+                        break;
+                    }
                 case "setLocoFunction":
                     {
                         int a = I(data, "locoAddress"), fn = I(data, "functionNumber");
