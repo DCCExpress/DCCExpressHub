@@ -124,3 +124,19 @@ test("all three languages define LocoNet telemetry labels", () => {
     ]) assert.ok(ui[key], `${lang} missing ${key}`);
   }
 });
+
+test("LocoNet CV reads default to one attempt and fixed settle time", () => {
+  const cc = read("../desktop/DCCExpressHub.Net/CommandCenter/LocoNetCommandCenter.cs");
+  const required = [
+    'config.GetValue("LocoNet:ServiceReadAttempts", 1)',
+    "int attempts = !write && address == 0 ? _serviceReadAttempts : 1",
+    "ServiceTrackSpacingMs = 100",
+    "Task.Delay(ServiceTrackSpacingMs, CancellationToken.None)",
+    "response={ResponseMs} ms",
+    "response {responseMs} ms; attempts {attempt}"
+  ];
+  for (const phrase of required)
+    assert.ok(cc.includes(phrase), "Missing CV timing guard: " + phrase);
+  assert.ok(!cc.includes("_serviceRecoveryMs"), "Adaptive extra delays must stay removed");
+  assert.ok(!cc.includes("const int maxAttempts = 3"), "Three hidden reads must stay removed");
+});
