@@ -898,7 +898,7 @@ function SensorSettingsCard() {
 
   useEffect(() => {
     const unsubscribe = wsClient.on(
-      "sensorSettings" as Parameters<typeof wsClient.on>[0],
+      "sensorSettings",
       (data: { sensorOffDelayMs: number; saved?: boolean }) => {
         setValue(data.sensorOffDelayMs);
         setSavedValue(data.sensorOffDelayMs);
@@ -907,7 +907,7 @@ function SensorSettingsCard() {
         if (data.saved) showNotification({ message: "Sensor settings saved", color: "green" });
       }
     );
-    wsClient.send({ type: "sensorSettings", data: { action: "get" } } as Parameters<typeof wsClient.send>[0]);
+    wsClient.send({ type: "sensorSettings", data: { action: "get" } });
     return unsubscribe;
   }, []);
 
