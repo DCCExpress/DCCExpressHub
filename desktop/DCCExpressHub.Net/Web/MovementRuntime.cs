@@ -299,11 +299,7 @@ public sealed class MovementRuntime
         var name =
             block.Name.Trim();
 
-        return name.Contains(
-                idLabel,
-                StringComparison.OrdinalIgnoreCase)
-            ? name
-            : name + " (" + idLabel + ")";
+        return name;
     }
 
     static string OccupancyError(
