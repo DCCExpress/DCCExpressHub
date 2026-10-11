@@ -891,51 +891,77 @@ function LitePropertyPanel({
 }
 
 function SensorSettingsCard() {
-  const [value, setValue] = useState<number | string>(250);
-  const [savedValue, setSavedValue] = useState(250);
+  const [sensorOffMs, setSensorOffMs] = useState<number | string>(250);
+  const [commandIntervalMs, setCommandIntervalMs] = useState<number | string>(150);
+  const [settlingMs, setSettlingMs] = useState<number | string>(100);
+  const [saved, setSaved] = useState({ sensorOffMs: 250, commandIntervalMs: 150, settlingMs: 100 });
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = wsClient.on(
-      "sensorSettings",
-      (data: { sensorOffDelayMs: number; saved?: boolean }) => {
-        setValue(data.sensorOffDelayMs);
-        setSavedValue(data.sensorOffDelayMs);
-        setSaving(false);
-        setLoaded(true);
-        if (data.saved) showNotification({ message: "Sensor settings saved", color: "green" });
-      }
-    );
+    const unsubscribe = wsClient.on("sensorSettings", data => {
+      setSensorOffMs(data.sensorOffDelayMs);
+      setCommandIntervalMs(data.turnoutCommandIntervalMs);
+      setSettlingMs(data.turnoutSettlingTimeMs);
+      setSaved({
+        sensorOffMs: data.sensorOffDelayMs,
+        commandIntervalMs: data.turnoutCommandIntervalMs,
+        settlingMs: data.turnoutSettlingTimeMs,
+      });
+      setSaving(false);
+      setLoaded(true);
+      if (data.saved) showNotification({ message: "Settings saved", color: "green" });
+    });
     wsClient.send({ type: "sensorSettings", data: { action: "get" } });
     return unsubscribe;
   }, []);
 
-  const valid = typeof value === "number" && Number.isInteger(value) && value >= 100 && value <= 1000;
+  const isInt = (value: number | string, min: number, max: number) =>
+    typeof value === "number" && Number.isInteger(value) && value >= min && value <= max;
+  const valid = isInt(sensorOffMs, 100, 1000) &&
+    isInt(commandIntervalMs, 0, 5000) && isInt(settlingMs, 0, 30000);
+  const dirty = sensorOffMs !== saved.sensorOffMs ||
+    commandIntervalMs !== saved.commandIntervalMs || settlingMs !== saved.settlingMs;
+
   return (
     <Card withBorder p="sm">
       <Stack gap="xs">
         <Group gap="xs"><IconSettings size={17} /><Text fw={600}>Settings</Text></Group>
         <NumberInput
           label="Sensor OFF delay (ms)"
-          description="ON is immediate. OFF is confirmed only after the selected delay (100–1000 ms)."
-          value={value}
-          onChange={setValue}
-          min={100}
-          max={1000}
-          step={50}
-          allowDecimal={false}
-          clampBehavior="strict"
+          description="ON is immediate; OFF must remain stable for this time."
+          value={sensorOffMs}
+          onChange={setSensorOffMs}
+          min={100} max={1000} step={50} allowDecimal={false} clampBehavior="strict"
+        />
+        <NumberInput
+          label="Turnout command interval (ms)"
+          description="Minimum interval between commands for different turnouts."
+          value={commandIntervalMs}
+          onChange={setCommandIntervalMs}
+          min={0} max={5000} step={50} allowDecimal={false} clampBehavior="strict"
+        />
+        <NumberInput
+          label="Turnout settling time (ms)"
+          description="Wait before granting route authority. Settling times of multiple turnouts overlap."
+          value={settlingMs}
+          onChange={setSettlingMs}
+          min={0} max={30000} step={50} allowDecimal={false} clampBehavior="strict"
         />
         <Group justify="flex-end">
           <Button
             size="xs"
             leftSection={<IconDeviceFloppy size={15} />}
-            disabled={!loaded || !valid || value === savedValue || saving}
+            disabled={!loaded || !valid || !dirty || saving}
             loading={saving}
             onClick={() => {
-              if (!valid) return;
-              if (!wsClient.send({ type: "sensorSettings", data: { action: "save", sensorOffDelayMs: value } } as Parameters<typeof wsClient.send>[0])) {
+              if (!valid || typeof sensorOffMs !== "number" ||
+                  typeof commandIntervalMs !== "number" || typeof settlingMs !== "number") return;
+              if (!wsClient.send({ type: "sensorSettings", data: {
+                action: "save", sensorOffDelayMs: sensorOffMs,
+                turnoutCommandIntervalMs: commandIntervalMs,
+                turnoutSettlingTimeMs: settlingMs,
+              } })) {
                 showNotification({ message: "WebSocket is not connected", color: "red" });
                 return;
               }
